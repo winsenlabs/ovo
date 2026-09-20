@@ -121,7 +121,7 @@
   .panel-head {
     min-height: 54px;
   }
-  .metrics > div {
+  .metrics > :is(div, article) {
     min-width: 0;
   }
   .table-region {

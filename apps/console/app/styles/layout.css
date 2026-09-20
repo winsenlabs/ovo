@@ -176,7 +176,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
-.metrics > div {
+.metrics > :is(div, article) {
   display: grid;
   gap: 3px;
   padding: 15px 17px;
