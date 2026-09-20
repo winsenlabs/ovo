@@ -6,7 +6,7 @@ const previewOrigins =
     .filter(Boolean) ?? [];
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: previewOrigins,
+  allowedDevOrigins: ['localhost', '127.0.0.1', ...previewOrigins],
   transpilePackages: [
     '@winsendotai/ovo-contracts',
     '@winsendotai/ovo-runtime',

@@ -1,5 +1,6 @@
 node_modules/
 .next/
+apps/console/next-env.d.ts
 dist/
 vendor/
 packages/runtime/src/upstream/
