@@ -1,3 +1,4 @@
+import { seedAdminFromEnv } from './user-plugin.ts';
 import { buildManagementApi, bootstrapIdentitiesFromEnv, sessionSecretFromEnv } from './server.ts';
 
 import { loadInstalledSessionExtensions } from '@winsendotai/ovo-plugin-session';
@@ -7,6 +8,7 @@ const extensions = await loadInstalledSessionExtensions(process.env.OVO_PLUGIN_M
 const identities = bootstrapIdentitiesFromEnv();
 const identity = identities[0]!;
 const production = process.env.NODE_ENV === 'production';
+const allowLocalHttp = process.env.OVO_ALLOW_LOCAL_HTTP === 'true';
 const storageAdapter = production
   ? 'postgres'
   : process.env.OVO_STORAGE_ADAPTER === 'postgres'
@@ -28,6 +30,7 @@ const trustedProxy = process.env.OVO_TRUSTED_PROXY_CIDRS?.split(',')
   .filter(Boolean);
 const { app, composition } = await buildManagementApi({
   identities,
+  seedAdmin: seedAdminFromEnv(),
   pluginCatalog: extensions.plugins,
   defaultSession: {
     nativeHandlers: extensions.nativeHandlers,
@@ -46,7 +49,8 @@ const { app, composition } = await buildManagementApi({
   secretBackend,
   secretsMasterKey: process.env.OVO_SECRETS_MASTER_KEY,
   awsRegion: process.env.AWS_REGION,
-  requireTlsForSecrets: production,
+  requireTlsForSecrets: production && !allowLocalHttp,
+  secureSessionCookies: production && !allowLocalHttp,
   trustedProxy: trustedProxy?.length ? trustedProxy : undefined,
   logger: true,
 });

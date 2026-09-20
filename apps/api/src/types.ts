@@ -6,6 +6,7 @@ export interface BootstrapIdentity {
   id: string;
   label: string;
   token: string;
+  authenticationDisabled?: boolean;
   workspaces: Record<string, Role>;
   defaultWorkspaceId: string;
 }
@@ -20,6 +21,8 @@ export interface ManagementApiService {
 }
 export interface ManagementApiOptions {
   identities: BootstrapIdentity[];
+  usersEnabled?: boolean;
+  seedAdmin?: import('./user-plugin.ts').SeedAdminInput;
   sessionSecret: string;
   pluginCatalog?: readonly PluginDefinition[];
   defaultSession?: DefaultSessionOptions;
@@ -37,6 +40,7 @@ export interface ManagementApiOptions {
     fixtureBindings?: boolean;
   }) => readonly PluginDefinition[] | Promise<readonly PluginDefinition[]>;
   requireTlsForSecrets?: boolean;
+  secureSessionCookies?: boolean;
   sessionTtlSeconds?: number;
   logger?: boolean;
   trustedProxy?: string | string[];

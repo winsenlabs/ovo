@@ -1,3 +1,4 @@
+import type { UserDirectory } from './user-directory.ts';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Role } from '@winsendotai/ovo-plugin-storage';
@@ -27,12 +28,14 @@ export class Authenticator {
         throw new Error(`Duplicate bootstrap identity ${identity.id}`);
       if (!Object.hasOwn(identity.workspaces, identity.defaultWorkspaceId))
         throw new Error(`Default workspace is not authorized for ${identity.id}`);
-      this.byId.set(identity.id, identity);
+      if (!identity.authenticationDisabled) this.byId.set(identity.id, identity);
     }
   }
   identityForToken(token: string) {
     const digest = hash(token);
-    return this.options.identities.find((identity) => safeEqual(digest, hash(identity.token)));
+    return this.options.identities.find(
+      (identity) => !identity.authenticationDisabled && safeEqual(digest, hash(identity.token)),
+    );
   }
   createSession(identity: BootstrapIdentity, workspaceId: string) {
     if (!Object.hasOwn(identity.workspaces, workspaceId))
@@ -59,7 +62,8 @@ export class Authenticator {
       .update(identity.token)
       .digest('base64url');
   }
-  private decodeSession(value: string): Principal | undefined {
+  private parseSession(value: string) {
+    if (value.length > 4096) return;
     const [payload, signature, extra] = value.split('.');
     if (!payload || !signature || extra) return;
     const expected = createHmac('sha256', this.options.sessionSecret).update(payload).digest(),
@@ -72,6 +76,11 @@ export class Authenticator {
       tokenVersion: string;
     };
     if (!decoded || !Number.isFinite(decoded.exp) || decoded.exp <= Date.now() / 1000) return;
+    return decoded;
+  }
+  private decodeSession(value: string): Principal | undefined {
+    const decoded = this.parseSession(value);
+    if (!decoded) return;
     const identity = this.byId.get(decoded.identityId),
       role =
         identity && Object.hasOwn(identity.workspaces, decoded.workspaceId)
@@ -81,6 +90,35 @@ export class Authenticator {
     return identity && role
       ? { identityId: identity.id, label: identity.label, workspaceId: decoded.workspaceId, role }
       : undefined;
+  }
+  async authenticateWithUsers(
+    request: FastifyRequest,
+    users?: UserDirectory,
+  ): Promise<Principal | undefined> {
+    const existing = this.authenticate(request);
+    if (existing || !users) return existing;
+    const value = cookie(request.headers.cookie, 'ovo_session');
+    if (!value) return;
+    let decoded: ReturnType<Authenticator['parseSession']>;
+    try {
+      decoded = this.parseSession(value);
+    } catch {
+      return;
+    }
+    if (
+      !decoded ||
+      typeof decoded.identityId !== 'string' ||
+      typeof decoded.workspaceId !== 'string'
+    )
+      return;
+    const identity = await users.resolve(decoded.identityId, decoded.workspaceId);
+    if (!identity || decoded.tokenVersion !== this.tokenVersion(identity)) return;
+    return {
+      identityId: identity.id,
+      label: identity.label,
+      workspaceId: decoded.workspaceId,
+      role: identity.workspaces[decoded.workspaceId]!,
+    };
   }
   authenticate(request: FastifyRequest) {
     const bearer = request.headers.authorization?.startsWith('Bearer ')

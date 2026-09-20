@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import type { BootstrapIdentity } from './types.ts';
 import { z } from 'zod';
 
@@ -54,12 +54,16 @@ export function bootstrapIdentitiesFromEnv(
 }
 
 export function bootstrapIdentityFromEnv(env: NodeJS.ProcessEnv = process.env): BootstrapIdentity {
-  if (!env.OVO_ADMIN_TOKEN) throw new Error('OVO_ADMIN_TOKEN is required');
-  const workspaceId = env.OVO_ADMIN_WORKSPACE_ID ?? 'local';
+  if (!env.OVO_ADMIN_TOKEN && !env.OVO_SEED_ADMIN_EMAIL)
+    throw new Error(
+      'Seed administrator email/password or a legacy administrator token is required',
+    );
+  const workspaceId = env.OVO_ORGANIZATION_ID ?? env.OVO_ADMIN_WORKSPACE_ID ?? 'local';
   return {
     id: env.OVO_ADMIN_ID ?? 'local-admin',
     label: env.OVO_ADMIN_LABEL ?? 'Local administrator',
-    token: env.OVO_ADMIN_TOKEN,
+    token: env.OVO_ADMIN_TOKEN ?? randomBytes(32).toString('hex'),
+    authenticationDisabled: !env.OVO_ADMIN_TOKEN,
     defaultWorkspaceId: workspaceId,
     workspaces: { [workspaceId]: 'admin' },
   };

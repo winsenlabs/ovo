@@ -5,9 +5,10 @@
     "required": "Namespaced packages, documented commands, CI pass; applications private",
     "workPackages": "W02",
     "status": "partial local evidence",
-    "evidence": ["docs/local-development.md"],
+    "evidence": ["docs/local-development.md", "scripts/local-ci.sh"],
     "workPackageIds": ["W02"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Workspace/commands and local quality gates are implemented; independent final run is pending. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A02",
@@ -15,9 +16,10 @@
     "required": "It publishes/runs with valid message inputs; no LLM call occurs",
     "workPackages": "W08, W14",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/voice-implementation.md"],
+    "evidence": ["docs/evidence/voice-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W08", "W14"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A03",
@@ -25,9 +27,10 @@
     "required": "Admission rejects with field error before dialing; no placeholder spoken",
     "workPackages": "W08",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/voice-implementation.md"],
+    "evidence": ["docs/evidence/voice-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W08"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A04",
@@ -35,9 +38,10 @@
     "required": "Approved values are spoken correctly in tested fixtures",
     "workPackages": "W08",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/voice-implementation.md"],
+    "evidence": ["docs/evidence/voice-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W08"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Authorized carrier/provider audio, listening, latency, and long-call evidence remains required.",
+    "localEvidenceGap": null
   },
   {
     "id": "A05",
@@ -45,9 +49,13 @@
     "required": "Supported questions answered; no generative or hidden semantic API request",
     "workPackages": "W09",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/voice-implementation.md"],
+    "evidence": [
+      "docs/evidence/voice-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W09"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Provider-model/STT/TTS live behavior is not certified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A06",
@@ -55,9 +63,13 @@
     "required": "Configured clarification/escalation; no forced nearest answer",
     "workPackages": "W09",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/voice-implementation.md"],
+    "evidence": [
+      "docs/evidence/voice-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W09"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Provider-model/STT/TTS live behavior is not certified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A07",
@@ -65,9 +77,13 @@
     "required": "Explicit tool/policy path or honest handoff; no generic approval",
     "workPackages": "W09, W11",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/tools-implementation.md"],
+    "evidence": [
+      "docs/evidence/tools-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W09", "W11"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A08",
@@ -75,9 +91,13 @@
     "required": "Configured uncertainty response; no tool execution or invented confirmed fact",
     "workPackages": "W10",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/voice-implementation.md"],
+    "evidence": [
+      "docs/evidence/voice-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W10"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Provider-model/STT/TTS live behavior is not certified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A09",
@@ -85,9 +105,13 @@
     "required": "Critical context is preserved through documented strategy or test/publication fails",
     "workPackages": "W10",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/voice-implementation.md"],
+    "evidence": [
+      "docs/evidence/voice-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W10"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Provider-model/STT/TTS live behavior is not certified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A10",
@@ -95,9 +119,14 @@
     "required": "Runtime rejects before external execution and records error",
     "workPackages": "W10, W11",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/tools-implementation.md"],
+    "evidence": [
+      "docs/evidence/tools-implementation.md",
+      "docs/evidence/production-evaluations.md",
+      "docs/evidence/voice-implementation.md"
+    ],
     "workPackageIds": ["W10", "W11"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Provider-model/STT/TTS live behavior is not certified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A11",
@@ -105,9 +134,13 @@
     "required": "External write waits for valid confirmation; processing speech is not consent",
     "workPackages": "W11",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/tools-implementation.md"],
+    "evidence": [
+      "docs/evidence/tools-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W11"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. No external write or customer-impacting tool execution was authorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A12",
@@ -115,9 +148,13 @@
     "required": "Exactly one matching acknowledgment precedes spoken result",
     "workPackages": "W11, W14",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/tools-implementation.md"],
+    "evidence": [
+      "docs/evidence/tools-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W11", "W14"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A13",
@@ -125,9 +162,13 @@
     "required": "Operation runs concurrently; result waits; required acknowledgment retained",
     "workPackages": "W11",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/tools-implementation.md"],
+    "evidence": [
+      "docs/evidence/tools-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W11"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A14",
@@ -135,9 +176,13 @@
     "required": "One initial acknowledgment, distinct correlated internal spans",
     "workPackages": "W11, W15",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/tools-implementation.md"],
+    "evidence": [
+      "docs/evidence/tools-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W11", "W15"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A15",
@@ -145,9 +190,13 @@
     "required": "Speech stops; appropriate tool cancellation/reconciliation; result not lost",
     "workPackages": "W04, W11",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/tools-implementation.md"],
+    "evidence": [
+      "docs/evidence/tools-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W04", "W11"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A16",
@@ -155,9 +204,13 @@
     "required": "Bounded configured progress speech, cancelled on completion",
     "workPackages": "W11",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/tools-implementation.md"],
+    "evidence": [
+      "docs/evidence/tools-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W11"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A17",
@@ -165,9 +218,14 @@
     "required": "New release uses change; active call keeps prior version",
     "workPackages": "W12, W14",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/control-implementation.md"],
+    "evidence": [
+      "docs/evidence/control-implementation.md",
+      "docs/evidence/production-control-storage.md",
+      "docs/evidence/console-implementation.md"
+    ],
     "workPackageIds": ["W12", "W14"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Production database, secret custody, and deployed browser/session operation remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A18",
@@ -175,9 +233,14 @@
     "required": "Entire journey completed in frontend, no source or agent `.env` edits",
     "workPackages": "W12–W14",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/control-implementation.md"],
+    "evidence": [
+      "docs/evidence/control-implementation.md",
+      "docs/evidence/production-control-storage.md",
+      "docs/evidence/console-implementation.md"
+    ],
     "workPackageIds": ["W12", "W13", "W14"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Production database, secret custody, and deployed browser/session operation remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A19",
@@ -185,9 +248,14 @@
     "required": "Stored server-side encrypted; response contains reference/metadata only",
     "workPackages": "W13",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/control-implementation.md"],
+    "evidence": [
+      "docs/evidence/control-implementation.md",
+      "docs/evidence/production-control-storage.md",
+      "docs/evidence/console-implementation.md"
+    ],
     "workPackageIds": ["W13"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Production database, secret custody, and deployed browser/session operation remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A20",
@@ -195,9 +263,14 @@
     "required": "Redacted status and impact shown; new calls follow valid binding; no value reveal",
     "workPackages": "W13, W14",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/control-implementation.md"],
+    "evidence": [
+      "docs/evidence/control-implementation.md",
+      "docs/evidence/production-control-storage.md",
+      "docs/evidence/console-implementation.md"
+    ],
     "workPackageIds": ["W13", "W14"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Production database, secret custody, and deployed browser/session operation remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A21",
@@ -205,9 +278,14 @@
     "required": "No plaintext credential survives outside the intended input/request/backend resolution path",
     "workPackages": "W13, W20",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/control-implementation.md"],
+    "evidence": [
+      "docs/evidence/control-implementation.md",
+      "docs/evidence/production-control-storage.md",
+      "docs/evidence/console-implementation.md"
+    ],
     "workPackageIds": ["W13", "W20"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Production database, secret custody, and deployed browser/session operation remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A22",
@@ -215,9 +293,14 @@
     "required": "Conflict detected; no silent overwrite; released version unchanged",
     "workPackages": "W12, W14",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/control-implementation.md"],
+    "evidence": [
+      "docs/evidence/control-implementation.md",
+      "docs/evidence/production-control-storage.md",
+      "docs/evidence/console-implementation.md"
+    ],
     "workPackageIds": ["W12", "W14"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A23",
@@ -225,9 +308,14 @@
     "required": "Publication blocked with specific capability/dependency error",
     "workPackages": "W03, W14",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/control-implementation.md"],
+    "evidence": [
+      "docs/evidence/control-implementation.md",
+      "docs/evidence/production-control-storage.md",
+      "docs/evidence/console-implementation.md"
+    ],
     "workPackageIds": ["W03", "W14"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A24",
@@ -235,9 +323,14 @@
     "required": "Existing call pinned; new call uses selected release",
     "workPackages": "W03, W12",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/control-implementation.md"],
+    "evidence": [
+      "docs/evidence/control-implementation.md",
+      "docs/evidence/production-control-storage.md",
+      "docs/evidence/console-implementation.md"
+    ],
     "workPackageIds": ["W03", "W12"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Production database, secret custody, and deployed browser/session operation remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A25",
@@ -245,9 +338,10 @@
     "required": "Error contained; core call/navigation experience still usable",
     "workPackages": "W14, W15",
     "status": "not verified",
-    "evidence": [],
+    "evidence": ["docs/evidence/console-implementation.md"],
     "workPackageIds": ["W14", "W15"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Console implementation record describes contained operational states; final independent component-failure exercise is pending. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": "Independent local component-throw containment exercise not yet recorded."
   },
   {
     "id": "A26",
@@ -255,9 +349,13 @@
     "required": "Required authoring/review actions accessible; focus/errors labelled",
     "workPackages": "W14, W20",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/console-implementation.md"],
+    "evidence": [
+      "docs/evidence/console-implementation.md",
+      "docs/evidence/production-control-storage.md"
+    ],
     "workPackageIds": ["W14", "W20"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A27",
@@ -265,9 +363,10 @@
     "required": "One valid owner; no duplicate dial caused by duplicate delivery",
     "workPackages": "W07",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/deployment-implementation.md"],
+    "evidence": ["docs/evidence/deployment-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W07"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A28",
@@ -275,9 +374,10 @@
     "required": "Reconcile status before retry; unknown outcome visible",
     "workPackages": "W05, W07",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/deployment-implementation.md"],
+    "evidence": ["docs/evidence/deployment-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W05", "W07"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A29",
@@ -285,9 +385,13 @@
     "required": "Unknown/pending recorded; no blind retry or false success",
     "workPackages": "W07, W11",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/tools-implementation.md"],
+    "evidence": [
+      "docs/evidence/tools-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W07", "W11"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. No external write or customer-impacting tool execution was authorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A30",
@@ -295,9 +399,13 @@
     "required": "Tool side effect does not execute",
     "workPackages": "W07, W11",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/tools-implementation.md"],
+    "evidence": [
+      "docs/evidence/tools-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W07", "W11"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. No external write or customer-impacting tool execution was authorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A31",
@@ -305,29 +413,32 @@
     "required": "Old response epochs never enter playback",
     "workPackages": "W04",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/voice-implementation.md"],
+    "evidence": ["docs/evidence/voice-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W04"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A32",
     "scenario": "Backchannel/background noise occurs",
     "required": "Tested turn policy distinguishes it from takeover; measured false-interrupt rate reported",
     "workPackages": "W04, W06",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": ["docs/evidence/production-media.md", "docs/evidence/voice-implementation.md"],
     "workPackageIds": ["W04", "W06"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Engine has bounded barge-in/backchannel policy and local protocol coverage; no false-interrupt rate is claimed. Authorized carrier/provider audio, listening, latency, and long-call evidence remains required.",
+    "localEvidenceGap": null
   },
   {
     "id": "A33",
     "scenario": "STT revises partial transcript",
     "required": "One accepted user turn; no repeated business action",
     "workPackages": "W04, W06",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": ["docs/evidence/production-media.md", "docs/evidence/voice-implementation.md"],
     "workPackageIds": ["W04", "W06"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Authorized carrier/provider audio, listening, latency, and long-call evidence remains required.",
+    "localEvidenceGap": null
   },
   {
     "id": "A34",
@@ -335,9 +446,10 @@
     "required": "Bounded queues/deadlines and configured recovery; no infinite processing",
     "workPackages": "W04, W06",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/voice-implementation.md"],
+    "evidence": ["docs/evidence/voice-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W04", "W06"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Authorized carrier/provider audio, listening, latency, and long-call evidence remains required.",
+    "localEvidenceGap": null
   },
   {
     "id": "A35",
@@ -345,9 +457,10 @@
     "required": "Cleanup exactly once; no leaked stream/timer/session object",
     "workPackages": "W03, W04",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/voice-implementation.md"],
+    "evidence": ["docs/evidence/voice-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W03", "W04"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Authorized carrier/provider audio, listening, latency, and long-call evidence remains required.",
+    "localEvidenceGap": null
   },
   {
     "id": "A36",
@@ -355,9 +468,10 @@
     "required": "Behavior code unchanged; advertised contracts pass conformance suite",
     "workPackages": "W03, W06",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/voice-implementation.md"],
+    "evidence": ["docs/evidence/voice-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W03", "W06"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Authorized carrier/provider audio, listening, latency, and long-call evidence remains required.",
+    "localEvidenceGap": null
   },
   {
     "id": "A37",
@@ -365,29 +479,32 @@
     "required": "No rollout-induced drops within certified drain window",
     "workPackages": "W19",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/deployment-implementation.md"],
+    "evidence": ["docs/evidence/deployment-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W19"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Drain/protection implementation and local lifecycle evidence exist; no live rollout claim. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A38",
     "scenario": "Worker/EC2 host crashes",
     "required": "Sessions marked/reconciled; no claim of seamless audio recovery or automatic duplicate redial",
     "workPackages": "W07, W19",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": ["docs/evidence/deployment-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W07", "W19"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Crash/reconciliation state and ownership fencing have local evidence. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A39",
     "scenario": "Single EC2 runs two calls",
     "required": "Separate workers/context/limits, no state/audio crossover",
     "workPackages": "W19",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": ["docs/evidence/deployment-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W19"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Isolation implementation is local; no EC2 two-call certification is claimed. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A40",
@@ -395,9 +512,10 @@
     "required": "All claimed application compute on Fargate; external managed services explicit",
     "workPackages": "W19",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/deployment-implementation.md"],
+    "evidence": ["docs/evidence/deployment-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W19"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A41",
@@ -405,29 +523,41 @@
     "required": "Defined overflow/wait/human/callback path, no unexplained silence",
     "workPackages": "W16",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/deployment-implementation.md"],
+    "evidence": [
+      "docs/evidence/deployment-implementation.md",
+      "docs/evidence/production-operations.md"
+    ],
     "workPackageIds": ["W16"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A42",
     "scenario": "Suppression added after campaign enqueue",
     "required": "Admission/retry rechecks and prevents dial",
     "workPackages": "W16",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": [
+      "docs/evidence/production-operations.md",
+      "docs/evidence/deployment-implementation.md"
+    ],
     "workPackageIds": ["W16"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A43",
     "scenario": "Campaign paused",
     "required": "New dials stop within five seconds of acknowledged pause; active-call policy explicit",
     "workPackages": "W16",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": [
+      "docs/evidence/production-operations.md",
+      "docs/evidence/deployment-implementation.md"
+    ],
     "workPackageIds": ["W16"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A44",
@@ -435,19 +565,27 @@
     "required": "Caller receives configured fallback; no false transfer-success status",
     "workPackages": "W05, W16",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/deployment-implementation.md"],
+    "evidence": [
+      "docs/evidence/deployment-implementation.md",
+      "docs/evidence/production-operations.md"
+    ],
     "workPackageIds": ["W05", "W16"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A45",
     "scenario": "Callback duplicated/out of order",
     "required": "Idempotent projection; terminal state never regresses",
     "workPackages": "W05, W07",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": [
+      "docs/evidence/production-operations.md",
+      "docs/evidence/deployment-implementation.md"
+    ],
     "workPackageIds": ["W05", "W07"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Idempotent callback/inbound state handling has current local operations evidence. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A46",
@@ -455,9 +593,10 @@
     "required": "Inspector distinguishes generated/sent/played evidence; context includes correct partial state",
     "workPackages": "W04, W15",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/voice-implementation.md"],
+    "evidence": ["docs/evidence/voice-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W04", "W15"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Authorized carrier/provider audio, listening, latency, and long-call evidence remains required.",
+    "localEvidenceGap": null
   },
   {
     "id": "A47",
@@ -465,19 +604,25 @@
     "required": "Disabled/finalizing/failed/expired distinct; transcript still usable",
     "workPackages": "W17",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/console-implementation.md"],
+    "evidence": [
+      "docs/evidence/console-implementation.md",
+      "docs/evidence/production-recordings.md",
+      "docs/runbooks/backup-restore.md"
+    ],
     "workPackageIds": ["W17"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Real carrier capture, object-store staging, retention/legal operations, and production restore exercise remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A48",
     "scenario": "Aligned transcript clicked",
     "required": "Seek within ±250 ms of known alignment, or label estimate/unavailable",
     "workPackages": "W15, W17",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": ["docs/evidence/production-recordings.md", "docs/runbooks/backup-restore.md"],
     "workPackageIds": ["W15", "W17"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Authorized carrier/provider audio, listening, latency, and long-call evidence remains required.",
+    "localEvidenceGap": null
   },
   {
     "id": "A49",
@@ -485,29 +630,41 @@
     "required": "Calls continue; stale label; cursor/snapshot recovery without duplicate lines",
     "workPackages": "W12, W15",
     "status": "not verified",
-    "evidence": [],
+    "evidence": [
+      "docs/evidence/deployment-implementation.md",
+      "apps/console/OPERATOR_E2E_HANDOFF.md"
+    ],
     "workPackageIds": ["W12", "W15"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Durable cursor/SSE implementation is recorded; final independent reconnect exercise is pending. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": "Independent local browser disconnect/reconnect cursor exercise not yet recorded."
   },
   {
     "id": "A50",
     "scenario": "Slow turn inspected",
     "required": "Timeline exposes turn/STT/model/tool/TTS/playback spans without double-counting overlaps",
     "workPackages": "W15",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": [
+      "docs/evidence/deployment-implementation.md",
+      "apps/console/OPERATOR_E2E_HANDOFF.md"
+    ],
     "workPackageIds": ["W15"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Durable telemetry and stage spans are implemented with local evidence. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A51",
     "scenario": "Latency percentile/cohort selected",
     "required": "Underlying calls and sample count available; no averaging percentiles",
     "workPackages": "W15",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": [
+      "docs/evidence/deployment-implementation.md",
+      "apps/console/OPERATOR_E2E_HANDOFF.md"
+    ],
     "workPackageIds": ["W15"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Cohort/percentile query implementation is locally evidenced. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A52",
@@ -515,9 +672,14 @@
     "required": "Access denied server-side for APIs, streams, artifacts and plugin routes",
     "workPackages": "W12, W20",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/control-implementation.md"],
+    "evidence": [
+      "docs/evidence/control-implementation.md",
+      "docs/evidence/production-control-storage.md",
+      "docs/evidence/console-implementation.md"
+    ],
     "workPackageIds": ["W12", "W20"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Production database, secret custody, and deployed browser/session operation remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A53",
@@ -525,9 +687,13 @@
     "required": "No access grant, secret retrieval, arbitrary plugin install or unapproved operation",
     "workPackages": "W11, W20",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/tools-implementation.md"],
+    "evidence": [
+      "docs/evidence/tools-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W11", "W20"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. No external write or customer-impacting tool execution was authorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A54",
@@ -535,19 +701,24 @@
     "required": "Egress validation rejects unapproved destination",
     "workPackages": "W11, W20",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/tools-implementation.md"],
+    "evidence": [
+      "docs/evidence/tools-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W11", "W20"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. No external write or customer-impacting tool execution was authorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A55",
     "scenario": "Recorded call replayed",
     "required": "Stub tools and synthetic transport enforced; no customer dial/production mutation",
     "workPackages": "W17, W20",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": ["docs/evidence/production-recordings.md", "docs/runbooks/backup-restore.md"],
     "workPackageIds": ["W17", "W20"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Real carrier capture, object-store staging, retention/legal operations, and production restore exercise remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A56",
@@ -555,19 +726,25 @@
     "required": "Eligible originals, derived views and exports removed with audit; backup policy documented",
     "workPackages": "W17",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/recordings-implementation.md"],
+    "evidence": [
+      "docs/evidence/recordings-implementation.md",
+      "docs/evidence/production-recordings.md",
+      "docs/runbooks/backup-restore.md"
+    ],
     "workPackageIds": ["W17"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Real carrier capture, object-store staging, retention/legal operations, and production restore exercise remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A57",
     "scenario": "Backup restored",
     "required": "Jobs reconciled before execution; deletion tombstones reapplied; restore evidence retained",
     "workPackages": "W19",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": ["docs/evidence/production-recordings.md", "docs/runbooks/backup-restore.md"],
     "workPackageIds": ["W19"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Real carrier capture, object-store staging, retention/legal operations, and production restore exercise remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A58",
@@ -575,9 +752,14 @@
     "required": "Raw units, price/FX versions and rounding explain totals including retries/transfers/overhead",
     "workPackages": "W18",
     "status": "partial local evidence",
-    "evidence": ["packages/plugin-observability/tests/observability.test.ts"],
+    "evidence": [
+      "packages/plugin-observability/tests/observability.test.ts",
+      "docs/evidence/production-cost.md",
+      "docs/evidence/cache-implementation.md"
+    ],
     "workPackageIds": ["W18"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Live provider/carrier invoice, tax/FX, and billing reconciliation remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A59",
@@ -585,19 +767,21 @@
     "required": "Generation cost/hits separate; no false claim carrier minutes are free",
     "workPackages": "W18",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/cache-implementation.md"],
+    "evidence": ["docs/evidence/cache-implementation.md", "docs/evidence/production-cost.md"],
     "workPackageIds": ["W18"],
-    "note": "Generated audio fixtures prove bounded cache hits and separate generation/playback usage. Live TTS, console policy and billing reconciliation remain open."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Live provider/carrier invoice, tax/FX, and billing reconciliation remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A60",
     "scenario": "₹10 scenario selected",
     "required": "Telephony/tax/FX/speech/cache/idle assumptions visible; margin scope explicit",
     "workPackages": "W18",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": ["docs/evidence/production-cost.md", "docs/evidence/cache-implementation.md"],
     "workPackageIds": ["W18"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Live provider/carrier invoice, tax/FX, and billing reconciliation remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A61",
@@ -605,19 +789,24 @@
     "required": "New admission follows configured reservation policy; active-call handling explicit",
     "workPackages": "W16, W18",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/deployment-implementation.md"],
+    "evidence": [
+      "docs/evidence/deployment-implementation.md",
+      "docs/evidence/production-operations.md"
+    ],
     "workPackageIds": ["W16", "W18"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Live provider/carrier invoice, tax/FX, and billing reconciliation remain unverified.",
+    "localEvidenceGap": null
   },
   {
     "id": "A62",
     "scenario": "Operator investigates seeded latency incident",
     "required": "At least 4/5 users identify cause and call evidence within two minutes",
     "workPackages": "W15, W20",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": ["apps/console/OPERATOR_E2E_HANDOFF.md"],
     "workPackageIds": ["W15", "W20"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Console investigation flows are implemented; no human study result exists. Human/operator usability study (4/5 within two minutes) is required.",
+    "localEvidenceGap": null
   },
   {
     "id": "A63",
@@ -627,7 +816,8 @@
     "status": "partial local evidence",
     "evidence": ["docs/plugin-author-guide.md"],
     "workPackageIds": ["W03"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A64",
@@ -635,9 +825,10 @@
     "required": "Settings and telemetry appear without editing core; lifecycle conformance passes",
     "workPackages": "W03, W14",
     "status": "partial local evidence",
-    "evidence": ["docs/plugin-author-guide.md"],
+    "evidence": ["docs/plugin-author-guide.md", "docs/runbooks/operators-and-extensions.md"],
     "workPackageIds": ["W03", "W14"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": null
   },
   {
     "id": "A65",
@@ -645,9 +836,10 @@
     "required": "Behavior code unchanged; valid replacement runs; invalid graph fails before admission with cleanup",
     "workPackages": "W03",
     "status": "not verified",
-    "evidence": [],
+    "evidence": ["docs/plugin-author-guide.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W03"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Plugin validation/replacement interfaces and local conformance are implemented; final selected replacement demonstration is pending. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
+    "localEvidenceGap": "Independent local selected engine-replacement/invalid-graph cleanup exercise not yet recorded."
   },
   {
     "id": "A66",
@@ -655,9 +847,10 @@
     "required": "Independent demand signal wakes capacity; no dial before readiness; timestamps and cost retained",
     "workPackages": "W07, W19",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/deployment-implementation.md"],
+    "evidence": ["docs/evidence/deployment-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W07", "W19"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A67",
@@ -665,9 +858,10 @@
     "required": "Scale-in does not terminate protected calls; idle capacity retires after settlement",
     "workPackages": "W19",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/deployment-implementation.md"],
+    "evidence": ["docs/evidence/deployment-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W19"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A68",
@@ -675,9 +869,10 @@
     "required": "Bounded capacity/admission, explicit queue state and limiting quota; no duplicate dial or scaling loop",
     "workPackages": "W07, W19",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/deployment-implementation.md"],
+    "evidence": ["docs/evidence/deployment-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W07", "W19"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A69",
@@ -685,9 +880,10 @@
     "required": "Defined fail-safe admission; no repeated double-counted scale-out; operator alert and decision reason",
     "workPackages": "W15, W19",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/deployment-implementation.md"],
+    "evidence": ["docs/evidence/deployment-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W15", "W19"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A70",
@@ -695,9 +891,10 @@
     "required": "New admission blocked where required; renewal failure visible; documented fallback and reconciliation",
     "workPackages": "W19",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/deployment-implementation.md"],
+    "evidence": ["docs/evidence/deployment-implementation.md", "docs/evidence/production-media.md"],
     "workPackageIds": ["W19"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": null
   },
   {
     "id": "A71",
@@ -705,9 +902,13 @@
     "required": "Counts, queue age, ready/startup state, protection, cap and decision reason are correlated in console",
     "workPackages": "W15, W19",
     "status": "not verified",
-    "evidence": [],
+    "evidence": [
+      "docs/evidence/deployment-implementation.md",
+      "apps/console/OPERATOR_E2E_HANDOFF.md"
+    ],
     "workPackageIds": ["W15", "W19"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Infrastructure snapshot/console implementation is locally evidenced; final console correlation exercise is pending. AWS/SQS/Fargate and real carrier/inbound/transfer/scaling exercise remains unauthorized.",
+    "localEvidenceGap": "Independent local console correlation exercise not yet recorded."
   },
   {
     "id": "A72",
@@ -715,9 +916,10 @@
     "required": "DeepSeek/Pipecat/LiveKit source map, comparable TS spikes, SDK decision, license review and evidence-backed ADRs exist",
     "workPackages": "W01, W03",
     "status": "partial local evidence",
-    "evidence": ["docs/research/upstream-comparison.md"],
+    "evidence": ["docs/research/upstream-comparison.md", "docs/research/upstream-source-map.md"],
     "workPackageIds": ["W01", "W03"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. No live carrier/provider production-engine certification is implied.",
+    "localEvidenceGap": null
   },
   {
     "id": "A73",
@@ -727,7 +929,8 @@
     "status": "partial local evidence",
     "evidence": ["docs/research/deepseek-import-map.md"],
     "workPackageIds": ["W01", "W03"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. No live carrier/provider production-engine certification is implied.",
+    "localEvidenceGap": null
   },
   {
     "id": "A74",
@@ -735,9 +938,14 @@
     "required": "All four modes compose; no-LLM modes make zero model requests; scope isolation, partial-init rollback, cleanup and pinned active calls pass",
     "workPackages": "W03, W04",
     "status": "partial local evidence",
-    "evidence": ["docs/research/upstream-comparison.md"],
+    "evidence": [
+      "docs/research/upstream-comparison.md",
+      "docs/evidence/production-media.md",
+      "docs/evidence/voice-implementation.md"
+    ],
     "workPackageIds": ["W03", "W04"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. No live carrier/provider production-engine certification is implied.",
+    "localEvidenceGap": null
   },
   {
     "id": "A75",
@@ -745,8 +953,12 @@
     "required": "Only approved tools exposed; credentials stay server-side; schema drift blocks incompatible publication; permission, acknowledgment and uncertain-write tests pass",
     "workPackages": "W11, W13, W14",
     "status": "partial local evidence",
-    "evidence": ["docs/evidence/tools-implementation.md"],
+    "evidence": [
+      "docs/evidence/tools-implementation.md",
+      "docs/evidence/production-evaluations.md"
+    ],
     "workPackageIds": ["W11", "W13", "W14"],
-    "note": "Local checks do not close every required result or certify external integrations."
+    "note": "Current production implementation has bounded local/protocol or disposable-PostgreSQL evidence in the listed paths. External MCP/provider endpoint exercise remains unverified.",
+    "localEvidenceGap": null
   }
 ]

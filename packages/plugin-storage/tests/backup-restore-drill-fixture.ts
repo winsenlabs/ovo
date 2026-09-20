@@ -9,6 +9,7 @@ import { PostgresCostLedger } from '../../plugin-ledger/src/index.ts';
 import { PostgresEvaluationService } from '../../plugin-evaluations/src/index.ts';
 import { PostgresOperationsService } from '../../plugin-operations/src/index.ts';
 import { PostgresTelemetryStore } from '../../plugin-observability/src/index.ts';
+import { UserDirectory } from '../../../apps/api/src/user-directory.ts';
 
 interface OwnerIdentity {
   ownerId: string;
@@ -38,6 +39,8 @@ export interface RestoreDrillFixture {
   inboundCallbackCallId: string;
   inboundFromNumber: string;
   inboundToNumber: string;
+  teamUserId: string;
+  teamUserSessionVersion: number;
 }
 
 export async function seedRestoreDrillFixture(input: {
@@ -48,6 +51,21 @@ export async function seedRestoreDrillFixture(input: {
   const { sourceUrl, workspaceId, scratch } = input;
   const control = await PostgresControlStore.open(sourceUrl);
   await control.ensureWorkspace(workspaceId, 'Restore drill organization');
+  const userPool = new Pool({ connectionString: sourceUrl });
+  const users = new UserDirectory(userPool, workspaceId);
+  await users.initialize();
+  const teamUser = await users.create({
+    email: 'restore-admin@example.test',
+    label: 'Restore administrator',
+    role: 'admin',
+    password: 'Restore-user-password-v1!',
+  });
+  if (!teamUser) throw new Error('failed to seed restore drill team user');
+  const teamUserState = await userPool.query<{ session_version: number }>(
+    'SELECT session_version FROM ovo_team_users WHERE organization_id=$1 AND id=$2',
+    [workspaceId, teamUser.id],
+  );
+  await userPool.end();
   const agent = await control.createAgent(
     workspaceId,
     AgentConfig.parse({ name: 'Restore drill', mode: 'announcement', message: 'Restored' }),
@@ -315,5 +333,7 @@ export async function seedRestoreDrillFixture(input: {
     inboundCallbackCallId,
     inboundFromNumber,
     inboundToNumber,
+    teamUserId: teamUser.id,
+    teamUserSessionVersion: teamUserState.rows[0]!.session_version,
   };
 }

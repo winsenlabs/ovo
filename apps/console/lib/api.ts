@@ -169,6 +169,8 @@ export async function apiRequest<T>(
   if (!response.ok) {
     const error =
       payload && typeof payload === 'object' && 'error' in payload ? payload.error : undefined;
+    if (response.status === 401 && error?.code === 'unauthorized' && typeof window !== 'undefined')
+      window.dispatchEvent(new Event('ovo:session-ended'));
     throw new ApiError(
       response.status,
       error?.code ?? 'request_failed',

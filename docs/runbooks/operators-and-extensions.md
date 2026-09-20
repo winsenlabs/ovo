@@ -2,9 +2,29 @@
 
 Each installation serves one organization. `workspaceId` is an internal compatibility and authorization namespace, not a tenant-provisioning interface.
 
-## Operator roles
+## Team users
 
-The bootstrap administrator uses `OVO_ADMIN_TOKEN`. Use at least 32 random characters in production. Supply secrets through the deployment secret mechanism, not Git or frontend configuration.
+New installations use email/password sign-in and a flat user list. There are no subteams, invitations, or organization switching.
+
+1. Follow [the Compose setup guide](self-hosted-compose.md) to seed the first administrator.
+2. Sign in with the configured administrator email and password.
+3. Open **Team**.
+4. Add a user with a name, email, initial password, and **User** or **Admin** role.
+5. Give the initial password to the user through a private channel.
+
+Multiple administrators can coexist. An administrator can reset passwords, change roles, disable accounts, and enable accounts. The API prevents disabling or demoting the last active administrator. User changes invalidate that user's existing sessions. Users can change their own password with their current password; this requires a new sign-in.
+
+Passwords require 12–128 characters. The database stores salted scrypt hashes, not plaintext passwords. The console never receives those hashes. Login has bounded per-process rate limits and bounded hashing work; use a shared edge rate limit when running multiple API replicas. The installation supports up to 500 users.
+
+Seeding is idempotent: a normal restart never resets an existing user's password or recreates an administrator. Keep `OVO_SESSION_SECRET` and the credential-encryption key stable and private. [Restore recovery](backup-restore.md) requires explicit administrator recovery and new passwords, not ordinary seed replay.
+
+The **User** label maps to the existing `editor` permission: users can author agents and run permitted workflows, but cannot administer users or credentials. **Admin** has installation administration permissions. The API remains the authorization boundary.
+
+## Legacy token operators
+
+Token operators remain available for compatibility and controlled automation; new team members do not need environment-variable entries. An installation that only seeds email/password users has no enabled implicit bootstrap-token account.
+
+The legacy bootstrap administrator uses `OVO_ADMIN_TOKEN`. Use at least 32 random characters in production. Supply secrets through the deployment secret mechanism, not Git or frontend configuration.
 
 Declare additional operators with metadata only:
 

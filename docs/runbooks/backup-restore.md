@@ -37,6 +37,7 @@ The drill creates source and isolated target databases, applies the real migrati
 - fixture evaluation work can retry, while ambiguous provider-backed runs fail closed;
 - restored active provider-evaluation authorizations are revoked and cannot fund a fresh paid run;
 - restored inbound wait and uncompleted callback admissions become terminal and cannot resume from a signed retry;
+- every restored team user is disabled, marked `restore_quarantined`, and receives a new session version;
 - an already deleted recording stays inaccessible after restoration.
 
 The same local primitives can be run separately. The target database must already exist and must remain isolated from API and worker processes:
@@ -61,6 +62,20 @@ scripts/postgres-restore.sh "$ISOLATED_TARGET_DATABASE_URL" /var/tmp/ovo-control
 9. Start one dispatcher/worker set against the isolated endpoint. First prove restored queued work and both restored outboxes remain blocked. Then create a new synthetic post-restore job and run the duplicate-delivery assertion. Verify stale-owner rejection, audit/event projections and cost/evaluation records.
 10. Move API traffic only after database, security and operations owners approve reconciliation. Reopen carrier admission and write-capable tools gradually.
 
+## Team access recovery after restore
+
+The restore fence disables every `ovo_team_users` row, sets `restore_quarantined=true`, and increments `session_version`. Rotate `OVO_SESSION_SECRET` before any API or console traffic so every cookie signed before the incident is rejected independently of the database snapshot.
+
+Recover exactly one existing user as the first administrator while the target is still isolated:
+
+1. Verify every user row for the organization is disabled and restore-quarantined. If any row is not quarantined, stop and investigate instead of bypassing the guard.
+2. Set `OVO_SEED_ADMIN_EMAIL` to that existing user's email, set `OVO_SEED_ADMIN_PASSWORD` to a new 12–128 character password that is not the restored password, and set `OVO_RESTORE_ADMIN_RECOVERY=true`.
+3. Start the API once. Recovery succeeds only when all organization users are quarantined; it resets and enables only the matching user, promotes that user to admin, clears only that row's quarantine marker, and increments its session version again.
+4. Stop the API and remove `OVO_RESTORE_ADMIN_RECOVERY` before the next start. Remove the one-time recovery password from shell history and temporary secret injection. Never leave the recovery flag enabled for normal operation.
+5. Verify the recovered administrator can sign in with the new password before permitting traffic. Keep every other user disabled. For each additional user, use the authenticated Team workflow to set a new password before enabling the account; never clear `restore_quarantined` or bulk-enable users with SQL.
+
+Password reset changes both the password hash and session version, so previously captured cookies remain invalid even across PITR. The `OVO_SESSION_SECRET` rotation is still mandatory as a separate installation-wide cookie-signing boundary.
+
 ## Rollback and evidence
 
 If validation fails, keep the restored target isolated and the original environment read-only. Restore another point; never merge ownership rows or lower epochs manually.
@@ -69,4 +84,4 @@ Retain backup ID and checksum, source/target timestamps, dump size, PostgreSQL v
 
 ### Latest local synthetic measurement
 
-On 2026-09-20, the authorization-quarantine-aware disposable drill backed up a 162,637-byte custom dump in less than one second (the whole-second script output was `0`), restored and fenced it in `2` seconds, and completed all three assertions in `3.26` seconds. These timings measure a tiny local synthetic dataset only and are not a production RPO or RTO claim.
+On 2026-09-20, the team-and-authorization-quarantine-aware disposable drill backed up a 164,770-byte custom dump in less than one second (the whole-second script output was `0`), restored and fenced it in `1` second, and completed all three assertions in `1.54` seconds. These timings measure a tiny local synthetic dataset only and are not a production RPO or RTO claim.

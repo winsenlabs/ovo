@@ -1,3 +1,5 @@
+import type { UserDirectory } from './user-directory.ts';
+import { registerUserRoutes } from './routes/users.ts';
 import { type OperationStore } from '@winsendotai/ovo-contracts';
 import { type CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
 import { priceUsage, summarizeUsage } from '@winsendotai/ovo-plugin-observability';
@@ -103,6 +105,7 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
       provides: ['managementApi'],
       requires: [
         'controlStore',
+        ...(options.usersEnabled ? ['ovo.users'] : []),
         'secretManager',
         'ovo.operation-store',
         'ovo.observability',
@@ -128,6 +131,7 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
         );
       const services = createServices();
       const auth = new Authenticator(options);
+      const users = options.usersEnabled ? (ctx.get('ovo.users') as UserDirectory) : undefined;
       for (const identity of options.identities)
         for (const workspaceId of Object.keys(identity.workspaces))
           await store.ensureWorkspace(workspaceId, workspaceId);
@@ -139,6 +143,9 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
                   'req.headers.authorization',
                   'req.headers.cookie',
                   'req.body.token',
+                  'req.body.password',
+                  'req.body.currentPassword',
+                  'req.body.newPassword',
                   'req.body.value',
                 ],
                 censor: '[REDACTED]',
@@ -151,7 +158,7 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
       app.addHook('onRequest', async (request, reply) => {
         const path = request.url.split('?')[0];
         if (path === '/health' || path === '/v1/auth/session') return;
-        const principal = auth.authenticate(request);
+        const principal = await auth.authenticateWithUsers(request, users);
         if (!principal) return error(reply, 401, 'unauthorized', 'Authentication required');
         (request as FastifyRequest & { principal?: Principal }).principal = principal;
       });
@@ -180,6 +187,7 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
           : undefined,
         secrets,
         auth,
+        users,
         options: {
           ...options,
           createReleasePlugins:
@@ -218,6 +226,7 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
         summarizeUsage,
       };
       registerAuthRoutes(routeDependencies);
+      registerUserRoutes({ app, users, store, requireTls: options.requireTlsForSecrets ?? false });
 
       registerAgentsRoutes(routeDependencies);
       registerReadinessRoutes(routeDependencies);

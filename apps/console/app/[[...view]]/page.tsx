@@ -13,6 +13,8 @@ const validViews = new Set([
   'performance',
   'costs',
   'infrastructure',
+  'account',
+  'team',
 ]);
 
 export const dynamic = 'force-dynamic';

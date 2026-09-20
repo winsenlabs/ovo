@@ -1,5 +1,9 @@
 DO $$
 BEGIN
+  IF to_regclass('public.ovo_team_users') IS NOT NULL THEN
+    UPDATE ovo_team_users SET disabled=true,restore_quarantined=true,
+      session_version=session_version+1,updated_at=now();
+  END IF;
   IF to_regclass('public.ovo_jobs') IS NOT NULL THEN
     UPDATE ovo_jobs SET
       status = 'reconcile_required',

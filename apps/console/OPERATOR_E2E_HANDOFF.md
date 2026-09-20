@@ -16,16 +16,26 @@ Status: UI source is implemented, but production journeys are **not certified** 
 
 The product remains one server-configured organization. There is no organization picker or provisioning flow.
 
-| Journey                                                                                          | API                                    | Expected role                               |
-| ------------------------------------------------------------------------------------------------ | -------------------------------------- | ------------------------------------------- |
-| Session check                                                                                    | `GET /v1/auth/me`                      | authenticated                               |
-| Login                                                                                            | `POST /v1/auth/session` body `{token}` | bootstrap identity configured by server env |
-| Logout                                                                                           | `DELETE /v1/auth/session`              | authenticated                               |
-| Read operational/configuration evidence                                                          | GET routes below                       | viewer/editor/admin                         |
-| Agent drafts, MCP approvals, campaigns, suppressions, handoffs, fixture/live recording mutations | mutations below                        | editor or admin, as noted                   |
-| Credentials, provider-binding CRUD, live-call launch, budgets, inbound policy, retention sweep   | mutations below                        | admin                                       |
+| Journey                                                                                          | API                                                            | Expected role                                                      |
+| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Session check                                                                                    | `GET /v1/auth/me`                                              | authenticated                                                      |
+| Login                                                                                            | `POST /v1/auth/session` body `{email,password}`                | database user; legacy `{token}` remains fixture-only compatibility |
+| Logout                                                                                           | `DELETE /v1/auth/session`                                      | authenticated                                                      |
+| Change own password                                                                              | `PATCH /v1/auth/password` body `{currentPassword,newPassword}` | database user; session is revoked on success                       |
+| List/create/update organization users                                                            | `GET/POST /v1/users`, `PATCH /v1/users/:id`                    | admin only                                                         |
+| Read operational/configuration evidence                                                          | GET routes below                                               | viewer/editor/admin                                                |
+| Agent drafts, MCP approvals, campaigns, suppressions, handoffs, fixture/live recording mutations | mutations below                                                | editor or admin, as noted                                          |
+| Credentials, provider-binding CRUD, live-call launch, budgets, inbound policy, retention sweep   | mutations below                                                | admin                                                              |
 
-Main’s multirole environment configuration should return `SessionIdentity.role` as `viewer | editor | admin`. It must not imply multiple organizations. Viewer-mode Agent Studio updates are suppressed client-side; the API remains authoritative and must reject mutations.
+The default login is email and password. Inputs use browser password-manager autocomplete, password values are cleared after submission, and the console does not use local storage. The disclosed legacy token path exists only for older local fixtures and clears the token after submission.
+
+The first administrator is seeded by the server during installation. Repeated startup must not replace that account or its password. Invalid email/password login returns the same generic `401 invalid_credentials` response.
+
+The `/team` navigation and user-management requests are admin-only. It is a flat list for the one server-configured organization: the only creation/update role values are `admin` and `editor`, displayed as **Admin** and **User**. There are no invites, tenant selectors, role hierarchy, or self-service email changes. Administrators can create users, change labels and roles, disable accounts, and reset passwords; every successful admin update revokes that target user's existing sessions. A self-update returns the current operator directly to login, while any later API `401 unauthorized` also produces a clear re-login state instead of a domain-panel error. The API must preserve the last active administrator and return `409 last_admin` rather than allowing lockout. Duplicate normalized email returns `409 email_conflict`. Restored users return `409 restore_recovery_required` when enabled without a fresh password; the edit form supports resetting the password and enabling the user in one request. SQLite/no-directory mode returns `503 user_management_unavailable` honestly.
+
+The `/account` password form is available to authenticated database users. Passwords are 12–128 characters. A successful `PATCH /v1/auth/password` revokes the current session and returns the operator to email/password login. No password hash, plaintext password, bootstrap token, or session token is rendered or retained.
+
+Legacy multirole fixtures may still return `SessionIdentity.role` as `viewer | editor | admin`. They must not imply multiple organizations. Viewer-mode Agent Studio updates are suppressed client-side; the API remains authoritative and must reject mutations.
 
 ## Browser-route to service matrix
 

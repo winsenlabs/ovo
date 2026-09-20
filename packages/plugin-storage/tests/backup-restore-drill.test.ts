@@ -67,6 +67,7 @@ suite('executable PostgreSQL backup and restore drill', () => {
         WHEN tablename LIKE 'ovo_cost_%' THEN 'ovo_cost_'
         WHEN tablename LIKE 'ovo_ops_%' THEN 'ovo_ops_'
         WHEN tablename LIKE 'ovo_telemetry_%' THEN 'ovo_telemetry_'
+        WHEN tablename = 'ovo_team_users' THEN 'ovo_team_users'
         WHEN tablename IN ('ovo_jobs','ovo_outbox','ovo_session_routes') THEN 'orchestration'
       END AS prefix
       FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'ovo_%'`);
@@ -78,6 +79,7 @@ suite('executable PostgreSQL backup and restore drill', () => {
         'ovo_cost_',
         'ovo_ops_',
         'ovo_telemetry_',
+        'ovo_team_users',
         'orchestration',
       ]),
     );
@@ -112,6 +114,22 @@ suite('executable PostgreSQL backup and restore drill', () => {
         fixture.dialingJobId,
       ]),
     ).toBe(1);
+    const restoredUser = await pool.query<{
+      disabled: boolean;
+      restore_quarantined: boolean;
+      session_version: number;
+    }>(
+      `SELECT disabled,restore_quarantined,session_version FROM ovo_team_users
+       WHERE organization_id=$1 AND id=$2`,
+      [workspaceId, fixture.teamUserId],
+    );
+    expect(restoredUser.rows).toEqual([
+      {
+        disabled: true,
+        restore_quarantined: true,
+        session_version: fixture.teamUserSessionVersion + 1,
+      },
+    ]);
     await pool.end();
   });
 

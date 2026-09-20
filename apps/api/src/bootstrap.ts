@@ -1,3 +1,4 @@
+import { createUserDirectoryPlugin, USER_PLUGIN_ID } from './user-plugin.ts';
 import { dirname, join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { compose, type Composition } from '@winsendotai/ovo-runtime';
@@ -46,6 +47,7 @@ export async function buildManagementApi(
       : undefined,
     apiPlugin = createManagementApiPlugin({
       ...options,
+      usersEnabled: storageAdapter === 'postgres',
       costLedgerEnabled: storageAdapter === 'postgres',
       telemetryEnabled: storageAdapter === 'postgres',
       evaluationsEnabled: storageAdapter === 'postgres',
@@ -57,6 +59,15 @@ export async function buildManagementApi(
     }),
     catalog = [
       storagePlugin,
+      ...(storageAdapter === 'postgres'
+        ? [
+            createUserDirectoryPlugin(
+              options.controlDatabaseUrl!,
+              options.identities[0]!.defaultWorkspaceId,
+              options.seedAdmin,
+            ),
+          ]
+        : []),
       secretsPlugin,
       observabilityPlugin,
       recordingsPlugin,
@@ -133,6 +144,7 @@ export async function buildManagementApi(
         : []),
       ...(productionRecordings ? [{ id: productionRecordings.manifest.id }] : []),
       { id: apiPlugin.manifest.id },
+      ...(storageAdapter === 'postgres' ? [{ id: USER_PLUGIN_ID }] : []),
       ...(storageAdapter === 'postgres' ? [{ id: INFRASTRUCTURE_RUNTIME_PLUGIN_ID }] : []),
       ...(storageAdapter === 'postgres' ? [{ id: OPERATIONS_RUNTIME_PLUGIN_ID }] : []),
       ...(storageAdapter === 'postgres' ? [{ id: EVALUATION_RUNTIME_PLUGIN_ID }] : []),

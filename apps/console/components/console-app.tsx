@@ -1,13 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import type { ConsoleExtension } from '@winsendotai/ovo-ui';
 import { apiRequest, ApiError, type SessionIdentity } from '../lib/api';
+import { Login } from './auth/login';
 import { AgentStudio } from './studio';
 import { Integrations } from './integrations';
 import { Operations } from './operations';
 import { LoadingBlock, Notice, StatusBadge } from './primitives';
+import { AccountView } from './team/account-view';
+import { TeamView } from './team/team-view';
 
 type SessionState =
   | { status: 'checking' }
@@ -27,89 +30,12 @@ const navigation = [
   { href: '/performance', label: 'Performance', group: 'Operations' },
   { href: '/costs', label: 'Costs & budgets', group: 'Operations' },
   { href: '/infrastructure', label: 'Infrastructure', group: 'Operations' },
+  { href: '/account', label: 'Account', group: 'Settings' },
+  { href: '/team', label: 'Team', group: 'Settings', adminOnly: true },
 ];
 
-function Login({
-  onAuthenticated,
-  reason,
-}: {
-  onAuthenticated: (identity: SessionIdentity) => void;
-  reason?: string;
-}) {
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string>();
-  const token = useRef<HTMLInputElement>(null);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const bootstrapToken = String(form.get('token') ?? '');
-    if (token.current) token.current.value = '';
-    setSubmitting(true);
-    setError(undefined);
-    try {
-      const { data } = await apiRequest<SessionIdentity | { identity: SessionIdentity }>(
-        '/auth/session',
-        {
-          method: 'POST',
-          body: JSON.stringify({ token: bootstrapToken }),
-        },
-      );
-      onAuthenticated('identity' in data ? data.identity : data);
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Sign-in failed.');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <main className="login-page" id="main">
-      <section className="login-card" aria-labelledby="login-title">
-        <div className="brand login-brand">
-          <strong>ovo</strong>
-          <span>
-            VOICE
-            <br />
-            OPERATIONS
-          </span>
-        </div>
-        <p className="eyebrow">Management console</p>
-        <h1 id="login-title">Start a secure session</h1>
-        <p className="muted">
-          The bootstrap token is posted once to the management API. It is cleared from this form and
-          never stored by the console.
-        </p>
-        {reason && <Notice tone="warning">{reason}</Notice>}
-        {error && (
-          <Notice tone="danger" live>
-            {error}
-          </Notice>
-        )}
-        <form onSubmit={submit} autoComplete="off">
-          <label htmlFor="bootstrap-token">Bootstrap token</label>
-          <input
-            ref={token}
-            id="bootstrap-token"
-            name="token"
-            type="password"
-            autoComplete="off"
-            required
-            spellCheck={false}
-          />
-          <button className="button primary" disabled={submitting}>
-            {submitting ? 'Starting session…' : 'Continue'}
-          </button>
-        </form>
-        <small>
-          This single-organization console uses the server-configured organization. It does not
-          expose an organization picker or read an admin token from browser-visible environment
-          variables.
-        </small>
-      </section>
-    </main>
-  );
-}
+const roleLabel = (role: SessionIdentity['role']) =>
+  role === 'admin' ? 'Admin' : role === 'editor' ? 'User' : 'Viewer';
 
 export function ConsoleApp({
   activeView,
@@ -139,6 +65,13 @@ export function ConsoleApp({
     return () => {
       current = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const sessionEnded = () =>
+      setSession({ status: 'signedOut', reason: 'Your session ended. Sign in again to continue.' });
+    window.addEventListener('ovo:session-ended', sessionEnded);
+    return () => window.removeEventListener('ovo:session-ended', sessionEnded);
   }, []);
 
   if (session.status === 'checking')
@@ -194,14 +127,17 @@ export function ConsoleApp({
         </div>
         <div className="workspace-switcher">
           <span>{organizationName}</span>
-          <small>{identity.role} access</small>
+          <small>{roleLabel(identity.role)} access</small>
         </div>
-        {['Build', 'Operations'].map((group) => (
+        {['Build', 'Operations', 'Settings'].map((group) => (
           <div key={group} className="nav-group">
             <p>{group}</p>
             <nav aria-label={group}>
               {navigation
-                .filter((item) => item.group === group)
+                .filter(
+                  (item) =>
+                    item.group === group && (!('adminOnly' in item) || identity.role === 'admin'),
+                )
                 .map((item) => {
                   const selected = item.href === `/${activeView}`;
                   return (
@@ -258,6 +194,18 @@ export function ConsoleApp({
             'infrastructure',
           ].includes(activeView) && (
             <Operations view={activeView} extensions={extensions} role={identity.role} />
+          )}
+          {activeView === 'account' && (
+            <AccountView
+              identity={identity}
+              onSessionRevoked={(reason) => setSession({ status: 'signedOut', reason })}
+            />
+          )}
+          {activeView === 'team' && (
+            <TeamView
+              identity={identity}
+              onSessionRevoked={(reason) => setSession({ status: 'signedOut', reason })}
+            />
           )}
         </main>
       </div>
