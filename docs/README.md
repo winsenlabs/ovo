@@ -17,7 +17,9 @@ OVO is the Open Voice Orchestrator: an open-source, TypeScript-first voice-agent
 8. [Plugin-first and Fargate mandate](08-plugin-first-fargate.md): enforceable plugin boundaries, production scaling, admission and draining.
 9. [Upstream research assignment](09-upstream-research-assignment.md): mandatory source inspection and comparative spikes before choosing the engine.
 
-These documents supersede earlier exploratory recommendations that presumed LiveKit was mandatory or that the complete voice runtime must be Python. The implementation direction is TypeScript, informed by Pipecat's execution design and DeepSeek Harness's composition model. Research must determine which existing libraries to reuse; a full Pipecat clone is not required. Runtime choice cannot silently remove required product capabilities.
+These documents supersede earlier exploratory recommendations that presumed LiveKit was mandatory or that the complete voice runtime must be Python. The implementation direction is TypeScript, informed by Pipecat's execution design and built through direct reuse of DeepSeek Harness's plugin foundation. Research must determine which existing libraries to reuse; a full Pipecat clone is not required. Runtime choice cannot silently remove required product capabilities.
+
+The [DeepSeek source-reuse mandate](11-deepseek-foundation.md) supersedes earlier suggestions to build an independent plugin host. Directly reuse/adapt the upstream foundation; voice-engine selection remains a research task.
 
 ## Fixed requirements
 

@@ -4,7 +4,7 @@
 
 **Everything that implements an OVO application capability is a plugin.** This includes the conversation loop itself. Provider swapping alone does not satisfy this requirement. The small foundation defines contracts, loads the dependency graph, establishes scopes and enforces platform boundaries. It must not contain a hidden default model, business behavior, carrier, database or speech scheduler.
 
-DeepSeek Harness is the composition reference: its architecture places services and the agent loop behind plugins. OVO must independently define the voice-specific contracts and verify their real-time behavior. See [DeepSeek architecture](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md). This is design inspiration, not a decision to embed the whole coding-agent product.
+DeepSeek Harness is the required source foundation for plugin composition and lifecycle. Directly reuse/adapt its implementation and Cordis integration, retaining provenance and notices. OVO adds voice-specific contracts and execution and must verify real-time behavior. See [DeepSeek architecture](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md) and the binding [source-reuse mandate](11-deepseek-foundation.md). Import the necessary dependency closure rather than indiscriminately copying unrelated product surfaces.
 
 | Replaceable capability | Contract / required responsibility |
 |---|---|

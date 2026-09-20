@@ -77,9 +77,9 @@ Read the [Fargate deployment and scaling specification](docs/08-plugin-first-far
 
 ## Research foundations
 
-OVO draws architectural inspiration from [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) and execution ideas from [Pipecat](https://github.com/pipecat-ai/pipecat). [LiveKit Agents JS](https://github.com/livekit/agents-js) is an implementation candidate to evaluate before building a custom engine.
+OVO will directly reuse and adapt the plugin foundation from [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), including its Cordis-based composition and lifecycle mechanisms. This is a source-reuse requirement, not merely architectural inspiration. The source import is not yet implemented. Voice execution draws on [Pipecat](https://github.com/pipecat-ai/pipecat). [LiveKit Agents JS](https://github.com/livekit/agents-js) is an implementation candidate to evaluate before building a custom engine.
 
-LiveKit is not a mandatory dependency. The engine, media transport, and model SDK will be selected through source inspection and comparative prototypes. The [upstream research assignment](docs/09-upstream-research-assignment.md) defines the evidence required for those decisions.
+LiveKit is not a mandatory dependency. The voice engine, media transport, and model SDK will be selected through source inspection and comparative prototypes within the DeepSeek-derived foundation. Read the [source-reuse mandate](docs/11-deepseek-foundation.md) for import, attribution, and upgrade requirements. The [upstream research assignment](docs/09-upstream-research-assignment.md) defines the evidence required for those decisions.
 
 ## Getting started
 
@@ -105,7 +105,7 @@ Installation and development commands will be added when they are implemented an
 - [ ] Call inspector, evaluations, recordings, and cost reporting.
 - [ ] Fargate autoscaling, failure recovery, and production certification.
 
-The [engineering plan](docs/06-engineering-plan.md) breaks this into 20 work packages. Completion is assessed against [72 acceptance criteria](docs/07-acceptance.md); performance targets are not claims of achieved results.
+The [engineering plan](docs/06-engineering-plan.md) breaks this into 20 work packages. Completion is assessed against [75 acceptance criteria](docs/07-acceptance.md); performance targets are not claims of achieved results.
 
 ## Contributing
 

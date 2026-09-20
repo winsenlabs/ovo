@@ -13,7 +13,7 @@ Do not infer Python/Node feature parity, low latency from language choice, Farga
 | ID | Question | Investigation and required output | Suggested effort |
 |---|---|---|---|
 | R01 | How should TypeScript execute the voice loop? | Inspect Pipecat frames, priority queues, cancellation, context, tool outcomes and cleanup. Inspect LiveKit Agents JS. Compare narrow custom runtime versus adapting existing TS engine. Produce execution-semantics ADR and failing/passing race fixtures. | 3–5 engineer-days |
-| R02 | How do plugins compose? | Compare Cordis dependency/lifecycle semantics with a minimal typed registry. Verify scope, cleanup, validation, UI schema generation and compatibility. Build a two-provider swap spike. | 1–3 days |
+| R02 | How do plugins compose? | Audit and directly reuse DeepSeek Harness/Cordis composition and lifecycle source. Select pinned dependency reuse versus a maintained source extraction; do not replace it with an independent registry. Verify scope, cleanup, validation, UI schema generation and compatibility. Build a two-provider swap spike. | 1–3 days |
 | R03 | Which carrier and transport work in target market? | Compare available Twilio/Telnyx/Plivo/Exotel or selected carrier; verify bidirectional streaming, codecs, clear/mark semantics, transfer, inbound/outbound, callback signing, account onboarding and regional limits. Record provider capability matrix; do not purchase accounts without authorization. | 2–4 days plus external lead time |
 | R04 | Does media deployment fit Fargate and EC2? | Prove WebSocket routing to owning worker, long-lived connections, drain/reconnect behavior; if using LiveKit, test SIP/RTP/public addressing/TURN/recording explicitly. Deliver network diagram and measured topology. | 2–4 days |
 | R05 | Which STT/TTS/LLM combination? | Benchmark first audio, endpointing, interruption, names/amounts, selected Indian language/code-switching and regional availability. Verify streaming APIs, quotas, actual price units and cancellation. | 2–4 days |
@@ -30,7 +30,7 @@ Research tasks overlap with the first engineering work packages; do not double-c
 |---|---|---|---|
 | Language/runtime | TypeScript on Node LTS | Pipecat Python reference only | Correctness, event-loop lag, startup, memory, developer burden |
 | Voice engine | Focused OVO pipeline | LiveKit Agents JS | Same scenario/provider tests; transport coupling; required custom work |
-| Plugin host | Cordis-style host | Minimal explicit registry | Lifecycle and graph validation; stable exports/license |
+| Plugin host | Actual DeepSeek Harness/Cordis foundation | Pinned upstream modules versus traceable source extraction | Import map, lifecycle tests, license notices and upgrade strategy |
 | Backend | NestJS | Fastify with typed contracts | Streaming/control separation; implementation complexity |
 | Frontend | Next.js/React | Existing repo choice if any | Browser test results; ecosystem; deployability |
 | Schema | JSON Schema plus typed generator/validator | Zod with verified schema export | One source for UI/API/runtime; custom refinements represented |

@@ -39,6 +39,8 @@ A staffed example is two backend/runtime engineers, one frontend engineer, part-
 
 ### W01 — Ground the stack
 
+- Execute the source-reuse audit in [11-deepseek-foundation.md](11-deepseek-foundation.md); record upstream commit, dependency closure, import boundaries and license obligations. Direct reuse is fixed; import mechanics and voice integration need evidence.
+
 - Complete [the upstream research assignment](09-upstream-research-assignment.md): inspect DeepSeek Harness, Pipecat, LiveKit Agents JS, Cordis and Vercel AI SDK; retain source evidence and comparative spikes.
 
 - Inspect source and official docs listed in research plan; record immutable source references.
@@ -192,5 +194,7 @@ Critical path: runtime/transport choice → cancellation/playback correctness �
 If schedule is constrained, release a clearly labelled preview with fewer certified providers/languages or one deployment profile. Do not silently remove bot modes, frontend secrets/configuration, acknowledgments, isolation or correctness requirements. Do not label mock data as live observability. Do not expand into every Pipecat integration, video, or arbitrary workflow programming before the core acceptance gates.
 
 ## 6. Additional mandatory verification mapping
+
+A73–A75 cover the DeepSeek import/provenance, lifecycle integration and MCP tool boundary in W01/W03/W11/W14. Re-estimate after the upstream dependency audit; do not assume extraction is cost-free.
 
 A63–A65 are W03 architecture/conformance work; A66–A71 are W07/W15/W19 lifecycle and operations work; A72 is the W01/W03 upstream evidence gate. These elaborate existing scope. Re-estimate after the spikes if required adaptations exceed the baseline; do not present added implementation work as already complete.

@@ -2,6 +2,8 @@
 
 ## Instruction
 
+**Fixed foundation:** directly reuse/adapt DeepSeek Harness source as required by [11-deepseek-foundation.md](11-deepseek-foundation.md). Research decides the import boundary and voice integration, not whether to substitute an independent plugin host.
+
 Before selecting OVO's engine or implementing a broad runtime, research **DeepSeek Harness, Pipecat, LiveKit Agents JS, Cordis, Vercel AI SDK and the selected carrier's streaming interfaces**. Read source and tests, not only homepages. This is part of W01–W03 and R01–R04/R09, not an optional reading list. A recommendation alone is insufficient: build narrowly scoped comparative spikes and preserve their results.
 
 The planning pass inspected official documentation on 20 September 2026. No OVO benchmark or complete upstream audit has been performed. The implementation agent must pin current commits/versions and verify behavior itself. Source names can move; resolve them from each pinned tree rather than copying obsolete paths.
@@ -11,7 +13,7 @@ The planning pass inspected official documentation on 20 September 2026. No OVO 
 | System | Inspect | Answer for OVO | Required experiment |
 |---|---|---|---|
 | DeepSeek Harness | Architecture, boot profiles/bundles, core agent/loop, tools, session events, config and lifecycle tests | How can engine, policies, tools, persistence and console capabilities be replaceable? What belongs in the tiny bootstrap? | Compose two behavior implementations; replace one through configuration; verify disposal and pinned active session |
-| Cordis | Service dependencies, typed context, effects, scope/disposal and error behavior | Adopt the library or implement a smaller host? What coupling and maintenance does either create? | Dependency cycle/missing service, partial initialization failure, repeated teardown and session isolation |
+| Cordis | Service dependencies, typed context, effects, scope/disposal and error behavior | Which pinned Cordis and DeepSeek modules are required? How are their scopes exposed to OVO without a competing host? | Dependency cycle/missing service, partial initialization failure, repeated teardown and session isolation |
 | Pipecat | Frame definitions, processors, scheduling, interruption, pipeline worker, transports, context aggregation, flows and tool tests | Which execution semantics must OVO preserve in TypeScript? Which are Python-specific or unnecessary? | Reproduce interruption during synthesis and tool execution, late frames and bounded backpressure; compare expected outcomes |
 | LiveKit Agents JS | Session implementation, pipeline/voice code, plugin interfaces, tools, turn detection, transport coupling, worker lifecycle and tests | Can it implement OVO's four modes and mandatory acknowledgments without competing loops? What requires LiveKit media? | Same caller interruption/tool scenario plus no-LLM FAQ; document engine-versus-transport boundaries |
 | Vercel AI SDK | Current agent/streaming APIs, tool loops, stop conditions, abort, usage and provider adapters | Is it useful inside the inference plugin? Which component owns tool execution and continuation? | Abort late output; preserve usage; enforce one owner for retries, tool execution and loop limits |
@@ -24,7 +26,7 @@ Pipecat is a reference for voice execution, not an instruction to translate ever
 1. Inventory official repositories/docs, selected release/commit, license and transitive/native dependencies. Record inspected source paths and tests with immutable permalinks.
 2. Trace one call/turn through each relevant implementation. Identify ownership of input acceptance, inference, tools, audio, cancellation, context and cleanup. Draw a scoped diagram for each candidate.
 3. Build a requirements matrix with `verified`, `adaptation required`, `unsupported` or `unknown`, each backed by evidence. Include frontend-configurable provider credentials and scripts, no-LLM operation, acknowledgment ordering, transport independence and Fargate deployability.
-4. Implement two narrow TypeScript candidates: a focused OVO engine spike and a LiveKit Agents JS adapter spike. Use Pipecat as the behavioral reference where practical, not a required production dependency. Do not build three complete platforms.
+4. Implement two narrow TypeScript candidates: a focused OVO voice engine spike and a LiveKit Agents JS adapter spike, both composed through the same DeepSeek-derived plugin foundation. Use Pipecat as the behavioral reference where practical, not a required production dependency. Do not build three complete platforms.
 5. Use identical deterministic fixtures first, then the same providers and owned-number scenario. Capture versions, region, codec, machine size, warm/cold conditions, sample size, latency distribution, failures and resource usage. Never compare unmatched model/voice settings as an engine result.
 6. Document reuse/adapt/build/reject per subsystem. Prefer proven upstream functionality when it passes OVO's contracts; justify custom work with a demonstrated gap or meaningful measured benefit.
 7. Write ADRs with consequences, migration path and unresolved blockers. Continue independent scaffold/UI work, but do not lock the production engine before its gate passes.

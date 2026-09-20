@@ -106,7 +106,7 @@ Report failures, timeouts, sample counts, provider versions/regions, carrier/cod
 
 At least 120 versioned scenarios: 30 announcement/FAQ/script, 20 supplied-context/tool cases, 20 interruption/turn cases, 15 ambiguity/noise/language, 15 security/policy and 20 infrastructure/provider failure. Each has input, expected transition/action, forbidden actions and objective assertions. Automated graders cannot replace deterministic side-effect and secret-isolation tests. Human review covers conversational quality.
 
-Release requires all applicable A01–A72 criteria, measured performance gates, real carrier evidence, restore and rollout drills, frontend journeys, both deployment profiles and documentation. A restricted preview may have explicit limitations; it cannot claim full launch acceptance.
+Release requires all applicable A01–A75 criteria, measured performance gates, real carrier evidence, restore and rollout drills, frontend journeys, both deployment profiles and documentation. A restricted preview may have explicit limitations; it cannot claim full launch acceptance.
 
 ## 7. Operational runbooks required before launch
 
@@ -134,3 +134,11 @@ Every runbook has trigger, owner, commands/dashboard path, expected signals, rol
 | A70 | Protection cannot establish or renew during rollout | New admission blocked where required; renewal failure visible; documented fallback and reconciliation | W19 |
 | A71 | Operator reviews scaling incident | Counts, queue age, ready/startup state, protection, cap and decision reason are correlated in console | W15, W19 |
 | A72 | Runtime/host selection proposed | DeepSeek/Pipecat/LiveKit source map, comparable TS spikes, SDK decision, license review and evidence-backed ADRs exist | W01, W03 |
+
+## 9. DeepSeek source reuse and MCP integration
+
+| ID | Given / when | Required result | Work packages |
+|---|---|---|---|
+| A73 | Foundation import reviewed | Actual reused upstream code/modules, immutable commit, origin-to-local mapping, notices, modifications and update process are recorded; an independent lookalike host fails | W01, W03 |
+| A74 | OVO compositions run on imported foundation | All four modes compose; no-LLM modes make zero model requests; scope isolation, partial-init rollback, cleanup and pinned active calls pass | W03, W04 |
+| A75 | MCP connection is configured and attached to an agent | Only approved tools exposed; credentials stay server-side; schema drift blocks incompatible publication; permission, acknowledgment and uncertain-write tests pass | W11, W13, W14 |
