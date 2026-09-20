@@ -117,7 +117,12 @@ export function EvaluationRunEvidence({
                 </button>
                 <small>dataset v{run.datasetVersion}</small>
               </td>
-              <td>{run.executorKind}</td>
+              <td>
+                {run.executorKind}
+                {run.budgetAuthorizationId && (
+                  <small className="mono">Authorization {run.budgetAuthorizationId}</small>
+                )}
+              </td>
               <td>
                 <StatusBadge
                   tone={

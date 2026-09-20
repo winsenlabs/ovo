@@ -26,13 +26,24 @@ export interface ProviderEvaluationAuthorization {
   id: string;
   workspaceId: string;
   releaseId: string;
+  releaseFingerprint: string;
   bindingVersion: string;
+  provider: string;
+  modelId: string;
   budgetId: string;
   maximumReservationPaise: string;
+  createdBy: string;
+  createdAt: string;
+  revokedBy?: string;
+  revokedAt?: string;
 }
 
 export interface ProviderEvaluationAuthorizationResolver {
   get(id: string): Promise<ProviderEvaluationAuthorization | undefined>;
+  withActive?<T>(
+    id: string,
+    operation: (authorization: ProviderEvaluationAuthorization) => Promise<T>,
+  ): Promise<T | undefined>;
 }
 
 export interface ProviderEvaluationReleaseLoader {
@@ -92,10 +103,16 @@ export class StaticProviderEvaluationAuthorizations implements ProviderEvaluatio
         !boundedText(authorization.id, 200) ||
         !boundedText(authorization.workspaceId, 200) ||
         !boundedText(authorization.releaseId, 200) ||
+        !boundedText(authorization.releaseFingerprint, 512) ||
         !boundedText(authorization.bindingVersion, 512) ||
+        !boundedText(authorization.provider, 100) ||
+        !boundedText(authorization.modelId, 512) ||
         !boundedText(authorization.budgetId, 200) ||
+        !boundedText(authorization.createdBy, 200) ||
+        !boundedText(authorization.createdAt, 100) ||
         typeof authorization.maximumReservationPaise !== 'string' ||
         !/^[1-9][0-9]{0,59}$/.test(authorization.maximumReservationPaise) ||
+        authorization.revokedAt ||
         this.values.has(authorization.id)
       )
         throw new TypeError('Provider evaluation authorization is invalid');

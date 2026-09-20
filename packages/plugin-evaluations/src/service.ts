@@ -2,6 +2,7 @@ import { Pool } from 'pg';
 import { EvaluationDatasets } from './datasets.ts';
 import { FixtureEvaluationExecutor } from './executor.ts';
 import { migrateEvaluations } from './migrations.ts';
+import type { PostgresProviderEvaluationAuthorizations } from './provider-authorizations.ts';
 import { EvaluationRuns } from './runs.ts';
 import type {
   EvaluationCase,
@@ -45,6 +46,7 @@ export class PostgresEvaluationService {
   constructor(
     config: { connectionString: string; max?: number } | { pool: Pool },
     private readonly providerGate?: ProviderEvaluationGate,
+    readonly providerAuthorizations?: PostgresProviderEvaluationAuthorizations,
   ) {
     if ('connectionString' in config) {
       this.owned = true;

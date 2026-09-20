@@ -6,7 +6,11 @@ import {
   type InferenceUsageEvidence,
 } from '@winsendotai/ovo-plugin-ledger';
 import { executeEvaluationCase } from './executor.ts';
-import { providerEvaluationPolicy, providerEvaluationReservationId } from './provider-policy.ts';
+import {
+  providerEvaluationPolicy,
+  providerEvaluationReservationId,
+  type ProviderEvaluationAuthorizationResolver,
+} from './provider-policy.ts';
 import type { EvaluationExecutor } from './service.ts';
 import type {
   EvaluationCase,
@@ -34,6 +38,7 @@ export interface ProviderEvaluationExecutorOptions {
   maxCaseDurationMs?: number;
   maxProviderRequestsPerCase?: number;
   maxOutputTokens?: number;
+  authorizations?: ProviderEvaluationAuthorizationResolver;
 }
 
 interface RunState {
@@ -69,6 +74,22 @@ export class ProviderEvaluationExecutor implements EvaluationExecutor {
     signal?: AbortSignal,
   ): Promise<Omit<EvaluationCaseResult, 'runId' | 'workspaceId' | 'createdAt'>> {
     const policy = providerEvaluationPolicy(release, run.fixtureBindingVersion, run.workspaceId);
+    if (this.options.authorizations) {
+      const authorization = run.budgetAuthorizationId
+        ? await this.options.authorizations.get(run.budgetAuthorizationId)
+        : undefined;
+      if (
+        !authorization ||
+        authorization.workspaceId !== run.workspaceId ||
+        authorization.releaseId !== run.releaseId ||
+        authorization.releaseFingerprint !== run.releaseFingerprint ||
+        authorization.bindingVersion !== policy.bindingVersion ||
+        authorization.provider !== policy.provider ||
+        authorization.modelId !== policy.modelId ||
+        authorization.budgetId !== policy.budgetId
+      )
+        throw new Error('Provider evaluation authorization is no longer active');
+    }
     const state = this.state(run.id);
     const evidence: CaseEvidence = { requestIds: [], reasons: new Set() };
     await this.refreshBudget(run, policy.reservationPaise, state);

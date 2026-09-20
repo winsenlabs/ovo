@@ -44,6 +44,32 @@ ALTER TABLE ovo_eval_runs ADD COLUMN IF NOT EXISTS budget_authorization_id text;
 ALTER TABLE ovo_eval_case_results ADD COLUMN IF NOT EXISTS provenance jsonb NOT NULL DEFAULT '{}'::jsonb;
 `;
 
+const PROVIDER_AUTHORIZATION_SQL = `
+CREATE TABLE IF NOT EXISTS ovo_eval_provider_authorizations (
+  workspace_id text NOT NULL,
+  id text NOT NULL,
+  idempotency_key text NOT NULL,
+  release_id text NOT NULL,
+  release_fingerprint text NOT NULL,
+  binding_version text NOT NULL,
+  provider text NOT NULL,
+  model_id text NOT NULL,
+  budget_id text NOT NULL,
+  maximum_reservation_paise numeric(60,0) NOT NULL CHECK(maximum_reservation_paise > 0),
+  created_by text NOT NULL,
+  created_at timestamptz NOT NULL,
+  revoked_by text,
+  revoked_at timestamptz,
+  PRIMARY KEY(workspace_id,id),
+  UNIQUE(workspace_id,idempotency_key),
+  CHECK((revoked_by IS NULL) = (revoked_at IS NULL))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ovo_eval_provider_authorizations_id_idx
+  ON ovo_eval_provider_authorizations(id);
+CREATE INDEX IF NOT EXISTS ovo_eval_provider_authorizations_list_idx
+  ON ovo_eval_provider_authorizations(workspace_id,id);
+`;
+
 export async function migrateEvaluations(pool: Pool): Promise<void> {
   const client = await pool.connect();
   try {
@@ -54,6 +80,7 @@ export async function migrateEvaluations(pool: Pool): Promise<void> {
     for (const migration of [
       { version: 1, sql: SQL },
       { version: 2, sql: PROVIDER_SQL },
+      { version: 3, sql: PROVIDER_AUTHORIZATION_SQL },
     ]) {
       const checksum = createHash('sha256').update(migration.sql).digest('hex');
       const current = await client.query<{ checksum: string }>(

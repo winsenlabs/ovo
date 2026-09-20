@@ -211,6 +211,23 @@ Write tools without fixture bindings must remain rejected by the API.
 
 The production console now exposes dataset metadata create/update/archive, immutable JSON corpus import capped at 120 cases, version/case inspection, fixture/provider job submission, durable status/cancellation, case evidence, and run comparison. Browser certification still requires the PostgreSQL loop below.
 
+Optional provider evaluations use durable administrator authorizations:
+
+- `GET /v1/evaluation-provider-authorizations?limit=100&cursor?` — admin
+- `POST /v1/evaluation-provider-authorizations` body `{releaseId,maximumReservationPaise,idempotencyKey}` — admin
+- `POST /v1/evaluation-provider-authorizations/:authorizationId/revoke` — admin
+- provider `POST /v1/evaluation-runs` includes `executorKind:'provider'`, the selected
+  authorization's `providerBindingVersion`, `budgetAuthorizationId`, and `maxAttempts:1`
+
+The API derives and persists the immutable release fingerprint, inference provider/model and binding
+version, release budget ID, and positive reservation cap. The run form offers only active
+authorizations matching the selected immutable release; it never accepts free-form binding or budget
+IDs. `OVO_PROVIDER_EVALUATIONS_ENABLED` defaults false and remains server-only. A disabled
+installation returns 503 `provider_evaluations_unavailable`; the console shows that state without an
+enable control, while fixture jobs remain unchanged. Revocation prevents new runs from using that
+authorization. Browser certification must not submit a provider-backed run without explicit paid-run
+approval.
+
 ### `/performance`
 
 - `GET /v1/performance`

@@ -13,6 +13,10 @@ import {
   parseInboundRouteVariables,
 } from '../components/operations/inbound-route-state';
 import { recordingTrackEvidence } from '../components/operations/production-track-player';
+import {
+  activeProviderAuthorizations,
+  providerRunAuthorization,
+} from '../components/operations/evaluation-provider-state';
 
 describe('release configuration comparison', () => {
   it('reports stable paths without changing either snapshot', () => {
@@ -164,5 +168,44 @@ describe('production recording track evidence', () => {
         'inbound',
       ),
     ).toEqual({ available: 1, total: 2, partial: true, gapCount: 3, gapSequences: [0, 2, 3] });
+  });
+});
+
+describe('provider evaluation authorization selection', () => {
+  const active = {
+    id: 'authorization-1',
+    workspaceId: 'single-org',
+    releaseId: 'release-1',
+    releaseFingerprint: 'release-fingerprint',
+    bindingVersion: 'binding-1:2026-09-20T00:00:00.000Z',
+    provider: 'openai',
+    modelId: 'model-1',
+    budgetId: 'budget-1',
+    maximumReservationPaise: '5000',
+    createdBy: 'admin',
+    createdAt: '2026-09-20T00:00:00.000Z',
+  };
+
+  it('selects only active authorizations for the exact immutable release', () => {
+    expect(
+      activeProviderAuthorizations(
+        [
+          active,
+          { ...active, id: 'revoked', revokedAt: '2026-09-20T01:00:00.000Z' },
+          { ...active, id: 'other-release', releaseId: 'release-2' },
+        ],
+        'release-1',
+      ),
+    ).toEqual([active]);
+  });
+
+  it('derives the run binding version from the durable authorization', () => {
+    expect(providerRunAuthorization([active], 'release-1', active.id)).toEqual({
+      providerBindingVersion: active.bindingVersion,
+      budgetAuthorizationId: active.id,
+    });
+    expect(() => providerRunAuthorization([active], 'release-2', active.id)).toThrow(
+      'active authorization',
+    );
   });
 });

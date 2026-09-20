@@ -4,9 +4,13 @@ import {
   type HandoffProviderPort,
   type OperationsService,
 } from '@winsendotai/ovo-plugin-operations';
-import type { TaskProtection } from '@winsendotai/ovo-plugin-orchestration';
+import {
+  postgresOrchestrationPlugin,
+  sqsOrchestrationPlugin,
+  type TaskProtection,
+} from '@winsendotai/ovo-plugin-orchestration';
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
-import type { Context } from '@winsendotai/ovo-runtime';
+import type { Context, PluginDefinition } from '@winsendotai/ovo-runtime';
 import { WorkerTelemetryRuntime } from './telemetry-runtime.ts';
 
 export function env(name: string): string {
@@ -26,6 +30,29 @@ export function optionalInteger(
   if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum)
     throw new Error(`${name} must be an integer between ${minimum} and ${maximum}`);
   return parsed;
+}
+
+export function durableAdapterPlugins(): {
+  definitions: PluginDefinition[];
+  rows: Array<{ id: string; config: Record<string, unknown> }>;
+} {
+  return {
+    definitions: [postgresOrchestrationPlugin, sqsOrchestrationPlugin],
+    rows: [
+      {
+        id: postgresOrchestrationPlugin.manifest.id,
+        config: { connectionString: env('DATABASE_URL') },
+      },
+      {
+        id: sqsOrchestrationPlugin.manifest.id,
+        config: {
+          queueUrl: env('OVO_QUEUE_URL'),
+          region: env('AWS_REGION'),
+          endpoint: process.env.OVO_SQS_ENDPOINT || undefined,
+        },
+      },
+    ],
+  };
 }
 
 export function workerHandoffProvider(): HandoffProviderPort | undefined {

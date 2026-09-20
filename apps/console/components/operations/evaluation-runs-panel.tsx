@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   apiRequest,
   items,
@@ -7,9 +7,18 @@ import {
   type Release,
   type SessionIdentity,
 } from '../../lib/api';
-import type { EvaluationDataset, EvaluationRunRecord } from '../../lib/operator-api';
+import type {
+  EvaluationDataset,
+  EvaluationRunRecord,
+  ProviderEvaluationAuthorization,
+} from '../../lib/operator-api';
 import { Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
 import { EvaluationRunEvidence } from './evaluation-run-evidence';
+import {
+  activeProviderAuthorizations,
+  providerRunAuthorization,
+  type ProviderEvaluationAvailability,
+} from './evaluation-provider-state';
 
 const newKey = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -19,17 +28,24 @@ const newKey = () =>
 export function EvaluationRunsPanel({
   role,
   datasets,
+  providerAuthorizations,
+  providerAvailability,
 }: {
   role: SessionIdentity['role'];
   datasets: EvaluationDataset[];
+  providerAuthorizations: ProviderEvaluationAuthorization[];
+  providerAvailability: ProviderEvaluationAvailability;
 }) {
   const [agents, setAgents] = useState<AgentDraft[]>([]);
   const [runDatasetId, setRunDatasetId] = useState('');
   const [agentId, setAgentId] = useState('');
   const [releases, setReleases] = useState<Release[]>([]);
+  const [releaseId, setReleaseId] = useState('');
   const [runs, setRuns] = useState<EvaluationRunRecord[]>([]);
   const [focusRunId, setFocusRunId] = useState('');
   const [executorKind, setExecutorKind] = useState<'fixture' | 'provider'>('fixture');
+  const [providerAuthorizationId, setProviderAuthorizationId] = useState('');
+  const [maxAttempts, setMaxAttempts] = useState(3);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -67,9 +83,30 @@ export function EvaluationRunsPanel({
   useEffect(() => {
     if (!agentId) return setReleases([]);
     apiRequest<unknown>(`/agents/${encodeURIComponent(agentId)}/releases`)
-      .then(({ data }) => setReleases(items<Release>(data)))
+      .then(({ data }) => {
+        const next = items<Release>(data);
+        setReleases(next);
+        setReleaseId(next[0]?.id ?? '');
+      })
       .catch((failure) => setError(message(failure, 'Immutable releases could not be loaded.')));
   }, [agentId]);
+
+  const matchingAuthorizations = useMemo(
+    () => activeProviderAuthorizations(providerAuthorizations, releaseId),
+    [providerAuthorizations, releaseId],
+  );
+
+  useEffect(() => {
+    setProviderAuthorizationId((current) =>
+      matchingAuthorizations.some((authorization) => authorization.id === current)
+        ? current
+        : (matchingAuthorizations[0]?.id ?? ''),
+    );
+  }, [matchingAuthorizations]);
+
+  useEffect(() => {
+    if (role !== 'admin' || providerAvailability !== 'enabled') setExecutorKind('fixture');
+  }, [providerAvailability, role]);
 
   async function createRun(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -77,6 +114,14 @@ export function EvaluationRunsPanel({
     setBusy(true);
     setError(undefined);
     try {
+      const providerAuthorization =
+        executorKind === 'provider'
+          ? providerRunAuthorization(
+              providerAuthorizations,
+              String(values.get('releaseId')),
+              providerAuthorizationId,
+            )
+          : undefined;
       const { data } = await apiRequest<EvaluationRunRecord>('/evaluation-runs', {
         method: 'POST',
         body: JSON.stringify({
@@ -84,14 +129,9 @@ export function EvaluationRunsPanel({
           datasetVersion: Number(values.get('datasetVersion')),
           releaseId: values.get('releaseId'),
           idempotencyKey: newKey(),
-          maxAttempts: Number(values.get('maxAttempts')),
+          maxAttempts: executorKind === 'provider' ? 1 : Number(values.get('maxAttempts')),
           executorKind,
-          ...(executorKind === 'provider'
-            ? {
-                providerBindingVersion: values.get('providerBindingVersion'),
-                budgetAuthorizationId: values.get('budgetAuthorizationId'),
-              }
-            : {}),
+          ...providerAuthorization,
         }),
       });
       await loadRuns();
@@ -161,7 +201,13 @@ export function EvaluationRunsPanel({
                 </select>
               </Field>
               <Field label="Immutable release" htmlFor="run-release">
-                <select id="run-release" name="releaseId" required>
+                <select
+                  id="run-release"
+                  name="releaseId"
+                  value={releaseId}
+                  onChange={(event) => setReleaseId(event.target.value)}
+                  required
+                >
                   {releases.map((release) => (
                     <option key={release.id} value={release.id}>
                       {release.id}
@@ -178,7 +224,12 @@ export function EvaluationRunsPanel({
                   }
                 >
                   <option value="fixture">Fixture-only · no network/provider</option>
-                  <option value="provider">Provider-backed · authorized cost</option>
+                  <option
+                    value="provider"
+                    disabled={role !== 'admin' || providerAvailability !== 'enabled'}
+                  >
+                    Provider-backed · admin authorization and cost
+                  </option>
                 </select>
               </Field>
               <Field label="Maximum attempts" htmlFor="run-attempts">
@@ -188,29 +239,46 @@ export function EvaluationRunsPanel({
                   type="number"
                   min={1}
                   max={5}
-                  defaultValue={3}
+                  value={executorKind === 'provider' ? 1 : maxAttempts}
+                  readOnly={executorKind === 'provider'}
+                  onChange={(event) => setMaxAttempts(Number(event.target.value))}
                 />
               </Field>
               {executorKind === 'provider' && (
-                <>
-                  <Field label="Provider binding version" htmlFor="run-provider-version">
-                    <input id="run-provider-version" name="providerBindingVersion" required />
-                  </Field>
-                  <Field label="Budget authorization ID" htmlFor="run-budget-authorization">
-                    <input id="run-budget-authorization" name="budgetAuthorizationId" required />
-                  </Field>
-                </>
+                <Field label="Active authorization" htmlFor="run-provider-authorization">
+                  <select
+                    id="run-provider-authorization"
+                    value={providerAuthorizationId}
+                    onChange={(event) => setProviderAuthorizationId(event.target.value)}
+                    required
+                  >
+                    <option value="">Select release-matched authorization</option>
+                    {matchingAuthorizations.map((authorization) => (
+                      <option key={authorization.id} value={authorization.id}>
+                        {authorization.provider} · {authorization.modelId} · binding{' '}
+                        {authorization.bindingVersion} · budget {authorization.budgetId} · max{' '}
+                        {authorization.maximumReservationPaise} paise
+                      </option>
+                    ))}
+                  </select>
+                </Field>
               )}
             </div>
             {executorKind === 'provider' && (
               <Notice tone="warning">
                 Provider evaluation is explicit, version-pinned, budget-authorized, and may incur
-                cost.
+                cost. The selected authorization must match this immutable release and its exact
+                binding version. This screen cannot enable the server installation flag.
               </Notice>
             )}
             <button
               className="button primary align-start"
-              disabled={busy || !runDatasetId || releases.length === 0}
+              disabled={
+                busy ||
+                !runDatasetId ||
+                releases.length === 0 ||
+                (executorKind === 'provider' && !providerAuthorizationId)
+              }
             >
               Queue evaluation run
             </button>

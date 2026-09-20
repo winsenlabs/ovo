@@ -17,10 +17,7 @@ export class LedgerProviderEvaluationGate implements ProviderEvaluationGate {
 
   async authorize(input: Parameters<ProviderEvaluationGate['authorize']>[0]): Promise<void> {
     const release = await this.releases.load(input.workspaceId, input.releaseId);
-    const authorization = input.budgetAuthorizationId
-      ? await this.authorizations.get(input.budgetAuthorizationId)
-      : undefined;
-    if (!authorization)
+    if (!input.budgetAuthorizationId)
       throw Object.assign(new Error('Provider evaluation budget authorization was not found'), {
         statusCode: 403,
         code: 'provider_evaluation_not_authorized',
@@ -30,32 +27,55 @@ export class LedgerProviderEvaluationGate implements ProviderEvaluationGate {
       input.fixtureBindingVersion,
       input.workspaceId,
     );
-    if (
-      authorization.workspaceId !== input.workspaceId ||
-      authorization.releaseId !== input.releaseId ||
-      authorization.bindingVersion !== input.fixtureBindingVersion ||
-      authorization.budgetId !== policy.budgetId ||
-      BigInt(policy.reservationPaise) > BigInt(authorization.maximumReservationPaise)
-    )
+    const reserve = async (authorization: Awaited<ReturnType<typeof this.authorizations.get>>) => {
+      if (
+        !authorization ||
+        !matchesAuthorization(authorization, input, release.fingerprint, policy)
+      )
+        return undefined;
+      await validateProviderEvaluationPolicy(this.ledger, input.workspaceId, policy);
+      const reservationId = providerEvaluationReservationId({
+        workspaceId: input.workspaceId,
+        idempotencyKey: input.idempotencyKey,
+      });
+      const reservation = await this.ledger.reserveBudget({
+        budgetId: policy.budgetId,
+        reservationId,
+        amountPaise: policy.reservationPaise,
+        sourceRef: `evaluation:${input.releaseId}:${input.datasetId}:${input.datasetVersion}`,
+      });
+      if (!reservation.admitted)
+        throw Object.assign(new Error('Provider evaluation budget threshold exceeded'), {
+          statusCode: 402,
+          code: 'provider_evaluation_budget_exceeded',
+        });
+      return true;
+    };
+    const authorized = this.authorizations.withActive
+      ? await this.authorizations.withActive(input.budgetAuthorizationId, reserve)
+      : await reserve(await this.authorizations.get(input.budgetAuthorizationId));
+    if (!authorized)
       throw Object.assign(new Error('Provider evaluation budget authorization does not match'), {
         statusCode: 403,
         code: 'provider_evaluation_not_authorized',
       });
-    await validateProviderEvaluationPolicy(this.ledger, input.workspaceId, policy);
-    const reservationId = providerEvaluationReservationId({
-      workspaceId: input.workspaceId,
-      idempotencyKey: input.idempotencyKey,
-    });
-    const reservation = await this.ledger.reserveBudget({
-      budgetId: policy.budgetId,
-      reservationId,
-      amountPaise: policy.reservationPaise,
-      sourceRef: `evaluation:${input.releaseId}:${input.datasetId}:${input.datasetVersion}`,
-    });
-    if (!reservation.admitted)
-      throw Object.assign(new Error('Provider evaluation budget threshold exceeded'), {
-        statusCode: 402,
-        code: 'provider_evaluation_budget_exceeded',
-      });
   }
+}
+
+function matchesAuthorization(
+  authorization: NonNullable<Awaited<ReturnType<ProviderEvaluationAuthorizationResolver['get']>>>,
+  input: Parameters<ProviderEvaluationGate['authorize']>[0],
+  releaseFingerprint: string,
+  policy: ReturnType<typeof providerEvaluationPolicy>,
+) {
+  return (
+    authorization.workspaceId === input.workspaceId &&
+    authorization.releaseId === input.releaseId &&
+    authorization.releaseFingerprint === releaseFingerprint &&
+    authorization.bindingVersion === input.fixtureBindingVersion &&
+    authorization.provider === policy.provider &&
+    authorization.modelId === policy.modelId &&
+    authorization.budgetId === policy.budgetId &&
+    BigInt(policy.reservationPaise) <= BigInt(authorization.maximumReservationPaise)
+  );
 }

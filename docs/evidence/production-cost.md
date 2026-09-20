@@ -81,6 +81,7 @@ There is intentionally no public reservation endpoint: accepting a caller-select
 `apps/worker/src/cost-policy.ts` exports `WorkerCostPolicyController` and `createWorkerCostPolicyAttachment`. The attachment is deliberately narrow enough for the durable runner/session factory to install without duplicating ledger policy:
 
 - `reserveBeforeAdmission()` validates budget ownership, every immutable price-card version and required FX version, then uses the session ID as the durable reservation identity before dialing;
+- admission derives required coverage from release behavior instead of trusting the policy's own key list: Twilio carrier seconds and OpenAI TTS characters are always required, Deepgram STT audio seconds are required when the release accepts input, and context/agent modes require OpenAI output plus either every disjoint input counter or an explicit aggregate-input estimate;
 - `providerUsage` is a real `ProviderUsageSink` bridge for the existing Deepgram/OpenAI adapters, not a second synthetic usage format;
 - `inferenceUsage` consumes the AI SDK callback once per provider request and validates the immutable provider/model binding before writing any token units;
 - complete inference detail is charged as disjoint uncached-input, cache-read, cache-write and aggregate-output units. It never adds aggregate input tokens on top of those subsets;

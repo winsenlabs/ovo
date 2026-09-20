@@ -158,6 +158,21 @@ export interface EvaluationDatasetVersion {
   createdAt: string;
   createdBy: string;
 }
+export interface ProviderEvaluationAuthorization {
+  id: string;
+  workspaceId: string;
+  releaseId: string;
+  releaseFingerprint: string;
+  bindingVersion: string;
+  provider: string;
+  modelId: string;
+  budgetId: string;
+  maximumReservationPaise: string;
+  createdBy: string;
+  createdAt: string;
+  revokedBy?: string;
+  revokedAt?: string;
+}
 export interface EvaluationRunRecord {
   id: string;
   datasetId: string;
@@ -167,6 +182,7 @@ export interface EvaluationRunRecord {
   releaseFingerprint: string;
   fixtureBindingVersion: string;
   executorKind: 'fixture' | 'provider';
+  budgetAuthorizationId?: string;
   status: 'queued' | 'running' | 'cancelling' | 'cancelled' | 'succeeded' | 'failed';
   attempt: number;
   maxAttempts: number;

@@ -1,10 +1,7 @@
-import { compose, type PluginDefinition } from '@winsendotai/ovo-runtime';
+import { compose } from '@winsendotai/ovo-runtime';
 import {
-  postgresOrchestrationPlugin,
-  sqsOrchestrationPlugin,
   type DurableQueue,
   type PostgresOrchestrationStore,
-  type QueueDelivery,
   type TelephonyControl,
 } from '@winsendotai/ovo-plugin-orchestration';
 import { twilioTelephonyPlugin } from '@winsendotai/ovo-plugin-telephony-twilio';
@@ -31,6 +28,7 @@ import { ecsRuntimeConfig, localProtectionPlugin, readinessPlugin } from './runt
 import { createWorkerRecordingsPlugin, recordingRetentionDays } from './recording-runtime.ts';
 import { createWorkerHealthServer } from './worker-health.ts';
 import {
+  durableAdapterPlugins,
   env,
   openWorkerTelemetry,
   optionalInteger,
@@ -50,21 +48,7 @@ const server = createWorkerHealthServer(Number(process.env.PORT ?? 4100), () => 
 
 async function main(): Promise<void> {
   const liveDial = process.env.OVO_LIVE_DIAL_ENABLED === 'true';
-  const baseRows = [
-    {
-      id: postgresOrchestrationPlugin.manifest.id,
-      config: { connectionString: env('DATABASE_URL') },
-    },
-    {
-      id: sqsOrchestrationPlugin.manifest.id,
-      config: {
-        queueUrl: env('OVO_QUEUE_URL'),
-        region: env('AWS_REGION'),
-        endpoint: process.env.OVO_SQS_ENDPOINT || undefined,
-      },
-    },
-  ];
-  const catalog: PluginDefinition[] = [postgresOrchestrationPlugin, sqsOrchestrationPlugin];
+  const { definitions: catalog, rows: baseRows } = durableAdapterPlugins();
   if (!liveDial) {
     const composition = await compose(baseRows, catalog);
     state = 'dial-disabled';
@@ -314,7 +298,7 @@ async function main(): Promise<void> {
       await new Promise((resolve) => setTimeout(resolve, 1_000));
       continue;
     }
-    const deliveries: QueueDelivery[] = await queue.receive({
+    const deliveries = await queue.receive({
       maxMessages: 1,
       waitSeconds: 20,
       visibilitySeconds: 120,

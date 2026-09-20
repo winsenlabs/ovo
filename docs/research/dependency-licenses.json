@@ -1,7 +1,7 @@
 {
   "generatedAt": "2026-09-20",
   "command": "pnpm licenses list --json",
-  "lockfileSha256": "2e17baff844355b7fd97dc6922b084d7865087816f1b3b31a907b25623d1cede",
+  "lockfileSha256": "3a01114f85616ac149cebaaab23cf09afa28e8a274a317d922b3edd9330887bd",
   "dependencies": [
     {
       "name": "@ai-sdk/gateway",

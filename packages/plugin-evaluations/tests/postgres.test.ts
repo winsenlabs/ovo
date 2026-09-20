@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AgentConfig } from '@winsendotai/ovo-contracts';
 import { PostgresCostLedger } from '@winsendotai/ovo-plugin-ledger';
 import { LedgerProviderEvaluationGate } from '../src/provider-gate.ts';
-import { StaticProviderEvaluationAuthorizations } from '../src/provider-policy.ts';
+import { PostgresProviderEvaluationAuthorizations } from '../src/provider-authorizations.ts';
 import { PostgresEvaluationService } from '../src/service.ts';
 import type { EvaluationCase } from '../src/types.ts';
 
@@ -20,7 +20,7 @@ suite('PostgreSQL evaluation durability', () => {
     await service.migrate();
     await service.migrate();
     await pool.query(
-      'TRUNCATE ovo_eval_case_results,ovo_eval_runs,ovo_eval_dataset_versions,ovo_eval_datasets',
+      'TRUNCATE ovo_eval_case_results,ovo_eval_runs,ovo_eval_dataset_versions,ovo_eval_datasets,ovo_eval_provider_authorizations',
     );
   });
   afterAll(async () => {
@@ -36,7 +36,7 @@ suite('PostgreSQL evaluation durability', () => {
       (await pool.query<{ version: number }>('SELECT version FROM ovo_eval_schema_migrations')).rows
         .map((row) => row.version)
         .sort(),
-    ).toEqual([1, 2]);
+    ).toEqual([1, 2, 3]);
     const dataset = await service.datasets.create({
       workspaceId: `${scope}-data`,
       name: 'Release gate',
@@ -266,37 +266,89 @@ suite('PostgreSQL evaluation durability', () => {
       },
     };
     const authorizationId = `${scope}-authorization`;
-    const gate = new LedgerProviderEvaluationGate(
-      ledger,
-      {
-        async load() {
-          return release;
-        },
+    const releases = {
+      async load() {
+        return release;
       },
-      new StaticProviderEvaluationAuthorizations([
-        {
-          id: authorizationId,
-          workspaceId,
-          releaseId: release.id,
-          bindingVersion,
-          budgetId: `${scope}-evaluation-budget`,
-          maximumReservationPaise: '25',
-        },
-      ]),
-    );
-    const providerService = new PostgresEvaluationService({ pool }, gate);
+    };
+    const authorizations = new PostgresProviderEvaluationAuthorizations(pool, ledger, releases);
+    const authorization = await authorizations.createForRelease({
+      workspaceId,
+      releaseId: release.id,
+      maximumReservationPaise: '25',
+      idempotencyKey: authorizationId,
+      createdBy: 'admin',
+    });
+    expect(
+      await authorizations.createForRelease({
+        workspaceId,
+        releaseId: release.id,
+        maximumReservationPaise: '25',
+        idempotencyKey: authorizationId,
+        createdBy: 'another-admin',
+      }),
+    ).toEqual(authorization);
+    await expect(
+      authorizations.createForRelease({
+        workspaceId,
+        releaseId: release.id,
+        maximumReservationPaise: '26',
+        idempotencyKey: authorizationId,
+        createdBy: 'admin',
+      }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    await authorizations.createForRelease({
+      workspaceId,
+      releaseId: release.id,
+      maximumReservationPaise: '25',
+      idempotencyKey: `${authorizationId}-page-two`,
+      createdBy: 'admin',
+    });
+    const authorizationPage = await authorizations.list(workspaceId, 1);
+    expect(authorizationPage.items).toHaveLength(1);
+    expect(authorizationPage.nextCursor).toEqual(expect.any(String));
+    expect((await authorizations.list(`${workspaceId}-other`)).items).toEqual([]);
+    const gate = new LedgerProviderEvaluationGate(ledger, releases, authorizations);
+    const providerService = new PostgresEvaluationService({ pool }, gate, authorizations);
     const { datasetId, version } = await fixtureVersion(workspaceId);
     await providerService.createRun({
       ...runInput(workspaceId, datasetId, version, 'real-ledger-provider-run'),
       releaseId: release.id,
       executorKind: 'provider',
       fixtureBindingVersion: bindingVersion,
-      budgetAuthorizationId: authorizationId,
+      budgetAuthorizationId: authorization.id,
     });
     expect(await ledger.getBudget(`${scope}-evaluation-budget`)).toMatchObject({
       reservedPaise: '25',
       availableForAdmissionPaise: '75',
     });
+    expect((await authorizations.list(workspaceId)).items).toHaveLength(2);
+    expect(
+      await authorizations.revoke(`${workspaceId}-other`, authorization.id, 'admin'),
+    ).toBeUndefined();
+    let enter!: () => void;
+    const entered = new Promise<void>((resolve) => (enter = resolve));
+    let releaseLock!: () => void;
+    const releaseLocked = new Promise<void>((resolve) => (releaseLock = resolve));
+    const admission = authorizations.withActive(authorization.id, async () => {
+      enter();
+      await releaseLocked;
+      return true;
+    });
+    await entered;
+    let revokeCompleted = false;
+    const revocation = authorizations
+      .revoke(workspaceId, authorization.id, 'admin')
+      .then((value) => {
+        revokeCompleted = true;
+        return value;
+      });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(revokeCompleted).toBe(false);
+    releaseLock();
+    await expect(admission).resolves.toBe(true);
+    expect((await revocation)?.revokedAt).toEqual(expect.any(String));
+    expect(await authorizations.get(authorization.id)).toBeUndefined();
   });
 });
 

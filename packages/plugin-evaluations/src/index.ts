@@ -6,6 +6,7 @@ export * from './plugin.ts';
 export * from './provider-gate.ts';
 export * from './provider-executor.ts';
 export * from './provider-policy.ts';
+export * from './provider-authorizations.ts';
 export * from './runs.ts';
 export * from './service.ts';
 export * from './types.ts';

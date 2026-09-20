@@ -3,10 +3,9 @@ import {
   ProviderEvaluationExecutor,
   releaseEvaluationFingerprint,
   type ProviderEvaluationInferenceFactory,
-  type ProviderEvaluationAuthorization,
+  type ProviderEvaluationAuthorizationResolver,
   type ProviderEvaluationReleaseLoader,
   type ReleaseEvaluationSnapshot,
-  StaticProviderEvaluationAuthorizations,
 } from '@winsendotai/ovo-plugin-evaluations';
 import { AiSdkInference } from '@winsendotai/ovo-plugin-inference';
 import type { CostLedgerService, InferenceUsageEvidence } from '@winsendotai/ovo-plugin-ledger';
@@ -25,7 +24,7 @@ export interface ProviderEvaluationRuntimeOptions {
   maxProviderRequestsPerCase?: number;
   maxOutputTokens?: number;
   inferenceFactory?: ProviderEvaluationInferenceFactory;
-  authorizations: readonly ProviderEvaluationAuthorization[];
+  authorizations: ProviderEvaluationAuthorizationResolver;
 }
 
 export function createProviderEvaluationRuntime(
@@ -36,12 +35,16 @@ export function createProviderEvaluationRuntime(
   const releases = new StoreProviderEvaluationReleaseLoader(options.store);
   const inference =
     options.inferenceFactory ?? new OpenAiProviderEvaluationInferenceFactory(options.secrets);
-  const authorizations = new StaticProviderEvaluationAuthorizations(options.authorizations);
   return {
-    providerGate: new LedgerProviderEvaluationGate(options.ledger, releases, authorizations),
+    providerGate: new LedgerProviderEvaluationGate(
+      options.ledger,
+      releases,
+      options.authorizations,
+    ),
     providerExecutor: new ProviderEvaluationExecutor({
       ledger: options.ledger,
       inference,
+      authorizations: options.authorizations,
       maxCaseDurationMs: options.maxCaseDurationMs,
       maxProviderRequestsPerCase: options.maxProviderRequestsPerCase,
       maxOutputTokens: options.maxOutputTokens,

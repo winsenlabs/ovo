@@ -8,6 +8,7 @@ import {
   type PostgresEvaluationService,
 } from '@winsendotai/ovo-plugin-evaluations';
 import type { ControlStore, Role } from '@winsendotai/ovo-plugin-storage';
+import { registerProviderEvaluationAuthorizationRoutes } from './evaluation-provider-authorizations.ts';
 
 interface Principal {
   identityId: string;
@@ -186,6 +187,7 @@ export function registerEvaluationDatasetRoutes(
       nextCursor: next < version.cases.length ? encodeCursor(String(next)) : undefined,
     };
   });
+  registerProviderEvaluationAuthorizationRoutes(dependencies);
   registerRunRoutes(dependencies);
 }
 
@@ -198,11 +200,27 @@ function registerRunRoutes(dependencies: EvaluationDatasetRouteDependencies) {
     const body = RunBody.parse(request.body),
       release = await store.getRelease(principal.workspaceId, body.releaseId);
     if (!release) return reply.code(404).send({ error: 'not_found', message: 'Release not found' });
-    const fixtureBindingVersion =
-      body.executorKind === 'fixture'
-        ? dependencies.fixtureBindingVersion
-        : body.providerBindingVersion;
-    if (!fixtureBindingVersion || (body.executorKind === 'provider' && !body.budgetAuthorizationId))
+    let fixtureBindingVersion = dependencies.fixtureBindingVersion;
+    if (body.executorKind === 'provider') {
+      const authorization = body.budgetAuthorizationId
+        ? await service.providerAuthorizations?.get(body.budgetAuthorizationId)
+        : undefined;
+      if (!authorization || authorization.workspaceId !== principal.workspaceId)
+        return reply.code(400).send({
+          error: 'provider_authorization_required',
+          message: 'Provider evaluation requires an active budget authorization',
+        });
+      if (
+        body.providerBindingVersion &&
+        body.providerBindingVersion !== authorization.bindingVersion
+      )
+        return reply.code(400).send({
+          error: 'provider_authorization_mismatch',
+          message: 'Provider binding version does not match the selected authorization',
+        });
+      fixtureBindingVersion = authorization.bindingVersion;
+    }
+    if (!fixtureBindingVersion)
       return reply.code(400).send({
         error: 'provider_authorization_required',
         message: 'Provider evaluation requires authorized binding and budget versions',

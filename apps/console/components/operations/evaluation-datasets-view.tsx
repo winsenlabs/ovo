@@ -2,15 +2,23 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiRequest, items, ApiError, type SessionIdentity } from '../../lib/api';
 import type { EvaluationDataset } from '../../lib/operator-api';
+import type { ProviderEvaluationAuthorization } from '../../lib/operator-api';
 import { LoadingBlock, Notice } from '../primitives';
 import { EvaluationDatasetPanel } from './evaluation-dataset-panel';
 import { EvaluationRunsPanel } from './evaluation-runs-panel';
+import { EvaluationProviderAuthorizations } from './evaluation-provider-authorizations';
+import type { ProviderEvaluationAvailability } from './evaluation-provider-state';
 import { TestAndEvaluationView } from './evaluations-view';
 
 export function EvaluationDatasetsView({ role }: { role: SessionIdentity['role'] }) {
   const [datasets, setDatasets] = useState<EvaluationDataset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const [providerAuthorizations, setProviderAuthorizations] = useState<
+    ProviderEvaluationAuthorization[]
+  >([]);
+  const [providerAvailability, setProviderAvailability] =
+    useState<ProviderEvaluationAvailability>('unknown');
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -51,7 +59,19 @@ export function EvaluationDatasetsView({ role }: { role: SessionIdentity['role']
       {error && <Notice tone="danger">{error}</Notice>}
       <TestAndEvaluationView simulationsOnly embedded />
       <EvaluationDatasetPanel role={role} datasets={datasets} reload={load} />
-      <EvaluationRunsPanel role={role} datasets={datasets} />
+      <EvaluationProviderAuthorizations
+        role={role}
+        onChange={(authorizations, availability) => {
+          setProviderAuthorizations(authorizations);
+          setProviderAvailability(availability);
+        }}
+      />
+      <EvaluationRunsPanel
+        role={role}
+        datasets={datasets}
+        providerAuthorizations={providerAuthorizations}
+        providerAvailability={providerAvailability}
+      />
     </div>
   );
 }
