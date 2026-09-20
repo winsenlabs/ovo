@@ -93,6 +93,6 @@ Defer public plugin marketplace, arbitrary untrusted code, foundation-model trai
 
 Everything is a plugin except the minimal contracts/bootstrap. TypeScript is the implementation direction; Python Pipecat can be a reference benchmark, not an unannounced production dependency. LiveKit is optional and evaluated, not mandatory. Do not rebuild codecs, WebRTC servers, or VAD models without a demonstrated requirement and decision record.
 
-One active call per worker initially. Single EC2 can host multiple worker containers. SQS queues jobs, never realtime audio. Shared services may be always on; zero-idle worker economics are a planning scenario, not an infrastructure guarantee.
+Everything that implements an application capability, including the conversation engine, is a plugin. ECS Fargate is the primary production profile; its scaling and lifecycle requirements are specified in [the deployment mandate](08-plugin-first-fargate.md). One active call per worker initially. Single EC2 can host multiple worker containers. SQS queues jobs, never realtime audio. Shared services may be always on; zero-idle worker economics are a planning scenario, not an infrastructure guarantee.
 
 Account for all attempted calls, transfers, retries, provider usage and shared costs. ₹10 for two minutes is a configurable pricing scenario, not proof of margin. No universal legal-compliance claim; deployer configures calling/recording/retention policy appropriate to the deployment.

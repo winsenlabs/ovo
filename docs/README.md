@@ -14,13 +14,16 @@ OVO is the Open Voice Orchestrator: an open-source, TypeScript-first voice-agent
 6. [Engineering work breakdown](06-engineering-plan.md): dependencies, work packages, effort, milestones and deliverables.
 7. [Acceptance and operations](07-acceptance.md): testable criteria, benchmarks, failure cases and release gates.
 
+8. [Plugin-first and Fargate mandate](08-plugin-first-fargate.md): enforceable plugin boundaries, production scaling, admission and draining.
+9. [Upstream research assignment](09-upstream-research-assignment.md): mandatory source inspection and comparative spikes before choosing the engine.
+
 These documents supersede earlier exploratory recommendations that presumed LiveKit was mandatory or that the complete voice runtime must be Python. The implementation direction is TypeScript, informed by Pipecat's execution design and DeepSeek Harness's composition model. Research must determine which existing libraries to reuse; a full Pipecat clone is not required. Runtime choice cannot silently remove required product capabilities.
 
 ## Fixed requirements
 
 - First-party npm packages use `@winsendotai/ovo-*`; keep the GitHub repository at its existing owner. Do not rename upstream dependencies or publish anything merely because it has a package name.
-- Application capabilities are plugins with explicit contracts and lifecycle. The minimal bootstrap and contract definitions are shared foundations.
-- Support ECS Fargate and a single EC2 host as deployment profiles. Agent configurations and worker code are portable between them.
+- **Everything that implements an application capability is a plugin**, including the conversation engine, policies and console extensions, with explicit contracts and lifecycle. The minimal bootstrap and contract definitions are shared foundations.
+- Use ECS Fargate as the primary production deployment and scaling target. Keep single EC2 as a secondary compact-install profile using the same agent configurations and worker code.
 - Support announcement-with-variables, no-generative-LLM FAQ, supplied-context conversational, and tool-using agent bots.
 - Voice-agent settings, knowledge, prompts, tools, processing speech, providers, and provider secrets must be configurable through the frontend by an authorized operator.
 - Console authentication, platform IAM, TLS, VPC, and infrastructure bootstrap are not voice-agent settings. This is what “not for the access” means here. Keep a basic permission boundary; do not build a large identity-management product.

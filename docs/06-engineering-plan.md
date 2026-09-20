@@ -39,6 +39,8 @@ A staffed example is two backend/runtime engineers, one frontend engineer, part-
 
 ### W01 — Ground the stack
 
+- Complete [the upstream research assignment](09-upstream-research-assignment.md): inspect DeepSeek Harness, Pipecat, LiveKit Agents JS, Cordis and Vercel AI SDK; retain source evidence and comparative spikes.
+
 - Inspect source and official docs listed in research plan; record immutable source references.
 - Compare custom TypeScript pipeline with LiveKit Agents JS, using Pipecat as behavior reference.
 - Validate target carrier/deployment paths and credentials availability; map uncertainty explicitly.
@@ -167,7 +169,8 @@ A staffed example is two backend/runtime engineers, one frontend engineer, part-
 ### W19 — Deployment and runbooks
 
 - Implement Terraform Fargate and single-EC2/Compose profiles, workload identities, network/secret setup and image deployment.
-- Implement scale metrics considering active calls, pending demand, quotas and warm capacity; drain/protection.
+- Implement the primary Fargate profile according to [08-plugin-first-fargate.md](08-plugin-first-fargate.md): one scaling authority, mutually exclusive capacity counts, scale-from-zero, inbound prewarming, quota-aware admission, protection renewal and rollout headroom.
+- Add console scale-decision evidence and run burst, stale-metric, queue-empty-active-call and return-to-zero drills.
 - Write install, migration, backup/restore, provider outage and lost-worker reconciliation runbooks.
 - Exit: both profiles run same released agent; two EC2 workers isolated; no hidden EC2 component in all-Fargate label.
 
@@ -187,3 +190,7 @@ Critical path: runtime/transport choice → cancellation/playback correctness �
 ## 5. Scope-control rules
 
 If schedule is constrained, release a clearly labelled preview with fewer certified providers/languages or one deployment profile. Do not silently remove bot modes, frontend secrets/configuration, acknowledgments, isolation or correctness requirements. Do not label mock data as live observability. Do not expand into every Pipecat integration, video, or arbitrary workflow programming before the core acceptance gates.
+
+## 6. Additional mandatory verification mapping
+
+A63–A65 are W03 architecture/conformance work; A66–A71 are W07/W15/W19 lifecycle and operations work; A72 is the W01/W03 upstream evidence gate. These elaborate existing scope. Re-estimate after the spikes if required adaptations exceed the baseline; do not present added implementation work as already complete.

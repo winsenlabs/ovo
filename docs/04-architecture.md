@@ -2,7 +2,7 @@
 
 ## 1. Deployment and ownership
 
-Deploy the same application images/configuration schema in two profiles. Fargate: separate services for API/console/dispatcher, a worker pool, media gateway if needed, and postprocessing. Single EC2: containers for the same responsibilities with explicit resource limits; at least two independent call workers. Managed SQS/S3/database/Secrets Manager may remain external in both profiles. Single EC2 is not highly available.
+Fargate is the primary production profile; single EC2 is the secondary compact-install profile. Deploy the same application images/configuration schema in both. See the binding [plugin and Fargate requirements](08-plugin-first-fargate.md) for capability boundaries and autoscaling details. Fargate: separate services for API/console/dispatcher, a worker pool, media gateway if needed, and postprocessing. Single EC2: containers for the same responsibilities with explicit resource limits; at least two independent call workers. Managed SQS/S3/database/Secrets Manager may remain external in both profiles. Single EC2 is not highly available.
 
 Each worker initially admits one active call. A worker is reusable after verified cleanup; it is not permanently tied to an agent definition. A session pins agent, behavior, plugin, FAQ/context, price-card and policy versions. Agent definitions are not separate ECS services.
 

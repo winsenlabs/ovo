@@ -1,5 +1,7 @@
 # Mandatory stack research and architecture decisions
 
+Execute [the detailed upstream assignment](09-upstream-research-assignment.md) as part of this research. Reading landing pages is insufficient; source maps, comparative spikes and reuse decisions are mandatory.
+
 ## 1. Research discipline
 
 The product direction is set; the exact stack needs verification. Research is an implementation task with deliverables and an exit gate, not endless browsing. Use official documentation, source repositories and reproducible experiments. For every choice record date, version/commit, license, maintenance signals, supported runtime, capability gaps, test results, migration cost, dependencies and an explicit recommendation.

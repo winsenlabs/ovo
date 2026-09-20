@@ -106,7 +106,7 @@ Report failures, timeouts, sample counts, provider versions/regions, carrier/cod
 
 At least 120 versioned scenarios: 30 announcement/FAQ/script, 20 supplied-context/tool cases, 20 interruption/turn cases, 15 ambiguity/noise/language, 15 security/policy and 20 infrastructure/provider failure. Each has input, expected transition/action, forbidden actions and objective assertions. Automated graders cannot replace deterministic side-effect and secret-isolation tests. Human review covers conversational quality.
 
-Release requires all applicable A01–A62 criteria, measured performance gates, real carrier evidence, restore and rollout drills, frontend journeys, both deployment profiles and documentation. A restricted preview may have explicit limitations; it cannot claim full launch acceptance.
+Release requires all applicable A01–A72 criteria, measured performance gates, real carrier evidence, restore and rollout drills, frontend journeys, both deployment profiles and documentation. A restricted preview may have explicit limitations; it cannot claim full launch acceptance.
 
 ## 7. Operational runbooks required before launch
 
@@ -119,3 +119,18 @@ Release requires all applicable A01–A62 criteria, measured performance gates, 
 - Cost incident: pause new jobs at configured scope, inspect provider usage/reservations and late reconciliation, never hide unallocated cost.
 
 Every runbook has trigger, owner, commands/dashboard path, expected signals, rollback/recovery and verification. Proposed operational goals: detect stale worker within 15 seconds; start reconciliation within 30 seconds; control-data RPO ≤5 minutes and RTO ≤60 minutes when supported by the chosen backup configuration. Measure these in drills and state that live audio recovery is separate.
+
+## 8. Plugin-first and Fargate-specific acceptance
+
+| ID | Given / when | Required result | Work packages |
+|---|---|---|---|
+| A63 | Dependency architecture checked in CI | Forbidden provider imports and privileged built-in registration fail; engine/policies use public contracts | W03 |
+| A64 | External sample plugin installed through supported process | Settings and telemetry appear without editing core; lifecycle conformance passes | W03, W14 |
+| A65 | Engine replaced and plugin dependency fails | Behavior code unchanged; valid replacement runs; invalid graph fails before admission with cleanup | W03 |
+| A66 | Outbound worker service at zero receives eligible work | Independent demand signal wakes capacity; no dial before readiness; timestamps and cost retained | W07, W19 |
+| A67 | Queue becomes empty with active calls | Scale-in does not terminate protected calls; idle capacity retires after settlement | W19 |
+| A68 | Burst exceeds carrier/AWS/provider quota | Bounded capacity/admission, explicit queue state and limiting quota; no duplicate dial or scaling loop | W07, W19 |
+| A69 | Metrics stale or startup slow | Defined fail-safe admission; no repeated double-counted scale-out; operator alert and decision reason | W15, W19 |
+| A70 | Protection cannot establish or renew during rollout | New admission blocked where required; renewal failure visible; documented fallback and reconciliation | W19 |
+| A71 | Operator reviews scaling incident | Counts, queue age, ready/startup state, protection, cap and decision reason are correlated in console | W15, W19 |
+| A72 | Runtime/host selection proposed | DeepSeek/Pipecat/LiveKit source map, comparable TS spikes, SDK decision, license review and evidence-backed ADRs exist | W01, W03 |

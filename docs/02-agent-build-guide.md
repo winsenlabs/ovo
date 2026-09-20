@@ -6,12 +6,14 @@ Build the product described in this documentation pack, not just a telephony dem
 
 1. Read the documentation index, brief, architecture, frontend specification, work breakdown and acceptance gates before modifying application code.
 2. Inventory existing packages, infrastructure, tests and CI. Record findings in `docs/progress.md`.
-3. Execute the bounded research tasks in [03-stack-research.md](03-stack-research.md). Record precise versions/commits, verified capability, evidence and rejected alternatives.
+3. Complete the mandatory [upstream source and spike assignment](09-upstream-research-assignment.md), including DeepSeek Harness, Pipecat and LiveKit Agents JS. Execute the bounded research tasks in [03-stack-research.md](03-stack-research.md). Record precise versions/commits, verified capability, evidence and rejected alternatives.
 4. Select an implementation through ADRs. TypeScript and product contracts are fixed direction; exact libraries are choices. Do not port all of Pipecat merely to reproduce its API.
 5. Implement in vertical slices with real API, persistence, UI and meaningful tests. Build frame-level test harness before external carrier integration.
 6. Use owned test numbers/sandbox tools only for automated tests. Infrastructure deployment, paid provider provisioning, package publication and real customer calling need the appropriate explicit authorization; writing code/configuration does not imply those actions.
 7. Commit small, coherent work packages. Do not report completion until automated checks and applicable manual evidence exist.
 8. Maintain progress, decisions, migration notes and known limitations. Stop only on a concrete blocker; continue independent authorized work where possible.
+
+The [plugin-first/Fargate mandate](08-plugin-first-fargate.md) is binding: enforce architecture boundaries in CI and implement Fargate scaling/admission/draining explicitly.
 
 ## 2. Package and project naming
 
