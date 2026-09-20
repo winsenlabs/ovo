@@ -67,3 +67,9 @@ The focused review found three implemented-path defects: superseded turns did no
 ## User refinement — speech caching
 
 Caching remains required. Implementation now adds bounded process-owned audio caches and a cached speech-output plugin behind the existing scheduler. Exact approved static phrases/announcements may cache; dynamic customer text, model answers and tool results do not cache by default. Cache identity includes workspace and synthesis configuration. Generation usage, cache hits and repeated playback remain separate; a cache hit never makes carrier/media minutes free. Local generated-audio fixtures will verify these paths without claiming a live TTS integration.
+
+## Safety and cache checkpoint
+
+The review's cancellation, expired-dial reclaim, stale scaling authority and MCP schema/endpoint defects are corrected. Unknown or in-flight ECS writes fail closed; desired-count readback alone cannot release the fence. Audio cache resident reads now enforce workspace ownership independently of key construction. Thirteen cache tests pass. AI SDK native cache token details remain separate from total usage.
+
+Local CI passed after correcting an exact-timer-count fixture and outdated successful-operation expectations after cancellation. The regenerated comparison records 100 samples, zero failures, and truthful failed states for interrupted reads. Browser and independent PostgreSQL verification remain in progress. Full-project gaps remain in PM/NEXT.md; this checkpoint does not certify production.

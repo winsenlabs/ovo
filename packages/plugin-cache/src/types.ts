@@ -37,7 +37,7 @@ export interface ByteCacheStats {
 }
 
 export interface ByteCache {
-  get(key: string): Uint8Array | undefined;
+  get(key: string, workspaceId: string): Uint8Array | undefined;
   set(key: string, workspaceId: string, value: Uint8Array): boolean;
   getOrLoad(request: ByteCacheLoadRequest): Promise<ByteCacheLoadResult>;
   invalidateWorkspace(workspaceId: string): number;

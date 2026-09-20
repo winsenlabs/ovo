@@ -23,8 +23,8 @@ export class BoundedByteCache implements ByteCache {
     return { ...this.entries.stats, pending: this.pending.count };
   }
 
-  get(key: string): Uint8Array | undefined {
-    return this.entries.get(key);
+  get(key: string, workspaceId: string): Uint8Array | undefined {
+    return this.entries.get(key, workspaceId);
   }
 
   set(key: string, workspaceId: string, value: Uint8Array): boolean {
@@ -32,7 +32,7 @@ export class BoundedByteCache implements ByteCache {
   }
 
   getOrLoad(request: ByteCacheLoadRequest): Promise<ByteCacheLoadResult> {
-    const hit = this.entries.get(request.key);
+    const hit = this.entries.get(request.key, request.workspaceId);
     if (hit) {
       request.onSource?.('hit');
       return Promise.resolve({ value: hit, source: 'hit', stored: true });

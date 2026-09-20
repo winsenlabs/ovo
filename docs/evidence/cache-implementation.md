@@ -72,3 +72,5 @@ node scripts/check-architecture.mjs
 - Generated audio, TTS usage, and playback usage in these tests are fixtures. No live TTS provider, carrier, codec certification, listening test, or latency target is claimed.
 - The package records native units but does not select price cards, calculate currency, or reconcile late carrier billing.
 - This is a process-memory cache. It is intentionally neither cross-worker nor durable, and it must not be used as a source of business truth.
+
+Resident lookups enforce the stored workspace ID even when two callers supply the same key. Direct lookups require workspace identity. The cross-workspace regression proves a miss and independent generation, never another workspace's bytes.

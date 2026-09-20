@@ -26,27 +26,50 @@ describe('BoundedByteCache', () => {
     const original = Uint8Array.of(1, 2);
     expect(cache.set('a', 'workspace-a', original)).toBe(true);
     original[0] = 9;
-    const first = cache.get('a')!;
+    const first = cache.get('a', 'workspace-a')!;
     expect([...first]).toEqual([1, 2]);
     first[1] = 9;
-    expect([...cache.get('a')!]).toEqual([1, 2]);
+    expect([...cache.get('a', 'workspace-a')!]).toEqual([1, 2]);
 
     expect(cache.set('b', 'workspace-a', Uint8Array.of(3, 4))).toBe(true);
-    cache.get('a'); // a is most recently used
+    cache.get('a', 'workspace-a'); // a is most recently used
     expect(cache.set('c', 'workspace-a', Uint8Array.of(5, 6))).toBe(true);
-    expect(cache.get('b')).toBeUndefined();
-    expect([...cache.get('a')!]).toEqual([1, 2]);
+    expect(cache.get('b', 'workspace-a')).toBeUndefined();
+    expect([...cache.get('a', 'workspace-a')!]).toEqual([1, 2]);
     expect(cache.set('too-large', 'workspace-a', new Uint8Array(5))).toBe(false);
 
     const entryBound = new BoundedByteCache({ maxEntries: 1, maxBytes: 10, maxEntryBytes: 5 });
     entryBound.set('first', 'workspace-a', Uint8Array.of(1));
     entryBound.set('second', 'workspace-a', Uint8Array.of(2));
-    expect(entryBound.get('first')).toBeUndefined();
-    expect([...entryBound.get('second')!]).toEqual([2]);
+    expect(entryBound.get('first', 'workspace-a')).toBeUndefined();
+    expect([...entryBound.get('second', 'workspace-a')!]).toEqual([2]);
 
     now += 11;
-    expect(cache.get('a')).toBeUndefined();
+    expect(cache.get('a', 'workspace-a')).toBeUndefined();
     expect(cache.stats).toEqual({ entries: 0, bytes: 0, pending: 0 });
+  });
+
+  it('enforces workspace ownership even when callers reuse the exact key', async () => {
+    const cache = new BoundedByteCache();
+    cache.set('known-key', 'workspace-a', Uint8Array.of(11));
+    expect(cache.get('known-key', 'workspace-b')).toBeUndefined();
+    let loads = 0;
+    const outcomes: string[] = [];
+    const result = await cache.getOrLoad({
+      key: 'known-key',
+      workspaceId: 'workspace-b',
+      onSource: (source) => outcomes.push(source),
+      load: async () => {
+        loads++;
+        return Uint8Array.of(22);
+      },
+    });
+    expect([...result.value]).toEqual([22]);
+    expect(result.source).toBe('miss');
+    expect(loads).toBe(1);
+    expect(outcomes).toEqual(['miss']);
+    expect(cache.get('known-key', 'workspace-a')).toBeUndefined();
+    expect([...cache.get('known-key', 'workspace-b')!]).toEqual([22]);
   });
 
   it('coalesces identical loads while one waiter may cancel independently', async () => {
@@ -72,7 +95,7 @@ describe('BoundedByteCache', () => {
     await expect(first).rejects.toMatchObject({ name: 'AbortError' });
     await expect(second).resolves.toMatchObject({ source: 'coalesced', stored: true });
     expect(loads).toBe(1);
-    expect([...cache.get('same')!]).toEqual([7, 8]);
+    expect([...cache.get('same', 'workspace-a')!]).toEqual([7, 8]);
   });
 
   it('keeps all-aborted uncooperative producers pending and discards their late bytes', async () => {
@@ -104,7 +127,7 @@ describe('BoundedByteCache', () => {
     produced.resolve(Uint8Array.of(9));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(cache.stats.pending).toBe(0);
-    expect(cache.get('abandoned')).toBeUndefined();
+    expect(cache.get('abandoned', 'workspace-a')).toBeUndefined();
   });
 
   it('is exposed as a bounded process-scope Cordis plugin', () => {
@@ -131,9 +154,9 @@ describe('BoundedByteCache', () => {
     expect(cache.invalidateWorkspace('workspace-a')).toBe(1);
     await expect(pending).rejects.toBeInstanceOf(CacheLoadInvalidatedError);
     expect(producerAborted).toBe(true);
-    expect([...cache.get('kept')!]).toEqual([2]);
+    expect([...cache.get('kept', 'workspace-b')!]).toEqual([2]);
     produced.resolve(Uint8Array.of(3));
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(cache.get('refill')).toBeUndefined();
+    expect(cache.get('refill', 'workspace-a')).toBeUndefined();
   });
 });

@@ -21,9 +21,9 @@ export class ByteCacheEntries {
     return { entries: this.entries.size, bytes: this.totalBytes };
   }
 
-  get(key: string): Uint8Array | undefined {
+  get(key: string, workspaceId: string): Uint8Array | undefined {
     const entry = this.entries.get(key);
-    if (!entry) return undefined;
+    if (!entry || entry.workspaceId !== workspaceId) return undefined;
     if (entry.expiresAt <= this.now()) {
       this.delete(key, entry);
       return undefined;
