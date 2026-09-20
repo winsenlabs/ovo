@@ -61,7 +61,7 @@ export class ControlledOperationBoundary {
   readonly started = new Deferred<void>();
   readonly release = new Deferred<void>();
   attempts = 0;
-  state: 'idle' | 'running' | 'succeeded' = 'idle';
+  state: 'failed' | 'idle' | 'running' | 'succeeded' = 'idle';
 
   constructor(
     private readonly trace: TraceRecorder,
@@ -78,12 +78,13 @@ export class ControlledOperationBoundary {
     this.trace.add('operation.running.simulated-memory', { operationId: 'operation-1' });
     this.started.resolve();
     await this.release.promise;
-    this.state = 'succeeded';
-    this.trace.add('operation.succeeded.simulated-memory', { operationId: 'operation-1' });
-
     if (this.epoch.isCurrent(this.acceptedEpoch)) {
+      this.state = 'succeeded';
+      this.trace.add('operation.succeeded.simulated-memory', { operationId: 'operation-1' });
       this.trace.add('tool.result.current');
     } else {
+      this.state = 'failed';
+      this.trace.add('operation.failed.simulated-memory', { operationId: 'operation-1' });
       this.trace.add('tool.result.stale.blocked');
     }
     return 'balance:42';

@@ -2,6 +2,7 @@ import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP, type LookupFunction } from 'node:net';
 import { Agent } from 'undici';
 import { ExecutionPolicyError, ToolInvocationError } from '@winsendotai/ovo-plugin-tools';
+import { limitResponseBody, validateResponseByteLimit } from './response-limit.ts';
 
 export interface NetworkAddress {
   address: string;
@@ -12,6 +13,7 @@ export interface SecureNetworkDependencies {
   lookup?: (hostname: string) => Promise<readonly NetworkAddress[]>;
   /** Test/host injection only. The default fetch is DNS-pinned with Undici. */
   fetch?: typeof globalThis.fetch;
+  maxResponseBytes?: number;
 }
 
 export interface PinnedFetch {
@@ -69,13 +71,18 @@ export function isPublicAddress(address: string): boolean {
   return !(normalized.startsWith('2001:db8:') || normalized === '2001:db8::');
 }
 
-export function parseApprovedEndpoint(endpoint: string): URL {
+export function parseApprovedEndpoint(
+  endpoint: string,
+  options: { allowQuery?: boolean } = {},
+): URL {
   const url = new URL(endpoint);
   const hostname = url.hostname.replace(/^\[|\]$/g, '');
   if (url.protocol !== 'https:') throw new ExecutionPolicyError('Tool endpoints must use HTTPS');
   if (url.username || url.password)
     throw new ExecutionPolicyError('Tool endpoints cannot contain URL credentials');
   if (url.hash) throw new ExecutionPolicyError('Tool endpoints cannot contain fragments');
+  if (options.allowQuery === false && url.search)
+    throw new ExecutionPolicyError('Tool endpoint query parameters are forbidden');
   if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
     throw new ExecutionPolicyError('Private tool endpoints are forbidden');
   }
@@ -102,6 +109,7 @@ export async function createPinnedFetch(
   dependencies: SecureNetworkDependencies = {},
 ): Promise<PinnedFetch> {
   const approved = parseApprovedEndpoint(endpoint);
+  const maxResponseBytes = validateResponseByteLimit(dependencies.maxResponseBytes);
   const hostname = approved.hostname.replace(/^\[|\]$/g, '');
   const resolve =
     dependencies.lookup ??
@@ -150,7 +158,7 @@ export async function createPinnedFetch(
         await response.body?.cancel();
         throw new ToolInvocationError('Tool endpoint redirects are forbidden', 'not-applied');
       }
-      return response;
+      return limitResponseBody(response, maxResponseBytes);
     },
     async dispose() {
       await agent?.close();

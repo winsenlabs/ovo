@@ -59,3 +59,11 @@ The user explicitly requires no large monolithic files. All active implementatio
 - The final comparative experiment uses matched hot sessions and actual focused components. It retains 100 passing samples with source/lockfile identities; no live audio conclusion follows.
 - Default API releases support announcement and FAQ. Context and agent behavior plugins work in focused tests/prototypes but need approved inference/execution/speech/tool composition before the default API can publish them. This is an open integration task, not merely a credential blocker.
 - Independent browser verification and one focused post-implementation review remain before this checkpoint's handoff.
+
+## Review corrections in progress
+
+The focused review found three implemented-path defects: superseded turns did not cancel active execution, crash-left dial intents could remain unrecoverable, and desired-count writes did not enforce the capacity lease epoch. Builders now address these with targeted regressions. MCP admission now shares the HTTP connector policy, and release validation checks the exact remote name plus actual discovered input/output schemas. The PR remains draft; final browser/local CI evidence awaits these corrections.
+
+## User refinement — speech caching
+
+Caching remains required. Implementation now adds bounded process-owned audio caches and a cached speech-output plugin behind the existing scheduler. Exact approved static phrases/announcements may cache; dynamic customer text, model answers and tool results do not cache by default. Cache identity includes workspace and synthesis configuration. Generation usage, cache hits and repeated playback remain separate; a cache hit never makes carrier/media minutes free. Local generated-audio fixtures will verify these paths without claiming a live TTS integration.

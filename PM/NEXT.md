@@ -4,7 +4,7 @@ This branch is a working local foundation, not completion of the full project. K
 
 ## Independent engineering work, not blocked by paid access
 
-1. Connect approved provider/voice/tool compositions to the default management API for context and agent releases. All four behavior plugins exist; only announcement and FAQ publish by default.
+1. Connect approved provider/voice/tool compositions to the default management API for context and agent releases. All four behavior plugins exist; only announcement and FAQ publish by default. Route tool-dependent FAQ entries through shared execution; current matching safely clarifies instead of executing the check. Complete deterministic script-state graphs.
 2. Evolve the control-store contract to asynchronous methods and implement the shared PostgreSQL control adapter. Do not use SQLite on Fargate.
 3. Implement the live media/session gateway and streaming STT/TTS pipeline, including revised partial transcripts, VAD/backchannel rules and playback-aware history integration.
 4. Join callback correlation, unknown-dial reconciliation, voice session completion and durable operation/event projections end to end.

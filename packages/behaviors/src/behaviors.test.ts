@@ -194,6 +194,7 @@ describe('context and agent behavior', () => {
     expect(execution.execute).toHaveBeenCalledOnce();
     expect(execution.execute).toHaveBeenCalledWith(
       expect.objectContaining({ toolId: 'balance', id: 'operation-1' }),
+      { signal: expect.any(AbortSignal) },
     );
     expect(inference.generate).toHaveBeenCalledTimes(2);
     expect((inference.generate as ReturnType<typeof vi.fn>).mock.calls[1][0].results).toEqual([

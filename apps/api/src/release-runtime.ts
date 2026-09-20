@@ -1,3 +1,4 @@
+import { toolDefinitionMatchesDiscovery } from '@winsendotai/ovo-plugin-tools-mcp';
 import { BEHAVIOR_PLUGIN_IDS } from '@winsendotai/ovo-behaviors';
 import type { Behavior, OperationStore, SecretResolver } from '@winsendotai/ovo-contracts';
 import {
@@ -123,8 +124,16 @@ export function validateRelease(
     if (
       !approval ||
       tool.connectionId !== approval.connectionId ||
+      tool.remoteName !== approval.remoteName ||
       tool.schemaDigest !== approval.schemaDigest ||
-      discovered?.schemaDigest !== approval.schemaDigest
+      !discovered ||
+      discovered.schemaDigest !== approval.schemaDigest ||
+      !toolDefinitionMatchesDiscovery(tool, {
+        remoteName: discovered.remoteName,
+        inputSchema: discovered.inputSchema,
+        outputSchema: discovered.outputSchema ?? undefined,
+        schemaDigest: discovered.schemaDigest,
+      })
     )
       throw new Error(`MCP tool ${tool.id} is not currently approved`);
   }

@@ -171,7 +171,12 @@ export class FocusedOvoEngine implements VoiceExperimentEngine {
       toolAttempts: this.dependencies.nativeTool.attempts,
       toolOwner: 'ovo-execution',
       stalePlaybackCount,
-      operationState: operation?.state === 'succeeded' ? 'succeeded' : undefined,
+      operationState:
+        operation?.state === 'failed' ||
+        operation?.state === 'succeeded' ||
+        operation?.state === 'unknown'
+          ? operation.state
+          : undefined,
     };
   }
 

@@ -1,4 +1,11 @@
-import { generateText, isStepCount, jsonSchema, tool, type Tool } from 'ai';
+import {
+  generateText,
+  isStepCount,
+  jsonSchema,
+  tool,
+  type Tool,
+  type LanguageModelUsage,
+} from 'ai';
 import type { Inference, InferenceReply, InferenceRequest } from '@winsendotai/ovo-contracts';
 import type { AiSdkInferenceOptions } from './types.ts';
 
@@ -71,15 +78,21 @@ function buildSystemPrompt(request: InferenceRequest, instructions?: string): st
   return sections.filter(Boolean).join('\n\n');
 }
 
-function compactUsage(usage: {
-  inputTokens?: number;
-  outputTokens?: number;
-  totalTokens?: number;
-}): Record<string, number> | undefined {
+// Detail counters are subsets, not extra tokens to add to the totals. Missing
+// provider evidence stays missing; it must never become an assumed cache saving.
+function compactUsage(usage: LanguageModelUsage): Record<string, number> | undefined {
   const values = Object.entries({
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
     totalTokens: usage.totalTokens,
-  }).filter((entry): entry is [string, number] => typeof entry[1] === 'number');
+    uncachedInputTokens: usage.inputTokenDetails.noCacheTokens,
+    cacheReadInputTokens: usage.inputTokenDetails.cacheReadTokens,
+    cacheWriteInputTokens: usage.inputTokenDetails.cacheWriteTokens,
+    textOutputTokens: usage.outputTokenDetails.textTokens,
+    reasoningOutputTokens: usage.outputTokenDetails.reasoningTokens,
+  }).filter(
+    (entry): entry is [string, number] =>
+      typeof entry[1] === 'number' && Number.isFinite(entry[1]) && entry[1] >= 0,
+  );
   return values.length ? Object.fromEntries(values) : undefined;
 }

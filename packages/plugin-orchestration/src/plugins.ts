@@ -100,7 +100,7 @@ export const ecsCapacityWriterPlugin = definePlugin(
     version: '0.1.0',
     contractVersion: 1,
     scope: 'process',
-    requires: [],
+    requires: ['orchestration.store'],
     provides: ['capacity.writer'],
     configSchema: {
       type: 'object',
@@ -121,6 +121,7 @@ export const ecsCapacityWriterPlugin = definePlugin(
         requiredString(config, 'authorityId'),
         requiredString(config, 'cluster'),
         { workers: requiredString(config, 'workerService') },
+        ctx.get('orchestration.store') as PostgresOrchestrationStore,
         { region: requiredString(config, 'region') },
       ),
     );

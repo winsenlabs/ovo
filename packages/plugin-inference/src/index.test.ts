@@ -56,9 +56,43 @@ describe('AiSdkInference', () => {
       kind: 'tool',
       toolId: 'balance',
       input: { account: 'A-1' },
-      usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 },
+      usage: {
+        inputTokens: 10,
+        outputTokens: 2,
+        totalTokens: 12,
+        uncachedInputTokens: 10,
+        textOutputTokens: 2,
+      },
     });
     expect(model.doGenerateCalls).toHaveLength(1);
+  });
+
+  it('retains provider cache read/write evidence without caching model answers', async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: {
+        content: [{ type: 'text', text: 'fixture answer' }],
+        finishReason: { unified: 'stop', raw: 'stop' },
+        usage: {
+          inputTokens: { total: 100, noCache: 30, cacheRead: 50, cacheWrite: 20 },
+          outputTokens: { total: 12, text: 10, reasoning: 2 },
+        },
+        warnings: [],
+      },
+    });
+    const inference = new AiSdkInference({ model });
+    const first = await inference.generate(request());
+    await inference.generate(request());
+    expect(model.doGenerateCalls).toHaveLength(2);
+    expect(first.usage).toEqual({
+      inputTokens: 100,
+      outputTokens: 12,
+      totalTokens: 112,
+      uncachedInputTokens: 30,
+      cacheReadInputTokens: 50,
+      cacheWriteInputTokens: 20,
+      textOutputTokens: 10,
+      reasoningOutputTokens: 2,
+    });
   });
 });
 

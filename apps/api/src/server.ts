@@ -1,3 +1,4 @@
+import { parseApprovedEndpoint } from '@winsendotai/ovo-plugin-tools-http';
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -240,24 +241,16 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
 }
 
 function validateMcpEndpoint(endpoint: string) {
-  const url = new URL(endpoint),
-    localDev =
-      process.env.NODE_ENV !== 'production' &&
-      url.protocol === 'http:' &&
-      ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
-  if (
-    (url.protocol !== 'https:' && !localDev) ||
-    url.username ||
-    url.password ||
-    url.hash ||
-    url.search
-  )
+  try {
+    parseApprovedEndpoint(endpoint, { allowQuery: false });
+  } catch {
     throw Object.assign(
       new Error(
-        'MCP endpoint must be a credential-free HTTPS URL (localhost HTTP is development-only)',
+        'MCP endpoint must be public HTTPS without URL credentials, fragments or query parameters',
       ),
       { statusCode: 400, code: 'invalid_endpoint' },
     );
+  }
 }
 
 export async function buildManagementApi(

@@ -20,11 +20,53 @@ import {
 } from '@aws-sdk/client-cloudwatch';
 import type {
   DesiredCountWriter,
+  CapacityWriteGuard,
   DurableQueue,
   JobReference,
   QueueDelivery,
   TaskProtection,
 } from './types.ts';
+
+export interface EcsServiceApi {
+  update(input: { cluster: string; service: string; desiredCount: number }): Promise<void>;
+  describe(input: {
+    cluster: string;
+    service: string;
+  }): Promise<{ desiredCount: number; runningCount: number; pendingCount: number }>;
+}
+
+export class StaleCapacityAuthorityError extends Error {}
+export class UnresolvedCapacityWriteError extends Error {}
+export class UncertainCapacityWriteError extends Error {}
+
+class AwsEcsServiceApi implements EcsServiceApi {
+  private readonly client: ECSClient;
+
+  constructor(config: ECSClientConfig) {
+    this.client = new ECSClient(config);
+  }
+
+  async update(input: { cluster: string; service: string; desiredCount: number }): Promise<void> {
+    await this.client.send(new UpdateServiceCommand(input));
+  }
+
+  async describe(input: {
+    cluster: string;
+    service: string;
+  }): Promise<{ desiredCount: number; runningCount: number; pendingCount: number }> {
+    const result = await this.client.send(
+      new DescribeServicesCommand({ cluster: input.cluster, services: [input.service] }),
+    );
+    if (result.failures?.length || !result.services?.[0]) {
+      throw new Error(`Unable to describe ECS service ${input.service}`);
+    }
+    return {
+      desiredCount: result.services[0].desiredCount ?? 0,
+      runningCount: result.services[0].runningCount ?? 0,
+      pendingCount: result.services[0].pendingCount ?? 0,
+    };
+  }
+}
 
 function parseReference(body: string | undefined): JobReference {
   if (!body) throw new Error('SQS job message has no body');
@@ -150,29 +192,59 @@ export class EcsTaskProtection implements TaskProtection {
 
 /** The dispatcher is the only component constructed with this writer. Terraform ignores desiredCount drift. */
 export class EcsDesiredCountWriter implements DesiredCountWriter {
-  private readonly client: ECSClient;
+  private readonly api: EcsServiceApi;
 
   constructor(
     readonly authorityId: string,
     private readonly cluster: string,
     private readonly serviceByKey: Readonly<Record<string, string>>,
+    private readonly guard: CapacityWriteGuard,
     config: ECSClientConfig = {},
+    api?: EcsServiceApi,
   ) {
-    this.client = new ECSClient(config);
+    this.api = api ?? new AwsEcsServiceApi(config);
   }
 
-  async write(serviceKey: string, desiredCount: number, _epoch: number): Promise<void> {
+  async write(serviceKey: string, desiredCount: number, epoch: number): Promise<void> {
     const service = this.serviceByKey[serviceKey];
     if (!service) throw new Error(`No ECS service mapping for ${serviceKey}`);
     if (!Number.isInteger(desiredCount) || desiredCount < 0)
       throw new Error('desiredCount must be a non-negative integer');
-    await this.client.send(
-      new UpdateServiceCommand({
-        cluster: this.cluster,
-        service,
-        desiredCount,
-      }),
-    );
+    const permit = await this.guard.begin({
+      serviceKey,
+      authorityId: this.authorityId,
+      epoch,
+      desiredCount,
+    });
+    if (permit.kind === 'stale_authority') {
+      throw new StaleCapacityAuthorityError('Capacity authority or epoch is stale');
+    }
+    if (permit.kind === 'unresolved') {
+      throw new UnresolvedCapacityWriteError(
+        `Capacity write ${permit.attempt.attemptId} has an unresolved AWS outcome`,
+      );
+    }
+    try {
+      await this.api.update({ cluster: this.cluster, service, desiredCount });
+    } catch (error) {
+      await this.guard
+        .markUnknown(
+          permit.attempt.attemptId,
+          error instanceof Error ? error.message : String(error),
+        )
+        .catch(() => false);
+      throw new UncertainCapacityWriteError('ECS desired-count outcome is unknown');
+    }
+    try {
+      if (!(await this.guard.markApplied(permit.attempt.attemptId))) {
+        throw new Error('Capacity write intent was not current');
+      }
+    } catch {
+      // AWS accepted the request but durable settlement failed. The inflight record blocks takeover writes.
+      throw new UncertainCapacityWriteError(
+        'ECS desired-count applied but durable settlement is unknown',
+      );
+    }
   }
 
   async read(
@@ -180,16 +252,16 @@ export class EcsDesiredCountWriter implements DesiredCountWriter {
   ): Promise<{ desiredCount: number; runningCount: number; pendingCount: number }> {
     const service = this.serviceByKey[serviceKey];
     if (!service) throw new Error(`No ECS service mapping for ${serviceKey}`);
-    const result = await this.client.send(
-      new DescribeServicesCommand({ cluster: this.cluster, services: [service] }),
-    );
-    if (result.failures?.length || !result.services?.[0])
-      throw new Error(`Unable to describe ECS service ${serviceKey}`);
-    return {
-      desiredCount: result.services[0].desiredCount ?? 0,
-      runningCount: result.services[0].runningCount ?? 0,
-      pendingCount: result.services[0].pendingCount ?? 0,
-    };
+    return this.api.describe({ cluster: this.cluster, service });
+  }
+
+  async reconcile(serviceKey: string): Promise<boolean> {
+    const pending = await this.guard.pending(serviceKey);
+    if (!pending) return true;
+    // Desired count is diagnostic only. It can match a preexisting value while a timed-out
+    // UpdateService request is still able to arrive, so readback must never release this fence.
+    await this.read(serviceKey).catch(() => undefined);
+    return false;
   }
 }
 

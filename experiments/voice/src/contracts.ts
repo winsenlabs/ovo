@@ -20,7 +20,7 @@ export interface ScenarioResult {
   toolAttempts: number;
   toolOwner: 'none' | 'ovo-execution' | 'livekit-agent-session';
   stalePlaybackCount: number;
-  operationState?: 'succeeded';
+  operationState?: 'failed' | 'succeeded' | 'unknown';
 }
 
 export interface VoiceExperimentEngine {

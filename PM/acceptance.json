@@ -173,7 +173,7 @@
     "id": "A18",
     "scenario": "Authorized operator configures each bot mode",
     "required": "Entire journey completed in frontend, no source or agent `.env` edits",
-    "workPackages": "W12\u2013W14",
+    "workPackages": "W12–W14",
     "status": "partial local evidence",
     "evidence": ["docs/evidence/control-implementation.md"],
     "workPackageIds": ["W12", "W13", "W14"],
@@ -472,7 +472,7 @@
   {
     "id": "A48",
     "scenario": "Aligned transcript clicked",
-    "required": "Seek within \u00b1250 ms of known alignment, or label estimate/unavailable",
+    "required": "Seek within ±250 ms of known alignment, or label estimate/unavailable",
     "workPackages": "W15, W17",
     "status": "not verified",
     "evidence": [],
@@ -584,14 +584,14 @@
     "scenario": "Cached speech used",
     "required": "Generation cost/hits separate; no false claim carrier minutes are free",
     "workPackages": "W18",
-    "status": "not verified",
-    "evidence": [],
+    "status": "partial local evidence",
+    "evidence": ["docs/evidence/cache-implementation.md"],
     "workPackageIds": ["W18"],
-    "note": "No acceptance-level evidence yet; requirement remains in scope."
+    "note": "Generated audio fixtures prove bounded cache hits and separate generation/playback usage. Live TTS, console policy and billing reconciliation remain open."
   },
   {
     "id": "A60",
-    "scenario": "\u20b910 scenario selected",
+    "scenario": "₹10 scenario selected",
     "required": "Telephony/tax/FX/speech/cache/idle assumptions visible; margin scope explicit",
     "workPackages": "W18",
     "status": "not verified",

@@ -6,7 +6,7 @@ Date: 2026-09-20 UTC
 
 - `@winsendotai/ovo-plugin-tools`
   - Shared `Execution` service over the contracts `OperationStore`, `Speech`, and `ToolConnector` interfaces.
-  - Ajv input/output validation with formats, exact per-agent allowlists, confirmation gates (all writes plus explicitly marked reads), durable intent and running-state persistence before any acknowledgment or effect, operation-ID deduplication/collision rejection, bounded deadlines even when a connector ignores abort, cancellation, bounded progress, and conservative unknown write outcomes without retries.
+  - Ajv input/output validation with formats, exact per-agent allowlists, confirmation gates (all writes plus explicitly marked reads), durable intent and running-state persistence before any acknowledgment or effect, operation-ID deduplication/collision rejection, bounded deadlines even when a connector ignores abort, caller/newer-turn cancellation propagation, bounded progress, and conservative unknown write outcomes without retries.
   - For a live winning operation, acknowledgment starts once and concurrently with the tool. `execute()` does not return a settled result until the acknowledgment promise settles, including instant tools, so downstream result speech is gated. Provider results arriving after a timeout/cancellation are ignored and cannot overwrite the terminal record or trigger later speech.
   - Trusted native handler connector; handlers are deployment code, not user-supplied scripts.
   - Responsibilities are split across policy compilation/validation, operation persistence/runner, acknowledgment/progress scheduling, execution coordination, errors, canonical JSON/digests, native connector, Cordis binding, and service-key modules.
@@ -14,6 +14,7 @@ Date: 2026-09-20 UTC
   - Exact operator-approved HTTPS endpoint bindings with fixed paths and explicitly mapped query fields.
   - DNS resolves before a credential is read; all resolved addresses must be public. Production fetch uses an Undici agent pinned to those addresses. Requests cannot change origin/path, redirects are not followed, and private/special-use IPv4, IPv6, mapped IPv4, link-local, loopback, metadata, and documentation ranges are rejected.
   - Server-side bearer/header credential resolution, optional operation-ID header mapping, response projection, no retry, and conservative ambiguous 5xx/network outcomes.
+  - Every response is wrapped before consumers receive it. Declared oversized bodies are rejected and cancelled immediately; chunked/decompressed bodies are counted and cancelled while streaming at a configurable cap (1 MiB default), so `text()`, `json()`, and MCP SDK readers cannot buffer an unbounded body.
   - DNS/egress pinning is isolated from request mapping and connector/plugin binding.
 - `@winsendotai/ovo-plugin-tools-mcp`
   - Actual `@modelcontextprotocol/sdk` `Client` plus `StreamableHTTPClientTransport`; no stdio transport or browser command path.
@@ -48,11 +49,12 @@ Command:
 ```sh
 pnpm exec vitest run \
   packages/plugin-tools/tests/execution.test.ts \
+  packages/plugin-tools/tests/execution-signal.test.ts \
   packages/plugin-tools-http/tests/http.test.ts \
   packages/plugin-tools-mcp/tests/mcp.test.ts
 ```
 
-Observed: 3 test files passed, 21 tests passed. The suite covers required acknowledgment configuration, allowlist/confirmation/schema rejection before intent, failed intent persistence with zero effects, cancellation after durable intent but before acknowledgment/effect, fast-result acknowledgment gating, duplicate suppression and collision rejection, cooperative and uncooperative connector deadlines, ignored late results, write timeout as unknown with one attempt, explicit cancellation, bounded progress, manifest dependencies, SSRF/private-address/redirect rejection, server-side HTTP auth and idempotency mapping, workspace isolation, MCP discovery/drift, secret-error redaction, and an actual local MCP Streamable HTTP protocol server.
+Observed: 4 test files passed, 27 tests passed. The suite covers required acknowledgment configuration, allowlist/confirmation/schema rejection before intent, failed intent persistence with zero effects, pre-aborted and newer-turn caller signals, cancellation after durable intent but before acknowledgment/effect, uncooperative acknowledgment/connector promises, fast-result acknowledgment gating, duplicate suppression and collision rejection, cooperative and uncooperative connector deadlines, ignored late results, write timeout as unknown with one attempt, explicit cancellation, bounded progress, manifest dependencies, SSRF/private-address/redirect rejection, declared and chunked response-size limits, server-side HTTP auth and idempotency mapping, workspace isolation, MCP discovery/drift, secret-error redaction, and an actual local MCP Streamable HTTP protocol server.
 
 The local MCP protocol fixture deliberately injects a test fetch that maps an approved public test hostname to the loopback fixture. Production code has no loopback exception and rejects private DNS/IP destinations.
 
@@ -64,9 +66,9 @@ The architecture, namespace, private-package, PM-criteria, pinned-upstream, and 
 
 - A10/A11: unknown/unallowed/schema-invalid tools and unconfirmed writes stop before persistence/effect.
 - A12/A13: one configured acknowledgment starts for the winning operation even when the tool resolves immediately; execution result remains gated on it.
-- A15/A16: connectors receive cancellation signals, while the runner independently races abort so an uncooperative provider cannot hold the operation open; progress count is bounded and future progress is cancelled on settlement.
+- A15/A16: connectors receive deadline and caller-turn cancellation signals, while the runner independently races both connector and acknowledgment waits so an uncooperative provider cannot hold a newer turn open; progress count is bounded and future progress is cancelled on settlement.
 - A29/A30: started writes that time out become `unknown`, reads fail, late results are discarded, operations are never retried, and no effect starts when intent/running persistence fails or cancellation is already visible before invocation.
-- A54: private/metadata/special-use destinations and redirects are rejected; production DNS is pinned to validated addresses.
+- A54: private/metadata/special-use destinations and redirects are rejected; production DNS is pinned to validated addresses; response streams are capped before HTTP or MCP parsing.
 - A75: MCP credentials remain server-side, discovery does not grant, exact tool/schema validation precedes invocation, and calls pass through the same `Execution` path.
 
 ## Honest limitations and required follow-up

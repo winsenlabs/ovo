@@ -20,7 +20,7 @@ export function createExecutionService(
   >();
 
   return {
-    execute(request) {
+    execute(request, options) {
       const tool = selectApprovedTool(policy, request);
       const key = operationKey(request.workspaceId, request.id);
       const fingerprint = operationFingerprint({ ...request, input: request.input });
@@ -34,9 +34,13 @@ export function createExecutionService(
         return active.promise;
       }
       const controller = new AbortController();
-      const promise = runOperation(request, tool, controller, dependencies).finally(() =>
-        inFlight.delete(key),
-      );
+      const abortFromCaller = () => controller.abort(options?.signal?.reason);
+      if (options?.signal?.aborted) abortFromCaller();
+      else options?.signal?.addEventListener('abort', abortFromCaller, { once: true });
+      const promise = runOperation(request, tool, controller, dependencies).finally(() => {
+        options?.signal?.removeEventListener('abort', abortFromCaller);
+        inFlight.delete(key);
+      });
       inFlight.set(key, { fingerprint, promise, controller });
       return promise;
     },

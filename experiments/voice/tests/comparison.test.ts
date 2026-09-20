@@ -58,7 +58,7 @@ describe.each(candidates)('%s comparative fixture', (_label, createSpec) => {
     const result = await withEngine(createSpec(), (engine) => engine.runInterruptToolScenario());
 
     expect(result.toolAttempts).toBe(1);
-    expect(result.operationState).toBe('succeeded');
+    expect(result.operationState).toBe('failed');
     expect(result.stalePlaybackCount).toBe(0);
     expect(sequence(result, 'operation.intent.simulated-memory')).toBeLessThan(
       sequence(result, 'operation.running.simulated-memory'),
@@ -70,7 +70,7 @@ describe.each(candidates)('%s comparative fixture', (_label, createSpec) => {
       sequence(result, 'caller.takeover'),
     );
     expect(sequence(result, 'caller.takeover')).toBeLessThan(
-      sequence(result, 'operation.succeeded.simulated-memory'),
+      sequence(result, 'operation.failed.simulated-memory'),
     );
     expect(sequence(result, 'turn.cancelled')).toBeLessThan(
       sequence(result, 'tool.result.stale.blocked'),

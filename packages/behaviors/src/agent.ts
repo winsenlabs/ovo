@@ -114,16 +114,20 @@ export class AgentBehavior implements Behavior {
         }
 
         // Execution is the sole policy, durable-intent, acknowledgement, and connector boundary.
-        const result = await this.execution.execute({
-          id: this.operationId(),
-          workspaceId: this.options.workspaceId,
-          sessionId: this.options.sessionId,
-          toolId: tool.id,
-          input: reply.input,
-          confirmed: variables.confirmed === true,
-        });
-        results.push(result);
+        const result = await this.execution.execute(
+          {
+            id: this.operationId(),
+            workspaceId: this.options.workspaceId,
+            sessionId: this.options.sessionId,
+            toolId: tool.id,
+            input: reply.input,
+            confirmed: variables.confirmed === true,
+          },
+          { signal: controller.signal },
+        );
         controller.signal.throwIfAborted();
+        if (turn !== this.turn) throw new DOMException('stale agent turn', 'AbortError');
+        results.push(result);
       }
       return this.config.uncertainty;
     } finally {

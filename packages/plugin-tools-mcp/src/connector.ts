@@ -1,3 +1,4 @@
+import { parseApprovedEndpoint } from '@winsendotai/ovo-plugin-tools-http';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { ToolConnection, ToolConnector } from '@winsendotai/ovo-contracts';
 import { ExecutionPolicyError, ToolInvocationError } from '@winsendotai/ovo-plugin-tools';
@@ -33,6 +34,7 @@ function getConnection(
 function compileConnections(rows: readonly ToolConnection[]): Map<string, ToolConnection> {
   const connections = new Map<string, ToolConnection>();
   for (const row of rows) {
+    parseApprovedEndpoint(row.endpoint, { allowQuery: false });
     if (connections.has(row.id))
       throw new ExecutionPolicyError(`Duplicate MCP connection: ${row.id}`);
     if (row.auth === 'bearer' && !row.credentialId) {

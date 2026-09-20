@@ -17,6 +17,7 @@
     "@winsendotai/ovo-plugin-tools-mcp": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*",
     "fastify": "5.12.5",
-    "zod": "4.6.5"
+    "zod": "4.6.5",
+    "@winsendotai/ovo-plugin-tools-http": "workspace:*"
   }
 }

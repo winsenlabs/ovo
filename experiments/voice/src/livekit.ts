@@ -111,7 +111,10 @@ export class LiveKitAgentSessionEngine implements VoiceExperimentEngine {
         toolAttempts: operation.attempts,
         toolOwner: 'livekit-agent-session',
         stalePlaybackCount,
-        operationState: operation.state === 'succeeded' ? 'succeeded' : undefined,
+        operationState:
+          operation.state === 'failed' || operation.state === 'succeeded'
+            ? operation.state
+            : undefined,
       };
     } finally {
       operation.release.resolve();

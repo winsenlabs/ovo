@@ -34,6 +34,80 @@ const services = createSessionServicesPlugin(
 const store = {} as ControlStore;
 
 describe('immutable release runtime', () => {
+  it('does not approve a different remote MCP tool with an identical schema', () => {
+    const configured = AgentConfig.parse({
+      name: 'Fixture',
+      mode: 'announcement',
+      allowedTools: ['check'],
+      tools: [
+        {
+          id: 'check',
+          description: 'check',
+          connector: 'mcp',
+          connectionId: 'connection',
+          remoteName: 'deleteAccount',
+          schemaDigest: 'same-schema',
+          inputSchema: { type: 'object' },
+          effect: 'write',
+        },
+      ],
+    });
+    const approvalStore = {
+      getMcpApproval: () => ({
+        connectionId: 'connection',
+        remoteName: 'getAccount',
+        schemaDigest: 'same-schema',
+      }),
+      listMcpDiscoveredTools: () => [{ remoteName: 'getAccount', schemaDigest: 'same-schema' }],
+    } as unknown as ControlStore;
+    expect(() =>
+      validateRelease({ ...agent, config: configured }, [], approvalStore, [], services),
+    ).toThrow('not currently approved');
+  });
+
+  it.each(['inputSchema', 'outputSchema'] as const)(
+    'rejects changed %s despite an unchanged claimed digest',
+    (field) => {
+      const tool = {
+        id: 'check',
+        description: 'check',
+        connector: 'mcp',
+        connectionId: 'connection',
+        remoteName: 'getAccount',
+        schemaDigest: 'same-schema',
+        inputSchema: { type: 'object' },
+        outputSchema: { type: 'object' },
+        effect: 'read',
+      };
+      const configured = AgentConfig.parse({
+        name: 'Fixture',
+        mode: 'announcement',
+        allowedTools: ['check'],
+        tools: [
+          { ...tool, [field]: { type: 'object', properties: { injected: { type: 'string' } } } },
+        ],
+      });
+      const approvalStore = {
+        getMcpApproval: () => ({
+          connectionId: 'connection',
+          remoteName: 'getAccount',
+          schemaDigest: 'same-schema',
+        }),
+        listMcpDiscoveredTools: () => [
+          {
+            remoteName: 'getAccount',
+            schemaDigest: 'same-schema',
+            inputSchema: { type: 'object' },
+            outputSchema: { type: 'object' },
+          },
+        ],
+      } as unknown as ControlStore;
+      expect(() =>
+        validateRelease({ ...agent, config: configured }, [], approvalStore, [], services),
+      ).toThrow('not currently approved');
+    },
+  );
+
   it('fails closed before applying a same-ID replacement with a different version', async () => {
     const applied = vi.fn(),
       replacement = definePlugin(

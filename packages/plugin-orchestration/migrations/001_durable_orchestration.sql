@@ -59,6 +59,22 @@ CREATE TABLE IF NOT EXISTS ovo_capacity_leases (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS ovo_capacity_writes (
+  attempt_id uuid PRIMARY KEY,
+  service_key text NOT NULL,
+  authority_id text NOT NULL,
+  epoch bigint NOT NULL,
+  desired_count integer NOT NULL CHECK (desired_count >= 0),
+  status text NOT NULL CHECK (status IN ('inflight', 'applied', 'unknown')),
+  started_at timestamptz NOT NULL DEFAULT now(),
+  settled_at timestamptz,
+  last_error text
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ovo_capacity_writes_unresolved_idx
+  ON ovo_capacity_writes (service_key)
+  WHERE status IN ('inflight', 'unknown');
+
 CREATE TABLE IF NOT EXISTS ovo_worker_slots (
   worker_id text PRIMARY KEY,
   state text NOT NULL CHECK (state IN ('ready_idle', 'reserved', 'active', 'starting', 'draining')),

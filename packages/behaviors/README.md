@@ -47,7 +47,7 @@ interface BehaviorPluginConfig {
 | `createContextBehaviorPlugin()`      | `ovo.inference`                  | `ovo.behavior` | one request per response    |
 | `createAgentBehaviorPlugin()`        | `ovo.inference`, `ovo.execution` | `ovo.behavior` | bounded by `agent.maxSteps` |
 
-The agent behavior calls business operations only through the shared `Execution` contract exposed as `ovo.execution`. It never imports or invokes a connector or provider SDK. `variables.confirmed === true` is forwarded as the current confirmation signal; the execution service remains the policy and durable-intent authority.
+The agent behavior calls business operations only through the shared `Execution` contract exposed as `ovo.execution`. It never imports or invokes a connector or provider SDK. The current turn's `AbortSignal` is forwarded to `Execution.execute(request, { signal })`, so a newer turn/cancel stops pending reads and progress; a started write remains the execution service's durable `unknown`/reconciliation responsibility and is never narrated by the stale turn. `variables.confirmed === true` is forwarded as the current confirmation signal; the execution service remains the policy and durable-intent authority.
 
 Direct constructors (`createAnnouncementBehavior`, `createFaqBehavior`, `createContextBehavior`, and `createAgentBehavior`) are also exported for previews and focused tests. Announcement helpers validate variables with Ajv before safe path-only rendering. Supported formatting metadata is JSON Schema `format: "date" | "date-time" | "time"` and `x-ovo-format: "currency"` with `x-ovo-currency`.
 

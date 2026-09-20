@@ -2,7 +2,7 @@
 
 Updated: 2026-09-20 UTC. Owner: OVO implementation team.
 
-The initial upstream source audit is complete. Comparative prototypes and live integration research remain open. This board covers the full project, not only the first implementation branch. No launch criterion is verified merely because code exists.
+The initial upstream source audit is complete. Local comparative prototypes and bounded audio caching have test evidence. Live audio comparisons and integration research remain open. This board covers the full project, not only the first implementation branch. No launch criterion is verified merely because code exists.
 
 ## Status rules
 

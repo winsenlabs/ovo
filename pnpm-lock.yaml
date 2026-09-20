@@ -47,6 +47,9 @@ importers:
       '@winsendotai/ovo-plugin-storage':
         specifier: workspace:*
         version: link:../../packages/plugin-storage
+      '@winsendotai/ovo-plugin-tools-http':
+        specifier: workspace:*
+        version: link:../../packages/plugin-tools-http
       '@winsendotai/ovo-plugin-tools-mcp':
         specifier: workspace:*
         version: link:../../packages/plugin-tools-mcp
@@ -157,6 +160,12 @@ importers:
         specifier: 4.6.5
         version: 4.6.5
 
+  packages/plugin-cache:
+    dependencies:
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+
   packages/plugin-example:
     dependencies:
       '@winsendotai/ovo-sdk':
@@ -229,6 +238,18 @@ importers:
       '@winsendotai/ovo-plugin-storage':
         specifier: workspace:*
         version: link:../plugin-storage
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+
+  packages/plugin-speech-cache:
+    dependencies:
+      '@winsendotai/ovo-plugin-cache':
+        specifier: workspace:*
+        version: link:../plugin-cache
+      '@winsendotai/ovo-plugin-voice':
+        specifier: workspace:*
+        version: link:../plugin-voice
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime

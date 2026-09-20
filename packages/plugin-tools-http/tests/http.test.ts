@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolDefinition } from '@winsendotai/ovo-contracts';
 import { ExecutionPolicyError, ToolInvocationError } from '@winsendotai/ovo-plugin-tools';
-import { createHttpConnector, createPinnedFetch, isPublicAddress } from '../src/index.ts';
+import {
+  createHttpConnector,
+  createPinnedFetch,
+  isPublicAddress,
+  ResponseBodyLimitError,
+} from '../src/index.ts';
 
 const publicLookup = async () => [{ address: '93.184.216.34', family: 4 as const }];
 
@@ -50,6 +55,55 @@ describe('HTTP connector network policy', () => {
     await expect(policy.fetch('https://other.example.test/run')).rejects.toThrow(
       'operator-approved',
     );
+    await policy.dispose();
+  });
+
+  it('rejects and cancels a response with a declared oversized body before reading', async () => {
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array([1]));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const policy = await createPinnedFetch('https://tools.example.test/run', {
+      lookup: publicLookup,
+      maxResponseBytes: 8,
+      fetch: async () => new Response(body, { headers: { 'content-length': '9' } }),
+    });
+    await expect(policy.fetch('https://tools.example.test/run')).rejects.toBeInstanceOf(
+      ResponseBodyLimitError,
+    );
+    expect(cancelled).toBe(true);
+    await policy.dispose();
+  });
+
+  it('stops a chunked response while reading when cumulative bytes exceed the cap', async () => {
+    let emitted = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          emitted += 1;
+          controller.enqueue(new Uint8Array(5));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const policy = await createPinnedFetch('https://tools.example.test/run', {
+      lookup: publicLookup,
+      maxResponseBytes: 8,
+      fetch: async () => new Response(body),
+    });
+    const response = await policy.fetch('https://tools.example.test/run');
+    await expect(response.arrayBuffer()).rejects.toBeInstanceOf(ResponseBodyLimitError);
+    expect(emitted).toBe(2);
+    expect(cancelled).toBe(true);
     await policy.dispose();
   });
 });

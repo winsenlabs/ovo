@@ -36,7 +36,10 @@ function abortError(signal: AbortSignal): Error {
 }
 
 function raceWithAbort<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(abortError(signal));
+  if (signal.aborted) {
+    void operation.catch(() => undefined);
+    return Promise.reject(abortError(signal));
+  }
   return new Promise<T>((resolve, reject) => {
     const onAbort = () => {
       cleanup();
@@ -124,32 +127,41 @@ export async function runOperation(
   });
   const invocation = raceWithAbort(connectorOperation, controller.signal);
 
-  let settled: OperationRecord;
   try {
-    const result = await invocation;
-    if (tool.output && !tool.output(result)) {
-      throw new ToolSchemaError(
-        `Tool ${request.toolId} returned an invalid result`,
-        tool.output.errors ?? [],
-      );
+    let settled: OperationRecord;
+    try {
+      const result = await invocation;
+      if (tool.output && !tool.output(result)) {
+        throw new ToolSchemaError(
+          `Tool ${request.toolId} returned an invalid result`,
+          tool.output.errors ?? [],
+        );
+      }
+      settled = { ...running, state: 'succeeded', result: structuredClone(result) };
+    } catch (error) {
+      const explicitOutcome = error instanceof ToolInvocationError ? error.outcome : undefined;
+      const unknown =
+        tool.definition.effect === 'write' &&
+        effectStarted &&
+        (timedOut || controller.signal.aborted || explicitOutcome !== 'not-applied');
+      settled = {
+        ...running,
+        state: unknown ? 'unknown' : 'failed',
+        error: timedOut ? 'Tool deadline exceeded' : messageFor(error),
+      };
+    } finally {
+      speech.stopProgress();
     }
-    settled = { ...running, state: 'succeeded', result: structuredClone(result) };
-  } catch (error) {
-    const explicitOutcome = error instanceof ToolInvocationError ? error.outcome : undefined;
-    const unknown =
-      tool.definition.effect === 'write' &&
-      effectStarted &&
-      (timedOut || controller.signal.aborted || explicitOutcome !== 'not-applied');
-    settled = {
-      ...running,
-      state: unknown ? 'unknown' : 'failed',
-      error: timedOut ? 'Tool deadline exceeded' : messageFor(error),
-    };
+
+    await dependencies.store.settle(settled);
+    try {
+      await raceWithAbort(speech.acknowledgment, controller.signal);
+    } catch (error) {
+      if (!controller.signal.aborted) throw error;
+    }
+    return settled;
   } finally {
     clearTimeout(deadline);
     speech.stopProgress();
   }
-  await dependencies.store.settle(settled);
-  await speech.acknowledgment;
-  return settled;
 }

@@ -70,6 +70,15 @@ export class CapacityController {
     }
     this.epoch = lease.epoch;
     const decision = decideCapacity(input);
+    if (this.writer.reconcile && !(await this.writer.reconcile(this.serviceKey))) {
+      return {
+        ...decision,
+        writeDesiredCount: false,
+        failClosed: true,
+        wrote: false,
+        reason: 'capacity-write-outcome-unresolved',
+      };
+    }
     if (!decision.writeDesiredCount) return { ...decision, wrote: false };
     await this.writer.write(this.serviceKey, decision.desiredCount, lease.epoch);
     return { ...decision, wrote: true };

@@ -10,6 +10,8 @@ import {
   type TelephonyDialRequest,
 } from '@winsendotai/ovo-plugin-orchestration';
 import { DeliveryVisibilityRenewal, JobLeaseRenewal } from './renewal.ts';
+import { reconcileClaimedDial, type ReconciliationOutcome } from './reconciliation.ts';
+import { dialRequestFromJob } from './dial-request.ts';
 
 export type DeliveryOutcome =
   | { kind: 'duplicate' }
@@ -21,28 +23,8 @@ export type DeliveryOutcome =
       protection: ProtectionRenewal;
       lease: JobLeaseRenewal;
     }
-  | { kind: 'reconcile_required'; jobId: string; requestId: string }
+  | ReconciliationOutcome
   | { kind: 'failed'; reason: string };
-
-function dialPayload(
-  payload: Record<string, unknown>,
-  job: { id: string; workspaceId: string; ownerEpoch: number },
-): TelephonyDialRequest {
-  const read = (key: string): string => {
-    const value = payload[key];
-    if (typeof value !== 'string' || !value) throw new Error(`Job ${job.id} is missing ${key}`);
-    return value;
-  };
-  return {
-    requestId: `${job.id}:${job.ownerEpoch}`,
-    jobId: job.id,
-    workspaceId: job.workspaceId,
-    to: read('to'),
-    from: read('from'),
-    streamUrl: read('streamUrl'),
-    statusCallbackUrl: read('statusCallbackUrl'),
-  };
-}
 
 export class WorkerRunner {
   private draining = false;
@@ -76,14 +58,33 @@ export class WorkerRunner {
       await this.queue.changeVisibility(delivery, this.options.deferSeconds);
       return { kind: 'deferred', reason: 'worker-draining' };
     }
-    const job = await this.store.claim(
+    const claim = await this.store.claim(
       delivery.reference.jobId,
       this.workerId,
       this.options.leaseMs,
     );
-    if (!job) {
+    if (claim.kind === 'defer') {
+      const delay = claim.retryAt
+        ? Math.max(1, Math.min(43_200, Math.ceil((claim.retryAt.getTime() - Date.now()) / 1_000)))
+        : this.options.deferSeconds;
+      await this.queue.changeVisibility(delivery, delay);
+      return { kind: 'deferred', reason: claim.reason };
+    }
+    if (claim.kind === 'missing' || claim.kind === 'settled') {
       await this.queue.delete(delivery);
       return { kind: 'duplicate' };
+    }
+    const job = claim.job;
+    if (claim.kind === 'reconcile') {
+      return reconcileClaimedDial({
+        workerId: this.workerId,
+        job,
+        delivery,
+        store: this.store,
+        queue: this.queue,
+        telephony: this.telephony,
+        deferSeconds: this.options.deferSeconds,
+      });
     }
     const lease = new JobLeaseRenewal(
       this.store,
@@ -148,7 +149,7 @@ export class WorkerRunner {
 
     let request: TelephonyDialRequest;
     try {
-      request = dialPayload(job.payload, job);
+      request = dialRequestFromJob(job.payload, job);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       await this.store.markFailed(job.id, this.workerId, job.ownerEpoch, reason);
@@ -198,13 +199,20 @@ export class WorkerRunner {
       return { kind: 'failed', reason: dial.reason };
     }
 
-    await this.store.markDialUnknown(
+    const unknownPersisted = await this.store.markDialUnknown(
       job.id,
       this.workerId,
       job.ownerEpoch,
       request.requestId,
       dial.reason,
     );
+    if (!unknownPersisted) {
+      lease.stop();
+      visibility.stop();
+      await renewal.release();
+      await this.queue.changeVisibility(delivery, this.options.deferSeconds);
+      return { kind: 'deferred', reason: 'dial-ownership-lost' };
+    }
     const reconciled = await this.telephony.reconcile(request.requestId);
     if (reconciled.kind === 'accepted') {
       await this.store.markDialAccepted(
@@ -224,10 +232,26 @@ export class WorkerRunner {
         lease,
       };
     }
-    await this.queue.delete(delivery);
+    if (reconciled.kind === 'rejected') {
+      await this.store.markFailed(job.id, this.workerId, job.ownerEpoch, reconciled.reason);
+      await this.queue.delete(delivery);
+      lease.stop();
+      visibility.stop();
+      await renewal.release();
+      return { kind: 'failed', reason: reconciled.reason };
+    }
+    const deferred = await this.store.deferReconciliation(
+      job.id,
+      this.workerId,
+      job.ownerEpoch,
+      'carrier-outcome-still-pending',
+      new Date(Date.now() + this.options.deferSeconds * 1_000),
+    );
+    await this.queue.changeVisibility(delivery, this.options.deferSeconds);
     lease.stop();
     visibility.stop();
     await renewal.release();
+    if (!deferred) return { kind: 'deferred', reason: 'reconciliation-ownership-lost' };
     return { kind: 'reconcile_required', jobId: job.id, requestId: request.requestId };
   }
 }

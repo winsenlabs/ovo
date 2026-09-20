@@ -1,4 +1,4 @@
-import type { Execution } from '@winsendotai/ovo-contracts';
+import type { Execution, ExecutionRequest, OperationRecord } from '@winsendotai/ovo-contracts';
 
 export const serviceKeys = {
   execution: 'ovo.execution',
@@ -14,6 +14,11 @@ export const serviceKeys = {
 
 export type ConnectorKind = keyof typeof serviceKeys.connector;
 
+export interface ExecutionOptions {
+  signal?: AbortSignal;
+}
+
 export interface ExecutionService extends Execution {
+  execute(request: ExecutionRequest, options?: ExecutionOptions): Promise<OperationRecord>;
   cancel(workspaceId: string, operationId: string): boolean;
 }

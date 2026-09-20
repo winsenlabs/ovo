@@ -85,23 +85,27 @@ describe.skipIf(!postgresUrl)('PostgreSQL durable orchestration integration', ()
     const claims = await Promise.all(
       Array.from({ length: 10 }, (_, index) => store.claim(job.id, `pg-worker-${index}`, 60_000)),
     );
-    const owner = claims.find((claim) => claim !== undefined)!;
-    expect(claims.filter(Boolean)).toHaveLength(1);
+    const owned = claims.filter((claim) => claim.kind === 'execute');
+    expect(owned).toHaveLength(1);
+    expect(claims.filter((claim) => claim.kind === 'defer')).toHaveLength(9);
+    const owner = owned[0]!.job;
     expect(await store.heartbeat(job.id, owner.ownerId, owner.ownerEpoch - 1, 60_000)).toBe(false);
     expect(await store.heartbeat(job.id, owner.ownerId, owner.ownerEpoch, 60_000)).toBe(true);
   });
 
   it('persists unknown dial acceptance as reconciliation-only state', async () => {
     const { job } = await enqueue('unknown-dial');
-    const owner = await store.claim(job.id, 'pg-worker-dial', 60_000);
-    expect(owner).toBeDefined();
-    const requestId = `${job.id}:${owner!.ownerEpoch}`;
-    expect(await store.beginDial(job.id, owner!.ownerId, owner!.ownerEpoch, requestId)).toBe(true);
+    const claim = await store.claim(job.id, 'pg-worker-dial', 60_000);
+    expect(claim.kind).toBe('execute');
+    if (claim.kind !== 'execute') throw new Error('expected execution ownership');
+    const owner = claim.job;
+    const requestId = `${job.id}:${owner.ownerEpoch}`;
+    expect(await store.beginDial(job.id, owner.ownerId, owner.ownerEpoch, requestId)).toBe(true);
     expect(
       await store.markDialUnknown(
         job.id,
-        owner!.ownerId,
-        owner!.ownerEpoch,
+        owner.ownerId,
+        owner.ownerEpoch,
         requestId,
         'timeout-after-write',
       ),
@@ -110,6 +114,56 @@ describe.skipIf(!postgresUrl)('PostgreSQL durable orchestration integration', ()
       status: 'reconcile_required',
       dialRequestId: requestId,
       lastError: 'timeout-after-write',
+    });
+  });
+
+  it('reclaims an expired crash-left dial only for reconciliation and fences the stale owner', async () => {
+    const { job } = await enqueue('crash-left-dialing');
+    const first = await store.claim(job.id, 'crashed-worker', 60_000);
+    expect(first.kind).toBe('execute');
+    if (first.kind !== 'execute') throw new Error('expected first execution owner');
+    const requestId = `${job.id}:${first.job.ownerEpoch}`;
+    expect(await store.beginDial(job.id, first.job.ownerId, first.job.ownerEpoch, requestId)).toBe(
+      true,
+    );
+
+    const leased = await store.claim(job.id, 'early-reconciler', 60_000);
+    expect(leased).toMatchObject({ kind: 'defer', reason: 'currently_leased' });
+    await store.pool.query(
+      `UPDATE ovo_jobs SET lease_expires_at = now() - interval '1 second' WHERE id = $1`,
+      [job.id],
+    );
+
+    const reclaimed = await store.claim(job.id, 'reconciler', 60_000);
+    expect(reclaimed.kind).toBe('reconcile');
+    if (reclaimed.kind !== 'reconcile') throw new Error('expected reconciliation ownership');
+    expect(reclaimed.job).toMatchObject({
+      status: 'reconcile_required',
+      dialRequestId: requestId,
+      ownerEpoch: first.job.ownerEpoch + 1,
+    });
+    expect(
+      await store.markDialAccepted(
+        job.id,
+        first.job.ownerId,
+        first.job.ownerEpoch,
+        requestId,
+        'CA-stale',
+      ),
+    ).toBe(false);
+    expect(
+      await store.markDialAccepted(
+        job.id,
+        reclaimed.job.ownerId,
+        reclaimed.job.ownerEpoch,
+        requestId,
+        'CA-reconciled',
+      ),
+    ).toBe(true);
+    expect(await store.get(job.id)).toMatchObject({
+      status: 'accepted',
+      dialRequestId: requestId,
+      carrierCallId: 'CA-reconciled',
     });
   });
 

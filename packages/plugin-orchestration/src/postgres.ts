@@ -1,9 +1,12 @@
 import { Pool, type PoolConfig } from 'pg';
 import type {
   CapacityLeaseStore,
-  ClaimedJob,
+  CapacityWriteAttempt,
+  CapacityWriteGuard,
+  CapacityWritePermit,
   DurableJob,
   DurableJobStore,
+  JobClaimResult,
   OutboxRecord,
 } from './types.ts';
 import { runMigrations } from './postgres/migrations.ts';
@@ -15,14 +18,18 @@ import {
   type CapacitySnapshot,
 } from './postgres/capacity-repository.ts';
 import { CapacityLeaseRepository } from './postgres/leases.ts';
+import { PostgresCapacityWriteGuard } from './postgres/capacity-writes.ts';
 
 /** Thin facade preserving one pooled transaction boundary while repositories stay responsibility-focused. */
-export class PostgresOrchestrationStore implements DurableJobStore, CapacityLeaseStore {
+export class PostgresOrchestrationStore
+  implements DurableJobStore, CapacityLeaseStore, CapacityWriteGuard
+{
   readonly pool: Pool;
   readonly jobs: JobRepository;
   readonly outbox: OutboxRepository;
   readonly capacity: CapacityRepository;
   readonly leases: CapacityLeaseRepository;
+  readonly capacityWrites: PostgresCapacityWriteGuard;
 
   constructor(config: PoolConfig | Pool) {
     this.pool = config instanceof Pool ? config : new Pool(config);
@@ -30,6 +37,7 @@ export class PostgresOrchestrationStore implements DurableJobStore, CapacityLeas
     this.outbox = new OutboxRepository(this.pool);
     this.capacity = new CapacityRepository(this.pool);
     this.leases = new CapacityLeaseRepository(this.pool);
+    this.capacityWrites = new PostgresCapacityWriteGuard(this.pool);
   }
 
   migrate(): Promise<void> {
@@ -51,7 +59,7 @@ export class PostgresOrchestrationStore implements DurableJobStore, CapacityLeas
   }): Promise<{ job: DurableJob; created: boolean }> {
     return this.jobs.enqueue(input);
   }
-  claim(jobId: string, workerId: string, leaseMs: number): Promise<ClaimedJob | undefined> {
+  claim(jobId: string, workerId: string, leaseMs: number): Promise<JobClaimResult> {
     return this.jobs.claim(jobId, workerId, leaseMs);
   }
   heartbeat(jobId: string, workerId: string, epoch: number, leaseMs: number): Promise<boolean> {
@@ -87,6 +95,15 @@ export class PostgresOrchestrationStore implements DurableJobStore, CapacityLeas
   ): Promise<boolean> {
     return this.jobs.markDialUnknown(jobId, workerId, epoch, requestId, reason);
   }
+  deferReconciliation(
+    jobId: string,
+    workerId: string,
+    epoch: number,
+    reason: string,
+    notBefore: Date,
+  ): Promise<boolean> {
+    return this.jobs.deferReconciliation(jobId, workerId, epoch, reason, notBefore);
+  }
   markFailed(jobId: string, workerId: string, epoch: number, reason: string): Promise<boolean> {
     return this.jobs.markFailed(jobId, workerId, epoch, reason);
   }
@@ -113,6 +130,23 @@ export class PostgresOrchestrationStore implements DurableJobStore, CapacityLeas
   }
   renew(serviceKey: string, authorityId: string, epoch: number, leaseMs: number): Promise<boolean> {
     return this.leases.renew(serviceKey, authorityId, epoch, leaseMs);
+  }
+  begin(input: {
+    serviceKey: string;
+    authorityId: string;
+    epoch: number;
+    desiredCount: number;
+  }): Promise<CapacityWritePermit> {
+    return this.capacityWrites.begin(input);
+  }
+  markApplied(attemptId: string): Promise<boolean> {
+    return this.capacityWrites.markApplied(attemptId);
+  }
+  markUnknown(attemptId: string, error: string): Promise<boolean> {
+    return this.capacityWrites.markUnknown(attemptId, error);
+  }
+  pending(serviceKey: string): Promise<CapacityWriteAttempt | undefined> {
+    return this.capacityWrites.pending(serviceKey);
   }
   reportWorker(input: WorkerReport): Promise<boolean> {
     return this.capacity.reportWorker(input);

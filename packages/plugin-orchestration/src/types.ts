@@ -33,6 +33,13 @@ export interface ClaimedJob extends DurableJob {
   leaseExpiresAt: Date;
 }
 
+export type JobClaimResult =
+  | { kind: 'execute'; job: ClaimedJob }
+  | { kind: 'reconcile'; job: ClaimedJob }
+  | { kind: 'defer'; reason: 'currently_leased' | 'not_before'; retryAt?: Date }
+  | { kind: 'settled' }
+  | { kind: 'missing' };
+
 export interface OutboxRecord {
   id: string;
   topic: string;
@@ -66,7 +73,7 @@ export interface DurableJobStore {
     payload: Record<string, unknown>;
     notBefore?: Date;
   }): Promise<{ job: DurableJob; created: boolean }>;
-  claim(jobId: string, workerId: string, leaseMs: number): Promise<ClaimedJob | undefined>;
+  claim(jobId: string, workerId: string, leaseMs: number): Promise<JobClaimResult>;
   heartbeat(jobId: string, workerId: string, epoch: number, leaseMs: number): Promise<boolean>;
   release(
     jobId: string,
@@ -89,6 +96,13 @@ export interface DurableJobStore {
     epoch: number,
     requestId: string,
     reason: string,
+  ): Promise<boolean>;
+  deferReconciliation(
+    jobId: string,
+    workerId: string,
+    epoch: number,
+    reason: string,
+    notBefore: Date,
   ): Promise<boolean>;
   markFailed(jobId: string, workerId: string, epoch: number, reason: string): Promise<boolean>;
   get(jobId: string): Promise<DurableJob | undefined>;
@@ -134,6 +148,7 @@ export interface TelephonyControl {
 export interface DesiredCountWriter {
   readonly authorityId: string;
   write(serviceKey: string, desiredCount: number, epoch: number): Promise<void>;
+  reconcile?(serviceKey: string): Promise<boolean>;
 }
 
 export interface CapacityLeaseStore {
@@ -143,4 +158,30 @@ export interface CapacityLeaseStore {
     leaseMs: number,
   ): Promise<{ epoch: number } | undefined>;
   renew(serviceKey: string, authorityId: string, epoch: number, leaseMs: number): Promise<boolean>;
+}
+
+export interface CapacityWriteAttempt {
+  attemptId: string;
+  serviceKey: string;
+  authorityId: string;
+  epoch: number;
+  desiredCount: number;
+  status: 'inflight' | 'unknown';
+}
+
+export type CapacityWritePermit =
+  | { kind: 'permitted'; attempt: CapacityWriteAttempt }
+  | { kind: 'stale_authority' }
+  | { kind: 'unresolved'; attempt: CapacityWriteAttempt };
+
+export interface CapacityWriteGuard {
+  begin(input: {
+    serviceKey: string;
+    authorityId: string;
+    epoch: number;
+    desiredCount: number;
+  }): Promise<CapacityWritePermit>;
+  markApplied(attemptId: string): Promise<boolean>;
+  markUnknown(attemptId: string, error: string): Promise<boolean>;
+  pending(serviceKey: string): Promise<CapacityWriteAttempt | undefined>;
 }

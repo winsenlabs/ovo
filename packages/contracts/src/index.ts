@@ -154,7 +154,7 @@ export interface ExecutionRequest {
   confirmed: boolean;
 }
 export interface Execution {
-  execute(request: ExecutionRequest): Promise<OperationRecord>;
+  execute(request: ExecutionRequest, options?: { signal?: AbortSignal }): Promise<OperationRecord>;
 }
 export interface Behavior {
   respond(input: string, variables?: Record<string, unknown>): Promise<string>;
