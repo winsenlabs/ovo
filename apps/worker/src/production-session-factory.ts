@@ -1,3 +1,4 @@
+import { liveSessionRequiresInput } from './live-input-policy.ts';
 import type { OperationStore, SecretResolver } from '@winsendotai/ovo-contracts';
 import {
   createSessionPluginCatalog,
@@ -79,7 +80,7 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
       }));
     if (call.releaseId !== release.id || call.kind !== 'live')
       throw new Error('live call audit record does not match release');
-    const requiresInput = release.config.mode !== 'announcement' || Boolean(release.config.script);
+    const requiresInput = liveSessionRequiresInput(release.config);
     const stt = release.providerBindings.stt;
     const tts = release.providerBindings.tts;
     if ((requiresInput && !stt) || !tts)

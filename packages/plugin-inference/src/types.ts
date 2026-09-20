@@ -11,7 +11,11 @@ export interface AiSdkInferenceOptions {
   model: LanguageModel;
   instructions?: string;
   maxOutputTokens?: number;
-  onUsage?: (evidence: { requestId?: string; modelId?: string; usage: Record<string, number> }) => void | Promise<void>;
+  onUsage?: (evidence: {
+    requestId?: string;
+    modelId?: string;
+    usage: Record<string, number>;
+  }) => void | Promise<void>;
 }
 
 export interface AiSdkInferencePluginConfig {

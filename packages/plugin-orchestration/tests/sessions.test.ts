@@ -111,7 +111,10 @@ describe.skipIf(!postgresUrl)('PostgreSQL session lifecycle integration', () => 
         occurredAt: new Date('2026-09-20T14:01:00Z'),
       }),
     ).toMatchObject({ kind: 'ignored_out_of_order', route: { status: 'completed' } });
-    expect(await store.get(jobId)).toMatchObject({ status: 'completed', carrierCallId: 'CA-session-1' });
+    expect(await store.get(jobId)).toMatchObject({
+      status: 'completed',
+      carrierCallId: 'CA-session-1',
+    });
     expect(await store.releaseTerminalSession(jobId)).toBe(true);
     expect(await store.releaseTerminalSession(jobId)).toBe(false);
     expect(await store.getSessionRoute(jobId)).toMatchObject({ releasedAt: expect.any(Date) });

@@ -45,6 +45,11 @@ BEGIN
       completed_at=CASE WHEN status='cancelling' OR attempt>=max_attempts THEN now() ELSE NULL END
     WHERE executor_kind='fixture' AND status IN ('running','cancelling');
   END IF;
+  IF to_regclass('public.ovo_eval_provider_authorizations') IS NOT NULL THEN
+    UPDATE ovo_eval_provider_authorizations SET
+      revoked_by='restore-fence',revoked_at=now()
+    WHERE revoked_at IS NULL;
+  END IF;
   IF to_regclass('public.ovo_recording_exports') IS NOT NULL THEN
     UPDATE ovo_recording_exports SET state='queued',lease_owner=NULL,
       lease_epoch=lease_epoch+1,lease_expires_at=NULL,
@@ -76,5 +81,17 @@ BEGIN
   IF to_regclass('public.ovo_ops_inbound_capacity') IS NOT NULL THEN
     UPDATE ovo_ops_inbound_capacity SET ready=false,generation=generation+1,
       protected_until=now()-interval '1 second',reservation_id=NULL,reserved_call_id=NULL,updated_at=now();
+  END IF;
+  IF to_regclass('public.ovo_ops_inbound_admissions') IS NOT NULL THEN
+    UPDATE ovo_ops_inbound_admissions SET
+      decision='busy',released_at=COALESCE(released_at,now()),
+      detail=jsonb_build_object(
+        'kind','busy','reason','restore_quarantine','previousDecision',decision,'restoredDetail',detail
+      )
+    WHERE released_at IS NULL AND (
+      decision='wait' OR (
+        decision='callback' AND COALESCE(detail->>'state','prompt') IN ('prompt','queued')
+      )
+    );
   END IF;
 END $$;

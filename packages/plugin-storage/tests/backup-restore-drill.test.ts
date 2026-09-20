@@ -169,6 +169,25 @@ suite('executable PostgreSQL backup and restore drill', () => {
       executorKind: 'provider',
       error: expect.stringContaining('provider execution or billing may have occurred'),
     });
+    const restoredAuthorization = await evaluationPool.query<{
+      revoked_by: string | null;
+      revoked_at: Date | null;
+    }>(
+      `SELECT revoked_by,revoked_at FROM ovo_eval_provider_authorizations
+       WHERE workspace_id=$1 AND id=$2`,
+      [workspaceId, fixture.providerAuthorizationId],
+    );
+    expect(restoredAuthorization.rows[0]).toMatchObject({
+      revoked_by: 'restore-fence',
+      revoked_at: expect.any(Date),
+    });
+    expect(
+      await scalar(
+        evaluationPool,
+        'SELECT count(*) FROM ovo_eval_provider_authorizations WHERE id=$1 AND revoked_at IS NULL',
+        [fixture.providerAuthorizationId],
+      ),
+    ).toBe(0);
     const operations = new PostgresOperationsService({
       connectionString: targetUrl,
       organizationId: workspaceId,
@@ -190,6 +209,51 @@ suite('executable PostgreSQL backup and restore drill', () => {
     );
     expect(contactStates.rows).toHaveLength(2);
     expect(contactStates.rows.every((row) => row.state === 'unknown')).toBe(true);
+    const inboundAdmissions = await operations.pool.query<{
+      call_id: string;
+      decision: string;
+      reason: string;
+      released_at: Date | null;
+    }>(
+      `SELECT call_id,decision,detail->>'reason' AS reason,released_at
+       FROM ovo_ops_inbound_admissions WHERE call_id=ANY($1::text[]) ORDER BY call_id`,
+      [[fixture.inboundWaitCallId, fixture.inboundCallbackCallId]],
+    );
+    expect(inboundAdmissions.rows).toHaveLength(2);
+    expect(
+      inboundAdmissions.rows.every(
+        (row) =>
+          row.decision === 'busy' &&
+          row.reason === 'restore_quarantine' &&
+          row.released_at !== null,
+      ),
+    ).toBe(true);
+    await expect(
+      operations.inboundGateway.admit({
+        carrierCallId: fixture.inboundWaitCallId,
+        fromNumber: fixture.inboundFromNumber,
+        toNumber: fixture.inboundToNumber,
+        handshakeTtlMs: 60_000,
+        routeTokenHash: 'restore-drill-route-token',
+      }),
+    ).resolves.toMatchObject({ kind: 'busy', reason: 'restore_quarantine' });
+    await expect(
+      operations.inboundGateway.confirmCallback({
+        carrierCallId: fixture.inboundCallbackCallId,
+        fromNumber: fixture.inboundFromNumber,
+        toNumber: fixture.inboundToNumber,
+        handshakeTtlMs: 60_000,
+        routeTokenHash: 'restore-drill-route-token',
+        digits: '1',
+      }),
+    ).rejects.toThrow('not awaiting callback consent');
+    expect(
+      await scalar(
+        operations.pool,
+        'SELECT count(*) FROM ovo_ops_campaigns WHERE operation_id=$1',
+        [`inbound-callback:${fixture.inboundCallbackCallId}`],
+      ),
+    ).toBe(0);
     await evaluationPool.end();
     await operations.close();
     await orchestration.close();

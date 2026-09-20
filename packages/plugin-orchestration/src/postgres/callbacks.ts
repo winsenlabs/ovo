@@ -1,9 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import type {
-  CarrierCallbackInput,
-  CarrierCallbackResult,
-  SessionRouteStatus,
-} from '../types.ts';
+import type { CarrierCallbackInput, CarrierCallbackResult, SessionRouteStatus } from '../types.ts';
 import { transaction } from './database.ts';
 import { fromSessionRouteRow, sessionRouteColumns, type SessionRouteRow } from './session-model.ts';
 

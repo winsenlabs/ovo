@@ -1,3 +1,4 @@
+import { liveSessionRequiresInput } from './live-input-policy.ts';
 import type {
   DurableJob,
   DurableJobStore,
@@ -51,7 +52,7 @@ export function requiredLiveCostMeterKeys(
   const policy = release.config.costPolicy;
   if (!policy) return [];
   const required: string[] = [LIVE_COST_METER_KEYS.carrier, LIVE_COST_METER_KEYS.tts];
-  const requiresInput = release.config.mode !== 'announcement' || Boolean(release.config.script);
+  const requiresInput = liveSessionRequiresInput(release.config);
   if (requiresInput) required.push(LIVE_COST_METER_KEYS.stt);
   if (release.config.mode === 'context' || release.config.mode === 'agent') {
     const detailedInput = [

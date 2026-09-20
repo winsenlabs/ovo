@@ -311,12 +311,30 @@ suite('PostgreSQL evaluation durability', () => {
     const gate = new LedgerProviderEvaluationGate(ledger, releases, authorizations);
     const providerService = new PostgresEvaluationService({ pool }, gate, authorizations);
     const { datasetId, version } = await fixtureVersion(workspaceId);
-    await providerService.createRun({
+    const providerRun = await providerService.createRun({
       ...runInput(workspaceId, datasetId, version, 'real-ledger-provider-run'),
       releaseId: release.id,
       executorKind: 'provider',
       fixtureBindingVersion: bindingVersion,
       budgetAuthorizationId: authorization.id,
+    });
+    expect(await ledger.getBudget(`${scope}-evaluation-budget`)).toMatchObject({
+      reservedPaise: '25',
+      availableForAdmissionPaise: '75',
+    });
+    const finalClaim = await providerService.runs.claim('provider-final-worker', 20_000);
+    expect(finalClaim).toMatchObject({ id: providerRun.id, attempt: 1, maxAttempts: 1 });
+    await pool.query(
+      `UPDATE ovo_eval_runs SET lease_expires_at=now()-interval '1 second'
+       WHERE workspace_id=$1 AND id=$2`,
+      [workspaceId, providerRun.id],
+    );
+    expect(await providerService.runs.claim('provider-reaper', 20_000)).toBeUndefined();
+    expect(await providerService.runs.get(workspaceId, providerRun.id)).toMatchObject({
+      status: 'failed',
+      attempt: 1,
+      maxAttempts: 1,
+      error: 'Retry budget exhausted',
     });
     expect(await ledger.getBudget(`${scope}-evaluation-budget`)).toMatchObject({
       reservedPaise: '25',

@@ -28,11 +28,16 @@ export interface RestoreDrillFixture {
   dialRequestId: string;
   evaluationRunId: string;
   providerEvaluationRunId: string;
+  providerAuthorizationId: string;
   staleEvaluationEpoch: number;
   operationContactId: string;
   queuedOperationContactId: string;
   operationCampaignId: string;
   staleOperationEpoch: number;
+  inboundWaitCallId: string;
+  inboundCallbackCallId: string;
+  inboundFromNumber: string;
+  inboundToNumber: string;
 }
 
 export async function seedRestoreDrillFixture(input: {
@@ -180,6 +185,26 @@ export async function seedRestoreDrillFixture(input: {
     { pool: evaluationPool },
     { authorize: async () => undefined },
   );
+  const providerAuthorizationId = `evalauth_restore_${randomUUID().replaceAll('-', '')}`;
+  await evaluationPool.query(
+    `INSERT INTO ovo_eval_provider_authorizations
+       (workspace_id,id,idempotency_key,release_id,release_fingerprint,binding_version,provider,
+        model_id,budget_id,maximum_reservation_paise,created_by,created_at)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now())`,
+    [
+      workspaceId,
+      providerAuthorizationId,
+      'restore-active-provider-authorization',
+      releaseId,
+      'sha256:restore-drill',
+      'provider-binding-v1',
+      'fixture-provider',
+      'fixture-model',
+      'restore-budget',
+      '100',
+      'restore-drill',
+    ],
+  );
   const providerEvaluationRunId = (
     await providerEvaluations.createRun({
       workspaceId,
@@ -189,7 +214,7 @@ export async function seedRestoreDrillFixture(input: {
       releaseFingerprint: 'sha256:restore-drill',
       fixtureBindingVersion: 'provider-binding-v1',
       executorKind: 'provider',
-      budgetAuthorizationId: 'restore-provider-budget',
+      budgetAuthorizationId: providerAuthorizationId,
       idempotencyKey: 'restore-provider-drill',
       maxAttempts: 3,
     })
@@ -200,6 +225,35 @@ export async function seedRestoreDrillFixture(input: {
     organizationId: workspaceId,
   });
   await operations.migrate();
+  const inboundWaitCallId = 'CA-restore-wait';
+  const inboundCallbackCallId = 'CA-restore-callback';
+  const inboundFromNumber = '+14155550110';
+  const inboundToNumber = '+14155550111';
+  await operations.pool.query(
+    `INSERT INTO ovo_ops_inbound_admissions
+       (id,organization_id,call_id,decision,detail,from_number,to_number,route_version,
+        release_id,variables,wait_expires_at)
+     VALUES
+       ($1,$3,$4,'wait',$6::jsonb,$8,$9,1,$10,'{}'::jsonb,now()+interval '1 hour'),
+       ($2,$3,$5,'callback',$7::jsonb,$8,$9,1,$10,'{}'::jsonb,NULL)`,
+    [
+      randomUUID(),
+      randomUUID(),
+      workspaceId,
+      inboundWaitCallId,
+      inboundCallbackCallId,
+      JSON.stringify({ kind: 'wait', announcement: 'Please wait', maxWaitMs: 60_000 }),
+      JSON.stringify({
+        kind: 'callback',
+        state: 'prompt',
+        queue: 'restore-callbacks',
+        announcement: 'Request a callback',
+      }),
+      inboundFromNumber,
+      inboundToNumber,
+      releaseId,
+    ],
+  );
   const campaign = await operations.campaigns.create(
     {
       operationId: 'restore-campaign',
@@ -251,10 +305,15 @@ export async function seedRestoreDrillFixture(input: {
     dialRequestId,
     evaluationRunId,
     providerEvaluationRunId,
+    providerAuthorizationId,
     staleEvaluationEpoch: evaluationClaim.ownerEpoch,
     operationContactId: admitted.contactId,
     queuedOperationContactId: operationContacts.rows[0]!.id,
     operationCampaignId: campaign.id,
     staleOperationEpoch: admitted.ownerEpoch,
+    inboundWaitCallId,
+    inboundCallbackCallId,
+    inboundFromNumber,
+    inboundToNumber,
   };
 }

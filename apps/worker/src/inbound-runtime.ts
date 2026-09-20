@@ -26,8 +26,14 @@ export class InboundWorkerRuntime {
   private timer?: NodeJS.Timeout;
   private suspended = false;
   private stopped = false;
+  private failed = false;
   private renewing = false;
-  private activeJobId?: string;
+  private activeSession?: {
+    jobId: string;
+    workerId: string;
+    ownerEpoch: number;
+    carrierCallId?: string;
+  };
 
   constructor(
     private readonly input: {
@@ -61,7 +67,7 @@ export class InboundWorkerRuntime {
   }
 
   async suspendForOutbound(): Promise<boolean> {
-    if (this.stopped || this.suspended) return false;
+    if (this.stopped || this.failed || this.suspended) return false;
     const suspended = await this.input.operations.inbound.suspendProtectedCapacity({
       slotId: this.slotId,
       workerId: this.input.workerId,
@@ -72,7 +78,7 @@ export class InboundWorkerRuntime {
   }
 
   async resume(): Promise<void> {
-    if (this.stopped || !this.suspended) return;
+    if (this.stopped || this.failed || !this.suspended) return;
     if (!(await this.input.protection.establish())) {
       this.input.onProtectionLost('failed to re-establish inbound task protection');
       return;
@@ -93,7 +99,12 @@ export class InboundWorkerRuntime {
     );
     if (admission.admitted) {
       admission.beginActiveCall();
-      this.activeJobId = job.id;
+      this.activeSession = {
+        jobId: job.id,
+        workerId: route.workerId,
+        ownerEpoch: route.ownerEpoch,
+        carrierCallId: route.carrierCallId,
+      };
       this.input.onSessionActive?.(job.id);
       return;
     }
@@ -109,8 +120,8 @@ export class InboundWorkerRuntime {
   }
 
   completeSession(jobId: string): void {
-    if (this.activeJobId !== jobId) return;
-    this.activeJobId = undefined;
+    if (this.activeSession?.jobId !== jobId) return;
+    this.activeSession = undefined;
     this.input.onSessionIdle?.(jobId);
   }
 
@@ -134,21 +145,74 @@ export class InboundWorkerRuntime {
   }
 
   private async renew(): Promise<void> {
-    if (this.stopped || this.renewing) return;
+    if (this.stopped || this.failed || this.renewing) return;
     this.renewing = true;
     try {
       if (!(await this.input.protection.renew())) {
-        await this.register(false).catch(() => undefined);
-        this.input.onProtectionLost('inbound task protection renewal failed');
-      } else if (!this.suspended && !(await this.register(true))) {
-        this.input.onProtectionLost('inbound capacity renewal was fenced');
+        await this.failClosed('inbound task protection renewal failed');
+        return;
+      }
+      const active = this.activeSession;
+      if (active) {
+        let owned: boolean;
+        try {
+          owned = await this.input.store.heartbeat(
+            active.jobId,
+            active.workerId,
+            active.ownerEpoch,
+            PROTECTION_WINDOW_MS,
+          );
+        } catch (error) {
+          if (this.activeSession !== active) return;
+          await this.failClosed(
+            `inbound job lease renewal unavailable: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return;
+        }
+        if (!owned && this.activeSession === active) {
+          await this.failClosed('inbound job lease renewal was fenced');
+          return;
+        }
+      }
+      if (!this.suspended && !(await this.register(true))) {
+        await this.failClosed('inbound capacity renewal was fenced');
       }
     } catch (error) {
-      this.input.onProtectionLost(
+      await this.failClosed(
         `inbound capacity renewal failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     } finally {
       this.renewing = false;
     }
+  }
+
+  private async failClosed(reason: string): Promise<void> {
+    if (this.failed || this.stopped) return;
+    this.failed = true;
+    if (this.timer) clearInterval(this.timer);
+    this.timer = undefined;
+    try {
+      this.input.onProtectionLost(reason);
+    } catch {
+      // Carrier termination must continue even when the drain observer fails.
+    }
+    const active = this.activeSession;
+    this.activeSession = undefined;
+    await Promise.allSettled([
+      this.register(false),
+      ...(active
+        ? [
+            this.input.store.requestSessionTermination(
+              active.jobId,
+              active.workerId,
+              active.ownerEpoch,
+              reason,
+            ),
+            active.carrierCallId
+              ? this.input.telephony.hangup(active.carrierCallId)
+              : Promise.resolve(),
+          ]
+        : []),
+    ]);
   }
 }

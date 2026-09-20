@@ -1,25 +1,31 @@
-# Next implementation and certification gates
+# Remaining verification and certification gates
 
-This branch is a working local foundation, not completion of the full project. Keep every unfinished acceptance requirement in `acceptance.json`.
+OVO now contains the single-organization production implementation. This replaces the earlier foundation-only engineering backlog. Implementation is not production certification; `acceptance.json` retains all 75 requirements.
 
-## Independent engineering work, not blocked by paid access
+## Implemented local engineering
 
-1. Connect approved provider/voice/tool compositions to the default management API for context and agent releases. All four behavior plugins exist; only announcement and FAQ publish by default. Route tool-dependent FAQ entries through shared execution; current matching safely clarifies instead of executing the check. Complete deterministic script-state graphs.
-2. Evolve the control-store contract to asynchronous methods and implement the shared PostgreSQL control adapter. Do not use SQLite on Fargate.
-3. Implement the live media/session gateway and streaming STT/TTS pipeline, including revised partial transcripts, VAD/backchannel rules and playback-aware history integration.
-4. Join callback correlation, unknown-dial reconciliation, voice session completion and durable operation/event projections end to end.
-5. Complete campaigns, suppression rechecks, pause/resume, inbound policy and transfer/handoff workflows.
-6. Implement aggregate latency/cohort views, resumable event delivery and diagnosis workflows. Do not report simulator timings as production latency.
-7. Complete recording alignment, exports, deletion/tombstone propagation and physical retention sweeps.
-8. Join actual provider usage with price-card versions, reconciliation, cache accounting, spend enforcement and the INR scenario calculator.
-9. Expand deterministic evaluation corpora, load/fault/restore drills and security/accessibility tests.
+- All four behavior modes publish through the management API, with deterministic scripts and shared FAQ/tool execution.
+- PostgreSQL provides shared asynchronous control storage, immutable release/provider/MCP snapshots, and durable runtime state.
+- The media gateway joins Twilio routing, streaming Deepgram STT, OpenAI TTS/inference, playback context, and worker cleanup.
+- Campaigns, suppression, inbound protected admission, bounded wait, consent-based callback, and handoff have durable implementations.
+- Bounded telemetry, resumable events, latency/cohort queries, and infrastructure inspection connect to the console.
+- Production recording capture honors release consent. Playback, export, tombstone retention, and restore safeguards have local implementations.
+- Versioned price cards, FX, native usage, cache accounting, required meter coverage, reservations, and reconciliation connect to admission.
+- Evaluations use immutable datasets and a 120-case deterministic corpus. Optional paid execution requires durable admin authorization and a server-only enable flag.
+- Compose and Fargate profiles include API, console, gateway, dispatcher, and worker images.
+
+## Final local verification in progress
+
+1. Complete focused restore-quarantine and inbound ownership-renewal corrections from the integration review.
+2. Run final integrated CI, disposable PostgreSQL, protocol lifecycle, restore, and browser verification.
+3. Reconcile each acceptance criterion with current evidence. Preserve gaps rather than converting implementation presence into verification.
 
 ## Authorization or external evidence required
 
-- Owned carrier number and explicit authorization for real outbound/inbound test calls.
-- Selected provider credentials and authorized audio/language/latency fixtures.
-- Target AWS account/region, deployment authorization, routing/IAM verification and Fargate scaling/drain trials.
-- Human listening, operator workflow and accessibility reviews.
-- Project license/distribution approval before any package publication.
+- An owned carrier number and explicit authorization for real outbound/inbound test calls.
+- Selected provider credentials and authorized audio, language, latency, and billing fixtures.
+- A target AWS account/region, deployment authorization, routing/IAM verification, and Fargate scaling/drain trials.
+- Human listening, operator workflow, and accessibility reviews.
+- Project license/distribution approval before package publication.
 
-No production launch should infer readiness from Terraform validation, an installed SDK, a passing simulator or a populated console form.
+No launch decision should infer readiness from Terraform validation, an installed SDK, passing simulation, or a populated console form. Paid provider traffic, real calls, AWS provisioning, publication, and customer contact remain unauthorized in this task.

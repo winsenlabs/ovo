@@ -2,6 +2,16 @@
 
 Updated: 2026-09-20 UTC. Branch: `vorflux/ovo-foundation`.
 
+## Current production integration status
+
+The production implementation now supports one self-hosted organization with PostgreSQL, all four behavior modes, provider/media workers, campaigns and inbound wait/callback, recording lifecycle, telemetry, costs, evaluations, and the operating console. Twilio, Deepgram STT, and OpenAI TTS/inference form the initial production profile. Provider evaluations require durable authorization and remain disabled by default.
+
+The integrated implementation is pushed to the existing PR. Builder verification passed 359 tests with 82 environment-gated skips; dedicated PostgreSQL suites and all five production container builds also passed. These overlapping builder checks are not final integrated certification.
+
+Final independent local testing is underway. The focused review identified restore-quarantine and inbound ownership-renewal corrections. A suspected final-attempt evaluation defect was already fixed at the reviewed head; a new PostgreSQL crash regression confirms exhaustion and preserves unknown-spend reservations for reconciliation.
+
+[PM/NEXT.md](../PM/NEXT.md) replaces the obsolete foundation-only backlog below. Earlier checkpoints remain historical evidence, not the current capability inventory. No paid provider/carrier traffic, AWS deployment, package publication, or human certification occurred.
+
 ## Repository baseline
 
 The starting repository contained README and 12 specification documents only. No application, CI, package manifest, infrastructure or tests existed. All documents were read before application implementation. GitHub Actions are suspended; checks run locally.

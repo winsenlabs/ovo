@@ -1,3 +1,4 @@
+import { liveSessionRequiresInput } from './live-input-policy.ts';
 import type { ToolConnection } from '@winsendotai/ovo-contracts';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { STREAMING_VOICE_PLUGIN_IDS, VOICE_PLUGIN_IDS } from '@winsendotai/ovo-plugin-voice';
@@ -97,7 +98,7 @@ export function pluginConfig(
   if (definition.manifest.provides.includes('ovo.behavior'))
     return { agent: structuredClone(release.config), workspaceId: release.workspaceId, sessionId };
   if (definition.manifest.id === STREAMING_VOICE_PLUGIN_IDS.sessionEngine) {
-    const requiresInput = release.config.mode !== 'announcement' || Boolean(release.config.script);
+    const requiresInput = liveSessionRequiresInput(release.config);
     return {
       language: release.config.language,
       inputEnabled: requiresInput,

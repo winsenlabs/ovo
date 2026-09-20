@@ -1,3 +1,4 @@
+import { format } from 'prettier';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -11,16 +12,19 @@ const dependencies = Object.entries(input)
   .sort((a, b) => a.name.localeCompare(b.name));
 writeFileSync(
   'docs/research/dependency-licenses.json',
-  JSON.stringify(
-    {
-      generatedAt: new Date().toISOString().slice(0, 10),
-      command: 'pnpm licenses list --json',
-      lockfileSha256: createHash('sha256').update(readFileSync('pnpm-lock.yaml')).digest('hex'),
-      dependencies,
-    },
-    null,
-    2,
-  ) + '\n',
+  await format(
+    JSON.stringify(
+      {
+        generatedAt: new Date().toISOString().slice(0, 10),
+        command: 'pnpm licenses list --json',
+        lockfileSha256: createHash('sha256').update(readFileSync('pnpm-lock.yaml')).digest('hex'),
+        dependencies,
+      },
+      null,
+      2,
+    ),
+    { parser: 'json' },
+  ),
 );
 console.log(
   `Recorded ${dependencies.length} dependency-license entries without machine-specific paths.`,
