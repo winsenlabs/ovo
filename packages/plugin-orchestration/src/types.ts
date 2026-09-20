@@ -1,0 +1,146 @@
+export type JobStatus =
+  | 'queued'
+  | 'owned'
+  | 'dialing'
+  | 'reconcile_required'
+  | 'accepted'
+  | 'connected'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface JobReference {
+  schemaVersion: 1;
+  jobId: string;
+}
+
+export interface DurableJob {
+  id: string;
+  workspaceId: string;
+  idempotencyKey: string;
+  payload: Record<string, unknown>;
+  status: JobStatus;
+  ownerId?: string;
+  ownerEpoch: number;
+  leaseExpiresAt?: Date;
+  dialRequestId?: string;
+  carrierCallId?: string;
+  lastError?: string;
+}
+
+export interface ClaimedJob extends DurableJob {
+  ownerId: string;
+  leaseExpiresAt: Date;
+}
+
+export interface OutboxRecord {
+  id: string;
+  topic: string;
+  aggregateId: string;
+  payload: JobReference;
+}
+
+export interface QueueDelivery {
+  messageId: string;
+  receiptHandle: string;
+  reference: JobReference;
+  receiveCount: number;
+}
+
+export interface DurableQueue {
+  send(reference: JobReference): Promise<{ messageId: string }>;
+  receive(options?: {
+    maxMessages?: number;
+    waitSeconds?: number;
+    visibilitySeconds?: number;
+  }): Promise<QueueDelivery[]>;
+  delete(delivery: QueueDelivery): Promise<void>;
+  changeVisibility(delivery: QueueDelivery, seconds: number): Promise<void>;
+}
+
+export interface DurableJobStore {
+  enqueue(input: {
+    id: string;
+    workspaceId: string;
+    idempotencyKey: string;
+    payload: Record<string, unknown>;
+    notBefore?: Date;
+  }): Promise<{ job: DurableJob; created: boolean }>;
+  claim(jobId: string, workerId: string, leaseMs: number): Promise<ClaimedJob | undefined>;
+  heartbeat(jobId: string, workerId: string, epoch: number, leaseMs: number): Promise<boolean>;
+  release(
+    jobId: string,
+    workerId: string,
+    epoch: number,
+    reason: string,
+    notBefore?: Date,
+  ): Promise<boolean>;
+  beginDial(jobId: string, workerId: string, epoch: number, requestId: string): Promise<boolean>;
+  markDialAccepted(
+    jobId: string,
+    workerId: string,
+    epoch: number,
+    requestId: string,
+    carrierCallId: string,
+  ): Promise<boolean>;
+  markDialUnknown(
+    jobId: string,
+    workerId: string,
+    epoch: number,
+    requestId: string,
+    reason: string,
+  ): Promise<boolean>;
+  markFailed(jobId: string, workerId: string, epoch: number, reason: string): Promise<boolean>;
+  get(jobId: string): Promise<DurableJob | undefined>;
+}
+
+export interface ReadinessProbe {
+  check(): Promise<{ ready: true } | { ready: false; reason: string }>;
+}
+
+export interface TaskProtection {
+  establish(): Promise<boolean>;
+  renew(): Promise<boolean>;
+  release(): Promise<void>;
+}
+
+export interface TelephonyDialRequest {
+  requestId: string;
+  jobId: string;
+  workspaceId: string;
+  to: string;
+  from: string;
+  streamUrl: string;
+  statusCallbackUrl: string;
+}
+
+export type DialResult =
+  | { kind: 'accepted'; requestId: string; carrierCallId: string }
+  | { kind: 'rejected'; requestId: string; reason: string; retryable: boolean }
+  | { kind: 'unknown'; requestId: string; reason: string };
+
+export type DialReconciliation =
+  | { kind: 'accepted'; carrierCallId: string }
+  | { kind: 'rejected'; reason: string }
+  | { kind: 'pending' };
+
+export interface TelephonyControl {
+  dial(request: TelephonyDialRequest): Promise<DialResult>;
+  reconcile(requestId: string, carrierCallId?: string): Promise<DialReconciliation>;
+  hangup(carrierCallId: string): Promise<void>;
+  transfer(carrierCallId: string, target: { twiml?: string; url?: string }): Promise<void>;
+}
+
+export interface DesiredCountWriter {
+  readonly authorityId: string;
+  write(serviceKey: string, desiredCount: number, epoch: number): Promise<void>;
+}
+
+export interface CapacityLeaseStore {
+  acquire(
+    serviceKey: string,
+    authorityId: string,
+    leaseMs: number,
+  ): Promise<{ epoch: number } | undefined>;
+  renew(serviceKey: string, authorityId: string, epoch: number, leaseMs: number): Promise<boolean>;
+}

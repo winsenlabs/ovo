@@ -1,0 +1,287 @@
+'use client';
+import type { ConsoleExtension } from '@winsendotai/ovo-ui';
+import type { AgentConfig, SessionIdentity } from '../lib/api';
+import {
+  EmptyState,
+  JsonEvidence,
+  LoadingBlock,
+  Notice,
+  Panel,
+  PanelHeader,
+  StatusBadge,
+} from './primitives';
+import { FaqEditor, PluginField, ProviderMap } from './studio/configuration-panels';
+import { AgentDraftIndex, StudioRail } from './studio/release-panels';
+import { useAgentStudio } from './studio/use-agent-studio';
+const modes: { id: AgentConfig['mode']; title: string; description: string; kind: string }[] = [
+  {
+    id: 'announcement',
+    title: 'Announcement',
+    description: 'Approved templates and validated variables.',
+    kind: 'No LLM',
+  },
+  {
+    id: 'faq',
+    title: 'FAQ',
+    description: 'Deterministic question matching and approved answers.',
+    kind: 'No generative LLM',
+  },
+  {
+    id: 'context',
+    title: 'Supplied-context conversation',
+    description: 'Bounded responses from supplied facts.',
+    kind: 'LLM · tools off',
+  },
+  {
+    id: 'agent',
+    title: 'Tool-using agent',
+    description: 'Approved reads and confirmed business actions.',
+    kind: 'LLM + controlled tools',
+  },
+];
+
+export function AgentStudio({
+  extensions,
+  identity,
+}: {
+  extensions: readonly ConsoleExtension[];
+  identity: SessionIdentity;
+}) {
+  const {
+    agents,
+    setSelected,
+    selected,
+    loading,
+    loadError,
+    load,
+    saveState,
+    saveError,
+    conflict,
+    bindings,
+    releases,
+    releaseError,
+    publishing,
+    update,
+    createAgent,
+    publish,
+    activeForms,
+  } = useAgentStudio(extensions);
+  if (loading) return <LoadingBlock label="Loading agents" />;
+  if (loadError && !selected)
+    return (
+      <>
+        <Notice tone="danger">{loadError}</Notice>
+        <button className="button" onClick={load}>
+          Retry
+        </button>
+      </>
+    );
+  if (!selected)
+    return (
+      <>
+        <header className="page-heading">
+          <div>
+            <p className="eyebrow">Agent studio</p>
+            <h1>Agents</h1>
+            <p className="muted">Create a draft backed by the shared AgentConfig contract.</p>
+          </div>
+        </header>
+        <EmptyState title="No agent drafts">
+          The API returned an empty agent collection. No sample agent was inserted.
+          <button
+            className="button primary"
+            disabled={identity.role === 'viewer'}
+            onClick={createAgent}
+          >
+            Create agent
+          </button>
+        </EmptyState>
+      </>
+    );
+
+  return (
+    <>
+      <header className="page-heading">
+        <div>
+          <p className="eyebrow">Agent studio</p>
+          <div className="title-row">
+            <h1>{selected.config.name}</h1>
+            <StatusBadge tone="soft">Draft v{selected.draftVersion}</StatusBadge>
+          </div>
+          <p className="muted">Immutable releases stay separate from this optimistic draft.</p>
+        </div>
+        <div className="heading-actions">
+          <select
+            aria-label="Selected agent"
+            value={selected.id}
+            onChange={(event) =>
+              setSelected(agents.find((agent) => agent.id === event.target.value))
+            }
+          >
+            {agents.map((agent) => (
+              <option key={agent.id} value={agent.id}>
+                {agent.config.name}
+              </option>
+            ))}
+          </select>
+          <button className="button" onClick={createAgent} disabled={identity.role === 'viewer'}>
+            New agent
+          </button>
+          <button
+            className="button primary"
+            onClick={publish}
+            disabled={publishing || saveState === 'saving' || identity.role === 'viewer'}
+          >
+            {publishing ? 'Validating…' : 'Publish release'}
+          </button>
+        </div>
+      </header>
+      <div className="save-banner" aria-live="polite">
+        <StatusBadge
+          tone={
+            saveState === 'error' || saveState === 'conflict'
+              ? 'danger'
+              : saveState === 'saved'
+                ? 'good'
+                : 'soft'
+          }
+        >
+          {
+            (
+              {
+                idle: 'Loaded',
+                dirty: 'Unsaved changes',
+                saving: 'Saving draft',
+                saved: 'Draft saved',
+                error: 'Save failed',
+                conflict: 'Edit conflict',
+              } as const
+            )[saveState]
+          }
+        </StatusBadge>
+        {saveError && <span>{saveError}</span>}
+      </div>
+      {conflict && (
+        <Notice tone="danger" live>
+          <strong>This draft changed on the server.</strong> Your local edit was not overwritten.
+          Compare both versions, then reload or copy the intended values.
+          <div className="conflict-grid">
+            <JsonEvidence label="Your local configuration" value={selected.config} />
+            <JsonEvidence label="Current server draft" value={conflict} />
+          </div>
+          <button className="button" onClick={load}>
+            Reload server draft
+          </button>
+        </Notice>
+      )}
+      {releaseError && (
+        <Notice tone="danger" live>
+          {releaseError}
+        </Notice>
+      )}
+      <div className="studio-layout">
+        <div className="stack">
+          <Panel labelledBy="mode-title">
+            <PanelHeader
+              id="mode-title"
+              title="01 · Agent mode"
+              badge={<StatusBadge>4 modes</StatusBadge>}
+            />
+            <div className="panel-body">
+              <fieldset className="mode-grid">
+                <legend>Choose how this agent makes decisions.</legend>
+                {modes.map((mode) => (
+                  <label
+                    className={`mode-card ${selected.config.mode === mode.id ? 'selected' : ''}`}
+                    key={mode.id}
+                  >
+                    <span>
+                      <input
+                        type="radio"
+                        name="mode"
+                        checked={selected.config.mode === mode.id}
+                        onChange={() =>
+                          update({
+                            ...selected.config,
+                            mode: mode.id,
+                            ...(mode.id === 'context' ? { allowedTools: [] } : {}),
+                          })
+                        }
+                      />{' '}
+                      <strong>{mode.title}</strong>
+                    </span>
+                    <p>{mode.description}</p>
+                    <small>{mode.kind}</small>
+                  </label>
+                ))}
+              </fieldset>
+              <Notice>
+                {selected.config.mode === 'announcement' || selected.config.mode === 'faq'
+                  ? 'This mode does not require an LLM binding. Runtime tests must still prove zero model requests.'
+                  : selected.config.mode === 'context'
+                    ? 'Supplied-context mode begins with tools disabled.'
+                    : 'Only exact approved tools are eligible at runtime.'}
+              </Notice>
+            </div>
+          </Panel>
+          {activeForms.map((form) => (
+            <Panel key={`${form.id}-${selected.id}`} labelledBy={`${form.id}-title`}>
+              <PanelHeader
+                id={`${form.id}-title`}
+                title={form.title}
+                badge={<StatusBadge tone="soft">Plugin form</StatusBadge>}
+              />
+              <div className="panel-body form-grid">
+                {form.fields.map((field) => (
+                  <PluginField
+                    key={field.path}
+                    field={field}
+                    config={selected.config}
+                    update={update}
+                  />
+                ))}
+              </div>
+            </Panel>
+          ))}
+          {selected.config.mode === 'faq' && <FaqEditor config={selected.config} update={update} />}
+          <ProviderMap config={selected.config} bindings={bindings} update={update} />
+          <Panel labelledBy="recording-title">
+            <PanelHeader
+              id="recording-title"
+              title="Recording and call policy"
+              badge={<StatusBadge tone="warning">Partially available</StatusBadge>}
+            />
+            <div className="panel-body">
+              <label className="toggle-row">
+                <input
+                  type="checkbox"
+                  checked={selected.config.recording}
+                  onChange={(event) =>
+                    update({ ...selected.config, recording: event.target.checked })
+                  }
+                />
+                <span>
+                  <strong>Request recording for new releases</strong>
+                  <small>
+                    Carrier/legal preconditions and artifact state are validated outside AgentConfig
+                    and are not yet exposed by this API.
+                  </small>
+                </span>
+              </label>
+              <Notice tone="warning">
+                Greeting, closing, transfer, DTMF, silence and retention controls are not in the
+                current AgentConfig contract. The console does not invent settings for them.
+              </Notice>
+            </div>
+          </Panel>
+          <div className="desktop-authoring-note">
+            <strong>Flow graph authoring requires desktop.</strong> This contract currently exposes
+            message, FAQ, context and bounded agent controls rather than a script-state graph.
+          </div>
+        </div>
+        <StudioRail selected={selected} releases={releases} extensions={extensions} />
+      </div>
+      <AgentDraftIndex agents={agents} select={setSelected} />
+    </>
+  );
+}

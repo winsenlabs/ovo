@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "types": ["node"],
+    "jsx": "react-jsx"
+  },
+  "include": ["packages/**/*.ts", "apps/**/*.ts", "experiments/**/*.ts"],
+  "exclude": ["node_modules", "apps/console", "**/dist/**"]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@winsendotai/ovo-plugin-tools-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-tools": "workspace:*",
+    "@winsendotai/ovo-plugin-tools-http": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*"
+  }
+}

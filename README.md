@@ -35,12 +35,12 @@ Plugins are normally composed inside a process; modularity does not require a ne
 
 ## Four ways to build an agent
 
-| Mode | Example | Model requirement |
-|---|---|---|
-| Message with variables | Read an appointment reminder or account update | No LLM; STT optional for one-way delivery |
-| Script and FAQ | Follow an approved script and answer known questions | Deterministic matching; no LLM required |
+| Mode                          | Example                                                      | Model requirement                                  |
+| ----------------------------- | ------------------------------------------------------------ | -------------------------------------------------- |
+| Message with variables        | Read an appointment reminder or account update               | No LLM; STT optional for one-way delivery          |
+| Script and FAQ                | Follow an approved script and answer known questions         | Deterministic matching; no LLM required            |
 | Supplied-context conversation | Answer questions using the information supplied to the agent | LLM, with bounded context and uncertainty handling |
-| Agent with tools | Check booking availability or update a business system | LLM plus validated, permission-controlled tools |
+| Agent with tools              | Check booking availability or update a business system       | LLM plus validated, permission-controlled tools    |
 
 For customer-facing checks, configurable processing speech such as “Please wait while I check that” is enforced by the runtime. Tool execution, spoken acknowledgment, interruption, and result delivery have explicit ordering and state.
 
@@ -116,3 +116,9 @@ Before implementing, read the [agent and contributor build guide](docs/02-agent-
 ## License
 
 OVO is intended to be released as open source. A project license has not yet been selected or added to this repository. Public source availability alone does not grant an open-source license; licensing must be resolved before a software release.
+
+## Implementation and local development
+
+Implementation now lives in the private `@winsendotai/ovo-*` workspace. See [local development](docs/local-development.md) to run the persisted API and management console or execute CI locally. GitHub Actions are suspended.
+
+The [PM task board](PM/README.md) tracks the complete W01–W20 work breakdown. The [acceptance ledger](PM/acceptance.md) retains all 75 launch requirements. [Progress](docs/progress.md) distinguishes source inspection, working local fixtures, simulations and unverified production integrations. This branch is not a production launch certification.

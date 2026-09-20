@@ -1,0 +1,1204 @@
+{
+  "schemaVersion": 2,
+  "createdAt": "2026-09-20T12:59:57.495Z",
+  "scope": "local deterministic text-only fixtures; no network, provider, local-model, audio, or carrier calls",
+  "protocol": {
+    "warmups": 3,
+    "hotFaqSamplesPerCandidate": 30,
+    "hotToolSamplesPerCandidate": 10,
+    "coldLifecycleSamplesPerCandidate": 10,
+    "hotPath": "one long-lived composition and session per candidate; setup and disposal excluded",
+    "coldPath": "new composition, one FAQ call, and disposal included in every sample",
+    "clock": "performance.now()",
+    "intentBoundary": "focused operation records use an in-memory fixture store and are not durable evidence",
+    "livekitLocalInferenceModels": {
+      "enabled": false,
+      "controls": ["vad: null", "turnDetection: null", "no local-inference API import"],
+      "prohibition": "do not extract model weights or use model outputs in focused OVO"
+    }
+  },
+  "sourceIdentity": {
+    "gitHead": "94d674f5836d8905dd64399f4cc516b3229f8b14",
+    "gitBranch": "vorflux/ovo-foundation",
+    "gitDirty": true,
+    "sha256": {
+      "experimentSource": "478cca26a6b7e8346f81a1282d171d9e19a78582fed4ca9b8cbc4390b3d1e838",
+      "runtimeSource": "c81e4df765563491dc01b722c5023b49078824d9877d90dd1742cde433d27037",
+      "focusedComponentSource": "be80e3794b761c1746b9f8c787e426c4550eff8ef713820c676f602b3fd42633",
+      "lockfile": "141bbf68b3975550236a46bb658d3b7a538877dfe032ce9472533e7f18ca371b"
+    }
+  },
+  "versions": {
+    "livekitAgents": "1.9.0",
+    "livekitAgentsSource": "5287be114b12fb16f0a3eb6ccca4173e6e3eb219",
+    "vercelAi": "7.0.107",
+    "vercelAiSource": "20dd00abba618d5a516e0fee40ccd3e18a2bd1fb",
+    "transitiveLicenseNotice": {
+      "livekitLocalInference": "@livekit/local-inference@0.2.7: Apache-2.0 AND LicenseRef-LiveKit-Model",
+      "livekitPlatformAv": "@livekit/av-linux-x64@10.0.0: LGPL-2.1-or-later"
+    }
+  },
+  "environment": {
+    "node": "v22.21.0",
+    "platform": "linux",
+    "release": "7.0.0-1009-aws",
+    "architecture": "x64",
+    "cpuCount": 4,
+    "cpuModel": "Intel(R) Xeon(R) 6975P-C",
+    "totalMemoryBytes": 16464347136,
+    "freeMemoryBytesAtCapture": 12816822272,
+    "ci": null
+  },
+  "candidates": [
+    {
+      "candidate": "focused-ovo-ai-sdk",
+      "samples": {
+        "hot": {
+          "noLlmFaq": [
+            {
+              "index": 0,
+              "durationMs": 0.202,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 1,
+              "durationMs": 0.138,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 2,
+              "durationMs": 0.234,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 3,
+              "durationMs": 0.129,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 4,
+              "durationMs": 0.078,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 5,
+              "durationMs": 0.108,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 6,
+              "durationMs": 0.067,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 7,
+              "durationMs": 0.048,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 8,
+              "durationMs": 0.038,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 9,
+              "durationMs": 0.043,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 10,
+              "durationMs": 0.039,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 11,
+              "durationMs": 0.061,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 12,
+              "durationMs": 0.039,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 13,
+              "durationMs": 0.032,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 14,
+              "durationMs": 0.031,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 15,
+              "durationMs": 0.033,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 16,
+              "durationMs": 0.031,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 17,
+              "durationMs": 0.032,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 18,
+              "durationMs": 0.031,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 19,
+              "durationMs": 0.037,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 20,
+              "durationMs": 0.034,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 21,
+              "durationMs": 0.033,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 22,
+              "durationMs": 0.032,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 23,
+              "durationMs": 0.034,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 24,
+              "durationMs": 0.033,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 25,
+              "durationMs": 0.033,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 26,
+              "durationMs": 0.033,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 27,
+              "durationMs": 0.033,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 28,
+              "durationMs": 0.034,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 29,
+              "durationMs": 0.035,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            }
+          ],
+          "interruptBeforeToolSettles": [
+            {
+              "index": 0,
+              "durationMs": 3.872,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "ovo-execution",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 1,
+              "durationMs": 1.921,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "ovo-execution",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 2,
+              "durationMs": 1.517,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "ovo-execution",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 3,
+              "durationMs": 1.629,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "ovo-execution",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 4,
+              "durationMs": 1.967,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "ovo-execution",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 5,
+              "durationMs": 9.733,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "ovo-execution",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 6,
+              "durationMs": 3.858,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "ovo-execution",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 7,
+              "durationMs": 2.945,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "ovo-execution",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 8,
+              "durationMs": 0.928,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "ovo-execution",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 9,
+              "durationMs": 1.034,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "ovo-execution",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            }
+          ]
+        },
+        "cold": {
+          "composeFaqDispose": [
+            {
+              "index": 0,
+              "durationMs": 63.308,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 1,
+              "durationMs": 69.836,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 2,
+              "durationMs": 40.906,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 3,
+              "durationMs": 49.378,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 4,
+              "durationMs": 91.162,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 5,
+              "durationMs": 51.339,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 6,
+              "durationMs": 50.667,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 7,
+              "durationMs": 33.483,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 8,
+              "durationMs": 35.605,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 9,
+              "durationMs": 27.299,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "candidate": "livekit-agent-session",
+      "samples": {
+        "hot": {
+          "noLlmFaq": [
+            {
+              "index": 0,
+              "durationMs": 2.816,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 1,
+              "durationMs": 0.61,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 2,
+              "durationMs": 1.287,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 3,
+              "durationMs": 15.307,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 4,
+              "durationMs": 0.515,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 5,
+              "durationMs": 0.57,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 6,
+              "durationMs": 0.484,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 7,
+              "durationMs": 0.476,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 8,
+              "durationMs": 3.21,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 9,
+              "durationMs": 0.573,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 10,
+              "durationMs": 0.727,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 11,
+              "durationMs": 0.393,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 12,
+              "durationMs": 0.395,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 13,
+              "durationMs": 0.564,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 14,
+              "durationMs": 0.361,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 15,
+              "durationMs": 2.682,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 16,
+              "durationMs": 0.385,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 17,
+              "durationMs": 0.426,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 18,
+              "durationMs": 0.318,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 19,
+              "durationMs": 0.274,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 20,
+              "durationMs": 1.933,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 21,
+              "durationMs": 0.391,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 22,
+              "durationMs": 0.338,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 23,
+              "durationMs": 0.398,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 24,
+              "durationMs": 0.354,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 25,
+              "durationMs": 0.266,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 26,
+              "durationMs": 0.246,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 27,
+              "durationMs": 0.3,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 28,
+              "durationMs": 0.335,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 29,
+              "durationMs": 0.359,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            }
+          ],
+          "interruptBeforeToolSettles": [
+            {
+              "index": 0,
+              "durationMs": 8.199,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "livekit-agent-session",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 1,
+              "durationMs": 3.335,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "livekit-agent-session",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 2,
+              "durationMs": 5.417,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "livekit-agent-session",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 3,
+              "durationMs": 7.683,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "livekit-agent-session",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 4,
+              "durationMs": 3.468,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "livekit-agent-session",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 5,
+              "durationMs": 9.242,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "livekit-agent-session",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 6,
+              "durationMs": 8.796,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "livekit-agent-session",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 7,
+              "durationMs": 3.455,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "livekit-agent-session",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 8,
+              "durationMs": 9.239,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "livekit-agent-session",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            },
+            {
+              "index": 9,
+              "durationMs": 2.988,
+              "ok": true,
+              "observation": {
+                "modelRequests": 1,
+                "toolAttempts": 1,
+                "toolOwner": "livekit-agent-session",
+                "stalePlaybackCount": 0,
+                "operationState": "succeeded"
+              }
+            }
+          ]
+        },
+        "cold": {
+          "composeFaqDispose": [
+            {
+              "index": 0,
+              "durationMs": 553.79,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 1,
+              "durationMs": 518.675,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 2,
+              "durationMs": 542.612,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 3,
+              "durationMs": 512.101,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 4,
+              "durationMs": 517.246,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 5,
+              "durationMs": 507.94,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 6,
+              "durationMs": 509.185,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 7,
+              "durationMs": 513.075,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 8,
+              "durationMs": 526.069,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            },
+            {
+              "index": 9,
+              "durationMs": 511.766,
+              "ok": true,
+              "observation": {
+                "modelRequests": 0,
+                "toolAttempts": 0,
+                "toolOwner": "none",
+                "stalePlaybackCount": 0
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

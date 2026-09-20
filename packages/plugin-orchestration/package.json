@@ -1,0 +1,21 @@
+{
+  "name": "@winsendotai/ovo-plugin-orchestration",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "test": "vitest --root ../.. run packages/plugin-orchestration/tests",
+    "test:integration": "vitest --root ../.. run packages/plugin-orchestration/tests/ownership.test.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch": "3.1136.0",
+    "@aws-sdk/client-ecs": "3.1136.0",
+    "@aws-sdk/client-sqs": "3.1136.0",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "@types/pg": "8.15.5"
+  }
+}

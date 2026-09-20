@@ -1,0 +1,22 @@
+{
+  "name": "@winsendotai/ovo-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/server.ts",
+  "scripts": {
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-behaviors": "workspace:*",
+    "@winsendotai/ovo-plugin-observability": "workspace:*",
+    "@winsendotai/ovo-plugin-recordings": "workspace:*",
+    "@winsendotai/ovo-plugin-secrets": "workspace:*",
+    "@winsendotai/ovo-plugin-storage": "workspace:*",
+    "@winsendotai/ovo-plugin-tools-mcp": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "fastify": "5.12.5",
+    "zod": "4.6.5"
+  }
+}

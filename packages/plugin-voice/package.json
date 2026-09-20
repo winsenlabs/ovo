@@ -1,0 +1,11 @@
+{
+  "name": "@winsendotai/ovo-plugin-voice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*"
+  }
+}
