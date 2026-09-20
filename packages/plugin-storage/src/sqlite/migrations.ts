@@ -1,7 +1,10 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 export function migrate(db: DatabaseSync) {
-  db.exec(`
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(`
+CREATE TABLE IF NOT EXISTS ovo_control_schema_migrations(version INTEGER PRIMARY KEY,applied_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS workspaces(id TEXT PRIMARY KEY,name TEXT NOT NULL,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS agents(id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id),config_json TEXT NOT NULL,draft_version INTEGER NOT NULL CHECK(draft_version>0),created_at TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(workspace_id,id));
 CREATE TABLE IF NOT EXISTS releases(id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id),agent_id TEXT NOT NULL REFERENCES agents(id),draft_version INTEGER NOT NULL,config_json TEXT NOT NULL,plugins_json TEXT NOT NULL,created_at TEXT NOT NULL,created_by TEXT NOT NULL);
@@ -19,4 +22,23 @@ CREATE TABLE IF NOT EXISTS operations(workspace_id TEXT NOT NULL REFERENCES work
 CREATE TABLE IF NOT EXISTS usage_entries(id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id),call_id TEXT NOT NULL REFERENCES calls(id),provider TEXT NOT NULL,request_id TEXT NOT NULL,quantity TEXT NOT NULL,unit TEXT NOT NULL,price_card_id TEXT NOT NULL,price_card_version TEXT NOT NULL,amount_minor TEXT NOT NULL,currency TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('estimated','reconciled')),created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit_entries(id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id),actor_id TEXT NOT NULL,action TEXT NOT NULL,resource_type TEXT NOT NULL,resource_id TEXT NOT NULL,payload_json TEXT NOT NULL,created_at TEXT NOT NULL);
 `);
+    db.prepare(
+      'INSERT OR IGNORE INTO ovo_control_schema_migrations(version,applied_at) VALUES(1,?)',
+    ).run(new Date().toISOString());
+    const releaseColumns = db.prepare('PRAGMA table_info(releases)').all() as { name: string }[];
+    if (!releaseColumns.some((column) => column.name === 'provider_bindings_json'))
+      db.exec("ALTER TABLE releases ADD COLUMN provider_bindings_json TEXT NOT NULL DEFAULT '{}'");
+    db.prepare(
+      'INSERT OR IGNORE INTO ovo_control_schema_migrations(version,applied_at) VALUES(2,?)',
+    ).run(new Date().toISOString());
+    if (!releaseColumns.some((column) => column.name === 'mcp_tools_json'))
+      db.exec("ALTER TABLE releases ADD COLUMN mcp_tools_json TEXT NOT NULL DEFAULT '{}'");
+    db.prepare(
+      'INSERT OR IGNORE INTO ovo_control_schema_migrations(version,applied_at) VALUES(3,?)',
+    ).run(new Date().toISOString());
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }

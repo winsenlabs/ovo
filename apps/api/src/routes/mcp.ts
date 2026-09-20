@@ -13,17 +13,22 @@ export function registerMcpRoutes(dependencies: any) {
     error,
     createMcpConnector,
     ApprovalBody,
+    queryPage,
   } = dependencies;
   app.get('/v1/mcp-connections', async (request: FastifyRequest) => {
     const principal = requireRole(request, 'viewer');
-    return { items: store.listMcpConnections(principal.workspaceId), nextCursor: null };
+    const page = queryPage(request);
+    return await store.listMcpConnections(principal.workspaceId, page.limit, page.cursor);
   });
   app.post('/v1/mcp-connections', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'admin'),
       body = McpBody.parse(request.body);
     validateMcpEndpoint(body.endpoint);
-    const connection = store.createMcpConnection({ ...body, workspaceId: principal.workspaceId });
-    store.audit({
+    const connection = await store.createMcpConnection({
+      ...body,
+      workspaceId: principal.workspaceId,
+    });
+    await store.audit({
       workspaceId: principal.workspaceId,
       actorId: principal.identityId,
       action: 'mcp-connection.create',
@@ -42,8 +47,8 @@ export function registerMcpRoutes(dependencies: any) {
       { connectionId } = z.object({ connectionId: Id }).parse(request.params),
       body = McpBody.parse(request.body);
     validateMcpEndpoint(body.endpoint);
-    const connection = store.updateMcpConnection(principal.workspaceId, connectionId, body);
-    store.audit({
+    const connection = await store.updateMcpConnection(principal.workspaceId, connectionId, body);
+    await store.audit({
       workspaceId: principal.workspaceId,
       actorId: principal.identityId,
       action: 'mcp-connection.update',
@@ -62,8 +67,8 @@ export function registerMcpRoutes(dependencies: any) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const principal = requireRole(request, 'admin'),
         { connectionId } = z.object({ connectionId: Id }).parse(request.params);
-      store.deleteMcpConnection(principal.workspaceId, connectionId);
-      store.audit({
+      await store.deleteMcpConnection(principal.workspaceId, connectionId);
+      await store.audit({
         workspaceId: principal.workspaceId,
         actorId: principal.identityId,
         action: 'mcp-connection.delete',
@@ -92,15 +97,15 @@ export function registerMcpRoutes(dependencies: any) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const principal = requireRole(request, 'admin'),
         { connectionId } = z.object({ connectionId: Id }).parse(request.params),
-        connection = store.getMcpConnection(principal.workspaceId, connectionId);
+        connection = await store.getMcpConnection(principal.workspaceId, connectionId);
       if (!connection) return error(reply, 404, 'not_found', 'MCP connection not found');
       try {
         const discovered = await mcpConnector(connection).discover({
           workspaceId: principal.workspaceId,
           connectionId,
         });
-        store.setMcpConnectionStatus(principal.workspaceId, connectionId, 'ready');
-        store.audit({
+        await store.setMcpConnectionStatus(principal.workspaceId, connectionId, 'ready');
+        await store.audit({
           workspaceId: principal.workspaceId,
           actorId: principal.identityId,
           action: 'mcp-connection.test',
@@ -110,7 +115,7 @@ export function registerMcpRoutes(dependencies: any) {
         });
         return { ok: true, toolCount: discovered.tools.length };
       } catch (cause) {
-        store.setMcpConnectionStatus(principal.workspaceId, connectionId, 'error');
+        await store.setMcpConnectionStatus(principal.workspaceId, connectionId, 'error');
         return error(
           reply,
           422,
@@ -125,14 +130,14 @@ export function registerMcpRoutes(dependencies: any) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const principal = requireRole(request, 'admin'),
         { connectionId } = z.object({ connectionId: Id }).parse(request.params),
-        connection = store.getMcpConnection(principal.workspaceId, connectionId);
+        connection = await store.getMcpConnection(principal.workspaceId, connectionId);
       if (!connection) return error(reply, 404, 'not_found', 'MCP connection not found');
       try {
         const discovered = await mcpConnector(connection).discover({
           workspaceId: principal.workspaceId,
           connectionId,
         });
-        const stored = store.replaceMcpDiscoveredTools(
+        const stored = await store.replaceMcpDiscoveredTools(
           principal.workspaceId,
           connectionId,
           discovered.tools.map((tool: any) => ({
@@ -143,8 +148,8 @@ export function registerMcpRoutes(dependencies: any) {
             schemaDigest: tool.schemaDigest,
           })),
         );
-        store.setMcpConnectionStatus(principal.workspaceId, connectionId, 'ready');
-        store.audit({
+        await store.setMcpConnectionStatus(principal.workspaceId, connectionId, 'ready');
+        await store.audit({
           workspaceId: principal.workspaceId,
           actorId: principal.identityId,
           action: 'mcp-connection.discover',
@@ -154,7 +159,7 @@ export function registerMcpRoutes(dependencies: any) {
         });
         return { items: stored, nextCursor: null };
       } catch (cause) {
-        store.setMcpConnectionStatus(principal.workspaceId, connectionId, 'error');
+        await store.setMcpConnectionStatus(principal.workspaceId, connectionId, 'error');
         return error(
           reply,
           422,
@@ -169,20 +174,24 @@ export function registerMcpRoutes(dependencies: any) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const principal = requireRole(request, 'viewer'),
         { connectionId } = z.object({ connectionId: Id }).parse(request.params);
-      if (!store.getMcpConnection(principal.workspaceId, connectionId))
+      if (!(await store.getMcpConnection(principal.workspaceId, connectionId)))
         return error(reply, 404, 'not_found', 'MCP connection not found');
-      return {
-        items: store.listMcpDiscoveredTools(principal.workspaceId, connectionId),
-        nextCursor: null,
-      };
+      const page = queryPage(request);
+      return await store.listMcpDiscoveredTools(
+        principal.workspaceId,
+        connectionId,
+        page.limit,
+        page.cursor,
+      );
     },
   );
   app.get('/v1/agents/:agentId/mcp-tools', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'viewer'),
       { agentId } = z.object({ agentId: Id }).parse(request.params);
-    if (!store.getAgent(principal.workspaceId, agentId))
+    if (!(await store.getAgent(principal.workspaceId, agentId)))
       return error(reply, 404, 'not_found', 'Agent not found');
-    return { items: store.listMcpApprovals(principal.workspaceId, agentId), nextCursor: null };
+    const page = queryPage(request);
+    return await store.listMcpApprovals(principal.workspaceId, agentId, page.limit, page.cursor);
   });
   app.put(
     '/v1/agents/:agentId/mcp-tools/:toolId',
@@ -192,29 +201,28 @@ export function registerMcpRoutes(dependencies: any) {
           .object({ agentId: Id, toolId: z.string().min(1).max(120) })
           .parse(request.params),
         body = ApprovalBody.parse(request.body),
-        connection = store.getMcpConnection(principal.workspaceId, body.connectionId),
+        connection = await store.getMcpConnection(principal.workspaceId, body.connectionId),
         discovered =
           connection &&
-          store
-            .listMcpDiscoveredTools(principal.workspaceId, body.connectionId)
-            .find(
-              (tool: any) =>
-                tool.remoteName === body.remoteName && tool.schemaDigest === body.schemaDigest,
-            );
-      if (!discovered)
+          (await store.getMcpDiscoveredTool(
+            principal.workspaceId,
+            body.connectionId,
+            body.remoteName,
+          ));
+      if (!discovered || discovered.schemaDigest !== body.schemaDigest)
         return error(
           reply,
           422,
           'mcp_approval_invalid',
           'Approval must match the latest server-recorded discovery schema',
         );
-      const approval = store.upsertMcpApproval({
+      const approval = await store.upsertMcpApproval({
         ...body,
         workspaceId: principal.workspaceId,
         agentId,
         toolId,
       });
-      store.audit({
+      await store.audit({
         workspaceId: principal.workspaceId,
         actorId: principal.identityId,
         action: 'mcp-tool.approve',
@@ -232,8 +240,8 @@ export function registerMcpRoutes(dependencies: any) {
         { agentId, toolId } = z
           .object({ agentId: Id, toolId: z.string().min(1).max(120) })
           .parse(request.params);
-      store.deleteMcpApproval(principal.workspaceId, agentId, toolId);
-      store.audit({
+      await store.deleteMcpApproval(principal.workspaceId, agentId, toolId);
+      await store.audit({
         workspaceId: principal.workspaceId,
         actorId: principal.identityId,
         action: 'mcp-tool.revoke',

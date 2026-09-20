@@ -14,6 +14,9 @@ resource "aws_ecs_service" "api" {
     container_name   = "api"
     container_port   = 4000
   }
+  service_registries {
+    registry_arn = aws_service_discovery_service.api.arn
+  }
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -59,6 +62,9 @@ resource "aws_ecs_service" "gateway" {
     target_group_arn = aws_lb_target_group.gateway.arn
     container_name   = "gateway"
     container_port   = 4001
+  }
+  service_registries {
+    registry_arn = aws_service_discovery_service.gateway.arn
   }
   deployment_circuit_breaker {
     enable   = true

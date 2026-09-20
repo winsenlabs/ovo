@@ -46,6 +46,13 @@ export interface ProviderBinding {
   credentialId: string;
   config?: Record<string, unknown>;
 }
+export interface AgentReadiness {
+  releaseReady: boolean;
+  requiredPluginIds: string[];
+  blockers: string[];
+  liveReady: boolean;
+  liveBlockers?: string[];
+}
 export interface McpConnection {
   id: string;
   label: string;
@@ -78,12 +85,13 @@ export interface CallSummary {
   id: string;
   agentId?: string;
   releaseId?: string;
-  kind?: 'simulation' | 'real';
+  kind?: 'simulation' | 'live' | 'real';
   status?: string;
   createdAt?: string;
   updatedAt?: string;
   direction?: string;
   recordingState?: string;
+  completedAt?: string | null;
 }
 export interface RecordingMetadata {
   id: string;

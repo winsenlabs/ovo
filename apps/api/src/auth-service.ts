@@ -18,10 +18,14 @@ function cookie(header: string | undefined, name: string) {
 export class Authenticator {
   private readonly byId = new Map<string, BootstrapIdentity>();
   constructor(private readonly options: ManagementApiOptions) {
+    const tokens = new Set<string>();
     for (const identity of options.identities) {
+      const tokenHash = hash(identity.token).toString('hex');
+      if (tokens.has(tokenHash)) throw new Error('Operator credentials must be distinct');
+      tokens.add(tokenHash);
       if (this.byId.has(identity.id))
         throw new Error(`Duplicate bootstrap identity ${identity.id}`);
-      if (!identity.workspaces[identity.defaultWorkspaceId])
+      if (!Object.hasOwn(identity.workspaces, identity.defaultWorkspaceId))
         throw new Error(`Default workspace is not authorized for ${identity.id}`);
       this.byId.set(identity.id, identity);
     }
@@ -31,10 +35,12 @@ export class Authenticator {
     return this.options.identities.find((identity) => safeEqual(digest, hash(identity.token)));
   }
   createSession(identity: BootstrapIdentity, workspaceId: string) {
-    if (!identity.workspaces[workspaceId]) throw new Error('Workspace is not authorized');
+    if (!Object.hasOwn(identity.workspaces, workspaceId))
+      throw new Error('Workspace is not authorized');
     const payload = Buffer.from(
       JSON.stringify({
         identityId: identity.id,
+        tokenVersion: this.tokenVersion(identity),
         workspaceId,
         exp: Math.floor(Date.now() / 1000) + (this.options.sessionTtlSeconds ?? 28_800),
       }),
@@ -42,6 +48,18 @@ export class Authenticator {
     return `${payload}.${createHmac('sha256', this.options.sessionSecret).update(payload).digest('base64url')}`;
   }
   fromSession(value: string): Principal | undefined {
+    try {
+      return this.decodeSession(value);
+    } catch {
+      return undefined;
+    }
+  }
+  private tokenVersion(identity: BootstrapIdentity): string {
+    return createHmac('sha256', this.options.sessionSecret)
+      .update(identity.token)
+      .digest('base64url');
+  }
+  private decodeSession(value: string): Principal | undefined {
     const [payload, signature, extra] = value.split('.');
     if (!payload || !signature || extra) return;
     const expected = createHmac('sha256', this.options.sessionSecret).update(payload).digest(),
@@ -51,10 +69,15 @@ export class Authenticator {
       identityId: string;
       workspaceId: string;
       exp: number;
+      tokenVersion: string;
     };
-    if (decoded.exp < Date.now() / 1000) return;
+    if (!decoded || !Number.isFinite(decoded.exp) || decoded.exp <= Date.now() / 1000) return;
     const identity = this.byId.get(decoded.identityId),
-      role = identity?.workspaces[decoded.workspaceId];
+      role =
+        identity && Object.hasOwn(identity.workspaces, decoded.workspaceId)
+          ? identity.workspaces[decoded.workspaceId]
+          : undefined;
+    if (!identity || decoded.tokenVersion !== this.tokenVersion(identity)) return;
     return identity && role
       ? { identityId: identity.id, label: identity.label, workspaceId: decoded.workspaceId, role }
       : undefined;
@@ -81,7 +104,7 @@ export function requireRole(request: FastifyRequest, role: Role) {
       statusCode: 401,
       code: 'unauthorized',
     });
-  if (rank[principal.role] < rank[role])
+  if (!Object.hasOwn(rank, principal.role) || rank[principal.role] < rank[role])
     throw Object.assign(new Error('Insufficient role'), { statusCode: 403, code: 'forbidden' });
   return principal;
 }

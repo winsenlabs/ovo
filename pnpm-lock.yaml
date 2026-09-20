@@ -35,18 +35,39 @@ importers:
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@winsendotai/ovo-plugin-evaluations':
+        specifier: workspace:*
+        version: link:../../packages/plugin-evaluations
+      '@winsendotai/ovo-plugin-inference':
+        specifier: workspace:*
+        version: link:../../packages/plugin-inference
+      '@winsendotai/ovo-plugin-ledger':
+        specifier: workspace:*
+        version: link:../../packages/plugin-ledger
       '@winsendotai/ovo-plugin-observability':
         specifier: workspace:*
         version: link:../../packages/plugin-observability
+      '@winsendotai/ovo-plugin-operations':
+        specifier: workspace:*
+        version: link:../../packages/plugin-operations
+      '@winsendotai/ovo-plugin-providers':
+        specifier: workspace:*
+        version: link:../../packages/plugin-providers
       '@winsendotai/ovo-plugin-recordings':
         specifier: workspace:*
         version: link:../../packages/plugin-recordings
       '@winsendotai/ovo-plugin-secrets':
         specifier: workspace:*
         version: link:../../packages/plugin-secrets
+      '@winsendotai/ovo-plugin-session':
+        specifier: workspace:*
+        version: link:../../packages/plugin-session
       '@winsendotai/ovo-plugin-storage':
         specifier: workspace:*
         version: link:../../packages/plugin-storage
+      '@winsendotai/ovo-plugin-tools':
+        specifier: workspace:*
+        version: link:../../packages/plugin-tools
       '@winsendotai/ovo-plugin-tools-http':
         specifier: workspace:*
         version: link:../../packages/plugin-tools-http
@@ -59,9 +80,16 @@ importers:
       fastify:
         specifier: 5.12.5
         version: 5.12.5
+      pg:
+        specifier: 8.16.3
+        version: 8.16.3
       zod:
         specifier: 4.6.5
         version: 4.6.5
+    devDependencies:
+      '@types/pg':
+        specifier: 8.15.5
+        version: 8.15.5
 
   apps/console:
     dependencies:
@@ -90,6 +118,27 @@ importers:
 
   apps/dispatcher:
     dependencies:
+      '@winsendotai/ovo-plugin-operations':
+        specifier: workspace:*
+        version: link:../../packages/plugin-operations
+      '@winsendotai/ovo-plugin-orchestration':
+        specifier: workspace:*
+        version: link:../../packages/plugin-orchestration
+      '@winsendotai/ovo-plugin-storage':
+        specifier: workspace:*
+        version: link:../../packages/plugin-storage
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+
+  apps/media-gateway:
+    dependencies:
+      '@winsendotai/ovo-plugin-media':
+        specifier: workspace:*
+        version: link:../../packages/plugin-media
+      '@winsendotai/ovo-plugin-operations':
+        specifier: workspace:*
+        version: link:../../packages/plugin-operations
       '@winsendotai/ovo-plugin-orchestration':
         specifier: workspace:*
         version: link:../../packages/plugin-orchestration
@@ -99,12 +148,51 @@ importers:
 
   apps/worker:
     dependencies:
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@winsendotai/ovo-plugin-cache':
+        specifier: workspace:*
+        version: link:../../packages/plugin-cache
+      '@winsendotai/ovo-plugin-ledger':
+        specifier: workspace:*
+        version: link:../../packages/plugin-ledger
+      '@winsendotai/ovo-plugin-media':
+        specifier: workspace:*
+        version: link:../../packages/plugin-media
+      '@winsendotai/ovo-plugin-observability':
+        specifier: workspace:*
+        version: link:../../packages/plugin-observability
+      '@winsendotai/ovo-plugin-operations':
+        specifier: workspace:*
+        version: link:../../packages/plugin-operations
       '@winsendotai/ovo-plugin-orchestration':
         specifier: workspace:*
         version: link:../../packages/plugin-orchestration
+      '@winsendotai/ovo-plugin-providers':
+        specifier: workspace:*
+        version: link:../../packages/plugin-providers
+      '@winsendotai/ovo-plugin-recordings':
+        specifier: workspace:*
+        version: link:../../packages/plugin-recordings
+      '@winsendotai/ovo-plugin-secrets':
+        specifier: workspace:*
+        version: link:../../packages/plugin-secrets
+      '@winsendotai/ovo-plugin-session':
+        specifier: workspace:*
+        version: link:../../packages/plugin-session
+      '@winsendotai/ovo-plugin-speech-cache':
+        specifier: workspace:*
+        version: link:../../packages/plugin-speech-cache
+      '@winsendotai/ovo-plugin-storage':
+        specifier: workspace:*
+        version: link:../../packages/plugin-storage
       '@winsendotai/ovo-plugin-telephony-twilio':
         specifier: workspace:*
         version: link:../../packages/plugin-telephony-twilio
+      '@winsendotai/ovo-plugin-voice':
+        specifier: workspace:*
+        version: link:../../packages/plugin-voice
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
@@ -166,6 +254,30 @@ importers:
         specifier: workspace:*
         version: link:../runtime
 
+  packages/plugin-evaluations:
+    dependencies:
+      '@types/pg':
+        specifier: 8.15.5
+        version: 8.15.5
+      '@winsendotai/ovo-behaviors':
+        specifier: workspace:*
+        version: link:../behaviors
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-plugin-ledger':
+        specifier: workspace:*
+        version: link:../plugin-ledger
+      '@winsendotai/ovo-plugin-tools':
+        specifier: workspace:*
+        version: link:../plugin-tools
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      pg:
+        specifier: 8.16.3
+        version: 8.16.3
+
   packages/plugin-example:
     dependencies:
       '@winsendotai/ovo-sdk':
@@ -184,14 +296,87 @@ importers:
         specifier: 7.0.107
         version: 7.0.107(zod@4.6.5)
 
+  packages/plugin-ledger:
+    dependencies:
+      '@winsendotai/ovo-plugin-observability':
+        specifier: workspace:*
+        version: link:../plugin-observability
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      pg:
+        specifier: 8.16.3
+        version: 8.16.3
+    devDependencies:
+      '@types/pg':
+        specifier: 8.15.5
+        version: 8.15.5
+
+  packages/plugin-media:
+    dependencies:
+      '@winsendotai/ovo-plugin-telephony-twilio':
+        specifier: workspace:*
+        version: link:../plugin-telephony-twilio
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+    devDependencies:
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-plugin-voice':
+        specifier: workspace:*
+        version: link:../plugin-voice
+
   packages/plugin-observability:
     dependencies:
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@winsendotai/ovo-plugin-voice':
+        specifier: workspace:*
+        version: link:../plugin-voice
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
+      pg:
+        specifier: 8.16.3
+        version: 8.16.3
+    devDependencies:
+      '@types/pg':
+        specifier: 8.15.5
+        version: 8.15.5
+
+  packages/plugin-operations:
+    dependencies:
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
+      pg:
+        specifier: 8.16.3
+        version: 8.16.3
+      twilio:
+        specifier: 5.10.4
+        version: 5.10.4
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@types/pg':
+        specifier: 8.15.5
+        version: 8.15.5
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-plugin-storage':
+        specifier: workspace:*
+        version: link:../plugin-storage
+      fastify:
+        specifier: 5.12.5
+        version: 5.12.5
 
   packages/plugin-orchestration:
     dependencies:
@@ -215,6 +400,40 @@ importers:
         specifier: 8.15.5
         version: 8.15.5
 
+  packages/plugin-providers:
+    dependencies:
+      '@ai-sdk/openai':
+        specifier: 4.0.71
+        version: 4.0.71(zod@4.6.5)
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-plugin-inference':
+        specifier: workspace:*
+        version: link:../plugin-inference
+      '@winsendotai/ovo-plugin-speech-cache':
+        specifier: workspace:*
+        version: link:../plugin-speech-cache
+      '@winsendotai/ovo-plugin-tools-http':
+        specifier: workspace:*
+        version: link:../plugin-tools-http
+      '@winsendotai/ovo-plugin-voice':
+        specifier: workspace:*
+        version: link:../plugin-voice
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      ws:
+        specifier: 8.21.3
+        version: 8.21.3
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@types/ws':
+        specifier: 8.18.1
+        version: 8.18.1
+
   packages/plugin-recordings:
     dependencies:
       '@aws-sdk/client-s3':
@@ -223,9 +442,16 @@ importers:
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
+      pg:
+        specifier: 8.16.3
+        version: 8.16.3
       zod:
         specifier: 4.6.5
         version: 4.6.5
+    devDependencies:
+      '@types/pg':
+        specifier: 8.15.5
+        version: 8.15.5
 
   packages/plugin-secrets:
     dependencies:
@@ -238,6 +464,33 @@ importers:
       '@winsendotai/ovo-plugin-storage':
         specifier: workspace:*
         version: link:../plugin-storage
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+
+  packages/plugin-session:
+    dependencies:
+      '@winsendotai/ovo-behaviors':
+        specifier: workspace:*
+        version: link:../behaviors
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-plugin-providers':
+        specifier: workspace:*
+        version: link:../plugin-providers
+      '@winsendotai/ovo-plugin-tools':
+        specifier: workspace:*
+        version: link:../plugin-tools
+      '@winsendotai/ovo-plugin-tools-http':
+        specifier: workspace:*
+        version: link:../plugin-tools-http
+      '@winsendotai/ovo-plugin-tools-mcp':
+        specifier: workspace:*
+        version: link:../plugin-tools-mcp
+      '@winsendotai/ovo-plugin-voice':
+        specifier: workspace:*
+        version: link:../plugin-voice
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
@@ -262,6 +515,13 @@ importers:
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
+      pg:
+        specifier: 8.16.3
+        version: 8.16.3
+    devDependencies:
+      '@types/pg':
+        specifier: 8.15.5
+        version: 8.15.5
 
   packages/plugin-telephony-twilio:
     dependencies:
@@ -322,6 +582,9 @@ importers:
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
 
   packages/plugin-voice:
     dependencies:
@@ -377,6 +640,12 @@ packages:
 
   '@ai-sdk/gateway@4.0.87':
     resolution: {integrity: sha512-6wJmX/D5OO7tvDJbtFdXdBuRt8AkCnW+FLK+W35UHe/tHgolAa4hclXtJcMSYnlTDy/t5DNRgdesVaoMXtwzow==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/openai@4.0.71':
+    resolution: {integrity: sha512-w8FuHr1bD/bP/8SIgcaJKUyePE4ke9s7+Ew2ed/9i5mDoFXEfyVUyFX8R0wQ3YfcdMKmTs8ct/f6XJsXsnPVsQ==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -1297,6 +1566,9 @@ packages:
 
   '@types/react@19.2.2':
     resolution: {integrity: sha512-6mDvHUFSjyT2B2yeNx2nUgMxh9LtOWvkhIU3uePn2I2oyNymUAX1NIsdgviM4CH+JSrp2D2hsMvJOkxY+0wNRA==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@vercel/oidc@3.2.0':
     resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
@@ -2608,6 +2880,12 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 4.6.5
 
+  '@ai-sdk/openai@4.0.71(zod@4.6.5)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.17
+      '@ai-sdk/provider-utils': 5.0.45(zod@4.6.5)
+      zod: 4.6.5
+
   '@ai-sdk/provider-utils@5.0.45(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 4.0.17
@@ -3543,6 +3821,10 @@ snapshots:
   '@types/react@19.2.2':
     dependencies:
       csstype: 3.2.3
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 22.20.0
 
   '@vercel/oidc@3.2.0': {}
 

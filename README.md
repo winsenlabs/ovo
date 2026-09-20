@@ -8,7 +8,7 @@ OVO is a TypeScript-first voice-agent platform being developed by [Winsen Labs](
 
 Start with a message and a few variables. Add approved FAQ answers, a conversational model, or business tools when your use case needs them. Choose the providers behind each capability and manage your agents through a web console.
 
-> **Project status: design and specification.** This repository currently contains the product requirements, architecture, research assignments, and engineering plan. There is no runnable application or published OVO package yet. The capabilities below describe the intended implementation.
+> **Project status: implementation available; production certification pending.** This repository contains runnable applications, local tests, and deployment profiles. Each self-hosted installation serves one organization. Live carrier/provider certification, AWS deployment measurements, and package publication require separate authorization. Local fixture results do not certify those external systems.
 
 [Documentation](docs/README.md) · [Architecture](docs/04-architecture.md) · [Roadmap](docs/06-engineering-plan.md) · [Build-agent instructions](docs/02-agent-build-guide.md)
 
@@ -46,9 +46,9 @@ For customer-facing checks, configurable processing speech such as “Please wai
 
 ## A console for the whole call lifecycle
 
-The planned console covers agent creation, scripts, knowledge, provider selection, voices, tools, processing phrases, testing, and versioned releases. Provider credentials are entered through write-only forms and resolved securely on the server.
+The console covers agent creation, scripts, knowledge, provider bindings, tools, processing phrases, testing, and versioned releases. Provider credentials use write-only forms and server-side resolution.
 
-Operators will be able to inspect live calls, transcripts, recordings, tool outcomes, interruptions, and stage-level latency. Cost views distinguish provider usage, cached speech, worker allocation, and shared infrastructure. Evaluations connect release decisions to reproducible scenarios and actual call evidence.
+Operators can inspect persisted calls, transcripts, recordings, tool outcomes, interruptions, and stage-level latency when the required services are configured. Missing measurements remain unavailable. Cost views separate estimates from reconciled usage. Fixture evaluations do not contact carriers or business systems.
 
 See the [frontend specification](docs/05-frontend.md) and [acceptance criteria](docs/07-acceptance.md).
 
@@ -77,24 +77,27 @@ Read the [Fargate deployment and scaling specification](docs/08-plugin-first-far
 
 ## Research foundations
 
-OVO will directly reuse and adapt the plugin foundation from [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), including its Cordis-based composition and lifecycle mechanisms. This is a source-reuse requirement, not merely architectural inspiration. The source import is not yet implemented. Voice execution draws on [Pipecat](https://github.com/pipecat-ai/pipecat). [LiveKit Agents JS](https://github.com/livekit/agents-js) is an implementation candidate to evaluate before building a custom engine.
+OVO directly imports and adapts the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin foundation, including Cordis composition and lifecycle mechanisms. The repository includes the pinned source, hashes, and license notices. See [the import map](docs/research/deepseek-import-map.md). Voice research compares [Pipecat](https://github.com/pipecat-ai/pipecat) and [LiveKit Agents JS](https://github.com/livekit/agents-js); those comparisons are not claims that either engine runs inside OVO.
 
-LiveKit is not a mandatory dependency. The voice engine, media transport, and model SDK will be selected through source inspection and comparative prototypes within the DeepSeek-derived foundation. Read the [source-reuse mandate](docs/11-deepseek-foundation.md) for import, attribution, and upgrade requirements. The [upstream research assignment](docs/09-upstream-research-assignment.md) defines the evidence required for those decisions.
+LiveKit is not a mandatory dependency. The implementation uses the DeepSeek-derived foundation with Twilio media, Deepgram streaming STT, and OpenAI TTS/inference adapters. Read the [source-reuse mandate](docs/11-deepseek-foundation.md) for import, attribution, and upgrade requirements. The [upstream research assignment](docs/09-upstream-research-assignment.md) defines the comparison evidence.
 
 ## Getting started
 
-For now, start with the specifications:
+Use Node.js 22 and pnpm 10. Install the pinned workspace dependencies:
 
 ```sh
 git clone https://github.com/winsenlabs/ovo.git
 cd ovo
+pnpm install --frozen-lockfile
+./scripts/local-ci.sh
 ```
 
-1. Read the [product brief](docs/01-product-brief.md).
-2. Follow the [documentation index](docs/README.md) for the complete design.
-3. Use the [build-agent prompt](docs/10-build-agent-prompt.md) to begin implementation.
+1. Follow [local development](docs/local-development.md) to start the API and console.
+2. Configure [operators and installed extensions](docs/runbooks/operators-and-extensions.md).
+3. Read [backup and restore](docs/runbooks/backup-restore.md) before operating durable installations.
+4. Use the [documentation index](docs/README.md) for deployment and acceptance requirements.
 
-Installation and development commands will be added when they are implemented and verified. First-party npm packages will use the `@winsendotai/ovo-*` namespace.
+Workspace packages use the `@winsendotai/ovo-*` namespace. They are private workspace packages, not published npm releases. Production API startup requires PostgreSQL and a production-safe credential backend. Live dialing stays disabled until the installation explicitly enables it.
 
 ## Roadmap
 

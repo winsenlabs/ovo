@@ -146,7 +146,9 @@ select:hover,
 textarea:hover {
   border-color: #9eaaa1;
 }
-input:invalid:not(:placeholder-shown),
+input:user-invalid,
+select:user-invalid,
+textarea:user-invalid,
 [aria-invalid='true'] {
   border-color: var(--danger);
 }

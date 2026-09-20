@@ -7,7 +7,16 @@ import {
   type ProviderBinding,
   type SecretBlob,
 } from '../models.ts';
-import { json, now, parseArray, parseObject, type Row, transaction } from './shared.ts';
+import {
+  cursorValue,
+  json,
+  now,
+  pageLimit,
+  parseArray,
+  parseObject,
+  type Row,
+  transaction,
+} from './shared.ts';
 
 export class SecretsRepository {
   constructor(private readonly db: DatabaseSync) {}
@@ -122,12 +131,19 @@ export class SecretsRepository {
       .get(workspaceId, id) as Row | undefined;
     return row ? this.mapCredential(row) : undefined;
   }
-  listCredentials(workspaceId: string) {
-    return (
-      this.db
-        .prepare('SELECT * FROM credentials WHERE workspace_id=? ORDER BY created_at DESC')
-        .all(workspaceId) as Row[]
-    ).map((row) => this.mapCredential(row));
+  listCredentials(workspaceId: string, limit = 50, cursor?: string) {
+    const size = pageLimit(limit),
+      rows = this.db
+        .prepare(
+          'SELECT rowid AS cursor,* FROM credentials WHERE workspace_id=? AND rowid>? ORDER BY rowid LIMIT ?',
+        )
+        .all(workspaceId, cursorValue(cursor), size + 1) as Row[],
+      more = rows.length > size;
+    if (more) rows.pop();
+    return {
+      items: rows.map((row) => this.mapCredential(row)),
+      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
+    };
   }
   getActiveSecretBlob(workspaceId: string, id: string): SecretBlob | undefined {
     const row = this.db
@@ -148,22 +164,36 @@ export class SecretsRepository {
       : undefined;
   }
   credentialReferences(workspaceId: string, id: string, maxIds = 20): CredentialReferences {
+    const bounded = Math.max(0, Math.min(100, Math.trunc(maxIds)));
     const providers = this.db
         .prepare(
-          'SELECT id FROM provider_bindings WHERE workspace_id=? AND credential_id=? ORDER BY id',
+          'SELECT id FROM provider_bindings WHERE workspace_id=? AND credential_id=? ORDER BY id LIMIT ?',
         )
-        .all(workspaceId, id) as Row[],
+        .all(workspaceId, id, bounded) as Row[],
       mcp = this.db
         .prepare(
-          'SELECT id FROM mcp_connections WHERE workspace_id=? AND credential_id=? ORDER BY id',
+          'SELECT id FROM mcp_connections WHERE workspace_id=? AND credential_id=? ORDER BY id LIMIT ?',
         )
-        .all(workspaceId, id) as Row[];
+        .all(workspaceId, id, bounded) as Row[],
+      providerCount = this.db
+        .prepare(
+          'SELECT COUNT(*) AS total FROM provider_bindings WHERE workspace_id=? AND credential_id=?',
+        )
+        .get(workspaceId, id) as Row,
+      mcpCount = this.db
+        .prepare(
+          'SELECT COUNT(*) AS total FROM mcp_connections WHERE workspace_id=? AND credential_id=?',
+        )
+        .get(workspaceId, id) as Row;
     return {
       providerBindings: {
-        total: providers.length,
-        ids: providers.slice(0, maxIds).map((row) => String(row.id)),
+        total: Number(providerCount.total),
+        ids: providers.map((row) => String(row.id)),
       },
-      mcpConnections: { total: mcp.length, ids: mcp.slice(0, maxIds).map((row) => String(row.id)) },
+      mcpConnections: {
+        total: Number(mcpCount.total),
+        ids: mcp.map((row) => String(row.id)),
+      },
     };
   }
   retireCredential(workspaceId: string, id: string) {
@@ -224,12 +254,19 @@ export class SecretsRepository {
       .get(workspaceId, id) as Row | undefined;
     return row ? this.mapBinding(row) : undefined;
   }
-  listProviderBindings(workspaceId: string) {
-    return (
-      this.db
-        .prepare('SELECT * FROM provider_bindings WHERE workspace_id=? ORDER BY created_at DESC')
-        .all(workspaceId) as Row[]
-    ).map((row) => this.mapBinding(row));
+  listProviderBindings(workspaceId: string, limit = 50, cursor?: string) {
+    const size = pageLimit(limit),
+      rows = this.db
+        .prepare(
+          'SELECT rowid AS cursor,* FROM provider_bindings WHERE workspace_id=? AND rowid>? ORDER BY rowid LIMIT ?',
+        )
+        .all(workspaceId, cursorValue(cursor), size + 1) as Row[],
+      more = rows.length > size;
+    if (more) rows.pop();
+    return {
+      items: rows.map((row) => this.mapBinding(row)),
+      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
+    };
   }
   updateProviderBinding(
     workspaceId: string,

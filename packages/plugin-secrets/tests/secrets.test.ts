@@ -12,7 +12,7 @@ describe('LocalAesGcmSecretManager', () => {
       key = Buffer.alloc(32, 7);
     try {
       let store = new NodeSqliteControlStore(filename);
-      store.ensureWorkspace('workspace-a');
+      await store.ensureWorkspace('workspace-a');
       let secrets = new LocalAesGcmSecretManager(store, key);
       const credential = await secrets.create({
         workspaceId: 'workspace-a',
@@ -27,7 +27,7 @@ describe('LocalAesGcmSecretManager', () => {
       const rotated = await secrets.rotate('workspace-a', credential.id, 'plaintext-two');
       expect(rotated.currentVersion).toBe(2);
       expect(await secrets.resolve('workspace-a', credential.id)).toBe('plaintext-two');
-      store.createProviderBinding({
+      await store.createProviderBinding({
         workspaceId: 'workspace-a',
         label: 'Provider',
         provider: 'example',
@@ -38,7 +38,8 @@ describe('LocalAesGcmSecretManager', () => {
       await expect(secrets.retire('workspace-a', credential.id)).rejects.toBeInstanceOf(
         ReferencedResourceError,
       );
-      store.deleteProviderBinding('workspace-a', store.listProviderBindings('workspace-a')[0]!.id);
+      const bindings = await store.listProviderBindings('workspace-a');
+      await store.deleteProviderBinding('workspace-a', bindings.items[0]!.id);
       await secrets.retire('workspace-a', credential.id);
       await expect(secrets.resolve('workspace-a', credential.id)).rejects.toThrow(
         'Active credential not found',
@@ -72,7 +73,7 @@ describe('LocalAesGcmSecretManager', () => {
       await expect(secrets.resolve('workspace-a', expired.id)).rejects.toThrow(
         'Credential expired',
       );
-      store.close();
+      await store.close();
       const files = [filename, `${filename}-wal`].flatMap((path) => {
         try {
           return [readFileSync(path)];
@@ -84,8 +85,8 @@ describe('LocalAesGcmSecretManager', () => {
       expect(Buffer.concat(files).includes(Buffer.from('plaintext-two'))).toBe(false);
       store = new NodeSqliteControlStore(filename);
       secrets = new LocalAesGcmSecretManager(store, key);
-      expect(store.getCredential('workspace-a', credential.id)?.status).toBe('retired');
-      store.close();
+      expect((await store.getCredential('workspace-a', credential.id))?.status).toBe('retired');
+      await store.close();
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

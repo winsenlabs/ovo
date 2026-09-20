@@ -1,5 +1,6 @@
 import type { PluginDefinition } from '@winsendotai/ovo-runtime';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { behaviorPluginId } from '@winsendotai/ovo-plugin-session';
 export function registerAgentsRoutes(dependencies: any) {
   const {
     app,
@@ -22,7 +23,7 @@ export function registerAgentsRoutes(dependencies: any) {
   } = dependencies;
   app.get('/v1/agents', async (request: FastifyRequest) => {
     const principal = requireRole(request, 'viewer');
-    return store.listAgents(
+    return await store.listAgents(
       principal.workspaceId,
       queryPage(request).limit,
       queryPage(request).cursor,
@@ -31,8 +32,8 @@ export function registerAgentsRoutes(dependencies: any) {
   app.post('/v1/agents', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'editor'),
       body = AgentBody.parse(request.body),
-      agent = store.createAgent(principal.workspaceId, body.config);
-    store.audit({
+      agent = await store.createAgent(principal.workspaceId, body.config);
+    await store.audit({
       workspaceId: principal.workspaceId,
       actorId: principal.identityId,
       action: 'agent.create',
@@ -45,7 +46,7 @@ export function registerAgentsRoutes(dependencies: any) {
   app.get('/v1/agents/:agentId', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'viewer'),
       { agentId } = z.object({ agentId: Id }).parse(request.params),
-      agent = store.getAgent(principal.workspaceId, agentId);
+      agent = await store.getAgent(principal.workspaceId, agentId);
     if (!agent) return error(reply, 404, 'not_found', 'Agent not found');
     return reply.header('etag', etag(agent.draftVersion)).send(agent);
   });
@@ -53,13 +54,13 @@ export function registerAgentsRoutes(dependencies: any) {
     const principal = requireRole(request, 'editor'),
       { agentId } = z.object({ agentId: Id }).parse(request.params),
       body = AgentBody.parse(request.body),
-      agent = store.updateAgent(
+      agent = await store.updateAgent(
         principal.workspaceId,
         agentId,
         expectedVersion(request),
         body.config,
       );
-    store.audit({
+    await store.audit({
       workspaceId: principal.workspaceId,
       actorId: principal.identityId,
       action: 'agent.update',
@@ -72,8 +73,8 @@ export function registerAgentsRoutes(dependencies: any) {
   app.delete('/v1/agents/:agentId', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'editor'),
       { agentId } = z.object({ agentId: Id }).parse(request.params);
-    store.deleteAgent(principal.workspaceId, agentId, expectedVersion(request));
-    store.audit({
+    await store.deleteAgent(principal.workspaceId, agentId, expectedVersion(request));
+    await store.audit({
       workspaceId: principal.workspaceId,
       actorId: principal.identityId,
       action: 'agent.delete',
@@ -85,22 +86,22 @@ export function registerAgentsRoutes(dependencies: any) {
   app.get('/v1/agents/:agentId/releases', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'viewer'),
       { agentId } = z.object({ agentId: Id }).parse(request.params);
-    if (!store.getAgent(principal.workspaceId, agentId))
+    if (!(await store.getAgent(principal.workspaceId, agentId)))
       return error(reply, 404, 'not_found', 'Agent not found');
-    return { items: store.listReleases(principal.workspaceId, agentId), nextCursor: null };
+    const page = queryPage(request);
+    return await store.listReleases(principal.workspaceId, agentId, page.limit, page.cursor);
   });
   app.post('/v1/agents/:agentId/releases', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'editor'),
       { agentId } = z.object({ agentId: Id }).parse(request.params),
-      body = z.object({ pluginIds: PluginSelection }).parse(request.body),
-      agent = store.getAgent(principal.workspaceId, agentId);
+      body = z.object({ pluginIds: PluginSelection.optional() }).parse(request.body ?? {}),
+      agent = await store.getAgent(principal.workspaceId, agentId);
     if (!agent) return error(reply, 404, 'not_found', 'Agent not found');
     let available: PluginDefinition[];
+    let generated: readonly PluginDefinition[] = [];
     try {
-      available = mergeCatalog(
-        catalog,
-        options.createReleasePlugins?.({ agent, sessionId: randomUUID() }) ?? [],
-      );
+      generated = (await options.createReleasePlugins?.({ agent, sessionId: randomUUID() })) ?? [];
+      available = mergeCatalog(catalog, generated);
     } catch (cause) {
       return error(
         reply,
@@ -109,7 +110,13 @@ export function registerAgentsRoutes(dependencies: any) {
         cause instanceof Error ? cause.message : 'Release catalogue failed',
       );
     }
-    const selected = body.pluginIds.map((id: any) => {
+    const selectedIds = body.pluginIds ?? [
+      ...new Set([
+        behaviorPluginId(agent.config),
+        ...generated.map((plugin) => plugin.manifest.id),
+      ]),
+    ];
+    const selected = selectedIds.map((id: string) => {
       const approved = available.find((item: any) => item.manifest.id === id);
       if (!approved)
         throw Object.assign(new Error(`Unknown approved plugin: ${id}`), {
@@ -120,7 +127,7 @@ export function registerAgentsRoutes(dependencies: any) {
     });
     let plugins: { id: string; version: string }[];
     try {
-      plugins = validateRelease(agent, selected, store, available, services);
+      plugins = await validateRelease(agent, selected, store, available, services);
     } catch (cause) {
       return error(
         reply,
@@ -129,13 +136,13 @@ export function registerAgentsRoutes(dependencies: any) {
         cause instanceof Error ? cause.message : 'Release validation failed',
       );
     }
-    const release = store.createRelease({
+    const release = await store.createRelease({
       workspaceId: principal.workspaceId,
       agent,
       plugins,
       createdBy: principal.identityId,
     });
-    store.audit({
+    await store.audit({
       workspaceId: principal.workspaceId,
       actorId: principal.identityId,
       action: 'release.create',
@@ -148,7 +155,7 @@ export function registerAgentsRoutes(dependencies: any) {
   app.get('/v1/releases/:releaseId', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'viewer'),
       { releaseId } = z.object({ releaseId: Id }).parse(request.params),
-      release = store.getRelease(principal.workspaceId, releaseId);
+      release = await store.getRelease(principal.workspaceId, releaseId);
     return release ?? error(reply, 404, 'not_found', 'Release not found');
   });
 }

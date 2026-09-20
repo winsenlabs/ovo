@@ -11,6 +11,7 @@ import type {
   DurableQueue,
   JobClaimResult,
   QueueDelivery,
+  SessionRoute,
   TaskProtection,
   TelephonyControl,
   TelephonyDialRequest,
@@ -27,9 +28,16 @@ class MemoryStore implements DurableJobStore {
   state: DurableJob['status'] = 'queued';
   dialRequestId?: string;
   carrierCallId?: string;
+  route?: SessionRoute;
   claims = 0;
   claimMode: 'execute' | 'reconcile' | 'defer' = 'execute';
   deferReason: 'currently_leased' | 'not_before' = 'currently_leased';
+  payload: Record<string, unknown> = {
+    to: '+910000000001',
+    from: '+910000000002',
+    streamUrl: 'wss://example.test/media',
+    statusCallbackUrl: 'https://example.test/status',
+  };
 
   async enqueue(): Promise<{ job: DurableJob; created: boolean }> {
     throw new Error('not used');
@@ -49,12 +57,7 @@ class MemoryStore implements DurableJobStore {
       ownerId: workerId,
       ownerEpoch: 1,
       leaseExpiresAt: new Date(Date.now() + 60_000),
-      payload: {
-        to: '+910000000001',
-        from: '+910000000002',
-        streamUrl: 'wss://example.test/media',
-        statusCallbackUrl: 'https://example.test/status',
-      },
+      payload: this.payload,
     };
     if (this.claimMode === 'reconcile') job.dialRequestId = `${jobId}:1`;
     return { kind: this.claimMode, job };
@@ -66,16 +69,34 @@ class MemoryStore implements DurableJobStore {
     this.state = 'queued';
     return true;
   }
-  async beginDial(
+  async updateOwnedPayload(
     _jobId: string,
     _workerId: string,
     _epoch: number,
-    requestId: string,
+    payload: Record<string, unknown>,
   ): Promise<boolean> {
-    if (this.state !== 'owned') return false;
+    this.payload = payload;
+    return this.state === 'owned';
+  }
+  async beginDialSession(input: {
+    sessionId: string;
+    jobId: string;
+    organizationId: string;
+    workerId: string;
+    workerEndpoint: string;
+    ownerEpoch: number;
+    generation: number;
+    dialRequestId: string;
+    handshakeExpiresAt: Date;
+  }): Promise<SessionRoute | undefined> {
+    if (this.state !== 'owned') return undefined;
     this.state = 'dialing';
-    this.dialRequestId = requestId;
-    return true;
+    this.dialRequestId = input.dialRequestId;
+    this.route = {
+      ...input,
+      status: 'dialing',
+    };
+    return this.route;
   }
   async markDialAccepted(
     _jobId: string,
@@ -86,6 +107,7 @@ class MemoryStore implements DurableJobStore {
   ): Promise<boolean> {
     this.state = 'accepted';
     this.carrierCallId = callId;
+    if (this.route) this.route = { ...this.route, status: 'accepted', carrierCallId: callId };
     return true;
   }
   async markDialUnknown(): Promise<boolean> {
@@ -96,12 +118,51 @@ class MemoryStore implements DurableJobStore {
     this.state = 'reconcile_required';
     return true;
   }
+  async prepareReconciledTermination(
+    _jobId: string,
+    _workerId: string,
+    _epoch: number,
+    _requestId: string,
+    carrierCallId: string,
+  ): Promise<boolean> {
+    this.carrierCallId = carrierCallId;
+    if (this.route) this.route = { ...this.route, carrierCallId, status: 'terminating' as const };
+    return true;
+  }
   async markFailed(): Promise<boolean> {
     this.state = 'failed';
     return true;
   }
   async get(): Promise<DurableJob | undefined> {
-    return undefined;
+    return this.carrierCallId
+      ? {
+          id: delivery.reference.jobId,
+          workspaceId: 'ws-1',
+          idempotencyKey: 'key-1',
+          payload: {},
+          status: this.state,
+          ownerEpoch: 1,
+          carrierCallId: this.carrierCallId,
+        }
+      : undefined;
+  }
+  async getSessionRoute(): Promise<SessionRoute | undefined> {
+    return this.route;
+  }
+  async resolveSessionRoute(): Promise<SessionRoute | undefined> {
+    return this.route;
+  }
+  async authenticateSessionRoute(): Promise<SessionRoute | undefined> {
+    return this.route;
+  }
+  async applyCarrierCallback(): Promise<never> {
+    throw new Error('not used');
+  }
+  async requestSessionTermination(): Promise<{ carrierCallId?: string } | undefined> {
+    return { carrierCallId: this.carrierCallId };
+  }
+  async releaseTerminalSession(): Promise<boolean> {
+    return true;
   }
 }
 
@@ -139,19 +200,24 @@ class FakeProtection implements TaskProtection {
 class FakeTelephony implements TelephonyControl {
   dials = 0;
   reconciliations = 0;
+  hangups = 0;
+  lastRequest?: TelephonyDialRequest;
   constructor(
     private readonly dialResult: DialResult,
     private readonly reconciliation: DialReconciliation = { kind: 'pending' },
   ) {}
-  async dial(_request: TelephonyDialRequest) {
+  async dial(request: TelephonyDialRequest) {
     this.dials += 1;
+    this.lastRequest = request;
     return this.dialResult;
   }
   async reconcile() {
     this.reconciliations += 1;
     return this.reconciliation;
   }
-  async hangup() {}
+  async hangup() {
+    this.hangups += 1;
+  }
   async transfer() {}
 }
 
@@ -256,14 +322,16 @@ describe('worker admission simulation', () => {
       telephony,
     );
     expect(await worker.handle(delivery)).toEqual({
-      kind: 'reconciled',
+      kind: 'reconcile_required',
       jobId: delivery.reference.jobId,
-      carrierCallId: 'CA-reconciled',
+      requestId: `${delivery.reference.jobId}:1`,
     });
     expect(telephony.dials).toBe(0);
     expect(telephony.reconciliations).toBe(1);
-    expect(queue.deleted).toBe(1);
-    expect(store.state).toBe('accepted');
+    expect(queue.deleted).toBe(0);
+    expect(queue.visibilityChanges).toBe(1);
+    expect(telephony.hangups).toBe(1);
+    expect(store.state).toBe('reconcile_required');
   });
 
   it.each(['currently_leased', 'not_before'] as const)(
@@ -316,8 +384,19 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)(
         if (first.kind !== 'execute') throw new Error('expected execution claim');
         const requestId = `${jobId}:${first.job.ownerEpoch}`;
         expect(
-          await store.beginDial(jobId, first.job.ownerId, first.job.ownerEpoch, requestId),
-        ).toBe(true);
+          await store.beginDialSession({
+            sessionId: randomUUID(),
+            jobId,
+            organizationId: workspaceId,
+            workerId: first.job.ownerId,
+            workerEndpoint: 'ws://crashed-worker:4100/internal/media',
+            ownerEpoch: first.job.ownerEpoch,
+            generation: 1,
+            dialRequestId: requestId,
+            handshakeTokenHash: 'test-hash',
+            handshakeExpiresAt: new Date(Date.now() + 60_000),
+          }),
+        ).toBeDefined();
         await store.pool.query(
           `UPDATE ovo_jobs SET lease_expires_at = now() - interval '1 second' WHERE id = $1`,
           [jobId],
@@ -345,12 +424,13 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)(
           reference: { schemaVersion: 1, jobId },
         };
         expect(await worker.handle(redelivery)).toEqual({
-          kind: 'reconciled',
+          kind: 'reconcile_required',
           jobId,
-          carrierCallId: 'CA-real-pg-reconciled',
+          requestId,
         });
         expect(telephony.dials).toBe(0);
-        expect(queue.deleted).toBe(1);
+        expect(queue.deleted).toBe(0);
+        expect(telephony.hangups).toBe(1);
         expect(
           await store.markDialAccepted(
             jobId,

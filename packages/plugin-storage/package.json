@@ -6,6 +6,10 @@
   "exports": "./src/index.ts",
   "dependencies": {
     "@winsendotai/ovo-contracts": "workspace:*",
-    "@winsendotai/ovo-runtime": "workspace:*"
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "@types/pg": "8.15.5"
   }
 }

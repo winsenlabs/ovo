@@ -4,6 +4,7 @@ import {
   type AgentConfig,
   type Behavior,
   type JsonSchema,
+  type SpeechReceipt,
 } from '@winsendotai/ovo-contracts';
 import { addIsoFormats } from './schema-formats.ts';
 
@@ -24,6 +25,9 @@ export class AnnouncementValidationError extends Error {
 export class AnnouncementBehavior implements Behavior {
   readonly config: AgentConfig;
   private readonly validate: ValidateFunction;
+  private playbackEpoch?: number;
+  private pendingText?: string;
+  private completed = false;
 
   constructor(config: AgentConfig) {
     this.config = AgentConfigSchema.parse(config);
@@ -39,7 +43,23 @@ export class AnnouncementBehavior implements Behavior {
   }
 
   async respond(_input: string, variables: Record<string, unknown> = {}): Promise<string> {
-    return this.render(variables);
+    this.pendingText = this.render(variables);
+    return this.pendingText;
+  }
+
+  beginTurn(epoch: number): void {
+    this.playbackEpoch = epoch;
+  }
+  onPlayback(receipt: SpeechReceipt): void {
+    if (
+      receipt.epoch === this.playbackEpoch &&
+      receipt.text === this.pendingText &&
+      receipt.state === 'completed'
+    )
+      this.completed = true;
+  }
+  isComplete(): boolean {
+    return this.completed;
   }
 
   render(variables: Record<string, unknown>): string {

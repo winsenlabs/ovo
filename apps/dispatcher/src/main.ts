@@ -15,6 +15,11 @@ import {
   type PostgresOrchestrationStore,
 } from '@winsendotai/ovo-plugin-orchestration';
 import { dispatcherPlugin, type DispatcherService } from './index.ts';
+import { PostgresControlStore, type ControlStore } from '@winsendotai/ovo-plugin-storage';
+import {
+  OperationsOutboxDispatcher,
+  PostgresOperationsService,
+} from '@winsendotai/ovo-plugin-operations';
 
 type ReadableDesiredWriter = DesiredCountWriter & {
   read(
@@ -117,6 +122,40 @@ async function main(): Promise<void> {
   const writer = composition.ctx.get('capacity.writer') as
     EcsDesiredCountWriter | ReadableDesiredWriter;
   const dispatcher = composition.ctx.get('dispatcher.service') as DispatcherService;
+  const operations = new PostgresOperationsService({
+    organizationId: env('OVO_ORGANIZATION_ID'),
+    connectionString: env('DATABASE_URL'),
+    handoffProvider: {
+      async request() {
+        return { kind: 'unknown' as const, reason: 'dispatcher cannot transfer calls' };
+      },
+      async reconcile() {
+        return { kind: 'pending' as const };
+      },
+      async fallback() {
+        return { kind: 'unknown' as const, reason: 'dispatcher cannot transfer calls' };
+      },
+    },
+  });
+  await operations.migrate();
+  const campaignOutbox = new OperationsOutboxDispatcher(
+    env('OVO_DISPATCHER_ID'),
+    operations.outbox,
+    {
+      async enqueue(input) {
+        await store.enqueue({
+          id: input.jobId,
+          workspaceId: env('OVO_ORGANIZATION_ID'),
+          idempotencyKey: input.idempotencyKey,
+          payload: input.payload,
+          notBefore: input.notBefore,
+        });
+      },
+    },
+  );
+  const controlStore = await PostgresControlStore.open(
+    process.env.OVO_CONTROL_DATABASE_URL ?? env('DATABASE_URL'),
+  );
   await store.ping();
   healthy = true;
   detail = compact
@@ -125,9 +164,13 @@ async function main(): Promise<void> {
 
   const flush = setInterval(
     () =>
-      void dispatcher.flushOutbox().catch((error) => {
+      void Promise.all([
+        dispatcher.flushOutbox(),
+        campaignOutbox.flush(),
+        releaseTerminalCalls(store, controlStore),
+      ]).catch((error) => {
         healthy = false;
-        detail = `outbox:${String(error)}`;
+        detail = `durability:${String(error)}`;
       }),
     1_000,
   );
@@ -190,11 +233,29 @@ async function main(): Promise<void> {
     detail = 'draining';
     clearInterval(flush);
     clearInterval(scale);
+    await operations.close();
+    await controlStore.close();
     await composition.dispose();
     server.close();
   };
   process.once('SIGTERM', () => void shutdown());
   process.once('SIGINT', () => void shutdown());
+}
+
+async function releaseTerminalCalls(
+  store: PostgresOrchestrationStore,
+  controlStore: ControlStore,
+): Promise<void> {
+  for (const route of await store.listTerminalSessions()) {
+    const job = await store.get(route.jobId);
+    if (job) {
+      const callId =
+        typeof job.payload.callId === 'string' && job.payload.callId ? job.payload.callId : job.id;
+      if (await controlStore.getCall(job.workspaceId, callId))
+        await controlStore.finishCall(job.workspaceId, callId, route.status);
+    }
+    await store.releaseTerminalSession(route.jobId);
+  }
 }
 
 main().catch((error: unknown) => {

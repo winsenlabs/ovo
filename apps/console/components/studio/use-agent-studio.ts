@@ -10,6 +10,7 @@ import {
   normalizeDraft,
   type AgentConfig,
   type AgentDraft,
+  type AgentReadiness,
   type ProviderBinding,
   type Release,
 } from '../../lib/api';
@@ -25,6 +26,8 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[]) {
   const [bindings, setBindings] = useState<ProviderBinding[]>([]);
   const [releases, setReleases] = useState<Release[]>([]);
   const [releaseError, setReleaseError] = useState<string>();
+  const [readiness, setReadiness] = useState<AgentReadiness>();
+  const [readinessError, setReadinessError] = useState<string>();
   const [publishing, setPublishing] = useState(false);
   const generation = useRef(0);
   const saving = useRef(false);
@@ -66,14 +69,23 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[]) {
   useEffect(() => {
     if (!selected) {
       setReleases([]);
+      setReadiness(undefined);
       return;
     }
-    apiRequest<unknown>(`/agents/${selected.id}/releases`)
-      .then(({ data }) => setReleases(items<Release>(data)))
-      .catch((error) =>
-        setReleaseError(error instanceof Error ? error.message : 'Release history unavailable.'),
-      );
-  }, [selected?.id]);
+    setReadinessError(undefined);
+    void Promise.all([
+      apiRequest<unknown>(`/agents/${selected.id}/releases`)
+        .then(({ data }) => setReleases(items<Release>(data)))
+        .catch((error) =>
+          setReleaseError(error instanceof Error ? error.message : 'Release history unavailable.'),
+        ),
+      apiRequest<AgentReadiness>(`/agents/${selected.id}/readiness`)
+        .then(({ data }) => setReadiness(data))
+        .catch((error) =>
+          setReadinessError(error instanceof Error ? error.message : 'Readiness unavailable.'),
+        ),
+    ]);
+  }, [selected?.id, selected?.draftVersion]);
 
   const save = useCallback(async (draft: AgentDraft, editGeneration: number) => {
     if (saving.current) return;
@@ -163,16 +175,10 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[]) {
     if (!selected) return;
     setPublishing(true);
     setReleaseError(undefined);
-    const behaviorIds: Record<AgentConfig['mode'], string> = {
-      announcement: '@winsendotai/ovo-behavior-announcement',
-      faq: '@winsendotai/ovo-behavior-faq',
-      context: '@winsendotai/ovo-behavior-context',
-      agent: '@winsendotai/ovo-behavior-agent',
-    };
     try {
       const { data } = await apiRequest<Release>(`/agents/${selected.id}/releases`, {
         method: 'POST',
-        body: JSON.stringify({ pluginIds: [behaviorIds[selected.config.mode]] }),
+        body: JSON.stringify({}),
       });
       setReleases((current) => [data, ...current]);
     } catch (error) {
@@ -203,6 +209,8 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[]) {
     conflict,
     bindings,
     releases,
+    readiness,
+    readinessError,
     releaseError,
     publishing,
     update,

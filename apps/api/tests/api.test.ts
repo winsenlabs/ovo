@@ -3,13 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildManagementApi } from '../src/server.ts';
+import type { BuildApiOptions } from '../src/types.ts';
 
 const directories: string[] = [];
 afterEach(() => {
   for (const directory of directories.splice(0))
     rmSync(directory, { recursive: true, force: true });
 });
-async function api() {
+async function api(overrides: Partial<BuildApiOptions> = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'ovo-api-'));
   directories.push(directory);
   return buildManagementApi({
@@ -32,6 +33,7 @@ async function api() {
         workspaces: { 'workspace-b': 'viewer' },
       },
     ],
+    ...overrides,
   });
 }
 const announcement = {
@@ -65,6 +67,31 @@ function wav100ms() {
 }
 
 describe('management API', () => {
+  it('ignores forwarded TLS from untrusted clients', async () => {
+    const { app, composition } = await api({ requireTlsForSecrets: true });
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/credentials',
+        headers: {
+          authorization: 'Bearer token-a',
+          'x-forwarded-proto': 'https',
+        },
+        payload: {
+          label: 'Blocked',
+          provider: 'fixture',
+          type: 'api-key',
+          environment: 'test',
+          value: 'not-stored',
+        },
+      });
+      expect(response.statusCode).toBe(426);
+      expect(response.json().error.code).toBe('tls_required');
+    } finally {
+      await composition.dispose();
+    }
+  });
+
   it('authenticates a browser session and enforces workspace-scoped lookups and optimistic edits', async () => {
     const { app, composition } = await api();
     try {

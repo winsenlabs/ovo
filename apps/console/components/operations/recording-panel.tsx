@@ -9,6 +9,7 @@ import {
   type SessionIdentity,
 } from '../../lib/api';
 import { EmptyState, Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { LiveRecordingsPanel } from './live-recordings-panel';
 
 type LoadState =
   | { status: 'loading' }
@@ -113,6 +114,17 @@ function RecordingPlayer({ callId, recording }: { callId: string; recording: Rec
 }
 
 export function RecordingPanel({
+  call,
+  role,
+}: {
+  call?: CallSummary;
+  role: SessionIdentity['role'];
+}) {
+  if (call && call.kind !== 'simulation') return <LiveRecordingsPanel call={call} role={role} />;
+  return <FixtureRecordingPanel call={call} role={role} />;
+}
+
+function FixtureRecordingPanel({
   call,
   role,
 }: {

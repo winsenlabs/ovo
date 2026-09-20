@@ -13,10 +13,12 @@ export function registerCredentialsRoutes(dependencies: any) {
     Id,
     ProviderBindingBody,
     rejectEmbeddedSecrets,
+    queryPage,
   } = dependencies;
   app.get('/v1/credentials', async (request: FastifyRequest) => {
     const principal = requireRole(request, 'admin');
-    return { items: store.listCredentials(principal.workspaceId), nextCursor: null };
+    const page = queryPage(request);
+    return await store.listCredentials(principal.workspaceId, page.limit, page.cursor);
   });
   app.post('/v1/credentials', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'admin');
@@ -28,7 +30,7 @@ export function registerCredentialsRoutes(dependencies: any) {
         workspaceId: principal.workspaceId,
         createdBy: principal.identityId,
       });
-    store.audit({
+    await store.audit({
       workspaceId: principal.workspaceId,
       actorId: principal.identityId,
       action: 'credential.create',
@@ -47,7 +49,7 @@ export function registerCredentialsRoutes(dependencies: any) {
       const { credentialId } = z.object({ credentialId: Id }).parse(request.params),
         { value } = z.object({ value: z.string().min(1).max(100_000) }).parse(request.body),
         credential = await secrets.rotate(principal.workspaceId, credentialId, value);
-      store.audit({
+      await store.audit({
         workspaceId: principal.workspaceId,
         actorId: principal.identityId,
         action: 'credential.rotate',
@@ -64,13 +66,15 @@ export function registerCredentialsRoutes(dependencies: any) {
       const principal = requireRole(request, 'admin'),
         { credentialId } = z.object({ credentialId: Id }).parse(request.params),
         credential = await secrets.retire(principal.workspaceId, credentialId);
-      store.audit({
+      await store.audit({
         workspaceId: principal.workspaceId,
         actorId: principal.identityId,
         action: 'credential.retire',
         resourceType: 'credential',
         resourceId: credentialId,
-        payload: { references: store.credentialReferences(principal.workspaceId, credentialId) },
+        payload: {
+          references: await store.credentialReferences(principal.workspaceId, credentialId),
+        },
       });
       return credential;
     },
@@ -78,14 +82,18 @@ export function registerCredentialsRoutes(dependencies: any) {
 
   app.get('/v1/provider-bindings', async (request: FastifyRequest) => {
     const principal = requireRole(request, 'viewer');
-    return { items: store.listProviderBindings(principal.workspaceId), nextCursor: null };
+    const page = queryPage(request);
+    return await store.listProviderBindings(principal.workspaceId, page.limit, page.cursor);
   });
   app.post('/v1/provider-bindings', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'admin'),
       body = ProviderBindingBody.parse(request.body);
     rejectEmbeddedSecrets(body.config);
-    const binding = store.createProviderBinding({ ...body, workspaceId: principal.workspaceId });
-    store.audit({
+    const binding = await store.createProviderBinding({
+      ...body,
+      workspaceId: principal.workspaceId,
+    });
+    await store.audit({
       workspaceId: principal.workspaceId,
       actorId: principal.identityId,
       action: 'provider-binding.create',
@@ -104,8 +112,8 @@ export function registerCredentialsRoutes(dependencies: any) {
       { bindingId } = z.object({ bindingId: Id }).parse(request.params),
       body = ProviderBindingBody.parse(request.body);
     rejectEmbeddedSecrets(body.config);
-    const binding = store.updateProviderBinding(principal.workspaceId, bindingId, body);
-    store.audit({
+    const binding = await store.updateProviderBinding(principal.workspaceId, bindingId, body);
+    await store.audit({
       workspaceId: principal.workspaceId,
       actorId: principal.identityId,
       action: 'provider-binding.update',
@@ -120,8 +128,8 @@ export function registerCredentialsRoutes(dependencies: any) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const principal = requireRole(request, 'admin'),
         { bindingId } = z.object({ bindingId: Id }).parse(request.params);
-      store.deleteProviderBinding(principal.workspaceId, bindingId);
-      store.audit({
+      await store.deleteProviderBinding(principal.workspaceId, bindingId);
+      await store.audit({
         workspaceId: principal.workspaceId,
         actorId: principal.identityId,
         action: 'provider-binding.delete',

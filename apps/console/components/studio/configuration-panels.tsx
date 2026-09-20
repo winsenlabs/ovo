@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import type { ConsoleField } from '@winsendotai/ovo-ui';
 import type { AgentConfig } from '../../lib/api';
 import type { ProviderBinding } from '../../lib/api';
-import { EmptyState, Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { Field, Panel, PanelHeader, StatusBadge } from '../primitives';
 function JsonField({
   id,
   value,
@@ -119,97 +119,6 @@ export function PluginField({
   );
 }
 
-export function FaqEditor({
-  config,
-  update,
-}: {
-  config: AgentConfig;
-  update: (next: AgentConfig) => void;
-}) {
-  function edit(index: number, key: 'question' | 'answer' | 'aliases', value: string) {
-    const faq = config.faq.map((row, current) =>
-      current === index
-        ? {
-            ...row,
-            [key]:
-              key === 'aliases'
-                ? value
-                    .split('\n')
-                    .map((item) => item.trim())
-                    .filter(Boolean)
-                : value,
-          }
-        : row,
-    );
-    update({ ...config, faq });
-  }
-  return (
-    <Panel labelledBy="faq-title">
-      <PanelHeader
-        id="faq-title"
-        title="Approved FAQ answers"
-        badge={<StatusBadge>{config.faq.length} entries</StatusBadge>}
-      />
-      <div className="panel-body stack">
-        {config.faq.length === 0 && (
-          <EmptyState title="No FAQ entries">
-            Add an approved question and answer. A weak or near-tied match uses the clarification
-            response.
-          </EmptyState>
-        )}
-        {config.faq.map((row, index) => (
-          <fieldset className="nested-card" key={row.id}>
-            <legend>FAQ {index + 1}</legend>
-            <Field label="Question" htmlFor={`faq-q-${index}`}>
-              <input
-                id={`faq-q-${index}`}
-                value={row.question}
-                onChange={(event) => edit(index, 'question', event.target.value)}
-              />
-            </Field>
-            <Field label="Aliases (one per line)" htmlFor={`faq-a-${index}`}>
-              <textarea
-                id={`faq-a-${index}`}
-                value={row.aliases.join('\n')}
-                onChange={(event) => edit(index, 'aliases', event.target.value)}
-              />
-            </Field>
-            <Field label="Approved answer" htmlFor={`faq-answer-${index}`}>
-              <textarea
-                id={`faq-answer-${index}`}
-                value={row.answer}
-                onChange={(event) => edit(index, 'answer', event.target.value)}
-              />
-            </Field>
-            <button
-              className="text-button danger-text"
-              onClick={() =>
-                update({ ...config, faq: config.faq.filter((_, current) => current !== index) })
-              }
-            >
-              Remove entry
-            </button>
-          </fieldset>
-        ))}
-        <button
-          className="button"
-          onClick={() =>
-            update({
-              ...config,
-              faq: [
-                ...config.faq,
-                { id: crypto.randomUUID(), question: '', aliases: [], answer: '' },
-              ],
-            })
-          }
-        >
-          Add FAQ entry
-        </button>
-      </div>
-    </Panel>
-  );
-}
-
 export function ProviderMap({
   config,
   bindings,
@@ -221,8 +130,8 @@ export function ProviderMap({
 }) {
   const slots =
     config.mode === 'announcement' || config.mode === 'faq'
-      ? ['stt', 'tts']
-      : ['stt', 'tts', 'llm'];
+      ? ['stt', 'tts', 'telephony']
+      : ['stt', 'tts', 'inference', 'telephony'];
   return (
     <Panel labelledBy="provider-map-title">
       <PanelHeader

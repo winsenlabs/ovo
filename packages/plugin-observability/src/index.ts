@@ -5,6 +5,11 @@ import { redact, evidenceDigest } from './redaction.ts';
 export * from './pricing.ts';
 export * from './projection.ts';
 export * from './redaction.ts';
+export * from './postgres-telemetry.ts';
+export * from './telemetry-ingestion.ts';
+export * from './telemetry-types.ts';
+export * from './worker-telemetry-adapter.ts';
+export * from './telemetry-plugin.ts';
 
 export const observabilityPlugin = definePlugin(
   {

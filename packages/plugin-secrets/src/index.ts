@@ -36,6 +36,7 @@ export class LocalAesGcmSecretManager implements SecretManager {
   constructor(
     private readonly store: ControlStore,
     private readonly key: Uint8Array,
+    private readonly backend: 'local' | 'encrypted-store' = 'local',
   ) {
     if (key.length !== 32) throw new Error('AES-256-GCM key must be 32 bytes');
   }
@@ -52,14 +53,14 @@ export class LocalAesGcmSecretManager implements SecretManager {
     return this.store.createCredential({
       ...input,
       id,
-      backend: 'local',
+      backend: this.backend,
       permittedAgentIds: input.permittedAgentIds ?? [],
       fingerprint: fingerprint(input.value),
       secret,
     });
   }
   async rotate(workspaceId: string, credentialId: string, value: string) {
-    const metadata = this.store.getCredential(workspaceId, credentialId);
+    const metadata = await this.store.getCredential(workspaceId, credentialId);
     if (!metadata || metadata.status !== 'active') throw new Error('Active credential not found');
     return this.store.rotateCredential(workspaceId, credentialId, {
       fingerprint: fingerprint(value),
@@ -67,16 +68,16 @@ export class LocalAesGcmSecretManager implements SecretManager {
     });
   }
   async resolve(workspaceId: string, credentialId: string) {
-    this.assertPolicy(workspaceId, credentialId);
-    const secret = this.store.getActiveSecretBlob(workspaceId, credentialId);
+    await this.assertPolicy(workspaceId, credentialId);
+    const secret = await this.store.getActiveSecretBlob(workspaceId, credentialId);
     if (
       !secret ||
-      secret.backend !== 'local' ||
+      secret.backend !== this.backend ||
       !secret.ciphertext ||
       !secret.nonce ||
       !secret.authTag
     )
-      throw new Error('Active local secret not found');
+      throw new Error('Active encrypted secret not found');
     const decipher = createDecipheriv('aes-256-gcm', this.key, secret.nonce);
     decipher.setAAD(Buffer.from(`${workspaceId}:${credentialId}:${secret.version}`));
     decipher.setAuthTag(secret.authTag);
@@ -85,13 +86,13 @@ export class LocalAesGcmSecretManager implements SecretManager {
   forAgent(agentId: string): SecretResolver {
     return {
       resolve: async (workspaceId, credentialId) => {
-        this.assertPolicy(workspaceId, credentialId, agentId);
+        await this.assertPolicy(workspaceId, credentialId, agentId);
         return this.resolve(workspaceId, credentialId);
       },
     };
   }
-  private assertPolicy(workspaceId: string, credentialId: string, agentId?: string) {
-    const metadata = this.store.getCredential(workspaceId, credentialId);
+  private async assertPolicy(workspaceId: string, credentialId: string, agentId?: string) {
+    const metadata = await this.store.getCredential(workspaceId, credentialId);
     if (!metadata || metadata.status !== 'active') throw new Error('Active credential not found');
     if (metadata.expiresAt && Date.parse(metadata.expiresAt) <= Date.now())
       throw new Error('Credential expired');
@@ -146,7 +147,7 @@ export class AwsSecretsManagerSecretManager implements SecretManager {
       versionId: String(result.VersionId ?? ''),
     });
     try {
-      return this.store.createCredential({
+      return await this.store.createCredential({
         ...input,
         id,
         backend: 'aws-secrets-manager',
@@ -167,7 +168,7 @@ export class AwsSecretsManagerSecretManager implements SecretManager {
     }
   }
   async rotate(workspaceId: string, credentialId: string, value: string) {
-    const current = this.store.getActiveSecretBlob(workspaceId, credentialId);
+    const current = await this.store.getActiveSecretBlob(workspaceId, credentialId);
     if (!current || current.backend !== 'aws-secrets-manager' || !current.backendRef)
       throw new Error('Active AWS secret not found');
     const reference = this.reference(current.backendRef),
@@ -189,8 +190,8 @@ export class AwsSecretsManagerSecretManager implements SecretManager {
     });
   }
   async resolve(workspaceId: string, credentialId: string) {
-    this.assertPolicy(workspaceId, credentialId);
-    const secret = this.store.getActiveSecretBlob(workspaceId, credentialId);
+    await this.assertPolicy(workspaceId, credentialId);
+    const secret = await this.store.getActiveSecretBlob(workspaceId, credentialId);
     if (!secret || secret.backend !== 'aws-secrets-manager' || !secret.backendRef)
       throw new Error('Active AWS secret not found');
     const reference = this.reference(secret.backendRef),
@@ -213,13 +214,13 @@ export class AwsSecretsManagerSecretManager implements SecretManager {
   forAgent(agentId: string): SecretResolver {
     return {
       resolve: async (workspaceId, credentialId) => {
-        this.assertPolicy(workspaceId, credentialId, agentId);
+        await this.assertPolicy(workspaceId, credentialId, agentId);
         return this.resolve(workspaceId, credentialId);
       },
     };
   }
-  private assertPolicy(workspaceId: string, credentialId: string, agentId?: string) {
-    const metadata = this.store.getCredential(workspaceId, credentialId);
+  private async assertPolicy(workspaceId: string, credentialId: string, agentId?: string) {
+    const metadata = await this.store.getCredential(workspaceId, credentialId);
     if (!metadata || metadata.status !== 'active') throw new Error('Active credential not found');
     if (metadata.expiresAt && Date.parse(metadata.expiresAt) <= Date.now())
       throw new Error('Credential expired');
@@ -250,7 +251,7 @@ export const secretsPlugin = definePlugin(
     configSchema: {
       type: 'object',
       properties: {
-        backend: { enum: ['local', 'aws-secrets-manager'] },
+        backend: { enum: ['local', 'encrypted-store', 'aws-secrets-manager'] },
         masterKey: { type: 'string' },
         region: { type: 'string' },
         awsPrefix: { type: 'string' },
@@ -281,8 +282,12 @@ export const secretsPlugin = definePlugin(
           ? config.masterKey
           : process.env.OVO_SECRETS_MASTER_KEY;
       if (!encoded)
-        throw new Error('OVO_SECRETS_MASTER_KEY is required for local encrypted secrets');
-      service = new LocalAesGcmSecretManager(store, decodeMasterKey(encoded));
+        throw new Error('OVO_SECRETS_MASTER_KEY is required for encrypted stored secrets');
+      service = new LocalAesGcmSecretManager(
+        store,
+        decodeMasterKey(encoded),
+        config.backend === 'encrypted-store' ? 'encrypted-store' : 'local',
+      );
     }
     ctx.provide('secretManager', service);
     ctx.provide('secretResolver', service);

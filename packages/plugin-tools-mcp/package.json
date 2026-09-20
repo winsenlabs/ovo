@@ -9,6 +9,7 @@
     "@winsendotai/ovo-contracts": "workspace:*",
     "@winsendotai/ovo-plugin-tools": "workspace:*",
     "@winsendotai/ovo-plugin-tools-http": "workspace:*",
-    "@winsendotai/ovo-runtime": "workspace:*"
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "zod": "4.6.5"
   }
 }

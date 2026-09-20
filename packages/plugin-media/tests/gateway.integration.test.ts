@@ -1,0 +1,401 @@
+import { createHmac, randomBytes } from 'node:crypto';
+import { createConnection, type Socket } from 'node:net';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { SpeechReceipt } from '@winsendotai/ovo-contracts';
+import {
+  BoundedSpeechScheduler,
+  StreamingMediaSpeechOutput,
+  VoiceSessionEngine,
+  type StreamingStt,
+  type StreamingTts,
+} from '@winsendotai/ovo-plugin-voice';
+import { MediaGateway } from '../src/gateway.ts';
+import type { DurableMediaRoute, MediaRouteResolver } from '../src/ports.ts';
+import { WorkerGatewayClient, type WorkerMediaSession } from '../src/worker-client.ts';
+
+class RawWebSocket {
+  readonly messages: string[] = [];
+  closed = false;
+  private buffer = Buffer.alloc(0);
+  constructor(private readonly socket: Socket) {
+    socket.on('data', (chunk) => this.consume(chunk));
+    socket.on('close', () => (this.closed = true));
+  }
+  send(message: unknown): void {
+    const payload = Buffer.from(JSON.stringify(message));
+    const mask = randomBytes(4);
+    const header = payload.length < 126 ? Buffer.alloc(6) : Buffer.alloc(8);
+    header[0] = 0x81;
+    if (payload.length < 126) header[1] = 0x80 | payload.length;
+    else {
+      header[1] = 0x80 | 126;
+      header.writeUInt16BE(payload.length, 2);
+    }
+    const maskOffset = payload.length < 126 ? 2 : 4;
+    mask.copy(header, maskOffset);
+    for (let index = 0; index < payload.length; index++) payload[index] ^= mask[index % 4]!;
+    this.socket.write(Buffer.concat([header, payload]));
+  }
+  close(): void {
+    this.socket.end();
+  }
+  private consume(chunk: Buffer): void {
+    this.buffer = Buffer.concat([this.buffer, chunk]);
+    while (this.buffer.length >= 2) {
+      const lengthCode = this.buffer[1]! & 0x7f;
+      const header = lengthCode < 126 ? 2 : lengthCode === 126 ? 4 : 10;
+      if (this.buffer.length < header) return;
+      const length =
+        lengthCode < 126
+          ? lengthCode
+          : lengthCode === 126
+            ? this.buffer.readUInt16BE(2)
+            : Number(this.buffer.readBigUInt64BE(2));
+      if (this.buffer.length < header + length) return;
+      const opcode = this.buffer[0]! & 0x0f;
+      const payload = this.buffer.subarray(header, header + length);
+      this.buffer = this.buffer.subarray(header + length);
+      if (opcode === 1) this.messages.push(payload.toString('utf8'));
+      if (opcode === 8) this.socket.end();
+    }
+  }
+}
+
+const resources: { close(): void | Promise<void> }[] = [];
+afterEach(async () => {
+  for (const item of resources.splice(0).reverse()) await item.close();
+});
+
+async function connectRaw(port: number, path: string, signature: string): Promise<RawWebSocket> {
+  const socket = createConnection({ host: '127.0.0.1', port });
+  resources.push({
+    close: () => {
+      socket.destroy();
+    },
+  });
+  const key = randomBytes(16).toString('base64');
+  socket.write(
+    `GET ${path} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ${key}\r\nX-Twilio-Signature: ${signature}\r\n\r\n`,
+  );
+  const response = await new Promise<string>((resolve, reject) => {
+    let value = '';
+    const onData = (chunk: Buffer) => {
+      value += chunk.toString('latin1');
+      if (!value.includes('\r\n\r\n')) return;
+      socket.off('data', onData);
+      resolve(value);
+    };
+    socket.on('data', onData);
+    socket.once('error', reject);
+  });
+  if (!response.startsWith('HTTP/1.1 101')) throw new Error(response.split('\r\n')[0]);
+  return new RawWebSocket(socket);
+}
+
+class TestRouteResolver implements MediaRouteResolver {
+  private claimed = false;
+  readonly callbacks: unknown[] = [];
+  readonly route: DurableMediaRoute = {
+    sessionId: 'session-1',
+    workerId: 'worker-1',
+    ownerEpoch: 1,
+    generation: 1,
+    carrierCallId: 'CA1',
+    status: 'accepted',
+  };
+  async authenticateSessionRoute(sessionId: string, token: string) {
+    if (this.claimed || sessionId !== this.route.sessionId || token !== 'route-token')
+      return undefined;
+    this.claimed = true;
+    return this.route;
+  }
+  async resolveSessionRoute(input: { carrierCallId: string }) {
+    return input.carrierCallId === this.route.carrierCallId ? this.route : undefined;
+  }
+  async applyCarrierCallback(input: unknown) {
+    this.callbacks.push(input);
+    return { kind: 'applied' };
+  }
+}
+
+function signature(token: string, externalUrl: string): string {
+  return createHmac('sha1', token).update(externalUrl).digest('base64');
+}
+
+function formSignature(token: string, externalUrl: string, parameters: Record<string, string>) {
+  const value =
+    externalUrl +
+    Object.keys(parameters)
+      .sort()
+      .map((key) => `${key}${parameters[key]}`)
+      .join('');
+  return createHmac('sha1', token).update(value).digest('base64');
+}
+
+async function until(check: () => boolean): Promise<void> {
+  await vi.waitFor(() => expect(check()).toBe(true));
+}
+
+function start(streamSid = 'MZ1') {
+  return {
+    event: 'start',
+    sequenceNumber: '1',
+    streamSid,
+    start: {
+      accountSid: 'AC1',
+      callSid: 'CA1',
+      customParameters: { sessionId: 'session-1', routeToken: 'route-token' },
+      mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: '8000', channels: '1' },
+    },
+  };
+}
+
+async function setup(
+  onSession: (session: WorkerMediaSession) => void | Promise<void>,
+  overrides = {},
+) {
+  const resolver = new TestRouteResolver();
+  const token = 'internal-test-token';
+  const twilioToken = 'twilio-test-token';
+  const gateway = new MediaGateway(resolver, {
+    publicBaseUrl: 'https://voice.example.test',
+    twilioAuthToken: twilioToken,
+    workerToken: token,
+    handshakeTimeoutMs: 1_000,
+    idleTimeoutMs: 5_000,
+    drainTimeoutMs: 100,
+    ...overrides,
+  });
+  const { port } = await gateway.listen();
+  resources.push(gateway);
+  const worker = new WorkerGatewayClient(
+    { url: `ws://127.0.0.1:${port}/worker`, workerId: 'worker-1', token },
+    onSession,
+  );
+  await worker.connect();
+  resources.push(worker);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  const path = '/twilio/media?edge=loopback';
+  const carrier = await connectRaw(
+    port,
+    path,
+    signature(twilioToken, `https://voice.example.test${path}`),
+  );
+  return { carrier, port, resolver };
+}
+
+describe('media gateway loopback protocol', () => {
+  it('validates and projects Twilio status callbacks with stable event identity', async () => {
+    const resolver = new TestRouteResolver();
+    const gateway = new MediaGateway(resolver, {
+      publicBaseUrl: 'https://voice.example.test',
+      twilioAuthToken: 'twilio-test-token',
+      workerToken: 'worker-token',
+    });
+    const { port } = await gateway.listen();
+    resources.push(gateway);
+    const parameters = { CallSid: 'CA1', CallStatus: 'completed', SequenceNumber: '4' };
+    const externalUrl = 'https://voice.example.test/twilio/status?ovoRequestId=job-1%3A1';
+    const response = await fetch(`http://127.0.0.1:${port}/twilio/status?ovoRequestId=job-1%3A1`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        'x-twilio-signature': formSignature('twilio-test-token', externalUrl, parameters),
+      },
+      body: new URLSearchParams(parameters),
+    });
+    expect(response.status).toBe(204);
+    expect(resolver.callbacks).toEqual([
+      expect.objectContaining({
+        eventId: 'CA1:4',
+        dialRequestId: 'job-1:1',
+        carrierCallId: 'CA1',
+        status: 'completed',
+      }),
+    ]);
+  });
+
+  it('runs a fake streaming provider turn through the actual worker and carrier sockets', async () => {
+    const receipts: SpeechReceipt[] = [];
+    let responses = 0;
+    let engine: VoiceSessionEngine | undefined;
+    const tts: StreamingTts = {
+      async *synthesize() {
+        yield Uint8Array.of(9, 8, 7);
+      },
+    };
+    const stt: StreamingStt = {
+      async start(input) {
+        let emitted = false;
+        return {
+          write: async () => {
+            if (emitted) return;
+            emitted = true;
+            input.onTranscript({
+              revision: 1,
+              text: 'hello',
+              isFinal: true,
+              speechFinal: true,
+            });
+          },
+          finish: async () => undefined,
+          close: async () => undefined,
+        };
+      },
+    };
+    const harness = await setup(async (session) => {
+      const scheduler = new BoundedSpeechScheduler(new StreamingMediaSpeechOutput(tts, session));
+      engine = new VoiceSessionEngine(
+        {
+          respond: async () => {
+            responses += 1;
+            return 'socket reply';
+          },
+          onPlayback: async (receipt) => {
+            receipts.push(receipt);
+          },
+        },
+        scheduler,
+        stt,
+        session,
+        { language: 'en-IN' },
+      );
+      await engine.start();
+    });
+    harness.carrier.send(start());
+    await until(() => Boolean(engine));
+    harness.carrier.send({
+      event: 'media',
+      sequenceNumber: '2',
+      streamSid: 'MZ1',
+      media: { track: 'inbound', chunk: '1', timestamp: '20', payload: 'AQ==' },
+    });
+    await until(() => harness.carrier.messages.some((item) => JSON.parse(item).event === 'mark'));
+    const mark = harness.carrier.messages
+      .map((item) => JSON.parse(item))
+      .find((item) => item.event === 'mark');
+    harness.carrier.send({
+      event: 'mark',
+      sequenceNumber: '3',
+      streamSid: 'MZ1',
+      mark: { name: mark.mark.name },
+    });
+    await until(() => receipts.length === 1);
+    expect(responses).toBe(1);
+    expect(receipts[0]).toMatchObject({
+      state: 'completed',
+      evidence: 'confirmed',
+      text: 'socket reply',
+    });
+    harness.carrier.send({
+      event: 'stop',
+      sequenceNumber: '4',
+      streamSid: 'MZ1',
+      stop: { accountSid: 'AC1', callSid: 'CA1' },
+    });
+    await engine!.dispose();
+  });
+
+  it('routes signed 8 kHz mu-law frames only to the durable owner and carries mark/clear', async () => {
+    let session: WorkerMediaSession | undefined;
+    const inbound: number[][] = [];
+    const marks: string[] = [];
+    const closeReasons: string[] = [];
+    const harness = await setup((created) => {
+      session = created;
+      created.onAudio((audio) => inbound.push([...audio]));
+      created.onMark((name) => marks.push(name));
+      created.onClose((reason) => closeReasons.push(reason));
+    });
+    harness.carrier.send(start());
+    await until(() => Boolean(session));
+    harness.carrier.send({
+      event: 'media',
+      sequenceNumber: '2',
+      streamSid: 'MZ1',
+      media: {
+        track: 'inbound',
+        chunk: '1',
+        timestamp: '20',
+        payload: Buffer.from([1, 2]).toString('base64'),
+      },
+    });
+    await until(() => inbound.length === 1);
+    await session!.sendAudio(Uint8Array.of(3, 4));
+    await session!.sendMark('speech-1:1');
+    await session!.clear();
+    await until(() => harness.carrier.messages.length >= 3);
+    expect(harness.carrier.messages.map((item) => JSON.parse(item).event)).toEqual([
+      'media',
+      'mark',
+      'clear',
+    ]);
+    harness.carrier.send({
+      event: 'mark',
+      sequenceNumber: '3',
+      streamSid: 'MZ1',
+      mark: { name: 'speech-1:1' },
+    });
+    await until(() => marks.length === 1);
+    expect(inbound).toEqual([[1, 2]]);
+    expect(marks).toEqual(['speech-1:1']);
+    harness.carrier.send({
+      event: 'stop',
+      sequenceNumber: '4',
+      streamSid: 'MZ1',
+      stop: { accountSid: 'AC1', callSid: 'CA1' },
+    });
+    await until(() => closeReasons.includes('carrier stopped'));
+  });
+
+  it('rejects a signature computed for any URL other than the exact public URL', async () => {
+    const resolver = new TestRouteResolver();
+    const gateway = new MediaGateway(resolver, {
+      publicBaseUrl: 'https://voice.example.test',
+      twilioAuthToken: 'token',
+      workerToken: 'worker',
+    });
+    const { port } = await gateway.listen();
+    resources.push(gateway);
+    await expect(
+      connectRaw(
+        port,
+        '/twilio/media?edge=a',
+        signature('token', 'https://voice.example.test/twilio/media?edge=b'),
+      ),
+    ).rejects.toThrow('401');
+  });
+
+  it('admits one route winner and cancels when pre-accept backpressure exceeds its bound', async () => {
+    const standalone = new TestRouteResolver();
+    const winners = await Promise.all(
+      Array.from({ length: 10 }, () =>
+        standalone.authenticateSessionRoute('session-1', 'route-token'),
+      ),
+    );
+    expect(winners.filter(Boolean)).toHaveLength(1);
+
+    let session: WorkerMediaSession | undefined;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const harness = await setup(
+      async (created) => {
+        session = created;
+        await gate;
+      },
+      { maxPendingFrames: 1 },
+    );
+    harness.carrier.send(start());
+    await until(() => Boolean(session));
+    const media = (sequence: string) => ({
+      event: 'media',
+      sequenceNumber: sequence,
+      streamSid: 'MZ1',
+      media: { track: 'inbound', chunk: sequence, timestamp: sequence, payload: 'AQ==' },
+    });
+    harness.carrier.send(media('2'));
+    harness.carrier.send(media('3'));
+    await until(() => harness.carrier.closed);
+    release();
+  });
+});

@@ -49,7 +49,7 @@ export class JobRepository {
     return transaction(this.pool, async (client) => {
       const result = await client.query<JobRow>(
         `UPDATE ovo_jobs SET
-           status = CASE WHEN status IN ('dialing', 'reconcile_required')
+           status = CASE WHEN status IN ('dialing', 'reconcile_required', 'accepted', 'connected')
                          THEN 'reconcile_required' ELSE 'owned' END,
            owner_id = $2, owner_epoch = owner_epoch + 1,
            lease_expires_at = now() + ($3 * interval '1 millisecond'), updated_at = now(), last_error = NULL
@@ -57,7 +57,7 @@ export class JobRepository {
            AND (
              status = 'queued'
              OR (status = 'owned' AND (lease_expires_at IS NULL OR lease_expires_at < now()))
-             OR (status IN ('dialing', 'reconcile_required')
+             OR (status IN ('dialing', 'reconcile_required', 'accepted', 'connected')
                  AND (owner_id IS NULL OR lease_expires_at IS NULL OR lease_expires_at < now()))
            )
          RETURNING ${jobColumns}`,
@@ -84,7 +84,9 @@ export class JobRepository {
           return { kind: 'defer', reason: 'not_before', retryAt: current.not_before };
         }
         if (
-          ['owned', 'dialing', 'reconcile_required'].includes(current.status) &&
+          ['owned', 'dialing', 'reconcile_required', 'accepted', 'connected'].includes(
+            current.status,
+          ) &&
           current.currently_leased
         ) {
           return {
@@ -143,48 +145,17 @@ export class JobRepository {
     return result.rowCount === 1;
   }
 
-  async beginDial(
+  async updateOwnedPayload(
     jobId: string,
     workerId: string,
     epoch: number,
-    requestId: string,
+    payload: Record<string, unknown>,
   ): Promise<boolean> {
     const result = await this.pool.query(
-      `UPDATE ovo_jobs SET status = 'dialing', dial_request_id = $4, updated_at = now()
+      `UPDATE ovo_jobs SET payload = $4::jsonb, updated_at = now()
        WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3 AND status = 'owned'
-         AND lease_expires_at > now() AND dial_request_id IS NULL`,
-      [jobId, workerId, epoch, requestId],
-    );
-    return result.rowCount === 1;
-  }
-
-  async markDialAccepted(
-    jobId: string,
-    workerId: string,
-    epoch: number,
-    requestId: string,
-    carrierCallId: string,
-  ): Promise<boolean> {
-    const result = await this.pool.query(
-      `UPDATE ovo_jobs SET status = 'accepted', carrier_call_id = $5, updated_at = now(), last_error = NULL
-       WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3 AND dial_request_id = $4
-         AND status IN ('dialing', 'reconcile_required')`,
-      [jobId, workerId, epoch, requestId, carrierCallId],
-    );
-    return result.rowCount === 1;
-  }
-
-  async markDialUnknown(
-    jobId: string,
-    workerId: string,
-    epoch: number,
-    requestId: string,
-    reason: string,
-  ): Promise<boolean> {
-    const result = await this.pool.query(
-      `UPDATE ovo_jobs SET status = 'reconcile_required', last_error = $5, updated_at = now()
-       WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3 AND dial_request_id = $4 AND status = 'dialing'`,
-      [jobId, workerId, epoch, requestId, reason],
+         AND lease_expires_at > now()`,
+      [jobId, workerId, epoch, JSON.stringify(payload)],
     );
     return result.rowCount === 1;
   }
@@ -201,20 +172,6 @@ export class JobRepository {
          not_before = $5, updated_at = now()
        WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3 AND status = 'reconcile_required'`,
       [jobId, workerId, epoch, reason, notBefore],
-    );
-    return result.rowCount === 1;
-  }
-
-  async markFailed(
-    jobId: string,
-    workerId: string,
-    epoch: number,
-    reason: string,
-  ): Promise<boolean> {
-    const result = await this.pool.query(
-      `UPDATE ovo_jobs SET status = 'failed', last_error = $4, lease_expires_at = NULL, updated_at = now()
-       WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3 AND status IN ('owned', 'dialing', 'reconcile_required')`,
-      [jobId, workerId, epoch, reason],
     );
     return result.rowCount === 1;
   }

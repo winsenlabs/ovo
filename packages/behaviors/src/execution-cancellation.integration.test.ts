@@ -182,9 +182,21 @@ describe('AgentBehavior and shared Execution cancellation', () => {
 
   it('marks a started cancelled write unknown, never retries, and ignores its late result', async () => {
     const harness = createHarness('write');
-    const staleTurn = harness.behavior.respond('old turn', { confirmed: true });
+    harness.behavior.beginTurn(0);
+    const prompt = await harness.behavior.respond('old turn');
+    expect(harness.invocations()).toBe(0);
+    harness.behavior.onPlayback({
+      id: 'confirmation-prompt',
+      text: prompt,
+      epoch: 0,
+      state: 'completed',
+      evidence: 'confirmed',
+    });
+    harness.behavior.beginTurn(1);
+    const staleTurn = harness.behavior.respond('yes');
     await waitForExecutionReadiness(harness);
 
+    harness.behavior.beginTurn(2);
     await expect(harness.behavior.respond('new turn')).resolves.toBe('Fresh response.');
     await expect(staleTurn).rejects.toMatchObject({ name: 'AbortError' });
     expect(await harness.store.get('workspace-1', 'write-operation')).toMatchObject({

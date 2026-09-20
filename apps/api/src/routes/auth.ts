@@ -9,7 +9,9 @@ export function registerAuthRoutes(dependencies: any) {
     const identity = auth.identityForToken(body.token);
     if (!identity) return error(reply, 401, 'invalid_credentials', 'Invalid bootstrap credential');
     const workspaceId = body.workspaceId ?? identity.defaultWorkspaceId,
-      role = identity.workspaces[workspaceId];
+      role = Object.hasOwn(identity.workspaces, workspaceId)
+        ? identity.workspaces[workspaceId]
+        : undefined;
     if (!role)
       return error(
         reply,

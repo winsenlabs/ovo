@@ -37,16 +37,27 @@ export async function reconcileClaimedDial(input: {
 
   const outcome = await input.telephony.reconcile(requestId, input.job.carrierCallId);
   if (outcome.kind === 'accepted') {
-    const fenced = await input.store.markDialAccepted(
+    const fenced = await input.store.prepareReconciledTermination(
       input.job.id,
       input.workerId,
       input.job.ownerEpoch,
       requestId,
       outcome.carrierCallId,
+      'accepted-dial-found-after-session-owner-loss',
     );
     if (!fenced) return deferLostOwnership(input);
-    await input.queue.delete(input.delivery);
-    return { kind: 'reconciled', jobId: input.job.id, carrierCallId: outcome.carrierCallId };
+    await input.telephony.hangup(outcome.carrierCallId).catch(() => undefined);
+    const notBefore = new Date(Date.now() + input.deferSeconds * 1_000);
+    const deferred = await input.store.deferReconciliation(
+      input.job.id,
+      input.workerId,
+      input.job.ownerEpoch,
+      'awaiting-terminal-callback-after-owner-loss',
+      notBefore,
+    );
+    await input.queue.changeVisibility(input.delivery, input.deferSeconds);
+    if (!deferred) return { kind: 'deferred', reason: 'terminal-callback-won-race' };
+    return { kind: 'reconcile_required', jobId: input.job.id, requestId };
   }
   if (outcome.kind === 'rejected') {
     const fenced = await input.store.markFailed(
@@ -56,6 +67,7 @@ export async function reconcileClaimedDial(input: {
       outcome.reason,
     );
     if (!fenced) return deferLostOwnership(input);
+    await input.store.releaseTerminalSession(input.job.id);
     await input.queue.delete(input.delivery);
     return { kind: 'failed', reason: outcome.reason };
   }

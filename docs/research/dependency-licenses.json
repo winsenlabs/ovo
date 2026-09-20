@@ -1,1841 +1,2620 @@
 {
   "generatedAt": "2026-09-20",
   "command": "pnpm licenses list --json",
-  "lockfileSha256": "4e14fe5ea5104907e415eed9123a8be11e7fd40bbfe3b8013bbde808db517d7c",
+  "lockfileSha256": "2e17baff844355b7fd97dc6922b084d7865087816f1b3b31a907b25623d1cede",
   "dependencies": [
     {
       "name": "@ai-sdk/gateway",
-      "versions": ["4.0.87"],
+      "versions": [
+        "4.0.87"
+      ],
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "@ai-sdk/openai",
+      "versions": [
+        "4.0.71"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@ai-sdk/provider",
-      "versions": ["4.0.17"],
+      "versions": [
+        "4.0.17"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@ai-sdk/provider-utils",
-      "versions": ["5.0.45"],
+      "versions": [
+        "5.0.45"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/checksums",
-      "versions": ["3.1001.0"],
+      "versions": [
+        "3.1001.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/client-cloudwatch",
-      "versions": ["3.1136.0"],
+      "versions": [
+        "3.1136.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/client-ecs",
-      "versions": ["3.1136.0"],
+      "versions": [
+        "3.1136.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/client-s3",
-      "versions": ["3.1136.0"],
+      "versions": [
+        "3.1136.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/client-secrets-manager",
-      "versions": ["3.1136.0"],
+      "versions": [
+        "3.1136.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/client-sqs",
-      "versions": ["3.1136.0"],
+      "versions": [
+        "3.1136.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/core",
-      "versions": ["3.978.0"],
+      "versions": [
+        "3.978.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/credential-provider-env",
-      "versions": ["3.972.71"],
+      "versions": [
+        "3.972.71"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/credential-provider-http",
-      "versions": ["3.972.73"],
+      "versions": [
+        "3.972.73"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/credential-provider-ini",
-      "versions": ["3.973.16"],
+      "versions": [
+        "3.973.16"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/credential-provider-login",
-      "versions": ["3.972.78"],
+      "versions": [
+        "3.972.78"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/credential-provider-node",
-      "versions": ["3.972.83"],
+      "versions": [
+        "3.972.83"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/credential-provider-process",
-      "versions": ["3.972.71"],
+      "versions": [
+        "3.972.71"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/credential-provider-sso",
-      "versions": ["3.973.15"],
+      "versions": [
+        "3.973.15"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/credential-provider-web-identity",
-      "versions": ["3.972.77"],
+      "versions": [
+        "3.972.77"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/middleware-sdk-s3",
-      "versions": ["3.972.76"],
+      "versions": [
+        "3.972.76"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/middleware-sdk-sqs",
-      "versions": ["3.972.42"],
+      "versions": [
+        "3.972.42"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/nested-clients",
-      "versions": ["3.997.45"],
+      "versions": [
+        "3.997.45"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/signature-v4-multi-region",
-      "versions": ["3.996.46"],
+      "versions": [
+        "3.996.46"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/token-providers",
-      "versions": ["3.1129.0"],
+      "versions": [
+        "3.1129.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/types",
-      "versions": ["3.974.5"],
+      "versions": [
+        "3.974.5"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws-sdk/xml-builder",
-      "versions": ["3.972.40"],
+      "versions": [
+        "3.972.40"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@aws/lambda-invoke-store",
-      "versions": ["0.3.0"],
+      "versions": [
+        "0.3.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@bufbuild/protobuf",
-      "versions": ["1.10.1"],
+      "versions": [
+        "1.10.1"
+      ],
       "license": "(Apache-2.0 AND BSD-3-Clause)"
     },
     {
       "name": "@datastructures-js/deque",
-      "versions": ["1.0.8"],
+      "versions": [
+        "1.0.8"
+      ],
       "license": "MIT"
     },
     {
       "name": "@esbuild/linux-x64",
-      "versions": ["0.28.2"],
+      "versions": [
+        "0.28.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "@fastify/ajv-compiler",
-      "versions": ["4.0.6"],
+      "versions": [
+        "4.0.6"
+      ],
       "license": "MIT"
     },
     {
       "name": "@fastify/error",
-      "versions": ["4.2.0"],
+      "versions": [
+        "4.2.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "@fastify/fast-json-stringify-compiler",
-      "versions": ["5.1.0"],
+      "versions": [
+        "5.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "@fastify/forwarded",
-      "versions": ["3.0.2"],
+      "versions": [
+        "3.0.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "@fastify/merge-json-schemas",
-      "versions": ["0.2.1"],
+      "versions": [
+        "0.2.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "@fastify/proxy-addr",
-      "versions": ["5.1.1"],
+      "versions": [
+        "5.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "@hono/node-server",
-      "versions": ["2.1.1"],
+      "versions": [
+        "2.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "@img/colour",
-      "versions": ["1.1.0"],
+      "versions": [
+        "1.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "@img/sharp-libvips-linux-x64",
-      "versions": ["1.3.3"],
+      "versions": [
+        "1.3.3"
+      ],
       "license": "LGPL-3.0-or-later"
     },
     {
       "name": "@img/sharp-libvips-linuxmusl-x64",
-      "versions": ["1.3.3"],
+      "versions": [
+        "1.3.3"
+      ],
       "license": "LGPL-3.0-or-later"
     },
     {
       "name": "@img/sharp-linux-x64",
-      "versions": ["0.35.4"],
+      "versions": [
+        "0.35.4"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@img/sharp-linuxmusl-x64",
-      "versions": ["0.35.4"],
+      "versions": [
+        "0.35.4"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@jridgewell/sourcemap-codec",
-      "versions": ["1.6.0"],
+      "versions": [
+        "1.6.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "@livekit/agents",
-      "versions": ["1.9.0"],
+      "versions": [
+        "1.9.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@livekit/av",
-      "versions": ["10.0.0"],
+      "versions": [
+        "10.0.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@livekit/av-linux-x64",
-      "versions": ["10.0.0"],
+      "versions": [
+        "10.0.0"
+      ],
       "license": "LGPL-2.1-or-later"
     },
     {
       "name": "@livekit/local-inference",
-      "versions": ["0.2.7"],
+      "versions": [
+        "0.2.7"
+      ],
       "license": "Apache-2.0 AND LicenseRef-LiveKit-Model"
     },
     {
       "name": "@livekit/local-inference-linux-x64-gnu",
-      "versions": ["0.2.7"],
+      "versions": [
+        "0.2.7"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@livekit/mutex",
-      "versions": ["1.1.1"],
+      "versions": [
+        "1.1.1"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@livekit/protocol",
-      "versions": ["1.51.0", "1.52.0"],
+      "versions": [
+        "1.51.0",
+        "1.52.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@livekit/rtc-ffi-bindings",
-      "versions": ["0.12.73"],
+      "versions": [
+        "0.12.73"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@livekit/rtc-ffi-bindings-linux-x64-gnu",
-      "versions": ["0.12.73"],
+      "versions": [
+        "0.12.73"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@livekit/rtc-node",
-      "versions": ["0.13.34"],
+      "versions": [
+        "0.13.34"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@livekit/throws-transformer",
-      "versions": ["0.1.8"],
+      "versions": [
+        "0.1.8"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@livekit/typed-emitter",
-      "versions": ["3.0.0"],
+      "versions": [
+        "3.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "@modelcontextprotocol/sdk",
-      "versions": ["1.30.0"],
+      "versions": [
+        "1.30.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "@next/env",
-      "versions": ["16.3.5"],
+      "versions": [
+        "16.3.5"
+      ],
       "license": "MIT"
     },
     {
       "name": "@next/swc-linux-x64-gnu",
-      "versions": ["16.3.5"],
+      "versions": [
+        "16.3.5"
+      ],
       "license": "MIT"
     },
     {
       "name": "@next/swc-linux-x64-musl",
-      "versions": ["16.3.5"],
+      "versions": [
+        "16.3.5"
+      ],
       "license": "MIT"
     },
     {
       "name": "@opentelemetry/api",
-      "versions": ["1.9.1"],
+      "versions": [
+        "1.9.1"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/api-logs",
-      "versions": ["0.220.0"],
+      "versions": [
+        "0.220.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/context-async-hooks",
-      "versions": ["2.11.0"],
+      "versions": [
+        "2.11.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/core",
-      "versions": ["2.9.0", "2.11.0"],
+      "versions": [
+        "2.9.0",
+        "2.11.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/exporter-logs-otlp-proto",
-      "versions": ["0.220.0"],
+      "versions": [
+        "0.220.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/exporter-metrics-otlp-http",
-      "versions": ["0.220.0"],
+      "versions": [
+        "0.220.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/exporter-metrics-otlp-proto",
-      "versions": ["0.220.0"],
+      "versions": [
+        "0.220.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/exporter-trace-otlp-proto",
-      "versions": ["0.220.0"],
+      "versions": [
+        "0.220.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/instrumentation",
-      "versions": ["0.220.0"],
+      "versions": [
+        "0.220.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/instrumentation-pino",
-      "versions": ["0.66.0"],
+      "versions": [
+        "0.66.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/otlp-exporter-base",
-      "versions": ["0.220.0"],
+      "versions": [
+        "0.220.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/otlp-transformer",
-      "versions": ["0.220.0"],
+      "versions": [
+        "0.220.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/resources",
-      "versions": ["2.9.0", "2.11.0"],
+      "versions": [
+        "2.9.0",
+        "2.11.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/sdk-logs",
-      "versions": ["0.220.0"],
+      "versions": [
+        "0.220.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/sdk-metrics",
-      "versions": ["2.9.0", "2.11.0"],
+      "versions": [
+        "2.9.0",
+        "2.11.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/sdk-trace",
-      "versions": ["2.9.0", "2.11.0"],
+      "versions": [
+        "2.9.0",
+        "2.11.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/sdk-trace-base",
-      "versions": ["2.11.0"],
+      "versions": [
+        "2.11.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/sdk-trace-node",
-      "versions": ["2.11.0"],
+      "versions": [
+        "2.11.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@opentelemetry/semantic-conventions",
-      "versions": ["1.43.0"],
+      "versions": [
+        "1.43.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@oxc-project/types",
-      "versions": ["0.150.0"],
+      "versions": [
+        "0.150.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "@pinojs/redact",
-      "versions": ["0.4.0"],
+      "versions": [
+        "0.4.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "@rolldown/binding-linux-x64-gnu",
-      "versions": ["1.2.9"],
+      "versions": [
+        "1.2.9"
+      ],
       "license": "MIT"
     },
     {
       "name": "@rolldown/binding-linux-x64-musl",
-      "versions": ["1.2.9"],
+      "versions": [
+        "1.2.9"
+      ],
       "license": "MIT"
     },
     {
       "name": "@rolldown/pluginutils",
-      "versions": ["1.0.1"],
+      "versions": [
+        "1.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "@smithy/core",
-      "versions": ["3.34.1"],
+      "versions": [
+        "3.34.1"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@smithy/credential-provider-imds",
-      "versions": ["4.5.2"],
+      "versions": [
+        "4.5.2"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@smithy/fetch-http-handler",
-      "versions": ["5.8.0"],
+      "versions": [
+        "5.8.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@smithy/hash-node",
-      "versions": ["4.5.2"],
+      "versions": [
+        "4.5.2"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@smithy/middleware-compression",
-      "versions": ["4.6.2"],
+      "versions": [
+        "4.6.2"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@smithy/node-http-handler",
-      "versions": ["4.12.1"],
+      "versions": [
+        "4.12.1"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@smithy/signature-v4",
-      "versions": ["5.7.3"],
+      "versions": [
+        "5.7.3"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@smithy/types",
-      "versions": ["4.18.0"],
+      "versions": [
+        "4.18.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@standard-schema/spec",
-      "versions": ["1.1.0"],
+      "versions": [
+        "1.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "@swc/helpers",
-      "versions": ["0.5.23"],
+      "versions": [
+        "0.5.23"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@types/chai",
-      "versions": ["5.2.3"],
+      "versions": [
+        "5.2.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "@types/deep-eql",
-      "versions": ["4.0.2"],
+      "versions": [
+        "4.0.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "@types/estree",
-      "versions": ["1.0.9"],
+      "versions": [
+        "1.0.9"
+      ],
       "license": "MIT"
     },
     {
       "name": "@types/node",
-      "versions": ["22.20.0"],
+      "versions": [
+        "22.20.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "@types/pg",
-      "versions": ["8.15.5"],
+      "versions": [
+        "8.15.5"
+      ],
       "license": "MIT"
     },
     {
       "name": "@types/pidusage",
-      "versions": ["2.0.5"],
+      "versions": [
+        "2.0.5"
+      ],
       "license": "MIT"
     },
     {
       "name": "@types/react",
-      "versions": ["19.2.2"],
+      "versions": [
+        "19.2.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "@types/react-dom",
-      "versions": ["19.2.2"],
+      "versions": [
+        "19.2.2"
+      ],
+      "license": "MIT"
+    },
+    {
+      "name": "@types/ws",
+      "versions": [
+        "8.18.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "@vercel/oidc",
-      "versions": ["3.2.0"],
+      "versions": [
+        "3.2.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "@vitest/expect",
-      "versions": ["4.1.11"],
+      "versions": [
+        "4.1.11"
+      ],
       "license": "MIT"
     },
     {
       "name": "@vitest/mocker",
-      "versions": ["4.1.11"],
+      "versions": [
+        "4.1.11"
+      ],
       "license": "MIT"
     },
     {
       "name": "@vitest/pretty-format",
-      "versions": ["4.1.11"],
+      "versions": [
+        "4.1.11"
+      ],
       "license": "MIT"
     },
     {
       "name": "@vitest/runner",
-      "versions": ["4.1.11"],
+      "versions": [
+        "4.1.11"
+      ],
       "license": "MIT"
     },
     {
       "name": "@vitest/snapshot",
-      "versions": ["4.1.11"],
+      "versions": [
+        "4.1.11"
+      ],
       "license": "MIT"
     },
     {
       "name": "@vitest/spy",
-      "versions": ["4.1.11"],
+      "versions": [
+        "4.1.11"
+      ],
       "license": "MIT"
     },
     {
       "name": "@vitest/utils",
-      "versions": ["4.1.11"],
+      "versions": [
+        "4.1.11"
+      ],
       "license": "MIT"
     },
     {
       "name": "@workflow/serde",
-      "versions": ["4.1.0"],
+      "versions": [
+        "4.1.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "abort-controller",
-      "versions": ["3.0.0"],
+      "versions": [
+        "3.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "abstract-logging",
-      "versions": ["2.0.1"],
+      "versions": [
+        "2.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "accepts",
-      "versions": ["2.0.0"],
+      "versions": [
+        "2.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "agent-base",
-      "versions": ["6.0.2"],
+      "versions": [
+        "6.0.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "ai",
-      "versions": ["7.0.107"],
+      "versions": [
+        "7.0.107"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "ajv",
-      "versions": ["8.20.0"],
+      "versions": [
+        "8.20.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "ajv-formats",
-      "versions": ["3.0.1"],
+      "versions": [
+        "3.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "assertion-error",
-      "versions": ["2.0.1"],
+      "versions": [
+        "2.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "async",
-      "versions": ["0.2.10"],
+      "versions": [
+        "0.2.10"
+      ],
       "license": "MIT"
     },
     {
       "name": "asynckit",
-      "versions": ["0.4.0"],
+      "versions": [
+        "0.4.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "atomic-sleep",
-      "versions": ["1.0.0"],
+      "versions": [
+        "1.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "avvio",
-      "versions": ["9.3.0"],
+      "versions": [
+        "9.3.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "axios",
-      "versions": ["1.20.0"],
+      "versions": [
+        "1.20.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "balanced-match",
-      "versions": ["4.0.4"],
+      "versions": [
+        "4.0.4"
+      ],
       "license": "MIT"
     },
     {
       "name": "base64-js",
-      "versions": ["1.5.1"],
+      "versions": [
+        "1.5.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "baseline-browser-mapping",
-      "versions": ["2.11.25"],
+      "versions": [
+        "2.11.25"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "body-parser",
-      "versions": ["2.3.0"],
+      "versions": [
+        "2.3.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "bowser",
-      "versions": ["2.14.1"],
+      "versions": [
+        "2.14.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "brace-expansion",
-      "versions": ["5.0.12"],
+      "versions": [
+        "5.0.12"
+      ],
       "license": "MIT"
     },
     {
       "name": "buffer",
-      "versions": ["6.0.3"],
+      "versions": [
+        "6.0.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "buffer-equal-constant-time",
-      "versions": ["1.0.1"],
+      "versions": [
+        "1.0.1"
+      ],
       "license": "BSD-3-Clause"
     },
     {
       "name": "bytes",
-      "versions": ["3.1.2"],
+      "versions": [
+        "3.1.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "call-bind-apply-helpers",
-      "versions": ["1.0.2"],
+      "versions": [
+        "1.0.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "call-bound",
-      "versions": ["1.0.4"],
+      "versions": [
+        "1.0.4"
+      ],
       "license": "MIT"
     },
     {
       "name": "caniuse-lite",
-      "versions": ["1.0.30001810"],
+      "versions": [
+        "1.0.30001810"
+      ],
       "license": "CC-BY-4.0"
     },
     {
       "name": "chai",
-      "versions": ["6.2.2"],
+      "versions": [
+        "6.2.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "cjs-module-lexer",
-      "versions": ["2.2.1"],
+      "versions": [
+        "2.2.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "client-only",
-      "versions": ["0.0.1"],
+      "versions": [
+        "0.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "colorette",
-      "versions": ["2.0.20"],
+      "versions": [
+        "2.0.20"
+      ],
       "license": "MIT"
     },
     {
       "name": "combined-stream",
-      "versions": ["1.0.8"],
+      "versions": [
+        "1.0.8"
+      ],
       "license": "MIT"
     },
     {
       "name": "commander",
-      "versions": ["12.1.0"],
+      "versions": [
+        "12.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "content-disposition",
-      "versions": ["1.1.0"],
+      "versions": [
+        "1.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "content-type",
-      "versions": ["1.0.5", "2.1.0"],
+      "versions": [
+        "1.0.5",
+        "2.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "convert-source-map",
-      "versions": ["2.0.0"],
+      "versions": [
+        "2.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "cookie",
-      "versions": ["0.7.2", "1.1.1"],
+      "versions": [
+        "0.7.2",
+        "1.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "cookie-signature",
-      "versions": ["1.2.2"],
+      "versions": [
+        "1.2.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "cors",
-      "versions": ["2.8.6"],
+      "versions": [
+        "2.8.6"
+      ],
       "license": "MIT"
     },
     {
       "name": "cross-spawn",
-      "versions": ["7.0.6"],
+      "versions": [
+        "7.0.6"
+      ],
       "license": "MIT"
     },
     {
       "name": "csstype",
-      "versions": ["3.2.3"],
+      "versions": [
+        "3.2.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "dateformat",
-      "versions": ["4.6.3"],
+      "versions": [
+        "4.6.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "dayjs",
-      "versions": ["1.11.23"],
+      "versions": [
+        "1.11.23"
+      ],
       "license": "MIT"
     },
     {
       "name": "debug",
-      "versions": ["4.4.3"],
+      "versions": [
+        "4.4.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "delayed-stream",
-      "versions": ["1.0.0"],
+      "versions": [
+        "1.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "depd",
-      "versions": ["2.0.0"],
+      "versions": [
+        "2.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "dequal",
-      "versions": ["2.0.3"],
+      "versions": [
+        "2.0.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "destr",
-      "versions": ["2.0.5"],
+      "versions": [
+        "2.0.5"
+      ],
       "license": "MIT"
     },
     {
       "name": "detect-libc",
-      "versions": ["2.1.2"],
+      "versions": [
+        "2.1.2"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "dunder-proto",
-      "versions": ["1.0.1"],
+      "versions": [
+        "1.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "ecdsa-sig-formatter",
-      "versions": ["1.0.11"],
+      "versions": [
+        "1.0.11"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "ee-first",
-      "versions": ["1.1.1"],
+      "versions": [
+        "1.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "encodeurl",
-      "versions": ["2.0.0"],
+      "versions": [
+        "2.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "end-of-stream",
-      "versions": ["1.4.5"],
+      "versions": [
+        "1.4.5"
+      ],
       "license": "MIT"
     },
     {
       "name": "es-define-property",
-      "versions": ["1.0.1"],
+      "versions": [
+        "1.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "es-errors",
-      "versions": ["1.3.0"],
+      "versions": [
+        "1.3.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "es-module-lexer",
-      "versions": ["2.3.2", "3.0.2"],
+      "versions": [
+        "2.3.2",
+        "3.0.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "es-object-atoms",
-      "versions": ["1.1.2"],
+      "versions": [
+        "1.1.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "es-set-tostringtag",
-      "versions": ["2.1.0"],
+      "versions": [
+        "2.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "esbuild",
-      "versions": ["0.28.2"],
+      "versions": [
+        "0.28.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "escape-html",
-      "versions": ["1.0.3"],
+      "versions": [
+        "1.0.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "estree-walker",
-      "versions": ["3.0.3"],
+      "versions": [
+        "3.0.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "etag",
-      "versions": ["1.8.1"],
+      "versions": [
+        "1.8.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "event-target-shim",
-      "versions": ["5.0.1"],
+      "versions": [
+        "5.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "events",
-      "versions": ["3.3.0"],
+      "versions": [
+        "3.3.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "eventsource",
-      "versions": ["3.0.7"],
+      "versions": [
+        "3.0.7"
+      ],
       "license": "MIT"
     },
     {
       "name": "eventsource-parser",
-      "versions": ["3.1.1"],
+      "versions": [
+        "3.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "expect-type",
-      "versions": ["1.4.0"],
+      "versions": [
+        "1.4.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "express",
-      "versions": ["5.2.1"],
+      "versions": [
+        "5.2.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "express-rate-limit",
-      "versions": ["8.7.0"],
+      "versions": [
+        "8.7.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "fast-copy",
-      "versions": ["3.1.0", "4.1.1"],
+      "versions": [
+        "3.1.0",
+        "4.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "fast-decode-uri-component",
-      "versions": ["1.0.1"],
+      "versions": [
+        "1.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "fast-deep-equal",
-      "versions": ["3.1.3"],
+      "versions": [
+        "3.1.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "fast-json-stringify",
-      "versions": ["7.0.1"],
+      "versions": [
+        "7.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "fast-querystring",
-      "versions": ["1.1.2"],
+      "versions": [
+        "1.1.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "fast-redact",
-      "versions": ["3.5.0"],
+      "versions": [
+        "3.5.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "fast-safe-stringify",
-      "versions": ["2.1.1"],
+      "versions": [
+        "2.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "fast-uri",
-      "versions": ["3.1.8", "4.2.1"],
+      "versions": [
+        "3.1.8",
+        "4.2.1"
+      ],
       "license": "BSD-3-Clause"
     },
     {
       "name": "fastify",
-      "versions": ["5.12.5"],
+      "versions": [
+        "5.12.5"
+      ],
       "license": "MIT"
     },
     {
       "name": "fastq",
-      "versions": ["1.20.3"],
+      "versions": [
+        "1.20.3"
+      ],
       "license": "ISC"
     },
     {
       "name": "fdir",
-      "versions": ["6.5.0"],
+      "versions": [
+        "6.5.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "fflate",
-      "versions": ["0.8.3"],
+      "versions": [
+        "0.8.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "finalhandler",
-      "versions": ["2.1.1"],
+      "versions": [
+        "2.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "find-my-way",
-      "versions": ["9.9.0"],
+      "versions": [
+        "9.9.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "fluent-ffmpeg",
-      "versions": ["2.1.3"],
+      "versions": [
+        "2.1.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "follow-redirects",
-      "versions": ["1.16.0"],
+      "versions": [
+        "1.16.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "form-data",
-      "versions": ["4.0.6"],
+      "versions": [
+        "4.0.6"
+      ],
       "license": "MIT"
     },
     {
       "name": "forwarded",
-      "versions": ["0.2.0"],
+      "versions": [
+        "0.2.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "fresh",
-      "versions": ["2.0.0"],
+      "versions": [
+        "2.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "function-bind",
-      "versions": ["1.1.2"],
+      "versions": [
+        "1.1.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "get-intrinsic",
-      "versions": ["1.3.0"],
+      "versions": [
+        "1.3.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "get-proto",
-      "versions": ["1.0.1"],
+      "versions": [
+        "1.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "glob",
-      "versions": ["13.0.6"],
+      "versions": [
+        "13.0.6"
+      ],
       "license": "BlueOak-1.0.0"
     },
     {
       "name": "gopd",
-      "versions": ["1.2.0"],
+      "versions": [
+        "1.2.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "has-symbols",
-      "versions": ["1.1.0"],
+      "versions": [
+        "1.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "has-tostringtag",
-      "versions": ["1.0.2"],
+      "versions": [
+        "1.0.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "hasown",
-      "versions": ["2.0.4"],
+      "versions": [
+        "2.0.4"
+      ],
       "license": "MIT"
     },
     {
       "name": "heap-js",
-      "versions": ["2.7.1"],
+      "versions": [
+        "2.7.1"
+      ],
       "license": "BSD-3-Clause"
     },
     {
       "name": "help-me",
-      "versions": ["5.0.0"],
+      "versions": [
+        "5.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "hono",
-      "versions": ["4.13.8"],
+      "versions": [
+        "4.13.8"
+      ],
       "license": "MIT"
     },
     {
       "name": "http-errors",
-      "versions": ["2.0.1"],
+      "versions": [
+        "2.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "https-proxy-agent",
-      "versions": ["5.0.1"],
+      "versions": [
+        "5.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "iconv-lite",
-      "versions": ["0.7.3"],
+      "versions": [
+        "0.7.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "ieee754",
-      "versions": ["1.2.1"],
+      "versions": [
+        "1.2.1"
+      ],
       "license": "BSD-3-Clause"
     },
     {
       "name": "import-in-the-middle",
-      "versions": ["3.5.1"],
+      "versions": [
+        "3.5.1"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "inherits",
-      "versions": ["2.0.4"],
+      "versions": [
+        "2.0.4"
+      ],
       "license": "ISC"
     },
     {
       "name": "ip-address",
-      "versions": ["10.7.2"],
+      "versions": [
+        "10.7.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "ipaddr.js",
-      "versions": ["1.9.1", "2.5.0"],
+      "versions": [
+        "1.9.1",
+        "2.5.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "is-promise",
-      "versions": ["4.0.0"],
+      "versions": [
+        "4.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "isexe",
-      "versions": ["2.0.0"],
+      "versions": [
+        "2.0.0"
+      ],
       "license": "ISC"
     },
     {
       "name": "jose",
-      "versions": ["5.10.0", "6.2.12"],
+      "versions": [
+        "5.10.0",
+        "6.2.12"
+      ],
       "license": "MIT"
     },
     {
       "name": "joycon",
-      "versions": ["3.1.1"],
+      "versions": [
+        "3.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "json-schema",
-      "versions": ["0.4.0"],
+      "versions": [
+        "0.4.0"
+      ],
       "license": "(AFL-2.1 OR BSD-3-Clause)"
     },
     {
       "name": "json-schema-ref-resolver",
-      "versions": ["3.0.0"],
+      "versions": [
+        "3.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "json-schema-traverse",
-      "versions": ["1.0.0"],
+      "versions": [
+        "1.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "json-schema-typed",
-      "versions": ["8.0.2"],
+      "versions": [
+        "8.0.2"
+      ],
       "license": "BSD-2-Clause"
     },
     {
       "name": "jsonrepair",
-      "versions": ["3.15.0"],
+      "versions": [
+        "3.15.0"
+      ],
       "license": "ISC"
     },
     {
       "name": "jsonwebtoken",
-      "versions": ["9.0.3"],
+      "versions": [
+        "9.0.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "jwa",
-      "versions": ["2.0.1"],
+      "versions": [
+        "2.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "jws",
-      "versions": ["4.0.1"],
+      "versions": [
+        "4.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "light-my-request",
-      "versions": ["6.6.0"],
+      "versions": [
+        "6.6.0"
+      ],
       "license": "BSD-3-Clause"
     },
     {
       "name": "lightningcss",
-      "versions": ["1.33.0"],
+      "versions": [
+        "1.33.0"
+      ],
       "license": "MPL-2.0"
     },
     {
       "name": "lightningcss-linux-x64-gnu",
-      "versions": ["1.33.0"],
+      "versions": [
+        "1.33.0"
+      ],
       "license": "MPL-2.0"
     },
     {
       "name": "lightningcss-linux-x64-musl",
-      "versions": ["1.33.0"],
+      "versions": [
+        "1.33.0"
+      ],
       "license": "MPL-2.0"
     },
     {
       "name": "livekit-server-sdk",
-      "versions": ["2.19.0"],
+      "versions": [
+        "2.19.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "lodash.includes",
-      "versions": ["4.3.0"],
+      "versions": [
+        "4.3.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "lodash.isboolean",
-      "versions": ["3.0.3"],
+      "versions": [
+        "3.0.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "lodash.isinteger",
-      "versions": ["4.0.4"],
+      "versions": [
+        "4.0.4"
+      ],
       "license": "MIT"
     },
     {
       "name": "lodash.isnumber",
-      "versions": ["3.0.3"],
+      "versions": [
+        "3.0.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "lodash.isplainobject",
-      "versions": ["4.0.6"],
+      "versions": [
+        "4.0.6"
+      ],
       "license": "MIT"
     },
     {
       "name": "lodash.isstring",
-      "versions": ["4.0.1"],
+      "versions": [
+        "4.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "lodash.once",
-      "versions": ["4.1.1"],
+      "versions": [
+        "4.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "lru-cache",
-      "versions": ["11.5.3"],
+      "versions": [
+        "11.5.3"
+      ],
       "license": "BlueOak-1.0.0"
     },
     {
       "name": "magic-string",
-      "versions": ["0.30.21"],
+      "versions": [
+        "0.30.21"
+      ],
       "license": "MIT"
     },
     {
       "name": "math-intrinsics",
-      "versions": ["1.1.0"],
+      "versions": [
+        "1.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "media-typer",
-      "versions": ["1.1.1"],
+      "versions": [
+        "1.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "merge-descriptors",
-      "versions": ["2.0.0"],
+      "versions": [
+        "2.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "mime-db",
-      "versions": ["1.52.0", "1.54.0"],
+      "versions": [
+        "1.52.0",
+        "1.54.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "mime-types",
-      "versions": ["2.1.35", "3.0.2"],
+      "versions": [
+        "2.1.35",
+        "3.0.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "minimatch",
-      "versions": ["10.2.6"],
+      "versions": [
+        "10.2.6"
+      ],
       "license": "BlueOak-1.0.0"
     },
     {
       "name": "minimist",
-      "versions": ["1.2.8"],
+      "versions": [
+        "1.2.8"
+      ],
       "license": "MIT"
     },
     {
       "name": "minipass",
-      "versions": ["7.1.3"],
+      "versions": [
+        "7.1.3"
+      ],
       "license": "BlueOak-1.0.0"
     },
     {
       "name": "module-details-from-path",
-      "versions": ["1.0.4"],
+      "versions": [
+        "1.0.4"
+      ],
       "license": "MIT"
     },
     {
       "name": "ms",
-      "versions": ["2.1.3"],
+      "versions": [
+        "2.1.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "nanoid",
-      "versions": ["3.3.19"],
+      "versions": [
+        "3.3.19"
+      ],
       "license": "MIT"
     },
     {
       "name": "negotiator",
-      "versions": ["1.1.0"],
+      "versions": [
+        "1.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "next",
-      "versions": ["16.3.5"],
+      "versions": [
+        "16.3.5"
+      ],
       "license": "MIT"
     },
     {
       "name": "node-fetch-native",
-      "versions": ["1.6.7"],
+      "versions": [
+        "1.6.7"
+      ],
       "license": "MIT"
     },
     {
       "name": "node-gyp-build",
-      "versions": ["4.8.4"],
+      "versions": [
+        "4.8.4"
+      ],
       "license": "MIT"
     },
     {
       "name": "object-assign",
-      "versions": ["4.1.1"],
+      "versions": [
+        "4.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "object-inspect",
-      "versions": ["1.13.4"],
+      "versions": [
+        "1.13.4"
+      ],
       "license": "MIT"
     },
     {
       "name": "obug",
-      "versions": ["2.2.1"],
+      "versions": [
+        "2.2.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "ofetch",
-      "versions": ["1.5.1"],
+      "versions": [
+        "1.5.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "on-exit-leak-free",
-      "versions": ["2.1.2"],
+      "versions": [
+        "2.1.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "on-finished",
-      "versions": ["2.4.1"],
+      "versions": [
+        "2.4.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "once",
-      "versions": ["1.4.0"],
+      "versions": [
+        "1.4.0"
+      ],
       "license": "ISC"
     },
     {
       "name": "openai",
-      "versions": ["6.49.0"],
+      "versions": [
+        "6.49.0"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "parseurl",
-      "versions": ["1.3.3"],
+      "versions": [
+        "1.3.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "path-key",
-      "versions": ["3.1.1"],
+      "versions": [
+        "3.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "path-scurry",
-      "versions": ["2.0.2"],
+      "versions": [
+        "2.0.2"
+      ],
       "license": "BlueOak-1.0.0"
     },
     {
       "name": "path-to-regexp",
-      "versions": ["8.4.2"],
+      "versions": [
+        "8.4.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "pathe",
-      "versions": ["2.0.3"],
+      "versions": [
+        "2.0.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "pg",
-      "versions": ["8.16.3"],
+      "versions": [
+        "8.16.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "pg-cloudflare",
-      "versions": ["1.4.0"],
+      "versions": [
+        "1.4.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "pg-connection-string",
-      "versions": ["2.14.0"],
+      "versions": [
+        "2.14.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "pg-int8",
-      "versions": ["1.0.1"],
+      "versions": [
+        "1.0.1"
+      ],
       "license": "ISC"
     },
     {
       "name": "pg-pool",
-      "versions": ["3.14.0"],
+      "versions": [
+        "3.14.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "pg-protocol",
-      "versions": ["1.16.0"],
+      "versions": [
+        "1.16.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "pg-types",
-      "versions": ["2.2.0"],
+      "versions": [
+        "2.2.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "pgpass",
-      "versions": ["1.0.5"],
+      "versions": [
+        "1.0.5"
+      ],
       "license": "MIT"
     },
     {
       "name": "picocolors",
-      "versions": ["1.1.1"],
+      "versions": [
+        "1.1.1"
+      ],
       "license": "ISC"
     },
     {
       "name": "picomatch",
-      "versions": ["4.0.7"],
+      "versions": [
+        "4.0.7"
+      ],
       "license": "MIT"
     },
     {
       "name": "pidusage",
-      "versions": ["4.0.1"],
+      "versions": [
+        "4.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "pino",
-      "versions": ["8.21.0", "9.14.0", "10.3.1"],
+      "versions": [
+        "8.21.0",
+        "9.14.0",
+        "10.3.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "pino-abstract-transport",
-      "versions": ["1.2.0", "2.0.0", "3.0.0"],
+      "versions": [
+        "1.2.0",
+        "2.0.0",
+        "3.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "pino-pretty",
-      "versions": ["11.3.0", "13.1.3"],
+      "versions": [
+        "11.3.0",
+        "13.1.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "pino-std-serializers",
-      "versions": ["6.2.2", "7.1.0"],
+      "versions": [
+        "6.2.2",
+        "7.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "pkce-challenge",
-      "versions": ["5.0.1"],
+      "versions": [
+        "5.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "postcss",
-      "versions": ["8.5.23", "8.5.28"],
+      "versions": [
+        "8.5.23",
+        "8.5.28"
+      ],
       "license": "MIT"
     },
     {
       "name": "postgres-array",
-      "versions": ["2.0.0"],
+      "versions": [
+        "2.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "postgres-bytea",
-      "versions": ["1.0.1"],
+      "versions": [
+        "1.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "postgres-date",
-      "versions": ["1.0.7"],
+      "versions": [
+        "1.0.7"
+      ],
       "license": "MIT"
     },
     {
       "name": "postgres-interval",
-      "versions": ["1.2.0"],
+      "versions": [
+        "1.2.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "prettier",
-      "versions": ["3.9.8"],
+      "versions": [
+        "3.9.8"
+      ],
       "license": "MIT"
     },
     {
       "name": "process",
-      "versions": ["0.11.10"],
+      "versions": [
+        "0.11.10"
+      ],
       "license": "MIT"
     },
     {
       "name": "process-warning",
-      "versions": ["3.0.0", "4.0.1", "5.1.0"],
+      "versions": [
+        "3.0.0",
+        "4.0.1",
+        "5.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "proxy-addr",
-      "versions": ["2.0.8"],
+      "versions": [
+        "2.0.8"
+      ],
       "license": "MIT"
     },
     {
       "name": "proxy-from-env",
-      "versions": ["2.1.0"],
+      "versions": [
+        "2.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "pump",
-      "versions": ["3.0.4"],
+      "versions": [
+        "3.0.4"
+      ],
       "license": "MIT"
     },
     {
       "name": "qs",
-      "versions": ["6.16.0"],
+      "versions": [
+        "6.16.0"
+      ],
       "license": "BSD-3-Clause"
     },
     {
       "name": "quick-format-unescaped",
-      "versions": ["4.0.4"],
+      "versions": [
+        "4.0.4"
+      ],
       "license": "MIT"
     },
     {
       "name": "range-parser",
-      "versions": ["1.3.0"],
+      "versions": [
+        "1.3.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "raw-body",
-      "versions": ["3.0.2"],
+      "versions": [
+        "3.0.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "react",
-      "versions": ["19.2.0"],
+      "versions": [
+        "19.2.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "react-dom",
-      "versions": ["19.2.0"],
+      "versions": [
+        "19.2.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "readable-stream",
-      "versions": ["4.7.0"],
+      "versions": [
+        "4.7.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "real-require",
-      "versions": ["0.2.0", "1.0.0"],
+      "versions": [
+        "0.2.0",
+        "1.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "require-from-string",
-      "versions": ["2.0.2"],
+      "versions": [
+        "2.0.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "require-in-the-middle",
-      "versions": ["8.0.1"],
+      "versions": [
+        "8.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "ret",
-      "versions": ["0.5.0"],
+      "versions": [
+        "0.5.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "reusify",
-      "versions": ["1.1.0"],
+      "versions": [
+        "1.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "rfdc",
-      "versions": ["1.4.1"],
+      "versions": [
+        "1.4.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "rolldown",
-      "versions": ["1.2.9"],
+      "versions": [
+        "1.2.9"
+      ],
       "license": "MIT"
     },
     {
       "name": "router",
-      "versions": ["2.2.0"],
+      "versions": [
+        "2.2.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "safe-buffer",
-      "versions": ["5.2.1"],
+      "versions": [
+        "5.2.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "safe-regex2",
-      "versions": ["5.1.1"],
+      "versions": [
+        "5.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "safe-stable-stringify",
-      "versions": ["2.5.0"],
+      "versions": [
+        "2.5.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "safer-buffer",
-      "versions": ["2.1.2"],
+      "versions": [
+        "2.1.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "scheduler",
-      "versions": ["0.27.0"],
+      "versions": [
+        "0.27.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "scmp",
-      "versions": ["2.1.0"],
+      "versions": [
+        "2.1.0"
+      ],
       "license": "BSD-3-Clause"
     },
     {
       "name": "secure-json-parse",
-      "versions": ["2.7.0", "4.1.0"],
+      "versions": [
+        "2.7.0",
+        "4.1.0"
+      ],
       "license": "BSD-3-Clause"
     },
     {
       "name": "semver",
-      "versions": ["7.8.5"],
+      "versions": [
+        "7.8.5"
+      ],
       "license": "ISC"
     },
     {
       "name": "send",
-      "versions": ["1.2.1"],
+      "versions": [
+        "1.2.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "serve-static",
-      "versions": ["2.2.1"],
+      "versions": [
+        "2.2.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "set-cookie-parser",
-      "versions": ["2.7.2"],
+      "versions": [
+        "2.7.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "setprototypeof",
-      "versions": ["1.2.0"],
+      "versions": [
+        "1.2.0"
+      ],
       "license": "ISC"
     },
     {
       "name": "sharp",
-      "versions": ["0.35.4"],
+      "versions": [
+        "0.35.4"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "shebang-command",
-      "versions": ["2.0.0"],
+      "versions": [
+        "2.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "shebang-regex",
-      "versions": ["3.0.0"],
+      "versions": [
+        "3.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "side-channel",
-      "versions": ["1.1.1"],
+      "versions": [
+        "1.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "side-channel-list",
-      "versions": ["1.0.1"],
+      "versions": [
+        "1.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "side-channel-map",
-      "versions": ["1.0.1"],
+      "versions": [
+        "1.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "side-channel-weakmap",
-      "versions": ["1.0.2"],
+      "versions": [
+        "1.0.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "siginfo",
-      "versions": ["2.0.0"],
+      "versions": [
+        "2.0.0"
+      ],
       "license": "ISC"
     },
     {
       "name": "sonic-boom",
-      "versions": ["3.8.1", "4.2.1"],
+      "versions": [
+        "3.8.1",
+        "4.2.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "source-map-js",
-      "versions": ["1.2.1"],
+      "versions": [
+        "1.2.1"
+      ],
       "license": "BSD-3-Clause"
     },
     {
       "name": "split2",
-      "versions": ["4.2.0"],
+      "versions": [
+        "4.2.0"
+      ],
       "license": "ISC"
     },
     {
       "name": "stackback",
-      "versions": ["0.0.2"],
+      "versions": [
+        "0.0.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "statuses",
-      "versions": ["2.0.2"],
+      "versions": [
+        "2.0.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "std-env",
-      "versions": ["4.2.0"],
+      "versions": [
+        "4.2.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "string_decoder",
-      "versions": ["1.3.0"],
+      "versions": [
+        "1.3.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "strip-json-comments",
-      "versions": ["3.1.1", "5.0.3"],
+      "versions": [
+        "3.1.1",
+        "5.0.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "styled-jsx",
-      "versions": ["5.1.6"],
+      "versions": [
+        "5.1.6"
+      ],
       "license": "MIT"
     },
     {
       "name": "thread-stream",
-      "versions": ["2.7.0", "3.2.0", "4.2.0"],
+      "versions": [
+        "2.7.0",
+        "3.2.0",
+        "4.2.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "tinybench",
-      "versions": ["2.9.0"],
+      "versions": [
+        "2.9.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "tinyexec",
-      "versions": ["1.3.1"],
+      "versions": [
+        "1.3.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "tinyglobby",
-      "versions": ["0.2.17"],
+      "versions": [
+        "0.2.17"
+      ],
       "license": "MIT"
     },
     {
       "name": "tinyrainbow",
-      "versions": ["3.1.1"],
+      "versions": [
+        "3.1.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "toad-cache",
-      "versions": ["3.7.4"],
+      "versions": [
+        "3.7.4"
+      ],
       "license": "MIT"
     },
     {
       "name": "toidentifier",
-      "versions": ["1.0.1"],
+      "versions": [
+        "1.0.1"
+      ],
       "license": "MIT"
     },
     {
       "name": "tslib",
-      "versions": ["2.8.1"],
+      "versions": [
+        "2.8.1"
+      ],
       "license": "0BSD"
     },
     {
       "name": "tsx",
-      "versions": ["4.22.4"],
+      "versions": [
+        "4.22.4"
+      ],
       "license": "MIT"
     },
     {
       "name": "twilio",
-      "versions": ["5.10.4"],
+      "versions": [
+        "5.10.4"
+      ],
       "license": "MIT"
     },
     {
       "name": "type-is",
-      "versions": ["2.1.0"],
+      "versions": [
+        "2.1.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "typescript",
-      "versions": ["6.0.3"],
+      "versions": [
+        "6.0.3"
+      ],
       "license": "Apache-2.0"
     },
     {
       "name": "ufo",
-      "versions": ["1.6.4"],
+      "versions": [
+        "1.6.4"
+      ],
       "license": "MIT"
     },
     {
       "name": "undici",
-      "versions": ["7.29.1", "8.10.2"],
+      "versions": [
+        "7.29.1",
+        "8.10.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "undici-types",
-      "versions": ["6.21.0"],
+      "versions": [
+        "6.21.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "unpipe",
-      "versions": ["1.0.0"],
+      "versions": [
+        "1.0.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "vary",
-      "versions": ["1.1.2"],
+      "versions": [
+        "1.1.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "vite",
-      "versions": ["8.3.0"],
+      "versions": [
+        "8.3.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "vitest",
-      "versions": ["4.1.11"],
+      "versions": [
+        "4.1.11"
+      ],
       "license": "MIT"
     },
     {
       "name": "which",
-      "versions": ["1.3.1", "2.0.2"],
+      "versions": [
+        "1.3.1",
+        "2.0.2"
+      ],
       "license": "ISC"
     },
     {
       "name": "why-is-node-running",
-      "versions": ["2.3.0"],
+      "versions": [
+        "2.3.0"
+      ],
       "license": "MIT"
     },
     {
       "name": "wrappy",
-      "versions": ["1.0.2"],
+      "versions": [
+        "1.0.2"
+      ],
       "license": "ISC"
     },
     {
       "name": "ws",
-      "versions": ["8.21.3"],
+      "versions": [
+        "8.21.3"
+      ],
       "license": "MIT"
     },
     {
       "name": "xmlbuilder",
-      "versions": ["13.0.2"],
+      "versions": [
+        "13.0.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "xtend",
-      "versions": ["4.0.2"],
+      "versions": [
+        "4.0.2"
+      ],
       "license": "MIT"
     },
     {
       "name": "zod",
-      "versions": ["4.6.5"],
+      "versions": [
+        "4.6.5"
+      ],
       "license": "MIT"
     },
     {
       "name": "zod-to-json-schema",
-      "versions": ["3.25.2"],
+      "versions": [
+        "3.25.2"
+      ],
       "license": "ISC"
     }
   ]

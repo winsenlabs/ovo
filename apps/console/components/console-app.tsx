@@ -16,12 +16,16 @@ type SessionState =
   | { status: 'error'; message: string };
 
 const navigation = [
-  { href: '/agents', label: 'Agents', group: 'Workspace' },
-  { href: '/calls', label: 'Calls', group: 'Workspace' },
-  { href: '/tools', label: 'Tools', group: 'Workspace' },
-  { href: '/providers', label: 'Providers & secrets', group: 'Workspace' },
+  { href: '/agents', label: 'Agents', group: 'Build' },
+  { href: '/tools', label: 'Tools', group: 'Build' },
+  { href: '/providers', label: 'Providers & secrets', group: 'Build' },
+  { href: '/calls', label: 'Calls', group: 'Operations' },
+  { href: '/campaigns', label: 'Campaigns', group: 'Operations' },
+  { href: '/suppressions', label: 'Suppressions', group: 'Operations' },
+  { href: '/handoffs', label: 'Handoffs & inbound', group: 'Operations' },
   { href: '/evaluations', label: 'Evaluations', group: 'Operations' },
   { href: '/performance', label: 'Performance', group: 'Operations' },
+  { href: '/costs', label: 'Costs & budgets', group: 'Operations' },
   { href: '/infrastructure', label: 'Infrastructure', group: 'Operations' },
 ];
 
@@ -40,7 +44,6 @@ function Login({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const bootstrapToken = String(form.get('token') ?? '');
-    const workspaceId = String(form.get('workspaceId') ?? '').trim();
     if (token.current) token.current.value = '';
     setSubmitting(true);
     setError(undefined);
@@ -49,7 +52,7 @@ function Login({
         '/auth/session',
         {
           method: 'POST',
-          body: JSON.stringify({ token: bootstrapToken, ...(workspaceId ? { workspaceId } : {}) }),
+          body: JSON.stringify({ token: bootstrapToken }),
         },
       );
       onAuthenticated('identity' in data ? data.identity : data);
@@ -94,17 +97,14 @@ function Login({
             required
             spellCheck={false}
           />
-          <label htmlFor="workspace-id">
-            Workspace ID <span className="muted">(optional)</span>
-          </label>
-          <input id="workspace-id" name="workspaceId" autoComplete="off" />
           <button className="button primary" disabled={submitting}>
             {submitting ? 'Starting session…' : 'Continue'}
           </button>
         </form>
         <small>
-          Authentication and workspace membership are enforced by the API. This console does not
-          read an admin token from browser-visible environment variables.
+          This single-organization console uses the server-configured organization. It does not
+          expose an organization picker or read an admin token from browser-visible environment
+          variables.
         </small>
       </section>
     </main>
@@ -165,11 +165,11 @@ export function ConsoleApp({
     );
 
   const identity = session.identity;
-  const workspaceName =
+  const organizationName =
     identity.workspace?.name ??
     identity.workspaceId ??
     identity.workspace?.id ??
-    'Selected workspace';
+    'Self-hosted organization';
   async function logout() {
     try {
       await apiRequest('/auth/session', { method: 'DELETE' });
@@ -193,10 +193,10 @@ export function ConsoleApp({
           </span>
         </div>
         <div className="workspace-switcher">
-          <span>{workspaceName}</span>
+          <span>{organizationName}</span>
           <small>{identity.role} access</small>
         </div>
-        {['Workspace', 'Operations'].map((group) => (
+        {['Build', 'Operations'].map((group) => (
           <div key={group} className="nav-group">
             <p>{group}</p>
             <nav aria-label={group}>
@@ -233,7 +233,7 @@ export function ConsoleApp({
             </strong>
           </div>
           <div className="topbar-actions">
-            <StatusBadge tone="soft">Test environment</StatusBadge>
+            <StatusBadge tone="soft">Self-hosted</StatusBadge>
             <span className="operator">
               {identity.name ?? identity.label ?? identity.email ?? identity.role}
             </span>
@@ -247,7 +247,16 @@ export function ConsoleApp({
           {(activeView === 'providers' || activeView === 'tools') && (
             <Integrations initialTab={activeView} identity={identity} />
           )}
-          {['calls', 'evaluations', 'performance', 'infrastructure'].includes(activeView) && (
+          {[
+            'calls',
+            'campaigns',
+            'suppressions',
+            'handoffs',
+            'evaluations',
+            'performance',
+            'costs',
+            'infrastructure',
+          ].includes(activeView) && (
             <Operations view={activeView} extensions={extensions} role={identity.role} />
           )}
         </main>

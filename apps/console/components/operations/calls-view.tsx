@@ -8,6 +8,7 @@ import {
   type SessionIdentity,
   type UsageItem,
 } from '../../lib/api';
+import type { CallCostSummary } from '../../lib/operator-api';
 import {
   EmptyState,
   JsonEvidence,
@@ -19,11 +20,14 @@ import {
   StatusBadge,
 } from '../primitives';
 import { RecordingPanel } from './recording-panel';
+import { TelemetryStream } from './telemetry-stream';
+import { LiveCallForm } from './live-call-form';
 
 type CallEvidence = {
   detail?: CallSummary & Record<string, unknown>;
   events: CallEvent[];
   usage: UsageItem[];
+  cost?: CallCostSummary;
   error?: string;
 };
 
@@ -70,14 +74,16 @@ export function CallsView({ role }: { role: SessionIdentity['role'] }) {
       apiRequest<CallSummary & Record<string, unknown>>(`/calls/${selectedId}`),
       apiRequest<unknown>(`/calls/${selectedId}/events`),
       apiRequest<unknown>(`/calls/${selectedId}/usage`),
-    ]).then(([detail, events, usage]) => {
+      apiRequest<CallCostSummary>(`/calls/${selectedId}/cost`),
+    ]).then(([detail, events, usage, cost]) => {
       if (!current) return;
       setEvidence({
         detail: detail.status === 'fulfilled' ? detail.value.data : undefined,
         events: events.status === 'fulfilled' ? items<CallEvent>(events.value.data) : [],
         usage: usage.status === 'fulfilled' ? items<UsageItem>(usage.value.data) : [],
+        cost: cost.status === 'fulfilled' ? cost.value.data : undefined,
         error:
-          [detail, events, usage].find((result) => result.status === 'rejected')?.status ===
+          [detail, events, usage, cost].find((result) => result.status === 'rejected')?.status ===
           'rejected'
             ? 'Some call evidence could not be loaded. Missing evidence is not treated as zero.'
             : undefined,
@@ -115,11 +121,12 @@ export function CallsView({ role }: { role: SessionIdentity['role'] }) {
           <small>No carrier calls</small>
         </div>
         <div>
-          <span>Performance aggregate</span>
-          <strong aria-label="Unavailable">—</strong>
-          <small>No cohort endpoint</small>
+          <span>Telemetry stream</span>
+          <strong>{selectedId ? 'SSE' : '—'}</strong>
+          <small>Selected call stages and playback</small>
         </div>
       </div>
+      <LiveCallForm role={role} onLaunched={load} />
       {calls.length === 0 ? (
         <EmptyState title="No call data returned">
           The connected API has no matching real calls or simulations. This is not a telemetry
@@ -205,6 +212,25 @@ export function CallsView({ role }: { role: SessionIdentity['role'] }) {
                 </div>
                 <div>
                   <h3>Usage ledger</h3>
+                  {evidence.cost && (
+                    <div className="metrics">
+                      <div>
+                        <span>Estimated</span>
+                        <strong>{evidence.cost.estimatedPaise} paise</strong>
+                        <small>INR ledger</small>
+                      </div>
+                      <div>
+                        <span>Reconciled delta</span>
+                        <strong>{evidence.cost.reconciledPaise} paise</strong>
+                        <small>Invoice corrections</small>
+                      </div>
+                      <div>
+                        <span>Total</span>
+                        <strong>{evidence.cost.totalPaise} paise</strong>
+                        <small>{evidence.cost.currency}</small>
+                      </div>
+                    </div>
+                  )}
                   {evidence.usage.length === 0 ? (
                     <EmptyState title="No usage entries">
                       Cost remains unavailable. The console does not turn missing usage into zero
@@ -242,9 +268,8 @@ export function CallsView({ role }: { role: SessionIdentity['role'] }) {
                   )}
                 </div>
                 <Notice tone="warning">
-                  Recording playback and transcript/audio alignment are unavailable unless the
-                  selected call metadata supplies an artifact state and URL. Generated text is never
-                  relabelled as delivered speech.
+                  Transcript/audio alignment remains unavailable without a registered production
+                  recording manifest API. Generated text is never relabelled as delivered speech.
                 </Notice>
               </div>
             </Panel>
@@ -252,6 +277,7 @@ export function CallsView({ role }: { role: SessionIdentity['role'] }) {
               call={evidence.detail ?? calls.find((call) => call.id === selectedId)}
               role={role}
             />
+            <TelemetryStream callId={selectedId} />
           </div>
         </div>
       )}

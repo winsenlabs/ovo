@@ -34,7 +34,7 @@ const services = createSessionServicesPlugin(
 const store = {} as ControlStore;
 
 describe('immutable release runtime', () => {
-  it('does not approve a different remote MCP tool with an identical schema', () => {
+  it('does not approve a different remote MCP tool with an identical schema', async () => {
     const configured = AgentConfig.parse({
       name: 'Fixture',
       mode: 'announcement',
@@ -53,21 +53,24 @@ describe('immutable release runtime', () => {
       ],
     });
     const approvalStore = {
-      getMcpApproval: () => ({
+      getMcpApproval: async () => ({
         connectionId: 'connection',
         remoteName: 'getAccount',
         schemaDigest: 'same-schema',
       }),
-      listMcpDiscoveredTools: () => [{ remoteName: 'getAccount', schemaDigest: 'same-schema' }],
+      getMcpDiscoveredTool: async () => ({
+        remoteName: 'getAccount',
+        schemaDigest: 'same-schema',
+      }),
     } as unknown as ControlStore;
-    expect(() =>
+    await expect(
       validateRelease({ ...agent, config: configured }, [], approvalStore, [], services),
-    ).toThrow('not currently approved');
+    ).rejects.toThrow('not currently approved');
   });
 
   it.each(['inputSchema', 'outputSchema'] as const)(
     'rejects changed %s despite an unchanged claimed digest',
-    (field) => {
+    async (field) => {
       const tool = {
         id: 'check',
         description: 'check',
@@ -88,23 +91,21 @@ describe('immutable release runtime', () => {
         ],
       });
       const approvalStore = {
-        getMcpApproval: () => ({
+        getMcpApproval: async () => ({
           connectionId: 'connection',
           remoteName: 'getAccount',
           schemaDigest: 'same-schema',
         }),
-        listMcpDiscoveredTools: () => [
-          {
-            remoteName: 'getAccount',
-            schemaDigest: 'same-schema',
-            inputSchema: { type: 'object' },
-            outputSchema: { type: 'object' },
-          },
-        ],
+        getMcpDiscoveredTool: async () => ({
+          remoteName: 'getAccount',
+          schemaDigest: 'same-schema',
+          inputSchema: { type: 'object' },
+          outputSchema: { type: 'object' },
+        }),
       } as unknown as ControlStore;
-      expect(() =>
+      await expect(
         validateRelease({ ...agent, config: configured }, [], approvalStore, [], services),
-      ).toThrow('not currently approved');
+      ).rejects.toThrow('not currently approved');
     },
   );
 
@@ -133,19 +134,47 @@ describe('immutable release runtime', () => {
       draftVersion: 1,
       config,
       plugins: [{ id: 'fixture.behavior', version: '1.0.0' }],
+      providerBindings: {},
+      mcpTools: {},
       createdAt: '2026-01-01T00:00:00.000Z',
       createdBy: 'admin',
     };
     await expect(
       runRelease(release, [replacement], services, 'hello', {}, 'session-a'),
     ).rejects.toThrow('Pinned plugin is not installed: fixture.behavior@1.0.0');
+    const mcpConfig = AgentConfig.parse({
+      ...config,
+      allowedTools: ['lookup'],
+      tools: [
+        {
+          id: 'lookup',
+          description: 'Lookup',
+          connector: 'mcp',
+          connectionId: 'connection-a',
+          remoteName: 'lookup',
+          schemaDigest: 'sha256:lookup',
+          inputSchema: { type: 'object' },
+          effect: 'read',
+        },
+      ],
+    });
+    await expect(
+      runRelease(
+        { ...release, config: mcpConfig },
+        [replacement],
+        services,
+        'hello',
+        {},
+        'session-a',
+      ),
+    ).rejects.toThrow('Release is missing immutable MCP snapshot for lookup');
     expect(applied).not.toHaveBeenCalled();
   });
 
-  it('requires exactly one mode-compatible behavior provider', () => {
+  it('requires exactly one mode-compatible behavior provider', async () => {
     const announcement = createAnnouncementBehaviorPlugin(),
       faq = createFaqBehaviorPlugin();
-    expect(() =>
+    await expect(
       validateRelease(
         agent,
         [{ id: faq.manifest.id, version: faq.manifest.version }],
@@ -153,8 +182,8 @@ describe('immutable release runtime', () => {
         [faq],
         services,
       ),
-    ).toThrow('incompatible with mode announcement');
-    expect(() =>
+    ).rejects.toThrow('incompatible with mode announcement');
+    await expect(
       validateRelease(
         agent,
         [
@@ -165,10 +194,10 @@ describe('immutable release runtime', () => {
         [announcement, faq],
         services,
       ),
-    ).toThrow('exactly one ovo.behavior');
+    ).rejects.toThrow('exactly one ovo.behavior');
   });
 
-  it('rejects unrelated or non-session plugins from a release lock', () => {
+  it('rejects unrelated or non-session plugins from a release lock', async () => {
     const announcement = createAnnouncementBehaviorPlugin(),
       management = definePlugin(
         {
@@ -183,7 +212,7 @@ describe('immutable release runtime', () => {
         },
         () => undefined,
       );
-    expect(() =>
+    await expect(
       validateRelease(
         agent,
         [
@@ -194,6 +223,6 @@ describe('immutable release runtime', () => {
         [announcement, management],
         services,
       ),
-    ).toThrow('must be session scoped');
+    ).rejects.toThrow('must be session scoped');
   });
 });

@@ -6,8 +6,12 @@ const validViews = new Set([
   'providers',
   'tools',
   'calls',
+  'campaigns',
+  'suppressions',
+  'handoffs',
   'evaluations',
   'performance',
+  'costs',
   'infrastructure',
 ]);
 

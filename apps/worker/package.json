@@ -9,8 +9,21 @@
     "start": "node dist/main.cjs"
   },
   "dependencies": {
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-cache": "workspace:*",
     "@winsendotai/ovo-plugin-orchestration": "workspace:*",
+    "@winsendotai/ovo-plugin-operations": "workspace:*",
+    "@winsendotai/ovo-plugin-media": "workspace:*",
+    "@winsendotai/ovo-plugin-ledger": "workspace:*",
+    "@winsendotai/ovo-plugin-observability": "workspace:*",
+    "@winsendotai/ovo-plugin-providers": "workspace:*",
+    "@winsendotai/ovo-plugin-recordings": "workspace:*",
+    "@winsendotai/ovo-plugin-secrets": "workspace:*",
+    "@winsendotai/ovo-plugin-session": "workspace:*",
+    "@winsendotai/ovo-plugin-speech-cache": "workspace:*",
+    "@winsendotai/ovo-plugin-storage": "workspace:*",
     "@winsendotai/ovo-plugin-telephony-twilio": "workspace:*",
+    "@winsendotai/ovo-plugin-voice": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*"
   }
 }

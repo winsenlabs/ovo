@@ -22,7 +22,7 @@ function archiveError(reply: FastifyReply, error: unknown, sendError: ApiError) 
 export function registerRecordingRoutes(input: {
   app: FastifyInstance;
   store: ControlStore;
-  recordings: RecordingArchive;
+  recordings?: RecordingArchive;
   requireRole: (request: FastifyRequest, role: 'viewer' | 'editor') => Principal;
   error: ApiError;
 }) {
@@ -32,8 +32,15 @@ export function registerRecordingRoutes(input: {
   app.get('/v1/calls/:callId/recordings', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'viewer');
     const { callId } = params.parse(request.params);
-    if (!store.getCall(principal.workspaceId, callId))
+    if (!(await store.getCall(principal.workspaceId, callId)))
       return error(reply, 404, 'not_found', 'Call not found');
+    if (!recordings)
+      return error(
+        reply,
+        503,
+        'recordings_unavailable',
+        'Fixture recording storage is not configured',
+      );
     return { items: await recordings.list(principal.workspaceId, callId), nextCursor: null };
   });
 
@@ -42,8 +49,15 @@ export function registerRecordingRoutes(input: {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const principal = requireRole(request, 'viewer');
       const { callId, recordingId } = params.parse(request.params);
-      if (!store.getCall(principal.workspaceId, callId))
+      if (!(await store.getCall(principal.workspaceId, callId)))
         return error(reply, 404, 'not_found', 'Call not found');
+      if (!recordings)
+        return error(
+          reply,
+          503,
+          'recordings_unavailable',
+          'Fixture recording storage is not configured',
+        );
       try {
         const result = await recordings.read(principal.workspaceId, callId, recordingId!);
         return reply
@@ -62,8 +76,15 @@ export function registerRecordingRoutes(input: {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const principal = requireRole(request, 'editor');
       const { callId } = params.parse(request.params);
-      const call = store.getCall(principal.workspaceId, callId);
+      const call = await store.getCall(principal.workspaceId, callId);
       if (!call) return error(reply, 404, 'not_found', 'Call not found');
+      if (!recordings)
+        return error(
+          reply,
+          503,
+          'recordings_unavailable',
+          'Fixture recording storage is not configured',
+        );
       if (call.kind !== 'simulation')
         return error(
           reply,

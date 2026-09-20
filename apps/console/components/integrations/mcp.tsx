@@ -21,6 +21,7 @@ import {
   PanelHeader,
   StatusBadge,
 } from '../primitives';
+import { bindDiscoveredMcpTool } from './mcp-agent-config';
 const safeMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 export function McpManager({
@@ -149,24 +150,20 @@ export function McpManager({
           effect: tool.effect,
         },
       ]);
-      if (!agent.config.allowedTools.includes(tool.id)) {
-        const nextConfig = {
-          ...agent.config,
-          allowedTools: [...agent.config.allowedTools, tool.id],
-        };
-        try {
-          await apiRequest(`/agents/${agent.id}`, {
-            method: 'PUT',
-            headers: { 'if-match': ifMatch(agent.draftVersion) },
-            body: JSON.stringify({ config: nextConfig }),
-          });
-        } catch (error) {
-          setMessage({
-            tone: 'warning',
-            text: `The approval was stored, but the agent draft allowlist was not updated: ${safeMessage(error, 'draft update failed')}. Resolve the draft before publishing.`,
-          });
-          return;
-        }
+      const nextConfig = bindDiscoveredMcpTool(agent.config, connection, tool);
+      try {
+        await apiRequest(`/agents/${agent.id}`, {
+          method: 'PUT',
+          headers: { 'if-match': ifMatch(agent.draftVersion) },
+          body: JSON.stringify({ config: nextConfig }),
+        });
+        await reload();
+      } catch (error) {
+        setMessage({
+          tone: 'warning',
+          text: `The approval was stored, but its exact tool definition was not added to the agent draft: ${safeMessage(error, 'draft update failed')}. Resolve the draft before publishing.`,
+        });
+        return;
       }
       setMessage({
         tone: 'neutral',

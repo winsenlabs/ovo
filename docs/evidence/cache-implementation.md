@@ -5,6 +5,7 @@
 - `@winsendotai/ovo-plugin-cache` is a private, process-scope Cordis plugin providing `ovo.cache`.
 - `@winsendotai/ovo-plugin-speech-cache` is a private, session-scope output adapter providing `ovo.speech-output`. It requires only the process cache plus normalized `ovo.tts` and `ovo.audio-player` ports. It creates no provider or global SDK client.
 - The speech adapter is compatible with the existing `BoundedSpeechScheduler`; acknowledgments, progress phrases, and announcements continue through that scheduler's queue, epoch, interruption, and playback evidence path.
+- `apps/worker/src/speech-cache-runtime.ts` adds the live hybrid output boundary. Eligible exact text uses the existing cache adapter and an 8 kHz mu-law mark-confirmed media player; every other segment delegates unchanged to `StreamingMediaSpeechOutput` rather than buffering dynamic output through the normalized batch bridge.
 
 ## Cache bounds and isolation
 
@@ -30,11 +31,15 @@ The opaque SHA-256 key covers workspace, provider, provider-binding version, mod
 
 Neither raw text nor the compound/digested cache key is copied into cache telemetry. Cache events contain only outcome, segment ID/kind, timestamp, and optional byte count.
 
+The worker derives its allowlist only from immutable release configuration when `speechCache.enabled` is true: global/tool processing `initial` and `progress` strings, plus the literal announcement message only when `speechCache.announcement` is also true and the mode is `announcement`. Failure text, FAQ answers, inference output, tool results, rendered/private announcement variants, and merely similar text are never added. An announcement template containing variables therefore misses after rendering rather than caching personalized speech.
+
 ## Usage and cost semantics
 
 The normalized TTS port returns generated audio plus provider-native usage. The adapter emits one `tts-generation` usage event for each actual synthesis, including an uncacheable synthesis, and emits no second TTS usage row for a cache hit. Cache `hit`, `miss`, `coalesced`, and policy `bypass` are separate events.
 
 The audio-player port returns carrier/media native usage. The adapter validates and emits those rows after every playback, including cache hits, without replacing quantities with zero. Pricing remains the observability/cost ledger's responsibility; this package does not claim cached speech makes carrier or media time free. AI SDK prompt-cache token accounting is separate and was not modified here.
+
+In the live worker bridge, OpenAI's existing provider usage callback remains the only native generation-cost ingress: it fires once for an actual cache producer and not for a hit. Cache telemetry is not replayed into that provider sink, avoiding duplicate native-usage rows. The existing terminal carrier elapsed meter remains independent and covers every playback, including hits.
 
 ## Executed local evidence
 
@@ -50,12 +55,14 @@ Verified cases:
 - one generation usage event versus two carrier playback usage events for repeated cached speech; and
 - constructor configuration isolation and pre-aborted playback with no cache/provider/media work; and
 - process/session plugin manifests and normalized port dependencies.
+- live hybrid routing, exact announcement opt-in, two cache generations across four eligible plays, and an unchanged streaming path for dynamic output.
 
 Commands executed on 2026-09-20:
 
 ```text
-pnpm exec vitest run packages/plugin-cache/tests/cache.test.ts packages/plugin-speech-cache/tests/speech-cache.test.ts
-  2 files passed, 12 tests passed
+pnpm exec vitest run apps/worker/tests/speech-cache-runtime.test.ts \
+  packages/plugin-cache/tests/cache.test.ts packages/plugin-speech-cache/tests/speech-cache.test.ts
+  3 files passed, 17 tests passed
 
 pnpm exec tsc --noEmit --pretty false
   passed
@@ -72,5 +79,6 @@ node scripts/check-architecture.mjs
 - Generated audio, TTS usage, and playback usage in these tests are fixtures. No live TTS provider, carrier, codec certification, listening test, or latency target is claimed.
 - The package records native units but does not select price cards, calculate currency, or reconcile late carrier billing.
 - This is a process-memory cache. It is intentionally neither cross-worker nor durable, and it must not be used as a source of business truth.
+- Production session composition selects the hybrid plugin instead of the ordinary streaming-output plugin only when the immutable release policy enables caching; otherwise it keeps the existing streaming plugin. No live provider/carrier certification is claimed here.
 
 Resident lookups enforce the stored workspace ID even when two callers supply the same key. Direct lookups require workspace identity. The cross-workspace regression proves a miss and independent generation, never another workspace's bytes.

@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { AgentConfig } from '@winsendotai/ovo-contracts';
+import { AgentConfig, ToolDefinition } from '@winsendotai/ovo-contracts';
+import { hasInlineCredential } from './provider-config.ts';
 export const Id = z.string().uuid();
 export const PluginSelection = z.array(z.string().min(1)).min(1).max(50);
 export const AgentBody = z.object({ config: AgentConfig });
@@ -17,11 +18,19 @@ export const ProviderBindingBody = z.object({
   provider: z.string().min(1).max(120),
   environment: z.string().min(1).max(120),
   credentialId: Id,
-  config: z.record(z.string(), z.unknown()).default({}),
+  config: z
+    .record(z.string(), z.unknown())
+    .refine(
+      (value) => !hasInlineCredential(value),
+      'Provider configuration cannot contain inline credentials; use credentialId',
+    )
+    .default({}),
 });
 export const McpBody = z.object({
   label: z.string().min(1).max(120),
-  endpoint: z.url(),
+  endpoint: z
+    .url()
+    .refine((value) => !hasInlineCredential(value), 'Endpoint cannot contain credentials'),
   auth: z.enum(['none', 'bearer']),
   credentialId: Id.nullable().optional(),
 });
@@ -33,7 +42,26 @@ export const ApprovalBody = z.object({
 export const SimulationBody = z.object({
   releaseId: Id,
   input: z.string().min(1).max(20_000),
+  followUpInputs: z.array(z.string().max(20_000)).max(19).optional(),
   variables: z.record(z.string(), z.unknown()).default({}),
+  bindings: z
+    .object({
+      modelReplies: z
+        .array(
+          z.discriminatedUnion('kind', [
+            z.object({ kind: z.literal('text'), text: z.string().max(20_000) }),
+            z.object({
+              kind: z.literal('tool'),
+              toolId: ToolDefinition.shape.id,
+              input: z.unknown(),
+            }),
+          ]),
+        )
+        .max(20)
+        .optional(),
+      toolResults: z.record(ToolDefinition.shape.id, z.unknown()).optional(),
+    })
+    .optional(),
 });
 export const EvaluationBody = z.object({
   releaseId: Id,

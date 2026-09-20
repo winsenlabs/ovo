@@ -1,28 +1,47 @@
 import type { ConsoleExtension } from '@winsendotai/ovo-ui';
-import type { AgentDraft, Release } from '../../lib/api';
-import { EmptyState, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
+import type { AgentDraft, AgentReadiness, Release } from '../../lib/api';
+import {
+  EmptyState,
+  Notice,
+  Panel,
+  PanelHeader,
+  ResponsiveTable,
+  StatusBadge,
+} from '../primitives';
+import { configurationDiff } from './release-diff';
 export function StudioRail({
   selected,
   releases,
   extensions,
+  readiness,
+  readinessError,
 }: {
   selected: AgentDraft;
   releases: Release[];
   extensions: readonly ConsoleExtension[];
+  readiness?: AgentReadiness;
+  readinessError?: string;
 }) {
+  const latest = releases[0];
+  const differences = latest ? configurationDiff(latest.config, selected.config) : [];
   return (
     <aside className="studio-rail" aria-label="Release readiness">
       <Panel labelledBy="readiness-title">
         <PanelHeader
           id="readiness-title"
           title="Release readiness"
-          badge={<StatusBadge tone="warning">API validated</StatusBadge>}
+          badge={
+            <StatusBadge tone={readiness?.releaseReady ? 'good' : 'warning'}>
+              {readiness ? (readiness.releaseReady ? 'Ready' : 'Blocked') : 'Checking'}
+            </StatusBadge>
+          }
         />
         <div className="panel-body">
           <p className="muted">
-            Only the publish endpoint can certify this draft against secrets, capabilities, tools,
-            tests and the plugin graph.
+            The readiness API validates this exact saved draft against secrets, capabilities, tools
+            and its auto-derived plugin graph.
           </p>
+          {readinessError && <Notice tone="danger">{readinessError}</Notice>}
           <ul className="check-list">
             <li>
               <span>{selected.config.name.trim() ? '✓' : '!'}</span> Identity present
@@ -45,9 +64,79 @@ export function StudioRail({
                 : 'not required by mode'}
             </li>
             <li>
-              <span>?</span> Credentials, schemas and test evidence checked on publish
+              <span>{readiness?.releaseReady ? '✓' : '!'}</span>
+              {readiness?.releaseReady
+                ? 'Release validation passed'
+                : 'Release validation not yet passing'}
             </li>
           </ul>
+          {readiness?.blockers.length ? (
+            <Notice tone="danger">
+              <strong>Blockers</strong>
+              <ul>
+                {readiness.blockers.map((blocker) => (
+                  <li key={blocker}>{blocker}</li>
+                ))}
+              </ul>
+            </Notice>
+          ) : null}
+          {readiness?.requiredPluginIds.length ? (
+            <ul className="plain-list">
+              {readiness.requiredPluginIds.map((id) => (
+                <li key={id}>
+                  <small className="mono">{id}</small>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <Notice tone="warning">
+            {readiness?.liveBlockers?.[0] ??
+              'Live admission still requires current capacity, transport and provider checks.'}
+          </Notice>
+        </div>
+      </Panel>
+      <Panel labelledBy="diff-title">
+        <PanelHeader
+          id="diff-title"
+          title="Changes since release"
+          badge={
+            <StatusBadge tone={differences.length ? 'soft' : 'good'}>
+              {latest ? `${differences.length} changes` : 'First release'}
+            </StatusBadge>
+          }
+        />
+        <div className="panel-body">
+          {!latest ? (
+            <p className="muted">
+              The first release will snapshot the complete saved configuration.
+            </p>
+          ) : !differences.length ? (
+            <p className="muted">The draft matches the latest immutable release.</p>
+          ) : (
+            <ResponsiveTable label="Draft configuration changes">
+              <thead>
+                <tr>
+                  <th>Path</th>
+                  <th>Released</th>
+                  <th>Draft</th>
+                </tr>
+              </thead>
+              <tbody>
+                {differences.slice(0, 40).map((difference) => (
+                  <tr key={difference.path}>
+                    <td className="mono">{difference.path}</td>
+                    <td className="compact-json">{JSON.stringify(difference.before)}</td>
+                    <td className="compact-json">{JSON.stringify(difference.after)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </ResponsiveTable>
+          )}
+          {differences.length > 40 && (
+            <small>
+              {differences.length - 40} additional changes are omitted from this compact comparison.
+            </small>
+          )}
         </div>
       </Panel>
       <Panel labelledBy="release-title">
@@ -114,7 +203,7 @@ export function AgentDraftIndex({
 }) {
   return (
     <Panel className="wide" labelledBy="agent-index-title">
-      <PanelHeader id="agent-index-title" title="Workspace drafts" />
+      <PanelHeader id="agent-index-title" title="Organization drafts" />
       <ResponsiveTable label="Agent draft table">
         <thead>
           <tr>

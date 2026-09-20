@@ -72,7 +72,10 @@ export interface AudioPlaybackRequest {
 export interface AudioPlayer {
   play(
     request: AudioPlaybackRequest,
-    options: { signal: AbortSignal },
+    options: {
+      signal: AbortSignal;
+      report?: (phase: 'sent' | 'acknowledged', evidence: 'estimated' | 'confirmed') => void;
+    },
   ): Promise<SpeechOutputResult & { usage: readonly PlaybackUsage[] }>;
   interrupt(epoch: number): Promise<void>;
 }

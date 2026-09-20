@@ -111,21 +111,29 @@ export class InspectionRepository {
       return event;
     });
   }
-  listCallEvents(workspaceId: string, callId: string) {
+  listCallEvents(workspaceId: string, callId: string, limit = 50, cursor?: string) {
     if (!this.getCall(workspaceId, callId)) throw new Error('Call not found');
-    return (
-      this.db
-        .prepare('SELECT * FROM call_events WHERE call_id=? ORDER BY sequence')
-        .all(callId) as Row[]
-    ).map((row) => ({
-      id: String(row.id),
-      callId: String(row.call_id),
-      sequence: Number(row.sequence),
-      at: String(row.at),
-      type: String(row.type),
-      epoch: Number(row.epoch),
-      payload: parseObject(row.payload_json),
-    }));
+    const size = pageLimit(limit),
+      after = cursorValue(cursor),
+      rows = this.db
+        .prepare(
+          'SELECT * FROM call_events WHERE call_id=? AND sequence>? ORDER BY sequence LIMIT ?',
+        )
+        .all(callId, after, size + 1) as Row[],
+      more = rows.length > size;
+    if (more) rows.pop();
+    return {
+      items: rows.map((row) => ({
+        id: String(row.id),
+        callId: String(row.call_id),
+        sequence: Number(row.sequence),
+        at: String(row.at),
+        type: String(row.type),
+        epoch: Number(row.epoch),
+        payload: parseObject(row.payload_json),
+      })),
+      nextCursor: more ? String(rows.at(-1)!.sequence) : null,
+    };
   }
   createEvaluation(input: {
     workspaceId: string;
@@ -168,16 +176,24 @@ export class InspectionRepository {
       .get(workspaceId, id) as Row | undefined;
     return row ? this.mapEvaluation(row) : undefined;
   }
-  listEvaluations(workspaceId: string) {
-    return (
-      this.db
-        .prepare('SELECT * FROM evaluations WHERE workspace_id=? ORDER BY created_at DESC')
-        .all(workspaceId) as Row[]
-    ).map((row) => this.mapEvaluation(row));
+  listEvaluations(workspaceId: string, limit = 50, cursor?: string) {
+    const size = pageLimit(limit),
+      rows = this.db
+        .prepare(
+          'SELECT rowid AS cursor,* FROM evaluations WHERE workspace_id=? AND rowid>? ORDER BY rowid LIMIT ?',
+        )
+        .all(workspaceId, cursorValue(cursor), size + 1) as Row[],
+      more = rows.length > size;
+    if (more) rows.pop();
+    return {
+      items: rows.map((row) => this.mapEvaluation(row)),
+      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
+    };
   }
   addUsage(input: Omit<UsageEntry, 'id' | 'createdAt'> & { id?: string }) {
     if (!/^\d+(\.\d+)?$/.test(input.quantity) || !/^\d+$/.test(input.amountMinor))
       throw new Error('Usage quantities must be nonnegative decimal strings');
+    if (!this.getCall(input.workspaceId, input.callId)) throw new Error('Call not found');
     const id = input.id ?? randomUUID(),
       createdAt = now();
     this.db
@@ -201,29 +217,34 @@ export class InspectionRepository {
       );
     return { ...input, id, createdAt };
   }
-  listUsage(workspaceId: string, callId: string): UsageEntry[] {
+  listUsage(workspaceId: string, callId: string, limit = 50, cursor?: string) {
     if (!this.getCall(workspaceId, callId)) throw new Error('Call not found');
-    return (
-      this.db
+    const size = pageLimit(limit),
+      rows = this.db
         .prepare(
-          'SELECT * FROM usage_entries WHERE workspace_id=? AND call_id=? ORDER BY created_at',
+          'SELECT rowid AS cursor,* FROM usage_entries WHERE workspace_id=? AND call_id=? AND rowid>? ORDER BY rowid LIMIT ?',
         )
-        .all(workspaceId, callId) as Row[]
-    ).map((row) => ({
-      id: String(row.id),
-      workspaceId: String(row.workspace_id),
-      callId: String(row.call_id),
-      provider: String(row.provider),
-      requestId: String(row.request_id),
-      quantity: String(row.quantity),
-      unit: String(row.unit),
-      priceCardId: String(row.price_card_id),
-      priceCardVersion: String(row.price_card_version),
-      amountMinor: String(row.amount_minor),
-      currency: String(row.currency),
-      state: String(row.state) as UsageEntry['state'],
-      createdAt: String(row.created_at),
-    }));
+        .all(workspaceId, callId, cursorValue(cursor), size + 1) as Row[],
+      more = rows.length > size;
+    if (more) rows.pop();
+    return {
+      items: rows.map((row) => ({
+        id: String(row.id),
+        workspaceId: String(row.workspace_id),
+        callId: String(row.call_id),
+        provider: String(row.provider),
+        requestId: String(row.request_id),
+        quantity: String(row.quantity),
+        unit: String(row.unit),
+        priceCardId: String(row.price_card_id),
+        priceCardVersion: String(row.price_card_version),
+        amountMinor: String(row.amount_minor),
+        currency: String(row.currency),
+        state: String(row.state) as UsageEntry['state'],
+        createdAt: String(row.created_at),
+      })),
+      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
+    };
   }
   audit(input: {
     workspaceId: string;

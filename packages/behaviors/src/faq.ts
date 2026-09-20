@@ -57,6 +57,7 @@ export type FaqMatch =
       reason: 'no-match' | 'below-threshold' | 'ambiguous' | 'requires-tool';
       evidence: FaqCandidateEvidence[];
       toolId?: string;
+      entryId?: string;
     };
 
 export class FaqBehavior implements Behavior {
@@ -112,7 +113,13 @@ export class FaqBehavior implements Behavior {
 
     const selected = this.config.faq.find((entry) => entry.id === first.id)!;
     if (selected.requiresTool) {
-      return { kind: 'clarify', reason: 'requires-tool', evidence, toolId: selected.requiresTool };
+      return {
+        kind: 'clarify',
+        reason: 'requires-tool',
+        evidence,
+        toolId: selected.requiresTool,
+        entryId: selected.id,
+      };
     }
     return {
       kind: 'answer',

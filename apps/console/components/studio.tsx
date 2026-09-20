@@ -10,8 +10,13 @@ import {
   PanelHeader,
   StatusBadge,
 } from './primitives';
-import { FaqEditor, PluginField, ProviderMap } from './studio/configuration-panels';
+import { PluginField, ProviderMap } from './studio/configuration-panels';
+import { FaqEditor } from './studio/faq-editor';
+import { CostPolicyEditor } from './studio/cost-policy-editor';
+import { SpeechCacheEditor } from './studio/speech-cache-editor';
 import { AgentDraftIndex, StudioRail } from './studio/release-panels';
+import { ScriptEditor } from './studio/script-editor';
+import { ToolsEditor } from './studio/tools-editor';
 import { useAgentStudio } from './studio/use-agent-studio';
 const modes: { id: AgentConfig['mode']; title: string; description: string; kind: string }[] = [
   {
@@ -59,6 +64,8 @@ export function AgentStudio({
     conflict,
     bindings,
     releases,
+    readiness,
+    readinessError,
     releaseError,
     publishing,
     update,
@@ -66,6 +73,7 @@ export function AgentStudio({
     publish,
     activeForms,
   } = useAgentStudio(extensions);
+  const applyUpdate: typeof update = identity.role === 'viewer' ? () => undefined : update;
   if (loading) return <LoadingBlock label="Loading agents" />;
   if (loadError && !selected)
     return (
@@ -130,9 +138,18 @@ export function AgentStudio({
           <button
             className="button primary"
             onClick={publish}
-            disabled={publishing || saveState === 'saving' || identity.role === 'viewer'}
+            disabled={
+              publishing ||
+              !['idle', 'saved'].includes(saveState) ||
+              identity.role === 'viewer' ||
+              readiness?.releaseReady === false
+            }
           >
-            {publishing ? 'Validating…' : 'Publish release'}
+            {publishing
+              ? 'Validating…'
+              : readiness?.releaseReady === false
+                ? 'Resolve release blockers'
+                : 'Publish release'}
           </button>
         </div>
       </header>
@@ -179,6 +196,11 @@ export function AgentStudio({
           {releaseError}
         </Notice>
       )}
+      {identity.role === 'viewer' && (
+        <Notice>
+          Viewer access is read-only. Draft authoring and publishing controls are disabled.
+        </Notice>
+      )}
       <div className="studio-layout">
         <div className="stack">
           <Panel labelledBy="mode-title">
@@ -200,8 +222,9 @@ export function AgentStudio({
                         type="radio"
                         name="mode"
                         checked={selected.config.mode === mode.id}
+                        disabled={identity.role === 'viewer'}
                         onChange={() =>
-                          update({
+                          applyUpdate({
                             ...selected.config,
                             mode: mode.id,
                             ...(mode.id === 'context' ? { allowedTools: [] } : {}),
@@ -237,14 +260,24 @@ export function AgentStudio({
                     key={field.path}
                     field={field}
                     config={selected.config}
-                    update={update}
+                    update={applyUpdate}
                   />
                 ))}
               </div>
             </Panel>
           ))}
-          {selected.config.mode === 'faq' && <FaqEditor config={selected.config} update={update} />}
-          <ProviderMap config={selected.config} bindings={bindings} update={update} />
+          {selected.config.mode === 'faq' && (
+            <FaqEditor config={selected.config} update={applyUpdate} />
+          )}
+          {(selected.config.mode === 'announcement' || selected.config.mode === 'faq') && (
+            <ScriptEditor config={selected.config} update={applyUpdate} />
+          )}
+          {(selected.config.mode === 'faq' || selected.config.mode === 'agent') && (
+            <ToolsEditor config={selected.config} update={applyUpdate} />
+          )}
+          <ProviderMap config={selected.config} bindings={bindings} update={applyUpdate} />
+          <SpeechCacheEditor config={selected.config} update={applyUpdate} />
+          <CostPolicyEditor config={selected.config} update={applyUpdate} />
           <Panel labelledBy="recording-title">
             <PanelHeader
               id="recording-title"
@@ -256,8 +289,9 @@ export function AgentStudio({
                 <input
                   type="checkbox"
                   checked={selected.config.recording}
+                  disabled={identity.role === 'viewer'}
                   onChange={(event) =>
-                    update({ ...selected.config, recording: event.target.checked })
+                    applyUpdate({ ...selected.config, recording: event.target.checked })
                   }
                 />
                 <span>
@@ -275,11 +309,17 @@ export function AgentStudio({
             </div>
           </Panel>
           <div className="desktop-authoring-note">
-            <strong>Flow graph authoring requires desktop.</strong> This contract currently exposes
-            message, FAQ, context and bounded agent controls rather than a script-state graph.
+            <strong>Desktop is recommended for script table authoring.</strong> JSON import remains
+            available on smaller screens, and diagnostics never depend on a canvas.
           </div>
         </div>
-        <StudioRail selected={selected} releases={releases} extensions={extensions} />
+        <StudioRail
+          selected={selected}
+          releases={releases}
+          extensions={extensions}
+          readiness={readiness}
+          readinessError={readinessError}
+        />
       </div>
       <AgentDraftIndex agents={agents} select={setSelected} />
     </>

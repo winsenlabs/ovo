@@ -27,6 +27,19 @@ resource "aws_iam_role" "api" {
   })
 }
 
+resource "aws_iam_role_policy" "api_recordings" {
+  role = aws_iam_role.api.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid      = "ReadAndManageRecordingArtifacts"
+      Effect   = "Allow"
+      Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket", "s3:AbortMultipartUpload"]
+      Resource = ["arn:aws:s3:::${var.recordings_bucket}", "arn:aws:s3:::${var.recordings_bucket}/*"]
+    }]
+  })
+}
+
 resource "aws_iam_role" "console" {
   name               = "${local.name}-console"
   assume_role_policy = aws_iam_role.api.assume_role_policy
@@ -92,8 +105,13 @@ resource "aws_iam_role_policy" "worker" {
         Action    = ["ecs:UpdateTaskProtection"]
         Resource  = "*"
         Condition = { ArnEquals = { "ecs:cluster" = aws_ecs_cluster.this.arn } }
+      },
+      {
+        Sid      = "WriteRecordingArtifacts"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket", "s3:AbortMultipartUpload"]
+        Resource = ["arn:aws:s3:::${var.recordings_bucket}", "arn:aws:s3:::${var.recordings_bucket}/*"]
       }
     ]
   })
 }
-

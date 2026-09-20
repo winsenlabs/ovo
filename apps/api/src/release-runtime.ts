@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { toolDefinitionMatchesDiscovery } from '@winsendotai/ovo-plugin-tools-mcp';
 import { BEHAVIOR_PLUGIN_IDS } from '@winsendotai/ovo-behaviors';
 import type { Behavior, OperationStore, SecretResolver } from '@winsendotai/ovo-contracts';
@@ -74,10 +75,19 @@ function validatePermittedGraph(
   if (behaviors.length !== 1)
     throw new Error('Release must select exactly one ovo.behavior provider');
   const behavior = behaviors[0]!;
-  if (behavior.manifest.id !== MODE_BEHAVIOR_IDS[agent.config.mode])
+  const expectedBehavior =
+    agent.config.mode === 'faq' && agent.config.faq.some((entry) => entry.requiresTool)
+      ? BEHAVIOR_PLUGIN_IDS.faqTools
+      : MODE_BEHAVIOR_IDS[agent.config.mode];
+  if (behavior.manifest.id !== expectedBehavior)
     throw new Error(
       `Behavior ${behavior.manifest.id} is incompatible with mode ${agent.config.mode}`,
     );
+  if (
+    (agent.config.mode === 'context' || agent.config.mode === 'agent') &&
+    Object.keys(agent.config.providers).length === 0
+  )
+    throw new Error(`Mode ${agent.config.mode} requires a configured provider binding`);
 
   const reachable = new Set<string>();
   const visit = (definition: PluginDefinition) => {
@@ -99,7 +109,7 @@ function validatePermittedGraph(
     );
 }
 
-export function validateRelease(
+export async function validateRelease(
   agent: AgentDraft,
   plugins: { id: string; version: string }[],
   store: ControlStore,
@@ -110,17 +120,19 @@ export function validateRelease(
   for (const id of agent.config.allowedTools)
     if (!toolIds.has(id)) throw new Error(`Allowed tool ${id} is not defined`);
   for (const binding of Object.values(agent.config.providers))
-    if (!store.getProviderBinding(agent.workspaceId, binding))
+    if (!(await store.getProviderBinding(agent.workspaceId, binding)))
       throw new Error(`Provider binding ${binding} is missing`);
   for (const tool of agent.config.tools.filter(
     (item) => item.connector === 'mcp' && agent.config.allowedTools.includes(item.id),
   )) {
-    const approval = store.getMcpApproval(agent.workspaceId, agent.id, tool.id);
+    const approval = await store.getMcpApproval(agent.workspaceId, agent.id, tool.id);
     const discovered =
       approval &&
-      store
-        .listMcpDiscoveredTools(agent.workspaceId, approval.connectionId)
-        .find((item) => item.remoteName === approval.remoteName);
+      (await store.getMcpDiscoveredTool(
+        agent.workspaceId,
+        approval.connectionId,
+        approval.remoteName,
+      ));
     if (
       !approval ||
       tool.connectionId !== approval.connectionId ||
@@ -156,7 +168,21 @@ export async function runRelease(
   input: string,
   variables: Record<string, unknown>,
   sessionId: string,
+  options: {
+    followUpInputs?: string[];
+    onTurn?: (turn: { input: string; output: string; epoch: number }) => void | Promise<void>;
+  } = {},
 ) {
+  if (release.config.mode === 'context' || release.config.mode === 'agent')
+    for (const slot of Object.keys(release.config.providers))
+      if (!release.providerBindings[slot])
+        throw new Error(`Release is missing immutable provider binding snapshot for ${slot}`);
+  for (const tool of release.config.tools.filter(
+    (candidate) =>
+      candidate.connector === 'mcp' && release.config.allowedTools.includes(candidate.id),
+  ))
+    if (!release.mcpTools[tool.id])
+      throw new Error(`Release is missing immutable MCP snapshot for ${tool.id}`);
   const selected = exactDefinitions(release.plugins, catalog);
   validatePermittedGraph(
     {
@@ -186,9 +212,35 @@ export async function runRelease(
   ];
   const composition = await compose(rows, [services, ...selected]);
   try {
-    const behavior = composition.ctx.get(BEHAVIOR_SERVICE) as Behavior | undefined;
+    const behavior = composition.ctx.get(BEHAVIOR_SERVICE) as
+      | (Behavior & {
+          beginTurn?: (epoch: number) => void;
+          onPlayback?: (event: {
+            id: string;
+            text: string;
+            epoch: number;
+            state: 'completed';
+            evidence: 'simulated';
+          }) => void;
+        })
+      | undefined;
     if (!behavior) throw new Error(`Release composition does not provide ${BEHAVIOR_SERVICE}`);
-    return await behavior.respond(input, variables);
+    let output = '';
+    const inputs = [input, ...(options.followUpInputs ?? [])];
+    for (const [epoch, turnInput] of inputs.entries()) {
+      behavior.beginTurn?.(epoch);
+      output = await behavior.respond(turnInput, variables);
+      behavior.onPlayback?.({
+        id: randomUUID(),
+        text: output,
+        epoch,
+        state: 'completed',
+        evidence: 'simulated',
+      });
+      await options.onTurn?.({ input: turnInput, output, epoch });
+      if (behavior.isComplete?.()) break;
+    }
+    return output;
   } finally {
     await composition.dispose();
   }

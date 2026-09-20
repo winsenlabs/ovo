@@ -9,11 +9,16 @@ import { createAgentBehavior } from './agent.ts';
 import { createAnnouncementBehavior } from './announcement.ts';
 import { createContextBehavior } from './context.ts';
 import { createFaqBehavior } from './faq.ts';
+import { ExecutingFaqBehavior } from './faq-execution.ts';
+import { withScript } from './script.ts';
 
 export * from './agent.ts';
 export * from './announcement.ts';
 export * from './context.ts';
 export * from './faq.ts';
+export * from './faq-execution.ts';
+export * from './script.ts';
+export * from './text-segmenter.ts';
 
 export const BEHAVIOR_SERVICE_KEYS = Object.freeze({
   behavior: 'ovo.behavior',
@@ -24,6 +29,7 @@ export const BEHAVIOR_SERVICE_KEYS = Object.freeze({
 export const BEHAVIOR_PLUGIN_IDS = Object.freeze({
   announcement: '@winsendotai/ovo-behavior-announcement',
   faq: '@winsendotai/ovo-behavior-faq',
+  faqTools: '@winsendotai/ovo-behavior-faq-tools',
   context: '@winsendotai/ovo-behavior-context',
   agent: '@winsendotai/ovo-behavior-agent',
 });
@@ -61,7 +67,10 @@ export function createAnnouncementBehaviorPlugin() {
       const config = parsePluginConfig(rawConfig);
       ctx.provide(
         BEHAVIOR_SERVICE_KEYS.behavior,
-        createAnnouncementBehavior(requireMode(config.agent, 'announcement')),
+        withScript(
+          config.agent,
+          createAnnouncementBehavior(requireMode(config.agent, 'announcement')),
+        ),
       );
     },
   );
@@ -83,8 +92,36 @@ export function createFaqBehaviorPlugin() {
       const config = parsePluginConfig(rawConfig);
       ctx.provide(
         BEHAVIOR_SERVICE_KEYS.behavior,
-        createFaqBehavior(requireMode(config.agent, 'faq')),
+        withScript(config.agent, createFaqBehavior(requireMode(config.agent, 'faq'))),
       );
+    },
+  );
+}
+
+export function createFaqExecutionBehaviorPlugin() {
+  return definePlugin(
+    {
+      id: BEHAVIOR_PLUGIN_IDS.faqTools,
+      version: '0.1.0',
+      contractVersion: 1,
+      scope: 'session',
+      requires: [BEHAVIOR_SERVICE_KEYS.execution],
+      provides: [BEHAVIOR_SERVICE_KEYS.behavior],
+      configSchema: { ...behaviorConfigSchema, required: ['agent', 'workspaceId', 'sessionId'] },
+      secretFields: [],
+    },
+    (ctx, rawConfig) => {
+      const config = parsePluginConfig(rawConfig);
+      if (!config.workspaceId || !config.sessionId)
+        throw new Error('FAQ tools require session identity');
+      const execution = ctx.get(BEHAVIOR_SERVICE_KEYS.execution) as Execution | undefined;
+      if (!execution) throw new Error('Missing FAQ execution service');
+      const behavior = new ExecutingFaqBehavior(requireMode(config.agent, 'faq'), execution, {
+        workspaceId: config.workspaceId,
+        sessionId: config.sessionId,
+      });
+      ctx.provide(BEHAVIOR_SERVICE_KEYS.behavior, withScript(config.agent, behavior));
+      ctx.effect(() => () => behavior.cancel());
     },
   );
 }
@@ -105,10 +142,9 @@ export function createContextBehaviorPlugin() {
       const config = parsePluginConfig(rawConfig);
       const inference = ctx.get(BEHAVIOR_SERVICE_KEYS.inference) as Inference | undefined;
       if (!inference) throw new Error(`Missing ${BEHAVIOR_SERVICE_KEYS.inference}`);
-      ctx.provide(
-        BEHAVIOR_SERVICE_KEYS.behavior,
-        createContextBehavior(requireMode(config.agent, 'context'), inference),
-      );
+      const behavior = createContextBehavior(requireMode(config.agent, 'context'), inference);
+      ctx.provide(BEHAVIOR_SERVICE_KEYS.behavior, behavior);
+      ctx.effect(() => () => behavior.cancel());
     },
   );
 }
@@ -136,13 +172,17 @@ export function createAgentBehaviorPlugin() {
       const execution = ctx.get(BEHAVIOR_SERVICE_KEYS.execution) as Execution | undefined;
       if (!inference) throw new Error(`Missing ${BEHAVIOR_SERVICE_KEYS.inference}`);
       if (!execution) throw new Error(`Missing ${BEHAVIOR_SERVICE_KEYS.execution}`);
-      ctx.provide(
-        BEHAVIOR_SERVICE_KEYS.behavior,
-        createAgentBehavior(requireMode(config.agent, 'agent'), inference, execution, {
+      const behavior = createAgentBehavior(
+        requireMode(config.agent, 'agent'),
+        inference,
+        execution,
+        {
           workspaceId: config.workspaceId,
           sessionId: config.sessionId,
-        }),
+        },
       );
+      ctx.provide(BEHAVIOR_SERVICE_KEYS.behavior, behavior);
+      ctx.effect(() => () => behavior.cancel());
     },
   );
 }
@@ -152,6 +192,7 @@ export function createBehaviorPluginCatalog() {
   return [
     createAnnouncementBehaviorPlugin(),
     createFaqBehaviorPlugin(),
+    createFaqExecutionBehaviorPlugin(),
     createContextBehaviorPlugin(),
     createAgentBehaviorPlugin(),
   ] as const;

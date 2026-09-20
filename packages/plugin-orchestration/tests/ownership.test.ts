@@ -60,6 +60,25 @@ describe.skipIf(!postgresUrl)('PostgreSQL durable orchestration integration', ()
     return store.enqueue({ id, workspaceId, idempotencyKey, payload: { fixture: true } });
   }
 
+  async function beginDial(
+    jobId: string,
+    owner: { ownerId: string; ownerEpoch: number },
+    requestId: string,
+  ) {
+    return store.beginDialSession({
+      sessionId: randomUUID(),
+      jobId,
+      organizationId: workspaceId,
+      workerId: owner.ownerId,
+      workerEndpoint: 'ws://worker.test:4100/internal/media',
+      ownerEpoch: owner.ownerEpoch,
+      generation: 1,
+      dialRequestId: requestId,
+      handshakeTokenHash: 'test-token-hash',
+      handshakeExpiresAt: new Date(Date.now() + 60_000),
+    });
+  }
+
   it('commits the job and one outbox row transactionally across idempotent enqueue', async () => {
     const first = await enqueue('job-and-outbox-once');
     const duplicate = await store.enqueue({
@@ -100,7 +119,7 @@ describe.skipIf(!postgresUrl)('PostgreSQL durable orchestration integration', ()
     if (claim.kind !== 'execute') throw new Error('expected execution ownership');
     const owner = claim.job;
     const requestId = `${job.id}:${owner.ownerEpoch}`;
-    expect(await store.beginDial(job.id, owner.ownerId, owner.ownerEpoch, requestId)).toBe(true);
+    expect(await beginDial(job.id, owner, requestId)).toBeDefined();
     expect(
       await store.markDialUnknown(
         job.id,
@@ -123,9 +142,7 @@ describe.skipIf(!postgresUrl)('PostgreSQL durable orchestration integration', ()
     expect(first.kind).toBe('execute');
     if (first.kind !== 'execute') throw new Error('expected first execution owner');
     const requestId = `${job.id}:${first.job.ownerEpoch}`;
-    expect(await store.beginDial(job.id, first.job.ownerId, first.job.ownerEpoch, requestId)).toBe(
-      true,
-    );
+    expect(await beginDial(job.id, first.job, requestId)).toBeDefined();
 
     const leased = await store.claim(job.id, 'early-reconciler', 60_000);
     expect(leased).toMatchObject({ kind: 'defer', reason: 'currently_leased' });

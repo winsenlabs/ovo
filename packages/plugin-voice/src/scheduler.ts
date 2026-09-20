@@ -146,7 +146,10 @@ export class BoundedSpeechScheduler implements Speech {
 
     try {
       const result = await raceAbort(
-        this.output.play(entry.segment, { signal: controller.signal }),
+        this.output.play(entry.segment, {
+          signal: controller.signal,
+          report: (phase, evidence) => this.evidence.record(entry.segment, phase, evidence),
+        }),
         controller.signal,
       );
       if (

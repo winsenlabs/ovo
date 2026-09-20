@@ -1,0 +1,15 @@
+{
+  "name": "@winsendotai/ovo-plugin-media",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@winsendotai/ovo-plugin-telephony-twilio": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-voice": "workspace:*"
+  }
+}

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MockLanguageModelV4 } from 'ai/test';
 import type { InferenceRequest } from '@winsendotai/ovo-contracts';
 import { AiSdkInference, SimulatedInference } from './index.ts';
@@ -34,6 +34,17 @@ function request(signal = new AbortController().signal): InferenceRequest {
 }
 
 describe('AiSdkInference', () => {
+  it('does not expose provider SDK error objects or credential fragments', async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => {
+        throw new Error('Incorrect API key: fixture-private-token');
+      },
+    });
+    const inference = new AiSdkInference({ model });
+    await expect(inference.generate(request())).rejects.toThrow(
+      'Inference provider request failed',
+    );
+  });
   it('performs one SDK step and returns a tool request without executing it', async () => {
     const model = new MockLanguageModelV4({
       doGenerate: {
@@ -93,6 +104,135 @@ describe('AiSdkInference', () => {
       textOutputTokens: 10,
       reasoningOutputTokens: 2,
     });
+  });
+
+  it('streams text deltas before completion and reports compact usage exactly once', async () => {
+    let streamController!: ReadableStreamDefaultController<any>;
+    let ready!: () => void;
+    const controllerReady = new Promise<void>((resolve) => (ready = resolve));
+    const onUsage: unknown[] = [];
+    const model = new MockLanguageModelV4({
+      doStream: async () => ({
+        stream: new ReadableStream({
+          start(controller) {
+            streamController = controller;
+            ready();
+          },
+        }),
+        response: { headers: { 'x-request-id': 'request-1' } },
+      }),
+    });
+    const inference = new AiSdkInference({
+      model,
+      onUsage: (evidence) => {
+        onUsage.push(evidence);
+      },
+    });
+    const iterator = inference.stream(request())[Symbol.asyncIterator]();
+    const first = iterator.next();
+    await controllerReady;
+    streamController.enqueue({ type: 'stream-start', warnings: [] });
+    streamController.enqueue({ type: 'response-metadata', id: 'response-1', modelId: 'model-1' });
+    streamController.enqueue({ type: 'text-start', id: 'text-1' });
+    streamController.enqueue({ type: 'text-delta', id: 'text-1', delta: 'Early sentence. ' });
+    await expect(first).resolves.toEqual({
+      done: false,
+      value: { kind: 'text-delta', delta: 'Early sentence. ' },
+    });
+    expect(onUsage).toEqual([]);
+
+    streamController.enqueue({ type: 'text-end', id: 'text-1' });
+    streamController.enqueue({
+      type: 'finish',
+      finishReason: { unified: 'stop', raw: 'stop' },
+      usage,
+    });
+    streamController.close();
+    const remaining = [];
+    for (;;) {
+      const event = await iterator.next();
+      if (event.done) break;
+      remaining.push(event.value);
+    }
+    expect(remaining).toEqual([
+      {
+        kind: 'finish',
+        usage: {
+          inputTokens: 10,
+          outputTokens: 2,
+          totalTokens: 12,
+          uncachedInputTokens: 10,
+          textOutputTokens: 2,
+        },
+      },
+    ]);
+    expect(onUsage).toEqual([
+      expect.objectContaining({ requestId: 'request-1', modelId: 'model-1' }),
+    ]);
+  });
+
+  it('streams a declared tool selection without executing it', async () => {
+    const model = new MockLanguageModelV4({
+      doStream: async () => ({
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'stream-start', warnings: [] });
+            controller.enqueue({
+              type: 'tool-call',
+              toolCallId: 'call-1',
+              toolName: 'balance',
+              input: '{"account":"A-1"}',
+            });
+            controller.enqueue({
+              type: 'finish',
+              finishReason: { unified: 'tool-calls', raw: 'tool_calls' },
+              usage,
+            });
+            controller.close();
+          },
+        }),
+      }),
+    });
+    const events = [];
+    for await (const event of new AiSdkInference({ model }).stream(request())) events.push(event);
+    expect(events).toEqual([
+      { kind: 'tool', toolId: 'balance', input: { account: 'A-1' } },
+      {
+        kind: 'finish',
+        usage: {
+          inputTokens: 10,
+          outputTokens: 2,
+          totalTokens: 12,
+          uncachedInputTokens: 10,
+          textOutputTokens: 2,
+        },
+      },
+    ]);
+  });
+
+  it('redacts streamed provider errors', async () => {
+    const logging = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const model = new MockLanguageModelV4({
+      doStream: async () => ({
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'error', error: new Error('private-token') });
+            controller.close();
+          },
+        }),
+      }),
+    });
+    const inference = new AiSdkInference({ model });
+    const consume = async () => {
+      for await (const _event of inference.stream(request())) void _event;
+    };
+    try {
+      await expect(consume()).rejects.toMatchObject({
+        message: 'Inference provider request failed',
+      });
+    } finally {
+      logging.mockRestore();
+    }
   });
 });
 

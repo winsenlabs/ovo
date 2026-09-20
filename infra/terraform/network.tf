@@ -32,11 +32,27 @@ resource "aws_vpc_security_group_ingress_rule" "application_from_alb" {
   ip_protocol                  = "tcp"
 }
 
+resource "aws_vpc_security_group_ingress_rule" "api_from_application" {
+  security_group_id            = aws_security_group.application.id
+  referenced_security_group_id = aws_security_group.application.id
+  from_port                    = 4000
+  to_port                      = 4000
+  ip_protocol                  = "tcp"
+}
+
 resource "aws_vpc_security_group_ingress_rule" "worker_from_gateway" {
   security_group_id            = aws_security_group.worker.id
   referenced_security_group_id = aws_security_group.application.id
   from_port                    = 4100
   to_port                      = 4100
+  ip_protocol                  = "tcp"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "gateway_from_worker" {
+  security_group_id            = aws_security_group.application.id
+  referenced_security_group_id = aws_security_group.worker.id
+  from_port                    = 4001
+  to_port                      = 4001
   ip_protocol                  = "tcp"
 }
 
@@ -93,6 +109,14 @@ resource "aws_vpc_security_group_egress_rule" "gateway_to_worker" {
   referenced_security_group_id = aws_security_group.worker.id
   from_port                    = 4100
   to_port                      = 4100
+  ip_protocol                  = "tcp"
+}
+
+resource "aws_vpc_security_group_egress_rule" "worker_to_gateway" {
+  security_group_id            = aws_security_group.worker.id
+  referenced_security_group_id = aws_security_group.application.id
+  from_port                    = 4001
+  to_port                      = 4001
   ip_protocol                  = "tcp"
 }
 
@@ -206,7 +230,7 @@ resource "aws_lb_listener_rule" "gateway" {
     target_group_arn = aws_lb_target_group.gateway.arn
   }
   condition {
-    path_pattern { values = ["/media/*", "/callbacks/twilio/*", "/voice/inbound/*"] }
+    path_pattern { values = ["/twilio/*", "/callbacks/twilio/*", "/voice/inbound/*"] }
   }
 }
 
@@ -217,6 +241,30 @@ resource "aws_service_discovery_private_dns_namespace" "this" {
 
 resource "aws_service_discovery_service" "worker" {
   name = "worker"
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.this.id
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+    routing_policy = "MULTIVALUE"
+  }
+}
+
+resource "aws_service_discovery_service" "api" {
+  name = "api"
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.this.id
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+    routing_policy = "MULTIVALUE"
+  }
+}
+
+resource "aws_service_discovery_service" "gateway" {
+  name = "gateway"
   dns_config {
     namespace_id = aws_service_discovery_private_dns_namespace.this.id
     dns_records {

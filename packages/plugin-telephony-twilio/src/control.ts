@@ -93,6 +93,7 @@ export class TwilioTelephonyControl implements TelephonyControl {
         twiml: buildStreamTwiml(request.streamUrl, {
           ovoJobId: request.jobId,
           ovoRequestId: request.requestId,
+          ...request.streamParameters,
         }),
         statusCallback: callbackWithRequestId(request.statusCallbackUrl, request.requestId),
         statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],

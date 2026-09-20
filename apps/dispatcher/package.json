@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@winsendotai/ovo-plugin-orchestration": "workspace:*",
+    "@winsendotai/ovo-plugin-operations": "workspace:*",
+    "@winsendotai/ovo-plugin-storage": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*"
   }
 }

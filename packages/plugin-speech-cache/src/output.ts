@@ -45,7 +45,10 @@ export class CachedSpeechOutput implements SpeechOutput {
 
   async play(
     segment: SpeechSegment,
-    options: { signal: AbortSignal },
+    options: {
+      signal: AbortSignal;
+      report?: (phase: 'sent' | 'acknowledged', evidence: 'estimated' | 'confirmed') => void;
+    },
   ): Promise<SpeechOutputResult> {
     options.signal.throwIfAborted();
     const audio = this.policy.permits(segment.text, segment.kind)

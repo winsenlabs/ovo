@@ -8,7 +8,7 @@ import {
   type McpDiscoveredTool,
   type McpToolApproval,
 } from '../models.ts';
-import { json, now, parseObject, type Row, transaction } from './shared.ts';
+import { cursorValue, json, now, pageLimit, parseObject, type Row, transaction } from './shared.ts';
 
 export class McpRepository {
   constructor(
@@ -62,12 +62,19 @@ export class McpRepository {
       .get(workspaceId, id) as Row | undefined;
     return row ? this.map(row) : undefined;
   }
-  listMcpConnections(workspaceId: string) {
-    return (
-      this.db
-        .prepare('SELECT * FROM mcp_connections WHERE workspace_id=? ORDER BY created_at DESC')
-        .all(workspaceId) as Row[]
-    ).map((row) => this.map(row));
+  listMcpConnections(workspaceId: string, limit = 50, cursor?: string) {
+    const size = pageLimit(limit),
+      rows = this.db
+        .prepare(
+          'SELECT rowid AS cursor,* FROM mcp_connections WHERE workspace_id=? AND rowid>? ORDER BY rowid LIMIT ?',
+        )
+        .all(workspaceId, cursorValue(cursor), size + 1) as Row[],
+      more = rows.length > size;
+    if (more) rows.pop();
+    return {
+      items: rows.map((row) => this.map(row)),
+      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
+    };
   }
   updateMcpConnection(
     workspaceId: string,
@@ -136,6 +143,7 @@ export class McpRepository {
     connectionId: string,
     tools: Omit<McpDiscoveredTool, 'connectionId' | 'discoveredAt'>[],
   ) {
+    if (tools.length > 100) throw new Error('MCP discovery exceeds the 100 tool limit');
     return transaction(this.db, () => {
       if (!this.getMcpConnection(workspaceId, connectionId))
         throw new Error('MCP connection not found');
@@ -154,17 +162,19 @@ export class McpRepository {
           tool.schemaDigest,
           discoveredAt,
         );
-      return this.listMcpDiscoveredTools(workspaceId, connectionId);
+      return tools.map((tool) => ({ ...tool, connectionId, discoveredAt }));
     });
   }
-  listMcpDiscoveredTools(workspaceId: string, connectionId: string): McpDiscoveredTool[] {
+  getMcpDiscoveredTool(workspaceId: string, connectionId: string, remoteName: string) {
     if (!this.getMcpConnection(workspaceId, connectionId))
       throw new Error('MCP connection not found');
-    return (
-      this.db
-        .prepare('SELECT * FROM mcp_discovered_tools WHERE connection_id=? ORDER BY remote_name')
-        .all(connectionId) as Row[]
-    ).map((row) => ({
+    const row = this.db
+      .prepare('SELECT * FROM mcp_discovered_tools WHERE connection_id=? AND remote_name=?')
+      .get(connectionId, remoteName) as Row | undefined;
+    return row ? this.mapDiscovered(row) : undefined;
+  }
+  private mapDiscovered(row: Row): McpDiscoveredTool {
+    return {
       connectionId: String(row.connection_id),
       remoteName: String(row.remote_name),
       description: String(row.description),
@@ -172,7 +182,23 @@ export class McpRepository {
       outputSchema: row.output_schema_json === null ? null : parseObject(row.output_schema_json),
       schemaDigest: String(row.schema_digest),
       discoveredAt: String(row.discovered_at),
-    }));
+    };
+  }
+  listMcpDiscoveredTools(workspaceId: string, connectionId: string, limit = 50, cursor?: string) {
+    if (!this.getMcpConnection(workspaceId, connectionId))
+      throw new Error('MCP connection not found');
+    const size = pageLimit(limit),
+      rows = this.db
+        .prepare(
+          'SELECT rowid AS cursor,* FROM mcp_discovered_tools WHERE connection_id=? AND rowid>? ORDER BY rowid LIMIT ?',
+        )
+        .all(connectionId, cursorValue(cursor), size + 1) as Row[],
+      more = rows.length > size;
+    if (more) rows.pop();
+    return {
+      items: rows.map((row) => this.mapDiscovered(row)),
+      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
+    };
   }
   upsertMcpApproval(input: {
     workspaceId: string;
@@ -223,14 +249,28 @@ export class McpRepository {
         }
       : undefined;
   }
-  listMcpApprovals(workspaceId: string, agentId: string) {
-    return (
-      this.db
+  listMcpApprovals(workspaceId: string, agentId: string, limit = 50, cursor?: string) {
+    const size = pageLimit(limit),
+      rows = this.db
         .prepare(
-          'SELECT tool_id FROM agent_mcp_tools WHERE workspace_id=? AND agent_id=? ORDER BY tool_id',
+          'SELECT rowid AS cursor,* FROM agent_mcp_tools WHERE workspace_id=? AND agent_id=? AND rowid>? ORDER BY rowid LIMIT ?',
         )
-        .all(workspaceId, agentId) as Row[]
-    ).map((row) => this.getMcpApproval(workspaceId, agentId, String(row.tool_id))!);
+        .all(workspaceId, agentId, cursorValue(cursor), size + 1) as Row[],
+      more = rows.length > size;
+    if (more) rows.pop();
+    return {
+      items: rows.map((row) => ({
+        workspaceId: String(row.workspace_id),
+        agentId: String(row.agent_id),
+        toolId: String(row.tool_id),
+        connectionId: String(row.connection_id),
+        remoteName: String(row.remote_name),
+        schemaDigest: String(row.schema_digest),
+        createdAt: String(row.created_at),
+        updatedAt: String(row.updated_at),
+      })),
+      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
+    };
   }
   deleteMcpApproval(workspaceId: string, agentId: string, toolId: string) {
     this.db

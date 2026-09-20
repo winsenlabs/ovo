@@ -8,6 +8,11 @@ locals {
   common_environment = [
     { name = "AWS_REGION", value = var.aws_region },
     { name = "OVO_ENVIRONMENT", value = var.environment },
+    { name = "OVO_ORGANIZATION_ID", value = var.organization_id },
+    { name = "OVO_PLUGIN_MODULES", value = var.plugin_modules_json },
+    { name = "OVO_RECORDINGS_BACKEND", value = "s3" },
+    { name = "OVO_RECORDINGS_BUCKET", value = var.recordings_bucket },
+    { name = "OVO_RECORDING_RETENTION_DAYS", value = tostring(var.recording_retention_days) },
   ]
   runtime_secrets = [
     { name = "DATABASE_URL", valueFrom = "${var.runtime_secret_arn}:DATABASE_URL::" },

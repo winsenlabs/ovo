@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { PluginDefinition } from '@winsendotai/ovo-runtime';
-import type { AgentDraft, Role } from '@winsendotai/ovo-plugin-storage';
+import type { AgentDraft, ReleaseRecord, Role } from '@winsendotai/ovo-plugin-storage';
+import type { DefaultSessionOptions } from './session-factory.ts';
 export interface BootstrapIdentity {
   id: string;
   label: string;
@@ -21,18 +22,37 @@ export interface ManagementApiOptions {
   identities: BootstrapIdentity[];
   sessionSecret: string;
   pluginCatalog?: readonly PluginDefinition[];
+  defaultSession?: DefaultSessionOptions;
+  costLedgerEnabled?: boolean;
+  telemetryEnabled?: boolean;
+  evaluationsEnabled?: boolean;
+  fixtureRecordingsEnabled?: boolean;
+  productionRecordingsEnabled?: boolean;
+  operationsEnabled?: boolean;
+  infrastructureEnabled?: boolean;
   createReleasePlugins?: (input: {
     agent: AgentDraft;
     sessionId: string;
-  }) => readonly PluginDefinition[];
+    release?: ReleaseRecord;
+    fixtureBindings?: boolean;
+  }) => readonly PluginDefinition[] | Promise<readonly PluginDefinition[]>;
   requireTlsForSecrets?: boolean;
   sessionTtlSeconds?: number;
   logger?: boolean;
+  trustedProxy?: string | string[];
 }
 export interface BuildApiOptions extends ManagementApiOptions {
-  databaseFile: string;
+  databaseFile?: string;
+  storageAdapter?: 'sqlite' | 'postgres';
+  controlDatabaseUrl?: string;
+  storageMaxConnections?: number;
   recordingDirectory?: string;
-  secretBackend?: 'local' | 'aws-secrets-manager';
+  productionRecordings?: import('./recording-runtime.ts').ApiProductionRecordingsOptions;
+  operations?: Omit<
+    import('./operations-runtime.ts').CreateOperationsRuntimeOptions,
+    'databaseUrl' | 'organizationId'
+  >;
+  secretBackend?: 'local' | 'encrypted-store' | 'aws-secrets-manager';
   secretsMasterKey?: string;
   awsRegion?: string;
 }

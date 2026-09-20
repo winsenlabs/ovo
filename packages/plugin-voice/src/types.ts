@@ -26,12 +26,26 @@ export interface SpeechOutputResult {
 
 /** A transport/TTS adapter must treat abort as a request to stop and flush output. */
 export interface SpeechOutput {
-  play(segment: SpeechSegment, options: { signal: AbortSignal }): Promise<SpeechOutputResult>;
+  play(
+    segment: SpeechSegment,
+    options: {
+      signal: AbortSignal;
+      report?: (phase: 'sent' | 'acknowledged', evidence: 'estimated' | 'confirmed') => void;
+    },
+  ): Promise<SpeechOutputResult>;
   interrupt(epoch: number): Promise<void>;
 }
 
 export type SpeechEvidencePhase =
-  'generated' | 'queued' | 'started' | 'completed' | 'interrupted' | 'dropped' | 'failed';
+  | 'generated'
+  | 'queued'
+  | 'started'
+  | 'sent'
+  | 'acknowledged'
+  | 'completed'
+  | 'interrupted'
+  | 'dropped'
+  | 'failed';
 
 export interface SpeechEvidence {
   sequence: number;
