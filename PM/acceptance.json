@@ -835,11 +835,16 @@
     "scenario": "Engine replaced and plugin dependency fails",
     "required": "Behavior code unchanged; valid replacement runs; invalid graph fails before admission with cleanup",
     "workPackages": "W03",
-    "status": "not verified",
-    "evidence": ["docs/plugin-author-guide.md", "docs/evidence/production-media.md"],
+    "status": "verified locally",
+    "evidence": [
+      "apps/api/tests/voice-engine-release.test.ts",
+      "apps/worker/tests/production-engine-selection.test.ts",
+      "apps/worker/tests/native-extension-pins.test.ts",
+      "apps/worker/tests/session-recording.test.ts"
+    ],
     "workPackageIds": ["W03"],
-    "note": "Plugin validation/replacement interfaces and local conformance are implemented; final selected replacement demonstration is pending. Final independent local verification is in progress; any live provider, carrier, AWS, publication, or human certification remains outside authorization.",
-    "localEvidenceGap": "Independent local selected engine-replacement/invalid-graph cleanup exercise not yet recorded."
+    "note": "Independent scoped verification passed: release publication pins the selected engine; the production worker runs unchanged behavior with exclusive selection and ordered cleanup. Unselected engines do not affect the release. Invalid graphs, missing or stale pins, and ambiguous selected engines fail before apply. Four focused files passed 14 tests; workspace typecheck, worker bundle, and module-size gate passed. No external provider or carrier traffic was required for this local criterion.",
+    "localEvidenceGap": null
   },
   {
     "id": "A66",
