@@ -149,7 +149,7 @@ function instrumentPlugin(
     manifest: definition.manifest,
     apply: async (ctx: Context, config) => {
       await definition.apply(ctx, config);
-      instrument(ctx.get(serviceKey));
+      instrument(ctx.reflect.get(serviceKey, false));
     },
   };
 }

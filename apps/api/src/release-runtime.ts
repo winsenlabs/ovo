@@ -12,6 +12,15 @@ import type { AgentDraft, ControlStore, ReleaseRecord } from '@winsendotai/ovo-p
 
 const SYSTEM_PLUGIN_ID = '@winsendotai/ovo-api-session-services';
 const BEHAVIOR_SERVICE = 'ovo.behavior';
+const VOICE_ENGINE_SERVICE = 'ovo.voice-session-engine';
+const WORKER_VOICE_PORTS_PLUGIN_ID = '@winsendotai/ovo-api/worker-voice-ports';
+const WORKER_VOICE_PORTS = [
+  'ovo.media.duplex',
+  'ovo.speech-output',
+  'ovo.speech-scheduler',
+  'ovo.stt',
+  'ovo.tts-streaming',
+] as const;
 const MODE_BEHAVIOR_IDS = BEHAVIOR_PLUGIN_IDS as Record<AgentDraft['config']['mode'], string>;
 
 export const createSessionServicesPlugin = (
@@ -66,7 +75,7 @@ function validatePermittedGraph(
   agent: AgentDraft,
   selected: readonly PluginDefinition[],
   services: PluginDefinition,
-) {
+): Set<string> {
   for (const definition of selected) {
     if (definition.manifest.scope !== 'session')
       throw new Error(`Release plugin must be session scoped: ${definition.manifest.id}`);
@@ -89,24 +98,35 @@ function validatePermittedGraph(
   )
     throw new Error(`Mode ${agent.config.mode} requires a configured provider binding`);
 
+  const engines = selected.filter((item) => item.manifest.provides.includes(VOICE_ENGINE_SERVICE));
+  if (engines.length > 1)
+    throw new Error(`Release must select at most one ${VOICE_ENGINE_SERVICE} provider`);
+  const workerPorts = new Set<string>(WORKER_VOICE_PORTS);
   const reachable = new Set<string>();
-  const visit = (definition: PluginDefinition) => {
+  const visit = (definition: PluginDefinition, allowWorkerPorts: boolean) => {
     if (reachable.has(definition.manifest.id)) return;
     reachable.add(definition.manifest.id);
     for (const service of definition.manifest.requires) {
-      if (services.manifest.provides.includes(service)) continue;
       const providers = selected.filter((item) => item.manifest.provides.includes(service));
-      if (providers.length !== 1)
+      if (providers.length > 1)
         throw new Error(`Release requires exactly one selected provider for ${service}`);
-      visit(providers[0]!);
+      if (providers.length === 1) visit(providers[0]!, allowWorkerPorts);
+      else if (
+        !services.manifest.provides.includes(service) &&
+        !(allowWorkerPorts && workerPorts.has(service))
+      )
+        throw new Error(`Release requires exactly one selected provider for ${service}`);
     }
   };
-  visit(behavior);
+  visit(behavior, false);
+  const behaviorGraph = new Set(reachable);
+  for (const engine of engines) visit(engine, true);
   const unrelated = selected.find((item) => !reachable.has(item.manifest.id));
   if (unrelated)
     throw new Error(
       `Release plugin is not a permitted behavior dependency: ${unrelated.manifest.id}`,
     );
+  return behaviorGraph;
 }
 
 export async function validateRelease(
@@ -152,12 +172,21 @@ export async function validateRelease(
 
   const selected = exactDefinitions(plugins, catalog);
   validatePermittedGraph(agent, selected, services);
+  const workerPorts = createWorkerVoicePortsPlugin(selected);
   const graph = resolveGraph(
-    [{ id: services.manifest.id }, ...plugins.map((plugin) => ({ id: plugin.id }))],
-    [services, ...catalog],
+    [
+      { id: services.manifest.id },
+      ...(workerPorts ? [{ id: workerPorts.manifest.id }] : []),
+      ...plugins.map((plugin) => ({ id: plugin.id })),
+    ],
+    [services, ...(workerPorts ? [workerPorts] : []), ...catalog],
   );
   return graph
-    .filter((item) => item.manifest.id !== services.manifest.id)
+    .filter(
+      (item) =>
+        item.manifest.id !== services.manifest.id &&
+        item.manifest.id !== WORKER_VOICE_PORTS_PLUGIN_ID,
+    )
     .map((item) => ({ id: item.manifest.id, version: item.manifest.version }));
 }
 
@@ -184,7 +213,7 @@ export async function runRelease(
     if (!release.mcpTools[tool.id])
       throw new Error(`Release is missing immutable MCP snapshot for ${tool.id}`);
   const selected = exactDefinitions(release.plugins, catalog);
-  validatePermittedGraph(
+  const behaviorGraph = validatePermittedGraph(
     {
       id: release.agentId,
       workspaceId: release.workspaceId,
@@ -196,21 +225,24 @@ export async function runRelease(
     selected,
     services,
   );
-  const definitions = new Map(selected.map((item) => [item.manifest.id, item]));
+  const simulationPlugins = selected.filter((item) => behaviorGraph.has(item.manifest.id));
+  const definitions = new Map(simulationPlugins.map((item) => [item.manifest.id, item]));
   const rows = [
     { id: services.manifest.id },
-    ...release.plugins.map((plugin) => ({
-      id: plugin.id,
-      config: definitions.get(plugin.id)!.manifest.provides.includes(BEHAVIOR_SERVICE)
-        ? {
-            agent: structuredClone(release.config),
-            workspaceId: release.workspaceId,
-            sessionId,
-          }
-        : {},
-    })),
+    ...release.plugins
+      .filter((plugin) => definitions.has(plugin.id))
+      .map((plugin) => ({
+        id: plugin.id,
+        config: definitions.get(plugin.id)!.manifest.provides.includes(BEHAVIOR_SERVICE)
+          ? {
+              agent: structuredClone(release.config),
+              workspaceId: release.workspaceId,
+              sessionId,
+            }
+          : {},
+      })),
   ];
-  const composition = await compose(rows, [services, ...selected]);
+  const composition = await compose(rows, [services, ...simulationPlugins]);
   try {
     const behavior = composition.ctx.get(BEHAVIOR_SERVICE) as
       | (Behavior & {
@@ -244,4 +276,25 @@ export async function runRelease(
   } finally {
     await composition.dispose();
   }
+}
+
+function createWorkerVoicePortsPlugin(
+  selected: readonly PluginDefinition[],
+): PluginDefinition | undefined {
+  if (!selected.some((item) => item.manifest.provides.includes(VOICE_ENGINE_SERVICE))) return;
+  const selectedServices = new Set(selected.flatMap((item) => item.manifest.provides));
+  const provides = WORKER_VOICE_PORTS.filter((service) => !selectedServices.has(service));
+  return definePlugin(
+    {
+      id: WORKER_VOICE_PORTS_PLUGIN_ID,
+      version: '0.1.0',
+      contractVersion: 1,
+      scope: 'process',
+      provides,
+      requires: [],
+      configSchema: { type: 'object', additionalProperties: false },
+      secretFields: [],
+    },
+    () => undefined,
+  );
 }

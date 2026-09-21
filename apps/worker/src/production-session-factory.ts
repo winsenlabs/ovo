@@ -42,6 +42,7 @@ import {
   optionalPayloadString,
   pluginConfig,
   requiredPayloadString,
+  selectVoiceSessionEnginePlugin,
   uniqueDefinitions,
   validateReleasePlugins,
 } from './production-session-support.ts';
@@ -162,6 +163,13 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
       const installed = installedPluginsForRelease(release, this.extensions.plugins);
       validateReleasePlugins(release, [...sessionCatalog, ...installed]);
 
+      const enginePlugin = selectVoiceSessionEnginePlugin(release, this.extensions.plugins, () =>
+        createVoiceSessionEnginePlugin({
+          stt: requiresInput ? 'required' : 'disabled',
+          onAcceptedTranscript: (revision) => telemetry.transcript(revision, true),
+        }),
+      );
+
       const services = sessionServicesPlugin(
         telemetry.withOperationStore(this.store.operationStore),
         this.secrets.forAgent(release.agentId),
@@ -197,10 +205,7 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
         ttsPlugin,
         output,
         createSpeechSchedulerPlugin(),
-        createVoiceSessionEnginePlugin({
-          stt: requiresInput ? 'required' : 'disabled',
-          onAcceptedTranscript: (revision) => telemetry.transcript(revision, true),
-        }),
+        enginePlugin,
       ]);
       audit('session.driver-bound', {
         releaseId: release.id,
