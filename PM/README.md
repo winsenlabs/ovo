@@ -1,6 +1,6 @@
 # OVO project task board
 
-**Continuation entry point:** Read [HANDOFF.md](HANDOFF.md) and [NEXT.md](NEXT.md) for the September 22 state and pause boundary. Earlier board notes below are historical; do not restart completed engineering from them.
+**Continuation entry point:** read [HANDOFF.md](HANDOFF.md), [NEXT.md](NEXT.md) and the [unit board](units/README.md). As of 2026-09-22, the plugin-platform rebuild runs as 20 units (F1–F4, then 15 parallel units, then I1), with a builder/checker split. The W01–W20 table below is the original launch breakdown. It is still the acceptance frame, but the unit board tracks the build.
 
 Updated: 2026-09-20 UTC. Owner: OVO implementation team.
 

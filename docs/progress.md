@@ -1,6 +1,24 @@
 # OVO implementation progress
 
-Updated: 2026-09-20 UTC. Branch: `vorflux/ovo-foundation`.
+Updated: 2026-09-22 IST. Branch: `vorflux/ovo-foundation`.
+
+## Plugin platform rebuild (2026-09-22 IST)
+
+- **Where things stand.** The inherited branch was reviewed read-only. It had never made a real call, and 27 defects were confirmed or reported. The founder then set the direction:
+  - everything is a plugin, with the engine, carrier, STT, TTS and LLM chosen per agent;
+  - an OVO native engine that takes in Pipecat's best ideas, plus a LiveKit Agents JS engine;
+  - Twilio, Exotel and Plivo as carriers;
+  - Deepgram, AssemblyAI, Sarvam and OpenAI as speech and model providers;
+  - Fargate-native autoscaling;
+  - a console refactor;
+  - no large files.
+- **Plan.** The design and a 20-unit plan are in [`docs/architecture/plugin-platform.md`](architecture/plugin-platform.md) (`92ea8b7`).
+- **Progress.**
+  - F1 (contracts v2 and host enforcement) is verified at `da075a7`. The Postgres serial run gave 590 passed, 9 skipped, 0 failed.
+  - F2 is partial and paused.
+  - Status is tracked on the [unit board](../PM/units/README.md).
+- **Baseline before F1**, measured locally: 380 passed and 87 skipped without Postgres; 458 passed and 9 skipped with the Postgres serial run. The Postgres suites need `--no-file-parallelism`.
+- **Not verified.** Nothing is pushed. No real carrier or provider traffic has run, and no AWS action has been taken.
 
 ## Current production integration status
 

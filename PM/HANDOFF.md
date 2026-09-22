@@ -1,216 +1,236 @@
-# OVO continuation handoff
+# OVO build handoff: plugin platform rebuild
 
-> **2026-09-22 update:** the paused setup snapshot was verified (SHA-256 matched), applied to `ee58ea4`, corrected (managed-SQS empty AWS key default, stale typecheck note) and committed. `PM/handoff/paused-setup.patch` is retired; do not look for or reapply it.
+- **Updated:** 2026-09-22 IST
+- **Branch:** `vorflux/ovo-foundation`
+- **Committed head:** `da075a7`, plus the partial F2 work described below.
+- **Work status:** paused by the founder after F1. The next build step is to finish F2.
 
-Updated: **2026-09-22**. Read this before continuing implementation or verification.
+This file is the entry point for the builder agent and for the checker. Read it before [`docs/architecture/plugin-platform.md`](../docs/architecture/plugin-platform.md), which is the authoritative design, and the unit specs in [`PM/units/`](units/README.md). The previous handoff is archived at [`PM/handoff/2026-09-22-foundation-handoff.md`](handoff/2026-09-22-foundation-handoff.md). Its safety constraints carry forward into design §0.2. Its "next steps" (browser checks, then reconciling the 75 criteria) are superseded by the unit plan below.
 
-## Current instruction: work remains paused
+## 1. Status at a glance
 
-The user requested this documentation update, not a restart of implementation or testing. Do not start builds, browser checks, services, or deployments until the user resumes that work.
+| Stage                                                   | State                                | Evidence                                                                       |
+| ------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
+| Read-only review of the inherited code                  | Done                                 | 27 defects confirmed or reported; listed with owners in design §14             |
+| Paused Compose setup integrated                         | Done                                 | `267e01c`; the recovery patch was retired                                      |
+| Platform design and 20-unit plan                        | Done                                 | `92ea8b7`: `docs/architecture/plugin-platform.md`, with §18 resolved decisions |
+| **Wave 1: F1**, contracts v2 and host enforcement       | **Verified**                         | `da075a7`; see §4                                                              |
+| **Wave 1: F2**, kits, conformance and hygiene gates     | **In progress, partial, unverified** | See §3                                                                         |
+| Wave 1: F3 and F4                                       | Not started                          |                                                                                |
+| Wave 2: 15 parallel units                               | Not started                          |                                                                                |
+| Wave 3: I1 integration                                  | Not started                          |                                                                                |
+| External validation (real calls, vendor sandboxes, AWS) | Not started; needs the founder       | §8                                                                             |
 
-The user paused all work on September 20. On September 21, the user resumed **only engine replacement and the worker TypeScript fix**. That scoped work is complete and pushed. The broader checks below remain paused.
+- **Nothing is pushed.** `origin/vorflux/ovo-foundation` is still at `ee58ea4`. The local commits `267e01c`, `92ea8b7` and `da075a7` are ahead of it. A builder working from GitHub needs the founder to approve a push first.
+- **Draft PR #1 has not been updated.**
+- **Criteria and test report are unchanged.** `PM/acceptance.json` still holds all 75 criteria with no status change, and the Test Report "OVO foundation verification" remains **PARTIAL**.
 
-## Repository and delivery state
+## 2. Roles from here
 
-- Repository: https://github.com/winsenlabs/ovo
-- Continue on the existing branch: **`vorflux/ovo-foundation`**.
-- Existing draft PR: https://github.com/winsenlabs/ovo/pull/1
-- Do not move implementation onto `main`, create another implementation branch, or merge the PR without authorization.
-- Runtime checkpoint: `fbfba0683f18424fd4bcbf01f1fd06eedea8dbed` — completed engine replacement.
-- Pre-handoff branch head: `c7d0f956c941e56910f3508e981995e6cdf632aa` — records A65 verification.
-- This handoff adds documentation and a recovery snapshot. It does not apply or finish the pending setup changes.
-- The overall Test Report remains **PARTIAL**. Do not describe the system as production-certified.
+| Role        | Who                                  | Responsibility                                                                                                                                              |
+| ----------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Builder** | A separate coding agent              | Implements the units in `PM/units/` in wave order and commits them. Sets a unit's board status to **Built – awaiting check**. Never marks a unit Verified.  |
+| **Checker** | Claude Code session with the founder | Independently verifies each built unit (§6) and records **Verified `<sha>`** or **Changes requested** with the issues on the [unit board](units/README.md). |
+| **Founder** | Tejas                                | Decisions, credentials, approval for pushes and PR updates, and authorization for any real call, paid provider traffic or AWS action.                       |
 
-## Fixed product decisions
+A unit is done only when the checker has recorded it as Verified. Built code alone does not count.
 
-- One self-hosted installation serves one organization. No SaaS provisioning, organization switching, subteams, or team hierarchy.
-- The first administrator is seeded. Administrators add users through the console. Multiple administrators can coexist.
-- Email/password is the default login. Team roles are **Admin** and **User**; User maps to the existing `editor` permission.
-- Explicit legacy token operators remain compatible. Seed-only installation metadata cannot authenticate as a hidden token administrator.
-- `workspaceId` remains an internal isolation namespace. Do not remove its authorization checks.
-- Initial provider profile: **Twilio + Deepgram streaming STT + OpenAI TTS/inference**.
-- Fargate is the primary deployment profile; self-hosted Compose is also implemented.
-- Keep actual DeepSeek/Cordis source reuse and plugin-owned capabilities. The four behavior modes are announcement, FAQ/script, supplied context, and agent/tools.
-- The user specifically requested **one branch** and **no excessive review**.
+## 3. Where we are right now: F2 is partial
 
-## Infrastructure choices
+**The partial F2 work** is uncommitted in the original workspace, `/Users/tejassuds/work/ovo`, spread over about 28 paths:
 
-| Concern             | Current implementation                                                                                                       |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Durable data        | PostgreSQL for control state, releases, jobs, ownership, users, costs, and telemetry                                         |
-| Queue notifications | Amazon SQS; local Compose uses SQS-compatible ElasticMQ                                                                      |
-| Job correctness     | PostgreSQL leases, epochs, outboxes, and reconciliation fences; duplicate queue messages must not cause duplicate calls      |
-| Caching             | Bounded in-process speech cache; no Redis dependency; restart clears cache, not durable state                                |
-| Telemetry           | Built-in telemetry plugin, bounded buffered PostgreSQL writes, stage timings, performance queries, SSE replay to the console |
-| Logs                | Application/container logs locally; CloudWatch logging in the Fargate configuration                                          |
-| Recordings          | Separate recording/object-storage service; local Compose shares a durable recording volume between API and workers           |
+- the new packages `packages/{audio,conformance,plugin-kit}`;
+- the gate scripts `scripts/{lint.mjs,typecheck-scope.mjs,check-duplication.mjs,check-provider-names.mjs,check-capability-keys.mjs,check-conformance.mjs,check-terraform.mjs}`, together with `scripts/lib`, `scripts/tests`, `scripts/baselines` and `scripts/package-kinds.json`;
+- the vitest global setup and violation sink;
+- edits to `package.json`, `tsconfig.json`, `vitest.config.ts`, `apps/console/package.json`, `plugin-inference`, `plugin-tools`, `check-architecture.mjs`, `check-module-size.mjs`, `docs/research/dependency-licenses.json` and `pnpm-lock.yaml`.
 
-Managed PostgreSQL and managed standard SQS can replace local containers. Managed-service configuration rendering passed; actual managed services were not certified. Redis and ClickHouse are not required. Do not imply an OTLP/Prometheus/Grafana integration exists without checking the code.
+**The same work is saved as a snapshot:** [`PM/handoff/f2-partial.patch`](handoff/f2-partial.patch).
 
-## What is implemented
+- Base: `da075a7`.
+- SHA-256: `c4cdd72f7ff1b0c65d6bff4152f485e0b0b1f9a9edebc6d590add046d356500b`.
+- It contains only the partial F2 changes. No secrets, `.data` directory or artifacts are included.
 
-- Shared asynchronous PostgreSQL control storage and immutable release/provider/MCP snapshots.
-- Four behavior modes, deterministic scripts, shared tool execution, and fixture-isolated multi-turn simulations.
-- Provider/media gateway integration, streaming inference and speech, playback context, interruption, and heard-confirmation controls.
-- Durable campaigns, suppression, handoff, inbound admission, bounded wait, and consent-based callback.
-- Recording consent, capture, PCM-WAV playback, exports, tombstones, and retention.
-- Price cards, FX, reservations, required live meter coverage, cache accounting, and reconciliation.
-- Versioned evaluation datasets and 120 deterministic cases. Paid evaluation execution requires durable admin authorization and a server-only enable flag.
-- Operating console, performance inspection, infrastructure views, and resumable SSE.
-- Seeded administrator, flat user administration, password hashing, session revocation, last-admin protection, and explicit restored-user recovery.
-- Exclusive release-pinned engine selection, described below.
+**State at the pause** (checker run, 2026-09-22):
 
-Implementation presence does not prove all console journeys or external integrations work. Use the remaining checklist instead of reopening an obsolete foundation backlog.
+| Check                             | Result                                                                                                                                                |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm lint`                       | Passes all 7 gates: module size across 704 files, duplication, provider names, capability keys, conformance, plus the architecture and upstream gates |
+| `pnpm format:check`               | Passes                                                                                                                                                |
+| `pnpm typecheck`                  | Passes                                                                                                                                                |
+| `pnpm test`                       | 766 passed, 87 skipped                                                                                                                                |
+| F2 acceptance list                | **Not yet checked**                                                                                                                                   |
+| Postgres test suites (serial run) | **Not run**                                                                                                                                           |
 
-## Engine replacement is finished — do not redo it
+### How to resume F2
 
-The worker formerly appended its built-in engine even when a release selected a replacement. It now selects exactly one release-pinned engine. Unselected installed engines do not alter a release. The built-in engine is the fallback only when no replacement is selected.
+- **In the original workspace**, the partial changes are already in the tree. **Do not apply the patch.**
+- **In a fresh clone at `da075a7`**, apply the snapshot:
+  ```sh
+  git apply --check PM/handoff/f2-partial.patch
+  git apply PM/handoff/f2-partial.patch
+  ```
+  If the check fails, stop and inspect. Never force it.
+- **Then**, finish F2 against [`PM/units/F2-kits-gates.md`](units/F2-kits-gates.md), run the wave-1 green bar (§5), and commit. After F2 is committed, delete `PM/handoff/f2-partial.patch` so no later agent reapplies it.
 
-Normal API publication pins a worker-only replacement without applying it. Simulations execute only the behavior graph. The worker executes the selected replacement with unchanged behavior and ordered cleanup.
+## 4. Done so far, with evidence
 
-Missing dependencies, missing/stale pins, and multiple selected engines fail before engine apply. Regression tests verify recording and telemetry cleanup. The worker TypeScript literal-set error is also cleared.
+### 4.1 Read-only review of the inherited code
 
-Independent verification at `fbfba06` passed:
+It confirmed that the inherited branch (about 62k first-party lines) had never made a real call, and it found the first-call blockers:
 
-```sh
-pnpm exec vitest run \
-  apps/api/tests/voice-engine-release.test.ts \
-  apps/worker/tests/production-engine-selection.test.ts \
-  apps/worker/tests/native-extension-pins.test.ts \
-  apps/worker/tests/session-recording.test.ts --reporter=dot
-pnpm typecheck
-pnpm --filter @winsendotai/ovo-worker build
-node scripts/check-module-size.mjs
-```
+- the outbound `https://` stream URL;
+- a 500 ms pre-accept buffer;
+- "yes" dropped as a backchannel;
+- variables passed only on the first turn;
+- no campaign driver;
+- an MCP foreign key that blocks rediscovery;
+- Terraform networking and environment holes;
+- console forms that report success as an error.
 
-Result: **14 tests passed**, workspace typecheck passed, worker bundle passed, module gate passed for 530 files. **A65 is verified locally** in `PM/acceptance.json` and `PM/acceptance.md`.
+The full list with owners is in design §14.
 
-## Other evidence already obtained
+### 4.2 Setup integration (`267e01c`)
 
-These checks occurred at different checkpoints. Do not add overlapping counts or present them as one fresh final run.
+The paused Compose snapshot matched its SHA-256 and was applied. Two corrections were made:
 
-- Earlier full local CI passed **364 tests**, with **82 environment-gated skips**, before later team/engine changes.
-- Dedicated PostgreSQL suites covered storage, ledger, observability, recordings, orchestration, operations, evaluations, API startup, and worker lifecycle.
-- PostgreSQL + ElasticMQ WebSocket lifecycle E2E passed using local protocol fixtures.
-- The restore drill passed **3/3**, including later restored-user quarantine coverage.
-- Team PostgreSQL/session checks passed **8/8**. Console checks passed **26 tests** at the team checkpoint.
-- The canonical evaluation corpus passed **120/120** through actual behaviors with fixture bindings.
-- Browser evidence covers roles, authoring/publishing, stale-draft conflict recovery, credential creation/rotation/redaction, seeded login, and second-admin creation.
-- The pending Compose worktree started **all eight services healthy** before the pause. Seed login through the console proxy, user creation/disable, and shared recording-volume writes passed. Workers stayed `dial-disabled`.
-- Browser walkthrough recording failed twice during finalization and produced invalid WebM files. Those files were deleted. Use valid screenshots; do not spend more time on recorder retries without a specific request.
+- the managed-SQS empty AWS key default;
+- a stale typecheck note.
 
-Two valid review blockers were fixed: restored authorization/admission quarantine and inbound durable ownership renewal. A third reported evaluation-attempt defect was retracted: the reviewed code already used `attempt >= max_attempts`. A crash regression confirms failure rather than endless running and retains unknown-spend reservations for reconciliation.
+The snapshot patch was then retired.
 
-The focused production review rated its scope 6/10; team authentication received 5/10. Both found no remaining material defect in their reviewed scope after corrections. These were not whole-system certifications of the latest combined worktree. Do not repeat broad reviews unnecessarily.
+### 4.3 Design (`92ea8b7`)
 
-## Preserve the pending setup work
+Fifteen agents took part: 7 researchers (Pipecat, the carriers, speech providers, LiveKit, Fargate, the console, code seams), 3 competing designs, a judge, a synthesizer, 2 critics and a reviser. The base design is the incremental one, grafted with engine-centric and typed-capability ideas.
 
-The following changes still existed outside the committed implementation when this handoff was written:
+The design contains:
 
-```text
-README.md
-apps/console/components/team/team-view.tsx
-apps/dispatcher/src/main.ts
-docs/README.md
-docs/evidence/deployment-implementation.md
-infra/compose/.env.example
-infra/compose/compose.yaml
-infra/container/Dockerfile
-docs/runbooks/self-hosted-compose.md       (new)
-scripts/bootstrap-compose.sh              (new)
-scripts/verify-compose.sh                 (new)
-```
+- the full contracts;
+- the manifest v2;
+- the registry and selection model;
+- the carrier-neutral gateway;
+- the native engine rebuilt with Pipecat ideas (no Pipecat runtime);
+- the LiveKit Agents JS engine;
+- the Twilio, Exotel and Plivo carriers;
+- the Deepgram, AssemblyAI, Sarvam and OpenAI providers;
+- Fargate-native autoscaling and Fargate preparation;
+- the console refactor;
+- the hygiene gates;
+- the defect-to-owner map;
+- the wave plan.
 
-They include the verified Compose/bootstrap path, managed-service instructions, non-root/shared-volume integration, and a small “Initial password” label correction. Do not discard them or silently include them in an unrelated commit.
+§18 records the resolved open decisions.
 
-For a fresh clone, the exact pending diff is preserved as **[handoff/paused-setup.patch](handoff/paused-setup.patch)**. This is a non-applied recovery snapshot, not an additional implementation branch or a claim that those changes are integrated.
+### 4.4 Baseline measured on this machine, before F1
 
-- Snapshot base: `c7d0f956c941e56910f3508e981995e6cdf632aa`
-- SHA-256: `d9031e7712a8401281b07a352ecb202d81db460a5ae6d435081387a3942b5913`
-- The snapshot contains only the 11 listed source/documentation/example files. It excludes real environment files, credentials, databases, recordings, and local artifacts.
+| Run                        | Passed | Skipped | Failed |
+| -------------------------- | ------ | ------- | ------ |
+| Without Postgres           | 380    | 87      | 0      |
+| **With Postgres** (serial) | 458    | 9       | 0      |
 
-**After authorization to resume**, inspect `git status --short` first. In the original workspace, these changes are already present: **do not apply the patch twice**. In a clean clone where the changes are absent, use:
+The Postgres suites share one database and fail when run in parallel, so always use `--no-file-parallelism` (§7).
 
-```sh
-git apply --check PM/handoff/paused-setup.patch
-git apply PM/handoff/paused-setup.patch
-```
+### 4.5 F1 (`da075a7`): verified by an independent verifier on the first round
 
-If the check fails, stop and inspect differences. Do not force the patch or reset unrelated work. After integrating the setup changes, remove or clearly retire this snapshot so a later agent does not reapply it.
+What it added:
 
-## Next work, in order — only after the user resumes
+- the contracts split: agent, ports, manifest, release, selection, capabilities (keys and map), carrier, speech, voice, ops, pricing, usage, text, `canonical-json` and others;
+- the runtime split: graph, compose, facade, scope, config-guard, enforcement, registry, installed, validate-graph;
+- a guarded plugin context;
+- manifest v2 and `definePluginV2` in the SDK.
 
-### 1. Finish actual browser verification
+Evidence:
 
-Use synthetic local fixtures. Keep paid evaluation and live dialing disabled. Read `apps/console/OPERATOR_E2E_HANDOFF.md` for UI/API contracts.
+| Check                                           | Result                              |
+| ----------------------------------------------- | ----------------------------------- |
+| `pnpm lint`                                     | Passes across 599 files             |
+| `pnpm format:check`                             | Passes                              |
+| `pnpm typecheck`                                | Passes                              |
+| `pnpm test`                                     | 512 passed, 87 skipped              |
+| **Postgres serial run**                         | **590 passed, 9 skipped, 0 failed** |
+| `node scripts/build.mjs`                        | Passes                              |
+| Pinned upstream files and `composition.test.ts` | Unchanged                           |
 
-| Area                     | Required remaining checks                                                                                                                                              |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Campaigns                | CSV preview/import, create, pause, resume, cancel; suppression and handoff mutations                                                                                   |
-| Costs                    | Price-card, FX, budget, cost-policy, and reconciliation writes; truthful unknown/estimated/reconciled labels                                                           |
-| Recordings               | Synthetic capture; inbound/outbound WAV playback and byte-range seek; export; tombstone/deletion and retention                                                         |
-| Evaluations              | Fixture execution, actual cancel/compare submissions, idempotency, and resulting state; do not equate a rendered comparison control with a successful comparison       |
-| Performance              | Populated cohort interactions and visible SSE reconnect/cursor recovery; API replay already has evidence                                                               |
-| Responsive/accessibility | 390px layout, keyboard navigation, focus, form reachability, and overflow                                                                                              |
-| Error handling           | Inject a bounded component/request failure; verify useful recovery and unaffected surrounding controls                                                                 |
-| Team follow-through      | Confirm last-admin, disable/reset, self-password change, session revocation, and seed restart through the final combined deployment; backend tests already cover these |
+Minor findings are carried forward on the [unit board](units/README.md#carry-forward-issues).
 
-Fix only concrete in-scope defects found by these checks. Report precise blockers rather than repeatedly returning a list of unattempted journeys. Capture a small set of useful screenshots. A walkthrough video is not a prerequisite.
+## 5. What's left, in order
 
-### 2. Verify the final combined source
+1. **Wave 1, sequential; each unit ends fully green before the next starts:**
+   - **F2**: finish it (§3).
+   - **F3**: host seams, selection storage and migrations, `session-host`, the `distribution` catalog, and skeleton packages for every wave-2 package.
+   - **F4**: the API and worker made data-driven, with plugin and compatibility routes, carrier-built URLs (fixing the wss defect) and selection-driven session graphs.
+2. **Wave 2, parallel.** Units own disjoint paths (design §15.5). Each builds in a worktree on branch `w2/<unit>`, and merges into `vorflux/ovo-foundation` happen one at a time.
+   - **E1**: turn detector and VAD, Pipecat-style.
+   - **E2**: native engine rebuild.
+   - **E3**: LiveKit engine.
+   - **C1**: Twilio carrier.
+   - **C2**: carrier-neutral gateway router.
+   - **C3**: Exotel.
+   - **C4**: Plivo.
+   - **S1**: split Deepgram and OpenAI into their own plugins.
+   - **S2**: AssemblyAI and Sarvam.
+   - **O1**: Fargate-native autoscaling, Terraform fixes and Fargate prep (§18.14).
+   - **O2**: campaign driver, queue liveness and reservation expiry.
+   - **U1**: console refactor.
+   - **D1**: fixture test calls and the demo backend.
+   - **M1**: behaviors, tools and security defects.
+   - **M2**: decouple the evaluations package.
+3. **Wave 3: I1.** Integration, the full suite with the Postgres serial run, the restore drill, the Compose smoke test, `terraform validate` via Docker, Playwright checks at 390, 768 and 1280 px, façade removal and enforce mode, the carrier sandbox checklist, and updates to the docs, PM and acceptance evidence.
+4. **Founder-gated:** push and PR #1 update; real calls on an owned number; vendor sandbox confirmation; AWS `plan` and `apply` (§8).
 
-After pending setup changes and any browser fixes are stable, run the full local CI and the relevant isolated PostgreSQL/lifecycle/restore suites. Reuse existing regression tests instead of restarting the project or redesigning it.
+## 6. Checker protocol: what every unit is checked against
 
-```sh
-./scripts/local-ci.sh
-./scripts/run-postgres-restore-drill.sh
-```
+1. **Scope.** The diff touches only the unit's owned paths and the shared touchpoints in its spec. Frozen files (design §15.2) are untouched in wave 2. Out-of-scope edits are disclosed.
+2. **Green bar, run by the checker:**
+   - lint (all gates);
+   - `format:check`;
+   - `typecheck`;
+   - the full test suite;
+   - the **Postgres serial run** against a disposable container;
+   - `node scripts/build.mjs` when build inputs changed.
 
-Follow script documentation for disposable PostgreSQL credentials. Do not point destructive restore tests at the preview database or another project's services. Rerun the Compose smoke check if the final changes affect its images or runtime configuration.
+   Wave-2 units must also pass the scoped checks in design §15.4.
 
-GitHub Actions were unavailable/suspended during this work. Local CI is the known evidence path; check the current situation before relying on hosted CI.
+3. **Acceptance.** Every item in the unit spec's Acceptance list is demonstrably met.
+4. **Invariants.** Nothing in design §0.2 is weakened:
+   - restore fences;
+   - meter coverage;
+   - write confirmation and unknown outcomes;
+   - ownership epochs and termination;
+   - recording policy;
+   - admin password rules.
+5. **Quality.**
+   - Modules at most 300 canonical lines (hard limit 400; tests 500), measured by the gate, never `wc`.
+   - No plugin imports another plugin.
+   - Tests that assert behaviour, not tautologies.
+   - Protocol fixtures follow the vendor docs and carry the source header (design §17).
+6. **Verdict.** Recorded on the [unit board](units/README.md) as Verified `<sha>` or Changes requested, with a numbered issue list. Minor issues that don't block go to the carry-forward list.
 
-### 3. Finish the same-branch handoff
+## 7. Environment notes
 
-- Commit and push the remaining validated setup changes on `vorflux/ovo-foundation`.
-- Update the existing PR, not a second PR or branch.
-- Reconcile all **20 work packages and 75 acceptance criteria** with actual evidence. Do not mark external gates passed from fixture results.
-- Update the existing Test Report with the exact title **`OVO foundation verification`**. It currently remains PARTIAL overall.
-- Use the existing approved plan title **`OVO console visual design`** if revising that plan. Do not re-plan already completed work.
-- Keep production certification distinct from completing local engineering.
+- **Node 22.19 or later** (engines also allows 24). On the founder's Mac, use `export PATH=/opt/homebrew/opt/node@22/bin:$PATH`, because the default `node` there is 26. The package manager is pnpm 10.23.0.
+- **Docker** runs through colima on the founder's Mac. For Postgres-gated suites, never point at another project's database. Start a disposable container:
+  ```sh
+  docker run -d --rm --name ovo-pg-<unit> -e POSTGRES_PASSWORD=ovo -e POSTGRES_DB=ovo -p 127.0.0.1:0:5432 postgres:17.6
+  export OVO_TEST_POSTGRES_URL=postgres://postgres:ovo@127.0.0.1:<mapped port>/ovo
+  pnpm exec vitest run --no-file-parallelism
+  docker rm -f ovo-pg-<unit>
+  ```
+- **Terraform** is not installed on the founder's Mac. Run it through Docker:
+  ```sh
+  docker run --rm -v "$PWD/infra/terraform:/w" -w /w hashicorp/terraform:1.10 fmt -check
+  docker run --rm -v "$PWD/infra/terraform:/w" -w /w hashicorp/terraform:1.10 init -backend=false
+  docker run --rm -v "$PWD/infra/terraform:/w" -w /w hashicorp/terraform:1.10 validate
+  ```
+- **Playwright** Chromium builds are cached locally. Console test dependencies are added in F2 (check `apps/console/package.json`).
+- **Unit specs contain absolute paths** from the founder's Mac, such as `/Users/tejassuds/work/ovo`. In another environment, substitute the repository root.
+- **GitHub Actions are suspended.** Local checks are the only CI.
 
-## External validation is separate
+## 8. External validation, never done by agents without explicit founder authorization
 
-No real carrier calls/transfers, paid provider runs, AWS provisioning, production object-store staging, invoice reconciliation, production RPO/RTO measurement, or human listening certification occurred. Obtain explicit authorization and the target configuration before those activities.
+- Real Twilio, Exotel or Plivo calls on an owned test number, and a human listening check.
+- Vendor sandbox confirmation of the unconfirmed protocol details (design §16 and §18.12; I1 writes `docs/runbooks/carrier-sandbox-checklist.md`).
+- Paid Deepgram, AssemblyAI, Sarvam or OpenAI traffic.
+- AWS `terraform plan` and `apply`, image pushes to ECR, and Fargate load, drain and restore drills.
+- Production RPO and RTO, invoice reconciliation, and package publication.
 
-Do not enable live/provider flags as a shortcut to browser testing. A carrier playback mark is not proof that a human heard the audio.
-
-## Safety constraints that must remain intact
-
-- Validate immutable release bindings and required carrier/STT/TTS/LLM meter coverage before live admission.
-- Keep budgets honest: reservations are admission guards, not strict caps on later provider invoices.
-- Renew both task protection and durable job ownership. Ownership loss must drain and terminate the carrier leg.
-- Honor `release.config.recording`; disabled recording must not capture or create recording rows.
-- Preserve restore fences for jobs, outboxes, campaigns, paid evaluation ambiguity, authorizations, inbound admissions, and users. Never bulk-clear fences.
-- Ordinary startup must not reset an existing admin password. Restored-user recovery is explicit and requires new credentials.
-- Preserve write-confirmation and unknown-outcome protections. Do not revive the old `variables.confirmed` bypass.
-- Keep module limits: 400 canonical nonblank lines / 24 KiB; tests 500 lines. Prefer under 300 lines. Imported upstream source has separate provenance rules.
-
-## Local-machine context is not portable
-
-The prior sandbox used PostgreSQL-backed API port 4000 and console port 3000. The console development server was stopped on request. Do not assume any process, authentication state, port, or preview link still works.
-
-Ignored `.data/production.env`, `.data/preview-postgres.env`, and `.data/user-e2e.env` held disposable local configuration. Never print or commit their values. A fresh clone must bootstrap its own credentials.
-
-The prior sandbox's master report was `/code/.generated_artifacts/test_report.md`; screenshots were under `/code/.generated_artifacts/images/`. Planning files were under `/code/.plans/`. These paths may not exist on another machine. The repository evidence and this handoff are the portable starting point.
-
-## Read next
-
-1. [NEXT.md](NEXT.md) — concise remaining-work list.
-2. [acceptance.json](acceptance.json) and [acceptance.md](acceptance.md) — requirement-level evidence.
-3. [tasks/](tasks/) — 20 work packages; older task notes can predate this handoff.
-4. [Console operator handoff](../apps/console/OPERATOR_E2E_HANDOFF.md).
-5. [Operators and extensions](../docs/runbooks/operators-and-extensions.md).
-6. [Backup and restore](../docs/runbooks/backup-restore.md).
-7. [Deployment evidence](../docs/evidence/deployment-implementation.md) — includes pending updates in the recovery snapshot.
-8. `docs/runbooks/self-hosted-compose.md` — available in the original worktree or after authorized snapshot recovery.
+Never enable live, provider or paid flags as a shortcut. Fixture results are not certification.
