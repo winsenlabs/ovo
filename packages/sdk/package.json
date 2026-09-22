@@ -6,6 +6,7 @@
   "exports": "./src/index.ts",
   "dependencies": {
     "@winsendotai/ovo-contracts": "workspace:*",
-    "@winsendotai/ovo-runtime": "workspace:*"
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "zod": "4.6.5"
   }
 }

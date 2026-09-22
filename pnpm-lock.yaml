@@ -298,6 +298,9 @@ importers:
 
   packages/plugin-ledger:
     dependencies:
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@winsendotai/ovo-plugin-observability':
         specifier: workspace:*
         version: link:../plugin-observability
@@ -389,6 +392,9 @@ importers:
       '@aws-sdk/client-sqs':
         specifier: 3.1136.0
         version: 3.1136.0
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
@@ -615,6 +621,9 @@ importers:
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
 
   packages/ui:
     dependencies:

@@ -9,6 +9,7 @@
     "test:integration": "vitest --root ../.. run packages/plugin-ledger/tests/postgres.test.ts"
   },
   "dependencies": {
+    "@winsendotai/ovo-contracts": "workspace:*",
     "@winsendotai/ovo-plugin-observability": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*",
     "pg": "8.16.3"

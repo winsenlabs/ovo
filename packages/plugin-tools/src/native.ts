@@ -1,15 +1,10 @@
-import type { ToolConnector } from '@winsendotai/ovo-contracts';
+import type { NativeToolHandler, ToolConnector } from '@winsendotai/ovo-contracts';
 import { definePlugin, type Context, type PluginDefinition } from '@winsendotai/ovo-runtime';
 import { ExecutionPolicyError } from './errors.ts';
 import { serviceKeys } from './services.ts';
 
-export interface NativeToolContext {
-  signal: AbortSignal;
-  operationId: string;
-  workspaceId: string;
-}
-
-export type NativeToolHandler = (input: unknown, context: NativeToolContext) => Promise<unknown>;
+/** Moved to contracts (`ports.ts`); re-exported so existing imports keep working. */
+export type { NativeToolContext, NativeToolHandler } from '@winsendotai/ovo-contracts';
 
 export function createNativeConnector(
   handlers: Readonly<Record<string, NativeToolHandler>>,

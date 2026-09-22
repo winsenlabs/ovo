@@ -276,3 +276,35 @@ export interface CapacityWriteGuard {
   markUnknown(attemptId: string, error: string): Promise<boolean>;
   pending(serviceKey: string): Promise<CapacityWriteAttempt | undefined>;
 }
+
+/**
+ * Carrier contracts v2 (§2.8). The legacy `TelephonyControl`, `DialResult` and `TelephonyDialRequest`
+ * above stay until wave 3; the v2 names that collide are re-exported with a `Carrier` prefix.
+ */
+export type {
+  CallState,
+  CarrierCapabilities,
+  CarrierControlFactory,
+  CarrierHostPorts,
+  CarrierHttpReply,
+  CarrierHttpRequest,
+  CarrierHttpRoute,
+  CarrierIngress,
+  CarrierMediaEvent,
+  DialRequest,
+  DialResult as CarrierDialResult,
+  HandoffTarget,
+  HangupQuery,
+  InboundAdmission,
+  InboundDecision,
+  MediaCodecSession,
+  MediaCommand,
+  MediaSerializer,
+  NormalizedCallEvent,
+  Reconciliation,
+  ResolvedBinding,
+  StreamGrant,
+  TelephonyControl as CarrierTelephonyControl,
+  UpgradeRequest,
+} from '@winsendotai/ovo-contracts';
+export { CarrierProtocolError } from '@winsendotai/ovo-contracts';

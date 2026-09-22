@@ -1,3 +1,6 @@
+/** v2 usage meter (contracts `usage.ts`); providers move to it as they adopt the v2 speech contracts. */
+export type { UsageMeter, UsageSink } from '@winsendotai/ovo-contracts';
+
 export const PROVIDER_SERVICE_KEYS = Object.freeze({
   secretResolver: 'ovo.secret-resolver',
   inference: 'ovo.inference',
