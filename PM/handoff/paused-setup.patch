@@ -1,0 +1,753 @@
+diff --git a/README.md b/README.md
+index 83b21c1..5b11856 100644
+--- a/README.md
++++ b/README.md
+@@ -83,6 +83,25 @@ LiveKit is not a mandatory dependency. The implementation uses the DeepSeek-deri
+ 
+ ## Getting started
+ 
++### Docker Compose quickstart
++
++For a complete single-organization installation on one Docker host:
++
++```sh
++git clone https://github.com/winsenlabs/ovo.git
++cd ovo
++./scripts/bootstrap-compose.sh --prompt-admin
++docker compose --env-file infra/compose/.env \
++  -f infra/compose/compose.yaml up --build -d --wait
++./scripts/verify-compose.sh
++```
++
++Open http://localhost:3000 and use the first-administrator email and password entered during bootstrap. The ignored environment file is created with mode `0600`; generated secrets are never printed. Live calls and paid provider evaluation remain disabled.
++
++See the [self-hosted Compose runbook](docs/runbooks/self-hosted-compose.md) for managed PostgreSQL with TLS, local versus production queues, storage, port changes, shutdown and the requirements for enabling real calls. Redis is not required by the current runtime.
++
++### Source development
++
+ Use Node.js 22 and pnpm 10. Install the pinned workspace dependencies:
+ 
+ ```sh
+diff --git a/apps/console/components/team/team-view.tsx b/apps/console/components/team/team-view.tsx
+index 3e10499..62b984c 100644
+--- a/apps/console/components/team/team-view.tsx
++++ b/apps/console/components/team/team-view.tsx
+@@ -199,7 +199,7 @@ export function TeamView({
+                 </select>
+               </Field>
+               <Field
+-                label="Temporary password"
++                label="Initial password"
+                 htmlFor="team-create-password"
+                 help={`${USER_PASSWORD_MIN_LENGTH}–${USER_PASSWORD_MAX_LENGTH} characters. Share it outside OVO.`}
+               >
+diff --git a/apps/dispatcher/src/main.ts b/apps/dispatcher/src/main.ts
+index 44b467e..0e88af8 100644
+--- a/apps/dispatcher/src/main.ts
++++ b/apps/dispatcher/src/main.ts
+@@ -103,7 +103,7 @@ async function main(): Promise<void> {
+       config: {
+         queueUrl: env('OVO_QUEUE_URL'),
+         region: env('AWS_REGION'),
+-        endpoint: process.env.OVO_SQS_ENDPOINT,
++        endpoint: process.env.OVO_SQS_ENDPOINT || undefined,
+       },
+     },
+     { id: capacityPlugin.manifest.id, config: capacityConfig },
+diff --git a/docs/README.md b/docs/README.md
+index 26997d2..cbee801 100644
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -21,6 +21,8 @@ These documents supersede earlier exploratory recommendations that presumed Live
+ 
+ The [DeepSeek source-reuse mandate](11-deepseek-foundation.md) supersedes earlier suggestions to build an independent plugin host. Directly reuse/adapt the upstream foundation; voice-engine selection remains a research task.
+ 
++For an executable installation, start with the [self-hosted Docker Compose runbook](runbooks/self-hosted-compose.md). It covers secure first bootstrap, the seeded administrator, managed PostgreSQL, local ElasticMQ versus SQS, recordings and safe live-call defaults.
++
+ ## Fixed requirements
+ 
+ - First-party npm packages use `@winsendotai/ovo-*`; keep the GitHub repository at its existing owner. Do not rename upstream dependencies or publish anything merely because it has a package name.
+diff --git a/docs/evidence/deployment-implementation.md b/docs/evidence/deployment-implementation.md
+index 56b35e7..cf1a67e 100644
+--- a/docs/evidence/deployment-implementation.md
++++ b/docs/evidence/deployment-implementation.md
+@@ -28,7 +28,7 @@ Status: **production runtime paths are implemented and locally integrated; live
+ - The media gateway composes signed `POST /twilio/inbound` handling before the ordinary status/health handler. Admission snapshots the called-number release and variables, reserves a genuinely task-protected worker slot, and transactionally creates the accepted inbound job/session route without entering the outbound runner. The worker renews protected capacity, atomically suspends it before accepting outbound work, performs budget admission on inbound media open, and hangs up before provider composition when blocked. Verified terminal callbacks release the inbound slot and call binding.
+ - Worker telemetry is process-scoped and bounded: sessions seed durable sequence numbers, preserve raw versus engine-accepted transcript decisions, tee provider/inference usage, attach scheduler/operation evidence and real stage timing, and flush on shutdown. Heartbeats include measured process CPU/RSS/event-loop lag while unknown restart, quota and memory-limit values remain null.
+ - Terraform primary profile declares private Fargate services, public TLS ALB only, SQS/DLQ, service discovery, scoped task roles/security groups, protected one-slot workers, one dispatcher, and no Application Auto Scaling policy. Terraform ignores worker desired-count drift so only the PostgreSQL-fenced dispatcher role can write it.
+-- Compose secondary profile declares console/API/dispatcher/gateway, PostgreSQL, ElasticMQ and two resource-bounded one-slot workers on one failure domain. Live dialing is disabled in the example.
++- Compose secondary profile declares console/API/dispatcher/gateway, optional local PostgreSQL and ElasticMQ, and two resource-bounded one-slot workers on one failure domain. Its idempotent `0600` bootstrap persists the database-backed first administrator, session/encryption/internal keys, supports managed PostgreSQL and standard SQS, and keeps live dialing, inbound calls, provider evaluations and transport certification disabled. No Redis service is required.
+ 
+ ## Verified locally
+ 
+@@ -40,13 +40,14 @@ Status: **production runtime paths are implemented and locally integrated; live
+ | Workspace dependency installation                                          | `pnpm install --frozen-lockfile` passed                                                                                     | The final workspace manifest set and lockfile importers agree.                                                                                                                                                                                                                                   |
+ | Executable health smoke against disposable PostgreSQL                      | Worker `dial-disabled` health 200; compact dispatcher health 200                                                            | Required local storage/queue clients compose and fail-safe worker mode is observable. No carrier/AWS operation.                                                                                                                                                                                  |
+ | Terraform 1.14.3 in Docker                                                 | `fmt -check`, `init -backend=false` and `validate` succeeded in a disposable directory                                      | HCL/provider schema is valid. It does not prove an AWS plan or apply.                                                                                                                                                                                                                            |
+-| Docker Compose                                                             | `docker compose ... config` succeeded with fixture values                                                                   | Secondary configuration parses with the shared PostgreSQL control store, media URL/token and encrypted-secret key wiring.                                                                                                                                                                        |
+-| Production container targets                                               | API, console, worker, dispatcher and gateway images built successfully                                                      | Frozen workspace installation, production deploy pruning and each executable bundle complete in the declared container stages. The console stage builds vendored TypeScript declarations before the Next.js production build; deployed MCP dependencies include their required Zod runtime peer. |
++| Docker Compose                                                             | Full isolated `up --build -d --wait` passed with all 8 services healthy; containerized verifier passed                       | The one-command compact profile starts with generated secrets, the console proxy authenticates the PostgreSQL-seeded administrator, `/v1/auth/me` and team listing work, admin user creation succeeded, both workers remain `dial-disabled`, and API/both workers can write the same recording volume. No carrier/provider operation was enabled.                |
++| Production container targets                                               | API, console, worker, dispatcher and gateway images built successfully                                                      | Frozen workspace installation, production deploy pruning and each executable bundle complete in the declared container stages. The API ESM bundle includes a Node `createRequire` bridge for bundled CommonJS dependencies; the console stage builds vendored TypeScript declarations before the Next.js production build.                                  |
+ | Production dependency audit after AWS SDK 3.1136.0 upgrade                 | 0 known info/low/moderate/high/critical findings                                                                            | The earlier transitive advisory set is absent in the installed lock state at test time.                                                                                                                                                                                                          |
+-| Repository module-size gate                                                | All deployment-owned production and test files pass; the last run was red only for a concurrent storage-owned 509-line test | This slice complies with the local module rule; the storage owner was notified to split its test before the final quality cycle.                                                                                                                                                                 |
+-| Whole-workspace TypeScript                                                 | `pnpm typecheck` passed, including console                                                                                  | Worker, dispatcher, gateway, API, console and all current package contracts compile together at the final integration checkpoint.                                                                                                                                                                |
++| Repository module-size gate                                                | Passed for all 529 first-party code files; largest was 499 canonical nonblank lines                                          | The final working tree satisfies the module-size policy.                                                                                                                                                                                                                                         |
++| Focused authentication/console contracts                                   | 11 passed, 5 PostgreSQL-environment-gated skips                                                                             | API TLS-header rejection, session behavior, password hashing/throttling, and console team/auth request contracts pass locally; the PostgreSQL-backed paths were separately exercised by the live Compose stack.                                                                                  |
++| Whole-workspace TypeScript                                                 | Earlier checkpoint passed; latest rerun failed in `apps/worker/src/production-session-support.ts:78`                        | The current unrelated worker source passes a general `string` to a literal-only simulated plugin parameter. Deployment-owned Compose/API/dispatcher code built into production images, but the repository-wide typecheck must be rerun after that worker regression is corrected.                                                                            |
+ 
+-The disposable PostgreSQL and ElasticMQ containers remain available for the shared validation session. These are local database/simulation results, not Fargate or production integration evidence.
++The isolated Compose stack used local PostgreSQL and ElasticMQ. These are local database/simulation results, not Fargate or production integration evidence.
+ 
+ ## Explicitly unverified production gates
+ 
+diff --git a/infra/compose/.env.example b/infra/compose/.env.example
+index e3fc03d..edc75ee 100644
+--- a/infra/compose/.env.example
++++ b/infra/compose/.env.example
+@@ -1,13 +1,26 @@
+-POSTGRES_PASSWORD=replace-with-local-only-value
++COMPOSE_PROFILES=local-postgres,local-queue
++POSTGRES_PASSWORD=replace-with-random-local-value
++DATABASE_URL=postgresql://ovo:replace-with-random-local-value@postgres:5432/ovo
+ OVO_ORGANIZATION_ID=ovo
++OVO_ADMIN_ID=first-admin
++OVO_ADMIN_LABEL=First administrator
++OVO_ALLOW_LOCAL_HTTP=true
++OVO_SESSION_SECRET=replace-with-a-long-random-session-secret
++OVO_SEED_ADMIN_EMAIL=admin@example.com
++OVO_SEED_ADMIN_PASSWORD=replace-with-a-strong-unique-password
++OVO_SEED_ADMIN_LABEL=First administrator
++OVO_RESTORE_ADMIN_RECOVERY=false
+ OVO_MEDIA_PUBLIC_BASE_URL=https://voice.example.com
+ OVO_MEDIA_WORKER_TOKEN=replace-with-a-long-random-internal-token
+ OVO_SECRETS_MASTER_KEY=replace-with-32-byte-hex-or-base64-key
++OVO_SECRETS_BACKEND=encrypted-store
+ OVO_PLUGIN_MODULES=[]
+ OVO_RECORDING_RETENTION_DAYS=30
+ OVO_INBOUND_ENABLED=false
+ OVO_INBOUND_ROUTE_SECRET=replace-with-at-least-32-random-characters
+ OVO_LIVE_DIAL_ENABLED=false
++OVO_TRANSPORT_CERTIFIED=false
++OVO_PROVIDER_EVALUATIONS_ENABLED=false
+ OVO_PERMITTED_FROM_NUMBERS=
+ POSTGRES_PORT=54329
+ ELASTICMQ_PORT=9324
+@@ -15,6 +28,10 @@ API_PORT=4000
+ CONSOLE_PORT=3000
+ GATEWAY_PORT=4001
+ AWS_REGION=ap-south-1
++AWS_ACCESS_KEY_ID=local
++AWS_SECRET_ACCESS_KEY=local
++OVO_SQS_ENDPOINT=http://queue:9324
++OVO_QUEUE_URL=http://queue:9324/000000000000/ovo-jobs
+ OVO_API_IMAGE=ovo-api:local
+ OVO_CONSOLE_IMAGE=ovo-console:local
+ OVO_DISPATCHER_IMAGE=ovo-dispatcher:local
+diff --git a/infra/compose/compose.yaml b/infra/compose/compose.yaml
+index 23a5f15..5ebc5a3 100644
+--- a/infra/compose/compose.yaml
++++ b/infra/compose/compose.yaml
+@@ -3,17 +3,18 @@ name: ovo-compact
+ x-common-environment: &common
+   OVO_ENVIRONMENT: compact
+   OVO_ORGANIZATION_ID: ${OVO_ORGANIZATION_ID:?set OVO_ORGANIZATION_ID}
+-  DATABASE_URL: postgresql://ovo:${POSTGRES_PASSWORD}@postgres:5432/ovo
++  DATABASE_URL: ${DATABASE_URL:?run ./scripts/bootstrap-compose.sh first}
+   AWS_REGION: ${AWS_REGION:-ap-south-1}
+-  AWS_ACCESS_KEY_ID: local
+-  AWS_SECRET_ACCESS_KEY: local
+-  OVO_SQS_ENDPOINT: http://queue:9324
+-  OVO_QUEUE_URL: http://queue:9324/000000000000/ovo-jobs
++  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
++  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
++  OVO_SQS_ENDPOINT: ${OVO_SQS_ENDPOINT-http://queue:9324}
++  OVO_QUEUE_URL: ${OVO_QUEUE_URL:?run ./scripts/bootstrap-compose.sh first}
+   OVO_PLUGIN_MODULES: ${OVO_PLUGIN_MODULES:-[]}
+ 
+ services:
+   postgres:
+     image: postgres:17.6-alpine
++    profiles: [local-postgres]
+     environment:
+       POSTGRES_USER: ovo
+       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+@@ -35,10 +36,16 @@ services:
+ 
+   queue:
+     image: softwaremill/elasticmq-native:1.6.15
++    profiles: [local-queue]
+     volumes:
+       - ./elasticmq.conf:/opt/elasticmq.conf:ro
+     ports:
+       - '127.0.0.1:${ELASTICMQ_PORT:-9324}:9324'
++    healthcheck:
++      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:9324/health']
++      interval: 2s
++      timeout: 3s
++      retries: 30
+     mem_limit: 256m
+     cpus: 0.5
+     restart: unless-stopped
+@@ -51,6 +58,17 @@ services:
+       target: api
+     environment:
+       <<: *common
++      OVO_ADMIN_ID: ${OVO_ADMIN_ID:-first-admin}
++      OVO_ADMIN_LABEL: ${OVO_ADMIN_LABEL:-First administrator}
++      OVO_ADMIN_WORKSPACE_ID: ${OVO_ORGANIZATION_ID:?set OVO_ORGANIZATION_ID}
++      OVO_ALLOW_LOCAL_HTTP: ${OVO_ALLOW_LOCAL_HTTP:-true}
++      OVO_SESSION_SECRET: ${OVO_SESSION_SECRET:?run ./scripts/bootstrap-compose.sh first}
++      OVO_SEED_ADMIN_EMAIL: ${OVO_SEED_ADMIN_EMAIL:?run ./scripts/bootstrap-compose.sh first}
++      OVO_SEED_ADMIN_PASSWORD: ${OVO_SEED_ADMIN_PASSWORD:?run ./scripts/bootstrap-compose.sh first}
++      OVO_SEED_ADMIN_LABEL: ${OVO_SEED_ADMIN_LABEL:-First administrator}
++      OVO_RESTORE_ADMIN_RECOVERY: ${OVO_RESTORE_ADMIN_RECOVERY:-false}
++      OVO_STORAGE_ADAPTER: postgres
++      OVO_SECRETS_BACKEND: encrypted-store
+       OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?set OVO_SECRETS_MASTER_KEY}
+       OVO_RECORDINGS_BACKEND: filesystem
+       OVO_RECORDINGS_DIRECTORY: /var/lib/ovo-recordings
+@@ -58,9 +76,9 @@ services:
+       OVO_RECORDINGS_SHARED_ACROSS_WORKERS: 'true'
+       OVO_RECORDING_RETENTION_DAYS: ${OVO_RECORDING_RETENTION_DAYS:-30}
+       OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
++      OVO_PROVIDER_EVALUATIONS_ENABLED: ${OVO_PROVIDER_EVALUATIONS_ENABLED:-false}
+     depends_on:
+-      postgres: { condition: service_healthy }
+-      queue: { condition: service_started }
++      postgres: { condition: service_healthy, required: false }
+     healthcheck:
+       test:
+         [
+@@ -74,6 +92,8 @@ services:
+       retries: 20
+     ports:
+       - '127.0.0.1:${API_PORT:-4000}:4000'
++    volumes:
++      - recordings-data:/var/lib/ovo-recordings
+     mem_limit: 1g
+     cpus: 1.0
+     restart: unless-stopped
+@@ -88,6 +108,17 @@ services:
+       OVO_API_URL: http://api:4000
+     depends_on:
+       api: { condition: service_healthy }
++    healthcheck:
++      test:
++        [
++          'CMD',
++          'node',
++          '-e',
++          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
++        ]
++      interval: 5s
++      timeout: 3s
++      retries: 20
+     ports:
+       - '127.0.0.1:${CONSOLE_PORT:-3000}:3000'
+     mem_limit: 512m
+@@ -112,7 +143,7 @@ services:
+       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-not-configured}
+       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-not-configured}
+     depends_on:
+-      postgres: { condition: service_healthy }
++      postgres: { condition: service_healthy, required: false }
+     healthcheck:
+       test:
+         [
+@@ -148,8 +179,8 @@ services:
+       OVO_AWS_TASK_LIMIT: '2'
+       OVO_SPEND_PERMITTED_STARTS: '2'
+     depends_on:
+-      postgres: { condition: service_healthy }
+-      queue: { condition: service_started }
++      postgres: { condition: service_healthy, required: false }
++      queue: { condition: service_healthy, required: false }
+     healthcheck:
+       test:
+         [
+@@ -178,7 +209,7 @@ services:
+       OVO_PROTECTION_MODE: process-lifecycle
+       OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
+       OVO_INBOUND_CAPACITY_ENABLED: ${OVO_INBOUND_ENABLED:-false}
+-      OVO_TRANSPORT_CERTIFIED: 'false'
++      OVO_TRANSPORT_CERTIFIED: ${OVO_TRANSPORT_CERTIFIED:-false}
+       OVO_MEDIA_READINESS_URL: http://gateway:4001/health
+       OVO_MEDIA_GATEWAY_WS_URL: ws://gateway:4001/worker
+       OVO_MEDIA_WORKER_TOKEN: ${OVO_MEDIA_WORKER_TOKEN:?set OVO_MEDIA_WORKER_TOKEN}
+@@ -193,8 +224,8 @@ services:
+       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-not-configured}
+       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-not-configured}
+     depends_on:
+-      postgres: { condition: service_healthy }
+-      queue: { condition: service_started }
++      postgres: { condition: service_healthy, required: false }
++      queue: { condition: service_healthy, required: false }
+       gateway: { condition: service_healthy }
+     healthcheck: &worker-health
+       test:
+@@ -221,8 +252,8 @@ services:
+       OVO_WORKER_ID: compact-worker-2
+       OVO_WORKER_ENDPOINT: ws://worker-2:4100/internal/media
+     depends_on:
+-      postgres: { condition: service_healthy }
+-      queue: { condition: service_started }
++      postgres: { condition: service_healthy, required: false }
++      queue: { condition: service_healthy, required: false }
+       gateway: { condition: service_healthy }
+     healthcheck: *worker-health
+     volumes:
+diff --git a/infra/container/Dockerfile b/infra/container/Dockerfile
+index debbd13..02639b9 100644
+--- a/infra/container/Dockerfile
++++ b/infra/container/Dockerfile
+@@ -11,7 +11,9 @@ RUN pnpm install --frozen-lockfile
+ 
+ FROM workspace AS api-build
+ RUN pnpm exec esbuild apps/api/src/index.ts --bundle --platform=node --format=esm --target=node24 \
+-      --loader:.sql=text --external:fastify --external:pg-native --outfile=apps/api/dist/index.js \
++      --loader:.sql=text --external:fastify --external:pg --external:pg-native \
++      --banner:js="import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" \
++      --outfile=apps/api/dist/index.js \
+   && pnpm --filter @winsendotai/ovo-api deploy --prod --legacy /runtime/api \
+   && mkdir -p /runtime/api/dist \
+   && cp apps/api/dist/index.js /runtime/api/dist/index.js
+@@ -20,6 +22,8 @@ FROM node:24.8.0-alpine AS api
+ ENV NODE_ENV=production
+ WORKDIR /app
+ COPY --from=api-build /runtime/api/ ./
++USER root
++RUN mkdir -p /var/lib/ovo-recordings && chown -R node:node /var/lib/ovo-recordings
+ USER node
+ EXPOSE 4000
+ CMD ["node", "dist/index.js"]
+@@ -76,6 +80,8 @@ FROM node:24.8.0-alpine AS worker
+ ENV NODE_ENV=production
+ WORKDIR /app
+ COPY --from=worker-build /runtime/worker/ ./
++USER root
++RUN mkdir -p /var/lib/ovo-recordings && chown -R node:node /var/lib/ovo-recordings
+ USER node
+ EXPOSE 4100
+ CMD ["node", "dist/main.cjs"]
+diff --git a/docs/runbooks/self-hosted-compose.md b/docs/runbooks/self-hosted-compose.md
+new file mode 100644
+index 0000000..fef7b12
+--- /dev/null
++++ b/docs/runbooks/self-hosted-compose.md
+@@ -0,0 +1,134 @@
++# Self-hosted Docker Compose setup
++
++This profile runs one OVO organization on one Docker host. It starts the console, API, media gateway, dispatcher and two bounded workers. Local PostgreSQL and ElasticMQ are enabled by default, but they may be replaced with managed PostgreSQL and AWS SQS.
++
++## Prerequisites
++
++- Docker Engine with Docker Compose v2.20 or newer
++- OpenSSL
++- At least 8 GiB of available memory for builds and the running profile
++
++No Redis service is required. The speech-audio cache is bounded process memory and is intentionally cold after a worker restart.
++
++## First setup
++
++From the repository root, create the ignored installation environment. The recommended interactive mode keeps the administrator password out of shell history:
++
++```sh
++./scripts/bootstrap-compose.sh --prompt-admin
++```
++
++The bootstrap:
++
++- creates `infra/compose/.env` with mode `0600`;
++- generates independent random session, encryption, media and routing keys;
++- records the first administrator email and password without printing either secret;
++- enables the local PostgreSQL and ElasticMQ profiles;
++- keeps live dialing, inbound calling, transport certification and provider-backed evaluations disabled.
++
++It is safe to rerun. Existing values are preserved and the file remains mode `0600`. Do not commit or copy this file into an image. Back it up through your secret-management process because changing the encryption key makes existing provider credentials unreadable.
++
++If you supply `OVO_SEED_ADMIN_PASSWORD` noninteractively, it must be 12–128 characters and use only letters, numbers, or these dotenv-safe characters: `!@%_+=:,.~-`. The same validation applies to the interactive prompt so the generated environment never silently misparses a password.
++
++Start the complete stack with one Compose command:
++
++```sh
++docker compose --env-file infra/compose/.env \
++  -f infra/compose/compose.yaml up --build -d --wait
++```
++
++Open http://localhost:3000 and sign in with the email and password supplied during bootstrap. The first administrator is inserted transactionally only when the installation has no users. Restarting the stack does not reset its password or create another administrator.
++
++Verify container health and the database-backed sign-in without printing credentials:
++
++```sh
++./scripts/verify-compose.sh
++```
++
++Stop the services without deleting data:
++
++```sh
++docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml down
++```
++
++Add `--volumes` only when you intentionally want to delete the local database and recordings.
++
++The bootstrap is intentionally non-destructive: once any database user exists, normal restarts do not replace users or reset passwords. For disaster recovery, follow the guarded [backup and restore procedure](backup-restore.md); do not attempt to replay the normal seed or improvise a bulk user reset.
++
++## Local ports and HTTP safety
++
++The default profile publishes only to the loopback interface:
++
++| Service | URL or port |
++| --- | --- |
++| Console | `http://127.0.0.1:3000` |
++| API | `http://127.0.0.1:4000` |
++| Media gateway | `http://127.0.0.1:4001` |
++| PostgreSQL | `127.0.0.1:54329` |
++| ElasticMQ | `127.0.0.1:9324` |
++
++The local profile sets `OVO_ALLOW_LOCAL_HTTP=true`, which disables the API's TLS-write requirement and `Secure` session-cookie attribute. Its safety boundary is the Compose file's fixed `127.0.0.1` port publishing; the flag is not a request-level client-IP guard. Do not publish these ports on another interface. Any shared or public installation must set the flag to `false` and terminate TLS at a trusted reverse proxy; arbitrary `X-Forwarded-Proto` headers are not trusted.
++
++Change host ports in `infra/compose/.env` when another process already uses them. Internal container ports do not change.
++
++## Managed PostgreSQL
++
++OVO uses one PostgreSQL database with separate namespaced migrations. Provide a PostgreSQL URL through an environment variable so credentials do not appear in command arguments:
++
++```sh
++export OVO_BOOTSTRAP_DATABASE_URL='postgresql://USER:PERCENT_ENCODED_PASSWORD@HOST:5432/ovo?sslmode=require'
++./scripts/bootstrap-compose.sh --managed-postgres --prompt-admin
++unset OVO_BOOTSTRAP_DATABASE_URL
++```
++
++Then run the same `docker compose ... up --build -d --wait` command. The generated `COMPOSE_PROFILES` excludes the local PostgreSQL service. Use the provider's TLS requirement; prefer `sslmode=verify-full` with a trusted CA where supported. Percent-encode reserved characters in usernames and passwords.
++
++The database account needs permission to create and migrate tables in the target database. Use a dedicated database/account, enable managed backups and test the [restore quarantine procedure](backup-restore.md).
++
++## Queue choices
++
++The default `local-queue` profile starts ElasticMQ for a single-host installation. ElasticMQ is a development/compact substitute, not a claim of SQS durability.
++
++Production deployments should set `OVO_QUEUE_URL` to the real SQS queue, leave `OVO_SQS_ENDPOINT` empty, disable the `local-queue` profile, and provide AWS credentials through the workload identity or deployment secret mechanism. The Compose bootstrap also accepts `--managed-sqs` with `OVO_BOOTSTRAP_QUEUE_URL`; local Docker runs must additionally supply appropriately scoped AWS credentials.
++
++Use an existing **standard** SQS queue; the current dispatcher does not supply a FIFO message-group ID. Provision and operate the queue and its dead-letter queue outside this Compose profile. The dispatcher and workers need queue-scoped permission for `sqs:SendMessage`, `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, and `sqs:GetQueueAttributes`. OVO does not provision AWS resources during bootstrap.
++
++## Recordings and data
++
++The compact profile mounts the same `recordings-data` volume into the API and both workers. PostgreSQL state uses `postgres-data`. This is durable across container replacement on one host and shared by the compact workers.
++
++For multi-host production, use the supported S3-compatible recording backend instead of a host-local named volume. Never claim a local volume is shared across hosts.
++
++## Enabling real calls
++
++The bootstrap deliberately sets these values to false:
++
++- `OVO_LIVE_DIAL_ENABLED`
++- `OVO_INBOUND_ENABLED`
++- `OVO_TRANSPORT_CERTIFIED`
++- `OVO_PROVIDER_EVALUATIONS_ENABLED`
++
++Do not enable them merely to make a readiness indicator green. Real calls additionally require:
++
++1. a publicly reachable HTTPS/WSS media gateway and the exact `OVO_MEDIA_PUBLIC_BASE_URL`;
++2. verified carrier credentials and an owned/permitted caller ID;
++3. `OVO_INBOUND_ROUTE_SECRET` retained as an installation secret;
++4. configured write-only provider credentials and immutable provider bindings;
++5. cost cards, FX version and budget policy;
++6. completed carrier/provider transport certification before setting `OVO_TRANSPORT_CERTIFIED=true`.
++
++The local stack remains useful for administration, fixtures, deterministic evaluations and persisted evidence while these external integrations are disabled.
++
++## Troubleshooting
++
++Inspect health and bounded logs:
++
++```sh
++docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml ps
++docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml logs --tail=100 api console
++```
++
++- `tls_required` on localhost means `OVO_ALLOW_LOCAL_HTTP=true` was not applied to the API container. The setting is safe only with the Compose file's loopback-only published ports.
++- `recordings_unavailable` usually means the API recording volume/configuration is missing.
++- A worker in `dial-disabled` is healthy when live dialing is false.
++- A managed database connection failure should be fixed in `DATABASE_URL`/TLS configuration; OVO does not silently fall back to local PostgreSQL.
+diff --git a/scripts/bootstrap-compose.sh b/scripts/bootstrap-compose.sh
+new file mode 100755
+index 0000000..051535e
+--- /dev/null
++++ b/scripts/bootstrap-compose.sh
+@@ -0,0 +1,209 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
++ENV_FILE="$ROOT_DIR/infra/compose/.env"
++PROMPT_ADMIN=false
++MANAGED_POSTGRES=false
++MANAGED_SQS=false
++
++usage() {
++  cat <<'EOF'
++Usage: ./scripts/bootstrap-compose.sh [options]
++
++Creates an idempotent, mode-0600 Compose environment without printing secrets.
++
++Options:
++  --env-file PATH       Write a different ignored Compose env file.
++  --prompt-admin        Prompt for the first administrator email/password.
++  --managed-postgres    Use OVO_BOOTSTRAP_DATABASE_URL instead of local PostgreSQL.
++  --managed-sqs         Use OVO_BOOTSTRAP_QUEUE_URL instead of local ElasticMQ.
++  -h, --help            Show this help.
++
++Managed service inputs are read from environment variables so credentials do not
++appear in command arguments. Database URL credentials must be percent-encoded.
++EOF
++}
++
++while (($#)); do
++  case "$1" in
++    --env-file)
++      [[ $# -ge 2 ]] || { echo '--env-file requires a path' >&2; exit 2; }
++      ENV_FILE=$2
++      shift 2
++      ;;
++    --prompt-admin)
++      PROMPT_ADMIN=true
++      shift
++      ;;
++    --managed-postgres)
++      MANAGED_POSTGRES=true
++      shift
++      ;;
++    --managed-sqs)
++      MANAGED_SQS=true
++      shift
++      ;;
++    -h|--help)
++      usage
++      exit 0
++      ;;
++    *)
++      echo "Unknown option: $1" >&2
++      usage >&2
++      exit 2
++      ;;
++  esac
++done
++
++command -v openssl >/dev/null || {
++  echo 'openssl is required to generate installation secrets' >&2
++  exit 1
++}
++
++if $MANAGED_POSTGRES && [[ -z ${OVO_BOOTSTRAP_DATABASE_URL:-} ]]; then
++  echo 'OVO_BOOTSTRAP_DATABASE_URL is required with --managed-postgres' >&2
++  exit 2
++fi
++if $MANAGED_SQS && [[ -z ${OVO_BOOTSTRAP_QUEUE_URL:-} ]]; then
++  echo 'OVO_BOOTSTRAP_QUEUE_URL is required with --managed-sqs' >&2
++  exit 2
++fi
++
++mkdir -p "$(dirname "$ENV_FILE")"
++LOCK_DIR="${ENV_FILE}.lock"
++if ! mkdir "$LOCK_DIR" 2>/dev/null; then
++  echo "Another bootstrap process is using $ENV_FILE" >&2
++  exit 1
++fi
++trap 'rmdir "$LOCK_DIR"' EXIT
++
++umask 077
++touch "$ENV_FILE"
++chmod 600 "$ENV_FILE"
++
++has_key() {
++  grep -q "^$1=" "$ENV_FILE"
++}
++
++value_for() {
++  sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1
++}
++
++append() {
++  local key=$1 value=$2
++  has_key "$key" || printf '%s=%s\n' "$key" "$value" >>"$ENV_FILE"
++}
++
++random_hex() {
++  openssl rand -hex "$1"
++}
++
++single_line() {
++  local name=$1 value=$2
++  [[ -n $value && $value != *$'\n'* && $value != *$'\r'* ]] || {
++    echo "$name must be a non-empty single-line value" >&2
++    exit 2
++  }
++}
++
++dotenv_url() {
++  local name=$1 value=$2
++  single_line "$name" "$value"
++  if [[ $value == *'$'* || $value == *'#'* || $value == *'"'* || $value == *"'"* || $value == *'\'* || $value == *[[:space:]]* ]]; then
++    echo "$name contains characters that must be percent-encoded for the dotenv file" >&2
++    exit 2
++  fi
++}
++
++admin_email=${OVO_SEED_ADMIN_EMAIL:-}
++admin_password=${OVO_SEED_ADMIN_PASSWORD:-}
++if $PROMPT_ADMIN && ! has_key OVO_SEED_ADMIN_EMAIL; then
++  [[ -t 0 ]] || { echo '--prompt-admin requires an interactive terminal' >&2; exit 2; }
++  read -r -p 'First administrator email: ' admin_email
++  read -r -s -p 'First administrator password: ' admin_password
++  printf '\n' >&2
++fi
++admin_email=${admin_email:-admin@ovo.local}
++admin_password=${admin_password:-$(random_hex 24)}
++single_line OVO_SEED_ADMIN_EMAIL "$admin_email"
++single_line OVO_SEED_ADMIN_PASSWORD "$admin_password"
++[[ $admin_email =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || {
++  echo 'OVO_SEED_ADMIN_EMAIL must be a valid email address' >&2
++  exit 2
++}
++[[ ${#admin_password} -ge 12 && ${#admin_password} -le 128 ]] || {
++  echo 'OVO_SEED_ADMIN_PASSWORD must contain 12 to 128 characters' >&2
++  exit 2
++}
++[[ $admin_password =~ ^[A-Za-z0-9!@%_+=:,.~-]+$ ]] || {
++  echo 'OVO_SEED_ADMIN_PASSWORD contains unsupported dotenv characters' >&2
++  exit 2
++}
++
++postgres_password=$(value_for POSTGRES_PASSWORD)
++postgres_password=${postgres_password:-$(random_hex 24)}
++database_url=${OVO_BOOTSTRAP_DATABASE_URL:-postgresql://ovo:${postgres_password}@postgres:5432/ovo}
++dotenv_url DATABASE_URL "$database_url"
++
++profiles=()
++$MANAGED_POSTGRES || profiles+=(local-postgres)
++$MANAGED_SQS || profiles+=(local-queue)
++compose_profiles=$(IFS=,; echo "${profiles[*]}")
++
++queue_url=${OVO_BOOTSTRAP_QUEUE_URL:-http://queue:9324/000000000000/ovo-jobs}
++queue_endpoint=http://queue:9324
++aws_access_key=${OVO_BOOTSTRAP_AWS_ACCESS_KEY_ID:-local}
++aws_secret_key=${OVO_BOOTSTRAP_AWS_SECRET_ACCESS_KEY:-local}
++if $MANAGED_SQS; then
++  queue_endpoint=
++  aws_access_key=${OVO_BOOTSTRAP_AWS_ACCESS_KEY_ID:-}
++  aws_secret_key=${OVO_BOOTSTRAP_AWS_SECRET_ACCESS_KEY:-}
++fi
++dotenv_url OVO_QUEUE_URL "$queue_url"
++
++append COMPOSE_PROFILES "$compose_profiles"
++append POSTGRES_PASSWORD "$postgres_password"
++append DATABASE_URL "$database_url"
++append OVO_ORGANIZATION_ID ovo
++append OVO_ADMIN_ID first-admin
++append OVO_ADMIN_LABEL First-administrator
++append OVO_ALLOW_LOCAL_HTTP true
++append OVO_SESSION_SECRET "$(random_hex 32)"
++append OVO_SEED_ADMIN_EMAIL "$admin_email"
++append OVO_SEED_ADMIN_PASSWORD "$admin_password"
++append OVO_SEED_ADMIN_LABEL Administrator
++append OVO_RESTORE_ADMIN_RECOVERY false
++append OVO_MEDIA_PUBLIC_BASE_URL https://voice.invalid
++append OVO_MEDIA_WORKER_TOKEN "$(random_hex 32)"
++append OVO_SECRETS_MASTER_KEY "$(random_hex 32)"
++append OVO_SECRETS_BACKEND encrypted-store
++append OVO_PLUGIN_MODULES '[]'
++append OVO_RECORDING_RETENTION_DAYS 30
++append OVO_INBOUND_ENABLED false
++append OVO_INBOUND_ROUTE_SECRET "$(random_hex 32)"
++append OVO_LIVE_DIAL_ENABLED false
++append OVO_TRANSPORT_CERTIFIED false
++append OVO_PROVIDER_EVALUATIONS_ENABLED false
++append OVO_PERMITTED_FROM_NUMBERS ''
++append POSTGRES_PORT "${POSTGRES_PORT:-54329}"
++append ELASTICMQ_PORT "${ELASTICMQ_PORT:-9324}"
++append API_PORT "${API_PORT:-4000}"
++append CONSOLE_PORT "${CONSOLE_PORT:-3000}"
++append GATEWAY_PORT "${GATEWAY_PORT:-4001}"
++append AWS_REGION ap-south-1
++append AWS_ACCESS_KEY_ID "$aws_access_key"
++append AWS_SECRET_ACCESS_KEY "$aws_secret_key"
++append OVO_SQS_ENDPOINT "$queue_endpoint"
++append OVO_QUEUE_URL "$queue_url"
++append TWILIO_ACCOUNT_SID disabled-local-account
++append TWILIO_AUTH_TOKEN disabled-local-token
++
++if grep -Eq '(^|=)replace-with-|change-me|example-secret' "$ENV_FILE"; then
++  echo "$ENV_FILE contains placeholder secrets; remove it and rerun bootstrap" >&2
++  exit 1
++fi
++
++echo "Compose environment is ready at $ENV_FILE (mode 0600)."
++echo 'Secrets were generated or preserved without being printed.'
++echo "Next: docker compose --env-file $ENV_FILE -f infra/compose/compose.yaml up --build -d"
+diff --git a/scripts/verify-compose.sh b/scripts/verify-compose.sh
+new file mode 100755
+index 0000000..6434860
+--- /dev/null
++++ b/scripts/verify-compose.sh
+@@ -0,0 +1,61 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
++ENV_FILE=${1:-$ROOT_DIR/infra/compose/.env}
++COMPOSE_FILE=$ROOT_DIR/infra/compose/compose.yaml
++
++[[ -f $ENV_FILE ]] || {
++  echo "Missing Compose environment: $ENV_FILE" >&2
++  exit 2
++}
++
++bad_services=()
++service_count=0
++while IFS=$'\t' read -r service state health; do
++  [[ -n $service ]] || continue
++  service_count=$((service_count + 1))
++  if [[ $state != running || $health != healthy ]]; then
++    bad_services+=("$service")
++  fi
++done < <(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -a \
++  --format '{{.Service}}\t{{.State}}\t{{.Health}}')
++if ((${#bad_services[@]})); then
++  echo "Unhealthy Compose services: ${bad_services[*]}" >&2
++  exit 1
++fi
++((service_count > 0)) || { echo 'No Compose services are running' >&2; exit 1; }
++
++docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T \
++  -e OVO_EXPECTED_SERVICE_COUNT="$service_count" api node --input-type=module - <<'NODE'
++const apiBase = 'http://127.0.0.1:4000';
++const consoleBase = 'http://console:3000';
++const health = await fetch(`${apiBase}/health`);
++if (!health.ok) throw new Error(`API health returned ${health.status}`);
++const consoleResponse = await fetch(consoleBase);
++if (!consoleResponse.ok) throw new Error(`Console returned ${consoleResponse.status}`);
++
++const login = await fetch(`${consoleBase}/api/v1/auth/session`, {
++  method: 'POST',
++  headers: { 'content-type': 'application/json', origin: consoleBase },
++  body: JSON.stringify({
++    email: process.env.OVO_SEED_ADMIN_EMAIL,
++    password: process.env.OVO_SEED_ADMIN_PASSWORD,
++  }),
++});
++if (!login.ok) throw new Error(`Seed administrator sign-in returned ${login.status}`);
++const setCookie = login.headers.get('set-cookie');
++if (process.env.OVO_ALLOW_LOCAL_HTTP === 'true' && /;\s*Secure(?:;|$)/iu.test(setCookie ?? ''))
++  throw new Error('Loopback HTTP sign-in issued a Secure cookie');
++const cookie = setCookie?.split(';', 1)[0];
++if (!cookie) throw new Error('Seed administrator sign-in did not issue a session cookie');
++const identity = await fetch(`${consoleBase}/api/v1/auth/me`, { headers: { cookie } });
++if (!identity.ok) throw new Error(`Authenticated identity check returned ${identity.status}`);
++const users = await fetch(`${consoleBase}/api/v1/users`, { headers: { cookie } });
++if (!users.ok) throw new Error(`Team users check returned ${users.status}`);
++const userItems = (await users.json()).items;
++if (!Array.isArray(userItems) || !userItems.some((user) => user.email === process.env.OVO_SEED_ADMIN_EMAIL && user.role === 'admin'))
++  throw new Error('Seed administrator is missing from the team directory');
++
++console.log(`Compose verification passed: ${process.env.OVO_EXPECTED_SERVICE_COUNT} services healthy, console proxy and API reachable, seed administrator authenticated.`);
++NODE

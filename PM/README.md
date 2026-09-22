@@ -1,5 +1,7 @@
 # OVO project task board
 
+**Continuation entry point:** Read [HANDOFF.md](HANDOFF.md) and [NEXT.md](NEXT.md) for the September 22 state and pause boundary. Earlier board notes below are historical; do not restart completed engineering from them.
+
 Updated: 2026-09-20 UTC. Owner: OVO implementation team.
 
 The initial upstream source audit is complete. Local comparative prototypes and bounded audio caching have test evidence. Live audio comparisons and integration research remain open. This board covers the full project, not only the first implementation branch. No launch criterion is verified merely because code exists.

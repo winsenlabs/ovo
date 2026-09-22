@@ -1,31 +1,34 @@
-# Remaining verification and certification gates
+# Next work — paused
 
-OVO now contains the single-organization production implementation. This replaces the earlier foundation-only engineering backlog. Implementation is not production certification; `acceptance.json` retains all 75 requirements.
+Updated: **2026-09-22**.
 
-## Implemented local engineering
+**Start with [HANDOFF.md](HANDOFF.md).** It records the decisions, verified checkpoints, unfinished work, and safe recovery instructions for another agent.
 
-- All four behavior modes publish through the management API, with deterministic scripts and shared FAQ/tool execution.
-- PostgreSQL provides shared asynchronous control storage, immutable release/provider/MCP snapshots, and durable runtime state.
-- The media gateway joins Twilio routing, streaming Deepgram STT, OpenAI TTS/inference, playback context, and worker cleanup.
-- Campaigns, suppression, inbound protected admission, bounded wait, consent-based callback, and handoff have durable implementations.
-- Bounded telemetry, resumable events, latency/cohort queries, and infrastructure inspection connect to the console.
-- Production recording capture honors release consent. Playback, export, tombstone retention, and restore safeguards have local implementations.
-- Versioned price cards, FX, native usage, cache accounting, required meter coverage, reservations, and reconciliation connect to admission.
-- Evaluations use immutable datasets and a 120-case deterministic corpus. Optional paid execution requires durable admin authorization and a server-only enable flag.
-- Compose and Fargate profiles include API, console, gateway, dispatcher, and worker images.
+The user requested this documentation update only. Do not restart builds, tests, services, or deployments until the user resumes the work.
 
-## Final local verification in progress
+## Completed since the earlier backlog
 
-1. Complete focused restore-quarantine and inbound ownership-renewal corrections from the integration review.
-2. Run final integrated CI, disposable PostgreSQL, protocol lifecycle, restore, and browser verification.
-3. Reconcile each acceptance criterion with current evidence. Preserve gaps rather than converting implementation presence into verification.
+- Restore quarantine and inbound durable ownership renewal are fixed and covered by regressions.
+- Seeded email/password administration and flat Team management are implemented. Multiple admins are supported; the last active admin is protected.
+- Engine replacement and the worker TypeScript error are fixed and pushed. Independent verification passed 14 focused tests, workspace typecheck, worker build, and the module gate. A65 is verified locally.
+- The pending Compose/bootstrap worktree passed an eight-service startup and seeded-user smoke test before the pause. Those setup changes still need final integration and commit.
 
-## Authorization or external evidence required
+## Next steps after authorization
 
-- An owned carrier number and explicit authorization for real outbound/inbound test calls.
-- Selected provider credentials and authorized audio, language, latency, and billing fixtures.
-- A target AWS account/region, deployment authorization, routing/IAM verification, and Fargate scaling/drain trials.
-- Human listening, operator workflow, and accessibility reviews.
-- Project license/distribution approval before package publication.
+1. Finish browser checks for campaigns, costs/reconciliation, recording lifecycle, evaluation cancel/compare, performance interactions, responsive/keyboard behavior, and error containment.
+2. Complete final combined team/session browser checks. Use local synthetic data and keep live/provider execution disabled.
+3. Run final integrated local CI and relevant isolated PostgreSQL, lifecycle, restore, and deployment smoke checks after fixes settle.
+4. Commit and push the validated pending setup changes on **`vorflux/ovo-foundation`**, not `main` or another branch.
+5. Update the existing PR, acceptance evidence, and the single **OVO foundation verification** Test Report.
 
-No launch decision should infer readiness from Terraform validation, an installed SDK, passing simulation, or a populated console form. Paid provider traffic, real calls, AWS provisioning, publication, and customer contact remain unauthorized in this task.
+Do not mistake an unverified browser journey for missing implementation. Do not treat a rendered control as proof that its mutation succeeds.
+
+## Preserve pending work
+
+[HANDOFF.md](HANDOFF.md#preserve-the-pending-setup-work) lists the uncommitted files and explains the non-applied `handoff/paused-setup.patch` snapshot. The snapshot lets a fresh clone recover the existing work after authorization. Do not apply it twice in the original workspace.
+
+## External certification remains separate
+
+Real carrier/provider calls, target AWS or self-hosted deployment certification, production storage and invoice checks, production RPO/RTO, and human listening/usability review remain unverified. Obtain explicit authorization before external effects.
+
+Keep all **20 work packages and 75 acceptance criteria**. Mark only supported evidence. Overall production certification remains incomplete.
