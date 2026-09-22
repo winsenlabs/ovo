@@ -11,7 +11,9 @@ RUN pnpm install --frozen-lockfile
 
 FROM workspace AS api-build
 RUN pnpm exec esbuild apps/api/src/index.ts --bundle --platform=node --format=esm --target=node24 \
-      --loader:.sql=text --external:fastify --external:pg-native --outfile=apps/api/dist/index.js \
+      --loader:.sql=text --external:fastify --external:pg --external:pg-native \
+      --banner:js="import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" \
+      --outfile=apps/api/dist/index.js \
   && pnpm --filter @winsendotai/ovo-api deploy --prod --legacy /runtime/api \
   && mkdir -p /runtime/api/dist \
   && cp apps/api/dist/index.js /runtime/api/dist/index.js
@@ -20,6 +22,8 @@ FROM node:24.8.0-alpine AS api
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=api-build /runtime/api/ ./
+USER root
+RUN mkdir -p /var/lib/ovo-recordings && chown -R node:node /var/lib/ovo-recordings
 USER node
 EXPOSE 4000
 CMD ["node", "dist/index.js"]
@@ -76,6 +80,8 @@ FROM node:24.8.0-alpine AS worker
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=worker-build /runtime/worker/ ./
+USER root
+RUN mkdir -p /var/lib/ovo-recordings && chown -R node:node /var/lib/ovo-recordings
 USER node
 EXPOSE 4100
 CMD ["node", "dist/main.cjs"]

@@ -1,5 +1,7 @@
 # OVO continuation handoff
 
+> **2026-09-22 update:** the paused setup snapshot was verified (SHA-256 matched), applied to `ee58ea4`, corrected (managed-SQS empty AWS key default, stale typecheck note) and committed. `PM/handoff/paused-setup.patch` is retired; do not look for or reapply it.
+
 Updated: **2026-09-22**. Read this before continuing implementation or verification.
 
 ## Current instruction: work remains paused
@@ -33,15 +35,15 @@ The user paused all work on September 20. On September 21, the user resumed **on
 
 ## Infrastructure choices
 
-| Concern | Current implementation |
-| --- | --- |
-| Durable data | PostgreSQL for control state, releases, jobs, ownership, users, costs, and telemetry |
-| Queue notifications | Amazon SQS; local Compose uses SQS-compatible ElasticMQ |
-| Job correctness | PostgreSQL leases, epochs, outboxes, and reconciliation fences; duplicate queue messages must not cause duplicate calls |
-| Caching | Bounded in-process speech cache; no Redis dependency; restart clears cache, not durable state |
-| Telemetry | Built-in telemetry plugin, bounded buffered PostgreSQL writes, stage timings, performance queries, SSE replay to the console |
-| Logs | Application/container logs locally; CloudWatch logging in the Fargate configuration |
-| Recordings | Separate recording/object-storage service; local Compose shares a durable recording volume between API and workers |
+| Concern             | Current implementation                                                                                                       |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Durable data        | PostgreSQL for control state, releases, jobs, ownership, users, costs, and telemetry                                         |
+| Queue notifications | Amazon SQS; local Compose uses SQS-compatible ElasticMQ                                                                      |
+| Job correctness     | PostgreSQL leases, epochs, outboxes, and reconciliation fences; duplicate queue messages must not cause duplicate calls      |
+| Caching             | Bounded in-process speech cache; no Redis dependency; restart clears cache, not durable state                                |
+| Telemetry           | Built-in telemetry plugin, bounded buffered PostgreSQL writes, stage timings, performance queries, SSE replay to the console |
+| Logs                | Application/container logs locally; CloudWatch logging in the Fargate configuration                                          |
+| Recordings          | Separate recording/object-storage service; local Compose shares a durable recording volume between API and workers           |
 
 Managed PostgreSQL and managed standard SQS can replace local containers. Managed-service configuration rendering passed; actual managed services were not certified. Redis and ClickHouse are not required. Do not imply an OTLP/Prometheus/Grafana integration exists without checking the code.
 
@@ -142,16 +144,16 @@ If the check fails, stop and inspect differences. Do not force the patch or rese
 
 Use synthetic local fixtures. Keep paid evaluation and live dialing disabled. Read `apps/console/OPERATOR_E2E_HANDOFF.md` for UI/API contracts.
 
-| Area | Required remaining checks |
-| --- | --- |
-| Campaigns | CSV preview/import, create, pause, resume, cancel; suppression and handoff mutations |
-| Costs | Price-card, FX, budget, cost-policy, and reconciliation writes; truthful unknown/estimated/reconciled labels |
-| Recordings | Synthetic capture; inbound/outbound WAV playback and byte-range seek; export; tombstone/deletion and retention |
-| Evaluations | Fixture execution, actual cancel/compare submissions, idempotency, and resulting state; do not equate a rendered comparison control with a successful comparison |
-| Performance | Populated cohort interactions and visible SSE reconnect/cursor recovery; API replay already has evidence |
-| Responsive/accessibility | 390px layout, keyboard navigation, focus, form reachability, and overflow |
-| Error handling | Inject a bounded component/request failure; verify useful recovery and unaffected surrounding controls |
-| Team follow-through | Confirm last-admin, disable/reset, self-password change, session revocation, and seed restart through the final combined deployment; backend tests already cover these |
+| Area                     | Required remaining checks                                                                                                                                              |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Campaigns                | CSV preview/import, create, pause, resume, cancel; suppression and handoff mutations                                                                                   |
+| Costs                    | Price-card, FX, budget, cost-policy, and reconciliation writes; truthful unknown/estimated/reconciled labels                                                           |
+| Recordings               | Synthetic capture; inbound/outbound WAV playback and byte-range seek; export; tombstone/deletion and retention                                                         |
+| Evaluations              | Fixture execution, actual cancel/compare submissions, idempotency, and resulting state; do not equate a rendered comparison control with a successful comparison       |
+| Performance              | Populated cohort interactions and visible SSE reconnect/cursor recovery; API replay already has evidence                                                               |
+| Responsive/accessibility | 390px layout, keyboard navigation, focus, form reachability, and overflow                                                                                              |
+| Error handling           | Inject a bounded component/request failure; verify useful recovery and unaffected surrounding controls                                                                 |
+| Team follow-through      | Confirm last-admin, disable/reset, self-password change, session revocation, and seed restart through the final combined deployment; backend tests already cover these |
 
 Fix only concrete in-scope defects found by these checks. Report precise blockers rather than repeatedly returning a list of unattempted journeys. Capture a small set of useful screenshots. A walkthrough video is not a prerequisite.
 

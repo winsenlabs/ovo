@@ -199,7 +199,7 @@ export function TeamView({
                 </select>
               </Field>
               <Field
-                label="Temporary password"
+                label="Initial password"
                 htmlFor="team-create-password"
                 help={`${USER_PASSWORD_MIN_LENGTH}–${USER_PASSWORD_MAX_LENGTH} characters. Share it outside OVO.`}
               >

@@ -83,6 +83,25 @@ LiveKit is not a mandatory dependency. The implementation uses the DeepSeek-deri
 
 ## Getting started
 
+### Docker Compose quickstart
+
+For a complete single-organization installation on one Docker host:
+
+```sh
+git clone https://github.com/winsenlabs/ovo.git
+cd ovo
+./scripts/bootstrap-compose.sh --prompt-admin
+docker compose --env-file infra/compose/.env \
+  -f infra/compose/compose.yaml up --build -d --wait
+./scripts/verify-compose.sh
+```
+
+Open http://localhost:3000 and use the first-administrator email and password entered during bootstrap. The ignored environment file is created with mode `0600`; generated secrets are never printed. Live calls and paid provider evaluation remain disabled.
+
+See the [self-hosted Compose runbook](docs/runbooks/self-hosted-compose.md) for managed PostgreSQL with TLS, local versus production queues, storage, port changes, shutdown and the requirements for enabling real calls. Redis is not required by the current runtime.
+
+### Source development
+
 Use Node.js 22 and pnpm 10. Install the pinned workspace dependencies:
 
 ```sh

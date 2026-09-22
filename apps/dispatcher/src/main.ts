@@ -103,7 +103,7 @@ async function main(): Promise<void> {
       config: {
         queueUrl: env('OVO_QUEUE_URL'),
         region: env('AWS_REGION'),
-        endpoint: process.env.OVO_SQS_ENDPOINT,
+        endpoint: process.env.OVO_SQS_ENDPOINT || undefined,
       },
     },
     { id: capacityPlugin.manifest.id, config: capacityConfig },

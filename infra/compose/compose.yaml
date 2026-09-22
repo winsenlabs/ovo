@@ -3,17 +3,18 @@ name: ovo-compact
 x-common-environment: &common
   OVO_ENVIRONMENT: compact
   OVO_ORGANIZATION_ID: ${OVO_ORGANIZATION_ID:?set OVO_ORGANIZATION_ID}
-  DATABASE_URL: postgresql://ovo:${POSTGRES_PASSWORD}@postgres:5432/ovo
+  DATABASE_URL: ${DATABASE_URL:?run ./scripts/bootstrap-compose.sh first}
   AWS_REGION: ${AWS_REGION:-ap-south-1}
-  AWS_ACCESS_KEY_ID: local
-  AWS_SECRET_ACCESS_KEY: local
-  OVO_SQS_ENDPOINT: http://queue:9324
-  OVO_QUEUE_URL: http://queue:9324/000000000000/ovo-jobs
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID-local}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY-local}
+  OVO_SQS_ENDPOINT: ${OVO_SQS_ENDPOINT-http://queue:9324}
+  OVO_QUEUE_URL: ${OVO_QUEUE_URL:?run ./scripts/bootstrap-compose.sh first}
   OVO_PLUGIN_MODULES: ${OVO_PLUGIN_MODULES:-[]}
 
 services:
   postgres:
     image: postgres:17.6-alpine
+    profiles: [local-postgres]
     environment:
       POSTGRES_USER: ovo
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
@@ -35,10 +36,16 @@ services:
 
   queue:
     image: softwaremill/elasticmq-native:1.6.15
+    profiles: [local-queue]
     volumes:
       - ./elasticmq.conf:/opt/elasticmq.conf:ro
     ports:
       - '127.0.0.1:${ELASTICMQ_PORT:-9324}:9324'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:9324/health']
+      interval: 2s
+      timeout: 3s
+      retries: 30
     mem_limit: 256m
     cpus: 0.5
     restart: unless-stopped
@@ -51,6 +58,17 @@ services:
       target: api
     environment:
       <<: *common
+      OVO_ADMIN_ID: ${OVO_ADMIN_ID:-first-admin}
+      OVO_ADMIN_LABEL: ${OVO_ADMIN_LABEL:-First administrator}
+      OVO_ADMIN_WORKSPACE_ID: ${OVO_ORGANIZATION_ID:?set OVO_ORGANIZATION_ID}
+      OVO_ALLOW_LOCAL_HTTP: ${OVO_ALLOW_LOCAL_HTTP:-true}
+      OVO_SESSION_SECRET: ${OVO_SESSION_SECRET:?run ./scripts/bootstrap-compose.sh first}
+      OVO_SEED_ADMIN_EMAIL: ${OVO_SEED_ADMIN_EMAIL:?run ./scripts/bootstrap-compose.sh first}
+      OVO_SEED_ADMIN_PASSWORD: ${OVO_SEED_ADMIN_PASSWORD:?run ./scripts/bootstrap-compose.sh first}
+      OVO_SEED_ADMIN_LABEL: ${OVO_SEED_ADMIN_LABEL:-First administrator}
+      OVO_RESTORE_ADMIN_RECOVERY: ${OVO_RESTORE_ADMIN_RECOVERY:-false}
+      OVO_STORAGE_ADAPTER: postgres
+      OVO_SECRETS_BACKEND: encrypted-store
       OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?set OVO_SECRETS_MASTER_KEY}
       OVO_RECORDINGS_BACKEND: filesystem
       OVO_RECORDINGS_DIRECTORY: /var/lib/ovo-recordings
@@ -58,9 +76,9 @@ services:
       OVO_RECORDINGS_SHARED_ACROSS_WORKERS: 'true'
       OVO_RECORDING_RETENTION_DAYS: ${OVO_RECORDING_RETENTION_DAYS:-30}
       OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
+      OVO_PROVIDER_EVALUATIONS_ENABLED: ${OVO_PROVIDER_EVALUATIONS_ENABLED:-false}
     depends_on:
-      postgres: { condition: service_healthy }
-      queue: { condition: service_started }
+      postgres: { condition: service_healthy, required: false }
     healthcheck:
       test:
         [
@@ -74,6 +92,8 @@ services:
       retries: 20
     ports:
       - '127.0.0.1:${API_PORT:-4000}:4000'
+    volumes:
+      - recordings-data:/var/lib/ovo-recordings
     mem_limit: 1g
     cpus: 1.0
     restart: unless-stopped
@@ -88,6 +108,17 @@ services:
       OVO_API_URL: http://api:4000
     depends_on:
       api: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     ports:
       - '127.0.0.1:${CONSOLE_PORT:-3000}:3000'
     mem_limit: 512m
@@ -112,7 +143,7 @@ services:
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-not-configured}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-not-configured}
     depends_on:
-      postgres: { condition: service_healthy }
+      postgres: { condition: service_healthy, required: false }
     healthcheck:
       test:
         [
@@ -148,8 +179,8 @@ services:
       OVO_AWS_TASK_LIMIT: '2'
       OVO_SPEND_PERMITTED_STARTS: '2'
     depends_on:
-      postgres: { condition: service_healthy }
-      queue: { condition: service_started }
+      postgres: { condition: service_healthy, required: false }
+      queue: { condition: service_healthy, required: false }
     healthcheck:
       test:
         [
@@ -178,7 +209,7 @@ services:
       OVO_PROTECTION_MODE: process-lifecycle
       OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
       OVO_INBOUND_CAPACITY_ENABLED: ${OVO_INBOUND_ENABLED:-false}
-      OVO_TRANSPORT_CERTIFIED: 'false'
+      OVO_TRANSPORT_CERTIFIED: ${OVO_TRANSPORT_CERTIFIED:-false}
       OVO_MEDIA_READINESS_URL: http://gateway:4001/health
       OVO_MEDIA_GATEWAY_WS_URL: ws://gateway:4001/worker
       OVO_MEDIA_WORKER_TOKEN: ${OVO_MEDIA_WORKER_TOKEN:?set OVO_MEDIA_WORKER_TOKEN}
@@ -193,8 +224,8 @@ services:
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-not-configured}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-not-configured}
     depends_on:
-      postgres: { condition: service_healthy }
-      queue: { condition: service_started }
+      postgres: { condition: service_healthy, required: false }
+      queue: { condition: service_healthy, required: false }
       gateway: { condition: service_healthy }
     healthcheck: &worker-health
       test:
@@ -221,8 +252,8 @@ services:
       OVO_WORKER_ID: compact-worker-2
       OVO_WORKER_ENDPOINT: ws://worker-2:4100/internal/media
     depends_on:
-      postgres: { condition: service_healthy }
-      queue: { condition: service_started }
+      postgres: { condition: service_healthy, required: false }
+      queue: { condition: service_healthy, required: false }
       gateway: { condition: service_healthy }
     healthcheck: *worker-health
     volumes:
