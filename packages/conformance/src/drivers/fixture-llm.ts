@@ -4,6 +4,7 @@ import type {
   Inference,
   InferenceReply,
   InferenceRequest,
+  InferenceStreamEvent,
   NetPort,
   UsageSink,
 } from '@winsendotai/ovo-contracts';
@@ -83,6 +84,16 @@ export class FixtureInference implements Inference {
         });
     if (body.type === 'tool') return { kind: 'tool', toolId: String(body.tool), input: body.input };
     return { kind: 'text', text: String(body.text ?? '') };
+  }
+
+  /** The same decision as `generate`, delivered word by word and closed with `finish`. */
+  async *stream(request: InferenceRequest): AsyncIterable<InferenceStreamEvent> {
+    const reply = await this.generate(request);
+    if (reply.kind === 'tool') yield { kind: 'tool', toolId: reply.toolId, input: reply.input };
+    else
+      for (const delta of reply.text.split(/(?<=\s)/).filter(Boolean))
+        yield { kind: 'text-delta', delta };
+    yield { kind: 'finish', ...(reply.usage ? { usage: reply.usage } : {}) };
   }
 }
 

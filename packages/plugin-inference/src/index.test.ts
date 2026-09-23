@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MockLanguageModelV4 } from 'ai/test';
 import type { InferenceRequest } from '@winsendotai/ovo-contracts';
-import { AiSdkInference, SimulatedInference } from './index.ts';
+import { AiSdkInference, SimulatedInference, type AiSdkInferenceOptions } from './index.ts';
 
 const usage = {
   inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined },
@@ -246,5 +246,30 @@ describe('SimulatedInference', () => {
     const pending = delayed.generate(request(controller.signal));
     controller.abort(new DOMException('takeover', 'AbortError'));
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  });
+});
+
+/**
+ * `AiSdkInference` moved to plugin-kit and this package re-exports it. The assertion lives here,
+ * in the package that does the re-export: a kit may not import a plugin, even from a test.
+ */
+describe('plugin-inference re-exports the kit inference classes identically', () => {
+  it('exports the kit class itself, not a second copy', async () => {
+    const kit = await import('@winsendotai/ovo-plugin-kit');
+    const moved = await import('./ai-sdk.ts');
+    expect(moved.AiSdkInference).toBe(kit.AiSdkInference);
+    expect(moved.InferenceProtocolError).toBe(kit.InferenceProtocolError);
+    expect(AiSdkInference).toBe(kit.AiSdkInference);
+  });
+
+  it('carries the kit option type, so provider, usage, sessionId and now are all available', () => {
+    const options: AiSdkInferenceOptions = {
+      model: new MockLanguageModelV4({ provider: 'openai.responses', modelId: 'gpt-4o-mini' }),
+      provider: 'azure',
+      usage: () => undefined,
+      sessionId: 'call-1',
+      now: () => 0,
+    };
+    expect(new AiSdkInference(options).provider).toBe('azure');
   });
 });

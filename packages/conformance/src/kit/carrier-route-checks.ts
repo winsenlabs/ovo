@@ -1,5 +1,3 @@
-import type { CarrierHttpRoute } from '@winsendotai/ovo-contracts';
-import { createFakeCarrierHostPorts } from '../drivers/carrier-host-ports.ts';
 import { carrier, hostFor, refused, routeOf } from './carrier-harness.ts';
 import { PER_CALL_PURPOSES, type CarrierKitContext } from './carrier-support.ts';
 import { Failures, type KitCheck } from './runner.ts';
@@ -52,16 +50,6 @@ export const CARRIER_ROUTE_CHECKS: readonly KitCheck<CarrierKitContext>[] = [
     },
   },
   {
-    name: 'the status map matches its snapshot',
-    async run(context) {
-      const map = context.options.statusMap;
-      if (!map) return ['no status map snapshot was supplied'];
-      return Object.entries(map.expected)
-        .filter(([raw, state]) => map.map(raw) !== state)
-        .map(([raw, state]) => `status ${raw} maps to ${String(map.map(raw))}, expected ${state}`);
-    },
-  },
-  {
     name: 'on-answer carriers stream via host.streamForDial and hang up when the route has ended',
     async run(context) {
       const { ingress } = await carrier(context);
@@ -87,10 +75,7 @@ export const CARRIER_ROUTE_CHECKS: readonly KitCheck<CarrierKitContext>[] = [
       );
       const ended = await route.handle(
         request,
-        createFakeCarrierHostPorts({
-          bindings: { [request.bindingId]: context.options.binding },
-          streamForDial: { kind: 'ended' },
-        }),
+        hostFor(context, { streamForDial: { kind: 'ended' } }),
       );
       f.expect(
         (context.options.hangupMarkup ?? /hangup/i).test(ended.body),
@@ -100,43 +85,35 @@ export const CARRIER_ROUTE_CHECKS: readonly KitCheck<CarrierKitContext>[] = [
     },
   },
   {
-    name: 'close-stream carriers frame terminate() and never hang up over REST',
-    async run(context) {
-      const { ingress, telephony, net } = await carrier(context);
-      if (ingress.capabilities.control.hangup !== 'close-stream') return [];
-      const f = new Failures();
-      const session = ingress.serializer.createSession({});
-      f.expect(
-        typeof session.terminate === 'function',
-        'close-stream carriers must implement terminate()',
-      );
-      if (session.terminate)
-        f.expect(Array.isArray(session.terminate()), 'terminate() must return frames');
-      f.expect(
-        (await telephony.hangup({ carrierCallId: 'call-1' })) === 'unsupported',
-        "hangup must return 'unsupported'",
-      );
-      f.expect(net.log.length === 0, 'close-stream hangup reached the network');
-      return f.messages;
-    },
-  },
-  {
+    /**
+     * Mandatory, not opt-in: a carrier that omits `options.requests` used to get zero callback
+     * authentication checks and pass (#F2). Every per-call route it exposes must be proven.
+     */
     name: 'per-call routes verify the url-secret',
     async run(context) {
       const f = new Failures();
       const { ingress } = await carrier(context);
-      for (const purpose of PER_CALL_PURPOSES) {
-        const route = routeOf(ingress, purpose);
+      const purposes = PER_CALL_PURPOSES.filter((purpose) => routeOf(ingress, purpose));
+      if (!purposes.length)
+        return ['no per-call route (status, answer, amd or resume) is exposed at all'];
+      for (const purpose of purposes) {
+        const route = routeOf(ingress, purpose)!;
         const request = context.options.requests?.[purpose];
-        if (!route || !request) continue;
+        if (
+          !f.expect(
+            request,
+            `supply options.requests.${purpose}: every per-call route must be url-secret checked`,
+          )
+        )
+          continue;
         const host = hostFor(context);
         host.setVerifyUrlSecret(false);
         f.expect(
-          refused(await route.handle(request, host)),
+          refused(await route.handle(request!, host)),
           `${purpose} accepted a bad url-secret`,
         );
         const ok = hostFor(context);
-        f.expect(!refused(await route.handle(request, ok)), `${purpose} refused a valid request`);
+        f.expect(!refused(await route.handle(request!, ok)), `${purpose} refused a valid request`);
         const verified = ok.calls.find((c) => c.method === 'verifyUrlSecret')?.args as
           { requestId?: string } | undefined;
         f.expect(

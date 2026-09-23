@@ -283,15 +283,9 @@ importers:
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
-      '@winsendotai/ovo-sdk':
-        specifier: workspace:*
-        version: link:../sdk
       ws:
         specifier: 8.21.3
         version: 8.21.3
-      zod:
-        specifier: 4.6.5
-        version: 4.6.5
     devDependencies:
       '@types/ws':
         specifier: 8.18.1
@@ -365,6 +359,9 @@ importers:
       ai:
         specifier: 7.0.107
         version: 7.0.107(zod@4.6.5)
+      undici:
+        specifier: 8.10.2
+        version: 8.10.2
       ws:
         specifier: 8.21.3
         version: 8.21.3

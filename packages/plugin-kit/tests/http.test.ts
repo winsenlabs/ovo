@@ -93,19 +93,22 @@ describe('httpJson', () => {
 });
 
 describe('provider HTTP helpers', () => {
-  it('validates provider endpoints', () => {
-    expect(
-      validateProviderEndpoint('https://api.openai.com/v1/audio/speech', '/v1/audio/speech').host,
-    ).toBe('api.openai.com');
-    expect(() =>
-      validateProviderEndpoint('http://api.openai.com/v1/audio/speech', '/v1/audio/speech'),
-    ).toThrow(/HTTPS/);
-    expect(() =>
-      validateProviderEndpoint('https://10.0.0.1/v1/audio/speech', '/v1/audio/speech'),
-    ).toThrow(/Private/);
-    expect(() =>
-      validateProviderEndpoint('https://evil.example/v1/audio/speech', '/v1/audio/speech'),
-    ).toThrow(/must use/);
+  it('validates provider endpoints against the hostname the caller names', () => {
+    const speech = (endpoint: string, host = 'api.vendor.example') =>
+      validateProviderEndpoint(endpoint, '/v1/audio/speech', host);
+    expect(speech('https://api.vendor.example/v1/audio/speech').host).toBe('api.vendor.example');
+    expect(() => speech('http://api.vendor.example/v1/audio/speech')).toThrow(/HTTPS/);
+    expect(() => speech('https://10.0.0.1/v1/audio/speech')).toThrow(/Private/);
+    expect(() => speech('https://evil.example/v1/audio/speech')).toThrow(
+      /must use api\.vendor\.example/,
+    );
+    // No vendor default: a second plugin's host is judged against its own, not against OpenAI's.
+    expect(() => speech('https://api.openai.com/v1/audio/speech')).toThrow(
+      /must use api\.vendor\.example/,
+    );
+    expect(speech('https://api.openai.com/v1/audio/speech', 'api.openai.com').host).toBe(
+      'api.openai.com',
+    );
   });
 
   it('bounds JSON bodies', async () => {

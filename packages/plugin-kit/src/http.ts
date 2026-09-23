@@ -9,11 +9,16 @@ export class ProviderProtocolError extends Error {
   }
 }
 
+/**
+ * The endpoint a provider plugin may call: https, no credentials, exactly `expectedPath` on
+ * exactly `expectedHostname`. The hostname is required — a shared kit has no default vendor, and
+ * one baked in here would hand a plugin that forgot the argument another vendor's error message.
+ */
 export function validateProviderEndpoint(
   endpoint: string,
   expectedPath: string,
+  expectedHostname: string,
   allowPrivateTestEndpoint = false,
-  expectedHostname = 'api.openai.com',
 ): URL {
   const url = new URL(endpoint);
   const hostname = url.hostname.replace(/^\[|\]$/g, '');

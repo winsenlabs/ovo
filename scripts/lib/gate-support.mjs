@@ -16,6 +16,15 @@ export const SKIP_SEGMENTS = new Set([
   'vendor',
 ]);
 
+/**
+ * Generated artifact trees, skipped on top of SKIP_SEGMENTS by the gates that walk source files.
+ * §13's skip list does not name `.data`; `.prettierignore` ignores it for the same reason (nothing
+ * under it is hand-written source — it is the local runtime's scratch directory). Kept to `.data`
+ * alone on purpose: a plain `data/` directory inside a package is ordinary source and must not be
+ * able to hide an oversized module or a kind-table violation.
+ */
+export const GENERATED_SEGMENTS = ['.data'];
+
 const posix = (value) => value.split(path.sep).join('/');
 
 export function normalizePrefix(value) {
@@ -29,7 +38,8 @@ export function normalizePrefix(value) {
  * --root <dir>         scan this folder instead of the repository (gate tests)
  * --baseline-dir <dir> read baselines here instead of scripts/baselines
  * --kinds <file>       package-kinds.json override
- * --write-baseline     regenerate the top-level baseline from the current state
+ * --write-baseline     regenerate the top-level baseline from the current state (repository-wide;
+ *                      refuses to run with --only, which would drop every out-of-scope entry)
  */
 export function parseArgs(argv = process.argv.slice(2)) {
   const args = {
@@ -50,6 +60,16 @@ export function parseArgs(argv = process.argv.slice(2)) {
     else if (arg === '--kinds') args.kinds = argv[++i];
     else if (arg === '--write-baseline') args.writeBaseline = true;
     else args.extra.push(arg);
+  }
+  // A baseline is always regenerated from a whole-repository scan. Under --only a gate only ever
+  // builds the in-scope part of its state, so writing it out would silently delete every entry
+  // outside the prefixes. Refuse instead of truncating; this guards every gate that uses parseArgs.
+  if (args.writeBaseline && args.only.length) {
+    const gate = path.basename(process.argv[1] ?? 'gate');
+    console.error(
+      `${gate}: --write-baseline regenerates the baseline from a repository-wide scan and cannot be combined with --only (${args.only.join(', ')}); the out-of-scope entries would be dropped. Run --write-baseline on its own.`,
+    );
+    process.exit(1);
   }
   return args;
 }

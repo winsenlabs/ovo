@@ -361,6 +361,8 @@ export type NetFixtureStep =
       url: string | RegExp;
       body?: 'json' | 'form' | 'any';
       where?: Record<string, unknown>;
+      /** Asserted case-insensitively. Without this, a wrong REST auth header matches silently. */
+      headers?: Record<string, string | RegExp>;
       reply: { status: number; headers?: Record<string, string>; body?: string };
     }
   | { expect: 'ws-open'; url: string | RegExp; headers?: Record<string, string | RegExp> }
@@ -2234,11 +2236,14 @@ Each gate is a script plus a test in `scripts/tests/*.test.ts` that runs it agai
 | `plugin`        | every other plugin-*, behaviors                                                                                                                 | contracts, runtime, sdk, kits, `node:*`, third-party. Never another plugin or behaviors.                                                                                                  |
 | `legacy`        | plugin-providers, plugin-telephony-twilio, plugin-session                                                                                       | transitional; deleted by I1                                                                                                                                                               |
 | `app`           | apps/* except console                                                                                                                           | anything except vendor-plugin and legacy kinds                                                                                                                                            |
-| `console`       | apps/console                                                                                                                                    | no plugin-*                                                                                                                                                                               |
+| `console`       | apps/console, packages/ui                                                                                                                       | no plugin-*                                                                                                                                                                               |
 | `experiment`    | experiments/*                                                                                                                                   | unrestricted; nothing may import it                                                                                                                                                       |
 
 4. **`check-provider-names.mjs`.** Bans `deepgram|assemblyai|sarvam|openai|twilio|exotel|plivo|livekit` in non-test code under `apps/*/src`, `packages/{runtime,contracts,session-host,plugin-media,plugin-operations,plugin-orchestration,plugin-ledger,plugin-observability,plugin-voice}/src` and the console. The baseline holds per-file counts. Migrations, `legacyPaths` and docs are allowlisted.
-5. **`check-capability-keys.mjs`.** A ratchet on capability string literals outside `contracts/src/capabilities/keys.ts`.
+5. **`check-capability-keys.mjs`.** A ratchet on capability string literals outside `contracts/src/capabilities/keys.ts`. It walks the TypeScript AST (string literals plus template head, middle and tail). An earlier raw-scanner version mis-scanned any file containing a template substitution — it saw 42 tokens in `apps/worker/src/main.ts` where there were 99 — so the gate was partly blind; the checker pass fixed it and regenerated the baseline.
+
+   **Scope rules shared by every gate** (`scripts/lib/gate-support.mjs`): fixture directories (`fixtures`, `__fixtures__`), `vendor`, `upstream` and generated `.data` directories are skipped everywhere. The kind table applies to support files under a package's `tests/` directory; only `*.test.ts` and `*.spec.ts` are exempt from it, because a test may import what it exercises. `--write-baseline` may not be combined with `--only`: a scoped write would silently truncate the baseline to the scope.
+
 6. **`check-conformance.mjs`.**
    - Every `vendor-plugin` package must have `tests/conformance.test.ts`, which imports `@winsendotai/ovo-conformance` and calls a `describe*` kit.
    - A package whose `package.json` has `"ovo": {"skeleton": true}` is exempt, but **I1 fails the build if any skeleton flag remains**.

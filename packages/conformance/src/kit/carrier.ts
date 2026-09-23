@@ -1,6 +1,10 @@
-import { carrier, hostFor } from './carrier-harness.ts';
+import { carrier, hostFor, touchedNetwork } from './carrier-harness.ts';
 import { withEgressSentinel } from '../drivers/egress-sentinel.ts';
+import { CARRIER_CONTROL_CHECKS } from './carrier-control-checks.ts';
+import { CARRIER_INGRESS_CHECKS } from './carrier-ingress-checks.ts';
+import { CARRIER_MEDIA_CHECKS } from './carrier-media-checks.ts';
 import { CARRIER_ROUTE_CHECKS } from './carrier-route-checks.ts';
+import { CARRIER_STATUS_CHECKS } from './carrier-status.ts';
 import { baseDial, commandOf, eventsOf, same, type CarrierKitContext } from './carrier-support.ts';
 import { Failures, type KitCheck } from './runner.ts';
 
@@ -79,7 +83,7 @@ const carrierChecks: readonly KitCheck<CarrierKitContext>[] = [
           `dial(${url}) returned ${JSON.stringify(result)}`,
         );
       }
-      f.expect(net.log.length === 0, 'dial reached the network for an invalid media URL');
+      f.expect(!touchedNetwork(net), 'dial reached the network for an invalid media URL');
       return f.messages;
     },
   },
@@ -111,7 +115,11 @@ const carrierChecks: readonly KitCheck<CarrierKitContext>[] = [
         const hangup = await carrier(context, rest.hangup.scripts);
         const outcome = await hangup.telephony.hangup(rest.hangup.query);
         f.expect(outcome === rest.hangup.expect, `hangup returned ${outcome}`);
-        f.add(...hangup.net.mismatches.map((e) => e.message));
+        f.add(
+          ...hangup.net.mismatches.map((e) => e.message),
+          // A hangup that never reaches the carrier is a lie, however it answers (#F1).
+          ...hangup.net.pending().map((p) => `hangup: unconsumed ${p.description}`),
+        );
       }
       return f.messages;
     },
@@ -135,15 +143,19 @@ const carrierChecks: readonly KitCheck<CarrierKitContext>[] = [
     },
   },
   ...CARRIER_ROUTE_CHECKS,
+  ...CARRIER_STATUS_CHECKS,
+  ...CARRIER_CONTROL_CHECKS,
+  ...CARRIER_INGRESS_CHECKS,
+  ...CARRIER_MEDIA_CHECKS,
 ];
 
 /** Keep the egress guard active across the factory, REST call and ingress route for every check. */
 export const CARRIER_CHECKS: readonly KitCheck<CarrierKitContext>[] = carrierChecks.map(
   (check) => ({
     ...check,
-    async run(context) {
+    async run(context, signal) {
       return withEgressSentinel(async (sentinel) => {
-        const failures = await check.run(context);
+        const failures = await check.run(context, signal);
         return [
           ...(failures ?? []),
           ...sentinel.attempts.map((attempt) => `network bypassed the NetPort: ${attempt}`),

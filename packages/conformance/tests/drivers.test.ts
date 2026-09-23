@@ -1,8 +1,7 @@
-import { readFileSync } from 'node:fs';
 import net, { connect as namedConnect } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
+import { build, type Plugin } from 'esbuild';
 import { describe, expect, it } from 'vitest';
 import { createFixtureNet, createNodeNet } from '@winsendotai/ovo-plugin-kit';
 import { compose } from '@winsendotai/ovo-runtime';
@@ -27,52 +26,50 @@ import {
 
 const SRC = resolve(dirname(fileURLToPath(import.meta.url)), '../src');
 
-/** Every module the drivers entry reaches through static relative imports. */
-function importClosure(entry: string): Map<string, string[]> {
-  const seen = new Map<string, string[]>();
-  const visit = (file: string) => {
-    if (seen.has(file)) return;
-    const source = ts.createSourceFile(
-      file,
-      readFileSync(file, 'utf8'),
-      ts.ScriptTarget.Latest,
-      true,
-    );
-    const specifiers: string[] = [];
-    const walk = (node: ts.Node) => {
-      if (
-        (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
-        node.moduleSpecifier &&
-        ts.isStringLiteral(node.moduleSpecifier)
-      )
-        specifiers.push(node.moduleSpecifier.text);
-      if (
-        ts.isCallExpression(node) &&
-        node.expression.kind === ts.SyntaxKind.ImportKeyword &&
-        ts.isStringLiteral(node.arguments[0]!)
-      )
-        specifiers.push((node.arguments[0] as ts.StringLiteral).text);
-      ts.forEachChild(node, walk);
-    };
-    walk(source);
-    seen.set(file, specifiers);
-    for (const specifier of specifiers)
-      if (specifier.startsWith('.')) visit(resolve(dirname(file), specifier));
+/**
+ * Every module and package specifier the drivers entry really reaches, resolved by a bundler
+ * rather than by reading import statements: workspace packages are followed into their sources
+ * and everything else is recorded and externalised.
+ */
+async function resolvedClosure(entry: string): Promise<{ files: string[]; specifiers: string[] }> {
+  const specifiers: string[] = [];
+  const recorder: Plugin = {
+    name: 'record-specifiers',
+    setup(builder) {
+      builder.onResolve({ filter: /.*/ }, (args) => {
+        if (args.kind === 'entry-point') return null;
+        specifiers.push(args.path);
+        const followed = args.path.startsWith('.') || args.path.startsWith('@winsendotai/');
+        return followed ? null : { path: args.path, external: true };
+      });
+    },
   };
-  visit(entry);
-  return seen;
+  const result = await build({
+    entryPoints: [entry],
+    bundle: true,
+    write: false,
+    metafile: true,
+    platform: 'node',
+    format: 'esm',
+    logLevel: 'silent',
+    plugins: [recorder],
+  });
+  return { files: Object.keys(result.metafile.inputs), specifiers };
 }
 
 describe('@winsendotai/ovo-conformance/drivers', () => {
-  it('never imports vitest, directly or transitively', () => {
-    const closure = importClosure(resolve(SRC, 'drivers.ts'));
-    const offenders = [...closure].filter(([, specs]) =>
-      specs.some((s) => s === 'vitest' || s.startsWith('vitest/') || s.startsWith('@vitest/')),
+  it('never imports vitest anywhere in its resolved closure', async () => {
+    const { files, specifiers } = await resolvedClosure(resolve(SRC, 'drivers.ts'));
+    const offenders = specifiers.filter(
+      (s) => s === 'vitest' || s.startsWith('vitest/') || s.startsWith('@vitest/'),
     );
-    expect(offenders.map(([file]) => file)).toEqual([]);
-    expect([...closure.keys()].some((file) => file.endsWith('describe.ts'))).toBe(false);
-    expect(closure.size).toBeGreaterThan(10);
-  });
+    expect(offenders).toEqual([]);
+    expect(files.some((file) => file.endsWith('describe.ts'))).toBe(false);
+    expect(files.some((file) => file.includes('/vitest/'))).toBe(false);
+    // The closure must really have been walked: drivers plus the workspace packages they use.
+    expect(files.length).toBeGreaterThan(20);
+    expect(specifiers).toContain('@winsendotai/ovo-contracts');
+  }, 30_000);
 });
 
 describe('FakeClock', () => {

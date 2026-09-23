@@ -89,19 +89,15 @@ const v4Of = (high: number, low: number) => ((high << 16) >>> 0) + low;
 
 function publicV6(g: number[]): boolean {
   const zeroPrefix = (n: number) => g.slice(0, n).every((x) => x === 0);
-  // ::, ::1, IPv4-compatible ::a.b.c.d and IPv4-mapped ::ffff:a.b.c.d — judge the embedded IPv4.
-  if (zeroPrefix(6)) {
-    if (g[6] === 0 && (g[7] === 0 || g[7] === 1)) return false;
-    return publicV4(v4Of(g[6]!, g[7]!));
-  }
+  // ::/96 — the unspecified address, ::1 and the IPv4-compatible form ::a.b.c.d. RFC 4291 §2.5.5.1
+  // deprecated IPv4-compatible addresses outright, so the whole prefix is refused, never decoded.
+  if (zeroPrefix(6)) return false;
   if (zeroPrefix(5) && g[5] === 0xffff) return publicV4(v4Of(g[6]!, g[7]!));
   // IPv4-translated ::ffff:0:a.b.c.d (RFC 2765).
   if (zeroPrefix(4) && g[4] === 0xffff && g[5] === 0) return publicV4(v4Of(g[6]!, g[7]!));
-  // NAT64 64:ff9b::/96 carries a public IPv4; the local-use 64:ff9b:1::/48 is never public.
-  if (g[0] === 0x64 && g[1] === 0xff9b) {
-    if (g[2] === 1) return false;
-    return g.slice(2, 6).every((x) => x === 0) && publicV4(v4Of(g[6]!, g[7]!));
-  }
+  // NAT64 (64:ff9b::/96 well-known and 64:ff9b:1::/48 local-use). The embedded IPv4 says nothing
+  // about the destination: the local NAT64 gateway decides what the prefix maps to, so refuse both.
+  if (g[0] === 0x64 && g[1] === 0xff9b) return false;
   // 6to4 2002::/16 embeds the IPv4 in groups 1-2.
   if (g[0] === 0x2002) return publicV4(v4Of(g[1]!, g[2]!));
   // Teredo 2001::/32: server IPv4 in groups 2-3, client IPv4 obfuscated (XOR) in groups 6-7.
@@ -118,7 +114,7 @@ function publicV6(g: number[]): boolean {
   if (first === 0x2001 && (g[1]! & 0xfff0) === 0x0010) return false; // ORCHID 2001:10::/28
   if (first === 0x2001 && (g[1]! & 0xfff0) === 0x0020) return false; // ORCHIDv2 2001:20::/28
   if (first === 0x2001 && g[1] === 0x0002 && g[2] === 0) return false; // benchmarking 2001:2::/48
-  if ((first & 0xfff0) === 0x3ff0) return false; // documentation 3fff::/20
+  if (first === 0x3fff && (g[1]! & 0xf000) === 0) return false; // documentation 3fff::/20 (RFC 9637)
   // Everything outside global unicast 2000::/3 is reserved.
   return (first & 0xe000) === 0x2000;
 }
@@ -139,27 +135,69 @@ export function isIpLiteral(host: string): boolean {
 }
 
 /**
+ * A numeric identity for one address, so two spellings of the same peer compare equal (brackets,
+ * zone ids, case, `::ffff:a.b.c.d` against `a.b.c.d`). Unparseable input keeps its own key.
+ */
+export function addressKey(address: string): string {
+  const text = address
+    .replace(/^\[|\]$/g, '')
+    .replace(/%.*$/, '')
+    .toLowerCase();
+  const v4 = parseIpv4(text);
+  if (v4 !== undefined) return `4:${v4}`;
+  const g = text.includes(':') ? parseIpv6(text) : undefined;
+  if (!g) return `raw:${text}`;
+  if (g.slice(0, 5).every((x) => x === 0) && g[5] === 0xffff) return `4:${v4Of(g[6]!, g[7]!)}`;
+  return `6:${g.join(':')}`;
+}
+
+export interface PublicHostOptions {
+  /**
+   * TEST ONLY. Exact addresses that may be reached although they are not public, so a test can
+   * drive a loopback server. A production composition never sets it, and nothing derives it from
+   * plugin configuration or the environment: it has to be written out at the call site.
+   */
+  allowedPrivateAddresses?: readonly string[];
+}
+
+/** True for a globally routable address, or one the caller explicitly allow-listed for tests. */
+export function addressAllowed(address: string, options: PublicHostOptions = {}): boolean {
+  if (isPublicAddress(address)) return true;
+  const key = addressKey(address);
+  return (options.allowedPrivateAddresses ?? []).some((entry) => addressKey(entry) === key);
+}
+
+/**
  * Rejects localhost names, private literals and any name whose DNS answer contains a non-public
  * address. Throws `ConnectorPolicyError`, because nothing has been sent yet.
+ *
+ * The returned addresses are the ones the caller must pin the connection to. Without a `lookup`
+ * only the literal forms can be judged here, and the empty array says "nothing to pin": the caller
+ * still has to check the address the connection actually lands on.
  */
 export async function assertPublicHost(
   host: string,
-  lookup: HostLookup,
+  lookup?: HostLookup,
+  options: PublicHostOptions = {},
 ): Promise<readonly ResolvedAddress[]> {
   const hostname = host
     .replace(/^\[|\]$/g, '')
     .replace(/\.$/, '')
     .toLowerCase();
-  if (!hostname || hostname === 'localhost' || hostname.endsWith('.localhost'))
-    throw new ConnectorPolicyError('Private hosts are forbidden');
+  if (!hostname || hostname === 'localhost' || hostname.endsWith('.localhost')) {
+    if (!(options.allowedPrivateAddresses ?? []).length)
+      throw new ConnectorPolicyError('Private hosts are forbidden');
+    return [];
+  }
   if (isIpLiteral(hostname)) {
-    if (!isPublicAddress(hostname))
-      throw new ConnectorPolicyError('Private or special-use address is forbidden');
+    if (!addressAllowed(hostname, options))
+      throw new ConnectorPolicyError(`Private or special-use address is forbidden: ${hostname}`);
     return [{ address: hostname, family: hostname.includes(':') ? 6 : 4 }];
   }
+  if (!lookup) return [];
   const addresses = await lookup(hostname);
   if (addresses.length === 0) throw new ConnectorPolicyError('Host did not resolve to any address');
-  if (addresses.some(({ address }) => !isPublicAddress(address)))
+  if (addresses.some(({ address }) => !addressAllowed(address, options)))
     throw new ConnectorPolicyError('Host DNS contains a private or special-use address');
   return addresses;
 }

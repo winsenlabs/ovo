@@ -4,7 +4,9 @@ import {
   decodeBase64,
   describeStep,
   hostMatches,
+  isRequiredStep,
   matchesBody,
+  matchesHeaders,
   matchesText,
   type FixtureHttpReply,
   type FixtureScript,
@@ -35,8 +37,12 @@ export interface FixtureNet extends NetPort {
   readonly listenerErrors: readonly unknown[];
   /** Required steps not yet consumed (delays and repeat steps are optional). */
   pending(): { host: string; source: string; step: number; description: string }[];
-  /** Throws on any mismatch, listener error or unconsumed required step. */
+  /** Throws `FixtureMismatchError` on any mismatch, listener error or unconsumed required step. */
   assertComplete(): void;
+  /** `assertComplete` under another name, so a teardown hook cannot quietly skip the check. */
+  close(): void;
+  /** `using net = createFixtureNet(...)` asserts completeness when the scope ends. */
+  [Symbol.dispose](): void;
 }
 
 const realClock: Clock = {
@@ -75,6 +81,16 @@ async function bodyText(body: BodyInit | null | undefined): Promise<string> {
   if (body === undefined || body === null) return '';
   if (typeof body === 'string') return body;
   return new Response(body).text();
+}
+
+/** Header names are case-insensitive on the wire, so both sides are compared in lower case. */
+function lowercased(headers: HeadersInit | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!headers) return out;
+  new Headers(headers).forEach((value, key) => {
+    out[key.toLowerCase()] = value;
+  });
+  return out;
 }
 
 /**
@@ -125,11 +141,13 @@ export function createFixtureNet(
       const url = secure(raw, 'https:');
       const method = (init.method ?? 'GET').toUpperCase();
       const body = await bodyText(init.body);
+      const headers = lowercased(init.headers);
       const candidates = runs.filter((run) => hostMatches(run.script, url));
       for (const run of candidates) {
         const { step, index, delay } = headOf(run);
         if (!step || !('expect' in step) || step.expect !== 'http') continue;
         if (step.method.toUpperCase() !== method || !matchesText(step.url, url.href)) continue;
+        if (!matchesHeaders(step.headers, headers)) continue;
         if (!matchesBody(step, body)) continue;
         run.index = index + 1;
         record({ host: url.hostname, kind: 'http', url: url.href, data: body });
@@ -150,20 +168,13 @@ export function createFixtureNet(
     },
     websocket(raw, opts = {}): WebSocketLike {
       const url = secure(raw, 'wss:');
-      const headers = Object.fromEntries(
-        Object.entries(opts.headers ?? {}).map(([key, value]) => [key.toLowerCase(), value]),
-      );
+      const headers = lowercased(opts.headers);
       const candidates = runs.filter((run) => hostMatches(run.script, url));
       for (const run of candidates) {
         const { step, index } = headOf(run);
         if (!step || !('expect' in step) || step.expect !== 'ws-open') continue;
         if (!matchesText(step.url, url.href)) continue;
-        const headerOk = Object.entries(step.headers ?? {}).every(([key, expected]) => {
-          const actual = headers[key.toLowerCase()];
-          if (actual === undefined) return false;
-          return expected instanceof RegExp ? expected.test(actual) : expected === actual;
-        });
-        if (!headerOk) continue;
+        if (!matchesHeaders(step.headers, headers)) continue;
         run.index = index + 1;
         record({ host: url.hostname, kind: 'ws-open', url: url.href });
         return new FixtureSocket(run, {
@@ -179,8 +190,7 @@ export function createFixtureNet(
       const out: ReturnType<FixtureNet['pending']> = [];
       for (const run of runs)
         run.steps.forEach((step, index) => {
-          if (index < run.index || 'delayMs' in step) return;
-          if ('expect' in step && step.expect === 'ws-send' && step.repeat) return;
+          if (index < run.index || !isRequiredStep(step)) return;
           out.push({
             host: run.host,
             source: run.source,
@@ -196,7 +206,13 @@ export function createFixtureNet(
         ...listenerErrors.map((error) => `listener error: ${String(error)}`),
         ...this.pending().map((p) => `${p.host}: unconsumed ${p.description} (${p.source})`),
       ];
-      if (problems.length) throw new Error(`FixtureNet incomplete:\n${problems.join('\n')}`);
+      if (problems.length) throw FixtureMismatchError.incomplete(problems);
+    },
+    close() {
+      this.assertComplete();
+    },
+    [Symbol.dispose]() {
+      this.assertComplete();
     },
   };
 }

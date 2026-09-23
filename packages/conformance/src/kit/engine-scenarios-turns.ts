@@ -1,15 +1,5 @@
 import { sleep } from './runner.ts';
-import {
-  BOOKING,
-  FAQ,
-  LONG_ANSWER,
-  PROMPT,
-  promptSent,
-  respondSeq,
-  spoken,
-  tool,
-  type EngineScenario,
-} from './engine-scenario-setup.ts';
+import { FAQ, spoken, tool, type EngineScenario } from './engine-scenario-setup.ts';
 
 /** Modes, tools, DTMF and variables. */
 export const TURN_SCENARIOS: readonly EngineScenario[] = [

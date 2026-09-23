@@ -117,10 +117,18 @@ export const loopbackFetch: typeof globalThis.fetch = async (input, init) => {
   });
 };
 
-/** `createNodeNet` options that reach a loopback server while keeping TLS verification on. */
+/**
+ * `createNodeNet` options that reach a loopback server while keeping TLS verification on. The
+ * loopback addresses are named explicitly: `createNodeNet` refuses private peers otherwise.
+ */
 export function loopbackNetOptions(): {
   fetch: typeof globalThis.fetch;
   websocketOptions: { ca: Buffer };
+  allowedPrivateAddresses: readonly string[];
 } {
-  return { fetch: loopbackFetch, websocketOptions: { ca: loopbackCertificate().cert } };
+  return {
+    fetch: loopbackFetch,
+    websocketOptions: { ca: loopbackCertificate().cert },
+    allowedPrivateAddresses: ['127.0.0.1', '::1'],
+  };
 }

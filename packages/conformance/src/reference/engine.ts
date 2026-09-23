@@ -1,6 +1,10 @@
 import {
+  MULAW_8K,
+  PCM16_16K,
+  PCM16_8K,
   outcomeFor,
   type EndReason,
+  type EngineCapabilities,
   type EngineEvent,
   type EngineOutcome,
   type Speech,
@@ -96,6 +100,12 @@ export class ReferenceEngine implements VoiceSessionEngine {
       media.onClose((reason) => void this.dispose(reason)),
       media.onPlayed((name) => this.playback.onPlayed(name)),
       media.onDtmf((digit) => this.observe({ type: 'dtmf', digit, atMs: clock.now() })),
+      // §2.6: answeredBy becomes a voicemail event, and maxCallSeconds is a watchdog (#26).
+      media.onAnsweredBy?.((result) => this.emit({ type: 'voicemail', result })) ?? (() => {}),
+      clock.setTimeout(
+        () => void this.dispose('max_duration'),
+        Math.max(1, session.maxCallSeconds) * 1000,
+      ),
     );
     const off = behavior.subscribe?.((event) =>
       this.observe({ type: event.type, atMs: clock.now() }),
@@ -216,7 +226,18 @@ export class ReferenceEngine implements VoiceSessionEngine {
   }
 }
 
+/** What the reference engine declares for `ovo.voice-session-engine@2` (§2.6). */
+export const REFERENCE_ENGINE_CAPABILITIES: EngineCapabilities = Object.freeze({
+  turnDetection: Object.freeze(['provider', 'stt'] as const),
+  bargeIn: true,
+  dtmf: true,
+  confirmedPlayback: true,
+  ownsProviders: false,
+  formats: Object.freeze([MULAW_8K, PCM16_8K, PCM16_16K]),
+  consumesTurnDetector: true,
+});
+
 export function createReferenceEngine(ports: EnginePorts): EngineUnderTest {
   const engine = new ReferenceEngine(ports);
-  return { engine, speech: engine.speech };
+  return { engine, speech: engine.speech, capabilities: REFERENCE_ENGINE_CAPABILITIES };
 }

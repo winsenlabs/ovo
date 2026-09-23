@@ -1,6 +1,8 @@
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP, type LookupFunction } from 'node:net';
-import { Agent } from 'undici';
+// undici's own fetch, not globalThis.fetch: Node 22's global fetch rejects an undici@8 dispatcher
+// with "invalid onRequestStart method", which silently disabled this pinned path in production.
+import { Agent, fetch as undiciFetch } from 'undici';
 import { ExecutionPolicyError, ToolInvocationError } from '@winsendotai/ovo-plugin-tools';
 import { limitResponseBody, validateResponseByteLimit } from './response-limit.ts';
 
@@ -140,11 +142,14 @@ export async function createPinnedFetch(
       else callback(null, eligible[0]!.address, eligible[0]!.family);
     };
     agent = new Agent({ connect: { lookup } });
+    // undici's RequestInit is structurally narrower than the DOM one (Blob, BodyInit), so the call
+    // is typed through unknown. The runtime shapes are the same.
+    const dispatched = undiciFetch as unknown as (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => Promise<Response>;
     fetchImpl = ((input: string | URL | Request, init?: RequestInit) =>
-      globalThis.fetch(input, {
-        ...init,
-        dispatcher: agent,
-      } as RequestInit)) as typeof globalThis.fetch;
+      dispatched(input, { ...init, dispatcher: agent } as RequestInit)) as typeof globalThis.fetch;
   }
 
   return {

@@ -46,13 +46,33 @@ function resampleAll(from: number, to: number, input: Int16Array, chunk?: number
 }
 
 describe('PolyphaseResampler', () => {
-  it('rejects a 6 kHz alias at least 60 dB below a 1 kHz reference (24k → 8k)', () => {
-    const reference = resampleAll(24000, 8000, tone(1000, 24000, 1));
-    const alias = resampleAll(24000, 8000, tone(6000, 24000, 1));
-    const refAmp = amplitudeAt(steady(reference, 8000), 8000, 1000);
-    // 6 kHz folds to 2 kHz at 8 kHz.
-    const aliasAmp = amplitudeAt(steady(alias, 8000), 8000, 2000);
-    expect(db(aliasAmp / refAmp)).toBeLessThanOrEqual(-60);
+  // Probe the transition band, just above the output Nyquist, where aliases actually land. A tone
+  // far into the stop band (6 kHz into 8 kHz) resamples to digital silence and would pass however
+  // wide the transition got, so it proves nothing.
+  it.each([
+    [24000, 8000],
+    [16000, 8000],
+    [48000, 8000],
+    [48000, 16000],
+    [24000, 16000],
+    [48000, 24000],
+  ])('rejects every fold-back at least 60 dB below a reference tone (%i → %i)', (from, to) => {
+    const outputNyquist = to / 2;
+    const reference = amplitudeAt(
+      steady(resampleAll(from, to, tone(outputNyquist / 4, from, 1)), to),
+      to,
+      outputNyquist / 4,
+    );
+    for (let freq = outputNyquist + 50; freq < from / 2; freq += 100) {
+      const folded = Math.abs(((freq + outputNyquist) % to) - outputNyquist);
+      if (folded < 150 || folded > outputNyquist - 150) continue;
+      const aliasAmp = amplitudeAt(
+        steady(resampleAll(from, to, tone(freq, from, 1)), to),
+        to,
+        folded,
+      );
+      expect(db(aliasAmp / reference), `${freq} Hz folds to ${folded} Hz`).toBeLessThanOrEqual(-60);
+    }
   });
 
   it.each([
@@ -60,13 +80,35 @@ describe('PolyphaseResampler', () => {
     [24000, 16000],
     [16000, 8000],
     [8000, 16000],
-  ])('passes 1 kHz within 0.5 dB (%i → %i)', (from, to) => {
-    const input = tone(1000, from, 1);
-    const output = resampleAll(from, to, input);
-    const inAmp = amplitudeAt(steady(input, from), from, 1000);
-    const outAmp = amplitudeAt(steady(output, to), to, 1000);
-    expect(Math.abs(db(outAmp / inAmp))).toBeLessThanOrEqual(0.5);
-    expect(output.length).toBeGreaterThanOrEqual(Math.floor((input.length * to) / from));
+    [48000, 8000],
+  ])('holds the pass band within 0.5 dB up to 0.85 Nyquist (%i → %i)', (from, to) => {
+    const edge = 0.85 * (Math.min(from, to) / 2);
+    for (const fraction of [0.075, 0.25, 0.5, 0.75, 0.9, 1]) {
+      const freq = Math.round(edge * fraction);
+      const input = tone(freq, from, 1);
+      const output = resampleAll(from, to, input);
+      const inAmp = amplitudeAt(steady(input, from), from, freq);
+      const outAmp = amplitudeAt(steady(output, to), to, freq);
+      expect(Math.abs(db(outAmp / inAmp)), `${freq} Hz`).toBeLessThanOrEqual(0.5);
+      expect(output.length).toBeGreaterThanOrEqual(Math.floor((input.length * to) / from));
+    }
+  });
+
+  it('passes equal rates through untouched instead of low-passing them', () => {
+    const resampler = new PolyphaseResampler(8000, 8000, { now: fixedClock });
+    expect(resampler.prototypeTaps).toBe(1);
+    const input = tone(3500, 8000, 0.2);
+    const output = resampler.push(input);
+    expect(Array.from(output)).toEqual(Array.from(input));
+  });
+
+  it('drains the whole filter tail on flush, not just the group delay', () => {
+    const resampler = new PolyphaseResampler(24000, 8000, { now: fixedClock });
+    resampler.push(tone(1000, 24000, 0.1));
+    const tail = resampler.flush();
+    // The history is taps-1 input samples long; a group-delay-only drain loses most of it.
+    const drained = Math.ceil((resampler.prototypeTaps - 1) / resampler.down);
+    expect(tail.length).toBeGreaterThanOrEqual(drained);
   });
 
   it('keeps stop-band rejection at 24k → 16k for a 10 kHz tone', () => {

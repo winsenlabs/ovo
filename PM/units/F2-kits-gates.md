@@ -40,7 +40,7 @@ GOAL: build the non-plugin libraries that plugins may import, the conformance ki
 
 A. packages/plugin-kit: name @winsendotai/ovo-plugin-kit; dependencies contracts plus the third-party ws@8.21.3 and ai@7.0.107 (both in the store); no other workspace packages.
 
-- net.ts: createNodeNet(). A NetPort over global fetch and ws that accepts only https: and wss:, with a per-call AbortSignal.
+- net.ts: createNodeNet(). A NetPort over undici fetch and ws that accepts only https: and wss:, with a per-call AbortSignal, and that enforces the address policy: assertPublicHost on every call, DNS answers validated before connect, the connection pinned to a validated address, and any socket that lands on a private address destroyed before a request byte is written. Loopback is reachable in tests only through an explicit list of exact addresses (`allowedPrivateAddresses`), never a boolean.
 - fixture-net.ts: createFixtureNet(scripts: NetFixtureScript[]), keyed by script.host. It is an in-memory NetPort that replays scripts strictly:
   - fetch matches an 'http' step (method, url, optional json or form body matcher with where) and returns its reply;
   - websocket matches 'ws-open' (including header checks), then drives the ws-send, send, close and delayMs steps;
@@ -66,14 +66,25 @@ B. packages/audio: name @winsendotai/ovo-audio; dependencies contracts only.
 - g711.ts: μ-law and A-law encode and decode tables.
 - pcm.ts: bytes ↔ Int16 LE.
 - polyphase-resampler.ts:
-  - stateful, Kaiser-windowed sinc (β≈8, about 48 taps per phase);
-  - ratios 24k→8k, 24k→16k, 16k→8k and 8k→16k;
-  - history carried across push(); clearAfterIdleMs 200; flush();
-  - stop-band ≥60 dB.
+  - stateful, Kaiser-windowed sinc; the prototype length is DERIVED from the stop-band attenuation
+    and transition width (Kaiser's estimate), not fixed per phase — see the checker note below;
+  - ratios 24k→8k, 24k→16k, 16k→8k and 8k→16k (and every other pair of RESAMPLER_RATES);
+  - history carried across push(); clearAfterIdleMs 200; flush() drains the whole tail;
+  - equal rates pass through unfiltered;
+  - stop-band ≥60 dB for EVERY fold-back frequency, not at one probe point.
+
+  > **Checker note (2026-09-23).** As first written this bullet asked for both "about 48 taps per
+  > phase" and "stop-band ≥60 dB". Those are not simultaneously satisfiable: for a pure decimation
+  > (L=1) such as 24k→8k, 48 taps puts the 60 dB stop-band edge ~600 Hz above the output Nyquist,
+  > so 4.0–4.6 kHz folds back at only 20–30 dB down — audible aliasing of sibilants on the main
+  > 24 kHz-TTS-to-8 kHz-carrier path. The tap count is now derived; measured worst-case rejection
+  > is −76 to −79 dB on all pairs, and pass-band deviation ≤0.01 dB to 0.85·Nyquist.
+
 - codec-graph.ts: plan(from, to) returns steps or undefined, plus reachable() and a createTranscoder(plan) that is stateful and handles odd-byte chunks.
 - frame-aggregator.ts and silence.ts.
 - Tests:
-  - a 6 kHz tone at 24 kHz comes out at 8 kHz ≥60 dB below a 1 kHz reference;
+  - every fold-back frequency in the transition band is ≥60 dB below a reference tone, swept per
+    rate pair (a single 6 kHz probe resamples to digital silence and proves nothing);
   - 1 kHz passes within 0.5 dB;
   - output from 7-sample and 1-byte chunks is bit-identical to one-shot output;
   - μ-law round-trips all 256 codes;

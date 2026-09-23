@@ -120,7 +120,7 @@ describe('checkTextToSpeech reports broken fakes', () => {
       { template: fixtureTtsTemplate },
     );
     expect(checks(failures)).toContain('a non-native format is refused (plugins never resample)');
-    expect(checks(failures)).toContain('cacheIdentity is stable and complete');
+    expect(checks(failures)).toContain('cacheIdentity is stable, complete and discriminating');
   });
 });
 

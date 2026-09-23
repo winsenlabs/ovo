@@ -1,5 +1,8 @@
 {
   "$comment": "Explicit package directory → kind map for check-architecture (§13). Every current and planned package is listed; directory globs are never used, so plugin-speech-cache stays a plugin.",
+  "$notes": {
+    "packages/ui": "§13's kind table has no row for packages/ui (its `console` row names apps/console only). It is the console's shared component library, is imported only by apps/console, and is deliberately given the same `console` kind so it inherits the strictest rule in the table: no plugin-*, app, host, distribution or test-kit imports. If §13 ever gains a row for it, this entry must match it."
+  },
   "kinds": {
     "packages/contracts": "contracts",
     "packages/runtime": "runtime",

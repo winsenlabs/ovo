@@ -38,6 +38,7 @@ export interface SttKitContext {
 }
 
 import {
+  cancelScripts,
   failureScripts,
   finalText,
   rejects,
@@ -119,7 +120,8 @@ export const STT_CHECKS: readonly KitCheck<SttKitContext>[] = [
     },
   },
   {
-    name: 'cancel closes within 1 s and emits usage exactly once',
+    /** Timing alone proved nothing: a session that leaks its provider socket used to pass (#F8). */
+    name: 'cancel closes the provider socket within 1 s and emits usage exactly once',
     async run(context) {
       const f = new Failures();
       const probe = await context.factory({
@@ -128,8 +130,9 @@ export const STT_CHECKS: readonly KitCheck<SttKitContext>[] = [
       });
       const { format, language, utterance } = settings(probe, context.options);
       if (!format) return ['capabilities.inputFormats is empty'];
-      const scripts = utteranceScripts(context, format, language, utterance);
-      if (!scripts) return ['no fixture template or utterance scripts were supplied'];
+      const base = utteranceScripts(context, format, language, utterance);
+      if (!base) return ['no fixture template or utterance scripts were supplied'];
+      const scripts = cancelScripts(base) ?? base;
       let elapsed = 0;
       let lateWriteRejected = false;
       const run = await session(context, scripts, async (r, s) => {
@@ -150,9 +153,55 @@ export const STT_CHECKS: readonly KitCheck<SttKitContext>[] = [
       usageChecks(f, run.usage, 'cancel');
       f.expect(lateWriteRejected, 'write after cancel must reject');
       f.expect(
+        run.net.log.some((entry) => entry.kind === 'ws-close'),
+        'cancel left the provider socket open',
+      );
+      f.expect(
         run.attempts.length === 0,
         `network bypassed the NetPort: ${run.attempts.join(', ')}`,
       );
+      f.add(...run.net.mismatches.map((error) => error.message));
+      return f.messages;
+    },
+  },
+  {
+    name: 'forceEndpoint finalises without closing the session when it is declared',
+    async run(context) {
+      const f = new Failures();
+      const probe = await context.factory({
+        net: createFixtureNet([]),
+        clock: acceleratedClock(0),
+      });
+      if (!probe.capabilities.forceEndpoint) return [];
+      const { format, language, utterance } = settings(probe, context.options);
+      if (!format) return ['capabilities.inputFormats is empty'];
+      const scripts = utteranceScripts(context, format, language, utterance);
+      if (!scripts) return ['no fixture template or utterance scripts were supplied'];
+      let present = false;
+      let threw: unknown;
+      let stillWriting = false;
+      const run = await session(context, scripts, async (r, s) => {
+        const size = writeSize(r.stt, context.options);
+        for (const frame of framesOf(speechBytes(format, 300), format, size)) await s.write(frame);
+        present = typeof s.forceEndpoint === 'function';
+        if (!present) return;
+        try {
+          await s.forceEndpoint!();
+        } catch (error) {
+          threw = error;
+        }
+        stillWriting = !(await rejects(
+          s.write(framesOf(speechBytes(format, 120), format, 20)[0]!),
+        ));
+        await s.finish();
+      });
+      f.expect(
+        present,
+        'capabilities.forceEndpoint is true but the session has no forceEndpoint()',
+      );
+      f.expect(!threw, `forceEndpoint rejected: ${String(threw)}`);
+      f.expect(stillWriting, 'the session stopped accepting audio after forceEndpoint');
+      usageChecks(f, run.usage, 'forceEndpoint');
       f.add(...run.net.mismatches.map((error) => error.message));
       return f.messages;
     },

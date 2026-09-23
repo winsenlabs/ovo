@@ -22,9 +22,19 @@ export interface CodecPlan {
 
 const ENCODINGS: readonly AudioEncoding[] = ['mulaw', 'alaw', 'pcm_s16le'];
 
-/** decode → resample → encode, each only when needed. Undefined when the rate pair is unsupported. */
+/** G.711 is defined at 8 kHz only; μ-law at 24 kHz is not a format any carrier or provider means. */
+const G711_RATE = 8000;
+const isG711 = (encoding: AudioEncoding) => encoding === 'mulaw' || encoding === 'alaw';
+
+/**
+ * decode → resample → encode, each only when needed. Undefined when the pair is unsupported:
+ * a rate outside RESAMPLER_RATES (a contract-legal 22050 has no conversion and is refused here
+ * rather than mis-converted), multi-channel audio, or G.711 at anything but 8 kHz.
+ */
 export function plan(from: AudioFormat, to: AudioFormat): CodecPlan | undefined {
   if (from.channels !== 1 || to.channels !== 1) return undefined;
+  if (isG711(from.encoding) && from.sampleRate !== G711_RATE) return undefined;
+  if (isG711(to.encoding) && to.sampleRate !== G711_RATE) return undefined;
   if (sameFormat(from, to)) return { from, to, steps: [] };
   if (from.sampleRate !== to.sampleRate && !canResample(from.sampleRate, to.sampleRate))
     return undefined;
@@ -45,7 +55,9 @@ export function reachable(from: AudioFormat, candidates: readonly AudioFormat[])
 export function reachableFormats(from: AudioFormat): AudioFormat[] {
   const all: AudioFormat[] = [];
   for (const encoding of ENCODINGS)
-    for (const sampleRate of RESAMPLER_RATES) all.push({ encoding, sampleRate, channels: 1 });
+    for (const sampleRate of RESAMPLER_RATES)
+      if (!isG711(encoding) || sampleRate === G711_RATE)
+        all.push({ encoding, sampleRate, channels: 1 });
   return reachable(from, all);
 }
 
@@ -105,7 +117,9 @@ export function createTranscoder(codecPlan: CodecPlan, options: ResamplerOptions
   return {
     plan: codecPlan,
     push(bytes) {
-      if (codecPlan.steps.length === 0) return bytes;
+      // Copy even on the identity path: every other path returns fresh bytes, and a caller reusing
+      // a socket read buffer would otherwise see its output mutate underneath it.
+      if (codecPlan.steps.length === 0) return bytes.slice();
       const input = aligned(bytes);
       if (input.byteLength === 0) return new Uint8Array(0);
       const pcm = decodeTo(from, input);

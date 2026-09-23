@@ -75,6 +75,9 @@ const CONFIRM_PROMPT = /\bconfirm\b|\bsay yes\b/i;
 export class EngineHarness {
   readonly log: HarnessEntry[] = [];
   readonly usage: UsageMeter[] = [];
+  /** What `EnginePorts.transcripts` received; the kit always supplies that observer (#F18). */
+  readonly transcripts: Extract<EngineEvent, { type: 'user.transcript' | 'agent.transcript' }>[] =
+    [];
   private seq = 0;
   underTest!: EngineUnderTest;
 
@@ -236,6 +239,7 @@ export async function startHarness(
     session,
     clock,
     usage: (meter) => harness.usage.push(meter),
+    transcripts: (event) => harness.transcripts.push(event),
     ...(context.options.turnDetector === 'none'
       ? {}
       : { turnDetector: createReferenceTurnDetector(setup.detector) }),

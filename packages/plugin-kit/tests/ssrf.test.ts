@@ -29,6 +29,8 @@ const PRIVATE: readonly [string, string][] = [
   ['[::1]', 'bracketed loopback'],
   ['::127.0.0.1', 'IPv4-compatible loopback'],
   ['::10.0.0.1', 'IPv4-compatible private'],
+  ['::8.8.8.8', 'IPv4-compatible, deprecated by RFC 4291 even with a public IPv4'],
+  ['::0.0.0.2', 'IPv4-compatible edge'],
   ['::ffff:127.0.0.1', 'IPv4-mapped loopback'],
   ['::ffff:7f00:1', 'IPv4-mapped loopback (hex)'],
   ['0:0:0:0:0:ffff:a9fe:a9fe', 'IPv4-mapped metadata (full form)'],
@@ -48,11 +50,13 @@ const PRIVATE: readonly [string, string][] = [
   ['2001:0:c0a8:0101:8000:63bf:3fff:fdd2', 'Teredo server 192.168.1.1'],
   ['64:ff9b::7f00:1', 'NAT64 embedding 127.0.0.1'],
   ['64:ff9b::10.0.0.1', 'NAT64 embedding 10.0.0.1'],
+  ['64:ff9b::8.8.8.8', 'NAT64 embedding a public IPv4: the local gateway decides where it goes'],
   ['64:ff9b:1::8.8.8.8', 'local-use NAT64'],
+  ['3fff::1', 'documentation 3fff::/20 (RFC 9637)'],
+  ['3fff:0fff::1', 'documentation 3fff::/20 upper edge'],
   ['100::1', 'discard-only'],
   ['2001:10::1', 'ORCHID'],
   ['2001:2::1', 'benchmarking'],
-  ['3fff::1', 'documentation (RFC 9637)'],
   ['4000::1', 'outside global unicast'],
   ['010.0.0.1', 'octal-looking IPv4'],
   ['127.1', 'shorthand IPv4'],
@@ -71,8 +75,10 @@ const PUBLIC: readonly string[] = [
   '[2001:4860:4860::8888]',
   '::ffff:8.8.8.8',
   '2002:0808:0808::1',
-  '64:ff9b::8.8.8.8',
   '2001:0:0808:0808:8000:63bf:f7f7:f7f7',
+  // 3ff0::/12 was refused by a mask that did not match its own comment; only 3fff::/20 is reserved.
+  '3ff0::1',
+  '3ffe::1',
 ];
 
 describe('isPublicAddress (#24)', () => {

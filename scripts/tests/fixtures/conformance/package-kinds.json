@@ -3,6 +3,7 @@
     "packages/plugin-stt-x": "vendor-plugin",
     "packages/plugin-stt-y": "vendor-plugin",
     "packages/plugin-stt-z": "vendor-plugin",
-    "packages/plugin-other": "plugin"
+    "packages/plugin-other": "plugin",
+    "packages/plugin-stt-w": "vendor-plugin"
   }
 }

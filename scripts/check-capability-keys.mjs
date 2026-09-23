@@ -58,11 +58,27 @@ async function scanRoots() {
   return roots.filter((dir) => existsSync(dir));
 }
 
-const STRINGS = new Set([
-  ts.SyntaxKind.StringLiteral,
-  ts.SyntaxKind.NoSubstitutionTemplateLiteral,
-  ts.SyntaxKind.TemplateHead,
-]);
+/**
+ * Every piece of literal text in a file: string literals, backtick literals without substitutions,
+ * and each fixed chunk of a template expression — its head AND every span's middle or tail. A raw
+ * token scan cannot see middles and tails (they only exist once a `}` is re-scanned as part of a
+ * template), so `${prefix}ovo.stt` used to spell a capability key invisibly.
+ */
+function literals(file, text) {
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false);
+  const found = [];
+  const visit = (node) => {
+    if (ts.isStringLiteralLike(node)) found.push(node.text);
+    else if (ts.isTemplateExpression(node)) {
+      found.push(node.head.text);
+      for (const span of node.templateSpans) found.push(span.literal.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return found;
+}
+
 const counts = new Map();
 let scanned = 0;
 for (const dir of await scanRoots()) {
@@ -74,16 +90,7 @@ for (const dir of await scanRoots()) {
     if (file === KEYS_FILE) continue;
     scanned += 1;
     const text = await readFile(file, 'utf8');
-    const scanner = ts.createScanner(
-      ts.ScriptTarget.Latest,
-      true,
-      file.endsWith('x') ? ts.LanguageVariant.JSX : ts.LanguageVariant.Standard,
-      text,
-    );
-    let count = 0;
-    for (let kind = scanner.scan(); kind !== ts.SyntaxKind.EndOfFileToken; kind = scanner.scan())
-      if (STRINGS.has(kind) && matches(scanner.getTokenValue())) count += 1;
-    counts.set(file, count);
+    counts.set(file, literals(file, text).filter(matches).length);
   }
 }
 

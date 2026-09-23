@@ -1,6 +1,7 @@
 import type {
   Behavior,
   Clock,
+  EngineCapabilities,
   MediaDuplex,
   SessionInput,
   Speech,
@@ -39,6 +40,11 @@ export interface EnginePorts {
 export interface EngineUnderTest {
   engine: VoiceSessionEngine;
   speech: Speech;
+  /**
+   * What the plugin declares in its manifest for `ovo.voice-session-engine@2`. The kit requires it
+   * and checks it against what the engine actually did (#F18).
+   */
+  capabilities?: EngineCapabilities;
 }
 
 export type EngineFactory = (ports: EnginePorts) => EngineUnderTest | Promise<EngineUnderTest>;

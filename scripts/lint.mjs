@@ -15,9 +15,11 @@ const GATES = [
 const forwarded = process.argv.slice(2);
 const failed = [];
 for (const gate of GATES) {
-  // The upstream hash check is repository-wide and takes no arguments.
-  const args = gate === 'check-upstream.mjs' ? [] : forwarded;
-  const result = spawnSync(process.execPath, [`scripts/${gate}`, ...args], { stdio: 'inherit' });
+  // Every gate gets every argument, including check-upstream.mjs: that gate checks the whole
+  // repository and says so in its own output rather than having lint drop --only behind its back.
+  const result = spawnSync(process.execPath, [`scripts/${gate}`, ...forwarded], {
+    stdio: 'inherit',
+  });
   if (result.status !== 0) failed.push(gate);
 }
 if (failed.length) {

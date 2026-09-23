@@ -85,7 +85,34 @@ describe('codec graph', () => {
     expect(reachable(MULAW_8K, [cd, PCM16_16K])).toEqual([PCM16_16K]);
     expect(firstReachable(MULAW_8K, [cd])).toBeUndefined();
     expect(firstReachable(PCM16_8K, [PCM16_16K, PCM16_8K])).toEqual(PCM16_8K);
-    expect(reachableFormats(MULAW_8K).length).toBe(12);
+    // PCM16 at the four resampler rates, plus μ-law and A-law at 8 kHz only.
+    expect(reachableFormats(MULAW_8K)).toEqual([
+      MULAW_8K,
+      { encoding: 'alaw', sampleRate: 8000, channels: 1 },
+      PCM16_8K,
+      PCM16_16K,
+      { encoding: 'pcm_s16le', sampleRate: 24000, channels: 1 },
+      { encoding: 'pcm_s16le', sampleRate: 48000, channels: 1 },
+    ]);
+  });
+
+  it('refuses G.711 at any rate but 8 kHz', () => {
+    const mulaw48: AudioFormat = { encoding: 'mulaw', sampleRate: 48000, channels: 1 };
+    const alaw16: AudioFormat = { encoding: 'alaw', sampleRate: 16000, channels: 1 };
+    expect(plan(PCM16_8K, mulaw48)).toBeUndefined();
+    expect(plan(alaw16, PCM16_8K)).toBeUndefined();
+    expect(
+      reachableFormats(PCM16_24K).some((f) => f.encoding !== 'pcm_s16le' && f.sampleRate !== 8000),
+    ).toBe(false);
+  });
+
+  it('never hands an identity transcode the caller its own buffer back', () => {
+    const transcoder = createTranscoder(plan(MULAW_8K, MULAW_8K)!, { now: () => 0 });
+    const input = new Uint8Array([1, 2, 3, 4]);
+    const output = transcoder.push(input);
+    expect(Array.from(output)).toEqual([1, 2, 3, 4]);
+    input[0] = 99;
+    expect(output[0]).toBe(1);
   });
 
   it('transcodes μ-law 8k to PCM16 16k statefully', () => {

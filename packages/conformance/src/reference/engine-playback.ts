@@ -6,6 +6,7 @@ import {
   type SpeechKind,
   type SpeechKindV2,
   type SpeechReceipt,
+  type StageKey,
   type VoiceEvent,
 } from '@winsendotai/ovo-contracts';
 import type { EnginePorts } from '../kit/engine-ports.ts';
@@ -109,6 +110,15 @@ export class ReferencePlayback {
     const active: ActiveSegment = { abort };
     this.active = active;
     this.observe({ type: 'bot.started', epoch, atMs: this.ports.clock.now(), kind });
+    const requestedAt = this.ports.clock.now();
+    const stage = (key: StageKey, since: number) =>
+      this.emit({
+        type: 'timing',
+        key,
+        segmentId,
+        atMs: this.ports.clock.now(),
+        ms: this.ports.clock.now() - since,
+      });
     let bytes = 0;
     try {
       for await (const chunk of this.ports.tts.synthesize({
@@ -122,8 +132,12 @@ export class ReferencePlayback {
         onUsage: this.ports.usage,
       })) {
         if (abort.signal.aborted) break;
-        if (bytes === 0) phase('started', 'generated');
+        if (bytes === 0) {
+          stage('tts_ttfb', requestedAt);
+          phase('started', 'generated');
+        }
         await this.ports.media.sendAudio(chunk, abort.signal);
+        if (bytes === 0) stage('carrier_first_audio', requestedAt);
         bytes += chunk.byteLength;
       }
     } catch (error) {
@@ -140,8 +154,10 @@ export class ReferencePlayback {
     }
     let outcome: MarkOutcome = 'interrupted';
     if (!abort.signal.aborted) {
+      const sentAt = this.ports.clock.now();
       phase('sent', 'estimated');
       outcome = await this.awaitMark(segmentId, bytes, active);
+      if (outcome === 'played') stage('playout_ack', sentAt);
     }
     if (this.active === active) this.active = undefined;
     const receipt = this.receiptFor(segmentId, text, epoch, outcome);

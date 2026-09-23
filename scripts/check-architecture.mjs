@@ -6,6 +6,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { classifyImport, describeTarget, violation } from './lib/architecture-rules.mjs';
 import {
+  GENERATED_SEGMENTS,
   finish,
   inScope,
   isTestFile,
@@ -82,8 +83,12 @@ for (const pkg of packages.filter((p) => p.kind !== 'vendor')) {
     if (!pkg.kind) errors.push(`${pkg.pkgDir}: no kind in ${kindsFile}; add the package there`);
   }
   if (!pkg.kind) continue;
+  // *.test.ts / *.spec.ts are excluded: a test may import anything it needs to exercise the code.
+  // Everything else under tests/ is ordinary support code (conformance drivers, fixture plugins,
+  // shared helpers) that ships the same imports as src, so the kind table applies to it — §13 does
+  // not exempt it, and an exemption would let `tests/helpers.ts` import another plugin or `ws`.
   const files = await walkFiles(pkg.pkgDir, (f) => /\.[cm]?tsx?$/.test(f) && !isTestFile(f), {
-    extraSkip: ['.data'],
+    extraSkip: GENERATED_SEGMENTS,
   });
   for (const file of files) {
     if (!inScope(file, args.only)) continue;
@@ -113,8 +118,6 @@ for (const pkg of packages.filter((p) => p.kind !== 'vendor')) {
         !specifier.startsWith('node:')
       )
         errors.push(`${file}: behavior cannot import provider ${specifier}`);
-      // Test support files (tests/*.ts) keep the rules above but are exempt from the kind table.
-      if (file.slice(pkg.pkgDir.length).includes('/tests/')) continue;
       const target = classifyImport(specifier, {
         packagesByName,
         packageOfPath,
@@ -192,5 +195,5 @@ if (args.writeBaseline) {
 finish('architecture', {
   errors: args.writeBaseline ? errors.filter((e) => !/ \(.* -> .*\)/.test(e)) : errors,
   warnings,
-  summary: `Architecture, namespace, private-package, package-kind and PM checks passed (${packages.length} packages, ${edges.size} baselined edges).`,
+  summary: `Architecture, namespace, private-package, package-kind and PM checks passed (${packages.length} packages, ${edges.size} baselined edges; the kind table covers tests/ support files, only *.test.ts and *.spec.ts are exempt).`,
 });

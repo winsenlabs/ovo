@@ -26,6 +26,8 @@ export type NetFixtureStep =
       expect: 'http';
       method: string;
       url: string | RegExp;
+      /** Request headers the call must carry; matched case-insensitively, a subset of the real ones. */
+      headers?: Record<string, string | RegExp>;
       body?: 'json' | 'form' | 'any';
       where?: Record<string, unknown>;
       reply: { status: number; headers?: Record<string, string>; body?: string };

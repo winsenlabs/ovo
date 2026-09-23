@@ -46,24 +46,41 @@ export function utteranceScripts(
   return template({ format, language, sessionId: SESSION, turns: [{ atMs: 0, say: utterance }] });
 }
 
-/** A provider failure: the first socket closes with 1011 right after the first audio frame. */
-export function failureScripts(
-  scripts: readonly NetFixtureScript[],
-): NetFixtureScript[] | undefined {
-  const index = scripts.findIndex((s) =>
+/** The opening of a session script: up to and including the first audio frame the plugin sends. */
+function opening(scripts: readonly NetFixtureScript[]) {
+  const script = scripts.find((s) =>
     s.steps.some((step) => 'expect' in step && step.expect === 'ws-open'),
   );
-  if (index < 0) return undefined;
-  const script = scripts[index]!;
+  if (!script) return undefined;
   const open = script.steps.findIndex((step) => 'expect' in step && step.expect === 'ws-open');
   const send = script.steps.findIndex(
     (step, i) => i > open && 'expect' in step && step.expect === 'ws-send',
   );
+  return { script, steps: script.steps.slice(0, (send < 0 ? open : send) + 1) };
+}
+
+/** A provider failure: the first socket closes with 1011 right after the first audio frame. */
+export function failureScripts(
+  scripts: readonly NetFixtureScript[],
+): NetFixtureScript[] | undefined {
+  const start = opening(scripts);
+  if (!start) return undefined;
   const steps: NetFixtureStep[] = [
-    ...script.steps.slice(0, (send < 0 ? open : send) + 1),
+    ...start.steps,
     { close: { code: 1011, reason: 'fixture failure' } },
   ];
-  return [{ ...script, steps }];
+  return [{ ...start.script, steps }];
+}
+
+/**
+ * A cancellation: the session is opened and fed audio, and the plugin is expected to close the
+ * socket itself. The script stops there so that closing early is not a fixture mismatch.
+ */
+export function cancelScripts(
+  scripts: readonly NetFixtureScript[],
+): NetFixtureScript[] | undefined {
+  const start = opening(scripts);
+  return start ? [{ ...start.script, steps: [...start.steps] }] : undefined;
 }
 
 export async function session(

@@ -131,15 +131,33 @@ export function createFacade(ctx: Context, options: FacadeOptions): GuardedConte
     secret,
     reflect,
   };
+  // Cordis members a plugin may legitimately reach. Everything else — `plugin`, `inject`, `root`,
+  // `scope`, `extend`, the event bus — would hand back an unguarded context, so a plugin could read
+  // or provide services it never declared and the whole manifest graph would be advisory.
+  const PASSTHROUGH = new Set<PropertyKey>(['effect']);
+  const narrowedFiber = {
+    effect: (...args: unknown[]) =>
+      (ctx.fiber.effect as (...a: unknown[]) => unknown).apply(ctx.fiber, args),
+  };
+  const guardMember = (prop: string): unknown => {
+    report('context-escape', prop, `context-escape: ${manifest.id} touched ctx.${prop}`);
+    return undefined;
+  };
   return new Proxy(Object.create(null) as GuardedContext, {
     get(_target, prop) {
       if (prop === 'net') return (net ??= filteredNet(hostNet, manifest, report));
       if (typeof prop === 'string' && Object.hasOwn(overrides, prop)) return overrides[prop];
+      if (prop === 'fiber') return narrowedFiber;
+      // Symbols are Cordis's own bookkeeping on the context it handed us, never a plugin surface.
+      if (typeof prop === 'symbol') return Reflect.get(ctx, prop);
+      if (!PASSTHROUGH.has(prop)) return guardMember(prop);
       const value: unknown = Reflect.get(ctx, prop);
       return typeof value === 'function' && CONTEXT_METHODS.has(prop) ? value.bind(ctx) : value;
     },
     has(_target, prop) {
-      return prop === 'net' || (typeof prop === 'string' && prop in overrides) || prop in ctx;
+      if (prop === 'net' || prop === 'fiber') return true;
+      if (typeof prop === 'string' && prop in overrides) return true;
+      return typeof prop === 'symbol' ? prop in ctx : PASSTHROUGH.has(prop);
     },
     set(_target, prop, value) {
       return Reflect.set(ctx, prop, value);

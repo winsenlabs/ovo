@@ -1,6 +1,5 @@
 import {
   TurnConfigSchema,
-  classifyConfirmation,
   countWords,
   defaultMuteRules,
   type Clock,
@@ -16,12 +15,8 @@ import {
 import { DtmfCollector } from './dtmf-collector.ts';
 import { IdleTimer } from './idle-timer.ts';
 import { isAnswer, isBackchannel, muteFor } from './speech-gate.ts';
-
-interface Turn {
-  id: string;
-  finals: Map<string, string>;
-  interim: string;
-}
+import { PromptBuffer, turnText, type Turn } from './turn-confirmation.ts';
+import { VadTimeout } from './turn-vad-timeout.ts';
 
 /**
  * The in-kit reference turn detector: the §2.7 mute semantics, transcript barge-in with
@@ -39,17 +34,19 @@ export class ReferenceTurnController implements UserTurnController {
   private confirmationPending = false;
   tools = 0;
   private turn?: Turn;
-  private promptBuffer: string[] = [];
+  private readonly promptBuffer = new PromptBuffer();
   private readonly dtmf: DtmfCollector;
   private readonly idle: IdleTimer;
   private turnCount = 0;
   private disposed = false;
+  private readonly vadTimer: VadTimeout;
 
   constructor(
     private readonly config: TurnConfig,
     private readonly clock: Clock,
     private readonly language: string,
     mode: Mode,
+    vad = false,
   ) {
     this.rules = new Set(config.mute.length ? config.mute : defaultMuteRules(mode));
     this.dtmf = new DtmfCollector(config.dtmf, clock, (digits) => this.digitsTurn(digits));
@@ -59,6 +56,11 @@ export class ReferenceTurnController implements UserTurnController {
       () => Boolean(this.turn || this.bot || this.tools > 0),
       (decision) => this.emit({ type: 'idle', ...decision }),
     );
+    this.vadTimer = new VadTimeout(config, clock, vad, {
+      hasText: () => Boolean(this.turn && turnText(this.turn)),
+      finish: () => this.finishSpeechTurn(),
+      forceEndpoint: () => this.emit({ type: 'force-endpoint' }),
+    });
   }
 
   on(fn: (decision: TurnDecision) => void): () => void {
@@ -77,6 +79,7 @@ export class ReferenceTurnController implements UserTurnController {
     this.disposed = true;
     this.dtmf.dispose();
     this.idle.stop();
+    this.vadTimer.stop();
     this.listeners.clear();
   }
 
@@ -85,13 +88,17 @@ export class ReferenceTurnController implements UserTurnController {
     switch (event.type) {
       case 'stt':
         return this.onStt(event.event);
+      case 'vad.start':
+        return this.vadTimer.onSpeech();
+      case 'vad.stop':
+        return this.vadTimer.onSilence();
       case 'dtmf':
         return this.onDigit(event.digit);
       case 'bot.started':
         this.idle.stop();
         this.bot = { epoch: event.epoch, kind: event.kind };
         this.botSegments += 1;
-        if (event.kind === 'confirmation') this.promptBuffer = [];
+        if (event.kind === 'confirmation') this.promptBuffer.reset();
         return;
       case 'bot.stopped':
         return this.onBotStopped(event.epoch);
@@ -113,31 +120,16 @@ export class ReferenceTurnController implements UserTurnController {
     }
   }
 
-  private muteForSpeech(): 'discard' | 'buffer' | undefined {
-    return muteFor(this);
-  }
-
-  private isAnswer(text: string): boolean {
-    return isAnswer(this.confirmationPending, text);
-  }
-
-  private isBackchannel(text: string): boolean {
+  private backchannel(text: string): boolean {
     return isBackchannel(this.config.backchannels, this.confirmationPending, text);
-  }
-
-  private turnText(turn: Turn, withInterim = true): string {
-    const parts = [...turn.finals.values()];
-    if (withInterim && turn.interim) parts.push(turn.interim);
-    return parts.filter(Boolean).join(' ').trim();
   }
 
   private onStt(event: Extract<VoiceEvent, { type: 'stt' }>['event']): void {
     if (event.type === 'transcript') {
       const { segment } = event;
-      const mute = this.muteForSpeech();
+      const mute = muteFor(this);
       if (mute === 'buffer') {
-        if (segment.stability === 'final' && segment.text.trim())
-          this.promptBuffer.push(segment.text.trim());
+        if (segment.stability === 'final') this.promptBuffer.push(segment.text);
         return;
       }
       if (mute === 'discard') {
@@ -151,10 +143,12 @@ export class ReferenceTurnController implements UserTurnController {
         turn.interim = '';
       } else turn.interim = segment.text.trim();
       this.maybeInterrupt(turn);
+      if (segment.stability === 'final' && this.vadTimer.onFinalTranscript())
+        this.finishSpeechTurn();
       return;
     }
     if ((event.type === 'end-of-turn' && !event.eager) || event.type === 'utterance-end') {
-      if (this.muteForSpeech() === 'buffer') return;
+      if (muteFor(this) === 'buffer') return;
       this.finishSpeechTurn();
     }
   }
@@ -170,8 +164,8 @@ export class ReferenceTurnController implements UserTurnController {
 
   private maybeInterrupt(turn: Turn): void {
     if (!this.bot || this.interruptedEpoch === this.bot.epoch) return;
-    const text = this.turnText(turn);
-    if (this.isBackchannel(text) || this.isAnswer(text)) return;
+    const text = turnText(turn);
+    if (this.backchannel(text) || isAnswer(this.confirmationPending, text)) return;
     if (countWords(text, this.language) < this.config.minWordsWhileBotSpeaking) return;
     this.interruptedEpoch = this.bot.epoch;
     this.emit({ type: 'interrupt', reason: 'transcript' });
@@ -180,12 +174,12 @@ export class ReferenceTurnController implements UserTurnController {
   private finishSpeechTurn(): void {
     const turn = this.turn;
     if (!turn) return;
-    const text = this.turnText(turn, turn.finals.size === 0);
+    const text = turnText(turn, turn.finals.size === 0);
     if (!text) return;
     if (this.bot && this.interruptedEpoch !== this.bot.epoch) {
-      if (this.isBackchannel(text)) return this.reset('backchannel');
+      if (this.backchannel(text)) return this.reset('backchannel');
       // An answer said over bot speech is held until the bot stops (§2.7).
-      if (this.isAnswer(text)) {
+      if (isAnswer(this.confirmationPending, text)) {
         this.turn = undefined;
         this.deferred = { turn, text };
         return;
@@ -217,14 +211,12 @@ export class ReferenceTurnController implements UserTurnController {
     const deferred = this.deferred;
     this.deferred = undefined;
     if (deferred) return this.stopped(deferred.turn.id, deferred.text, deferred.turn.finals.size);
-    if (bot?.kind === 'confirmation' && this.promptBuffer.length) {
-      const text = this.promptBuffer.join(' ');
-      this.promptBuffer = [];
-      const turn: Turn = { id: `turn-${++this.turnCount}`, finals: new Map(), interim: '' };
-      this.emit({ type: 'turn.started', turnId: turn.id });
-      if (classifyConfirmation(text) === 'unclear')
-        this.emit({ type: 'turn.reset', turnId: turn.id, reason: 'muted' });
-      else this.stopped(turn.id, text, 1);
+    const buffered = bot?.kind === 'confirmation' ? this.promptBuffer.take() : undefined;
+    if (buffered) {
+      const turnId = `turn-${++this.turnCount}`;
+      this.emit({ type: 'turn.started', turnId });
+      if (buffered.answered) this.stopped(turnId, buffered.text, 1);
+      else this.emit({ type: 'turn.reset', turnId, reason: 'muted' });
       return;
     }
     this.idle.arm();
@@ -262,13 +254,20 @@ export function createReferenceTurnDetector(
   const controllers: ReferenceTurnController[] = [];
   return {
     controllers,
-    create(input: { clock: Clock; language: string; mode: Mode; overrides?: Partial<TurnConfig> }) {
+    create(input: {
+      clock: Clock;
+      language: string;
+      mode: Mode;
+      vad?: boolean;
+      overrides?: Partial<TurnConfig>;
+    }) {
       const merged = TurnConfigSchema.parse({ ...config, ...input.overrides });
       const controller = new ReferenceTurnController(
         merged,
         input.clock,
         input.language,
         input.mode,
+        input.vad ?? false,
       );
       controllers.push(controller);
       return controller;

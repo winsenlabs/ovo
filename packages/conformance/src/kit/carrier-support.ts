@@ -6,13 +6,15 @@ import type {
   CarrierIngress,
   DialRequest,
   DialResult,
+  HandoffTarget,
   HangupQuery,
   NetFixtureScript,
   NetPort,
+  Reconciliation,
   ResolvedBinding,
   UpgradeRequest,
 } from '@winsendotai/ovo-contracts';
-import type { FakeHostPorts } from '../drivers/carrier-host-ports.ts';
+import type { FakeHostPorts, FakeHostPortsOptions } from '../drivers/carrier-host-ports.ts';
 import type { JsonlFixture } from '../drivers/jsonl.ts';
 
 export type CarrierFactory = (env: {
@@ -40,6 +42,22 @@ export interface CarrierKitOptions {
     };
     /** Required when `control.cancelBeforeAnswer`: hangup by `carrierRequestId`. */
     cancel?: { scripts: NetFixtureScript[]; carrierRequestId: string };
+    /** Required unless `control.reconcile` is 'none'. */
+    reconcile?: {
+      scripts: NetFixtureScript[];
+      query: { requestId: string; carrierCallId?: string; carrierRequestId?: string };
+      expect: Reconciliation['kind'];
+      /** The expected `state` for a 'live' or 'ended' reconciliation. */
+      state?: CallState;
+    };
+    /** Required when `control.handoff` is non-empty: one entry per declared target kind. */
+    handoff?: {
+      scripts: NetFixtureScript[];
+      carrierCallId: string;
+      target: HandoffTarget;
+      requestId?: string;
+      expect?: 'confirmed' | 'rejected' | 'unknown';
+    }[];
   };
   /** Signature vectors: at least one valid and one invalid request. */
   vectors?: {
@@ -54,8 +72,17 @@ export interface CarrierKitOptions {
   requests?: Partial<Record<Purpose, CarrierHttpRequest>>;
   /** Hang-up markup for an 'ended' grant; defaults to /hangup/i. */
   hangupMarkup?: RegExp;
-  /** The kit's host ports (url-secret HMAC); defaults to createFakeCarrierHostPorts with `binding`. */
-  host?: () => FakeHostPorts;
+  /**
+   * The kit's host ports (url-secret HMAC); defaults to createFakeCarrierHostPorts with `binding`.
+   * The kit passes overrides (scripted grants, a forced url-secret answer) it needs for a check.
+   */
+  host?: (overrides?: Partial<FakeHostPortsOptions>) => FakeHostPorts;
+  /**
+   * Extracts the audio payload from one encoded outbound frame, or undefined when the frame is
+   * not audio. Required when `capabilities.media.outboundChunk` is declared: the kit checks the
+   * declared min/max/multipleOf against the real frames the codec session emits.
+   */
+  outboundPayload?: (frame: string) => Uint8Array | undefined;
 }
 
 export interface CarrierKitContext {

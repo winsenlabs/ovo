@@ -1,5 +1,5 @@
 // Provider-name gate (§13.4): no vendor names in host and shared code. Per-file counts ratchet;
-// migrations, `legacyPaths` lines and docs are allowlisted.
+// migrations, `legacyPaths` declarations and docs are allowlisted.
 import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { ratchet } from './lib/count-gate.mjs';
@@ -36,6 +36,12 @@ async function scanRoots() {
   return roots.filter((dir) => existsSync(dir));
 }
 
+// §13.4 allowlists `legacyPaths`: the carrier-ingress compatibility routes that still spell a
+// vendor's old URL path. Only a line that actually declares or assigns that exact property is
+// exempt — merely mentioning the token (`legacyPathsForTwilio`, a trailing `// legacyPaths`
+// comment) used to silence the whole line and hide every provider name on it.
+const LEGACY_PATHS_DECLARATION = /(?:^|[^\w$])legacyPaths\??\s*[:=]/;
+
 const counts = new Map();
 let scanned = 0;
 for (const dir of await scanRoots()) {
@@ -48,7 +54,7 @@ for (const dir of await scanRoots()) {
     scanned += 1;
     let count = 0;
     for (const line of (await readFile(file, 'utf8')).split('\n'))
-      if (!line.includes('legacyPaths')) count += line.match(NAMES)?.length ?? 0;
+      if (!LEGACY_PATHS_DECLARATION.test(line)) count += line.match(NAMES)?.length ?? 0;
     counts.set(file, count);
   }
 }

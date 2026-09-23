@@ -1,5 +1,10 @@
 import type { ExecutionRequest, OperationRecord } from '@winsendotai/ovo-contracts';
-import { ToolInvocationError, ToolSchemaError, OperationCollisionError } from './errors.ts';
+import {
+  ExecutionPolicyError,
+  ToolInvocationError,
+  ToolSchemaError,
+  OperationCollisionError,
+} from './errors.ts';
 import type { CompiledTool, ExecutionDependencies } from './execution-types.ts';
 import { schemaDigest } from './json.ts';
 import { startOperationSpeech } from './acknowledgment.ts';
@@ -19,9 +24,24 @@ export function operationFingerprint(
   });
 }
 
+/**
+ * The outcome a failure proves (#12). A policy error — `ConnectorPolicyError` for a private DNS
+ * answer, a blocked address or a missing binding, and every other `ExecutionPolicyError` — is
+ * raised before the connector dispatches anything, so the side effect provably never started and
+ * the operation is `failed`, not `unknown`. Only a `ToolInvocationError` can say otherwise.
+ */
+function outcomeOf(error: unknown): 'not-applied' | 'unknown' | undefined {
+  if (error instanceof ToolInvocationError) return error.outcome;
+  // A ToolSchemaError can also come from validating the *result*, once the connector has run and
+  // a write may already have landed, so it proves nothing about the side effect.
+  if (error instanceof ToolSchemaError) return undefined;
+  if (error instanceof ExecutionPolicyError) return 'not-applied';
+  return undefined;
+}
+
 function messageFor(error: unknown): string {
   const message =
-    error instanceof ToolInvocationError || error instanceof ToolSchemaError
+    error instanceof ToolInvocationError || error instanceof ExecutionPolicyError
       ? error.message
       : error instanceof Error && error.name === 'AbortError'
         ? 'Tool invocation cancelled'
@@ -139,7 +159,7 @@ export async function runOperation(
       }
       settled = { ...running, state: 'succeeded', result: structuredClone(result) };
     } catch (error) {
-      const explicitOutcome = error instanceof ToolInvocationError ? error.outcome : undefined;
+      const explicitOutcome = outcomeOf(error);
       const unknown =
         tool.definition.effect === 'write' &&
         effectStarted &&

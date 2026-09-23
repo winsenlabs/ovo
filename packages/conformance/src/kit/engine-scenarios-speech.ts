@@ -7,14 +7,18 @@ import {
   promptSent,
   respondSeq,
   spoken,
-  tool,
   type EngineScenario,
 } from './engine-scenario-setup.ts';
 
 /** Barge-in, confirmation receipts, dispose and hangup. */
 export const SPEECH_SCENARIOS: readonly EngineScenario[] = [
   {
-    name: 'barge-in clears media, interrupts the segment, and cancels pending marks before clear',
+    /**
+     * The clear-ordering rule is asserted as an invariant, not as a call pattern: the carrier
+     * flushes its pending mark on clear, and that flushed mark must never confirm or complete the
+     * cleared segment. Requiring an AbortSignal on `media.mark` failed correct engines (#F24).
+     */
+    name: 'barge-in clears media, interrupts the segment, and never confirms a flushed mark',
     setup: {
       agent: {
         ...FAQ,
@@ -53,11 +57,13 @@ export const SPEECH_SCENARIOS: readonly EngineScenario[] = [
         h.carrier.log.some((e) => e.type === 'played' && e.flushed),
         'the carrier never flushed a pending mark (scenario inconclusive)',
       );
-      const clearIndex = h.carrier.log.findIndex((e) => e.type === 'clear');
-      const cancelIndex = h.carrier.log.findIndex((e) => e.type === 'mark-aborted');
       f.expect(
-        cancelIndex >= 0 && cancelIndex < clearIndex,
-        'pending mark was not cancelled before media.clear',
+        receipt.evidence !== 'confirmed',
+        'the mark the carrier flushed on clear confirmed audio the caller never heard',
+      );
+      f.expect(
+        !h.phases(/public holidays/).some((p) => p.phase === 'acknowledged'),
+        "a cleared segment reported an 'acknowledged' phase from the flushed mark",
       );
     },
   },

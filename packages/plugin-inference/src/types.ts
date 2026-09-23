@@ -7,17 +7,6 @@ export const INFERENCE_PLUGIN_IDS = Object.freeze({
   simulated: '@winsendotai/ovo-plugin-inference-simulated',
 });
 
-export interface AiSdkInferenceOptions {
-  model: LanguageModel;
-  instructions?: string;
-  maxOutputTokens?: number;
-  onUsage?: (evidence: {
-    requestId?: string;
-    modelId?: string;
-    usage: Record<string, number>;
-  }) => void | Promise<void>;
-}
-
 export interface AiSdkInferencePluginConfig {
   model: string;
   credentialId?: string;

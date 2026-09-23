@@ -255,3 +255,105 @@ describe('FixtureNet over WebSocket', () => {
     expect(net.mismatches).toHaveLength(2);
   });
 });
+
+describe('FixtureNet asserts what a script actually promised', () => {
+  const authorized = () =>
+    script([
+      {
+        expect: 'http',
+        method: 'POST',
+        url: 'https://api.example.com/v1/say',
+        headers: { authorization: 'Bearer good', 'content-type': /^application\/json/ },
+        reply: { status: 200, body: '{}' },
+      },
+    ]);
+
+  it('refuses an http call whose headers do not match the step', async () => {
+    const net = createFixtureNet([authorized()]);
+    const error = await net
+      .fetch('https://api.example.com/v1/say', {
+        method: 'POST',
+        headers: { authorization: 'WRONG', 'content-type': 'application/json' },
+      })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(FixtureMismatchError);
+    expect((error as Error).message).toMatch(/step #0 http POST/);
+    expect(net.pending()).toHaveLength(1);
+  });
+
+  it('refuses an http call that omits a required header, and accepts the right one', async () => {
+    const net = createFixtureNet([authorized()]);
+    await expect(
+      net.fetch('https://api.example.com/v1/say', { method: 'POST' }),
+    ).rejects.toBeInstanceOf(FixtureMismatchError);
+    // Header names are case-insensitive on the wire, so the expectation is too.
+    const accepting = createFixtureNet([authorized()]);
+    const response = await accepting.fetch('https://api.example.com/v1/say', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer good', 'Content-Type': 'application/json; charset=utf-8' },
+    });
+    expect(response.status).toBe(200);
+    accepting.assertComplete();
+  });
+
+  it('reports a request that never happened as a FixtureMismatchError, from close and dispose too', () => {
+    const net = createFixtureNet([authorized()]);
+    expect(() => net.assertComplete()).toThrow(FixtureMismatchError);
+    expect(() => net.close()).toThrow(FixtureMismatchError);
+    expect(() => net[Symbol.dispose]()).toThrow(FixtureMismatchError);
+    const error =
+      net.mismatches[0] ??
+      (() => {
+        try {
+          net.close();
+        } catch (e) {
+          return e as FixtureMismatchError;
+        }
+        return undefined;
+      })();
+    expect((error as FixtureMismatchError).problems.join('\n')).toMatch(/unconsumed step #0 http/);
+  });
+
+  it('makes a frame after close a FixtureMismatchError, not a bare Error', async () => {
+    const net = createFixtureNet([
+      script([{ expect: 'ws-open', url: 'wss://api.example.com/ws' }, { close: { code: 1000 } }]),
+    ]);
+    const socket = net.websocket('wss://api.example.com/ws');
+    await new Promise<void>((resolve) => socket.on('open', () => resolve()));
+    socket.close(1000);
+    const error = (() => {
+      try {
+        socket.send('late');
+        return undefined;
+      } catch (e) {
+        return e;
+      }
+    })();
+    expect(error).toBeInstanceOf(FixtureMismatchError);
+    expect((error as Error).message).toMatch(/closing socket|closed socket/);
+    expect(net.mismatches).toHaveLength(1);
+  });
+
+  it('reports a client close that leaves the socket script unfinished', async () => {
+    const net = createFixtureNet([
+      script([
+        { expect: 'ws-open', url: 'wss://api.example.com/ws' },
+        { expect: 'ws-send', match: 'json', where: { type: 'Finalize' } },
+        { send: 'bye' },
+      ]),
+    ]);
+    const socket = net.websocket('wss://api.example.com/ws');
+    await new Promise<void>((resolve) => socket.on('open', () => resolve()));
+    const error = (() => {
+      try {
+        socket.close(1000, 'early');
+        return undefined;
+      } catch (e) {
+        return e;
+      }
+    })();
+    expect(error).toBeInstanceOf(FixtureMismatchError);
+    expect((error as Error).message).toMatch(/ws-send json/);
+    expect(net.mismatches).toHaveLength(1);
+  });
+});

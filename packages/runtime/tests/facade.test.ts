@@ -91,19 +91,46 @@ describe('guarded plugin context (§3.3)', () => {
     await composition.dispose();
   });
 
-  it('passes the rest of the Cordis context through', async () => {
+  it('still serves the Cordis members a plugin legitimately uses', async () => {
     const cleaned: string[] = [];
-    let isContext = false;
     const plugin = v1Plugin('plain', ['plain'], [], (ctx) => {
-      isContext = Context.is(ctx) && typeof ctx.fiber.dispose === 'function';
       ctx.provide('plain', {});
       ctx.effect(() => () => void cleaned.push('effect'));
       ctx.fiber.effect(() => () => void cleaned.push('fiber'), 'fiber effect');
     });
     const composition = await compose([{ id: 'plain' }], [plugin]);
-    expect(isContext).toBe(true);
+    expect(composition.violations).toEqual([]);
     await composition.dispose();
     expect(cleaned.sort()).toEqual(['effect', 'fiber']);
+  });
+
+  // Without this the manifest graph is advisory: ctx.plugin/ctx.root/ctx.inject all hand back an
+  // unguarded context, from which any service can be read or provided undeclared.
+  it('blocks the raw Cordis members that would bypass the manifest', async () => {
+    const reached: Record<string, unknown> = {};
+    const plugin = v1Plugin('escapee', ['own'], [], (ctx) => {
+      const raw = ctx as unknown as Record<string, unknown>;
+      for (const member of ['plugin', 'inject', 'root', 'scope', 'extend', 'on'])
+        reached[member] = raw[member];
+      reached['fiberDispose'] = (raw['fiber'] as Record<string, unknown> | undefined)?.['dispose'];
+      ctx.provide('own', 1);
+    });
+    const composition = await compose([{ id: 'escapee' }], [plugin], { enforcement: 'warn' });
+    expect(Object.values(reached).every((value) => value === undefined)).toBe(true);
+    expect(
+      composition.violations.filter((v) => v.kind === 'context-escape').map((v) => v.key),
+    ).toEqual(['plugin', 'inject', 'root', 'scope', 'extend', 'on']);
+    await composition.dispose();
+  });
+
+  it('throws on a context escape in enforce mode', async () => {
+    const plugin = v1Plugin('escapee', ['own'], [], (ctx) => {
+      void (ctx as unknown as Record<string, unknown>)['plugin'];
+      ctx.provide('own', 1);
+    });
+    await expect(
+      compose([{ id: 'escapee' }], [plugin], { enforcement: 'enforce' }),
+    ).rejects.toThrow(PluginViolationError);
   });
 
   it('always throws egress-denied, even in warn mode', async () => {

@@ -1,7 +1,10 @@
-/** One kit invariant. `run` returns failure messages (or throws); an empty list passes. */
+/**
+ * One kit invariant. `run` returns failure messages (or throws); an empty list passes. `signal`
+ * is aborted when the check times out, so a check can tear its fixtures down (#F26).
+ */
 export interface KitCheck<C> {
   name: string;
-  run(context: C): Promise<readonly string[] | void>;
+  run(context: C, signal: AbortSignal): Promise<readonly string[] | void>;
   /** Per-check timeout in ms (default 15 s). */
   timeoutMs?: number;
 }
@@ -26,31 +29,33 @@ export function selectChecks<C>(
     : [...checks];
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, name: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`${name} timed out after ${ms} ms`)), ms);
-    }),
-  ]).finally(() => clearTimeout(timer));
-}
-
 /** Runs one check against a fresh context and returns its failures (never throws). */
 export async function runCheck<C>(
   check: KitCheck<C>,
   context: () => C | Promise<C>,
   timeoutMs = 15_000,
 ): Promise<KitFailure[]> {
+  const ms = check.timeoutMs ?? timeoutMs;
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const work = (async () => check.run(await context(), controller.signal))();
+  // The abandoned work is aborted and its rejection swallowed, so nothing leaks past the deadline.
+  work.catch(() => undefined);
   try {
-    const messages = await withTimeout(
-      (async () => check.run(await context()))(),
-      check.timeoutMs ?? timeoutMs,
-      check.name,
-    );
+    const messages = await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          controller.abort(new Error(`${check.name} timed out after ${ms} ms`));
+          reject(new Error(`${check.name} timed out after ${ms} ms`));
+        }, ms);
+      }),
+    ]);
     return (messages ?? []).map((message) => ({ check: check.name, message }));
   } catch (error) {
     return [{ check: check.name, message: error instanceof Error ? error.message : String(error) }];
+  } finally {
+    clearTimeout(timer);
   }
 }
 

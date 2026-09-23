@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MockLanguageModelV4 } from 'ai/test';
 import { meterKey, type InferenceRequest, type UsageMeter } from '@winsendotai/ovo-contracts';
-import * as toolsErrors from '../../plugin-tools/src/errors.ts';
-import * as inferenceAiSdk from '../../plugin-inference/src/ai-sdk.ts';
 import {
   AiSdkInference,
   ConfirmationRequiredError,
@@ -39,6 +37,8 @@ const generated = (id?: string) =>
     },
   });
 
+// The mirror of this file — that plugin-tools and plugin-inference re-export exactly these classes
+// — lives in those packages' own tests. A kit must not reach into a plugin, even from a test.
 describe('tool errors moved to plugin-kit (#12)', () => {
   it('keeps the hierarchy and adds ConnectorPolicyError under ExecutionPolicyError', () => {
     const policy = new ConnectorPolicyError('private DNS');
@@ -53,19 +53,26 @@ describe('tool errors moved to plugin-kit (#12)', () => {
     expect(new ToolInvocationError('x', 'unknown').outcome).toBe('unknown');
   });
 
-  it('is re-exported, identically, from plugin-tools', () => {
-    expect(toolsErrors.ExecutionPolicyError).toBe(ExecutionPolicyError);
-    expect(toolsErrors.ConnectorPolicyError).toBe(ConnectorPolicyError);
-    expect(toolsErrors.ToolInvocationError).toBe(ToolInvocationError);
+  it('names every policy error, so a serialized failure still says which one refused', () => {
+    expect([
+      new ExecutionPolicyError('x').name,
+      new ConfirmationRequiredError('x').name,
+      new OperationCollisionError('x').name,
+      new ConnectorPolicyError('x').name,
+      new ToolSchemaError('x').name,
+      new ToolInvocationError('x', 'unknown').name,
+    ]).toEqual([
+      'ExecutionPolicyError',
+      'ConfirmationRequiredError',
+      'OperationCollisionError',
+      'ConnectorPolicyError',
+      'ToolSchemaError',
+      'ToolInvocationError',
+    ]);
   });
 });
 
 describe('AiSdkInference moved to plugin-kit', () => {
-  it('is re-exported, identically, from plugin-inference', () => {
-    expect(inferenceAiSdk.AiSdkInference).toBe(AiSdkInference);
-    expect(inferenceAiSdk.InferenceProtocolError).toBe(InferenceProtocolError);
-  });
-
   it('exposes provider and model and reports reconciled token meters to the UsageSink', async () => {
     const meters: UsageMeter[] = [];
     const inference = new AiSdkInference({

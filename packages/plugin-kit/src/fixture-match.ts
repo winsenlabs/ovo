@@ -21,19 +21,56 @@ export interface FixtureScript extends Omit<NetFixtureScript, 'steps'> {
   steps: FixtureStep[];
 }
 
-/** The unit of a FixtureNet replay. It carries `script.source` into mismatch reports. */
+/**
+ * The unit of a FixtureNet replay. It carries `script.source` into mismatch reports. Every way a
+ * replay can go wrong is one of these — a wrong request, a frame after close, or a script that was
+ * left unfinished — so a caller that catches it catches all of them.
+ */
 export class FixtureMismatchError extends Error {
   constructor(
     readonly host: string,
     readonly expected: string,
     readonly actual: string,
     readonly source?: string,
+    /** Set only by `incomplete`: every problem of one FixtureNet, reported together. */
+    readonly problems: readonly string[] = [],
   ) {
     super(
       `FixtureNet mismatch on ${host}: expected ${expected}; got ${actual}${source ? ` (script ${source})` : ''}`,
     );
     this.name = 'FixtureMismatchError';
   }
+
+  /** Mismatches, listener errors and unconsumed required steps of one FixtureNet, as one failure. */
+  static incomplete(problems: readonly string[]): FixtureMismatchError {
+    const error = new FixtureMismatchError(
+      'FixtureNet',
+      'every script consumed',
+      `${problems.length} unresolved problem(s)`,
+      undefined,
+      problems,
+    );
+    error.message = `FixtureNet incomplete:\n${problems.join('\n')}`;
+    return error;
+  }
+}
+
+/** A `headers` expectation: every named header must be present and equal (or match a RegExp). */
+export function matchesHeaders(
+  expected: Record<string, string | RegExp> | undefined,
+  actual: Readonly<Record<string, string>>,
+): boolean {
+  return Object.entries(expected ?? {}).every(([key, want]) => {
+    const got = actual[key.toLowerCase()];
+    if (got === undefined) return false;
+    return want instanceof RegExp ? want.test(got) : want === got;
+  });
+}
+
+/** A required step is one a script must consume; delays and `repeat` frames are optional. */
+export function isRequiredStep(step: FixtureStep): boolean {
+  if ('delayMs' in step) return false;
+  return !('expect' in step && step.expect === 'ws-send' && step.repeat);
 }
 
 export function describeStep(step: FixtureStep | undefined, index?: number): string {
@@ -133,8 +170,12 @@ export function matchesFrame(
   return parsed.ok && matchesWhere(parsed.value, step.where);
 }
 
+/** `atob` rather than `Buffer`: a kit stays on runtime-neutral APIs, never a node global (§13.3). */
 export function decodeBase64(value: string): Uint8Array<ArrayBuffer> {
-  return new Uint8Array(Buffer.from(value, 'base64'));
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i) & 0xff;
+  return bytes;
 }
 
 /** Script-owned hosts may be written with or without a port. */

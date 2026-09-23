@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import prettier from 'prettier';
 import {
+  GENERATED_SEGMENTS,
   finish,
   inScope,
   isTestFile,
@@ -26,7 +27,7 @@ const accept = (file) => /\.(?:[cm]?[jt]sx?|css|sql|tf)$/.test(file) && !file.en
 const files = [];
 for (const start of args.root ? [root] : ROOTS)
   if (existsSync(start))
-    files.push(...(await walkFiles(start, accept, { extraSkip: ['.data', 'data'] })));
+    files.push(...(await walkFiles(start, accept, { extraSkip: GENERATED_SEGMENTS })));
 
 const baselines = await loadBaselines(args, 'module-size.json', 'moduleSize');
 const allowed = new Map(Object.entries(baselines.top?.files ?? {}));
@@ -87,9 +88,12 @@ if (args.writeBaseline) {
   console.log(`[module-size] wrote ${Object.keys(keep).length} entries to ${baselines.file}`);
 }
 
-const largest = measured.filter((m) => !isTestFile(m.file)).sort((a, b) => b.lines - a.lines)[0];
+// The summary describes the same scope the errors do: under --only it must not credit, or quote a
+// largest module from, files the run was never asked about.
+const reported = measured.filter((m) => inScope(m.file, args.only));
+const largest = reported.filter((m) => !isTestFile(m.file)).sort((a, b) => b.lines - a.lines)[0];
 finish('module-size', {
   errors: args.writeBaseline ? errors.filter((e) => !/source limit|may not grow/.test(e)) : errors,
   warnings,
-  summary: `passed for ${measured.length} files${args.only.length ? ` (${args.only.join(', ')})` : ''}; largest source module ${largest?.lines ?? 0} lines.`,
+  summary: `passed for ${reported.length} files${args.only.length ? ` (${args.only.join(', ')})` : ''}; largest source module ${largest?.lines ?? 0} lines.`,
 });

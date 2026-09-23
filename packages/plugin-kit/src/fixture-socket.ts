@@ -5,8 +5,25 @@ import {
   decodeBase64,
   describeFrame,
   describeStep,
+  isRequiredStep,
   matchesFrame,
 } from './fixture-match.ts';
+
+const READY_STATE = ['connecting', 'open', 'closing', 'closed'] as const;
+
+/**
+ * The steps this socket still owes: everything from the cursor up to the next `http` or `ws-open`
+ * step, which belongs to a later connection, skipping the optional ones.
+ */
+function outstanding(run: ScriptRun): string[] {
+  const out: string[] = [];
+  for (let index = run.index; index < run.steps.length; index += 1) {
+    const step = run.steps[index]!;
+    if ('expect' in step && (step.expect === 'http' || step.expect === 'ws-open')) break;
+    if (isRequiredStep(step)) out.push(describeStep(step, index));
+  }
+  return out;
+}
 
 type WsSend = Extract<NetFixtureStep, { expect: 'ws-send' }>;
 
@@ -61,7 +78,11 @@ export class FixtureSocket implements WebSocketLike {
   }
 
   send(data: string | Uint8Array): void {
-    if (this.state !== 1) throw new Error('WebSocket is not open');
+    if (this.state !== 1)
+      throw this.fail(
+        `${describeFrame(data)} on a ${READY_STATE[this.state]} socket`,
+        'a frame while the socket is open',
+      );
     this.hooks.log('ws-out', data);
     const run = this.run;
     const head = run.steps[run.index];
@@ -76,14 +97,7 @@ export class FixtureSocket implements WebSocketLike {
       }
     }
     if (run.background && matchesFrame(run.background, data)) return;
-    const error = new FixtureMismatchError(
-      run.host,
-      describeStep(head, run.index),
-      describeFrame(data),
-      run.source,
-    );
-    this.hooks.mismatch(error);
-    throw error;
+    throw this.fail(describeFrame(data), describeStep(head, run.index));
   }
 
   close(code?: number, reason?: string): void {
@@ -92,21 +106,27 @@ export class FixtureSocket implements WebSocketLike {
     const actualCode = code ?? 1005;
     const actualReason = reason ?? '';
     if (head && 'close' in head) {
-      if (head.close.code !== actualCode || (head.close.reason ?? '') !== actualReason) {
-        const error = new FixtureMismatchError(
-          this.run.host,
-          describeStep(head, this.run.index),
-          `close ${actualCode} ${actualReason}`,
-          this.run.source,
-        );
-        this.hooks.mismatch(error);
-        throw error;
-      }
+      if (head.close.code !== actualCode || (head.close.reason ?? '') !== actualReason)
+        throw this.fail(`close ${actualCode} ${actualReason}`, describeStep(head, this.run.index));
       this.run.index += 1;
     }
     this.state = 2;
     this.run.background = undefined;
+    // Closing with the socket's own script unfinished is a mismatch, not a quiet end: the steps
+    // would otherwise only surface if someone remembered to call assertComplete.
+    const left = outstanding(this.run);
+    const error = left.length
+      ? this.fail(`close ${actualCode} ${actualReason}`, `${left.join(', ')} first`)
+      : undefined;
     queueMicrotask(() => this.finish(actualCode, actualReason));
+    if (error) throw error;
+  }
+
+  /** Records a mismatch (so `assertComplete` reports it too) and returns it for the caller to throw. */
+  private fail(actual: string, expected: string): FixtureMismatchError {
+    const error = new FixtureMismatchError(this.run.host, expected, actual, this.run.source);
+    this.hooks.mismatch(error);
+    return error;
   }
 
   private accept(step: WsSend): void {

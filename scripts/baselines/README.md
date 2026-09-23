@@ -14,8 +14,15 @@ never grow; a stale entry (the file or violation is gone) is a warning, not a fa
 | `conformance.json`        | `check-conformance.mjs`     | `{packages: [dir]}`                                |
 | `runtime-violations.json` | `vitest-global-setup.ts`    | `{violations: [{pluginId, kind, key}]}`            |
 
+`check-upstream.mjs` has no baseline: a pinned upstream hash either matches or the lock is wrong.
+
 Top-level files are regenerated only with `node scripts/check-<gate>.mjs --write-baseline` (and
 `OVO_WRITE_VIOLATION_BASELINE=1 pnpm test` for runtime violations). Wave-2 units never edit them.
+
+`--write-baseline` always rescans the whole repository and is **refused together with `--only`**:
+a scoped run only ever builds the in-scope part of a gate's state, so writing it out would delete
+every entry outside the prefixes. `node scripts/lint.mjs --write-baseline --only x` therefore fails
+on the first gate instead of truncating six baselines.
 
 ## Pending baselines
 

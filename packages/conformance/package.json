@@ -13,9 +13,7 @@
     "@winsendotai/ovo-contracts": "workspace:*",
     "@winsendotai/ovo-plugin-kit": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*",
-    "@winsendotai/ovo-sdk": "workspace:*",
-    "ws": "8.21.3",
-    "zod": "4.6.5"
+    "ws": "8.21.3"
   },
   "devDependencies": {
     "@types/ws": "8.18.1",

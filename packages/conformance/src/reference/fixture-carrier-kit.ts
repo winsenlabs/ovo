@@ -78,6 +78,31 @@ export function fixtureCarrierKitOptions(
     ...status,
     rawBody: new TextEncoder().encode('CallSid=CA1&CallStatus=failed'),
   };
+  const lookupId = mode === 'at-dial' ? 'CA1' : 'RQ1';
+  const reconcileScript: NetFixtureScript = {
+    ...REST,
+    steps: [
+      {
+        expect: 'http',
+        method: 'GET',
+        url: `https://fixture.invalid/v1/calls/${lookupId}`,
+        reply: { status: 200, body: JSON.stringify({ id: lookupId, status: 'completed' }) },
+      },
+    ],
+  };
+  const handoffScript = (markup: string): NetFixtureScript => ({
+    ...REST,
+    steps: [
+      {
+        expect: 'http',
+        method: 'POST',
+        url: 'https://fixture.invalid/v1/calls/CA1',
+        body: 'form',
+        where: { Markup: markup, RequestId: 'handoff-1' },
+        reply: { status: 200, body: JSON.stringify({ id: 'HX1' }) },
+      },
+    ],
+  });
   return {
     binding,
     transcripts: [
@@ -122,6 +147,27 @@ export function fixtureCarrierKitOptions(
         ],
         carrierRequestId: 'RQ1',
       },
+      reconcile: {
+        scripts: [reconcileScript],
+        query:
+          mode === 'at-dial'
+            ? { requestId: 'dial-1', carrierCallId: 'CA1' }
+            : { requestId: 'dial-1', carrierRequestId: 'RQ1' },
+        expect: 'ended',
+        state: 'completed',
+      },
+      handoff: [
+        {
+          scripts: [handoffScript('<Dial>+15550123</Dial>')],
+          carrierCallId: 'CA1',
+          target: { kind: 'phone', e164: '+15550123' },
+        },
+        {
+          scripts: [handoffScript('<Say>Goodbye.</Say><Hangup/>')],
+          carrierCallId: 'CA1',
+          target: { kind: 'end', message: 'Goodbye.' },
+        },
+      ],
     },
     vectors: {
       http: [

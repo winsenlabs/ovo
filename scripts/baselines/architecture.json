@@ -76,6 +76,41 @@
       "reason": "plugins may not import another plugin or behaviors"
     },
     {
+      "from": "packages/plugin-storage",
+      "to": "apps/api",
+      "reason": "plugins may not import app packages"
+    },
+    {
+      "from": "packages/plugin-storage",
+      "to": "packages/plugin-evaluations",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-storage",
+      "to": "packages/plugin-ledger",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-storage",
+      "to": "packages/plugin-observability",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-storage",
+      "to": "packages/plugin-operations",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-storage",
+      "to": "packages/plugin-orchestration",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-storage",
+      "to": "packages/plugin-recordings",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
       "from": "packages/plugin-tools-http",
       "to": "packages/plugin-tools",
       "reason": "plugins may not import another plugin or behaviors"

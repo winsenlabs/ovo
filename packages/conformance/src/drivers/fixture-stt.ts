@@ -28,7 +28,7 @@ export const FIXTURE_STT_CAPABILITIES: SpeechCapabilities = Object.freeze({
   interim: true,
   wordTimestamps: false,
   turnSignals: Object.freeze(['speech-start', 'end-of-turn'] as const),
-  forceEndpoint: false,
+  forceEndpoint: true,
 });
 
 /**
@@ -133,6 +133,13 @@ class FixtureSttSession implements SttSession {
     if (this.state !== 'open') throw new Error('fixture STT session is closed');
     this.bytes += frame.byteLength;
     for (const full of this.frames.push(frame)) this.socket.send(full);
+  }
+
+  /** Flushes the aggregator so the provider can endpoint now; the session stays open. */
+  async forceEndpoint(): Promise<void> {
+    if (this.state !== 'open') return;
+    const rest = this.frames.flush({ padToMs: FIXTURE_STT_CAPABILITIES.frameMs!.min });
+    if (rest) this.socket.send(rest);
   }
 
   async finish(): Promise<void> {

@@ -4,7 +4,10 @@
       "files": ["apps/api/src/infrastructure-types.ts", "apps/console/lib/operator-api.ts"],
       "windows": 141
     },
-    { "files": ["apps/api/src/routes/agents.ts", "apps/api/src/routes/mcp.ts"], "windows": 34 },
+    {
+      "files": ["apps/api/src/routes/agents.ts", "apps/api/src/routes/mcp.ts"],
+      "windows": 34
+    },
     {
       "files": ["apps/api/src/routes/cost.ts", "apps/api/src/routes/evaluation-datasets.ts"],
       "windows": 10
@@ -172,7 +175,7 @@
     },
     {
       "files": ["packages/plugin-kit/src/http.ts", "packages/plugin-providers/src/http.ts"],
-      "windows": 205
+      "windows": 185
     },
     {
       "files": [

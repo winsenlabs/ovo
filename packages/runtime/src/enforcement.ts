@@ -2,7 +2,12 @@ import type { Manifest } from '@winsendotai/ovo-contracts';
 
 export type EnforcementMode = 'warn' | 'enforce';
 export type ViolationKind =
-  'read-undeclared' | 'provide-undeclared' | 'egress-denied' | 'engine-tool-access';
+  | 'read-undeclared'
+  | 'provide-undeclared'
+  | 'egress-denied'
+  | 'engine-tool-access'
+  /** Reached a raw Cordis member (plugin, inject, root, scope, …) that bypasses the manifest. */
+  | 'context-escape';
 
 export interface PluginViolation {
   pluginId: string;
