@@ -139,15 +139,49 @@ describe('selected session graph', () => {
         ],
       },
     });
+    const variables = { caller: { name: 'Asha' } };
     const selected = selectSessionGraph({
       ...selectedInput,
-      sessionVariables: { callerName: 'Asha' },
+      sessionVariables: variables,
     });
+    variables.caller.name = 'Changed';
     expect(selected.rows.find((row) => row.id === 'fixture-engine')?.config?.session).toMatchObject(
       {
         inputEnabled: true,
-        variables: { callerName: 'Asha' },
+        variables: { caller: { name: 'Asha' } },
       },
+    );
+  });
+  it('composes a context release with a same-workspace inference binding', async () => {
+    const selectedInput = input();
+    selectedInput.release.config = AgentConfig.parse({ name: 'Context', mode: 'context' });
+    const release = {
+      ...selectedInput.release,
+      selections: {
+        ...selectedInput.release.selections,
+        llm: { pluginId: 'fixture-inference', version: '1.0.0', config: {}, bindingId: 'binding' },
+      },
+      providerBindings: { inference: { id: 'binding', provider: 'fixture-inference' } },
+    };
+    const inference = service('fixture-inference', Cap.inference);
+    const selected = selectSessionGraph({
+      ...selectedInput,
+      release,
+      registry: new PluginRegistry([...selectedInput.registry.list(), inference]),
+    });
+    const graph = await compose(selected.rows, selected.catalog, { scope: 'session' });
+    expect(graph.get(Cap.behavior)).toBeDefined();
+    await graph.dispose();
+  });
+  it('reports missing host inference before graph resolution', () => {
+    const selectedInput = input();
+    selectedInput.release.config = AgentConfig.parse({ name: 'Context', mode: 'context' });
+    const release = {
+      ...selectedInput.release,
+      providerBindings: { inference: { id: 'binding', provider: 'fixture-inference' } },
+    };
+    expect(() => selectSessionGraph({ ...selectedInput, release })).toThrow(
+      'Live inference plugin is required until F4 wiring',
     );
   });
   it('resolves same-major pins, prunes services and composes the actual session rows', async () => {

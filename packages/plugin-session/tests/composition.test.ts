@@ -202,6 +202,6 @@ describe('complete default session graphs', () => {
         bindings: { inference: { workspaceId: 'local' } },
         output: { kind: 'host' },
       }),
-    ).not.toThrow();
+    ).toThrow('Live inference plugin is required until F4 wiring');
   });
 });

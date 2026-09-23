@@ -271,16 +271,18 @@ describe('selection helpers', () => {
       }),
       plugins: [],
     };
+    const variables = { caller: { name: 'Asha' } };
     const selected = selectEngine(
       release,
       new PluginRegistry([engineV2]),
       { plugins: [] },
       () => engineV2,
-      { callerName: 'Asha' },
+      variables,
     );
+    variables.caller.name = 'Changed';
     expect(selected.rowConfig).toMatchObject({
       inputEnabled: true,
-      initialVariables: { callerName: 'Asha' },
+      initialVariables: { caller: { name: 'Asha' } },
     });
   });
   it('resolves env and stored carrier bindings on use, rejecting placeholders and mismatches', async () => {

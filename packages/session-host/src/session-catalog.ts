@@ -54,18 +54,19 @@ export function createSessionPluginCatalog(input: SessionPluginInput): PluginDef
   let missingLiveInference = false;
   if (config.mode === 'context' || config.mode === 'agent') {
     const binding = input.bindings.inference;
-    if (binding !== undefined) {
-      const bindingWorkspace =
-        binding && typeof binding === 'object' && 'workspaceId' in binding
-          ? binding.workspaceId
-          : undefined;
-      if (bindingWorkspace !== input.workspaceId)
-        throw new Error('Inference binding belongs to another workspace');
-    }
+    // Legacy release snapshots are scoped by their release and omit workspaceId.
+    // Reject an explicit conflicting workspace here; require a selected provider below.
+    if (
+      binding &&
+      typeof binding === 'object' &&
+      'workspaceId' in binding &&
+      binding.workspaceId !== input.workspaceId
+    )
+      throw new Error('Inference binding belongs to another workspace');
     if (input.inferencePlugin) plugins.push(input.inferencePlugin);
     else if (input.output.kind === 'simulation' && !binding)
       throw new Error('An inference binding is required');
-    else missingLiveInference = input.output.kind === 'live';
+    else missingLiveInference = input.output.kind !== 'simulation';
   }
   const assertLiveInference = () => {
     if (missingLiveInference) throw new Error('Live inference plugin is required until F4 wiring');

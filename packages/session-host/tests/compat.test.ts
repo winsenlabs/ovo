@@ -30,10 +30,11 @@ function proves(
   it(`${code}: rejects broken input and accepts the valid counterpart`, () => {
     expect(validateSelections(bad(), stage)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ code, stage, severity, message: expect.any(String) }),
+        expect.objectContaining({ code, severity, message: expect.any(String) }),
       ]),
     );
     expect(codes(good(), stage)).not.toContain(code);
+    if (stage !== 'release') expect(codes(bad(), 'release')).not.toContain(code);
   });
 }
 const edit = (
@@ -114,29 +115,32 @@ describe('every compatibility rule has a true negative', () => {
   proves('turn_signal_missing', 'live', () =>
     fixture({ stt: { capabilities: { ...speech, turnSignals: [], inputFormats: [MULAW] } } }),
   );
-  proves('playback_evidence_insufficient', 'live', () =>
-    withConfig(
-      fixture({
-        carrier: {
-          capabilities: {
-            ...carrier,
-            media: { ...carrier.media, playbackEvidence: 'carrier-processed' },
+  const confirmedWrite = [
+    {
+      id: 'write',
+      description: 'write',
+      connector: 'native' as const,
+      inputSchema: {},
+      effect: 'write' as const,
+      confirmation: true,
+    },
+  ];
+  proves(
+    'playback_evidence_insufficient',
+    'live',
+    () =>
+      withConfig(
+        fixture({
+          carrier: {
+            capabilities: {
+              ...carrier,
+              media: { ...carrier.media, playbackEvidence: 'carrier-processed' },
+            },
           },
-        },
-      }),
-      {
-        tools: [
-          {
-            id: 'write',
-            description: 'write',
-            connector: 'native',
-            inputSchema: {},
-            effect: 'write',
-            confirmation: true,
-          },
-        ],
-      },
-    ),
+        }),
+        { tools: confirmedWrite },
+      ),
+    () => withConfig(fixture(), { tools: confirmedWrite }),
   );
   proves('engine_capability_missing', 'live', () => ({ ...fixture(), turnStrategy: 'smart-turn' }));
   proves('amd_unsupported', 'live', () => ({

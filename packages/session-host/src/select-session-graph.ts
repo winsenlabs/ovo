@@ -102,7 +102,7 @@ function configFor(
       mode: config.mode,
       language: config.language,
       inputEnabled: sessionRequiresInput(config),
-      variables: { ...variables },
+      variables: structuredClone(variables),
       maxCallSeconds: config.costPolicy?.maxCallSeconds ?? 1800,
       acknowledgements: config.voice?.acknowledgements ?? [],
     };
@@ -214,6 +214,9 @@ export function selectSessionGraph(input: SessionGraphInput): SessionGraphResult
     nativeHandlerPackages: input.installedExtensions.nativeHandlerPackages,
     releasePlugins: release.plugins,
     output: { kind: 'host' },
+    inferencePlugin: catalog.find((definition) =>
+      manifestKeys(definition.manifest).provides.some((entry) => entry.key === Cap.inference),
+    ),
   }))
     add(
       definition,

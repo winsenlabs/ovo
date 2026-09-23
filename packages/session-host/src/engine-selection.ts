@@ -55,7 +55,7 @@ export function selectEngine(
       language: release.config.language,
       inputEnabled,
       initialInput: release.config.script || !inputEnabled ? '' : undefined,
-      initialVariables: { ...initialVariables },
+      initialVariables: structuredClone(initialVariables),
     },
   };
 }
