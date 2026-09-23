@@ -1,3 +1,13 @@
+import type {
+  AuthenticatedSessionRoute,
+  BeginDialSessionInput,
+  CarrierCallbackInput,
+  CarrierCallbackCorrelationInput,
+  CarrierCallbackResult,
+  SessionRoute,
+  RouteLookup,
+} from './session-types.ts';
+
 export type JobStatus =
   | 'queued'
   | 'owned'
@@ -121,10 +131,7 @@ export interface DurableJobStore {
   markFailed(jobId: string, workerId: string, epoch: number, reason: string): Promise<boolean>;
   get(jobId: string): Promise<DurableJob | undefined>;
   getSessionRoute(jobId: string): Promise<SessionRoute | undefined>;
-  resolveSessionRoute(input: {
-    sessionId?: string;
-    carrierCallId?: string;
-  }): Promise<SessionRoute | undefined>;
+  resolveSessionRoute(input: RouteLookup): Promise<SessionRoute | undefined>;
   authenticateSessionRoute(
     sessionId: string,
     token: string,
@@ -135,68 +142,28 @@ export interface DurableJobStore {
     workerId: string,
     epoch: number,
     reason: string,
-  ): Promise<{ carrierCallId?: string } | undefined>;
+  ): Promise<{ carrierCallId?: string; carrierRequestId?: string } | undefined>;
   releaseTerminalSession(jobId: string): Promise<boolean>;
 }
 
-export type SessionRouteStatus =
-  'dialing' | 'accepted' | 'connected' | 'terminating' | 'completed' | 'failed' | 'cancelled';
+export type { CarrierRouteStore } from './carrier-route-store.ts';
 
-export interface SessionRoute {
-  sessionId: string;
-  jobId: string;
-  organizationId: string;
-  workerId: string;
-  workerEndpoint: string;
-  ownerEpoch: number;
-  generation: number;
-  dialRequestId: string;
-  carrierCallId?: string;
-  status: SessionRouteStatus;
-  handshakeExpiresAt: Date;
-  handshakeClaimedAt?: Date;
-  terminalAt?: Date;
-  terminalReason?: string;
-  releasedAt?: Date;
-}
-
-export type AuthenticatedSessionRoute = SessionRoute;
-
-export interface BeginDialSessionInput {
-  sessionId: string;
-  jobId: string;
-  organizationId: string;
-  workerId: string;
-  workerEndpoint: string;
-  ownerEpoch: number;
-  generation: number;
-  dialRequestId: string;
-  handshakeTokenHash: string;
-  handshakeExpiresAt: Date;
-}
-
-export interface CarrierCallbackInput {
-  provider: string;
-  eventId: string;
-  dialRequestId?: string;
-  carrierCallId: string;
-  status:
-    | 'initiated'
-    | 'ringing'
-    | 'answered'
-    | 'completed'
-    | 'busy'
-    | 'failed'
-    | 'no_answer'
-    | 'cancelled';
-  occurredAt: Date;
-  payload?: Record<string, unknown>;
-}
-
-export type CarrierCallbackResult =
-  | { kind: 'applied' | 'duplicate' | 'ignored_out_of_order'; route: SessionRoute }
-  | { kind: 'correlation_conflict'; route: SessionRoute }
-  | { kind: 'unmatched' };
+export type {
+  SessionRouteStatus,
+  SessionRoute,
+  AuthenticatedSessionRoute,
+  BeginDialSessionInput,
+  MarkDialAcceptedInput,
+  RouteLookup,
+  BindCarrierCallInput,
+  BindCarrierCallResult,
+  IssueStreamGrantInput,
+  ReissueStreamInput,
+  AdmissionSnapshot,
+  CarrierCallbackInput,
+  CarrierCallbackCorrelationInput,
+  CarrierCallbackResult,
+} from './session-types.ts';
 
 export interface ReadinessProbe {
   check(): Promise<{ ready: true } | { ready: false; reason: string }>;

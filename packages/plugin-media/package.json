@@ -6,7 +6,8 @@
   "exports": "./src/index.ts",
   "dependencies": {
     "@winsendotai/ovo-plugin-telephony-twilio": "workspace:*",
-    "@winsendotai/ovo-runtime": "workspace:*"
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "ws": "8.21.3"
   },
   "devDependencies": {
     "@winsendotai/ovo-contracts": "workspace:*",

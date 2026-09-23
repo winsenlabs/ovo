@@ -1,5 +1,10 @@
 import { definePlugin, type PluginDefinition } from '@winsendotai/ovo-runtime';
-import type { AgentConfig, InferenceReply } from '@winsendotai/ovo-contracts';
+import {
+  Cap,
+  CAP_PREFIXES,
+  type AgentConfig,
+  type InferenceReply,
+} from '@winsendotai/ovo-contracts';
 
 export interface SessionFixtures {
   modelReplies?: InferenceReply[];
@@ -15,14 +20,14 @@ export function withSessionFixtures(
   const replies = structuredClone(fixture.modelReplies ?? []);
   const results = structuredClone(fixture.toolResults ?? {});
   return catalog.map((definition) => {
-    const inference = definition.manifest.provides.includes('ovo.inference');
+    const inference = definition.manifest.provides.includes(Cap.inference);
     const connector = definition.manifest.provides.find((service) =>
-      service.startsWith('ovo.tool-connector.'),
+      service.startsWith(CAP_PREFIXES.toolConnector),
     );
     if (!inference && !connector) return definition;
     return definePlugin(definition.manifest, (ctx) => {
       if (inference)
-        ctx.provide('ovo.inference', {
+        ctx.provide(Cap.inference, {
           generate: async () => replies.shift() ?? { kind: 'text', text: config.uncertainty },
         });
       if (connector)

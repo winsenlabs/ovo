@@ -253,13 +253,6 @@
     },
     {
       "files": [
-        "packages/plugin-storage/src/postgres/agents-repository.ts",
-        "packages/plugin-storage/src/sqlite/agents-repository.ts"
-      ],
-      "windows": 1
-    },
-    {
-      "files": [
         "packages/plugin-storage/src/postgres/inspection-repository.ts",
         "packages/plugin-storage/src/postgres/mcp-repository.ts"
       ],
@@ -277,7 +270,7 @@
         "packages/plugin-storage/src/postgres/inspection-repository.ts",
         "packages/plugin-storage/src/sqlite/inspection-repository.ts"
       ],
-      "windows": 125
+      "windows": 119
     },
     {
       "files": [
@@ -298,7 +291,7 @@
         "packages/plugin-storage/src/postgres/secrets-repository.ts",
         "packages/plugin-storage/src/sqlite/secrets-repository.ts"
       ],
-      "windows": 83
+      "windows": 69
     },
     {
       "files": [

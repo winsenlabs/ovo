@@ -1,13 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import type {
-  AuditEntry,
-  CallRecord,
-  EvaluationRecord,
-  Page,
-  StoredCallEvent,
-  UsageEntry,
-} from '../models.ts';
+import type { AuditEntry, EvaluationRecord, Page, UsageEntry } from '../models.ts';
 import {
   cursorValue,
   json,
@@ -17,123 +10,14 @@ import {
   parseObject,
   redactAudit,
   type Row,
-  transaction,
 } from './shared.ts';
 
 export class InspectionRepository {
   constructor(private readonly db: DatabaseSync) {}
-  createCall(input: {
-    workspaceId: string;
-    releaseId: string;
-    kind: 'live' | 'simulation';
-    status: string;
-    id?: string;
-  }) {
-    const id = input.id ?? randomUUID(),
-      at = now();
-    this.db
-      .prepare(
-        'INSERT INTO calls(id,workspace_id,release_id,kind,status,created_at) VALUES(?,?,?,?,?,?)',
-      )
-      .run(id, input.workspaceId, input.releaseId, input.kind, input.status, at);
-    return this.getCall(input.workspaceId, id)!;
-  }
-  private mapCall(row: Row): CallRecord {
-    return {
-      id: String(row.id),
-      workspaceId: String(row.workspace_id),
-      releaseId: String(row.release_id),
-      kind: String(row.kind) as CallRecord['kind'],
-      status: String(row.status),
-      createdAt: String(row.created_at),
-      completedAt: row.completed_at === null ? null : String(row.completed_at),
-    };
-  }
-  getCall(workspaceId: string, id: string) {
-    const row = this.db
-      .prepare('SELECT * FROM calls WHERE workspace_id=? AND id=?')
-      .get(workspaceId, id) as Row | undefined;
-    return row ? this.mapCall(row) : undefined;
-  }
-  listCalls(workspaceId: string, limit = 50, cursor?: string): Page<CallRecord> {
-    const size = pageLimit(limit),
-      rows = this.db
-        .prepare(
-          'SELECT rowid AS cursor,* FROM calls WHERE workspace_id=? AND rowid>? ORDER BY rowid LIMIT ?',
-        )
-        .all(workspaceId, cursorValue(cursor), size + 1) as Row[],
-      more = rows.length > size;
-    if (more) rows.pop();
-    return {
-      items: rows.map((row) => this.mapCall(row)),
-      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
-    };
-  }
-  finishCall(workspaceId: string, id: string, status: string) {
-    const result = this.db
-      .prepare('UPDATE calls SET status=?,completed_at=? WHERE workspace_id=? AND id=?')
-      .run(status, now(), workspaceId, id);
-    if (!result.changes) throw new Error('Call not found');
-    return this.getCall(workspaceId, id)!;
-  }
-  appendCallEvent(
-    workspaceId: string,
-    callId: string,
-    type: string,
-    payload: Record<string, unknown>,
-    epoch = 0,
-  ): StoredCallEvent {
-    return transaction(this.db, () => {
-      if (!this.getCall(workspaceId, callId)) throw new Error('Call not found');
-      const sequence = Number(
-          (
-            this.db
-              .prepare(
-                'SELECT COALESCE(MAX(sequence),0)+1 AS sequence FROM call_events WHERE call_id=?',
-              )
-              .get(callId) as Row
-          ).sequence,
-        ),
-        event = { id: randomUUID(), callId, sequence, at: now(), type, epoch, payload };
-      this.db
-        .prepare(
-          'INSERT INTO call_events(id,call_id,sequence,at,type,epoch,payload_json) VALUES(?,?,?,?,?,?,?)',
-        )
-        .run(
-          event.id,
-          event.callId,
-          event.sequence,
-          event.at,
-          event.type,
-          event.epoch,
-          json(event.payload),
-        );
-      return event;
-    });
-  }
-  listCallEvents(workspaceId: string, callId: string, limit = 50, cursor?: string) {
-    if (!this.getCall(workspaceId, callId)) throw new Error('Call not found');
-    const size = pageLimit(limit),
-      after = cursorValue(cursor),
-      rows = this.db
-        .prepare(
-          'SELECT * FROM call_events WHERE call_id=? AND sequence>? ORDER BY sequence LIMIT ?',
-        )
-        .all(callId, after, size + 1) as Row[],
-      more = rows.length > size;
-    if (more) rows.pop();
-    return {
-      items: rows.map((row) => ({
-        id: String(row.id),
-        callId: String(row.call_id),
-        sequence: Number(row.sequence),
-        at: String(row.at),
-        type: String(row.type),
-        epoch: Number(row.epoch),
-        payload: parseObject(row.payload_json),
-      })),
-      nextCursor: more ? String(rows.at(-1)!.sequence) : null,
-    };
+  private hasCall(workspaceId: string, id: string) {
+    return !!this.db
+      .prepare('SELECT 1 FROM calls WHERE workspace_id=? AND id=?')
+      .get(workspaceId, id);
   }
   createEvaluation(input: {
     workspaceId: string;
@@ -193,7 +77,7 @@ export class InspectionRepository {
   addUsage(input: Omit<UsageEntry, 'id' | 'createdAt'> & { id?: string }) {
     if (!/^\d+(\.\d+)?$/.test(input.quantity) || !/^\d+$/.test(input.amountMinor))
       throw new Error('Usage quantities must be nonnegative decimal strings');
-    if (!this.getCall(input.workspaceId, input.callId)) throw new Error('Call not found');
+    if (!this.hasCall(input.workspaceId, input.callId)) throw new Error('Call not found');
     const id = input.id ?? randomUUID(),
       createdAt = now();
     this.db
@@ -218,7 +102,7 @@ export class InspectionRepository {
     return { ...input, id, createdAt };
   }
   listUsage(workspaceId: string, callId: string, limit = 50, cursor?: string) {
-    if (!this.getCall(workspaceId, callId)) throw new Error('Call not found');
+    if (!this.hasCall(workspaceId, callId)) throw new Error('Call not found');
     const size = pageLimit(limit),
       rows = this.db
         .prepare(

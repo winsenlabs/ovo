@@ -1,4 +1,3 @@
-/** The installed-package loader moved to `@winsendotai/ovo-runtime` (§3.9); this re-export keeps old imports working. */
 export {
   createNativeHandlerMarker,
   loadInstalledSessionExtensions,

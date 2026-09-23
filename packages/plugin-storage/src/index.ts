@@ -5,6 +5,7 @@ import type { ControlStore } from './control-store.ts';
 
 export * from './models.ts';
 export * from './control-store.ts';
+export * from './legacy-selections.ts';
 export { redactAudit } from './sqlite/shared.ts';
 export { NodeSqliteControlStore } from './sqlite/store.ts';
 export { PostgresControlStore } from './postgres/store.ts';

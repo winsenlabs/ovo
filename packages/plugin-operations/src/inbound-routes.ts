@@ -11,12 +11,24 @@ interface RouteRow extends QueryResultRow {
   version: string;
   created_at: Date;
   updated_at: Date;
+  carrier_plugin_id: string | null;
+  carrier_binding_id: string | null;
 }
 
 const columns = `organization_id, phone_number, release_id, variables, enabled,
-  version, created_at, updated_at`;
+  version, created_at, updated_at, carrier_plugin_id, carrier_binding_id`;
 
-function present(row: RouteRow): InboundRoute {
+export type CarrierInboundRoute = InboundRoute & {
+  carrierPluginId: string | null;
+  carrierBindingId: string | null;
+};
+
+export type CarrierInboundRouteInput = InboundRouteInput & {
+  carrierPluginId?: string | null;
+  carrierBindingId?: string | null;
+};
+
+function present(row: RouteRow): CarrierInboundRoute {
   return {
     organizationId: row.organization_id,
     phoneNumber: row.phone_number,
@@ -26,6 +38,8 @@ function present(row: RouteRow): InboundRoute {
     version: Number(row.version),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    carrierPluginId: row.carrier_plugin_id,
+    carrierBindingId: row.carrier_binding_id,
   };
 }
 
@@ -50,7 +64,7 @@ export class InboundRouteService {
     private readonly organizationId: string,
   ) {}
 
-  async get(phoneNumber: string): Promise<InboundRoute | undefined> {
+  async get(phoneNumber: string): Promise<CarrierInboundRoute | undefined> {
     const result = await this.pool.query<RouteRow>(
       `SELECT ${columns} FROM ovo_ops_inbound_routes
        WHERE organization_id = $1 AND phone_number = $2`,
@@ -59,7 +73,7 @@ export class InboundRouteService {
     return result.rows[0] ? present(result.rows[0]) : undefined;
   }
 
-  async list(limit = 100, after?: string): Promise<InboundRoute[]> {
+  async list(limit = 100, after?: string): Promise<CarrierInboundRoute[]> {
     const bounded = Math.min(Math.max(Math.trunc(limit), 1), 100);
     const result = await this.pool.query<RouteRow>(
       `SELECT ${columns} FROM ovo_ops_inbound_routes
@@ -70,15 +84,16 @@ export class InboundRouteService {
     return result.rows.map(present);
   }
 
-  async put(input: InboundRouteInput): Promise<InboundRoute | undefined> {
+  async put(input: CarrierInboundRouteInput): Promise<CarrierInboundRoute | undefined> {
     const phoneNumber = normalizePhoneNumber(input.phoneNumber);
     const variables = checkedVariables(input.variables);
     const result =
       input.expectedVersion === null
         ? await this.pool.query<RouteRow>(
             `INSERT INTO ovo_ops_inbound_routes
-               (organization_id, phone_number, release_id, variables, enabled)
-             VALUES ($1, $2, $3, $4::jsonb, $5)
+               (organization_id, phone_number, release_id, variables, enabled,
+                carrier_plugin_id, carrier_binding_id)
+             VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)
              ON CONFLICT DO NOTHING RETURNING ${columns}`,
             [
               this.organizationId,
@@ -86,11 +101,16 @@ export class InboundRouteService {
               input.releaseId,
               JSON.stringify(variables),
               input.enabled ?? true,
+              input.carrierPluginId ?? null,
+              input.carrierBindingId ?? null,
             ],
           )
         : await this.pool.query<RouteRow>(
             `UPDATE ovo_ops_inbound_routes SET release_id = $3, variables = $4::jsonb,
-               enabled = $5, version = version + 1, updated_at = now()
+               enabled = $5,
+               carrier_plugin_id = CASE WHEN $9::boolean THEN $7 ELSE carrier_plugin_id END,
+               carrier_binding_id = CASE WHEN $10::boolean THEN $8 ELSE carrier_binding_id END,
+               version = version + 1, updated_at = now()
              WHERE organization_id = $1 AND phone_number = $2 AND version = $6
              RETURNING ${columns}`,
             [
@@ -100,6 +120,10 @@ export class InboundRouteService {
               JSON.stringify(variables),
               input.enabled ?? true,
               input.expectedVersion,
+              input.carrierPluginId ?? null,
+              input.carrierBindingId ?? null,
+              input.carrierPluginId !== undefined,
+              input.carrierBindingId !== undefined,
             ],
           );
     return result.rows[0] ? present(result.rows[0]) : undefined;

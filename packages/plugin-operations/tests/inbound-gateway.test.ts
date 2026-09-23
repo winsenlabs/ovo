@@ -56,9 +56,26 @@ describe.skipIf(!postgresUrl)('durable inbound gateway admission', () => {
       phoneNumber: toNumber,
       releaseId,
       variables: { greeting: 'support' },
+      carrierPluginId: '@winsendotai/ovo-carrier-twilio',
+      carrierBindingId: 'inbound-main',
       expectedVersion: null,
     });
-    expect(route).toMatchObject({ releaseId, version: 1, enabled: true });
+    expect(route).toMatchObject({
+      releaseId,
+      version: 1,
+      enabled: true,
+      carrierPluginId: '@winsendotai/ovo-carrier-twilio',
+      carrierBindingId: 'inbound-main',
+    });
+    expect(await operations.inboundRoutes.get(toNumber)).toMatchObject({
+      carrierPluginId: '@winsendotai/ovo-carrier-twilio',
+      carrierBindingId: 'inbound-main',
+    });
+    await operations.migrate();
+    expect(await operations.inboundRoutes.get(toNumber)).toMatchObject({
+      carrierPluginId: '@winsendotai/ovo-carrier-twilio',
+      carrierBindingId: 'inbound-main',
+    });
     await operations.inbound.setPolicy({ kind: 'busy', reason: 'at capacity' }, null);
     await operations.inbound.registerProtectedCapacity({
       slotId: `slot-${randomUUID()}`,
@@ -84,6 +101,17 @@ describe.skipIf(!postgresUrl)('durable inbound gateway admission', () => {
     });
     if (accepted.kind !== 'reserved') return;
     expect(await operations.inboundGateway.admit(input)).toEqual(accepted);
+    expect(
+      await operations.inboundRoutes.put({
+        phoneNumber: toNumber,
+        releaseId,
+        expectedVersion: 1,
+      }),
+    ).toMatchObject({
+      version: 2,
+      carrierPluginId: '@winsendotai/ovo-carrier-twilio',
+      carrierBindingId: 'inbound-main',
+    });
 
     const job = await pool.query<{
       status: string;

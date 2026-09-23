@@ -12,6 +12,7 @@ import type {
   Page,
   ProviderBinding,
   ReleaseRecord,
+  ReleaseSelection,
   SecretBlob,
   StoredCallEvent,
   UsageEntry,
@@ -34,6 +35,7 @@ export interface ControlStore {
     workspaceId: string;
     agent: AgentDraft;
     plugins: { id: string; version: string }[];
+    selections?: Record<string, ReleaseSelection>;
     createdBy: string;
     id?: string;
   }): Promise<ReleaseRecord>;
@@ -80,7 +82,11 @@ export interface ControlStore {
   ): Promise<CredentialReferences>;
   retireCredential(workspaceId: string, id: string): Promise<CredentialMetadata>;
   createProviderBinding(
-    input: Omit<ProviderBinding, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+    input: Omit<ProviderBinding, 'id' | 'createdAt' | 'updatedAt' | 'kind' | 'pluginId'> & {
+      id?: string;
+      kind?: string | null;
+      pluginId?: string | null;
+    },
   ): Promise<ProviderBinding>;
   getProviderBinding(workspaceId: string, id: string): Promise<ProviderBinding | undefined>;
   listProviderBindings(
@@ -97,6 +103,8 @@ export interface ControlStore {
       environment: string;
       credentialId: string;
       config: Record<string, unknown>;
+      kind?: string | null;
+      pluginId?: string | null;
     },
   ): Promise<ProviderBinding>;
   deleteProviderBinding(workspaceId: string, id: string): Promise<void>;
@@ -169,12 +177,17 @@ export interface ControlStore {
   createCall(input: {
     workspaceId: string;
     releaseId: string;
-    kind: 'live' | 'simulation';
+    kind: CallRecord['kind'];
     status: string;
     id?: string;
   }): Promise<CallRecord>;
   getCall(workspaceId: string, id: string): Promise<CallRecord | undefined>;
-  listCalls(workspaceId: string, limit?: number, cursor?: string): Promise<Page<CallRecord>>;
+  listCalls(
+    workspaceId: string,
+    limit?: number,
+    cursor?: string,
+    filters?: CallListFilters,
+  ): Promise<Page<CallRecord>>;
   finishCall(workspaceId: string, id: string, status: string): Promise<CallRecord>;
   appendCallEvent(
     workspaceId: string,
@@ -220,6 +233,15 @@ export interface ControlStore {
   }): Promise<AuditEntry>;
   listAudit(workspaceId: string, limit?: number, cursor?: string): Promise<Page<AuditEntry>>;
   close(): Promise<void>;
+}
+
+export interface CallListFilters {
+  order?: 'asc' | 'desc';
+  agentId?: string;
+  kind?: CallRecord['kind'];
+  status?: string;
+  engine?: string;
+  carrier?: string;
 }
 
 export interface LocalControlStore extends ControlStore {}

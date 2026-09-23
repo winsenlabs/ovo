@@ -5,8 +5,11 @@ import { isDeepStrictEqual } from 'node:util';
 import type { OperationRecord, OperationStore } from '@winsendotai/ovo-contracts';
 import type { ControlStore } from '../control-store.ts';
 import { AgentsRepository } from './agents-repository.ts';
+import { BindingsRepository } from './bindings-repository.ts';
+import { CallsRepository } from './calls-repository.ts';
 import { InspectionRepository } from './inspection-repository.ts';
 import { McpRepository } from './mcp-repository.ts';
+import { ReleasesRepository } from './releases-repository.ts';
 import { migrate } from './migrations.ts';
 import { SecretsRepository } from './secrets-repository.ts';
 import { json, now, transaction, type Row } from './shared.ts';
@@ -43,8 +46,11 @@ export class NodeSqliteControlStore {
       agents.getAgent.bind(agents),
     );
     bindRepository(this, agents);
+    bindRepository(this, new ReleasesRepository(this.database));
     bindRepository(this, secrets);
+    bindRepository(this, new BindingsRepository(this.database));
     bindRepository(this, mcp);
+    bindRepository(this, new CallsRepository(this.database));
     bindRepository(this, new InspectionRepository(this.database));
     this.operationStore = this.createOperationStore();
   }

@@ -3,12 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./background-tasks": "./src/background-tasks.ts"
+  },
   "scripts": {
     "test": "vitest --root ../.. run packages/plugin-operations/tests",
     "test:integration": "vitest --root ../.. run packages/plugin-operations/tests/postgres.test.ts"
   },
   "dependencies": {
+    "@winsendotai/ovo-contracts": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*",
     "ajv": "8.20.0",
     "pg": "8.16.3",
@@ -17,7 +21,6 @@
   },
   "devDependencies": {
     "@types/pg": "8.15.5",
-    "@winsendotai/ovo-contracts": "workspace:*",
     "@winsendotai/ovo-plugin-storage": "workspace:*",
     "fastify": "5.12.5"
   }

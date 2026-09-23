@@ -1,0 +1,103 @@
+{
+  "duplication": [
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/agents-repository.ts",
+        "packages/plugin-storage/src/postgres/bindings-repository.ts"
+      ],
+      "windows": 23,
+      "reason": "F3 storage repository split leaves transient cursor and mapping overlap; I1 consolidates shared helpers.",
+      "removeBy": "I1"
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/agents-repository.ts",
+        "packages/plugin-storage/src/postgres/releases-repository.ts"
+      ],
+      "windows": 10,
+      "reason": "F3 storage repository split leaves transient cursor and mapping overlap; I1 consolidates shared helpers.",
+      "removeBy": "I1"
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/bindings-repository.ts",
+        "packages/plugin-storage/src/postgres/inspection-repository.ts"
+      ],
+      "windows": 23,
+      "reason": "F3 storage repository split leaves transient cursor and mapping overlap; I1 consolidates shared helpers.",
+      "removeBy": "I1"
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/bindings-repository.ts",
+        "packages/plugin-storage/src/postgres/mcp-repository.ts"
+      ],
+      "windows": 23,
+      "reason": "F3 storage repository split leaves transient cursor and mapping overlap; I1 consolidates shared helpers.",
+      "removeBy": "I1"
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/bindings-repository.ts",
+        "packages/plugin-storage/src/postgres/secrets-repository.ts"
+      ],
+      "windows": 23,
+      "reason": "F3 storage repository split leaves transient cursor and mapping overlap; I1 consolidates shared helpers.",
+      "removeBy": "I1"
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/bindings-repository.ts",
+        "packages/plugin-storage/src/sqlite/bindings-repository.ts"
+      ],
+      "windows": 44,
+      "reason": "F3 storage repository split leaves transient cursor and mapping overlap; I1 consolidates shared helpers.",
+      "removeBy": "I1"
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/calls-repository.ts",
+        "packages/plugin-storage/src/sqlite/calls-repository.ts"
+      ],
+      "windows": 6,
+      "reason": "F3 storage repository split leaves transient cursor and mapping overlap; I1 consolidates shared helpers.",
+      "removeBy": "I1"
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/sqlite/agents-repository.ts",
+        "packages/plugin-storage/src/sqlite/bindings-repository.ts"
+      ],
+      "windows": 12,
+      "reason": "F3 storage repository split leaves transient cursor and mapping overlap; I1 consolidates shared helpers.",
+      "removeBy": "I1"
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/sqlite/bindings-repository.ts",
+        "packages/plugin-storage/src/sqlite/inspection-repository.ts"
+      ],
+      "windows": 26,
+      "reason": "F3 storage repository split leaves transient cursor and mapping overlap; I1 consolidates shared helpers.",
+      "removeBy": "I1"
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/sqlite/bindings-repository.ts",
+        "packages/plugin-storage/src/sqlite/mcp-repository.ts"
+      ],
+      "windows": 26,
+      "reason": "F3 storage repository split leaves transient cursor and mapping overlap; I1 consolidates shared helpers.",
+      "removeBy": "I1"
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/sqlite/bindings-repository.ts",
+        "packages/plugin-storage/src/sqlite/secrets-repository.ts"
+      ],
+      "windows": 26,
+      "reason": "F3 storage repository split leaves transient cursor and mapping overlap; I1 consolidates shared helpers.",
+      "removeBy": "I1"
+    }
+  ]
+}

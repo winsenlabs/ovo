@@ -9,7 +9,12 @@ export interface SessionRouteRow {
   owner_epoch: string | number;
   generation: string | number;
   dial_request_id: string;
+  carrier_id: string;
+  binding_id: string | null;
+  carrier_request_id: string | null;
   carrier_call_id: string | null;
+  carrier_stream_call_id: string | null;
+  worker_slot_epoch: string | number | null;
   status: SessionRouteStatus;
   handshake_expires_at: Date;
   handshake_claimed_at: Date | null;
@@ -19,7 +24,8 @@ export interface SessionRouteRow {
 }
 
 export const sessionRouteColumns = `session_id, job_id, organization_id, worker_id,
-  worker_endpoint, owner_epoch, generation, dial_request_id, carrier_call_id, status,
+  worker_endpoint, owner_epoch, generation, dial_request_id, carrier_id, binding_id,
+  carrier_request_id, carrier_call_id, carrier_stream_call_id, worker_slot_epoch, status,
   handshake_expires_at, handshake_claimed_at, terminal_at, terminal_reason, released_at`;
 
 export function fromSessionRouteRow(row: SessionRouteRow): SessionRoute {
@@ -32,7 +38,11 @@ export function fromSessionRouteRow(row: SessionRouteRow): SessionRoute {
     ownerEpoch: Number(row.owner_epoch),
     generation: Number(row.generation),
     dialRequestId: row.dial_request_id,
+    carrierId: row.carrier_id,
+    bindingId: row.binding_id ?? undefined,
+    carrierRequestId: row.carrier_request_id ?? undefined,
     carrierCallId: row.carrier_call_id ?? undefined,
+    carrierStreamCallId: row.carrier_stream_call_id ?? undefined,
     status: row.status,
     handshakeExpiresAt: row.handshake_expires_at,
     handshakeClaimedAt: row.handshake_claimed_at ?? undefined,

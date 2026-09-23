@@ -7,6 +7,7 @@ export * from './csv.ts';
 export * from './handoff.ts';
 export * from './inbound.ts';
 export * from './inbound-gateway.ts';
+export * from './inbound-decision.ts';
 export * from './inbound-routes.ts';
 export * from './migrations.ts';
 export * from './outbox.ts';

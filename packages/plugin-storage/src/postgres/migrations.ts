@@ -2,12 +2,14 @@ import type { Pool } from 'pg';
 import { controlSchemaV1 } from './migrations/001-control-schema.ts';
 import { releaseProviderBindingsV2 } from './migrations/002-release-provider-bindings.ts';
 import { releaseMcpToolsV3 } from './migrations/003-release-mcp-tools.ts';
+import { releaseSelectionsV4 } from './migrations/004-release-selections.ts';
 import { migrationChecksum, transaction } from './shared.ts';
 
 const migrations = [
   { version: 1, name: 'control-schema', sql: controlSchemaV1 },
   { version: 2, name: 'release-provider-bindings', sql: releaseProviderBindingsV2 },
   { version: 3, name: 'release-mcp-tools', sql: releaseMcpToolsV3 },
+  { version: 4, name: 'release-selections', sql: releaseSelectionsV4 },
 ] as const;
 
 export async function runControlMigrations(pool: Pool): Promise<void> {

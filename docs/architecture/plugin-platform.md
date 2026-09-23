@@ -1710,7 +1710,7 @@ An unknown carrier or purpose returns 404.
 3. `audio` becomes `media.audio`, `played` becomes `media.played{evidence}`, and `dtmf`, `cleared` and `stop` map through the same way.
 4. Worker commands go through `encode(cmd)`. `session.end{reason:'terminate'}` sends `terminate?()` frames and closes the socket.
 
-**Inbound admission.** The carrier-neutral state machine moves to `apps/media-gateway/src/inbound-admission.ts`: reserve → wait → callback → human. It returns `InboundDecision` through `plugin-operations`' `inboundDecisionFor()`, which F3 adds. `inbound-webhook.ts` is deleted.
+**Inbound admission.** The carrier-neutral state machine moves to `apps/media-gateway/src/inbound-admission.ts`: reserve → wait → callback → human. C2 mints a reserved call's `StreamGrant` and builds retry and digits URLs through the host ports, then narrows `decision.kind` and passes the matching `InboundDecisionContext` to `plugin-operations`' pure `inboundDecisionFor(decision, context)`, which F3 adds. A missing required artifact throws; the mapper does not silently return busy or hangup. `inbound-webhook.ts` is deleted.
 
 **Campaign attempts.** `campaignAttemptStatus` never maps `completed` to `succeeded` when `answeredBy === 'machine'` or no session ever opened (#26).
 

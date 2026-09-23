@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./background-tasks": "./src/background-tasks.ts",
+    "./capacity-signals": "./src/capacity-signals.ts"
+  },
   "scripts": {
     "test": "vitest --root ../.. run packages/plugin-orchestration/tests",
     "test:integration": "vitest --root ../.. run packages/plugin-orchestration/tests/ownership.test.ts"

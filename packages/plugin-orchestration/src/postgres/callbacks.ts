@@ -1,11 +1,16 @@
 import type { Pool, PoolClient } from 'pg';
-import type { CarrierCallbackInput, CarrierCallbackResult, SessionRouteStatus } from '../types.ts';
+import type {
+  CarrierCallbackCorrelationInput,
+  CarrierCallbackResult,
+  SessionRouteStatus,
+} from '../types.ts';
 import { transaction } from './database.ts';
+import { callIdAvailable, lockCarrierCallId } from './call-identity.ts';
 import { fromSessionRouteRow, sessionRouteColumns, type SessionRouteRow } from './session-model.ts';
 
 const terminal = new Set<SessionRouteStatus>(['completed', 'failed', 'cancelled']);
 
-function projectedStatus(status: CarrierCallbackInput['status']): SessionRouteStatus {
+function projectedStatus(status: CarrierCallbackCorrelationInput['status']): SessionRouteStatus {
   switch (status) {
     case 'initiated':
     case 'ringing':
@@ -31,27 +36,52 @@ function advances(current: SessionRouteStatus, next: SessionRouteStatus): boolea
   return current === 'dialing' && next === 'accepted';
 }
 
-async function currentRoute(client: PoolClient, input: CarrierCallbackInput) {
+async function currentRoute(
+  client: PoolClient,
+  input: CarrierCallbackCorrelationInput,
+  lock = false,
+) {
   const result = await client.query<SessionRouteRow>(
     `SELECT ${sessionRouteColumns} FROM ovo_session_routes
      WHERE ($1::text IS NOT NULL AND dial_request_id = $1)
-        OR ($2::text IS NOT NULL AND carrier_call_id = $2)
-     FOR UPDATE`,
-    [input.dialRequestId ?? null, input.carrierCallId],
+        OR ($2::text IS NOT NULL AND carrier_request_id = $2)
+        OR ($3::text IS NOT NULL AND (carrier_call_id = $3 OR carrier_stream_call_id = $3))
+     LIMIT 2 ${lock ? 'FOR UPDATE' : ''}`,
+    [input.dialRequestId ?? null, input.carrierRequestId ?? null, input.carrierCallId ?? null],
   );
-  return result.rows[0];
+  return result.rows;
 }
 
 export class CarrierCallbackRepository {
   constructor(private readonly pool: Pool) {}
 
-  async apply(input: CarrierCallbackInput): Promise<CarrierCallbackResult> {
+  async apply(input: CarrierCallbackCorrelationInput): Promise<CarrierCallbackResult> {
     return transaction(this.pool, async (client) => {
-      const row = await currentRoute(client, input);
+      const preview = await currentRoute(client, input);
+      if (!preview[0]) return { kind: 'unmatched' };
+      if (preview.length > 1)
+        return { kind: 'correlation_conflict', route: fromSessionRouteRow(preview[0]) };
+      await client.query('SELECT id FROM ovo_jobs WHERE id = $1 FOR UPDATE', [preview[0].job_id]);
+      if (input.carrierCallId) await lockCarrierCallId(client, input.carrierCallId);
+      const matches = await currentRoute(client, input, true);
+      const row = matches[0];
       if (!row) return { kind: 'unmatched' };
-      if (row.carrier_call_id && row.carrier_call_id !== input.carrierCallId) {
+      if (matches.length > 1 || row.session_id !== preview[0].session_id)
+        return { kind: 'correlation_conflict', route: fromSessionRouteRow(row) };
+      if (
+        (input.dialRequestId && row.dial_request_id !== input.dialRequestId) ||
+        (input.carrierRequestId &&
+          row.carrier_request_id &&
+          row.carrier_request_id !== input.carrierRequestId) ||
+        (input.carrierCallId &&
+          row.carrier_call_id &&
+          row.carrier_call_id !== input.carrierCallId &&
+          row.carrier_stream_call_id !== input.carrierCallId) ||
+        (input.carrierCallId && !(await callIdAvailable(client, row.job_id, input.carrierCallId)))
+      ) {
         return { kind: 'correlation_conflict', route: fromSessionRouteRow(row) };
       }
+      const primaryCallId = row.carrier_call_id ?? input.carrierCallId ?? null;
       const event = await client.query(
         `INSERT INTO ovo_carrier_callbacks (
            provider, event_id, session_id, dial_request_id, carrier_call_id, status, occurred_at, payload
@@ -62,7 +92,7 @@ export class CarrierCallbackRepository {
           input.eventId,
           row.session_id,
           input.dialRequestId ?? null,
-          input.carrierCallId,
+          input.carrierCallId ?? null,
           input.status,
           input.occurredAt,
           JSON.stringify(input.payload ?? {}),
@@ -74,32 +104,42 @@ export class CarrierCallbackRepository {
 
       const next = projectedStatus(input.status);
       if (!advances(row.status, next)) {
-        if (!row.carrier_call_id) {
+        if (!row.carrier_call_id && primaryCallId) {
           await client.query(
-            `UPDATE ovo_session_routes SET carrier_call_id = $2, updated_at = now()
+            `UPDATE ovo_session_routes SET carrier_call_id = $2,
+               carrier_request_id = COALESCE(carrier_request_id, $3), updated_at = now()
              WHERE session_id = $1 AND carrier_call_id IS NULL`,
-            [row.session_id, input.carrierCallId],
+            [row.session_id, primaryCallId, input.carrierRequestId ?? null],
           );
           await client.query(
-            `UPDATE ovo_jobs SET carrier_call_id = $2, updated_at = now()
+            `UPDATE ovo_jobs SET carrier_call_id = $2,
+               carrier_request_id = COALESCE(carrier_request_id, $3), updated_at = now()
              WHERE id = $1 AND carrier_call_id IS NULL`,
-            [row.job_id, input.carrierCallId],
+            [row.job_id, primaryCallId, input.carrierRequestId ?? null],
           );
-          row.carrier_call_id = input.carrierCallId;
+          row.carrier_call_id = primaryCallId;
         }
         return { kind: 'ignored_out_of_order', route: fromSessionRouteRow(row) };
       }
 
       const terminalStatus = terminal.has(next);
       const updated = await client.query<SessionRouteRow>(
-        `UPDATE ovo_session_routes SET carrier_call_id = $2, status = $3,
+        `UPDATE ovo_session_routes SET carrier_call_id = COALESCE(carrier_call_id, $2),
+           carrier_request_id = COALESCE(carrier_request_id, $6), status = $3,
            accepted_at = CASE WHEN $3 IN ('accepted', 'connected') THEN COALESCE(accepted_at, now()) ELSE accepted_at END,
            connected_at = CASE WHEN $3 = 'connected' THEN COALESCE(connected_at, now()) ELSE connected_at END,
            terminal_at = CASE WHEN $4 THEN COALESCE(terminal_at, now()) ELSE terminal_at END,
            terminal_reason = CASE WHEN $4 THEN COALESCE(terminal_reason, $5) ELSE terminal_reason END,
            updated_at = now()
          WHERE session_id = $1 RETURNING ${sessionRouteColumns}`,
-        [row.session_id, input.carrierCallId, next, terminalStatus, `carrier:${input.status}`],
+        [
+          row.session_id,
+          primaryCallId,
+          next,
+          terminalStatus,
+          `carrier:${input.status}`,
+          input.carrierRequestId ?? null,
+        ],
       );
       await client.query(
         `UPDATE ovo_jobs SET
@@ -108,17 +148,19 @@ export class CarrierCallbackRepository {
              WHEN owner_id = $5 AND owner_epoch = $6 AND lease_expires_at > now() THEN $2
              ELSE status
            END,
-           carrier_call_id = $3,
+           carrier_call_id = COALESCE(carrier_call_id, $3),
+           carrier_request_id = COALESCE(carrier_request_id, $7),
            last_error = CASE WHEN $2 IN ('failed', 'cancelled') THEN $4 ELSE last_error END,
            updated_at = now()
          WHERE id = $1 AND status NOT IN ('completed', 'failed', 'cancelled')`,
         [
           row.job_id,
           next,
-          input.carrierCallId,
+          primaryCallId,
           `carrier:${input.status}`,
           row.worker_id,
           row.owner_epoch,
+          input.carrierRequestId ?? null,
         ],
       );
       return { kind: 'applied', route: fromSessionRouteRow(updated.rows[0]!) };

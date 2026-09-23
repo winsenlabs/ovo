@@ -83,7 +83,10 @@ C. Operations.
 
 - migrations/005_inbound_carrier.sql: ovo_ops_inbound_routes gets carrier_plugin_id and carrier_binding_id, both nullable (NULL means the env binding). Register it in src/migrations.ts.
 - inbound-routes.ts reads and writes the new columns.
-- New src/inbound-decision.ts: inboundDecisionFor(gatewayDecision), which maps InboundGatewayDecision to the contracts InboundDecision. C2 uses it read-only.
+- New src/inbound-decision.ts: inboundDecisionFor(gatewayDecision, context), which maps InboundGatewayDecision to the contracts InboundDecision. The context is a discriminated union keyed by decision.kind. C2 supplies a StreamGrant for reserved, retryUrl for wait, and digitsUrl plus timeoutSeconds for callback; the mapper stays pure and synchronous. C2 uses it read-only.
+
+  > **Checker note (2026-09-23).** The original one-argument signature cannot construct the required InboundDecision variants: a reserved gateway decision has no media grant, wait has no retry URL, and callback has no digits URL. The builder stopped and the user approved an explicit kind-matched context argument. The mapper throws if a JavaScript caller omits required context; it never converts an incomplete decision to busy or hangup. Grant minting and URL construction remain in C2's state machine and host ports.
+
 - New stub src/background-tasks.ts exporting plugins = [], plus its package.json export. O2 fills it.
 
 D. Ledger: stub src/background-tasks.ts exporting plugins = [], plus its package.json export.
@@ -193,6 +196,7 @@ CONSTRAINTS:
 - Storage migration 004 (Postgres + sqlite) adds selections, the binding kind and plugin_id columns and the 'test' call kind. sqlite tests prove the selections round-trip, legacy derivation, newest-first cursors and the call filters.
 - The orchestration migration ledger exists, so 001 and 002 no longer re-run. Migration 003 adds carrier_id, binding_id, carrier_request_id and carrier_stream_call_id. markDialAccepted accepts request-id-only results. bindCarrierCallId, issueStreamGrant, reissueStream and admissionSnapshot exist, and requestSessionTermination fences the grants.
 - session-host implements every section 4.5 compat code (including mcp_tool_removed and termination_unsupported), selectSessionGraph with major-compatible pins, companions and host-service pruning, selectEngine with the v1 compatibility messages, and the format adapters (MULAW_8K from a PCM16_24K-only TTS is tested).
+- The F1 `parentReadableKeys` carry-forward is closed: session-scoped capabilities are removed from the parent set and required host services are supplied as session rows. The graph test rejects a missing `ovo.usage-sink` even when parent keys are present.
 - Host ports produce wss media URLs with no query (unless queryOnMediaUrl) and per-call url-secrets. streamForDial and resumeStream follow section 4.10, and terminateCarrierLeg runs the documented order.
 - distribution pre-registers every planned package and subpath. The 12 skeleton packages exist with the ovo.skeleton flag and are installed. The legacy bridges pass registry validation, the supersede rule is tested, and env bindings skip placeholders.
 - plugin-operations has migration 005, inboundDecisionFor and a background-tasks stub. The ledger and orchestration background-tasks and capacity-signals stubs exist with package exports.

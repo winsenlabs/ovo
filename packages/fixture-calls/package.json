@@ -1,0 +1,22 @@
+{
+  "name": "@winsendotai/ovo-fixture-calls",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "ovo": {
+    "skeleton": true
+  },
+  "dependencies": {
+    "@winsendotai/ovo-audio": "workspace:*",
+    "@winsendotai/ovo-conformance": "workspace:*",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "@winsendotai/ovo-session-host": "workspace:*"
+  },
+  "devDependencies": {}
+}

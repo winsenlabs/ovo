@@ -1,6 +1,10 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 export function migrate(db: DatabaseSync) {
+  const foreignKeys = Number(
+    (db.prepare('PRAGMA foreign_keys').get() as { foreign_keys: number }).foreign_keys,
+  );
+  db.exec('PRAGMA foreign_keys=OFF');
   db.exec('BEGIN IMMEDIATE');
   try {
     db.exec(`
@@ -36,9 +40,51 @@ CREATE TABLE IF NOT EXISTS audit_entries(id TEXT PRIMARY KEY,workspace_id TEXT N
     db.prepare(
       'INSERT OR IGNORE INTO ovo_control_schema_migrations(version,applied_at) VALUES(3,?)',
     ).run(new Date().toISOString());
+    const version4 = db
+      .prepare('SELECT 1 FROM ovo_control_schema_migrations WHERE version=4')
+      .get();
+    if (!version4) {
+      const releaseColumns4 = db.prepare('PRAGMA table_info(releases)').all() as { name: string }[];
+      if (!releaseColumns4.some((column) => column.name === 'selections_json'))
+        db.exec(
+          "ALTER TABLE releases ADD COLUMN selections_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(selections_json) AND json_type(selections_json)='object')",
+        );
+      const bindingColumns = db.prepare('PRAGMA table_info(provider_bindings)').all() as {
+        name: string;
+      }[];
+      if (!bindingColumns.some((column) => column.name === 'kind'))
+        db.exec('ALTER TABLE provider_bindings ADD COLUMN kind TEXT');
+      if (!bindingColumns.some((column) => column.name === 'plugin_id'))
+        db.exec('ALTER TABLE provider_bindings ADD COLUMN plugin_id TEXT');
+      db.exec(`
+        UPDATE provider_bindings SET kind='stt',plugin_id='@winsendotai/ovo-provider-deepgram-stt' WHERE kind IS NULL AND plugin_id IS NULL AND provider='deepgram';
+        UPDATE provider_bindings SET kind='carrier',plugin_id='@winsendotai/ovo-carrier-twilio' WHERE kind IS NULL AND plugin_id IS NULL AND provider='twilio';
+        UPDATE provider_bindings SET kind='tts',plugin_id='@winsendotai/ovo-provider-openai-tts'
+         WHERE kind IS NULL AND plugin_id IS NULL AND provider='openai'
+           AND EXISTS (SELECT 1 FROM agents a WHERE a.workspace_id=provider_bindings.workspace_id AND json_extract(a.config_json,'$.providers.tts')=provider_bindings.id)
+           AND NOT EXISTS (SELECT 1 FROM agents a,json_each(a.config_json,'$.providers') p WHERE a.workspace_id=provider_bindings.workspace_id AND p.value=provider_bindings.id AND p.key<>'tts');
+        UPDATE provider_bindings SET kind='llm',plugin_id='@winsendotai/ovo-provider-openai-inference'
+         WHERE kind IS NULL AND plugin_id IS NULL AND provider='openai'
+           AND EXISTS (SELECT 1 FROM agents a WHERE a.workspace_id=provider_bindings.workspace_id AND json_extract(a.config_json,'$.providers.inference')=provider_bindings.id)
+           AND NOT EXISTS (SELECT 1 FROM agents a,json_each(a.config_json,'$.providers') p WHERE a.workspace_id=provider_bindings.workspace_id AND p.value=provider_bindings.id AND p.key<>'inference');
+      `);
+      db.exec(`
+        CREATE TABLE calls_v4(id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id),release_id TEXT NOT NULL REFERENCES releases(id),kind TEXT NOT NULL CHECK(kind IN ('live','simulation','test')),status TEXT NOT NULL,created_at TEXT NOT NULL,completed_at TEXT);
+        INSERT INTO calls_v4 SELECT * FROM calls;
+        DROP TABLE calls;
+        ALTER TABLE calls_v4 RENAME TO calls;
+      `);
+      db.prepare('INSERT INTO ovo_control_schema_migrations(version,applied_at) VALUES(4,?)').run(
+        new Date().toISOString(),
+      );
+    }
+    if (db.prepare('PRAGMA foreign_key_check').all().length)
+      throw new Error('Control migration left broken foreign keys');
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
     throw error;
+  } finally {
+    if (foreignKeys) db.exec('PRAGMA foreign_keys=ON');
   }
 }

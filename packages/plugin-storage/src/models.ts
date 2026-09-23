@@ -20,10 +20,25 @@ export interface ReleaseRecord {
   draftVersion: number;
   config: AgentConfig;
   plugins: { id: string; version: string }[];
+  /** Older in-memory release values may omit this; stores always hydrate an object. */
+  selections?: Record<string, ReleaseSelection>;
   providerBindings: Record<string, ProviderBinding>;
   mcpTools: Record<string, ReleaseMcpToolSnapshot>;
   createdAt: string;
   createdBy: string;
+}
+export interface ReleaseSelection {
+  pluginId: string;
+  version: string;
+  bindingId?: string;
+  binding?: {
+    provider: string;
+    config: Record<string, unknown>;
+    credentialId: string;
+    fingerprint: string;
+    updatedAt: string;
+  };
+  config: Record<string, unknown>;
 }
 export interface ReleaseMcpToolSnapshot {
   approval: McpToolApproval;
@@ -62,6 +77,9 @@ export interface ProviderBinding {
   workspaceId: string;
   label: string;
   provider: string;
+  /** Older in-memory fixtures may omit these; stores hydrate nulls. */
+  kind?: string | null;
+  pluginId?: string | null;
   environment: string;
   credentialId: string;
   config: Record<string, unknown>;
@@ -97,12 +115,13 @@ export interface McpDiscoveredTool {
   outputSchema: Record<string, unknown> | null;
   schemaDigest: string;
   discoveredAt: string;
+  removedAt?: string | null;
 }
 export interface CallRecord {
   id: string;
   workspaceId: string;
   releaseId: string;
-  kind: 'live' | 'simulation';
+  kind: 'live' | 'simulation' | 'test';
   status: string;
   createdAt: string;
   completedAt: string | null;
