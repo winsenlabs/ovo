@@ -155,3 +155,16 @@ The fix for "live context/agent cannot compose" repaired the worker path and is 
 4. **Two test-quality items:** the `playback_evidence_insufficient` "valid counterpart" has `tools: []`, so the rule short-circuits before the evidence comparison and that half of the pairing would pass even if the logic were deleted; and `proves()`'s new `stage` assertion cannot fail, because `issue()` copies the stage it was given — the real gating (`RELEASE_RULES` vs `ADMISSION_RULES`) is untested.
 
 **Recorded, not blocking:** the input predicate still exists three times repo-wide (session-host, `apps/worker`, `apps/api/src/live-readiness.ts:27`) and the 60-token duplication gate cannot see it — F4 should unify it; the legacy call-id-only lookup deliberately spans tenants and wants a deprecation owner; `findCarrierCallId(requestId)` is unscoped and degrades closed; the post-grant audit write is unwrapped; and `qualifierOf` still keys `carrier.control`, `carrier.ingress` and `background-task` by provider, which is the same shape as defect 10 for any wave-2 unit shipping two same-provider background tasks.
+
+## F3 final verification (2026-09-23): verified
+
+The four items from the re-check are fixed and confirmed by the checker against the real modules:
+
+1. **The workspace guard no longer misfires.** It now only rejects when the binding actually carries a conflicting `workspaceId`, so the graph's `NormalizationBinding` shape (`{id, provider, pluginId?}`) passes. A genuinely foreign binding is still refused. Verified by composing all four shapes: graph-shaped binding → the clear F4 message, foreign binding → "belongs to another workspace".
+2. **`output: {kind:'host'}` is no longer exempt.** `missingLiveInference` is now set for every non-simulation output, so the host seam fails with the same specific error instead of an obscure `Missing service ovo.inference` at `resolveGraph`. The `.not.toThrow()` assertion now covers the case where an inference plugin _is_ supplied, which is the correct thing to assert.
+3. **Per-call variables are deep-cloned** (`structuredClone` at `engine-selection.ts:58` and `select-session-graph.ts:105`). Both tests mutate a nested value after the call and assert the engine still sees the original, so a shallow copy would fail them.
+4. **Both test pairings can now fail.** The playback pairing carries the confirmed-write tool on _both_ sides, so the good case reaches the evidence comparison instead of short-circuiting on empty tools; and `compat.test.ts:37` asserts that every admission rule is absent at stage `release`, which is the real gating rather than the copied stage field.
+
+Five carry-forwards are recorded with owners: unifying the input predicate across session-host, `apps/worker` and `apps/api` (F4); a deprecation owner for the legacy tenant-spanning call-id lookup; the unscoped `findCarrierCallId` (fails closed); the unwrapped post-grant audit write; and `qualifierOf` keying `carrier.control`, `carrier.ingress` and `background-task` by provider, which is defect 10's shape for any wave-2 unit shipping two same-provider background tasks.
+
+**Wave 1 is complete.** F1 `da075a7`, F2 `3729f18` + `2edee0b`, F3 `a3d5542` → `c89253e` → `266ff92`. Wave 2's 15 parallel units are unblocked.

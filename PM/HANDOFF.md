@@ -2,8 +2,8 @@
 
 - **Updated:** 2026-09-22 IST
 - **Branch:** `vorflux/ovo-foundation`
-- **Committed head:** `2edee0b`.
-- **Work status:** F2 is verified. The next build step is F3.
+- **Committed head:** `266ff92`.
+- **Work status:** F1–F3 are verified. The next build step is F4, the last of wave 1.
 
 This file is the entry point for the builder agent and for the checker. Read it before [`docs/architecture/plugin-platform.md`](../docs/architecture/plugin-platform.md), which is the authoritative design, and the unit specs in [`PM/units/`](units/README.md). The previous handoff is archived at [`PM/handoff/2026-09-22-foundation-handoff.md`](handoff/2026-09-22-foundation-handoff.md). Its safety constraints carry forward into design §0.2. Its "next steps" (browser checks, then reconciling the 75 criteria) are superseded by the unit plan below.
 
