@@ -35,42 +35,17 @@ This file is the entry point for the builder agent and for the checker. Read it 
 
 A unit is done only when the checker has recorded it as Verified. Built code alone does not count.
 
-## 3. Where we are right now: F2 is partial
+## 3. Where we are right now: F3 is next
 
-**The partial F2 work** is uncommitted in the original workspace, `/Users/tejassuds/work/ovo`, spread over about 28 paths:
+F1 and F2 are verified and committed. The working tree is clean and nothing is pushed.
 
-- the new packages `packages/{audio,conformance,plugin-kit}`;
-- the gate scripts `scripts/{lint.mjs,typecheck-scope.mjs,check-duplication.mjs,check-provider-names.mjs,check-capability-keys.mjs,check-conformance.mjs,check-terraform.mjs}`, together with `scripts/lib`, `scripts/tests`, `scripts/baselines` and `scripts/package-kinds.json`;
-- the vitest global setup and violation sink;
-- edits to `package.json`, `tsconfig.json`, `vitest.config.ts`, `apps/console/package.json`, `plugin-inference`, `plugin-tools`, `check-architecture.mjs`, `check-module-size.mjs`, `docs/research/dependency-licenses.json` and `pnpm-lock.yaml`.
+The next build step is **F3** ([`PM/units/F3-host-seams.md`](units/F3-host-seams.md)): host seams, selection storage and migrations, `session-host`, the `distribution` catalog, and skeleton packages for every wave-2 package. Read the F2 checker pass on the [unit board](units/README.md#f2-checker-pass-2026-09-23) first — several of its fixes change what wave-2 units must satisfy:
 
-**The same work is saved as a snapshot:** [`PM/handoff/f2-partial.patch`](handoff/f2-partial.patch).
-
-- Base: `da075a7`.
-- SHA-256: `c4cdd72f7ff1b0c65d6bff4152f485e0b0b1f9a9edebc6d590add046d356500b`.
-- It contains only the partial F2 changes. No secrets, `.data` directory or artifacts are included.
-
-**State at the pause** (checker run, 2026-09-22):
-
-| Check                             | Result                                                                                                                                                |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm lint`                       | Passes all 7 gates: module size across 704 files, duplication, provider names, capability keys, conformance, plus the architecture and upstream gates |
-| `pnpm format:check`               | Passes                                                                                                                                                |
-| `pnpm typecheck`                  | Passes                                                                                                                                                |
-| `pnpm test`                       | 766 passed, 87 skipped                                                                                                                                |
-| F2 acceptance list                | **Not yet checked**                                                                                                                                   |
-| Postgres test suites (serial run) | **Not run**                                                                                                                                           |
-
-### How to resume F2
-
-- **In the original workspace**, the partial changes are already in the tree. **Do not apply the patch.**
-- **In a fresh clone at `da075a7`**, apply the snapshot:
-  ```sh
-  git apply --check PM/handoff/f2-partial.patch
-  git apply PM/handoff/f2-partial.patch
-  ```
-  If the check fails, stop and inspect. Never force it.
-- **Then**, finish F2 against [`PM/units/F2-kits-gates.md`](units/F2-kits-gates.md), run the wave-1 green bar (§5), and commit. After F2 is committed, delete `PM/handoff/f2-partial.patch` so no later agent reapplies it.
+- engines must declare `EngineCapabilities` and emit at least one `timing` event when they speak;
+- a TTS `cacheIdentity` must vary with format and voice;
+- `ctx.net` enforces an address policy, so a test that needs loopback passes an explicit `allowedPrivateAddresses` list;
+- support files under a package's `tests/` directory are now subject to the import kind table;
+- plugins may not touch `ctx.plugin`, `ctx.inject`, `ctx.root`, `ctx.scope`, `ctx.extend` or the event bus.
 
 ## 4. Done so far, with evidence
 
