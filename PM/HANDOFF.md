@@ -2,24 +2,24 @@
 
 - **Updated:** 2026-09-22 IST
 - **Branch:** `vorflux/ovo-foundation`
-- **Committed head:** `da075a7`, plus the partial F2 work described below.
-- **Work status:** paused by the founder after F1. The next build step is to finish F2.
+- **Committed head:** `2edee0b`.
+- **Work status:** F2 is verified. The next build step is F3.
 
 This file is the entry point for the builder agent and for the checker. Read it before [`docs/architecture/plugin-platform.md`](../docs/architecture/plugin-platform.md), which is the authoritative design, and the unit specs in [`PM/units/`](units/README.md). The previous handoff is archived at [`PM/handoff/2026-09-22-foundation-handoff.md`](handoff/2026-09-22-foundation-handoff.md). Its safety constraints carry forward into design §0.2. Its "next steps" (browser checks, then reconciling the 75 criteria) are superseded by the unit plan below.
 
 ## 1. Status at a glance
 
-| Stage                                                   | State                                | Evidence                                                                       |
-| ------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
-| Read-only review of the inherited code                  | Done                                 | 27 defects confirmed or reported; listed with owners in design §14             |
-| Paused Compose setup integrated                         | Done                                 | `267e01c`; the recovery patch was retired                                      |
-| Platform design and 20-unit plan                        | Done                                 | `92ea8b7`: `docs/architecture/plugin-platform.md`, with §18 resolved decisions |
-| **Wave 1: F1**, contracts v2 and host enforcement       | **Verified**                         | `da075a7`; see §4                                                              |
-| **Wave 1: F2**, kits, conformance and hygiene gates     | **In progress, partial, unverified** | See §3                                                                         |
-| Wave 1: F3 and F4                                       | Not started                          |                                                                                |
-| Wave 2: 15 parallel units                               | Not started                          |                                                                                |
-| Wave 3: I1 integration                                  | Not started                          |                                                                                |
-| External validation (real calls, vendor sandboxes, AWS) | Not started; needs the founder       | §8                                                                             |
+| Stage                                                   | State                          | Evidence                                                                                                   |
+| ------------------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Read-only review of the inherited code                  | Done                           | 27 defects confirmed or reported; listed with owners in design §14                                         |
+| Paused Compose setup integrated                         | Done                           | `267e01c`; the recovery patch was retired                                                                  |
+| Platform design and 20-unit plan                        | Done                           | `92ea8b7`: `docs/architecture/plugin-platform.md`, with §18 resolved decisions                             |
+| **Wave 1: F1**, contracts v2 and host enforcement       | **Verified**                   | `da075a7`; see §4                                                                                          |
+| **Wave 1: F2**, kits, conformance and hygiene gates     | **Verified**                   | Built `3729f18`, checker fixes `2edee0b`; see the [unit board](units/README.md#f2-checker-pass-2026-09-23) |
+| Wave 1: F3 and F4                                       | Not started                    |                                                                                                            |
+| Wave 2: 15 parallel units                               | Not started                    |                                                                                                            |
+| Wave 3: I1 integration                                  | Not started                    |                                                                                                            |
+| External validation (real calls, vendor sandboxes, AWS) | Not started; needs the founder | §8                                                                                                         |
 
 - **Nothing is pushed.** `origin/vorflux/ovo-foundation` is still at `ee58ea4`. The local commits `267e01c`, `92ea8b7` and `da075a7` are ahead of it. A builder working from GitHub needs the founder to approve a push first.
 - **Draft PR #1 has not been updated.**
