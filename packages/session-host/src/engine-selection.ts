@@ -5,6 +5,7 @@ import {
   type InstalledSessionExtensions,
   type PluginDefinition,
 } from '@winsendotai/ovo-runtime';
+import { sessionRequiresInput } from './input-policy.ts';
 
 export interface SelectedEngine {
   definition: PluginDefinition;
@@ -18,6 +19,7 @@ export function selectEngine(
   registry: PluginRegistry,
   installedExtensions: Pick<InstalledSessionExtensions, 'plugins'>,
   fallback: () => PluginDefinition,
+  initialVariables: Readonly<Record<string, unknown>> = {},
 ): SelectedEngine {
   const selection = release.selections?.engine;
   if (selection) {
@@ -45,7 +47,7 @@ export function selectEngine(
     if (pin.id !== fallbackDefinition?.manifest.id && !registry.get(pin.id, pin.version))
       throw new Error(`live release plugin is not installed: ${pin.id}@${pin.version}`);
   const definition = replacement ?? fallbackDefinition!;
-  const inputEnabled = release.config.mode !== 'announcement';
+  const inputEnabled = sessionRequiresInput(release.config);
   return {
     definition,
     exact: true,
@@ -53,7 +55,7 @@ export function selectEngine(
       language: release.config.language,
       inputEnabled,
       initialInput: release.config.script || !inputEnabled ? '' : undefined,
-      initialVariables: {},
+      initialVariables: { ...initialVariables },
     },
   };
 }

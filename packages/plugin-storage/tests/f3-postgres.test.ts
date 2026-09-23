@@ -8,6 +8,7 @@ import { controlSchemaV1 } from '../src/postgres/migrations/001-control-schema.t
 import { releaseProviderBindingsV2 } from '../src/postgres/migrations/002-release-provider-bindings.ts';
 import { releaseMcpToolsV3 } from '../src/postgres/migrations/003-release-mcp-tools.ts';
 import { releaseSelectionsV4 } from '../src/postgres/migrations/004-release-selections.ts';
+import { callKindConstraintV5 } from '../src/postgres/migrations/005-call-kind-constraint.ts';
 import { migrationChecksum } from '../src/postgres/shared.ts';
 
 const url = process.env.OVO_TEST_POSTGRES_URL;
@@ -36,6 +37,12 @@ integration('F3 Postgres storage upgrade', () => {
         [migration.version, migration.name, migrationChecksum(migration.sql)],
       );
     }
+    await pool.query(
+      "ALTER TABLE ovo_ctl_calls ADD CONSTRAINT ovo_ctl_calls_legacy_kind_second CHECK (kind IN ('live','simulation'))",
+    );
+    await pool.query(
+      "ALTER TABLE ovo_ctl_calls ADD CONSTRAINT ovo_ctl_calls_kind_custom_guard CHECK (kind <> 'forbidden')",
+    );
     await pool.query(
       "INSERT INTO ovo_ctl_workspaces(id,name,created_at) VALUES('w','Workspace',now())",
     );
@@ -81,12 +88,111 @@ integration('F3 Postgres storage upgrade', () => {
       await admin.end();
     }
   });
+  it('keeps the committed fourth migration checksum', () => {
+    expect(migrationChecksum(releaseSelectionsV4)).toBe(
+      'a38b5d02a65661666f613e79063baaf02a88bd919a27c4bbd43d4d880cbe5d2a',
+    );
+  });
+  it('fails safely when an old call-kind check also guards another field', async () => {
+    const compoundSchema = `f3_storage_compound_${randomUUID().replaceAll('-', '')}`;
+    await admin.query(`CREATE SCHEMA ${compoundSchema}`);
+    const compoundPool = new pg.Pool({
+      connectionString: url!,
+      options: `-c search_path=${compoundSchema}`,
+    });
+    try {
+      await compoundPool.query(
+        'CREATE TABLE ovo_control_schema_migrations(version INTEGER PRIMARY KEY,name TEXT NOT NULL,checksum TEXT NOT NULL,applied_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp())',
+      );
+      for (const migration of [
+        { version: 1, name: 'control-schema', sql: controlSchemaV1 },
+        { version: 2, name: 'release-provider-bindings', sql: releaseProviderBindingsV2 },
+        { version: 3, name: 'release-mcp-tools', sql: releaseMcpToolsV3 },
+      ]) {
+        await compoundPool.query(migration.sql);
+        await compoundPool.query(
+          'INSERT INTO ovo_control_schema_migrations(version,name,checksum) VALUES($1,$2,$3)',
+          [migration.version, migration.name, migrationChecksum(migration.sql)],
+        );
+      }
+      await compoundPool.query(
+        "ALTER TABLE ovo_ctl_calls ADD CONSTRAINT ovo_ctl_calls_kind_and_status CHECK (kind IN ('live','simulation') AND status <> 'void')",
+      );
+      await expect(runControlMigrations(compoundPool)).rejects.toThrow(
+        'compound call-kind constraint ovo_ctl_calls_kind_and_status',
+      );
+      expect(
+        (
+          await compoundPool.query(
+            "SELECT conname FROM pg_constraint WHERE conrelid='ovo_ctl_calls'::regclass AND conname='ovo_ctl_calls_kind_and_status'",
+          )
+        ).rowCount,
+      ).toBe(1);
+      await compoundPool.query(
+        'ALTER TABLE ovo_ctl_calls DROP CONSTRAINT ovo_ctl_calls_kind_and_status',
+      );
+      await compoundPool.query(releaseSelectionsV4);
+      await compoundPool.query(
+        'INSERT INTO ovo_control_schema_migrations(version,name,checksum) VALUES(4,$1,$2)',
+        ['release-selections', migrationChecksum(releaseSelectionsV4)],
+      );
+      await compoundPool.query(
+        "ALTER TABLE ovo_ctl_calls ADD CONSTRAINT ovo_ctl_calls_kind_and_status CHECK (kind IN ('live','simulation') AND status <> 'void')",
+      );
+      await expect(runControlMigrations(compoundPool)).rejects.toThrow(
+        'compound call-kind constraint ovo_ctl_calls_kind_and_status',
+      );
+      expect(
+        (
+          await compoundPool.query(
+            "SELECT conname FROM pg_constraint WHERE conrelid='ovo_ctl_calls'::regclass AND conname='ovo_ctl_calls_kind_and_status'",
+          )
+        ).rowCount,
+      ).toBe(1);
+      await compoundPool.query(
+        'ALTER TABLE ovo_ctl_calls DROP CONSTRAINT ovo_ctl_calls_kind_and_status',
+      );
+      await runControlMigrations(compoundPool);
+      expect(
+        (
+          await compoundPool.query(
+            'SELECT version FROM ovo_control_schema_migrations ORDER BY version',
+          )
+        ).rows.map((row) => row.version),
+      ).toEqual([1, 2, 3, 4, 5]);
+      await compoundPool.query(
+        'ALTER TABLE ovo_ctl_calls DROP CONSTRAINT ovo_ctl_calls_kind_allowed',
+      );
+      await compoundPool.query(
+        "ALTER TABLE ovo_ctl_calls ADD CONSTRAINT ovo_ctl_calls_kind_allowed CHECK (status <> 'void')",
+      );
+      await expect(compoundPool.query(callKindConstraintV5)).rejects.toThrow(
+        'unexpected call-kind constraint ovo_ctl_calls_kind_allowed',
+      );
+    } finally {
+      await compoundPool.end();
+      await admin.query(`DROP SCHEMA ${compoundSchema} CASCADE`);
+    }
+  });
+  it('removes every legacy narrow call-kind constraint during upgrade', async () => {
+    await runControlMigrations(pool);
+    const constraints = await pool.query<{ conname: string }>(
+      `SELECT conname FROM pg_constraint
+       WHERE conrelid='ovo_ctl_calls'::regclass AND contype='c'
+         AND pg_get_constraintdef(oid) LIKE '%kind%'
+       ORDER BY conname`,
+    );
+    expect(constraints.rows.map((row) => row.conname)).toEqual([
+      'ovo_ctl_calls_kind_allowed',
+      'ovo_ctl_calls_kind_custom_guard',
+    ]);
+  });
   it('upgrades populated old schema, keeps rows, widens kind, rejects bad JSON, and never guesses mixed OpenAI', async () => {
     await runControlMigrations(pool);
     const versions = await pool.query(
       'SELECT version FROM ovo_control_schema_migrations ORDER BY version',
     );
-    expect(versions.rows.map((row) => row.version)).toEqual([1, 2, 3, 4]);
+    expect(versions.rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5]);
     expect(
       (await pool.query("SELECT id,selections FROM ovo_ctl_releases WHERE id='r'")).rows[0],
     ).toMatchObject({ id: 'r', selections: {} });
@@ -111,7 +217,7 @@ integration('F3 Postgres storage upgrade', () => {
       pool.query("UPDATE ovo_ctl_releases SET selections='[]' WHERE id='r'"),
     ).rejects.toMatchObject({ code: '23514' });
     await runControlMigrations(pool);
-    await pool.query(releaseSelectionsV4);
+    await pool.query(callKindConstraintV5);
     expect(
       (await pool.query("SELECT kind,plugin_id FROM ovo_ctl_provider_bindings WHERE id='mixed'"))
         .rows[0],

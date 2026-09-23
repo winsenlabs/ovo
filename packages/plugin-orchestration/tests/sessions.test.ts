@@ -22,6 +22,12 @@ describe.skipIf(!postgresUrl)('PostgreSQL session lifecycle integration', () => 
   });
 
   async function begin(idempotencyKey: string) {
+    await store.reportWorker({
+      workerId: 'worker-1',
+      state: 'active',
+      ownershipEpoch: 1,
+      leaseMs: 60_000,
+    });
     const jobId = randomUUID();
     jobIds.push(jobId);
     await store.enqueue({ id: jobId, workspaceId: organizationId, idempotencyKey, payload: {} });

@@ -1305,7 +1305,7 @@ The host's own code keeps using the raw `composition.ctx`.
 **Loader.** `runtime/src/installed.ts` takes over `loadInstalledSessionExtensions` from `plugin-session/src/installed.ts`, which becomes a re-export.
 
 - It accepts `module.plugins[]`, `module.nativeHandlers`, `module.fixtures` and `module.fixtureTemplates`.
-- It checks that ids are unique, and that `(kind, provider)` is unique for session kinds.
+- It checks that ids are unique, and that `(kind, provider)` is unique for single-provider session kinds. Text and audio filters are many: several plugins may share a provider, and each is qualified by its plugin id in `ctx.all()`.
 - It parses v2 manifests.
 
 **`runtime/src/registry.ts`.** `PluginRegistry(catalog)` has these methods:
@@ -1509,6 +1509,8 @@ export interface CompatIssue {
 - **Stage `live`** covers every other error. It blocks live admission: readiness `liveReady`, the worker's pre-dial check, and fixture calls, except that `meter_uncovered` is only a warning for fixture calls.
 - **Stage `test`** is used only by fixture calls.
 
+For legacy releases without explicit selections, the host derives selections from the release's legacy provider bindings and defaults before these checks run. Inbound admission supplies the carrier selected by the route as `CompatInput.actualCarrier`; checks use that carrier even when the release names another one.
+
 Simulation-only agents stay publishable.
 
 ### 4.6 `packages/session-host` (host library; replaces most of `plugin-session`)
@@ -1659,7 +1661,7 @@ Apps import only `distribution`, `session-host`, `runtime` and infra packages. T
 
 1. `store.requestSessionTermination(route)` sets the route to `terminating`. From then on `streamForDial`, `resumeStream` and gateway starts for this route are refused.
 2. `control.hangup({carrierCallId, carrierRequestId})`. Before answer, a carrier with `cancelBeforeAnswer` cancels by request id.
-3. If step 2 returns `unsupported` (close-stream carriers), call `media.terminate(sessionId)`. The worker sends `session.end{reason:'terminate'}`, and the gateway sends `terminate?()` frames and closes the carrier socket.
+3. For a close-stream carrier, call `media.terminate(sessionId)` after step 2 returns `unsupported` or `ended`, and also if step 2 rejects. The worker sends `session.end{reason:'terminate'}`, and the gateway sends `terminate?()` frames and closes the carrier socket.
 4. `engine.dispose(reason)`.
 
 - Ownership loss, drain, `behavior_completed`, max duration and idle all use this path.
@@ -1668,8 +1670,9 @@ Apps import only `distribution`, `session-host`, `runtime` and infra packages. T
 - **Resume race.** Because step 1 runs before any media closes, Twilio's `<Redirect>` to `/resume` finds the route `terminating` and receives `<Hangup/>`. `resumeStream` re-issues only for status `connected`, with no `terminal_reason`, when the owning worker's slot heartbeat is fresh.
 - **Correlation.**
   - `streamForDial` correlates by `dialRequestId` (from `answer?r=` or Exotel's `CustomField`), or by `carrierRequestId`, or by `carrierCallId`.
-  - When the route has no `carrier_call_id`, it binds one (CAS where NULL).
-  - When the carrier's id differs and `streamCallIdMatchesDial !== true`, it stores `carrier_stream_call_id` as an alias and records a `carrier.call_id_mismatch` audit event, for sandbox verification.
+  - When the route has no `carrier_call_id`, an exact-ID carrier binds the stream id as primary. Other carriers hold a stream-first id provisionally in `carrier_stream_call_id`, leaving the primary slot for a later dial or status id correlated by request id.
+  - When the carrier's stream and dial ids differ and `streamCallIdMatchesDial !== true`, the route keeps both ids and records a `carrier.call_id_mismatch` audit event, regardless of which id arrived first.
+  - When `streamCallIdMatchesDial === true`, a different stream id is rejected before a grant is issued, including if the primary id was bound concurrently.
   - The gateway's start check authenticates the single-use route token (`sid` + `rt`). Then `start.carrierCallId` must equal `carrier_call_id` or `carrier_stream_call_id`, or bind it when both are NULL.
   - Status callbacks correlate by `dialRequestId`, `carrierRequestId`, `carrierCallId` or the alias.
 
@@ -2340,10 +2343,7 @@ The following are read-only for every wave-2 unit:
   - Carriers have the roles `['api','worker','gateway','dispatcher']`.
   - Engines, speech providers, turn detectors and VAD have `['session']`.
   - Background tasks and capacity signals have `['dispatcher']`.
-- **Dependencies declared up front:**
-  - `ws@8.21.3` in `plugin-media` and `apps/worker`;
-  - `fixture-calls` in `apps/api`;
-  - `distribution`, `session-host` and `plugin-kit` in `apps/media-gateway`.
+- **Dependencies declared before Wave 2:** F3 declares `ws@8.21.3` in `plugin-media` and installs every new package in `distribution`. F4 owns the app manifests and declares `ws@8.21.3` in `apps/worker`, `fixture-calls` in `apps/api`, and `distribution`, `session-host` and `plugin-kit` in `apps/media-gateway` (§15.5, F4 spec). F3 does not edit `apps/` files.
 - **Install.** `pnpm install --offline` runs once, in F3. F4 runs it again if it changed an app manifest.
 - **Package kinds.** `scripts/package-kinds.json` (F2) already lists every planned package.
 

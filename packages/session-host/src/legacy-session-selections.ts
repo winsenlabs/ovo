@@ -15,7 +15,11 @@ const SLOTS = [
   'audioFilter',
 ] as const;
 
-export function legacySelections(input: SessionGraphInput): ReleaseSelections {
+export function legacySelections(
+  input: Pick<SessionGraphInput, 'registry' | 'defaults'> & {
+    release: Pick<SessionGraphInput['release'], 'config' | 'providerBindings'>;
+  },
+): ReleaseSelections {
   const bindings = Object.fromEntries(
     Object.values(input.release.providerBindings ?? {}).map((binding) => [binding.id, binding]),
   );

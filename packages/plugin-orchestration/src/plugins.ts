@@ -127,3 +127,5 @@ export const ecsCapacityWriterPlugin = definePlugin(
     );
   },
 );
+
+export const plugins = [postgresOrchestrationPlugin, sqsOrchestrationPlugin];

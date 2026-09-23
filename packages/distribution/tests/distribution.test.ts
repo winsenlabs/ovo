@@ -12,6 +12,37 @@ import { twilioCarrierBridge } from '../src/legacy/twilio-carrier.ts';
 import { loadDistribution } from '../src/load.ts';
 
 describe('distribution inventory', () => {
+  it('loads plugin arrays from their owning packages so future plugins need no catalog edit', async () => {
+    for (const name of [
+      '@winsendotai/ovo-plugin-voice',
+      '@winsendotai/ovo-plugin-orchestration',
+      '@winsendotai/ovo-plugin-storage',
+      '@winsendotai/ovo-plugin-secrets',
+      '@winsendotai/ovo-plugin-observability',
+      '@winsendotai/ovo-plugin-recordings',
+    ]) {
+      const entry = FIRST_PARTY.find((item) => item.package === name);
+      expect(entry).toBeDefined();
+      const owner = (await import(name)) as { plugins?: unknown };
+      expect(Array.isArray(owner.plugins)).toBe(true);
+      expect(((await entry!.load()) as { plugins?: unknown }).plugins).toBe(owner.plugins);
+    }
+  });
+  it('picks up an additional voice plugin without editing the frozen catalog', async () => {
+    const voice = await import('@winsendotai/ovo-plugin-voice');
+    const original = voice.plugins[0]!;
+    const added = {
+      ...original,
+      manifest: { ...original.manifest, id: 'fixture.voice-added-after-f3' },
+    };
+    voice.plugins.push(added);
+    try {
+      const loaded = await loadDistribution({ role: 'gateway', profile: 'compose', env: {} });
+      expect(loaded.catalog.map((item) => item.manifest.id)).toContain(added.manifest.id);
+    } finally {
+      voice.plugins.pop();
+    }
+  });
   const workerEnv = {
     DATABASE_URL: 'postgres://local',
     OVO_QUEUE_URL: 'http://localhost/queue',

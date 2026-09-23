@@ -170,4 +170,38 @@ describe('complete default session graphs', () => {
       }),
     ).toThrow('not installed');
   });
+  it('reports the unwired live inference path and rejects a cross-workspace snapshot', () => {
+    const config = AgentConfig.parse({ name: 'Live Context', mode: 'context' });
+    const input = {
+      config,
+      workspaceId: 'local',
+      output: { kind: 'live' as const, plugin: inference() },
+    };
+    expect(() =>
+      createSessionPluginCatalog({
+        ...input,
+        bindings: { inference: { workspaceId: 'other' } },
+      }),
+    ).toThrow('Inference binding belongs to another workspace');
+    expect(() =>
+      createSessionPluginCatalog({
+        ...input,
+        bindings: { inference: { workspaceId: 'local' } },
+      }),
+    ).toThrow('Live inference plugin is required until F4 wiring');
+    expect(() =>
+      createSessionPluginCatalog({
+        ...input,
+        bindings: { inference: { workspaceId: 'local' } },
+        inferencePlugin: inference(),
+      }),
+    ).not.toThrow();
+    expect(() =>
+      createSessionPluginCatalog({
+        ...input,
+        bindings: { inference: { workspaceId: 'local' } },
+        output: { kind: 'host' },
+      }),
+    ).not.toThrow();
+  });
 });

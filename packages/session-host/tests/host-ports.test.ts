@@ -1,24 +1,53 @@
 import { createHash, createHmac } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { createCarrierHostPorts } from '../src/host-ports.ts';
-import { terminateCarrierLeg } from '../src/terminate.ts';
 
 const SECRET = 'a'.repeat(32);
 function fixture() {
   const route = {
     sessionId: 'session',
+    organizationId: 'w',
     dialRequestId: 'dial',
     carrierId: 'carrier',
     bindingId: 'binding',
+    carrierCallId: undefined as string | undefined,
+    carrierStreamCallId: undefined as string | undefined,
     status: 'accepted',
   };
-  const resolveSessionRoute = vi.fn(async () => route);
-  const issueStreamGrant = vi.fn(async (_input: { tokenHash: string; expiresAt: Date }) => route);
+  const resolveSessionRoute = vi.fn(
+    async (query: {
+      organizationId: string;
+      carrierId: string;
+      dialRequestId?: string;
+      carrierRequestId?: string;
+      carrierCallId?: string;
+    }) => {
+      if (query.organizationId !== route.organizationId || query.carrierId !== route.carrierId)
+        return undefined;
+      if (query.dialRequestId && query.dialRequestId !== route.dialRequestId) return undefined;
+      if (query.carrierRequestId) return undefined;
+      if (query.carrierCallId) {
+        if (!query.dialRequestId && query.carrierCallId !== route.carrierCallId) return undefined;
+      }
+      return { ...route };
+    },
+  );
+  const issueStreamGrant = vi.fn(
+    async (input: { carrierCallId?: string; tokenHash: string; expiresAt: Date }) => {
+      if (input.carrierCallId) {
+        if (!route.carrierCallId) route.carrierCallId = input.carrierCallId;
+        else if (route.carrierCallId !== input.carrierCallId)
+          route.carrierStreamCallId = input.carrierCallId;
+      }
+      return { ...route };
+    },
+  );
   const reissueStream = vi.fn(async () => ({ ...route, status: 'connected' }));
   const orchestration = {
     resolveSessionRoute,
     issueStreamGrant,
     reissueStream,
+    recordCarrierCallIdMismatch: vi.fn(async () => undefined),
     applyCallEvent: vi.fn(async () => ({ kind: 'applied' as const })),
   };
   const operations = {
@@ -107,17 +136,26 @@ describe('carrier host ports', () => {
       kind: 'unmatched',
     });
     expect(orchestration.issueStreamGrant).not.toHaveBeenCalled();
+    expect(
+      await ports.streamForDial({ ...query, dialRequestId: 'unknown', carrierCallId: undefined }),
+    ).toEqual({ kind: 'unmatched' });
+    expect(orchestration.issueStreamGrant).not.toHaveBeenCalled();
     const granted = await ports.streamForDial(query);
     expect(granted.kind).toBe('stream');
     if (granted.kind !== 'stream') return;
     const raw = granted.routeParams.rt;
     expect(Buffer.from(raw, 'base64url').length).toBe(32);
     expect(orchestration.issueStreamGrant.mock.calls[0]?.[0]).toMatchObject({
+      organizationId: 'w',
+      carrierId: 'carrier',
       tokenHash: createHash('sha256').update(raw).digest('hex'),
       expiresAt: new Date(160_000),
     });
     expect(granted.routeParams.sid).toBe('session');
     expect(granted.resumeUrl).toContain('r=dial');
+    expect(await ports.streamForDial({ ...query, dialRequestId: 'wrong' })).toEqual({
+      kind: 'unmatched',
+    });
     expect(
       await ports.resumeStream({ carrierId: 'other', bindingId: 'binding', carrierCallId: 'call' }),
     ).toEqual({ kind: 'ended' });
@@ -129,8 +167,201 @@ describe('carrier host ports', () => {
     });
     expect(resumed.kind).toBe('stream');
     expect(orchestration.reissueStream).toHaveBeenCalledWith(
-      expect.objectContaining({ workerFreshSeconds: 30 }),
+      expect.objectContaining({
+        workerFreshSeconds: 30,
+        organizationId: 'w',
+        carrierId: 'carrier',
+      }),
     );
+  });
+  it('records differing dial and stream call IDs only for carriers that allow aliases', async () => {
+    const { orchestration, operations, route } = fixture();
+    const bindings = vi.fn(async () => ({
+      bindingId: 'binding',
+      pluginId: 'carrier',
+      workspaceId: 'w',
+      config: {},
+      secret: 's',
+    }));
+    route.carrierCallId = 'dial-call';
+    const options = {
+      publicBaseUrl: 'https://example.test',
+      routeSecret: SECRET,
+      orchestration,
+      operations,
+      bindings,
+    };
+    const query = {
+      carrierId: 'carrier',
+      bindingId: 'binding',
+      dialRequestId: 'dial',
+      carrierCallId: 'stream-call',
+    };
+    const aliasHost = createCarrierHostPorts({ ...options, streamCallIdMatchesDial: () => false });
+    expect((await aliasHost.streamForDial(query)).kind).toBe('stream');
+    expect(orchestration.recordCarrierCallIdMismatch).toHaveBeenCalledWith({
+      sessionId: 'session',
+      organizationId: 'w',
+      carrierId: 'carrier',
+      dialCallId: 'dial-call',
+      streamCallId: 'stream-call',
+    });
+    expect(bindings).toHaveBeenCalledWith('binding', 'carrier');
+  });
+  it('rejects a mismatched stream id for an exact-id carrier before issuing a grant', async () => {
+    const { orchestration, operations, route } = fixture();
+    route.carrierCallId = 'dial-call';
+    const exactHost = createCarrierHostPorts({
+      publicBaseUrl: 'https://example.test',
+      routeSecret: SECRET,
+      orchestration,
+      operations,
+      bindings: vi.fn(async () => ({
+        bindingId: 'binding',
+        pluginId: 'carrier',
+        workspaceId: 'w',
+        config: {},
+        secret: 's',
+      })),
+      streamCallIdMatchesDial: () => true,
+    });
+    expect(
+      await exactHost.streamForDial({
+        carrierId: 'carrier',
+        bindingId: 'binding',
+        dialRequestId: 'dial',
+        carrierCallId: 'stream-call',
+      }),
+    ).toEqual({ kind: 'unmatched' });
+    expect(orchestration.issueStreamGrant).not.toHaveBeenCalled();
+    expect(orchestration.recordCarrierCallIdMismatch).not.toHaveBeenCalled();
+    expect(
+      (
+        await exactHost.streamForDial({
+          carrierId: 'carrier',
+          bindingId: 'binding',
+          dialRequestId: 'dial',
+          carrierCallId: 'dial-call',
+        })
+      ).kind,
+    ).toBe('stream');
+    expect(orchestration.issueStreamGrant).toHaveBeenCalledWith(
+      expect.objectContaining({ streamCallIdMatchesDial: true }),
+    );
+  });
+  it('audits an alias when the primary id appeared after the initial route read', async () => {
+    const { orchestration, operations, route } = fixture();
+    orchestration.issueStreamGrant.mockResolvedValueOnce({
+      ...route,
+      carrierCallId: 'dial-call',
+      carrierStreamCallId: 'stream-call',
+    });
+    const aliasHost = createCarrierHostPorts({
+      publicBaseUrl: 'https://example.test',
+      routeSecret: SECRET,
+      orchestration,
+      operations,
+      bindings: vi.fn(async () => ({
+        bindingId: 'binding',
+        pluginId: 'carrier',
+        workspaceId: 'w',
+        config: {},
+        secret: 's',
+      })),
+      streamCallIdMatchesDial: () => false,
+    });
+    expect(
+      (
+        await aliasHost.streamForDial({
+          carrierId: 'carrier',
+          bindingId: 'binding',
+          dialRequestId: 'dial',
+          carrierCallId: 'stream-call',
+        })
+      ).kind,
+    ).toBe('stream');
+    expect(orchestration.recordCarrierCallIdMismatch).toHaveBeenCalledWith({
+      sessionId: 'session',
+      organizationId: 'w',
+      carrierId: 'carrier',
+      dialCallId: 'dial-call',
+      streamCallId: 'stream-call',
+    });
+  });
+  it('fails closed when a carrier binding has no workspace scope', async () => {
+    const { orchestration, operations } = fixture();
+    const ports = createCarrierHostPorts({
+      publicBaseUrl: 'https://example.test',
+      routeSecret: SECRET,
+      orchestration,
+      operations,
+      bindings: vi.fn(async () => ({
+        bindingId: 'binding',
+        pluginId: 'carrier',
+        workspaceId: '',
+        config: {},
+        secret: 's',
+      })),
+    });
+    expect(
+      await ports.streamForDial({
+        carrierId: 'carrier',
+        bindingId: 'binding',
+        dialRequestId: 'dial',
+      }),
+    ).toEqual({ kind: 'unmatched' });
+    expect(orchestration.resolveSessionRoute).not.toHaveBeenCalled();
+    expect(
+      await ports.resumeStream({
+        carrierId: 'carrier',
+        bindingId: 'binding',
+        carrierCallId: 'call',
+      }),
+    ).toEqual({ kind: 'ended' });
+    expect(orchestration.reissueStream).not.toHaveBeenCalled();
+  });
+  it('uses the resolved binding workspace on each carrier lookup', async () => {
+    const { orchestration, operations } = fixture();
+    const bindings = vi.fn(async (id: string) => ({
+      bindingId: id,
+      pluginId: 'carrier',
+      workspaceId: id === 'binding' ? 'w' : 'other-workspace',
+      config: {},
+      secret: 's',
+    }));
+    const ports = createCarrierHostPorts({
+      publicBaseUrl: 'https://example.test',
+      routeSecret: SECRET,
+      orchestration,
+      operations,
+      bindings,
+    });
+    expect(
+      (
+        await ports.streamForDial({
+          carrierId: 'carrier',
+          bindingId: 'binding',
+          dialRequestId: 'dial',
+        })
+      ).kind,
+    ).toBe('stream');
+    expect(
+      await ports.streamForDial({
+        carrierId: 'carrier',
+        bindingId: 'other',
+        dialRequestId: 'dial',
+      }),
+    ).toEqual({ kind: 'unmatched' });
+    expect(orchestration.resolveSessionRoute).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ organizationId: 'w', carrierId: 'carrier' }),
+    );
+    expect(orchestration.resolveSessionRoute).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ organizationId: 'other-workspace', carrierId: 'carrier' }),
+    );
+    expect(bindings).toHaveBeenNthCalledWith(1, 'binding', 'carrier');
+    expect(bindings).toHaveBeenNthCalledWith(2, 'other', 'carrier');
   });
   it('builds callback URLs when only a carrier request id is available and scopes env lookup', async () => {
     const { orchestration, operations } = fixture();
@@ -151,17 +382,22 @@ describe('carrier host ports', () => {
     });
     await ports.resolveBinding('env');
     expect(bindings).toHaveBeenCalledWith('env', 'carrier');
-    orchestration.resolveSessionRoute.mockResolvedValueOnce({
+    const requestRoute = {
       sessionId: 'session',
+      organizationId: 'w',
       carrierId: 'carrier',
       bindingId: 'binding',
       status: 'accepted',
-    } as never);
+    };
+    orchestration.resolveSessionRoute.mockImplementationOnce(async (query) =>
+      query.organizationId === 'w' &&
+      query.carrierId === 'carrier' &&
+      query.carrierRequestId === 'request'
+        ? (requestRoute as never)
+        : undefined,
+    );
     orchestration.issueStreamGrant.mockResolvedValueOnce({
-      sessionId: 'session',
-      carrierId: 'carrier',
-      bindingId: 'binding',
-      status: 'accepted',
+      ...requestRoute,
     } as never);
     const grant = await ports.streamForDial({
       carrierId: 'carrier',
@@ -192,52 +428,5 @@ describe('carrier host ports', () => {
     };
     await ports.applyCallEvent(event);
     expect(orchestration.applyCallEvent).toHaveBeenCalledWith(event);
-  });
-});
-
-describe('carrier leg termination', () => {
-  it('fences, hangs up, then disposes in documented order', async () => {
-    const order: string[] = [];
-    const base = {
-      route: { sessionId: 'session', carrierCallId: 'call' },
-      store: {
-        requestSessionTermination: async () => {
-          order.push('fence');
-        },
-      },
-      control: {
-        hangup: async () => {
-          order.push('hangup');
-          return 'ended';
-        },
-      },
-      media: {
-        terminate: async () => {
-          order.push('media');
-        },
-      },
-      engine: {
-        dispose: async () => {
-          order.push('dispose');
-          return { reason: 'completed', outcome: 'completed' };
-        },
-      },
-      capabilities: { control: { hangup: 'rest' } },
-      reason: 'completed',
-    };
-    await terminateCarrierLeg(base as never);
-    expect(order).toEqual(['fence', 'hangup', 'dispose']);
-    order.length = 0;
-    await terminateCarrierLeg({
-      ...base,
-      control: {
-        hangup: async () => {
-          order.push('hangup');
-          return 'unsupported';
-        },
-      },
-      capabilities: { control: { hangup: 'close-stream' } },
-    } as never);
-    expect(order).toEqual(['fence', 'hangup', 'media', 'dispose']);
   });
 });

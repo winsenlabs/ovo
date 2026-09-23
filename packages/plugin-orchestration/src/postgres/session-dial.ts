@@ -1,7 +1,16 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { MarkDialAcceptedInput } from '../types.ts';
 import { transaction } from './database.ts';
 import { callIdAvailable, lockCarrierCallId } from './call-identity.ts';
+import { recordCarrierCallIdMismatch } from './carrier-audit.ts';
+
+async function routeScope(client: PoolClient, jobId: string) {
+  const route = await client.query<{ organization_id: string; carrier_id: string }>(
+    'SELECT organization_id, carrier_id FROM ovo_session_routes WHERE job_id = $1',
+    [jobId],
+  );
+  return route.rows[0];
+}
 
 export class SessionDialRepository {
   constructor(private readonly pool: Pool) {}
@@ -17,14 +26,31 @@ export class SessionDialRepository {
       );
       if (!owner.rowCount) return false;
       if (input.carrierCallId) {
-        await lockCarrierCallId(client, input.carrierCallId);
-        if (!(await callIdAvailable(client, input.jobId, input.carrierCallId))) return false;
+        const scope = await routeScope(client, input.jobId);
+        if (!scope) return false;
+        await lockCarrierCallId(
+          client,
+          scope.organization_id,
+          scope.carrier_id,
+          input.carrierCallId,
+        );
+        if (
+          !(await callIdAvailable(
+            client,
+            scope.organization_id,
+            scope.carrier_id,
+            input.jobId,
+            input.carrierCallId,
+          ))
+        )
+          return false;
       }
       const job = await client.query(
-        `UPDATE ovo_jobs SET status = 'accepted', carrier_call_id = COALESCE(carrier_call_id, $5),
+        `UPDATE ovo_jobs SET status = CASE WHEN status IN ('dialing', 'reconcile_required')
+             THEN 'accepted' ELSE status END, carrier_call_id = COALESCE(carrier_call_id, $5),
            carrier_request_id = COALESCE(carrier_request_id, $6), updated_at = now(), last_error = NULL
          WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3 AND dial_request_id = $4
-           AND status IN ('dialing', 'reconcile_required')
+           AND status IN ('dialing', 'reconcile_required', 'accepted', 'connected')
            AND ($5::text IS NULL OR carrier_call_id IS NULL OR carrier_call_id = $5)
            AND ($6::text IS NULL OR carrier_request_id IS NULL OR carrier_request_id = $6)
          RETURNING id`,
@@ -37,25 +63,14 @@ export class SessionDialRepository {
           input.carrierRequestId ?? null,
         ],
       );
-      if (job.rowCount !== 1) {
-        const alreadyAccepted = await client.query(
-          `SELECT id FROM ovo_jobs
-           WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3 AND dial_request_id = $4
-             AND ($5::text IS NULL OR carrier_call_id = $5)
-             AND ($6::text IS NULL OR carrier_request_id = $6)
-             AND status IN ('accepted', 'connected')`,
-          [
-            input.jobId,
-            input.workerId,
-            input.ownerEpoch,
-            input.dialRequestId,
-            input.carrierCallId ?? null,
-            input.carrierRequestId ?? null,
-          ],
-        );
-        if (alreadyAccepted.rowCount !== 1) return false;
-      }
-      const route = await client.query(
+      if (job.rowCount !== 1) return false;
+      const route = await client.query<{
+        session_id: string;
+        organization_id: string;
+        carrier_id: string;
+        carrier_call_id: string | null;
+        carrier_stream_call_id: string | null;
+      }>(
         `UPDATE ovo_session_routes SET carrier_call_id = COALESCE(carrier_call_id, $3),
            carrier_request_id = COALESCE(carrier_request_id, $4),
            status = CASE WHEN status = 'dialing' THEN 'accepted' ELSE status END,
@@ -63,7 +78,9 @@ export class SessionDialRepository {
          WHERE job_id = $1 AND dial_request_id = $2
            AND ($3::text IS NULL OR carrier_call_id IS NULL OR carrier_call_id = $3)
            AND ($4::text IS NULL OR carrier_request_id IS NULL OR carrier_request_id = $4)
-           AND status IN ('dialing', 'accepted', 'connected')`,
+           AND status IN ('dialing', 'accepted', 'connected')
+         RETURNING session_id, organization_id, carrier_id, carrier_call_id,
+           carrier_stream_call_id`,
         [
           input.jobId,
           input.dialRequestId,
@@ -72,6 +89,20 @@ export class SessionDialRepository {
         ],
       );
       if (route.rowCount !== 1) throw new Error('Dial acceptance has no matching session route');
+      const bound = route.rows[0]!;
+      if (
+        input.carrierCallId &&
+        bound.carrier_call_id === input.carrierCallId &&
+        bound.carrier_stream_call_id &&
+        bound.carrier_stream_call_id !== input.carrierCallId
+      )
+        await recordCarrierCallIdMismatch(client, {
+          sessionId: bound.session_id,
+          organizationId: bound.organization_id,
+          carrierId: bound.carrier_id,
+          dialCallId: input.carrierCallId,
+          streamCallId: bound.carrier_stream_call_id,
+        });
       return true;
     });
   }
@@ -106,8 +137,19 @@ export class SessionDialRepository {
         [input.jobId, input.workerId, input.ownerEpoch, input.dialRequestId],
       );
       if (!owner.rowCount) return false;
-      await lockCarrierCallId(client, input.carrierCallId);
-      if (!(await callIdAvailable(client, input.jobId, input.carrierCallId))) return false;
+      const scope = await routeScope(client, input.jobId);
+      if (!scope) return false;
+      await lockCarrierCallId(client, scope.organization_id, scope.carrier_id, input.carrierCallId);
+      if (
+        !(await callIdAvailable(
+          client,
+          scope.organization_id,
+          scope.carrier_id,
+          input.jobId,
+          input.carrierCallId,
+        ))
+      )
+        return false;
       const job = await client.query(
         `UPDATE ovo_jobs SET carrier_call_id = $5, last_error = $6, updated_at = now()
          WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3 AND dial_request_id = $4

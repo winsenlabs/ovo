@@ -2,6 +2,7 @@ import type {
   AdmissionSnapshot,
   BindCarrierCallInput,
   BindCarrierCallResult,
+  CarrierCallIdMismatchInput,
   IssueStreamGrantInput,
   MarkDialAcceptedInput,
   ReissueStreamInput,
@@ -16,5 +17,6 @@ export interface CarrierRouteStore {
   bindCarrierCallId(input: BindCarrierCallInput): Promise<BindCarrierCallResult>;
   issueStreamGrant(input: IssueStreamGrantInput): Promise<SessionRoute | undefined>;
   reissueStream(input: ReissueStreamInput): Promise<SessionRoute | undefined>;
+  recordCarrierCallIdMismatch(input: CarrierCallIdMismatchInput): Promise<void>;
   admissionSnapshot(): Promise<AdmissionSnapshot>;
 }

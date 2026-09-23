@@ -21,6 +21,7 @@ import { behaviorPluginId, createSessionPluginCatalog } from './session-catalog.
 import { legacySelections } from './legacy-session-selections.ts';
 import type { NormalizationBinding, SessionDefaults } from './normalize.ts';
 import { adaptDefinitionFormats } from './speech-adapters/decorate.ts';
+import { sessionRequiresInput } from './input-policy.ts';
 
 export interface SessionGraphRelease {
   id: string;
@@ -100,8 +101,8 @@ function configFor(
     const session: SessionInput = {
       mode: config.mode,
       language: config.language,
-      inputEnabled: config.mode !== 'announcement',
-      variables,
+      inputEnabled: sessionRequiresInput(config),
+      variables: { ...variables },
       maxCallSeconds: config.costPolicy?.maxCallSeconds ?? 1800,
       acknowledgements: config.voice?.acknowledgements ?? [],
     };
@@ -240,9 +241,20 @@ export function selectSessionGraph(input: SessionGraphInput): SessionGraphResult
     )
   )
     services.push(mediaDefinition(input.media));
-  for (const service of services)
-    if (manifestKeys(service.manifest).provides.some((entry) => needed.has(entry.key)))
+  const addedServices = new Set<string>();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const service of services) {
+      if (addedServices.has(service.manifest.id)) continue;
+      const keys = manifestKeys(service.manifest);
+      if (!keys.provides.some((entry) => needed.has(entry.key))) continue;
       add(service, {});
+      addedServices.add(service.manifest.id);
+      for (const entry of [...keys.requires, ...keys.optional]) needed.add(entry.key);
+      changed = true;
+    }
+  }
   const parentKeys = [...input.parent].filter((key) => capabilitySpec(key).scope !== 'session');
   resolveGraph(rows, catalog, { parentKeys });
   return { rows, catalog, resolved };

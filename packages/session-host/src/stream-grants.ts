@@ -3,7 +3,9 @@ import type { StreamGrant } from '@winsendotai/ovo-contracts';
 
 export interface GrantRoute {
   sessionId: string;
+  organizationId?: string;
   dialRequestId?: string;
+  carrierCallId?: string;
   carrierId?: string;
   bindingId?: string;
   status: string;
@@ -13,27 +15,42 @@ export interface GrantRoute {
 
 export interface StreamGrantStore {
   resolveSessionRoute(query: {
+    organizationId: string;
+    carrierId: string;
     sessionId?: string;
     carrierCallId?: string;
     dialRequestId?: string;
     carrierRequestId?: string;
   }): Promise<GrantRoute | undefined>;
   issueStreamGrant(input: {
+    organizationId: string;
+    carrierId: string;
     dialRequestId?: string;
     carrierRequestId?: string;
     carrierCallId?: string;
+    streamCallIdMatchesDial?: boolean | 'unknown';
     tokenHash: string;
     expiresAt: Date;
   }): Promise<GrantRoute | undefined>;
   reissueStream(input: {
+    organizationId: string;
+    carrierId: string;
     carrierCallId: string;
     tokenHash: string;
     expiresAt: Date;
     workerFreshSeconds: number;
   }): Promise<GrantRoute | undefined>;
+  recordCarrierCallIdMismatch(input: {
+    sessionId: string;
+    organizationId: string;
+    carrierId: string;
+    dialCallId: string;
+    streamCallId: string;
+  }): Promise<void>;
 }
 
 export interface GrantQuery {
+  organizationId: string;
   carrierId: string;
   bindingId: string;
   dialRequestId?: string;
@@ -85,6 +102,7 @@ export async function streamForDial(
   query: GrantQuery,
   urls: GrantUrls,
   now: () => number,
+  streamCallIdMatchesDial: boolean | 'unknown' | undefined = 'unknown',
 ): Promise<StreamGrant | { kind: 'ended' } | { kind: 'unmatched' }> {
   if (!query.dialRequestId && !query.carrierRequestId && !query.carrierCallId)
     return { kind: 'unmatched' };
@@ -92,19 +110,50 @@ export async function streamForDial(
   if (!prior) return { kind: 'unmatched' };
   if (terminal(prior)) return { kind: 'ended' };
   if (
+    (prior.organizationId && prior.organizationId !== query.organizationId) ||
     (prior.carrierId && prior.carrierId !== query.carrierId) ||
     (prior.bindingId && prior.bindingId !== query.bindingId)
   )
     return { kind: 'unmatched' };
+  if (
+    streamCallIdMatchesDial === true &&
+    prior.carrierCallId &&
+    query.carrierCallId &&
+    prior.carrierCallId !== query.carrierCallId
+  )
+    return { kind: 'unmatched' };
   const minted = token(now);
   const route = await store.issueStreamGrant({
+    organizationId: query.organizationId,
+    carrierId: query.carrierId,
     ...(query.dialRequestId ? { dialRequestId: query.dialRequestId } : {}),
     ...(query.carrierRequestId ? { carrierRequestId: query.carrierRequestId } : {}),
     ...(query.carrierCallId ? { carrierCallId: query.carrierCallId } : {}),
+    streamCallIdMatchesDial,
     tokenHash: minted.tokenHash,
     expiresAt: minted.expiresAt,
   });
   if (!route) return { kind: 'ended' };
+  if (
+    streamCallIdMatchesDial === true &&
+    route.carrierCallId &&
+    query.carrierCallId &&
+    route.carrierCallId !== query.carrierCallId
+  )
+    return { kind: 'unmatched' };
+  if (
+    streamCallIdMatchesDial !== true &&
+    route.carrierCallId &&
+    query.carrierCallId &&
+    route.carrierCallId !== query.carrierCallId
+  )
+    await store.recordCarrierCallIdMismatch({
+      sessionId: route.sessionId,
+      organizationId: query.organizationId,
+      carrierId: query.carrierId,
+      dialCallId: route.carrierCallId,
+      streamCallId: query.carrierCallId,
+    });
   return grant(route, query, minted.raw, urls);
 }
 
@@ -115,16 +164,23 @@ export async function resumeStream(
   now: () => number,
   workerFreshSeconds: number,
 ): Promise<StreamGrant | { kind: 'ended' }> {
-  const prior = await store.resolveSessionRoute({ carrierCallId: query.carrierCallId });
+  const prior = await store.resolveSessionRoute({
+    organizationId: query.organizationId,
+    carrierId: query.carrierId,
+    carrierCallId: query.carrierCallId,
+  });
   if (
     !prior ||
     terminal(prior) ||
+    (prior.organizationId && prior.organizationId !== query.organizationId) ||
     (prior.carrierId && prior.carrierId !== query.carrierId) ||
     (prior.bindingId && prior.bindingId !== query.bindingId)
   )
     return { kind: 'ended' };
   const minted = token(now);
   const route = await store.reissueStream({
+    organizationId: query.organizationId,
+    carrierId: query.carrierId,
     carrierCallId: query.carrierCallId,
     tokenHash: minted.tokenHash,
     expiresAt: minted.expiresAt,

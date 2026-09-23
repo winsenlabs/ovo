@@ -37,7 +37,7 @@ interface NativeHandlerModuleExport {
 }
 
 const VERSION = /^\d+\.\d+\.\d+$/;
-/** Session kinds whose `(kind, provider)` pair must be unique across installed packages (§3.9). */
+/** Single-provider session kinds. Filter kinds are many and are identified by plugin id. */
 const SESSION_KINDS: readonly PluginKind[] = [
   'engine',
   'stt',
@@ -45,8 +45,6 @@ const SESSION_KINDS: readonly PluginKind[] = [
   'llm',
   'vad',
   'turn-detector',
-  'audio-filter',
-  'text-filter',
   'voicemail',
 ];
 

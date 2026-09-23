@@ -52,3 +52,5 @@ export const storagePlugin = definePlugin(
     ctx.fiber.effect(() => () => store.close(), 'close control store');
   },
 );
+
+export const plugins = [storagePlugin];

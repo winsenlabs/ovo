@@ -15,6 +15,29 @@ const taskPlugin = (id: string, provider?: string, started?: string[]) =>
   });
 
 describe('cardinality many (§3.4)', () => {
+  it('keeps two text filters from one provider distinct in ctx.all', async () => {
+    const filter = (id: string) =>
+      v2Plugin(
+        {
+          id,
+          kind: 'text-filter',
+          provider: 'ovo',
+          provides: ['ovo.text-filter@1'],
+        },
+        (ctx) => void ctx.provide('ovo.text-filter', { id }),
+      );
+    let keys: string[] = [];
+    const reader = v2Plugin({ id: 'reader', requires: ['ovo.text-filter@1'] }, (ctx) => {
+      keys = [...(ctx as unknown as PluginContext).all('ovo.text-filter').keys()];
+    });
+    const plugins = [filter('markdown'), filter('url'), reader];
+    const composed = await compose(
+      plugins.map((plugin) => ({ id: plugin.manifest.id })),
+      plugins,
+    );
+    expect(keys.sort()).toEqual(['markdown', 'url']);
+    await composed.dispose();
+  });
   it('lets several providers of a many-key compose, qualified by provider or id', async () => {
     const started: string[] = [];
     let seen: ReadonlyMap<string, unknown> | undefined;

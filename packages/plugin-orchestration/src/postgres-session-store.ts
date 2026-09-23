@@ -13,6 +13,7 @@ import type {
   IssueStreamGrantInput,
   ReissueStreamInput,
   AdmissionSnapshot,
+  CarrierCallIdMismatchInput,
   SessionRoute,
 } from './types.ts';
 import { JobRepository } from './postgres/jobs.ts';
@@ -21,6 +22,7 @@ import { SessionDialRepository } from './postgres/session-dial.ts';
 import { SessionGrantRepository } from './postgres/session-grants.ts';
 import { SessionReleaseRepository } from './postgres/session-release.ts';
 import { CarrierCallbackRepository } from './postgres/callbacks.ts';
+import { recordCarrierCallIdMismatch } from './postgres/carrier-audit.ts';
 
 export class PostgresSessionStoreBase {
   readonly pool: Pool;
@@ -133,6 +135,9 @@ export class PostgresSessionStoreBase {
   reissueStream(input: ReissueStreamInput): Promise<SessionRoute | undefined> {
     return this.grants.reissueStream(input);
   }
+  recordCarrierCallIdMismatch(input: CarrierCallIdMismatchInput): Promise<void> {
+    return recordCarrierCallIdMismatch(this.pool, input);
+  }
   admissionSnapshot(): Promise<AdmissionSnapshot> {
     return this.grants.admissionSnapshot();
   }
@@ -152,21 +157,34 @@ export class PostgresSessionStoreBase {
     workerId: string,
     epoch: number,
     reason: string,
+  ): Promise<{ carrierCallId?: string; carrierRequestId?: string } | undefined>;
+  requestSessionTermination(
+    route: Pick<SessionRoute, 'sessionId' | 'jobId' | 'workerId' | 'ownerEpoch'>,
+    reason: string,
+  ): Promise<{ carrierCallId?: string; carrierRequestId?: string } | undefined>;
+  requestSessionTermination(
+    routeOrJobId: Pick<SessionRoute, 'sessionId' | 'jobId' | 'workerId' | 'ownerEpoch'> | string,
+    workerIdOrReason: string,
+    epoch?: number,
+    reason?: string,
   ): Promise<{ carrierCallId?: string; carrierRequestId?: string } | undefined> {
     return this.sessions.requestTermination({
-      jobId,
-      workerId,
-      ownerEpoch: epoch,
-      reason,
+      jobId: typeof routeOrJobId === 'string' ? routeOrJobId : routeOrJobId.jobId,
+      workerId: typeof routeOrJobId === 'string' ? workerIdOrReason : routeOrJobId.workerId,
+      ownerEpoch: typeof routeOrJobId === 'string' ? epoch! : routeOrJobId.ownerEpoch,
+      reason: typeof routeOrJobId === 'string' ? reason! : workerIdOrReason,
+      ...(typeof routeOrJobId === 'string' ? {} : { sessionId: routeOrJobId.sessionId }),
     });
   }
   findCarrierCallId(requestId: string): Promise<string | undefined> {
     return this.pool
       .query<{ carrier_call_id: string | null }>(
-        'SELECT carrier_call_id FROM ovo_session_routes WHERE dial_request_id = $1',
+        'SELECT carrier_call_id FROM ovo_session_routes WHERE dial_request_id = $1 LIMIT 2',
         [requestId],
       )
-      .then((result) => result.rows[0]?.carrier_call_id ?? undefined);
+      .then((result) =>
+        result.rows.length === 1 ? (result.rows[0]?.carrier_call_id ?? undefined) : undefined,
+      );
   }
   releaseTerminalSession(jobId: string): Promise<boolean> {
     return this.sessionRelease.releaseTerminal(jobId);

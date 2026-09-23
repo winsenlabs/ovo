@@ -27,7 +27,7 @@ export interface PluginContext<R extends string = string, P extends string = str
   /** Throws when the capability is absent (v2); v1 plugins keep Cordis semantics (undefined). */
   get<K extends R>(key: K): CapabilityOf<K>;
   maybe<K extends R>(key: K): CapabilityOf<K> | undefined;
-  /** For cardinality 'many': a frozen map keyed by provider. */
+  /** For cardinality 'many': a frozen map keyed by qualifier (filter id, otherwise provider/id). */
   all<K extends R>(key: K): ReadonlyMap<string, CapabilityOf<K>>;
   provide<K extends P>(key: K, value: CapabilityOf<K>): () => void;
   /** Resolves `{credentialRef:{credentialId}}` at `pointer` in row config via `ovo.secret-resolver`. */

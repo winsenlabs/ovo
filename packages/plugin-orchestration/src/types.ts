@@ -6,6 +6,7 @@ import type {
   CarrierCallbackResult,
   SessionRoute,
   RouteLookup,
+  SessionTerminationRequester,
 } from './session-types.ts';
 
 export type JobStatus =
@@ -137,12 +138,7 @@ export interface DurableJobStore {
     token: string,
   ): Promise<AuthenticatedSessionRoute | undefined>;
   applyCarrierCallback(input: CarrierCallbackInput): Promise<CarrierCallbackResult>;
-  requestSessionTermination(
-    jobId: string,
-    workerId: string,
-    epoch: number,
-    reason: string,
-  ): Promise<{ carrierCallId?: string; carrierRequestId?: string } | undefined>;
+  requestSessionTermination: SessionTerminationRequester;
   releaseTerminalSession(jobId: string): Promise<boolean>;
 }
 
@@ -160,6 +156,8 @@ export type {
   IssueStreamGrantInput,
   ReissueStreamInput,
   AdmissionSnapshot,
+  CarrierCallIdMismatchInput,
+  SessionTerminationRequester,
   CarrierCallbackInput,
   CarrierCallbackCorrelationInput,
   CarrierCallbackResult,

@@ -8,13 +8,14 @@ export const playbackEvidenceInsufficient: CompatRule = (input, stage) => {
   const entries = resolved(input);
   const carrier = entries.find((entry) => entry.slot === 'carrier');
   const engine = entries.find((entry) => entry.slot === 'engine');
-  if (!carrier || !engine) return [];
-  const evidence = (
-    manifestKeys(carrier.definition.manifest).manifest.capabilities as CarrierCapabilities
-  ).media.playbackEvidence;
-  const confirmed = (
-    manifestKeys(engine.definition.manifest).manifest.capabilities as EngineCapabilities
-  ).confirmedPlayback;
+  const evidence = carrier
+    ? (manifestKeys(carrier.definition.manifest).manifest.capabilities as CarrierCapabilities).media
+        .playbackEvidence
+    : undefined;
+  const confirmed = engine
+    ? (manifestKeys(engine.definition.manifest).manifest.capabilities as EngineCapabilities)
+        .confirmedPlayback
+    : false;
   return evidence === 'carrier-played' && confirmed
     ? []
     : [

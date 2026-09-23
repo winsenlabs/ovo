@@ -79,6 +79,30 @@ describe('installed extension loader (§3.9)', () => {
     ).rejects.toThrow('Invalid or duplicate installed fixtures for x');
   });
 
+  it('loads two same-vendor text filters by distinct plugin id', async () => {
+    const filter = (id: string) =>
+      definePlugin(
+        {
+          id,
+          version: '1.0.0',
+          contractVersion: 2,
+          kind: 'text-filter',
+          provider: 'ovo',
+          scope: 'session',
+          provides: ['ovo.text-filter@1'],
+          requires: [],
+          configSchema: { type: 'object' },
+          secretFields: [],
+        },
+        () => undefined,
+      );
+    const loaded = await loadInstalledSessionExtensions(
+      '["a"]',
+      load({ a: { plugins: [filter('markdown'), filter('url')] } }),
+    );
+    expect(loaded.plugins.map((plugin) => plugin.manifest.id)).toEqual(['markdown', 'url']);
+  });
+
   it('parses v2 manifests and refuses invalid ones', async () => {
     const invalid = {
       manifest: { ...sttManifest({ id: 'bad' }), meters: [] },

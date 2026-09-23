@@ -60,3 +60,5 @@ export const recordingsPlugin = definePlugin(
     ctx.provide('ovo.recordings', new RecordingArchive(backend));
   },
 );
+
+export const plugins = [recordingsPlugin];

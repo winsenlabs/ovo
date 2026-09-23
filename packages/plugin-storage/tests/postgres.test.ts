@@ -53,7 +53,7 @@ integration('PostgresControlStore', () => {
        WHERE schemaname=current_schema() AND tablename LIKE 'ovo_orchestration_%'`,
     );
     await pool.end();
-    expect(versions.rows.map((row) => row.version)).toEqual([1, 2, 3, 4]);
+    expect(versions.rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5]);
     expect(Number(unrelated.rows[0]!.count)).toBeGreaterThanOrEqual(0);
   });
 

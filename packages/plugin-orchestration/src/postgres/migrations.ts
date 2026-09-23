@@ -2,11 +2,13 @@ import type { Pool } from 'pg';
 import migration001 from '../../migrations/001_durable_orchestration.sql?raw';
 import migration002 from '../../migrations/002_session_lifecycle.sql?raw';
 import migration003 from '../../migrations/003_carrier_identity.sql?raw';
+import migration004 from '../../migrations/004_carrier_scope.sql?raw';
 
 const migrations = [
   { version: 1, sql: migration001 },
   { version: 2, sql: migration002 },
   { version: 3, sql: migration003 },
+  { version: 4, sql: migration004 },
 ] as const;
 
 export async function runMigrations(pool: Pool): Promise<void> {
@@ -39,7 +41,8 @@ export async function runMigrations(pool: Pool): Promise<void> {
     ] as const) {
       if (versions.has(version)) continue;
       const result = await client.query<{ present: boolean }>(
-        'SELECT bool_and(to_regclass(table_name) IS NOT NULL) AS present FROM unnest($1::text[]) AS table_name',
+        `SELECT bool_and(to_regclass(format('%I.%I', current_schema(), table_name)) IS NOT NULL) AS present
+         FROM unnest($1::text[]) AS table_name`,
         [tables],
       );
       if (result.rows[0]?.present) {

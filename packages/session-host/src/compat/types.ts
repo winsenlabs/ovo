@@ -3,14 +3,30 @@ import type {
   CompatCode,
   CompatIssue,
   CompatStage,
+  ReleaseSelection,
   ReleaseSelections,
 } from '@winsendotai/ovo-contracts';
 import type { PluginRegistry } from '@winsendotai/ovo-runtime';
 import { PluginPinError } from '@winsendotai/ovo-runtime';
+import type { SessionDefaults, NormalizationBinding } from '../normalize.ts';
 
 export interface CompatInput {
   config: AgentConfig;
   selections?: ReleaseSelections;
+  /** Carrier resolved from the actual inbound route, which can differ from release selection. */
+  actualCarrier?: ReleaseSelection;
+  /** Sources used to derive selections on pre-v2 releases before live validation. */
+  defaults?: SessionDefaults;
+  legacyProviderBindings?: Readonly<
+    Record<
+      string,
+      NormalizationBinding & {
+        config?: Record<string, unknown>;
+        credentialId?: string;
+        updatedAt?: string;
+      }
+    >
+  >;
   registry: PluginRegistry;
   bindings?: Readonly<
     Record<string, { pluginId?: string | null; provider?: string; config: Record<string, unknown> }>

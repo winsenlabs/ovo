@@ -17,16 +17,7 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
   {
     package: '@winsendotai/ovo-plugin-voice',
     roles: ['session', 'api'],
-    load: async () => {
-      const voice = await import('@winsendotai/ovo-plugin-voice');
-      return {
-        plugins: [
-          voice.createVoiceSessionEnginePlugin(),
-          voice.createSpeechSchedulerPlugin(),
-          voice.createStreamingMediaSpeechOutputPlugin(),
-        ],
-      };
-    },
+    load: () => import('@winsendotai/ovo-plugin-voice'),
   },
   {
     package: '@winsendotai/ovo-plugin-turns',
@@ -141,40 +132,27 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
   {
     package: '@winsendotai/ovo-plugin-storage',
     roles: ['api', 'worker'],
-    load: async () => ({
-      plugins: [(await import('@winsendotai/ovo-plugin-storage')).storagePlugin],
-    }),
+    load: () => import('@winsendotai/ovo-plugin-storage'),
   },
   {
     package: '@winsendotai/ovo-plugin-secrets',
     roles: ['api', 'worker'],
-    load: async () => ({
-      plugins: [(await import('@winsendotai/ovo-plugin-secrets')).secretsPlugin],
-    }),
+    load: () => import('@winsendotai/ovo-plugin-secrets'),
   },
   {
     package: '@winsendotai/ovo-plugin-observability',
     roles: ['api', 'worker'],
-    load: async () => ({
-      plugins: [(await import('@winsendotai/ovo-plugin-observability')).observabilityPlugin],
-    }),
+    load: () => import('@winsendotai/ovo-plugin-observability'),
   },
   {
     package: '@winsendotai/ovo-plugin-recordings',
     roles: ['api', 'worker'],
-    load: async () => ({
-      plugins: [(await import('@winsendotai/ovo-plugin-recordings')).recordingsPlugin],
-    }),
+    load: () => import('@winsendotai/ovo-plugin-recordings'),
   },
   {
     package: '@winsendotai/ovo-plugin-orchestration',
     roles: ['worker', 'dispatcher'],
-    load: async () => {
-      const orchestration = await import('@winsendotai/ovo-plugin-orchestration');
-      return {
-        plugins: [orchestration.postgresOrchestrationPlugin, orchestration.sqsOrchestrationPlugin],
-      };
-    },
+    load: () => import('@winsendotai/ovo-plugin-orchestration'),
   },
   {
     package: '@winsendotai/ovo-plugin-operations',

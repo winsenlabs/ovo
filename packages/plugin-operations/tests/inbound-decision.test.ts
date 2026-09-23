@@ -107,6 +107,18 @@ describe('inboundDecisionFor', () => {
       message: 'Connecting',
     });
   });
+  it.each([
+    ['queued', 'Your callback request has been queued.'],
+    ['declined', 'No callback was requested.'],
+    ['suppressed', 'A callback cannot be scheduled for this number.'],
+  ] as const)('hangs up a settled %s callback without re-offering consent', (state, message) => {
+    expect(
+      inboundDecisionFor(
+        { ...callback, state },
+        { kind: 'callback', digitsUrl: 'https://gateway.test/digits', timeoutSeconds: 8 },
+      ),
+    ).toEqual({ kind: 'hangup', message });
+  });
   it('throws loudly for missing or mismatched JS context instead of downgrading', () => {
     const call = (decision: InboundGatewayDecision, context: unknown) =>
       (inboundDecisionFor as (decision: InboundGatewayDecision, context: unknown) => unknown)(
@@ -164,6 +176,13 @@ describe('inboundDecisionFor', () => {
     expect(() => call({ ...human, announcement: undefined } as never, { kind: 'human' })).toThrow(
       'announcement',
     );
+    expect(() =>
+      call({ ...callback, state: 'unknown' } as never, {
+        kind: 'callback',
+        digitsUrl: 'https://gateway.test/digits',
+        timeoutSeconds: 8,
+      }),
+    ).toThrow('Unsupported inbound callback state');
     expect(() => call({ kind: 'unknown' } as never, { kind: 'unknown' })).toThrow(
       'Unsupported inbound decision kind',
     );

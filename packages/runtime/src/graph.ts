@@ -39,6 +39,11 @@ export function manifestKeys(manifest: Manifest): ManifestKeys {
 
 /** A provider of a cardinality-'many' key registers under `${key}:${qualifier}`. */
 export function qualifierOf(manifest: Manifest): string {
+  if (
+    manifest.contractVersion === 2 &&
+    (manifest.kind === 'text-filter' || manifest.kind === 'audio-filter')
+  )
+    return manifest.id;
   return (manifest.contractVersion === 2 && manifest.provider) || manifest.id;
 }
 

@@ -17,6 +17,7 @@ Defects fixed: [21, 1, 27]
 - packages/plugin-ledger/src/background-tasks.ts
 - packages/plugin-ledger/package.json
 - packages/plugin-media/package.json
+- packages/runtime/src/installed.ts, packages/runtime/src/graph.ts, packages/runtime/src/define.ts and their tests (checker-discovered Wave 2 filter cardinality fix)
 - packages/session-host/**
 - packages/distribution/**
 - packages/plugin-session/**
@@ -38,10 +39,21 @@ Defects fixed: [21, 1, 27]
 
 - scripts/baselines/*.json: lower or remove entries for files you rewrite; never add (put transitional entries in scripts/baselines/pending/F3.json)
 - packages/plugin-orchestration/tests and packages/plugin-operations/tests: new fields only
+- packages/plugin-voice/src/index.ts, packages/plugin-secrets/src/index.ts, packages/plugin-observability/src/index.ts and packages/plugin-recordings/src/index.ts: export the owning module's `plugins` array for distribution to consume without a frozen catalog edit
 
 ## Specification
 
 GOAL: build every host-side library and schema seam that F4 and all wave-2 units need, because wave 2 freezes session-host, distribution and the shared files. Read docs/architecture/plugin-platform.md (revision 2): sections 2.2, 2.4, 2.8, 3.5, 4.1–4.7, 4.10 and 15.3. Nothing in apps/* changes in this unit; F4 wires the apps. Existing behavior (Twilio + Deepgram + OpenAI) must keep working.
+
+> **Checker note (2026-09-23).** The original §15.3 assigned app manifest dependencies to F3 while this unit forbids edits under `apps/`. The F4 spec already owns all three app manifests and lists these dependencies. F4 will add them before Wave 2; §15.3 now names F4 for that work.
+
+> **Checker note (2026-09-23).** E2 requires two text filters from `plugin-voice` with provider `ovo`, but the pre-F3 runtime treated `(text-filter, provider)` as unique and also used provider as the `ctx.all()` qualifier. Both the loader and graph rejected E2's specified pair. F3 corrects these frozen runtime seams: filter instances are distinct by plugin id, while single-provider kinds retain their uniqueness check.
+
+> **Checker note (2026-09-23).** The specified removal of the legacy inference fallback leaves existing live `context` and `agent` sessions without an `ovo.inference` provider until F4 wires the selected bridge. The checker permitted a documented broken window: session-host now fails explicitly, checks binding workspace, and the board names F4 as the owner before live admission is enabled.
+
+> **Checker note (2026-09-23).** The first F3 commit already applied control migration 004 in some databases. Its SQL checksum must stay unchanged, even though its call-kind constraint lookup can leave a second narrow check behind. A new migration 005 removes every exact legacy narrow check. The migration runner refuses a compound custom check before historical 004 can drop it, so an unrelated guard is never silently lost.
+
+> **Checker note (2026-09-23).** Request-id-only carriers can open a stream before reporting their dial call id. For carriers without exact id matching, the first stream id occupies the provisional stream alias; a later request-correlated dial or status id fills the primary slot and records the mismatch audit. This preserves both arrival orders required by §4.10.
 
 A. Storage (packages/plugin-storage).
 

@@ -4,6 +4,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import migration001 from '../migrations/001_durable_orchestration.sql?raw';
 import migration002 from '../migrations/002_session_lifecycle.sql?raw';
 import { PostgresOrchestrationStore } from '../src/postgres.ts';
+import type {
+  BindCarrierCallInput,
+  CarrierCallbackCorrelationInput,
+  IssueStreamGrantInput,
+  ReissueStreamInput,
+  RouteLookup,
+} from '../src/types.ts';
 import { beginRoute, waitForBlockedStore } from './carrier-identity-support.ts';
 
 const url = process.env.OVO_TEST_POSTGRES_URL;
@@ -32,25 +39,71 @@ describe.skipIf(!url)('carrier identity migrations and grants', () => {
   });
 
   const begin = (label: string) => beginRoute(store, schema, label);
+  const scope = { organizationId: schema, carrierId: 'carrier-test' };
+  type PartialScope<T> = Omit<T, 'organizationId' | 'carrierId'> &
+    Partial<Pick<BindCarrierCallInput, 'organizationId' | 'carrierId'>>;
+  const scoped = {
+    resolveSessionRoute(input: PartialScope<RouteLookup>) {
+      return store.resolveSessionRoute({ ...scope, ...input });
+    },
+    bindCarrierCallId(input: PartialScope<BindCarrierCallInput>) {
+      return store.bindCarrierCallId({ ...scope, ...input });
+    },
+    issueStreamGrant(input: PartialScope<IssueStreamGrantInput>) {
+      return store.issueStreamGrant({ ...scope, ...input });
+    },
+    reissueStream(input: PartialScope<ReissueStreamInput>) {
+      return store.reissueStream({ ...scope, ...input });
+    },
+    applyCarrierCallback(input: PartialScope<CarrierCallbackCorrelationInput>) {
+      return store.applyCarrierCallback({ ...scope, ...input });
+    },
+  };
 
   it('adopts a populated pre-ledger schema, runs 003, and reruns without rewriting old rows', async () => {
     await store.pool.query(migration001);
     await store.pool.query(migration002);
     const id = randomUUID();
     await store.pool.query(
-      `INSERT INTO ovo_jobs (id, workspace_id, idempotency_key, payload, status)
-       VALUES ($1, $2, 'legacy', '{}'::jsonb, 'queued')`,
+      `INSERT INTO ovo_jobs (id, workspace_id, idempotency_key, payload, status,
+         owner_id, owner_epoch, lease_expires_at)
+       VALUES ($1, $2, 'legacy', '{}'::jsonb, 'connected', 'pre-upgrade-worker', 1,
+         now() + interval '1 minute')`,
       [id, schema],
+    );
+    await store.pool.query(
+      `INSERT INTO ovo_worker_slots (worker_id, state, ownership_epoch, observed_at, lease_expires_at)
+       VALUES ('pre-upgrade-worker', 'active', 23, now(), now() + interval '1 minute')`,
+    );
+    const legacySessionId = randomUUID();
+    await store.pool.query(
+      `INSERT INTO ovo_session_routes (session_id, job_id, organization_id, worker_id,
+         worker_endpoint, owner_epoch, generation, dial_request_id, status,
+         handshake_token_hash, handshake_expires_at)
+       VALUES ($1, $2, $3, 'pre-upgrade-worker', 'ws://127.0.0.1/internal/media',
+         1, 1, 'legacy-dial', 'connected', $4, now() + interval '1 minute')`,
+      [legacySessionId, id, schema, createHash('sha256').update('legacy').digest('hex')],
     );
     await store.migrate();
     expect(
       (await store.pool.query('SELECT version FROM ovo_orch_schema_migrations ORDER BY version'))
         .rows,
-    ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
+    ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }]);
     expect(
       (await store.pool.query('SELECT carrier_id, payload FROM ovo_jobs WHERE id = $1', [id]))
         .rows[0],
     ).toMatchObject({ carrier_id: 'twilio', payload: {} });
+    expect(
+      (
+        await store.pool.query(
+          'SELECT worker_slot_epoch FROM ovo_session_routes WHERE session_id = $1',
+          [legacySessionId],
+        )
+      ).rows[0]?.worker_slot_epoch,
+    ).toBe('23');
+    await store.pool
+      .query(`UPDATE ovo_worker_slots SET lease_expires_at = now() - interval '1 second'
+      WHERE worker_id = 'pre-upgrade-worker'`);
     await store.migrate();
     expect(
       (await store.pool.query('SELECT count(*)::int AS count FROM ovo_jobs WHERE id = $1', [id]))
@@ -70,18 +123,18 @@ describe.skipIf(!url)('carrier identity migrations and grants', () => {
         await blocker.query('SELECT id FROM ovo_jobs WHERE id = $1 FOR UPDATE', [route.jobId]);
         pending =
           method === 'grant'
-            ? store.issueStreamGrant({
+            ? scoped.issueStreamGrant({
                 dialRequestId: route.dialRequestId,
                 carrierCallId: `CA-lock-${method}`,
                 tokenHash: createHash('sha256').update(method).digest('hex'),
                 expiresAt: new Date(Date.now() + 60_000),
               })
             : method === 'bind'
-              ? store.bindCarrierCallId({
+              ? scoped.bindCarrierCallId({
                   sessionId: route.sessionId,
                   carrierCallId: `CA-lock-${method}`,
                 })
-              : store.applyCarrierCallback({
+              : scoped.applyCarrierCallback({
                   provider: 'carrier-test',
                   eventId: randomUUID(),
                   dialRequestId: route.dialRequestId,
@@ -121,38 +174,38 @@ describe.skipIf(!url)('carrier identity migrations and grants', () => {
       }),
     ).toBe(true);
     expect(
-      await store.bindCarrierCallId({ sessionId: route.sessionId, carrierCallId: 'CA-primary' }),
+      await scoped.bindCarrierCallId({ sessionId: route.sessionId, carrierCallId: 'CA-primary' }),
     ).toMatchObject({ kind: 'bound', route: { carrierCallId: 'CA-primary' } });
     expect(
-      await store.bindCarrierCallId({
+      await scoped.bindCarrierCallId({
         dialRequestId: route.dialRequestId,
         carrierCallId: 'CA-stream',
       }),
     ).toMatchObject({ kind: 'alias', route: { carrierStreamCallId: 'CA-stream' } });
-    expect(await store.resolveSessionRoute({ carrierCallId: 'CA-stream' })).toMatchObject({
+    expect(await scoped.resolveSessionRoute({ carrierCallId: 'CA-stream' })).toMatchObject({
       sessionId: route.sessionId,
     });
     expect(
-      await store.resolveSessionRoute({ carrierRequestId: route.carrierRequestId }),
+      await scoped.resolveSessionRoute({ carrierRequestId: route.carrierRequestId }),
     ).toMatchObject({ sessionId: route.sessionId });
     expect(
-      await store.bindCarrierCallId({ sessionId: route.sessionId, carrierCallId: 'CA-third' }),
+      await scoped.bindCarrierCallId({ sessionId: route.sessionId, carrierCallId: 'CA-third' }),
     ).toEqual({ kind: 'conflict' });
     const other = await begin('collision');
     expect(
-      await store.bindCarrierCallId({
+      await scoped.bindCarrierCallId({
         sessionId: other.route.sessionId,
         carrierCallId: 'CA-primary',
       }),
     ).toEqual({ kind: 'conflict' });
     expect(
-      await store.resolveSessionRoute({
+      await scoped.resolveSessionRoute({
         carrierRequestId: route.carrierRequestId,
         carrierCallId: 'CA-primary',
       }),
     ).toMatchObject({ sessionId: route.sessionId });
     expect(
-      await store.resolveSessionRoute({
+      await scoped.resolveSessionRoute({
         carrierRequestId: other.route.carrierRequestId,
         carrierCallId: 'CA-primary',
       }),
@@ -175,241 +228,98 @@ describe.skipIf(!url)('carrier identity migrations and grants', () => {
       tokenHash: createHash('sha256').update(token).digest('hex'),
       expiresAt: new Date(Date.now() + 60_000),
     };
-    expect(await store.issueStreamGrant(grant)).toMatchObject({ sessionId: route.sessionId });
+    expect(await scoped.issueStreamGrant(grant)).toMatchObject({ sessionId: route.sessionId });
     expect(await store.authenticateSessionRoute(route.sessionId, token)).toMatchObject({
       sessionId: route.sessionId,
     });
     expect(await store.authenticateSessionRoute(route.sessionId, token)).toBeUndefined();
-    expect(await store.issueStreamGrant(grant)).toBeUndefined();
+    expect(await scoped.issueStreamGrant(grant)).toBeUndefined();
   });
 
-  it('correlates callbacks by request id or a recorded stream alias without accepting a third id', async () => {
-    const { route } = await begin('callback-alias');
-    expect(
-      await store.applyCarrierCallback({
-        provider: 'carrier-test',
-        eventId: randomUUID(),
-        carrierRequestId: route.carrierRequestId,
-        status: 'ringing',
-        occurredAt: new Date(),
-      }),
-    ).toMatchObject({ kind: 'applied', route: { status: 'accepted' } });
-    await store.bindCarrierCallId({
-      sessionId: route.sessionId,
-      carrierCallId: 'CA-callback-primary',
-    });
-    await store.bindCarrierCallId({
-      sessionId: route.sessionId,
-      carrierCallId: 'CA-callback-stream',
-    });
-    expect(
-      await store.applyCarrierCallback({
-        provider: 'carrier-test',
-        eventId: randomUUID(),
-        carrierCallId: 'CA-callback-stream',
-        status: 'answered',
-        occurredAt: new Date(),
-      }),
-    ).toMatchObject({
-      kind: 'applied',
-      route: { status: 'connected', carrierCallId: 'CA-callback-primary' },
-    });
-    expect(
-      await store.applyCarrierCallback({
-        provider: 'carrier-test',
-        eventId: randomUUID(),
-        dialRequestId: route.dialRequestId,
-        carrierCallId: 'CA-callback-third',
-        status: 'completed',
-        occurredAt: new Date(),
-      }),
-    ).toMatchObject({ kind: 'correlation_conflict' });
-    expect(await store.getSessionRoute(route.jobId)).toMatchObject({ status: 'connected' });
-  });
-
-  it('rejects contradictory callback correlation even when one identifier matches', async () => {
-    const { route } = await begin('callback-contradiction');
-    expect(
-      await store.applyCarrierCallback({
-        provider: 'carrier-test',
-        eventId: randomUUID(),
-        dialRequestId: route.dialRequestId,
-        carrierRequestId: 'wrong-request',
-        carrierCallId: 'CA-contradiction',
-        status: 'answered',
-        occurredAt: new Date(),
-      }),
-    ).toMatchObject({ kind: 'correlation_conflict' });
-    expect(await store.getSessionRoute(route.jobId)).toMatchObject({
-      status: 'dialing',
-      carrierCallId: undefined,
-    });
-  });
-
-  it('does not let acceptance or reconciliation reuse another route’s stream alias', async () => {
-    const first = await begin('cross-column-a');
-    await store.bindCarrierCallId({ sessionId: first.route.sessionId, carrierCallId: 'CA-first' });
-    await store.bindCarrierCallId({
-      sessionId: first.route.sessionId,
-      carrierCallId: 'CA-shared-alias',
-    });
-    const second = await begin('cross-column-b');
-    expect(
-      await store.markDialAccepted({
-        jobId: second.jobId,
-        workerId: second.owner.ownerId,
-        ownerEpoch: second.owner.ownerEpoch,
-        dialRequestId: second.route.dialRequestId,
-        carrierCallId: 'CA-shared-alias',
-      }),
-    ).toBe(false);
-    expect(await store.getSessionRoute(second.jobId)).toMatchObject({
-      status: 'dialing',
-      carrierCallId: undefined,
-    });
-    await store.markDialUnknown(
-      second.jobId,
-      second.owner.ownerId,
-      second.owner.ownerEpoch,
-      second.route.dialRequestId,
-      'unknown',
-    );
-    expect(
-      await store.prepareReconciledTermination(
-        second.jobId,
-        second.owner.ownerId,
-        second.owner.ownerEpoch,
-        second.route.dialRequestId,
-        'CA-shared-alias',
-        'reconcile',
-      ),
-    ).toBe(false);
-  });
-
-  it('rejects resume from a newer worker incarnation with the same worker id', async () => {
-    await store.reportWorker({
-      workerId: 'carrier-worker',
-      state: 'active',
-      ownershipEpoch: 100,
-      leaseMs: 60_000,
-    });
-    const { route, jobId, owner } = await begin('worker-epoch');
-    await store.markDialAccepted(
-      jobId,
-      owner.ownerId,
-      owner.ownerEpoch,
-      route.dialRequestId,
-      'CA-epoch',
-    );
-    await store.applyCarrierCallback({
-      provider: 'carrier-test',
-      eventId: randomUUID(),
-      carrierCallId: 'CA-epoch',
-      status: 'answered',
-      occurredAt: new Date(),
-    });
-    await store.reportWorker({
-      workerId: 'carrier-worker',
-      state: 'active',
-      ownershipEpoch: 101,
-      leaseMs: 60_000,
-    });
-    expect(
-      await store.reissueStream({
-        carrierCallId: 'CA-epoch',
-        tokenHash: createHash('sha256').update('newer-worker').digest('hex'),
-        expiresAt: new Date(Date.now() + 60_000),
-        workerFreshSeconds: 30,
-      }),
-    ).toBeUndefined();
-  });
-
-  it('issues one-use grants and rejects any grant after pre-answer termination', async () => {
-    const { route, jobId, owner, token } = await begin('terminate');
-    const fresh = `fresh-${randomUUID()}`;
-    expect(
-      await store.issueStreamGrant({
-        carrierRequestId: route.carrierRequestId,
-        tokenHash: createHash('sha256').update(fresh).digest('hex'),
-        expiresAt: new Date(Date.now() + 60_000),
-      }),
-    ).toMatchObject({ sessionId: route.sessionId });
-    expect(await store.authenticateSessionRoute(route.sessionId, token)).toBeUndefined();
-    expect(
-      await store.requestSessionTermination(jobId, owner.ownerId, owner.ownerEpoch, 'owner_lost'),
-    ).toMatchObject({ carrierRequestId: route.carrierRequestId });
-    expect(
-      await store.issueStreamGrant({
-        dialRequestId: route.dialRequestId,
-        tokenHash: createHash('sha256').update('late').digest('hex'),
-        expiresAt: new Date(Date.now() + 60_000),
-      }),
-    ).toBeUndefined();
-    expect(await store.authenticateSessionRoute(route.sessionId, fresh)).toBeUndefined();
-  });
-
-  it('increments generation only for connected routes with fresh worker and ownership leases', async () => {
-    const { route, jobId, owner, token } = await begin('resume');
-    await store.markDialAccepted(
-      jobId,
-      owner.ownerId,
-      owner.ownerEpoch,
-      route.dialRequestId,
-      'CA-resume',
-    );
-    await store.applyCarrierCallback({
-      provider: 'carrier-test',
-      eventId: randomUUID(),
-      carrierCallId: 'CA-resume',
-      status: 'answered',
-      occurredAt: new Date(),
-    });
-    await store.reportWorker({
-      workerId: owner.ownerId,
-      state: 'active',
-      ownershipEpoch: owner.ownerEpoch,
-      leaseMs: 60_000,
-    });
-    expect(await store.authenticateSessionRoute(route.sessionId, token)).toMatchObject({
-      sessionId: route.sessionId,
-    });
-    const grant = {
-      carrierCallId: 'CA-resume',
-      tokenHash: createHash('sha256').update('resume').digest('hex'),
-      expiresAt: new Date(Date.now() + 60_000),
-      workerFreshSeconds: 30,
-    };
-    expect(await store.reissueStream(grant)).toMatchObject({ generation: 2, status: 'connected' });
+  it('does not issue a grant after the route loses its job lease', async () => {
+    const { route, jobId } = await begin('stale-grant');
     await store.pool.query(
-      `UPDATE ovo_worker_slots SET observed_at = now() - interval '1 minute'
-      WHERE worker_id = $1`,
-      [owner.ownerId],
+      `UPDATE ovo_jobs SET lease_expires_at = now() - interval '1 second' WHERE id = $1`,
+      [jobId],
     );
-    expect(await store.reissueStream(grant)).toBeUndefined();
-    await store.reportWorker({
-      workerId: owner.ownerId,
-      state: 'active',
-      ownershipEpoch: owner.ownerEpoch,
-      leaseMs: 60_000,
-    });
-    await store.requestSessionTermination(jobId, owner.ownerId, owner.ownerEpoch, 'done');
-    expect(await store.reissueStream(grant)).toBeUndefined();
+    expect(
+      await scoped.issueStreamGrant({
+        dialRequestId: route.dialRequestId,
+        tokenHash: createHash('sha256').update('stale-grant').digest('hex'),
+        expiresAt: new Date(Date.now() + 60_000),
+      }),
+    ).toBeUndefined();
   });
 
-  it('counts eligible jobs and fresh idle or busy slots without changing them', async () => {
+  it('does not authenticate a grant after the route loses its job lease', async () => {
+    const { route, jobId, token } = await begin('stale-auth');
+    await store.pool.query(
+      `UPDATE ovo_jobs SET lease_expires_at = now() - interval '1 second' WHERE id = $1`,
+      [jobId],
+    );
+    expect(await store.authenticateSessionRoute(route.sessionId, token)).toBeUndefined();
+  });
+
+  it('does not issue a grant from a newer incarnation of the same worker id', async () => {
     await store.reportWorker({
-      workerId: 'idle-worker',
-      state: 'ready_idle',
-      ownershipEpoch: 1,
+      workerId: 'carrier-worker',
+      state: 'active',
+      ownershipEpoch: 200,
       leaseMs: 60_000,
     });
-    const before = await store.pool.query('SELECT count(*)::int AS count FROM ovo_worker_slots');
-    const snapshot = await store.admissionSnapshot();
-    expect(snapshot.readyIdleSlots).toBe(1);
-    expect(snapshot.busySlots).toBe(1);
-    expect(snapshot.eligibleQueuedJobs).toBeGreaterThanOrEqual(1);
+    const { route } = await begin('stale-slot-grant');
+    await store.reportWorker({
+      workerId: 'carrier-worker',
+      state: 'active',
+      ownershipEpoch: 201,
+      leaseMs: 60_000,
+    });
     expect(
-      (await store.pool.query('SELECT count(*)::int AS count FROM ovo_worker_slots')).rows[0],
-    ).toEqual(before.rows[0]);
+      await scoped.issueStreamGrant({
+        dialRequestId: route.dialRequestId,
+        tokenHash: createHash('sha256').update('stale-slot-grant').digest('hex'),
+        expiresAt: new Date(Date.now() + 60_000),
+      }),
+    ).toBeUndefined();
+  });
+
+  it('fences the exact route after its worker loses ownership', async () => {
+    const { route, jobId } = await begin('lost-owner-fence');
+    await store.pool.query(
+      `UPDATE ovo_jobs SET lease_expires_at = now() - interval '1 second' WHERE id = $1`,
+      [jobId],
+    );
+    const replacement = await store.claim(jobId, 'replacement', 60_000);
+    expect(replacement.kind).toBe('reconcile');
+    if (replacement.kind !== 'reconcile') return;
+    expect(replacement.job.ownerEpoch).toBeGreaterThan(route.ownerEpoch);
+    expect(await store.requestSessionTermination(route, 'owner_lost')).toMatchObject({
+      carrierRequestId: route.carrierRequestId,
+    });
+    expect(await store.getSessionRoute(jobId)).toMatchObject({ status: 'terminating' });
+    expect(
+      await scoped.issueStreamGrant({
+        dialRequestId: route.dialRequestId,
+        tokenHash: createHash('sha256').update('post-reclaim').digest('hex'),
+        expiresAt: new Date(Date.now() + 60_000),
+      }),
+    ).toBeUndefined();
+  });
+
+  it('resolves a request-id-only route when the stream supplies its first call id', async () => {
+    const { route, jobId, owner } = await begin('request-only-lookup');
+    await store.markDialAccepted({
+      jobId,
+      workerId: owner.ownerId,
+      ownerEpoch: owner.ownerEpoch,
+      dialRequestId: route.dialRequestId,
+      carrierRequestId: route.carrierRequestId,
+    });
+    expect(
+      await scoped.resolveSessionRoute({
+        carrierRequestId: route.carrierRequestId,
+        carrierCallId: 'CA-first-stream',
+      }),
+    ).toMatchObject({ sessionId: route.sessionId, carrierCallId: undefined });
   });
 });

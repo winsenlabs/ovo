@@ -122,6 +122,34 @@ function input(version = '1.0.0') {
 }
 
 describe('selected session graph', () => {
+  it('enables input for a scripted announcement and passes call variables into the engine', () => {
+    const selectedInput = input();
+    selectedInput.release.config = AgentConfig.parse({
+      name: 'scripted',
+      mode: 'announcement',
+      script: {
+        start: 'question',
+        nodes: [
+          {
+            id: 'question',
+            prompt: 'Press one',
+            transitions: [{ event: 'dtmf', matches: ['1'], to: 'done' }],
+          },
+          { id: 'done', prompt: 'Done', terminal: true },
+        ],
+      },
+    });
+    const selected = selectSessionGraph({
+      ...selectedInput,
+      sessionVariables: { callerName: 'Asha' },
+    });
+    expect(selected.rows.find((row) => row.id === 'fixture-engine')?.config?.session).toMatchObject(
+      {
+        inputEnabled: true,
+        variables: { callerName: 'Asha' },
+      },
+    );
+  });
   it('resolves same-major pins, prunes services and composes the actual session rows', async () => {
     const selected = selectSessionGraph(input());
     expect(selected.resolved.engine).toEqual({
@@ -142,6 +170,13 @@ describe('selected session graph', () => {
     const graph = await compose(selected.rows, selected.catalog, { scope: 'session' });
     expect(graph.get(Cap.behavior)).toBeDefined();
     await graph.dispose();
+  });
+  it('keeps transitive host services needed by another selected host service', () => {
+    const selectedInput = input();
+    const usageWithClock = definePlugin({ ...usage.manifest, requires: [Cap.clock] }, usage.apply);
+    selectedInput.hostServices = [usageWithClock, transcripts, unused];
+    const selected = selectSessionGraph(selectedInput);
+    expect(selected.rows.map((row) => row.id)).toContain('host-clock');
   });
   it('resolves exact pins, rejects different majors and does not trust session keys from parent', () => {
     const exact = input('1.2.0');

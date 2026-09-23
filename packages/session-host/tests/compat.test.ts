@@ -1,172 +1,38 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  AgentConfig,
-  Cap,
-  type AudioFormat,
-  type ReleaseSelections,
-} from '@winsendotai/ovo-contracts';
-import {
-  definePlugin,
-  PluginRegistry,
-  setGlibcProbe,
-  type PluginDefinition,
-} from '@winsendotai/ovo-runtime';
+import { AgentConfig } from '@winsendotai/ovo-contracts';
+import { definePlugin, PluginRegistry, setGlibcProbe } from '@winsendotai/ovo-runtime';
 import { validateSelections, type CompatInput } from '../src/compat/index.ts';
+import {
+  MULAW,
+  UNREACHABLE,
+  speech,
+  carrier,
+  data,
+  catalog,
+  fixture,
+  withConfig,
+  codes,
+} from './compat-support.ts';
 
-const MULAW: AudioFormat = { encoding: 'mulaw', sampleRate: 8000, channels: 1 };
-const PCM: AudioFormat = { encoding: 'pcm_s16le', sampleRate: 24000, channels: 1 };
-const UNREACHABLE: AudioFormat = { encoding: 'pcm_s16le', sampleRate: 22050, channels: 1 };
-const speech = {
-  languages: ['en-IN'],
-  interim: true,
-  wordTimestamps: false,
-  turnSignals: ['end-of-turn'],
-  forceEndpoint: false,
-};
-const carrier = {
-  carrierId: 'fixture',
-  media: {
-    formats: [MULAW],
-    playbackEvidence: 'carrier-played',
-    clear: true,
-    clearFlushesMarkers: true,
-    dtmf: true,
-    queryOnMediaUrl: false,
-  },
-  control: {
-    callIdTiming: 'at-dial',
-    streamParams: 'at-dial',
-    streamCallIdMatchesDial: true,
-    cancelBeforeAnswer: true,
-    handoff: [],
-    amd: 'async',
-    maxDuration: true,
-    reconcile: 'by-call-id',
-    hangup: 'rest',
-  },
-  continuation: 'none',
-  webhookAuth: 'hmac-signature',
-  pacing: { cps: 1 },
-};
-const engine = {
-  turnDetection: ['provider'],
-  bargeIn: true,
-  dtmf: true,
-  confirmedPlayback: true,
-  ownsProviders: false,
-  formats: [MULAW],
-  consumesTurnDetector: false,
-};
-const data = {
-  engine: {
-    kind: 'engine',
-    provider: 'engine',
-    provides: [Cap.engine],
-    capabilities: engine,
-    conformance: ['engine@1'],
-  },
-  carrier: {
-    kind: 'carrier',
-    provider: 'carrier',
-    provides: [Cap.carrierControl],
-    capabilities: carrier,
-    conformance: ['carrier@1'],
-  },
-  stt: {
-    kind: 'stt',
-    provider: 'stt',
-    provides: [Cap.stt],
-    capabilities: { ...speech, inputFormats: [MULAW] },
-    conformance: ['stt@1'],
-  },
-  tts: {
-    kind: 'tts',
-    provider: 'tts',
-    provides: [Cap.tts],
-    capabilities: { ...speech, outputFormats: [PCM] },
-    conformance: ['tts@1'],
-  },
-  llm: {
-    kind: 'llm',
-    provider: 'llm',
-    provides: [Cap.inference],
-    capabilities: { tools: true, streaming: true },
-    conformance: ['llm@1'],
-  },
-} as const;
-function catalog(change: Record<string, Record<string, unknown>> = {}) {
-  return Object.entries(data).map(([id, row]) =>
-    definePlugin(
-      {
-        id,
-        version: '1.0.0',
-        contractVersion: 2,
-        scope: 'session',
-        ...row,
-        meters:
-          id === 'engine'
-            ? undefined
-            : [{ key: `${id}.usage`, unit: 'audio_seconds', label: 'Usage', role: id }],
-        runtime: { egressHosts: [], modelLicences: [] },
-        bindingSchema: {
-          type: 'object',
-          properties: { model: { type: 'string' } },
-          required: ['model'],
-        },
-        ...change[id],
-      } as never,
-      () => undefined,
-    ),
-  );
-}
-function fixture(change: Record<string, Record<string, unknown>> = {}): CompatInput {
-  const definitions = catalog(change);
-  const snapshot = (id: string) => ({
-    provider: id,
-    config: { model: 'ok' },
-    credentialId: 'credential',
-    fingerprint: 'fingerprint',
-    updatedAt: 'today',
-  });
-  const selections = Object.fromEntries(
-    Object.keys(data).map((id) => [
-      id,
-      {
-        pluginId: id,
-        version: '1.0.0',
-        ...(id === 'engine' ? {} : { bindingId: id, binding: snapshot(id) }),
-        config: {},
-      },
-    ]),
-  ) as ReleaseSelections;
-  return {
-    config: AgentConfig.parse({ name: 'fixture', mode: 'context', language: 'en-IN' }),
-    selections,
-    registry: new PluginRegistry(definitions),
-    carrierFrameMs: 100,
-    turnStrategy: 'provider',
-    amd: false,
-    glibc: true,
-    acceptedLicences: [],
-    priceCards: { 'carrier.usage': {}, 'stt.usage': {}, 'tts.usage': {}, 'llm.usage': {} },
-    fixturePluginIds: ['carrier', 'stt', 'tts', 'llm'],
-  };
-}
-function withConfig(input: CompatInput, raw: Record<string, unknown>) {
-  input.config = AgentConfig.parse({ ...input.config, ...raw });
-  return input;
-}
-function codes(input: CompatInput, stage: 'release' | 'live' | 'test') {
-  return validateSelections(input, stage).map((entry) => entry.code);
-}
 function proves(
   code: string,
   stage: 'release' | 'live' | 'test',
   bad: () => CompatInput,
   good: () => CompatInput = () => fixture(),
+  severity: 'error' | 'warning' = [
+    'legacy_release_unpinned',
+    'stt_frame_size',
+    'mode_llm_unused',
+  ].includes(code)
+    ? 'warning'
+    : 'error',
 ) {
   it(`${code}: rejects broken input and accepts the valid counterpart`, () => {
-    expect(codes(bad(), stage)).toContain(code);
+    expect(validateSelections(bad(), stage)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code, stage, severity, message: expect.any(String) }),
+      ]),
+    );
     expect(codes(good(), stage)).not.toContain(code);
   });
 }
@@ -288,7 +154,7 @@ describe('every compatibility rule has a true negative', () => {
     fixture({ tts: { runtime: { egressHosts: [], modelLicences: ['silero'] } } }),
   );
   proves('fixture_unavailable', 'test', () => ({ ...fixture(), fixturePluginIds: [] }));
-  proves('mcp_tool_removed', 'release', () => {
+  const mcpFixture = (removedAt: string | null) => {
     const input = withConfig(fixture(), {
       tools: [
         {
@@ -303,17 +169,128 @@ describe('every compatibility rule has a true negative', () => {
       ],
       allowedTools: ['lookup'],
     });
-    input.discoveredMcpTools = [{ connectionId: 'conn', remoteName: 'lookup', removedAt: 'now' }];
+    input.discoveredMcpTools = [{ connectionId: 'conn', remoteName: 'lookup', removedAt }];
     return input;
-  });
-  proves('termination_unsupported', 'live', () =>
-    fixture({
+  };
+  proves(
+    'mcp_tool_removed',
+    'release',
+    () => mcpFixture('now'),
+    () => mcpFixture(null),
+  );
+  const closeStreamFixture = (attested: boolean) => {
+    const input = fixture({
       carrier: {
         capabilities: { ...carrier, control: { ...carrier.control, hangup: 'close-stream' } },
       },
-    }),
+    });
+    if (attested) input.selections!.carrier!.binding!.config.streamEndTerminatesCall = true;
+    return input;
+  };
+  proves(
+    'termination_unsupported',
+    'live',
+    () => closeStreamFixture(false),
+    () => closeStreamFixture(true),
   );
   proves('legacy_release_unpinned', 'live', () => ({ ...fixture(), selections: undefined }));
+
+  it('blocks confirmed writes when the engine or carrier selection is missing', () => {
+    const confirmed = withConfig(fixture(), {
+      tools: [
+        {
+          id: 'write',
+          description: 'write',
+          connector: 'native',
+          inputSchema: {},
+          effect: 'write',
+          confirmation: true,
+        },
+      ],
+    });
+    confirmed.selections = { ...confirmed.selections, engine: undefined };
+    expect(codes(confirmed, 'live')).toContain('playback_evidence_insufficient');
+    confirmed.selections = {
+      ...confirmed.selections,
+      engine: fixture().selections!.engine,
+      carrier: undefined,
+    };
+    expect(codes(confirmed, 'live')).toContain('playback_evidence_insufficient');
+  });
+  it('checks the actual inbound carrier instead of the release carrier', () => {
+    const input = withConfig(fixture(), {
+      tools: [
+        {
+          id: 'write',
+          description: 'write',
+          connector: 'native',
+          inputSchema: {},
+          effect: 'write',
+          confirmation: true,
+        },
+      ],
+    });
+    input.registry = new PluginRegistry([
+      ...input.registry.list(),
+      ...catalog({
+        carrier: {
+          capabilities: { ...carrier, media: { ...carrier.media, playbackEvidence: 'none' } },
+        },
+      })
+        .filter((row) => row.manifest.id === 'carrier')
+        .map((row) =>
+          definePlugin({ ...row.manifest, id: 'inbound-carrier' } as never, () => undefined),
+        ),
+    ]);
+    input.actualCarrier = { pluginId: 'inbound-carrier', version: '1.0.0', config: {} };
+    expect(codes(input, 'live')).toContain('playback_evidence_insufficient');
+  });
+  it('validates meter coverage for legacy selections and scripted announcements', () => {
+    const legacy = fixture();
+    legacy.selections = undefined;
+    legacy.config = AgentConfig.parse({
+      name: 'legacy',
+      mode: 'announcement',
+      providers: { telephony: 'old-carrier', tts: 'old-tts' },
+    });
+    legacy.defaults = { engine: 'engine' };
+    legacy.legacyProviderBindings = {
+      'old-carrier': {
+        id: 'old-carrier',
+        provider: 'carrier',
+        pluginId: 'carrier',
+        config: { model: 'ok' },
+      },
+      'old-tts': { id: 'old-tts', provider: 'tts', pluginId: 'tts', config: { model: 'ok' } },
+    };
+    legacy.priceCards = {};
+    expect(validateSelections(legacy, 'live')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'meter_uncovered',
+          slot: 'carrier',
+          pluginId: 'carrier',
+          field: 'carrier.usage',
+        }),
+        expect.objectContaining({
+          code: 'meter_uncovered',
+          slot: 'tts',
+          pluginId: 'tts',
+          field: 'tts.usage',
+        }),
+      ]),
+    );
+    const scripted = fixture();
+    scripted.config = AgentConfig.parse({
+      name: 'scripted',
+      mode: 'announcement',
+      script: { start: 'first', nodes: [{ id: 'first', prompt: 'Hello', terminal: true }] },
+    });
+    scripted.priceCards = { 'carrier.usage': {}, 'tts.usage': {}, 'llm.usage': {} };
+    expect(validateSelections(scripted, 'live')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'meter_uncovered', slot: 'stt' })]),
+    );
+  });
 
   it('finds inline secrets nested in the actual provider row config', () => {
     const bad = edit(

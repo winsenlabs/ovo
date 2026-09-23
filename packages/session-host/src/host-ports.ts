@@ -25,6 +25,8 @@ export interface CarrierHostPortsOptions {
   carrierId?: string;
   /** Only carriers declaring queryOnMediaUrl may receive opts.query. */
   queryOnMediaUrl?: (carrierId: string) => boolean;
+  /** Carrier capability used to decide whether a differing stream call ID needs an audit. */
+  streamCallIdMatchesDial?: (carrierId: string) => boolean | 'unknown';
   clock?: { now(): number };
   workerFreshSeconds?: number;
 }
@@ -102,8 +104,27 @@ export function createCarrierHostPorts(options: CarrierHostPortsOptions): Carrie
         return false;
       }
     },
-    streamForDial: (query) => streamForDial(options.orchestration, query, urls, now),
-    resumeStream: (query) =>
-      resumeStream(options.orchestration, query, urls, now, options.workerFreshSeconds ?? 30),
+    async streamForDial(query) {
+      const binding = await options.bindings(query.bindingId, query.carrierId);
+      if (!binding.workspaceId) return { kind: 'unmatched' };
+      return streamForDial(
+        options.orchestration,
+        { ...query, organizationId: binding.workspaceId },
+        urls,
+        now,
+        options.streamCallIdMatchesDial?.(query.carrierId),
+      );
+    },
+    async resumeStream(query) {
+      const binding = await options.bindings(query.bindingId, query.carrierId);
+      if (!binding.workspaceId) return { kind: 'ended' };
+      return resumeStream(
+        options.orchestration,
+        { ...query, organizationId: binding.workspaceId },
+        urls,
+        now,
+        options.workerFreshSeconds ?? 30,
+      );
+    },
   };
 }

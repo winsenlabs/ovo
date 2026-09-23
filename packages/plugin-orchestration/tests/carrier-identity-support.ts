@@ -3,6 +3,12 @@ import type { Pool } from 'pg';
 import type { PostgresOrchestrationStore } from '../src/postgres.ts';
 
 export async function beginRoute(store: PostgresOrchestrationStore, schema: string, label: string) {
+  await store.reportWorker({
+    workerId: 'carrier-worker',
+    state: 'active',
+    ownershipEpoch: 1,
+    leaseMs: 60_000,
+  });
   const jobId = randomUUID();
   await store.enqueue({ id: jobId, workspaceId: schema, idempotencyKey: label, payload: {} });
   const claimed = await store.claim(jobId, 'carrier-worker', 60_000);

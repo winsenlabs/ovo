@@ -57,12 +57,18 @@ export class PostgresInspectionRepository {
     const size = pageLimit(limit),
       after = decodeCursor(cursor);
     const result = await this.pool.query<Row>(
-      `SELECT * FROM ovo_ctl_evaluations WHERE workspace_id=$1
+      `SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
+       FROM ovo_ctl_evaluations WHERE workspace_id=$1
        AND ($2::timestamptz IS NULL OR (created_at,id) > ($2::timestamptz,$3::text))
        ORDER BY created_at,id LIMIT $4`,
       [workspaceId, after?.at ?? null, after?.id ?? '', size + 1],
     );
-    return pageFromRows(result.rows, size, (row) => this.mapEvaluation(row));
+    return pageFromRows(
+      result.rows,
+      size,
+      (row) => this.mapEvaluation(row),
+      (row) => ({ at: String(row.cursor_at), id: String(row.id) }),
+    );
   }
 
   private mapUsage(row: Row): UsageEntry {
@@ -115,12 +121,18 @@ export class PostgresInspectionRepository {
     const size = pageLimit(limit),
       after = decodeCursor(cursor);
     const result = await this.pool.query<Row>(
-      `SELECT * FROM ovo_ctl_usage_entries WHERE workspace_id=$1 AND call_id=$2
+      `SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
+       FROM ovo_ctl_usage_entries WHERE workspace_id=$1 AND call_id=$2
        AND ($3::timestamptz IS NULL OR (created_at,id) > ($3::timestamptz,$4::text))
        ORDER BY created_at,id LIMIT $5`,
       [workspaceId, callId, after?.at ?? null, after?.id ?? '', size + 1],
     );
-    return pageFromRows(result.rows, size, (row) => this.mapUsage(row));
+    return pageFromRows(
+      result.rows,
+      size,
+      (row) => this.mapUsage(row),
+      (row) => ({ at: String(row.cursor_at), id: String(row.id) }),
+    );
   }
 
   async audit(input: {
@@ -163,20 +175,26 @@ export class PostgresInspectionRepository {
     const size = pageLimit(limit),
       after = decodeCursor(cursor);
     const result = await this.pool.query<Row>(
-      `SELECT * FROM ovo_ctl_audit_entries WHERE workspace_id=$1
+      `SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
+       FROM ovo_ctl_audit_entries WHERE workspace_id=$1
        AND ($2::timestamptz IS NULL OR (created_at,id) > ($2::timestamptz,$3::text))
        ORDER BY created_at,id LIMIT $4`,
       [workspaceId, after?.at ?? null, after?.id ?? '', size + 1],
     );
-    return pageFromRows(result.rows, size, (row) => ({
-      id: String(row.id),
-      workspaceId: String(row.workspace_id),
-      actorId: String(row.actor_id),
-      action: String(row.action),
-      resourceType: String(row.resource_type),
-      resourceId: String(row.resource_id),
-      payload: row.payload as Record<string, unknown>,
-      createdAt: toIso(row.created_at),
-    }));
+    return pageFromRows(
+      result.rows,
+      size,
+      (row) => ({
+        id: String(row.id),
+        workspaceId: String(row.workspace_id),
+        actorId: String(row.actor_id),
+        action: String(row.action),
+        resourceType: String(row.resource_type),
+        resourceId: String(row.resource_id),
+        payload: row.payload as Record<string, unknown>,
+        createdAt: toIso(row.created_at),
+      }),
+      (row) => ({ at: String(row.cursor_at), id: String(row.id) }),
+    );
   }
 }

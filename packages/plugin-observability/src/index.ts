@@ -33,3 +33,5 @@ export const observabilityPlugin = definePlugin(
     });
   },
 );
+
+export const plugins = [observabilityPlugin];

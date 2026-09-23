@@ -120,7 +120,6 @@ interface AwsModule {
   DeleteSecretCommand: new (input: Record<string, unknown>) => unknown;
 }
 
-/** AWS adapter loaded lazily so local development does not initialize AWS clients. */
 export class AwsSecretsManagerSecretManager implements SecretManager {
   constructor(
     private readonly store: ControlStore,
@@ -294,3 +293,5 @@ export const secretsPlugin = definePlugin(
     ctx.provide('ovo.secret-resolver', service);
   },
 );
+
+export const plugins = [secretsPlugin];

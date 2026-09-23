@@ -89,6 +89,18 @@ export function inboundDecisionFor(
         throw new TypeError('Inbound callback requires positive timeoutSeconds');
       if (typeof decision.announcement !== 'string')
         throw new TypeError('Inbound callback requires announcement');
+      switch (decision.state) {
+        case 'queued':
+          return { kind: 'hangup', message: 'Your callback request has been queued.' };
+        case 'declined':
+          return { kind: 'hangup', message: 'No callback was requested.' };
+        case 'suppressed':
+          return { kind: 'hangup', message: 'A callback cannot be scheduled for this number.' };
+        case 'prompt':
+          break;
+        default:
+          throw new TypeError(`Unsupported inbound callback state: ${String(decision.state)}`);
+      }
       return {
         kind: 'callback-offer',
         prompt: decision.announcement,

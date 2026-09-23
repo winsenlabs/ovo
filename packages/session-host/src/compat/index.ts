@@ -23,6 +23,7 @@ import { mcpToolRemoved } from './mcp-tool-removed.ts';
 import { terminationUnsupported } from './termination-unsupported.ts';
 import { legacyReleaseUnpinned } from './legacy-release-unpinned.ts';
 import type { CompatInput, CompatRule } from './types.ts';
+import { legacySelections } from '../legacy-session-selections.ts';
 
 export type { CompatInput } from './types.ts';
 
@@ -57,5 +58,35 @@ const ADMISSION_RULES: readonly CompatRule[] = [
 /** Pure compatibility evaluation. The caller decides whether a stage's errors block the action. */
 export function validateSelections(input: CompatInput, stage: CompatStage): CompatIssue[] {
   const rules = stage === 'release' ? RELEASE_RULES : [...RELEASE_RULES, ...ADMISSION_RULES];
-  return rules.flatMap((rule) => rule(input, stage));
+  let selections = input.selections;
+  if (!selections || !Object.keys(selections).length) {
+    try {
+      selections = legacySelections({
+        release: { config: input.config, providerBindings: input.legacyProviderBindings },
+        registry: input.registry,
+        defaults: input.defaults,
+      });
+    } catch {
+      // Missing required roles are reported by admission rules below.
+    }
+  }
+  const effective: CompatInput = {
+    ...input,
+    bindings: {
+      ...Object.fromEntries(
+        Object.entries(input.legacyProviderBindings ?? {}).map(([id, binding]) => [
+          id,
+          { pluginId: binding.pluginId, provider: binding.provider, config: binding.config ?? {} },
+        ]),
+      ),
+      ...input.bindings,
+    },
+    selections:
+      stage !== 'release' && input.actualCarrier
+        ? { ...selections, carrier: input.actualCarrier }
+        : selections,
+  };
+  return rules.flatMap((rule) =>
+    rule === legacyReleaseUnpinned ? rule(input, stage) : rule(effective, stage),
+  );
 }

@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PostgresOrchestrationStore } from '../../plugin-orchestration/src/postgres.ts';
 import { beginRoute } from '../../plugin-orchestration/tests/carrier-identity-support.ts';
 import { createCarrierHostPorts } from '../src/host-ports.ts';
+import type { CarrierTerminationOptions } from '../src/terminate.ts';
 
 const url = process.env.OVO_TEST_POSTGRES_URL;
 describe.skipIf(!url)('host ports through real PostgreSQL route grants', () => {
@@ -35,16 +36,15 @@ describe.skipIf(!url)('host ports through real PostgreSQL route grants', () => {
         confirmCallback: async () => ({ kind: 'hangup' }),
       },
       orchestration: {
-        resolveSessionRoute: (query: {
-          sessionId?: string;
-          carrierCallId?: string;
-          dialRequestId?: string;
-          carrierRequestId?: string;
-        }) => store.resolveSessionRoute(query),
+        resolveSessionRoute: (query: Parameters<typeof store.resolveSessionRoute>[0]) =>
+          store.resolveSessionRoute(query),
         issueStreamGrant: (input: Parameters<typeof store.issueStreamGrant>[0]) =>
           store.issueStreamGrant(input),
         reissueStream: (input: Parameters<typeof store.reissueStream>[0]) =>
           store.reissueStream(input),
+        recordCarrierCallIdMismatch: (
+          input: Parameters<typeof store.recordCarrierCallIdMismatch>[0],
+        ) => store.recordCarrierCallIdMismatch(input),
         applyCallEvent: async () => ({ kind: 'applied' }),
       },
       bindings: async () => ({
@@ -57,7 +57,9 @@ describe.skipIf(!url)('host ports through real PostgreSQL route grants', () => {
     } as never);
   }
   it('mints through the host, authenticates once, and denies a late grant after termination', async () => {
-    const { route, jobId, owner } = await beginRoute(store, schema, 'host-path');
+    const { route } = await beginRoute(store, schema, 'host-path');
+    const terminationStore: CarrierTerminationOptions['store'] = store;
+    expect(terminationStore).toBe(store);
     const host = ports();
     const query = {
       carrierId: 'carrier-test',
@@ -74,7 +76,7 @@ describe.skipIf(!url)('host ports through real PostgreSQL route grants', () => {
     expect(
       await store.authenticateSessionRoute(route.sessionId, grant.routeParams.rt),
     ).toBeUndefined();
-    await store.requestSessionTermination(jobId, owner.ownerId, owner.ownerEpoch, 'owner_lost');
+    await store.requestSessionTermination(route, 'owner_lost');
     expect(await host.streamForDial(query)).toEqual({ kind: 'ended' });
   });
 });

@@ -262,6 +262,27 @@ describe('selection helpers', () => {
     );
     expect(v2).toMatchObject({ exact: false, rowConfig: { greeting: 'hi' } });
   });
+  it('enables scripted announcement input and forwards initial call variables to the legacy engine', () => {
+    const release = {
+      config: AgentConfig.parse({
+        name: 'scripted',
+        mode: 'announcement',
+        script: { start: 'first', nodes: [{ id: 'first', prompt: 'Hello', terminal: true }] },
+      }),
+      plugins: [],
+    };
+    const selected = selectEngine(
+      release,
+      new PluginRegistry([engineV2]),
+      { plugins: [] },
+      () => engineV2,
+      { callerName: 'Asha' },
+    );
+    expect(selected.rowConfig).toMatchObject({
+      inputEnabled: true,
+      initialVariables: { callerName: 'Asha' },
+    });
+  });
   it('resolves env and stored carrier bindings on use, rejecting placeholders and mismatches', async () => {
     const registry = new PluginRegistry([carrier]);
     const store = {

@@ -5,7 +5,8 @@ import type {
   SessionRouteStatus,
 } from '../types.ts';
 import { transaction } from './database.ts';
-import { callIdAvailable, lockCarrierCallId } from './call-identity.ts';
+import { assertCompleteCarrierScope, callIdAvailable, lockCarrierCallId } from './call-identity.ts';
+import { recordCarrierCallIdMismatch } from './carrier-audit.ts';
 import { fromSessionRouteRow, sessionRouteColumns, type SessionRouteRow } from './session-model.ts';
 
 const terminal = new Set<SessionRouteStatus>(['completed', 'failed', 'cancelled']);
@@ -36,6 +37,22 @@ function advances(current: SessionRouteStatus, next: SessionRouteStatus): boolea
   return current === 'dialing' && next === 'accepted';
 }
 
+async function auditLateDialId(
+  client: PoolClient,
+  row: SessionRouteRow,
+  primaryCallId: string | null,
+): Promise<void> {
+  if (!primaryCallId || !row.carrier_stream_call_id || primaryCallId === row.carrier_stream_call_id)
+    return;
+  await recordCarrierCallIdMismatch(client, {
+    sessionId: row.session_id,
+    organizationId: row.organization_id,
+    carrierId: row.carrier_id,
+    dialCallId: primaryCallId,
+    streamCallId: row.carrier_stream_call_id,
+  });
+}
+
 async function currentRoute(
   client: PoolClient,
   input: CarrierCallbackCorrelationInput,
@@ -43,11 +60,19 @@ async function currentRoute(
 ) {
   const result = await client.query<SessionRouteRow>(
     `SELECT ${sessionRouteColumns} FROM ovo_session_routes
-     WHERE ($1::text IS NOT NULL AND dial_request_id = $1)
+     WHERE (($1::text IS NOT NULL AND dial_request_id = $1)
         OR ($2::text IS NOT NULL AND carrier_request_id = $2)
-        OR ($3::text IS NOT NULL AND (carrier_call_id = $3 OR carrier_stream_call_id = $3))
+        OR ($3::text IS NOT NULL AND (carrier_call_id = $3 OR carrier_stream_call_id = $3)))
+       AND ($4::text IS NULL OR organization_id = $4)
+       AND ($5::text IS NULL OR carrier_id = $5)
      LIMIT 2 ${lock ? 'FOR UPDATE' : ''}`,
-    [input.dialRequestId ?? null, input.carrierRequestId ?? null, input.carrierCallId ?? null],
+    [
+      input.dialRequestId ?? null,
+      input.carrierRequestId ?? null,
+      input.carrierCallId ?? null,
+      input.organizationId ?? null,
+      input.carrierId ?? null,
+    ],
   );
   return result.rows;
 }
@@ -56,13 +81,20 @@ export class CarrierCallbackRepository {
   constructor(private readonly pool: Pool) {}
 
   async apply(input: CarrierCallbackCorrelationInput): Promise<CarrierCallbackResult> {
+    assertCompleteCarrierScope(input);
     return transaction(this.pool, async (client) => {
       const preview = await currentRoute(client, input);
       if (!preview[0]) return { kind: 'unmatched' };
       if (preview.length > 1)
         return { kind: 'correlation_conflict', route: fromSessionRouteRow(preview[0]) };
       await client.query('SELECT id FROM ovo_jobs WHERE id = $1 FOR UPDATE', [preview[0].job_id]);
-      if (input.carrierCallId) await lockCarrierCallId(client, input.carrierCallId);
+      if (input.carrierCallId)
+        await lockCarrierCallId(
+          client,
+          preview[0].organization_id,
+          preview[0].carrier_id,
+          input.carrierCallId,
+        );
       const matches = await currentRoute(client, input, true);
       const row = matches[0];
       if (!row) return { kind: 'unmatched' };
@@ -77,16 +109,26 @@ export class CarrierCallbackRepository {
           row.carrier_call_id &&
           row.carrier_call_id !== input.carrierCallId &&
           row.carrier_stream_call_id !== input.carrierCallId) ||
-        (input.carrierCallId && !(await callIdAvailable(client, row.job_id, input.carrierCallId)))
+        (input.carrierCallId &&
+          !(await callIdAvailable(
+            client,
+            row.organization_id,
+            row.carrier_id,
+            row.job_id,
+            input.carrierCallId,
+          )))
       ) {
         return { kind: 'correlation_conflict', route: fromSessionRouteRow(row) };
       }
-      const primaryCallId = row.carrier_call_id ?? input.carrierCallId ?? null;
+      const primaryCallId =
+        row.carrier_call_id ??
+        (input.carrierCallId === row.carrier_stream_call_id ? null : (input.carrierCallId ?? null));
       const event = await client.query(
         `INSERT INTO ovo_carrier_callbacks (
-           provider, event_id, session_id, dial_request_id, carrier_call_id, status, occurred_at, payload
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
-         ON CONFLICT (provider, event_id) DO NOTHING`,
+           provider, event_id, session_id, dial_request_id, carrier_call_id, status, occurred_at,
+           payload, organization_id, carrier_id
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
+         ON CONFLICT (organization_id, carrier_id, provider, event_id) DO NOTHING`,
         [
           input.provider,
           input.eventId,
@@ -96,6 +138,8 @@ export class CarrierCallbackRepository {
           input.status,
           input.occurredAt,
           JSON.stringify(input.payload ?? {}),
+          row.organization_id,
+          row.carrier_id,
         ],
       );
       if (event.rowCount !== 1) {
@@ -118,6 +162,7 @@ export class CarrierCallbackRepository {
             [row.job_id, primaryCallId, input.carrierRequestId ?? null],
           );
           row.carrier_call_id = primaryCallId;
+          await auditLateDialId(client, row, primaryCallId);
         }
         return { kind: 'ignored_out_of_order', route: fromSessionRouteRow(row) };
       }
@@ -163,6 +208,7 @@ export class CarrierCallbackRepository {
           input.carrierRequestId ?? null,
         ],
       );
+      await auditLateDialId(client, row, primaryCallId);
       return { kind: 'applied', route: fromSessionRouteRow(updated.rows[0]!) };
     });
   }

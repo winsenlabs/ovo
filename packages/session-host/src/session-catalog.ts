@@ -51,12 +51,29 @@ export function createSessionPluginCatalog(input: SessionPluginInput): PluginDef
   const plugins: PluginDefinition[] = [behavior];
   const needsExecution =
     config.mode === 'agent' || behavior.manifest.id === BEHAVIOR_PLUGIN_IDS.faqTools;
+  let missingLiveInference = false;
   if (config.mode === 'context' || config.mode === 'agent') {
+    const binding = input.bindings.inference;
+    if (binding !== undefined) {
+      const bindingWorkspace =
+        binding && typeof binding === 'object' && 'workspaceId' in binding
+          ? binding.workspaceId
+          : undefined;
+      if (bindingWorkspace !== input.workspaceId)
+        throw new Error('Inference binding belongs to another workspace');
+    }
     if (input.inferencePlugin) plugins.push(input.inferencePlugin);
-    else if (input.output.kind === 'simulation' && !input.bindings.inference)
+    else if (input.output.kind === 'simulation' && !binding)
       throw new Error('An inference binding is required');
+    else missingLiveInference = input.output.kind === 'live';
   }
-  if (!needsExecution) return plugins;
+  const assertLiveInference = () => {
+    if (missingLiveInference) throw new Error('Live inference plugin is required until F4 wiring');
+  };
+  if (!needsExecution) {
+    assertLiveInference();
+    return plugins;
+  }
   plugins.push(
     createExecutionPlugin({
       tools: config.tools,
@@ -138,5 +155,6 @@ export function createSessionPluginCatalog(input: SessionPluginInput): PluginDef
       throw new Error('An approved MCP connection is missing');
     plugins.push(createMcpToolsPlugin(connections));
   }
+  assertLiveInference();
   return plugins;
 }

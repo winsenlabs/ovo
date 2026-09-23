@@ -50,14 +50,20 @@ export interface MarkDialAcceptedInput {
   carrierRequestId?: string;
 }
 
-export interface RouteLookup {
+interface CorrelationKeys {
   sessionId?: string;
   carrierCallId?: string;
   dialRequestId?: string;
   carrierRequestId?: string;
 }
 
+export type RouteLookup =
+  | (CorrelationKeys & { organizationId: string; carrierId: string })
+  | (CorrelationKeys & { carrierCallId: string; organizationId?: never; carrierId?: never });
+
 export interface BindCarrierCallInput {
+  organizationId: string;
+  carrierId: string;
   sessionId?: string;
   dialRequestId?: string;
   carrierCallId: string;
@@ -67,18 +73,44 @@ export type BindCarrierCallResult =
   { kind: 'bound' | 'alias'; route: SessionRoute } | { kind: 'conflict' | 'unmatched' };
 
 export interface IssueStreamGrantInput {
+  organizationId: string;
+  carrierId: string;
   dialRequestId?: string;
   carrierRequestId?: string;
   carrierCallId?: string;
+  streamCallIdMatchesDial?: boolean | 'unknown';
   tokenHash: string;
   expiresAt: Date;
 }
 
 export interface ReissueStreamInput {
+  organizationId: string;
+  carrierId: string;
   carrierCallId: string;
   tokenHash: string;
   expiresAt: Date;
   workerFreshSeconds: number;
+}
+
+export interface CarrierCallIdMismatchInput {
+  sessionId: string;
+  organizationId: string;
+  carrierId: string;
+  dialCallId: string;
+  streamCallId: string;
+}
+
+export interface SessionTerminationRequester {
+  (
+    jobId: string,
+    workerId: string,
+    epoch: number,
+    reason: string,
+  ): Promise<{ carrierCallId?: string; carrierRequestId?: string } | undefined>;
+  (
+    route: Pick<SessionRoute, 'sessionId' | 'jobId' | 'workerId' | 'ownerEpoch'>,
+    reason: string,
+  ): Promise<{ carrierCallId?: string; carrierRequestId?: string } | undefined>;
 }
 
 export interface AdmissionSnapshot {
@@ -87,7 +119,7 @@ export interface AdmissionSnapshot {
   busySlots: number;
 }
 
-export interface CarrierCallbackInput {
+interface CarrierCallbackFields {
   provider: string;
   eventId: string;
   dialRequestId?: string;
@@ -106,9 +138,13 @@ export interface CarrierCallbackInput {
   payload?: Record<string, unknown>;
 }
 
-export type CarrierCallbackCorrelationInput = Omit<CarrierCallbackInput, 'carrierCallId'> & {
+export type CarrierCallbackInput =
+  | (CarrierCallbackFields & { organizationId: string; carrierId: string })
+  | (CarrierCallbackFields & { organizationId?: never; carrierId?: never });
+
+export type CarrierCallbackCorrelationInput = Omit<CarrierCallbackFields, 'carrierCallId'> & {
   carrierCallId?: string;
-};
+} & ({ organizationId: string; carrierId: string } | { organizationId?: never; carrierId?: never });
 
 export type CarrierCallbackResult =
   | { kind: 'applied' | 'duplicate' | 'ignored_out_of_order'; route: SessionRoute }
