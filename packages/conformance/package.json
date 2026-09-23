@@ -1,0 +1,24 @@
+{
+  "name": "@winsendotai/ovo-conformance",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./drivers": "./src/drivers.ts"
+  },
+  "dependencies": {
+    "@winsendotai/ovo-audio": "workspace:*",
+    "@winsendotai/ovo-behaviors": "workspace:*",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "@winsendotai/ovo-sdk": "workspace:*",
+    "ws": "8.21.3",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/ws": "8.18.1",
+    "vitest": "4.1.11"
+  }
+}

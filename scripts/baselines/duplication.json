@@ -1,0 +1,350 @@
+{
+  "pairs": [
+    {
+      "files": ["apps/api/src/infrastructure-types.ts", "apps/console/lib/operator-api.ts"],
+      "windows": 141
+    },
+    { "files": ["apps/api/src/routes/agents.ts", "apps/api/src/routes/mcp.ts"], "windows": 34 },
+    {
+      "files": ["apps/api/src/routes/cost.ts", "apps/api/src/routes/evaluation-datasets.ts"],
+      "windows": 10
+    },
+    {
+      "files": [
+        "apps/api/src/routes/cost.ts",
+        "apps/api/src/routes/evaluation-provider-authorizations.ts"
+      ],
+      "windows": 10
+    },
+    {
+      "files": ["apps/api/src/routes/cost.ts", "apps/api/src/routes/recording-lifecycle.ts"],
+      "windows": 10
+    },
+    {
+      "files": [
+        "apps/api/src/routes/evaluation-datasets.ts",
+        "apps/api/src/routes/evaluation-provider-authorizations.ts"
+      ],
+      "windows": 56
+    },
+    {
+      "files": [
+        "apps/api/src/routes/evaluation-datasets.ts",
+        "apps/api/src/routes/recording-lifecycle.ts"
+      ],
+      "windows": 10
+    },
+    {
+      "files": [
+        "apps/api/src/routes/evaluation-provider-authorizations.ts",
+        "apps/api/src/routes/recording-lifecycle.ts"
+      ],
+      "windows": 10
+    },
+    {
+      "files": [
+        "apps/api/src/routes/recording-lifecycle-data.ts",
+        "apps/worker/src/recording-runtime.ts"
+      ],
+      "windows": 12
+    },
+    {
+      "files": [
+        "apps/api/src/routes/recording-lifecycle-exports.ts",
+        "apps/api/src/routes/recording-lifecycle.ts"
+      ],
+      "windows": 157
+    },
+    {
+      "files": [
+        "apps/console/components/operations/budget-panel.tsx",
+        "apps/console/components/operations/fx-version-panel.tsx"
+      ],
+      "windows": 3
+    },
+    {
+      "files": [
+        "apps/console/components/operations/budget-panel.tsx",
+        "apps/console/components/operations/inbound-policy.tsx"
+      ],
+      "windows": 1
+    },
+    {
+      "files": [
+        "apps/console/components/operations/budget-panel.tsx",
+        "apps/console/components/operations/price-card-panel.tsx"
+      ],
+      "windows": 3
+    },
+    {
+      "files": [
+        "apps/console/components/operations/campaigns-view.tsx",
+        "apps/console/components/operations/suppressions-view.tsx"
+      ],
+      "windows": 9
+    },
+    {
+      "files": [
+        "apps/console/components/operations/fx-version-panel.tsx",
+        "apps/console/components/operations/price-card-panel.tsx"
+      ],
+      "windows": 185
+    },
+    {
+      "files": [
+        "apps/console/components/operations/fx-version-panel.tsx",
+        "apps/console/components/operations/reconciliation-panel.tsx"
+      ],
+      "windows": 10
+    },
+    {
+      "files": [
+        "apps/console/components/operations/price-card-panel.tsx",
+        "apps/console/components/operations/reconciliation-panel.tsx"
+      ],
+      "windows": 28
+    },
+    {
+      "files": [
+        "apps/console/components/studio/configuration-panels.tsx",
+        "apps/console/components/studio/faq-editor.tsx"
+      ],
+      "windows": 10
+    },
+    {
+      "files": [
+        "apps/console/components/studio/configuration-panels.tsx",
+        "apps/console/components/studio/json-object-input.tsx"
+      ],
+      "windows": 10
+    },
+    {
+      "files": [
+        "apps/console/components/studio/faq-editor.tsx",
+        "apps/console/components/studio/json-object-input.tsx"
+      ],
+      "windows": 109
+    },
+    {
+      "files": [
+        "apps/console/lib/operator-api.ts",
+        "packages/plugin-evaluations/src/provider-policy.ts"
+      ],
+      "windows": 4
+    },
+    {
+      "files": ["apps/console/lib/operator-api.ts", "packages/plugin-evaluations/src/types.ts"],
+      "windows": 1
+    },
+    {
+      "files": ["apps/console/lib/operator-api.ts", "packages/plugin-ledger/src/types.ts"],
+      "windows": 21
+    },
+    {
+      "files": [
+        "apps/console/lib/operator-api.ts",
+        "packages/plugin-observability/src/telemetry-types.ts"
+      ],
+      "windows": 21
+    },
+    {
+      "files": ["apps/dispatcher/src/main.ts", "apps/worker/src/worker-environment.ts"],
+      "windows": 4
+    },
+    {
+      "files": ["packages/contracts/src/speech/legacy.ts", "packages/plugin-media/src/ports.ts"],
+      "windows": 24
+    },
+    {
+      "files": [
+        "packages/contracts/src/speech/legacy.ts",
+        "packages/plugin-recordings/src/capture.ts"
+      ],
+      "windows": 24
+    },
+    {
+      "files": ["packages/plugin-inference/src/simulated.ts", "packages/plugin-voice/src/async.ts"],
+      "windows": 82
+    },
+    {
+      "files": ["packages/plugin-kit/src/abort.ts", "packages/plugin-providers/src/abort.ts"],
+      "windows": 36
+    },
+    {
+      "files": ["packages/plugin-kit/src/http.ts", "packages/plugin-providers/src/http.ts"],
+      "windows": 205
+    },
+    {
+      "files": [
+        "packages/plugin-ledger/src/postgres/catalog.ts",
+        "packages/plugin-ledger/src/postgres/usage-pricing.ts"
+      ],
+      "windows": 8
+    },
+    {
+      "files": ["packages/plugin-media/src/ports.ts", "packages/plugin-recordings/src/capture.ts"],
+      "windows": 98
+    },
+    {
+      "files": [
+        "packages/plugin-operations/src/database.ts",
+        "packages/plugin-orchestration/src/postgres/database.ts"
+      ],
+      "windows": 41
+    },
+    {
+      "files": [
+        "packages/plugin-operations/src/database.ts",
+        "packages/plugin-storage/src/postgres/shared.ts"
+      ],
+      "windows": 43
+    },
+    {
+      "files": [
+        "packages/plugin-orchestration/src/postgres/database.ts",
+        "packages/plugin-storage/src/postgres/shared.ts"
+      ],
+      "windows": 41
+    },
+    {
+      "files": [
+        "packages/plugin-recordings/src/background-worker.ts",
+        "packages/plugin-recordings/src/exports.ts"
+      ],
+      "windows": 3
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/control-store.ts",
+        "packages/plugin-storage/src/postgres/secrets-repository.ts"
+      ],
+      "windows": 14
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/control-store.ts",
+        "packages/plugin-storage/src/sqlite/secrets-repository.ts"
+      ],
+      "windows": 14
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/agents-repository.ts",
+        "packages/plugin-storage/src/postgres/inspection-repository.ts"
+      ],
+      "windows": 23
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/agents-repository.ts",
+        "packages/plugin-storage/src/postgres/mcp-repository.ts"
+      ],
+      "windows": 23
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/agents-repository.ts",
+        "packages/plugin-storage/src/postgres/secrets-repository.ts"
+      ],
+      "windows": 23
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/agents-repository.ts",
+        "packages/plugin-storage/src/sqlite/agents-repository.ts"
+      ],
+      "windows": 1
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/inspection-repository.ts",
+        "packages/plugin-storage/src/postgres/mcp-repository.ts"
+      ],
+      "windows": 23
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/inspection-repository.ts",
+        "packages/plugin-storage/src/postgres/secrets-repository.ts"
+      ],
+      "windows": 23
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/inspection-repository.ts",
+        "packages/plugin-storage/src/sqlite/inspection-repository.ts"
+      ],
+      "windows": 125
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/mcp-repository.ts",
+        "packages/plugin-storage/src/postgres/secrets-repository.ts"
+      ],
+      "windows": 23
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/mcp-repository.ts",
+        "packages/plugin-storage/src/sqlite/mcp-repository.ts"
+      ],
+      "windows": 34
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/secrets-repository.ts",
+        "packages/plugin-storage/src/sqlite/secrets-repository.ts"
+      ],
+      "windows": 83
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/store.ts",
+        "packages/plugin-storage/src/sqlite/store.ts"
+      ],
+      "windows": 7
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/sqlite/agents-repository.ts",
+        "packages/plugin-storage/src/sqlite/inspection-repository.ts"
+      ],
+      "windows": 13
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/sqlite/agents-repository.ts",
+        "packages/plugin-storage/src/sqlite/mcp-repository.ts"
+      ],
+      "windows": 12
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/sqlite/agents-repository.ts",
+        "packages/plugin-storage/src/sqlite/secrets-repository.ts"
+      ],
+      "windows": 12
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/sqlite/inspection-repository.ts",
+        "packages/plugin-storage/src/sqlite/mcp-repository.ts"
+      ],
+      "windows": 26
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/sqlite/inspection-repository.ts",
+        "packages/plugin-storage/src/sqlite/secrets-repository.ts"
+      ],
+      "windows": 26
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/sqlite/mcp-repository.ts",
+        "packages/plugin-storage/src/sqlite/secrets-repository.ts"
+      ],
+      "windows": 26
+    }
+  ]
+}

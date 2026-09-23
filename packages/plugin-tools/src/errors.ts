@@ -1,24 +1,10 @@
-import type { ErrorObject } from 'ajv';
-
-export class ExecutionPolicyError extends Error {}
-export class ConfirmationRequiredError extends ExecutionPolicyError {}
-export class OperationCollisionError extends ExecutionPolicyError {}
-
-export class ToolSchemaError extends ExecutionPolicyError {
-  constructor(
-    message: string,
-    readonly errors: readonly ErrorObject[] = [],
-  ) {
-    super(message);
-  }
-}
-
-export class ToolInvocationError extends Error {
-  constructor(
-    message: string,
-    readonly outcome: 'not-applied' | 'unknown',
-    options?: ErrorOptions,
-  ) {
-    super(message, options);
-  }
-}
+/** Moved to `@winsendotai/ovo-plugin-kit` (tool-errors.ts); re-exported so existing imports keep working. */
+export {
+  ConfirmationRequiredError,
+  ConnectorPolicyError,
+  ExecutionPolicyError,
+  OperationCollisionError,
+  ToolInvocationError,
+  ToolSchemaError,
+  type ToolSchemaIssue,
+} from '@winsendotai/ovo-plugin-kit/tool-errors';

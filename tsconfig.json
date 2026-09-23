@@ -13,6 +13,13 @@
     "types": ["node"],
     "jsx": "react-jsx"
   },
-  "include": ["packages/**/*.ts", "apps/**/*.ts", "experiments/**/*.ts"],
-  "exclude": ["node_modules", "apps/console", "**/dist/**"]
+  "include": [
+    "packages/**/*.ts",
+    "apps/**/*.ts",
+    "experiments/**/*.ts",
+    "scripts/**/*.ts",
+    "infra/**/*.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": ["node_modules", "apps/console", "**/dist/**", "scripts/tests/fixtures/**"]
 }
