@@ -123,3 +123,30 @@ The problem is not the numbers. It is that 1,000 green tests sit on top of four 
 Nine blocking code paths and the additional migration, audit, cursor, scope and test-quality findings above have fixes and regression tests. The live inference path instead has an explicit failure test and a documented broken window owned by F4, as the checker permitted. Fresh review also found and fixed exact-ID stream mismatches, a stream-first request-ID correlation order, transitive host-service dependencies, and preservation of the already-applied control migration 004 checksum. The app manifest and admission wiring remain with their named owners in the carry-forward table.
 
 Node 22 green bar: lint (7 gates), format, typecheck, **1,023 passed / 125 skipped** without Postgres; **1,139 passed / 9 skipped / 0 failed** in a fresh serial Postgres 17 run; 3 application bundles and Terraform validation. The original skip check was **991 + 104 = 1,095** and **1,086 + 9 = 1,095**: its 17 new skips were Postgres-gated, not disabled tests. The current run has **1,023 + 125 = 1,148** and **1,139 + 9 = 1,148**.
+
+## F3 re-check (2026-09-23): 9 of 10 fixed, one narrow item open
+
+Re-verified by three agents that reproduced every original failure against `a3d5542` before confirming the fix, so none of this rests on the builder's own tests. Green bar re-run by the checker: lint (7 gates), formatting, typecheck, build, Terraform, **1,023 passed / 125 skipped** default and **1,139 passed / 9 skipped / 0 failed** Postgres-serial. All 125 skips are conditionally database-gated; no disabled tests.
+
+**Verified dead** (with the original failure reproduced first):
+
+- **Carrier leg on a failed hangup.** The branch is now on `capabilities.control.hangup === 'close-stream'` rather than the hangup return value. A rejecting hangup, an `'ended'` return, and a throwing dispose all still close the stream. A throwing fence now disposes the engine instead of leaking it.
+- **Stream-grant ownership.** Running `a3d5542`'s verbatim SQL against the same seeded database mints a token for a dead worker and authenticates it; `c89253e` refuses it, along with replaced, draining and expired slots and every non-connected job status.
+- **The §4.10 fence.** Now matches the route's worker and epoch rather than the job's, so the dispossessed owner can fence; the result is checked, and the two-argument overload genuinely typechecks against the real store.
+- **Both admission checks.** `playback_evidence_insufficient` and `meter_uncovered` fire with absent selections, legacy derivation runs inside `validateSelections` and fails closed when its inputs are missing.
+- **The scripted announcement.** One shared `sessionRequiresInput` helper inside session-host, all three former copies import it, and per-call variables reach the engine.
+- **NULL call-id correlation**, in both arrival orders, with the stream id held provisional; exact-id carriers still reject a differing id at both layers.
+- **Callback states.** Queued, declined and suppressed each become a hangup with their own message; an unknown state throws.
+- **The catalog.** All six entries load the owning module's own `plugins` export. E2 can now add two same-provider text filters touching only `packages/plugin-voice/**`; the old code rejected that pair with `Duplicate installed text-filter provider ovo`.
+- **All five extras:** the `carrier.call_id_mismatch` audit event (four emit paths, conditional on the route actually holding both ids), the `search_path`-qualified ledger probe, the `worker_slot_epoch` backfill (only genuinely in-flight routes), migration 005 removing every narrow CHECK with a compound-check guard that refuses and asks for review, microsecond cursors on all three readers, and organization/carrier scoping that throws rather than silently widening.
+
+**Still open — one item, in F3's own seam**
+
+The fix for "live context/agent cannot compose" repaired the worker path and is honestly documented as a broken window with F4 named. But it introduced a differently-shaped break in `selectSessionGraph`:
+
+1. **The workspace guard rejects the binding shape F3 itself declares.** `session-catalog.ts:57-63` treats any binding object without a `workspaceId` property as cross-workspace. `NormalizationBinding` (`normalize.ts:4-8`), which is what `select-session-graph.ts:208-216` passes, is `{id, provider, pluginId?}` — no `workspaceId`. So every `context`/`agent` release routed through the host seam dies with a misleading "Inference binding belongs to another workspace".
+2. **`output: {kind:'host'}` is exempt from the live-inference assert**, so that graph composes with no `ovo.inference` provider and the original obscure `Missing service ovo.inference` resurfaces at `resolveGraph` — and `packages/plugin-session/tests/composition.test.ts:199-205` asserts `.not.toThrow()`, locking the wrong behaviour in.
+3. **Per-call variables are shallow-copied** (`engine-selection.ts:58`, `select-session-graph.ts:105`) where the path they replace used `structuredClone`. Nested variable objects stay aliased to the caller's payload.
+4. **Two test-quality items:** the `playback_evidence_insufficient` "valid counterpart" has `tools: []`, so the rule short-circuits before the evidence comparison and that half of the pairing would pass even if the logic were deleted; and `proves()`'s new `stage` assertion cannot fail, because `issue()` copies the stage it was given — the real gating (`RELEASE_RULES` vs `ADMISSION_RULES`) is untested.
+
+**Recorded, not blocking:** the input predicate still exists three times repo-wide (session-host, `apps/worker`, `apps/api/src/live-readiness.ts:27`) and the 60-token duplication gate cannot see it — F4 should unify it; the legacy call-id-only lookup deliberately spans tenants and wants a deprecation owner; `findCarrierCallId(requestId)` is unscoped and degrades closed; the post-grant audit write is unwrapped; and `qualifierOf` still keys `carrier.control`, `carrier.ingress` and `background-task` by provider, which is the same shape as defect 10 for any wave-2 unit shipping two same-provider background tasks.
