@@ -1,10 +1,16 @@
 import { seedAdminFromEnv } from './user-plugin.ts';
 import { buildManagementApi, bootstrapIdentitiesFromEnv, sessionSecretFromEnv } from './server.ts';
 
-import { loadInstalledSessionExtensions } from '@winsendotai/ovo-plugin-session';
+import { loadInstalledSessionExtensions } from '@winsendotai/ovo-session-host';
 import { productionRecordingsFromEnv } from '@winsendotai/ovo-plugin-recordings';
+import { loadDistribution } from '@winsendotai/ovo-distribution';
 
 const extensions = await loadInstalledSessionExtensions(process.env.OVO_PLUGIN_MODULES);
+const distribution = await loadDistribution({
+  role: 'api',
+  profile: process.env.OVO_DEPLOYMENT_PROFILE === 'fargate' ? 'fargate' : 'compose',
+  env: process.env,
+});
 const identities = bootstrapIdentitiesFromEnv();
 const identity = identities[0]!;
 const production = process.env.NODE_ENV === 'production';
@@ -32,6 +38,7 @@ const { app, composition } = await buildManagementApi({
   identities,
   seedAdmin: seedAdminFromEnv(),
   pluginCatalog: extensions.plugins,
+  loadedDistribution: distribution,
   defaultSession: {
     nativeHandlers: extensions.nativeHandlers,
     nativeHandlerPackages: extensions.nativeHandlerPackages,

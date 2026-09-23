@@ -3,12 +3,14 @@ import migration001 from '../../migrations/001_durable_orchestration.sql?raw';
 import migration002 from '../../migrations/002_session_lifecycle.sql?raw';
 import migration003 from '../../migrations/003_carrier_identity.sql?raw';
 import migration004 from '../../migrations/004_carrier_scope.sql?raw';
+import migration005 from '../../migrations/005_inbound_carrier_selection.sql?raw';
 
 const migrations = [
   { version: 1, sql: migration001 },
   { version: 2, sql: migration002 },
   { version: 3, sql: migration003 },
   { version: 4, sql: migration004 },
+  { version: 5, sql: migration005 },
 ] as const;
 
 export async function runMigrations(pool: Pool): Promise<void> {

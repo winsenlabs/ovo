@@ -1,7 +1,5 @@
 {
   "files": {
-    "apps/api/src/api-plugin.ts": 360,
-    "apps/api/src/release-runtime.ts": 358,
     "apps/api/src/routes/cost.ts": 337,
     "apps/api/src/routes/evaluation-datasets.ts": 366,
     "apps/api/src/routes/mcp.ts": 308,
@@ -25,9 +23,6 @@
     "apps/console/components/team/team-view.tsx": 369,
     "apps/console/lib/operator-api.ts": 323,
     "apps/worker/src/cost-policy.ts": 388,
-    "apps/worker/src/main.ts": 384,
-    "apps/worker/src/production-session-factory.ts": 322,
-    "apps/worker/src/runner.ts": 313,
     "apps/worker/src/telemetry-runtime.ts": 396,
     "packages/behaviors/src/agent.ts": 328,
     "packages/plugin-evaluations/src/provider-executor.ts": 398,
@@ -37,7 +32,7 @@
     "packages/plugin-media/src/gateway.ts": 398,
     "packages/plugin-observability/src/postgres-telemetry.ts": 341,
     "packages/plugin-operations/src/handoff.ts": 341,
-    "packages/plugin-operations/src/inbound-gateway.ts": 367,
+    "packages/plugin-operations/src/inbound-gateway.ts": 304,
     "packages/plugin-operations/src/inbound.ts": 333,
     "packages/plugin-orchestration/src/aws.ts": 316,
     "packages/plugin-providers/src/deepgram-session.ts": 323,

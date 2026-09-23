@@ -7,6 +7,9 @@ import {
 } from '@winsendotai/ovo-plugin-orchestration';
 import { DeliveryVisibilityRenewal, JobLeaseRenewal } from './renewal.ts';
 import type { DeliveryOutcome } from './worker-types.ts';
+import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
+import type { WorkerMediaRuntime } from './media-runtime.ts';
+import { terminateOwnedJob } from './worker-termination.ts';
 
 export async function terminateActiveSession(input: {
   active: Extract<DeliveryOutcome, { kind: 'accepted' }>;
@@ -14,7 +17,19 @@ export async function terminateActiveSession(input: {
   workerId: string;
   store: DurableJobStore;
   telephony: TelephonyControl;
+  carriers?: WorkerCarrierRuntime;
+  media?: Pick<WorkerMediaRuntime, 'terminate' | 'closeSession'>;
 }): Promise<boolean> {
+  if (input.carriers && input.media)
+    return terminateOwnedJob({
+      jobId: input.active.jobId,
+      workerId: input.workerId,
+      ownerEpoch: input.active.lease.ownerEpoch,
+      reason: input.reason,
+      store: input.store,
+      carriers: input.carriers,
+      media: input.media,
+    });
   const terminating = await input.store.requestSessionTermination(
     input.active.jobId,
     input.workerId,
@@ -22,9 +37,8 @@ export async function terminateActiveSession(input: {
     input.reason,
   );
   if (!terminating) return false;
-  await input.telephony
-    .hangup(terminating.carrierCallId ?? input.active.carrierCallId)
-    .catch(() => undefined);
+  const carrierCallId = terminating.carrierCallId ?? input.active.carrierCallId;
+  if (carrierCallId) await input.telephony.hangup(carrierCallId).catch(() => undefined);
   return true;
 }
 

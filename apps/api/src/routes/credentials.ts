@@ -1,4 +1,38 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { Cap, type CarrierIngress } from '@winsendotai/ovo-contracts';
+import { createCarrierHostPorts } from '@winsendotai/ovo-session-host';
+import { manifestKeys, PluginRegistry } from '@winsendotai/ovo-runtime';
+import type { PluginDefinition } from '@winsendotai/ovo-runtime';
+
+function selectedBindingPlugin(
+  body: { provider: string; pluginId?: string | null; config: Record<string, unknown> },
+  catalog: readonly PluginDefinition[],
+) {
+  const registry = new PluginRegistry(catalog);
+  const matches = registry.list().filter((definition) => {
+    const manifest = manifestKeys(definition.manifest).manifest;
+    return manifest.kind !== 'infra' && manifest.provider === body.provider;
+  });
+  const ids = [...new Set(matches.map((definition) => definition.manifest.id))];
+  const pluginId = body.pluginId ?? (ids.length === 1 ? ids[0] : null);
+  if (pluginId) {
+    const definition = registry.get(pluginId);
+    if (!definition || manifestKeys(definition.manifest).manifest.provider !== body.provider)
+      throw Object.assign(
+        new Error(`Plugin ${pluginId} does not match provider ${body.provider}`),
+        { statusCode: 400, code: 'binding_plugin_mismatch' },
+      );
+    const validation = registry.validateBinding(pluginId, body.config);
+    if (!validation.ok)
+      throw Object.assign(new Error(`Invalid binding for ${pluginId}: ${validation.errors}`), {
+        statusCode: 400,
+        code: 'binding_schema_invalid',
+      });
+    return { pluginId, kind: manifestKeys(definition.manifest).manifest.kind };
+  }
+  return { pluginId: null, kind: null };
+}
+
 export function registerCredentialsRoutes(dependencies: any) {
   const {
     app,
@@ -14,6 +48,8 @@ export function registerCredentialsRoutes(dependencies: any) {
     ProviderBindingBody,
     rejectEmbeddedSecrets,
     queryPage,
+    catalog,
+    ctx,
   } = dependencies;
   app.get('/v1/credentials', async (request: FastifyRequest) => {
     const principal = requireRole(request, 'admin');
@@ -89,8 +125,10 @@ export function registerCredentialsRoutes(dependencies: any) {
     const principal = requireRole(request, 'admin'),
       body = ProviderBindingBody.parse(request.body);
     rejectEmbeddedSecrets(body.config);
+    const selected = selectedBindingPlugin(body, catalog);
     const binding = await store.createProviderBinding({
       ...body,
+      ...selected,
       workspaceId: principal.workspaceId,
     });
     await store.audit({
@@ -112,7 +150,11 @@ export function registerCredentialsRoutes(dependencies: any) {
       { bindingId } = z.object({ bindingId: Id }).parse(request.params),
       body = ProviderBindingBody.parse(request.body);
     rejectEmbeddedSecrets(body.config);
-    const binding = await store.updateProviderBinding(principal.workspaceId, bindingId, body);
+    const selected = selectedBindingPlugin(body, catalog);
+    const binding = await store.updateProviderBinding(principal.workspaceId, bindingId, {
+      ...body,
+      ...selected,
+    });
     await store.audit({
       workspaceId: principal.workspaceId,
       actorId: principal.identityId,
@@ -137,6 +179,63 @@ export function registerCredentialsRoutes(dependencies: any) {
         resourceId: bindingId,
       });
       return reply.code(204).send();
+    },
+  );
+
+  app.get(
+    '/v1/provider-bindings/:id/carrier-urls',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const principal = requireRole(request, 'admin');
+      const { id } = z.object({ id: Id }).parse(request.params);
+      const binding = await store.getProviderBinding(principal.workspaceId, id);
+      if (!binding) return error(reply, 404, 'not_found', 'Provider binding not found');
+      const publicBaseUrl = options.carrierPublicBaseUrl ?? process.env.OVO_MEDIA_PUBLIC_BASE_URL;
+      const routeSecret = options.inboundRouteSecret ?? process.env.OVO_INBOUND_ROUTE_SECRET;
+      if (!publicBaseUrl || !routeSecret)
+        return error(
+          reply,
+          409,
+          'carrier_urls_unavailable',
+          'OVO_MEDIA_PUBLIC_BASE_URL and OVO_INBOUND_ROUTE_SECRET are required for carrier URLs',
+        );
+      const ingress = ctx.all(Cap.carrierIngress).get(binding.provider) as
+        CarrierIngress | undefined;
+      if (!ingress)
+        return error(
+          reply,
+          409,
+          'carrier_ingress_unavailable',
+          `Carrier ingress is not installed for ${binding.provider}`,
+        );
+      const ports = createCarrierHostPorts({
+        publicBaseUrl,
+        routeSecret,
+        operations: {
+          admitInbound: async () => {
+            throw new Error('URL renderer cannot admit inbound calls');
+          },
+          confirmCallback: async () => {
+            throw new Error('URL renderer cannot confirm callbacks');
+          },
+        },
+        orchestration: {
+          applyCallEvent: async () => {
+            throw new Error('URL renderer cannot apply call events');
+          },
+        } as unknown as Parameters<typeof createCarrierHostPorts>[0]['orchestration'],
+        bindings: async () => {
+          throw new Error('URL renderer cannot resolve bindings');
+        },
+      });
+      return {
+        items: ingress.operatorUrls.map((item) => ({
+          ...item,
+          url:
+            item.purpose === 'media' || item.purpose === 'media-url'
+              ? ports.mediaUrl(ingress.carrierId, binding.id)
+              : ports.callbackUrl(ingress.carrierId, binding.id, item.purpose),
+        })),
+      };
     },
   );
 }

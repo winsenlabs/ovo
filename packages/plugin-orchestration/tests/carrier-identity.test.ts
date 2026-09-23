@@ -88,19 +88,28 @@ describe.skipIf(!url)('carrier identity migrations and grants', () => {
     expect(
       (await store.pool.query('SELECT version FROM ovo_orch_schema_migrations ORDER BY version'))
         .rows,
-    ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }]);
-    expect(
-      (await store.pool.query('SELECT carrier_id, payload FROM ovo_jobs WHERE id = $1', [id]))
-        .rows[0],
-    ).toMatchObject({ carrier_id: 'twilio', payload: {} });
+    ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }]);
     expect(
       (
         await store.pool.query(
-          'SELECT worker_slot_epoch FROM ovo_session_routes WHERE session_id = $1',
+          'SELECT carrier_id, carrier_plugin_id, carrier_binding_id, payload FROM ovo_jobs WHERE id = $1',
+          [id],
+        )
+      ).rows[0],
+    ).toMatchObject({
+      carrier_id: 'twilio',
+      carrier_plugin_id: null,
+      carrier_binding_id: null,
+      payload: {},
+    });
+    expect(
+      (
+        await store.pool.query(
+          'SELECT worker_slot_epoch, carrier_plugin_id, carrier_binding_id FROM ovo_session_routes WHERE session_id = $1',
           [legacySessionId],
         )
-      ).rows[0]?.worker_slot_epoch,
-    ).toBe('23');
+      ).rows[0],
+    ).toMatchObject({ worker_slot_epoch: '23', carrier_plugin_id: null, carrier_binding_id: null });
     await store.pool
       .query(`UPDATE ovo_worker_slots SET lease_expires_at = now() - interval '1 second'
       WHERE worker_id = 'pre-upgrade-worker'`);

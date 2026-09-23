@@ -1,4 +1,4 @@
-import type { ProviderUsage } from '@winsendotai/ovo-plugin-providers';
+import type { ProviderUsage } from './cost-policy-types.ts';
 import type { PriceCardVersion, ReservationResult } from '@winsendotai/ovo-plugin-ledger';
 import {
   emptyInferenceEvidenceSummary,

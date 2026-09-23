@@ -16,7 +16,10 @@ export function registerInspectionRoutes(dependencies: any) {
   app.get('/v1/calls', async (request: FastifyRequest) => {
     const principal = requireRole(request, 'viewer'),
       page = queryPage(request);
-    return await store.listCalls(principal.workspaceId, page.limit, page.cursor);
+    const { order } = z
+      .object({ order: z.enum(['asc', 'desc']).default('desc') })
+      .parse(request.query);
+    return await store.listCalls(principal.workspaceId, page.limit, page.cursor, { order });
   });
   app.get('/v1/calls/:callId', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'viewer'),

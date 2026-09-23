@@ -1,9 +1,4 @@
-import {
-  createTwilioHandoffProvider,
-  OPERATIONS_SERVICE_KEY,
-  type HandoffProviderPort,
-  type OperationsService,
-} from '@winsendotai/ovo-plugin-operations';
+import { OPERATIONS_SERVICE_KEY, type OperationsService } from '@winsendotai/ovo-plugin-operations';
 import {
   postgresOrchestrationPlugin,
   sqsOrchestrationPlugin,
@@ -53,17 +48,6 @@ export function durableAdapterPlugins(): {
       },
     ],
   };
-}
-
-export function workerHandoffProvider(): HandoffProviderPort | undefined {
-  const provider = process.env.OVO_HANDOFF_PROVIDER?.trim();
-  if (!provider) return undefined;
-  if (provider !== 'twilio') throw new Error(`Unsupported OVO_HANDOFF_PROVIDER ${provider}`);
-  return createTwilioHandoffProvider({
-    accountSid: env('TWILIO_ACCOUNT_SID'),
-    authToken: env('TWILIO_AUTH_TOKEN'),
-    resumeUrl: process.env.OVO_TWILIO_HANDOFF_RESUME_URL,
-  });
 }
 
 export function workerRuntimeServices(ctx: Context): {

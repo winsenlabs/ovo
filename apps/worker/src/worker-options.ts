@@ -1,6 +1,7 @@
 import type { CallRecorder } from './call-recorder.ts';
 import type { CampaignDialAuthorizer } from './campaign-dial.ts';
 import type { WorkerCostRuntimePort } from './cost-runtime.ts';
+import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
 
 export interface WorkerRunnerOptions {
   leaseMs: number;
@@ -15,6 +16,7 @@ export interface WorkerRunnerOptions {
   statusCallbackUrl?: string;
   callRecorder?: CallRecorder;
   cost?: WorkerCostRuntimePort;
+  carriers?: WorkerCarrierRuntime;
 }
 
 export const DEFAULT_WORKER_RUNNER_OPTIONS: WorkerRunnerOptions = {

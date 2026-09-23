@@ -4,13 +4,17 @@ import type {
   DurableJobStore,
   TelephonyControl,
 } from '@winsendotai/ovo-plugin-orchestration';
-import {
-  openAiInferenceBindingFromRecord,
-  type ProviderUsageSink,
-} from '@winsendotai/ovo-plugin-providers';
+import type { ProviderUsageSink } from './cost-policy-types.ts';
 import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
-import type { ControlStore, ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
-import { definePlugin } from '@winsendotai/ovo-runtime';
+import {
+  deriveLegacySelections,
+  type ControlStore,
+  type ReleaseRecord,
+} from '@winsendotai/ovo-plugin-storage';
+import { manifestKeys, PluginRegistry } from '@winsendotai/ovo-runtime';
+import { metersFor, type SessionDefaults } from '@winsendotai/ovo-session-host';
+import type { ReleaseSelections } from '@winsendotai/ovo-contracts';
+import type { SelectedJobCarrier } from './carrier-runtime.ts';
 import {
   createWorkerCostPolicyAttachment,
   type WorkerCostPolicyAttachment,
@@ -28,6 +32,7 @@ export interface WorkerCostRuntimePort {
     job: DurableJob,
     payload: Record<string, unknown>,
     sessionId: string,
+    selected?: SelectedJobCarrier,
   ): Promise<CostAdmission>;
 }
 
@@ -48,9 +53,14 @@ export const LIVE_COST_METER_KEYS = Object.freeze({
 
 export function requiredLiveCostMeterKeys(
   release: Pick<ReleaseRecord, 'config'>,
+  selected?: { selections: ReleaseSelections; registry: PluginRegistry },
 ): readonly string[] {
   const policy = release.config.costPolicy;
   if (!policy) return [];
+  if (selected)
+    return metersFor(selected.selections, selected.registry, {
+      requiresInput: liveSessionRequiresInput(release.config),
+    }).map((row) => row.meter.key);
   const required: string[] = [LIVE_COST_METER_KEYS.carrier, LIVE_COST_METER_KEYS.tts];
   const requiresInput = liveSessionRequiresInput(release.config);
   if (requiresInput) required.push(LIVE_COST_METER_KEYS.stt);
@@ -72,51 +82,16 @@ export function requiredLiveCostMeterKeys(
   return required;
 }
 
-export function createWorkerCostRuntimePlugin(input: {
-  ledger: CostLedgerService;
-  control: ControlStore;
-}) {
-  return definePlugin(
-    {
-      id: '@winsendotai/ovo-worker/cost-runtime',
-      version: '0.1.0',
-      contractVersion: 1,
-      scope: 'process',
-      requires: ['orchestration.store', 'telephony.control'],
-      provides: [WORKER_COST_RUNTIME_SERVICE_KEY],
-      configSchema: {
-        type: 'object',
-        required: ['workerId'],
-        properties: {
-          workerId: { type: 'string' },
-          requirePolicy: { type: 'boolean', default: true },
-        },
-        additionalProperties: false,
-      },
-      secretFields: [],
-    },
-    (ctx, config) => {
-      if (typeof config.workerId !== 'string' || !config.workerId)
-        throw new Error('Missing workerId');
-      ctx.provide(
-        WORKER_COST_RUNTIME_SERVICE_KEY,
-        new ProductionWorkerCostRuntime(
-          input.ledger,
-          input.control,
-          ctx.get('orchestration.store') as DurableJobStore,
-          ctx.get('telephony.control') as TelephonyControl,
-          config.workerId,
-          config.requirePolicy !== false,
-        ),
-      );
-    },
-  );
-}
-
 export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
+  private terminationHandler?: (job: DurableJob, reason: string) => Promise<void>;
   private readonly sessions = new Map<
     string,
-    { attachment: WorkerCostPolicyAttachment; startedAt?: number; carrierMeter: string }
+    {
+      attachment: WorkerCostPolicyAttachment;
+      startedAt?: number;
+      carrierMeter: string;
+      carrierProvider: string;
+    }
   >();
 
   constructor(
@@ -126,9 +101,20 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
     private readonly telephony: TelephonyControl,
     private readonly workerId: string,
     private readonly requirePolicy = true,
+    private readonly registry?: PluginRegistry,
+    private readonly defaults?: SessionDefaults,
   ) {}
 
-  async reserve(job: DurableJob, payload: Record<string, unknown>, sessionId: string) {
+  setTerminationHandler(handler: (job: DurableJob, reason: string) => Promise<void>): void {
+    this.terminationHandler = handler;
+  }
+
+  async reserve(
+    job: DurableJob,
+    payload: Record<string, unknown>,
+    sessionId: string,
+    selected?: SelectedJobCarrier,
+  ) {
     const releaseId = text(payload.releaseId);
     if (!releaseId) return noCostAdmission();
     const release = await this.control.getRelease(job.workspaceId, releaseId);
@@ -137,7 +123,16 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
       return this.requirePolicy
         ? { ...noCostAdmission(), admitted: false, reason: 'release-cost-policy-required' }
         : noCostAdmission();
-    const requiredMeterKeys = requiredLiveCostMeterKeys(release);
+    const selections = selected?.selections ?? this.releaseSelections(release);
+    const selectedMeters =
+      this.registry && selections
+        ? metersFor(selections, this.registry, {
+            requiresInput: liveSessionRequiresInput(release.config),
+          })
+        : [];
+    const requiredMeterKeys = selectedMeters.length
+      ? selectedMeters.map((row) => row.meter.key)
+      : requiredLiveCostMeterKeys(release);
     const missingMeters = requiredMeterKeys.filter((meterKey) => !policy.priceCards[meterKey]);
     if (missingMeters.length)
       return {
@@ -146,9 +141,13 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
         reason: `cost-meter-unconfigured:${missingMeters.join(',')}`,
       };
     const inferenceRecord = release.providerBindings.inference;
-    const inferenceBinding = inferenceRecord
-      ? openAiInferenceBindingFromRecord(inferenceRecord)
-      : undefined;
+    const inferenceModel = inferenceRecord?.config.model;
+    const carrier = selectedMeters.find((row) => row.slot === 'carrier');
+    const carrierProvider =
+      carrier && this.registry
+        ? (manifestKeys(this.registry.get(carrier.pluginId)!.manifest).manifest.provider ??
+          'carrier')
+        : 'twilio';
     const attachment = createWorkerCostPolicyAttachment({
       ledger: this.ledger,
       policy,
@@ -158,9 +157,10 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
       attemptId: text(payload.attemptId),
       sessionStartedAt: new Date().toISOString(),
       requiredMeterKeys,
-      inference: inferenceBinding
-        ? { provider: 'openai', modelId: inferenceBinding.model }
-        : undefined,
+      inference:
+        inferenceRecord && typeof inferenceModel === 'string'
+          ? { provider: inferenceRecord.provider, modelId: inferenceModel }
+          : undefined,
       requestTermination: (reason) => this.terminate(job, reason),
     });
     const result = await attachment.reserveBeforeAdmission();
@@ -174,9 +174,11 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
       attachment: WorkerCostPolicyAttachment;
       startedAt?: number;
       carrierMeter: string;
+      carrierProvider: string;
     } = {
       attachment,
-      carrierMeter: LIVE_COST_METER_KEYS.carrier,
+      carrierMeter: carrier?.meter.key ?? LIVE_COST_METER_KEYS.carrier,
+      carrierProvider,
     };
     this.sessions.set(job.id, session);
     return {
@@ -209,7 +211,7 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
       session.attachment.recordElapsed({
         meterKey: session.carrierMeter,
         sourceKind: 'carrier',
-        provider: 'twilio',
+        provider: session.carrierProvider,
         elapsedMs: Math.max(1, Date.now() - session.startedAt),
         eventId: `carrier-total:${jobId}`,
         occurredAt: new Date().toISOString(),
@@ -218,6 +220,7 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
   }
 
   private async terminate(job: DurableJob, reason: string): Promise<void> {
+    if (this.terminationHandler) return this.terminationHandler(job, reason);
     const requested = await this.orchestration.requestSessionTermination(
       job.id,
       this.workerId,
@@ -227,6 +230,25 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
     if (!requested) return;
     const route = await this.orchestration.getSessionRoute(job.id);
     if (route?.carrierCallId) await this.telephony.hangup(route.carrierCallId);
+  }
+
+  private releaseSelections(release: ReleaseRecord): ReleaseSelections | undefined {
+    if (Object.keys(release.selections ?? {}).length)
+      return release.selections as ReleaseSelections;
+    if (!this.registry) return undefined;
+    const legacy = deriveLegacySelections(release, this.registry, {
+      engine: this.defaults?.engine ?? '@winsendotai/ovo-plugin-voice-session-engine',
+      ...(this.defaults?.turnDetector ? { turnDetector: this.defaults.turnDetector } : {}),
+    });
+    return Object.fromEntries(
+      Object.entries(legacy).map(([slot, selection]) => [
+        slot,
+        {
+          ...selection,
+          version: this.registry!.get(selection.pluginId)!.manifest.version,
+        },
+      ]),
+    ) as ReleaseSelections;
   }
 }
 

@@ -1,9 +1,7 @@
 import type { UserDirectory } from './user-directory.ts';
-import { registerUserRoutes } from './routes/users.ts';
 import { type OperationStore } from '@winsendotai/ovo-contracts';
-import { type CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
+import { Cap } from '@winsendotai/ovo-contracts';
 import { priceUsage, summarizeUsage } from '@winsendotai/ovo-plugin-observability';
-import { type RecordingArchive } from '@winsendotai/ovo-plugin-recordings';
 import { type SecretManager } from '@winsendotai/ovo-plugin-secrets';
 import {
   DraftConflictError,
@@ -23,29 +21,9 @@ import {
   runRelease,
   validateRelease,
 } from './release-runtime.ts';
-import { registerAgentsRoutes } from './routes/agents.ts';
-import { registerAuthRoutes } from './routes/auth.ts';
-import { registerCostRoutes } from './routes/cost.ts';
-import { registerCredentialsRoutes } from './routes/credentials.ts';
-import { registerInspectionRoutes } from './routes/inspection.ts';
-import { registerMcpRoutes } from './routes/mcp.ts';
-import { registerReadinessRoutes } from './routes/readiness.ts';
-import { registerPerformanceRoutes } from './routes/performance.ts';
-import { registerOperationsRoutes } from './routes/operations.ts';
-import { registerInfrastructureRoutes } from './routes/infrastructure.ts';
+import { registerApiRoutes } from './routes/registry.ts';
 import type { InfrastructureService } from './infrastructure-types.ts';
-import type { OperationsService } from '@winsendotai/ovo-plugin-operations';
-import { registerRecordingLifecycleRoutes } from './routes/recording-lifecycle.ts';
-import {
-  API_PRODUCTION_RECORDING_SERVICE_KEY,
-  getProductionRecordingServices,
-} from './recording-runtime.ts';
-import { registerEvaluationDatasetRoutes } from './routes/evaluation-datasets.ts';
-import { EVALUATION_FIXTURE_BINDING_VERSION } from './evaluation-runtime.ts';
-import type { PostgresEvaluationService } from '@winsendotai/ovo-plugin-evaluations';
-import type { PerformanceService } from '@winsendotai/ovo-plugin-observability';
-import { registerRecordingRoutes } from './routes/recordings.ts';
-import { registerSimulationRoutes } from './routes/simulation.ts';
+import { API_PRODUCTION_RECORDING_SERVICE_KEY } from './recording-runtime.ts';
 import {
   AgentBody,
   ApprovalBody,
@@ -116,6 +94,8 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
         ...(options.evaluationsEnabled ? ['ovo.evaluations'] : []),
         ...(options.operationsEnabled ? ['ovo.operations'] : []),
         ...(options.infrastructureEnabled ? ['ovo.infrastructure'] : []),
+        Cap.carrierControl,
+        Cap.carrierIngress,
       ],
       configSchema: { type: 'object', additionalProperties: false },
       secretFields: [],
@@ -179,6 +159,7 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
       });
 
       const routeDependencies = {
+        ctx,
         app,
         store,
         telemetry: options.telemetryEnabled ? ctx.get('ovo.telemetry') : undefined,
@@ -197,6 +178,8 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
         services,
         createServices,
         catalog,
+        distributionDefaults: options.distributionDefaults,
+        unavailable: options.unavailable,
         error,
         publicIdentity,
         requireRole,
@@ -225,79 +208,7 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
         priceUsage,
         summarizeUsage,
       };
-      registerAuthRoutes(routeDependencies);
-      registerUserRoutes({ app, users, store, requireTls: options.requireTlsForSecrets ?? false });
-
-      registerAgentsRoutes(routeDependencies);
-      registerReadinessRoutes(routeDependencies);
-      registerInfrastructureRoutes({
-        app,
-        store,
-        requireRole,
-        infrastructure: routeDependencies.infrastructure,
-      });
-      registerOperationsRoutes({
-        app,
-        store,
-        requireRole,
-        operations: options.operationsEnabled
-          ? (ctx.get('ovo.operations') as OperationsService)
-          : undefined,
-      });
-      registerEvaluationDatasetRoutes({
-        app,
-        store,
-        requireRole,
-        fixtureBindingVersion: EVALUATION_FIXTURE_BINDING_VERSION,
-        evaluations: options.evaluationsEnabled
-          ? (ctx.get('ovo.evaluations') as PostgresEvaluationService)
-          : undefined,
-      });
-      registerPerformanceRoutes({
-        app,
-        store,
-        requireRole,
-        performance: options.telemetryEnabled
-          ? (ctx.get('ovo.telemetry') as PerformanceService)
-          : undefined,
-      });
-      registerCostRoutes({
-        app,
-        controlStore: store,
-        requireRole,
-        audit: (value) => store.audit(value),
-        ledger: options.costLedgerEnabled
-          ? (ctx.get('ovo.cost-ledger') as CostLedgerService)
-          : undefined,
-      });
-
-      registerCredentialsRoutes(routeDependencies);
-
-      registerMcpRoutes(routeDependencies);
-
-      registerSimulationRoutes(routeDependencies);
-
-      registerInspectionRoutes(routeDependencies);
-      registerRecordingRoutes({
-        app,
-        store,
-        recordings:
-          options.fixtureRecordingsEnabled !== false
-            ? (ctx.get('ovo.recordings') as RecordingArchive)
-            : undefined,
-        requireRole,
-        error,
-      });
-
-      registerRecordingLifecycleRoutes({
-        app,
-        store,
-        requireRole,
-        error,
-        recordings: options.productionRecordingsEnabled
-          ? getProductionRecordingServices(ctx)
-          : undefined,
-      });
+      registerApiRoutes(routeDependencies);
       await app.ready();
       ctx.provide('managementApi', { app } satisfies ManagementApiService);
       ctx.fiber.effect(() => () => app.close(), 'close management API');

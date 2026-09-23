@@ -6,6 +6,8 @@ export interface InboundRouteSnapshot {
   release_id: string;
   variables: Record<string, string>;
   version: string;
+  carrier_plugin_id: string | null;
+  carrier_binding_id: string | null;
 }
 
 export interface InboundCapacityReservation {
@@ -38,12 +40,15 @@ export async function provisionInboundSession(
     to: input.toNumber,
     carrierCallId: input.carrierCallId,
     inboundAdmissionId: admissionId,
+    carrierPluginId: route.carrier_plugin_id,
+    carrierBindingId: route.carrier_binding_id,
   };
   await client.query(
     `INSERT INTO ovo_jobs
        (id, workspace_id, idempotency_key, payload, status, owner_id, owner_epoch,
-        lease_expires_at, dial_request_id, carrier_call_id)
-     VALUES ($1, $2, $3, $4::jsonb, 'accepted', $5, $6, $7, $8, $9)`,
+        lease_expires_at, dial_request_id, carrier_call_id,
+        carrier_plugin_id, carrier_binding_id, binding_id)
+     VALUES ($1, $2, $3, $4::jsonb, 'accepted', $5, $6, $7, $8, $9, $10, $11, $11)`,
     [
       jobId,
       organizationId,
@@ -54,15 +59,17 @@ export async function provisionInboundSession(
       capacity.protected_until,
       requestId,
       input.carrierCallId,
+      route.carrier_plugin_id,
+      route.carrier_binding_id,
     ],
   );
   await client.query(
     `INSERT INTO ovo_session_routes
        (session_id, job_id, organization_id, worker_id, worker_endpoint, owner_epoch,
         generation, dial_request_id, carrier_call_id, status, handshake_token_hash,
-        handshake_expires_at, accepted_at)
+        handshake_expires_at, accepted_at, carrier_plugin_id, carrier_binding_id, binding_id)
      VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, 'accepted', $9,
-        now() + ($10 * interval '1 millisecond'), now())`,
+        now() + ($10 * interval '1 millisecond'), now(), $11, $12, $12)`,
     [
       sessionId,
       jobId,
@@ -74,6 +81,8 @@ export async function provisionInboundSession(
       input.carrierCallId,
       input.routeTokenHash,
       input.handshakeTtlMs,
+      route.carrier_plugin_id,
+      route.carrier_binding_id,
     ],
   );
   const detail = {

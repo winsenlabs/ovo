@@ -9,8 +9,15 @@ export interface SessionHandshake {
 export function createSessionHandshake(input: {
   job: ClaimedJob;
   workerEndpoint: string;
-  ttlMs: number;
+  ttlMs?: number;
+  ringTimeoutSec?: number;
 }): SessionHandshake {
+  const ttlMs =
+    input.ringTimeoutSec === undefined
+      ? (input.ttlMs ?? 120_000)
+      : (input.ringTimeoutSec + 60) * 1_000;
+  if (!Number.isSafeInteger(ttlMs) || ttlMs < 1)
+    throw new Error('Handshake TTL must be a positive integer');
   const token = randomBytes(32).toString('base64url');
   return {
     token,
@@ -24,7 +31,7 @@ export function createSessionHandshake(input: {
       generation: 1,
       dialRequestId: `${input.job.id}:${input.job.ownerEpoch}`,
       handshakeTokenHash: createHash('sha256').update(token, 'utf8').digest('hex'),
-      handshakeExpiresAt: new Date(Date.now() + input.ttlMs),
+      handshakeExpiresAt: new Date(Date.now() + ttlMs),
     },
   };
 }

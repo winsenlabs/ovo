@@ -1,7 +1,10 @@
 import { createUserDirectoryPlugin, USER_PLUGIN_ID } from './user-plugin.ts';
+import { Cap } from '@winsendotai/ovo-contracts';
+import { loadDistribution } from '@winsendotai/ovo-distribution';
+import { createNodeNet } from '@winsendotai/ovo-plugin-kit';
 import { dirname, join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
-import { compose, type Composition } from '@winsendotai/ovo-runtime';
+import { compose, definePlugin, manifestKeys, type Composition } from '@winsendotai/ovo-runtime';
 import { createBehaviorPluginCatalog } from '@winsendotai/ovo-behaviors';
 import { storagePlugin } from '@winsendotai/ovo-plugin-storage';
 import { secretsPlugin } from '@winsendotai/ovo-plugin-secrets';
@@ -27,6 +30,27 @@ import {
   EVALUATION_RUNTIME_PLUGIN_ID,
 } from './evaluation-plugin.ts';
 import type { BuildApiOptions, ManagementApiService } from './types.ts';
+import { mergeCatalog } from './release-catalog.ts';
+
+const API_NET_PLUGIN_ID = 'ovo.api.node-net';
+const apiNetPlugin = definePlugin(
+  {
+    id: API_NET_PLUGIN_ID,
+    version: '1.0.0',
+    contractVersion: 2,
+    scope: 'process',
+    kind: 'infra',
+    requires: [],
+    provides: [Cap.net],
+    configSchema: { type: 'object', additionalProperties: false },
+    secretFields: [],
+  },
+  (ctx) => {
+    const net = createNodeNet();
+    ctx.provide(Cap.net, net);
+    ctx.effect(() => () => net.close());
+  },
+);
 
 export async function buildManagementApi(
   options: BuildApiOptions,
@@ -41,7 +65,33 @@ export async function buildManagementApi(
     throw new Error('PostgreSQL storage requires encrypted-store or aws-secrets-manager secrets');
   if (storageAdapter === 'sqlite' && options.secretBackend === 'encrypted-store')
     throw new Error('encrypted-store secrets require PostgreSQL storage');
+  const distribution =
+    options.loadedDistribution ??
+    (await loadDistribution({
+      role: 'api',
+      profile: 'compose',
+      env: process.env,
+    }));
   const behaviorCatalog = createBehaviorPluginCatalog(),
+    installedCatalog = mergeCatalog(
+      distribution.catalog,
+      behaviorCatalog,
+      options.pluginCatalog ?? [],
+    ),
+    carrierProcess = installedCatalog
+      .filter(
+        (definition) =>
+          definition.manifest.scope === 'process' &&
+          manifestKeys(definition.manifest).provides.some(
+            (entry) => entry.key === Cap.carrierControl || entry.key === Cap.carrierIngress,
+          ),
+      )
+      .map(
+        (definition) =>
+          distribution.processRows.find((row) => row.id === definition.manifest.id) ?? {
+            id: definition.manifest.id,
+          },
+      ),
     productionRecordings = options.productionRecordings
       ? createRecordingRuntimePlugin(options.productionRecordings)
       : undefined,
@@ -55,7 +105,9 @@ export async function buildManagementApi(
       productionRecordingsEnabled: !!productionRecordings,
       operationsEnabled: storageAdapter === 'postgres',
       infrastructureEnabled: storageAdapter === 'postgres',
-      pluginCatalog: [...behaviorCatalog, ...(options.pluginCatalog ?? [])],
+      pluginCatalog: installedCatalog,
+      distributionDefaults: options.distributionDefaults ?? distribution.defaults,
+      unavailable: options.unavailable ?? distribution.unavailable,
     }),
     catalog = [
       storagePlugin,
@@ -88,18 +140,19 @@ export async function buildManagementApi(
               ...options.operations,
               databaseUrl: options.controlDatabaseUrl,
               organizationId: options.identities[0]!.defaultWorkspaceId,
+              pluginCatalog: installedCatalog,
             }),
           ]
         : []),
       ...(storageAdapter === 'postgres'
-        ? [createEvaluationRuntimePlugin(options.controlDatabaseUrl!)]
+        ? [createEvaluationRuntimePlugin(options.controlDatabaseUrl!, installedCatalog)]
         : []),
       ...(storageAdapter === 'postgres' ? [createCostLedgerPlugin()] : []),
       ...(storageAdapter === 'postgres'
         ? [createTelemetryPlugin(options.controlDatabaseUrl!)]
         : []),
-      ...behaviorCatalog,
-      ...(options.pluginCatalog ?? []),
+      apiNetPlugin,
+      ...installedCatalog,
       apiPlugin,
     ];
   const composition = await compose(
@@ -144,6 +197,8 @@ export async function buildManagementApi(
         : []),
       ...(productionRecordings ? [{ id: productionRecordings.manifest.id }] : []),
       { id: apiPlugin.manifest.id },
+      { id: API_NET_PLUGIN_ID },
+      ...carrierProcess,
       ...(storageAdapter === 'postgres' ? [{ id: USER_PLUGIN_ID }] : []),
       ...(storageAdapter === 'postgres' ? [{ id: INFRASTRUCTURE_RUNTIME_PLUGIN_ID }] : []),
       ...(storageAdapter === 'postgres' ? [{ id: OPERATIONS_RUNTIME_PLUGIN_ID }] : []),

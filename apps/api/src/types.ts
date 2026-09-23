@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import type { PluginDefinition } from '@winsendotai/ovo-runtime';
+import type { PluginDefinition, UnavailablePlugin } from '@winsendotai/ovo-runtime';
+import type { SessionDefaults } from '@winsendotai/ovo-session-host';
+import type { LoadedDistribution } from '@winsendotai/ovo-distribution';
 import type { AgentDraft, ReleaseRecord, Role } from '@winsendotai/ovo-plugin-storage';
 import type { DefaultSessionOptions } from './session-factory.ts';
 export interface BootstrapIdentity {
@@ -25,6 +27,10 @@ export interface ManagementApiOptions {
   seedAdmin?: import('./user-plugin.ts').SeedAdminInput;
   sessionSecret: string;
   pluginCatalog?: readonly PluginDefinition[];
+  distributionDefaults?: SessionDefaults;
+  unavailable?: readonly UnavailablePlugin[];
+  carrierPublicBaseUrl?: string;
+  inboundRouteSecret?: string;
   defaultSession?: DefaultSessionOptions;
   costLedgerEnabled?: boolean;
   telemetryEnabled?: boolean;
@@ -46,6 +52,7 @@ export interface ManagementApiOptions {
   trustedProxy?: string | string[];
 }
 export interface BuildApiOptions extends ManagementApiOptions {
+  loadedDistribution?: LoadedDistribution;
   databaseFile?: string;
   storageAdapter?: 'sqlite' | 'postgres';
   controlDatabaseUrl?: string;

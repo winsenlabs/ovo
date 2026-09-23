@@ -8,9 +8,10 @@ import {
   type WorkerGatewayClientConfig,
   type WorkerMediaSession,
 } from '@winsendotai/ovo-plugin-media';
-import type { VoiceSessionEngine } from '@winsendotai/ovo-plugin-voice';
 
-export type ManagedVoiceSession = Pick<VoiceSessionEngine, 'dispose'>;
+export interface ManagedVoiceSession {
+  dispose(reason?: string, closeMedia?: boolean): Promise<unknown>;
+}
 
 export interface VoiceSessionFactory {
   create(input: {
@@ -39,6 +40,15 @@ export class WorkerMediaRuntime {
 
   connect(signal?: AbortSignal): Promise<void> {
     return this.client.connect(signal);
+  }
+
+  start(signal?: AbortSignal): Promise<void> {
+    return this.connect(signal);
+  }
+
+  /** C2 replaces the legacy gateway internals while retaining this termination seam. */
+  terminate(sessionId: string): Promise<void> {
+    return this.closeSession(sessionId, 'carrier termination');
   }
 
   async close(reason = 'worker media runtime closed'): Promise<void> {

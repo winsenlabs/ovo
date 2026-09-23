@@ -22,6 +22,7 @@ describe.skipIf(!postgresUrl)('durable inbound gateway admission', () => {
   beforeAll(async () => {
     await orchestration.migrate();
     await operations.migrate();
+    operations.inboundGateway.setInstalledCarrierPlugins(['@winsendotai/ovo-carrier-twilio']);
   });
 
   afterAll(async () => {
@@ -117,33 +118,48 @@ describe.skipIf(!postgresUrl)('durable inbound gateway admission', () => {
       status: string;
       owner_id: string;
       carrier_call_id: string;
+      carrier_plugin_id: string | null;
+      carrier_binding_id: string | null;
+      binding_id: string | null;
       payload: Record<string, unknown>;
-    }>('SELECT status, owner_id, carrier_call_id, payload FROM ovo_jobs WHERE id = $1', [
-      accepted.jobId,
-    ]);
+    }>(
+      'SELECT status, owner_id, carrier_call_id, carrier_plugin_id, carrier_binding_id, binding_id, payload FROM ovo_jobs WHERE id = $1',
+      [accepted.jobId],
+    );
     expect(job.rows[0]).toMatchObject({
       status: 'accepted',
       owner_id: 'worker-inbound',
       carrier_call_id: input.carrierCallId,
+      carrier_plugin_id: '@winsendotai/ovo-carrier-twilio',
+      carrier_binding_id: 'inbound-main',
+      binding_id: 'inbound-main',
       payload: {
         kind: 'inbound_call',
         releaseId,
         variables: { greeting: 'support' },
         carrierCallId: input.carrierCallId,
+        carrierPluginId: '@winsendotai/ovo-carrier-twilio',
+        carrierBindingId: 'inbound-main',
       },
     });
     const session = await pool.query<{
       status: string;
       handshake_token_hash: string;
       carrier_call_id: string;
+      carrier_plugin_id: string | null;
+      carrier_binding_id: string | null;
+      binding_id: string | null;
     }>(
-      'SELECT status, handshake_token_hash, carrier_call_id FROM ovo_session_routes WHERE session_id = $1',
+      'SELECT status, handshake_token_hash, carrier_call_id, carrier_plugin_id, carrier_binding_id, binding_id FROM ovo_session_routes WHERE session_id = $1',
       [accepted.sessionId],
     );
     expect(session.rows[0]).toEqual({
       status: 'accepted',
       handshake_token_hash: input.routeTokenHash,
       carrier_call_id: input.carrierCallId,
+      carrier_plugin_id: '@winsendotai/ovo-carrier-twilio',
+      carrier_binding_id: 'inbound-main',
+      binding_id: 'inbound-main',
     });
     expect(await operations.calls.get(accepted.jobId)).toMatchObject({
       carrierCallId: input.carrierCallId,

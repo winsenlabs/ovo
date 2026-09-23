@@ -6,20 +6,22 @@ import {
   type ReadinessProbe,
   type TaskProtection,
   type TelephonyControl,
-  type TelephonyDialRequest,
 } from '@winsendotai/ovo-plugin-orchestration';
 import { startDeliveryRenewals } from './renewal.ts';
 import { claimWorkerDelivery } from './claim-delivery.ts';
-import { dialRequestFromJob } from './dial-request.ts';
-import { createSessionHandshake } from './session-handshake.ts';
 import { authorizeCampaignPayload, recordCampaignAttempt } from './campaign-dial.ts';
 import { failBeforeDial } from './worker-cleanup.ts';
+import { dialOwnedJob } from './worker-dial.ts';
 import type { DeliveryOutcome } from './worker-types.ts';
-import { settleDialAttempt } from './dial-settlement.ts';
 import { DEFAULT_WORKER_RUNNER_OPTIONS, type WorkerRunnerOptions } from './worker-options.ts';
 
 export class WorkerRunner {
   private draining = false;
+  private terminationHandler?: (
+    jobId: string,
+    ownerEpoch: number,
+    reason: string,
+  ) => Promise<boolean>;
 
   constructor(
     private readonly workerId: string,
@@ -35,6 +37,12 @@ export class WorkerRunner {
     this.draining = true;
   }
 
+  setTerminationHandler(
+    handler: (jobId: string, ownerEpoch: number, reason: string) => Promise<boolean>,
+  ): void {
+    this.terminationHandler = handler;
+  }
+
   async handle(delivery: QueueDelivery): Promise<DeliveryOutcome> {
     if (this.draining) {
       await this.queue.changeVisibility(delivery, this.options.deferSeconds);
@@ -48,6 +56,7 @@ export class WorkerRunner {
       telephony: this.telephony,
       leaseMs: this.options.leaseMs,
       deferSeconds: this.options.deferSeconds,
+      carriers: this.options.carriers,
     });
     if (claim.kind === 'outcome') return claim.outcome;
     const { job } = claim;
@@ -65,7 +74,15 @@ export class WorkerRunner {
       workerId: this.workerId,
       leaseMs: this.options.leaseMs,
       visibilitySeconds: this.options.visibilitySeconds,
-      onLeaseLost: () => (this.draining = true),
+      onLeaseLost: async () => {
+        this.draining = true;
+        const route = await this.store.getSessionRoute(job.id);
+        if (route && this.options.carriers) {
+          if (!this.terminationHandler)
+            throw new Error('Carrier termination handler is not installed');
+          await this.terminationHandler(job.id, job.ownerEpoch, 'job-lease-lost');
+        }
+      },
     });
     const readiness = await this.readiness.check();
     if (!readiness.ready) {
@@ -87,6 +104,23 @@ export class WorkerRunner {
       this.options.protectionRenewMs,
       async () => {
         this.draining = true;
+        if (this.options.carriers) {
+          const route = await this.store.getSessionRoute(job.id);
+          if (route) {
+            if (!this.terminationHandler)
+              throw new Error('Carrier termination handler is not installed');
+            await this.terminationHandler(job.id, job.ownerEpoch, 'task-protection-renewal-failed');
+          } else {
+            await this.store.markDialUnknown(
+              job.id,
+              this.workerId,
+              job.ownerEpoch,
+              job.dialRequestId ?? `${job.id}:${job.ownerEpoch}`,
+              'task-protection-renewal-failed',
+            );
+          }
+          return;
+        }
         if (activeCarrierCallId) {
           const terminating = await this.store.requestSessionTermination(
             job.id,
@@ -127,6 +161,7 @@ export class WorkerRunner {
       campaigns: this.options.campaigns,
       streamUrl: this.options.streamUrl,
       statusCallbackUrl: this.options.statusCallbackUrl,
+      hostRouting: !!this.options.carriers,
     });
     if (campaign.kind === 'blocked')
       return failBeforeDial({
@@ -165,107 +200,22 @@ export class WorkerRunner {
       await this.queue.changeVisibility(delivery, this.options.deferSeconds);
       return { kind: 'deferred', reason: 'campaign-payload-ownership-lost' };
     }
-    const handshake = createSessionHandshake({
+    return dialOwnedJob({
       job,
-      workerEndpoint: this.options.workerEndpoint,
-      ttlMs: this.options.handshakeTtlMs,
-    });
-    const cost = await this.options.cost?.reserve(job, dialPayload, handshake.route.sessionId);
-    if (cost && !cost.admitted) {
-      return failBeforeDial({
-        job,
-        workerId: this.workerId,
-        store: this.store,
-        queue: this.queue,
-        delivery,
-        lease,
-        visibility,
-        renewal,
-        reason: cost.reason ?? 'cost-admission-blocked',
-      });
-    }
-    if (this.options.callRecorder) {
-      try {
-        await this.options.callRecorder.prepare(job, dialPayload);
-      } catch (error) {
-        const reason = error instanceof Error ? error.message : String(error);
-        await this.recordAttempt(
-          dialPayload,
-          `pre-dial:${job.id}:${job.ownerEpoch}`,
-          'failed',
-          reason,
-        );
-        await cost?.releaseBeforeStart();
-        return failBeforeDial({
-          job,
-          workerId: this.workerId,
-          store: this.store,
-          queue: this.queue,
-          delivery,
-          lease,
-          visibility,
-          renewal,
-          reason,
-        });
-      }
-    }
-
-    let request: TelephonyDialRequest;
-    try {
-      request = dialRequestFromJob(dialPayload, job, {
-        sessionId: handshake.route.sessionId,
-        token: handshake.token,
-      });
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      await this.recordAttempt(
-        dialPayload,
-        `pre-dial:${job.id}:${job.ownerEpoch}`,
-        'failed',
-        reason,
-      );
-      await cost?.releaseBeforeStart();
-      await this.store.markFailed(job.id, this.workerId, job.ownerEpoch, reason);
-      await this.store.releaseTerminalSession(job.id);
-      await this.queue.delete(delivery);
-      lease.stop();
-      visibility.stop();
-      await renewal.release();
-      return { kind: 'failed', reason };
-    }
-    const route = await this.store.beginDialSession(handshake.route);
-    if (!route) {
-      await cost?.releaseBeforeStart();
-      lease.stop();
-      visibility.stop();
-      await renewal.release();
-      await this.queue.delete(delivery);
-      return { kind: 'duplicate' };
-    }
-
-    const dial = await this.telephony.dial(request).catch((error: unknown) => ({
-      kind: 'unknown' as const,
-      requestId: request.requestId,
-      reason: error instanceof Error ? error.message : String(error),
-    }));
-    return settleDialAttempt({
-      job,
-      workerId: this.workerId,
+      dialPayload,
       delivery,
-      payload: dialPayload,
-      route,
-      request,
-      dial,
+      lease,
+      visibility,
+      renewal,
+      workerId: this.workerId,
       store: this.store,
       queue: this.queue,
       telephony: this.telephony,
-      lease,
-      visibility,
-      protection: renewal,
-      cost,
-      deferSeconds: this.options.deferSeconds,
+      options: this.options,
       recordAttempt: (...args) => this.recordAttempt(...args),
-      onCarrierAccepted: (carrierCallId) => (activeCarrierCallId = carrierCallId),
+      onCarrierAccepted: (carrierCallId) => {
+        activeCarrierCallId = carrierCallId;
+      },
     });
   }
 

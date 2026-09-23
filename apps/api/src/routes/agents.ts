@@ -1,6 +1,14 @@
 import type { PluginDefinition } from '@winsendotai/ovo-runtime';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { behaviorPluginId } from '@winsendotai/ovo-plugin-session';
+import { behaviorPluginId } from '@winsendotai/ovo-session-host';
+import { validateSelections } from '@winsendotai/ovo-session-host';
+import { PluginRegistry } from '@winsendotai/ovo-runtime';
+import type { CompatIssue } from '@winsendotai/ovo-contracts';
+import { buildReleaseSelections } from '../release-selections.ts';
+
+const releaseBlockers = (message: string, code: CompatIssue['code'] = 'runtime_incompatible') => ({
+  blockers: [{ code, severity: 'error', stage: 'release', message } satisfies CompatIssue],
+});
 export function registerAgentsRoutes(dependencies: any) {
   const {
     app,
@@ -20,6 +28,7 @@ export function registerAgentsRoutes(dependencies: any) {
     validateRelease,
     services,
     error,
+    distributionDefaults,
   } = dependencies;
   app.get('/v1/agents', async (request: FastifyRequest) => {
     const principal = requireRole(request, 'viewer');
@@ -103,12 +112,9 @@ export function registerAgentsRoutes(dependencies: any) {
       generated = (await options.createReleasePlugins?.({ agent, sessionId: randomUUID() })) ?? [];
       available = mergeCatalog(catalog, generated);
     } catch (cause) {
-      return error(
-        reply,
-        422,
-        'release_not_ready',
-        cause instanceof Error ? cause.message : 'Release catalogue failed',
-      );
+      return reply
+        .code(422)
+        .send(releaseBlockers(cause instanceof Error ? cause.message : 'Release catalogue failed'));
     }
     const selectedIds = body.pluginIds ?? [
       ...new Set([
@@ -116,30 +122,60 @@ export function registerAgentsRoutes(dependencies: any) {
         ...generated.map((plugin) => plugin.manifest.id),
       ]),
     ];
+    const unknown = selectedIds.find(
+      (id: string) => !available.some((item) => item.manifest.id === id),
+    );
+    if (unknown)
+      return reply
+        .code(422)
+        .send(releaseBlockers(`Unknown approved plugin: ${unknown}`, 'plugin_not_installed'));
     const selected = selectedIds.map((id: string) => {
-      const approved = available.find((item: any) => item.manifest.id === id);
-      if (!approved)
-        throw Object.assign(new Error(`Unknown approved plugin: ${id}`), {
-          statusCode: 422,
-          code: 'release_not_ready',
-        });
+      const approved = available.find((item) => item.manifest.id === id)!;
       return { id: approved.manifest.id, version: approved.manifest.version };
     });
     let plugins: { id: string; version: string }[];
+    let selections: Awaited<ReturnType<typeof buildReleaseSelections>>;
     try {
-      plugins = await validateRelease(agent, selected, store, available, services);
+      const registry = new PluginRegistry(available);
+      const bindingRows = new Map();
+      selections = await buildReleaseSelections({
+        agent,
+        store,
+        registry,
+        defaults: distributionDefaults ?? {
+          engine: '@winsendotai/ovo-plugin-voice-session-engine',
+        },
+        explicitPluginIds: selectedIds,
+        bindingRows,
+      });
+      const blockers = validateSelections(
+        {
+          config: agent.config,
+          selections,
+          registry,
+          defaults: distributionDefaults,
+          bindings: Object.fromEntries(bindingRows),
+        },
+        'release',
+      ).filter((issue) => issue.severity === 'error');
+      if (blockers.length) return reply.code(422).send({ blockers });
+      plugins = await validateRelease(agent, selected, store, available, services, selections);
     } catch (cause) {
-      return error(
-        reply,
-        422,
-        'release_not_ready',
-        cause instanceof Error ? cause.message : 'Release validation failed',
-      );
+      const message = cause instanceof Error ? cause.message : 'Release validation failed';
+      return reply
+        .code(422)
+        .send(
+          releaseBlockers(
+            message,
+            message.includes('binding') ? 'binding_missing' : 'runtime_incompatible',
+          ),
+        );
     }
     const release = await store.createRelease({
       workspaceId: principal.workspaceId,
       agent,
       plugins,
+      selections,
       createdBy: principal.identityId,
     });
     await store.audit({

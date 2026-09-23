@@ -10,6 +10,9 @@
   },
   "dependencies": {
     "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-distribution": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-session-host": "workspace:*",
     "@winsendotai/ovo-plugin-cache": "workspace:*",
     "@winsendotai/ovo-plugin-orchestration": "workspace:*",
     "@winsendotai/ovo-plugin-operations": "workspace:*",
@@ -24,6 +27,7 @@
     "@winsendotai/ovo-plugin-storage": "workspace:*",
     "@winsendotai/ovo-plugin-telephony-twilio": "workspace:*",
     "@winsendotai/ovo-plugin-voice": "workspace:*",
-    "@winsendotai/ovo-runtime": "workspace:*"
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "ws": "8.21.3"
   }
 }

@@ -4,6 +4,7 @@ import migration002 from '../migrations/002_live_launch.sql?raw';
 import migration003 from '../migrations/003_inbound_gateway.sql?raw';
 import migration004 from '../migrations/004_inbound_overflow.sql?raw';
 import migration005 from '../migrations/005_inbound_carrier.sql?raw';
+import migration006 from '../migrations/006_inbound_admission_carrier.sql?raw';
 import { transaction } from './database.ts';
 
 const migrations = [
@@ -12,6 +13,7 @@ const migrations = [
   { version: 3, sql: migration003 },
   { version: 4, sql: migration004 },
   { version: 5, sql: migration005 },
+  { version: 6, sql: migration006 },
 ] as const;
 
 export async function runOperationsMigrations(pool: Pool): Promise<void> {

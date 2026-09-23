@@ -1,61 +1,71 @@
-import type { AgentDraft, ControlStore } from '@winsendotai/ovo-plugin-storage';
-import {
-  deepgramBindingFromRecord,
-  openAiTtsBindingFromRecord,
-} from '@winsendotai/ovo-plugin-providers';
+import type { CompatIssue, ReleaseSelections } from '@winsendotai/ovo-contracts';
+import type { AgentDraft, ControlStore, ProviderBinding } from '@winsendotai/ovo-plugin-storage';
+import { validateSelections, type SessionDefaults } from '@winsendotai/ovo-session-host';
+import type { PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { InfrastructureService } from './infrastructure-types.ts';
 
-/** Advisory configuration snapshot only: it never reserves a worker or authorizes dialing. */
+/** Advisory snapshot; live admission rechecks the immutable release and worker lease. */
 export async function liveReadiness(
   agent: AgentDraft,
   store: ControlStore,
+  registry: PluginRegistry,
+  selections: ReleaseSelections,
   infrastructure?: InfrastructureService,
+  bindings?: Readonly<Record<string, ProviderBinding>>,
+  defaults?: SessionDefaults,
 ) {
-  const blockers: string[] = [];
+  const details: CompatIssue[] = validateSelections(
+    {
+      config: agent.config,
+      selections,
+      registry,
+      priceCards: agent.config.costPolicy?.priceCards,
+      bindings,
+      defaults,
+    },
+    'live',
+  );
+  const add = (message: string, field?: string) =>
+    details.push({
+      code: 'runtime_incompatible',
+      severity: 'error',
+      stage: 'live',
+      message,
+      field,
+    });
   if (!infrastructure || infrastructure.organizationId !== agent.workspaceId)
-    blockers.push('Infrastructure readiness service is unavailable.');
+    add('Infrastructure readiness service is unavailable.', 'infrastructure');
   else {
     const snapshot = await infrastructure.snapshot(agent.workspaceId);
-    if (snapshot.installation.status !== 'ready') blockers.push(...snapshot.installation.reasons);
+    if (snapshot.installation.status !== 'ready')
+      for (const reason of snapshot.installation.reasons) add(reason, 'infrastructure');
     if (!snapshot.installation.enabled)
-      blockers.push('Live dialing is disabled for this installation.');
+      add('Live dialing is disabled for this installation.', 'infrastructure');
   }
   if (!agent.config.costPolicy)
-    blockers.push('A live-call budget and maximum duration policy are required.');
-  const roles = [
-    'tts',
-    ...(agent.config.mode !== 'announcement' || agent.config.script ? ['stt'] : []),
-  ];
-  for (const role of roles) {
-    const id = agent.config.providers[role];
-    const binding = id ? await store.getProviderBinding(agent.workspaceId, id) : undefined;
-    if (!binding) {
-      blockers.push(`A ${role} binding is required for live calls.`);
-      continue;
-    }
-    try {
-      if (role === 'stt') deepgramBindingFromRecord(binding);
-      else openAiTtsBindingFromRecord(binding);
-      const credential = await store.getCredential(agent.workspaceId, binding.credentialId);
-      if (
-        !credential ||
-        credential.status !== 'active' ||
-        (credential.expiresAt && Date.parse(credential.expiresAt) <= Date.now()) ||
-        credential.environment !== binding.environment ||
-        (credential.permittedAgentIds.length && !credential.permittedAgentIds.includes(agent.id))
-      )
-        blockers.push(
-          `The ${role} credential is unavailable, expired, or not permitted for this agent.`,
-        );
-    } catch {
-      blockers.push(
-        `The ${role} provider configuration is incompatible with the installed live profile.`,
-      );
-    }
+    add('A live-call budget and maximum duration policy are required.', 'costPolicy');
+  for (const [slot, choice] of Object.entries(selections)) {
+    if (!choice?.bindingId || choice.bindingId === 'env') continue;
+    const binding = await store.getProviderBinding(agent.workspaceId, choice.bindingId);
+    const credential =
+      binding && (await store.getCredential(agent.workspaceId, binding.credentialId));
+    if (
+      !binding ||
+      !credential ||
+      credential.status !== 'active' ||
+      (credential.expiresAt && Date.parse(credential.expiresAt) <= Date.now()) ||
+      credential.environment !== binding.environment ||
+      (credential.permittedAgentIds.length && !credential.permittedAgentIds.includes(agent.id))
+    )
+      add(`The ${slot} credential is unavailable, expired, or not permitted for this agent.`, slot);
   }
+  const liveBlockers = [
+    ...new Set(details.filter((issue) => issue.severity === 'error').map((issue) => issue.message)),
+  ];
   return {
-    liveReady: blockers.length === 0,
-    liveBlockers: [...new Set(blockers)],
+    liveReady: liveBlockers.length === 0,
+    liveBlockers,
+    details,
     admissionSafety:
       'Advisory only. Admission must revalidate the immutable release, reserve a fresh worker, and obtain protection before dialing.',
   };

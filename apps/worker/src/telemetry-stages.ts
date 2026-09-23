@@ -1,9 +1,5 @@
 import type { Inference } from '@winsendotai/ovo-contracts';
-import {
-  type StreamingStt,
-  type StreamingSttSession,
-  type StreamingTts,
-} from '@winsendotai/ovo-plugin-voice';
+import type { StreamingStt, StreamingSttSession, StreamingTts } from '@winsendotai/ovo-contracts';
 import type { Context, PluginDefinition } from '@winsendotai/ovo-runtime';
 
 type StageOutcome = 'succeeded' | 'failed' | 'timeout' | 'unknown';

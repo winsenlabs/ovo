@@ -7,6 +7,8 @@ import {
   type EvaluationExecutor,
 } from '@winsendotai/ovo-plugin-evaluations';
 import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
+import type { NetPort } from '@winsendotai/ovo-contracts';
+import type { PluginDefinition } from '@winsendotai/ovo-runtime';
 import type { SecretManager } from '@winsendotai/ovo-plugin-secrets';
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import { Pool } from 'pg';
@@ -32,6 +34,8 @@ export interface EvaluationApiRuntimeConfig {
     maxProviderRequestsPerCase?: number;
     maxOutputTokens?: number;
     inferenceFactory?: ProviderEvaluationRuntimeOptions['inferenceFactory'];
+    catalog?: readonly PluginDefinition[];
+    net?: NetPort;
   };
   environment?: { OVO_PROVIDER_EVALUATIONS_ENABLED?: string };
   onError?(error: unknown): void;

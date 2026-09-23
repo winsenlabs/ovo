@@ -43,10 +43,11 @@ export async function authorizeCampaignPayload(input: {
   campaigns?: CampaignDialAuthorizer;
   streamUrl?: string;
   statusCallbackUrl?: string;
+  hostRouting?: boolean;
 }) {
   if (input.job.payload.kind !== 'campaign_dial_candidate')
     return { kind: 'ordinary' as const, payload: input.job.payload };
-  if (!input.campaigns || !input.streamUrl || !input.statusCallbackUrl)
+  if (!input.campaigns || (!input.hostRouting && (!input.streamUrl || !input.statusCallbackUrl)))
     return { kind: 'blocked' as const, reason: 'campaign-dial-runtime-not-composed' };
   let candidate: ReturnType<typeof campaignCandidate>;
   try {
@@ -83,8 +84,8 @@ export async function authorizeCampaignPayload(input: {
       attemptId: authorization.attemptId,
       campaignId: authorization.campaignId,
       variables: authorization.variables,
-      streamUrl: input.streamUrl,
-      statusCallbackUrl: input.statusCallbackUrl,
+      ...(input.streamUrl ? { streamUrl: input.streamUrl } : {}),
+      ...(input.statusCallbackUrl ? { statusCallbackUrl: input.statusCallbackUrl } : {}),
     },
   };
 }

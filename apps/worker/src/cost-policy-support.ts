@@ -1,4 +1,5 @@
-import type { ProviderUsage } from '@winsendotai/ovo-plugin-providers';
+import type { ProviderUsage } from './cost-policy-types.ts';
+import { meterKey, type UsageMeter } from '@winsendotai/ovo-contracts';
 import type {
   CostLedgerService,
   PriceCardVersion,
@@ -24,11 +25,16 @@ export interface NormalizedUsage {
 export function providerMeterKey(
   usage: Pick<ProviderUsage, 'provider' | 'operation' | 'unit'>,
 ): string {
+  if (['carrier', 'stt', 'tts', 'inference'].includes(usage.operation))
+    return meterKey(usage as Pick<UsageMeter, 'provider' | 'operation' | 'unit'>);
   return `${usage.provider}.${usage.operation}.${usage.unit}`;
 }
 
 export function providerSourceKind(operation: ProviderUsage['operation']): UsageSourceKind {
-  return operation === 'streaming-tts' ? 'tts-generation' : 'stt';
+  if (operation === 'tts' || operation === 'streaming-tts') return 'tts-generation';
+  if (operation === 'inference') return 'llm';
+  if (operation === 'carrier') return 'carrier';
+  return 'stt';
 }
 
 export function usageIdentity(sessionId: string, input: NormalizedUsage): string {

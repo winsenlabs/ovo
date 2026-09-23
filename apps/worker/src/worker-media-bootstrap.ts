@@ -5,15 +5,20 @@ import type {
   TelephonyControl,
 } from '@winsendotai/ovo-plugin-orchestration';
 import type { LiveRecordingService } from '@winsendotai/ovo-plugin-recordings';
-import type { InstalledSessionExtensions } from '@winsendotai/ovo-plugin-session';
+import type { InstalledSessionExtensions } from '@winsendotai/ovo-runtime';
 import type { ProductionWorkerCostRuntime } from './cost-runtime.ts';
 import type { InboundWorkerRuntime } from './inbound-runtime.ts';
 import { WorkerMediaRuntime } from './media-runtime.ts';
 import { ProductionVoiceSessionFactory } from './production-session-factory.ts';
 import type { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
 import type { WorkerTelemetryRuntime } from './telemetry-runtime.ts';
+import type { Server } from 'node:http';
+import type { LiveGraphOptions } from './session-graph-runtime.ts';
+import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
+import { terminateOwnedJob } from './worker-termination.ts';
 
 export function createProductionWorkerMediaRuntime(input: {
+  httpServer: Server;
   gatewayUrl: string;
   gatewayToken: string;
   workerId: string;
@@ -29,8 +34,13 @@ export function createProductionWorkerMediaRuntime(input: {
   speechCache: WorkerSpeechCacheRuntime;
   telephony: TelephonyControl;
   inbound?: InboundWorkerRuntime;
+  graph?: LiveGraphOptions;
+  carriers?: WorkerCarrierRuntime;
 }): WorkerMediaRuntime {
-  return new WorkerMediaRuntime(
+  // The legacy gateway still owns the websocket in F4; C2 mounts it on this server.
+  void input.httpServer;
+  let runtime!: WorkerMediaRuntime;
+  runtime = new WorkerMediaRuntime(
     {
       url: input.gatewayUrl,
       workerId: input.workerId,
@@ -48,11 +58,24 @@ export function createProductionWorkerMediaRuntime(input: {
       input.recordings,
       input.recordingRetentionDays,
       input.speechCache,
+      input.graph,
     ),
     async (route, reason) => {
       await input.costs.finalize(route.jobId);
       input.inbound?.completeSession(route.jobId);
       if (reason !== 'behavior_completed') return;
+      if (input.carriers) {
+        await terminateOwnedJob({
+          jobId: route.jobId,
+          workerId: input.workerId,
+          ownerEpoch: route.ownerEpoch,
+          reason,
+          store: input.store,
+          carriers: input.carriers,
+          media: runtime,
+        });
+        return;
+      }
       const requested = await input.store.requestSessionTermination(
         route.jobId,
         input.workerId,
@@ -63,4 +86,5 @@ export function createProductionWorkerMediaRuntime(input: {
     },
     (job, route) => input.inbound?.admitSession(job, route) ?? Promise.resolve(),
   );
+  return runtime;
 }

@@ -9,6 +9,10 @@
   },
   "dependencies": {
     "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-distribution": "workspace:*",
+    "@winsendotai/ovo-fixture-calls": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-session-host": "workspace:*",
     "@winsendotai/ovo-behaviors": "workspace:*",
     "@winsendotai/ovo-plugin-observability": "workspace:*",
     "@winsendotai/ovo-plugin-operations": "workspace:*",

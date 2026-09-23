@@ -6,6 +6,7 @@
   "exports": "./src/index.ts",
   "dependencies": {
     "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*"
   }
 }

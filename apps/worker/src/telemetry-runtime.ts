@@ -9,7 +9,7 @@ import {
   type TelemetryOutcome,
 } from '@winsendotai/ovo-plugin-observability';
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
-import type { SpeechEvidence, TranscriptRevision } from '@winsendotai/ovo-plugin-voice';
+import type { SpeechEvidence, TranscriptRevision } from '@winsendotai/ovo-contracts';
 import {
   BoundedCallEventWriter,
   boundedEvidenceText,

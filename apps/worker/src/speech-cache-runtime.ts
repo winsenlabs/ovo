@@ -1,4 +1,12 @@
-import type { AgentConfig } from '@winsendotai/ovo-contracts';
+import {
+  Cap,
+  type AgentConfig,
+  type SpeechOutput,
+  type SpeechOutputResult,
+  type SpeechSegment,
+  type StreamingTts,
+  type VoiceMediaTransport,
+} from '@winsendotai/ovo-contracts';
 import {
   BoundedByteCache,
   type ByteCache,
@@ -11,25 +19,24 @@ import {
   type NormalizedTts,
   type SpeechCacheTelemetry,
 } from '@winsendotai/ovo-plugin-speech-cache';
-import { PROVIDER_SERVICE_KEYS, type OpenAiTtsBinding } from '@winsendotai/ovo-plugin-providers';
 import { definePlugin, type PluginDefinition } from '@winsendotai/ovo-runtime';
-import {
-  STREAMING_VOICE_SERVICE_KEYS,
-  StreamingMediaSpeechOutput,
-  VOICE_SERVICE_KEYS,
-  type SpeechOutput,
-  type SpeechOutputResult,
-  type SpeechSegment,
-  type StreamingTts,
-  type VoiceMediaTransport,
-} from '@winsendotai/ovo-plugin-voice';
+import { StreamingMediaSpeechOutput } from '@winsendotai/ovo-plugin-voice';
 import { CachedMediaAudioPlayer } from './cached-media-player.ts';
 
 export const HYBRID_SPEECH_CACHE_PLUGIN_ID = '@winsendotai/ovo-worker/hybrid-speech-cache-output';
 
+interface LegacyTtsBinding {
+  workspaceId: string;
+  bindingVersion: string;
+  model: string;
+  voice: string;
+  instructions?: string;
+  speed: number;
+}
+
 interface LiveSpeechCacheInput {
   agent: AgentConfig;
-  binding: OpenAiTtsBinding;
+  binding: LegacyTtsBinding;
   cache: ByteCache;
   cachedTts: NormalizedTts;
   streamingTts: StreamingTts;
@@ -46,7 +53,7 @@ export class WorkerSpeechCacheRuntime {
 
   createOutputPlugin(input: {
     agent: AgentConfig;
-    binding: OpenAiTtsBinding;
+    binding: LegacyTtsBinding;
     emitCache?: (event: Extract<SpeechCacheTelemetry, { type: 'cache' }>) => void;
   }): PluginDefinition | undefined {
     const policy = input.agent.speechCache;
@@ -59,12 +66,8 @@ export class WorkerSpeechCacheRuntime {
         version: '0.1.0',
         contractVersion: 1,
         scope: 'session',
-        requires: [
-          PROVIDER_SERVICE_KEYS.cachedTts,
-          STREAMING_VOICE_SERVICE_KEYS.tts,
-          STREAMING_VOICE_SERVICE_KEYS.media,
-        ],
-        provides: [VOICE_SERVICE_KEYS.output],
+        requires: [Cap.cachedTts, Cap.tts, Cap.media],
+        provides: [Cap.output],
         configSchema: { type: 'object', additionalProperties: false },
         secretFields: [],
       },
@@ -73,12 +76,12 @@ export class WorkerSpeechCacheRuntime {
           agent: input.agent,
           binding,
           cache,
-          cachedTts: required(ctx.get(PROVIDER_SERVICE_KEYS.cachedTts), 'cached TTS'),
-          streamingTts: required(ctx.get(STREAMING_VOICE_SERVICE_KEYS.tts), 'streaming TTS'),
-          media: required(ctx.get(STREAMING_VOICE_SERVICE_KEYS.media), 'media transport'),
+          cachedTts: required(ctx.get(Cap.cachedTts), 'cached TTS'),
+          streamingTts: required(ctx.get(Cap.tts), 'streaming TTS'),
+          media: required(ctx.get(Cap.media), 'media transport'),
           emitCache: input.emitCache,
         });
-        ctx.provide(VOICE_SERVICE_KEYS.output, created.output);
+        ctx.provide(Cap.output, created.output);
         ctx.effect(() => () => created.dispose());
       },
     );

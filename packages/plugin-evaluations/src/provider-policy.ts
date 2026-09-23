@@ -65,8 +65,7 @@ export function providerEvaluationPolicy(
   const bindingVersion = `${binding.id}:${binding.updatedAt}`;
   if (bindingVersion !== requestedBindingVersion)
     throw forbidden('Provider binding version does not match the immutable release');
-  if (binding.provider !== 'openai')
-    throw forbidden('Only the installed OpenAI inference provider is supported');
+  if (!binding.provider.trim()) throw forbidden('The immutable inference provider is invalid');
   const modelId = binding.config.model;
   if (typeof modelId !== 'string' || !modelId.trim())
     throw forbidden('The immutable inference model is invalid');

@@ -1,3 +1,4 @@
+import type { PlaybackEvidence } from '@winsendotai/ovo-contracts';
 import type { SpeechOutput, SpeechOutputResult, SpeechSegment } from './types.ts';
 import type { StreamingTts, VoiceMediaTransport } from './provider-types.ts';
 
@@ -11,6 +12,8 @@ interface PendingMark {
 export interface StreamingMediaOutputConfig {
   markTimeoutMs?: number;
   voice?: string;
+  playbackEvidence?: PlaybackEvidence;
+  allowWeakEvidence?: boolean;
 }
 
 export class StreamingMediaSpeechOutput implements SpeechOutput {
@@ -102,8 +105,14 @@ export class StreamingMediaSpeechOutput implements SpeechOutput {
     if (!pending) return;
     clearTimeout(pending.timer);
     this.pending.delete(name);
-    pending.report?.('acknowledged', 'confirmed');
-    pending.resolve({ state: 'completed', evidence: 'confirmed' });
+    const evidence =
+      this.config.playbackEvidence === undefined ||
+      this.config.playbackEvidence === 'carrier-played' ||
+      (this.config.playbackEvidence === 'carrier-processed' && this.config.allowWeakEvidence)
+        ? 'confirmed'
+        : 'estimated';
+    pending.report?.('acknowledged', evidence);
+    pending.resolve({ state: 'completed', evidence });
   }
 
   private cancelMark(name: string): void {

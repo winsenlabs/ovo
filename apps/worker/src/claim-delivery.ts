@@ -7,6 +7,8 @@ import type {
 } from '@winsendotai/ovo-plugin-orchestration';
 import { reconcileClaimedDial } from './reconciliation.ts';
 import type { DeliveryOutcome } from './worker-types.ts';
+import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
+import { reconcileClaimedCarrierDial } from './reconciliation.ts';
 
 export async function claimWorkerDelivery(input: {
   workerId: string;
@@ -16,6 +18,7 @@ export async function claimWorkerDelivery(input: {
   telephony: TelephonyControl;
   leaseMs: number;
   deferSeconds: number;
+  carriers?: WorkerCarrierRuntime;
 }): Promise<{ kind: 'owned'; job: ClaimedJob } | { kind: 'outcome'; outcome: DeliveryOutcome }> {
   const claim = await input.store.claim(
     input.delivery.reference.jobId,
@@ -34,10 +37,9 @@ export async function claimWorkerDelivery(input: {
     return { kind: 'outcome', outcome: { kind: 'duplicate' } };
   }
   if (claim.kind === 'reconcile') {
-    const outcome = await reconcileClaimedDial({
-      ...input,
-      job: claim.job,
-    });
+    const outcome = input.carriers
+      ? await reconcileClaimedCarrierDial({ ...input, job: claim.job, carriers: input.carriers })
+      : await reconcileClaimedDial({ ...input, job: claim.job });
     return { kind: 'outcome', outcome };
   }
   return { kind: 'owned', job: claim.job };

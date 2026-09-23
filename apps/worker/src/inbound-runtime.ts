@@ -45,6 +45,7 @@ export class InboundWorkerRuntime {
       store: DurableJobStore;
       telephony: TelephonyControl;
       costs: ProductionWorkerCostRuntime;
+      terminateOwned?: (jobId: string, ownerEpoch: number, reason: string) => Promise<boolean>;
       onProtectionLost: (reason: string) => void;
       onSessionActive?: (jobId: string) => void;
       onSessionIdle?: (jobId: string) => void;
@@ -109,6 +110,10 @@ export class InboundWorkerRuntime {
       return;
     }
     const reason = `inbound cost admission blocked: ${admission.reason}`;
+    if (this.input.terminateOwned) {
+      await this.input.terminateOwned(job.id, route.ownerEpoch, reason);
+      throw new Error(reason);
+    }
     await this.input.store.requestSessionTermination(
       job.id,
       route.workerId,
@@ -198,6 +203,13 @@ export class InboundWorkerRuntime {
     }
     const active = this.activeSession;
     this.activeSession = undefined;
+    if (active && this.input.terminateOwned) {
+      await Promise.allSettled([
+        this.register(false),
+        this.input.terminateOwned(active.jobId, active.ownerEpoch, reason),
+      ]);
+      return;
+    }
     await Promise.allSettled([
       this.register(false),
       ...(active

@@ -3,7 +3,7 @@ import type { AgentDraft } from '@winsendotai/ovo-plugin-storage';
 import type { Principal } from '../types.ts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { WorkerTelemetryAdapter } from '@winsendotai/ovo-plugin-observability';
-import { withSessionFixtures } from '@winsendotai/ovo-plugin-session';
+import { withSessionFixtures } from '@winsendotai/ovo-session-host';
 export function registerSimulationRoutes(dependencies: any) {
   const {
     app,

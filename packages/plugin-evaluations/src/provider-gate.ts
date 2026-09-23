@@ -1,4 +1,5 @@
 import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
+import type { PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { ProviderEvaluationGate } from './service.ts';
 import {
   providerEvaluationPolicy,
@@ -13,6 +14,7 @@ export class LedgerProviderEvaluationGate implements ProviderEvaluationGate {
     private readonly ledger: CostLedgerService,
     private readonly releases: ProviderEvaluationReleaseLoader,
     private readonly authorizations: ProviderEvaluationAuthorizationResolver,
+    private readonly registry?: PluginRegistry,
   ) {}
 
   async authorize(input: Parameters<ProviderEvaluationGate['authorize']>[0]): Promise<void> {
@@ -27,6 +29,7 @@ export class LedgerProviderEvaluationGate implements ProviderEvaluationGate {
       input.fixtureBindingVersion,
       input.workspaceId,
     );
+    if (this.registry) this.registry.resolve('llm', policy.provider);
     const reserve = async (authorization: Awaited<ReturnType<typeof this.authorizations.get>>) => {
       if (
         !authorization ||

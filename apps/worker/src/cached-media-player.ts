@@ -1,5 +1,9 @@
 import type { AudioPlayer, AudioPlaybackRequest } from '@winsendotai/ovo-plugin-speech-cache';
-import type { SpeechOutputResult, VoiceMediaTransport } from '@winsendotai/ovo-plugin-voice';
+import type {
+  PlaybackEvidence,
+  SpeechOutputResult,
+  VoiceMediaTransport,
+} from '@winsendotai/ovo-contracts';
 
 interface PendingMark {
   epoch: number;
@@ -15,7 +19,11 @@ export class CachedMediaAudioPlayer implements AudioPlayer {
 
   constructor(
     private readonly media: VoiceMediaTransport,
-    private readonly options: { frameBytes?: number; markTimeoutMs?: number } = {},
+    private readonly options: {
+      frameBytes?: number;
+      markTimeoutMs?: number;
+      playbackEvidence?: PlaybackEvidence;
+    } = {},
   ) {
     this.unsubscribeMark = media.onMark((name) => this.confirm(name));
     this.unsubscribeClose = media.onClose(() => this.interruptAll());
@@ -92,8 +100,13 @@ export class CachedMediaAudioPlayer implements AudioPlayer {
     if (!pending) return;
     clearTimeout(pending.timer);
     this.pending.delete(name);
-    pending.report?.('acknowledged', 'confirmed');
-    pending.resolve({ state: 'completed', evidence: 'confirmed', usage: [] });
+    const evidence =
+      this.options.playbackEvidence === undefined ||
+      this.options.playbackEvidence === 'carrier-played'
+        ? 'confirmed'
+        : 'estimated';
+    pending.report?.('acknowledged', evidence);
+    pending.resolve({ state: 'completed', evidence, usage: [] });
   }
 
   private cancel(name: string): void {

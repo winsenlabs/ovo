@@ -8,6 +8,9 @@
     "start": "node dist/main.cjs"
   },
   "dependencies": {
+    "@winsendotai/ovo-distribution": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-session-host": "workspace:*",
     "@winsendotai/ovo-plugin-media": "workspace:*",
     "@winsendotai/ovo-plugin-operations": "workspace:*",
     "@winsendotai/ovo-plugin-orchestration": "workspace:*",

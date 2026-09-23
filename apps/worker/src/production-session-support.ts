@@ -1,25 +1,11 @@
 import { liveSessionRequiresInput } from './live-input-policy.ts';
+import { Cap } from '@winsendotai/ovo-contracts';
+import { behaviorPluginId, selectEngine } from '@winsendotai/ovo-session-host';
+import { definePlugin, PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { ToolConnection } from '@winsendotai/ovo-contracts';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
-import {
-  STREAMING_VOICE_PLUGIN_IDS,
-  STREAMING_VOICE_SERVICE_KEYS,
-  VOICE_PLUGIN_IDS,
-} from '@winsendotai/ovo-plugin-voice';
 import type { PluginDefinition } from '@winsendotai/ovo-runtime';
 import { HYBRID_SPEECH_CACHE_PLUGIN_ID } from './speech-cache-runtime.ts';
-
-const DRIVER_IDS = new Set([
-  '@winsendotai/ovo-provider-deepgram-stt',
-  '@winsendotai/ovo-provider-openai-tts',
-  '@winsendotai/ovo-provider-openai-inference',
-  VOICE_PLUGIN_IDS.scheduler,
-  STREAMING_VOICE_PLUGIN_IDS.mediaOutput,
-  STREAMING_VOICE_PLUGIN_IDS.sessionEngine,
-  HYBRID_SPEECH_CACHE_PLUGIN_ID,
-]);
-
-const REPLACED_LIVE_DRIVER_PINS = new Set<string>([VOICE_PLUGIN_IDS.simulatedOutput]);
 
 export function installedPluginsForRelease(
   release: ReleaseRecord,
@@ -41,28 +27,41 @@ export function selectVoiceSessionEnginePlugin(
   installed: readonly PluginDefinition[],
   fallback: () => PluginDefinition,
 ): PluginDefinition {
-  const pins = new Map(release.plugins.map((plugin) => [plugin.id, plugin.version]));
-  const providers = installed.filter(
+  const pins = new Set(release.plugins.map((row) => row.id));
+  const replacements = installed.filter(
     (plugin) =>
       pins.has(plugin.manifest.id) &&
-      plugin.manifest.provides.includes(STREAMING_VOICE_SERVICE_KEYS.sessionEngine),
+      plugin.manifest.provides.some((key) => key.split('@')[0] === Cap.engine),
   );
-  if (providers.length > 1)
-    throw new Error(
-      `multiple installed voice session engine providers: ${providers.map((item) => item.manifest.id).join(', ')}`,
+  // Avoid constructing the fallback when a release pins an installed replacement.
+  const builtIn = replacements.length ? undefined : fallback();
+  const behaviorId = behaviorPluginId(release.config);
+  const behaviorPin = release.plugins.find((row) => row.id === behaviorId);
+  const behavior =
+    behaviorPin &&
+    definePlugin(
+      {
+        id: behaviorId,
+        version: behaviorPin.version,
+        contractVersion: 1,
+        scope: 'session',
+        provides: [Cap.behavior],
+        requires: [],
+        configSchema: { type: 'object' },
+        secretFields: [],
+      },
+      () => undefined,
     );
-  const replacement = providers[0];
-  if (!replacement) return fallback();
-  const pinned = release.plugins.find((plugin) => plugin.id === replacement.manifest.id);
-  if (!pinned)
-    throw new Error(
-      `installed voice session engine is not release-pinned: ${replacement.manifest.id}@${replacement.manifest.version}`,
-    );
-  if (pinned.version !== replacement.manifest.version)
-    throw new Error(
-      `installed voice session engine ${replacement.manifest.id}@${replacement.manifest.version} does not satisfy release pin ${pinned.version}`,
-    );
-  return replacement;
+  return selectEngine(
+    release,
+    new PluginRegistry([
+      ...installed,
+      ...(behavior ? [behavior] : []),
+      ...(builtIn ? [builtIn] : []),
+    ]),
+    { plugins: [...installed] },
+    () => builtIn!,
+  ).definition;
 }
 
 export function validateReleasePlugins(
@@ -70,18 +69,9 @@ export function validateReleasePlugins(
   liveCatalog: readonly PluginDefinition[],
 ): void {
   const live = new Map(liveCatalog.map((plugin) => [plugin.manifest.id, plugin.manifest.version]));
-  for (const plugin of liveCatalog) {
-    if (DRIVER_IDS.has(plugin.manifest.id)) continue;
-    const pinned = release.plugins.find((row) => row.id === plugin.manifest.id);
-    if (!pinned || pinned.version !== plugin.manifest.version)
-      throw new Error(`live release does not pin ${plugin.manifest.id}@${plugin.manifest.version}`);
-  }
-  for (const pinned of release.plugins) {
-    const installed = live.get(pinned.id);
-    if (installed === undefined && REPLACED_LIVE_DRIVER_PINS.has(pinned.id)) continue;
-    if (installed !== pinned.version)
+  for (const pinned of release.plugins)
+    if (live.get(pinned.id) !== pinned.version)
       throw new Error(`live release plugin is not installed: ${pinned.id}@${pinned.version}`);
-  }
 }
 
 export function uniqueDefinitions(definitions: readonly PluginDefinition[]): PluginDefinition[] {
@@ -131,9 +121,9 @@ export function pluginConfig(
   sessionId: string,
   payload: Record<string, unknown>,
 ) {
-  if (definition.manifest.provides.includes('ovo.behavior'))
+  if (definition.manifest.provides.includes(Cap.behavior))
     return { agent: structuredClone(release.config), workspaceId: release.workspaceId, sessionId };
-  if (definition.manifest.provides.includes(STREAMING_VOICE_SERVICE_KEYS.sessionEngine)) {
+  if (definition.manifest.provides.some((key) => key.split('@')[0] === Cap.engine)) {
     const requiresInput = liveSessionRequiresInput(release.config);
     return {
       language: release.config.language,

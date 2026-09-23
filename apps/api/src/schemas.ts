@@ -16,6 +16,7 @@ export const CredentialBody = z.object({
 export const ProviderBindingBody = z.object({
   label: z.string().min(1).max(120),
   provider: z.string().min(1).max(120),
+  pluginId: z.string().min(1).max(240).nullable().optional(),
   environment: z.string().min(1).max(120),
   credentialId: Id,
   config: z

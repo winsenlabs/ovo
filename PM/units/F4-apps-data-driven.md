@@ -22,7 +22,15 @@ Defects fixed: [1, 20, 21, 26]
 ## Shared touchpoints (minimal edits allowed)
 
 - pnpm-lock.yaml (app manifest dependency additions only)
+- packages/plugin-voice/package.json (`@winsendotai/ovo-plugin-kit` dependency only; see checker note below)
+- packages/plugin-operations/src/{inbound-gateway,inbound-session,inbound-carrier,inbound-existing}.ts and tests (carrier selection propagation; `inbound-existing.ts` is an unchanged helper extraction for the size gate)
+- packages/plugin-operations/migrations/006_inbound_admission_carrier.sql and src/migrations.ts (wait-admission snapshot columns only)
+- packages/plugin-orchestration/migrations/005_inbound_carrier_selection.sql, src/postgres/migrations.ts and tests/carrier-identity.test.ts (nullable durable carrier-selection columns and the migration-version expectation)
 - scripts/baselines/*.json: lower or remove entries for files you rewrite; never add (transitional entries go in scripts/baselines/pending/F4.json)
+
+**Checker note (2026-09-23).** The owned-paths list omitted `packages/plugin-voice/package.json`, but section C requires the native v2 engine to use `sttAsLegacy`, `ttsAsLegacy`, and `legacyFromDuplex` from `plugin-kit`. The builder stopped at that contradiction; the founder approved adding only the `plugin-kit` dependency and its lockfile entry as F4 shared touchpoints. E2 inherits this dependency and must keep its imports within the vendor-plugin architecture rule.
+
+**Checker note (2026-09-24).** The board assigned inbound carrier-field propagation to F4, while design §15.5 assigns `plugin-operations` to O2. The checker authorized edits to `inbound-gateway.ts`, `inbound-session.ts`, and their tests solely for that propagation. The durable job and session tables had only nonnullable `carrier_id` (a carrier name) and nullable `binding_id`; they could not preserve a raw nullable plugin ID. F4 therefore added nullable raw-selection columns through a small orchestration migration, plus nullable wait-admission snapshot columns so a route edit does not change a waiting call's carrier. These additive migrations and the populated-schema migration test expectation are shared touchpoints for O1 and O2 under the founder's remaining-obligations rule; neither changes an ownership or capacity predicate. The original `NULL` env-binding spelling is preserved in every new row and payload field. The size gate required extracting carrier selection into `inbound-carrier.ts` and moving the unchanged persisted-decision helper into `inbound-existing.ts`; admission fencing, capacity reservation, ownership epochs, idempotency and transaction boundaries remain in their original paths.
 
 ## Specification
 

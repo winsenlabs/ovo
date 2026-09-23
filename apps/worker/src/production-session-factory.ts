@@ -1,51 +1,30 @@
-import { liveSessionRequiresInput } from './live-input-policy.ts';
-import type { OperationStore, SecretResolver } from '@winsendotai/ovo-contracts';
 import {
-  createSessionPluginCatalog,
-  type InstalledSessionExtensions,
-  type SessionPluginInput,
-} from '@winsendotai/ovo-plugin-session';
-import {
-  createDeepgramSttPlugin,
-  createOpenAiTtsPlugin,
-  createStreamingSpeechOutputPlugin,
-  deepgramBindingFromRecord,
-  openAiTtsBindingFromRecord,
-  type ProviderUsage,
-} from '@winsendotai/ovo-plugin-providers';
+  MULAW_8K,
+  outcomeFor,
+  sameFormat,
+  type EndReason,
+  type InferenceUsageEvidence,
+} from '@winsendotai/ovo-contracts';
+import { asEndReason } from '@winsendotai/ovo-plugin-kit';
+import type { ProviderUsage } from './cost-policy-types.ts';
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import type { SecretManager } from '@winsendotai/ovo-plugin-secrets';
 import type { LiveRecordingService } from '@winsendotai/ovo-plugin-recordings';
-import {
-  STREAMING_VOICE_SERVICE_KEYS,
-  VOICE_SERVICE_KEYS,
-  type BoundedSpeechScheduler,
-  createSpeechSchedulerPlugin,
-  createVoiceSessionEnginePlugin,
-  type VoiceSessionEngine,
-} from '@winsendotai/ovo-plugin-voice';
-import { compose, definePlugin, type PluginDefinition } from '@winsendotai/ovo-runtime';
+import type { InstalledSessionExtensions } from '@winsendotai/ovo-runtime';
 import type { VoiceSessionFactory } from './media-runtime.ts';
-import { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
-import type { SpeechCacheTelemetrySink } from '@winsendotai/ovo-plugin-speech-cache';
+import type { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
 import type { WorkerTelemetryRuntime } from './telemetry-runtime.ts';
+import type { WorkerSessionTelemetry } from './telemetry-runtime.ts';
 import { SessionCleanupStack, throwFailure } from './session-lifecycle.ts';
 import { prepareSessionRecording } from './session-recording.ts';
+import { optionalPayloadString, requiredPayloadString } from './production-session-support.ts';
 import {
-  instrumentInferencePlugin,
-  instrumentSttPlugin,
-  instrumentTtsPlugin,
-} from './telemetry-stages.ts';
-import {
-  immutableMcpConnections,
-  installedPluginsForRelease,
-  optionalPayloadString,
-  pluginConfig,
-  requiredPayloadString,
-  selectVoiceSessionEnginePlugin,
-  uniqueDefinitions,
-  validateReleasePlugins,
-} from './production-session-support.ts';
+  composeLiveSessionGraph,
+  subscribeEngineTelemetry,
+  type LiveGraphOptions,
+} from './session-graph-runtime.ts';
+import { composeLegacySessionGraph } from './legacy-session-compat.ts';
+import { attachRecordingEvidence } from './recording-evidence.ts';
 
 export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
   constructor(
@@ -57,11 +36,12 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
     ) => ((event: ProviderUsage) => void) | undefined,
     private readonly inferenceUsageForJob?: (
       jobId: string,
-    ) => SessionPluginInput['onInferenceUsage'],
+    ) => ((evidence: InferenceUsageEvidence) => void) | undefined,
     private readonly extensions: InstalledSessionExtensions = { plugins: [], nativeHandlers: {} },
     private readonly recordings?: LiveRecordingService,
     private readonly recordingRetentionDays = 30,
     private readonly speechCache?: WorkerSpeechCacheRuntime,
+    private readonly graph?: LiveGraphOptions,
   ) {}
 
   async create({ job, route, media }: Parameters<VoiceSessionFactory['create']>[0]) {
@@ -81,15 +61,6 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
       }));
     if (call.releaseId !== release.id || call.kind !== 'live')
       throw new Error('live call audit record does not match release');
-    const requiresInput = liveSessionRequiresInput(release.config);
-    const stt = release.providerBindings.stt;
-    const tts = release.providerBindings.tts;
-    if ((requiresInput && !stt) || !tts)
-      throw new Error('live release is missing an immutable required voice binding');
-    const mcpTools = release.config.tools.filter(
-      (tool) => tool.connector === 'mcp' && release.config.allowedTools.includes(tool.id),
-    );
-    const mcpConnections = immutableMcpConnections(release, mcpTools);
     const inference = release.providerBindings.inference;
     const telemetry = await this.telemetry.createSession({
       workspaceId: job.workspaceId,
@@ -122,127 +93,75 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
       const capture = recording.capture;
       if (capture) cleanup.defer(() => capture.finish());
 
-      const audit = (type: string, payload: Record<string, unknown>) =>
-        telemetry.audit(type, payload);
-      const usage = (event: ProviderUsage) => {
-        this.costUsageForJob?.(job.id)?.(event);
-        telemetry.providerUsage(event);
-      };
-      const ttsBinding = openAiTtsBindingFromRecord(tts);
-      const cacheTelemetry: SpeechCacheTelemetrySink = (event) => {
-        void audit('speech.cache', event as unknown as Record<string, unknown>);
-      };
-      const output =
-        this.speechCache?.createOutputPlugin({
-          agent: release.config,
-          binding: ttsBinding,
-          emitCache: cacheTelemetry,
-        }) ?? createStreamingSpeechOutputPlugin();
-      const sessionCatalog = createSessionPluginCatalog({
-        config: release.config,
-        workspaceId: release.workspaceId,
-        bindings: release.providerBindings,
-        mcpConnections,
-        nativeHandlers: this.extensions.nativeHandlers,
-        nativeHandlerPackages: this.extensions.nativeHandlerPackages,
-        releasePlugins: release.plugins,
-        output: { kind: 'live', plugin: output },
-        onInferenceUsage: (evidence) => {
-          this.inferenceUsageForJob?.(job.id)?.(evidence);
-          telemetry.inferenceUsage(evidence);
-        },
-      }).map((definition) =>
-        definition.manifest.provides.includes('ovo.inference')
-          ? instrumentInferencePlugin(definition, telemetry, {
-              provider: inference?.provider,
-              model:
-                typeof inference?.config.model === 'string' ? inference.config.model : undefined,
-            })
-          : definition,
-      );
-      const installed = installedPluginsForRelease(release, this.extensions.plugins);
-      validateReleasePlugins(release, [...sessionCatalog, ...installed]);
+      if (this.graph) {
+        if (!this.graph.carriers)
+          throw new Error('Selected carrier runtime is required for live graph');
+        const carrier = await this.graph.carriers.forJob(job, false);
+        if (route.carrierId && route.carrierId !== carrier.carrier.carrierId)
+          throw new Error('Session route carrier differs from selected carrier');
+        if (
+          !carrier.carrier.capabilities.media.formats.some((format) => sameFormat(format, MULAW_8K))
+        )
+          throw new Error('Legacy worker media requires a carrier supporting MULAW_8K');
+        const graph = await composeLiveSessionGraph({
+          graph: this.graph,
+          release,
+          routeSessionId: route.sessionId,
+          variables: isPayloadRecord(job.payload.variables) ? job.payload.variables : {},
+          media: recording.media,
+          operationStore: telemetry.withOperationStore(this.store.operationStore),
+          secrets: this.secrets.forAgent(release.agentId),
+          telemetry,
+          extensions: this.extensions,
+          usage: (meter) => this.costUsageForJob?.(job.id)?.(meter),
+          speechCache: this.speechCache,
+          carrierMedia: {
+            carrierId: carrier.carrier.carrierId,
+            playbackEvidence: carrier.carrier.capabilities.media.playbackEvidence,
+            clearFlushesMarkers: carrier.carrier.capabilities.media.clearFlushesMarkers,
+          },
+        });
+        cleanup.defer(() => graph.composition.dispose());
+        const unsubscribe = subscribeEngineTelemetry(graph.engine, telemetry);
+        cleanup.defer(() => unsubscribe());
+        if (capture) cleanup.defer(attachRecordingEvidence(capture, graph.engine));
+        cleanup.defer(async () => {
+          await graph.engine.dispose(asEndReason(requestedReason ?? 'drain'));
+        });
+        await graph.engine.start();
+        return {
+          dispose: async (reason?: string) => {
+            const endReason = asEndReason(reason ?? 'behavior_completed');
+            requestedOutcome = recordSessionOutcome(telemetry, endReason);
+            requestedReason = endReason;
+            const failure = await cleanup.close();
+            if (failure !== undefined) throwFailure(failure);
+          },
+        };
+      }
 
-      const enginePlugin = selectVoiceSessionEnginePlugin(release, this.extensions.plugins, () =>
-        createVoiceSessionEnginePlugin({
-          stt: requiresInput ? 'required' : 'disabled',
-          onAcceptedTranscript: (revision) => telemetry.transcript(revision, true),
-        }),
-      );
-
-      const services = sessionServicesPlugin(
-        telemetry.withOperationStore(this.store.operationStore),
-        this.secrets.forAgent(release.agentId),
-        recording.media,
-      );
-      const sttPlugin =
-        stt && requiresInput
-          ? instrumentSttPlugin(
-              createDeepgramSttPlugin(deepgramBindingFromRecord(stt), {
-                usage,
-                transcript: (revision) => telemetry.transcript(revision, false),
-              }),
-              telemetry,
-              {
-                provider: stt.provider,
-                model: typeof stt.config.model === 'string' ? stt.config.model : undefined,
-              },
-            )
-          : undefined;
-      const ttsPlugin = instrumentTtsPlugin(
-        createOpenAiTtsPlugin(ttsBinding, { usage }),
+      const legacy = await composeLegacySessionGraph({
+        job,
+        route,
+        release,
+        media: recording.media,
         telemetry,
-        {
-          provider: tts.provider,
-          model: typeof tts.config.model === 'string' ? tts.config.model : undefined,
-        },
-      );
-      const catalog = uniqueDefinitions([
-        services,
-        ...sessionCatalog,
-        ...installed,
-        ...(sttPlugin ? [sttPlugin] : []),
-        ttsPlugin,
-        output,
-        createSpeechSchedulerPlugin(),
-        enginePlugin,
-      ]);
-      audit('session.driver-bound', {
-        releaseId: release.id,
-        sessionId: route.sessionId,
-        generation: route.generation,
-        media: 'live',
-        sttBindingVersion: stt ? `${stt.id}:${stt.updatedAt}` : undefined,
-        ttsBindingVersion: `${tts.id}:${tts.updatedAt}`,
+        store: this.store,
+        extensions: this.extensions,
       });
-      const composition = await compose(
-        catalog.map((definition) => ({
-          id: definition.manifest.id,
-          config: pluginConfig(definition, release, route.sessionId, job.payload),
-        })),
-        catalog,
-      );
-      cleanup.defer(() => composition.dispose());
-      const engine = composition.ctx.get(
-        STREAMING_VOICE_SERVICE_KEYS.sessionEngine,
-      ) as VoiceSessionEngine;
-      if (!engine) throw new Error('live plugin graph did not create a voice session engine');
-      cleanup.defer(() => engine.dispose(requestedReason));
-      const scheduler = composition.ctx.get(VOICE_SERVICE_KEYS.scheduler) as BoundedSpeechScheduler;
-      if (!scheduler) throw new Error('live plugin graph did not create a speech scheduler');
-      telemetry.attachScheduler(scheduler);
-      recording.capture?.attachEvidence(scheduler);
+      cleanup.defer(() => legacy.composition.dispose());
+      cleanup.defer(async () => {
+        await legacy.engine.dispose(requestedReason);
+      });
       return {
         dispose: async (reason?: string) => {
-          requestedOutcome =
-            reason === undefined || reason === 'behavior_completed' || reason.includes('completed')
-              ? 'ended'
-              : 'failed';
-          requestedReason = reason;
+          const endReason = asEndReason(reason ?? 'behavior_completed');
+          requestedOutcome = recordSessionOutcome(telemetry, endReason);
+          requestedReason = endReason;
           const failure = await cleanup.close();
           if (failure !== undefined) throwFailure(failure);
         },
-      } as Pick<VoiceSessionEngine, 'dispose'>;
+      };
     } catch (error) {
       const failure = await cleanup.close(error);
       throwFailure(failure);
@@ -250,29 +169,15 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
   }
 }
 
-function sessionServicesPlugin(
-  operationStore: OperationStore,
-  secrets: SecretResolver,
-  media: unknown,
-): PluginDefinition {
-  return definePlugin(
-    {
-      id: '@winsendotai/ovo-worker/session-services',
-      version: '0.1.0',
-      contractVersion: 1,
-      scope: 'session',
-      requires: [],
-      provides: ['ovo.operation-store', 'ovo.secret-resolver', STREAMING_VOICE_SERVICE_KEYS.media],
-      configSchema: { type: 'object', additionalProperties: false },
-      secretFields: [],
-    },
-    (ctx) => {
-      ctx.provide('ovo.operation-store', operationStore);
-      ctx.provide('ovo.secret-resolver', {
-        resolve: (workspaceId: string, credentialId: string) =>
-          secrets.resolve(workspaceId, credentialId),
-      } satisfies SecretResolver);
-      ctx.provide(STREAMING_VOICE_SERVICE_KEYS.media, media);
-    },
-  );
+export function recordSessionOutcome(
+  telemetry: Pick<WorkerSessionTelemetry, 'audit'>,
+  reason: EndReason,
+): 'ended' | 'failed' {
+  const outcome = outcomeFor(reason);
+  telemetry.audit('session.outcome', { outcome, reason });
+  return outcome === 'failed' || outcome === 'canceled' ? 'failed' : 'ended';
+}
+
+function isPayloadRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }

@@ -7,14 +7,12 @@ import {
   type ProviderEvaluationReleaseLoader,
   type ReleaseEvaluationSnapshot,
 } from '@winsendotai/ovo-plugin-evaluations';
-import { AiSdkInference } from '@winsendotai/ovo-plugin-inference';
-import type { CostLedgerService, InferenceUsageEvidence } from '@winsendotai/ovo-plugin-ledger';
-import {
-  createOpenAiModelFactory,
-  openAiInferenceBindingFromRecord,
-} from '@winsendotai/ovo-plugin-providers';
+import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
+import type { NetPort } from '@winsendotai/ovo-contracts';
+import { PluginRegistry, type PluginDefinition } from '@winsendotai/ovo-runtime';
 import type { SecretManager } from '@winsendotai/ovo-plugin-secrets';
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
+import { InstalledProviderEvaluationInferenceFactory } from './provider-evaluation-inference.ts';
 
 export interface ProviderEvaluationRuntimeOptions {
   ledger: CostLedgerService;
@@ -25,6 +23,8 @@ export interface ProviderEvaluationRuntimeOptions {
   maxOutputTokens?: number;
   inferenceFactory?: ProviderEvaluationInferenceFactory;
   authorizations: ProviderEvaluationAuthorizationResolver;
+  catalog?: readonly PluginDefinition[];
+  net?: NetPort;
 }
 
 export function createProviderEvaluationRuntime(
@@ -33,13 +33,20 @@ export function createProviderEvaluationRuntime(
 ) {
   if (environment.OVO_PROVIDER_EVALUATIONS_ENABLED !== 'true') return undefined;
   const releases = new StoreProviderEvaluationReleaseLoader(options.store);
+  const registry = options.catalog ? new PluginRegistry(options.catalog) : undefined;
   const inference =
-    options.inferenceFactory ?? new OpenAiProviderEvaluationInferenceFactory(options.secrets);
+    options.inferenceFactory ??
+    new InstalledProviderEvaluationInferenceFactory(
+      options.catalog ?? [],
+      options.secrets,
+      options.net,
+    );
   return {
     providerGate: new LedgerProviderEvaluationGate(
       options.ledger,
       releases,
       options.authorizations,
+      registry,
     ),
     providerExecutor: new ProviderEvaluationExecutor({
       ledger: options.ledger,
@@ -63,51 +70,39 @@ export class StoreProviderEvaluationReleaseLoader implements ProviderEvaluationR
         statusCode: 404,
         code: 'release_not_found',
       });
+    const selected = release.selections?.llm;
+    const selectedBinding =
+      selected?.binding && selected.bindingId
+        ? {
+            id: selected.bindingId,
+            workspaceId: release.workspaceId,
+            provider: selected.binding.provider,
+            credentialId: selected.binding.credentialId,
+            config: selected.binding.config,
+            updatedAt: selected.binding.updatedAt,
+            pluginId: selected.pluginId,
+            pluginVersion: selected.version,
+          }
+        : undefined;
     return {
       id: release.id,
       workspaceId: release.workspaceId,
       agentId: release.agentId,
       fingerprint: releaseEvaluationFingerprint(release),
       config: release.config,
-      providerBindings: release.providerBindings,
+      providerBindings: {
+        ...release.providerBindings,
+        ...(selectedBinding
+          ? { inference: selectedBinding }
+          : release.providerBindings.inference
+            ? {
+                inference: {
+                  ...release.providerBindings.inference,
+                  pluginId: release.providerBindings.inference.pluginId,
+                },
+              }
+            : {}),
+      } as unknown as ReleaseEvaluationSnapshot['providerBindings'],
     };
-  }
-}
-
-class OpenAiProviderEvaluationInferenceFactory implements ProviderEvaluationInferenceFactory {
-  constructor(private readonly secrets: SecretManager) {}
-
-  async create(input: {
-    release: ReleaseEvaluationSnapshot;
-    bindingVersion: string;
-    provider: string;
-    modelId: string;
-    maxOutputTokens: number;
-    signal: AbortSignal;
-    onUsage(evidence: InferenceUsageEvidence): Promise<void>;
-  }) {
-    input.signal.throwIfAborted();
-    const record = input.release.providerBindings?.inference;
-    if (!record || !input.release.agentId)
-      throw new Error('Immutable provider evaluation release data is incomplete');
-    const binding = openAiInferenceBindingFromRecord(record);
-    if (
-      input.provider !== 'openai' ||
-      binding.bindingVersion !== input.bindingVersion ||
-      binding.model !== input.modelId
-    )
-      throw new Error('Immutable provider evaluation binding changed');
-    if (input.release.workspaceId && binding.workspaceId !== input.release.workspaceId)
-      throw new Error('Provider evaluation binding workspace mismatch');
-    const models = await createOpenAiModelFactory(
-      binding,
-      this.secrets.forAgent(input.release.agentId),
-    );
-    input.signal.throwIfAborted();
-    return new AiSdkInference({
-      model: models.model(),
-      maxOutputTokens: input.maxOutputTokens,
-      onUsage: input.onUsage,
-    });
   }
 }

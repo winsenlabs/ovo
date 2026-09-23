@@ -1,28 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import { transaction } from './database.ts';
-import { confirmInboundCallback, type CallbackAdmissionRow } from './inbound-callback.ts';
+import { confirmInboundCallback } from './inbound-callback.ts';
+import { existingDecision, type ExistingRow } from './inbound-existing.ts';
+import {
+  InstalledInboundCarrierPlugins,
+  selectInboundCarrierRoute,
+  type InboundCarrierRoute,
+} from './inbound-carrier.ts';
 import { provisionInboundSession } from './inbound-session.ts';
 import type { InboundGatewayCall, InboundGatewayDecision, InboundOverflowPolicy } from './types.ts';
-
-interface ExistingRow extends CallbackAdmissionRow {
-  id: string;
-  decision: 'reserved' | 'busy' | 'wait' | 'callback' | 'human';
-  detail: Record<string, unknown>;
-  job_id: string | null;
-  session_id: string | null;
-  release_id: string | null;
-  route_version: string | null;
-  worker_id: string | null;
-  worker_endpoint: string | null;
-  wait_expires_at: Date | null;
-}
-
-interface RouteRow extends QueryResultRow {
-  release_id: string;
-  variables: Record<string, string>;
-  version: string;
-}
 
 interface CapacityRow extends QueryResultRow {
   slot_id: string;
@@ -37,59 +24,13 @@ interface PolicyRow extends QueryResultRow {
 }
 
 const existingColumns = `a.id, a.call_id, a.decision, a.detail, a.job_id, a.session_id,
-  a.release_id, a.route_version, a.variables, a.from_number, a.to_number, a.wait_expires_at,
+  a.release_id, a.route_version, a.variables, a.carrier_plugin_id, a.carrier_binding_id,
+  a.from_number, a.to_number, a.wait_expires_at,
   a.callback_campaign_id, a.callback_contact_id, a.callback_job_id,
   c.worker_id, c.worker_endpoint`;
 
-function existingDecision(row: ExistingRow): InboundGatewayDecision {
-  if (row.decision === 'reserved') {
-    if (!row.job_id || !row.session_id || !row.release_id || !row.route_version || !row.worker_id)
-      throw new Error('Persisted inbound reservation is incomplete');
-    return {
-      kind: 'reserved',
-      admissionId: row.id,
-      jobId: row.job_id,
-      sessionId: row.session_id,
-      workerId: row.worker_id,
-      workerEndpoint: row.worker_endpoint ?? '',
-      releaseId: row.release_id,
-      routeVersion: Number(row.route_version),
-    };
-  }
-  if (row.decision === 'human')
-    return {
-      kind: 'human',
-      admissionId: row.id,
-      target: String(row.detail.target ?? ''),
-      announcement: String(row.detail.announcement ?? ''),
-    };
-  if (row.decision === 'wait') {
-    if (!row.wait_expires_at) throw new Error('Persisted inbound wait is incomplete');
-    return {
-      kind: 'wait',
-      admissionId: row.id,
-      announcement: String(row.detail.announcement ?? ''),
-      expiresAt: row.wait_expires_at,
-      pollAfterMs: Math.max(1_000, Math.min(5_000, row.wait_expires_at.getTime() - Date.now())),
-    };
-  }
-  if (row.decision === 'callback') {
-    const state = String(row.detail.state ?? 'prompt');
-    return {
-      kind: 'callback',
-      admissionId: row.id,
-      state:
-        state === 'queued' || state === 'declined' || state === 'suppressed' ? state : 'prompt',
-      announcement: String(row.detail.announcement ?? ''),
-      campaignId: row.callback_campaign_id ?? undefined,
-      contactId: row.callback_contact_id ?? undefined,
-      jobId: row.callback_job_id ?? undefined,
-    };
-  }
-  return { kind: 'busy', admissionId: row.id, reason: String(row.detail.reason ?? 'busy') };
-}
-
 export class InboundGatewayAdmissionService {
+  private readonly installedCarrierPlugins = new InstalledInboundCarrierPlugins();
   constructor(
     private readonly pool: Pool,
     private readonly organizationId: string,
@@ -98,6 +39,11 @@ export class InboundGatewayAdmissionService {
       permittedFromNumbers: readonly string[];
     } = { enabled: false, permittedFromNumbers: [] },
   ) {}
+
+  /** The host supplies controls it actually composed; an unknown explicit route never admits. */
+  setInstalledCarrierPlugins(pluginIds: Iterable<string>): void {
+    this.installedCarrierPlugins.set(pluginIds);
+  }
 
   async admit(input: InboundGatewayCall): Promise<InboundGatewayDecision> {
     if (
@@ -112,15 +58,12 @@ export class InboundGatewayAdmissionService {
       ]);
       const prior = await this.existing(client, input.carrierCallId);
       if (prior) return this.resume(client, input, prior);
-      const route = await client.query<RouteRow>(
-        `SELECT release_id, variables, version FROM ovo_ops_inbound_routes
-         WHERE organization_id = $1 AND phone_number = $2 AND enabled = true`,
-        [this.organizationId, input.toNumber],
-      );
-      if (!route.rows[0]) return this.recordBusy(client, input, 'inbound_number_not_routed');
+      const route = await selectInboundCarrierRoute(client, this.organizationId, input.toNumber);
+      if (!route) return this.recordBusy(client, input, 'inbound_number_not_routed');
+      this.installedCarrierPlugins.assert(route.carrier_plugin_id);
       const capacity = await this.reserveCapacity(client, input.handshakeTtlMs);
-      if (!capacity) return this.overflow(client, input, route.rows[0]);
-      return provisionInboundSession(client, this.organizationId, input, route.rows[0], capacity);
+      if (!capacity) return this.overflow(client, input, route);
+      return provisionInboundSession(client, this.organizationId, input, route, capacity);
     });
   }
 
@@ -175,6 +118,7 @@ export class InboundGatewayAdmissionService {
     if (!capacity) return existingDecision(prior);
     if (!prior.release_id || !prior.route_version || !prior.variables)
       throw new Error('Persisted inbound wait route is incomplete');
+    this.installedCarrierPlugins.assert(prior.carrier_plugin_id);
     return provisionInboundSession(
       client,
       this.organizationId,
@@ -183,6 +127,8 @@ export class InboundGatewayAdmissionService {
         release_id: prior.release_id,
         variables: prior.variables,
         version: prior.route_version,
+        carrier_plugin_id: prior.carrier_plugin_id,
+        carrier_binding_id: prior.carrier_binding_id,
       },
       capacity,
       prior.id,
@@ -208,7 +154,7 @@ export class InboundGatewayAdmissionService {
   private async overflow(
     client: PoolClient,
     input: InboundGatewayCall,
-    route: RouteRow,
+    route: InboundCarrierRoute,
   ): Promise<InboundGatewayDecision> {
     const policy = await client.query<PolicyRow>(
       'SELECT policy FROM ovo_ops_inbound_policy WHERE organization_id = $1',
@@ -220,9 +166,10 @@ export class InboundGatewayAdmissionService {
       const expiresAt = new Date(Date.now() + configured.maxWaitMs);
       await client.query(
         `INSERT INTO ovo_ops_inbound_admissions
-           (id, organization_id, call_id, decision, detail, from_number, to_number,
-            route_version, release_id, variables, wait_expires_at)
-         VALUES ($1,$2,$3,'wait',$4::jsonb,$5,$6,$7,$8,$9::jsonb,$10)`,
+          (id, organization_id, call_id, decision, detail, from_number, to_number,
+            route_version, release_id, variables, wait_expires_at,
+            carrier_plugin_id, carrier_binding_id)
+         VALUES ($1,$2,$3,'wait',$4::jsonb,$5,$6,$7,$8,$9::jsonb,$10,$11,$12)`,
         [
           admissionId,
           this.organizationId,
@@ -234,6 +181,8 @@ export class InboundGatewayAdmissionService {
           route.release_id,
           JSON.stringify(route.variables),
           expiresAt,
+          route.carrier_plugin_id,
+          route.carrier_binding_id,
         ],
       );
       return {

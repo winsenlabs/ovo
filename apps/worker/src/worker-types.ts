@@ -8,7 +8,8 @@ export type DeliveryOutcome =
   | {
       kind: 'accepted';
       jobId: string;
-      carrierCallId: string;
+      carrierCallId?: string;
+      carrierRequestId?: string;
       sessionId: string;
       protection: ProtectionRenewal;
       lease: JobLeaseRenewal;

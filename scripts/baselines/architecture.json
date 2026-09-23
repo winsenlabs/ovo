@@ -1,31 +1,6 @@
 {
   "edges": [
     {
-      "from": "apps/api",
-      "to": "packages/plugin-providers",
-      "reason": "apps may not import legacy packages"
-    },
-    {
-      "from": "apps/api",
-      "to": "packages/plugin-session",
-      "reason": "apps may not import legacy packages"
-    },
-    {
-      "from": "apps/worker",
-      "to": "packages/plugin-providers",
-      "reason": "apps may not import legacy packages"
-    },
-    {
-      "from": "apps/worker",
-      "to": "packages/plugin-session",
-      "reason": "apps may not import legacy packages"
-    },
-    {
-      "from": "apps/worker",
-      "to": "packages/plugin-telephony-twilio",
-      "reason": "apps may not import legacy packages"
-    },
-    {
       "from": "apps/worker",
       "to": "packages/plugin-voice",
       "reason": "apps may not import vendor-plugin packages"

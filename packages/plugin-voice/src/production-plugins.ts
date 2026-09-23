@@ -1,4 +1,10 @@
-import type { Behavior } from '@winsendotai/ovo-contracts';
+import {
+  Cap,
+  type Behavior,
+  type MediaDuplex,
+  type TextToSpeech,
+} from '@winsendotai/ovo-contracts';
+import { legacyFromDuplex, ttsAsLegacy } from '../../plugin-kit/src/speech-shims.ts';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 import { StreamingMediaSpeechOutput } from './media-output.ts';
 import type {
@@ -29,36 +35,50 @@ export interface VoiceSessionEnginePluginOptions {
   onAcceptedTranscript?: (revision: Readonly<TranscriptRevision>) => void;
 }
 
-export function createStreamingMediaSpeechOutputPlugin() {
+export function createStreamingMediaSpeechOutputPlugin(options: { source?: 'legacy' | 'v2' } = {}) {
   return definePlugin(
     {
       id: STREAMING_VOICE_PLUGIN_IDS.mediaOutput,
       version: '0.1.0',
       contractVersion: 1,
       scope: 'session',
-      requires: [STREAMING_VOICE_SERVICE_KEYS.tts, STREAMING_VOICE_SERVICE_KEYS.media],
+      requires:
+        options.source === 'v2'
+          ? [Cap.tts, Cap.media]
+          : [STREAMING_VOICE_SERVICE_KEYS.tts, STREAMING_VOICE_SERVICE_KEYS.media],
       provides: [VOICE_SERVICE_KEYS.output],
       configSchema: {
         type: 'object',
         properties: {
           voice: { type: 'string', minLength: 1, maxLength: 120 },
           markTimeoutMs: { type: 'integer', minimum: 100, maximum: 120000 },
+          allowWeakEvidence: { type: 'boolean' },
         },
         additionalProperties: false,
       },
       secretFields: [],
     },
     (ctx, config) => {
+      const media =
+        options.source === 'v2'
+          ? required<MediaDuplex>(ctx.get(Cap.media), 'media duplex')
+          : undefined;
       const output = new StreamingMediaSpeechOutput(
-        required<StreamingTts>(ctx.get(STREAMING_VOICE_SERVICE_KEYS.tts), 'streaming TTS'),
-        required<VoiceMediaTransport>(
-          ctx.get(STREAMING_VOICE_SERVICE_KEYS.media),
-          'media transport',
-        ),
+        media
+          ? ttsAsLegacy(required<TextToSpeech>(ctx.get(Cap.tts), 'text to speech'))
+          : required<StreamingTts>(ctx.get(STREAMING_VOICE_SERVICE_KEYS.tts), 'streaming TTS'),
+        media
+          ? legacyFromDuplex(media)
+          : required<VoiceMediaTransport>(
+              ctx.get(STREAMING_VOICE_SERVICE_KEYS.media),
+              'media transport',
+            ),
         {
           voice: typeof config.voice === 'string' ? config.voice : undefined,
           markTimeoutMs:
             typeof config.markTimeoutMs === 'number' ? config.markTimeoutMs : undefined,
+          playbackEvidence: media?.playbackEvidence,
+          allowWeakEvidence: config.allowWeakEvidence === true,
         },
       );
       ctx.provide(VOICE_SERVICE_KEYS.output, output);

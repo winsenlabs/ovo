@@ -1,7 +1,7 @@
 import {
   createSessionPluginCatalog,
   type InstalledNativeHandlerPackage,
-} from '@winsendotai/ovo-plugin-session';
+} from '@winsendotai/ovo-session-host';
 import type {
   AgentDraft,
   ControlStore,

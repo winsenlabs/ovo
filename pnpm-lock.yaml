@@ -35,12 +35,21 @@ importers:
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@winsendotai/ovo-distribution':
+        specifier: workspace:*
+        version: link:../../packages/distribution
+      '@winsendotai/ovo-fixture-calls':
+        specifier: workspace:*
+        version: link:../../packages/fixture-calls
       '@winsendotai/ovo-plugin-evaluations':
         specifier: workspace:*
         version: link:../../packages/plugin-evaluations
       '@winsendotai/ovo-plugin-inference':
         specifier: workspace:*
         version: link:../../packages/plugin-inference
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../../packages/plugin-kit
       '@winsendotai/ovo-plugin-ledger':
         specifier: workspace:*
         version: link:../../packages/plugin-ledger
@@ -77,6 +86,9 @@ importers:
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
+      '@winsendotai/ovo-session-host':
+        specifier: workspace:*
+        version: link:../../packages/session-host
       fastify:
         specifier: 5.12.5
         version: 5.12.5
@@ -151,6 +163,12 @@ importers:
 
   apps/media-gateway:
     dependencies:
+      '@winsendotai/ovo-distribution':
+        specifier: workspace:*
+        version: link:../../packages/distribution
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../../packages/plugin-kit
       '@winsendotai/ovo-plugin-media':
         specifier: workspace:*
         version: link:../../packages/plugin-media
@@ -163,15 +181,24 @@ importers:
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
+      '@winsendotai/ovo-session-host':
+        specifier: workspace:*
+        version: link:../../packages/session-host
 
   apps/worker:
     dependencies:
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@winsendotai/ovo-distribution':
+        specifier: workspace:*
+        version: link:../../packages/distribution
       '@winsendotai/ovo-plugin-cache':
         specifier: workspace:*
         version: link:../../packages/plugin-cache
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../../packages/plugin-kit
       '@winsendotai/ovo-plugin-ledger':
         specifier: workspace:*
         version: link:../../packages/plugin-ledger
@@ -214,6 +241,12 @@ importers:
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
+      '@winsendotai/ovo-session-host':
+        specifier: workspace:*
+        version: link:../../packages/session-host
+      ws:
+        specifier: 8.21.3
+        version: 8.21.3
 
   experiments/voice:
     dependencies:
@@ -1048,6 +1081,9 @@ importers:
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime

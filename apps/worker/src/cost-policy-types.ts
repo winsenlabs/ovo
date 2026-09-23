@@ -1,5 +1,4 @@
-import type { AgentConfig } from '@winsendotai/ovo-contracts';
-import type { ProviderUsageSink } from '@winsendotai/ovo-plugin-providers';
+import type { AgentConfig, UsageMeter } from '@winsendotai/ovo-contracts';
 import type {
   CostLedgerService,
   CostSummary,
@@ -14,6 +13,29 @@ import type {
 } from './cost-inference.ts';
 
 export type CostPolicy = NonNullable<AgentConfig['costPolicy']>;
+export type ProviderUsage =
+  | UsageMeter
+  | {
+      provider: string;
+      operation: 'streaming-stt' | 'streaming-tts' | 'batch-stt';
+      requestId?: string;
+      elapsedMs: number;
+      quantity: string;
+      unit: 'audio_seconds' | 'characters' | 'input_tokens' | 'output_tokens' | 'total_tokens';
+      state: 'estimated' | 'reconciled';
+      missing?: never;
+    }
+  | {
+      provider: string;
+      operation: 'streaming-stt' | 'streaming-tts' | 'batch-stt';
+      requestId?: string;
+      elapsedMs: number;
+      quantity?: never;
+      unit: 'audio_seconds' | 'tokens';
+      state: 'unavailable';
+      missing: 'provider-omitted';
+    };
+export type ProviderUsageSink = (usage: ProviderUsage) => void;
 export type CostTerminationReason =
   | 'cost-max-duration'
   | 'cost-spend-threshold'
