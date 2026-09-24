@@ -23,6 +23,7 @@ const LEGACY_END_REASONS: Readonly<Record<string, EndReason>> = Object.freeze({
   stop: 'caller_hangup',
   'media idle deadline exceeded': 'caller_idle',
   'owning worker disconnected': 'ownership_lost',
+  'gateway disconnected': 'ownership_lost',
   'cost-max-duration': 'max_duration',
   'worker media runtime closed': 'drain',
   'worker-shutdown': 'drain',
@@ -45,6 +46,7 @@ export function asEndReason(reason: string): EndReason {
   if (reason.startsWith('carrier terminal: '))
     return `error:carrier-terminal:${reason.slice('carrier terminal: '.length)}`;
   if (reason.startsWith('inbound cost admission blocked: ')) return 'error:cost-admission-blocked';
+  if (reason.startsWith('cost-meter-unconfigured:')) return 'error:cost-meter-unconfigured';
   return `error:${reason}`;
 }
 

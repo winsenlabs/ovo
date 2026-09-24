@@ -1,121 +1,18 @@
-import type {
-  GatewayToWorkerMessage,
-  MediaDuplex,
-  MediaSessionIdentity,
-  WorkerToGatewayMessage,
-} from './ports.ts';
+import type { GatewayToWorkerMessage, MediaSessionIdentity } from './ports.ts';
 
 export interface WorkerGatewayClientConfig {
   url: string;
   workerId: string;
   token: string;
   maxBufferedBytes?: number;
+  maxPendingFrames?: number;
   backpressureTimeoutMs?: number;
   maxAudioFrameBytes?: number;
   onDisconnect?: (reason: string) => void;
 }
 
-export class WorkerMediaSession implements MediaDuplex {
-  readonly codec = 'audio/x-mulaw' as const;
-  readonly sampleRate = 8000 as const;
-  private readonly audioListeners = new Set<(audio: Uint8Array, timestampMs: number) => void>();
-  private readonly markListeners = new Set<(name: string) => void>();
-  private readonly dtmfListeners = new Set<(digit: string) => void>();
-  private readonly closeListeners = new Set<(reason: string) => void>();
-  private closed = false;
-
-  constructor(
-    readonly identity: MediaSessionIdentity,
-    private readonly socket: WebSocket,
-    private readonly limits: {
-      maxBufferedBytes: number;
-      backpressureTimeoutMs: number;
-      maxAudioFrameBytes: number;
-    },
-  ) {}
-
-  get sessionId(): string {
-    return this.identity.callSid;
-  }
-  get bufferedBytes(): number {
-    return this.socket.bufferedAmount;
-  }
-
-  async sendAudio(audio: Uint8Array, signal?: AbortSignal): Promise<void> {
-    if (audio.length === 0 || audio.length > this.limits.maxAudioFrameBytes)
-      throw new Error('audio frame exceeds limit');
-    await this.send(
-      { type: 'media.audio', ...this.identity, payload: Buffer.from(audio).toString('base64') },
-      signal,
-    );
-  }
-  async sendMark(name: string, signal?: AbortSignal): Promise<void> {
-    await this.send({ type: 'media.mark', ...this.identity, name }, signal);
-  }
-  async clear(signal?: AbortSignal): Promise<void> {
-    if (this.closed) return;
-    await this.send({ type: 'media.clear', ...this.identity }, signal);
-  }
-  async close(reason: string): Promise<void> {
-    if (this.closed) return;
-    await this.send({ type: 'session.close', ...this.identity, reason });
-    this.finish(reason);
-  }
-  onAudio(listener: (audio: Uint8Array, timestampMs: number) => void): () => void {
-    this.audioListeners.add(listener);
-    return () => this.audioListeners.delete(listener);
-  }
-  onMark(listener: (name: string) => void): () => void {
-    this.markListeners.add(listener);
-    return () => this.markListeners.delete(listener);
-  }
-  onDtmf(listener: (digit: string) => void): () => void {
-    this.dtmfListeners.add(listener);
-    return () => this.dtmfListeners.delete(listener);
-  }
-  onClose(listener: (reason: string) => void): () => void {
-    this.closeListeners.add(listener);
-    return () => this.closeListeners.delete(listener);
-  }
-
-  receive(message: GatewayToWorkerMessage): void {
-    if (message.type === 'media.audio') {
-      const bytes = Buffer.from(message.payload, 'base64');
-      if (bytes.length > this.limits.maxAudioFrameBytes)
-        return this.finish('inbound audio frame exceeds limit');
-      for (const listener of this.audioListeners) listener(bytes, message.timestampMs);
-    } else if (message.type === 'media.mark') {
-      for (const listener of this.markListeners) listener(message.name);
-    } else if (message.type === 'media.dtmf') {
-      for (const listener of this.dtmfListeners) listener(message.digit);
-    } else if (message.type === 'session.stop' || message.type === 'session.cancel') {
-      this.finish(message.reason);
-    }
-  }
-
-  finish(reason: string): void {
-    if (this.closed) return;
-    this.closed = true;
-    for (const listener of this.closeListeners) listener(reason);
-    this.audioListeners.clear();
-    this.markListeners.clear();
-    this.dtmfListeners.clear();
-    this.closeListeners.clear();
-  }
-
-  private async send(message: WorkerToGatewayMessage, signal?: AbortSignal): Promise<void> {
-    if (this.closed || this.socket.readyState !== WebSocket.OPEN)
-      throw new Error('media session is closed');
-    const deadline = Date.now() + this.limits.backpressureTimeoutMs;
-    while (this.socket.bufferedAmount > this.limits.maxBufferedBytes) {
-      signal?.throwIfAborted();
-      if (Date.now() >= deadline) throw new Error('worker media backpressure deadline exceeded');
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-    signal?.throwIfAborted();
-    this.socket.send(JSON.stringify(message));
-  }
-}
+import { WorkerMediaSession } from './worker-media-session.ts';
+export { WorkerMediaSession } from './worker-media-session.ts';
 
 export class WorkerGatewayClient {
   private socket?: WebSocket;
@@ -128,6 +25,7 @@ export class WorkerGatewayClient {
   ) {
     this.limits = {
       maxBufferedBytes: config.maxBufferedBytes ?? 256 * 1024,
+      maxPendingFrames: config.maxPendingFrames ?? 25,
       backpressureTimeoutMs: config.backpressureTimeoutMs ?? 2_000,
       maxAudioFrameBytes: config.maxAudioFrameBytes ?? 8 * 1024,
     };
@@ -215,6 +113,7 @@ export class WorkerGatewayClient {
       session.onClose(() => this.sessions.delete(message.streamSid));
       try {
         await this.onSession(session);
+        if (session.isClosed) return;
         this.socket!.send(
           JSON.stringify({
             type: 'session.accept',
@@ -226,10 +125,11 @@ export class WorkerGatewayClient {
             generation: message.generation,
           }),
         );
+        await session.accept();
       } catch (error) {
-        await session.close(
-          error instanceof Error ? error.message : 'session initialization failed',
-        );
+        await session
+          .close(error instanceof Error ? error.message : 'session initialization failed')
+          .catch(() => undefined);
       }
       return;
     }

@@ -171,23 +171,25 @@ describe.skipIf(!postgresUrl)('inbound carrier selection durability', () => {
       protectedUntil: new Date(Date.now() + 180_000),
     });
     const carrierCallId = `CA${'8'.repeat(32)}`;
-    await expect(
-      operations.inboundGateway.admit({
-        carrierCallId,
-        fromNumber: '+14155550201',
-        toNumber: missingPluginNumber,
-        routeTokenHash: '8'.repeat(64),
-        handshakeTtlMs: 60_000,
-      }),
-    ).rejects.toThrow('Inbound carrier plugin is not installed: @example/not-installed');
+    const decision = await operations.inboundGateway.admit({
+      carrierCallId,
+      fromNumber: '+14155550201',
+      toNumber: missingPluginNumber,
+      routeTokenHash: '8'.repeat(64),
+      handshakeTtlMs: 60_000,
+    });
+    expect(decision).toMatchObject({
+      kind: 'busy',
+      reason: 'inbound_carrier_configuration_plugin_uninstalled',
+    });
     expect(
       (
         await pool.query(
-          'SELECT 1 FROM ovo_ops_inbound_admissions WHERE organization_id = $1 AND call_id = $2',
-          [organizationId, carrierCallId],
+          'SELECT 1 FROM ovo_ops_inbound_admissions WHERE organization_id = $1 AND call_id = $2 AND decision = $3',
+          [organizationId, carrierCallId, 'busy'],
         )
       ).rowCount,
-    ).toBe(0);
+    ).toBe(1);
   });
 
   it('does not treat an empty explicit plugin ID as the NULL environment binding', async () => {
@@ -199,23 +201,25 @@ describe.skipIf(!postgresUrl)('inbound carrier selection durability', () => {
       carrierBindingId: null,
     });
     const carrierCallId = `CA${randomUUID().replaceAll('-', '')}`;
-    await expect(
-      operations.inboundGateway.admit({
-        carrierCallId,
-        fromNumber: '+14155550205',
-        toNumber: emptyPluginNumber,
-        routeTokenHash: '6'.repeat(64),
-        handshakeTtlMs: 60_000,
-      }),
-    ).rejects.toThrow('Inbound carrier plugin is not installed: ');
+    const decision = await operations.inboundGateway.admit({
+      carrierCallId,
+      fromNumber: '+14155550205',
+      toNumber: emptyPluginNumber,
+      routeTokenHash: '6'.repeat(64),
+      handshakeTtlMs: 60_000,
+    });
+    expect(decision).toMatchObject({
+      kind: 'busy',
+      reason: 'inbound_carrier_configuration_plugin_uninstalled',
+    });
     expect(
       (
         await pool.query(
-          'SELECT 1 FROM ovo_ops_inbound_admissions WHERE organization_id = $1 AND call_id = $2',
-          [organizationId, carrierCallId],
+          'SELECT 1 FROM ovo_ops_inbound_admissions WHERE organization_id = $1 AND call_id = $2 AND decision = $3',
+          [organizationId, carrierCallId, 'busy'],
         )
       ).rowCount,
-    ).toBe(0);
+    ).toBe(1);
   });
 
   it('retains a waiting admission carrier snapshot across a route edit', async () => {

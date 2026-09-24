@@ -134,6 +134,31 @@ describe('signed Twilio inbound webhook protocol', () => {
     expect(await response.text()).toBe('Inbound carrier gate is not installed');
   });
 
+  it('reports a durable carrier-configuration refusal without busy TwiML', async () => {
+    const reason = 'inbound_carrier_configuration_env_unavailable';
+    const admit = vi.fn().mockResolvedValue({ kind: 'busy', admissionId: 'admission-1', reason });
+    const handler = createTwilioInboundWebhookHandler({
+      operations: fakeOperations(admit),
+      accountSid: values.AccountSid,
+      authToken,
+      externalBaseUrl: 'https://voice.example.test',
+      mediaStreamUrl: 'wss://media.example.test/twilio/media',
+      routeTokenSecret: 'a'.repeat(32),
+    });
+    const server = await listen(handler);
+    openServers.push(server.close);
+    const response = await fetch(`${server.url}/twilio/inbound`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        'x-twilio-signature': signature(values),
+      },
+      body: new URLSearchParams(values),
+    });
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe(reason);
+  });
+
   it('rejects an invalid signature before durable admission', async () => {
     const admit = vi.fn();
     const handler = createTwilioInboundWebhookHandler({

@@ -36,6 +36,7 @@ async function main(): Promise<void> {
     env: process.env,
   });
   installInboundCarriers(operations, distribution, process.env);
+  operations.inboundGateway.assertArmed();
   const resolver = {
     authenticateSessionRoute: store.authenticateSessionRoute.bind(store),
     resolveSessionRoute: store.resolveSessionRoute.bind(store),

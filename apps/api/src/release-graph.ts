@@ -1,5 +1,5 @@
 import { BEHAVIOR_PLUGIN_IDS } from '@winsendotai/ovo-behaviors';
-import { Cap, type ReleaseSelections } from '@winsendotai/ovo-contracts';
+import { Cap, HOST_SESSION_SERVICES, type ReleaseSelections } from '@winsendotai/ovo-contracts';
 import { manifestKeys, type PluginDefinition } from '@winsendotai/ovo-runtime';
 import type { AgentDraft } from '@winsendotai/ovo-plugin-storage';
 
@@ -106,7 +106,10 @@ export function validatePermittedGraph(
       if (providers.length > 1)
         throw new Error(`Release requires exactly one selected provider for ${service}`);
       if (providers.length === 1) visit(providers[0]!);
-      else if (!services.manifest.provides.includes(service))
+      else if (
+        !services.manifest.provides.includes(service) &&
+        !HOST_SESSION_SERVICES.includes(service as (typeof HOST_SESSION_SERVICES)[number])
+      )
         throw new Error(`Release requires exactly one selected provider for ${service}`);
     }
   };

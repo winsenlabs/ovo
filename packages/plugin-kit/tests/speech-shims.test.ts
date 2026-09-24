@@ -206,8 +206,12 @@ describe('duplex shims', () => {
     expect(asEndReason('job-lease-lost')).toBe('ownership_lost');
     expect(asEndReason('task-protection-renewal-failed')).toBe('ownership_lost');
     expect(asEndReason('media-gateway-disconnected')).toBe('ownership_lost');
+    expect(asEndReason('gateway disconnected')).toBe('ownership_lost');
     expect(asEndReason('carrier terminal: completed')).toBe('error:carrier-terminal:completed');
     expect(asEndReason('cost-spend-threshold')).toBe('error:cost-spend-threshold');
+    expect(asEndReason('cost-meter-unconfigured:openai.inference.input_tokens')).toBe(
+      'error:cost-meter-unconfigured',
+    );
     expect(asEndReason('carrier termination')).toBe('error:carrier termination');
   });
 });

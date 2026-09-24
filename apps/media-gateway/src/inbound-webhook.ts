@@ -235,6 +235,11 @@ export function createTwilioInboundWebhookHandler(
         send(response, 200, twimlReserved(stream.toString(), decision.sessionId, routeToken));
       else if (decision.kind === 'human')
         send(response, 200, twimlHuman(decision.target, decision.announcement));
+      else if (
+        decision.kind === 'busy' &&
+        decision.reason.startsWith('inbound_carrier_configuration_')
+      )
+        send(response, 503, decision.reason, 'text/plain');
       else if (decision.kind === 'wait')
         send(
           response,

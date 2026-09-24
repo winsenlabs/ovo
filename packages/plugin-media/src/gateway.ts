@@ -155,7 +155,8 @@ export class MediaGateway {
         throw new Error('worker does not own media session');
       this.touch(session);
       if (message.type === 'session.accept') return this.acceptSession(session);
-      if (!session.accepted) throw new Error('media sent before session acceptance');
+      if (!session.accepted && message.type !== 'session.close')
+        throw new Error('media sent before session acceptance');
       this.sendCarrier(session, message);
     } catch (error) {
       connection.peer.close(1008, errorMessage(error));

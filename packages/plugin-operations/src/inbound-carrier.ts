@@ -1,4 +1,4 @@
-import type { PoolClient, QueryResultRow } from 'pg';
+import type { Pool, PoolClient, QueryResultRow } from 'pg';
 
 export interface InboundCarrierRoute extends QueryResultRow {
   release_id: string;
@@ -9,7 +9,7 @@ export interface InboundCarrierRoute extends QueryResultRow {
 }
 
 export async function selectInboundCarrierRoute(
-  client: PoolClient,
+  client: Pool | PoolClient,
   organizationId: string,
   toNumber: string,
 ): Promise<InboundCarrierRoute | undefined> {
@@ -40,16 +40,25 @@ export class InstalledInboundCarrierPlugins {
     if (!this.armed) throw new InboundCarrierGateUnarmedError();
   }
 
-  carrierId(pluginId: string | null): string {
+  resolve(
+    pluginId: string | null,
+  ): { kind: 'selected'; carrierId: string } | { kind: 'refused'; reason: string } {
     this.assertArmed();
-    if (pluginId === null) {
-      if (!this.environmentCarrierId)
-        throw new Error('Inbound environment carrier is not installed');
-      return this.environmentCarrierId;
-    }
+    if (pluginId === null)
+      return this.environmentCarrierId
+        ? { kind: 'selected', carrierId: this.environmentCarrierId }
+        : { kind: 'refused', reason: 'inbound_carrier_configuration_env_unavailable' };
     const carrierId = this.carrierIds.get(pluginId);
-    if (!carrierId) throw new Error(`Inbound carrier plugin is not installed: ${pluginId}`);
-    return carrierId;
+    return carrierId
+      ? { kind: 'selected', carrierId }
+      : { kind: 'refused', reason: 'inbound_carrier_configuration_plugin_uninstalled' };
+  }
+
+  carrierId(pluginId: string | null): string {
+    const result = this.resolve(pluginId);
+    if (result.kind === 'selected') return result.carrierId;
+    if (pluginId === null) throw new Error('Inbound environment carrier is not installed');
+    throw new Error(`Inbound carrier plugin is not installed: ${pluginId}`);
   }
 }
 
