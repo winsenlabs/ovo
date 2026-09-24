@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Cap, type CarrierControlFactory, type CarrierIngress } from '@winsendotai/ovo-contracts';
+import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 import {
   fixtureCarrierCapabilities,
@@ -226,6 +227,72 @@ describe('F4 API catalog and release wiring', () => {
       expect(released.statusCode).toBe(201);
       expect(released.json().selections.engine.pluginId).toBe(
         '@winsendotai/ovo-plugin-voice-session-engine',
+      );
+    } finally {
+      await composition.dispose();
+    }
+  });
+
+  it('reports immutable release pin drift and legacy unpinned releases in readiness', async () => {
+    const { app, composition } = await api();
+    try {
+      const created = await app.inject({
+        method: 'POST',
+        url: '/v1/agents',
+        headers,
+        payload: { config: { name: 'Notice', mode: 'announcement', message: 'Hello' } },
+      });
+      const agentId = created.json().id as string;
+      const released = await app.inject({
+        method: 'POST',
+        url: `/v1/agents/${agentId}/releases`,
+        headers,
+        payload: {},
+      });
+      expect(released.statusCode).toBe(201);
+      const store = composition.ctx.get(Cap.controlStore) as ControlStore;
+      const agent = (await store.getAgent('w', agentId))!;
+      const snapshot = released.json();
+      const driftAgent = await store.updateAgent('w', agentId, agent.draftVersion, agent.config);
+      await store.createRelease({
+        workspaceId: 'w',
+        agent: driftAgent,
+        plugins: snapshot.plugins,
+        selections: {
+          ...snapshot.selections,
+          engine: { ...snapshot.selections.engine, version: '99.0.0' },
+        },
+        createdBy: 'admin',
+      });
+      const drift = await app.inject({
+        method: 'GET',
+        url: `/v1/agents/${agentId}/readiness`,
+        headers,
+      });
+      expect(drift.json().details).toContainEqual(
+        expect.objectContaining({ code: 'plugin_version_not_installed', stage: 'live' }),
+      );
+      expect(drift.json().liveReady).toBe(false);
+      const legacyAgent = await store.updateAgent(
+        'w',
+        agentId,
+        driftAgent.draftVersion,
+        driftAgent.config,
+      );
+      await store.createRelease({
+        workspaceId: 'w',
+        agent: legacyAgent,
+        plugins: snapshot.plugins,
+        selections: {},
+        createdBy: 'admin',
+      });
+      const legacy = await app.inject({
+        method: 'GET',
+        url: `/v1/agents/${agentId}/readiness`,
+        headers,
+      });
+      expect(legacy.json().details).toContainEqual(
+        expect.objectContaining({ code: 'legacy_release_unpinned', severity: 'warning' }),
       );
     } finally {
       await composition.dispose();

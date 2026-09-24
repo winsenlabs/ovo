@@ -8,9 +8,11 @@ import {
   type WorkerGatewayClientConfig,
   type WorkerMediaSession,
 } from '@winsendotai/ovo-plugin-media';
+import type { EndReason } from '@winsendotai/ovo-contracts';
+import { asEndReason } from '@winsendotai/ovo-plugin-kit';
 
 export interface ManagedVoiceSession {
-  dispose(reason?: string, closeMedia?: boolean): Promise<unknown>;
+  dispose(reason?: EndReason, closeMedia?: boolean): Promise<unknown>;
 }
 
 export interface VoiceSessionFactory {
@@ -29,7 +31,10 @@ export class WorkerMediaRuntime {
     config: WorkerGatewayClientConfig,
     private readonly store: DurableJobStore,
     private readonly factory: VoiceSessionFactory,
-    private readonly onSessionClose?: (route: SessionRoute, reason: string) => void | Promise<void>,
+    private readonly onSessionClose?: (
+      route: SessionRoute,
+      reason: EndReason,
+    ) => void | Promise<void>,
     private readonly beforeSessionOpen?: (
       job: DurableJob,
       route: SessionRoute,
@@ -54,7 +59,7 @@ export class WorkerMediaRuntime {
   async close(reason = 'worker media runtime closed'): Promise<void> {
     const engines = [...this.engines.values()];
     this.engines.clear();
-    await Promise.allSettled(engines.map((engine) => engine.dispose(reason)));
+    await Promise.allSettled(engines.map((engine) => engine.dispose(asEndReason(reason))));
     await this.client.close(reason);
   }
 
@@ -62,7 +67,7 @@ export class WorkerMediaRuntime {
     const engine = this.engines.get(sessionId);
     if (!engine) return;
     this.engines.delete(sessionId);
-    await engine.dispose(reason);
+    await engine.dispose(asEndReason(reason));
   }
 
   private async open(media: WorkerMediaSession): Promise<void> {
@@ -92,7 +97,7 @@ export class WorkerMediaRuntime {
     try {
       engine = await this.factory.create({ job, route, media });
     } catch (error) {
-      await this.onSessionClose?.(route, 'session_open_failed');
+      await this.onSessionClose?.(route, 'error:session-open-failed');
       throw error;
     }
     this.engines.set(route.sessionId, engine);
@@ -101,9 +106,9 @@ export class WorkerMediaRuntime {
       this.engines.delete(route.sessionId);
       void (async () => {
         try {
-          await engine.dispose(`media closed: ${reason}`, false);
+          await engine.dispose(asEndReason(reason), false);
         } finally {
-          await this.onSessionClose?.(route, reason);
+          await this.onSessionClose?.(route, asEndReason(reason));
         }
       })();
     });

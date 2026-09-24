@@ -16,6 +16,8 @@ import type { Server } from 'node:http';
 import type { LiveGraphOptions } from './session-graph-runtime.ts';
 import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
 import { terminateOwnedJob } from './worker-termination.ts';
+import type { EndReason } from '@winsendotai/ovo-contracts';
+import type { SessionRoute } from '@winsendotai/ovo-plugin-orchestration';
 
 export function createProductionWorkerMediaRuntime(input: {
   httpServer: Server;
@@ -40,6 +42,32 @@ export function createProductionWorkerMediaRuntime(input: {
   // The legacy gateway still owns the websocket in F4; C2 mounts it on this server.
   void input.httpServer;
   let runtime!: WorkerMediaRuntime;
+  const terminate = async (route: SessionRoute, reason: EndReason, closingFromEngine = false) => {
+    const current = await input.store.getSessionRoute(route.jobId);
+    if (!current || current.terminalAt || current.releasedAt || current.status === 'terminating')
+      return;
+    if (input.carriers) {
+      await terminateOwnedJob({
+        jobId: route.jobId,
+        workerId: input.workerId,
+        ownerEpoch: route.ownerEpoch,
+        reason,
+        store: input.store,
+        carriers: input.carriers,
+        media: closingFromEngine
+          ? { terminate: async () => undefined, closeSession: async () => undefined }
+          : runtime,
+      });
+      return;
+    }
+    const requested = await input.store.requestSessionTermination(
+      route.jobId,
+      input.workerId,
+      route.ownerEpoch,
+      reason,
+    );
+    if (requested && route.carrierCallId) await input.telephony.hangup(route.carrierCallId);
+  };
   runtime = new WorkerMediaRuntime(
     {
       url: input.gatewayUrl,
@@ -59,30 +87,12 @@ export function createProductionWorkerMediaRuntime(input: {
       input.recordingRetentionDays,
       input.speechCache,
       input.graph,
+      async (_job, route, reason) => terminate(route, reason, true),
     ),
     async (route, reason) => {
       await input.costs.finalize(route.jobId);
       input.inbound?.completeSession(route.jobId);
-      if (reason !== 'behavior_completed') return;
-      if (input.carriers) {
-        await terminateOwnedJob({
-          jobId: route.jobId,
-          workerId: input.workerId,
-          ownerEpoch: route.ownerEpoch,
-          reason,
-          store: input.store,
-          carriers: input.carriers,
-          media: runtime,
-        });
-        return;
-      }
-      const requested = await input.store.requestSessionTermination(
-        route.jobId,
-        input.workerId,
-        route.ownerEpoch,
-        'behavior-completed',
-      );
-      if (requested && route.carrierCallId) await input.telephony.hangup(route.carrierCallId);
+      await terminate(route, reason);
     },
     (job, route) => input.inbound?.admitSession(job, route) ?? Promise.resolve(),
   );

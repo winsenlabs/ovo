@@ -5,6 +5,9 @@ import { LiveRecordingService } from '@winsendotai/ovo-plugin-recordings';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { STREAMING_VOICE_SERVICE_KEYS } from '@winsendotai/ovo-plugin-voice';
 import { definePlugin, type PluginDefinition } from '@winsendotai/ovo-runtime';
+import { compose } from '@winsendotai/ovo-runtime';
+import { loadDistribution } from '@winsendotai/ovo-distribution';
+import { MULAW_8K } from '@winsendotai/ovo-contracts';
 import { describe, expect, it, vi } from 'vitest';
 import { ProductionVoiceSessionFactory } from '../src/production-session-factory.ts';
 import { selectVoiceSessionEnginePlugin } from '../src/production-session-support.ts';
@@ -30,7 +33,7 @@ describe('production worker voice session engine selection', () => {
     });
     const recordingStates: string[] = [];
     const release = releaseWithPins(true, [pin(replacement)]);
-    const factory = createFactory(
+    const factory = await createFactory(
       release,
       [replacement],
       events,
@@ -125,7 +128,7 @@ describe('production worker voice session engine selection', () => {
     const events: string[] = [];
     const recordingStates: string[] = [];
     const recordings = recordingService(recordingStates);
-    const factory = createFactory(release, plugins, events, recordings);
+    const factory = await createFactory(release, plugins, events, recordings);
 
     await expect(factory.create(factoryInput())).rejects.toThrow(fixture.message);
 
@@ -194,12 +197,22 @@ function releaseWithPins(recording: boolean, enginePins: ReleaseRecord['plugins'
   };
 }
 
-function createFactory(
+async function createFactory(
   release: ReleaseRecord,
   plugins: PluginDefinition[],
   events: string[],
   recordings?: LiveRecordingService,
 ) {
+  const distribution = await loadDistribution({
+    role: 'worker',
+    profile: 'compose',
+    env: {
+      DATABASE_URL: 'postgres://unused:unused@127.0.0.1/unused',
+      OVO_QUEUE_URL: 'http://127.0.0.1/unused',
+      AWS_REGION: 'us-east-1',
+    },
+  });
+  const parent = await compose([], []);
   return new ProductionVoiceSessionFactory(
     {
       getRelease: async () => release,
@@ -233,6 +246,26 @@ function createFactory(
     undefined,
     { plugins, nativeHandlers: {} },
     recordings,
+    30,
+    undefined,
+    {
+      distribution,
+      parent,
+      carriers: {
+        forJob: async () => ({
+          carrier: {
+            carrierId: 'twilio',
+            capabilities: {
+              media: {
+                formats: [MULAW_8K],
+                playbackEvidence: 'carrier-played',
+                clearFlushesMarkers: true,
+              },
+            },
+          },
+        }),
+      } as never,
+    },
   );
 }
 

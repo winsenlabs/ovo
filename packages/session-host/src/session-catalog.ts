@@ -33,6 +33,8 @@ export interface SessionPluginInput {
   output: { kind: 'simulation' } | { kind: 'live'; plugin: PluginDefinition } | { kind: 'host' };
   /** Operator-installed adapter replacement, not user-authored executable code. */
   inferencePlugin?: PluginDefinition;
+  /** API release construction resolves the pinned inference selection after catalog construction. */
+  deferInferenceSelection?: boolean;
   onInferenceUsage?: AiSdkInferenceOptions['onUsage'];
 }
 
@@ -66,10 +68,17 @@ export function createSessionPluginCatalog(input: SessionPluginInput): PluginDef
     if (input.inferencePlugin) plugins.push(input.inferencePlugin);
     else if (input.output.kind === 'simulation' && !binding)
       throw new Error('An inference binding is required');
-    else missingLiveInference = input.output.kind !== 'simulation';
+    else
+      missingLiveInference =
+        input.output.kind !== 'simulation' &&
+        !(
+          input.output.kind === 'host' &&
+          input.deferInferenceSelection &&
+          Boolean(config.voice?.llm)
+        );
   }
   const assertLiveInference = () => {
-    if (missingLiveInference) throw new Error('Live inference plugin is required until F4 wiring');
+    if (missingLiveInference) throw new Error('Live inference selection is required');
   };
   if (!needsExecution) {
     assertLiveInference();

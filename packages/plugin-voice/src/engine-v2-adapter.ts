@@ -40,6 +40,20 @@ export class NativeEngineV2Adapter implements EngineV2 {
     this.resolveEnded = resolve;
     this.unlistenSpeech = scheduler.subscribe((evidence) => {
       this.emit({ type: 'speech', evidence });
+      if (evidence.phase === 'generated')
+        this.emit({
+          type: 'agent.transcript',
+          segmentId: evidence.segmentId,
+          text: evidence.text,
+          state: 'generated',
+        });
+      if (evidence.phase === 'completed' || evidence.phase === 'interrupted')
+        this.emit({
+          type: 'agent.transcript',
+          segmentId: evidence.segmentId,
+          text: evidence.text,
+          state: evidence.phase === 'completed' ? 'played' : 'interrupted',
+        });
       if (evidence.phase === 'sent')
         this.emit({ type: 'timing', key: 'carrier_first_audio', atMs: evidence.at });
       if (evidence.phase === 'acknowledged')
@@ -82,6 +96,10 @@ export class NativeEngineV2Adapter implements EngineV2 {
     });
   }
 
+  interrupted(reason: 'transcript' | 'dtmf'): void {
+    this.emit({ type: 'interrupt', reason });
+  }
+
   dispose(reason: EndReason, opts: { deadlineMs?: number } = {}): Promise<EngineOutcome> {
     if (this.stopping) return this.stopping;
     // Publish the in-flight promise before calling the transport: close callbacks can be synchronous.
@@ -113,6 +131,7 @@ export class NativeEngineV2Adapter implements EngineV2 {
     const outcome = { reason: completedReason, outcome: outcomeFor(completedReason) };
     if (!this.finished) {
       this.finished = true;
+      if (completedReason === 'voicemail') this.emit({ type: 'voicemail', result: 'machine' });
       this.emit({ type: 'end', reason: completedReason });
       this.unlistenSpeech();
       this.unlistenClose();
@@ -194,7 +213,7 @@ export function createNativeVoiceEngineV2Plugin() {
       const behavior = ctx.get(Cap.behavior) as Behavior;
       const scheduler = ctx.get(VOICE_SERVICE_KEYS.scheduler) as BoundedSpeechScheduler;
       const media = ctx.get(Cap.media) as MediaDuplex;
-      const stt = ctx.get(Cap.stt) as SpeechToText | undefined;
+      const stt = ctx.maybe(Cap.stt) as SpeechToText | undefined;
       let adapter!: NativeEngineV2Adapter;
       const old = new LegacyEngine(
         withVariables(behavior, session, media),
@@ -209,7 +228,10 @@ export function createNativeVoiceEngineV2Plugin() {
             session.mode === 'announcement' ? (session.initialInput ?? '') : session.initialInput,
           initialVariables: structuredClone(session.variables),
         },
-        { onAcceptedTranscript: (revision) => adapter.acceptedTranscript(revision) },
+        {
+          onAcceptedTranscript: (revision) => adapter.acceptedTranscript(revision),
+          onInterrupt: (reason) => adapter.interrupted(reason),
+        },
       );
       adapter = new NativeEngineV2Adapter(old, scheduler, media);
       ctx.provide(Cap.engine, adapter);

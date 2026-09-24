@@ -6,7 +6,15 @@ import { PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { CompatIssue } from '@winsendotai/ovo-contracts';
 import { buildReleaseSelections } from '../release-selections.ts';
 
-const releaseBlockers = (message: string, code: CompatIssue['code'] = 'runtime_incompatible') => ({
+const releaseCode = (message: string): CompatIssue['code'] =>
+  /binding|credential/i.test(message)
+    ? 'binding_missing'
+    : /MCP tool|native handler/i.test(message)
+      ? 'mcp_tool_removed'
+      : /not installed/i.test(message)
+        ? 'plugin_not_installed'
+        : 'plugin_unavailable';
+const releaseBlockers = (message: string, code: CompatIssue['code'] = releaseCode(message)) => ({
   blockers: [{ code, severity: 'error', stage: 'release', message } satisfies CompatIssue],
 });
 export function registerAgentsRoutes(dependencies: any) {
@@ -159,17 +167,21 @@ export function registerAgentsRoutes(dependencies: any) {
         'release',
       ).filter((issue) => issue.severity === 'error');
       if (blockers.length) return reply.code(422).send({ blockers });
-      plugins = await validateRelease(agent, selected, store, available, services, selections);
+      plugins = await validateRelease(
+        agent,
+        selected,
+        store,
+        available,
+        services,
+        selections,
+        Boolean(
+          agent.config.voice?.engine ||
+          selectedIds.some((id: string) => id === selections.engine?.pluginId),
+        ),
+      );
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Release validation failed';
-      return reply
-        .code(422)
-        .send(
-          releaseBlockers(
-            message,
-            message.includes('binding') ? 'binding_missing' : 'runtime_incompatible',
-          ),
-        );
+      return reply.code(422).send(releaseBlockers(message));
     }
     const release = await store.createRelease({
       workspaceId: principal.workspaceId,

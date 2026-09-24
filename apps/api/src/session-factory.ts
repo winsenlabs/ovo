@@ -70,7 +70,9 @@ export function createDefaultReleaseFactory(
       nativeHandlerPackages: options.nativeHandlerPackages,
       releasePlugins: release?.plugins,
       inferencePlugin: options.inferencePlugin?.(agent),
-      output: { kind: 'simulation' },
+      deferInferenceSelection: Boolean(agent.config.voice?.llm && !bindings.inference),
+      output:
+        agent.config.voice?.llm && !bindings.inference ? { kind: 'host' } : { kind: 'simulation' },
     });
   };
 }

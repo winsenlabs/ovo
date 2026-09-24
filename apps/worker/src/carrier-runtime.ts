@@ -61,7 +61,7 @@ export class WorkerCarrierRuntime {
       throw new Error(`Job ${job.id} has no immutable release`);
     const release = await this.input.store.getRelease(job.workspaceId, releaseId);
     if (!release) throw new Error(`Release ${releaseId} is not installed in ${job.workspaceId}`);
-    const selections = this.selections(release);
+    const selections = this.selections(release, job);
     if (!selections.carrier) throw new Error('Live release has no carrier selection');
     const resolver = createCarrierBindingResolver({
       workspaceId: job.workspaceId,
@@ -140,23 +140,35 @@ export class WorkerCarrierRuntime {
     };
   }
 
-  private selections(release: ReleaseRecord): ReleaseSelections {
+  private selections(release: ReleaseRecord, job: CarrierJob): ReleaseSelections {
+    if (job.payload.kind === 'inbound_call' && Object.hasOwn(job.payload, 'carrierPluginId')) {
+      const rawPluginId = job.payload.carrierPluginId;
+      const rawBindingId = job.payload.carrierBindingId;
+      if (rawPluginId !== null && (typeof rawPluginId !== 'string' || !rawPluginId))
+        throw new Error('Inbound route carrier plugin is invalid');
+      if (rawBindingId !== null && (typeof rawBindingId !== 'string' || !rawBindingId))
+        throw new Error('Inbound route carrier binding is invalid');
+      const pluginId = rawPluginId ?? this.environmentCarrierPluginId();
+      const definition = this.input.registry.get(pluginId);
+      if (!definition) throw new Error(`Inbound carrier control is not installed: ${pluginId}`);
+      return {
+        ...release.selections,
+        carrier: {
+          pluginId,
+          version: definition.manifest.version,
+          bindingId: rawBindingId ?? 'env',
+          config: {},
+        },
+      };
+    }
     if (Object.keys(release.selections ?? {}).length) return release.selections!;
     const legacy = deriveLegacySelections(release, this.input.registry, {
       engine: this.input.defaults.engine,
       turnDetector: this.input.defaults.turnDetector,
     });
     if (!legacy.carrier) {
-      const entries = Object.keys(
-        JSON.parse(legacyEnvBindings(this.input.env).OVO_CARRIER_ENV_BINDINGS ?? '{}') as Record<
-          string,
-          unknown
-        >,
-      );
-      if (entries.length === 1) {
-        const definition = this.input.registry.resolve('carrier', entries[0]!);
-        legacy.carrier = { pluginId: definition.manifest.id, bindingId: 'env', config: {} };
-      }
+      const pluginId = this.environmentCarrierPluginId();
+      legacy.carrier = { pluginId, bindingId: 'env', config: {} };
     }
     return Object.fromEntries(
       Object.entries(legacy).map(([slot, choice]) => [
@@ -167,6 +179,17 @@ export class WorkerCarrierRuntime {
         },
       ]),
     ) as ReleaseSelections;
+  }
+
+  private environmentCarrierPluginId(): string {
+    const entries = Object.keys(
+      JSON.parse(legacyEnvBindings(this.input.env).OVO_CARRIER_ENV_BINDINGS ?? '{}') as Record<
+        string,
+        unknown
+      >,
+    );
+    if (entries.length !== 1) throw new Error('Exactly one environment carrier is required');
+    return this.input.registry.resolve('carrier', entries[0]!).manifest.id;
   }
 }
 

@@ -9,6 +9,7 @@ import type {
 import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
 import { outcomeFor } from '@winsendotai/ovo-contracts';
 import { terminateCarrierLeg } from '@winsendotai/ovo-session-host';
+import { completedWithoutSession } from './carrier-completion.ts';
 
 export type ReconciliationOutcome =
   | { kind: 'reconciled'; jobId: string; carrierCallId: string }
@@ -154,8 +155,7 @@ export async function reconcileClaimedCarrierDial(input: {
     if (outcome.answeredBy === 'machine') return fail('voicemail');
     if (['busy', 'no_answer', 'failed', 'canceled'].includes(outcome.state))
       return fail(outcome.state);
-    if (outcome.state === 'completed' && route?.status !== 'connected' && !route?.terminalAt)
-      return fail('completed_without_session');
+    if (completedWithoutSession(outcome.state, route)) return fail('completed_without_session');
   }
   if (outcome.kind === 'live') {
     const carrierCallId = outcome.carrierCallId ?? input.job.carrierCallId;

@@ -1,6 +1,14 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
+  DatasetParams,
+  ImportBody,
+  VersionParams,
+  RunParams,
+  RunBody,
+  CompareBody,
+} from './evaluation-run-schemas.ts';
+import {
   decodeCursor,
   encodeCursor,
   pageLimit,
@@ -23,7 +31,6 @@ export interface EvaluationDatasetRouteDependencies {
   requireRole(request: FastifyRequest, role: Role): Principal;
 }
 
-const Id = z.string().trim().min(1).max(200);
 const PageQuery = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(50),
@@ -36,26 +43,6 @@ const DatasetBody = z
     description: z.string().max(2_000).default(''),
   })
   .strict();
-const DatasetParams = z.object({ datasetId: Id }).strict();
-const VersionParams = z
-  .object({ datasetId: Id, version: z.coerce.number().int().positive() })
-  .strict();
-const RunParams = z.object({ runId: Id }).strict();
-const ImportBody = z.object({ cases: z.array(z.unknown()).min(1).max(1_000) }).strict();
-const RunBody = z
-  .object({
-    datasetId: Id,
-    datasetVersion: z.number().int().positive(),
-    releaseId: Id,
-    idempotencyKey: Id,
-    maxAttempts: z.number().int().min(1).max(5).default(3),
-    executorKind: z.enum(['fixture', 'provider']).default('fixture'),
-    providerBindingVersion: Id.optional(),
-    budgetAuthorizationId: Id.optional(),
-  })
-  .strict();
-const CompareBody = z.object({ baselineRunId: Id, candidateRunId: Id }).strict();
-
 export function registerEvaluationDatasetRoutes(
   dependencies: EvaluationDatasetRouteDependencies,
 ): void {
@@ -225,12 +212,23 @@ function registerRunRoutes(dependencies: EvaluationDatasetRouteDependencies) {
         error: 'provider_authorization_required',
         message: 'Provider evaluation requires authorized binding and budget versions',
       });
-    const run = await service.createRun({
-      ...body,
-      workspaceId: principal.workspaceId,
-      releaseFingerprint: releaseEvaluationFingerprint(release),
-      fixtureBindingVersion,
-    });
+    let run;
+    try {
+      run = await service.createRun({
+        ...body,
+        workspaceId: principal.workspaceId,
+        releaseFingerprint: releaseEvaluationFingerprint(release),
+        fixtureBindingVersion,
+      });
+    } catch (cause) {
+      const refusal = cause as Error & { statusCode?: number; code?: string };
+      if (body.executorKind !== 'provider' || !refusal.statusCode || refusal.statusCode >= 500)
+        throw cause;
+      return reply.code(refusal.statusCode).send({
+        error: refusal.code ?? 'provider_evaluation_not_authorized',
+        message: refusal.message,
+      });
+    }
     await audit(store, principal, 'evaluation.run.create', run.id);
     return reply.code(202).send(run);
   });

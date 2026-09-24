@@ -8,6 +8,7 @@ export interface InboundRouteSnapshot {
   version: string;
   carrier_plugin_id: string | null;
   carrier_binding_id: string | null;
+  carrier_id: string;
 }
 
 export interface InboundCapacityReservation {
@@ -47,8 +48,8 @@ export async function provisionInboundSession(
     `INSERT INTO ovo_jobs
        (id, workspace_id, idempotency_key, payload, status, owner_id, owner_epoch,
         lease_expires_at, dial_request_id, carrier_call_id,
-        carrier_plugin_id, carrier_binding_id, binding_id)
-     VALUES ($1, $2, $3, $4::jsonb, 'accepted', $5, $6, $7, $8, $9, $10, $11, $11)`,
+        carrier_plugin_id, carrier_binding_id, binding_id, carrier_id)
+     VALUES ($1, $2, $3, $4::jsonb, 'accepted', $5, $6, $7, $8, $9, $10, $11, $11, $12)`,
     [
       jobId,
       organizationId,
@@ -61,15 +62,17 @@ export async function provisionInboundSession(
       input.carrierCallId,
       route.carrier_plugin_id,
       route.carrier_binding_id,
+      route.carrier_id,
     ],
   );
   await client.query(
     `INSERT INTO ovo_session_routes
        (session_id, job_id, organization_id, worker_id, worker_endpoint, owner_epoch,
         generation, dial_request_id, carrier_call_id, status, handshake_token_hash,
-        handshake_expires_at, accepted_at, carrier_plugin_id, carrier_binding_id, binding_id)
+        handshake_expires_at, accepted_at, carrier_plugin_id, carrier_binding_id, binding_id,
+        carrier_id)
      VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, 'accepted', $9,
-        now() + ($10 * interval '1 millisecond'), now(), $11, $12, $12)`,
+        now() + ($10 * interval '1 millisecond'), now(), $11, $12, $12, $13)`,
     [
       sessionId,
       jobId,
@@ -83,6 +86,7 @@ export async function provisionInboundSession(
       input.handshakeTtlMs,
       route.carrier_plugin_id,
       route.carrier_binding_id,
+      route.carrier_id,
     ],
   );
   const detail = {

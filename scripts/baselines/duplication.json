@@ -10,7 +10,7 @@
     },
     {
       "files": ["apps/api/src/routes/cost.ts", "apps/api/src/routes/evaluation-datasets.ts"],
-      "windows": 10
+      "windows": 8
     },
     {
       "files": [
@@ -28,14 +28,14 @@
         "apps/api/src/routes/evaluation-datasets.ts",
         "apps/api/src/routes/evaluation-provider-authorizations.ts"
       ],
-      "windows": 56
+      "windows": 18
     },
     {
       "files": [
         "apps/api/src/routes/evaluation-datasets.ts",
         "apps/api/src/routes/recording-lifecycle.ts"
       ],
-      "windows": 10
+      "windows": 8
     },
     {
       "files": [

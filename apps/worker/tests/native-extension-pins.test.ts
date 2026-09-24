@@ -1,4 +1,6 @@
-import { AgentConfig } from '@winsendotai/ovo-contracts';
+import { AgentConfig, MULAW_8K } from '@winsendotai/ovo-contracts';
+import { loadDistribution } from '@winsendotai/ovo-distribution';
+import { compose } from '@winsendotai/ovo-runtime';
 import {
   createSessionPluginCatalog,
   nativeHandlerMarkerService,
@@ -60,6 +62,16 @@ describe('production worker installed native handler pins', () => {
     const handler = vi.fn(async () => ({ ok: true }));
     const telemetryClose = vi.fn(async () => undefined);
     const release = releaseWithPins(plugins);
+    const distribution = await loadDistribution({
+      role: 'worker',
+      profile: 'compose',
+      env: {
+        DATABASE_URL: 'postgres://unused:unused@127.0.0.1/unused',
+        OVO_QUEUE_URL: 'http://127.0.0.1/unused',
+        AWS_REGION: 'us-east-1',
+      },
+    });
+    const parent = await compose([], []);
     const factory = new ProductionVoiceSessionFactory(
       {
         getRelease: async () => release,
@@ -92,6 +104,27 @@ describe('production worker installed native handler pins', () => {
         nativeHandlers: { lookup: handler },
         nativeHandlerPackages: packages,
       } satisfies InstalledSessionExtensions,
+      undefined,
+      30,
+      undefined,
+      {
+        distribution,
+        parent,
+        carriers: {
+          forJob: async () => ({
+            carrier: {
+              carrierId: 'twilio',
+              capabilities: {
+                media: {
+                  formats: [MULAW_8K],
+                  playbackEvidence: 'carrier-played',
+                  clearFlushesMarkers: true,
+                },
+              },
+            },
+          }),
+        } as never,
+      },
     );
 
     await expect(
@@ -107,6 +140,7 @@ describe('production worker installed native handler pins', () => {
     ).rejects.toThrow(message);
     expect(handler).not.toHaveBeenCalled();
     expect(telemetryClose).toHaveBeenCalledOnce();
+    await parent.dispose();
   });
 });
 

@@ -22,7 +22,10 @@ describe.skipIf(!postgresUrl)('durable inbound gateway admission', () => {
   beforeAll(async () => {
     await orchestration.migrate();
     await operations.migrate();
-    operations.inboundGateway.setInstalledCarrierPlugins(['@winsendotai/ovo-carrier-twilio']);
+    operations.inboundGateway.setInstalledCarrierPlugins(
+      [{ pluginId: '@winsendotai/ovo-carrier-twilio', carrierId: 'twilio' }],
+      'twilio',
+    );
   });
 
   afterAll(async () => {
@@ -241,10 +244,12 @@ describe.skipIf(!postgresUrl)('durable inbound gateway admission', () => {
       { kind: 'callback', queue: 'support-callbacks', announcement: 'We will call back' },
       2,
     );
-    const unconfiguredCallback = await new InboundGatewayAdmissionService(
-      pool,
-      organizationId,
-    ).admit({
+    const unconfiguredGateway = new InboundGatewayAdmissionService(pool, organizationId);
+    unconfiguredGateway.setInstalledCarrierPlugins(
+      [{ pluginId: '@winsendotai/ovo-carrier-twilio', carrierId: 'twilio' }],
+      'twilio',
+    );
+    const unconfiguredCallback = await unconfiguredGateway.admit({
       carrierCallId: `CA${'4'.repeat(32)}`,
       fromNumber: '+14155550195',
       toNumber: noCapacityNumber,

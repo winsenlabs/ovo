@@ -214,15 +214,16 @@ export class InboundWorkerRuntime {
       this.register(false),
       ...(active
         ? [
-            this.input.store.requestSessionTermination(
-              active.jobId,
-              active.workerId,
-              active.ownerEpoch,
-              reason,
-            ),
-            active.carrierCallId
-              ? this.input.telephony.hangup(active.carrierCallId)
-              : Promise.resolve(),
+            (async () => {
+              const fenced = await this.input.store.requestSessionTermination(
+                active.jobId,
+                active.workerId,
+                active.ownerEpoch,
+                reason,
+              );
+              if (fenced && active.carrierCallId)
+                await this.input.telephony.hangup(active.carrierCallId);
+            })(),
           ]
         : []),
     ]);

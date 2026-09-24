@@ -57,16 +57,43 @@ export function validatePermittedGraph(
     : undefined;
   if (selections?.llm && !selectedInference)
     throw new Error(`Selected inference plugin is not installed: ${selections.llm.pluginId}`);
-  const dependencies =
-    selectedInference && !selected.some((item) => item.manifest.provides.includes(Cap.inference))
+  const selectedEngine = selections?.engine
+    ? catalog.find((definition) => definition.manifest.id === selections.engine?.pluginId)
+    : undefined;
+  // A voice LLM release uses the live host output; ordinary simulation releases
+  // already selected their simulated output and must not import live companions.
+  const companionIds = new Set(
+    Object.values(
+      agent.config.voice?.llm && selectedEngine
+        ? (manifestKeys(selectedEngine.manifest).manifest.companions ?? {})
+        : {},
+    ),
+  );
+  const withInference =
+    selectedInference &&
+    !selected.some((item) =>
+      manifestKeys(item.manifest).provides.some((entry) => entry.key === Cap.inference),
+    )
       ? [...selected, selectedInference]
       : selected;
+  const dependencies = [
+    ...withInference,
+    ...catalog.filter(
+      (definition) =>
+        companionIds.has(definition.manifest.id) &&
+        !withInference.some(
+          (selectedDefinition) => selectedDefinition.manifest.id === definition.manifest.id,
+        ),
+    ),
+  ];
   const reachable = new Set<string>();
   const visit = (definition: PluginDefinition) => {
     if (reachable.has(definition.manifest.id)) return;
     reachable.add(definition.manifest.id);
     for (const service of definition.manifest.requires) {
-      const providers = dependencies.filter((item) => item.manifest.provides.includes(service));
+      const providers = dependencies.filter((item) =>
+        manifestKeys(item.manifest).provides.some((entry) => entry.key === service),
+      );
       if (providers.length > 1)
         throw new Error(`Release requires exactly one selected provider for ${service}`);
       if (providers.length === 1) visit(providers[0]!);

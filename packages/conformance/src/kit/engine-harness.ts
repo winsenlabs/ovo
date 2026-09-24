@@ -206,7 +206,7 @@ export async function startHarness(
   const session: SessionInput = {
     mode,
     language: 'en-US',
-    inputEnabled: mode !== 'announcement',
+    inputEnabled: mode !== 'announcement' || Boolean(setup.agent.script),
     variables: SESSION_VARIABLES,
     maxCallSeconds: 600,
     acknowledgements: [],

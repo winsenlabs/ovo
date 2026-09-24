@@ -99,8 +99,7 @@ export async function buildReleaseSelections(input: {
     for (const [key, id] of Object.entries(
       manifestKeys(engine.manifest).manifest.companions ?? {},
     )) {
-      const companion = registry.get(id, engine.manifest.version);
-      if (!companion) throw new Error(`Engine companion ${id} is not installed`);
+      const companion = registry.resolvePin(id, engine.manifest.version).definition;
       selected[`companion:${key}`] = {
         pluginId: companion.manifest.id,
         version: companion.manifest.version,

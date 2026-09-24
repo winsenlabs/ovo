@@ -13,6 +13,7 @@ describe.skipIf(!postgresUrl)('inbound carrier selection durability', () => {
   const missingPluginNumber = '+14155550200';
   const emptyPluginNumber = '+14155550204';
   const waitSnapshotNumber = '+14155550202';
+  const alternateNumber = '+14155550206';
   const pool = new Pool({ connectionString: postgresUrl, max: 4 });
   const orchestration = new PostgresOrchestrationStore(pool);
   const operations = new PostgresOperationsService({
@@ -20,7 +21,13 @@ describe.skipIf(!postgresUrl)('inbound carrier selection durability', () => {
     organizationId,
     config: {
       liveEnabled: true,
-      permittedFromNumbers: [envNumber, missingPluginNumber, emptyPluginNumber, waitSnapshotNumber],
+      permittedFromNumbers: [
+        envNumber,
+        missingPluginNumber,
+        emptyPluginNumber,
+        waitSnapshotNumber,
+        alternateNumber,
+      ],
     },
   });
 
@@ -28,7 +35,13 @@ describe.skipIf(!postgresUrl)('inbound carrier selection durability', () => {
     await orchestration.migrate();
     await operations.migrate();
     await operations.inbound.setPolicy({ kind: 'busy', reason: 'at capacity' }, null);
-    operations.inboundGateway.setInstalledCarrierPlugins(['@winsendotai/ovo-carrier-twilio']);
+    operations.inboundGateway.setInstalledCarrierPlugins(
+      [
+        { pluginId: '@winsendotai/ovo-carrier-twilio', carrierId: 'twilio' },
+        { pluginId: '@example/alternate-carrier', carrierId: 'alternate' },
+      ],
+      'twilio',
+    );
   });
 
   afterAll(async () => {
@@ -78,22 +91,24 @@ describe.skipIf(!postgresUrl)('inbound carrier selection durability', () => {
     expect(admitted.kind).toBe('reserved');
     if (admitted.kind !== 'reserved') return;
     const job = await pool.query(
-      'SELECT carrier_plugin_id, carrier_binding_id, binding_id FROM ovo_jobs WHERE id = $1',
+      'SELECT carrier_plugin_id, carrier_binding_id, binding_id, carrier_id FROM ovo_jobs WHERE id = $1',
       [admitted.jobId],
     );
     const session = await pool.query(
-      'SELECT carrier_plugin_id, carrier_binding_id, binding_id FROM ovo_session_routes WHERE session_id = $1',
+      'SELECT carrier_plugin_id, carrier_binding_id, binding_id, carrier_id FROM ovo_session_routes WHERE session_id = $1',
       [admitted.sessionId],
     );
     expect(job.rows[0]).toEqual({
       carrier_plugin_id: null,
       carrier_binding_id: null,
       binding_id: null,
+      carrier_id: 'twilio',
     });
     expect(session.rows[0]).toEqual({
       carrier_plugin_id: null,
       carrier_binding_id: null,
       binding_id: null,
+      carrier_id: 'twilio',
     });
     const payload = await pool.query('SELECT payload FROM ovo_jobs WHERE id = $1', [
       admitted.jobId,
@@ -102,6 +117,41 @@ describe.skipIf(!postgresUrl)('inbound carrier selection durability', () => {
       carrierPluginId: null,
       carrierBindingId: null,
     });
+  });
+
+  it('writes an explicit carrier identity to both durable correlation rows', async () => {
+    await operations.inboundRoutes.put({
+      phoneNumber: alternateNumber,
+      releaseId,
+      expectedVersion: null,
+      carrierPluginId: '@example/alternate-carrier',
+      carrierBindingId: 'alternate-binding',
+    });
+    await operations.inbound.registerProtectedCapacity({
+      slotId: `alternate-slot-${randomUUID()}`,
+      workerId: 'worker-alternate',
+      workerEndpoint: 'wss://worker.internal.example/alternate-session',
+      generation: 23,
+      ready: true,
+      protectedUntil: new Date(Date.now() + 180_000),
+    });
+    const admitted = await operations.inboundGateway.admit({
+      carrierCallId: `CA${randomUUID().replaceAll('-', '')}`,
+      fromNumber: '+14155550207',
+      toNumber: alternateNumber,
+      routeTokenHash: 'a'.repeat(64),
+      handshakeTtlMs: 60_000,
+    });
+    expect(admitted.kind).toBe('reserved');
+    if (admitted.kind !== 'reserved') return;
+    const [job, session] = await Promise.all([
+      pool.query('SELECT carrier_id FROM ovo_jobs WHERE id = $1', [admitted.jobId]),
+      pool.query('SELECT carrier_id FROM ovo_session_routes WHERE session_id = $1', [
+        admitted.sessionId,
+      ]),
+    ]);
+    expect(job.rows[0].carrier_id).toBe('alternate');
+    expect(session.rows[0].carrier_id).toBe('alternate');
   });
 
   it('fails closed before reservation when the route plugin is not installed', async () => {

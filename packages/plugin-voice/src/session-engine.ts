@@ -1,3 +1,4 @@
+import { bound, errorMessage } from './session-engine-guards.ts';
 import type { Behavior, SpeechReceipt } from '@winsendotai/ovo-contracts';
 import { isAbortError } from './async.ts';
 import type { BoundedSpeechScheduler } from './scheduler.ts';
@@ -30,6 +31,7 @@ export interface VoiceIngressStats {
 
 export interface VoiceSessionEngineHooks {
   onAcceptedTranscript?: (revision: Readonly<TranscriptRevision>) => void;
+  onInterrupt?: (reason: 'transcript' | 'dtmf') => void;
 }
 
 type VoiceBehavior = Behavior & {
@@ -172,7 +174,10 @@ export class VoiceSessionEngine {
   private onTranscript(revision: TranscriptRevision): void {
     if (this.disposed) return;
     const decision = this.policy.observe(revision);
-    if (decision.interrupt) this.interruptActiveTurn('caller barge-in');
+    if (decision.interrupt) {
+      this.hooks.onInterrupt?.('transcript');
+      this.interruptActiveTurn('caller barge-in');
+    }
     if (decision.accepted) {
       try {
         this.hooks.onAcceptedTranscript?.(Object.freeze(structuredClone(revision)));
@@ -195,7 +200,10 @@ export class VoiceSessionEngine {
 
   private startTurn(input: string, variables?: Record<string, unknown>): void {
     if (this.disposed || this.controller.signal.aborted) return;
-    if (this.activeTurn !== undefined) this.cancelBehavior();
+    if (this.activeTurn !== undefined) {
+      if (variables?.inputEvent === 'dtmf') this.hooks.onInterrupt?.('dtmf');
+      this.cancelBehavior();
+    }
     if (this.turnTasks.size >= this.maxConcurrentTurns) {
       this.disposeInBackground('Turn cancellation backlog exceeded');
       return;
@@ -303,14 +311,4 @@ export class VoiceSessionEngine {
     await this.speech.dispose();
     if (closeMedia) await this.media.close(reason).catch(() => undefined);
   }
-}
-
-function bound(value: number, minimum: number, maximum: number, name: string): number {
-  if (!Number.isInteger(value) || value < minimum || value > maximum)
-    throw new Error(`${name} must be an integer from ${minimum} to ${maximum}`);
-  return value;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

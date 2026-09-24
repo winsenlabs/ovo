@@ -11,6 +11,7 @@ import type { CostAdmission } from './cost-runtime.ts';
 import type { DeliveryVisibilityRenewal, JobLeaseRenewal } from './renewal.ts';
 import type { DeliveryOutcome } from './worker-types.ts';
 import type { SelectedJobCarrier } from './carrier-runtime.ts';
+import { completedWithoutSession } from './carrier-completion.ts';
 
 interface CarrierDialSettlementInput {
   job: ClaimedJob;
@@ -127,8 +128,7 @@ export async function settleCarrierDial(
     )
       return fail(reconciled.state);
     const route = await input.store.getSessionRoute(job.id);
-    if (reconciled.state === 'completed' && !route?.handshakeClaimedAt)
-      return fail('completed_without_session');
+    if (completedWithoutSession(reconciled.state, route)) return fail('completed_without_session');
   }
   const deferred = await input.store.deferReconciliation(
     job.id,

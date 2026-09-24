@@ -181,7 +181,7 @@ describe('selected session graph', () => {
       providerBindings: { inference: { id: 'binding', provider: 'fixture-inference' } },
     };
     expect(() => selectSessionGraph({ ...selectedInput, release })).toThrow(
-      'Live inference plugin is required until F4 wiring',
+      'Live inference selection is required',
     );
   });
   it('resolves same-major pins, prunes services and composes the actual session rows', async () => {

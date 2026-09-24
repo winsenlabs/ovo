@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import type { PoolClient } from 'pg';
+import type { InboundGatewayCall, InboundOverflowPolicy } from './types.ts';
 import type { CallbackAdmissionRow } from './inbound-callback.ts';
 import type { InboundGatewayDecision } from './types.ts';
 
@@ -62,4 +65,28 @@ export function existingDecision(row: ExistingRow): InboundGatewayDecision {
     };
   }
   return { kind: 'busy', admissionId: row.id, reason: String(row.detail.reason ?? 'busy') };
+}
+
+export async function recordBusy(
+  client: PoolClient,
+  organizationId: string,
+  input: InboundGatewayCall,
+  reason: string,
+  configuredPolicy?: InboundOverflowPolicy,
+): Promise<InboundGatewayDecision> {
+  const admissionId = randomUUID();
+  await client.query(
+    `INSERT INTO ovo_ops_inbound_admissions
+         (id, organization_id, call_id, decision, detail, from_number, to_number)
+       VALUES ($1, $2, $3, 'busy', $4::jsonb, $5, $6)`,
+    [
+      admissionId,
+      organizationId,
+      input.carrierCallId,
+      JSON.stringify({ kind: 'busy', reason, configuredPolicy }),
+      input.fromNumber,
+      input.toNumber,
+    ],
+  );
+  return { kind: 'busy', admissionId, reason };
 }

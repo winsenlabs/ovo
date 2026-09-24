@@ -188,7 +188,7 @@ describe('complete default session graphs', () => {
         ...input,
         bindings: { inference: { workspaceId: 'local' } },
       }),
-    ).toThrow('Live inference plugin is required until F4 wiring');
+    ).toThrow('Live inference selection is required');
     expect(() =>
       createSessionPluginCatalog({
         ...input,
@@ -202,6 +202,28 @@ describe('complete default session graphs', () => {
         bindings: { inference: { workspaceId: 'local' } },
         output: { kind: 'host' },
       }),
-    ).toThrow('Live inference plugin is required until F4 wiring');
+    ).toThrow('Live inference selection is required');
+    const selectedConfig = AgentConfig.parse({
+      name: 'Selected Context',
+      mode: 'context',
+      voice: { llm: { plugin: 'test.inference', binding: 'env', config: {} } },
+    });
+    expect(() =>
+      createSessionPluginCatalog({
+        ...input,
+        config: selectedConfig,
+        bindings: {},
+        output: { kind: 'host' },
+      }),
+    ).toThrow('Live inference selection is required');
+    expect(() =>
+      createSessionPluginCatalog({
+        ...input,
+        config: selectedConfig,
+        bindings: {},
+        output: { kind: 'host' },
+        deferInferenceSelection: true,
+      }),
+    ).not.toThrow();
   });
 });

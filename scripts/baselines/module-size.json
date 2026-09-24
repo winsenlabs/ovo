@@ -1,7 +1,7 @@
 {
   "files": {
     "apps/api/src/routes/cost.ts": 337,
-    "apps/api/src/routes/evaluation-datasets.ts": 366,
+    "apps/api/src/routes/evaluation-datasets.ts": 365,
     "apps/api/src/routes/mcp.ts": 308,
     "apps/api/src/routes/operations.ts": 387,
     "apps/api/src/routes/recording-lifecycle.ts": 335,
@@ -32,7 +32,6 @@
     "packages/plugin-media/src/gateway.ts": 398,
     "packages/plugin-observability/src/postgres-telemetry.ts": 341,
     "packages/plugin-operations/src/handoff.ts": 341,
-    "packages/plugin-operations/src/inbound-gateway.ts": 304,
     "packages/plugin-operations/src/inbound.ts": 333,
     "packages/plugin-orchestration/src/aws.ts": 316,
     "packages/plugin-providers/src/deepgram-session.ts": 323,
@@ -43,7 +42,7 @@
     "packages/plugin-storage/src/postgres/mcp-repository.ts": 370,
     "packages/plugin-storage/src/sqlite/mcp-repository.ts": 330,
     "packages/plugin-storage/tests/backup-restore-drill-fixture.ts": 366,
-    "packages/plugin-voice/src/session-engine.ts": 340,
+    "packages/plugin-voice/src/session-engine.ts": 335,
     "packages/ui/src/index.ts": 351
   }
 }

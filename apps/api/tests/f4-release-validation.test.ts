@@ -56,6 +56,22 @@ function pins(engine: ReturnType<typeof fixtureEngine>) {
 }
 
 describe('F4 release graph validation', () => {
+  it('validates a data-selected v2 engine even when it is absent from release.plugins', async () => {
+    const applied = vi.fn();
+    const engine = fixtureEngine([Cap.behavior, 'missing.selected-port'], applied);
+    await expect(
+      validateRelease(
+        agent,
+        [{ id: behavior.manifest.id, version: behavior.manifest.version }],
+        store,
+        [behavior, engine],
+        services,
+        { engine: { pluginId: engine.manifest.id, version: engine.manifest.version, config: {} } },
+      ),
+    ).rejects.toThrow('Missing service missing.selected-port');
+    expect(applied).not.toHaveBeenCalled();
+  });
+
   it('validates explicit v2 engine dependencies without applying the engine', async () => {
     const applied = vi.fn();
     const engine = fixtureEngine([Cap.behavior, 'missing.engine-port'], applied);

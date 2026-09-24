@@ -17,12 +17,22 @@ const END_REASONS: ReadonlySet<string> = new Set([
   'drain',
   'superseded',
 ]);
+const LEGACY_END_REASONS: Readonly<Record<string, EndReason>> = Object.freeze({
+  'carrier stopped': 'caller_hangup',
+  'carrier termination': 'caller_hangup',
+  hangup: 'caller_hangup',
+  stop: 'caller_hangup',
+  'media idle deadline exceeded': 'caller_idle',
+  'owning worker disconnected': 'ownership_lost',
+  'cost-max-duration': 'max_duration',
+  'worker media runtime closed': 'drain',
+  'STT ingress capacity exceeded': 'error:stt-ingress-capacity',
+});
 
 /** A v1 free-form close reason as a typed EndReason. Unknown reasons become `error:<reason>`. */
 export function asEndReason(reason: string): EndReason {
   if (END_REASONS.has(reason) || reason.startsWith('error:')) return reason as EndReason;
-  if (/\b(stop|stopped|hang ?up|hangup|caller|callended|stream ended)\b/i.test(reason))
-    return 'caller_hangup';
+  if (Object.hasOwn(LEGACY_END_REASONS, reason)) return LEGACY_END_REASONS[reason]!;
   return `error:${reason}`;
 }
 

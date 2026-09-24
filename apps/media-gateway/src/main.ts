@@ -5,8 +5,10 @@ import {
 } from '@winsendotai/ovo-plugin-media';
 import { PostgresOrchestrationStore } from '@winsendotai/ovo-plugin-orchestration';
 import { PostgresOperationsService } from '@winsendotai/ovo-plugin-operations';
+import { loadDistribution } from '@winsendotai/ovo-distribution';
 import { compose } from '@winsendotai/ovo-runtime';
 import { createTwilioInboundWebhookHandler } from './inbound-webhook.ts';
+import { installInboundCarriers } from './inbound-carrier-installation.ts';
 import { projectInboundTerminalStatus } from './inbound-status.ts';
 
 async function main(): Promise<void> {
@@ -28,6 +30,12 @@ async function main(): Promise<void> {
     },
   });
   await operations.migrate();
+  const distribution = await loadDistribution({
+    role: 'gateway',
+    profile: process.env.OVO_DEPLOYMENT_PROFILE === 'fargate' ? 'fargate' : 'compose',
+    env: process.env,
+  });
+  installInboundCarriers(operations, distribution, process.env);
   const resolver = {
     authenticateSessionRoute: store.authenticateSessionRoute.bind(store),
     resolveSessionRoute: store.resolveSessionRoute.bind(store),

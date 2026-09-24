@@ -72,6 +72,27 @@ const route = {
 describe('InboundWorkerRuntime', () => {
   afterEach(() => vi.useRealTimers());
 
+  it('does not hang up an inbound leg before its ownership fence resolves', async () => {
+    const subject = fixture();
+    subject.costs.reserve.mockResolvedValue({ admitted: true, beginActiveCall: vi.fn() });
+    await subject.runtime.admitSession(inboundJob, route);
+    let releaseFence!: () => void;
+    subject.requestSessionTermination.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseFence = () => resolve({ carrierCallId: 'CA1' });
+        }),
+    );
+    const failing = (
+      subject.runtime as unknown as { failClosed(reason: string): Promise<void> }
+    ).failClosed('ownership lost');
+    await vi.waitFor(() => expect(subject.requestSessionTermination).toHaveBeenCalledOnce());
+    expect(subject.hangup).not.toHaveBeenCalled();
+    releaseFence();
+    await failing;
+    expect(subject.hangup).toHaveBeenCalledWith('CA1');
+  });
+
   it('advertises only protected capacity and atomically suspends it for outbound work', async () => {
     const subject = fixture();
     await subject.runtime.start();

@@ -22,6 +22,7 @@ import { legacySelections } from './legacy-session-selections.ts';
 import type { NormalizationBinding, SessionDefaults } from './normalize.ts';
 import { adaptDefinitionFormats } from './speech-adapters/decorate.ts';
 import { sessionRequiresInput } from './input-policy.ts';
+import { STREAMING_VOICE_PLUGIN_IDS } from '@winsendotai/ovo-plugin-voice';
 
 export interface SessionGraphRelease {
   id: string;
@@ -202,7 +203,14 @@ export function selectSessionGraph(input: SessionGraphInput): SessionGraphResult
       ) {
         if (!catalog.some((item) => item.manifest.id === companion.definition.manifest.id))
           catalog.push(companion.definition);
-      } else add(companion.definition, {});
+      } else
+        add(
+          companion.definition,
+          id === STREAMING_VOICE_PLUGIN_IDS.mediaOutput &&
+            release.config.voice?.acknowledgements.includes('weak-playback-evidence')
+            ? { allowWeakEvidence: true }
+            : {},
+        );
     }
   }
   for (const definition of createSessionPluginCatalog({

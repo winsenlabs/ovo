@@ -167,19 +167,6 @@ export async function openWorkerProcess() {
   const telephony = composition.ctx.get(Cap.legacyTelephony) as TelephonyControl;
   const carriers = carrierPlugin.runtime();
   const { protection, operations } = workerRuntimeServices(composition.ctx);
-  operations.inboundGateway.setInstalledCarrierPlugins(
-    carrierRows
-      .filter((row) =>
-        distribution.catalog.some(
-          (definition) =>
-            definition.manifest.id === row.id &&
-            manifestKeys(definition.manifest).provides.some(
-              (entry) => entry.key === Cap.carrierControl,
-            ),
-        ),
-      )
-      .map((row) => row.id),
-  );
   const costs = composition.ctx.get(Cap.workerCostRuntime) as ProductionWorkerCostRuntime;
   const recordings = composition.ctx.get(
     RECORDING_SERVICE_KEYS.production,

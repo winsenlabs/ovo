@@ -163,6 +163,9 @@ importers:
 
   apps/media-gateway:
     dependencies:
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@winsendotai/ovo-distribution':
         specifier: workspace:*
         version: link:../../packages/distribution

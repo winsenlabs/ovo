@@ -8,6 +8,7 @@ import {
 import { asEndReason } from '@winsendotai/ovo-plugin-kit';
 import type { ProviderUsage } from './cost-policy-types.ts';
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
+import type { DurableJob, SessionRoute } from '@winsendotai/ovo-plugin-orchestration';
 import type { SecretManager } from '@winsendotai/ovo-plugin-secrets';
 import type { LiveRecordingService } from '@winsendotai/ovo-plugin-recordings';
 import type { InstalledSessionExtensions } from '@winsendotai/ovo-runtime';
@@ -42,6 +43,11 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
     private readonly recordingRetentionDays = 30,
     private readonly speechCache?: WorkerSpeechCacheRuntime,
     private readonly graph?: LiveGraphOptions,
+    private readonly beforeEngineMediaClose?: (
+      job: DurableJob,
+      route: SessionRoute,
+      reason: EndReason,
+    ) => Promise<void>,
   ) {}
 
   async create({ job, route, media }: Parameters<VoiceSessionFactory['create']>[0]) {
@@ -120,6 +126,9 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
             playbackEvidence: carrier.carrier.capabilities.media.playbackEvidence,
             clearFlushesMarkers: carrier.carrier.capabilities.media.clearFlushesMarkers,
           },
+          beforeMediaClose: this.beforeEngineMediaClose
+            ? (reason) => this.beforeEngineMediaClose!(job, route, reason)
+            : undefined,
         });
         cleanup.defer(() => graph.composition.dispose());
         const unsubscribe = subscribeEngineTelemetry(graph.engine, telemetry);

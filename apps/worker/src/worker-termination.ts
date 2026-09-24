@@ -21,13 +21,6 @@ export async function terminateOwnedJob(input: OwnedTermination): Promise<boolea
   const route = await input.store.getSessionRoute(input.jobId);
   if (!job || !route) return false;
   const reason: EndReason = asEndReason(input.reason);
-  const fenced = await input.store.requestSessionTermination(
-    input.jobId,
-    input.workerId,
-    input.ownerEpoch,
-    reason,
-  );
-  if (!fenced) return false;
   let selected;
   try {
     selected = await input.carriers.forJob(job, false);
@@ -46,7 +39,15 @@ export async function terminateOwnedJob(input: OwnedTermination): Promise<boolea
       carrierRequestId: route.carrierRequestId,
     },
     store: {
-      requestSessionTermination: async () => fenced,
+      requestSessionTermination: async (owned, requestedReason) => {
+        const fenced = await input.store.requestSessionTermination(
+          owned.jobId,
+          owned.workerId,
+          owned.ownerEpoch,
+          requestedReason,
+        );
+        return fenced;
+      },
     },
     control: selected.control,
     capabilities: selected.carrier.capabilities,

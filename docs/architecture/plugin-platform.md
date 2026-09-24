@@ -1369,7 +1369,7 @@ AgentConfig += {
 ```
 
 - `AgentConfig.providers` stays exactly as it is. **Contracts contain no first-party plugin ids.**
-- `session-host/normalize.ts` maps each legacy `providers.{stt,tts,inference,telephony}` binding to `voice.<slot>` via `registry.resolve(kind, binding.provider)`. The slot names map `inference → llm` and `telephony → carrier`.
+- `session-host/normalize.ts` maps each legacy `providers.{stt,tts,inference,telephony}` binding to `voice.<slot>` via `registry.resolve(kind, binding.pluginId ?? binding.provider)`. The slot names map `inference → llm` and `telephony → carrier`.
 - Missing slots are filled from the distribution defaults:
 
 | Slot         | Default                                                                                              |
@@ -1436,6 +1436,8 @@ Release += {
 | orchestration **migration ledger** (`ovo_orch_schema_migrations`, advisory lock, versioned like `plugin-operations/src/migrations.ts`) | F3   | 001 and 002 are recorded as applied when their tables exist. Before this, `runMigrations` re-ran 001 and 002 on every boot.                                                                                                                                                                                                    |
 | `plugin-orchestration/migrations/003_carrier_identity.sql`                                                                             | F3   | session routes and jobs: `carrier_id TEXT NOT NULL DEFAULT 'twilio'`, `binding_id TEXT NULL`, `carrier_request_id TEXT NULL`; routes `carrier_stream_call_id TEXT NULL`; indexes `(carrier_id, carrier_call_id)` and `(carrier_request_id)`                                                                                    |
 | `plugin-operations/migrations/005_inbound_carrier.sql`                                                                                 | F3   | `ovo_ops_inbound_routes.carrier_plugin_id`, `carrier_binding_id` (nullable → env binding)                                                                                                                                                                                                                                      |
+| `plugin-orchestration/migrations/005_inbound_carrier_selection.sql`                                                                    | F4   | Nullable raw carrier plugin/binding selection on job and session routes; `carrier_id` remains the selected carrier scope                                                                                                                                                                                                       |
+| `plugin-operations/migrations/006_inbound_admission_carrier.sql`                                                                       | F4   | Nullable raw carrier plugin/binding snapshot on waiting admissions, so a route edit cannot change a waiting call's selection                                                                                                                                                                                                   |
 | `plugin-storage/src/postgres/migrations/005-mcp-tool-removed.ts` + sqlite                                                              | M1   | discovered tools `removed_at TIMESTAMPTZ NULL`; the RESTRICT FK stays (#6)                                                                                                                                                                                                                                                     |
 | `plugin-orchestration/migrations/004_job_hints_drop_capacity.sql`                                                                      | O1   | `ovo_jobs.hinted_at`, `hint_count`; `DROP TABLE IF EXISTS ovo_capacity_writes, ovo_capacity_leases`; `superseded` job status. It is safe because of the ledger.                                                                                                                                                                |
 | ledger **migration ledger** + `plugin-ledger/migrations/002_reservation_expiry.sql`                                                    | O2   | `ovo_cost_reservations.holder`, `expires_at`, `session_id`, index `(state, expires_at)`                                                                                                                                                                                                                                        |
@@ -1509,26 +1511,26 @@ export interface CompatIssue {
 - **Stage `live`** covers every other error. It blocks live admission: readiness `liveReady`, the worker's pre-dial check, and fixture calls, except that `meter_uncovered` is only a warning for fixture calls.
 - **Stage `test`** is used only by fixture calls.
 
-For legacy releases without explicit selections, the host derives selections from the release's legacy provider bindings and defaults before these checks run. Inbound admission supplies the carrier selected by the route as `CompatInput.actualCarrier`; checks use that carrier even when the release names another one.
+For legacy releases without explicit selections, the host derives selections from the release's legacy provider bindings and defaults before these checks run. The worker passes the actual route carrier as `CompatInput.actualCarrier` on its admission path. C2 still owns doing so in gateway inbound admission; until then, gateway compatibility must not be represented as having checked the route carrier.
 
 Simulation-only agents stay publishable.
 
 ### 4.6 `packages/session-host` (host library; replaces most of `plugin-session`)
 
-| Module                                                | Job                                                                                                                                                                                                                            |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `normalize.ts`                                        | Maps legacy config to `voice.*` and fills defaults                                                                                                                                                                             |
-| `compat/*.ts`, `compat/index.ts`                      | The rules above, plus `validateSelections(input, stage)`. Every rule is registered in index.ts, including `mcp-tool-removed.ts`.                                                                                               |
-| `select-session-graph.ts`                             | `selectSessionGraph({release, registry, hostServices, parent, media, fixtures?, installedExtensions})` returns `{rows, catalog, resolved: {slot → {id, version, exact}}}`. Details below the table.                            |
-| `engine-selection.ts`                                 | `selectEngine(release, registry, installedExtensions, fallback)`. It keeps the HANDOFF semantics and messages for v1 replacement engines, including exact pins and v1 row config, and uses §4.2 for v2 engines.                |
-| `speech-adapters/{stt-format,tts-format,decorate}.ts` | The host format adapters (§2.4), plus `decorateByKind(definition, decorators)` so the worker can add telemetry around stt, tts and llm plugins                                                                                 |
-| `session-catalog.ts`                                  | `createSessionPluginCatalog`, moved from `plugin-session/src/index.ts`. The OpenAI inference fallback at `:68-80` is deleted: live LLM comes only from the llm selection, and simulations keep the `inferencePlugin` override. |
-| `meters.ts`                                           | `metersFor(selections, registry, {requiresInput})` = carrier ∪ tts ∪ (input ? stt : ∅) ∪ llm meters, filtered by `when`                                                                                                        |
-| `carrier-registry.ts`                                 | `CarrierRegistry(controls, bindings)` with `forRelease(release)` → `{carrierId, bindingId, control, capabilities}` and `forInboundRoute(route)`. A NULL binding means the reserved id `env`.                                   |
-| `carrier-bindings.ts`                                 | `resolveBinding(id)` → `ResolvedBinding`. The id `env` reads `OVO_CARRIER_ENV_BINDINGS`.                                                                                                                                       |
-| `host-ports.ts` + `stream-grants.ts`                  | `createCarrierHostPorts({publicBaseUrl, routeSecret, operations, orchestration, bindings, clock})`. Details below the table.                                                                                                   |
-| `terminate.ts`                                        | `terminateCarrierLeg(...)` (§4.10)                                                                                                                                                                                             |
-| `installed.ts`                                        | re-export of `runtime/installed.ts`                                                                                                                                                                                            |
+| Module                                                | Job                                                                                                                                                                                                                                                |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `normalize.ts`                                        | Maps legacy config to `voice.*` and fills defaults                                                                                                                                                                                                 |
+| `compat/*.ts`, `compat/index.ts`                      | The rules above, plus `validateSelections(input, stage)`. Every rule is registered in index.ts, including `mcp-tool-removed.ts`.                                                                                                                   |
+| `select-session-graph.ts`                             | `selectSessionGraph({release, registry, hostServices, parent, media, fixtures?, installedExtensions, defaults?, mcpConnections?, sessionVariables?})` returns `{rows, catalog, resolved: {slot → {id, version, exact}}}`. Details below the table. |
+| `engine-selection.ts`                                 | `selectEngine(release, registry, installedExtensions, fallback, variables)`. It keeps the HANDOFF semantics and messages for v1 replacement engines, including exact pins and v1 row config, and uses §4.2 for v2 engines.                         |
+| `speech-adapters/{stt-format,tts-format,decorate}.ts` | The host format adapters (§2.4), plus `decorateByKind(definition, decorators)` so the worker can add telemetry around stt, tts and llm plugins                                                                                                     |
+| `session-catalog.ts`                                  | `createSessionPluginCatalog`, moved from `plugin-session/src/index.ts`. The OpenAI inference fallback at `:68-80` is deleted: live LLM comes only from the llm selection, and simulations keep the `inferencePlugin` override.                     |
+| `meters.ts`                                           | `metersFor(selections, registry, {requiresInput})` = carrier ∪ tts ∪ (input ? stt : ∅) ∪ llm meters, filtered by `when`                                                                                                                            |
+| `carrier-registry.ts`                                 | `CarrierRegistry(controls, bindings)` with `forRelease(release)` → `{carrierId, bindingId, control, capabilities}` and `forInboundRoute(route)`. A NULL binding means the reserved id `env`.                                                       |
+| `carrier-bindings.ts`                                 | `resolveBinding(id)` → `ResolvedBinding`. The id `env` reads `OVO_CARRIER_ENV_BINDINGS`.                                                                                                                                                           |
+| `host-ports.ts` + `stream-grants.ts`                  | `createCarrierHostPorts({publicBaseUrl, routeSecret, operations, orchestration, bindings, carrierId?, queryOnMediaUrl?, streamCallIdMatchesDial?, clock?, workerFreshSeconds?})`. Details below the table.                                         |
+| `terminate.ts`                                        | `terminateCarrierLeg(...)` (§4.10)                                                                                                                                                                                                                 |
+| `installed.ts`                                        | re-export of `runtime/installed.ts`                                                                                                                                                                                                                |
 
 **`selectSessionGraph` details.**
 
@@ -1599,7 +1601,7 @@ export interface CatalogEntry {
 | `src/env-bindings.ts`                             | `legacyEnvBindings(env)` builds `OVO_CARRIER_ENV_BINDINGS` from `TWILIO_*` when that variable is unset. It **skips placeholder values** (Compose ships `not-configured` and `disabled-local-account`). Validation happens when a binding is resolved, never at startup.                                                                                                                                                         |
 | `src/legacy/*.ts`                                 | The wave-1 bridges: Deepgram STT, OpenAI TTS, OpenAI LLM and the Twilio carrier. I1 deletes them.                                                                                                                                                                                                                                                                                                                               |
 
-Apps import only `distribution`, `session-host`, `runtime` and infra packages. The architecture gate enforces that.
+App composition uses `distribution`, `session-host`, `runtime` and infrastructure packages. The current worker speech-cache modules also import the `plugin-voice` streaming-output class; D1 owns that bridge. The architecture gate enforces the per-package allowlist and its ratcheted legacy-import baseline, rather than a blanket app ban on every plugin import.
 
 ### 4.8 API changes (F4 unless noted)
 
@@ -1626,7 +1628,7 @@ Apps import only `distribution`, `session-host`, `runtime` and infra packages. T
 - `dispose(reason)` maps the `EndReason` through `outcomeFor`, replacing `reason.includes('completed')` (#20).
 - **v1 engine compatibility.** A release-pinned v1 replacement engine keeps its v1 row config (`{language, inputEnabled, initialInput, initialVariables}`). A host adapter gives it a no-op `subscribe()` and an `end` event. `selectVoiceSessionEnginePlugin` stays exported from `production-session-support.ts`, delegating to `session-host/engine-selection.ts`.
 
-**Carrier per job.** `runner.ts`, `inbound-runtime.ts`, `campaign-dial.ts`, `dial-request.ts`, `dial-settlement.ts` and `reconciliation.ts` use `CarrierRegistry.forRelease(release)`.
+**Carrier per job.** `runner.ts`, `inbound-runtime.ts`, `campaign-dial.ts`, `dial-request.ts`, `carrier-dial-settlement.ts` and `reconciliation.ts` select the installed carrier for each job. The inbound worker reader gives the route's raw carrier plugin/binding selection precedence over the release selection and keeps NULL as the env binding.
 
 - `DialRequest` v2 takes its media URL and callbacks from the host ports (#1: never `/twilio/media`, always wss).
 - `routeParams` are set only when `streamParams: 'at-dial'`.
@@ -1657,12 +1659,12 @@ Apps import only `distribution`, `session-host`, `runtime` and infra packages. T
 
 ### 4.10 Termination, continuation and correlation (host rules)
 
-**`terminateCarrierLeg({route, control, capabilities, media, engine, reason})`** runs these steps in this order:
+**`terminateCarrierLeg({route, store, control, capabilities, media, engine, reason})`** runs these steps in this order:
 
 1. `store.requestSessionTermination(route)` sets the route to `terminating`. From then on `streamForDial`, `resumeStream` and gateway starts for this route are refused.
 2. `control.hangup({carrierCallId, carrierRequestId})`. Before answer, a carrier with `cancelBeforeAnswer` cancels by request id.
-3. For a close-stream carrier, call `media.terminate(sessionId)` after step 2 returns `unsupported` or `ended`, and also if step 2 rejects. The worker sends `session.end{reason:'terminate'}`, and the gateway sends `terminate?()` frames and closes the carrier socket.
-4. `engine.dispose(reason)`.
+3. For a close-stream carrier, call `media.terminate(sessionId)` after `control.hangup`, including when that control call rejects. A REST carrier that reports `unsupported` fails termination explicitly.
+4. `engine.dispose(reason)` runs in `finally`, including after a failed fence, to tear down local resources. Engine-initiated closure invokes the host fence before the actual media close.
 
 - Ownership loss, drain, `behavior_completed`, max duration and idle all use this path.
 - A carrier stream that **opens later** for a terminating or terminal route is closed by the gateway before any audio is sent. For a close-stream carrier, that is what ends a call that was answered after ownership loss.

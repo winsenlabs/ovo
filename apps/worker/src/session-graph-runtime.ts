@@ -3,8 +3,7 @@ import {
   MULAW_8K,
   meterKey,
   type PlaybackEvidence,
-  type Clock,
-  type EngineEvent,
+  type EndReason,
   type MediaDuplex,
   type OperationStore,
   type SecretResolver,
@@ -14,19 +13,21 @@ import {
 } from '@winsendotai/ovo-contracts';
 import type { LoadedDistribution } from '@winsendotai/ovo-distribution';
 import { duplexFromLegacy } from '@winsendotai/ovo-plugin-kit';
-import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
+import { deriveLegacySelections, type ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { decorateByKind, selectEngine, selectSessionGraph } from '@winsendotai/ovo-session-host';
 import {
   compose,
   createNativeHandlerMarker,
-  definePlugin,
   manifestKeys,
   PluginRegistry,
   type Composition,
   type InstalledSessionExtensions,
-  type PluginDefinition,
 } from '@winsendotai/ovo-runtime';
 import type { WorkerSessionTelemetry } from './telemetry-runtime.ts';
+import { sessionHostServices } from './session-graph-host.ts';
+export { subscribeEngineTelemetry } from './session-graph-host.ts';
+export type { GraphSessionResult } from './session-graph-host.ts';
+import type { GraphSessionResult } from './session-graph-host.ts';
 import { immutableMcpConnections } from './production-session-support.ts';
 import {
   instrumentInferencePlugin,
@@ -50,12 +51,6 @@ export interface LiveCarrierMedia {
   clearFlushesMarkers: boolean | 'unknown';
 }
 
-export interface GraphSessionResult {
-  composition: Composition;
-  engine: VoiceSessionEngine;
-  media: MediaDuplex;
-}
-
 /** The production session path selects every release row before any provider is applied. */
 export async function composeLiveSessionGraph(input: {
   graph: LiveGraphOptions;
@@ -70,6 +65,7 @@ export async function composeLiveSessionGraph(input: {
   usage?: UsageSink;
   speechCache?: WorkerSpeechCacheRuntime;
   carrierMedia: LiveCarrierMedia;
+  beforeMediaClose?: (reason: EndReason) => Promise<void>;
 }): Promise<GraphSessionResult> {
   const { release, graph, telemetry } = input;
   const registry = new PluginRegistry([
@@ -77,10 +73,23 @@ export async function composeLiveSessionGraph(input: {
     ...input.extensions.plugins,
     ...(input.extensions.nativeHandlerPackages ?? []).map(createNativeHandlerMarker),
   ]);
-  const media = duplexFromLegacy(input.media, MULAW_8K, input.carrierMedia.playbackEvidence, {
+  const legacyMedia = duplexFromLegacy(input.media, MULAW_8K, input.carrierMedia.playbackEvidence, {
     carrierId: input.carrierMedia.carrierId,
     clearFlushesMarkers: input.carrierMedia.clearFlushesMarkers,
   });
+  let closing: Promise<void> | undefined;
+  const media: MediaDuplex = input.beforeMediaClose
+    ? Object.assign(Object.create(legacyMedia) as MediaDuplex, {
+        close: async (reason: EndReason) => {
+          closing ??= input.beforeMediaClose!(reason);
+          try {
+            await closing;
+          } finally {
+            await legacyMedia.close(reason);
+          }
+        },
+      })
+    : legacyMedia;
   const usage: UsageSink = (event) => {
     input.usage?.(event);
     telemetry.providerUsage(event);
@@ -103,7 +112,12 @@ export async function composeLiveSessionGraph(input: {
   );
   // selectEngine checks v1 exact pins and v2 major compatibility before graph composition.
   const selected = selectEngine(
-    release,
+    {
+      ...release,
+      // Native package pins are checked by createSessionPluginCatalog, which can report
+      // the exact missing marker or package identity before graph resolution.
+      plugins: release.plugins.filter((pin) => !pin.id.endsWith('/native-handlers')),
+    },
     registry,
     input.extensions,
     () => registry.get('@winsendotai/ovo-plugin-voice-session-engine')!,
@@ -112,8 +126,35 @@ export async function composeLiveSessionGraph(input: {
   const cachedOutput = input.speechCache
     ? createV2SpeechCachePlugin(release, input.speechCache.cache)
     : undefined;
+  const graphRelease: ReleaseRecord =
+    !release.selections?.engine && selected.definition.manifest.contractVersion === 1
+      ? {
+          ...release,
+          selections: {
+            ...Object.fromEntries(
+              Object.entries(
+                deriveLegacySelections(release, registry, {
+                  engine: graph.distribution.defaults.engine,
+                  turnDetector: graph.distribution.defaults.turnDetector,
+                }),
+              ).map(([slot, choice]) => [
+                slot,
+                {
+                  ...choice,
+                  version: registry.get(choice.pluginId)!.manifest.version,
+                },
+              ]),
+            ),
+            engine: {
+              pluginId: selected.definition.manifest.id,
+              version: selected.definition.manifest.version,
+              config: selected.rowConfig,
+            },
+          },
+        }
+      : release;
   const result = selectSessionGraph({
-    release,
+    release: graphRelease,
     registry,
     hostServices: cachedOutput ? [host, cachedOutput] : [host],
     parent: graph.parent.keys,
@@ -123,8 +164,30 @@ export async function composeLiveSessionGraph(input: {
     mcpConnections: immutableMcpConnections(release, mcpTools),
     sessionVariables: input.variables,
   });
+  const allowedNativeIds = new Set(
+    release.config.tools
+      .filter(
+        (tool) => tool.connector === 'native' && release.config.allowedTools.includes(tool.id),
+      )
+      .map((tool) => tool.id),
+  );
+  const allowedPackages =
+    input.extensions.nativeHandlerPackages?.filter((extension) =>
+      extension.handlerIds.some((id) => allowedNativeIds.has(id)),
+    ) ?? [];
+  for (const pin of release.plugins.filter((item) => item.id.endsWith('/native-handlers')))
+    if (
+      !allowedPackages.some(
+        (extension) => extension.pluginId === pin.id && extension.pluginVersion === pin.version,
+      )
+    )
+      throw new Error(`Pinned native handler package is not installed: ${pin.id}@${pin.version}`);
   if (release.selections?.engine && selected.definition.manifest.id !== result.resolved.engine?.id)
     throw new Error('selected session engine differs from release graph');
+  if (selected.definition.manifest.contractVersion === 1) {
+    const row = result.rows.find((item) => item.id === selected.definition.manifest.id);
+    if (row) row.config = selected.rowConfig;
+  }
   if (
     !release.selections?.engine &&
     selected.definition.manifest.id !== result.resolved.engine?.id
@@ -191,62 +254,4 @@ export async function composeLiveSessionGraph(input: {
     throw new Error('Selected live engine does not expose the v2 session contract');
   }
   return { composition, engine, media };
-}
-
-export function subscribeEngineTelemetry(
-  engine: VoiceSessionEngine,
-  telemetry: WorkerSessionTelemetry,
-  speech?: (event: Extract<EngineEvent, { type: 'speech' }>) => void,
-): () => void {
-  return engine.subscribe((event) => {
-    if (event.type === 'speech') {
-      telemetry.adapter.speech(event.evidence);
-      speech?.(event);
-    } else if (event.type === 'timing') {
-      telemetry.audit('session.timing', { key: event.key, atMs: event.atMs, ms: event.ms });
-    } else if (event.type === 'user.transcript') {
-      telemetry.audit('transcript.accepted', { text: event.text, turnId: event.turnId });
-    } else if (event.type === 'end') {
-      telemetry.audit('session.engine-ended', { reason: event.reason });
-    }
-  });
-}
-
-function sessionHostServices(input: {
-  media: MediaDuplex;
-  operationStore: OperationStore;
-  secrets: SecretResolver;
-  usage: UsageSink;
-  transcripts: (
-    event: Extract<EngineEvent, { type: 'user.transcript' | 'agent.transcript' }>,
-  ) => void;
-}): PluginDefinition {
-  const clock: Clock = {
-    now: () => Date.now(),
-    setTimeout: (fn, ms) => {
-      const timer = globalThis.setTimeout(fn, ms);
-      return () => globalThis.clearTimeout(timer);
-    },
-  };
-  return definePlugin(
-    {
-      id: '@winsendotai/ovo-worker/session-host-services',
-      version: '0.1.0',
-      contractVersion: 2,
-      scope: 'session',
-      kind: 'host',
-      requires: [],
-      provides: [Cap.operationStore, Cap.secrets, Cap.media, Cap.usage, Cap.transcripts, Cap.clock],
-      configSchema: { type: 'object', additionalProperties: false },
-      secretFields: [],
-    },
-    (ctx) => {
-      ctx.provide(Cap.operationStore, input.operationStore);
-      ctx.provide(Cap.secrets, input.secrets);
-      ctx.provide(Cap.media, input.media);
-      ctx.provide(Cap.usage, input.usage);
-      ctx.provide(Cap.transcripts, input.transcripts);
-      ctx.provide(Cap.clock, clock);
-    },
-  );
 }

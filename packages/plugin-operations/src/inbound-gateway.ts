@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import { transaction } from './database.ts';
 import { confirmInboundCallback } from './inbound-callback.ts';
-import { existingDecision, type ExistingRow } from './inbound-existing.ts';
+import { existingDecision, recordBusy, type ExistingRow } from './inbound-existing.ts';
 import {
   InstalledInboundCarrierPlugins,
   selectInboundCarrierRoute,
@@ -28,6 +28,7 @@ const existingColumns = `a.id, a.call_id, a.decision, a.detail, a.job_id, a.sess
   a.from_number, a.to_number, a.wait_expires_at,
   a.callback_campaign_id, a.callback_contact_id, a.callback_job_id,
   c.worker_id, c.worker_endpoint`;
+type InstalledCarrier = { pluginId: string; carrierId: string };
 
 export class InboundGatewayAdmissionService {
   private readonly installedCarrierPlugins = new InstalledInboundCarrierPlugins();
@@ -41,8 +42,11 @@ export class InboundGatewayAdmissionService {
   ) {}
 
   /** The host supplies controls it actually composed; an unknown explicit route never admits. */
-  setInstalledCarrierPlugins(pluginIds: Iterable<string>): void {
-    this.installedCarrierPlugins.set(pluginIds);
+  setInstalledCarrierPlugins(
+    plugins: Iterable<InstalledCarrier>,
+    environmentCarrierId?: string,
+  ): void {
+    this.installedCarrierPlugins.set(plugins, environmentCarrierId);
   }
 
   async admit(input: InboundGatewayCall): Promise<InboundGatewayDecision> {
@@ -59,11 +63,18 @@ export class InboundGatewayAdmissionService {
       const prior = await this.existing(client, input.carrierCallId);
       if (prior) return this.resume(client, input, prior);
       const route = await selectInboundCarrierRoute(client, this.organizationId, input.toNumber);
-      if (!route) return this.recordBusy(client, input, 'inbound_number_not_routed');
-      this.installedCarrierPlugins.assert(route.carrier_plugin_id);
+      if (!route)
+        return recordBusy(client, this.organizationId, input, 'inbound_number_not_routed');
+      const carrierId = this.installedCarrierPlugins.carrierId(route.carrier_plugin_id);
       const capacity = await this.reserveCapacity(client, input.handshakeTtlMs);
       if (!capacity) return this.overflow(client, input, route);
-      return provisionInboundSession(client, this.organizationId, input, route, capacity);
+      return provisionInboundSession(
+        client,
+        this.organizationId,
+        input,
+        { ...route, carrier_id: carrierId },
+        capacity,
+      );
     });
   }
 
@@ -118,7 +129,6 @@ export class InboundGatewayAdmissionService {
     if (!capacity) return existingDecision(prior);
     if (!prior.release_id || !prior.route_version || !prior.variables)
       throw new Error('Persisted inbound wait route is incomplete');
-    this.installedCarrierPlugins.assert(prior.carrier_plugin_id);
     return provisionInboundSession(
       client,
       this.organizationId,
@@ -129,6 +139,7 @@ export class InboundGatewayAdmissionService {
         version: prior.route_version,
         carrier_plugin_id: prior.carrier_plugin_id,
         carrier_binding_id: prior.carrier_binding_id,
+        carrier_id: this.installedCarrierPlugins.carrierId(prior.carrier_plugin_id),
       },
       capacity,
       prior.id,
@@ -198,7 +209,13 @@ export class InboundGatewayAdmissionService {
         !this.callbackOutbound.enabled ||
         !this.callbackOutbound.permittedFromNumbers.includes(input.toNumber)
       )
-        return this.recordBusy(client, input, 'callback_outbound_not_configured', configured);
+        return recordBusy(
+          client,
+          this.organizationId,
+          input,
+          'callback_outbound_not_configured',
+          configured,
+        );
       const admissionId = randomUUID();
       const detail = { ...configured, state: 'prompt' };
       await client.query(
@@ -249,29 +266,6 @@ export class InboundGatewayAdmissionService {
     }
     const reason =
       configured?.kind === 'busy' ? configured.reason : 'inbound_policy_not_configured';
-    return this.recordBusy(client, input, reason, configured);
-  }
-
-  private async recordBusy(
-    client: PoolClient,
-    input: InboundGatewayCall,
-    reason: string,
-    configuredPolicy?: InboundOverflowPolicy,
-  ): Promise<InboundGatewayDecision> {
-    const admissionId = randomUUID();
-    await client.query(
-      `INSERT INTO ovo_ops_inbound_admissions
-         (id, organization_id, call_id, decision, detail, from_number, to_number)
-       VALUES ($1, $2, $3, 'busy', $4::jsonb, $5, $6)`,
-      [
-        admissionId,
-        this.organizationId,
-        input.carrierCallId,
-        JSON.stringify({ kind: 'busy', reason, configuredPolicy }),
-        input.fromNumber,
-        input.toNumber,
-      ],
-    );
-    return { kind: 'busy', admissionId, reason };
+    return recordBusy(client, this.organizationId, input, reason, configured);
   }
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { Inference } from '@winsendotai/ovo-contracts';
 import type {
   CostLedgerService,
@@ -90,6 +91,31 @@ describe('provider-backed evaluations', () => {
       }),
     ).rejects.toMatchObject({ code: 'provider_evaluation_not_authorized' });
     expect(ledger.reservations).toHaveLength(1);
+  });
+
+  it('refuses a paid run with a structured status when the selected LLM is uninstalled', async () => {
+    const release = providerRelease('100');
+    const gate = new LedgerProviderEvaluationGate(
+      mockLedger().service,
+      { load: async () => release },
+      { get: async () => undefined },
+      new PluginRegistry([]),
+    );
+    await expect(
+      gate.authorize({
+        workspaceId: 'workspace-a',
+        datasetId: 'dataset-a',
+        datasetVersion: 1,
+        releaseId: release.id,
+        fixtureBindingVersion: BINDING_VERSION,
+        budgetAuthorizationId: 'authorization-a',
+        idempotencyKey: 'uninstalled-llm',
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      code: 'provider_evaluation_not_authorized',
+      message: 'Installed llm plugin for openai is unavailable',
+    });
   });
 
   it('runs provider inference through fixture-only tools and records native usage provenance', async () => {

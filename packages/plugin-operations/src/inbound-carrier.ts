@@ -23,14 +23,25 @@ export async function selectInboundCarrierRoute(
 }
 
 export class InstalledInboundCarrierPlugins {
-  private pluginIds = new Set<string>();
+  private carrierIds = new Map<string, string>();
+  private environmentCarrierId?: string;
 
-  set(pluginIds: Iterable<string>): void {
-    this.pluginIds = new Set(pluginIds);
+  set(
+    plugins: Iterable<{ pluginId: string; carrierId: string }>,
+    environmentCarrierId?: string,
+  ): void {
+    this.carrierIds = new Map(Array.from(plugins, (plugin) => [plugin.pluginId, plugin.carrierId]));
+    this.environmentCarrierId = environmentCarrierId;
   }
 
-  assert(pluginId: string | null): void {
-    if (pluginId !== null && !this.pluginIds.has(pluginId))
-      throw new Error(`Inbound carrier plugin is not installed: ${pluginId}`);
+  carrierId(pluginId: string | null): string {
+    if (pluginId === null) {
+      if (!this.environmentCarrierId)
+        throw new Error('Inbound environment carrier is not installed');
+      return this.environmentCarrierId;
+    }
+    const carrierId = this.carrierIds.get(pluginId);
+    if (!carrierId) throw new Error(`Inbound carrier plugin is not installed: ${pluginId}`);
+    return carrierId;
   }
 }

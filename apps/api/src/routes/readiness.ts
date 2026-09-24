@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import type { PluginDefinition } from '@winsendotai/ovo-runtime';
-import { behaviorPluginId } from '@winsendotai/ovo-session-host';
+import { behaviorPluginId, validateSelections } from '@winsendotai/ovo-session-host';
 import { z } from 'zod';
 import { requireRole } from '../auth-service.ts';
 import { mergeCatalog, validateRelease } from '../release-runtime.ts';
@@ -54,7 +54,15 @@ export function registerReadinessRoutes(input: {
         },
         bindingRows,
       });
-      await validateRelease(agent, selected, input.store, catalog, input.services, selections);
+      await validateRelease(
+        agent,
+        selected,
+        input.store,
+        catalog,
+        input.services,
+        selections,
+        Boolean(agent.config.voice?.engine),
+      );
       const live = await liveReadiness(
         agent,
         input.store,
@@ -68,18 +76,47 @@ export function registerReadinessRoutes(input: {
         liveBlockers: ['Current infrastructure readiness could not be verified.'],
         details: [
           {
-            code: 'runtime_incompatible' as const,
+            code: 'plugin_unavailable' as const,
             severity: 'error' as const,
             stage: 'live' as const,
             message: 'Current infrastructure readiness could not be verified.',
           },
         ],
       }));
+      let recent: Awaited<ReturnType<ControlStore['getRelease']>> = undefined;
+      let cursor: string | undefined;
+      do {
+        const page = await input.store.listReleases(principal.workspaceId, agent.id, 100, cursor);
+        recent = page.items.at(-1) ?? recent;
+        cursor = page.nextCursor ?? undefined;
+      } while (cursor);
+      const immutableIssues = recent
+        ? validateSelections(
+            {
+              config: recent.config,
+              selections: recent.selections,
+              registry,
+              defaults: input.distributionDefaults,
+              legacyProviderBindings: recent.providerBindings,
+            },
+            'live',
+          ).filter(
+            (issue) =>
+              issue.code === 'plugin_version_not_installed' ||
+              issue.code === 'legacy_release_unpinned',
+          )
+        : [];
+      const immutableBlockers = immutableIssues
+        .filter((issue) => issue.severity === 'error')
+        .map((issue) => issue.message);
       return {
         releaseReady: true,
         requiredPluginIds,
         blockers: [],
         ...live,
+        liveReady: live.liveReady && immutableBlockers.length === 0,
+        liveBlockers: [...live.liveBlockers, ...immutableBlockers],
+        details: [...live.details, ...immutableIssues],
       };
     } catch (error) {
       return {

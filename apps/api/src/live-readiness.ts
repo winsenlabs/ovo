@@ -1,7 +1,8 @@
 import type { CompatIssue, ReleaseSelections } from '@winsendotai/ovo-contracts';
 import type { AgentDraft, ControlStore, ProviderBinding } from '@winsendotai/ovo-plugin-storage';
 import { validateSelections, type SessionDefaults } from '@winsendotai/ovo-session-host';
-import type { PluginRegistry } from '@winsendotai/ovo-runtime';
+import { sessionRequiresInput } from '@winsendotai/ovo-session-host/input-policy';
+import { type PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { InfrastructureService } from './infrastructure-types.ts';
 
 /** Advisory snapshot; live admission rechecks the immutable release and worker lease. */
@@ -14,6 +15,36 @@ export async function liveReadiness(
   bindings?: Readonly<Record<string, ProviderBinding>>,
   defaults?: SessionDefaults,
 ) {
+  const strategy = selections.engine?.config.turnStrategy;
+  const turnStrategy =
+    sessionRequiresInput(agent.config) &&
+    (strategy === 'provider' ||
+      strategy === 'vad-timeout' ||
+      strategy === 'smart-turn' ||
+      strategy === 'stt')
+      ? strategy
+      : sessionRequiresInput(agent.config)
+        ? 'provider'
+        : undefined;
+  const discoveredMcpTools = await Promise.all(
+    agent.config.tools
+      .filter((tool) => tool.connector === 'mcp' && agent.config.allowedTools.includes(tool.id))
+      .map(async (tool) => {
+        const found =
+          tool.connectionId && tool.remoteName
+            ? await store.getMcpDiscoveredTool(
+                agent.workspaceId,
+                tool.connectionId,
+                tool.remoteName,
+              )
+            : undefined;
+        return {
+          connectionId: tool.connectionId ?? '',
+          remoteName: tool.remoteName ?? '',
+          removedAt: found?.removedAt ?? (!found ? 'missing' : null),
+        };
+      }),
+  );
   const details: CompatIssue[] = validateSelections(
     {
       config: agent.config,
@@ -22,12 +53,19 @@ export async function liveReadiness(
       priceCards: agent.config.costPolicy?.priceCards,
       bindings,
       defaults,
+      turnStrategy,
+      carrierFrameMs: 20,
+      glibc: Boolean(
+        (process.report?.getReport() as { header?: { glibcVersionRuntime?: string } } | undefined)
+          ?.header?.glibcVersionRuntime,
+      ),
+      discoveredMcpTools,
     },
     'live',
   );
-  const add = (message: string, field?: string) =>
+  const add = (message: string, field?: string, code: CompatIssue['code'] = 'plugin_unavailable') =>
     details.push({
-      code: 'runtime_incompatible',
+      code,
       severity: 'error',
       stage: 'live',
       message,
@@ -43,7 +81,11 @@ export async function liveReadiness(
       add('Live dialing is disabled for this installation.', 'infrastructure');
   }
   if (!agent.config.costPolicy)
-    add('A live-call budget and maximum duration policy are required.', 'costPolicy');
+    add(
+      'A live-call budget and maximum duration policy are required.',
+      'costPolicy',
+      'meter_uncovered',
+    );
   for (const [slot, choice] of Object.entries(selections)) {
     if (!choice?.bindingId || choice.bindingId === 'env') continue;
     const binding = await store.getProviderBinding(agent.workspaceId, choice.bindingId);
@@ -57,7 +99,11 @@ export async function liveReadiness(
       credential.environment !== binding.environment ||
       (credential.permittedAgentIds.length && !credential.permittedAgentIds.includes(agent.id))
     )
-      add(`The ${slot} credential is unavailable, expired, or not permitted for this agent.`, slot);
+      add(
+        `The ${slot} credential is unavailable, expired, or not permitted for this agent.`,
+        slot,
+        'binding_missing',
+      );
   }
   const liveBlockers = [
     ...new Set(details.filter((issue) => issue.severity === 'error').map((issue) => issue.message)),

@@ -29,7 +29,19 @@ export class LedgerProviderEvaluationGate implements ProviderEvaluationGate {
       input.fixtureBindingVersion,
       input.workspaceId,
     );
-    if (this.registry) this.registry.resolve('llm', policy.provider);
+    if (this.registry) {
+      try {
+        this.registry.resolve('llm', policy.provider);
+      } catch {
+        throw Object.assign(
+          new Error(`Installed llm plugin for ${policy.provider} is unavailable`),
+          {
+            statusCode: 403,
+            code: 'provider_evaluation_not_authorized',
+          },
+        );
+      }
+    }
     const reserve = async (authorization: Awaited<ReturnType<typeof this.authorizations.get>>) => {
       if (
         !authorization ||

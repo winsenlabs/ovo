@@ -2,6 +2,53 @@ import { describe, expect, it } from 'vitest';
 import { terminateOwnedJob } from '../src/worker-termination.ts';
 
 describe('owned carrier termination', () => {
+  it('closes local media when the host route fence fails', async () => {
+    const order: string[] = [];
+    const route = {
+      sessionId: 'session-lost',
+      jobId: 'job-lost',
+      workerId: 'worker-1',
+      ownerEpoch: 4,
+      carrierCallId: 'CA-lost',
+    };
+    await expect(
+      terminateOwnedJob({
+        jobId: route.jobId,
+        workerId: route.workerId,
+        ownerEpoch: route.ownerEpoch,
+        reason: 'ownership_lost',
+        store: {
+          get: async () => ({ id: route.jobId, payload: { releaseId: 'release-1' } }),
+          getSessionRoute: async () => route,
+          requestSessionTermination: async () => {
+            order.push('fence-failed');
+            return undefined;
+          },
+        } as never,
+        carriers: {
+          forJob: async () => ({
+            control: {
+              hangup: async () => {
+                order.push('hangup');
+                return 'ok';
+              },
+            },
+            carrier: { capabilities: { control: { hangup: 'rest' } } },
+          }),
+        } as never,
+        media: {
+          terminate: async () => {
+            order.push('media');
+          },
+          closeSession: async () => {
+            order.push('local-close');
+          },
+        } as never,
+      }),
+    ).rejects.toThrow('termination fence failed');
+    expect(order).toEqual(['fence-failed', 'local-close']);
+  });
+
   it('fences the durable route before carrier and media closure, with engine disposal last', async () => {
     const order: string[] = [];
     const route = {
@@ -53,7 +100,7 @@ describe('owned carrier termination', () => {
         media: media as never,
       }),
     ).toBe(true);
-    expect(order).toEqual(['fence', 'select', 'hangup', 'media', 'engine']);
+    expect(order).toEqual(['select', 'fence', 'hangup', 'media', 'engine']);
   });
 
   it('fences and closes local media when carrier binding resolution fails', async () => {
@@ -88,6 +135,6 @@ describe('owned carrier termination', () => {
         } as never,
       }),
     ).rejects.toThrow('binding gone');
-    expect(order).toEqual(['fence', 'select', 'media', 'engine']);
+    expect(order).toEqual(['select', 'media', 'engine']);
   });
 });
