@@ -8,15 +8,7 @@ import type {
   Speech,
   ToolConnector,
 } from '@winsendotai/ovo-contracts';
-import {
-  ExecutingFaqBehavior,
-  createAgentBehavior,
-  createAnnouncementBehavior,
-  createContextBehavior,
-  createFaqBehavior,
-  withScript,
-} from '@winsendotai/ovo-behaviors';
-import { createExecutionService } from '@winsendotai/ovo-plugin-tools';
+import type { EvaluationHostFactories } from './host-factories.ts';
 import type {
   EvaluationCase,
   EvaluationCaseResult,
@@ -30,6 +22,8 @@ export const FIXTURE_EVALUATION_BINDING_VERSION = 'ovo-session-fixtures-v1';
 export class FixtureEvaluationExecutor {
   readonly kind = FIXTURE_EXECUTOR_KIND;
 
+  constructor(private readonly factories: EvaluationHostFactories) {}
+
   async executeCase(
     run: EvaluationRun,
     release: ReleaseEvaluationSnapshot,
@@ -41,6 +35,7 @@ export class FixtureEvaluationExecutor {
       release,
       testCase,
       new FixtureInference(testCase.fixture.inference ?? [], testCase.fixture.inferenceDelayMs),
+      this.factories,
       signal,
     );
   }
@@ -52,6 +47,7 @@ export async function executeEvaluationCase(
   release: ReleaseEvaluationSnapshot,
   testCase: EvaluationCase,
   inference: Inference,
+  factories: EvaluationHostFactories,
   signal?: AbortSignal,
 ): Promise<Omit<EvaluationCaseResult, 'runId' | 'workspaceId' | 'createdAt'>> {
   const started = performance.now(),
@@ -61,18 +57,11 @@ export async function executeEvaluationCase(
       new Set(testCase.fixture.toolFailures ?? []),
     ),
     speech = new FixtureSpeech(),
-    sharedExecution = createExecutionService(
-      {
-        tools: release.config.tools,
-        allowedTools: release.config.allowedTools,
-        processing: release.config.processing,
-      },
-      {
-        store: records,
-        speech,
-        connectors: { native: connector, http: connector, mcp: connector },
-      },
-    ),
+    sharedExecution = factories.createExecution(release.config, {
+      store: records,
+      speech,
+      connectors: { native: connector, http: connector, mcp: connector },
+    }),
     execution: Execution = {
       execute(request, options) {
         records.confirmed.set(request.id, request.confirmed);
@@ -89,7 +78,12 @@ export async function executeEvaluationCase(
       throw new Error(
         `Case mode ${testCase.mode} does not match release mode ${release.config.mode}`,
       );
-    const currentBehavior = createBehavior(release, inference, execution, run);
+    const currentBehavior = factories.createBehavior(release.config, {
+      inference,
+      execution,
+      workspaceId: run.workspaceId,
+      sessionId: run.id,
+    });
     behavior = currentBehavior;
     for (let index = 0; index < testCase.turns.length; index += 1) {
       signal?.throwIfAborted();
@@ -135,32 +129,6 @@ export async function executeEvaluationCase(
     operations,
     durationMs: Math.max(0, Math.round(performance.now() - started)),
   };
-}
-
-function createBehavior(
-  release: ReleaseEvaluationSnapshot,
-  inference: Inference,
-  execution: Execution,
-  run: EvaluationRun,
-): Behavior {
-  const config = release.config;
-  let behavior: Behavior;
-  if (config.mode === 'announcement') behavior = createAnnouncementBehavior(config);
-  else if (config.mode === 'faq')
-    behavior = config.faq.some((entry) => entry.requiresTool)
-      ? new ExecutingFaqBehavior(config, execution, {
-          workspaceId: run.workspaceId,
-          sessionId: run.id,
-        })
-      : createFaqBehavior(config);
-  else if (config.mode === 'context') behavior = createContextBehavior(config, inference);
-  else
-    behavior = createAgentBehavior(config, inference, execution, {
-      workspaceId: run.workspaceId,
-      sessionId: run.id,
-      operationId: operationIds(),
-    });
-  return withScript(config, behavior);
 }
 
 class FixtureInference implements Inference {
@@ -249,10 +217,6 @@ function matches(
   return true;
 }
 
-function operationIds() {
-  let id = 0;
-  return () => `fixture-operation-${++id}`;
-}
 function abortableDelay(ms: number, signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
     const timer = setTimeout(resolve, ms);

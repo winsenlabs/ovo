@@ -1,15 +1,23 @@
-import { describe, expect, it } from 'vitest';
-import { AgentConfig } from '@winsendotai/ovo-contracts';
+import { describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
+import { AgentConfig, canonicalJson } from '@winsendotai/ovo-contracts';
 import {
   BUILTIN_EVALUATION_CASES,
   FixtureEvaluationExecutor,
   datasetFingerprint,
   fixtureReleaseForCase,
   validateCases,
+  valueFingerprint,
 } from '../src/index.ts';
 import type { EvaluationRun } from '../src/types.ts';
+import { evaluationHostFactories } from '../../../apps/api/src/provider-evaluation-runtime.ts';
 
 describe('120-case offline evaluation corpus', () => {
+  it('fingerprints non-ASCII keys in canonical code-unit order', () => {
+    const value = { ä: { Ω: 1, z: 2 }, z: 3 };
+    const expected = createHash('sha256').update(canonicalJson(value)).digest('hex');
+    expect(valueFingerprint(value)).toBe(`sha256:${expected}`);
+  });
   it('contains 30 meaningful cases for every supported mode', () => {
     const cases = validateCases(BUILTIN_EVALUATION_CASES);
     expect(cases).toHaveLength(120);
@@ -24,7 +32,9 @@ describe('120-case offline evaluation corpus', () => {
   });
 
   it('executes all cases through real behaviors and shared execution with transparent fixtures', async () => {
-    const executor = new FixtureEvaluationExecutor();
+    const createBehavior = vi.fn(evaluationHostFactories.createBehavior);
+    const createExecution = vi.fn(evaluationHostFactories.createExecution);
+    const executor = new FixtureEvaluationExecutor({ createBehavior, createExecution });
     const failures: Array<{ id: string; outputs: string[]; error?: string }> = [];
     for (const testCase of BUILTIN_EVALUATION_CASES) {
       const release = fixtureReleaseForCase(testCase);
@@ -37,10 +47,12 @@ describe('120-case offline evaluation corpus', () => {
         failures.push({ id: testCase.id, outputs: result.outputs, error: result.error });
     }
     expect(failures).toEqual([]);
+    expect(createBehavior).toHaveBeenCalledTimes(120);
+    expect(createExecution).toHaveBeenCalledTimes(120);
   });
 
   it('executes the requested release snapshot rather than a canned corpus config', async () => {
-    const executor = new FixtureEvaluationExecutor();
+    const executor = new FixtureEvaluationExecutor(evaluationHostFactories);
     const release = {
       id: 'requested-release',
       fingerprint: 'sha256:requested-release',

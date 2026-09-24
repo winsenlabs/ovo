@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import type { PostgresCostLedger } from '@winsendotai/ovo-plugin-ledger';
+import type { EvaluationCostLedger } from '@winsendotai/ovo-plugin-evaluations';
 import {
   createEvaluationApiRuntime,
   EvaluationApiRuntime,
@@ -6,6 +8,9 @@ import {
 } from '../src/evaluation-runtime.ts';
 
 describe('evaluation API runtime', () => {
+  it('accepts the real Postgres ledger through the evaluation-only structural port', () => {
+    expectTypeOf<PostgresCostLedger>().toExtend<EvaluationCostLedger>();
+  });
   it('runs one bounded fixture worker loop and shuts down its pool', async () => {
     const close = vi.fn(async () => undefined);
     const end = vi.fn(async () => undefined);

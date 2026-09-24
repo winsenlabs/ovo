@@ -14,6 +14,7 @@ import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import { Pool } from 'pg';
 import {
   createProviderEvaluationRuntime,
+  evaluationHostFactories,
   StoreProviderEvaluationReleaseLoader,
   type ProviderEvaluationRuntimeOptions,
 } from './provider-evaluation-runtime.ts';
@@ -68,13 +69,16 @@ export async function createEvaluationApiRuntime(config: EvaluationApiRuntimeCon
           ...providerOptions,
           store: validated.store,
           authorizations,
+          hostFactories: evaluationHostFactories,
         },
         validated.environment,
       );
     }
     const service = new PostgresEvaluationService({ pool }, provider?.providerGate, authorizations);
     await service.migrate();
-    const executors: EvaluationExecutor[] = [new FixtureEvaluationExecutor()];
+    const executors: EvaluationExecutor[] = [
+      new FixtureEvaluationExecutor(evaluationHostFactories),
+    ];
     if (provider) executors.push(provider.providerExecutor);
     const worker = new EvaluationWorker(service, releases, executors);
     return new EvaluationApiRuntime(

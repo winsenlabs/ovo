@@ -1,4 +1,4 @@
-import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
+import type { EvaluationCostLedger } from './cost-ledger.ts';
 import type { PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { ProviderEvaluationGate } from './service.ts';
 import {
@@ -11,7 +11,7 @@ import {
 
 export class LedgerProviderEvaluationGate implements ProviderEvaluationGate {
   constructor(
-    private readonly ledger: CostLedgerService,
+    private readonly ledger: EvaluationCostLedger,
     private readonly releases: ProviderEvaluationReleaseLoader,
     private readonly authorizations: ProviderEvaluationAuthorizationResolver,
     private readonly registry?: PluginRegistry,

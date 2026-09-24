@@ -11,6 +11,7 @@ import { LedgerProviderEvaluationGate } from '../src/provider-gate.ts';
 import { ProviderEvaluationExecutor } from '../src/provider-executor.ts';
 import { StaticProviderEvaluationAuthorizations } from '../src/provider-policy.ts';
 import type { EvaluationCase, EvaluationRun, ReleaseEvaluationSnapshot } from '../src/types.ts';
+import { evaluationHostFactories } from '../../../apps/api/src/provider-evaluation-runtime.ts';
 
 describe('provider-backed evaluations', () => {
   it('requires the immutable admin budget policy and reserves real ledger capacity', async () => {
@@ -124,6 +125,7 @@ describe('provider-backed evaluations', () => {
     let calls = 0;
     const executor = new ProviderEvaluationExecutor({
       ledger: ledger.service,
+      hostFactories: evaluationHostFactories,
       inference: factory(async (request, onUsage) => {
         calls += 1;
         await onUsage(usage(`provider-${calls}`));
@@ -157,6 +159,7 @@ describe('provider-backed evaluations', () => {
     let calls = 0;
     const executor = new ProviderEvaluationExecutor({
       ledger: ledger.service,
+      hostFactories: evaluationHostFactories,
       inference: factory(async (_request, onUsage) => {
         calls += 1;
         await onUsage(usage(`provider-${calls}`));
@@ -174,6 +177,7 @@ describe('provider-backed evaluations', () => {
     const release = providerRelease('100');
     const executor = new ProviderEvaluationExecutor({
       ledger: ledger.service,
+      hostFactories: evaluationHostFactories,
       maxCaseDurationMs: 10,
       inference: factory(
         (request) =>

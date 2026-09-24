@@ -6,13 +6,57 @@ import {
   type ProviderEvaluationAuthorizationResolver,
   type ProviderEvaluationReleaseLoader,
   type ReleaseEvaluationSnapshot,
+  type EvaluationHostFactories,
 } from '@winsendotai/ovo-plugin-evaluations';
 import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
+import {
+  ExecutingFaqBehavior,
+  createAgentBehavior,
+  createAnnouncementBehavior,
+  createContextBehavior,
+  createFaqBehavior,
+  withScript,
+} from '@winsendotai/ovo-behaviors';
+import { createExecutionService } from '@winsendotai/ovo-plugin-tools';
 import type { NetPort } from '@winsendotai/ovo-contracts';
 import { PluginRegistry, type PluginDefinition } from '@winsendotai/ovo-runtime';
 import type { SecretManager } from '@winsendotai/ovo-plugin-secrets';
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import { InstalledProviderEvaluationInferenceFactory } from './provider-evaluation-inference.ts';
+
+export const evaluationHostFactories: EvaluationHostFactories = {
+  createExecution(config, deps) {
+    return createExecutionService(
+      {
+        tools: config.tools,
+        allowedTools: config.allowedTools,
+        processing: config.processing,
+      },
+      deps,
+    );
+  },
+  createBehavior(config, deps) {
+    let behavior;
+    if (config.mode === 'announcement') behavior = createAnnouncementBehavior(config);
+    else if (config.mode === 'faq')
+      behavior = config.faq.some((entry) => entry.requiresTool)
+        ? new ExecutingFaqBehavior(config, deps.execution, {
+            workspaceId: deps.workspaceId,
+            sessionId: deps.sessionId,
+          })
+        : createFaqBehavior(config);
+    else if (config.mode === 'context') behavior = createContextBehavior(config, deps.inference);
+    else {
+      let id = 0;
+      behavior = createAgentBehavior(config, deps.inference, deps.execution, {
+        workspaceId: deps.workspaceId,
+        sessionId: deps.sessionId,
+        operationId: () => `fixture-operation-${++id}`,
+      });
+    }
+    return withScript(config, behavior);
+  },
+};
 
 export interface ProviderEvaluationRuntimeOptions {
   ledger: CostLedgerService;
@@ -23,6 +67,7 @@ export interface ProviderEvaluationRuntimeOptions {
   maxOutputTokens?: number;
   inferenceFactory?: ProviderEvaluationInferenceFactory;
   authorizations: ProviderEvaluationAuthorizationResolver;
+  hostFactories: EvaluationHostFactories;
   catalog?: readonly PluginDefinition[];
   net?: NetPort;
 }
@@ -51,6 +96,7 @@ export function createProviderEvaluationRuntime(
     providerExecutor: new ProviderEvaluationExecutor({
       ledger: options.ledger,
       inference,
+      hostFactories: options.hostFactories,
       authorizations: options.authorizations,
       maxCaseDurationMs: options.maxCaseDurationMs,
       maxProviderRequestsPerCase: options.maxProviderRequestsPerCase,

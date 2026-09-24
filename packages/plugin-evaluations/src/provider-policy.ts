@@ -1,9 +1,6 @@
 import { createHash } from 'node:crypto';
-import {
-  inferenceMeterKey,
-  type CostLedgerService,
-  type InferenceMeterUnit,
-} from '@winsendotai/ovo-plugin-ledger';
+import { inferenceMeterKey, type InferenceMeterUnit } from '@winsendotai/ovo-contracts';
+import type { EvaluationCostLedger } from './cost-ledger.ts';
 import type { ReleaseEvaluationSnapshot } from './types.ts';
 
 export interface ProviderEvaluationPriceReference {
@@ -126,7 +123,7 @@ export class StaticProviderEvaluationAuthorizations implements ProviderEvaluatio
 }
 
 export async function validateProviderEvaluationPolicy(
-  ledger: CostLedgerService,
+  ledger: EvaluationCostLedger,
   workspaceId: string,
   policy: ProviderEvaluationPolicy,
 ): Promise<void> {

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
+import type { EvaluationCostLedger } from './cost-ledger.ts';
 import type { Pool, PoolClient } from 'pg';
 import { decodeCursor, page, pageLimit } from './helpers.ts';
 import {
@@ -16,7 +16,7 @@ type Row = Record<string, unknown>;
 export class PostgresProviderEvaluationAuthorizations implements ProviderEvaluationAuthorizationResolver {
   constructor(
     private readonly pool: Pool,
-    private readonly ledger: CostLedgerService,
+    private readonly ledger: EvaluationCostLedger,
     private readonly releases: ProviderEvaluationReleaseLoader,
   ) {}
 

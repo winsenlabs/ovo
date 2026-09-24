@@ -1,6 +1,5 @@
 import { Pool } from 'pg';
 import { EvaluationDatasets } from './datasets.ts';
-import { FixtureEvaluationExecutor } from './executor.ts';
 import { migrateEvaluations } from './migrations.ts';
 import type { PostgresProviderEvaluationAuthorizations } from './provider-authorizations.ts';
 import { EvaluationRuns } from './runs.ts';
@@ -104,7 +103,7 @@ export class EvaluationWorker {
   constructor(
     private readonly service: PostgresEvaluationService,
     private readonly releases: EvaluationReleaseLoader,
-    executors: EvaluationExecutor[] = [new FixtureEvaluationExecutor()],
+    executors: EvaluationExecutor[],
   ) {
     this.executors = new Map(executors.map((executor) => [executor.kind, executor]));
   }

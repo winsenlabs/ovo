@@ -1,5 +1,7 @@
 export * from './datasets.ts';
 export * from './executor.ts';
+export * from './host-factories.ts';
+export * from './cost-ledger.ts';
 export * from './helpers.ts';
 export * from './migrations.ts';
 export * from './plugin.ts';
