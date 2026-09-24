@@ -190,6 +190,9 @@ describe('the guarded connector judges the peer it actually reached', () => {
       expect((error as Error).message).toMatch(/non-public address 127\.0\.0\.1/);
       expect(peer).toBeUndefined();
       // The TCP connection was made — and then refused before the transport could write to it.
+      // Wait for the SERVER's connection event: the client-side callback resolves in a different
+      // task, so asserting the counter straight away races it (it failed ~8% of the time).
+      await listener.connected;
       expect(listener.connections).toBe(1);
     } finally {
       await listener.close();
