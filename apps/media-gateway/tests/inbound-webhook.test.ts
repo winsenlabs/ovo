@@ -1,7 +1,10 @@
 import { createHmac } from 'node:crypto';
 import { createServer } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { OperationsService } from '@winsendotai/ovo-plugin-operations';
+import {
+  InboundCarrierGateUnarmedError,
+  type OperationsService,
+} from '@winsendotai/ovo-plugin-operations';
 import {
   createTwilioInboundWebhookHandler,
   type TwilioInboundWebhookHandler,
@@ -105,6 +108,30 @@ describe('signed Twilio inbound webhook protocol', () => {
         routeTokenHash: expect.stringMatching(/^[0-9a-f]{64}$/),
       }),
     );
+  });
+
+  it('reports an unarmed admission service as configuration failure instead of caller busy', async () => {
+    const admit = vi.fn().mockRejectedValue(new InboundCarrierGateUnarmedError());
+    const handler = createTwilioInboundWebhookHandler({
+      operations: fakeOperations(admit),
+      accountSid: values.AccountSid,
+      authToken,
+      externalBaseUrl: 'https://voice.example.test',
+      mediaStreamUrl: 'wss://media.example.test/twilio/media',
+      routeTokenSecret: 'a'.repeat(32),
+    });
+    const server = await listen(handler);
+    openServers.push(server.close);
+    const response = await fetch(`${server.url}/twilio/inbound`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        'x-twilio-signature': signature(values),
+      },
+      body: new URLSearchParams(values),
+    });
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe('Inbound carrier gate is not installed');
   });
 
   it('rejects an invalid signature before durable admission', async () => {

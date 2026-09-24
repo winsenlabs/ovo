@@ -1651,7 +1651,7 @@ App composition uses `distribution`, `session-host`, `runtime` and infrastructur
 
 - `main.ts` (384 lines) is split into `main.ts`, `worker-process.ts` and `worker-loop.ts`.
 - Distribution is loaded with role `worker`. `ovo.net` comes from plugin-kit. `TWILIO_*` is no longer read directly.
-- `createProductionWorkerMediaRuntime` gets its final signature: it takes `httpServer: http.Server` (the health server on port 4100) and returns `{ start(), close(reason), closeSession(id, reason), terminate(sessionId) }`.
+- `createProductionWorkerMediaRuntime` gets its final signature: it takes `httpServer: http.Server` (the health server on port 4100) and returns `{ start(), close(reason), closeSession(id, reason), terminate(sessionId, reason: EndReason) }`.
   - In wave 1 its internals still use the legacy gateway client.
   - C2 later attaches the `/internal/media` upgrade handler to that same server. The port is 4100 either way, and `route.workerEndpoint` is already `ws://<ip>:4100/internal/media`.
 - **Cost.** `cost-runtime.ts` takes its required meters from `metersFor`.
@@ -1663,7 +1663,7 @@ App composition uses `distribution`, `session-host`, `runtime` and infrastructur
 
 1. `store.requestSessionTermination(route)` sets the route to `terminating`. From then on `streamForDial`, `resumeStream` and gateway starts for this route are refused.
 2. `control.hangup({carrierCallId, carrierRequestId})`. Before answer, a carrier with `cancelBeforeAnswer` cancels by request id.
-3. For a close-stream carrier, call `media.terminate(sessionId)` after `control.hangup`, including when that control call rejects. A REST carrier that reports `unsupported` fails termination explicitly.
+3. For a close-stream carrier, call `media.terminate(sessionId, reason)` after `control.hangup`, including when that control call rejects. The media close forwards the same typed `EndReason` to engine disposal. A REST carrier that reports `unsupported` fails termination explicitly.
 4. `engine.dispose(reason)` runs in `finally`, including after a failed fence, to tear down local resources. Engine-initiated closure invokes the host fence before the actual media close.
 
 - Ownership loss, drain, `behavior_completed`, max duration and idle all use this path.

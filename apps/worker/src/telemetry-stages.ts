@@ -1,5 +1,11 @@
-import type { Inference } from '@winsendotai/ovo-contracts';
-import type { StreamingStt, StreamingSttSession, StreamingTts } from '@winsendotai/ovo-contracts';
+import type {
+  Inference,
+  SpeechToText,
+  SttSession,
+  StreamingStt,
+  StreamingSttSession,
+  StreamingTts,
+} from '@winsendotai/ovo-contracts';
 import type { Context, PluginDefinition } from '@winsendotai/ovo-runtime';
 
 type StageOutcome = 'succeeded' | 'failed' | 'timeout' | 'unknown';
@@ -33,8 +39,80 @@ export function instrumentSttPlugin(
   identity: StageIdentity,
 ): PluginDefinition {
   return instrumentPlugin(definition, 'ovo.stt', (service) =>
-    instrumentStreamingStt(service as StreamingStt, telemetry, identity),
+    instrumentSpeechToText(service as SpeechToText, telemetry, identity),
   );
+}
+
+/** Session-graph providers expose STT v2; preserve cancel and forceEndpoint. */
+export function instrumentSpeechToText(
+  stt: SpeechToText,
+  telemetry: StageTelemetry,
+  identity: StageIdentity,
+): void {
+  const start = stt.start.bind(stt);
+  stt.start = async (input) => {
+    const finishReady = beginStage(telemetry, { stage: 'stt.ready', ...identity });
+    let finishProcessing: ReturnType<typeof beginStage> | undefined;
+    const settleProcessing = (outcome: StageOutcome) => {
+      finishProcessing?.(outcome);
+      finishProcessing = undefined;
+    };
+    try {
+      const session = await start({
+        ...input,
+        onEvent: (event) => {
+          if (
+            !finishProcessing &&
+            (event.type === 'speech-start' ||
+              (event.type === 'transcript' && Boolean(event.segment.text.trim())))
+          )
+            finishProcessing = beginStage(telemetry, { stage: 'stt', ...identity });
+          input.onEvent(event);
+          if (event.type === 'end-of-turn' && !event.eager) settleProcessing('succeeded');
+          if (event.type === 'utterance-end') settleProcessing('succeeded');
+        },
+      });
+      finishReady('succeeded');
+      return instrumentV2SttSession(session, settleProcessing);
+    } catch (error) {
+      finishReady(stageOutcome(error));
+      settleProcessing(stageOutcome(error));
+      throw error;
+    }
+  };
+}
+
+function instrumentV2SttSession(
+  session: SttSession,
+  settleProcessing: (outcome: StageOutcome) => void,
+): SttSession {
+  return {
+    write: async (frame, signal) => {
+      try {
+        await session.write(frame, signal);
+      } catch (error) {
+        settleProcessing(stageOutcome(error));
+        throw error;
+      }
+    },
+    ...(session.forceEndpoint ? { forceEndpoint: () => session.forceEndpoint!() } : {}),
+    finish: async (signal) => {
+      try {
+        await session.finish(signal);
+        settleProcessing('unknown');
+      } catch (error) {
+        settleProcessing(stageOutcome(error));
+        throw error;
+      }
+    },
+    cancel: async (reason) => {
+      try {
+        await session.cancel(reason);
+      } finally {
+        settleProcessing('unknown');
+      }
+    },
+  };
 }
 
 export function instrumentTtsPlugin(

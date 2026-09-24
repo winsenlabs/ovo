@@ -15,6 +15,7 @@ import {
   carrier as compatCarrier,
 } from '../../../packages/session-host/tests/compat-support.ts';
 import type { PluginDefinition } from '@winsendotai/ovo-runtime';
+import { selectedSpeechFixture, selectedSpeechVoice } from './selected-speech-fixture.ts';
 
 const directories: string[] = [];
 afterEach(() =>
@@ -86,13 +87,19 @@ async function api(withUrls = true, extraCatalog: PluginDefinition[] = []) {
         workspaces: { w: 'admin' },
       },
     ],
-    pluginCatalog: [ingress, ...extraCatalog],
+    pluginCatalog: [ingress, selectedSpeechFixture, ...extraCatalog],
     carrierPublicBaseUrl: withUrls ? 'https://carrier.example.test' : '',
     inboundRouteSecret: withUrls ? 'a'.repeat(32) : '',
   });
 }
 
 const headers = { authorization: 'Bearer admin-token' };
+const announcementWithTts = {
+  name: 'Notice',
+  mode: 'announcement',
+  message: 'Hello',
+  voice: selectedSpeechVoice,
+};
 
 describe('F4 API catalog and release wiring', () => {
   it('projects plugins without secrets and gives structured compatibility issues', async () => {
@@ -209,7 +216,7 @@ describe('F4 API catalog and release wiring', () => {
         method: 'POST',
         url: '/v1/agents',
         headers,
-        payload: { config: { name: 'Notice', mode: 'announcement', message: 'Hello' } },
+        payload: { config: announcementWithTts },
       });
       expect(created.statusCode).toBe(201);
       const url = `/v1/agents/${created.json().id}/releases`;
@@ -240,7 +247,7 @@ describe('F4 API catalog and release wiring', () => {
         method: 'POST',
         url: '/v1/agents',
         headers,
-        payload: { config: { name: 'Notice', mode: 'announcement', message: 'Hello' } },
+        payload: { config: announcementWithTts },
       });
       const agentId = created.json().id as string;
       const released = await app.inject({
@@ -306,7 +313,7 @@ describe('F4 API catalog and release wiring', () => {
         method: 'POST',
         url: '/v1/agents',
         headers,
-        payload: { config: { name: 'Notice', mode: 'announcement', message: 'Hello' } },
+        payload: { config: announcementWithTts },
       });
       expect(created.statusCode).toBe(201);
       const ready = await app.inject({

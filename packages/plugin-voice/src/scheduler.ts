@@ -94,8 +94,9 @@ export class BoundedSpeechScheduler implements Speech {
   }
 
   async cancelEpoch(epoch: number, reason = 'epoch cancelled'): Promise<void> {
-    if (this.current?.entry.segment.epoch === epoch) {
-      this.current.controller.abort(new DOMException(reason, 'AbortError'));
+    const active = this.current?.entry.segment.epoch === epoch ? this.current : undefined;
+    if (active) {
+      active.controller.abort(new DOMException(reason, 'AbortError'));
     }
     for (let index = this.queue.length - 1; index >= 0; index -= 1) {
       const entry = this.queue[index];
@@ -103,7 +104,9 @@ export class BoundedSpeechScheduler implements Speech {
       this.queue.splice(index, 1);
       this.completeInterrupted(entry, reason);
     }
-    await this.output.interrupt(epoch);
+    // No media exists to flush before the first segment starts. A clear here can
+    // precede the gateway's session.accept frame for an initial announcement.
+    if (active) await this.output.interrupt(epoch);
   }
 
   async interrupt(): Promise<void> {

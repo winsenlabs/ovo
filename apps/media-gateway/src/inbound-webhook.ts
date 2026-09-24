@@ -1,6 +1,10 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { InboundGatewayDecision, OperationsService } from '@winsendotai/ovo-plugin-operations';
+import {
+  InboundCarrierGateUnarmedError,
+  type InboundGatewayDecision,
+  type OperationsService,
+} from '@winsendotai/ovo-plugin-operations';
 
 export interface TwilioInboundWebhookOptions {
   operations: OperationsService;
@@ -219,7 +223,11 @@ export function createTwilioInboundWebhookHandler(
                 digits: required(values, 'Digits', /^[0-9*#]{1,16}$/),
               })
             : await options.operations.inboundGateway.admit(admission);
-      } catch {
+      } catch (error) {
+        if (error instanceof InboundCarrierGateUnarmedError) {
+          send(response, 503, error.message, 'text/plain');
+          return true;
+        }
         send(response, 503, stage ? twimlActionFailure() : twimlBusy());
         return true;
       }

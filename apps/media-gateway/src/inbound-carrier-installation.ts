@@ -32,6 +32,8 @@ export function installInboundCarriers(
   const environmentCarrierId =
     configuredIds.length === 1 && installed.some((entry) => entry.carrierId === configuredIds[0])
       ? configuredIds[0]
-      : undefined;
+      : installed.length === 1
+        ? installed[0]!.carrierId
+        : undefined;
   operations.inboundGateway.setInstalledCarrierPlugins(installed, environmentCarrierId);
 }

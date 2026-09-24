@@ -202,5 +202,12 @@ describe('duplex shims', () => {
     expect(calls).toEqual(['mark:m1', 'clear', 'close:drain', 'mark:m2']);
     expect(asEndReason('something odd')).toBe('error:something odd');
     expect(asEndReason('ownership_lost')).toBe('ownership_lost');
+    expect(asEndReason('worker-shutdown')).toBe('drain');
+    expect(asEndReason('job-lease-lost')).toBe('ownership_lost');
+    expect(asEndReason('task-protection-renewal-failed')).toBe('ownership_lost');
+    expect(asEndReason('media-gateway-disconnected')).toBe('ownership_lost');
+    expect(asEndReason('carrier terminal: completed')).toBe('error:carrier-terminal:completed');
+    expect(asEndReason('cost-spend-threshold')).toBe('error:cost-spend-threshold');
+    expect(asEndReason('carrier termination')).toBe('error:carrier termination');
   });
 });

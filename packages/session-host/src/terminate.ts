@@ -24,7 +24,7 @@ export interface CarrierTerminationOptions {
   };
   control: TelephonyControl;
   capabilities: CarrierCapabilities;
-  media: { terminate(sessionId: string): Promise<void> };
+  media: { terminate(sessionId: string, reason: EndReason): Promise<void> };
   engine: Pick<VoiceSessionEngine, 'dispose'>;
   reason: EndReason;
 }
@@ -49,7 +49,7 @@ export async function terminateCarrierLeg(options: CarrierTerminationOptions): P
       } catch {
         // The carrier control path can fail while its media stream remains open.
       }
-      await media.terminate(route.sessionId);
+      await media.terminate(route.sessionId, reason);
     } else {
       const outcome = await control.hangup(query);
       if (outcome === 'unsupported') throw new Error('REST carrier returned unsupported hangup');

@@ -1,7 +1,40 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { terminateOwnedJob } from '../src/worker-termination.ts';
 
 describe('owned carrier termination', () => {
+  it.each([
+    ['job-lease-lost', 'ownership_lost'],
+    ['cost-max-duration', 'max_duration'],
+  ] as const)('passes %s through close-stream termination as %s', async (raw, expected) => {
+    const terminate = vi.fn(async () => undefined);
+    const closeSession = vi.fn(async () => undefined);
+    await terminateOwnedJob({
+      jobId: 'job-reason',
+      workerId: 'worker-1',
+      ownerEpoch: 3,
+      reason: raw,
+      store: {
+        get: async () => ({ id: 'job-reason', payload: {} }),
+        getSessionRoute: async () => ({
+          sessionId: 'session-reason',
+          jobId: 'job-reason',
+          workerId: 'worker-1',
+          ownerEpoch: 3,
+          carrierCallId: 'CA-reason',
+        }),
+        requestSessionTermination: async () => ({ carrierCallId: 'CA-reason' }),
+      } as never,
+      carriers: {
+        forJob: async () => ({
+          control: { hangup: async () => 'ended' },
+          carrier: { capabilities: { control: { hangup: 'close-stream' } } },
+        }),
+      } as never,
+      media: { terminate, closeSession } as never,
+    });
+    expect(terminate).toHaveBeenCalledWith('session-reason', expected);
+    expect(closeSession).toHaveBeenCalledWith('session-reason', expected);
+  });
   it('closes local media when the host route fence fails', async () => {
     const order: string[] = [];
     const route = {
@@ -82,7 +115,8 @@ describe('owned carrier termination', () => {
       },
     };
     const media = {
-      terminate: async () => {
+      terminate: async (_sessionId: string, reason: string) => {
+        expect(reason).toBe('caller_hangup');
         order.push('media');
       },
       closeSession: async () => {

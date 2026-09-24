@@ -167,18 +167,11 @@ export function registerAgentsRoutes(dependencies: any) {
         'release',
       ).filter((issue) => issue.severity === 'error');
       if (blockers.length) return reply.code(422).send({ blockers });
-      plugins = await validateRelease(
-        agent,
-        selected,
-        store,
-        available,
-        services,
-        selections,
-        Boolean(
-          agent.config.voice?.engine ||
-          selectedIds.some((id: string) => id === selections.engine?.pluginId),
-        ),
-      );
+      plugins = await validateRelease(agent, selected, store, available, services, selections, {
+        plugins: [],
+        nativeHandlers: options.defaultSession?.nativeHandlers ?? {},
+        nativeHandlerPackages: [...(options.defaultSession?.nativeHandlerPackages ?? [])],
+      });
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Release validation failed';
       return reply.code(422).send(releaseBlockers(message));

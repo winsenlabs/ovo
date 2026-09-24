@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 import { buildManagementApi } from '../src/server.ts';
+import { selectedSpeechFixture, selectedSpeechVoice } from './selected-speech-fixture.ts';
 
 it('creates, validates, publishes and runs all four modes through the default API graph', async () => {
   const directory = await mkdtemp('/var/tmp/ovo-default-modes-');
@@ -12,6 +13,7 @@ it('creates, validates, publishes and runs all four modes through the default AP
     secretsMasterKey: Buffer.alloc(32, 7).toString('base64'),
     sessionSecret: 'fixture-session-secret',
     requireTlsForSecrets: false,
+    pluginCatalog: [selectedSpeechFixture],
     identities: [
       {
         id: 'operator',
@@ -88,6 +90,7 @@ it('creates, validates, publishes and runs all four modes through the default AP
           message: 'Hello.',
           context: 'Fixture facts.',
           faq: [{ id: 'question', question: 'check', answer: 'FAQ answer.' }],
+          voice: selectedSpeechVoice,
           providers: ['context', 'agent'].includes(mode) ? { inference: binding.json().id } : {},
           tools:
             mode === 'agent'

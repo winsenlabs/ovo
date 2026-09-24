@@ -52,7 +52,7 @@ function fixture() {
 describe('worker media runtime', () => {
   it.each([
     ['cost-max-duration', 'max_duration'],
-    ['carrier termination', 'caller_hangup'],
+    ['worker-shutdown', 'drain'],
     ['media idle deadline exceeded', 'caller_idle'],
     ['owning worker disconnected', 'ownership_lost'],
   ] as const)('passes a typed end reason for %s', async (raw, expected) => {
@@ -69,6 +69,22 @@ describe('worker media runtime', () => {
     await open(runtime, media);
     close(raw);
     await vi.waitFor(() => expect(dispose).toHaveBeenCalledWith(expected, false));
+  });
+
+  it('keeps the requested reason when a close-stream carrier terminates media first', async () => {
+    const { route, job, media } = fixture();
+    const dispose = vi.fn(async () => undefined);
+    const runtime = new WorkerMediaRuntime(
+      { url: 'ws://127.0.0.1:1/worker', workerId: route.workerId, token: 'test' },
+      {
+        resolveSessionRoute: vi.fn(async () => route),
+        get: vi.fn(async () => job),
+      } as unknown as DurableJobStore,
+      { create: async () => ({ dispose }) },
+    );
+    await open(runtime, media);
+    await runtime.terminate(route.sessionId, 'ownership_lost');
+    expect(dispose).toHaveBeenCalledWith('ownership_lost');
   });
 
   it('opens media only for the current durable owner and disposes on carrier close', async () => {

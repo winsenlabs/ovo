@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import { buildManagementApi } from '../src/server.ts';
+import { selectedSpeechFixture, selectedSpeechVoice } from './selected-speech-fixture.ts';
 
 it('keeps script state across simulated turns and stops after confirmed terminal playback', async () => {
   const { app, composition } = await buildManagementApi({
@@ -8,6 +9,7 @@ it('keeps script state across simulated turns and stops after confirmed terminal
     secretBackend: 'local',
     sessionSecret: 'script-fixture-session',
     secretsMasterKey: Buffer.alloc(32, 5).toString('base64'),
+    pluginCatalog: [selectedSpeechFixture],
     identities: [
       {
         id: 'operator',
@@ -31,6 +33,7 @@ it('keeps script state across simulated turns and stops after confirmed terminal
         name: 'Multi-turn script',
         mode: 'faq',
         faq: [{ id: 'hours', question: 'opening hours', answer: 'Nine to five.' }],
+        voice: selectedSpeechVoice,
         script: {
           start: 'start',
           nodes: [

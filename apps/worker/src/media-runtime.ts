@@ -52,8 +52,8 @@ export class WorkerMediaRuntime {
   }
 
   /** C2 replaces the legacy gateway internals while retaining this termination seam. */
-  terminate(sessionId: string): Promise<void> {
-    return this.closeSession(sessionId, 'carrier termination');
+  terminate(sessionId: string, reason: EndReason): Promise<void> {
+    return this.closeSession(sessionId, reason);
   }
 
   async close(reason = 'worker media runtime closed'): Promise<void> {

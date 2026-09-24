@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildManagementApi } from '../src/server.ts';
 import type { BuildApiOptions } from '../src/types.ts';
+import { selectedSpeechFixture, selectedSpeechVoice } from './selected-speech-fixture.ts';
 
 const directories: string[] = [];
 afterEach(() => {
@@ -34,12 +35,14 @@ async function api(overrides: Partial<BuildApiOptions> = {}) {
       },
     ],
     ...overrides,
+    pluginCatalog: [selectedSpeechFixture, ...(overrides.pluginCatalog ?? [])],
   });
 }
 const announcement = {
   name: 'Reminder',
   mode: 'announcement',
   message: 'Hello {{name}}',
+  voice: selectedSpeechVoice,
   variables: {
     type: 'object',
     properties: { name: { type: 'string' } },

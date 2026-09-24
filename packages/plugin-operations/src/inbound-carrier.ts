@@ -25,6 +25,7 @@ export async function selectInboundCarrierRoute(
 export class InstalledInboundCarrierPlugins {
   private carrierIds = new Map<string, string>();
   private environmentCarrierId?: string;
+  private armed = false;
 
   set(
     plugins: Iterable<{ pluginId: string; carrierId: string }>,
@@ -32,9 +33,15 @@ export class InstalledInboundCarrierPlugins {
   ): void {
     this.carrierIds = new Map(Array.from(plugins, (plugin) => [plugin.pluginId, plugin.carrierId]));
     this.environmentCarrierId = environmentCarrierId;
+    this.armed = true;
+  }
+
+  assertArmed(): void {
+    if (!this.armed) throw new InboundCarrierGateUnarmedError();
   }
 
   carrierId(pluginId: string | null): string {
+    this.assertArmed();
     if (pluginId === null) {
       if (!this.environmentCarrierId)
         throw new Error('Inbound environment carrier is not installed');
@@ -43,5 +50,12 @@ export class InstalledInboundCarrierPlugins {
     const carrierId = this.carrierIds.get(pluginId);
     if (!carrierId) throw new Error(`Inbound carrier plugin is not installed: ${pluginId}`);
     return carrierId;
+  }
+}
+
+export class InboundCarrierGateUnarmedError extends Error {
+  constructor() {
+    super('Inbound carrier gate is not installed');
+    this.name = 'InboundCarrierGateUnarmedError';
   }
 }

@@ -9,6 +9,7 @@ import {
   definePlugin,
   PluginRegistry,
   validateGraph,
+  type InstalledSessionExtensions,
   type PluginDefinition,
 } from '@winsendotai/ovo-runtime';
 import { selectSessionGraph } from '@winsendotai/ovo-session-host';
@@ -26,7 +27,7 @@ export async function validateRelease(
   catalog: readonly PluginDefinition[],
   services: PluginDefinition,
   selections?: ReleaseSelections,
-  validateSelectedEngine = true,
+  installedExtensions: InstalledSessionExtensions = { plugins: [], nativeHandlers: {} },
 ) {
   const toolIds = new Set(agent.config.tools.map((tool) => tool.id));
   for (const id of agent.config.allowedTools)
@@ -71,7 +72,6 @@ export async function validateRelease(
     (item) => item.manifest.contractVersion === 1 && item.manifest.provides.includes(Cap.engine),
   );
   if (
-    validateSelectedEngine &&
     selections &&
     Object.keys(selections).length &&
     selectedEngine?.manifest.contractVersion === 2 &&
@@ -102,7 +102,7 @@ export async function validateRelease(
       hostServices: [services, validationHost],
       parent: [Cap.net],
       media: { sessionId: 'release-validation' } as MediaDuplex,
-      installedExtensions: { plugins: [], nativeHandlers: {} },
+      installedExtensions,
       sessionVariables: {},
     });
     const graph = validateGraph(resolved.rows, resolved.catalog, {

@@ -19,20 +19,32 @@ const END_REASONS: ReadonlySet<string> = new Set([
 ]);
 const LEGACY_END_REASONS: Readonly<Record<string, EndReason>> = Object.freeze({
   'carrier stopped': 'caller_hangup',
-  'carrier termination': 'caller_hangup',
   hangup: 'caller_hangup',
   stop: 'caller_hangup',
   'media idle deadline exceeded': 'caller_idle',
   'owning worker disconnected': 'ownership_lost',
   'cost-max-duration': 'max_duration',
   'worker media runtime closed': 'drain',
+  'worker-shutdown': 'drain',
+  'job-lease-lost': 'ownership_lost',
+  'task-protection-renewal-failed': 'ownership_lost',
+  'media-gateway-disconnected': 'ownership_lost',
+  'inbound task protection renewal failed': 'ownership_lost',
   'STT ingress capacity exceeded': 'error:stt-ingress-capacity',
+  'cost-spend-threshold': 'error:cost-spend-threshold',
+  'cost-usage-backpressure': 'error:cost-usage-backpressure',
+  'cost-usage-write-failed': 'error:cost-usage-write-failed',
+  'cost-provider-usage-unidentified': 'error:cost-provider-usage-unidentified',
+  'cost-meter-unconfigured': 'error:cost-meter-unconfigured',
 });
 
 /** A v1 free-form close reason as a typed EndReason. Unknown reasons become `error:<reason>`. */
 export function asEndReason(reason: string): EndReason {
   if (END_REASONS.has(reason) || reason.startsWith('error:')) return reason as EndReason;
   if (Object.hasOwn(LEGACY_END_REASONS, reason)) return LEGACY_END_REASONS[reason]!;
+  if (reason.startsWith('carrier terminal: '))
+    return `error:carrier-terminal:${reason.slice('carrier terminal: '.length)}`;
+  if (reason.startsWith('inbound cost admission blocked: ')) return 'error:cost-admission-blocked';
   return `error:${reason}`;
 }
 

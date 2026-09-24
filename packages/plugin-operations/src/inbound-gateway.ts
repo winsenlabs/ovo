@@ -19,9 +19,7 @@ interface CapacityRow extends QueryResultRow {
   protected_until: Date;
 }
 
-interface PolicyRow extends QueryResultRow {
-  policy: InboundOverflowPolicy;
-}
+type PolicyRow = QueryResultRow & { policy: InboundOverflowPolicy };
 
 const existingColumns = `a.id, a.call_id, a.decision, a.detail, a.job_id, a.session_id,
   a.release_id, a.route_version, a.variables, a.carrier_plugin_id, a.carrier_binding_id,
@@ -56,6 +54,7 @@ export class InboundGatewayAdmissionService {
       input.handshakeTtlMs > 300_000
     )
       throw new Error('handshakeTtlMs must be between 5000 and 300000');
+    this.installedCarrierPlugins.assertArmed();
     return transaction(this.pool, async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         `ovo-inbound-call:${this.organizationId}:${input.carrierCallId}`,
@@ -81,6 +80,7 @@ export class InboundGatewayAdmissionService {
   async confirmCallback(
     input: InboundGatewayCall & { digits: string },
   ): Promise<InboundGatewayDecision> {
+    this.installedCarrierPlugins.assertArmed();
     return transaction(this.pool, async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         `ovo-inbound-call:${this.organizationId}:${input.carrierCallId}`,

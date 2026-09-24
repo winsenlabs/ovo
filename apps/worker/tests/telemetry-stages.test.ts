@@ -1,5 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import type { Inference, InferenceStreamEvent } from '@winsendotai/ovo-contracts';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  Cap,
+  MULAW_8K,
+  type Inference,
+  type InferenceStreamEvent,
+  type SpeechToText,
+} from '@winsendotai/ovo-contracts';
+import { sttAsLegacy } from '@winsendotai/ovo-plugin-kit';
+import { compose, definePlugin } from '@winsendotai/ovo-runtime';
 import type {
   StreamingStt,
   StreamingSttSession,
@@ -8,6 +16,7 @@ import type {
 } from '@winsendotai/ovo-plugin-voice';
 import {
   instrumentInference,
+  instrumentSttPlugin,
   instrumentStreamingStt,
   instrumentStreamingTts,
   type StageTelemetry,
@@ -22,6 +31,68 @@ type StageEvent = {
 };
 
 describe('worker timed stages', () => {
+  it('preserves the v2 STT cancel contract through the legacy engine bridge', async () => {
+    const { telemetry } = stageRecorder();
+    const cancel = vi.fn(async () => undefined);
+    const forceEndpoint = vi.fn(async () => undefined);
+    const stt: SpeechToText = {
+      capabilities: {
+        inputFormats: [MULAW_8K],
+        languages: ['*'],
+        interim: true,
+        wordTimestamps: false,
+        turnSignals: ['end-of-turn'],
+        forceEndpoint: true,
+      },
+      start: async () => ({
+        write: async () => undefined,
+        finish: async () => undefined,
+        cancel,
+        forceEndpoint,
+      }),
+    };
+    const provider = definePlugin(
+      {
+        id: '@fixture/stt',
+        version: '1.0.0',
+        contractVersion: 2,
+        scope: 'session',
+        kind: 'stt',
+        provider: 'fixture',
+        provides: [`${Cap.stt}@2`],
+        requires: [],
+        optional: [],
+        configSchema: { type: 'object' },
+        secretFields: [],
+        capabilities: stt.capabilities,
+        meters: [
+          { key: 'fixture.stt.audio_seconds', unit: 'audio_seconds', label: 'Audio', role: 'stt' },
+        ],
+        runtime: { egressHosts: [], modelLicences: [] },
+        conformance: ['stt@1'],
+      },
+      (ctx) => {
+        ctx.provide(Cap.stt, stt);
+      },
+    );
+    const decorated = instrumentSttPlugin(provider, telemetry, { provider: 'fixture' });
+    const composition = await compose([{ id: provider.manifest.id }], [decorated]);
+    try {
+      const selected = composition.ctx.get(Cap.stt) as SpeechToText;
+      const session = await sttAsLegacy(selected).start({
+        sessionId: 'session-1',
+        codec: 'audio/x-mulaw',
+        sampleRate: 8000,
+        language: 'en',
+        signal: new AbortController().signal,
+        onTranscript: () => undefined,
+      });
+      await session.close('ownership_lost');
+      expect(cancel).toHaveBeenCalledWith('ownership_lost');
+    } finally {
+      await composition.dispose();
+    }
+  });
   it('pairs actual inference and TTS iteration lifecycles', async () => {
     const { telemetry, events } = stageRecorder();
     const inference: Inference = {

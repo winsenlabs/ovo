@@ -6,6 +6,57 @@ import { randomUUID } from 'node:crypto';
 import { installInboundCarriers } from '../src/inbound-carrier-installation.ts';
 
 describe('media gateway inbound carrier installation', () => {
+  it.each([
+    ['without credentials', {}],
+    [
+      'with two configured bindings',
+      {
+        OVO_CARRIER_ENV_BINDINGS: JSON.stringify({
+          twilio: { accountSid: 'AC-test' },
+          other: { accountSid: 'AC-other' },
+        }),
+      },
+    ],
+  ] as const)('uses the sole installed control for a NULL route %s', async (_label, env) => {
+    const operations = new PostgresOperationsService({
+      connectionString: 'postgres://unused:unused@127.0.0.1/unused',
+      organizationId: 'gateway-test',
+    });
+    try {
+      const distribution = await loadDistribution({ role: 'gateway', profile: 'compose', env });
+      const installed = vi.spyOn(operations.inboundGateway, 'setInstalledCarrierPlugins');
+      installInboundCarriers(operations, distribution, env);
+      expect(installed).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          { pluginId: '@winsendotai/ovo-carrier-twilio', carrierId: 'twilio' },
+        ]),
+        'twilio',
+      );
+    } finally {
+      await operations.close();
+    }
+  });
+
+  it('refuses unarmed admission with an explicit configuration error before SQL', async () => {
+    const operations = new PostgresOperationsService({
+      connectionString: 'postgres://unused:unused@127.0.0.1/unused',
+      organizationId: 'gateway-unarmed',
+    });
+    try {
+      await expect(
+        operations.inboundGateway.admit({
+          carrierCallId: 'CA-unarmed',
+          fromNumber: '+14155550902',
+          toNumber: '+14155550901',
+          routeTokenHash: 'a'.repeat(64),
+          handshakeTtlMs: 60_000,
+        }),
+      ).rejects.toThrow('Inbound carrier gate is not installed');
+    } finally {
+      await operations.close();
+    }
+  });
+
   it('arms the service constructed by the gateway process from its loaded distribution', async () => {
     const operations = new PostgresOperationsService({
       connectionString: 'postgres://unused:unused@127.0.0.1/unused',
@@ -36,7 +87,10 @@ describe('media gateway inbound carrier installation', () => {
 
 const postgresUrl = process.env.OVO_TEST_POSTGRES_URL;
 describe.skipIf(!postgresUrl)('gateway admission with its process-installed carriers', () => {
-  it('admits an explicit installed carrier without test-only gate setup', async () => {
+  it.each([
+    ['explicit installed', '@winsendotai/ovo-carrier-twilio'],
+    ['NULL environment', null],
+  ] as const)('admits a %s carrier route', async (_label, carrierPluginId) => {
     const organizationId = `gateway-carrier-${randomUUID()}`;
     const operations = new PostgresOperationsService({
       connectionString: postgresUrl,
@@ -57,7 +111,7 @@ describe.skipIf(!postgresUrl)('gateway admission with its process-installed carr
         phoneNumber: '+14155550901',
         releaseId: randomUUID(),
         expectedVersion: null,
-        carrierPluginId: '@winsendotai/ovo-carrier-twilio',
+        carrierPluginId,
         carrierBindingId: null,
       });
       await operations.inbound.registerProtectedCapacity({

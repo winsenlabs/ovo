@@ -76,7 +76,7 @@ B. Topology (#23)
   - attaches a ws upgrade handler for path /internal/media to the EXISTING worker health server on port 4100, which F4 passes into createProductionWorkerMediaRuntime({httpServer}). route.workerEndpoint is already ws://<ip>:4100/internal/media. Do NOT open another port and do NOT edit main.ts or worker-health.ts; O1 owns them.
   - checks the bearer token, then that sha256(routeToken) equals the route's handshake_token_hash with handshake_claimed_at set, and that sessionId, ownerEpoch and generation match the worker's active claimed route;
   - accepts BEFORE the STT connects; the engine ring-buffers audio.
-- worker-media-bootstrap.ts: keep F4's exported signature exactly ({httpServer, ...} → {start, close, closeSession, terminate}). start() attaches the handler, terminate(sessionId) sends session.end{reason:'terminate'}, and onDisconnect no longer exists.
+- worker-media-bootstrap.ts: keep F4's exported signature exactly ({httpServer, ...} → {start, close, closeSession, terminate}). start() attaches the handler, terminate(sessionId, reason: EndReason) sends session.end{reason}, and onDisconnect no longer exists.
 - apps/worker/src/media-runtime.ts implements MediaDuplex over the link, with rebind(newLink) for resume at generation+1: the engine keeps running and the socket is swapped. session-handshake.ts is updated to match (keep F4's TTL formula).
 - Continuation: host.resumeStream (implemented in session-host by F3) already re-issues only for live, owned, connected routes. Your router passes resume requests through and rebinds on the worker side.
 

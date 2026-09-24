@@ -54,15 +54,11 @@ export function registerReadinessRoutes(input: {
         },
         bindingRows,
       });
-      await validateRelease(
-        agent,
-        selected,
-        input.store,
-        catalog,
-        input.services,
-        selections,
-        Boolean(agent.config.voice?.engine),
-      );
+      await validateRelease(agent, selected, input.store, catalog, input.services, selections, {
+        plugins: [],
+        nativeHandlers: input.options.defaultSession?.nativeHandlers ?? {},
+        nativeHandlerPackages: [...(input.options.defaultSession?.nativeHandlerPackages ?? [])],
+      });
       const live = await liveReadiness(
         agent,
         input.store,

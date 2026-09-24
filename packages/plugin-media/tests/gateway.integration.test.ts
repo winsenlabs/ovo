@@ -185,6 +185,39 @@ async function setup(
 }
 
 describe('media gateway loopback protocol', () => {
+  it('accepts an initial announcement before the engine sends its first audio', async () => {
+    let engine: VoiceSessionEngine | undefined;
+    const harness = await setup(async (session) => {
+      const tts: StreamingTts = {
+        async *synthesize() {
+          yield Uint8Array.of(1, 2, 3);
+        },
+      };
+      engine = new VoiceSessionEngine(
+        { respond: async () => 'Hello from the accepted call.' },
+        new BoundedSpeechScheduler(new StreamingMediaSpeechOutput(tts, session)),
+        undefined,
+        session,
+        { inputEnabled: false, initialInput: '' },
+      );
+      await engine.start();
+    });
+    harness.carrier.send(start());
+    await until(() => harness.carrier.messages.some((raw) => JSON.parse(raw).event === 'mark'));
+    expect(harness.carrier.closed).toBe(false);
+    expect(harness.carrier.messages.map((raw) => JSON.parse(raw).event)).toContain('media');
+    const mark = harness.carrier.messages
+      .map((raw) => JSON.parse(raw))
+      .find((message) => message.event === 'mark');
+    harness.carrier.send({
+      event: 'mark',
+      sequenceNumber: '2',
+      streamSid: 'MZ1',
+      mark: { name: mark.mark.name },
+    });
+    await engine?.dispose();
+  });
+
   it('validates and projects Twilio status callbacks with stable event identity', async () => {
     const resolver = new TestRouteResolver();
     const gateway = new MediaGateway(resolver, {

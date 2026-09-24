@@ -25,7 +25,7 @@ export async function terminateOwnedJob(input: OwnedTermination): Promise<boolea
   try {
     selected = await input.carriers.forJob(job, false);
   } catch (error) {
-    await input.media.terminate(route.sessionId).catch(() => undefined);
+    await input.media.terminate(route.sessionId, reason).catch(() => undefined);
     await input.media.closeSession(route.sessionId, reason).catch(() => undefined);
     throw error;
   }
@@ -51,7 +51,10 @@ export async function terminateOwnedJob(input: OwnedTermination): Promise<boolea
     },
     control: selected.control,
     capabilities: selected.carrier.capabilities,
-    media: { terminate: (sessionId) => input.media.terminate(sessionId) },
+    media: {
+      terminate: (sessionId, terminatedReason) =>
+        input.media.terminate(sessionId, terminatedReason),
+    },
     engine: {
       dispose: async () => {
         await input.media.closeSession(route.sessionId, reason);

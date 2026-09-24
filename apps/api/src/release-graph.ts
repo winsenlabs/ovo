@@ -52,11 +52,15 @@ export function validatePermittedGraph(
   const engines = selected.filter((item) => item.manifest.provides.includes(VOICE_ENGINE_SERVICE));
   if (engines.length > 1)
     throw new Error(`Release must select at most one ${VOICE_ENGINE_SERVICE} provider`);
-  const selectedInference = selections?.llm
-    ? catalog.find((definition) => definition.manifest.id === selections.llm!.pluginId)
-    : undefined;
-  if (selections?.llm && !selectedInference)
-    throw new Error(`Selected inference plugin is not installed: ${selections.llm.pluginId}`);
+  const selectionIds = new Set(
+    Object.values(selections ?? {}).flatMap((selection) => (selection ? [selection.pluginId] : [])),
+  );
+  const selectedDefinitions = catalog.filter((definition) =>
+    selectionIds.has(definition.manifest.id),
+  );
+  for (const id of selectionIds)
+    if (!selectedDefinitions.some((definition) => definition.manifest.id === id))
+      throw new Error(`Selected plugin is not installed: ${id}`);
   const selectedEngine = selections?.engine
     ? catalog.find((definition) => definition.manifest.id === selections.engine?.pluginId)
     : undefined;
@@ -69,19 +73,24 @@ export function validatePermittedGraph(
         : {},
     ),
   );
-  const withInference =
-    selectedInference &&
-    !selected.some((item) =>
-      manifestKeys(item.manifest).provides.some((entry) => entry.key === Cap.inference),
-    )
-      ? [...selected, selectedInference]
-      : selected;
+  const withSelections = [
+    ...selected,
+    ...selectedDefinitions.filter(
+      (definition) =>
+        !selected.some((item) => item.manifest.id === definition.manifest.id) &&
+        !manifestKeys(definition.manifest).provides.some((service) =>
+          selected.some((item) =>
+            manifestKeys(item.manifest).provides.some((entry) => entry.key === service.key),
+          ),
+        ),
+    ),
+  ];
   const dependencies = [
-    ...withInference,
+    ...withSelections,
     ...catalog.filter(
       (definition) =>
         companionIds.has(definition.manifest.id) &&
-        !withInference.some(
+        !withSelections.some(
           (selectedDefinition) => selectedDefinition.manifest.id === definition.manifest.id,
         ),
     ),
