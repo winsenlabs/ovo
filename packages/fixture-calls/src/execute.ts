@@ -10,6 +10,7 @@ import { createFakeCarrier, speechBytes } from '@winsendotai/ovo-conformance/dri
 import { compose, type ParentView } from '@winsendotai/ovo-runtime';
 import { selectSessionGraph } from '@winsendotai/ovo-session-host';
 import { deferredTtsNet } from './deferred-tts-net.ts';
+import { callerPlayback } from './default-script.ts';
 import { selectFixtureScripts } from './fixture-scripts.ts';
 import { fixtureExtensions, fixtureHostService } from './host-service.ts';
 import type { FixtureCallInput, FixtureCallResult, FixtureRecordingWriter } from './types.ts';
@@ -133,28 +134,28 @@ export async function executeFixtureCall(
     await composition.dispose();
     throw new Error('Selected fixture engine does not expose the v2 session contract');
   }
+  const caller = callerPlayback({
+    clock,
+    script,
+    reactiveConfirmation:
+      input.release.config.mode === 'agent' &&
+      (input.callerScript === undefined || input.callerScript === 'default'),
+    say: (text) => fake.caller.audio(speechBytes(format, Math.max(100, text.length * 20), 1)),
+    dtmf: (digit) => fake.caller.dtmf(digit),
+    hangup: () => fake.caller.hangup('caller_hangup'),
+  });
   const off = engine.subscribe((event) => {
+    caller.onEvent(event);
     if (event.type === 'agent.transcript' && event.state === 'generated') net.generated(event.text);
     const row = { seq: events.length + 1, atMs: clock.now(), event };
     events.push(row);
     const pending = input.telemetry?.onEvent?.(row);
     if (pending) callbacks.push(Promise.resolve(pending));
   });
-  const cancels: (() => void)[] = [];
   let outcome: EngineOutcome | undefined;
   try {
     await engine.start();
-    for (const turn of script.turns) {
-      cancels.push(
-        clock.setTimeout(() => {
-          if (turn.say)
-            fake.caller.audio(speechBytes(format, Math.max(100, turn.say.length * 20), 1));
-          if (turn.dtmf) for (const digit of turn.dtmf) fake.caller.dtmf(digit);
-        }, turn.atMs),
-      );
-    }
-    const last = Math.max(0, ...script.turns.map((turn) => turn.atMs + (turn.silenceMs ?? 0)));
-    cancels.push(clock.setTimeout(() => fake.caller.hangup('caller_hangup'), last + 5000));
+    caller.start();
     outcome = await engine.ended;
     await Promise.all([...callbacks, ...writes]);
     net.assertComplete();
@@ -173,7 +174,7 @@ export async function executeFixtureCall(
       ...(recording === undefined ? {} : { recording }),
     };
   } finally {
-    for (const cancel of cancels) cancel();
+    caller.cancel();
     off();
     if (!outcome) await engine.dispose('error:fixture-call');
     await composition.dispose();

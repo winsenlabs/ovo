@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { Cap } from '@winsendotai/ovo-contracts';
+import { loadDistribution } from '@winsendotai/ovo-distribution';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import { buildManagementApi } from '../src/server.ts';
@@ -167,6 +168,89 @@ it('composes the selected LLM from a published voice release through the simulat
     });
     expect(simulation.statusCode, simulation.body).toBe(200);
     expect(simulation.json().output).toBe('Selected LLM response');
+  } finally {
+    await composition.dispose();
+  }
+});
+
+it('simulates a published release selecting the installed OpenAI LLM with explicit fixture replies', async () => {
+  const llm = '@winsendotai/ovo-provider-openai-inference';
+  const tts = '@winsendotai/ovo-provider-openai-tts';
+  const stt = '@winsendotai/ovo-provider-deepgram-stt';
+  const distribution = await loadDistribution({ role: 'api', profile: 'compose', env: {} });
+  const { app, composition } = await buildManagementApi({
+    databaseFile: ':memory:',
+    loadedDistribution: distribution,
+    secretBackend: 'local',
+    sessionSecret: 'real-llm-simulation',
+    secretsMasterKey: Buffer.alloc(32, 5).toString('base64'),
+    identities: [
+      {
+        id: 'operator',
+        label: 'Operator',
+        token: 'real-llm-simulation-token',
+        defaultWorkspaceId: 'local',
+        workspaces: { local: 'admin' },
+      },
+    ],
+  });
+  const post = (url: string, payload: unknown) =>
+    app.inject({
+      method: 'POST',
+      url,
+      headers: { authorization: 'Bearer real-llm-simulation-token' },
+      payload: payload as Record<string, unknown>,
+    });
+  try {
+    const binding = async (provider: string, pluginId: string, config: object) => {
+      const credential = await post('/v1/credentials', {
+        label: `${provider} fixture credential`,
+        provider,
+        type: 'api-key',
+        environment: 'test',
+        value: 'never-sent',
+      });
+      expect(credential.statusCode, credential.body).toBe(201);
+      const result = await post('/v1/provider-bindings', {
+        label: `${provider} fixture binding`,
+        provider,
+        pluginId,
+        environment: 'test',
+        credentialId: credential.json().id,
+        config,
+      });
+      expect(result.statusCode, result.body).toBe(201);
+      return result.json().id as string;
+    };
+    const llmBinding = await binding('openai', llm, { model: 'gpt-4o-mini' });
+    const ttsBinding = await binding('openai', tts, { model: 'tts-1', voice: 'alloy' });
+    const sttBinding = await binding('deepgram', stt, { model: 'nova-2' });
+    const agent = await post('/v1/agents', {
+      config: {
+        name: 'Published voice LLM simulation',
+        mode: 'context',
+        context: 'Reference facts.',
+        voice: {
+          engine: { plugin: '@winsendotai/ovo-plugin-voice-session-engine', config: {} },
+          llm: { plugin: llm, binding: llmBinding, config: {} },
+          tts: { plugin: tts, binding: ttsBinding, config: {} },
+          stt: { plugin: stt, binding: sttBinding, config: {} },
+        },
+      },
+    });
+    expect(agent.statusCode, agent.body).toBe(201);
+    const released = await post(`/v1/agents/${agent.json().id}/releases`, {});
+    expect(released.statusCode, released.body).toBe(201);
+    expect(released.json().selections.llm.pluginId).toBe(llm);
+    const simulated = await post('/v1/simulations', {
+      releaseId: released.json().id,
+      input: 'Hello',
+      bindings: {
+        modelReplies: [{ kind: 'text', text: 'Fixture reply without provider traffic' }],
+      },
+    });
+    expect(simulated.statusCode, simulated.body).toBe(200);
+    expect(simulated.json().output).toBe('Fixture reply without provider traffic');
   } finally {
     await composition.dispose();
   }

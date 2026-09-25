@@ -1,7 +1,7 @@
 import {
   Cap,
-  MULAW_8K,
   meterKey,
+  type AudioFormat,
   type PlaybackEvidence,
   type EndReason,
   type MediaDuplex,
@@ -47,6 +47,7 @@ export interface LiveGraphOptions {
 
 export interface LiveCarrierMedia {
   carrierId: string;
+  format: AudioFormat;
   playbackEvidence: PlaybackEvidence;
   clearFlushesMarkers: boolean | 'unknown';
 }
@@ -73,10 +74,15 @@ export async function composeLiveSessionGraph(input: {
     ...input.extensions.plugins,
     ...(input.extensions.nativeHandlerPackages ?? []).map(createNativeHandlerMarker),
   ]);
-  const legacyMedia = duplexFromLegacy(input.media, MULAW_8K, input.carrierMedia.playbackEvidence, {
-    carrierId: input.carrierMedia.carrierId,
-    clearFlushesMarkers: input.carrierMedia.clearFlushesMarkers,
-  });
+  const legacyMedia = duplexFromLegacy(
+    input.media,
+    input.carrierMedia.format,
+    input.carrierMedia.playbackEvidence,
+    {
+      carrierId: input.carrierMedia.carrierId,
+      clearFlushesMarkers: input.carrierMedia.clearFlushesMarkers,
+    },
+  );
   let closing: Promise<void> | undefined;
   const media: MediaDuplex = input.beforeMediaClose
     ? Object.assign(Object.create(legacyMedia) as MediaDuplex, {

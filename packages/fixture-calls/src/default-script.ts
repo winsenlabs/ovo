@@ -1,4 +1,4 @@
-import type { AgentConfig } from '@winsendotai/ovo-contracts';
+import type { AgentConfig, Clock, EngineEvent } from '@winsendotai/ovo-contracts';
 import type { CallerScript } from './types.ts';
 
 export function defaultCallerScript(config: AgentConfig): CallerScript {
@@ -32,4 +32,56 @@ export function predictedAgentTexts(config: AgentConfig): string[] {
           ? ['All done.']
           : [config.processing.initial, 'All done.'];
   return [...new Set(texts.filter(Boolean))];
+}
+
+/** A default write confirmation is spoken only after the prompt has finished playback. */
+export function callerPlayback(input: {
+  clock: Clock;
+  script: CallerScript;
+  reactiveConfirmation: boolean;
+  say(text: string): void;
+  dtmf(digit: string): void;
+  hangup(): void;
+}) {
+  const cancels: (() => void)[] = [];
+  let confirmed = false;
+  return {
+    start() {
+      for (const turn of input.script.turns) {
+        if (input.reactiveConfirmation && turn.say === 'yes') continue;
+        cancels.push(
+          input.clock.setTimeout(() => {
+            if (turn.say) input.say(turn.say);
+            if (turn.dtmf) for (const digit of turn.dtmf) input.dtmf(digit);
+          }, turn.atMs),
+        );
+      }
+      const last = Math.max(
+        0,
+        ...input.script.turns.map((turn) => turn.atMs + (turn.silenceMs ?? 0)),
+      );
+      cancels.push(
+        input.clock.setTimeout(
+          input.hangup,
+          input.reactiveConfirmation ? Math.max(last + 5000, 110_000) : last + 5000,
+        ),
+      );
+    },
+    onEvent(event: EngineEvent) {
+      if (
+        !input.reactiveConfirmation ||
+        confirmed ||
+        event.type !== 'agent.transcript' ||
+        event.state !== 'played' ||
+        !event.text.startsWith('Please confirm: ') ||
+        !event.text.endsWith('Say yes to proceed or no to cancel.')
+      )
+        return;
+      confirmed = true;
+      cancels.push(input.clock.setTimeout(() => input.say('yes'), 0));
+    },
+    cancel() {
+      for (const cancel of cancels) cancel();
+    },
+  };
 }

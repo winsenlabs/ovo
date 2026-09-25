@@ -1,10 +1,23 @@
 import { randomUUID } from 'node:crypto';
 import { Cap, type Behavior } from '@winsendotai/ovo-contracts';
-import { compose, type PluginDefinition } from '@winsendotai/ovo-runtime';
+import { compose, definePlugin, type PluginDefinition } from '@winsendotai/ovo-runtime';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { exactDefinitions, validatePermittedGraph } from './release-graph.ts';
 
 const BEHAVIOR_SERVICE = Cap.behavior;
+const simulationUsage = definePlugin(
+  {
+    id: '@winsendotai/ovo-api/simulation-usage',
+    version: '0.1.0',
+    contractVersion: 1,
+    scope: 'session',
+    provides: [Cap.usage],
+    requires: [],
+    configSchema: { type: 'object', additionalProperties: false },
+    secretFields: [],
+  },
+  (ctx) => ctx.provide(Cap.usage, () => undefined),
+);
 
 export async function runRelease(
   release: ReleaseRecord,
@@ -55,8 +68,28 @@ export async function runRelease(
     return selectedByRelease.get(item.manifest.id) === item.manifest.version;
   });
   const definitions = new Map(simulationPlugins.map((item) => [item.manifest.id, item]));
+  const selectionConfig = (pluginId: string): Record<string, unknown> => {
+    const selection = Object.values(release.selections ?? {}).find(
+      (item) => item?.pluginId === pluginId,
+    );
+    const binding =
+      selection?.binding ??
+      Object.values(release.providerBindings ?? {}).find((row) => row.id === selection?.bindingId);
+    return {
+      ...(binding
+        ? {
+            binding: structuredClone(binding.config ?? {}),
+            ...(binding.credentialId
+              ? { credentialRef: { credentialId: binding.credentialId } }
+              : {}),
+          }
+        : {}),
+      ...structuredClone(selection?.config ?? {}),
+    };
+  };
   const rows = [
     { id: services.manifest.id },
+    { id: simulationUsage.manifest.id },
     ...simulationPlugins.map((plugin) => ({
       id: plugin.manifest.id,
       config: definitions.get(plugin.manifest.id)!.manifest.provides.includes(BEHAVIOR_SERVICE)
@@ -65,14 +98,10 @@ export async function runRelease(
             workspaceId: release.workspaceId,
             sessionId,
           }
-        : structuredClone(
-            Object.values(release.selections ?? {}).find(
-              (selection) => selection?.pluginId === plugin.manifest.id,
-            )?.config ?? {},
-          ),
+        : selectionConfig(plugin.manifest.id),
     })),
   ];
-  const composition = await compose(rows, [services, ...simulationPlugins]);
+  const composition = await compose(rows, [services, simulationUsage, ...simulationPlugins]);
   try {
     const behavior = composition.ctx.get(BEHAVIOR_SERVICE) as
       | (Behavior & {

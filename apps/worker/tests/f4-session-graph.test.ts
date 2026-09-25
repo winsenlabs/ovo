@@ -1,4 +1,10 @@
-import { AgentConfig, Cap, type Behavior, type EngineEvent } from '@winsendotai/ovo-contracts';
+import {
+  AgentConfig,
+  Cap,
+  MULAW_8K,
+  type Behavior,
+  type EngineEvent,
+} from '@winsendotai/ovo-contracts';
 import type { LoadedDistribution } from '@winsendotai/ovo-distribution';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { compose, definePlugin } from '@winsendotai/ovo-runtime';
@@ -256,6 +262,7 @@ describe('F4 selected worker session graph', () => {
           speechCache: new WorkerSpeechCacheRuntime(),
           carrierMedia: {
             carrierId: 'fixture',
+            format: MULAW_8K,
             playbackEvidence: mode === 'context' ? 'carrier-processed' : 'carrier-played',
             clearFlushesMarkers: true,
           },
