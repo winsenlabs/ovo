@@ -14,6 +14,7 @@ import type {
   GatewayToWorkerMessage,
   MediaRouteResolver,
 } from '../src/ports.ts';
+import { connectRaw } from './gateway-socket-fixture.ts';
 
 const publicBaseUrl = 'https://voice.example.test:8443';
 const resources: Array<() => Promise<void>> = [];
@@ -142,6 +143,20 @@ async function carrier(origin: string, path = '/carriers/fixture/env/media'): Pr
   return socket;
 }
 
+async function rawCarrier(origin: string) {
+  const signature = fixtureSignature(
+    'fixture-secret',
+    'wss://voice.example.test:8443/carriers/fixture/env/media',
+  );
+  const socket = await connectRaw(
+    Number(new URL(origin).port),
+    '/carriers/fixture/env/media',
+    signature,
+  );
+  resources.push(async () => socket.close());
+  return socket;
+}
+
 function start(sessionId: string) {
   return fixtureInboundFrame({
     type: 'start',
@@ -165,9 +180,7 @@ it('runs fixture media through the real gateway, worker health port, fragmented 
   });
   const entry = await gateway([route('a', endpoint)]);
   expect((await fetch(`${entry.origin}/health`)).status).toBe(200);
-  const socket = await carrier(entry.origin);
-  const outbound: unknown[] = [];
-  socket.on('message', (raw) => outbound.push(JSON.parse(raw.toString())));
+  const socket = await rawCarrier(entry.origin);
   socket.send(start('a'));
   const audio = fixtureInboundFrame({
     type: 'audio',
@@ -176,9 +189,7 @@ it('runs fixture media through the real gateway, worker health port, fragmented 
     payload: new Uint8Array([8, 9]),
   });
   const split = Math.floor(audio.length / 2);
-  socket.send(audio.slice(0, split), { fin: false });
-  socket.ping('mid-fragment');
-  socket.send(audio.slice(split), { fin: true });
+  socket.fragment(audio, split);
   socket.send(fixtureInboundFrame({ type: 'dtmf', digit: '7' }));
   await vi.waitFor(() => expect(workerMessages).toHaveLength(3));
   expect(workerMessages).toMatchObject([
@@ -196,8 +207,8 @@ it('runs fixture media through the real gateway, worker health port, fragmented 
     { type: 'media.audio', payload: 'CAk=', sequenceNumber: 1, timestampMs: 13 },
     { type: 'media.dtmf', digit: '7' },
   ]);
-  await vi.waitFor(() => expect(outbound).toHaveLength(2));
-  expect(outbound).toMatchObject([
+  await vi.waitFor(() => expect(socket.messages).toHaveLength(2));
+  expect(socket.messages.map((raw) => JSON.parse(raw))).toMatchObject([
     { event: 'media', streamSid: 'stream-a', media: { payload: 'AQID' } },
     { event: 'mark', streamSid: 'stream-a', mark: { name: 'reply-played' } },
   ]);
@@ -207,13 +218,10 @@ it('rejects an oversized fragmented carrier message without dialing a worker', a
   const opens: GatewayToWorkerMessage[] = [];
   const endpoint = await worker((_peer, message) => opens.push(message));
   const entry = await gateway([route('a', endpoint)]);
-  const socket = await carrier(entry.origin);
-  const closed = once(socket, 'close');
-  socket.send('x'.repeat(600_000), { fin: false });
-  socket.ping('mid-fragment');
-  socket.send('x'.repeat(600_000), { fin: true });
-  const [code] = await closed;
-  expect(code).toBe(1009);
+  const socket = await rawCarrier(entry.origin);
+  socket.fragment('x'.repeat(1_200_000), 600_000);
+  await vi.waitFor(() => expect(socket.closed).toBe(true));
+  expect(socket.closeCode).toBe(1009);
   expect(opens).toEqual([]);
 });
 
@@ -239,6 +247,26 @@ it('rejects a signature for a different public URL before accepting the carrier 
   expect(status).toBe(401);
   expect(opens).toEqual([]);
   socket.terminate();
+});
+
+it('closes a terminating route before dialing the worker or forwarding audio', async () => {
+  const opens: GatewayToWorkerMessage[] = [];
+  const endpoint = await worker((_peer, message) => opens.push(message));
+  const terminating = { ...route('a', endpoint), status: 'terminating' };
+  const entry = await gateway([terminating], { handshakeTimeoutMs: 100 });
+  const socket = await carrier(entry.origin);
+  const closed = once(socket, 'close');
+  socket.send(start('a'));
+  socket.send(
+    fixtureInboundFrame({
+      type: 'audio',
+      seq: 1,
+      timestampMs: 0,
+      payload: new Uint8Array([1]),
+    }),
+  );
+  await closed;
+  expect(opens).toEqual([]);
 });
 
 it('holds more than the old 25-frame limit and sends serializer termination after worker end', async () => {
@@ -321,6 +349,63 @@ it('isolates a rejected first session while a neighboring call reaches the same 
     ),
   );
   expect(good.readyState).toBe(WebSocket.OPEN);
+});
+
+it('allows a new route generation after carrier transport loss without ending the worker session', async () => {
+  const messages: GatewayToWorkerMessage[] = [];
+  let firstLinkClosed!: () => void;
+  const firstLinkGone = new Promise<void>((resolve) => (firstLinkClosed = resolve));
+  const endpoint = await worker((peer, message) => {
+    messages.push(message);
+    if (message.type !== 'session.open') return;
+    if (message.generation === 2) peer.once('close', firstLinkClosed);
+    peer.send(JSON.stringify({ type: 'session.accept' }));
+  });
+  const durable = route('resume', endpoint);
+  const entry = await gateway([durable]);
+  const first = await carrier(entry.origin);
+  first.send(start('resume'));
+  await vi.waitFor(() =>
+    expect(messages).toContainEqual(
+      expect.objectContaining({ type: 'session.open', generation: 2 }),
+    ),
+  );
+  const firstClosed = once(first, 'close');
+  first.terminate();
+  await firstClosed;
+  await firstLinkGone;
+  expect(messages).not.toContainEqual(expect.objectContaining({ type: 'session.close' }));
+
+  durable.generation = 3;
+  durable.status = 'connected';
+  const resumed = await carrier(entry.origin);
+  resumed.send(
+    fixtureInboundFrame({
+      type: 'start',
+      carrierCallId: 'call-resume',
+      streamId: 'stream-resumed',
+      format: MULAW_8K,
+      routeParams: { sid: 'resume', rt: 'token-resume' },
+    }),
+  );
+  resumed.send(
+    fixtureInboundFrame({
+      type: 'audio',
+      seq: 1,
+      timestampMs: 20,
+      payload: Uint8Array.of(1),
+    }),
+  );
+  await vi.waitFor(() =>
+    expect(messages).toContainEqual(
+      expect.objectContaining({ type: 'session.open', generation: 3, streamId: 'stream-resumed' }),
+    ),
+  );
+  await vi.waitFor(() =>
+    expect(messages).toContainEqual(
+      expect.objectContaining({ type: 'media.audio', payload: 'AQ==' }),
+    ),
+  );
 });
 
 it('routes two gateway instances to one worker and holds existing media until drain deadline', async () => {

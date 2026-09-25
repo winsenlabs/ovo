@@ -4,22 +4,30 @@ import { createConnection, type Socket } from 'node:net';
 export class RawWebSocket {
   readonly messages: string[] = [];
   closed = false;
+  closeCode?: number;
   private buffer = Buffer.alloc(0);
   constructor(private readonly socket: Socket) {
     socket.on('data', (chunk) => this.consume(chunk));
     socket.on('close', () => (this.closed = true));
   }
-  send(message: unknown): void {
-    const payload = Buffer.from(JSON.stringify(message));
+  send(message: string): void {
+    this.frame(1, Buffer.from(message));
+  }
+  fragment(message: string, splitAt: number): void {
+    const payload = Buffer.from(message);
+    this.frame(1, payload.subarray(0, splitAt), false);
+    this.frame(9, Buffer.from('mid-fragment'));
+    this.frame(0, payload.subarray(splitAt));
+  }
+  private frame(opcode: number, payload: Buffer, final = true): void {
     const mask = randomBytes(4);
-    const header = payload.length < 126 ? Buffer.alloc(6) : Buffer.alloc(8);
-    header[0] = 0x81;
-    if (payload.length < 126) header[1] = 0x80 | payload.length;
-    else {
-      header[1] = 0x80 | 126;
-      header.writeUInt16BE(payload.length, 2);
-    }
-    const maskOffset = payload.length < 126 ? 2 : 4;
+    const lengthCode = payload.length < 126 ? payload.length : payload.length < 65536 ? 126 : 127;
+    const maskOffset = lengthCode < 126 ? 2 : lengthCode === 126 ? 4 : 10;
+    const header = Buffer.alloc(maskOffset + 4);
+    header[0] = (final ? 0x80 : 0) | opcode;
+    header[1] = 0x80 | lengthCode;
+    if (lengthCode === 126) header.writeUInt16BE(payload.length, 2);
+    if (lengthCode === 127) header.writeBigUInt64BE(BigInt(payload.length), 2);
     mask.copy(header, maskOffset);
     for (let index = 0; index < payload.length; index++) payload[index] ^= mask[index % 4]!;
     this.socket.write(Buffer.concat([header, payload]));
@@ -44,7 +52,10 @@ export class RawWebSocket {
       const payload = this.buffer.subarray(header, header + length);
       this.buffer = this.buffer.subarray(header + length);
       if (opcode === 1) this.messages.push(payload.toString('utf8'));
-      if (opcode === 8) this.socket.end();
+      if (opcode === 8) {
+        if (payload.length >= 2) this.closeCode = payload.readUInt16BE(0);
+        this.socket.end();
+      }
     }
   }
 }
@@ -57,7 +68,7 @@ export async function connectRaw(
   const socket = createConnection({ host: '127.0.0.1', port });
   const key = randomBytes(16).toString('base64');
   socket.write(
-    `GET ${path} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ${key}\r\nX-Twilio-Signature: ${signature}\r\n\r\n`,
+    `GET ${path} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ${key}\r\nx-fixture-signature: ${signature}\r\n\r\n`,
   );
   const response = await new Promise<string>((resolve, reject) => {
     let value = '';

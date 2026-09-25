@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { Cap, type CarrierControlFactory } from '@winsendotai/ovo-contracts';
-import { DISTRIBUTION_DEFAULTS, type LoadedDistribution } from '@winsendotai/ovo-distribution';
+import {
+  DISTRIBUTION_DEFAULTS,
+  FIRST_PARTY,
+  type LoadedDistribution,
+} from '@winsendotai/ovo-distribution';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -10,7 +14,7 @@ import {
   fixtureCarrierIngress,
 } from '../../../packages/conformance/src/drivers/fixture-carrier.ts';
 import { MediaGateway } from '../../../packages/plugin-media/src/gateway.ts';
-import { startGateway } from '../src/startup.ts';
+import { gatewayInfrastructureDefinitions, startGateway } from '../src/startup.ts';
 
 const postgresUrl = process.env.OVO_TEST_POSTGRES_URL;
 
@@ -60,6 +64,27 @@ function startupDistribution(): LoadedDistribution {
     unavailable: [],
   };
 }
+
+describe('gateway infrastructure catalog', () => {
+  it('loads the storage and secrets definitions through the declared distribution dependency', async () => {
+    const definitions = await gatewayInfrastructureDefinitions();
+    expect(definitions.map((definition) => definition.manifest.id)).toEqual([
+      '@winsendotai/ovo-plugin-storage',
+      '@winsendotai/ovo-plugin-secrets',
+    ]);
+  });
+
+  it('fails explicitly if a required definition is absent', async () => {
+    const entries = FIRST_PARTY.map((entry) =>
+      entry.package === '@winsendotai/ovo-plugin-secrets'
+        ? { ...entry, load: async () => ({ plugins: [] }) }
+        : entry,
+    );
+    await expect(gatewayInfrastructureDefinitions(entries)).rejects.toThrow(
+      'Gateway infrastructure plugin is missing: @winsendotai/ovo-plugin-secrets',
+    );
+  });
+});
 
 describe.skipIf(!postgresUrl)('gateway production startup', () => {
   it('refuses a public base URL with credentials before advertising readiness', async () => {
@@ -148,6 +173,8 @@ describe.skipIf(!postgresUrl)('gateway production startup', () => {
       expect(statuses).toEqual([401]);
       expect(drainTimeouts).toEqual([270_000]);
       expect(preAcceptDefaults).toEqual([{ duration: undefined, legacyFrames: undefined }]);
+      expect(runtime.composition.ctx.get(Cap.controlStore)).toBeDefined();
+      expect(runtime.composition.ctx.get(Cap.secretManager)).toBeDefined();
       expect((await fetch(`http://127.0.0.1:${address.port}/health`)).status).toBe(200);
     } finally {
       listen.mockRestore();

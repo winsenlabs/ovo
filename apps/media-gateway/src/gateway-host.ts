@@ -1,20 +1,21 @@
 import type {
+  AgentConfig,
   CarrierHostPorts,
   CarrierIngress,
   InboundAdmission,
   NormalizedCallEvent,
   ReleaseSelections,
+  SecretResolver,
 } from '@winsendotai/ovo-contracts';
 import { legacyEnvBindings, type LoadedDistribution } from '@winsendotai/ovo-distribution';
 import type { PostgresOperationsService } from '@winsendotai/ovo-plugin-operations';
 import type { PostgresOrchestrationStore } from '@winsendotai/ovo-plugin-orchestration';
-import type { SecretManager } from '@winsendotai/ovo-plugin-secrets';
-import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import { PluginRegistry } from '@winsendotai/ovo-runtime';
 import {
   createCarrierBindingResolver,
   createCarrierHostPorts,
   validateSelections,
+  type CarrierBindingRow,
 } from '@winsendotai/ovo-session-host';
 import { createInboundAdmission } from './inbound-admission.ts';
 import { projectInboundTerminalStatus } from './inbound-status.ts';
@@ -63,8 +64,21 @@ export interface GatewayHostOptions {
   store: PostgresOrchestrationStore;
   operations: PostgresOperationsService;
   distribution: LoadedDistribution;
-  control: ControlStore;
-  secrets: SecretManager;
+  control: {
+    getProviderBinding(workspaceId: string, id: string): Promise<CarrierBindingRow | undefined>;
+    getRelease(
+      workspaceId: string,
+      id: string,
+    ): Promise<
+      | {
+          config: AgentConfig;
+          selections?: ReleaseSelections;
+          providerBindings?: Parameters<typeof validateSelections>[0]['legacyProviderBindings'];
+        }
+      | undefined
+    >;
+  };
+  secrets: SecretResolver;
   ingresses: readonly CarrierIngress[];
   environmentCarrierId?: string;
   env: Readonly<Record<string, string | undefined>>;

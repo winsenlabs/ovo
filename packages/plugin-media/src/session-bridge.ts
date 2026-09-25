@@ -75,8 +75,10 @@ export class SessionBridge {
         this.close(error instanceof Error ? error.message : 'carrier media protocol failed');
       }
     });
-    this.socket.on('close', () => this.close('carrier socket closed'));
-    this.socket.on('error', () => this.close('carrier socket failed'));
+    // A lost transport may be followed by a carrier continuation at generation + 1.
+    // Closing the worker link starts its resume window; session.close would end the call.
+    this.socket.on('close', () => this.close('carrier socket closed', false));
+    this.socket.on('error', () => this.close('carrier socket failed', false));
     this.timer = setTimeout(
       () => this.close('carrier start timeout'),
       this.limits.handshakeTimeoutMs,

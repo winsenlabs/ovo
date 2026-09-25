@@ -678,9 +678,6 @@ importers:
 
   packages/plugin-media:
     dependencies:
-      '@winsendotai/ovo-plugin-telephony-twilio':
-        specifier: workspace:*
-        version: link:../plugin-telephony-twilio
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime

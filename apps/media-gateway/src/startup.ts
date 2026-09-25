@@ -1,5 +1,10 @@
 import { Cap, type CarrierIngress } from '@winsendotai/ovo-contracts';
-import { loadDistribution, type LoadedDistribution } from '@winsendotai/ovo-distribution';
+import {
+  FIRST_PARTY,
+  loadDistribution,
+  type CatalogEntry,
+  type LoadedDistribution,
+} from '@winsendotai/ovo-distribution';
 import { createNodeNet } from '@winsendotai/ovo-plugin-kit';
 import {
   createMediaGatewayPlugin,
@@ -11,13 +16,36 @@ import {
 } from '@winsendotai/ovo-plugin-media';
 import { PostgresOperationsService } from '@winsendotai/ovo-plugin-operations';
 import { PostgresOrchestrationStore } from '@winsendotai/ovo-plugin-orchestration';
-import { secretsPlugin, type SecretManager } from '@winsendotai/ovo-plugin-secrets';
-import { storagePlugin, type ControlStore } from '@winsendotai/ovo-plugin-storage';
-import { compose, definePlugin, type Composition } from '@winsendotai/ovo-runtime';
-import { createGatewayHost } from './gateway-host.ts';
+import {
+  compose,
+  definePlugin,
+  type Composition,
+  type PluginDefinition,
+} from '@winsendotai/ovo-runtime';
+import { createGatewayHost, type GatewayHostOptions } from './gateway-host.ts';
 import { installInboundCarriers } from './inbound-carrier-installation.ts';
 
 const GATEWAY_NET_PLUGIN_ID = 'ovo.gateway.node-net';
+const GATEWAY_INFRA_PACKAGES = [
+  '@winsendotai/ovo-plugin-storage',
+  '@winsendotai/ovo-plugin-secrets',
+] as const;
+
+/** The distribution owns these dependencies; gateway startup composes their definitions. */
+export async function gatewayInfrastructureDefinitions(
+  entries: readonly CatalogEntry[] = FIRST_PARTY,
+): Promise<[PluginDefinition, PluginDefinition]> {
+  const definitions: PluginDefinition[] = [];
+  for (const packageName of GATEWAY_INFRA_PACKAGES) {
+    const entry = entries.find((candidate) => candidate.package === packageName);
+    if (!entry) throw new Error(`Gateway infrastructure catalog entry is missing: ${packageName}`);
+    const loaded = (await entry.load()) as { plugins?: readonly PluginDefinition[] };
+    const definition = loaded.plugins?.find((plugin) => plugin.manifest.id === packageName);
+    if (!definition) throw new Error(`Gateway infrastructure plugin is missing: ${packageName}`);
+    definitions.push(definition);
+  }
+  return definitions as [PluginDefinition, PluginDefinition];
+}
 const hostManifest = {
   version: '1.0.0',
   contractVersion: 2,
@@ -85,6 +113,7 @@ export async function startGateway(
   const organizationId = required(env, 'OVO_ORGANIZATION_ID');
   const distribution =
     input.distribution ?? (await loadDistribution({ role: 'gateway', profile, env }));
+  const [storagePlugin, secretsPlugin] = await gatewayInfrastructureDefinitions();
   const store = new PostgresOrchestrationStore({ connectionString: databaseUrl });
   const operations = new PostgresOperationsService({
     connectionString: databaseUrl,
@@ -118,8 +147,8 @@ export async function startGateway(
         store,
         operations,
         distribution,
-        control: composition.ctx.get(Cap.controlStore) as ControlStore,
-        secrets: composition.ctx.get(Cap.secretManager) as SecretManager,
+        control: composition.ctx.get(Cap.controlStore) as GatewayHostOptions['control'],
+        secrets: composition.ctx.get(Cap.secretManager) as GatewayHostOptions['secrets'],
         ingresses: [...composition.all(Cap.carrierIngress).values()] as CarrierIngress[],
         environmentCarrierId,
         env,

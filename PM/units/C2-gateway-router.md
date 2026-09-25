@@ -27,6 +27,12 @@ Defects fixed: [2, 23, 27, 1, 26]
 
 - apps/worker/tests/lifecycle.integration.test.ts: C2 owns it; O1 may make compile-only edits in separate hunks for signatures O1 changed
 
+### Checker note — 2026-09-26
+
+The gateway needs storage and secrets definitions to compose its host ports, but its frozen package manifest does not declare those packages and the distribution catalog loads them only for API and worker roles. C2 therefore loads the existing `FIRST_PARTY` definitions through the gateway's declared distribution dependency and fails explicitly if either is absent. This keeps the single registration list and avoids an undeclared gateway import. The gateway startup test exercises both definitions through the real composition.
+
+The checker previously authorized C2 to remove plugin-media's obsolete telephony-twilio manifest dependency and update `pnpm-lock.yaml` together; no plugin-media source imports that package. The same authorization permits narrowly scoped PCM16 capture changes in `packages/plugin-recordings/src/live-service.ts` and `packages/plugin-recordings/src/types.ts`, in addition to C2's owned capture and WAV paths. I1 inherits the legacy dependency removal and the recording package's touched types; O1 inherits the stale worker-loop gateway URL and disconnect arguments until its owned startup path is updated.
+
 ## Specification
 
 GOAL: make packages/plugin-media and apps/media-gateway carrier-neutral routers that mount every installed carrier's ingress, so adding Exotel or Plivo needs no gateway edits. This unit also fixes:

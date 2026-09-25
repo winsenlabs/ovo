@@ -304,3 +304,26 @@ it('sends serializer termination before closing the carrier and closes on worker
   expect(disconnect.bridge.isClosed).toBe(true);
   expect(disconnect.socket.closeReason).toContain('worker disconnected');
 });
+
+it('leaves the worker session resumable after an unexpected carrier socket loss', async () => {
+  const first = harness({ accept: true });
+  first.start();
+  await vi.waitFor(() => expect(first.dialer.connect).toHaveBeenCalledOnce());
+  first.socket.close(1006, 'connection lost');
+  expect(first.bridge.isClosed).toBe(true);
+  expect(first.sent).not.toContainEqual(expect.objectContaining({ type: 'session.close' }));
+
+  const resumed = harness({ accept: true, route: route({ generation: 4, status: 'connected' }) });
+  resumed.start();
+  await vi.waitFor(() => expect(resumed.dialer.connect).toHaveBeenCalledOnce());
+  expect(resumed.sent[0]).toMatchObject({ type: 'session.open', generation: 4 });
+  resumed.bridge.close();
+});
+
+it('still finalizes the worker session when the carrier explicitly stops', async () => {
+  const h = harness({ accept: true });
+  h.start();
+  await vi.waitFor(() => expect(h.dialer.connect).toHaveBeenCalledOnce());
+  h.socket.receive(fixtureInboundFrame({ type: 'stop', reason: 'caller_hangup' }));
+  expect(h.sent).toContainEqual({ type: 'session.close', reason: 'carrier caller-hangup' });
+});
