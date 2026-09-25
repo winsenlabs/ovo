@@ -1,0 +1,9 @@
+{"source":"https://developers.deepgram.com/reference/speech-to-text/listen-streaming","retrieved":"2026-09-25","verbatim":["Results","is_final","speech_final","SpeechStarted","UtteranceEnd"],"unconfirmed":[]}
+{"dir":"in","frame":{"type":"SpeechStarted"}}
+{"dir":"in","frame":{"type":"Results","channel":{"alternatives":[{"transcript":"my number"}]},"is_final":false,"speech_final":false}}
+{"dir":"in","frame":{"type":"Results","channel":{"alternatives":[{"transcript":"my number is"}]},"is_final":true,"speech_final":false}}
+{"dir":"in","frame":{"type":"Results","channel":{"alternatives":[{"transcript":"98 45"}]},"is_final":true,"speech_final":true}}
+{"dir":"in","frame":{"type":"UtteranceEnd"}}
+{"dir":"in","frame":{"type":"SpeechStarted"}}
+{"dir":"in","frame":{"type":"Results","channel":{"alternatives":[{"transcript":"yes"}]},"is_final":true,"speech_final":true}}
+{"dir":"in","frame":{"type":"UtteranceEnd"}}

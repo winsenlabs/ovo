@@ -1,5 +1,3 @@
-import type { PluginDefinition } from '@winsendotai/ovo-runtime';
-
-export const plugins: PluginDefinition[] = [];
+export { createTurnDetector } from './index.ts';
 export const fixtures = {};
 export const fixtureTemplates = {};
