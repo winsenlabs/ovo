@@ -14,6 +14,10 @@ Defects fixed: [8, 15]
 
 - none
 
+## Checker note (2026-09-25, U1 re-check)
+
+The second U1 re-check rejected the per-keystroke script-node rename: typing through an existing ID could permanently redirect another node's edge before autosave. Node IDs now commit on blur, reject collisions, and use one reference-integrity helper for rename and deletion. Deletion removes incoming edges and selects a valid start node, with a visible status message. The viewer regression uses the pre-existing `.studio-layout > .stack` selector; against `ae35534` and the populated agent fixture it reports 70 of 79 authoring controls enabled. The regular Vitest gate now renders AgentStudio, ScriptEditor, the session boundary, and the inbound-route form. The mobile-nav browser test runs at 390 and 768 pixels, checks keyboard focus and Escape, and the navigation uses a native modal dialog. Editing a route bound to an agent beyond page one fetches the immutable release by ID and refuses Save if that fetch fails. I1 inherits the remaining first-page selectors and the shared release fanout failure noted on the board.
+
 ## Specification
 
 GOAL: refactor the Next 16 / React 19 console (about 12.9k lines) into a responsive, accessible, route-based app with:

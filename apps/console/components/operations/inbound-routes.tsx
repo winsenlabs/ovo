@@ -1,7 +1,7 @@
 'use client';
 import { useConfirm } from '../ui/dialog';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { apiRequest, ApiError, items, type Release, type SessionIdentity } from '../../lib/api';
+import { apiRequest, ApiError, items, type SessionIdentity } from '../../lib/api';
 import type { InboundRouteRecord } from '../../lib/operator-api';
 import type { ProviderBinding } from '../../lib/api';
 import type { PluginCatalog } from '../plugins/types';
@@ -17,14 +17,12 @@ import {
   StatusBadge,
 } from '../primitives';
 import { inboundRoutePath, parseInboundRouteVariables } from './inbound-route-state';
+import { useBoundRouteRelease } from './inbound-route-releases';
+import { loadAgentReleaseOptions, type ReleaseOption } from './agent-release-options';
 
 interface RoutePage {
   items: InboundRouteRecord[];
   nextCursor?: string;
-}
-
-interface ReleaseOption extends Release {
-  agentName: string;
 }
 
 const displayTime = (value: string) => new Date(value).toLocaleString();
@@ -35,6 +33,11 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
   const [nextCursor, setNextCursor] = useState<string>();
   const [releases, setReleases] = useState<ReleaseOption[]>([]);
   const [editing, setEditing] = useState<InboundRouteRecord>();
+  const listedRelease = Boolean(
+    editing && releases.some((release) => release.id === editing.releaseId),
+  );
+  const bound = useBoundRouteRelease(editing?.releaseId, listedRelease);
+  const boundRelease = bound?.release;
   const [phoneNumber, setPhoneNumber] = useState('');
   const [releaseId, setReleaseId] = useState('');
   const [variables, setVariables] = useState('{}');
@@ -57,25 +60,7 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
   }, []);
 
   const loadReleases = useCallback(async () => {
-    const { data } = await apiRequest<unknown>('/agents');
-    const agents = items<Record<string, unknown>>(data).map((row) => ({
-      id: String(row.id ?? row.agentId),
-      name: String(
-        (row.config as { name?: unknown } | undefined)?.name ?? row.name ?? row.id ?? row.agentId,
-      ),
-    }));
-    const histories = await Promise.all(
-      agents.map(async (agent) => {
-        const response = await apiRequest<unknown>(
-          `/agents/${encodeURIComponent(agent.id)}/releases`,
-        );
-        return items<Release>(response.data).map((release) => ({
-          ...release,
-          agentName: agent.name,
-        }));
-      }),
-    );
-    setReleases(histories.flat());
+    setReleases(await loadAgentReleaseOptions());
   }, []);
 
   useEffect(() => {
@@ -102,7 +87,6 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
         setError(failure instanceof Error ? failure.message : 'Carrier choices unavailable'),
       );
   }, []);
-
   function resetForm() {
     setEditing(undefined);
     setPhoneNumber('');
@@ -215,6 +199,11 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
             {error}
           </div>
         )}
+        {bound?.error && (
+          <div className="field-error" role="alert">
+            Bound release unavailable: {bound.error}
+          </div>
+        )}
         {notice && (
           <div className="field-error" role="alert">
             {notice}
@@ -234,7 +223,13 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
           setVariables={setVariables}
           enabled={enabled}
           setEnabled={setEnabled}
-          releases={releases}
+          releases={[
+            ...(boundRelease && !releases.some((release) => release.id === boundRelease.id)
+              ? [boundRelease]
+              : []),
+            ...releases,
+          ]}
+          releaseReady={!editing || listedRelease || boundRelease?.id === editing.releaseId}
           carriers={carriers}
           bindings={bindings}
           role={role}

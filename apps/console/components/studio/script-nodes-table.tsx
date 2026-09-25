@@ -2,6 +2,7 @@
 import type { AgentConfig } from '../../lib/api';
 import { ResponsiveTable } from '../primitives';
 import { ListTextInput } from '../forms/list-text-input';
+import { ScriptNodeId } from './script-node-id';
 type Script = NonNullable<AgentConfig['script']>;
 type Node = Script['nodes'][number];
 type Transition = Node['transitions'][number];
@@ -10,15 +11,15 @@ export function ScriptNodesTable({
   rowKeys,
   patchNode,
   renameNode,
+  removeNode,
   patchTransition,
-  setScript,
 }: {
   script: Script;
-  rowKeys: { keyAt: (index: number) => string; remove: (index: number) => void };
+  rowKeys: { keyAt: (index: number) => string };
   patchNode: (index: number, patch: Partial<Node>) => void;
-  renameNode: (index: number, id: string) => void;
+  renameNode: (index: number, id: string) => string | undefined;
+  removeNode: (index: number) => void;
   patchTransition: (nodeIndex: number, edgeIndex: number, patch: Partial<Transition>) => void;
-  setScript: (next: Script | undefined) => void;
 }) {
   return (
     <ResponsiveTable label="Script nodes and transitions">
@@ -35,14 +36,7 @@ export function ScriptNodesTable({
         {script.nodes.map((node, nodeIndex) => (
           <tr key={rowKeys.keyAt(nodeIndex)}>
             <td>
-              <label className="sr-only" htmlFor={`node-id-${nodeIndex}`}>
-                Node {nodeIndex + 1} ID
-              </label>
-              <input
-                id={`node-id-${nodeIndex}`}
-                value={node.id}
-                onChange={(event) => renameNode(nodeIndex, event.target.value)}
-              />
+              <ScriptNodeId index={nodeIndex} id={node.id} onCommit={renameNode} />
             </td>
             <td>
               <label className="sr-only" htmlFor={`node-prompt-${nodeIndex}`}>
@@ -140,13 +134,7 @@ export function ScriptNodesTable({
                 className="text-button danger-text"
                 type="button"
                 disabled={script.nodes.length === 1}
-                onClick={() => {
-                  rowKeys.remove(nodeIndex);
-                  setScript({
-                    ...script,
-                    nodes: script.nodes.filter((_, current) => current !== nodeIndex),
-                  });
-                }}
+                onClick={() => removeNode(nodeIndex)}
               >
                 Remove
               </button>

@@ -1,16 +1,13 @@
 'use client';
 import { useConfirm } from '../ui/dialog';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { apiRequest, ApiError, items, type Release, type SessionIdentity } from '../../lib/api';
+import { apiRequest, ApiError, type SessionIdentity } from '../../lib/api';
 import type { ProviderEvaluationAuthorization } from '../../lib/operator-api';
 import { EmptyState, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
 import type { ProviderEvaluationAvailability } from './evaluation-provider-state';
 import { ProviderAuthorizationsTable } from './provider-authorizations-table';
 import { ProviderAuthorizationForm } from './provider-authorization-form';
-
-interface ReleaseOption extends Release {
-  agentName: string;
-}
+import { loadAgentReleaseOptions, type ReleaseOption } from './agent-release-options';
 
 interface AuthorizationPage {
   items: ProviderEvaluationAuthorization[];
@@ -82,25 +79,7 @@ export function EvaluationProviderAuthorizations({
   );
 
   const loadReleases = useCallback(async () => {
-    const { data } = await apiRequest<unknown>('/agents');
-    const agents = items<Record<string, unknown>>(data).map((row) => ({
-      id: String(row.id ?? row.agentId),
-      name: String(
-        (row.config as { name?: unknown } | undefined)?.name ?? row.name ?? row.id ?? row.agentId,
-      ),
-    }));
-    const histories = await Promise.all(
-      agents.map(async (agent) => {
-        const response = await apiRequest<unknown>(
-          `/agents/${encodeURIComponent(agent.id)}/releases`,
-        );
-        return items<Release>(response.data).map((release) => ({
-          ...release,
-          agentName: agent.name,
-        }));
-      }),
-    );
-    setReleases(histories.flat());
+    setReleases(await loadAgentReleaseOptions());
   }, []);
 
   useEffect(() => {

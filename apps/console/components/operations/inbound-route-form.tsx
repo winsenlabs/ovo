@@ -20,6 +20,7 @@ export function InboundRouteForm({
   enabled,
   setEnabled,
   releases,
+  releaseReady,
   carriers,
   bindings,
   role,
@@ -41,6 +42,7 @@ export function InboundRouteForm({
   enabled: boolean;
   setEnabled: (value: boolean) => void;
   releases: Array<Release & { agentName: string }>;
+  releaseReady: boolean;
   carriers: PluginOption[];
   bindings: ProviderBinding[];
   role: SessionIdentity['role'];
@@ -141,7 +143,7 @@ export function InboundRouteForm({
         </label>
       </div>
       <div className="button-row">
-        <button className="button primary" disabled={role !== 'admin' || busy}>
+        <button className="button primary" disabled={role !== 'admin' || busy || !releaseReady}>
           {busy ? 'Saving…' : editing ? 'Save route version' : 'Create route'}
         </button>
         {editing && (

@@ -21,8 +21,10 @@ export async function signedIn(page: Page, role: 'admin' | 'editor' | 'viewer' =
     ]);
 }
 
-export async function fixtureApi(page: Page) {
+export async function fixtureApi(page: Page, options?: { firstAgentId?: string }) {
   const agents: Draft[] = structuredClone(fixture.agents);
+  const first = agents.findIndex((agent) => agent.id === options?.firstAgentId);
+  if (first > 0) agents.unshift(...agents.splice(first, 1));
   const calls = Array.from({ length: 70 }, (_, index) => ({
     id: `call-${String(index + 1).padStart(3, '0')}`,
     kind: 'live',

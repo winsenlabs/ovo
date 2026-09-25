@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import type { AgentConfig } from '../../lib/api';
 import { useRowKeys } from '../forms/use-row-keys';
 import { ScriptNodesTable } from './script-nodes-table';
+import { editScriptNode } from './script-graph';
 import { EmptyState, Field, Panel, PanelHeader, StatusBadge } from '../primitives';
 
 type Script = NonNullable<AgentConfig['script']>;
@@ -60,6 +61,7 @@ export function ScriptEditor({
   const rowKeys = useRowKeys(script?.nodes.length ?? 0);
   const [source, setSource] = useState('');
   const [importError, setImportError] = useState<string>();
+  const [graphMessage, setGraphMessage] = useState<string>();
   const diagnostics = useMemo(() => (script ? diagnoseScript(script) : []), [script]);
   const setScript = (next: Script | undefined) => update({ ...config, script: next });
   const patchNode = (index: number, patch: Partial<Node>) =>
@@ -71,21 +73,22 @@ export function ScriptEditor({
       ),
     });
   const renameNode = (index: number, id: string) => {
+    if (!script) return 'The script no longer exists.';
+    const result = editScriptNode(script, { kind: 'rename', index, id });
+    if (result.script && result.script !== script) setScript(result.script);
+    if (result.script && result.script !== script) setGraphMessage(undefined);
+    return result.error;
+  };
+  const removeNode = (index: number) => {
     if (!script) return;
-    const previousId = script.nodes[index]?.id;
-    if (previousId === undefined) return;
-    setScript({
-      ...script,
-      start: script.start === previousId ? id : script.start,
-      nodes: script.nodes.map((node, current) => ({
-        ...node,
-        id: current === index ? id : node.id,
-        transitions: node.transitions.map((edge) => ({
-          ...edge,
-          to: edge.to === previousId ? id : edge.to,
-        })),
-      })),
-    });
+    const result = editScriptNode(script, { kind: 'delete', index });
+    if (result.script) {
+      rowKeys.remove(index);
+      setScript(result.script);
+      setGraphMessage(result.notice);
+    } else {
+      setGraphMessage(result.error);
+    }
   };
   const patchTransition = (nodeIndex: number, edgeIndex: number, patch: Partial<Transition>) => {
     if (!script) return;
@@ -171,26 +174,30 @@ export function ScriptEditor({
                 </ul>
               </div>
             )}
+            {graphMessage && <div role="status">{graphMessage}</div>}
             <ScriptNodesTable
               script={script}
               rowKeys={rowKeys}
               patchNode={patchNode}
               renameNode={renameNode}
+              removeNode={removeNode}
               patchTransition={patchTransition}
-              setScript={setScript}
             />
             <div className="button-row">
               <button
                 className="button"
                 type="button"
                 onClick={() => {
+                  let nextNumber = script.nodes.length + 1;
+                  while (script.nodes.some((node) => node.id === `node-${nextNumber}`))
+                    nextNumber += 1;
                   rowKeys.insert(script.nodes.length);
                   setScript({
                     ...script,
                     nodes: [
                       ...script.nodes,
                       {
-                        id: `node-${script.nodes.length + 1}`,
+                        id: `node-${nextNumber}`,
                         prompt: '',
                         terminal: false,
                         transitions: [],

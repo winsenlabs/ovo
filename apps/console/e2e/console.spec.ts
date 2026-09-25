@@ -111,21 +111,26 @@ test('fixture-call 404 gives an explanatory empty state', async ({ page }) => {
   ).toBeVisible();
 });
 
-test('mobile navigation opens, traps focus, and closes on route change', async ({
-  page,
-}, testInfo) => {
-  test.skip(testInfo.project.name !== 'phone-390');
+test('mobile navigation opens, traps focus, and closes on route change', async ({ page }) => {
   await signedIn(page);
   await fixtureApi(page);
   await page.goto('/agents');
   const trigger = page.getByRole('button', { name: 'Menu' });
+  test.skip(!(await trigger.isVisible()), 'Desktop navigation is active at this viewport');
   await trigger.click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByRole('dialog', { name: 'Navigation' })).toBeVisible();
-  await page
-    .getByRole('dialog', { name: 'Navigation' })
-    .getByRole('link', { name: 'Calls' })
-    .click();
+  const dialog = page.getByRole('dialog', { name: 'Navigation' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('a').first()).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.locator('a').last()).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(dialog.locator('a').first()).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await dialog.getByRole('link', { name: 'Calls' }).click();
   await expect(page).toHaveURL(/\/calls$/);
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
 });
@@ -144,11 +149,11 @@ test('suppression add resets its form after the API resolves', async ({ page }) 
 
 test('viewer sees populated authoring controls as disabled', async ({ page }) => {
   await signedIn(page, 'viewer');
-  await fixtureApi(page);
+  await fixtureApi(page, { firstAgentId: 'agent-119' });
   await page.goto('/agents/agent-119');
   await expect(page.getByText('Viewer access is read-only.')).toBeVisible();
-  const editors = page.locator('.studio-editors');
-  expect(await editors.locator('input, textarea, select, button').count()).toBeGreaterThan(20);
+  const editors = page.locator('.studio-layout > .stack');
+  expect(await editors.locator('input, textarea, select, button').count()).toBeGreaterThan(70);
   await expect(
     editors.locator('input:enabled, textarea:enabled, select:enabled, button:enabled'),
   ).toHaveCount(0);
@@ -164,9 +169,11 @@ test('a deep link loads and saves the requested agent beyond the first page', as
     (request) =>
       request.method() === 'PUT' && new URL(request.url()).pathname === '/api/v1/agents/agent-060',
   );
-  await page.getByLabel('Agent name').fill('Deep-linked agent 060');
-  expect((await write).postDataJSON().config.name).toBe('Deep-linked agent 060');
-  await expect(page.getByRole('heading', { name: 'Deep-linked agent 060' })).toBeVisible();
+  await page.getByRole('checkbox', { name: /Request recording for new releases/ }).check();
+  expect((await write).postDataJSON().config.recording).toBe(true);
+  await expect(
+    page.getByRole('checkbox', { name: /Request recording for new releases/ }),
+  ).toBeChecked();
 });
 
 test('a missing deep-linked agent fails without opening another draft', async ({ page }) => {
@@ -201,6 +208,7 @@ test('renaming a script node updates the start and every incoming transition', a
   await expect(page.getByLabel('Start node')).toHaveValue('start');
   await expect(page.getByRole('combobox', { name: 'Target node' }).last()).toHaveValue('start');
   await page.getByLabel('Node 1 ID').fill('welcome');
+  await page.getByLabel('Node 1 ID').blur();
   await expect(page.getByLabel('Start node')).toHaveValue('welcome');
   await expect(page.getByRole('combobox', { name: 'Target node' }).last()).toHaveValue('welcome');
   await expect(page.getByText('The start node does not exist.')).toHaveCount(0);
