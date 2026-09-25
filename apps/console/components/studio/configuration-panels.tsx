@@ -1,46 +1,9 @@
 'use client';
-import { useEffect, useState } from 'react';
 import type { ConsoleField } from '@winsendotai/ovo-ui';
 import type { AgentConfig } from '../../lib/api';
 import type { ProviderBinding } from '../../lib/api';
 import { Field, Panel, PanelHeader, StatusBadge } from '../primitives';
-function JsonField({
-  id,
-  value,
-  onChange,
-}: {
-  id: string;
-  value: unknown;
-  onChange: (value: unknown) => void;
-}) {
-  const [text, setText] = useState(() => JSON.stringify(value, null, 2));
-  const [error, setError] = useState<string>();
-  useEffect(() => setText(JSON.stringify(value, null, 2)), [value]);
-  function commit() {
-    try {
-      onChange(JSON.parse(text));
-      setError(undefined);
-    } catch {
-      setError('Enter valid JSON before saving.');
-    }
-  }
-  return (
-    <>
-      <textarea
-        id={id}
-        className="code-input"
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        onBlur={commit}
-        aria-invalid={Boolean(error)}
-        aria-describedby={error ? `${id}-json-error` : undefined}
-      />
-      <small id={`${id}-json-error`} className="field-error">
-        {error}
-      </small>
-    </>
-  );
-}
+import { JsonEditor } from '../forms/json-editor';
 
 function getPath(config: AgentConfig, path: ConsoleField['path']): unknown {
   if (path.startsWith('processing.'))
@@ -71,10 +34,11 @@ export function PluginField({
   if (field.kind === 'json')
     return (
       <Field label={field.label} htmlFor={id} help={field.help}>
-        <JsonField
+        <JsonEditor
           id={id}
           value={value}
-          onChange={(next) => update(setPath(config, field.path, next))}
+          objectOnly={false}
+          onValid={(next) => update(setPath(config, field.path, next))}
         />
       </Field>
     );

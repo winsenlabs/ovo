@@ -1,11 +1,12 @@
 'use client';
+import { useConfirm } from '../ui/dialog';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, ApiError, items, type SessionIdentity } from '../../lib/api';
 import type { SuppressionRecord } from '../../lib/operator-api';
+import { useFormAction } from '../forms/use-form-action';
 import {
   EmptyState,
   Field,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
@@ -13,6 +14,8 @@ import {
 } from '../primitives';
 
 export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
+  const formAction = useFormAction();
+  const confirm = useConfirm();
   const [rows, setRows] = useState<SuppressionRecord[]>([]);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -38,20 +41,16 @@ export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
     void load();
   }, [load]);
   async function add(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const values = new FormData(event.currentTarget);
     setBusy(true);
     setError(undefined);
     try {
-      await apiRequest('/operations/suppressions', {
-        method: 'POST',
-        body: JSON.stringify({
-          phoneNumber: values.get('phoneNumber'),
-          reason: values.get('reason'),
-        }),
+      await formAction(event, async (values) => {
+        await apiRequest('/operations/suppressions', {
+          method: 'POST',
+          body: JSON.stringify({ phoneNumber: values.get('phoneNumber'), reason: values.get('reason') }),
+        });
+        await load();
       });
-      event.currentTarget.reset();
-      await load();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Suppression could not be saved.');
     } finally {
@@ -59,12 +58,7 @@ export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
     }
   }
   async function remove(row: SuppressionRecord) {
-    if (
-      !window.confirm(
-        `Remove suppression for ${row.phoneNumber}? The number may become eligible immediately.`,
-      )
-    )
-      return;
+    if (!(await confirm('Remove suppression', `Remove suppression for ${row.phoneNumber}? The number may become eligible immediately.`))) return;
     setBusy(true);
     setError(undefined);
     try {
@@ -93,9 +87,9 @@ export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
         </button>
       </header>
       {error && (
-        <Notice tone="warning" live>
+        <div className="field-error" role="alert">
           {error}
-        </Notice>
+        </div>
       )}
       <Panel labelledBy="suppression-add-title">
         <PanelHeader

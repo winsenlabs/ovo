@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { apiRequest } from '../../lib/api';
 import type { CampaignPreview } from '../../lib/operator-api';
-import { Field, Notice, ResponsiveTable, StatusBadge } from '../primitives';
+import { Field, ResponsiveTable, StatusBadge } from '../primitives';
 
 export function CampaignContactImport({
   preview,
@@ -53,7 +53,7 @@ export function CampaignContactImport({
   return (
     <fieldset className="nested-card">
       <legend>2 · Contact CSV preview</legend>
-      {error && <Notice tone="danger">{error}</Notice>}
+      {error && <div className="field-error" role="alert">{error}</div>}
       <Field label="CSV file" htmlFor="campaign-csv">
         <input
           id="campaign-csv"
@@ -128,7 +128,7 @@ export function CampaignContactImport({
             {preview.truncated && <StatusBadge tone="warning">Preview truncated</StatusBadge>}
           </div>
           {preview.errors.length ? (
-            <Notice tone="danger">
+            <div className="field-error" role="alert">
               <strong>{preview.errors.length} rows require correction</strong>
               <ul>
                 {preview.errors.slice(0, 20).map((item) => (
@@ -137,7 +137,7 @@ export function CampaignContactImport({
                   </li>
                 ))}
               </ul>
-            </Notice>
+            </div>
           ) : (
             <ResponsiveTable label="Validated campaign contact preview">
               <thead>

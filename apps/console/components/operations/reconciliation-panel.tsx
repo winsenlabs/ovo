@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import { apiRequest, type SessionIdentity } from '../../lib/api';
 import type { ReconciliationResult } from '../../lib/operator-api';
-import { Field, JsonEvidence, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { Field, JsonEvidence, Panel, PanelHeader, StatusBadge } from '../primitives';
 
 const newKey = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -56,14 +56,14 @@ export function ReconciliationPanel({ role }: { role: SessionIdentity['role'] })
         badge={<StatusBadge tone="warning">Append-only correction</StatusBadge>}
       />
       <form className="panel-body stack" onSubmit={reconcile}>
-        <Notice tone="warning">
+        <div className="muted">
           Reconciliation never rewrites recorded native usage. It appends a signed correction delta
           linked to one provider invoice line and updates the associated budget when applicable.
-        </Notice>
+        </div>
         {error && (
-          <Notice tone="danger" live>
+          <div className="field-error" role="alert">
             {error}
-          </Notice>
+          </div>
         )}
         <div className="form-grid">
           <Field label="Usage ID" htmlFor="reconcile-usage">

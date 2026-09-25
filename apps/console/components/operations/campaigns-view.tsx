@@ -4,13 +4,16 @@ import { apiRequest, ApiError, items, type SessionIdentity } from '../../lib/api
 import type { CampaignRecord } from '../../lib/operator-api';
 import {
   EmptyState,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
   StatusBadge,
 } from '../primitives';
 import { CampaignCreateForm } from './campaign-create-form';
+
+export function campaignAttemptLabel(status: string): string {
+  return status === 'unknown' ? 'Reconciling' : status === 'superseded' ? 'Superseded' : status;
+}
 
 export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
@@ -66,9 +69,9 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
         </button>
       </header>
       {error && (
-        <Notice tone="warning" live>
+        <div className="field-error" role="alert">
           {error}
-        </Notice>
+        </div>
       )}
       <Panel labelledBy="campaign-create-title">
         <PanelHeader
@@ -82,9 +85,9 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
         />
         <div className="panel-body">
           {role === 'viewer' ? (
-            <Notice tone="warning">
+            <div className="muted">
               Editors can preview CSV contacts and create scheduled campaigns.
-            </Notice>
+            </div>
           ) : (
             <CampaignCreateForm
               onCreated={(campaign) => setCampaigns((current) => [campaign, ...current])}
@@ -134,6 +137,7 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
                       {campaign.perNumberAttemptLimit}/number · {campaign.maxAttemptsPerLocalDay}
                       /day
                     </small>
+                    <small>{campaign.maxConcurrency ?? 1} concurrent</small>
                   </td>
                   <td>
                     <StatusBadge
@@ -148,6 +152,7 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
                       {campaign.status}
                     </StatusBadge>
                     <small>v{campaign.version}</small>
+                    {campaign.attempts?.map(attempt => <small key={attempt.id} className={attempt.status === 'unknown' ? 'badge warning' : 'badge soft'}>{campaignAttemptLabel(attempt.status)}</small>)}
                   </td>
                   <td>
                     <div className="button-row">

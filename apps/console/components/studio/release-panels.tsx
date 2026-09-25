@@ -9,6 +9,9 @@ import {
   StatusBadge,
 } from '../primitives';
 import { configurationDiff } from './release-diff';
+export function readinessIssueHref(agentId: string, slot: string): string {
+  return `/agents/${encodeURIComponent(agentId)}/plugins#slot-${encodeURIComponent(slot)}`;
+}
 export function StudioRail({
   selected,
   releases,
@@ -79,6 +82,20 @@ export function StudioRail({
                 ))}
               </ul>
             </Notice>
+          ) : null}
+          {readiness?.details?.length ? (
+            <div className="ui-stack" aria-label="Compatibility details">
+              {readiness.details.map((issue, index) => (
+                <p key={`${issue.code}-${index}`}>
+                  <strong>{issue.stage}{issue.slot ? ` · ${issue.slot}` : ''}:</strong>{' '}
+                  {issue.slot ? (
+                    <a href={readinessIssueHref(selected.id, issue.slot)}>
+                      {issue.message}
+                    </a>
+                  ) : issue.message}
+                </p>
+              ))}
+            </div>
           ) : null}
           {readiness?.requiredPluginIds.length ? (
             <ul className="plain-list">

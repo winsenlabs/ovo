@@ -18,39 +18,15 @@ import { AgentDraftIndex, StudioRail } from './studio/release-panels';
 import { ScriptEditor } from './studio/script-editor';
 import { ToolsEditor } from './studio/tools-editor';
 import { useAgentStudio } from './studio/use-agent-studio';
-const modes: { id: AgentConfig['mode']; title: string; description: string; kind: string }[] = [
-  {
-    id: 'announcement',
-    title: 'Announcement',
-    description: 'Approved templates and validated variables.',
-    kind: 'No LLM',
-  },
-  {
-    id: 'faq',
-    title: 'FAQ',
-    description: 'Deterministic question matching and approved answers.',
-    kind: 'No generative LLM',
-  },
-  {
-    id: 'context',
-    title: 'Supplied-context conversation',
-    description: 'Bounded responses from supplied facts.',
-    kind: 'LLM · tools off',
-  },
-  {
-    id: 'agent',
-    title: 'Tool-using agent',
-    description: 'Approved reads and confirmed business actions.',
-    kind: 'LLM + controlled tools',
-  },
-];
-
+import { AgentModePanel, RecordingPolicyPanel } from './studio/mode-policy-panels';
 export function AgentStudio({
   extensions,
   identity,
+  preferredAgentId,
 }: {
   extensions: readonly ConsoleExtension[];
   identity: SessionIdentity;
+  preferredAgentId?: string;
 }) {
   const {
     agents,
@@ -72,7 +48,7 @@ export function AgentStudio({
     createAgent,
     publish,
     activeForms,
-  } = useAgentStudio(extensions);
+  } = useAgentStudio(extensions, preferredAgentId);
   const applyUpdate: typeof update = identity.role === 'viewer' ? () => undefined : update;
   if (loading) return <LoadingBlock label="Loading agents" />;
   if (loadError && !selected)
@@ -142,13 +118,15 @@ export function AgentStudio({
               publishing ||
               !['idle', 'saved'].includes(saveState) ||
               identity.role === 'viewer' ||
-              readiness?.releaseReady === false
+              readiness?.releaseReady !== true
             }
           >
             {publishing
               ? 'Validating…'
               : readiness?.releaseReady === false
-                ? 'Resolve release blockers'
+                ? `Resolve ${readiness.blockers.length} release blocker${readiness.blockers.length === 1 ? '' : 's'}`
+                : !readiness
+                  ? 'Checking release readiness'
                 : 'Publish release'}
           </button>
         </div>
@@ -203,50 +181,7 @@ export function AgentStudio({
       )}
       <div className="studio-layout">
         <div className="stack">
-          <Panel labelledBy="mode-title">
-            <PanelHeader
-              id="mode-title"
-              title="01 · Agent mode"
-              badge={<StatusBadge>4 modes</StatusBadge>}
-            />
-            <div className="panel-body">
-              <fieldset className="mode-grid">
-                <legend>Choose how this agent makes decisions.</legend>
-                {modes.map((mode) => (
-                  <label
-                    className={`mode-card ${selected.config.mode === mode.id ? 'selected' : ''}`}
-                    key={mode.id}
-                  >
-                    <span>
-                      <input
-                        type="radio"
-                        name="mode"
-                        checked={selected.config.mode === mode.id}
-                        disabled={identity.role === 'viewer'}
-                        onChange={() =>
-                          applyUpdate({
-                            ...selected.config,
-                            mode: mode.id,
-                            ...(mode.id === 'context' ? { allowedTools: [] } : {}),
-                          })
-                        }
-                      />{' '}
-                      <strong>{mode.title}</strong>
-                    </span>
-                    <p>{mode.description}</p>
-                    <small>{mode.kind}</small>
-                  </label>
-                ))}
-              </fieldset>
-              <Notice>
-                {selected.config.mode === 'announcement' || selected.config.mode === 'faq'
-                  ? 'This mode does not require an LLM binding. Runtime tests must still prove zero model requests.'
-                  : selected.config.mode === 'context'
-                    ? 'Supplied-context mode begins with tools disabled.'
-                    : 'Only exact approved tools are eligible at runtime.'}
-              </Notice>
-            </div>
-          </Panel>
+          <AgentModePanel config={selected.config} role={identity.role} update={applyUpdate} />
           {activeForms.map((form) => (
             <Panel key={`${form.id}-${selected.id}`} labelledBy={`${form.id}-title`}>
               <PanelHeader
@@ -278,36 +213,7 @@ export function AgentStudio({
           <ProviderMap config={selected.config} bindings={bindings} update={applyUpdate} />
           <SpeechCacheEditor config={selected.config} update={applyUpdate} />
           <CostPolicyEditor config={selected.config} update={applyUpdate} />
-          <Panel labelledBy="recording-title">
-            <PanelHeader
-              id="recording-title"
-              title="Recording and call policy"
-              badge={<StatusBadge tone="warning">Partially available</StatusBadge>}
-            />
-            <div className="panel-body">
-              <label className="toggle-row">
-                <input
-                  type="checkbox"
-                  checked={selected.config.recording}
-                  disabled={identity.role === 'viewer'}
-                  onChange={(event) =>
-                    applyUpdate({ ...selected.config, recording: event.target.checked })
-                  }
-                />
-                <span>
-                  <strong>Request recording for new releases</strong>
-                  <small>
-                    Carrier/legal preconditions and artifact state are validated outside AgentConfig
-                    and are not yet exposed by this API.
-                  </small>
-                </span>
-              </label>
-              <Notice tone="warning">
-                Greeting, closing, transfer, DTMF, silence and retention controls are not in the
-                current AgentConfig contract. The console does not invent settings for them.
-              </Notice>
-            </div>
-          </Panel>
+          <RecordingPolicyPanel config={selected.config} role={identity.role} update={applyUpdate} />
           <div className="desktop-authoring-note">
             <strong>Desktop is recommended for script table authoring.</strong> JSON import remains
             available on smaller screens, and diagnostics never depend on a canvas.

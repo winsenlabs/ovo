@@ -6,12 +6,11 @@ import {
   EmptyState,
   Field,
   LoadingBlock,
-  Notice,
   Panel,
   PanelHeader,
-  ResponsiveTable,
   StatusBadge,
 } from '../primitives';
+import { ProviderCapacityPanel } from './provider-capacity-panel';
 
 const value = (item: number | null, suffix = '') =>
   item === null ? 'Unknown' : `${item.toLocaleString()}${suffix}`;
@@ -65,7 +64,7 @@ export function InfrastructureView() {
           </p>
         </div>
       </header>
-      {error && <Notice tone="danger">{error}</Notice>}
+      {error && <div className="field-error" role="alert">{error}</div>}
       <form className="filter-bar" onSubmit={submit}>
         <Field label="Optional release ID" htmlFor="infrastructure-release">
           <input
@@ -99,9 +98,9 @@ export function InfrastructureView() {
               }
             />
             <div className="panel-body stack">
-              <Notice tone={snapshot.installation.status === 'ready' ? 'neutral' : 'warning'}>
+              <div className="muted">
                 {snapshot.installation.admissionSafety}
-              </Notice>
+              </div>
               {snapshot.installation.reasons.length > 0 && (
                 <ul>
                   {snapshot.installation.reasons.map((reason) => (
@@ -193,50 +192,7 @@ export function InfrastructureView() {
               </dl>
             </Panel>
           </div>
-          <Panel labelledBy="provider-capacity-title">
-            <PanelHeader id="provider-capacity-title" title="Provider quota and throttling" />
-            {snapshot.providers.quotas === null && snapshot.providers.throttling === null ? (
-              <div className="panel-body">
-                <EmptyState title="Provider metrics unknown">
-                  No fresh provider quota or throttle samples were reported.
-                </EmptyState>
-              </div>
-            ) : (
-              <ResponsiveTable label="Provider infrastructure evidence">
-                <thead>
-                  <tr>
-                    <th>Provider</th>
-                    <th>Metric</th>
-                    <th>Remaining/limit</th>
-                    <th>Throttle</th>
-                    <th>Observed</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(snapshot.providers.quotas ?? []).map((quota) => {
-                    const throttle = (snapshot.providers.throttling ?? []).find(
-                      (item) => item.provider === quota.provider,
-                    );
-                    return (
-                      <tr key={`${quota.provider}:${quota.metric}`}>
-                        <td>{quota.provider}</td>
-                        <td>{quota.metric}</td>
-                        <td>
-                          {value(quota.remaining)} / {value(quota.limit)}
-                        </td>
-                        <td>
-                          {throttle
-                            ? `${throttle.active ? 'Active' : 'Inactive'} · ${throttle.count}`
-                            : 'Unknown'}
-                        </td>
-                        <td>{new Date(quota.observedAt).toLocaleString()}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </ResponsiveTable>
-            )}
-          </Panel>
+          <ProviderCapacityPanel snapshot={snapshot} />
           <div className="two-column">
             <Panel labelledBy="recording-ops-title">
               <PanelHeader id="recording-ops-title" title="Recording operations" />
@@ -269,7 +225,7 @@ export function InfrastructureView() {
                 </dl>
               ) : (
                 <div className="panel-body">
-                  <Notice>Recording lifecycle metrics are unknown.</Notice>
+                  <div className="muted">Recording lifecycle metrics are unknown.</div>
                 </div>
               )}
             </Panel>
@@ -296,7 +252,7 @@ export function InfrastructureView() {
                 </dl>
               ) : (
                 <div className="panel-body">
-                  <Notice>Telemetry metrics are unknown.</Notice>
+                  <div className="muted">Telemetry metrics are unknown.</div>
                 </div>
               )}
             </Panel>

@@ -1,45 +1,12 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { AgentConfig } from '../../lib/api';
-import { EmptyState, Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { EmptyState, Field, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { JsonEditor } from '../forms/json-editor';
+import { ListTextInput } from '../forms/list-text-input';
+import { useRowKeys } from '../forms/use-row-keys';
 
 type FaqRow = AgentConfig['faq'][number];
-
-function ToolInput({
-  id,
-  value,
-  onValid,
-}: {
-  id: string;
-  value: Record<string, unknown>;
-  onValid: (value: Record<string, unknown>) => void;
-}) {
-  const [text, setText] = useState(() => JSON.stringify(value, null, 2));
-  const [error, setError] = useState<string>();
-  useEffect(() => setText(JSON.stringify(value, null, 2)), [value]);
-  return (
-    <>
-      <textarea
-        id={id}
-        className="code-input compact-code"
-        value={text}
-        aria-invalid={Boolean(error)}
-        onChange={(event) => setText(event.target.value)}
-        onBlur={() => {
-          try {
-            const next: unknown = JSON.parse(text);
-            if (!next || typeof next !== 'object' || Array.isArray(next)) throw new Error();
-            onValid(next as Record<string, unknown>);
-            setError(undefined);
-          } catch {
-            setError('Enter a valid JSON object.');
-          }
-        }}
-      />
-      {error && <small className="field-error">{error}</small>}
-    </>
-  );
-}
 
 function parseFaqImport(text: string): FaqRow[] {
   const value: unknown = JSON.parse(text);
@@ -73,6 +40,7 @@ export function FaqEditor({
   config: AgentConfig;
   update: (next: AgentConfig) => void;
 }) {
+  const rowKeys = useRowKeys(config.faq.length);
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState<string>();
   const edit = (index: number, patch: Partial<FaqRow>) =>
@@ -82,6 +50,7 @@ export function FaqEditor({
     });
   function applyImport() {
     try {
+      rowKeys.reset();
       update({ ...config, faq: parseFaqImport(importText) });
       setImportError(undefined);
       setImportText('');
@@ -123,7 +92,7 @@ export function FaqEditor({
           </EmptyState>
         )}
         {config.faq.map((row, index) => (
-          <fieldset className="nested-card" key={row.id}>
+          <fieldset className="nested-card" key={rowKeys.keyAt(index)}>
             <legend>FAQ {index + 1}</legend>
             <div className="form-grid">
               <Field label="Stable ID" htmlFor={`faq-id-${index}`}>
@@ -158,18 +127,7 @@ export function FaqEditor({
               />
             </Field>
             <Field label="Aliases (one per line)" htmlFor={`faq-a-${index}`}>
-              <textarea
-                id={`faq-a-${index}`}
-                value={row.aliases.join('\n')}
-                onChange={(event) =>
-                  edit(index, {
-                    aliases: event.target.value
-                      .split('\n')
-                      .map((item) => item.trim())
-                      .filter(Boolean),
-                  })
-                }
-              />
+              <ListTextInput id={`faq-a-${index}`} value={row.aliases} onChange={aliases => edit(index, { aliases })} />
             </Field>
             <Field label="Approved answer" htmlFor={`faq-answer-${index}`}>
               <textarea
@@ -180,40 +138,39 @@ export function FaqEditor({
             </Field>
             {row.requiresTool && (
               <Field label="Tool input JSON" htmlFor={`faq-tool-input-${index}`}>
-                <ToolInput
+                <JsonEditor
                   id={`faq-tool-input-${index}`}
                   value={row.toolInput ?? {}}
-                  onValid={(toolInput) => edit(index, { toolInput })}
+                  onValid={(toolInput) => edit(index, { toolInput: toolInput as Record<string, unknown> })}
                 />
               </Field>
             )}
             <button
               className="text-button danger-text"
               type="button"
-              onClick={() =>
-                update({ ...config, faq: config.faq.filter((_, current) => current !== index) })
-              }
+              onClick={() => { rowKeys.remove(index); update({ ...config, faq: config.faq.filter((_, current) => current !== index) }); }}
             >
               Remove entry
             </button>
           </fieldset>
         ))}
-        <Notice>
+        <div className="muted">
           Threshold and margin controls above determine whether an answer is safe to select; near
           ties use the clarification response.
-        </Notice>
+        </div>
         <button
           className="button align-start"
           type="button"
-          onClick={() =>
+          onClick={() => {
+            rowKeys.insert(config.faq.length);
             update({
               ...config,
               faq: [
                 ...config.faq,
                 { id: crypto.randomUUID(), question: '', aliases: [], answer: '' },
               ],
-            })
-          }
+            });
+          }}
         >
           Add FAQ entry
         </button>

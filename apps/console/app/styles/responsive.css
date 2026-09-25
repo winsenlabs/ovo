@@ -127,9 +127,6 @@
   .table-region {
     width: 100%;
   }
-  table {
-    min-width: 640px;
-  }
   .desktop-authoring-note {
     display: block;
   }

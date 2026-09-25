@@ -17,12 +17,12 @@ import {
   EmptyState,
   Field,
   LoadingBlock,
-  Notice,
   Panel,
   PanelHeader,
-  ResponsiveTable,
   StatusBadge,
 } from '../primitives';
+import { TeamUsersTable } from './team-users-table';
+import { TeamAddPanel } from './team-add-panel';
 
 const failureMessage = (failure: unknown, fallback: string) =>
   failure instanceof ApiError
@@ -135,9 +135,9 @@ export function TeamView({
 
   if (identity.role !== 'admin')
     return (
-      <Notice tone="danger">
+      <div className="field-error" role="alert">
         Team administration is available only to administrators of this organization.
-      </Notice>
+      </div>
     );
 
   return (
@@ -157,69 +157,14 @@ export function TeamView({
       </header>
 
       {error && (
-        <Notice tone={unavailable ? 'warning' : 'danger'} live>
+        <div className="field-error" role="alert">
           {error}
-        </Notice>
+        </div>
       )}
-      {notice && <Notice live>{notice}</Notice>}
+      {notice && <div className="field-error" role="alert">{notice}</div>}
 
       {!unavailable && (
-        <Panel labelledBy="team-add-title">
-          <PanelHeader id="team-add-title" title="Add user">
-            <p className="muted">
-              Create an account directly; this installation does not send invitations.
-            </p>
-          </PanelHeader>
-          <form className="panel-body stack" onSubmit={createUser}>
-            <div className="form-grid">
-              <Field label="Email" htmlFor="team-create-email">
-                <input
-                  id="team-create-email"
-                  name="email"
-                  type="email"
-                  autoComplete="off"
-                  maxLength={254}
-                  required
-                  spellCheck={false}
-                />
-              </Field>
-              <Field label="Display name" htmlFor="team-create-label">
-                <input
-                  id="team-create-label"
-                  name="label"
-                  autoComplete="off"
-                  maxLength={120}
-                  required
-                />
-              </Field>
-              <Field label="Role" htmlFor="team-create-role">
-                <select id="team-create-role" name="role" defaultValue="editor" required>
-                  <option value="admin">Admin</option>
-                  <option value="editor">User</option>
-                </select>
-              </Field>
-              <Field
-                label="Initial password"
-                htmlFor="team-create-password"
-                help={`${USER_PASSWORD_MIN_LENGTH}–${USER_PASSWORD_MAX_LENGTH} characters. Share it outside OVO.`}
-              >
-                <input
-                  ref={createPassword}
-                  id="team-create-password"
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={USER_PASSWORD_MIN_LENGTH}
-                  maxLength={USER_PASSWORD_MAX_LENGTH}
-                  required
-                />
-              </Field>
-            </div>
-            <button className="button primary align-start" disabled={busy}>
-              {busy ? 'Adding user…' : 'Add user'}
-            </button>
-          </form>
-        </Panel>
+        <TeamAddPanel createUser={createUser} createPassword={createPassword} busy={busy} />
       )}
 
       {editing && !unavailable && (
@@ -294,50 +239,7 @@ export function TeamView({
               Seed the first administrator on the server before managing this organization.
             </EmptyState>
           ) : users.length ? (
-            <ResponsiveTable label="Organization users">
-              <thead>
-                <tr>
-                  <th>User</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Updated</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr key={user.id}>
-                    <td>
-                      <strong>{user.label}</strong>
-                      <small>{user.email}</small>
-                      {user.id === identity.id && <small>You</small>}
-                    </td>
-                    <td>{teamRoleLabel(user.role)}</td>
-                    <td>
-                      <StatusBadge tone={user.disabled ? 'warning' : 'good'}>
-                        {user.disabled ? 'Disabled' : 'Active'}
-                      </StatusBadge>
-                    </td>
-                    <td>{new Date(user.updatedAt).toLocaleString()}</td>
-                    <td>
-                      <button
-                        className="button small"
-                        type="button"
-                        disabled={busy}
-                        onClick={() => {
-                          if (resetPassword.current) resetPassword.current.value = '';
-                          setEditing(user);
-                          setError(undefined);
-                          setNotice(undefined);
-                        }}
-                      >
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </ResponsiveTable>
+            <TeamUsersTable users={users} identity={identity} busy={busy} resetPassword={resetPassword} setEditing={setEditing} setError={setError} setNotice={setNotice} />
           ) : null}
         </div>
       </Panel>

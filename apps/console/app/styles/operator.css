@@ -18,7 +18,7 @@
   max-width: 260px;
   overflow-wrap: anywhere;
   font:
-    11px/1.4 ui-monospace,
+    var(--type-xs)/1.4 ui-monospace,
     monospace;
 }
 .transition-row {
@@ -33,7 +33,7 @@
 .transition-row legend {
   padding: 0 4px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .transition-row input,
 .transition-row select {
@@ -56,7 +56,7 @@
 }
 .checkbox-group legend {
   padding: 0 5px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
 }
 .checkbox-group label {

@@ -2,10 +2,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, ApiError, items, type SessionIdentity } from '../../lib/api';
 import type { BudgetSnapshot } from '../../lib/operator-api';
+import { useFormAction } from '../forms/use-form-action';
 import {
   EmptyState,
   Field,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
@@ -20,6 +20,7 @@ const formatInr = (paise: string) => {
 };
 
 export function BudgetPanel({ role }: { role: SessionIdentity['role'] }) {
+  const formAction = useFormAction();
   const [budgets, setBudgets] = useState<BudgetSnapshot[]>([]);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -44,21 +45,16 @@ export function BudgetPanel({ role }: { role: SessionIdentity['role'] }) {
     void load();
   }, [load]);
   async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const values = new FormData(event.currentTarget);
     setBusy(true);
     setError(undefined);
     try {
-      await apiRequest('/cost/budgets', {
-        method: 'POST',
-        body: JSON.stringify({
-          id: values.get('id'),
-          limitPaise: values.get('limitPaise'),
-          admissionOverspendPaise: values.get('admissionOverspendPaise'),
-        }),
+      await formAction(event, async (values) => {
+        await apiRequest('/cost/budgets', {
+          method: 'POST',
+          body: JSON.stringify({ id: values.get('id'), limitPaise: values.get('limitPaise'), admissionOverspendPaise: values.get('admissionOverspendPaise') }),
+        });
+        await load();
       });
-      event.currentTarget.reset();
-      await load();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Budget could not be saved.');
     } finally {
@@ -78,9 +74,9 @@ export function BudgetPanel({ role }: { role: SessionIdentity['role'] }) {
       />
       <div className="panel-body stack">
         {role !== 'admin' ? (
-          <Notice tone="warning">
+          <div className="muted">
             Budget balances and policy changes are restricted to administrators.
-          </Notice>
+          </div>
         ) : (
           <form className="form-grid nested-card" onSubmit={save}>
             <Field label="Budget ID" htmlFor="budget-id">
@@ -115,7 +111,7 @@ export function BudgetPanel({ role }: { role: SessionIdentity['role'] }) {
           </form>
         )}
         {error ? (
-          <Notice tone="warning">{error}</Notice>
+          <div className="field-error" role="alert">{error}</div>
         ) : role === 'admin' && !budgets.length ? (
           <EmptyState title="No budgets configured">
             Create a persisted budget to gate new work by exact reserved and spent paise.

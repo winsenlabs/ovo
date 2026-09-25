@@ -1,17 +1,18 @@
 'use client';
+import { useConfirm } from '../ui/dialog';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, ApiError, items, type Release, type SessionIdentity } from '../../lib/api';
 import type { ProviderEvaluationAuthorization } from '../../lib/operator-api';
 import {
   EmptyState,
-  Field,
   Notice,
   Panel,
   PanelHeader,
-  ResponsiveTable,
   StatusBadge,
 } from '../primitives';
 import type { ProviderEvaluationAvailability } from './evaluation-provider-state';
+import { ProviderAuthorizationsTable } from './provider-authorizations-table';
+import { ProviderAuthorizationForm } from './provider-authorization-form';
 
 interface ReleaseOption extends Release {
   agentName: string;
@@ -37,6 +38,7 @@ export function EvaluationProviderAuthorizations({
     availability: ProviderEvaluationAvailability,
   ): void;
 }) {
+  const confirm = useConfirm();
   const [authorizations, setAuthorizations] = useState<ProviderEvaluationAuthorization[]>([]);
   const [releases, setReleases] = useState<ReleaseOption[]>([]);
   const [nextCursor, setNextCursor] = useState<string>();
@@ -158,7 +160,7 @@ export function EvaluationProviderAuthorizations({
   }
 
   async function revoke(authorization: ProviderEvaluationAuthorization) {
-    if (!window.confirm(`Revoke provider evaluation authorization ${authorization.id}?`)) return;
+    if (!(await confirm('Revoke authorization', `Revoke provider evaluation authorization ${authorization.id}?`))) return;
     setBusy(true);
     setError(undefined);
     setNotice(undefined);
@@ -222,38 +224,7 @@ export function EvaluationProviderAuthorizations({
           </Notice>
         )}
         {role === 'admin' && availability === 'enabled' && (
-          <form className="nested-card stack" onSubmit={create}>
-            <strong>Create durable authorization</strong>
-            <div className="form-grid">
-              <Field label="Immutable release" htmlFor="provider-authorization-release">
-                <select id="provider-authorization-release" name="releaseId" required>
-                  <option value="">Select immutable release</option>
-                  {releases.map((release) => (
-                    <option key={release.id} value={release.id}>
-                      {release.agentName} · {release.id}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field
-                label="Maximum reservation (paise)"
-                htmlFor="provider-authorization-maximum"
-                help="The immutable release reservation must remain at or below this positive cap."
-              >
-                <input
-                  id="provider-authorization-maximum"
-                  name="maximumReservationPaise"
-                  inputMode="numeric"
-                  pattern="[1-9][0-9]{0,59}"
-                  placeholder="5000"
-                  required
-                />
-              </Field>
-            </div>
-            <button className="button primary align-start" disabled={busy || releases.length === 0}>
-              {busy ? 'Creating…' : 'Create authorization'}
-            </button>
-          </form>
+          <ProviderAuthorizationForm releases={releases} busy={busy} create={create} />
         )}
         {role === 'admin' && availability === 'enabled' && !authorizations.length ? (
           <EmptyState title="No provider authorizations">
@@ -261,52 +232,7 @@ export function EvaluationProviderAuthorizations({
             immutable release and budget reservation authorization.
           </EmptyState>
         ) : role === 'admin' && authorizations.length ? (
-          <ResponsiveTable label="Provider evaluation authorizations">
-            <thead>
-              <tr>
-                <th>Immutable release</th>
-                <th>Provider binding</th>
-                <th>Budget authorization</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {authorizations.map((authorization) => (
-                <tr key={authorization.id}>
-                  <td>
-                    <span className="mono">{authorization.releaseId}</span>
-                    <small>{authorization.releaseFingerprint}</small>
-                  </td>
-                  <td>
-                    {authorization.provider} · {authorization.modelId}
-                    <small className="mono">{authorization.bindingVersion}</small>
-                  </td>
-                  <td>
-                    <span className="mono">{authorization.budgetId}</span>
-                    <small className="mono">Authorization {authorization.id}</small>
-                    <small>Maximum {authorization.maximumReservationPaise} paise</small>
-                  </td>
-                  <td>
-                    <StatusBadge tone={authorization.revokedAt ? 'warning' : 'good'}>
-                      {authorization.revokedAt ? 'Revoked' : 'Active'}
-                    </StatusBadge>
-                    <small>{new Date(authorization.createdAt).toLocaleString()}</small>
-                  </td>
-                  <td>
-                    <button
-                      className="button small danger"
-                      type="button"
-                      disabled={busy || Boolean(authorization.revokedAt)}
-                      onClick={() => void revoke(authorization)}
-                    >
-                      Revoke
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </ResponsiveTable>
+          <ProviderAuthorizationsTable authorizations={authorizations} busy={busy} revoke={revoke} />
         ) : null}
         {nextCursor && (
           <button

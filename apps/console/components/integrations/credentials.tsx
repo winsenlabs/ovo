@@ -1,5 +1,5 @@
 'use client';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import {
   apiRequest,
   ApiError,
@@ -11,12 +11,14 @@ import {
 import {
   EmptyState,
   Field,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
   StatusBadge,
 } from '../primitives';
+import type { PluginCatalog } from '../plugins/types';
+import { CredentialMetadataTable } from './credentials-table';
+import { useConfirm } from '../ui/dialog';
 const safeMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 export function CredentialManager({
@@ -30,6 +32,10 @@ export function CredentialManager({
   reload: () => Promise<void>;
   role: SessionIdentity['role'];
 }) {
+  const confirmAction = useConfirm();
+  const [plugins, setPlugins] = useState<PluginCatalog['plugins']>([]);
+  const [pluginId, setPluginId] = useState('');
+  useEffect(() => { void apiRequest<PluginCatalog>('/plugins').then(({ data }) => setPlugins(data.plugins.filter(plugin => ['carrier', 'stt', 'tts', 'llm', 'tool'].includes(plugin.kind)))).catch(() => undefined); }, []);
   const [message, setMessage] = useState<{ tone: 'neutral' | 'danger'; text: string }>();
   const [busy, setBusy] = useState<string>();
 
@@ -45,7 +51,7 @@ export function CredentialManager({
         method: 'POST',
         body: JSON.stringify({
           label: values.get('label'),
-          provider: values.get('provider'),
+          provider: plugins.find(plugin => plugin.id === pluginId)?.provider,
           type: values.get('type'),
           environment: values.get('environment'),
           value: values.get('value'),
@@ -103,12 +109,7 @@ export function CredentialManager({
   }
 
   async function retire(credential: CredentialMetadata) {
-    if (
-      !confirm(
-        `Retire ${credential.label}? The API will block this while active references remain.`,
-      )
-    )
-      return;
+    if (!(await confirmAction('Retire credential', `Retire ${credential.label}? The API will block this while active references remain.`))) return;
     setBusy(`retire-${credential.id}`);
     setMessage(undefined);
     try {
@@ -150,14 +151,9 @@ export function CredentialManager({
             <Field label="Label" htmlFor="credential-label">
               <input id="credential-label" name="label" required />
             </Field>
-            <Field label="Provider" htmlFor="credential-provider">
-              <input
-                id="credential-provider"
-                name="provider"
-                placeholder="e.g. deepgram"
-                required
-              />
-            </Field>
+            <Field label="Plugin" htmlFor="credential-plugin"><select id="credential-plugin" value={pluginId} onChange={event => setPluginId(event.target.value)} required>
+              <option value="">Select installed plugin</option>{plugins.map(plugin => <option key={plugin.id} value={plugin.id}>{plugin.ui?.label ?? plugin.id}</option>)}
+            </select></Field>
             <Field label="Credential type" htmlFor="credential-type">
               <select id="credential-type" name="type">
                 <option value="stt">STT</option>
@@ -211,95 +207,11 @@ export function CredentialManager({
         </form>
       </Panel>
       {message && (
-        <Notice tone={message.tone} live>
+        <div className="field-error" role="alert">
           {message.text}
-        </Notice>
+        </div>
       )}
-      <Panel labelledBy="credentials-title">
-        <PanelHeader
-          id="credentials-title"
-          title="Credential metadata"
-          badge={<StatusBadge>{credentials.length}</StatusBadge>}
-        />
-        {credentials.length === 0 ? (
-          <div className="panel-body">
-            <EmptyState title="No credential metadata">
-              The API returned an empty collection. No placeholder keys are displayed.
-            </EmptyState>
-          </div>
-        ) : (
-          <ResponsiveTable label="Credential metadata and lifecycle actions">
-            <thead>
-              <tr>
-                <th>Credential</th>
-                <th>Scope</th>
-                <th>Safe metadata</th>
-                <th>Rotate</th>
-                <th>Lifecycle</th>
-              </tr>
-            </thead>
-            <tbody>
-              {credentials.map((credential) => (
-                <tr key={credential.id}>
-                  <td>
-                    <strong>{credential.label}</strong>
-                    <small>
-                      {credential.provider} · {credential.type}
-                    </small>
-                  </td>
-                  <td>
-                    {credential.environment}
-                    <small>
-                      {credential.permittedAgentIds?.length
-                        ? `${credential.permittedAgentIds.length} permitted agents`
-                        : 'No agent restriction returned'}
-                    </small>
-                  </td>
-                  <td>
-                    <span className="mono">
-                      {credential.fingerprint ?? 'Fingerprint unavailable'}
-                    </span>
-                    <small>
-                      {credential.status ?? 'Validation not reported'} ·{' '}
-                      {credential.rotatedAt
-                        ? `rotated ${new Date(credential.rotatedAt).toLocaleString()}`
-                        : 'never rotated'}
-                    </small>
-                  </td>
-                  <td>
-                    <label className="sr-only" htmlFor={`rotate-${credential.id}`}>
-                      New value for {credential.label}
-                    </label>
-                    <input
-                      className="compact-secret"
-                      id={`rotate-${credential.id}`}
-                      type="password"
-                      autoComplete="new-password"
-                      placeholder="New value"
-                    />
-                    <button
-                      className="button small"
-                      disabled={role !== 'admin' || Boolean(busy)}
-                      onClick={() => rotate(credential)}
-                    >
-                      Rotate
-                    </button>
-                  </td>
-                  <td>
-                    <button
-                      className="button small danger"
-                      disabled={role !== 'admin' || Boolean(busy)}
-                      onClick={() => retire(credential)}
-                    >
-                      Retire
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </ResponsiveTable>
-        )}
-      </Panel>
+      <CredentialMetadataTable credentials={credentials} role={role} busy={busy} rotate={rotate} retire={retire} />
     </div>
   );
 }

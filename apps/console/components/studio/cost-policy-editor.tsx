@@ -3,7 +3,6 @@ import type { AgentConfig } from '../../lib/api';
 import {
   EmptyState,
   Field,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
@@ -92,10 +91,10 @@ export function CostPolicyEditor({
                 />
               </Field>
             </div>
-            <Notice tone="warning">
+            <div className="muted">
               Each provider usage key needs an immutable price-card version. Non-INR cards also
               require an immutable FX version.
-            </Notice>
+            </div>
             <ResponsiveTable label="Agent price card references">
               <thead>
                 <tr>

@@ -1,12 +1,16 @@
 'use client';
+import { useConfirm } from '../ui/dialog';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, ApiError, items, type Release, type SessionIdentity } from '../../lib/api';
 import type { InboundRouteRecord } from '../../lib/operator-api';
+import type { ProviderBinding } from '../../lib/api';
+import type { PluginCatalog } from '../plugins/types';
+import { InboundRouteForm } from './inbound-route-form';
+import { InboundRoutesTable } from './inbound-routes-table';
 import {
   EmptyState,
   Field,
   JsonEvidence,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
@@ -26,6 +30,7 @@ interface ReleaseOption extends Release {
 const displayTime = (value: string) => new Date(value).toLocaleString();
 
 export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
+  const confirm = useConfirm();
   const [routes, setRoutes] = useState<InboundRouteRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<string>();
   const [releases, setReleases] = useState<ReleaseOption[]>([]);
@@ -34,6 +39,10 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
   const [releaseId, setReleaseId] = useState('');
   const [variables, setVariables] = useState('{}');
   const [enabled, setEnabled] = useState(true);
+  const [carrierPluginId, setCarrierPluginId] = useState('');
+  const [carrierBindingId, setCarrierBindingId] = useState('');
+  const [carriers, setCarriers] = useState<PluginCatalog['plugins']>([]);
+  const [bindings, setBindings] = useState<ProviderBinding[]>([]);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -80,6 +89,11 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
       ),
     );
   }, [loadReleases, loadRoutes]);
+  useEffect(() => {
+    void Promise.all([apiRequest<PluginCatalog>('/plugins?kind=carrier'), apiRequest<unknown>('/provider-bindings')])
+      .then(([catalog, rows]) => { setCarriers(catalog.data.plugins); setBindings(items(rows.data)); })
+      .catch(failure => setError(failure instanceof Error ? failure.message : 'Carrier choices unavailable'));
+  }, []);
 
   function resetForm() {
     setEditing(undefined);
@@ -87,6 +101,8 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
     setReleaseId('');
     setVariables('{}');
     setEnabled(true);
+    setCarrierPluginId('');
+    setCarrierBindingId('');
   }
 
   function edit(route: InboundRouteRecord) {
@@ -95,6 +111,8 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
     setReleaseId(route.releaseId);
     setVariables(JSON.stringify(route.variables, null, 2));
     setEnabled(route.enabled);
+    setCarrierPluginId(route.carrierPluginId ?? '');
+    setCarrierBindingId(route.carrierBindingId ?? '');
     setError(undefined);
     setNotice(undefined);
   }
@@ -122,6 +140,8 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
           releaseId,
           variables: routeVariables,
           enabled,
+          carrierPluginId: carrierPluginId || null,
+          carrierBindingId: carrierBindingId || null,
         }),
       });
       setEditing(data);
@@ -140,7 +160,7 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
   }
 
   async function remove(route: InboundRouteRecord) {
-    if (!window.confirm(`Delete inbound route ${route.phoneNumber}?`)) return;
+    if (!(await confirm('Delete inbound route', `Delete inbound route ${route.phoneNumber}?`))) return;
     setBusy(true);
     setError(undefined);
     setNotice(undefined);
@@ -177,140 +197,27 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
           signed inbound request is admitted; no per-agent environment routing is used.
         </p>
         {role !== 'admin' && (
-          <Notice tone="neutral">
+          <div className="muted">
             Viewer and editor roles can inspect routes but cannot change them.
-          </Notice>
+          </div>
         )}
         {error && (
-          <Notice tone="danger" live>
+          <div className="field-error" role="alert">
             {error}
-          </Notice>
+          </div>
         )}
         {notice && (
-          <Notice tone="neutral" live>
+          <div className="field-error" role="alert">
             {notice}
-          </Notice>
-        )}
-        <form className="nested-card stack" onSubmit={save}>
-          <strong>{editing ? `Edit route v${editing.version}` : 'Add inbound route'}</strong>
-          <div className="form-grid">
-            <Field label="Inbound phone number" htmlFor="inbound-route-number">
-              <input
-                id="inbound-route-number"
-                type="tel"
-                placeholder="+91…"
-                pattern="\+[1-9][0-9]{7,14}"
-                value={phoneNumber}
-                onChange={(event) => setPhoneNumber(event.target.value)}
-                disabled={role !== 'admin' || Boolean(editing)}
-                required
-              />
-            </Field>
-            <Field label="Immutable release" htmlFor="inbound-route-release">
-              <select
-                id="inbound-route-release"
-                value={releaseId}
-                onChange={(event) => setReleaseId(event.target.value)}
-                disabled={role !== 'admin'}
-                required
-              >
-                <option value="">Select immutable release</option>
-                {releases.map((release) => (
-                  <option key={release.id} value={release.id}>
-                    {release.agentName} · {release.id} · {displayTime(release.createdAt)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field
-              label="Release variables JSON"
-              htmlFor="inbound-route-variables"
-              help="Use a JSON object whose values are strings. The API validates required variables against the selected release."
-            >
-              <textarea
-                id="inbound-route-variables"
-                className="code-input compact"
-                value={variables}
-                onChange={(event) => setVariables(event.target.value)}
-                disabled={role !== 'admin'}
-                required
-              />
-            </Field>
-            <label className="checkbox-row" htmlFor="inbound-route-enabled">
-              <input
-                id="inbound-route-enabled"
-                type="checkbox"
-                checked={enabled}
-                onChange={(event) => setEnabled(event.target.checked)}
-                disabled={role !== 'admin'}
-              />
-              <span>Accept inbound admission on this route</span>
-            </label>
           </div>
-          <div className="button-row">
-            <button className="button primary" disabled={role !== 'admin' || busy}>
-              {busy ? 'Saving…' : editing ? 'Save route version' : 'Create route'}
-            </button>
-            {editing && (
-              <button className="button" type="button" onClick={resetForm} disabled={busy}>
-                Cancel edit
-              </button>
-            )}
-          </div>
-        </form>
-        {!routes.length ? (
-          <EmptyState title="No inbound number routes">
-            An administrator must bind a carrier number to an immutable release before inbound
-            admission can resolve an agent configuration.
-          </EmptyState>
-        ) : (
-          <ResponsiveTable label="Configured inbound number routes">
-            <thead>
-              <tr>
-                <th>Phone number</th>
-                <th>Immutable release</th>
-                <th>State</th>
-                <th>Version</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {routes.map((route) => (
-                <tr key={route.phoneNumber}>
-                  <td className="mono">{route.phoneNumber}</td>
-                  <td>
-                    <span className="mono">{route.releaseId}</span>
-                    <JsonEvidence label="Snapshotted variables" value={route.variables} />
-                  </td>
-                  <td>
-                    <StatusBadge tone={route.enabled ? 'good' : 'warning'}>
-                      {route.enabled ? 'Enabled' : 'Disabled'}
-                    </StatusBadge>
-                  </td>
-                  <td>
-                    v{route.version}
-                    <small>{displayTime(route.updatedAt)}</small>
-                  </td>
-                  <td>
-                    <div className="button-row">
-                      <button className="button small" type="button" onClick={() => edit(route)}>
-                        Edit
-                      </button>
-                      <button
-                        className="button small danger"
-                        type="button"
-                        onClick={() => void remove(route)}
-                        disabled={role !== 'admin' || busy}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </ResponsiveTable>
         )}
+        <InboundRouteForm editing={editing} phoneNumber={phoneNumber} setPhoneNumber={setPhoneNumber}
+          releaseId={releaseId} setReleaseId={setReleaseId} carrierPluginId={carrierPluginId}
+          setCarrierPluginId={setCarrierPluginId} carrierBindingId={carrierBindingId} setCarrierBindingId={setCarrierBindingId}
+          variables={variables} setVariables={setVariables} enabled={enabled} setEnabled={setEnabled}
+          releases={releases} carriers={carriers} bindings={bindings} role={role} busy={busy}
+          onSave={save} onCancel={resetForm} />
+        <InboundRoutesTable routes={routes} role={role} busy={busy} onEdit={edit} onRemove={remove} />
         {nextCursor && (
           <button
             className="button align-start"

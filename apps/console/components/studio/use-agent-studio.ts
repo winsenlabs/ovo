@@ -15,7 +15,7 @@ import {
   type Release,
 } from '../../lib/api';
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'conflict';
-export function useAgentStudio(extensions: readonly ConsoleExtension[]) {
+export function useAgentStudio(extensions: readonly ConsoleExtension[], preferredAgentId?: string) {
   const [agents, setAgents] = useState<AgentDraft[]>([]);
   const [selected, setSelected] = useState<AgentDraft>();
   const [loading, setLoading] = useState(true);
@@ -50,10 +50,10 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[]) {
           }),
         );
         setAgents(details);
-        setSelected(details[0]);
+        setSelected(details.find(item => item.id === preferredAgentId) ?? details[0]);
       } else {
         setAgents(drafts);
-        setSelected(drafts[0]);
+        setSelected(drafts.find(item => item.id === preferredAgentId) ?? drafts[0]);
       }
       setBindings(items<ProviderBinding>(bindingResult.data));
     } catch (error) {
@@ -61,7 +61,7 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[]) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [preferredAgentId]);
 
   useEffect(() => {
     void load();

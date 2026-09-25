@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, ApiError, type SessionIdentity } from '../../lib/api';
-import { Field, JsonEvidence, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { Field, JsonEvidence, Panel, PanelHeader, StatusBadge } from '../primitives';
 
 type Policy =
   | { kind: 'busy'; reason: string }
@@ -94,17 +94,17 @@ export function InboundPolicy({ role }: { role: SessionIdentity['role'] }) {
       />
       <form className="panel-body stack" onSubmit={save}>
         {error && (
-          <Notice tone="warning" live>
+          <div className="field-error" role="alert">
             {error}
-          </Notice>
+          </div>
         )}
-        <Notice tone="warning">
+        <div className="muted">
           Only ready, reserved and task-protected capacity is counted. Zero capacity executes this
           policy rather than claiming readiness. Wait uses bounded signed carrier polls and hangs up
           when its persisted deadline expires. Callback requires signed caller DTMF consent and
           enters the normal suppression, quota and outbox path; it fails closed unless live outbound
           calling is enabled for the called number.
-        </Notice>
+        </div>
         <div className="form-grid">
           <Field label="Overflow action" htmlFor="inbound-kind">
             <select

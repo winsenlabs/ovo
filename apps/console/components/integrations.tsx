@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   apiRequest,
   ApiError,
@@ -11,7 +11,7 @@ import {
   type ProviderBinding,
   type SessionIdentity,
 } from '../lib/api';
-import { LoadingBlock, Notice } from './primitives';
+import { LoadingBlock } from './primitives';
 import { CredentialManager } from './integrations/credentials';
 import { BindingManager } from './integrations/bindings';
 import { McpManager } from './integrations/mcp';
@@ -29,9 +29,10 @@ export function Integrations({
   const [connections, setConnections] = useState<McpConnection[]>([]);
   const [agents, setAgents] = useState<AgentDraft[]>([]);
   const [loading, setLoading] = useState(true);
+  const loaded = useRef(false);
   const [error, setError] = useState<string>();
   const reload = useCallback(async () => {
-    setLoading(true);
+    if (!loaded.current) setLoading(true);
     setError(undefined);
     const results = await Promise.allSettled([
       apiRequest<unknown>('/credentials'),
@@ -53,6 +54,7 @@ export function Integrations({
           .filter((value) => value.config)
           .map((value) => normalizeDraft(value)),
       );
+    loaded.current = true;
     setLoading(false);
   }, []);
   useEffect(() => {
@@ -70,7 +72,7 @@ export function Integrations({
           </p>
         </div>
       </header>
-      {error && <Notice tone="danger">{error}</Notice>}
+      {error && <div className="field-error" role="alert">{error}</div>}
       {initialTab === 'providers' ? (
         <div className="stack">
           <CredentialManager

@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import { apiRequest, ApiError, type SessionIdentity } from '../../lib/api';
 import type { ScenarioResult } from '../../lib/operator-api';
-import { Field, Notice, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
+import { Field, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
 import { BudgetPanel } from './budget-panel';
 import { FxVersionPanel } from './fx-version-panel';
 import { PriceCardPanel } from './price-card-panel';
@@ -196,14 +196,14 @@ export function CostView({ role }: { role: SessionIdentity['role'] }) {
               />
             </Field>
           </div>
-          <Notice>
+          <div className="muted">
             Speech generation is billed once on a cache miss; carrier media remains billable on
             cache hits. Those invariants are fixed by the server calculator.
-          </Notice>
+          </div>
           {error && (
-            <Notice tone="danger" live>
+            <div className="field-error" role="alert">
               {error}
-            </Notice>
+            </div>
           )}
           <button className="button primary align-start" disabled={busy}>
             {busy ? 'Calculating…' : 'Calculate from assumptions'}

@@ -2,10 +2,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, items, type SessionIdentity } from '../../lib/api';
 import type { PriceCardVersion } from '../../lib/operator-api';
+import type { PluginCatalog } from '../plugins/types';
 import {
   EmptyState,
   Field,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
@@ -16,6 +16,8 @@ export function PriceCardPanel({ role }: { role: SessionIdentity['role'] }) {
   const [cards, setCards] = useState<PriceCardVersion[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [meters, setMeters] = useState<{ key: string; label: string; provider: string; unit: string }[]>([]);
+  const [meterKey, setMeterKey] = useState('');
   const load = useCallback(async () => {
     try {
       setCards(
@@ -29,6 +31,13 @@ export function PriceCardPanel({ role }: { role: SessionIdentity['role'] }) {
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    void apiRequest<PluginCatalog>('/plugins')
+      .then(({ data }) => setMeters(data.plugins.flatMap(plugin =>
+        (plugin.meters ?? []).map(meter => ({ key: meter.key, label: meter.label, provider: plugin.provider ?? plugin.id, unit: meter.unit })),
+      )))
+      .catch(failure => setError(failure instanceof Error ? failure.message : 'Meter catalog unavailable'));
+  }, []);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -70,11 +79,16 @@ export function PriceCardPanel({ role }: { role: SessionIdentity['role'] }) {
           Native provider units are priced against immutable card IDs and versions. Existing
           versions cannot be overwritten with different economics.
         </p>
-        {error && <Notice tone="danger">{error}</Notice>}
+        {error && <div className="field-error" role="alert">{error}</div>}
         {role === 'admin' && (
           <form className="nested-card stack" onSubmit={save}>
             <h4>Add immutable card version</h4>
             <div className="form-grid">
+              <Field label="Manifest meter key" htmlFor="card-meter">
+                <select id="card-meter" value={meterKey} onChange={event => setMeterKey(event.target.value)} required>
+                  <option value="">Select meter</option>{meters.map(meter => <option key={meter.key} value={meter.key}>{meter.label} · {meter.key}</option>)}
+                </select>
+              </Field>
               <Field label="Card ID" htmlFor="card-id">
                 <input id="card-id" name="id" required />
               </Field>
@@ -82,10 +96,10 @@ export function PriceCardPanel({ role }: { role: SessionIdentity['role'] }) {
                 <input id="card-version" name="version" required />
               </Field>
               <Field label="Provider" htmlFor="card-provider">
-                <input id="card-provider" name="provider" required />
+                <input id="card-provider" name="provider" value={meters.find(meter => meter.key === meterKey)?.provider ?? ''} readOnly required />
               </Field>
               <Field label="Native unit" htmlFor="card-unit">
-                <input id="card-unit" name="unit" placeholder="audio_seconds" required />
+                <input id="card-unit" name="unit" value={meters.find(meter => meter.key === meterKey)?.unit ?? ''} readOnly required />
               </Field>
               <Field label="Currency" htmlFor="card-currency">
                 <input

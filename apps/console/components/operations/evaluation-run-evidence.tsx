@@ -10,7 +10,6 @@ import {
   EmptyState,
   Field,
   JsonEvidence,
-  Notice,
   ResponsiveTable,
   StatusBadge,
 } from '../primitives';
@@ -169,7 +168,7 @@ export function EvaluationRunEvidence({
             </button>
           </div>
           {results.length === 0 ? (
-            <Notice>No case results have been persisted yet.</Notice>
+            <div className="muted">No case results have been persisted yet.</div>
           ) : (
             <ResponsiveTable label="Evaluation case results">
               <thead>

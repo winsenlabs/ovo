@@ -1,4 +1,5 @@
 'use client';
+import { useConfirm } from '../ui/dialog';
 import { useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, items, type SessionIdentity } from '../../lib/api';
 import type {
@@ -9,15 +10,15 @@ import type {
 import {
   EmptyState,
   Field,
-  Notice,
   Panel,
   PanelHeader,
-  ResponsiveTable,
   StatusBadge,
 } from '../primitives';
 import { parseEvaluationCorpus } from './evaluation-import';
+import { EvaluationDatasetImport } from './evaluation-dataset-import';
+import { EvaluationCasesTable } from './evaluation-cases-table';
+import { loadCases } from './load-evaluation-cases';
 
-type Page<T> = { items: T[]; nextCursor?: string };
 
 export function EvaluationDatasetPanel({
   role,
@@ -28,6 +29,7 @@ export function EvaluationDatasetPanel({
   datasets: EvaluationDataset[];
   reload: () => Promise<void>;
 }) {
+  const confirm = useConfirm();
   const [selectedId, setSelectedId] = useState('');
   const [versions, setVersions] = useState<EvaluationDatasetVersion[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<number>();
@@ -100,11 +102,7 @@ export function EvaluationDatasetPanel({
   }
 
   async function archive() {
-    if (
-      !selected ||
-      !window.confirm(`Archive “${selected.name}”? Immutable versions remain evidence.`)
-    )
-      return;
+    if (!selected || !(await confirm('Archive dataset', `Archive “${selected.name}”? Immutable versions remain evidence.`))) return;
     setBusy(true);
     try {
       await apiRequest(`/evaluation-datasets/${encodeURIComponent(selected.id)}`, {
@@ -161,9 +159,9 @@ export function EvaluationDatasetPanel({
       />
       <div className="panel-body stack">
         {error && (
-          <Notice tone="danger" live>
+          <div className="field-error" role="alert">
             {error}
-          </Notice>
+          </div>
         )}
         <div className="form-grid">
           <Field label="Dataset" htmlFor="evaluation-dataset-select">
@@ -229,33 +227,7 @@ export function EvaluationDatasetPanel({
           </form>
         )}
         {selected && role !== 'viewer' && (
-          <section className="nested-card stack" aria-labelledby="dataset-import-title">
-            <h4 id="dataset-import-title">Import immutable JSON corpus</h4>
-            <p className="muted">
-              Upload one JSON array or <code>{'{"cases":[…]}'}</code>. The console caps each
-              production corpus at 120 deterministic cases.
-            </p>
-            <input
-              type="file"
-              accept=".json,application/json"
-              aria-label="Evaluation cases JSON file"
-              onChange={(event) => void readImport(event.target.files?.[0])}
-            />
-            {importCases && (
-              <Notice>
-                {importName}: {importCases.length} cases parsed locally. Server validation runs
-                before the immutable version is created.
-              </Notice>
-            )}
-            <button
-              className="button align-start"
-              type="button"
-              disabled={!importCases || busy}
-              onClick={importVersion}
-            >
-              Import as new version
-            </button>
-          </section>
+          <EvaluationDatasetImport importCases={importCases} importName={importName} busy={busy} readImport={readImport} importVersion={importVersion} />
         )}
         {!selected ? (
           <EmptyState title="Select or create a dataset">
@@ -266,47 +238,11 @@ export function EvaluationDatasetPanel({
             Import a JSON corpus to create the first immutable version.
           </EmptyState>
         ) : (
-          <ResponsiveTable label="Evaluation dataset cases">
-            <thead>
-              <tr>
-                <th>Case</th>
-                <th>Mode</th>
-                <th>Tags</th>
-                <th>Turns</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cases.map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <strong>{item.title}</strong>
-                    <small className="mono">{item.id}</small>
-                  </td>
-                  <td>{item.mode}</td>
-                  <td>{item.tags.join(', ') || '—'}</td>
-                  <td>{item.turns.length}</td>
-                </tr>
-              ))}
-            </tbody>
-          </ResponsiveTable>
+          <EvaluationCasesTable cases={cases} />
         )}
       </div>
     </Panel>
   );
-}
-
-async function loadCases(datasetId: string, version: number): Promise<EvaluationCase[]> {
-  const collected: EvaluationCase[] = [];
-  let cursor: string | undefined;
-  do {
-    const query = new URLSearchParams({ limit: '100', ...(cursor ? { cursor } : {}) });
-    const { data } = await apiRequest<Page<EvaluationCase>>(
-      `/evaluation-datasets/${encodeURIComponent(datasetId)}/versions/${version}/cases?${query}`,
-    );
-    collected.push(...data.items);
-    cursor = data.nextCursor;
-  } while (cursor && collected.length < 120);
-  return collected.slice(0, 120);
 }
 
 function message(error: unknown, fallback: string) {
