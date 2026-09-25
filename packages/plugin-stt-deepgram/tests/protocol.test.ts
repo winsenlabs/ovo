@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { MULAW_8K, type SttEvent, type UsageMeter } from '@winsendotai/ovo-contracts';
+import { Cap, MULAW_8K, type SpeechToText, type SttEvent, type UsageMeter } from '@winsendotai/ovo-contracts';
 import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
+import { compose, definePlugin } from '@winsendotai/ovo-runtime';
 import { DeepgramStt, listenUrl } from '../src/deepgram.ts';
+import { deepgramPlugin } from '../src/index.ts';
+import { deepgramTemplate } from '../src/testing.ts';
 
 const source = 'https://developers.deepgram.com/reference/speech-to-text/listen-streaming';
 const result = (text: string, final: boolean, speechFinal: boolean, fromFinalize = false) =>
@@ -67,5 +70,98 @@ describe('Deepgram documented wire protocol', () => {
     expect(url.searchParams.get('encoding')).toBe('linear16');
     expect(url.searchParams.get('sample_rate')).toBe('16000');
     expect(url.searchParams.getAll('keyterm')).toEqual(['restaurant', 'book a table']);
+  });
+
+  it('renders a separate interim/final/end sequence for every caller say', async () => {
+    const net = createFixtureNet(deepgramTemplate({
+      format: MULAW_8K, language: 'en', sessionId: 'two-says',
+      turns: [{ atMs: 0, say: 'hello' }, { atMs: 1500, say: 'world' }],
+    }));
+    const events: SttEvent[] = [];
+    const stt = new DeepgramStt(net, 'fixture-key');
+    const stream = await stt.start({ sessionId: 'two-says', format: MULAW_8K, language: 'en',
+      signal: new AbortController().signal, onEvent: (event) => events.push(event),
+      onUsage: () => undefined });
+    await stream.write(new Uint8Array(800));
+    await stream.finish();
+    const finals = events.flatMap((event) => event.type === 'transcript' &&
+      event.segment.stability === 'final' ? [event.segment.text] : []);
+    expect(finals).toEqual(['hello', 'world']);
+    expect(events.filter((event) => event.type === 'speech-start')).toHaveLength(2);
+    expect(events.filter((event) => event.type === 'end-of-turn')).toHaveLength(2);
+    net.assertComplete();
+  });
+
+  it('settles a finish aborted after CloseStream, closes, and emits one estimate', async () => {
+    const run = session([
+      { expect: 'ws-send', match: 'binary' },
+      { expect: 'ws-send', match: 'json', where: { type: 'CloseStream' } },
+    ]);
+    const stream = await run.start();
+    await stream.write(new Uint8Array(4000));
+    const controller = new AbortController();
+    const finishing = stream.finish(controller.signal);
+    controller.abort(new DOMException('finish abandoned', 'AbortError'));
+    await expect(finishing).rejects.toThrow('finish abandoned');
+    expect(run.usage).toMatchObject([{ state: 'estimated', quantity: '0.5' }]);
+    expect(run.net.log.filter((entry) => entry.kind === 'ws-close')).toHaveLength(1);
+    run.net.assertComplete();
+  });
+
+  it('settles and meters a failed CloseStream send instead of leaking the socket', async () => {
+    const run = session([{ expect: 'ws-send', match: 'binary' }]);
+    const stream = await run.start();
+    await stream.write(new Uint8Array(4000));
+    await expect(stream.finish()).rejects.toThrow();
+    expect(run.usage).toMatchObject([{ state: 'estimated', quantity: '0.5' }]);
+    expect(run.net.log.filter((entry) => entry.kind === 'ws-close')).toHaveLength(1);
+    expect(run.net.mismatches).toHaveLength(1); // Deliberate bad control frame.
+  });
+
+  it('settles and meters a failed Finalize send', async () => {
+    const run = session([{ expect: 'ws-send', match: 'binary' }]);
+    const stream = await run.start();
+    await stream.write(new Uint8Array(4000));
+    await expect(stream.forceEndpoint?.()).rejects.toThrow();
+    await expect(stream.finish()).rejects.toThrow();
+    expect(run.usage).toMatchObject([{ state: 'estimated', quantity: '0.5' }]);
+    expect(run.net.log.filter((entry) => entry.kind === 'ws-close')).toHaveLength(1);
+    expect(run.net.mismatches).toHaveLength(1);
+  });
+
+  it('composes the v2 provider with a workspace secret and host NetPort', async () => {
+    const net = createFixtureNet(deepgramTemplate({
+      format: MULAW_8K, language: 'en', sessionId: 'composed', turns: [{ atMs: 0, say: 'hello' }],
+    }));
+    const resolved: string[] = [];
+    const host = definePlugin({
+      id: 'fixture-secret-host', version: '0.1.0', contractVersion: 1, scope: 'session',
+      requires: [], provides: [Cap.secrets], configSchema: { type: 'object' }, secretFields: [],
+    }, (ctx) => {
+      ctx.provide(Cap.secrets, { resolve: async (workspace: string, credential: string) => {
+        resolved.push(`${workspace}/${credential}`);
+        return 'fixture-key';
+      } });
+    });
+    const graph = await compose([
+      { id: host.manifest.id },
+      { id: deepgramPlugin.manifest.id, config: {
+        binding: { model: 'nova-3' },
+        credentialRef: { credentialRef: { credentialId: 'cred-1' } },
+      } },
+    ], [host, deepgramPlugin], { scope: 'session', workspaceId: 'w1', net });
+    try {
+      const stt = graph.get(Cap.stt) as SpeechToText;
+      const events: SttEvent[] = [];
+      const stream = await stt.start({ sessionId: 'composed', format: MULAW_8K, language: 'en',
+        signal: new AbortController().signal, onEvent: (event) => events.push(event),
+        onUsage: () => undefined });
+      await stream.write(new Uint8Array(800));
+      await stream.finish();
+      expect(events.some((event) => event.type === 'end-of-turn')).toBe(true);
+      expect(resolved).toEqual(['w1/cred-1']);
+      expect(graph.violations).toEqual([]);
+      net.assertComplete();
+    } finally { await graph.dispose(); }
   });
 });

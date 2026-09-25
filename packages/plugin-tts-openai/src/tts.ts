@@ -73,7 +73,12 @@ export class OpenAiTts implements TextToSpeech {
       once.emit(meters);
     };
     const evenChunks = (bytes: Uint8Array): Uint8Array[] => {
-      const joined = pending === undefined ? bytes : Uint8Array.of(pending, ...bytes);
+      let joined = bytes;
+      if (pending !== undefined) {
+        joined = new Uint8Array(bytes.byteLength + 1);
+        joined[0] = pending;
+        joined.set(bytes, 1);
+      }
       const even = joined.byteLength & ~1;
       pending = even < joined.byteLength ? joined[even] : undefined;
       return even ? [joined.slice(0, even)] : [];
@@ -100,7 +105,7 @@ export class OpenAiTts implements TextToSpeech {
       requestId = response.headers.get('x-request-id') || requestId;
       if (!response.body) throw new Error('OpenAI TTS response has no body');
       if (mini) {
-        for await (const event of sseReader(response.body)) {
+        for await (const event of sseReader(cancelOnEarlyExit(response.body))) {
           input.signal.throwIfAborted();
           const data = JSON.parse(event.data) as Record<string, unknown>;
           if (data.type === 'speech.audio.delta') {
@@ -115,21 +120,35 @@ export class OpenAiTts implements TextToSpeech {
           }
         }
       } else {
-        const reader = response.body.getReader();
-        try {
-          for (;;) {
-            input.signal.throwIfAborted();
-            const { done, value } = await reader.read();
-            if (done) break;
-            receivedBytes += value.byteLength;
-            for (const chunk of evenChunks(value)) yield chunk;
-          }
-        } finally { reader.releaseLock(); }
+        for await (const value of cancelOnEarlyExit(response.body)) {
+          input.signal.throwIfAborted();
+          receivedBytes += value.byteLength;
+          for (const chunk of evenChunks(value)) yield chunk;
+        }
       }
       if (pending !== undefined) throw new Error('OpenAI TTS returned an incomplete PCM sample');
     } finally {
       emit();
     }
+  }
+}
+
+/** A stopped synthesis must cancel the provider body; releaseLock alone leaves it streaming. */
+async function* cancelOnEarlyExit(body: ReadableStream<Uint8Array>): AsyncIterable<Uint8Array> {
+  const reader = body.getReader();
+  let complete = false;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        complete = true;
+        return;
+      }
+      yield value;
+    }
+  } finally {
+    if (!complete) await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
   }
 }
 

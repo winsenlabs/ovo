@@ -62,16 +62,31 @@ export class DeepgramSession implements SttSession {
 
   async forceEndpoint(): Promise<void> {
     this.assertWritable();
-    this.socket.send(JSON.stringify({ type: 'Finalize' }));
+    try {
+      this.socket.send(JSON.stringify({ type: 'Finalize' }));
+    } catch (error) {
+      this.fail(asError(error, 'Deepgram Finalize failed'));
+      throw error;
+    }
   }
 
   async finish(signal?: AbortSignal): Promise<void> {
-    if (signal?.aborted) throw signal.reason;
-    if (!this.finishing && !this.ended) {
-      this.finishing = true;
-      this.socket.send(JSON.stringify({ type: 'CloseStream' }));
+    const abort = () => this.fail(asError(signal?.reason, 'Deepgram finish aborted'));
+    if (signal?.aborted) abort();
+    else signal?.addEventListener('abort', abort, { once: true });
+    try {
+      if (!this.finishing && !this.ended) {
+        this.finishing = true;
+        try {
+          this.socket.send(JSON.stringify({ type: 'CloseStream' }));
+        } catch (error) {
+          this.fail(asError(error, 'Deepgram CloseStream failed'));
+        }
+      }
+      await this.done;
+    } finally {
+      signal?.removeEventListener('abort', abort);
     }
-    await this.done;
   }
 
   async cancel(_reason: string): Promise<void> {
@@ -198,6 +213,9 @@ export class DeepgramSession implements SttSession {
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>) : undefined;
+}
+function asError(value: unknown, fallback: string): Error {
+  return value instanceof Error ? value : new Error(fallback);
 }
 function millis(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0

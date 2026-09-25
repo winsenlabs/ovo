@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { MULAW_8K, PCM16_24K, type UsageMeter } from '@winsendotai/ovo-contracts';
+import { Cap, MULAW_8K, PCM16_24K, type NetPort, type TextToSpeech, type UsageMeter } from '@winsendotai/ovo-contracts';
 import { mulawToPcm16 } from '@winsendotai/ovo-audio';
 import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
+import { compose, definePlugin } from '@winsendotai/ovo-runtime';
 import { adaptTextToSpeech } from '../../session-host/src/speech-adapters/tts-format.ts';
+import { openAiTtsPlugin } from '../src/index.ts';
+import { openAiTtsTemplate } from '../src/testing.ts';
 import { OpenAiTts } from '../src/tts.ts';
 
 const source = 'https://platform.openai.com/docs/api-reference/audio/createSpeech';
@@ -55,6 +58,16 @@ describe('OpenAI TTS documented wire protocol', () => {
     net.assertComplete();
   });
 
+  it('joins a large chunk after a one-byte split without overflowing the stack', async () => {
+    const bytes = new Uint8Array(200_002);
+    for (let i = 0; i < bytes.length; i += 1) bytes[i] = i & 255;
+    const net = netFor('tts-1', [bytes.slice(0, 1), bytes.slice(1)]);
+    const tts = new OpenAiTts(net, 'fixture-key', { model: 'tts-1', voice: 'alloy' });
+    expect(await collect(tts.synthesize({ sessionId: 's1', text: 'Long audio', format: PCM16_24K,
+      language: 'en', signal: new AbortController().signal, onUsage: () => undefined }))).toEqual(bytes);
+    net.assertComplete();
+  });
+
   it('takes mini TTS token usage from speech.audio.done over SSE', async () => {
     const bytes = pcmTone(300, 0.1);
     const event = (value: unknown) => `data: ${JSON.stringify(value)}\n\n`;
@@ -75,6 +88,45 @@ describe('OpenAI TTS documented wire protocol', () => {
     net.assertComplete();
   });
 
+  it.each([429, 500])('surfaces HTTP %i and emits one request-correlated estimate', async (status) => {
+    const net = createFixtureNet([{ host: 'api.openai.com', source, retrieved: '2026-09-25',
+      steps: [{ expect: 'http', method: 'POST', url: speechUrl,
+        headers: { authorization: 'Bearer fixture-key' },
+        reply: { status, body: JSON.stringify({ error: { message: 'fixture refusal' } }) } }] }]);
+    const usage: UsageMeter[] = [];
+    const tts = new OpenAiTts(net, 'fixture-key', { model: 'tts-1', voice: 'alloy' });
+    await expect(collect(tts.synthesize({ sessionId: 's1', text: 'Hello', format: PCM16_24K,
+      language: 'en', signal: new AbortController().signal,
+      onUsage: (meter) => usage.push(meter) }))).rejects.toThrow(`HTTP ${status}`);
+    expect(usage).toMatchObject([{ unit: 'characters', state: 'estimated', requestId: 'openai:s1:1' }]);
+    net.assertComplete();
+  });
+
+  it.each(['tts-1', 'gpt-4o-mini-tts'] as const)('cancels the %s provider body when the consumer stops early', async (model) => {
+    let cancels = 0;
+    const bytes = pcmTone(300, 0.1);
+    const body = model === 'tts-1' ? bytes : new TextEncoder().encode(
+      `data: ${JSON.stringify({ type: 'speech.audio.delta', audio: base64(bytes) })}\n\n`,
+    );
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(body); },
+      cancel() { cancels += 1; },
+    });
+    const net: NetPort = {
+      fetch: async () => new Response(stream, { status: 200 }),
+      websocket: () => { throw new Error('Unexpected websocket'); },
+    };
+    const usage: UsageMeter[] = [];
+    const tts = new OpenAiTts(net, 'fixture-key', { model, voice: 'alloy' });
+    const iterator = tts.synthesize({ sessionId: 's1', text: 'Hello', format: PCM16_24K,
+      language: 'en', signal: new AbortController().signal,
+      onUsage: (meter) => usage.push(meter) })[Symbol.asyncIterator]();
+    expect((await iterator.next()).done).toBe(false);
+    await iterator.return?.();
+    expect(cancels).toBe(1);
+    expect(usage).toHaveLength(model === 'tts-1' ? 1 : 2);
+  });
+
   it('attenuates a 6 kHz alias by at least 60 dB through the real host TTS adapter', async () => {
     const render = async (freq: number) => {
       const net = netFor('tts-1', [pcmTone(freq).slice(0, 101), pcmTone(freq).slice(101)]);
@@ -87,5 +139,38 @@ describe('OpenAI TTS documented wire protocol', () => {
     const reference = amplitude(await render(1000), 8000, 1000);
     const folded = amplitude(await render(6000), 8000, 2000);
     expect(20 * Math.log10(folded / reference)).toBeLessThanOrEqual(-60);
+  });
+
+  it('composes the v2 provider with a workspace secret and host NetPort', async () => {
+    const net = createFixtureNet(openAiTtsTemplate({
+      format: PCM16_24K, language: 'en', sessionId: 'composed', turns: [], agentTexts: ['Hello'],
+    }));
+    const resolved: string[] = [];
+    const host = definePlugin({
+      id: 'fixture-secret-host', version: '0.1.0', contractVersion: 1, scope: 'session',
+      requires: [], provides: [Cap.secrets], configSchema: { type: 'object' }, secretFields: [],
+    }, (ctx) => {
+      ctx.provide(Cap.secrets, { resolve: async (workspace: string, credential: string) => {
+        resolved.push(`${workspace}/${credential}`);
+        return 'fixture-key';
+      } });
+    });
+    const graph = await compose([
+      { id: host.manifest.id },
+      { id: openAiTtsPlugin.manifest.id, config: {
+        binding: { model: 'gpt-4o-mini-tts', voice: 'alloy' },
+        credentialRef: { credentialRef: { credentialId: 'cred-1' } },
+      } },
+    ], [host, openAiTtsPlugin], { scope: 'session', workspaceId: 'w1', net });
+    try {
+      const tts = graph.get(Cap.tts) as TextToSpeech;
+      const audio = await collect(tts.synthesize({ sessionId: 'composed', text: 'Hello',
+        format: PCM16_24K, language: 'en', signal: new AbortController().signal,
+        onUsage: () => undefined }));
+      expect(audio.byteLength).toBeGreaterThan(0);
+      expect(resolved).toEqual(['w1/cred-1']);
+      expect(graph.violations).toEqual([]);
+      net.assertComplete();
+    } finally { await graph.dispose(); }
   });
 });

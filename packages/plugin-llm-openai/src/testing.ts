@@ -10,13 +10,46 @@ function firstWrite(input: Parameters<FixtureTemplate>[0]) {
   return tool;
 }
 
+function sampleFor(schema: Record<string, unknown>): unknown {
+  if ('const' in schema) return schema.const;
+  if (Array.isArray(schema.enum) && schema.enum.length) return schema.enum[0];
+  const alternative = (schema.oneOf ?? schema.anyOf) as Record<string, unknown>[] | undefined;
+  if (Array.isArray(alternative) && alternative.length) return sampleFor(alternative[0]!);
+  switch (schema.type) {
+    case 'object': {
+      const properties = (schema.properties ?? {}) as Record<string, Record<string, unknown>>;
+      const required = Array.isArray(schema.required) ? schema.required as string[] : [];
+      return Object.fromEntries(required.map((key) => [key, sampleFor(properties[key] ?? {})]));
+    }
+    case 'array': {
+      const item = (schema.items ?? {}) as Record<string, unknown>;
+      const count = typeof schema.minItems === 'number' ? Math.max(0, schema.minItems) : 0;
+      return Array.from({ length: count }, () => sampleFor(item));
+    }
+    case 'integer':
+    case 'number': {
+      const minimum = typeof schema.minimum === 'number' ? schema.minimum : 1;
+      const exclusive = typeof schema.exclusiveMinimum === 'number' ? schema.exclusiveMinimum : undefined;
+      const step = typeof schema.multipleOf === 'number' && schema.multipleOf > 0 ? schema.multipleOf : 1;
+      const bound = Math.max(minimum, exclusive === undefined ? minimum : exclusive + step);
+      return schema.type === 'integer' ? Math.ceil(bound / step) * step : bound;
+    }
+    case 'boolean': return true;
+    case 'null': return null;
+    default: {
+      if (schema.format === 'email') return 'fixture@example.com';
+      if (schema.format === 'uuid') return '00000000-0000-4000-8000-000000000000';
+      const length = typeof schema.minLength === 'number' ? Math.max(1, schema.minLength) : 1;
+      return 'x'.repeat(length);
+    }
+  }
+}
+
 function schemaInput(schema: Record<string, unknown>): Record<string, unknown> {
-  const properties = (schema.properties ?? {}) as Record<string, Record<string, unknown>>;
-  const required = Array.isArray(schema.required) ? schema.required as string[] : [];
-  return Object.fromEntries(required.map((key) => [
-    key,
-    properties[key]?.type === 'integer' || properties[key]?.type === 'number' ? 2 : 'seven',
-  ]));
+  const input = sampleFor(schema);
+  if (!input || typeof input !== 'object' || Array.isArray(input))
+    throw new TypeError('OpenAI write-tool fixture requires an object input schema');
+  return input as Record<string, unknown>;
 }
 
 function reply(output: unknown[], index: number): string {
