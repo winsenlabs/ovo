@@ -5700,14 +5700,19 @@
             "streamEndTerminatesCall": {
               "const": true,
               "description": "Confirm carrier stream behavior"
-            },
-            "token": {
-              "type": "string"
             }
           },
           "required": [
             "streamEndTerminatesCall"
           ]
+        },
+        "configSchema": {
+          "type": "object",
+          "properties": {
+            "token": {
+              "type": "object"
+            }
+          }
         },
         "secretFields": [
           "/token"

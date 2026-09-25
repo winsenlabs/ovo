@@ -76,7 +76,7 @@ describe('console form and plugin primitives', () => {
     expect(onChange).toHaveBeenCalledWith(['one', 'two']);
   });
 
-  it('renders a required const attestation and write-only secret control', () => {
+  it('renders a required const attestation and write-only secret control', async () => {
     const onSecret = vi.fn();
     render(<SchemaForm plugin={{ id: 'carrier', version: '1.0.0', kind: 'carrier', available: true, secretFields: ['/token'] }}
       schema={{ properties: { streamEndTerminatesCall: { const: true }, token: { type: 'string' } }, required: ['streamEndTerminatesCall'] }}
@@ -90,7 +90,7 @@ describe('console form and plugin primitives', () => {
     fireEvent.change(secret, { target: { value: 'new-secret' } });
     fireEvent.blur(secret);
     expect(onSecret).toHaveBeenCalledWith('/token', 'new-secret');
-    expect(secret.value).toBe('');
+    await waitFor(() => expect(secret.value).toBe(''));
   });
 
   it('keeps an incompatible plugin visible with a linked reason', async () => {

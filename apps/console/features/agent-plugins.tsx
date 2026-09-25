@@ -1,11 +1,12 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { apiRequest, ifMatch, items, normalizeDraft, type AgentDraft, type CredentialMetadata, type ProviderBinding } from '../lib/api';
 import { SlotPicker } from '../components/plugins/slot-picker';
 import { BindingSelect } from '../components/plugins/binding-select';
 import { SchemaForm } from '../components/plugins/schema-form';
 import { CompatSummary } from '../components/plugins/compat-summary';
 import type { AgentVoice, CompatIssue, PluginCatalog, Slot } from '../components/plugins/types';
+import type { PluginOption } from '../components/plugins/types';
 import { useSession } from '../components/shell/session-provider';
 import { PageHeader } from '../components/ui/layout';
 import { Callout } from '../components/ui/feedback';
@@ -46,6 +47,31 @@ export function AgentPluginsFeature({ agentId }: { agentId: string }) {
     return () => { active = false; };
   }, [draft?.config.mode, draft?.config.language, voiceKey]);
   const updateVoice = (next: AgentVoice) => setDraft(current => current && { ...current, config: { ...current.config, voice: next } });
+  async function saveSecret(slot: Slot, plugin: PluginOption, pointer: string, value: string) {
+    if (!plugin.provider) throw new Error('This plugin cannot own a credential without a provider.');
+    setError(undefined);
+    try {
+      const { data } = await apiRequest<CredentialMetadata>('/credentials', { method: 'POST', body: JSON.stringify({
+        label: `${plugin.ui?.label ?? plugin.id} ${pointer.slice(1)} credential`, provider: plugin.provider,
+        type: plugin.kind, environment: 'production', value, permittedAgentIds: [],
+      }) });
+      if (!data.id) throw new Error('Credential response omitted its id.');
+      setCredentials(current => [...current, data]);
+      setDraft(current => {
+        if (!current) return current;
+        const previousVoice = current.config.voice ?? emptyVoice();
+        const selection = previousVoice[slot];
+        if (!selection || selection.plugin !== plugin.id) return current;
+        const nextVoice = { ...previousVoice, [slot]: { ...selection, config: {
+          ...(selection.config ?? {}), [pointer.slice(1)]: { credentialRef: { credentialId: data.id } },
+        } } };
+        return { ...current, config: { ...current.config, voice: nextVoice } };
+      });
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Credential could not be saved');
+      throw failure;
+    }
+  }
   async function save() {
     if (!draft) return;
     setSaving(true); setError(undefined);
@@ -64,12 +90,14 @@ export function AgentPluginsFeature({ agentId }: { agentId: string }) {
       return <section className="panel" id={`slot-${slot}`} key={slot}><div className="panel-body ui-stack">
         <SlotPicker slot={slot} plugins={catalog.plugins} voice={voice} mode={draft.config.mode} language={draft.config.language} value={choice?.plugin}
           onChange={pluginId => updateVoice({ ...voice, [slot]: { plugin: pluginId, config: {} } })} />
-        {plugin && <><BindingSelect plugin={plugin} value={choice?.binding} bindings={bindings} credentials={credentials}
+        {plugin && <Fragment key={plugin.id}><BindingSelect plugin={plugin} value={choice?.binding} bindings={bindings} credentials={credentials}
           onChange={binding => updateVoice({ ...voice, [slot]: { ...choice!, binding } })}
-          onCreated={binding => setBindings(current => [...current, binding])} />
-          <SchemaForm plugin={plugin} schema={plugin.configSchema} value={choice?.config ?? {}}
-            onChange={config => updateVoice({ ...voice, [slot]: { ...choice!, config } })} />
-        </>}
+          onCreated={binding => setBindings(current => [...current, binding])}
+          onCredentialCreated={credential => setCredentials(current => [...current, credential])} />
+          <SchemaForm plugin={plugin} schema={plugin.configSchema} value={choice?.config ?? {}} credentials={credentials}
+            onChange={config => updateVoice({ ...voice, [slot]: { ...choice!, config } })}
+            onSecret={(pointer, secret) => saveSecret(slot, plugin, pointer, secret)} />
+        </Fragment>}
       </div></section>;
     })}
     <CompatSummary issues={issues} voice={voice} onChange={updateVoice} />

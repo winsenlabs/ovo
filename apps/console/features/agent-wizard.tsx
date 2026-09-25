@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AgentVoice, Slot } from '@winsendotai/ovo-contracts';
 import { apiRequest, emptyAgentConfig, ifMatch, normalizeDraft, type AgentConfig } from '../lib/api';
@@ -7,6 +7,9 @@ import { SlotPicker } from '../components/plugins/slot-picker';
 import type { PluginCatalog } from '../components/plugins/types';
 import { useSession } from '../components/shell/session-provider';
 import { PageHeader } from '../components/ui/layout';
+import { useResource } from '../lib/data/use-resource';
+import { useMutation } from '../lib/data/use-mutation';
+import { resources } from '../lib/data/resources';
 
 const wizardSlots: Slot[] = ['engine', 'carrier', 'stt', 'tts', 'llm', 'vad', 'turnDetector'];
 const modes: { id: AgentConfig['mode']; label: string; description: string }[] = [
@@ -18,26 +21,25 @@ const modes: { id: AgentConfig['mode']; label: string; description: string }[] =
 export function AgentWizardFeature() {
   const router = useRouter();
   const identity = useSession();
+  const workspaceKey = identity.workspaceId ?? identity.workspace?.id ?? identity.id ?? identity.email ?? 'unknown';
+  const catalogResource = useResource(`plugins:${workspaceKey}`, resources.plugins);
+  const catalog: PluginCatalog = catalogResource.status === 'ready' ? catalogResource.data : { plugins: [] };
+  const invalidates = useMemo(() => [`agents:${workspaceKey}`], [workspaceKey]);
   const [step, setStep] = useState(0);
   const [config, setConfig] = useState<AgentConfig>(() => emptyAgentConfig());
-  const [catalog, setCatalog] = useState<PluginCatalog>({ plugins: [] });
-  const [error, setError] = useState<string>();
-  const [saving, setSaving] = useState(false);
-  useEffect(() => { void apiRequest<PluginCatalog>('/plugins').then(({ data }) => setCatalog(data)).catch(failure => setError(failure instanceof Error ? failure.message : 'Plugins unavailable')); }, []);
   const voice: AgentVoice = config.voice ?? { textFilters: [], acknowledgements: [] };
-  async function create() {
-    setSaving(true); setError(undefined);
-    try {
-      const initial = await apiRequest<unknown>('/agents', { method: 'POST', body: JSON.stringify({ config: emptyAgentConfig() }) });
-      const draft = normalizeDraft(initial.data, initial.etag);
-      await apiRequest(`/agents/${encodeURIComponent(draft.id)}`, { method: 'PUT', headers: { 'if-match': ifMatch(draft.draftVersion) }, body: JSON.stringify({ config }) });
-      router.push(`/agents/${encodeURIComponent(draft.id)}/plugins`);
-    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Agent could not be created'); }
-    finally { setSaving(false); }
-  }
+  const createAgent = useCallback(async (next: AgentConfig) => {
+    const initial = await apiRequest<unknown>('/agents', { method: 'POST', body: JSON.stringify({ config: emptyAgentConfig() }) });
+    const draft = normalizeDraft(initial.data, initial.etag);
+    await apiRequest(`/agents/${encodeURIComponent(draft.id)}`, { method: 'PUT', headers: { 'if-match': ifMatch(draft.draftVersion) }, body: JSON.stringify({ config: next }) });
+    return draft.id;
+  }, []);
+  const createMutation = useMutation(createAgent, invalidates);
+  async function create() { try { const id = await createMutation.run(config); router.push(`/agents/${encodeURIComponent(id)}/plugins`); } catch { /* The mutation exposes its error. */ } }
   return <div className="ui-stack"><PageHeader eyebrow="Create agent" title="New voice agent" description="Name the agent, choose installed plugins, then add the behavior essentials." />
     <ol className="ui-cluster" aria-label="Wizard progress"><li aria-current={step === 0 ? 'step' : undefined}>1 · Basics</li><li aria-current={step === 1 ? 'step' : undefined}>2 · Plugins</li><li aria-current={step === 2 ? 'step' : undefined}>3 · Behavior</li></ol>
-    {error && <p role="alert">{error}</p>}
+    {catalogResource.status === 'error' && <p role="alert">{catalogResource.error}</p>}
+    {createMutation.error && <p role="alert">{createMutation.error}</p>}
     {step === 0 && <section className="panel panel-body ui-stack"><label>Name<input value={config.name} onChange={event => setConfig(current => ({ ...current, name: event.target.value }))} required /></label>
       <label>Language<input value={config.language} onChange={event => setConfig(current => ({ ...current, language: event.target.value, locale: event.target.value }))} required /></label>
       <fieldset><legend>Mode</legend><div className="slot-cards">{modes.map(mode => <label key={mode.id} className="slot-card"><input type="radio" name="mode" checked={config.mode === mode.id} onChange={() => setConfig(current => ({ ...current, mode: mode.id }))} /><span><strong>{mode.label}</strong><small>{mode.description}</small></span></label>)}</div></fieldset>
@@ -51,7 +53,7 @@ export function AgentWizardFeature() {
       <label className="toggle-row"><input type="checkbox" checked={config.recording} onChange={event => setConfig(current => ({ ...current, recording: event.target.checked }))} />Record calls under the configured policy</label>
     </section>}
     <div className="ui-cluster">{step > 0 && <button className="button" type="button" onClick={() => setStep(step - 1)}>Back</button>}
-      {step < 2 ? <button className="button primary" type="button" onClick={() => setStep(step + 1)}>Continue</button> : <button className="button primary" type="button" disabled={saving || identity.role === 'viewer' || !config.name.trim()} onClick={() => void create()}>{saving ? 'Creating…' : 'Create agent'}</button>}
+      {step < 2 ? <button className="button primary" type="button" onClick={() => setStep(step + 1)}>Continue</button> : <button className="button primary" type="button" disabled={createMutation.pending || identity.role === 'viewer' || !config.name.trim()} onClick={() => void create()}>{createMutation.pending ? 'Creating…' : 'Create agent'}</button>}
     </div>
   </div>;
 }

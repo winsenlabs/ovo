@@ -70,6 +70,33 @@ describe('console data surfaces', () => {
     expect(screen.getByTestId('ids').textContent).toBe('');
   });
 
+  it('clears a successful page when the next cursor request fails', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (path.includes('cursor=page-2')) throw new Error('Next page unavailable');
+      return { data: { items: [{ id: 'first' }], nextCursor: 'page-2' } };
+    });
+    const view = render(<Pages />);
+    await waitFor(() => expect(screen.getByTestId('ids').textContent).toBe('first'));
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    view.rerender(<Pages />);
+    await waitFor(() => expect(screen.getByTestId('state').textContent).toBe('error'));
+    expect(screen.getByTestId('ids').textContent).toBe('');
+  });
+
+  it('ignores an old page response after a newer cursor request fails', async () => {
+    let finishOld!: (value: { data: { items: { id: string }[] } }) => void;
+    request.mockImplementation((path: string) => path.includes('cursor=page-2')
+      ? Promise.reject(new Error('Next page unavailable'))
+      : new Promise(resolve => { finishOld = resolve; }));
+    const view = render(<Pages />);
+    nav.search = 'cursor=page-2';
+    view.rerender(<Pages />);
+    await waitFor(() => expect(screen.getByTestId('state').textContent).toBe('error'));
+    await act(async () => { finishOld({ data: { items: [{ id: 'old-row' }] } }); });
+    expect(screen.getByTestId('state').textContent).toBe('error');
+    expect(screen.getByTestId('ids').textContent).toBe('');
+  });
+
   function Stream() {
     const state = useEventStream<{ text?: string }>('/api/v1/calls/call-1/stream', 1000);
     return <><span data-testid="stream-status">{state.status}</span>
@@ -89,6 +116,28 @@ describe('console data surfaces', () => {
     expect(screen.getByTestId('stream-status').textContent).toBe('stale');
     act(() => { vi.advanceTimersByTime(1000); });
     expect(FakeEventSource.sources[1]?.url).toBe('/api/v1/calls/call-1/stream?cursor=7');
+  });
+
+  it('starts a new call without the previous call cursor or transcript', () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    function CallStream({ callId }: { callId: string }) {
+      const state = useEventStream<{ text: string }>(`/api/v1/calls/${callId}/stream`, 1000);
+      return <><span data-testid="stream-status">{state.status}</span>
+        <span data-testid="stream-events">{state.events.map(event => event.text).join(',')}</span></>;
+    }
+    const view = render(<CallStream callId="call-A" />);
+    const first = FakeEventSource.sources[0]!;
+    act(() => { first.onopen?.(); first.emit('transcript', { text: 'A transcript' }, 'event-A'); });
+    expect(screen.getByTestId('stream-events').textContent).toBe('A transcript');
+
+    view.rerender(<CallStream callId="call-B" />);
+    expect(first.closed).toBe(true);
+    const second = FakeEventSource.sources[1]!;
+    expect(second.url).toBe('/api/v1/calls/call-B/stream');
+    expect(screen.getByTestId('stream-events').textContent).toBe('');
+    expect(screen.getByTestId('stream-status').textContent).toBe('connecting');
+    act(() => { first.emit('transcript', { text: 'late A transcript' }, 'late-A'); second.emit('transcript', { text: 'B transcript' }, 'event-B'); });
+    expect(screen.getByTestId('stream-events').textContent).toBe('B transcript');
   });
 
   it('uses heartbeat liveness and closes the stream on unmount', () => {
