@@ -108,6 +108,19 @@ describe('Deepgram documented wire protocol', () => {
     run.net.assertComplete();
   });
 
+  it('does not send CloseStream when finish receives an already-aborted signal', async () => {
+    const run = session([{ expect: 'ws-send', match: 'binary' }]);
+    const stream = await run.start();
+    await stream.write(new Uint8Array(4000));
+    const controller = new AbortController();
+    controller.abort(new DOMException('already stopped', 'AbortError'));
+    await expect(stream.finish(controller.signal)).rejects.toThrow('already stopped');
+    expect(run.net.log.filter((entry) => entry.kind === 'ws-out').map((entry) => entry.data))
+      .toEqual([new Uint8Array(4000)]);
+    expect(run.usage).toMatchObject([{ state: 'estimated', quantity: '0.5' }]);
+    run.net.assertComplete();
+  });
+
   it('settles and meters a failed CloseStream send instead of leaking the socket', async () => {
     const run = session([{ expect: 'ws-send', match: 'binary' }]);
     const stream = await run.start();

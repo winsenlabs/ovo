@@ -1,4 +1,4 @@
-import { type FixtureTemplate, type NetFixtureScript } from '@winsendotai/ovo-contracts';
+import { MULAW_8K, type FixtureTemplate, type NetFixtureScript } from '@winsendotai/ovo-contracts';
 
 const ID = '@winsendotai/ovo-provider-openai-inference';
 const SOURCE = 'https://platform.openai.com/docs/api-reference/responses';
@@ -109,5 +109,14 @@ export const openAiStreamTemplate: FixtureTemplate = (input): NetFixtureScript[]
   }];
 };
 
-export const fixtures: Record<string, NetFixtureScript[]> = {};
+export const fixtures: Record<string, NetFixtureScript[]> = {
+  [ID]: openAiStreamTemplate({
+    format: MULAW_8K, language: 'en', sessionId: 'fixture',
+    turns: [{ atMs: 0, say: 'Book a table' }],
+    tools: [{ id: 'book_table', effect: 'write', inputSchema: {
+      type: 'object', required: ['party', 'time'], additionalProperties: false,
+      properties: { party: { type: 'integer', minimum: 1 }, time: { type: 'string', minLength: 1 } },
+    } }],
+  }),
+};
 export const fixtureTemplates: Record<string, FixtureTemplate> = { [ID]: openAiStreamTemplate };

@@ -5,7 +5,7 @@ import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
 import { compose, definePlugin } from '@winsendotai/ovo-runtime';
 import { openAiInferencePlugin } from '../src/index.ts';
 import { openAiInference } from '../src/inference.ts';
-import { openAiGenerateTemplate, openAiStreamTemplate } from '../src/testing.ts';
+import { fixtures, openAiGenerateTemplate, openAiStreamTemplate } from '../src/testing.ts';
 
 const wireTool: ToolDefinition = {
   id: 'book_slot', description: 'Book a slot', connector: 'native', effect: 'write',
@@ -93,4 +93,23 @@ it('composes the v2 provider, resolves its workspace credential, and uses the ho
     expect(graph.violations).toEqual([]);
     expect(net.mismatches).toEqual([]);
   } finally { await graph.dispose(); }
+});
+
+it('ships a representative two-turn fixture that produces a valid write-tool call', async () => {
+  const id = '@winsendotai/ovo-provider-openai-inference';
+  const script = fixtures[id];
+  expect(script).toHaveLength(1);
+  const net = createFixtureNet(script!);
+  const tool: ToolDefinition = {
+    ...wireTool, id: 'book_table', inputSchema: {
+      type: 'object', required: ['party', 'time'], additionalProperties: false,
+      properties: { party: { type: 'integer', minimum: 1 }, time: { type: 'string', minLength: 1 } },
+    },
+  };
+  const inference = openAiInference(net, 'fixture-key', { model: 'gpt-4o-mini' });
+  const first = [];
+  for await (const event of inference.stream({ ...request, tools: [tool] })) first.push(event);
+  expect(first).toContainEqual({ kind: 'tool', toolId: 'book_table', input: { party: 1, time: 'x' } });
+  expect(net.pending()).toHaveLength(1); // The text reply is the next turn.
+  expect(net.mismatches).toEqual([]);
 });
