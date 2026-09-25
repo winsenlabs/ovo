@@ -97,6 +97,7 @@ export class WorkerSessionTelemetry {
   }
 
   engineEvent(event: EngineEvent): void {
+    const observedAtMs = Date.now();
     const copy = structuredClone(event);
     if (copy.type === 'user.transcript' || copy.type === 'agent.transcript')
       copy.text = boundedEvidenceText(copy.text, this.maxTextCharacters).value;
@@ -104,7 +105,7 @@ export class WorkerSessionTelemetry {
       copy.spokenPrefix = boundedEvidenceText(copy.spokenPrefix, this.maxTextCharacters).value;
     if (copy.type === 'speech')
       copy.evidence.text = boundedEvidenceText(copy.evidence.text, this.maxTextCharacters).value;
-    this.audit('engine.event', { event: copy });
+    this.audit('engine.event', { event: copy, atMs: observedAtMs });
   }
 
   attachScheduler(scheduler: SchedulerEvidenceSource): () => void {
@@ -197,7 +198,15 @@ export class WorkerSessionTelemetry {
     return this.adapter.startStage(input);
   }
 
-  async close(reason: EndReason): Promise<void> {
+  close(reason: EndReason): Promise<void>;
+  close(legacyOutcome: 'ended' | 'failed', reason: EndReason): Promise<void>;
+  async close(
+    outcomeOrReason: EndReason | 'ended' | 'failed',
+    legacyReason?: EndReason,
+  ): Promise<void> {
+    // The two-argument worker call site is retained for the C2 lifecycle seam.
+    // The typed reason remains the only source of truth for the persisted outcome.
+    const reason = legacyReason ?? (outcomeOrReason as EndReason);
     if (this.closed) return;
     this.closed = true;
     for (const unsubscribe of this.detach) {

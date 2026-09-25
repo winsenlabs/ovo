@@ -4,6 +4,7 @@ export * from './recording-codec.ts';
 export * from './event-row.ts';
 export * from './usage-pricing.ts';
 export * from './latest-release.ts';
+export * from './request.ts';
 export * from './egress.ts';
 
 // A host library, deliberately not a distribution plugin.

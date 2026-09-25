@@ -150,7 +150,9 @@ function fixtureEngine(attemptEgress = false) {
                   await media.sendAudio(audio);
                 await media.mark('agent-1');
                 await finish('behavior_completed');
-              })();
+              })().catch(() => {
+                void finish('error:tts');
+              });
             },
           });
           media.onAudio((bytes) => {

@@ -1,9 +1,11 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { Cap } from '@winsendotai/ovo-contracts';
 import {
+  callerScriptFitsWallTimeout,
   fixtureEventAudit,
+  fixtureRequestFingerprint,
   latestFixtureRelease,
   persistFixtureUsage,
 } from '@winsendotai/ovo-fixture-calls';
@@ -64,6 +66,12 @@ export function registerTestCallRoutes(input: TestCallDependencies): void {
       if (!runtime.enabled) return reply.code(404).send({ code: 'fixture_calls_disabled' });
       const { id: agentId } = Params.parse(request.params);
       const body = Body.parse(request.body ?? {});
+      if (
+        body.callerScript &&
+        body.callerScript !== 'default' &&
+        !callerScriptFitsWallTimeout(body.callerScript, runtime.wallTimeoutMs)
+      )
+        return reply.code(422).send({ code: 'caller_script_exceeds_timeout' });
       const agent = await input.store.getAgent(principal.workspaceId, agentId);
       if (!agent) return reply.code(404).send({ code: 'not_found', message: 'Agent not found' });
       const key = request.headers['idempotency-key'];
@@ -72,15 +80,7 @@ export function registerTestCallRoutes(input: TestCallDependencies): void {
       const callId = key
         ? idempotentFixtureCallId(principal.workspaceId, agentId, key)
         : randomUUID();
-      const fingerprint = createHash('sha256')
-        .update(
-          JSON.stringify({
-            useDraft: body.useDraft,
-            releaseId: body.releaseId ?? 'latest',
-            callerScript: body.callerScript ?? 'default',
-          }),
-        )
-        .digest('hex');
+      const fingerprint = fixtureRequestFingerprint(body);
       const existing = await input.store.getCall(principal.workspaceId, callId);
       if (existing)
         return existingCall(input.store, principal.workspaceId, existing, fingerprint, reply);

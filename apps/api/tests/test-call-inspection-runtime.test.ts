@@ -45,6 +45,7 @@ describe('fixture test-call inspection', () => {
         sequence: 2,
         type: 'engine.event',
         payload: {
+          atMs: Date.parse(createdAt) + 995,
           event: {
             type: 'user.turn',
             turnId: 'turn-1',
@@ -103,7 +104,13 @@ describe('fixture test-call inspection', () => {
           outcome: { outcome: 'completed', reason: 'behavior_completed' },
         },
       },
-    ].map((row) => ({ ...row, id: `event-${row.sequence}`, callId, at: createdAt, epoch: 0 }));
+    ].map((row) => ({
+      ...row,
+      id: `event-${row.sequence}`,
+      callId,
+      at: new Date(Date.parse(createdAt) + 1_500).toISOString(),
+      epoch: 0,
+    }));
     const store = {
       getCall: vi.fn(async () => ({
         id: callId,
@@ -151,8 +158,8 @@ describe('fixture test-call inspection', () => {
           {
             turnId: 'turn-1',
             measuredFrom: 'user_silence',
-            durationMs: 1200,
-            parts: [{ ms: 1000 }, { ms: 200 }],
+            durationMs: 205,
+            parts: [{ ms: 5 }, { ms: 200 }],
           },
         ],
         cost: { estimatedPaise: null, reconciledPaise: null, unpriced: ['fixture.tts.characters'] },
@@ -320,5 +327,46 @@ describe('fixture test-call inspection', () => {
     ]);
     expect(outcome).toContain('wall timeout');
     expect(runtime.activeCount).toBe(0);
+  });
+  it('refuses a caller script that cannot finish before the child wall deadline', async () => {
+    const app = Fastify();
+    const createCall = vi.fn(async () => undefined);
+    registerTestCallRoutes({
+      app,
+      store: {
+        getAgent: async () => ({ id: agentId, workspaceId: 'workspace' }),
+        getCall: async () => undefined,
+        getRelease: async () => ({
+          id: releaseId,
+          agentId,
+          config: { language: 'en-IN' },
+        }),
+        createCall,
+        appendCallEvent: async () => undefined,
+        finishCall: async () => undefined,
+      } as unknown as ControlStore,
+      requireRole: () => ({ workspaceId: 'workspace' }) as never,
+      testCallRuntime: new TestCallRuntime({
+        enabled: true,
+        execute: async () => {
+          throw new Error('impossible script reached the child');
+        },
+      }),
+    });
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: `/v1/agents/${agentId}/test-calls`,
+        payload: {
+          releaseId,
+          callerScript: { turns: [{ atMs: 120_000, silenceMs: 120_000 }] },
+        },
+      });
+      expect(response.statusCode, response.body).toBe(422);
+      expect(response.json().code).toBe('caller_script_exceeds_timeout');
+      expect(createCall).not.toHaveBeenCalled();
+    } finally {
+      await app.close();
+    }
   });
 });

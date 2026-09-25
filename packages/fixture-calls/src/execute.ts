@@ -7,9 +7,9 @@ import {
   type VoiceSessionEngine,
 } from '@winsendotai/ovo-contracts';
 import { createFakeCarrier, speechBytes } from '@winsendotai/ovo-conformance/drivers';
-import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
 import { compose, type ParentView } from '@winsendotai/ovo-runtime';
 import { selectSessionGraph } from '@winsendotai/ovo-session-host';
+import { deferredTtsNet } from './deferred-tts-net.ts';
 import { selectFixtureScripts } from './fixture-scripts.ts';
 import { fixtureExtensions, fixtureHostService } from './host-service.ts';
 import type { FixtureCallInput, FixtureCallResult, FixtureRecordingWriter } from './types.ts';
@@ -74,7 +74,7 @@ export async function executeFixtureCall(
   const usage: FixtureCallResult['usage'] = [];
   const callbacks: Promise<unknown>[] = [];
   const writes: Promise<void>[] = [];
-  const net = createFixtureNet(fixture.scripts, { clock });
+  const net = deferredTtsNet(fixture.scripts, fixture.ttsTemplate, clock);
   const ingress = input.carrier.ingress;
   const codec = ingress.serializer.createSession({});
   const fake = createFakeCarrier({
@@ -134,6 +134,7 @@ export async function executeFixtureCall(
     throw new Error('Selected fixture engine does not expose the v2 session contract');
   }
   const off = engine.subscribe((event) => {
+    if (event.type === 'agent.transcript' && event.state === 'generated') net.generated(event.text);
     const row = { seq: events.length + 1, atMs: clock.now(), event };
     events.push(row);
     const pending = input.telemetry?.onEvent?.(row);

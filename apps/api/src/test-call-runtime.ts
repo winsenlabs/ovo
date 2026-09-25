@@ -65,9 +65,11 @@ export function idempotentFixtureCallId(workspaceId: string, agentId: string, ke
 export class TestCallRuntime {
   private active = 0;
   readonly enabled: boolean;
+  readonly wallTimeoutMs: number;
 
   constructor(private readonly options: TestCallRuntimeOptions = {}) {
     this.enabled = fixtureCallsEnabled(options);
+    this.wallTimeoutMs = options.wallTimeoutMs ?? 120_000;
   }
 
   get activeCount(): number {
@@ -153,7 +155,7 @@ export class TestCallRuntime {
       };
       const timeout = setTimeout(
         () => settle(new Error('Fixture call exceeded the 120 second wall timeout')),
-        this.options.wallTimeoutMs ?? 120_000,
+        this.wallTimeoutMs,
       );
       child.on('message', (value: FixtureChildMessage) => {
         if (!value || typeof value !== 'object') return;

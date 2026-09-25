@@ -7,6 +7,7 @@ import {
   fixtureInboundFrame,
   fixtureLlmPlugin,
   fixtureSttPlugin,
+  fixtureTtsPlugin,
   FIXTURE_STT_CAPABILITIES,
   withEgressSentinel,
 } from '@winsendotai/ovo-conformance/drivers';
@@ -131,6 +132,53 @@ describe('runFixtureCall', () => {
     ).toThrow(/fixture_unavailable/);
   });
 
+  it.each([
+    ['missing generated text', ['A predicted turn the engine never speaks.']],
+    ['surplus guessed text', ['Fixture answer.', 'A predicted turn the engine never speaks.']],
+  ])('replays a selected TTS template with %s', async (_case, agentTexts) => {
+    const base = input();
+    const selectedTts = definePlugin(
+      {
+        ...fixtureTtsPlugin.manifest,
+        id: 'selected-tts-template',
+        kind: 'tts',
+        provider: 'selected',
+        conformance: ['tts@1'],
+        meters: [
+          { key: 'selected.tts.characters', unit: 'characters', label: 'Speech', role: 'tts' },
+        ],
+      } as never,
+      (ctx, config) => fixtureTtsPlugin.apply(ctx as never, config),
+    );
+    const clock = new FakeClock();
+    const call = runFixtureCall({
+      ...base,
+      clock,
+      registry: new PluginRegistry([...base.registry.list(), selectedTts]),
+      fixtureTemplates: {
+        ...base.fixtureTemplates,
+        [selectedTts.manifest.id]: base.fixtureTemplates[fixtureTtsPlugin.manifest.id]!,
+      },
+      release: {
+        ...base.release,
+        selections: {
+          ...base.release.selections,
+          tts: {
+            pluginId: selectedTts.manifest.id,
+            version: selectedTts.manifest.version,
+            bindingId: 'env',
+            config: {},
+          },
+        },
+      },
+      agentTexts,
+    });
+    await clock.advanceAsync(0);
+    const result = await call.done;
+    expect(result.outcome.outcome).toBe('completed');
+    expect(result.selections.tts?.id).toBe(selectedTts.manifest.id);
+  });
+
   it('falls back to the conformance STT only after the selected provider has no fixture', async () => {
     const base = input();
     const selectedStt = definePlugin(
@@ -253,11 +301,84 @@ describe('runFixtureCall', () => {
     expect(live).not.toHaveBeenCalled();
   });
 
-  it('exposes an inbound-frame helper only for the conformance carrier', () => {
+  it('resolves an inbound-frame helper from the selected vendor ingress', () => {
     expect(fixtureCarrierInboundFrame(fixtureCarrierIngress())).toBe(fixtureInboundFrame);
+    let nextSession = 0;
+    const vendor = {
+      ...fixtureCarrierIngress(),
+      carrierId: 'vendor-fixture',
+      createFixtureFrameEncoder: () => {
+        const session = ++nextSession;
+        return (event: Parameters<typeof fixtureInboundFrame>[0]) =>
+          `vendor:${session}:${fixtureInboundFrame(event)}`;
+      },
+    };
+    const first = fixtureCarrierInboundFrame(vendor);
+    const second = fixtureCarrierInboundFrame(vendor);
+    expect(first).toBeTypeOf('function');
+    expect(first?.({ type: 'connected' })).toBe(
+      `vendor:1:${fixtureInboundFrame({ type: 'connected' })}`,
+    );
+    expect(second?.({ type: 'connected' })).toBe(
+      `vendor:2:${fixtureInboundFrame({ type: 'connected' })}`,
+    );
     expect(
       fixtureCarrierInboundFrame({ ...fixtureCarrierIngress(), carrierId: 'other' }),
     ).toBeUndefined();
+  });
+
+  it('drives a selected vendor serializer with its own inbound wire frames', async () => {
+    const base = input();
+    const reference = fixtureCarrierIngress();
+    let decodedVendorFrames = 0;
+    const ingress = {
+      ...reference,
+      carrierId: 'vendor-fixture',
+      capabilities: { ...reference.capabilities, carrierId: 'vendor-fixture' },
+      serializer: {
+        ...reference.serializer,
+        createSession(params: Record<string, string>) {
+          const codec = reference.serializer.createSession(params);
+          return {
+            decode(frame: string) {
+              if (!frame.startsWith('vendor:')) throw new Error('vendor frame prefix is missing');
+              decodedVendorFrames++;
+              return codec.decode(frame.slice('vendor:'.length));
+            },
+            encode: codec.encode.bind(codec),
+            flush: codec.flush.bind(codec),
+          };
+        },
+      },
+      createFixtureFrameEncoder: () => (event: Parameters<typeof fixtureInboundFrame>[0]) =>
+        `vendor:${fixtureInboundFrame(event)}`,
+    };
+    const original = base.registry.get(base.carrier.pluginId)!;
+    const vendor = definePlugin(
+      {
+        ...original.manifest,
+        provider: 'vendor-fixture',
+        capabilities: ingress.capabilities,
+      } as never,
+      () => undefined,
+    );
+    const registry = new PluginRegistry([
+      ...base.registry.list().filter((item) => item.manifest.id !== original.manifest.id),
+      vendor,
+    ]);
+    const inboundFrame = fixtureCarrierInboundFrame(ingress);
+    expect(inboundFrame, 'selected vendor has no inbound frame builder').toBeDefined();
+    const clock = new FakeClock();
+    const call = runFixtureCall({
+      ...base,
+      registry,
+      carrier: { pluginId: original.manifest.id, ingress, inboundFrame: inboundFrame! },
+      clock,
+    });
+    await clock.advanceAsync(0);
+    const result = await call.done;
+    expect(result.outcome.outcome).toBe('completed');
+    expect(decodedVendorFrames).toBeGreaterThan(1);
   });
 
   it('guards child setup before a carrier plugin can apply', async () => {
