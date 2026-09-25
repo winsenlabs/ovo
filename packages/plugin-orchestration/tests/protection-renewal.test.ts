@@ -49,4 +49,23 @@ describe('ProtectionRenewal', () => {
     await subject.renewal.release();
     expect(subject.protection.release).toHaveBeenCalledOnce();
   });
+
+  it('ignores an in-flight renewal after re-establishing protection', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-25T00:00:00.000Z'));
+    const subject = fixture();
+    let finishFirst!: (value: boolean) => void;
+    subject.protection.renew.mockImplementationOnce(
+      () => new Promise<boolean>((resolve) => { finishFirst = resolve; }),
+    );
+    await subject.renewal.establish();
+    vi.advanceTimersByTime(120_000);
+    expect(subject.protection.renew).toHaveBeenCalledOnce();
+    await subject.renewal.establish();
+    finishFirst(true);
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(subject.protection.renew).toHaveBeenCalledTimes(2);
+    await subject.renewal.release();
+  });
 });

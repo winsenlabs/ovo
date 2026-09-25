@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { authorizeCampaignPayload, recordCampaignAttempt } from '../src/campaign-dial.ts';
+import { reconcileClaimedCarrierDial } from '../src/reconciliation.ts';
 
 const job = {
   id: 'job-1',
@@ -72,5 +73,36 @@ describe('campaign dial authorization adapter', () => {
       expect.any(Date),
       undefined,
     );
+  });
+});
+
+describe('carrier dial reconciliation', () => {
+  it('persists a fenced deferral before deleting a hint after carrier selection fails', async () => {
+    const events: string[] = [];
+    const deferReconciliation = vi.fn(async (..._args: [string, string, number, string, Date]) => {
+      events.push('defer');
+      return true;
+    });
+    const queue = { delete: vi.fn(async () => { events.push('delete'); }) };
+    const delivery = {
+      messageId: 'hint-1', receiptHandle: 'receipt-1', receiveCount: 1,
+      reference: { schemaVersion: 1 as const, jobId: job.id },
+    };
+    const reason = 'carrier-reconciliation-unavailable:temporary carrier config outage';
+    const result = await reconcileClaimedCarrierDial({
+      workerId: 'worker-1',
+      job: { ...job, status: 'reconcile_required', dialRequestId: 'dial-1' },
+      delivery,
+      store: { deferReconciliation } as never,
+      queue: queue as never,
+      carriers: { forJob: async () => { throw new Error('temporary carrier config outage'); } } as never,
+      deferSeconds: 15,
+    });
+    expect(result).toEqual({ kind: 'deferred', reason });
+    expect(deferReconciliation).toHaveBeenCalledWith(
+      job.id, 'worker-1', 1, reason, expect.any(Date),
+    );
+    expect(deferReconciliation.mock.calls[0]?.[4].getTime()).toBeGreaterThan(Date.now() + 14_000);
+    expect(events).toEqual(['defer', 'delete']);
   });
 });

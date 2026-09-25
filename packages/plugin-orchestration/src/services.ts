@@ -35,6 +35,7 @@ export class ProtectionRenewal {
   private stopped = false;
   private protectedUntilMs = 0;
   private retryMs = 5_000;
+  private generation = 0;
 
   constructor(
     private readonly protection: TaskProtection,
@@ -45,6 +46,11 @@ export class ProtectionRenewal {
 
   async establish(): Promise<boolean> {
     if (this.stopped || !(await this.protection.establish())) return false;
+    if (this.stopped) {
+      await this.protection.release();
+      return false;
+    }
+    this.generation += 1;
     if (this.timer) clearTimeout(this.timer);
     this.protectedUntilMs = Date.now() + 60 * 60_000;
     this.schedule(this.intervalMs);
@@ -62,13 +68,14 @@ export class ProtectionRenewal {
 
   private async renew(): Promise<void> {
     if (this.stopped) return;
+    const generation = this.generation;
     let renewed = false;
     try {
       renewed = await this.protection.renew();
     } catch {
       // ECS transport failures use the same expiry budget as rejected renewals.
     }
-    if (this.stopped) return;
+    if (this.stopped || generation !== this.generation) return;
     if (renewed) {
       this.protectedUntilMs = Date.now() + 60 * 60_000;
       this.retryMs = 5_000;
@@ -83,6 +90,7 @@ export class ProtectionRenewal {
       return;
     }
     this.stopped = true;
+    this.generation += 1;
     this.timer = undefined;
     await this.onRenewalFailure();
   }

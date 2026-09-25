@@ -126,11 +126,16 @@ export async function reconcileClaimedCarrierDial(input: {
   try {
     selected = await input.carriers.forJob(input.job);
   } catch (error) {
+    const reason = `carrier-reconciliation-unavailable:${error instanceof Error ? error.message : String(error)}`;
+    const deferred = await input.store.deferReconciliation(
+      input.job.id,
+      input.workerId,
+      input.job.ownerEpoch,
+      reason,
+      new Date(Date.now() + input.deferSeconds * 1_000),
+    );
     await input.queue.delete(input.delivery);
-    return {
-      kind: 'deferred',
-      reason: `carrier-reconciliation-unavailable:${error instanceof Error ? error.message : String(error)}`,
-    };
+    return { kind: 'deferred', reason: deferred ? reason : 'reconciliation-ownership-lost' };
   }
   const route = await input.store.getSessionRoute(input.job.id);
   const outcome = await selected.control.reconcile({
