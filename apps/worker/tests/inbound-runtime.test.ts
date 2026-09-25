@@ -197,15 +197,19 @@ describe('InboundWorkerRuntime', () => {
 
   it('terminates an active carrier leg when task protection is lost', async () => {
     vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-25T00:00:00.000Z'));
     const subject = fixture();
     subject.protection.renew.mockResolvedValue(false);
     subject.costs.reserve.mockResolvedValue({ admitted: true, beginActiveCall: vi.fn() });
 
     await subject.runtime.start();
     await subject.runtime.admitSession(inboundJob, route);
-    await vi.advanceTimersByTimeAsync(45_000);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(subject.onProtectionLost).not.toHaveBeenCalled();
+    expect(subject.heartbeat).toHaveBeenCalled();
+    vi.setSystemTime(new Date('2026-09-25T00:56:00.000Z'));
+    await vi.advanceTimersByTimeAsync(5_000);
 
-    expect(subject.heartbeat).not.toHaveBeenCalled();
     expect(subject.onProtectionLost).toHaveBeenCalledWith('inbound task protection renewal failed');
     expect(subject.hangup).toHaveBeenCalledWith('CA1');
     await subject.runtime.close();

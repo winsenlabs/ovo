@@ -33,33 +33,66 @@ export class OutboxPublisher {
 export class ProtectionRenewal {
   private timer?: NodeJS.Timeout;
   private stopped = false;
+  private protectedUntilMs = 0;
+  private retryMs = 5_000;
 
   constructor(
     private readonly protection: TaskProtection,
     private readonly intervalMs: number,
     private readonly onRenewalFailure: () => void | Promise<void>,
+    private readonly log: (event: { event: 'protection_renewal_failed'; remainingMs: number }) => void = console.error,
   ) {}
 
   async establish(): Promise<boolean> {
     if (this.stopped || !(await this.protection.establish())) return false;
-    this.timer = setInterval(() => void this.renew(), this.intervalMs);
-    this.timer.unref();
+    if (this.timer) clearTimeout(this.timer);
+    this.protectedUntilMs = Date.now() + 60 * 60_000;
+    this.schedule(this.intervalMs);
     return true;
+  }
+
+  protectedUntil(): Date {
+    return new Date(this.protectedUntilMs);
+  }
+
+  private schedule(delayMs: number): void {
+    this.timer = setTimeout(() => void this.renew(), delayMs);
+    this.timer.unref();
   }
 
   private async renew(): Promise<void> {
     if (this.stopped) return;
-    if (await this.protection.renew()) return;
+    let renewed = false;
+    try {
+      renewed = await this.protection.renew();
+    } catch {
+      // ECS transport failures use the same expiry budget as rejected renewals.
+    }
+    if (this.stopped) return;
+    if (renewed) {
+      this.protectedUntilMs = Date.now() + 60 * 60_000;
+      this.retryMs = 5_000;
+      this.schedule(this.intervalMs);
+      return;
+    }
+    const remainingMs = this.protectedUntilMs - Date.now();
+    this.log({ event: 'protection_renewal_failed', remainingMs });
+    if (remainingMs >= 5 * 60_000) {
+      this.schedule(Math.min(this.retryMs, remainingMs - 5 * 60_000));
+      this.retryMs = Math.min(this.retryMs * 2, this.intervalMs);
+      return;
+    }
     this.stopped = true;
-    if (this.timer) clearInterval(this.timer);
+    this.timer = undefined;
     await this.onRenewalFailure();
   }
 
   async release(): Promise<void> {
-    if (this.stopped && !this.timer) return;
+    if (this.stopped && !this.timer && this.protectedUntilMs === 0) return;
     this.stopped = true;
-    if (this.timer) clearInterval(this.timer);
+    if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
+    this.protectedUntilMs = 0;
     await this.protection.release();
   }
 }

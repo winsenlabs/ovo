@@ -87,7 +87,7 @@ export const ecsProtectionPlugin = definePlugin(
       new EcsTaskProtection(
         requiredString(config, 'cluster'),
         requiredString(config, 'taskArn'),
-        typeof config.expiresInMinutes === 'number' ? config.expiresInMinutes : 10,
+        typeof config.expiresInMinutes === 'number' ? config.expiresInMinutes : 60,
         { region: requiredString(config, 'region') },
       ),
     );

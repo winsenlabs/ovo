@@ -22,6 +22,7 @@ export class JobHintRepository {
          WHERE (
            (status = 'queued' AND not_before <= now()) OR
            (status IN ('owned','dialing','reconcile_required','accepted','connected')
+             AND not_before <= now()
              AND (lease_expires_at IS NULL OR lease_expires_at < now()))
          )
            AND (hinted_at IS NULL OR hinted_at < now() - interval '150 seconds')

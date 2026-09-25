@@ -9,7 +9,7 @@ import type {
 } from '../types.ts';
 import { transaction } from './database.ts';
 import { callIdAvailable, lockCarrierCallId } from './call-identity.ts';
-import { recordCarrierCallIdMismatch } from './carrier-audit.ts';
+import { persistBoundCarrierIdentity, recordCarrierCallIdMismatch } from './carrier-audit.ts';
 import { fromSessionRouteRow, sessionRouteColumns, type SessionRouteRow } from './session-model.ts';
 
 const grantable =
@@ -208,11 +208,7 @@ export class SessionGrantRepository {
         [row.session_id, primary, alias, input.tokenHash, input.expiresAt],
       );
       if (!updated.rows[0]) return undefined;
-      if (primary && !row.carrier_call_id)
-        await client.query(
-          'UPDATE ovo_jobs SET carrier_call_id = $2 WHERE id = $1 AND carrier_call_id IS NULL',
-          [row.job_id, primary],
-        );
+      await persistBoundCarrierIdentity(client, row, primary, alias);
       return fromSessionRouteRow(updated.rows[0]);
     });
   }

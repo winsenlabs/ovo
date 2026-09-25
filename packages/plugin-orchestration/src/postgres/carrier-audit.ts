@@ -33,3 +33,24 @@ export async function recordCarrierCallIdMismatch(
   );
   if (existing.rowCount === 0) throw new Error('Carrier call-id mismatch audit has no bound alias');
 }
+
+export async function persistBoundCarrierIdentity(
+  client: PoolClient,
+  row: { session_id: string; organization_id: string; carrier_id: string; job_id: string; carrier_call_id: string | null },
+  primary: string | null,
+  alias: string | null,
+): Promise<void> {
+  if (primary && !row.carrier_call_id)
+    await client.query(
+      'UPDATE ovo_jobs SET carrier_call_id = $2 WHERE id = $1 AND carrier_call_id IS NULL',
+      [row.job_id, primary],
+    );
+  if (!primary || !alias || primary === alias) return;
+  await recordCarrierCallIdMismatch(client, {
+    sessionId: row.session_id,
+    organizationId: row.organization_id,
+    carrierId: row.carrier_id,
+    dialCallId: primary,
+    streamCallId: alias,
+  });
+}

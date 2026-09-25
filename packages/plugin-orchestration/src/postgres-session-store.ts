@@ -176,11 +176,18 @@ export class PostgresSessionStoreBase {
       ...(typeof routeOrJobId === 'string' ? {} : { sessionId: routeOrJobId.sessionId }),
     });
   }
-  findCarrierCallId(requestId: string): Promise<string | undefined> {
+  findCarrierCallId(input: {
+    organizationId: string;
+    carrierId: string;
+    requestId: string;
+  }): Promise<string | undefined> {
+    if (!input.organizationId || !input.carrierId || !input.requestId)
+      throw new Error('Carrier call-id lookup requires organizationId, carrierId and requestId');
     return this.pool
       .query<{ carrier_call_id: string | null }>(
-        'SELECT carrier_call_id FROM ovo_session_routes WHERE dial_request_id = $1 LIMIT 2',
-        [requestId],
+        `SELECT carrier_call_id FROM ovo_session_routes
+         WHERE organization_id = $1 AND carrier_id = $2 AND dial_request_id = $3 LIMIT 2`,
+        [input.organizationId, input.carrierId, input.requestId],
       )
       .then((result) =>
         result.rows.length === 1 ? (result.rows[0]?.carrier_call_id ?? undefined) : undefined,

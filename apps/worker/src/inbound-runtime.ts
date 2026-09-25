@@ -1,16 +1,18 @@
 import type { OperationsService } from '@winsendotai/ovo-plugin-operations';
-import type {
-  ClaimedJob,
-  DurableJob,
-  DurableJobStore,
-  SessionRoute,
-  TaskProtection,
-  TelephonyControl,
+import {
+  ProtectionRenewal,
+  type TaskProtection,
+  type ClaimedJob,
+  type DurableJob,
+  type DurableJobStore,
+  type SessionRoute,
+  type TelephonyControl,
 } from '@winsendotai/ovo-plugin-orchestration';
 import type { ProductionWorkerCostRuntime } from './cost-runtime.ts';
 
-const PROTECTION_WINDOW_MS = 120_000;
 const RENEW_INTERVAL_MS = 45_000;
+const PROTECTION_RENEW_INTERVAL_MS = 120_000;
+const JOB_LEASE_MS = 120_000;
 
 type InboundWorkerRuntimeInput = ConstructorParameters<typeof InboundWorkerRuntime>[0];
 
@@ -24,6 +26,7 @@ export function createInboundWorkerRuntime(
 export class InboundWorkerRuntime {
   private readonly slotId: string;
   private timer?: NodeJS.Timeout;
+  private protectionRenewal?: ProtectionRenewal;
   private suspended = false;
   private stopped = false;
   private failed = false;
@@ -55,12 +58,17 @@ export class InboundWorkerRuntime {
   }
 
   async start(): Promise<void> {
-    if (!(await this.input.protection.establish()))
+    this.protectionRenewal = new ProtectionRenewal(
+      this.input.protection,
+      PROTECTION_RENEW_INTERVAL_MS,
+      () => this.failClosed('inbound task protection renewal failed'),
+    );
+    if (!(await this.protectionRenewal.establish()))
       throw new Error('Unable to establish task protection for inbound capacity');
     try {
       if (!(await this.register(true))) throw new Error('Unable to register inbound capacity');
     } catch (error) {
-      await this.input.protection.release();
+      await this.protectionRenewal.release();
       throw error;
     }
     this.timer = setInterval(() => void this.renew(), RENEW_INTERVAL_MS);
@@ -80,7 +88,7 @@ export class InboundWorkerRuntime {
 
   async resume(): Promise<void> {
     if (this.stopped || this.failed || !this.suspended) return;
-    if (!(await this.input.protection.establish())) {
+    if (!(await this.protectionRenewal?.establish())) {
       this.input.onProtectionLost('failed to re-establish inbound task protection');
       return;
     }
@@ -135,7 +143,7 @@ export class InboundWorkerRuntime {
     this.stopped = true;
     if (this.timer) clearInterval(this.timer);
     await this.register(false).catch(() => undefined);
-    await this.input.protection.release();
+    await this.protectionRenewal?.release();
   }
 
   private async register(ready: boolean): Promise<boolean> {
@@ -145,7 +153,7 @@ export class InboundWorkerRuntime {
       workerEndpoint: this.input.workerEndpoint,
       generation: this.input.generation,
       ready,
-      protectedUntil: new Date(Date.now() + (ready ? PROTECTION_WINDOW_MS : 0)),
+      protectedUntil: ready ? this.protectionRenewal?.protectedUntil() ?? new Date(0) : new Date(),
     });
   }
 
@@ -153,10 +161,6 @@ export class InboundWorkerRuntime {
     if (this.stopped || this.failed || this.renewing) return;
     this.renewing = true;
     try {
-      if (!(await this.input.protection.renew())) {
-        await this.failClosed('inbound task protection renewal failed');
-        return;
-      }
       const active = this.activeSession;
       if (active) {
         let owned: boolean;
@@ -165,7 +169,7 @@ export class InboundWorkerRuntime {
             active.jobId,
             active.workerId,
             active.ownerEpoch,
-            PROTECTION_WINDOW_MS,
+            JOB_LEASE_MS,
           );
         } catch (error) {
           if (this.activeSession !== active) return;

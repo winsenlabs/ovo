@@ -104,7 +104,7 @@ export async function ecsRuntimeConfig(): Promise<{
       cluster: metadata.Cluster,
       taskArn: metadata.TaskARN,
       region: requiredEnv('AWS_REGION'),
-      expiresInMinutes: 10,
+      expiresInMinutes: 60,
     },
     workerEndpoint: `ws://${address}:4100/internal/media`,
   };

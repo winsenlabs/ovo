@@ -46,7 +46,7 @@ export class CapacityRepository {
   async readSnapshot(): Promise<CapacitySnapshot> {
     const [workers, jobs, clock] = await Promise.all([
       this.pool.query<{ state: string; count: string; observed_at: Date }>(
-        `SELECT state, count(*)::text AS count, max(observed_at) AS observed_at
+        `SELECT state, count(*)::text AS count, min(observed_at) AS observed_at
          FROM ovo_worker_slots WHERE lease_expires_at > now() GROUP BY state`,
       ),
       this.pool.query<{ count: string }>(
