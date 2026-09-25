@@ -29,7 +29,6 @@ class MemoryStore implements DurableJobStore {
   dialRequestId?: string;
   carrierCallId?: string;
   route?: SessionRoute;
-  claims = 0;
   claimMode: 'execute' | 'reconcile' | 'defer' = 'execute';
   deferReason: 'currently_leased' | 'not_before' = 'currently_leased';
   payload: Record<string, unknown> = {
@@ -38,6 +37,7 @@ class MemoryStore implements DurableJobStore {
     streamUrl: 'wss://example.test/media',
     statusCallbackUrl: 'https://example.test/status',
   };
+  released?: { reason: string; notBefore?: Date };
 
   async enqueue(): Promise<{ job: DurableJob; created: boolean }> {
     throw new Error('not used');
@@ -47,7 +47,6 @@ class MemoryStore implements DurableJobStore {
       return { kind: 'defer', reason: this.deferReason, retryAt: new Date(Date.now() + 5_000) };
     }
     if (this.claimMode === 'execute' && this.state !== 'queued') return { kind: 'settled' };
-    this.claims += 1;
     this.state = this.claimMode === 'reconcile' ? 'reconcile_required' : 'owned';
     const job: ClaimedJob = {
       id: jobId,
@@ -65,8 +64,9 @@ class MemoryStore implements DurableJobStore {
   async heartbeat(): Promise<boolean> {
     return true;
   }
-  async release(): Promise<boolean> {
+  async release(_jobId: string, _workerId: string, _epoch: number, reason: string, notBefore?: Date): Promise<boolean> {
     this.state = 'queued';
+    this.released = { reason, notBefore };
     return true;
   }
   async updateOwnedPayload(
@@ -184,7 +184,6 @@ class MemoryQueue implements DurableQueue {
 }
 
 class FakeProtection implements TaskProtection {
-  releases = 0;
   constructor(private readonly allowed: boolean) {}
   async establish() {
     return this.allowed;
@@ -193,7 +192,6 @@ class FakeProtection implements TaskProtection {
     return this.allowed;
   }
   async release() {
-    this.releases += 1;
   }
 }
 
@@ -201,14 +199,12 @@ class FakeTelephony implements TelephonyControl {
   dials = 0;
   reconciliations = 0;
   hangups = 0;
-  lastRequest?: TelephonyDialRequest;
   constructor(
     private readonly dialResult: DialResult,
     private readonly reconciliation: DialReconciliation = { kind: 'pending' },
   ) {}
-  async dial(request: TelephonyDialRequest) {
+  async dial(_request: TelephonyDialRequest) {
     this.dials += 1;
-    this.lastRequest = request;
     return this.dialResult;
   }
   async reconcile() {
@@ -221,51 +217,62 @@ class FakeTelephony implements TelephonyControl {
   async transfer() {}
 }
 
+function makeWorker(
+  store: MemoryStore,
+  queue: MemoryQueue,
+  telephony: FakeTelephony,
+  readiness: { ready: true } | { ready: false; reason: string } = { ready: true },
+  protection = true,
+  workerId = 'worker-1',
+): WorkerRunner {
+  return new WorkerRunner(workerId, store, queue,
+    { check: async () => readiness }, new FakeProtection(protection), telephony);
+}
+
 describe('worker admission simulation', () => {
+  it.each(['worker-draining', 'inbound-reserved'])(
+    'claims and releases %s with a future due time before deleting the hint', async (reason) => {
+      const store = new MemoryStore();
+      const queue = new MemoryQueue();
+      const telephony = new FakeTelephony({ kind: 'rejected', requestId: 'unused', reason: 'unused', retryable: false });
+      const worker = makeWorker(store, queue, telephony);
+      if (reason === 'worker-draining') worker.beginDrain();
+      const outcome = reason === 'worker-draining' ? await worker.handle(delivery) : await worker.defer(delivery, reason);
+      expect(outcome).toEqual({ kind: 'deferred', reason });
+      expect(store.released?.notBefore?.getTime()).toBeGreaterThan(Date.now());
+      expect([queue.deleted, queue.visibilityChanges, telephony.dials]).toEqual([1, 0, 0]);
+    },
+  );
+
   it('does not dial before readiness', async () => {
     const store = new MemoryStore();
     const queue = new MemoryQueue();
     const telephony = new FakeTelephony({ kind: 'accepted', requestId: 'r', carrierCallId: 'CA1' });
-    const worker = new WorkerRunner(
-      'worker-1',
-      store,
-      queue,
-      {
-        async check() {
-          return { ready: false as const, reason: 'plugins-not-ready' };
-        },
-      },
-      new FakeProtection(true),
-      telephony,
-    );
+    const worker = makeWorker(store, queue, telephony,
+      { ready: false, reason: 'plugins-not-ready' });
     expect(await worker.handle(delivery)).toEqual({
       kind: 'deferred',
       reason: 'plugins-not-ready',
     });
     expect(telephony.dials).toBe(0);
+    expect(store.released?.reason).toBe('readiness:plugins-not-ready');
+    expect(store.released?.notBefore?.getTime()).toBeGreaterThan(Date.now());
+    expect([queue.deleted, queue.visibilityChanges]).toEqual([1, 0]);
   });
 
   it('blocks dialing when ECS task protection cannot be established', async () => {
     const store = new MemoryStore();
     const queue = new MemoryQueue();
     const telephony = new FakeTelephony({ kind: 'accepted', requestId: 'r', carrierCallId: 'CA1' });
-    const worker = new WorkerRunner(
-      'worker-1',
-      store,
-      queue,
-      {
-        async check() {
-          return { ready: true as const };
-        },
-      },
-      new FakeProtection(false),
-      telephony,
-    );
+    const worker = makeWorker(store, queue, telephony, { ready: true }, false);
     expect(await worker.handle(delivery)).toEqual({
       kind: 'deferred',
       reason: 'task-protection-establish-failed',
     });
     expect(telephony.dials).toBe(0);
+    expect(store.released?.reason).toBe('task-protection-establish-failed');
+    expect(store.released?.notBefore?.getTime()).toBeGreaterThan(Date.now());
+    expect([queue.deleted, queue.visibilityChanges]).toEqual([1, 0]);
   });
 
   it('persists an unknown dial and reconciles once without retrying dial', async () => {
@@ -276,18 +283,7 @@ describe('worker admission simulation', () => {
       requestId: `${delivery.reference.jobId}:1`,
       reason: 'timeout-after-write',
     });
-    const worker = new WorkerRunner(
-      'worker-1',
-      store,
-      queue,
-      {
-        async check() {
-          return { ready: true as const };
-        },
-      },
-      new FakeProtection(true),
-      telephony,
-    );
+    const worker = makeWorker(store, queue, telephony);
     expect(await worker.handle(delivery)).toEqual({
       kind: 'reconcile_required',
       jobId: delivery.reference.jobId,
@@ -296,8 +292,7 @@ describe('worker admission simulation', () => {
     expect(store.state).toBe('reconcile_required');
     expect(telephony.dials).toBe(1);
     expect(telephony.reconciliations).toBe(1);
-    expect(queue.deleted).toBe(0);
-    expect(queue.visibilityChanges).toBe(1);
+    expect([queue.deleted, queue.visibilityChanges]).toEqual([1, 0]);
   });
 
   it('reconciles an accepted crash-left dial without invoking dial again', async () => {
@@ -309,18 +304,8 @@ describe('worker admission simulation', () => {
       { kind: 'rejected', requestId: 'unused', reason: 'must-not-dial', retryable: false },
       { kind: 'accepted', carrierCallId: 'CA-reconciled' },
     );
-    const worker = new WorkerRunner(
-      'worker-2',
-      store,
-      queue,
-      {
-        async check() {
-          return { ready: false as const, reason: 'not-needed-for-reconcile' };
-        },
-      },
-      new FakeProtection(false),
-      telephony,
-    );
+    const worker = makeWorker(store, queue, telephony,
+      { ready: false, reason: 'not-needed-for-reconcile' }, false, 'worker-2');
     expect(await worker.handle(delivery)).toEqual({
       kind: 'reconcile_required',
       jobId: delivery.reference.jobId,
@@ -328,14 +313,13 @@ describe('worker admission simulation', () => {
     });
     expect(telephony.dials).toBe(0);
     expect(telephony.reconciliations).toBe(1);
-    expect(queue.deleted).toBe(0);
-    expect(queue.visibilityChanges).toBe(1);
+    expect([queue.deleted, queue.visibilityChanges]).toEqual([1, 0]);
     expect(telephony.hangups).toBe(1);
     expect(store.state).toBe('reconcile_required');
   });
 
   it.each(['currently_leased', 'not_before'] as const)(
-    'retains a %s receipt by changing visibility instead of deleting',
+    'deletes a %s receipt so database eligibility controls the next hint',
     async (reason) => {
       const store = new MemoryStore();
       store.claimMode = 'defer';
@@ -347,21 +331,11 @@ describe('worker admission simulation', () => {
         reason: 'unused',
         retryable: false,
       });
-      const worker = new WorkerRunner(
-        'worker-duplicate',
-        store,
-        queue,
-        {
-          async check() {
-            return { ready: true as const };
-          },
-        },
-        new FakeProtection(true),
-        telephony,
-      );
+      const worker = makeWorker(store, queue, telephony,
+        { ready: true }, true, 'worker-duplicate');
       expect(await worker.handle(delivery)).toMatchObject({ kind: 'deferred', reason });
-      expect(queue.deleted).toBe(0);
-      expect(queue.visibilityChanges).toBe(1);
+      expect(queue.deleted).toBe(1);
+      expect(queue.visibilityChanges).toBe(0);
       expect(telephony.dials).toBe(0);
     },
   );
@@ -429,7 +403,7 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)(
           requestId,
         });
         expect(telephony.dials).toBe(0);
-        expect(queue.deleted).toBe(0);
+        expect(queue.deleted).toBe(1);
         expect(telephony.hangups).toBe(1);
         expect(
           await store.markDialAccepted(

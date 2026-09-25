@@ -15,8 +15,11 @@ export class JobRepository {
   }): Promise<{ job: DurableJob; created: boolean }> {
     return transaction(this.pool, async (client) => {
       const inserted = await client.query<JobRow>(
-        `INSERT INTO ovo_jobs (id, workspace_id, idempotency_key, payload, status, not_before)
-         VALUES ($1, $2, $3, $4::jsonb, 'queued', COALESCE($5, now()))
+        `INSERT INTO ovo_jobs (id, workspace_id, idempotency_key, payload, status, not_before,
+           hinted_at, hint_count)
+         VALUES ($1, $2, $3, $4::jsonb, 'queued', COALESCE($5, now()),
+           CASE WHEN COALESCE($5, now()) <= now() THEN now() ELSE NULL END,
+           CASE WHEN COALESCE($5, now()) <= now() THEN 1 ELSE 0 END)
          ON CONFLICT (workspace_id, idempotency_key) DO NOTHING RETURNING ${jobColumns}`,
         [
           input.id,
@@ -29,7 +32,9 @@ export class JobRepository {
       if (inserted.rowCount === 1) {
         const reference: JobReference = { schemaVersion: 1, jobId: input.id };
         await client.query(
-          `INSERT INTO ovo_outbox (id, topic, aggregate_id, payload) VALUES ($1, 'job.eligible', $2, $3::jsonb)`,
+          `INSERT INTO ovo_outbox (id, topic, aggregate_id, payload)
+           SELECT $1, 'job.eligible', $2, $3::jsonb
+           WHERE EXISTS (SELECT 1 FROM ovo_jobs WHERE id = $2 AND not_before <= now())`,
           [randomUUID(), input.id, JSON.stringify(reference)],
         );
         return { job: fromJobRow(inserted.rows[0]!), created: true };
@@ -138,7 +143,7 @@ export class JobRepository {
   ): Promise<boolean> {
     const result = await this.pool.query(
       `UPDATE ovo_jobs SET status = 'queued', owner_id = NULL, lease_expires_at = NULL,
-         last_error = $4, not_before = $5, updated_at = now()
+         last_error = $4, not_before = $5, hinted_at = NULL, updated_at = now()
        WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3 AND status = 'owned'`,
       [jobId, workerId, epoch, reason, notBefore],
     );
@@ -169,7 +174,7 @@ export class JobRepository {
   ): Promise<boolean> {
     const result = await this.pool.query(
       `UPDATE ovo_jobs SET owner_id = NULL, lease_expires_at = NULL, last_error = $4,
-         not_before = $5, updated_at = now()
+         not_before = $5, hinted_at = NULL, updated_at = now()
        WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3 AND status = 'reconcile_required'`,
       [jobId, workerId, epoch, reason, notBefore],
     );

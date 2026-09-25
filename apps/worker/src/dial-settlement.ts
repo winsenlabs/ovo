@@ -131,5 +131,5 @@ async function stopAndDefer(input: DialSettlementInput): Promise<void> {
   input.lease.stop();
   input.visibility.stop();
   await input.protection.release();
-  await input.queue.changeVisibility(input.delivery, input.deferSeconds);
+  await input.queue.delete(input.delivery);
 }

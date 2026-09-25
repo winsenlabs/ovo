@@ -8,6 +8,7 @@ import type {
 } from './types.ts';
 import { runMigrations } from './postgres/migrations.ts';
 import { OutboxRepository } from './postgres/outbox.ts';
+import { JobHintRepository } from './postgres/job-hints.ts';
 import {
   CapacityRepository,
   type WorkerReport,
@@ -21,11 +22,13 @@ export class PostgresOrchestrationStore
   implements DurableJobStore, CarrierRouteStore
 {
   readonly outbox: OutboxRepository;
+  readonly hints: JobHintRepository;
   readonly capacity: CapacityRepository;
 
   constructor(config: PoolConfig | Pool) {
     super(config);
     this.outbox = new OutboxRepository(this.pool);
+    this.hints = new JobHintRepository(this.pool);
     this.capacity = new CapacityRepository(this.pool);
   }
 

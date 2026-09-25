@@ -60,7 +60,7 @@ export async function reconcileClaimedDial(input: {
       'awaiting-terminal-callback-after-owner-loss',
       notBefore,
     );
-    await input.queue.changeVisibility(input.delivery, input.deferSeconds);
+    await input.queue.delete(input.delivery);
     if (!deferred) return { kind: 'deferred', reason: 'terminal-callback-won-race' };
     return { kind: 'reconcile_required', jobId: input.job.id, requestId };
   }
@@ -85,7 +85,7 @@ export async function reconcileClaimedDial(input: {
     'carrier-outcome-still-pending',
     notBefore,
   );
-  await input.queue.changeVisibility(input.delivery, input.deferSeconds);
+  await input.queue.delete(input.delivery);
   if (!deferred) return { kind: 'deferred', reason: 'reconciliation-ownership-lost' };
   return { kind: 'reconcile_required', jobId: input.job.id, requestId };
 }
@@ -95,7 +95,7 @@ async function deferLostOwnership(input: {
   delivery: QueueDelivery;
   deferSeconds: number;
 }): Promise<ReconciliationOutcome> {
-  await input.queue.changeVisibility(input.delivery, input.deferSeconds);
+  await input.queue.delete(input.delivery);
   return { kind: 'deferred', reason: 'reconciliation-ownership-lost' };
 }
 
@@ -126,7 +126,7 @@ export async function reconcileClaimedCarrierDial(input: {
   try {
     selected = await input.carriers.forJob(input.job);
   } catch (error) {
-    await input.queue.changeVisibility(input.delivery, input.deferSeconds);
+    await input.queue.delete(input.delivery);
     return {
       kind: 'deferred',
       reason: `carrier-reconciliation-unavailable:${error instanceof Error ? error.message : String(error)}`,
@@ -215,7 +215,7 @@ export async function reconcileClaimedCarrierDial(input: {
       : 'carrier-outcome-still-pending',
     new Date(Date.now() + input.deferSeconds * 1_000),
   );
-  await input.queue.changeVisibility(input.delivery, input.deferSeconds);
+  await input.queue.delete(input.delivery);
   return deferred
     ? { kind: 'reconcile_required', jobId: input.job.id, requestId }
     : { kind: 'deferred', reason: 'reconciliation-ownership-lost' };

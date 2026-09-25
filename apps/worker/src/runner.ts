@@ -43,10 +43,23 @@ export class WorkerRunner {
     this.terminationHandler = handler;
   }
 
+  async defer(delivery: QueueDelivery, reason: string): Promise<DeliveryOutcome> {
+    const claim = await this.store.claim(delivery.reference.jobId, this.workerId, this.options.leaseMs);
+    const notBefore = new Date(Date.now() + this.options.deferSeconds * 1_000);
+    if (claim.kind === 'execute') {
+      await this.store.release(claim.job.id, this.workerId, claim.job.ownerEpoch, reason, notBefore);
+    } else if (claim.kind === 'reconcile') {
+      await this.store.deferReconciliation(
+        claim.job.id, this.workerId, claim.job.ownerEpoch, reason, notBefore,
+      );
+    }
+    await this.queue.delete(delivery);
+    return { kind: 'deferred', reason };
+  }
+
   async handle(delivery: QueueDelivery): Promise<DeliveryOutcome> {
     if (this.draining) {
-      await this.queue.changeVisibility(delivery, this.options.deferSeconds);
-      return { kind: 'deferred', reason: 'worker-draining' };
+      return this.defer(delivery, 'worker-draining');
     }
     const claim = await claimWorkerDelivery({
       workerId: this.workerId,
@@ -93,8 +106,9 @@ export class WorkerRunner {
         this.workerId,
         job.ownerEpoch,
         `readiness:${readiness.reason}`,
+        new Date(Date.now() + this.options.deferSeconds * 1_000),
       );
-      await this.queue.changeVisibility(delivery, this.options.deferSeconds);
+      await this.queue.delete(delivery);
       return { kind: 'deferred', reason: readiness.reason };
     }
 
@@ -151,8 +165,9 @@ export class WorkerRunner {
         this.workerId,
         job.ownerEpoch,
         'task-protection-establish-failed',
+        new Date(Date.now() + this.options.deferSeconds * 1_000),
       );
-      await this.queue.changeVisibility(delivery, this.options.deferSeconds);
+      await this.queue.delete(delivery);
       return { kind: 'deferred', reason: 'task-protection-establish-failed' };
     }
 
@@ -179,8 +194,9 @@ export class WorkerRunner {
       lease.stop();
       visibility.stop();
       await renewal.release();
-      await this.store.release(job.id, this.workerId, job.ownerEpoch, campaign.reason);
-      await this.queue.changeVisibility(delivery, this.options.deferSeconds);
+      await this.store.release(job.id, this.workerId, job.ownerEpoch, campaign.reason,
+        new Date(Date.now() + this.options.deferSeconds * 1_000));
+      await this.queue.delete(delivery);
       return { kind: 'deferred', reason: campaign.reason };
     }
     const dialPayload = campaign.payload;
@@ -197,7 +213,7 @@ export class WorkerRunner {
       lease.stop();
       visibility.stop();
       await renewal.release();
-      await this.queue.changeVisibility(delivery, this.options.deferSeconds);
+      await this.queue.delete(delivery);
       return { kind: 'deferred', reason: 'campaign-payload-ownership-lost' };
     }
     return dialOwnedJob({

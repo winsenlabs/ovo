@@ -26,10 +26,8 @@ export async function claimWorkerDelivery(input: {
     input.leaseMs,
   );
   if (claim.kind === 'defer') {
-    const delay = claim.retryAt
-      ? Math.max(1, Math.min(43_200, Math.ceil((claim.retryAt.getTime() - Date.now()) / 1_000)))
-      : input.deferSeconds;
-    await input.queue.changeVisibility(input.delivery, delay);
+    // The database already owns the due time or live lease; the sweeper issues a fresh hint.
+    await input.queue.delete(input.delivery);
     return { kind: 'outcome', outcome: { kind: 'deferred', reason: claim.reason } };
   }
   if (claim.kind === 'missing' || claim.kind === 'settled') {

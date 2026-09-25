@@ -244,6 +244,7 @@ export async function runWorkerLoop(input: {
     for (const delivery of deliveries) {
       if (inboundRuntime && !(await inboundRuntime.suspendForOutbound())) {
         status.detail = 'Inbound capacity is reserved; deferred outbound delivery';
+        await runner.defer(delivery, 'inbound-reserved');
         continue;
       }
       await reporter.reportReserved();

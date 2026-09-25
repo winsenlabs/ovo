@@ -154,5 +154,5 @@ async function carrierStopAndDefer(input: CarrierDialSettlementInput): Promise<v
   input.lease.stop();
   input.visibility.stop();
   await input.protection.release();
-  await input.queue.changeVisibility(input.delivery, input.deferSeconds);
+  await input.queue.delete(input.delivery);
 }
