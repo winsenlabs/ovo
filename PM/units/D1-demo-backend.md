@@ -43,6 +43,12 @@ Defects fixed: [20, 19]
 
 - none
 
+## Checker notes (2026-09-26)
+
+- The spec names `apps/api/tests/test-calls.test.ts` as D1-owned, but the production-entry test scenarios exceed the 500-line test gate when kept in one file. `apps/api/tests/test-call-inspection-runtime.test.ts` is the minimal split, tests the same D1 surfaces, and is recorded for I1 as a shared test touchpoint. No application behavior moved with the split.
+- The spec both requires removing `ovo.skeleton` from `packages/fixture-calls/package.json` and freezes every package manifest in its wave-2 rules. That one-field manifest edit is awaiting the checker's explicit ruling; it is not included in the D1 WIP checkpoint.
+- The requested removal of plugin-voice imports has one remaining runtime import in `apps/worker/src/speech-cache-runtime.ts`: `StreamingMediaSpeechOutput` is an implementation class, not a contracts type. A shared implementation move or an explicit carry-forward is awaiting the checker’s ruling; the existing runtime behavior is preserved in the WIP checkpoint.
+
 ## Specification
 
 GOAL: make the founder demo possible without real calls or paid traffic. The same agent runs a voice 'test call' that exercises the SELECTED real engine and the SELECTED real carrier's wire protocol, with providers replaying doc-faithful fixtures rendered from each provider's own templates. The call can then be inspected with its transcript, recording, latency breakdown and cost. This unit also finishes the telemetry side of #20 (outcome from a typed EndReason instead of reason.includes('completed')) and fixes the #19 site in observability.

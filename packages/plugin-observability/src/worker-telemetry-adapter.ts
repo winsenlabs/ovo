@@ -1,11 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import type { OperationRecord } from '@winsendotai/ovo-contracts';
-import type {
-  SpeechEvidence,
-  TranscriptRevision,
-  VoiceProviderUsage,
-} from '@winsendotai/ovo-plugin-voice';
+import {
+  outcomeFor,
+  meterKey,
+  type EndReason,
+  type EngineEvent,
+  type OperationRecord,
+  type SpeechEvidence,
+  type TranscriptRevision,
+  type VoiceProviderUsage,
+  type UsageMeter,
+} from '@winsendotai/ovo-contracts';
 import type { BufferedTelemetryWriter } from './telemetry-ingestion.ts';
 import type { TelemetryEvent, TelemetryOutcome, TelemetrySource } from './telemetry-types.ts';
 
@@ -42,11 +47,13 @@ export class WorkerTelemetryAdapter {
     return this.emit({ kind: 'session.started' });
   }
 
-  sessionEnded(outcome: 'ended' | 'failed', reason?: string): boolean {
+  sessionEnded(reason: EndReason): boolean {
+    const callOutcome = outcomeFor(reason);
+    const failed = callOutcome === 'failed' || callOutcome === 'canceled';
     return this.emit({
-      kind: outcome === 'ended' ? 'session.ended' : 'session.failed',
-      outcome: outcome === 'ended' ? 'succeeded' : 'failed',
-      payload: reason ? { reason: reason.slice(0, 500) } : {},
+      kind: failed ? 'session.failed' : 'session.ended',
+      outcome: failed ? 'failed' : 'succeeded',
+      payload: { reason: reason.slice(0, 500), callOutcome },
     });
   }
 
@@ -93,6 +100,25 @@ export class WorkerTelemetryAdapter {
         durationMs: revision.durationMs ?? null,
         textLength: revision.text.length,
       },
+    });
+  }
+
+  agentTranscript(event: Extract<EngineEvent, { type: 'agent.transcript' }>): boolean {
+    return this.emit({
+      kind: 'transcript.revision',
+      segmentId: event.segmentId,
+      payload: { role: 'agent', state: event.state, textLength: event.text.length },
+    });
+  }
+
+  timing(event: Extract<EngineEvent, { type: 'timing' }>): boolean {
+    return this.emit({
+      kind: 'stage.completed',
+      stageId: `timing:${event.turnId ?? 'call'}:${event.key}:${event.atMs}`,
+      stage: event.key,
+      turnId: event.turnId,
+      durationMs: event.ms,
+      outcome: 'succeeded',
     });
   }
 
@@ -159,6 +185,20 @@ export class WorkerTelemetryAdapter {
         unit: usage.unit,
         quantity: usage.quantity,
         estimated: usage.estimated,
+      },
+    });
+  }
+
+  usageMeter(meter: UsageMeter): boolean {
+    return this.emit({
+      kind: 'provider.usage',
+      provider: meter.provider,
+      payload: {
+        requestId: meter.requestId,
+        key: meterKey(meter),
+        unit: meter.unit,
+        quantity: meter.quantity,
+        estimated: true,
       },
     });
   }

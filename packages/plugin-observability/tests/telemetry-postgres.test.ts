@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PostgresTelemetryStore, type TelemetryEvent } from '../src/index.ts';
+import {
+  BufferedTelemetryWriter,
+  createFixtureTelemetry,
+  PostgresTelemetryStore,
+  type TelemetryEvent,
+} from '../src/index.ts';
 
 const databaseUrl = process.env.OVO_TEST_POSTGRES_URL;
 const integration = databaseUrl ? describe : describe.skip;
@@ -117,6 +122,77 @@ integration('Postgres telemetry projections and performance', () => {
       source: 'simulation',
     });
     expect(simulated.groups[0]).toMatchObject({ sampleCount: 1, timeouts: 1, p50Ms: 1_000 });
+  });
+
+  it('persists fixture call telemetry and includes it in the test performance cohort', async () => {
+    const callId = randomUUID();
+    const writer = new BufferedTelemetryWriter(store);
+    try {
+      const trace = createFixtureTelemetry(writer, {
+        workspaceId,
+        callId,
+        agentId: 'agent-a',
+        releaseId: 'release-a',
+        language: 'en-IN',
+      })!;
+      trace.started();
+      trace.event({
+        seq: 1,
+        atMs: Date.now(),
+        event: {
+          type: 'user.transcript',
+          turnId: 'turn-1',
+          segmentId: 'segment-1',
+          text: 'hello',
+          stability: 'final',
+        },
+      });
+      trace.event({
+        seq: 2,
+        atMs: Date.now(),
+        event: {
+          type: 'timing',
+          turnId: 'turn-1',
+          key: 'tts_ttfb',
+          atMs: Date.now(),
+          ms: 42,
+        },
+      });
+      trace.usage({
+        provider: 'fixture',
+        operation: 'tts',
+        unit: 'characters',
+        quantity: '5',
+        state: 'estimated',
+        requestId: 'fixture-usage',
+        elapsedMs: 42,
+      });
+      trace.ended('behavior_completed');
+      await writer.flush();
+      expect(await store.getCallProjection(workspaceId, callId)).toMatchObject({
+        source: 'test',
+        status: 'ended',
+        eventCount: 5,
+      });
+      const groups = await store.queryPerformance(workspaceId, {
+        from: new Date(Date.now() - 60_000).toISOString(),
+        to: new Date(Date.now() + 60_000).toISOString(),
+        bucket: 'hour',
+        source: 'test',
+        groupBy: ['source', 'stage'],
+      });
+      expect(groups.groups).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            cohort: expect.objectContaining({ source: 'test', stage: 'tts_ttfb' }),
+            sampleCount: 1,
+            p50Ms: 42,
+          }),
+        ]),
+      );
+    } finally {
+      await writer.close();
+    }
   });
 
   it('reports persisted sequence gaps without duplicating cursor resumes', async () => {

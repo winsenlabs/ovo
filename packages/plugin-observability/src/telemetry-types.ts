@@ -1,6 +1,6 @@
 export const TELEMETRY_SCHEMA_VERSION = 1 as const;
 
-export type TelemetrySource = 'live' | 'simulation';
+export type TelemetrySource = 'live' | 'simulation' | 'test';
 export type TelemetryOutcome = 'running' | 'succeeded' | 'failed' | 'timeout' | 'unknown';
 
 export type TelemetryEventKind =

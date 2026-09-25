@@ -219,9 +219,7 @@ describe('production session lifecycle from a loaded distribution', () => {
       expect(order).toContain('fence:behavior_completed');
       expect(order).toContain('media.close');
       expect(order.indexOf('fence:behavior_completed')).toBeLessThan(order.indexOf('media.close'));
-      await vi.waitFor(() =>
-        expect(telemetryClose).toHaveBeenCalledWith('ended', 'behavior_completed'),
-      );
+      await vi.waitFor(() => expect(telemetryClose).toHaveBeenCalledWith('behavior_completed'));
       expect(captureStart).not.toHaveBeenCalled();
     } finally {
       captureStart.mockRestore();

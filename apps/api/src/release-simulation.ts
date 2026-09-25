@@ -43,22 +43,34 @@ export async function runRelease(
     release.selections,
     catalog,
   );
-  const simulationPlugins = selected.filter((item) => behaviorGraph.has(item.manifest.id));
+  const selectedByRelease = new Map(
+    Object.values(release.selections ?? {})
+      .filter((selection) => selection !== undefined)
+      .map((selection) => [selection.pluginId, selection.version]),
+  );
+  const simulationPlugins = catalog.filter((item) => {
+    if (!behaviorGraph.has(item.manifest.id)) return false;
+    const pinned = selected.find((definition) => definition.manifest.id === item.manifest.id);
+    if (pinned) return pinned.manifest.version === item.manifest.version;
+    return selectedByRelease.get(item.manifest.id) === item.manifest.version;
+  });
   const definitions = new Map(simulationPlugins.map((item) => [item.manifest.id, item]));
   const rows = [
     { id: services.manifest.id },
-    ...release.plugins
-      .filter((plugin) => definitions.has(plugin.id))
-      .map((plugin) => ({
-        id: plugin.id,
-        config: definitions.get(plugin.id)!.manifest.provides.includes(BEHAVIOR_SERVICE)
-          ? {
-              agent: structuredClone(release.config),
-              workspaceId: release.workspaceId,
-              sessionId,
-            }
-          : {},
-      })),
+    ...simulationPlugins.map((plugin) => ({
+      id: plugin.manifest.id,
+      config: definitions.get(plugin.manifest.id)!.manifest.provides.includes(BEHAVIOR_SERVICE)
+        ? {
+            agent: structuredClone(release.config),
+            workspaceId: release.workspaceId,
+            sessionId,
+          }
+        : structuredClone(
+            Object.values(release.selections ?? {}).find(
+              (selection) => selection?.pluginId === plugin.manifest.id,
+            )?.config ?? {},
+          ),
+    })),
   ];
   const composition = await compose(rows, [services, ...simulationPlugins]);
   try {

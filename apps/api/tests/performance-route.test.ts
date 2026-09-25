@@ -2,6 +2,7 @@ import { request as httpRequest } from 'node:http';
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { PerformanceService } from '@winsendotai/ovo-plugin-observability';
+import type { Page, StoredCallEvent } from '@winsendotai/ovo-plugin-storage';
 import { registerPerformanceRoutes } from '../src/routes/performance.ts';
 
 const callId = '20a1422f-2905-420d-b97b-215918dc07f9';
@@ -11,21 +12,33 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => server.close()));
 });
 
-function event(sequence: number) {
+function event(sequence: number): StoredCallEvent {
   return {
-    schemaVersion: 1 as const,
-    eventId: `event-${sequence}`,
-    workspaceId: 'workspace',
+    id: `event-${sequence}`,
     callId,
     sequence,
-    occurredAt: '2026-09-20T12:00:00.000Z',
-    ingestedAt: '2026-09-20T12:00:01.000Z',
-    source: 'live' as const,
-    kind: 'session.started' as const,
+    at: '2026-09-20T12:00:00.000Z',
+    type: 'engine.event',
+    epoch: 0,
+    payload: {
+      event: {
+        type: 'user.transcript',
+        turnId: 'turn-1',
+        segmentId: 'segment-1',
+        text: 'Hello',
+        stability: 'final',
+      },
+    },
   };
 }
 
-function build(performance?: PerformanceService) {
+function build(
+  performance?: PerformanceService,
+  listEvents: (_cursor?: string) => Promise<Page<StoredCallEvent>> = async () => ({
+    items: [],
+    nextCursor: null,
+  }),
+) {
   const app = Fastify({ logger: false });
   const registration = registerPerformanceRoutes({
     app,
@@ -33,6 +46,9 @@ function build(performance?: PerformanceService) {
     store: {
       async getCall(_workspaceId, requested) {
         return requested === callId ? { id: callId } : undefined;
+      },
+      async listCallEvents(_workspaceId, _callId, _limit, cursor) {
+        return listEvents(cursor);
       },
     },
     requireRole(request) {
@@ -60,7 +76,7 @@ describe('performance and resumable SSE routes', () => {
   });
 
   it('queries scoped cohorts and resumes SSE from persisted sequence with gap and abort cleanup', async () => {
-    const requestedCursors: number[] = [];
+    const requestedCursors: string[] = [];
     const performance: PerformanceService = {
       async queryPerformance(_workspaceId, query) {
         return {
@@ -72,14 +88,15 @@ describe('performance and resumable SSE routes', () => {
         };
       },
       async listCallEvents(_workspaceId, _callId, cursor) {
-        requestedCursors.push(cursor);
-        if (cursor === 0)
-          return { events: [event(2)], nextCursor: 2, gap: { expected: 1, actual: 2 } };
-        if (cursor === 2) return { events: [event(3)], nextCursor: 3, gap: null };
         return { events: [], nextCursor: cursor, gap: null };
       },
     };
-    const { app, registration } = build(performance);
+    const { app, registration } = build(performance, async (cursor) => {
+      requestedCursors.push(cursor ?? '');
+      if (cursor === '0') return { items: [event(2)], nextCursor: null };
+      if (cursor === '2') return { items: [event(3)], nextCursor: null };
+      return { items: [], nextCursor: null };
+    });
     const aggregate = await app.inject({
       method: 'GET',
       url: '/v1/performance?from=2026-09-20T00:00:00.000Z&to=2026-09-21T00:00:00.000Z&groupBy=provider,stage',
@@ -106,8 +123,35 @@ describe('performance and resumable SSE routes', () => {
     );
     expect(resumed.text).not.toContain('id: 2');
     await waitFor(() => registration.activeConnections === 0);
-    expect(requestedCursors).toContain(0);
-    expect(requestedCursors).toContain(2);
+    expect(requestedCursors).toContain('0');
+    expect(requestedCursors).toContain('2');
+  });
+
+  it('sends an observable named heartbeat while a call has no new events', async () => {
+    const performance: PerformanceService = {
+      async queryPerformance(_workspaceId, query) {
+        return {
+          from: query.from,
+          to: query.to,
+          bucket: query.bucket,
+          groups: [],
+          truncated: false,
+        };
+      },
+      async listCallEvents(_workspaceId, _callId, cursor) {
+        return { events: [], nextCursor: cursor, gap: null };
+      },
+    };
+    const { app, registration } = build(performance);
+    const address = await app.listen({ host: '127.0.0.1', port: 0 });
+    const stream = await readAndAbortSse(
+      `${address}/v1/calls/${callId}/stream`,
+      { authorization: 'Bearer viewer' },
+      'event: heartbeat\ndata: {}',
+    );
+    expect(stream.status).toBe(200);
+    expect(stream.text).toContain('event: heartbeat\ndata: {}');
+    await waitFor(() => registration.activeConnections === 0);
   });
 });
 
@@ -131,6 +175,9 @@ function readAndAbortSse(
       });
       response.on('error', (error) => {
         if (!settled) reject(error);
+      });
+      response.on('end', () => {
+        if (!settled) reject(new Error(`SSE ended before ${needle}`));
       });
     });
     request.on('error', (error) => {

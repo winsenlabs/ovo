@@ -115,12 +115,12 @@ export function registerSimulationRoutes(dependencies: any) {
       );
       await store.finishCall(principal.workspaceId, call.id, 'completed');
       finishStage?.('succeeded');
-      trace?.sessionEnded('ended');
+      trace?.sessionEnded('behavior_completed');
       return { callId: call.id, kind: 'simulation' as const, output };
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Simulation failed';
       finishStage?.('failed');
-      trace?.sessionEnded('failed', 'Simulation failed');
+      trace?.sessionEnded('error:simulation_failed');
       await store.appendCallEvent(principal.workspaceId, call.id, 'simulation.error', { message });
       await store.finishCall(principal.workspaceId, call.id, 'failed');
       throw Object.assign(new Error(message), { statusCode: 422, code: 'simulation_unavailable' });

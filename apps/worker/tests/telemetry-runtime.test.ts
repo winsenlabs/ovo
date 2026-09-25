@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { OperationRecord, OperationStore } from '@winsendotai/ovo-contracts';
+import type {
+  EngineEvent,
+  OperationRecord,
+  OperationStore,
+  VoiceSessionEngine,
+} from '@winsendotai/ovo-contracts';
 import type {
   CallTelemetryProjection,
   PerformanceQuery,
@@ -9,6 +14,7 @@ import type {
 import type { StoredCallEvent } from '@winsendotai/ovo-plugin-storage';
 import type { SpeechEvidence } from '@winsendotai/ovo-plugin-voice';
 import { BoundedCallEventWriter, WorkerTelemetryRuntime } from '../src/telemetry-runtime.ts';
+import { subscribeEngineTelemetry } from '../src/session-graph-host.ts';
 
 class MemoryTelemetryRepository implements TelemetryRepository {
   readonly events: TelemetryEvent[] = [];
@@ -158,7 +164,7 @@ describe('worker telemetry runtime', () => {
     const intent = operation('intent');
     expect(await operations.createIntent(intent)).toBe(true);
     await operations.settle({ ...intent, state: 'succeeded', result: { private: true } });
-    await session.close('ended', 'carrier-completed');
+    await session.close('behavior_completed');
     await runtime.close();
 
     expect(repository.closed).toBe(true);
@@ -211,6 +217,76 @@ describe('worker telemetry runtime', () => {
       expect.arrayContaining(['operation.intent', 'operation.succeeded']),
     );
     expect(runtime.stats().callEvents).toMatchObject({ dropped: 0, failed: 0, closed: true });
+  });
+
+  it('keeps a caller hangup as a typed caller-ended outcome through the worker session', async () => {
+    const repository = new MemoryTelemetryRepository();
+    const control = new MemoryCallEvents();
+    const runtime = WorkerTelemetryRuntime.fromRepository(repository, { controlStore: control });
+    const session = await runtime.createSession({
+      workspaceId: 'workspace-1',
+      callId: 'call-1',
+      agentId: 'agent-1',
+      releaseId: 'release-1',
+      language: 'en-IN',
+    });
+    await session.close('caller_hangup');
+    await runtime.close();
+    expect(repository.events.find((event) => event.kind === 'session.ended')).toMatchObject({
+      payload: { reason: 'caller_hangup', callOutcome: 'caller_ended' },
+    });
+    expect(control.events.find((event) => event.type === 'session.ended')).toMatchObject({
+      payload: { reason: 'caller_hangup', outcome: 'caller_ended' },
+    });
+  });
+
+  it('persists the exact engine event stream for live transcript and timing inspection', async () => {
+    const repository = new MemoryTelemetryRepository();
+    const control = new MemoryCallEvents();
+    const runtime = WorkerTelemetryRuntime.fromRepository(repository, { controlStore: control });
+    const session = await runtime.createSession({
+      workspaceId: 'workspace-1',
+      callId: 'call-1',
+      agentId: 'agent-1',
+      releaseId: 'release-1',
+      language: 'en-IN',
+    });
+    let emit!: (event: EngineEvent) => void;
+    const engine = {
+      subscribe(listener: (event: EngineEvent) => void) {
+        emit = listener;
+        return () => undefined;
+      },
+    } as VoiceSessionEngine;
+    const unsubscribe = subscribeEngineTelemetry(engine, session);
+    emit({
+      type: 'user.transcript',
+      turnId: 'turn-1',
+      segmentId: 'segment-1',
+      text: 'I need help',
+      stability: 'interim',
+    });
+    emit({ type: 'user.turn', turnId: 'turn-1', phase: 'stopped', input: 'speech' });
+    emit({ type: 'timing', turnId: 'turn-1', key: 'tts_ttfb', atMs: 240, ms: 40 });
+    unsubscribe();
+    await session.close('caller_hangup');
+    await runtime.close();
+    expect(
+      control.events
+        .filter((event) => event.type === 'engine.event')
+        .map((event) => event.payload.event),
+    ).toEqual([
+      {
+        type: 'user.transcript',
+        turnId: 'turn-1',
+        segmentId: 'segment-1',
+        text: 'I need help',
+        stability: 'interim',
+      },
+      { type: 'user.turn', turnId: 'turn-1', phase: 'stopped', input: 'speech' },
+      { type: 'timing', turnId: 'turn-1', key: 'tts_ttfb', atMs: 240, ms: 40 },
+    ]);
+    expect(control.events.filter((event) => event.type === 'transcript.accepted')).toEqual([]);
   });
 
   it('bounds pending call writes and supervises timeout and reporter failures', async () => {
