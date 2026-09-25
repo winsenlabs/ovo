@@ -133,6 +133,10 @@ class MemoryStore implements DurableJobStore {
     this.state = 'failed';
     return true;
   }
+  async markSuperseded(): Promise<boolean> {
+    this.state = 'superseded';
+    return true;
+  }
   async get(): Promise<DurableJob | undefined> {
     return this.carrierCallId
       ? {
@@ -169,18 +173,10 @@ class MemoryStore implements DurableJobStore {
 class MemoryQueue implements DurableQueue {
   deleted = 0;
   visibilityChanges = 0;
-  async send() {
-    return { messageId: 'sent' };
-  }
-  async receive() {
-    return [];
-  }
-  async delete() {
-    this.deleted += 1;
-  }
-  async changeVisibility() {
-    this.visibilityChanges += 1;
-  }
+  send = async () => ({ messageId: 'sent' });
+  receive = async () => [];
+  delete = async () => { this.deleted += 1; };
+  changeVisibility = async () => { this.visibilityChanges += 1; };
 }
 
 class FakeProtection implements TaskProtection {

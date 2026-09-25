@@ -131,6 +131,7 @@ export interface DurableJobStore {
     notBefore: Date,
   ): Promise<boolean>;
   markFailed(jobId: string, workerId: string, epoch: number, reason: string): Promise<boolean>;
+  markSuperseded(jobId: string, workerId: string, epoch: number, reason: string): Promise<boolean>;
   get(jobId: string): Promise<DurableJob | undefined>;
   getSessionRoute(jobId: string): Promise<SessionRoute | undefined>;
   resolveSessionRoute(input: RouteLookup): Promise<SessionRoute | undefined>;

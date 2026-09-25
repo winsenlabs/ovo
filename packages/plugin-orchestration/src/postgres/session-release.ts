@@ -6,6 +6,22 @@ import { fromSessionRouteRow, sessionRouteColumns, type SessionRouteRow } from '
 export class SessionReleaseRepository {
   constructor(private readonly pool: Pool) {}
 
+  async markSuperseded(input: {
+    jobId: string;
+    workerId: string;
+    ownerEpoch: number;
+    reason: string;
+  }): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE ovo_jobs SET status = 'superseded', last_error = $4,
+         lease_expires_at = NULL, updated_at = now()
+       WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3
+         AND status = 'owned' AND dial_request_id IS NULL RETURNING id`,
+      [input.jobId, input.workerId, input.ownerEpoch, input.reason],
+    );
+    return result.rowCount === 1;
+  }
+
   async markFailed(input: {
     jobId: string;
     workerId: string;

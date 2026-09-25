@@ -117,6 +117,9 @@ export class PostgresSessionStoreBase {
   markFailed(jobId: string, workerId: string, epoch: number, reason: string): Promise<boolean> {
     return this.sessionRelease.markFailed({ jobId, workerId, ownerEpoch: epoch, reason });
   }
+  markSuperseded(jobId: string, workerId: string, epoch: number, reason: string): Promise<boolean> {
+    return this.sessionRelease.markSuperseded({ jobId, workerId, ownerEpoch: epoch, reason });
+  }
   get(jobId: string): Promise<DurableJob | undefined> {
     return this.jobs.get(jobId);
   }

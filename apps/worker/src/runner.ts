@@ -9,8 +9,7 @@ import {
 } from '@winsendotai/ovo-plugin-orchestration';
 import { startDeliveryRenewals } from './renewal.ts';
 import { claimWorkerDelivery } from './claim-delivery.ts';
-import { authorizeCampaignPayload, recordCampaignAttempt } from './campaign-dial.ts';
-import { failBeforeDial } from './worker-cleanup.ts';
+import { prepareCampaignDial, recordCampaignAttempt } from './campaign-dial.ts';
 import { dialOwnedJob } from './worker-dial.ts';
 import type { DeliveryOutcome } from './worker-types.ts';
 import { DEFAULT_WORKER_RUNNER_OPTIONS, type WorkerRunnerOptions } from './worker-options.ts';
@@ -171,51 +170,12 @@ export class WorkerRunner {
       return { kind: 'deferred', reason: 'task-protection-establish-failed' };
     }
 
-    const campaign = await authorizeCampaignPayload({
-      job,
-      campaigns: this.options.campaigns,
-      streamUrl: this.options.streamUrl,
-      statusCallbackUrl: this.options.statusCallbackUrl,
-      hostRouting: !!this.options.carriers,
+    const campaign = await prepareCampaignDial({
+      job, workerId: this.workerId, store: this.store, queue: this.queue,
+      delivery, lease, visibility, renewal, options: this.options,
     });
-    if (campaign.kind === 'blocked')
-      return failBeforeDial({
-        job,
-        workerId: this.workerId,
-        store: this.store,
-        queue: this.queue,
-        delivery,
-        lease,
-        visibility,
-        renewal,
-        reason: campaign.reason,
-      });
-    if (campaign.kind === 'unavailable') {
-      lease.stop();
-      visibility.stop();
-      await renewal.release();
-      await this.store.release(job.id, this.workerId, job.ownerEpoch, campaign.reason,
-        new Date(Date.now() + this.options.deferSeconds * 1_000));
-      await this.queue.delete(delivery);
-      return { kind: 'deferred', reason: campaign.reason };
-    }
+    if (campaign.kind === 'outcome') return campaign.outcome;
     const dialPayload = campaign.payload;
-    if (
-      campaign.kind === 'authorized' &&
-      !(await this.store.updateOwnedPayload(job.id, this.workerId, job.ownerEpoch, dialPayload))
-    ) {
-      await this.recordAttempt(
-        dialPayload,
-        `pre-dial:${job.id}:${job.ownerEpoch}`,
-        'failed',
-        'campaign-payload-ownership-lost',
-      );
-      lease.stop();
-      visibility.stop();
-      await renewal.release();
-      await this.queue.delete(delivery);
-      return { kind: 'deferred', reason: 'campaign-payload-ownership-lost' };
-    }
     return dialOwnedJob({
       job,
       dialPayload,

@@ -4,6 +4,7 @@ import { PostgresOrchestrationStore } from '@winsendotai/ovo-plugin-orchestratio
 import { authorizeCampaignPayload, recordCampaignAttempt } from '../src/campaign-dial.ts';
 import { reconcileClaimedCarrierDial } from '../src/reconciliation.ts';
 import { dialOwnedJob } from '../src/worker-dial.ts';
+import { WorkerRunner } from '../src/runner.ts';
 
 const job = {
   id: 'job-1',
@@ -250,5 +251,97 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('durable carrier reconciliat
     });
     expect(result).toEqual({ kind: 'deferred', reason: 'reconciliation-ownership-lost' });
     expect(deleteHint).not.toHaveBeenCalled();
+  });
+});
+
+describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('lost campaign admission lease', () => {
+  const schema = `o1_superseded_${randomUUID().replaceAll('-', '')}`;
+  let admin: PostgresOrchestrationStore;
+  let store: PostgresOrchestrationStore;
+
+  beforeAll(async () => {
+    admin = new PostgresOrchestrationStore({ connectionString: process.env.OVO_TEST_POSTGRES_URL });
+    await admin.pool.query(`CREATE SCHEMA ${schema}`);
+    store = new PostgresOrchestrationStore({
+      connectionString: process.env.OVO_TEST_POSTGRES_URL,
+      options: `-c search_path=${schema}`,
+    });
+    await store.migrate();
+    // Remove these setup alterations when the separately reviewed O1 migration lands.
+    await store.pool.query('ALTER TABLE ovo_jobs ADD COLUMN IF NOT EXISTS hinted_at timestamptz');
+    await store.pool.query('ALTER TABLE ovo_jobs ADD COLUMN IF NOT EXISTS hint_count int NOT NULL DEFAULT 0');
+    await store.pool.query('ALTER TABLE ovo_jobs DROP CONSTRAINT ovo_jobs_status_check');
+    await store.pool.query(`ALTER TABLE ovo_jobs ADD CONSTRAINT ovo_jobs_status_check CHECK (status IN (
+      'queued', 'owned', 'dialing', 'reconcile_required', 'accepted', 'connected',
+      'completed', 'failed', 'cancelled', 'superseded'))`);
+  });
+
+  afterAll(async () => {
+    await store?.close();
+    if (admin) {
+      await admin.pool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+      await admin.close();
+    }
+  });
+
+  async function run(lostJobEpoch: boolean) {
+    const id = randomUUID();
+    await store.enqueue({
+      id, workspaceId: schema, idempotencyKey: id,
+      payload: {
+        kind: 'campaign_dial_candidate', contactId: 'contact-1',
+        admissionOwnerId: 'admission-1', admissionEpoch: 3,
+      },
+    });
+    const deleted = vi.fn(async () => undefined);
+    const dial = vi.fn();
+    const releaseProtection = vi.fn(async () => undefined);
+    const authorizeDial = vi.fn(async () => {
+      if (lostJobEpoch)
+        await store.pool.query('UPDATE ovo_jobs SET owner_epoch = owner_epoch + 1 WHERE id = $1', [id]);
+      return { kind: 'blocked' as const, reason: 'lease_lost' };
+    });
+    const runner = new WorkerRunner(
+      'worker-1', store,
+      { delete: deleted, changeVisibility: async () => undefined } as never,
+      { check: async () => ({ ready: true as const }) },
+      { establish: async () => true, renew: async () => true, release: releaseProtection },
+      { dial } as never,
+      {
+        leaseMs: 60_000, protectionRenewMs: 120_000, deferSeconds: 5,
+        visibilitySeconds: 120, workerEndpoint: 'ws://worker.test/internal/media',
+        handshakeTtlMs: 60_000, streamUrl: 'wss://voice.test/media',
+        statusCallbackUrl: 'https://voice.test/status', campaigns: { authorizeDial },
+      },
+    );
+    const outcome = await runner.handle({
+      messageId: id, receiptHandle: `receipt-${id}`, receiveCount: 1,
+      reference: { schemaVersion: 1, jobId: id },
+    });
+    const row = (await store.pool.query(
+      'SELECT status, last_error, owner_epoch, dial_request_id FROM ovo_jobs WHERE id = $1', [id],
+    )).rows[0];
+    return { outcome, row, deleted, dial, releaseProtection, authorizeDial };
+  }
+
+  it('fences the terminal superseded state before deleting the receipt', async () => {
+    const result = await run(false);
+    expect(result.outcome).toEqual({ kind: 'failed', reason: 'campaign-dial-blocked:lease_lost' });
+    expect(result.row).toMatchObject({
+      status: 'superseded', last_error: 'campaign-dial-blocked:lease_lost',
+      owner_epoch: '1', dial_request_id: null,
+    });
+    expect(result.deleted).toHaveBeenCalledOnce();
+    expect(result.dial).not.toHaveBeenCalled();
+    expect(result.releaseProtection).toHaveBeenCalledOnce();
+  });
+
+  it('retains the receipt when its job ownership epoch changed during authorization', async () => {
+    const result = await run(true);
+    expect(result.outcome).toEqual({ kind: 'deferred', reason: 'campaign-job-ownership-lost' });
+    expect(result.row).toMatchObject({ status: 'owned', owner_epoch: '2', dial_request_id: null });
+    expect(result.deleted).not.toHaveBeenCalled();
+    expect(result.dial).not.toHaveBeenCalled();
+    expect(result.releaseProtection).toHaveBeenCalledOnce();
   });
 });

@@ -75,6 +75,22 @@ describe.skipIf(!url)('capacity and hint PostgreSQL eligibility', () => {
       .toBe(0);
   });
 
+  it('does not poison a hinted owned job that already has a dial request', async () => {
+    const id = randomUUID();
+    await store.pool.query(
+      `INSERT INTO ovo_jobs (id, workspace_id, idempotency_key, payload, status,
+         owner_id, owner_epoch, lease_expires_at, dial_request_id, not_before, hint_count)
+       VALUES ($1, $2, 'post-dial', '{}'::jsonb, 'owned',
+         'worker', 1, now() - interval '1 second', 'dial-request', now() - interval '1 second', 20)`,
+      [id, schema],
+    );
+    expect(await store.hints.sweep()).toEqual({ hinted: 1, poisoned: [] });
+    expect((await store.pool.query('SELECT status, last_error, hint_count FROM ovo_jobs WHERE id = $1', [id])).rows[0])
+      .toEqual({ status: 'owned', last_error: null, hint_count: 21 });
+    expect((await store.pool.query('SELECT count(*)::int AS count FROM ovo_outbox WHERE aggregate_id = $1', [id])).rows[0]?.count)
+      .toBe(1);
+  });
+
   it('resets a DLQ hint in Postgres and lets the sweeper rehint due work', async () => {
     const id = randomUUID();
     await store.pool.query(
