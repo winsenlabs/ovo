@@ -15,9 +15,13 @@ export interface IngressLimits {
   preSttBufferMs: number;
 }
 
+type QueuedIngress =
+  | { kind: 'audio'; bytes: Uint8Array }
+  | { kind: 'endpoint'; resolve: () => void; reject: (reason: unknown) => void };
+
 /** Registers before STT connects, then drains owned carrier-format frames in order. */
 export class VoiceIngress {
-  private readonly queued: Uint8Array[] = [];
+  private readonly queued: QueuedIngress[] = [];
   private readonly unsub: () => void;
   private stt?: SttSession;
   private draining?: Promise<void>;
@@ -27,6 +31,7 @@ export class VoiceIngress {
   private acceptedFrames = 0;
   private acceptedBytes = 0;
   private pendingBytes = 0;
+  private pendingFrames = 0;
   private overflows = 0;
 
   constructor(
@@ -44,14 +49,14 @@ export class VoiceIngress {
     return {
       acceptedFrames: this.acceptedFrames,
       acceptedBytes: this.acceptedBytes,
-      pendingFrames: this.queued.length,
+      pendingFrames: this.pendingFrames,
       pendingBytes: this.pendingBytes,
       overflows: this.overflows,
     };
   }
 
   async connect(provider: SpeechToText, language: string, usage: UsageSink): Promise<void> {
-    this.stt = await provider.start({
+    const session = await provider.start({
       sessionId: this.media.sessionId,
       format: this.media.format,
       language,
@@ -59,6 +64,11 @@ export class VoiceIngress {
       onEvent: (event: SttEvent) => this.observe({ type: 'stt', event, atMs: Date.now() }),
       onUsage: usage,
     });
+    if (this.disposed || this.signal.aborted) {
+      await session.cancel('engine disposed').catch(() => undefined);
+      return;
+    }
+    this.stt = session;
     this.drain();
   }
 
@@ -66,14 +76,20 @@ export class VoiceIngress {
     if (this.disposed) return;
     this.disposed = true;
     this.unsub();
+    for (const item of this.queued) if (item.kind === 'endpoint') item.resolve();
     this.queued.length = 0;
     this.pendingBytes = 0;
+    this.pendingFrames = 0;
     if (graceful) await this.stt?.finish().catch(() => undefined);
     else await this.stt?.cancel('engine disposed').catch(() => undefined);
   }
 
   forceEndpoint(): Promise<void> {
-    return this.stt?.forceEndpoint?.() ?? Promise.resolve();
+    if (this.disposed || this.signal.aborted) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      this.queued.push({ kind: 'endpoint', resolve, reject });
+      this.drain();
+    });
   }
 
   private accept(bytes: Uint8Array, atMs: number): void {
@@ -86,7 +102,7 @@ export class VoiceIngress {
         (this.media.format.encoding === 'pcm_s16le' ? 2 : 1)) /
       1000;
     if (
-      this.queued.length + 1 > this.limits.maxFrames ||
+      this.pendingFrames + 1 > this.limits.maxFrames ||
       this.pendingBytes + owned.length > this.limits.maxBytes ||
       (!this.stt && this.preSttBytes + owned.length > preLimit)
     ) {
@@ -94,10 +110,11 @@ export class VoiceIngress {
       this.fail();
       return;
     }
-    this.queued.push(owned);
+    this.queued.push({ kind: 'audio', bytes: owned });
     this.acceptedFrames++;
     this.acceptedBytes += owned.length;
     this.pendingBytes += owned.length;
+    this.pendingFrames++;
     if (!this.stt) this.preSttBytes += owned.length;
     else this.drain();
   }
@@ -106,11 +123,23 @@ export class VoiceIngress {
     if (this.draining || !this.stt || this.disposed) return;
     this.draining = (async () => {
       while (this.queued.length && !this.disposed && !this.signal.aborted) {
-        const frame = this.queued.shift()!;
+        const item = this.queued.shift()!;
+        if (item.kind === 'endpoint') {
+          try {
+            await this.stt!.forceEndpoint?.();
+            item.resolve();
+          } catch (error) {
+            item.reject(error);
+            throw error;
+          }
+          continue;
+        }
+        const frame = item.bytes;
+        this.pendingFrames--;
         try {
           await this.stt!.write(frame, this.signal);
         } finally {
-          this.pendingBytes -= frame.length;
+          this.pendingBytes = Math.max(0, this.pendingBytes - frame.length);
         }
       }
     })()

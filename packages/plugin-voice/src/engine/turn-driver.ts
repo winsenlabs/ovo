@@ -5,6 +5,7 @@ import type {
   SpeechReceipt,
   TurnDecision,
 } from '@winsendotai/ovo-contracts';
+import { raceAbort } from '../async.ts';
 import { BoundedSpeechScheduler } from '../scheduler.ts';
 import { VoiceEventBus } from './events.ts';
 import { TurnLatency } from './latency.ts';
@@ -17,6 +18,7 @@ export class TurnDriver {
   private serial: Promise<void> = Promise.resolve();
   private stopped = false;
   private nextTurn = 0;
+  private activeTurn?: AbortController;
   private readonly epochTurns = new Map<number, string>();
 
   turnIdForEpoch(epoch: number): string | undefined {
@@ -39,6 +41,7 @@ export class TurnDriver {
     if (decision.type === 'force-endpoint') return;
     if (decision.type === 'interrupt') {
       this.events.emit({ type: 'interrupt', reason: decision.reason });
+      this.activeTurn?.abort(new DOMException('turn interrupted', 'AbortError'));
       this.behavior.cancel?.();
       const turnId = this.epochTurns.get(this.speech.epoch) ?? 'interruption';
       this.latency.start(turnId);
@@ -76,6 +79,7 @@ export class TurnDriver {
 
   async dispose(): Promise<void> {
     this.stopped = true;
+    this.activeTurn?.abort(new DOMException('engine disposed', 'AbortError'));
     this.behavior.cancel?.();
     await Promise.allSettled([...this.tasks, ...this.receipts]);
   }
@@ -92,50 +96,67 @@ export class TurnDriver {
   }
 
   private async run(input: string, extra: Record<string, unknown>, turnId: string): Promise<void> {
-    await this.interrupting;
-    await this.deliverReceipts();
-    if (this.stopped) return;
-    const epoch = await this.speech.beginEpoch();
-    this.epochTurns.set(epoch, turnId);
-    this.behavior.beginTurn?.(epoch);
-    this.latency.start(turnId);
-    this.latency.stage(turnId, 'turn_decision');
-    const variables = { ...structuredClone(this.session.variables), ...extra };
-    if (this.behavior.respondStream) {
-      let first = true;
-      for await (const text of this.behavior.respondStream(input, variables)) {
-        if (this.stopped || epoch !== this.speech.epoch) break;
-        if (!text.trim()) continue;
-        if (first) {
-          first = false;
-          this.latency.stage(turnId, 'llm_ttfb');
-          this.latency.stage(turnId, 'behavior_first_segment');
+    const turn = new AbortController();
+    this.activeTurn = turn;
+    let epoch: number | undefined;
+    try {
+      await this.interrupting;
+      await this.deliverReceipts();
+      if (this.stopped || turn.signal.aborted) return;
+      epoch = await this.speech.beginEpoch();
+      if (this.stopped || turn.signal.aborted) return;
+      this.epochTurns.set(epoch, turnId);
+      this.behavior.beginTurn?.(epoch);
+      this.latency.start(turnId);
+      this.latency.stage(turnId, 'turn_decision');
+      const variables = { ...structuredClone(this.session.variables), ...extra };
+      if (this.behavior.respondStream) {
+        const iterator = this.behavior.respondStream(input, variables)[Symbol.asyncIterator]();
+        let first = true;
+        while (!turn.signal.aborted) {
+          const next = await raceAbort(iterator.next(), turn.signal);
+          if (next.done || this.stopped || epoch !== this.speech.epoch) break;
+          const text = next.value;
+          if (!text.trim()) continue;
+          if (first) {
+            first = false;
+            this.latency.stage(turnId, 'llm_ttfb');
+            this.latency.stage(turnId, 'behavior_first_segment');
+          }
+          this.track(
+            this.speech.speak(text, {
+              epoch,
+              kind: this.behavior.speechKind?.(text) ?? 'response',
+            }),
+          );
         }
-        this.track(
-          this.speech.speak(text, {
-            epoch,
-            kind: this.behavior.speechKind?.(text) ?? 'response',
-          }),
-        );
+      } else {
+        const text = await raceAbort(this.behavior.respond(input, variables), turn.signal);
+        if (!this.stopped && epoch === this.speech.epoch && text.trim()) {
+          this.latency.stage(turnId, 'behavior_first_segment');
+          this.track(
+            this.speech.speak(text, {
+              epoch,
+              kind: this.behavior.speechKind?.(text) ?? 'response',
+            }),
+          );
+        }
       }
-    } else {
-      const text = await this.behavior.respond(input, variables);
-      if (!this.stopped && epoch === this.speech.epoch && text.trim()) {
-        this.latency.stage(turnId, 'behavior_first_segment');
-        this.track(
-          this.speech.speak(text, {
-            epoch,
-            kind: this.behavior.speechKind?.(text) ?? 'response',
-          }),
-        );
+      if (turn.signal.aborted) return;
+      await this.deliverReceipts();
+      await this.interrupting;
+      if (!this.stopped && epoch === this.speech.epoch && this.behavior.isComplete?.())
+        this.end('behavior_completed');
+    } catch (error) {
+      if (!turn.signal.aborted) throw error;
+    } finally {
+      if (epoch !== undefined) {
+        this.latency.total(turnId);
+        this.latency.clear(turnId);
+        this.epochTurns.delete(epoch);
       }
+      if (this.activeTurn === turn) this.activeTurn = undefined;
     }
-    await this.deliverReceipts();
-    await this.interrupting;
-    this.latency.total(turnId);
-    this.latency.clear(turnId);
-    this.epochTurns.delete(epoch);
-    if (!this.stopped && this.behavior.isComplete?.()) this.end('behavior_completed');
   }
 
   private track(receipt: Promise<SpeechReceipt>): void {

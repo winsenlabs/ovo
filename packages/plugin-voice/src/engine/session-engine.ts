@@ -168,7 +168,7 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
       this.ingress = new VoiceIngress(
         media,
         {
-          maxFrames: this.ports.engine?.maxIngressFrames ?? 100,
+          maxFrames: this.ports.engine?.maxIngressFrames ?? 250,
           maxBytes: this.ports.engine?.maxIngressBytes ?? 512 * 1024,
           preSttBufferMs: this.ports.engine?.preSttBufferMs ?? 5_000,
         },

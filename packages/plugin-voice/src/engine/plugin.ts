@@ -27,7 +27,7 @@ const engineSchema = {
     prefetchSegments: { type: 'integer', minimum: 0, maximum: 4, default: 2 },
     maxPrefetchBytes: { type: 'integer', minimum: 1, maximum: 8_388_608, default: 262_144 },
     markTimeoutMs: { type: 'integer', minimum: 1, maximum: 120_000 },
-    maxIngressFrames: { type: 'integer', minimum: 1, maximum: 1000 },
+    maxIngressFrames: { type: 'integer', minimum: 1, maximum: 1000, default: 250 },
     maxIngressBytes: { type: 'integer', minimum: 1, maximum: 8_388_608 },
     maxConcurrentTurns: { type: 'integer', minimum: 1, maximum: 16 },
     preSttBufferMs: { type: 'integer', minimum: 1, maximum: 30_000, default: 5000 },

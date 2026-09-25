@@ -63,7 +63,9 @@ export class BoundedSpeechScheduler implements Speech {
   configurePipeline(prefetchSegments: number): void {
     if (!Number.isInteger(prefetchSegments) || prefetchSegments < 0 || prefetchSegments > 4)
       throw new RangeError('prefetchSegments must be between 0 and 4');
-    this.prefetchSegments = prefetchSegments;
+    // Outputs without prepare have no overlap contract. In particular, a host
+    // cache override may own only one carrier writer per epoch.
+    this.prefetchSegments = this.output.prepare ? prefetchSegments : 0;
   }
 
   configureSession(session: SessionInput): void {

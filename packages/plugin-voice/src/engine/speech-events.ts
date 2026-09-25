@@ -8,6 +8,7 @@ export class SpeechEventProjector {
   private readonly acknowledged = new Set<string>();
   private readonly segmentTurns = new Map<string, string>();
   private readonly syntheticTurns = new Set<string>();
+  private readonly activeByEpoch = new Map<number, Set<string>>();
 
   constructor(
     private readonly bus: VoiceEventBus,
@@ -64,20 +65,34 @@ export class SpeechEventProjector {
         this.acknowledged.delete(evidence.segmentId);
       }
     }
-    if (evidence.phase === 'started')
-      this.bus.observe({
-        type: 'bot.started',
-        epoch: evidence.epoch,
-        atMs: evidence.at,
-        kind: evidence.kind as 'response',
-      });
-    if (evidence.phase === 'completed' || evidence.phase === 'interrupted')
-      this.bus.observe({
-        type: 'bot.stopped',
-        epoch: evidence.epoch,
-        atMs: evidence.at,
-        kind: evidence.kind as 'response',
-      });
+    if (evidence.phase === 'started') {
+      const active = this.activeByEpoch.get(evidence.epoch) ?? new Set<string>();
+      if (!active.size)
+        this.bus.observe({
+          type: 'bot.started',
+          epoch: evidence.epoch,
+          atMs: evidence.at,
+          kind: evidence.kind as 'response',
+        });
+      active.add(evidence.segmentId);
+      this.activeByEpoch.set(evidence.epoch, active);
+    }
+    if (
+      evidence.phase === 'completed' ||
+      evidence.phase === 'interrupted' ||
+      evidence.phase === 'failed'
+    ) {
+      const active = this.activeByEpoch.get(evidence.epoch);
+      if (active?.delete(evidence.segmentId) && !active.size) {
+        this.activeByEpoch.delete(evidence.epoch);
+        this.bus.observe({
+          type: 'bot.stopped',
+          epoch: evidence.epoch,
+          atMs: evidence.at,
+          kind: evidence.kind as 'response',
+        });
+      }
+    }
     if (
       evidence.phase === 'generated' ||
       evidence.phase === 'completed' ||

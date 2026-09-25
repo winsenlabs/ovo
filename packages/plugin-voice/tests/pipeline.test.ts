@@ -34,6 +34,83 @@ function tts(firstByteMs = 40): TextToSpeech {
 }
 
 describe('native speech pipelining', () => {
+  it('keeps outputs without prepare serial even when the engine requests pipelining', async () => {
+    const started: string[] = [];
+    let finishFirst!: () => void;
+    const firstGate = new Promise<void>((resolve) => (finishFirst = resolve));
+    const speech = new BoundedSpeechScheduler({
+      async play(segment) {
+        started.push(segment.text);
+        if (segment.text === 'first') await firstGate;
+        return { state: 'completed', evidence: 'simulated' };
+      },
+      async interrupt() {},
+    });
+    speech.configurePipeline(2);
+    const first = speech.speak('first');
+    const second = speech.speak('second');
+    try {
+      await waitFor(() => started.length > 0);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(started).toEqual(['first']);
+      finishFirst();
+      await Promise.all([first, second]);
+      expect(started).toEqual(['first', 'second']);
+    } finally {
+      finishFirst();
+      await speech.dispose();
+    }
+  });
+
+  it('does not interleave chunks while an earlier carrier send is deferred', async () => {
+    const carrier = createFakeCarrier({ playback: 'manual' });
+    const sent: number[] = [];
+    let releaseSend!: () => void;
+    const sendGate = new Promise<void>((resolve) => (releaseSend = resolve));
+    const media = {
+      ...carrier.duplex,
+      async sendAudio(bytes: Uint8Array, signal?: AbortSignal) {
+        sent.push(bytes[0]!);
+        if (bytes[0] === 2) await sendGate;
+        await carrier.duplex.sendAudio(bytes, signal);
+      },
+    };
+    const multiChunk: TextToSpeech = {
+      ...tts(0),
+      async *synthesize(input) {
+        if (input.text === 'first') {
+          yield Uint8Array.of(1);
+          yield Uint8Array.of(2);
+        } else {
+          yield Uint8Array.of(3);
+          yield Uint8Array.of(4);
+        }
+      },
+    };
+    const output = new NativeStreamingSpeechOutput(multiChunk, media, session, () => undefined, {
+      markTimeoutMs: 5000,
+    });
+    const speech = new BoundedSpeechScheduler(output);
+    speech.configurePipeline(2);
+    const first = speech.speak('first');
+    const second = speech.speak('second');
+    try {
+      await waitFor(() => sent.includes(2));
+      expect(sent).toEqual([1, 2]);
+      releaseSend();
+      await waitFor(() => carrier.log.filter((entry) => entry.type === 'mark').length === 2);
+      expect(sent).toEqual([1, 2, 3, 4]);
+      carrier.drain();
+      await Promise.all([first, second]);
+    } finally {
+      releaseSend();
+      carrier.drain();
+      await Promise.allSettled([first, second]);
+      output.dispose();
+      await speech.dispose();
+    }
+  });
+
   it('sends the next segment within one frame while receipts wait for their own marks', async () => {
     const carrier = createFakeCarrier({ playback: 'manual' });
     const output = new NativeStreamingSpeechOutput(

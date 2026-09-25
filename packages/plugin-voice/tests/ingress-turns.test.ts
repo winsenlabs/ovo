@@ -105,6 +105,79 @@ it('fails closed on bounded pre-STT overflow', async () => {
   await ingress.dispose();
 });
 
+it('cancels an STT session that finishes connecting after ingress disposal', async () => {
+  const carrier = createFakeCarrier();
+  let connect!: () => void;
+  const gate = new Promise<void>((resolve) => (connect = resolve));
+  let cancels = 0;
+  const ingress = new VoiceIngress(
+    carrier.duplex,
+    { maxFrames: 250, maxBytes: 40_000, preSttBufferMs: 5000 },
+    new AbortController().signal,
+    () => undefined,
+    () => undefined,
+  );
+  const starting = ingress.connect(
+    {
+      capabilities,
+      async start() {
+        await gate;
+        return {
+          async write() {},
+          async finish() {},
+          async cancel() {
+            cancels++;
+          },
+        };
+      },
+    },
+    'en-US',
+    () => undefined,
+  );
+  await ingress.dispose();
+  connect();
+  await starting;
+  expect(cancels).toBe(1);
+});
+
+it('holds five seconds of standard carrier frames before STT connects by default', async () => {
+  const carrier = createFakeCarrier();
+  let connect!: () => void;
+  const gate = new Promise<void>((resolve) => (connect = resolve));
+  const stt: SpeechToText = {
+    capabilities,
+    async start() {
+      await gate;
+      return { async write() {}, async finish() {}, async cancel() {} };
+    },
+  };
+  const engine = new NativeVoiceSessionEngine({
+    behavior: { respond: async () => '' },
+    scheduler: new BoundedSpeechScheduler({
+      async play() {
+        return { state: 'completed', evidence: 'simulated' };
+      },
+      async interrupt() {},
+    }),
+    media: carrier.duplex,
+    stt,
+    session,
+  });
+  const starting = engine.start();
+  try {
+    for (let frame = 0; frame < 250; frame++) carrier.caller.audio(new Uint8Array(160));
+    expect(engine.ingressStats).toMatchObject({
+      acceptedFrames: 250,
+      acceptedBytes: 40_000,
+      overflows: 0,
+    });
+  } finally {
+    connect();
+    await starting;
+    await engine.dispose('drain');
+  }
+});
+
 it('forwards the selected detector force-endpoint decision to STT', async () => {
   const carrier = createFakeCarrier();
   let endpointCalls = 0;
@@ -156,6 +229,74 @@ it('forwards the selected detector force-endpoint decision to STT', async () => 
   decide({ type: 'force-endpoint' });
   await waitFor(() => endpointCalls === 1);
   await engine.dispose('drain');
+});
+
+it('orders a force-endpoint requested during STT connection after buffered speech', async () => {
+  const carrier = createFakeCarrier();
+  let connect!: () => void;
+  const gate = new Promise<void>((resolve) => (connect = resolve));
+  let decide!: (decision: TurnDecision) => void;
+  const operations: string[] = [];
+  const factory: TurnDetectorFactory = {
+    create() {
+      const listeners = new Set<(decision: TurnDecision) => void>();
+      decide = (decision) => {
+        for (const listener of listeners) listener(decision);
+      };
+      return {
+        observe() {},
+        on(listener) {
+          listeners.add(listener);
+          return () => listeners.delete(listener);
+        },
+        dispose() {},
+      };
+    },
+  };
+  const stt: SpeechToText = {
+    capabilities,
+    async start() {
+      await gate;
+      return {
+        async write(frame) {
+          operations.push(`write:${frame[0]}`);
+        },
+        async forceEndpoint() {
+          operations.push('force');
+        },
+        async finish() {},
+        async cancel() {},
+      };
+    },
+  };
+  const engine = new NativeVoiceSessionEngine({
+    behavior: { respond: async () => '' },
+    scheduler: new BoundedSpeechScheduler({
+      async play() {
+        return { state: 'completed', evidence: 'simulated' };
+      },
+      async interrupt() {},
+    }),
+    media: carrier.duplex,
+    stt,
+    turnDetector: factory,
+    session,
+  });
+  const starting = engine.start();
+  try {
+    carrier.caller.audio(Uint8Array.of(1));
+    carrier.caller.audio(Uint8Array.of(2));
+    decide({ type: 'force-endpoint' });
+    carrier.caller.audio(Uint8Array.of(3));
+    connect();
+    await starting;
+    await waitFor(() => operations.includes('write:3'));
+    expect(operations).toEqual(['write:1', 'write:2', 'force', 'write:3']);
+  } finally {
+    connect();
+    await starting;
+    await engine.dispose('drain');
+  }
 });
 
 async function waitFor(predicate: () => boolean): Promise<void> {
