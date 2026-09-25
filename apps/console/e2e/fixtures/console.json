@@ -5551,7 +5551,7 @@
       "draftVersion": "1",
       "config": {
         "name": "Fixture agent 119",
-        "mode": "announcement",
+        "mode": "faq",
         "language": "en-IN",
         "locale": "en-IN",
         "timezone": "Asia/Kolkata",
@@ -5561,14 +5561,40 @@
           "properties": {},
           "additionalProperties": false
         },
-        "faq": [],
+        "faq": [
+          {
+            "id": "faq-hours",
+            "question": "When are you open?",
+            "answer": "Every weekday.",
+            "aliases": ["Opening hours"]
+          }
+        ],
         "faqThreshold": 0.65,
         "faqMargin": 0.15,
         "clarification": "Please clarify",
         "context": "",
         "contextBudget": 12000,
         "uncertainty": "I do not know",
-        "tools": [],
+        "tools": [
+          {
+            "id": "hours-tool",
+            "description": "Read opening hours",
+            "connector": "http",
+            "inputSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "effect": "read",
+            "confirmation": false,
+            "timeoutMs": 10000,
+            "http": {
+              "endpoint": "https://example.com/hours",
+              "method": "GET",
+              "responseType": "json"
+            }
+          }
+        ],
         "allowedTools": [],
         "processing": {
           "initial": "Please wait",
@@ -5590,7 +5616,59 @@
           "acknowledgements": []
         },
         "providers": {},
-        "maxSteps": 5
+        "maxSteps": 5,
+        "script": {
+          "start": "start",
+          "maxVisits": 20,
+          "nodes": [
+            {
+              "id": "start",
+              "prompt": "Welcome. Say yes to continue.",
+              "terminal": false,
+              "transitions": [
+                {
+                  "event": "text",
+                  "matches": ["yes"],
+                  "to": "done"
+                },
+                {
+                  "event": "text",
+                  "matches": ["again"],
+                  "to": "retry"
+                }
+              ]
+            },
+            {
+              "id": "done",
+              "prompt": "Thank you.",
+              "terminal": true,
+              "transitions": []
+            },
+            {
+              "id": "retry",
+              "prompt": "Let us try again.",
+              "terminal": false,
+              "transitions": [
+                {
+                  "event": "text",
+                  "matches": ["restart"],
+                  "to": "start"
+                }
+              ]
+            }
+          ]
+        },
+        "costPolicy": {
+          "budgetId": "fixture-budget",
+          "reservationPaise": "10",
+          "maxCallSeconds": 300,
+          "priceCards": {
+            "fixture.audio_seconds": {
+              "id": "fixture-card",
+              "version": "1"
+            }
+          }
+        }
       }
     },
     {
@@ -5598,7 +5676,7 @@
       "draftVersion": "1",
       "config": {
         "name": "Fixture agent 120",
-        "mode": "announcement",
+        "mode": "agent",
         "language": "en-IN",
         "locale": "en-IN",
         "timezone": "Asia/Kolkata",
@@ -5615,8 +5693,27 @@
         "context": "",
         "contextBudget": 12000,
         "uncertainty": "I do not know",
-        "tools": [],
-        "allowedTools": [],
+        "tools": [
+          {
+            "id": "hours-tool",
+            "description": "Read opening hours",
+            "connector": "http",
+            "inputSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "effect": "read",
+            "confirmation": false,
+            "timeoutMs": 10000,
+            "http": {
+              "endpoint": "https://example.com/hours",
+              "method": "GET",
+              "responseType": "json"
+            }
+          }
+        ],
+        "allowedTools": ["hours-tool"],
         "processing": {
           "initial": "Please wait",
           "progressAfterMs": 5000,

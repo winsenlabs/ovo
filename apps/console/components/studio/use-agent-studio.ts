@@ -14,6 +14,7 @@ import {
   type ProviderBinding,
   type Release,
 } from '../../lib/api';
+import { describeError } from '../../lib/errors';
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'conflict';
 export function useAgentStudio(extensions: readonly ConsoleExtension[], preferredAgentId?: string) {
   const [agents, setAgents] = useState<AgentDraft[]>([]);
@@ -35,13 +36,20 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[], preferre
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(undefined);
+    setSelected(undefined);
     try {
-      const [{ data: agentPayload }, bindingResult] = await Promise.all([
+      const [{ data: agentPayload }, bindingResult, preferredResult] = await Promise.all([
         apiRequest<unknown>('/agents'),
         apiRequest<unknown>('/provider-bindings').catch(() => ({ data: { items: [] } })),
+        preferredAgentId
+          ? apiRequest<unknown>(`/agents/${encodeURIComponent(preferredAgentId)}`)
+          : Promise.resolve(undefined),
       ]);
       const summaries = items<Record<string, unknown>>(agentPayload);
       const drafts = summaries.filter((item) => item.config).map((item) => normalizeDraft(item));
+      const preferred = preferredResult
+        ? normalizeDraft(preferredResult.data, preferredResult.etag)
+        : undefined;
       if (summaries.length && !drafts.length) {
         const details = await Promise.all(
           summaries.map(async (item) => {
@@ -49,15 +57,23 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[], preferre
             return normalizeDraft(result.data, result.etag);
           }),
         );
-        setAgents(details);
-        setSelected(details.find((item) => item.id === preferredAgentId) ?? details[0]);
+        setAgents(
+          preferred && !details.some((item) => item.id === preferred.id)
+            ? [preferred, ...details]
+            : details,
+        );
+        setSelected(preferred ?? details[0]);
       } else {
-        setAgents(drafts);
-        setSelected(drafts.find((item) => item.id === preferredAgentId) ?? drafts[0]);
+        setAgents(
+          preferred && !drafts.some((item) => item.id === preferred.id)
+            ? [preferred, ...drafts]
+            : drafts,
+        );
+        setSelected(preferred ?? drafts[0]);
       }
       setBindings(items<ProviderBinding>(bindingResult.data));
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : 'Agents could not be loaded.');
+      setLoadError(describeError(error));
     } finally {
       setLoading(false);
     }
@@ -76,14 +92,10 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[], preferre
     void Promise.all([
       apiRequest<unknown>(`/agents/${selected.id}/releases`)
         .then(({ data }) => setReleases(items<Release>(data)))
-        .catch((error) =>
-          setReleaseError(error instanceof Error ? error.message : 'Release history unavailable.'),
-        ),
+        .catch((error) => setReleaseError(describeError(error))),
       apiRequest<AgentReadiness>(`/agents/${selected.id}/readiness`)
         .then(({ data }) => setReadiness(data))
-        .catch((error) =>
-          setReadinessError(error instanceof Error ? error.message : 'Readiness unavailable.'),
-        ),
+        .catch((error) => setReadinessError(describeError(error))),
     ]);
   }, [selected?.id, selected?.draftVersion]);
 
@@ -131,7 +143,7 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[], preferre
         setConflict(error.details?.current);
       } else {
         setSaveState('error');
-        setSaveError(error instanceof Error ? error.message : 'Draft save failed.');
+        setSaveError(describeError(error));
       }
     } finally {
       saving.current = false;
@@ -167,7 +179,7 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[], preferre
       setSelected(created);
       setSaveState('saved');
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : 'Agent creation failed.');
+      setLoadError(describeError(error));
     }
   }
 
@@ -182,7 +194,7 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[], preferre
       });
       setReleases((current) => [data, ...current]);
     } catch (error) {
-      setReleaseError(error instanceof Error ? error.message : 'Publication was rejected.');
+      setReleaseError(describeError(error));
     } finally {
       setPublishing(false);
     }

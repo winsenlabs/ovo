@@ -70,6 +70,23 @@ export function ScriptEditor({
         current === index ? { ...node, ...patch } : node,
       ),
     });
+  const renameNode = (index: number, id: string) => {
+    if (!script) return;
+    const previousId = script.nodes[index]?.id;
+    if (previousId === undefined) return;
+    setScript({
+      ...script,
+      start: script.start === previousId ? id : script.start,
+      nodes: script.nodes.map((node, current) => ({
+        ...node,
+        id: current === index ? id : node.id,
+        transitions: node.transitions.map((edge) => ({
+          ...edge,
+          to: edge.to === previousId ? id : edge.to,
+        })),
+      })),
+    });
+  };
   const patchTransition = (nodeIndex: number, edgeIndex: number, patch: Partial<Transition>) => {
     if (!script) return;
     const node = script.nodes[nodeIndex]!;
@@ -158,6 +175,7 @@ export function ScriptEditor({
               script={script}
               rowKeys={rowKeys}
               patchNode={patchNode}
+              renameNode={renameNode}
               patchTransition={patchTransition}
               setScript={setScript}
             />

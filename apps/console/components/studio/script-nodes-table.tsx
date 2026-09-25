@@ -9,12 +9,14 @@ export function ScriptNodesTable({
   script,
   rowKeys,
   patchNode,
+  renameNode,
   patchTransition,
   setScript,
 }: {
   script: Script;
   rowKeys: { keyAt: (index: number) => string; remove: (index: number) => void };
   patchNode: (index: number, patch: Partial<Node>) => void;
+  renameNode: (index: number, id: string) => void;
   patchTransition: (nodeIndex: number, edgeIndex: number, patch: Partial<Transition>) => void;
   setScript: (next: Script | undefined) => void;
 }) {
@@ -39,7 +41,7 @@ export function ScriptNodesTable({
               <input
                 id={`node-id-${nodeIndex}`}
                 value={node.id}
-                onChange={(event) => patchNode(nodeIndex, { id: event.target.value })}
+                onChange={(event) => renameNode(nodeIndex, event.target.value)}
               />
             </td>
             <td>
@@ -81,6 +83,9 @@ export function ScriptNodesTable({
                     <option value="text">Text</option>
                     <option value="dtmf">DTMF</option>
                   </select>
+                  <label className="sr-only" htmlFor={`script-matches-${nodeIndex}-${edgeIndex}`}>
+                    Transition {edgeIndex + 1} matches for {node.id}
+                  </label>
                   <ListTextInput
                     id={`script-matches-${nodeIndex}-${edgeIndex}`}
                     rows={2}

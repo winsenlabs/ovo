@@ -39,6 +39,12 @@
   gap: 20px;
   align-items: start;
 }
+.studio-editors {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
 .studio-rail {
   position: sticky;
   top: 86px;

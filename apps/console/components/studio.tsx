@@ -180,7 +180,7 @@ export function AgentStudio({
         </Notice>
       )}
       <div className="studio-layout">
-        <div className="stack">
+        <fieldset className="stack studio-editors" disabled={identity.role === 'viewer'}>
           <AgentModePanel config={selected.config} role={identity.role} update={applyUpdate} />
           {activeForms.map((form) => (
             <Panel key={`${form.id}-${selected.id}`} labelledBy={`${form.id}-title`}>
@@ -222,7 +222,7 @@ export function AgentStudio({
             <strong>Desktop is recommended for script table authoring.</strong> JSON import remains
             available on smaller screens, and diagnostics never depend on a canvas.
           </div>
-        </div>
+        </fieldset>
         <StudioRail
           selected={selected}
           releases={releases}
