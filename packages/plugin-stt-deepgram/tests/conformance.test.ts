@@ -9,6 +9,11 @@ describeSpeechToText(
     template: deepgramTemplate,
     // FixtureNet cannot express an optional Finalize followed by more binary writes.
     // The dedicated protocol test below covers that sequence with a strict wire script.
-    only: ['capabilities are coherent', 'a scripted utterance', 'cancel closes', 'a provider failure'],
+    only: [
+      'capabilities are coherent',
+      'a scripted utterance',
+      'cancel closes',
+      'a provider failure',
+    ],
   },
 );

@@ -21,6 +21,9 @@ export const deepgramPlugin = definePlugin(
       properties: {
         binding: { type: 'object' },
         credentialRef: { type: 'object' },
+        workspaceId: { type: 'string' },
+        bindingId: { type: 'string' },
+        updatedAt: { type: 'string' },
       },
       additionalProperties: false,
     },
@@ -35,19 +38,26 @@ export const deepgramPlugin = definePlugin(
       },
       additionalProperties: false,
     },
-    secretFields: ['/credentialRef'],
+    secretFields: [''],
     capabilities: DEEPGRAM_CAPABILITIES,
-    meters: [{
-      key: 'deepgram.streaming-stt.audio_seconds', unit: 'audio_seconds',
-      label: 'Deepgram streaming audio seconds', role: 'stt',
-    }],
+    meters: [
+      {
+        key: 'deepgram.streaming-stt.audio_seconds',
+        unit: 'audio_seconds',
+        label: 'Deepgram streaming audio seconds',
+        role: 'stt',
+      },
+    ],
     runtime: { egressHosts: ['api.deepgram.com'], modelLicences: [] },
     conformance: ['stt@1'],
     ui: { label: 'Deepgram Streaming STT', vendor: 'Deepgram', slot: 'stt' },
   },
   async (ctx, row) => {
     const binding = (row.binding ?? {}) as DeepgramConfig;
-    const apiKey = await ctx.secret('/credentialRef');
+    const ref = row.credentialRef;
+    const apiKey = await ctx.secret(
+      ref && typeof ref === 'object' && 'credentialRef' in ref ? '/credentialRef' : '',
+    );
     ctx.provide(Cap.stt, new DeepgramStt(ctx.net, apiKey, binding));
   },
 );

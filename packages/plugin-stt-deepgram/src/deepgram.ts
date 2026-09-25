@@ -32,13 +32,16 @@ export const DEEPGRAM_CAPABILITIES = Object.freeze({
 
 export class DeepgramStt implements SpeechToText {
   readonly capabilities = DEEPGRAM_CAPABILITIES;
+  private readonly binding: DeepgramConfig;
 
   constructor(
     private readonly net: NetPort,
     private readonly apiKey: string,
-    private readonly binding: DeepgramConfig = { model: 'nova-3' },
+    binding: DeepgramConfig = { model: 'nova-3' },
     private readonly clock: Clock = systemClock,
-  ) {}
+  ) {
+    this.binding = Object.freeze(structuredClone(binding));
+  }
 
   async start(input: Parameters<SpeechToText['start']>[0]): Promise<SttSession> {
     if (!this.capabilities.inputFormats.some((format) => sameFormat(format, input.format)))

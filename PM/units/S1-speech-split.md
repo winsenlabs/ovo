@@ -121,3 +121,51 @@ CONSTRAINTS:
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/lint.mjs --only packages/plugin-stt-deepgram packages/plugin-tts-openai packages/plugin-llm-openai packages/plugin-providers packages/plugin-inference`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/typecheck-scope.mjs packages/plugin-stt-deepgram packages/plugin-tts-openai packages/plugin-llm-openai packages/plugin-providers packages/plugin-inference packages/distribution packages/session-host`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run packages/plugin-stt-deepgram packages/plugin-tts-openai packages/plugin-llm-openai packages/plugin-providers packages/plugin-inference packages/distribution --reporter=dot`
+
+## Checker note — 2026-09-25
+
+The frozen `session-host/src/select-session-graph.ts` writes a selected binding credential as
+root `{ credentialRef: { credentialId } }`, while the earlier S1 fixture shape nested that
+object under `credentialRef`. Calling `ctx.secret('/credentialRef')` unconditionally fails
+on the production selection path with `config /credentialRef holds no {credentialRef}`.
+The three S1 providers therefore call guarded `ctx.secret('')` for the host's root shape
+and retain `ctx.secret('/credentialRef')` for the nested fixture shape. The manifest
+marks the root as secret-bearing so release compatibility checks accept the host shape.
+Both paths resolve
+through the host secret resolver; no plugin reads a raw credential or changes the frozen
+session host. I1 owns normalizing the binding config shape and then removing this local
+compatibility branch.
+
+The API's legacy release fixture stores `api: 'responses'` in an OpenAI LLM binding.
+S1 accepts only that value as a transitional binding field; `chat` fails closed because
+the v2 provider constructs a Responses model. I1 owns removal or migration of the
+legacy `api` field.
+The legacy inference factory also refuses a stored `api: 'chat'` binding before
+provider egress: routing it through Responses would silently change API semantics.
+The helper now forwards the old `instructions` config and its one combined usage
+callback, including `modelId`, while retaining the v2 per-meter usage sink.
+
+The frozen worker session-graph runtime still appends `workspaceId`, `bindingId`, and
+`updatedAt` to selected provider rows for the old bridges. S1's v2 config schemas
+accept those three immutable metadata fields while ignoring them at execution.
+I1 owns removing that bridge-only row augmentation after the bridges are deleted.
+
+The legacy `plugin-providers` factories now delegate to the new provider classes
+with the kit's STT shim and a local TTS adapter over the frozen host format adapter.
+The old WebSocket, TTS resampler, SDK model
+factory, and box-filter implementations were removed; the loader supersedes the
+frozen distribution bridges in the production catalog. A bypassed bridge has no
+host NetPort and fails loudly if it attempts provider traffic. Batch transcription was moved into
+`plugin-tts-openai/src/batch.ts` and stays a separate, unregistered v1 capability:
+the frozen contracts and catalog define no v2 batch-STT slot. I1 owns the batch
+contract/catalog decision and deletion of the transitional façade and bridges.
+
+The v1 `ovo.tts-streaming` service requests 8 kHz mu-law, and v1 `ovo.tts`
+expects a `Promise<{audio,usage}>`; forwarding the native PCM16 provider directly
+failed both contracts. The local `plugin-providers/src/legacy-tts.ts` façade uses
+the frozen host format adapter for these two transitional ports, retains the
+legacy binding and response bounds, and forwards native token meter units without
+casting them to characters. I1 removes this adapter with the façade after the
+legacy consumers and bridges are gone.
+For PCM16 legacy output, the adapter splits on even byte boundaries, including
+when the configured maximum chunk size is odd, preserving whole samples.

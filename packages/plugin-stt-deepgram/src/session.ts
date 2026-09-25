@@ -6,7 +6,7 @@ import {
   type TranscriptSegment,
   type WebSocketLike,
 } from '@winsendotai/ovo-contracts';
-import { decimal, syntheticRequestId, systemClock, usageOnce } from '@winsendotai/ovo-plugin-kit';
+import { decimal, syntheticRequestId, usageOnce } from '@winsendotai/ovo-plugin-kit';
 
 type Start = Parameters<SpeechToText['start']>[0];
 
@@ -153,8 +153,12 @@ export class DeepgramSession implements SttSession {
         stability: message.is_final === true ? 'final' : 'interim',
         formatted: true,
         ...(startMs === undefined ? {} : { startMs }),
-        ...(startMs === undefined || durationMs === undefined ? {} : { endMs: startMs + durationMs }),
-        ...(typeof alternative.confidence === 'number' ? { confidence: alternative.confidence } : {}),
+        ...(startMs === undefined || durationMs === undefined
+          ? {}
+          : { endMs: startMs + durationMs }),
+        ...(typeof alternative.confidence === 'number'
+          ? { confidence: alternative.confidence }
+          : {}),
         words: wordsOf(alternative.words),
       };
       this.input.onEvent({ type: 'transcript', segment });
@@ -168,7 +172,9 @@ export class DeepgramSession implements SttSession {
     this.ended = true;
     this.emitUsage();
     this.dispose();
-    this.rejectDone(new Error(`Deepgram closed before Metadata (${code}${reason ? `: ${reason}` : ''})`));
+    this.rejectDone(
+      new Error(`Deepgram closed before Metadata (${code}${reason ? `: ${reason}` : ''})`),
+    );
   }
 
   private fail(error: Error): void {
@@ -177,7 +183,11 @@ export class DeepgramSession implements SttSession {
     this.emitUsage();
     this.dispose();
     this.rejectDone(error);
-    try { this.socket.close(); } catch { /* already closing */ }
+    try {
+      this.socket.close();
+    } catch {
+      /* already closing */
+    }
   }
 
   private emitUsage(): void {
@@ -188,15 +198,18 @@ export class DeepgramSession implements SttSession {
       unit: 'audio_seconds',
       quantity: decimal(this.metadata?.duration ?? this.bytes / bytesPerSecond(this.input.format)),
       state: reconciled ? 'reconciled' : 'estimated',
-      requestId: this.metadata?.requestId ?? syntheticRequestId('deepgram', this.input.sessionId, 1),
+      requestId:
+        this.metadata?.requestId ?? syntheticRequestId('deepgram', this.input.sessionId, 1),
       elapsedMs: Math.max(0, this.clock.now() - this.startedAt),
     });
   }
 
   private scheduleKeepalive(): void {
-    this.cancelKeepalive = systemClock.setTimeout(() => {
+    this.cancelKeepalive = this.clock.setTimeout(() => {
       if (this.ended || this.finishing) return;
-      try { this.socket.send(JSON.stringify({ type: 'KeepAlive' })); } catch (error) {
+      try {
+        this.socket.send(JSON.stringify({ type: 'KeepAlive' }));
+      } catch (error) {
         this.fail(error instanceof Error ? error : new Error('Deepgram keepalive failed'));
         return;
       }
@@ -212,14 +225,16 @@ export class DeepgramSession implements SttSession {
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>) : undefined;
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 function asError(value: unknown, fallback: string): Error {
   return value instanceof Error ? value : new Error(fallback);
 }
 function millis(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
-    ? Math.round(value * 1000) : undefined;
+    ? Math.round(value * 1000)
+    : undefined;
 }
 function wordsOf(value: unknown): TranscriptSegment['words'] {
   if (!Array.isArray(value)) return undefined;

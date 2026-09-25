@@ -1,14 +1,23 @@
 import {
   PCM16_24K,
   sameFormat,
+  type Clock,
   type NetPort,
   type SynthesisInput,
   type TextToSpeech,
   type UsageMeter,
 } from '@winsendotai/ovo-contracts';
-import { assertSuccessful, decimal, sseReader, syntheticRequestId, usageOnce } from '@winsendotai/ovo-plugin-kit';
+import {
+  assertSuccessful,
+  decimal,
+  sseReader,
+  syntheticRequestId,
+  systemClock,
+  usageOnce,
+} from '@winsendotai/ovo-plugin-kit';
 
-export type OpenAiTtsModel = 'gpt-4o-mini-tts' | 'gpt-4o-mini-tts-2025-12-15' | 'tts-1' | 'tts-1-hd';
+export type OpenAiTtsModel =
+  'gpt-4o-mini-tts' | 'gpt-4o-mini-tts-2025-12-15' | 'tts-1' | 'tts-1-hd';
 export interface OpenAiTtsConfig {
   model: OpenAiTtsModel;
   voice: string;
@@ -29,19 +38,26 @@ export const OPENAI_TTS_CAPABILITIES = Object.freeze({
 
 export class OpenAiTts implements TextToSpeech {
   readonly capabilities = OPENAI_TTS_CAPABILITIES;
+  readonly binding: Readonly<OpenAiTtsConfig>;
 
   constructor(
     private readonly net: NetPort,
     private readonly apiKey: string,
-    readonly binding: OpenAiTtsConfig = { model: 'gpt-4o-mini-tts', voice: 'alloy' },
-  ) {}
+    binding: OpenAiTtsConfig = { model: 'gpt-4o-mini-tts', voice: 'alloy' },
+    private readonly clock: Clock = systemClock,
+  ) {
+    this.binding = Object.freeze(structuredClone(binding));
+  }
 
   cacheIdentity(format: SynthesisInput['format'], voice?: string) {
     return {
-      provider: 'openai', model: this.binding.model, voice: voice ?? this.binding.voice,
-      revision: format.encoding === 'mulaw' && format.sampleRate === 8000
-        ? 'openai-tts-mulaw-8000-v1'
-        : `openai-tts-${format.encoding}-${format.sampleRate}-v1`,
+      provider: 'openai',
+      model: this.binding.model,
+      voice: voice ?? this.binding.voice,
+      revision:
+        format.encoding === 'mulaw' && format.sampleRate === 8000
+          ? 'openai-tts-mulaw-8000-v1'
+          : `openai-tts-${format.encoding}-${format.sampleRate}-v1`,
     };
   }
 
@@ -51,7 +67,7 @@ export class OpenAiTts implements TextToSpeech {
     if (!input.text || [...input.text].length > 4096)
       throw new TypeError('OpenAI TTS text must contain 1–4096 characters');
     input.signal.throwIfAborted();
-    const startedAt = Date.now();
+    const startedAt = this.clock.now();
     const once = usageOnce(input.onUsage);
     const mini = this.binding.model.startsWith('gpt-4o-mini-tts');
     let receivedBytes = 0;
@@ -60,14 +76,24 @@ export class OpenAiTts implements TextToSpeech {
     let pending: number | undefined;
     const emit = () => {
       const common = {
-        provider: 'openai', operation: 'tts' as const,
-        requestId, elapsedMs: Math.max(0, Date.now() - startedAt),
-        state: reconciled ? 'reconciled' as const : 'estimated' as const,
+        provider: 'openai',
+        operation: 'tts' as const,
+        requestId,
+        elapsedMs: Math.max(0, this.clock.now() - startedAt),
+        state: reconciled ? ('reconciled' as const) : ('estimated' as const),
       };
       const meters: UsageMeter[] = mini
         ? [
-            { ...common, unit: 'input_tokens', quantity: decimal(reconciled?.input ?? Math.ceil([...input.text].length / 4)) },
-            { ...common, unit: 'audio_output_tokens', quantity: decimal(reconciled?.output ?? Math.ceil(receivedBytes / 480)) },
+            {
+              ...common,
+              unit: 'input_tokens',
+              quantity: decimal(reconciled?.input ?? Math.ceil([...input.text].length / 4)),
+            },
+            {
+              ...common,
+              unit: 'audio_output_tokens',
+              quantity: decimal(reconciled?.output ?? Math.ceil(receivedBytes / 480)),
+            },
           ]
         : [{ ...common, unit: 'characters', quantity: decimal([...input.text].length) }];
       once.emit(meters);
@@ -158,5 +184,6 @@ function decodeBase64(value: string): Uint8Array {
 }
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown> : undefined;
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
