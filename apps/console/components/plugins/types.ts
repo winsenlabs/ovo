@@ -10,3 +10,6 @@ export type PluginOption = {
 export type JsonShape = { type?: string; properties?: Record<string, JsonShape>; required?: string[]; enum?: unknown[]; const?: unknown; minimum?: number; maximum?: number; default?: unknown; description?: string };
 export type PluginCatalog = { plugins: PluginOption[]; unavailable?: { id: string; reason: string }[] };
 export const SLOT_KIND: Record<Slot, string> = { engine: 'engine', carrier: 'carrier', stt: 'stt', tts: 'tts', llm: 'llm', vad: 'vad', turnDetector: 'turn-detector', audioFilter: 'audio-filter' };
+export function pluginOptionsForSlot(plugins: readonly PluginOption[], slot: Slot): PluginOption[] {
+  return plugins.filter(plugin => plugin.kind === SLOT_KIND[slot]);
+}

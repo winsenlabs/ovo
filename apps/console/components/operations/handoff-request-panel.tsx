@@ -1,7 +1,7 @@
 'use client';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import type { CallSummary, SessionIdentity } from '../../lib/api';
-import { Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { Field, Panel, PanelHeader, StatusBadge } from '../primitives';
 export function HandoffRequestPanel({ calls, targetKind, setTargetKind, fallbackKind, setFallbackKind, role, busy, create }: {
   calls: CallSummary[]; targetKind: 'phone' | 'queue'; setTargetKind: Dispatch<SetStateAction<'phone' | 'queue'>>;
   fallbackKind: 'resume' | 'end' | 'human'; setFallbackKind: Dispatch<SetStateAction<'resume' | 'end' | 'human'>>;
@@ -16,10 +16,10 @@ export function HandoffRequestPanel({ calls, targetKind, setTargetKind, fallback
         />
         <form className="panel-body stack" onSubmit={create}>
           {!calls.length && (
-            <Notice tone="warning">
+            <div className="muted">
               No active live calls with a verified carrier binding are visible. Simulation calls
               cannot be handed off.
-            </Notice>
+            </div>
           )}
           <div className="form-grid">
             <Field label="Active live call" htmlFor="handoff-call">

@@ -6,7 +6,6 @@ import {
   EmptyState,
   Field,
   LoadingBlock,
-  Notice,
   Panel,
   PanelHeader,
   StatusBadge,
@@ -65,7 +64,7 @@ export function InfrastructureView() {
           </p>
         </div>
       </header>
-      {error && <Notice tone="danger">{error}</Notice>}
+      {error && <div className="field-error" role="alert">{error}</div>}
       <form className="filter-bar" onSubmit={submit}>
         <Field label="Optional release ID" htmlFor="infrastructure-release">
           <input
@@ -99,9 +98,9 @@ export function InfrastructureView() {
               }
             />
             <div className="panel-body stack">
-              <Notice tone={snapshot.installation.status === 'ready' ? 'neutral' : 'warning'}>
+              <div className="muted">
                 {snapshot.installation.admissionSafety}
-              </Notice>
+              </div>
               {snapshot.installation.reasons.length > 0 && (
                 <ul>
                   {snapshot.installation.reasons.map((reason) => (
@@ -226,7 +225,7 @@ export function InfrastructureView() {
                 </dl>
               ) : (
                 <div className="panel-body">
-                  <Notice>Recording lifecycle metrics are unknown.</Notice>
+                  <div className="muted">Recording lifecycle metrics are unknown.</div>
                 </div>
               )}
             </Panel>
@@ -253,7 +252,7 @@ export function InfrastructureView() {
                 </dl>
               ) : (
                 <div className="panel-body">
-                  <Notice>Telemetry metrics are unknown.</Notice>
+                  <div className="muted">Telemetry metrics are unknown.</div>
                 </div>
               )}
             </Panel>

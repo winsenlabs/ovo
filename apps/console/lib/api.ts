@@ -1,4 +1,4 @@
-import type { AgentConfig, CallEvent, Release } from '@winsendotai/ovo-contracts';
+import type { AgentConfig, CallEvent, CompatIssue, Release } from '@winsendotai/ovo-contracts';
 
 export type AsyncState<T> =
   | { status: 'loading' }
@@ -52,6 +52,7 @@ export interface AgentReadiness {
   releaseReady: boolean;
   requiredPluginIds: string[];
   blockers: string[];
+  details?: CompatIssue[];
   liveReady: boolean;
   liveBlockers?: string[];
 }

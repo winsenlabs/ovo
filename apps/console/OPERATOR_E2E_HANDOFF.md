@@ -4,7 +4,8 @@ Status: UI source is implemented, but production journeys are **not certified** 
 
 ## Browser and gateway contract
 
-- Browser routes are Next.js pages such as `/agents`, `/calls`, and `/costs`.
+- Browser routes are real Next.js pages. The session-gated tree includes `/agents`, `/agents/new`, `/agents/:id` with Plugins/Test/Releases tabs, `/calls`, `/calls/:id`, campaigns, operations, settings, and `/team` (admin only). `/providers`, `/tools`, `/suppressions`, and `/handoffs` redirect to their settings/operations routes.
+- `GET /v1/auth/me` runs on the server for every protected route using the HttpOnly cookie. A 401/403 redirects to `/login?next=<requested internal path>`; an API outage fails closed. Direct `/team` access by a signed-in non-admin returns 404.
 - Every JSON request uses the same-origin console gateway prefix `/api/v1`.
 - The gateway must forward to management API `/v1` without exposing a bootstrap/admin token to browser JavaScript.
 - Requests use `credentials: same-origin` and `cache: no-store`.
@@ -58,9 +59,10 @@ Readiness response consumed by the UI:
 {
   releaseReady: boolean
   requiredPluginIds: string[]
-  blockers: Array<{ code?: string; message: string }>
+  blockers: string[]
+  details?: CompatIssue[]
   liveReady?: boolean
-  liveBlockers?: Array<{ code?: string; message: string }>
+  liveBlockers?: string[]
 }
 ```
 
@@ -73,7 +75,7 @@ Required invariants:
 - UI supports all four modes, accessible ScriptGraph/FAQ authoring, exact tool definitions, provider roles, processing phrases, recording request, and `costPolicy`.
 - `speechCache` controls use the landed bounded shape `{enabled:boolean, announcement?:boolean}`. The console states that only exact configured processing phrases and optionally exact announcement text are eligible. It never implies dynamic/LLM/tool-response caching or carrier savings. Main must attach the live hybrid output so eligible static phrases use the cache while every other response continues through the existing streaming output.
 
-### `/tools` and `/providers` — integrations
+### `/settings/tools` and `/settings/providers` — integrations
 
 Both pages initially read:
 
@@ -108,7 +110,16 @@ MCP flows, editor/admin:
 
 Discovery must never grant a tool. Approval must validate the latest server-side discovered schema digest.
 
-### `/calls` — live launch and call evidence
+### `/agents/new`, `/agents/:id/plugins`, `/agents/:id/test` — fixture demo
+
+- `GET /v1/plugins?kind=` returns `{plugins,unavailable}` from the installed manifest registry. Plugin options stay visible when unavailable; `POST /v1/plugins/compat` supplies per-slot reasons and stage-specific issues.
+- `GET /v1/provider-bindings/:id/carrier-urls` returns `{items:[{purpose,label?,url}]}`. The console displays these operator URLs for a selected carrier binding. An invalid envelope or failed request is an explicit error.
+- The wizard creates a draft with `POST /v1/agents` then saves the selected config with `PUT /v1/agents/:id` and `If-Match`. It leaves the carrier unselected until the operator chooses one.
+- The Test tab runs `POST /v1/agents/:id/test-calls` with `{useDraft:true}`. `GET /v1/calls/:id/stream` provides transcript, stage, cost, gap, and heartbeat events through the cookie gateway. A 404 `fixture_calls_disabled` is an explanatory empty state, and the tab never initiates live dialing.
+
+### `/calls` and `/calls/:id` — live launch and call evidence
+
+`/calls` uses newest-first cursor pages (`limit=50`) with URL filters `agentId`, `engine`, `carrier`, `kind`, and `status`; live-call launch is in an admin-only drawer. `/calls/:id` reads `GET /v1/calls/:id/evidence` for resolved selections, recording, transcript, latency, cost, and the event timeline. Missing cost is labelled `unpriced`, never zero.
 
 Read paths:
 
@@ -170,7 +181,7 @@ so missing evidence remains visible even before audio metadata loads.
 
 The UI limits imported contacts to the server contract and requires a clean preview before creation. Editor/admin mutates; viewer is read-only. Service absence is shown as unavailable, not as an empty successful campaign system.
 
-### `/suppressions`
+### `/operations/suppressions`
 
 - `GET /v1/operations/suppressions?limit=100`
 - `POST /v1/operations/suppressions` body `{phoneNumber,reason}`
@@ -178,7 +189,7 @@ The UI limits imported contacts to the server contract and requires a clean prev
 
 Editor/admin mutates. Worker must still recheck suppression transactionally immediately before carrier dial; this page is not the enforcement point.
 
-### `/handoffs`
+### `/operations/handoffs` and `/operations/inbound`
 
 Initial call selector reads `GET /v1/calls` and only offers live/real calls.
 
@@ -189,7 +200,7 @@ Initial call selector reads `GET /v1/calls` and only offers live/real calls.
 - `PUT /v1/operations/inbound/policy` body `{expectedVersion,policy}` — admin
 - `GET /v1/operations/inbound/capacity`
 - `GET /v1/operations/inbound/routes?limit=100&cursor?`
-- `PUT /v1/operations/inbound/routes/:phoneNumber` body `{expectedVersion,releaseId,variables,enabled}` — admin
+- `PUT /v1/operations/inbound/routes/:phoneNumber` body `{expectedVersion,releaseId,variables,enabled,carrierPluginId,carrierBindingId}` — admin; a NULL binding means the environment binding
 - `DELETE /v1/operations/inbound/routes/:phoneNumber?expectedVersion=<version>` — admin
 
 The UI only labels transfer confirmed when the API returns authoritative provider receipt evidence. Missing operations/handoff transport is a 503, not a successful placeholder.

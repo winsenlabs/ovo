@@ -122,8 +122,8 @@ export function createConsoleExtensionPlugin(extension: ConsoleExtension): Plugi
   });
 }
 
-import { coreConsoleExtensions } from './core-extensions.js';
-export { coreConsoleExtensions } from './core-extensions.js';
+import { coreConsoleExtensions } from './core-extensions';
+export { coreConsoleExtensions } from './core-extensions';
 
 export const coreConsolePlugins = Object.freeze(
   coreConsoleExtensions.map(createConsoleExtensionPlugin),

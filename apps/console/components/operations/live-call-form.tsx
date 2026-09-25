@@ -7,7 +7,7 @@ import {
   type Release,
   type SessionIdentity,
 } from '../../lib/api';
-import { Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { Field, Panel, PanelHeader, StatusBadge } from '../primitives';
 import { JsonEditor } from '../forms/json-editor';
 
 type LaunchReceipt = {
@@ -120,10 +120,10 @@ export function LiveCallForm({
         badge={<StatusBadge tone="warning">Carrier path</StatusBadge>}
       />
       <form className="panel-body stack" onSubmit={launch}>
-        <Notice tone="warning">
+        <div className="muted">
           Submission enters durable admission and pre-dial policy checks. An accepted request is not
           evidence that a carrier call started.
-        </Notice>
+        </div>
         <div className="form-grid">
           <Field label="Agent" htmlFor="live-agent">
             <select
@@ -178,15 +178,15 @@ export function LiveCallForm({
           <JsonEditor id="live-call-variables" value={variables} onValid={value => setVariables(value as Record<string, unknown>)} />
         </Field>
         {releases.length === 0 && !loading && (
-          <Notice tone="warning">Publish an immutable release before starting a live call.</Notice>
+          <div className="muted">Publish an immutable release before starting a live call.</div>
         )}
         <button className="button primary align-start" disabled={submitting || !releaseId}>
           {submitting ? 'Submitting admission…' : 'Submit live call'}
         </button>
         {message && (
-          <Notice tone={message.tone} live>
+          <div className="field-error" role="alert">
             {message.text}
-          </Notice>
+          </div>
         )}
       </form>
     </Panel>

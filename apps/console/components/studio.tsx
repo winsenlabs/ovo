@@ -118,13 +118,15 @@ export function AgentStudio({
               publishing ||
               !['idle', 'saved'].includes(saveState) ||
               identity.role === 'viewer' ||
-              readiness?.releaseReady === false
+              readiness?.releaseReady !== true
             }
           >
             {publishing
               ? 'Validating…'
               : readiness?.releaseReady === false
-                ? 'Resolve release blockers'
+                ? `Resolve ${readiness.blockers.length} release blocker${readiness.blockers.length === 1 ? '' : 's'}`
+                : !readiness
+                  ? 'Checking release readiness'
                 : 'Publish release'}
           </button>
         </div>

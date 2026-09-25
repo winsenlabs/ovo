@@ -12,7 +12,7 @@ import type {
   EvaluationRunRecord,
   ProviderEvaluationAuthorization,
 } from '../../lib/operator-api';
-import { Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { Panel, PanelHeader, StatusBadge } from '../primitives';
 import { EvaluationRunEvidence } from './evaluation-run-evidence';
 import {
   activeProviderAuthorizations,
@@ -153,9 +153,9 @@ export function EvaluationRunsPanel({
       />
       <div className="panel-body stack">
         {error && (
-          <Notice tone="danger" live>
+          <div className="field-error" role="alert">
             {error}
-          </Notice>
+          </div>
         )}
         {role !== 'viewer' && (
           <EvaluationRunForm datasets={datasets} runDatasetId={runDatasetId} setRunDatasetId={setRunDatasetId} agents={agents} agentId={agentId} setAgentId={setAgentId} releases={releases} releaseId={releaseId} setReleaseId={setReleaseId} executorKind={executorKind} setExecutorKind={setExecutorKind} role={role} providerAvailability={providerAvailability} maxAttempts={maxAttempts} setMaxAttempts={setMaxAttempts} providerAuthorizationId={providerAuthorizationId} setProviderAuthorizationId={setProviderAuthorizationId} matchingAuthorizations={matchingAuthorizations} busy={busy} createRun={createRun} />

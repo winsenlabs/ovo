@@ -17,7 +17,6 @@ import {
   EmptyState,
   Field,
   LoadingBlock,
-  Notice,
   Panel,
   PanelHeader,
   StatusBadge,
@@ -136,9 +135,9 @@ export function TeamView({
 
   if (identity.role !== 'admin')
     return (
-      <Notice tone="danger">
+      <div className="field-error" role="alert">
         Team administration is available only to administrators of this organization.
-      </Notice>
+      </div>
     );
 
   return (
@@ -158,11 +157,11 @@ export function TeamView({
       </header>
 
       {error && (
-        <Notice tone={unavailable ? 'warning' : 'danger'} live>
+        <div className="field-error" role="alert">
           {error}
-        </Notice>
+        </div>
       )}
-      {notice && <Notice live>{notice}</Notice>}
+      {notice && <div className="field-error" role="alert">{notice}</div>}
 
       {!unavailable && (
         <TeamAddPanel createUser={createUser} createPassword={createPassword} busy={busy} />

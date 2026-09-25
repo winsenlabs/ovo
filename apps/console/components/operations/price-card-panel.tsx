@@ -6,7 +6,6 @@ import type { PluginCatalog } from '../plugins/types';
 import {
   EmptyState,
   Field,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
@@ -80,7 +79,7 @@ export function PriceCardPanel({ role }: { role: SessionIdentity['role'] }) {
           Native provider units are priced against immutable card IDs and versions. Existing
           versions cannot be overwritten with different economics.
         </p>
-        {error && <Notice tone="danger">{error}</Notice>}
+        {error && <div className="field-error" role="alert">{error}</div>}
         {role === 'admin' && (
           <form className="nested-card stack" onSubmit={save}>
             <h4>Add immutable card version</h4>

@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import type { AgentConfig } from '../../lib/api';
-import { EmptyState, Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { EmptyState, Field, Panel, PanelHeader, StatusBadge } from '../primitives';
 import { JsonEditor } from '../forms/json-editor';
 import { ListTextInput } from '../forms/list-text-input';
 import { useRowKeys } from '../forms/use-row-keys';
@@ -154,10 +154,10 @@ export function FaqEditor({
             </button>
           </fieldset>
         ))}
-        <Notice>
+        <div className="muted">
           Threshold and margin controls above determine whether an answer is safe to select; near
           ties use the clarification response.
-        </Notice>
+        </div>
         <button
           className="button align-start"
           type="button"

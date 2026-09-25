@@ -4,7 +4,7 @@ import { apiRequest, items, type Release } from '../../lib/api';
 import type { CampaignPreview, CampaignRecord } from '../../lib/operator-api';
 import { useFormAction } from '../forms/use-form-action';
 import { useOperationId } from '../../lib/ids';
-import { EmptyState, Field, Notice } from '../primitives';
+import { EmptyState, Field } from '../primitives';
 import { CampaignContactImport } from './campaign-contact-import';
 
 export function CampaignCreateForm({
@@ -87,9 +87,9 @@ export function CampaignCreateForm({
   return (
     <form className="stack" onSubmit={create}>
       {error && (
-        <Notice tone="danger" live>
+        <div className="field-error" role="alert">
           {error}
-        </Notice>
+        </div>
       )}
       <fieldset className="nested-card">
         <legend>1 · Immutable release</legend>
@@ -126,9 +126,9 @@ export function CampaignCreateForm({
           </Field>
         </div>
         {agentId && !releases.length && (
-          <Notice tone="warning">
+          <div className="muted">
             This agent has no immutable release. Publish one before creating a campaign.
-          </Notice>
+          </div>
         )}
       </fieldset>
       <CampaignContactImport preview={preview} onPreview={setPreview} />

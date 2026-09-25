@@ -11,7 +11,6 @@ import {
   EmptyState,
   Field,
   JsonEvidence,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
@@ -198,19 +197,19 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
           signed inbound request is admitted; no per-agent environment routing is used.
         </p>
         {role !== 'admin' && (
-          <Notice tone="neutral">
+          <div className="muted">
             Viewer and editor roles can inspect routes but cannot change them.
-          </Notice>
+          </div>
         )}
         {error && (
-          <Notice tone="danger" live>
+          <div className="field-error" role="alert">
             {error}
-          </Notice>
+          </div>
         )}
         {notice && (
-          <Notice tone="neutral" live>
+          <div className="field-error" role="alert">
             {notice}
-          </Notice>
+          </div>
         )}
         <InboundRouteForm editing={editing} phoneNumber={phoneNumber} setPhoneNumber={setPhoneNumber}
           releaseId={releaseId} setReleaseId={setReleaseId} carrierPluginId={carrierPluginId}

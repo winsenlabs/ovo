@@ -11,7 +11,6 @@ import {
   EmptyState,
   Field,
   JsonEvidence,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
@@ -128,9 +127,9 @@ export function BindingManager({
           Agent roles use binding IDs for inference, STT, TTS and telephony.
         </p>
         {error && (
-          <Notice tone="danger" live>
+          <div className="field-error" role="alert">
             {error}
-          </Notice>
+          </div>
         )}
         <form className="stack nested-card" onSubmit={submit}>
           <div className="tool-meta">

@@ -1,6 +1,6 @@
 'use client';
 import type { AgentConfig, SessionIdentity } from '../../lib/api';
-import { Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { Panel, PanelHeader, StatusBadge } from '../primitives';
 const modes: { id: AgentConfig['mode']; title: string; description: string; kind: string }[] = [
   {
     id: 'announcement',
@@ -66,13 +66,13 @@ export function AgentModePanel({ config, role, update }: { config: AgentConfig; 
                   </label>
                 ))}
               </fieldset>
-              <Notice>
+              <div className="muted">
                 {selected.config.mode === 'announcement' || selected.config.mode === 'faq'
                   ? 'This mode does not require an LLM binding. Runtime tests must still prove zero model requests.'
                   : selected.config.mode === 'context'
                     ? 'Supplied-context mode begins with tools disabled.'
                     : 'Only exact approved tools are eligible at runtime.'}
-              </Notice>
+              </div>
             </div>
           </Panel>
   );
@@ -104,10 +104,10 @@ export function RecordingPolicyPanel({ config, role, update }: { config: AgentCo
                   </small>
                 </span>
               </label>
-              <Notice tone="warning">
+              <div className="muted">
                 Greeting, closing, transfer, DTMF, silence and retention controls are not in the
                 current AgentConfig contract. The console does not invent settings for them.
-              </Notice>
+              </div>
             </div>
           </Panel>
   );

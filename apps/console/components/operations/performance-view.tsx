@@ -6,7 +6,6 @@ import {
   EmptyState,
   Field,
   LoadingBlock,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
@@ -182,7 +181,7 @@ export function PerformanceView() {
       {loading ? (
         <LoadingBlock label="Loading performance cohorts" />
       ) : error ? (
-        <Notice tone="warning">{error}</Notice>
+        <div className="field-error" role="alert">{error}</div>
       ) : !result?.groups.length ? (
         <EmptyState title="No telemetry matched">
           Change the bounded range or filters. This empty result is not a zero-latency claim.

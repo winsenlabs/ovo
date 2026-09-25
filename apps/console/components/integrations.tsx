@@ -11,7 +11,7 @@ import {
   type ProviderBinding,
   type SessionIdentity,
 } from '../lib/api';
-import { LoadingBlock, Notice } from './primitives';
+import { LoadingBlock } from './primitives';
 import { CredentialManager } from './integrations/credentials';
 import { BindingManager } from './integrations/bindings';
 import { McpManager } from './integrations/mcp';
@@ -72,7 +72,7 @@ export function Integrations({
           </p>
         </div>
       </header>
-      {error && <Notice tone="danger">{error}</Notice>}
+      {error && <div className="field-error" role="alert">{error}</div>}
       {initialTab === 'providers' ? (
         <div className="stack">
           <CredentialManager

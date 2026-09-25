@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiRequest, items, ApiError, type SessionIdentity } from '../../lib/api';
 import type { EvaluationDataset } from '../../lib/operator-api';
 import type { ProviderEvaluationAuthorization } from '../../lib/operator-api';
-import { LoadingBlock, Notice } from '../primitives';
+import { LoadingBlock } from '../primitives';
 import { EvaluationDatasetPanel } from './evaluation-dataset-panel';
 import { EvaluationRunsPanel } from './evaluation-runs-panel';
 import { EvaluationProviderAuthorizations } from './evaluation-provider-authorizations';
@@ -56,7 +56,7 @@ export function EvaluationDatasetsView({ role }: { role: SessionIdentity['role']
           </p>
         </div>
       </header>
-      {error && <Notice tone="danger">{error}</Notice>}
+      {error && <div className="field-error" role="alert">{error}</div>}
       <TestAndEvaluationView simulationsOnly embedded />
       <EvaluationDatasetPanel role={role} datasets={datasets} reload={load} />
       <EvaluationProviderAuthorizations

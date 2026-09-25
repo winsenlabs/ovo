@@ -2,13 +2,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../../lib/api';
 import type { AgentVoice, CompatIssue, PluginOption, Slot } from './types';
-import { SLOT_KIND } from './types';
+import { pluginOptionsForSlot } from './types';
 
 export function SlotPicker({ slot, plugins, value, voice, mode, language, onChange }: {
   slot: Slot; plugins: readonly PluginOption[]; value?: string; voice: AgentVoice;
   mode: 'announcement' | 'faq' | 'context' | 'agent'; language: string; onChange: (pluginId: string) => void;
 }) {
-  const options = useMemo(() => plugins.filter(plugin => plugin.kind === SLOT_KIND[slot]), [plugins, slot]);
+  const options = useMemo(() => pluginOptionsForSlot(plugins, slot), [plugins, slot]);
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const voiceKey = JSON.stringify(voice);
   useEffect(() => {

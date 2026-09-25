@@ -6,7 +6,6 @@ import {
   Field,
   JsonEvidence,
   LoadingBlock,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
@@ -150,9 +149,9 @@ export function TestAndEvaluationView({
         </header>
       )}
       {message && (
-        <Notice tone={message.tone} live>
+        <div className="field-error" role="alert">
           {message.text}
-        </Notice>
+        </div>
       )}
       {!evaluationsOnly && <SimulationPanel releases={releases} simulationMode={simulationMode} setSimulationMode={setSimulationMode} simulationBindings={simulationBindings} setSimulationBindings={setSimulationBindings} simulate={simulate} />}
       {!simulationsOnly && (

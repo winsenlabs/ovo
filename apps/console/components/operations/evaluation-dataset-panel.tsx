@@ -10,7 +10,6 @@ import type {
 import {
   EmptyState,
   Field,
-  Notice,
   Panel,
   PanelHeader,
   StatusBadge,
@@ -160,9 +159,9 @@ export function EvaluationDatasetPanel({
       />
       <div className="panel-body stack">
         {error && (
-          <Notice tone="danger" live>
+          <div className="field-error" role="alert">
             {error}
-          </Notice>
+          </div>
         )}
         <div className="form-grid">
           <Field label="Dataset" htmlFor="evaluation-dataset-select">

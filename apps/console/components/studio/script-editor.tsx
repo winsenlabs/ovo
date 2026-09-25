@@ -6,7 +6,6 @@ import { ScriptNodesTable } from './script-nodes-table';
 import {
   EmptyState,
   Field,
-  Notice,
   Panel,
   PanelHeader,
   StatusBadge,
@@ -152,14 +151,14 @@ export function ScriptEditor({
               </Field>
             </div>
             {diagnostics.length > 0 && (
-              <Notice tone="danger">
+              <div className="field-error" role="alert">
                 <strong>Script diagnostics</strong>
                 <ul>
                   {diagnostics.map((issue) => (
                     <li key={issue}>{issue}</li>
                   ))}
                 </ul>
-              </Notice>
+              </div>
             )}
             <ScriptNodesTable script={script} rowKeys={rowKeys} patchNode={patchNode} patchTransition={patchTransition} setScript={setScript} />
             <div className="button-row">

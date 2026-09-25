@@ -11,7 +11,6 @@ import {
 import {
   EmptyState,
   Field,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
@@ -208,9 +207,9 @@ export function CredentialManager({
         </form>
       </Panel>
       {message && (
-        <Notice tone={message.tone} live>
+        <div className="field-error" role="alert">
           {message.text}
-        </Notice>
+        </div>
       )}
       <CredentialMetadataTable credentials={credentials} role={role} busy={busy} rotate={rotate} retire={retire} />
     </div>

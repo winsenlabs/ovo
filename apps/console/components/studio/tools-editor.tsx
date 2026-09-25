@@ -1,6 +1,6 @@
 'use client';
 import type { AgentConfig } from '../../lib/api';
-import { EmptyState, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { EmptyState, Panel, PanelHeader, StatusBadge } from '../primitives';
 import { useRowKeys } from '../forms/use-row-keys';
 import { ToolRow } from './tool-row';
 
@@ -46,10 +46,10 @@ export function ToolsEditor({
         }
       />
       <div className="panel-body stack">
-        <Notice tone="warning">
+        <div className="muted">
           HTTP endpoints and credential references are validated and invoked server-side. This
           editor never sends a credential value to a tool.
-        </Notice>
+        </div>
         {!config.tools.length && (
           <EmptyState title="No tools configured">
             Add an HTTP or approved MCP tool. Discovery alone does not enable it.

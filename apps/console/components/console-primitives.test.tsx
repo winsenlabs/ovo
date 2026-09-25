@@ -121,4 +121,55 @@ describe('console form and plugin primitives', () => {
     expect(choice).toHaveBeenCalledTimes(1);
     expect(choice).toHaveBeenCalledWith(false);
   });
+
+  it('preserves form data after a rejected async submit', async () => {
+    function Example() {
+      const action = useFormAction();
+      return <form onSubmit={event => { void action(event, async () => { throw new Error('rejected'); }).catch(() => undefined); }}><input aria-label="Value" defaultValue="" /><button>Save</button></form>;
+    }
+    render(<Example />);
+    const input = screen.getByRole('textbox') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'keep me' } });
+    fireEvent.submit(input.closest('form')!);
+    await waitFor(() => expect(input.value).toBe('keep me'));
+  });
+
+  it('keeps neighboring row keys stable on insert and removal', () => {
+    function Rows() {
+      const [items, setItems] = useState(['first', 'second']);
+      const keys = useRowKeys(items.length);
+      return <><div>{items.map((item, index) => <input aria-label={item} key={keys.keyAt(index)} defaultValue={item} />)}</div>
+        <button onClick={() => { keys.insert(1); setItems(['first', 'middle', 'second']); }}>Insert</button>
+        <button onClick={() => { keys.remove(1); setItems(['first', 'second']); }}>Remove</button></>;
+    }
+    render(<Rows />);
+    const first = screen.getByLabelText('first');
+    const second = screen.getByLabelText('second');
+    fireEvent.click(screen.getByRole('button', { name: 'Insert' }));
+    expect(screen.getByLabelText('first')).toBe(first);
+    expect(screen.getByLabelText('second')).toBe(second);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(screen.getByLabelText('second')).toBe(second);
+  });
+
+  it('rejects JSON arrays when a configuration object is required', () => {
+    const onValid = vi.fn();
+    render(<JsonEditor id="config" value={{}} onValid={onValid} />);
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: '[]' } });
+    fireEvent.blur(input);
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByText('Enter a valid JSON object.')).toBeDefined();
+    expect(onValid).not.toHaveBeenCalled();
+  });
+
+  it('allows a valid JSON array only for a non-object editor', () => {
+    const onValid = vi.fn();
+    render(<JsonEditor id="list" value={[]} onValid={onValid} objectOnly={false} />);
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: '["one"]' } });
+    fireEvent.blur(input);
+    expect(input.getAttribute('aria-invalid')).toBe('false');
+    expect(onValid).toHaveBeenCalledWith(['one']);
+  });
 });

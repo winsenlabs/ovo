@@ -1,4 +1,4 @@
-import type { ConsoleExtension } from './index.js';
+import type { ConsoleExtension } from './index';
 const ALL_MODES = ['announcement', 'faq', 'context', 'agent'] as const;
 
 export const coreConsoleExtensions: readonly ConsoleExtension[] = Object.freeze([

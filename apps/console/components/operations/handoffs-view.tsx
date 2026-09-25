@@ -6,7 +6,6 @@ import {
   EmptyState,
   Field,
   JsonEvidence,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
@@ -127,9 +126,9 @@ export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
         </button>
       </header>
       {error && (
-        <Notice tone="warning" live>
+        <div className="field-error" role="alert">
           {error}
-        </Notice>
+        </div>
       )}
       <HandoffRequestPanel calls={calls} targetKind={targetKind} setTargetKind={setTargetKind} fallbackKind={fallbackKind} setFallbackKind={setFallbackKind} role={role} busy={busy} create={create} />
       <Panel labelledBy="handoff-evidence-title">

@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { apiRequest, type CallSummary, type SessionIdentity } from '../../lib/api';
-import { JsonEvidence, Notice, StatusBadge } from '../primitives';
+import { JsonEvidence, StatusBadge } from '../primitives';
 
 type ExportJob = {
   id: string;
@@ -93,7 +93,7 @@ export function RecordingExportPanel({
         )}
       </div>
       {job && <JsonEvidence label="Export receipt" value={job} />}
-      {error && <Notice tone="danger">{error}</Notice>}
+      {error && <div className="field-error" role="alert">{error}</div>}
     </section>
   );
 }

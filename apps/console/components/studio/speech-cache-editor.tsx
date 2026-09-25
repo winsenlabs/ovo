@@ -1,6 +1,6 @@
 'use client';
 import type { AgentConfig } from '../../lib/api';
-import { Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { Panel, PanelHeader, StatusBadge } from '../primitives';
 
 export function SpeechCacheEditor({
   config,
@@ -58,11 +58,11 @@ export function SpeechCacheEditor({
             </small>
           </span>
         </label>
-        <Notice tone="warning">
+        <div className="muted">
           Dynamic responses, model output, caller data, context, and tool results are never made
           cache-eligible by this policy. Cache hits avoid repeated TTS generation only; carrier and
           media usage can still be billed.
-        </Notice>
+        </div>
       </div>
     </Panel>
   );

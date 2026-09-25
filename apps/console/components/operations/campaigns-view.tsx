@@ -4,7 +4,6 @@ import { apiRequest, ApiError, items, type SessionIdentity } from '../../lib/api
 import type { CampaignRecord } from '../../lib/operator-api';
 import {
   EmptyState,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
@@ -70,9 +69,9 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
         </button>
       </header>
       {error && (
-        <Notice tone="warning" live>
+        <div className="field-error" role="alert">
           {error}
-        </Notice>
+        </div>
       )}
       <Panel labelledBy="campaign-create-title">
         <PanelHeader
@@ -86,9 +85,9 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
         />
         <div className="panel-body">
           {role === 'viewer' ? (
-            <Notice tone="warning">
+            <div className="muted">
               Editors can preview CSV contacts and create scheduled campaigns.
-            </Notice>
+            </div>
           ) : (
             <CampaignCreateForm
               onCreated={(campaign) => setCampaigns((current) => [campaign, ...current])}

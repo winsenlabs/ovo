@@ -1,7 +1,7 @@
 'use client';
 import type { FormEvent } from 'react';
 import type { Release } from '../../lib/api';
-import { Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { Field, Panel, PanelHeader, StatusBadge } from '../primitives';
 import { JsonEditor } from '../forms/json-editor';
 import type { SimulationMode } from './simulation-request';
 export function SimulationPanel({ releases, simulationMode, setSimulationMode, simulationBindings, setSimulationBindings, simulate }: {
@@ -70,10 +70,10 @@ export function SimulationPanel({ releases, simulationMode, setSimulationMode, s
                 />
               </Field>
             ) : (
-              <Notice tone="warning">
+              <div className="muted">
                 Provider-backed simulation may call configured models and approved read tools and
                 can incur cost. Allowed write tools without fixture bindings are rejected as unsafe.
-              </Notice>
+              </div>
             )}
             <button className="button primary align-start" disabled={!releases.length}>
               {simulationMode === 'fixture'

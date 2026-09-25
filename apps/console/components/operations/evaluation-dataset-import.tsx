@@ -19,10 +19,10 @@ export function EvaluationDatasetImport({ importCases, importName, busy, readImp
               onChange={(event) => void readImport(event.target.files?.[0])}
             />
             {importCases && (
-              <Notice>
+              <div className="muted">
                 {importName}: {importCases.length} cases parsed locally. Server validation runs
                 before the immutable version is created.
-              </Notice>
+              </div>
             )}
             <button
               className="button align-start"

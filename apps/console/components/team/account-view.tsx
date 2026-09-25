@@ -7,7 +7,7 @@ import {
   USER_PASSWORD_MAX_LENGTH,
   USER_PASSWORD_MIN_LENGTH,
 } from '../../lib/user-contract';
-import { Field, Notice, Panel, PanelHeader } from '../primitives';
+import { Field, Panel, PanelHeader } from '../primitives';
 
 export function AccountView({
   identity,
@@ -63,9 +63,9 @@ export function AccountView({
         </PanelHeader>
         <form ref={form} className="panel-body stack" onSubmit={changePassword}>
           {error && (
-            <Notice tone="danger" live>
+            <div className="field-error" role="alert">
               {error}
-            </Notice>
+            </div>
           )}
           <Field label="Current password" htmlFor="account-current-password">
             <input

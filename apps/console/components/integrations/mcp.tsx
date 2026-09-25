@@ -14,7 +14,6 @@ import {
 } from '../../lib/api';
 import {
   Field,
-  Notice,
   Panel,
   PanelHeader,
   StatusBadge,
@@ -227,9 +226,9 @@ export function McpManager({
         </form>
       </Panel>
       {message && (
-        <Notice tone={message.tone} live>
+        <div className="field-error" role="alert">
           {message.text}
-        </Notice>
+        </div>
       )}
       <McpReviewPanel drifted={drifted} connection={connection} connections={connections} setSelectedConnection={setSelectedConnection} agent={agent} agents={agents} setSelectedAgent={setSelectedAgent} role={role} connectionAction={connectionAction} discovered={discovered} approvals={approvals} approve={approve} />
     </div>

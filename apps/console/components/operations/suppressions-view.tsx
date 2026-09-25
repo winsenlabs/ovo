@@ -7,7 +7,6 @@ import { useFormAction } from '../forms/use-form-action';
 import {
   EmptyState,
   Field,
-  Notice,
   Panel,
   PanelHeader,
   ResponsiveTable,
@@ -88,9 +87,9 @@ export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
         </button>
       </header>
       {error && (
-        <Notice tone="warning" live>
+        <div className="field-error" role="alert">
           {error}
-        </Notice>
+        </div>
       )}
       <Panel labelledBy="suppression-add-title">
         <PanelHeader

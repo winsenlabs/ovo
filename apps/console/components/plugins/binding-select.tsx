@@ -7,6 +7,12 @@ import { SchemaForm } from './schema-form';
 import type { PluginOption } from './types';
 
 type CarrierUrl = { purpose: string; label?: string; url: string };
+export function carrierOperatorUrls(value: unknown): CarrierUrl[] {
+  const items = value && typeof value === 'object' && 'items' in value ? value.items : undefined;
+  if (!Array.isArray(items) || items.some(item => !item || typeof item.purpose !== 'string' || typeof item.url !== 'string'))
+    throw new Error('Carrier URL response is invalid.');
+  return items as CarrierUrl[];
+}
 export function BindingSelect({ plugin, bindings, credentials, value, onChange, onCreated }: {
   plugin: PluginOption; bindings: readonly ProviderBinding[]; credentials: readonly CredentialMetadata[];
   value?: string; onChange: (id?: string) => void; onCreated?: (binding: ProviderBinding) => void;
@@ -22,8 +28,8 @@ export function BindingSelect({ plugin, bindings, credentials, value, onChange, 
   useEffect(() => {
     if (plugin.kind !== 'carrier' || !value) { setUrls([]); return; }
     let active = true;
-    void apiRequest<{ items: CarrierUrl[] }>(`/provider-bindings/${encodeURIComponent(value)}/carrier-urls`)
-      .then(({ data }) => { if (active) setUrls(data.items); })
+    void apiRequest<unknown>(`/provider-bindings/${encodeURIComponent(value)}/carrier-urls`)
+      .then(({ data }) => { if (active) setUrls(carrierOperatorUrls(data)); })
       .catch(failure => { if (active) setError(failure instanceof Error ? failure.message : 'Carrier URLs unavailable'); });
     return () => { active = false; };
   }, [plugin.kind, value]);
