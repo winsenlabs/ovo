@@ -91,6 +91,8 @@ export class WorkerMediaLink implements WorkerMediaSession {
     this.identity.streamId = open.streamId;
     this.socket = socket;
     socket.on('message', (data, binary) => {
+      // A superseded gateway can still have frames in flight after rebind.
+      if (this.socket !== socket || this.closed) return;
       if (binary) return this.finish('error:binary-media-frame');
       try {
         this.receive(parseGatewayMessage(data.toString(), 65_536));
@@ -217,8 +219,12 @@ export class WorkerMediaLink implements WorkerMediaSession {
     this.closed = true;
     this.endedWith = reason;
     clearTimeout(this.disconnectTimer);
-    this.socket?.close(1000, reason.slice(0, 120));
-    this.socket = undefined;
-    for (const listener of this.closeListeners) listener(reason);
+    // Reserve three bytes for a replacement character at a truncated UTF-8 boundary.
+    try {
+      this.socket?.close(1000, Buffer.from(reason).subarray(0, 120).toString());
+    } finally {
+      this.socket = undefined;
+      for (const listener of this.closeListeners) listener(reason);
+    }
   }
 }

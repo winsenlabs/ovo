@@ -111,7 +111,6 @@ export function createMediaGatewayPlugin(
         drainTimeoutMs:
           typeof config.drainTimeoutMs === 'number' ? config.drainTimeoutMs : undefined,
       });
-      await gateway.listen();
       ctx.provide(MEDIA_SERVICE_KEYS.gateway, gateway);
       ctx.effect(() => () => gateway.drain());
     },

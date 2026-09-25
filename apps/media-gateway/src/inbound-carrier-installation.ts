@@ -8,7 +8,7 @@ export function installInboundCarriers(
   operations: PostgresOperationsService,
   distribution: Pick<LoadedDistribution, 'catalog'>,
   env: Readonly<Record<string, string | undefined>>,
-): void {
+): string | undefined {
   const installed = distribution.catalog
     .filter((definition) =>
       manifestKeys(definition.manifest).provides.some((entry) => entry.key === Cap.carrierControl),
@@ -29,11 +29,19 @@ export function installInboundCarriers(
     unknown
   >;
   const configuredIds = Object.keys(configured);
+  const configuredBinding = configuredIds.length === 1 ? configured[configuredIds[0]!] : undefined;
+  const authToken =
+    configuredBinding && typeof configuredBinding === 'object' && !Array.isArray(configuredBinding)
+      ? (configuredBinding as Record<string, unknown>).authToken
+      : undefined;
   const environmentCarrierId =
-    configuredIds.length === 1 && installed.some((entry) => entry.carrierId === configuredIds[0])
+    typeof authToken === 'string' &&
+    authToken.length > 0 &&
+    authToken !== 'not-configured' &&
+    authToken !== 'disabled-local-account' &&
+    installed.some((entry) => entry.carrierId === configuredIds[0])
       ? configuredIds[0]
-      : configuredIds.length === 0 && installed.length === 1
-        ? installed[0]!.carrierId
-        : undefined;
+      : undefined;
   operations.inboundGateway.setInstalledCarrierPlugins(installed, environmentCarrierId);
+  return environmentCarrierId;
 }

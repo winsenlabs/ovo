@@ -88,7 +88,7 @@ export class MediaGateway {
   async drain(): Promise<void> {
     if (this.closed) return;
     this.draining = true;
-    const deadline = Date.now() + (this.config.drainTimeoutMs ?? 30_000);
+    const deadline = Date.now() + (this.config.drainTimeoutMs ?? 270_000);
     while (this.sessions.size && Date.now() < deadline)
       await new Promise((resolve) => setTimeout(resolve, 10));
     await this.close();
@@ -98,9 +98,12 @@ export class MediaGateway {
     if (this.closed) return;
     this.closed = true;
     this.draining = true;
-    for (const session of this.sessions) session.close('gateway drain deadline');
+    // Dropping the gateway link gives the carrier a chance to resume on another
+    // replica. A session.close frame would terminate the worker's live engine.
+    for (const session of this.sessions) session.close('gateway drain deadline', false);
     this.sessions.clear();
     this.router.close();
+    if (!this.server.listening) return;
     this.server.closeAllConnections();
     await new Promise<void>((resolve, reject) =>
       this.server.close((error) => (error ? reject(error) : resolve())),

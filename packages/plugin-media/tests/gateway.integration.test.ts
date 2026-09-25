@@ -325,11 +325,13 @@ it('isolates a rejected first session while a neighboring call reaches the same 
 
 it('routes two gateway instances to one worker and holds existing media until drain deadline', async () => {
   const opened: string[] = [];
+  const closed: string[] = [];
   const endpoint = await worker((peer, message) => {
     if (message.type === 'session.open') {
       opened.push(message.sessionId);
       peer.send(JSON.stringify({ type: 'session.accept' }));
     }
+    if (message.type === 'session.close') closed.push(message.reason);
   });
   const first = await gateway([route('one', endpoint)], { drainTimeoutMs: 120 });
   const second = await gateway([route('two', endpoint)]);
@@ -345,4 +347,5 @@ it('routes two gateway instances to one worker and holds existing media until dr
   await drained;
   await vi.waitFor(() => expect(left.readyState).toBe(WebSocket.CLOSED));
   expect(right.readyState).toBe(WebSocket.OPEN);
+  expect(closed).toEqual([]);
 });

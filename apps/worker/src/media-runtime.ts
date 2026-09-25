@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import type { Server } from 'node:http';
 import { WebSocket } from 'ws';
 import type {
@@ -10,6 +10,7 @@ import type { GatewayToWorkerMessage, WorkerMediaSession } from '@winsendotai/ov
 import type { EndReason } from '@winsendotai/ovo-contracts';
 import { asEndReason } from '@winsendotai/ovo-plugin-kit';
 import { attachWorkerMediaServer, WorkerMediaLink } from './worker-media-server.ts';
+import { recordSessionOpened, sameHash } from './session-handshake.ts';
 
 export interface ManagedVoiceSession {
   dispose(reason?: EndReason, closeMedia?: boolean): Promise<unknown>;
@@ -27,14 +28,11 @@ type Open = Extract<GatewayToWorkerMessage, { type: 'session.open' }>;
 
 interface RouteTokenStore extends DurableJobStore {
   pool?: {
-    query<T extends object>(sql: string, values: unknown[]): Promise<{ rows: T[] }>;
+    query<T extends object>(
+      sql: string,
+      values: unknown[],
+    ): Promise<{ rows: T[]; rowCount?: number | null }>;
   };
-}
-
-function sameHash(left: string, right: string): boolean {
-  const a = Buffer.from(left, 'hex');
-  const b = Buffer.from(right, 'hex');
-  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 export class WorkerMediaRuntime {
@@ -232,7 +230,13 @@ export class WorkerMediaRuntime {
       return;
     }
     this.engines.set(route.sessionId, engine);
-    if (media instanceof WorkerMediaLink) return;
+    if (media instanceof WorkerMediaLink) {
+      if (!this.store.pool || media.isClosed)
+        throw new Error('media session closed before opening');
+      await recordSessionOpened(this.store.pool, route);
+      if (media.isClosed) throw new Error('media session opening was not durably recorded');
+      return;
+    }
     // Direct legacy fixture seam until the owned media-runtime tests migrate to the socket path.
     media.onClose((reason) => {
       if (this.engines.get(route.sessionId) !== engine) return;

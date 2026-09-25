@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer, type Server } from 'node:http';
 import { createConnection, type Socket } from 'node:net';
@@ -9,6 +9,8 @@ import { MediaGateway } from '@winsendotai/ovo-plugin-media';
 import {
   fixtureCarrierIngress,
   fixtureSignature,
+  fixtureWebhook,
+  signFixtureRequest,
 } from '../../../packages/conformance/src/drivers/fixture-carrier.ts';
 import { PostgresControlStore } from '@winsendotai/ovo-plugin-storage';
 import {
@@ -120,6 +122,10 @@ class RawCarrier {
             ? this.buffer.readUInt16BE(2)
             : Number(this.buffer.readBigUInt64BE(2));
       if (this.buffer.length < header + length) return;
+      if ((this.buffer[0]! & 0x0f) === 8) {
+        this.socket.destroy();
+        return;
+      }
       if ((this.buffer[0]! & 0x0f) === 1)
         this.messages.push(this.buffer.subarray(header, header + length).toString());
       this.buffer = this.buffer.subarray(header + length);
@@ -161,10 +167,15 @@ describe.skipIf(!postgresUrl)('worker PostgreSQL and fixture-queue lifecycle', (
     const carrier = new SyntheticCarrier();
     const protection = new SyntheticProtection();
     let gateway: MediaGateway | undefined;
+    let resumeGateway: MediaGateway | undefined;
     let mediaRuntime: WorkerMediaRuntime | undefined;
     let mediaCarrier: RawCarrier | undefined;
+    let resumedCarrier: RawCarrier | undefined;
     let healthServer: Server | undefined;
     let callComposition: Composition | undefined;
+    let engineCreates = 0;
+    let sttWrites = 0;
+    let resumeToken: string | undefined;
     try {
       await store.migrate();
       await control.ensureWorkspace(organizationId, 'E2E organization');
@@ -277,10 +288,11 @@ describe.skipIf(!postgresUrl)('worker PostgreSQL and fixture-queue lifecycle', (
       expect(dialRequests[0]!.media.routeParams.sid).toBe(outcome.sessionId);
       expect(token).toBeTruthy();
       let responses = 0;
-      gateway = new MediaGateway(store, {
+      const gatewayConfig = {
         publicBaseUrl: 'https://voice.example.test',
         workerToken: 'worker-fixture',
         ingresses: [ingress],
+        drainTimeoutMs: 100,
         hostFor: () =>
           ({
             resolveBinding: async () => ({
@@ -291,14 +303,40 @@ describe.skipIf(!postgresUrl)('worker PostgreSQL and fixture-queue lifecycle', (
               secret: 'fixture-secret',
             }),
             verifyUrlSecret: () => true,
+            async resumeStream() {
+              const token = randomBytes(32).toString('base64url');
+              const route = await store.reissueStream({
+                organizationId,
+                carrierId: ingress.carrierId,
+                carrierCallId: 'CA-e2e',
+                tokenHash: createHash('sha256').update(token).digest('hex'),
+                expiresAt: new Date(Date.now() + 60_000),
+                workerFreshSeconds: 60,
+              });
+              if (!route) return undefined;
+              resumeToken = token;
+              return {
+                kind: 'stream' as const,
+                mediaUrl: 'wss://voice.example.test/carriers/fixture/env/media',
+                routeParams: { sid: route.sessionId, rt: token },
+              };
+            },
           }) as unknown as CarrierHostPorts,
-      });
+      };
+      gateway = new MediaGateway(store, gatewayConfig);
       const { port } = await gateway.listen();
+      // Model the carrier opening its stream before dial acceptance is persisted.
+      await store.pool.query(
+        "UPDATE ovo_session_routes SET status = 'dialing' WHERE session_id = $1",
+        [outcome.sessionId],
+      );
+      await store.pool.query("UPDATE ovo_jobs SET status = 'dialing' WHERE id = $1", [jobId]);
       mediaRuntime = new WorkerMediaRuntime(
         { httpServer: healthServer, workerId, token: 'worker-fixture' },
         store,
         {
           async create(input) {
+            engineCreates += 1;
             expect((await control.getRelease(organizationId, release.id))?.id).toBe(release.id);
             const tts: StreamingTts = {
               async *synthesize() {
@@ -309,6 +347,7 @@ describe.skipIf(!postgresUrl)('worker PostgreSQL and fixture-queue lifecycle', (
               async start(start) {
                 return {
                   async write() {
+                    sttWrites += 1;
                     start.onTranscript({
                       revision: 1,
                       text: 'hello',
@@ -361,6 +400,12 @@ describe.skipIf(!postgresUrl)('worker PostgreSQL and fixture-queue lifecycle', (
       await expect
         .poll(() => mediaCarrier!.messages.some((value) => JSON.parse(value).event === 'mark'))
         .toBe(true);
+      const opened = await store.pool.query<{ status: string }>(
+        `SELECT status FROM ovo_carrier_callbacks WHERE session_id = $1
+           AND organization_id = $2 AND carrier_id = $3 AND provider = 'ovo.media'`,
+        [outcome.sessionId, organizationId, ingress.carrierId],
+      );
+      expect(opened.rows).toEqual([{ status: 'session_opened' }]);
 
       await store.applyCarrierCallback({
         organizationId,
@@ -372,6 +417,58 @@ describe.skipIf(!postgresUrl)('worker PostgreSQL and fixture-queue lifecycle', (
         status: 'answered',
         occurredAt: new Date(),
       });
+      expect(engineCreates).toBe(1);
+      const beforeResume = await store.getSessionRoute(jobId);
+      await gateway.drain();
+      resumeGateway = new MediaGateway(store, gatewayConfig);
+      const resumed = await resumeGateway.listen();
+      const resumeRequest = signFixtureRequest(
+        'fixture-secret',
+        fixtureWebhook({
+          externalUrl: 'https://voice.example.test/carriers/fixture/env/resume',
+          bindingId: 'env',
+          query: { r: 'CA-e2e', t: 'fixture' },
+          form: { CallSid: 'CA-e2e' },
+        }),
+      );
+      const resumeResponse = await fetch(
+        `http://127.0.0.1:${resumed.port}/carriers/fixture/env/resume?r=CA-e2e&t=fixture`,
+        {
+          method: 'POST',
+          headers: Object.fromEntries(
+            Object.entries(resumeRequest.headers).filter(
+              (entry): entry is [string, string] => typeof entry[1] === 'string',
+            ),
+          ),
+          body: new TextDecoder().decode(resumeRequest.rawBody),
+        },
+      );
+      expect(resumeResponse.status).toBe(200);
+      const markup = await resumeResponse.text();
+      expect(resumeToken).toBeTruthy();
+      expect(markup).toContain(resumeToken);
+      const resumedRoute = await store.getSessionRoute(jobId);
+      expect(resumedRoute?.generation).toBe((beforeResume?.generation ?? 0) + 1);
+      resumedCarrier = await connectCarrier(resumed.port, 'fixture-secret');
+      resumedCarrier.send({
+        event: 'start',
+        sequenceNumber: '1',
+        streamSid: 'MZ-e2e-resumed',
+        start: {
+          accountSid: 'AC-e2e',
+          callSid: 'CA-e2e',
+          customParameters: { sessionId: outcome.sessionId, routeToken: resumeToken },
+          mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: '8000', channels: '1' },
+        },
+      });
+      resumedCarrier.send({
+        event: 'media',
+        sequenceNumber: '2',
+        streamSid: 'MZ-e2e-resumed',
+        media: { track: 'inbound', chunk: '1', timestamp: '20', payload: 'Ag==' },
+      });
+      await expect.poll(() => sttWrites).toBe(2);
+      expect(engineCreates).toBe(1);
       await store.applyCarrierCallback({
         organizationId,
         carrierId: ingress.carrierId,
@@ -390,8 +487,10 @@ describe.skipIf(!postgresUrl)('worker PostgreSQL and fixture-queue lifecycle', (
       expect(await queue.receive({ maxMessages: 1, waitSeconds: 0 })).toEqual([]);
     } finally {
       mediaCarrier?.close();
-      await mediaRuntime?.close();
+      resumedCarrier?.close();
       await gateway?.close();
+      await resumeGateway?.close();
+      await mediaRuntime?.close();
       await new Promise<void>((resolve) => healthServer?.close(() => resolve()) ?? resolve());
       await callComposition?.dispose();
       await control.close();

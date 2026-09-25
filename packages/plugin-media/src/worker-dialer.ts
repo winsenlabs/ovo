@@ -77,14 +77,17 @@ export async function resolveWorkerRoute(input: {
     if (!('route' in result))
       throw new Error('carrier call ID could not be bound to session route');
     route = result.route;
-    if (primary && input.start.carrierCallId !== primary)
-      await input.resolver.recordCarrierCallIdMismatch({
-        sessionId,
-        organizationId: route.organizationId,
-        carrierId: input.ingress.carrierId,
-        dialCallId: primary,
-        streamCallId: input.start.carrierCallId,
-      });
+  }
+  if (route.carrierCallId && input.start.carrierCallId !== route.carrierCallId) {
+    if (input.ingress.capabilities.control.streamCallIdMatchesDial === true)
+      throw new Error('carrier stream call ID does not match dial call ID');
+    await input.resolver.recordCarrierCallIdMismatch({
+      sessionId,
+      organizationId: route.organizationId,
+      carrierId: input.ingress.carrierId,
+      dialCallId: route.carrierCallId,
+      streamCallId: input.start.carrierCallId,
+    });
   }
   if (input.isClosed()) return undefined;
   if (!active(route) || route.sessionId !== sessionId)
@@ -174,7 +177,7 @@ export class WorkerDialer {
         },
         close(reason = 'gateway closing') {
           if (state === 'closed') return;
-          peer.close(1000, reason.slice(0, 120));
+          peer.close(1000, Buffer.from(reason).subarray(0, 120).toString());
         },
       };
       peer.on('open', () => peer.send(encodeGatewayMessage(open)));

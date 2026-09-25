@@ -12,6 +12,7 @@ import type {
   MediaRouteResolver,
 } from '../src/ports.ts';
 import { SessionBridge, type SessionBridgeOptions } from '../src/session-bridge.ts';
+import { PreAcceptBuffer } from '../src/pre-accept.ts';
 import type { WorkerLink, WorkerLinkEvents } from '../src/worker-dialer.ts';
 
 class CarrierSocket extends EventEmitter {
@@ -24,6 +25,8 @@ class CarrierSocket extends EventEmitter {
     this.frames.push(frame);
   }
   close(_code?: number, reason?: string): void {
+    if (reason && Buffer.byteLength(reason, 'utf8') > 123)
+      throw new RangeError('WebSocket close reason exceeds 123 bytes');
     this.closeReason = reason;
     this.readyState = WebSocket.CLOSED;
     this.emit('close');
@@ -35,6 +38,16 @@ class CarrierSocket extends EventEmitter {
     this.emit('message', Buffer.from(frame), false);
   }
 }
+
+it('buffers three full seconds of audio plus DTMF and rejects the next audio frame', () => {
+  const buffer = new PreAcceptBuffer<{ type: string }>(MULAW_8K);
+  for (let frame = 0; frame < 150; frame += 1)
+    expect(buffer.push({ type: 'audio' }, 160)).toBe(true);
+  expect(buffer.bufferedAudioBytes).toBe(24_000);
+  expect(buffer.push({ type: 'dtmf' })).toBe(true);
+  expect(buffer.push({ type: 'audio' }, 160)).toBe(false);
+  expect(buffer.drain()).toHaveLength(151);
+});
 
 const ingress = fixtureCarrierIngress();
 function route(overrides: Partial<DurableMediaRoute> = {}): DurableMediaRoute {
@@ -214,9 +227,15 @@ it('binds and audits a permitted stream-call alias before worker dial', async ()
   });
   h.start('other-call');
   await vi.waitFor(() => expect(h.dialer.connect).toHaveBeenCalledOnce());
-  // An already bound alias is accepted without a redundant bind or audit.
+  // The durable audit is idempotent, so an already bound alias must still be checked.
   expect(h.resolver.bindCarrierCallId).not.toHaveBeenCalled();
-  expect(h.resolver.recordCarrierCallIdMismatch).not.toHaveBeenCalled();
+  expect(h.resolver.recordCarrierCallIdMismatch).toHaveBeenCalledWith({
+    sessionId: 'session',
+    organizationId: 'org',
+    carrierId: 'fixture',
+    dialCallId: 'call',
+    streamCallId: 'other-call',
+  });
   h.bridge.close();
 
   const fresh = harness({ ingress: aliasIngress });

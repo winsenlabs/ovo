@@ -53,6 +53,13 @@ function integer(value: string | undefined, fallback: number): number {
   return parsed;
 }
 
+function drainTimeoutMs(env: Readonly<Record<string, string | undefined>>): number {
+  if (env.OVO_MEDIA_DRAIN_TIMEOUT_MS !== undefined)
+    return integer(env.OVO_MEDIA_DRAIN_TIMEOUT_MS, 1);
+  const deregistrationSeconds = integer(env.OVO_MEDIA_DEREGISTRATION_DELAY_SECONDS, 300);
+  return Math.max(100, deregistrationSeconds * 1_000 - 30_000);
+}
+
 export interface GatewayRuntime {
   composition: Composition;
   gateway: MediaGateway;
@@ -69,6 +76,9 @@ export async function startGateway(
   const env = input.env ?? process.env;
   const profile = env.OVO_DEPLOYMENT_PROFILE === 'fargate' ? 'fargate' : 'compose';
   const publicBaseUrl = required(env, 'OVO_MEDIA_PUBLIC_BASE_URL');
+  const base = new URL(publicBaseUrl);
+  if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash)
+    throw new Error('Carrier public base URL must be https without credentials or query');
   const databaseUrl = required(env, 'DATABASE_URL');
   const routeSecret = required(env, 'OVO_INBOUND_ROUTE_SECRET');
   const workerToken = required(env, 'OVO_MEDIA_WORKER_TOKEN');
@@ -91,7 +101,7 @@ export async function startGateway(
   try {
     await store.migrate();
     await operations.migrate();
-    installInboundCarriers(operations, distribution, env);
+    const environmentCarrierId = installInboundCarriers(operations, distribution, env);
     operations.inboundGateway.assertArmed();
     const resolver: MediaRouteResolver = {
       authenticateSessionRoute: store.authenticateSessionRoute.bind(store),
@@ -111,6 +121,7 @@ export async function startGateway(
         control: composition.ctx.get(Cap.controlStore) as ControlStore,
         secrets: composition.ctx.get(Cap.secretManager) as SecretManager,
         ingresses: [...composition.all(Cap.carrierIngress).values()] as CarrierIngress[],
+        environmentCarrierId,
         env,
       });
       return host.hostFor(carrierId, bindingId);
@@ -161,13 +172,14 @@ export async function startGateway(
                 : integer(env.OVO_MEDIA_MAX_PENDING_FRAMES, 25),
             handshakeTimeoutMs: integer(env.OVO_MEDIA_HANDSHAKE_TIMEOUT_MS, 5_000),
             idleTimeoutMs: integer(env.OVO_MEDIA_IDLE_TIMEOUT_MS, 30_000),
-            drainTimeoutMs: integer(env.OVO_MEDIA_DRAIN_TIMEOUT_MS, 30_000),
+            drainTimeoutMs: drainTimeoutMs(env),
           },
         },
       ],
       catalog,
     );
     const gateway = composition.ctx.get(MEDIA_SERVICE_KEYS.gateway) as MediaGateway;
+    await gateway.listen();
     const active = composition;
     return {
       composition: active,

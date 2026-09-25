@@ -242,7 +242,8 @@ export class SessionBridge {
       }
     }
     this.link?.close(reason);
-    if (this.socket.readyState === WebSocket.OPEN) this.socket.close(1000, reason.slice(0, 120));
+    if (this.socket.readyState === WebSocket.OPEN)
+      this.socket.close(1000, Buffer.from(reason).subarray(0, 120).toString());
     else if (this.socket.readyState === WebSocket.CONNECTING) this.socket.terminate();
     this.options.onClosed?.(reason);
   }

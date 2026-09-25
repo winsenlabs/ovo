@@ -66,6 +66,7 @@ export interface GatewayHostOptions {
   control: ControlStore;
   secrets: SecretManager;
   ingresses: readonly CarrierIngress[];
+  environmentCarrierId?: string;
   env: Readonly<Record<string, string | undefined>>;
 }
 
@@ -100,6 +101,12 @@ export function createGatewayHost(options: GatewayHostOptions) {
     const route = selected.rows[0];
     if (!route) return; // Operations records the normal unrouted refusal.
     if (route.carrier_plugin_id && !registry.get(route.carrier_plugin_id)) return; // Operations records its durable uninstalled-plugin refusal.
+    if (
+      !route.carrier_plugin_id &&
+      !route.carrier_binding_id &&
+      options.environmentCarrierId !== inbound.carrierId
+    )
+      return; // Operations records the env refusal.
     const bindingId = route.carrier_binding_id ?? 'env';
     const binding = await bindings(bindingId, inbound.carrierId);
     if (route.carrier_plugin_id && route.carrier_plugin_id !== binding.pluginId)
@@ -180,17 +187,35 @@ export function createGatewayHost(options: GatewayHostOptions) {
               status: callbackStatus(event.state),
             });
           const attemptId = job?.payload.attemptId;
-          if (typeof attemptId === 'string' && attemptId)
+          if (typeof attemptId === 'string' && attemptId) {
+            const evidence =
+              event.state === 'completed'
+                ? await options.store.pool.query<{
+                    session_opened: boolean;
+                    machine_answered: boolean;
+                  }>(
+                    `SELECT
+                       EXISTS (SELECT 1 FROM ovo_carrier_callbacks
+                         WHERE organization_id = $1 AND carrier_id = $2 AND session_id = $3
+                           AND provider = 'ovo.media' AND status = 'session_opened') AS session_opened,
+                       EXISTS (SELECT 1 FROM ovo_carrier_callbacks
+                         WHERE organization_id = $1 AND carrier_id = $2 AND session_id = $3
+                           AND provider = $2 AND payload->>'answeredBy' = 'machine') AS machine_answered`,
+                    [result.route.organizationId, event.carrierId, result.route.sessionId],
+                  )
+                : undefined;
+            const observed = evidence?.rows[0];
             await options.operations.campaigns.recordAttempt(
               attemptId,
               event.eventId,
               campaignAttemptStatus({
                 state: event.state,
-                answeredBy: event.answeredBy,
-                sessionOpened: !!result.route.handshakeClaimedAt,
+                answeredBy: observed?.machine_answered ? 'machine' : event.answeredBy,
+                sessionOpened: observed?.session_opened === true,
               }),
               event.occurredAt,
             );
+          }
           return result.kind === 'ignored_out_of_order'
             ? { kind: 'duplicate' as const }
             : { kind: result.kind };
