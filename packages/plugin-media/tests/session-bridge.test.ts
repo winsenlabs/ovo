@@ -324,6 +324,6 @@ it('still finalizes the worker session when the carrier explicitly stops', async
   const h = harness({ accept: true });
   h.start();
   await vi.waitFor(() => expect(h.dialer.connect).toHaveBeenCalledOnce());
-  h.socket.receive(fixtureInboundFrame({ type: 'stop', reason: 'caller_hangup' }));
+  h.socket.receive(fixtureInboundFrame({ type: 'stop', reason: 'caller-hangup' }));
   expect(h.sent).toContainEqual({ type: 'session.close', reason: 'carrier caller-hangup' });
 });
