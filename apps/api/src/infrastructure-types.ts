@@ -43,7 +43,11 @@ export interface InfrastructureSnapshot {
     eligibleDepth: number | null;
     oldestAgeMs: number | null;
     reconciliationDepth: number | null;
-    unresolvedCapacityWrites: number | null;
+  };
+  capacity: {
+    lastSignal: (Omit<CapacitySignal, 'at'> & { at: string }) | null;
+    ageMs: number | null;
+    maxAgeMs: number;
   };
   providers: {
     quotas: ProviderQuotaSnapshot[] | null;
@@ -75,3 +79,4 @@ export interface InfrastructureService {
   readonly organizationId: string;
   snapshot(workspaceId: string, releaseId?: string): Promise<InfrastructureSnapshot>;
 }
+import type { CapacitySignal } from '@winsendotai/ovo-contracts';

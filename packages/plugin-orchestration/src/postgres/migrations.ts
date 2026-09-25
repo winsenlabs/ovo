@@ -4,13 +4,15 @@ import migration002 from '../../migrations/002_session_lifecycle.sql?raw';
 import migration003 from '../../migrations/003_carrier_identity.sql?raw';
 import migration004 from '../../migrations/004_carrier_scope.sql?raw';
 import migration005 from '../../migrations/005_inbound_carrier_selection.sql?raw';
+import migration006 from '../../migrations/006_job_hints_drop_capacity.sql?raw';
 
 const migrations = [
-  { version: 1, sql: migration001 },
-  { version: 2, sql: migration002 },
-  { version: 3, sql: migration003 },
-  { version: 4, sql: migration004 },
-  { version: 5, sql: migration005 },
+  [1, migration001],
+  [2, migration002],
+  [3, migration003],
+  [4, migration004],
+  [5, migration005],
+  [6, migration006],
 ] as const;
 
 export async function runMigrations(pool: Pool): Promise<void> {
@@ -54,8 +56,8 @@ export async function runMigrations(pool: Pool): Promise<void> {
         versions.add(version);
       }
     }
-    const missing = migrations.filter((migration) => !versions.has(migration.version));
-    for (const { version, sql } of missing) {
+    const missing = migrations.filter(([version]) => !versions.has(version));
+    for (const [version, sql] of missing) {
       await client.query(sql);
       await client.query('INSERT INTO ovo_orch_schema_migrations (version) VALUES ($1)', [version]);
     }

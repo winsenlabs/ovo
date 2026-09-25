@@ -20,9 +20,11 @@ describe.skipIf(!url)('capacity and hint PostgreSQL eligibility', () => {
       application_name: schema,
     });
     await store.migrate();
-    // Removed when the separately reviewed hint migration joins this branch.
-    await store.pool.query('ALTER TABLE ovo_jobs ADD COLUMN IF NOT EXISTS hinted_at timestamptz');
-    await store.pool.query('ALTER TABLE ovo_jobs ADD COLUMN IF NOT EXISTS hint_count int NOT NULL DEFAULT 0');
+    expect((await store.pool.query<{ hinted_at: string | null }>(
+      `SELECT column_name AS hinted_at FROM information_schema.columns
+       WHERE table_schema = $1 AND table_name = 'ovo_jobs' AND column_name = 'hinted_at'`,
+      [schema],
+    )).rows[0]?.hinted_at).toBe('hinted_at');
   });
 
   afterAll(async () => {
@@ -49,6 +51,43 @@ describe.skipIf(!url)('capacity and hint PostgreSQL eligibility', () => {
       .toBe(0);
     await store.pool.query(`UPDATE ovo_jobs SET not_before = now() - interval '1 second' WHERE id = $1`, [id]);
     expect(await store.hints.sweep()).toEqual({ hinted: 1, poisoned: [] });
+  });
+
+  it('migrates away writer state and persists the last published signal across store instances', async () => {
+    const tables = await store.pool.query<{ writes: string | null; leases: string | null }>(
+      `SELECT to_regclass('ovo_capacity_writes')::text AS writes,
+         to_regclass('ovo_capacity_leases')::text AS leases`,
+    );
+    expect(tables.rows[0]).toEqual({ writes: null, leases: null });
+    const id = randomUUID();
+    await store.pool.query(
+      `INSERT INTO ovo_jobs(id,workspace_id,idempotency_key,payload,status)
+       VALUES ($1,$2,$3,'{}'::jsonb,'superseded')`,
+      [id, schema, id],
+    );
+    const signal = { requiredSlots: 3, provisionedTasks: 2, busySlots: 1,
+      readyIdleSlots: 1, eligibleJobs: 2, campaignDemand: 0,
+      oldestEligibleJobAgeSeconds: 5, at: new Date(Date.now() - 2_000) };
+    await store.recordCapacitySignal(signal);
+    const newer = { ...signal, requiredSlots: 4, at: new Date(signal.at.getTime() + 1_000) };
+    const delayed = { ...signal, requiredSlots: 99, at: new Date(signal.at.getTime() - 60_000) };
+    await store.recordCapacitySignal(newer);
+    await store.recordCapacitySignal(delayed);
+    const reader = new Pool({ connectionString: url,
+      options: `-c search_path=${schema}` });
+    try {
+      const row = await reader.query<{ signal: Record<string, unknown>; age_ms: string }>(
+        `SELECT signal, extract(epoch FROM (now()-signal_at))*1000 AS age_ms
+         FROM ovo_capacity_signal_latest WHERE service_key='workers'`,
+      );
+      expect(row.rows[0]?.signal).toMatchObject({ requiredSlots: 4, at: newer.at.toISOString() });
+      expect(Number(row.rows[0]?.age_ms)).toBeGreaterThanOrEqual(0);
+      await store.migrate();
+      expect((await reader.query(`SELECT count(*)::int AS count
+        FROM ovo_orch_schema_migrations WHERE version=6`)).rows[0]?.count).toBe(1);
+    } finally {
+      await reader.end();
+    }
   });
 
   it('uses the oldest active slot observation so one stale slot blocks the signal', async () => {

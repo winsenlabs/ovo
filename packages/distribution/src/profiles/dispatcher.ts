@@ -8,6 +8,10 @@ export const rows: ProfileRows = (profile, env) => {
     throw new Error(`Capacity signal ${env.OVO_CAPACITY_SIGNAL} conflicts with ${profile} profile`);
   return [
     ...durableRows(profile, env),
+    { id: 'ovo.operations.postgres' },
+    { id: '@winsendotai/ovo-plugin-ledger',
+      config: { databaseUrl: required(env, 'DATABASE_URL') } },
+    { id: 'ovo.dispatcher.node-net' },
     {
       id: `@winsendotai/ovo-plugin-orchestration/${signal}-capacity-signal`,
       config: signal === 'cloudwatch'

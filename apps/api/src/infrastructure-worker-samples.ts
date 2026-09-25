@@ -9,6 +9,47 @@ export interface WorkerSample {
   observed_at: Date;
 }
 
+export async function readWorkerSamples(
+  pool: Pool,
+  workspaceId: string,
+  releaseId: string | undefined,
+  heartbeatMaxAgeMs: number,
+  maxWorkerSamples: number,
+) {
+  const result = await pool.query<{
+    ready: string; reserved: string; active: string; starting: string;
+    draining: string; total: string; freshest: Date | null;
+  }>(
+    `SELECT count(*) FILTER (WHERE state='ready_idle')::text AS ready,
+      count(*) FILTER (WHERE state='reserved')::text AS reserved,
+      count(*) FILTER (WHERE state='active')::text AS active,
+      count(*) FILTER (WHERE state='starting')::text AS starting,
+      count(*) FILTER (WHERE state='draining')::text AS draining,
+      count(*)::text AS total,max(observed_at) AS freshest
+      FROM ovo_worker_slots
+      WHERE lease_expires_at>now() AND observed_at>=now()-($1*interval '1 millisecond')`,
+    [heartbeatMaxAgeMs],
+  );
+  const samples = await pool.query<WorkerSample>(
+    `SELECT metadata,observed_at FROM ovo_worker_slots
+     WHERE lease_expires_at>now() AND observed_at>=now()-($1*interval '1 millisecond')
+     ORDER BY observed_at DESC,worker_id LIMIT $2`,
+    [heartbeatMaxAgeMs, maxWorkerSamples + 1],
+  );
+  const row = result.rows[0]!;
+  return {
+    counts: {
+      ready: Number(row.ready), reserved: Number(row.reserved), active: Number(row.active),
+      starting: Number(row.starting), draining: Number(row.draining), total: Number(row.total),
+    },
+    freshestHeartbeatAt: row.freshest?.toISOString() ?? null,
+    samples: samples.rows.slice(0, maxWorkerSamples),
+    samplesTruncated: samples.rows.length > maxWorkerSamples,
+    workspaceId,
+    releaseId,
+  };
+}
+
 interface WorkerMetrics {
   process: InfrastructureSnapshot['process'];
   quotas: ProviderQuotaSnapshot[] | null;
@@ -114,3 +155,4 @@ function average(values: number[]) {
 function sumOrNull(values: number[]) {
   return values.length ? values.reduce((total, value) => total + value, 0) : null;
 }
+import type { Pool } from 'pg';

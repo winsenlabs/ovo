@@ -1,4 +1,5 @@
 import { type PoolConfig, Pool } from 'pg';
+import type { CapacitySignal } from '@winsendotai/ovo-contracts';
 import type {
   CarrierRouteStore,
   DurableJob,
@@ -97,5 +98,8 @@ export class PostgresOrchestrationStore
   }
   readCapacitySnapshot(): Promise<CapacitySnapshot> {
     return this.capacity.readSnapshot();
+  }
+  recordCapacitySignal(signal: CapacitySignal): Promise<void> {
+    return this.capacity.recordSignal(signal);
   }
 }

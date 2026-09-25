@@ -171,6 +171,7 @@ services:
       <<: *common
       OVO_CAPACITY_SIGNAL: log
       OVO_DLQ_URL: ${OVO_DLQ_URL:-http://queue:9324/000000000000/ovo-jobs-dlq}
+      OVO_INBOUND_ENABLED: ${OVO_INBOUND_ENABLED:-false}
       OVO_INBOUND_WARM_FLOOR: '2'
       OVO_WORKER_MAX_CAPACITY: '2'
       OVO_CARRIER_CONCURRENCY: '2'

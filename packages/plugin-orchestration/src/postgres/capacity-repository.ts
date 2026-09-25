@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import type { CapacitySignal } from '@winsendotai/ovo-contracts';
 import { transaction } from './database.ts';
 
 export interface WorkerReport {
@@ -20,10 +21,25 @@ export interface CapacitySnapshot {
     total: number;
   };
   eligibleUnclaimed: number;
+  oldestEligibleJobAgeSeconds: number;
 }
 
 export class CapacityRepository {
   constructor(private readonly pool: Pool) {}
+
+  async recordSignal(signal: CapacitySignal): Promise<void> {
+    if (!(signal.at instanceof Date) || !Number.isFinite(signal.at.getTime()))
+      throw new Error('Capacity signal must have a valid timestamp');
+    await this.pool.query(
+      `INSERT INTO ovo_capacity_signal_latest(service_key, signal, signal_at, published_at)
+       VALUES ('workers', $1::jsonb, $2::timestamptz, now())
+       ON CONFLICT (service_key) DO UPDATE SET
+         signal = EXCLUDED.signal, signal_at = EXCLUDED.signal_at,
+         published_at = EXCLUDED.published_at
+       WHERE ovo_capacity_signal_latest.signal_at < EXCLUDED.signal_at`,
+      [JSON.stringify({ ...signal, at: signal.at.toISOString() }), signal.at],
+    );
+  }
 
   async claimInboundFloorToken(input: {
     workerId: string;
@@ -132,8 +148,10 @@ export class CapacityRepository {
         `SELECT state, count(*)::text AS count, min(observed_at) AS observed_at
          FROM ovo_worker_slots WHERE lease_expires_at > now() GROUP BY state`,
       ),
-      this.pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM ovo_jobs WHERE status = 'queued' AND not_before <= now()`,
+      this.pool.query<{ count: string; oldest_age: string | null }>(
+        `SELECT count(*)::text AS count,
+          extract(epoch FROM (now()-min(created_at)))::text AS oldest_age
+         FROM ovo_jobs WHERE status = 'queued' AND not_before <= now()`,
       ),
       this.pool.query<{ now: Date }>('SELECT now() AS now'),
     ]);
@@ -153,6 +171,7 @@ export class CapacityRepository {
       counts.total += Number(row.count);
       observedAtMs = Math.min(observedAtMs, row.observed_at.getTime());
     }
-    return { counts, observedAtMs, eligibleUnclaimed: Number(jobs.rows[0]?.count ?? 0) };
+    return { counts, observedAtMs, eligibleUnclaimed: Number(jobs.rows[0]?.count ?? 0),
+      oldestEligibleJobAgeSeconds: Math.ceil(Math.max(0, Number(jobs.rows[0]?.oldest_age ?? 0))) };
   }
 }

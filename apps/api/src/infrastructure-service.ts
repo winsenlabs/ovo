@@ -1,18 +1,20 @@
 import type { Pool } from 'pg';
 import type { InfrastructureService, InfrastructureSnapshot } from './infrastructure-types.ts';
-import { aggregateWorkerMetrics, type WorkerSample } from './infrastructure-worker-samples.ts';
+import { aggregateWorkerMetrics, readWorkerSamples } from './infrastructure-worker-samples.ts';
 
 interface InfrastructureServiceOptions {
   organizationId: string;
   installationEnabled: boolean;
   capacityCeiling: number | null;
   heartbeatMaxAgeMs?: number;
+  capacitySignalMaxAgeMs?: number;
   maxWorkerSamples?: number;
 }
 
 export class PostgresInfrastructureService implements InfrastructureService {
   readonly organizationId: string;
   private readonly heartbeatMaxAgeMs: number;
+  private readonly capacitySignalMaxAgeMs: number;
   private readonly maxWorkerSamples: number;
 
   constructor(
@@ -21,20 +23,24 @@ export class PostgresInfrastructureService implements InfrastructureService {
   ) {
     this.organizationId = required(options.organizationId, 'organizationId');
     this.heartbeatMaxAgeMs = bounded(options.heartbeatMaxAgeMs ?? 15_000, 1_000, 60_000);
+    this.capacitySignalMaxAgeMs = bounded(options.capacitySignalMaxAgeMs ?? 30_000, 1_000, 300_000);
     this.maxWorkerSamples = bounded(options.maxWorkerSamples ?? 100, 1, 100);
   }
 
   async snapshot(workspaceId: string, releaseId?: string): Promise<InfrastructureSnapshot> {
     if (workspaceId !== this.organizationId) throw forbiddenOrganization();
     const tables = await this.tables();
-    const [workers, queue, recordings, telemetry] = await Promise.all([
-      tables.orchestration ? this.workersAndQueue(workspaceId, releaseId) : undefined,
+    const [workers, queue, capacity, recordings, telemetry] = await Promise.all([
+      tables.orchestration
+        ? readWorkerSamples(this.pool, workspaceId, releaseId, this.heartbeatMaxAgeMs, this.maxWorkerSamples)
+        : undefined,
       tables.orchestration ? this.queue(workspaceId, releaseId) : undefined,
+      tables.capacity ? this.capacity() : undefined,
       tables.recordings ? this.recordings(workspaceId, releaseId, tables.control) : undefined,
       tables.telemetry ? this.telemetry(workspaceId, releaseId) : undefined,
     ]);
     const workerMetrics = aggregateWorkerMetrics(workers?.samples ?? []);
-    const reasons = this.readinessReasons(tables.orchestration, workers, queue);
+    const reasons = this.readinessReasons(tables.orchestration, workers, capacity);
     return {
       organizationId: this.organizationId,
       generatedAt: new Date().toISOString(),
@@ -65,6 +71,7 @@ export class PostgresInfrastructureService implements InfrastructureService {
         samplesTruncated: workers ? workers.samplesTruncated : null,
       },
       queue: queue ?? emptyQueue(),
+      capacity: capacity ?? { lastSignal: null, ageMs: null, maxAgeMs: this.capacitySignalMaxAgeMs },
       providers: { quotas: workerMetrics.quotas, throttling: workerMetrics.throttling },
       process: workerMetrics.process,
       recordings: recordings ?? null,
@@ -78,61 +85,19 @@ export class PostgresInfrastructureService implements InfrastructureService {
       recordings: string | null;
       telemetry: string | null;
       control: string | null;
+      capacity: string | null;
     }>(`SELECT to_regclass('public.ovo_worker_slots')::text AS orchestration,
       to_regclass('public.ovo_recording_artifacts')::text AS recordings,
       to_regclass('public.ovo_telemetry_events')::text AS telemetry,
-      to_regclass('public.ovo_ctl_calls')::text AS control`);
+      to_regclass('public.ovo_ctl_calls')::text AS control,
+      to_regclass('public.ovo_capacity_signal_latest')::text AS capacity`);
     const row = result.rows[0]!;
     return {
       orchestration: Boolean(row.orchestration),
       recordings: Boolean(row.recordings),
       telemetry: Boolean(row.telemetry),
       control: Boolean(row.control),
-    };
-  }
-
-  private async workersAndQueue(workspaceId: string, releaseId?: string) {
-    const result = await this.pool.query<{
-      ready: string;
-      reserved: string;
-      active: string;
-      starting: string;
-      draining: string;
-      total: string;
-      freshest: Date | null;
-    }>(
-      `SELECT
-      count(*) FILTER (WHERE state='ready_idle')::text AS ready,
-      count(*) FILTER (WHERE state='reserved')::text AS reserved,
-      count(*) FILTER (WHERE state='active')::text AS active,
-      count(*) FILTER (WHERE state='starting')::text AS starting,
-      count(*) FILTER (WHERE state='draining')::text AS draining,
-      count(*)::text AS total,max(observed_at) AS freshest
-      FROM ovo_worker_slots
-      WHERE lease_expires_at>now() AND observed_at>=now()-($1*interval '1 millisecond')`,
-      [this.heartbeatMaxAgeMs],
-    );
-    const samples = await this.pool.query<WorkerSample>(
-      `SELECT metadata,observed_at FROM ovo_worker_slots
-       WHERE lease_expires_at>now() AND observed_at>=now()-($1*interval '1 millisecond')
-       ORDER BY observed_at DESC,worker_id LIMIT $2`,
-      [this.heartbeatMaxAgeMs, this.maxWorkerSamples + 1],
-    );
-    const row = result.rows[0]!;
-    return {
-      counts: {
-        ready: Number(row.ready),
-        reserved: Number(row.reserved),
-        active: Number(row.active),
-        starting: Number(row.starting),
-        draining: Number(row.draining),
-        total: Number(row.total),
-      },
-      freshestHeartbeatAt: row.freshest?.toISOString() ?? null,
-      samples: samples.rows.slice(0, this.maxWorkerSamples),
-      samplesTruncated: samples.rows.length > this.maxWorkerSamples,
-      workspaceId,
-      releaseId,
+      capacity: Boolean(row.capacity),
     };
   }
 
@@ -142,14 +107,12 @@ export class PostgresInfrastructureService implements InfrastructureService {
       eligible: string;
       oldest_age_ms: number | null;
       reconciliation: string;
-      unresolved: string;
     }>(
       `SELECT
       count(*) FILTER (WHERE status='queued')::text AS depth,
       count(*) FILTER (WHERE status='queued' AND not_before<=now())::text AS eligible,
       extract(epoch FROM (now()-min(created_at) FILTER (WHERE status='queued')))*1000 AS oldest_age_ms,
-      count(*) FILTER (WHERE status='reconcile_required')::text AS reconciliation,
-      (SELECT count(*)::text FROM ovo_capacity_writes WHERE status IN ('inflight','unknown')) AS unresolved
+      count(*) FILTER (WHERE status='reconcile_required')::text AS reconciliation
       FROM ovo_jobs WHERE workspace_id=$1 AND ($2::text IS NULL OR payload->>'releaseId'=$2)`,
       [workspaceId, releaseId ?? null],
     );
@@ -159,8 +122,17 @@ export class PostgresInfrastructureService implements InfrastructureService {
       eligibleDepth: Number(row.eligible),
       oldestAgeMs: row.oldest_age_ms === null ? null : Math.max(0, Number(row.oldest_age_ms)),
       reconciliationDepth: Number(row.reconciliation),
-      unresolvedCapacityWrites: Number(row.unresolved),
     };
+  }
+
+  private async capacity(): Promise<InfrastructureSnapshot['capacity']> {
+    const result = await this.pool.query<{
+      signal: InfrastructureSnapshot['capacity']['lastSignal']; age_ms: string;
+    }>(`SELECT signal, extract(epoch FROM (now() - signal_at))*1000 AS age_ms
+        FROM ovo_capacity_signal_latest WHERE service_key = 'workers'`);
+    const row = result.rows[0];
+    return { lastSignal: row?.signal ?? null, ageMs: row ? Math.max(0, Number(row.age_ms)) : null,
+      maxAgeMs: this.capacitySignalMaxAgeMs };
   }
 
   private async recordings(workspaceId: string, releaseId: string | undefined, control: boolean) {
@@ -232,8 +204,8 @@ export class PostgresInfrastructureService implements InfrastructureService {
 
   private readinessReasons(
     orchestration: boolean,
-    workers: Awaited<ReturnType<PostgresInfrastructureService['workersAndQueue']>> | undefined,
-    queue: InfrastructureSnapshot['queue'] | undefined,
+    workers: Awaited<ReturnType<typeof readWorkerSamples>> | undefined,
+    capacity: InfrastructureSnapshot['capacity'] | undefined,
   ) {
     if (!this.options.installationEnabled)
       return ['Live calling is disabled by installation configuration.'];
@@ -244,8 +216,10 @@ export class PostgresInfrastructureService implements InfrastructureService {
     else if (this.options.capacityCeiling === 0)
       reasons.push('The installation capacity ceiling is zero.');
     if (!workers?.counts.ready) reasons.push('No fresh ready worker heartbeat is available.');
-    if (queue?.unresolvedCapacityWrites)
-      reasons.push('A capacity write has an unresolved outcome and scaling is fenced.');
+    if (capacity?.ageMs === undefined || capacity.ageMs === null)
+      reasons.push('No capacity signal has been published.');
+    else if (capacity.ageMs > this.capacitySignalMaxAgeMs)
+      reasons.push('The capacity signal is stale.');
     return reasons;
   }
 }
@@ -256,7 +230,6 @@ function emptyQueue(): InfrastructureSnapshot['queue'] {
     eligibleDepth: null,
     oldestAgeMs: null,
     reconciliationDepth: null,
-    unresolvedCapacityWrites: null,
   };
 }
 function forbiddenOrganization() {

@@ -73,19 +73,24 @@ export class JobRepository {
         const unavailable = await client.query<
           Pick<JobRow, 'status' | 'lease_expires_at'> & {
             not_before: Date;
+            owner_epoch: string;
             before_ready: boolean;
             currently_leased: boolean;
           }
         >(
-          `SELECT status, lease_expires_at, not_before,
+          `SELECT status, lease_expires_at, not_before, owner_epoch,
              not_before > now() AS before_ready,
              lease_expires_at > now() AS currently_leased
-           FROM ovo_jobs WHERE id = $1`,
+           FROM ovo_jobs WHERE id = $1 FOR UPDATE`,
           [jobId],
         );
         const current = unavailable.rows[0];
         if (!current) return { kind: 'missing' };
         if (current.before_ready) {
+          await client.query(
+            'UPDATE ovo_jobs SET hinted_at = NULL WHERE id = $1 AND owner_epoch = $2',
+            [jobId, current.owner_epoch],
+          );
           return { kind: 'defer', reason: 'not_before', retryAt: current.not_before };
         }
         if (
@@ -94,6 +99,10 @@ export class JobRepository {
           ) &&
           current.currently_leased
         ) {
+          await client.query(
+            'UPDATE ovo_jobs SET hinted_at = NULL WHERE id = $1 AND owner_epoch = $2',
+            [jobId, current.owner_epoch],
+          );
           return {
             kind: 'defer',
             reason: 'currently_leased',

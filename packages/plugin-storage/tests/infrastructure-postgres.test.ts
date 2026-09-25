@@ -16,7 +16,6 @@ suite('PostgreSQL infrastructure snapshot', () => {
   const suffix = randomUUID().replaceAll('-', '');
   const workspaceId = `infra-${suffix}`;
   const workerPrefix = `infra-worker-${suffix}`;
-  const serviceKey = `infra-service-${suffix}`;
   let releaseId: string;
   let pool: Pool;
   let control: PostgresControlStore;
@@ -48,7 +47,7 @@ suite('PostgreSQL infrastructure snapshot', () => {
 
   afterAll(async () => {
     if (pool) {
-      await pool.query('DELETE FROM ovo_capacity_writes WHERE service_key=$1', [serviceKey]);
+      await pool.query("DELETE FROM ovo_capacity_signal_latest WHERE service_key='workers'");
       await pool.query('DELETE FROM ovo_worker_slots WHERE worker_id LIKE $1', [
         `${workerPrefix}%`,
       ]);
@@ -82,9 +81,7 @@ suite('PostgreSQL infrastructure snapshot', () => {
     });
     const snapshot = await service.snapshot(workspaceId, releaseId);
     expect(snapshot.installation).toMatchObject({ enabled: true, status: 'degraded' });
-    expect(snapshot.installation.reasons).toContain(
-      'A capacity write has an unresolved outcome and scaling is fenced.',
-    );
+    expect(snapshot.installation.reasons).toContain('No capacity signal has been published.');
     expect(snapshot.workers).toMatchObject({
       ready: 1,
       draining: 0,
@@ -101,7 +98,6 @@ suite('PostgreSQL infrastructure snapshot', () => {
       depth: 2,
       eligibleDepth: 1,
       reconciliationDepth: 1,
-      unresolvedCapacityWrites: 1,
     });
     expect(snapshot.queue.oldestAgeMs).toBeGreaterThanOrEqual(0);
     expect(snapshot.process).toMatchObject({
@@ -123,6 +119,40 @@ suite('PostgreSQL infrastructure snapshot', () => {
       finalizingArtifacts: 1,
     });
     expect(snapshot.telemetry).toMatchObject({ eventsLastFiveMinutes: 1, activeCalls: 1 });
+  });
+
+  it('reads the latest durable capacity signal after the capacity-write table is removed', async () => {
+    const tables = await pool.query<{ writes: string | null; signal: string | null }>(
+      `SELECT to_regclass('public.ovo_capacity_writes')::text AS writes,
+        to_regclass('public.ovo_capacity_signal_latest')::text AS signal`,
+    );
+    expect(tables.rows[0]).toMatchObject({ writes: null, signal: 'ovo_capacity_signal_latest' });
+    await pool.query(
+      `INSERT INTO ovo_capacity_signal_latest(service_key, signal, signal_at, published_at)
+       VALUES ('workers', $1::jsonb, now(), now())
+       ON CONFLICT (service_key) DO UPDATE SET signal=EXCLUDED.signal,
+         signal_at=EXCLUDED.signal_at, published_at=EXCLUDED.published_at`,
+      [JSON.stringify({ requiredSlots: 3, provisionedTasks: 2, busySlots: 1,
+        readyIdleSlots: 1, eligibleJobs: 2, campaignDemand: 0,
+        oldestEligibleJobAgeSeconds: 5, at: new Date().toISOString() })],
+    );
+    const service = new PostgresInfrastructureService(pool, {
+      organizationId: workspaceId,
+      installationEnabled: true,
+      capacityCeiling: 4,
+    });
+    const snapshot = await service.snapshot(workspaceId);
+    expect(snapshot.capacity.lastSignal).toMatchObject({ requiredSlots: 3, eligibleJobs: 2 });
+    expect(snapshot.capacity.ageMs).toBeGreaterThanOrEqual(0);
+    expect(snapshot.capacity.ageMs).toBeLessThan(30_000);
+    expect(snapshot.installation.reasons).not.toContain(
+      'A capacity write has an unresolved outcome and scaling is fenced.',
+    );
+    await pool.query(`UPDATE ovo_capacity_signal_latest
+      SET signal_at=now()-interval '31 seconds' WHERE service_key='workers'`);
+    const stale = await service.snapshot(workspaceId);
+    expect(stale.capacity.ageMs).toBeGreaterThan(30_000);
+    expect(stale.installation.reasons).toContain('The capacity signal is stale.');
   });
 
   it('rejects another organization without querying or exposing its state', async () => {
@@ -184,11 +214,6 @@ suite('PostgreSQL infrastructure snapshot', () => {
               ($2,$4,'future',$5::jsonb,'queued',now()+interval '1 hour'),
               ($3,$4,'reconcile',$5::jsonb,'reconcile_required',now())`,
       [randomUUID(), randomUUID(), randomUUID(), workspaceId, JSON.stringify({ releaseId })],
-    );
-    await pool.query(
-      `INSERT INTO ovo_capacity_writes(attempt_id,service_key,authority_id,epoch,desired_count,status)
-       VALUES($1,$2,'test',1,2,'unknown')`,
-      [randomUUID(), serviceKey],
     );
     const callId = `infra-call-${suffix}`;
     await control.createCall({

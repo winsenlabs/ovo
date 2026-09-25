@@ -93,6 +93,7 @@ resource "aws_ecs_task_definition" "dispatcher" {
       { name = "OVO_DLQ_URL", value = aws_sqs_queue.jobs_dlq.url },
       { name = "OVO_ECS_CLUSTER", value = aws_ecs_cluster.this.name },
       { name = "OVO_WORKER_SERVICE", value = local.worker_service },
+      { name = "OVO_INBOUND_ENABLED", value = tostring(var.enable_inbound_calls) },
       { name = "OVO_INBOUND_WARM_FLOOR", value = tostring(var.inbound_warm_floor) },
       { name = "OVO_WORKER_MAX_CAPACITY", value = tostring(var.worker_max_capacity) },
       { name = "OVO_CAPACITY_SIGNAL", value = "cloudwatch" },

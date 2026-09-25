@@ -60,7 +60,7 @@ describe.skipIf(!url)('carrier identity migrations and grants', () => {
     },
   };
 
-  it('adopts a populated pre-ledger schema, runs 003, and reruns without rewriting old rows', async () => {
+  it('adopts populated pre-ledger rows through 006 without rewriting jobs', async () => {
     await store.pool.query(migration001);
     await store.pool.query(migration002);
     const id = randomUUID();
@@ -75,6 +75,11 @@ describe.skipIf(!url)('carrier identity migrations and grants', () => {
       `INSERT INTO ovo_worker_slots (worker_id, state, ownership_epoch, observed_at, lease_expires_at)
        VALUES ('pre-upgrade-worker', 'active', 23, now(), now() + interval '1 minute')`,
     );
+    await store.pool.query(
+      `INSERT INTO ovo_capacity_writes(attempt_id,service_key,authority_id,epoch,desired_count,status)
+       VALUES($1,'workers','old-dispatcher',1,2,'unknown')`,
+      [randomUUID()],
+    );
     const legacySessionId = randomUUID();
     await store.pool.query(
       `INSERT INTO ovo_session_routes (session_id, job_id, organization_id, worker_id,
@@ -88,11 +93,11 @@ describe.skipIf(!url)('carrier identity migrations and grants', () => {
     expect(
       (await store.pool.query('SELECT version FROM ovo_orch_schema_migrations ORDER BY version'))
         .rows,
-    ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }]);
+    ).toEqual([1, 2, 3, 4, 5, 6].map((version) => ({ version })));
     expect(
       (
         await store.pool.query(
-          'SELECT carrier_id, carrier_plugin_id, carrier_binding_id, payload FROM ovo_jobs WHERE id = $1',
+          'SELECT carrier_id, carrier_plugin_id, carrier_binding_id, payload, hinted_at, hint_count FROM ovo_jobs WHERE id = $1',
           [id],
         )
       ).rows[0],
@@ -101,7 +106,13 @@ describe.skipIf(!url)('carrier identity migrations and grants', () => {
       carrier_plugin_id: null,
       carrier_binding_id: null,
       payload: {},
+      hinted_at: null,
+      hint_count: 0,
     });
+    expect((await store.pool.query(
+      `SELECT to_regclass('ovo_capacity_writes') AS writes,
+        to_regclass('ovo_capacity_leases') AS leases`,
+    )).rows[0]).toEqual({ writes: null, leases: null });
     expect(
       (
         await store.pool.query(
