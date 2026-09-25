@@ -18,9 +18,12 @@ export interface WorkerStatus {
 export async function runWorkerLoop(input: {
   status: WorkerStatus;
   server: Server;
+  openProcess?: typeof openWorkerProcess;
+  createMedia?: typeof createProductionWorkerMediaRuntime;
+  registerShutdown?: (callback: () => void) => void;
 }): Promise<void> {
   const { status, server } = input;
-  const processRuntime = await openWorkerProcess();
+  const processRuntime = await (input.openProcess ?? openWorkerProcess)();
   if (processRuntime.kind === 'dial-disabled') {
     status.state = 'dial-disabled';
     status.detail = 'Durable adapters composed; carrier admission is explicitly disabled';
@@ -29,8 +32,7 @@ export async function runWorkerLoop(input: {
       await processRuntime.composition.dispose();
       server.close();
     };
-    process.once('SIGTERM', () => void shutdown());
-    process.once('SIGINT', () => void shutdown());
+    watchShutdown(input, shutdown);
     return;
   }
   const {
@@ -89,7 +91,7 @@ export async function runWorkerLoop(input: {
     },
   );
   let active: Extract<DeliveryOutcome, { kind: 'accepted' }> | undefined;
-  mediaRuntime = createProductionWorkerMediaRuntime({
+  mediaRuntime = (input.createMedia ?? createProductionWorkerMediaRuntime)({
     httpServer: server,
     gatewayUrl: env('OVO_MEDIA_GATEWAY_WS_URL'),
     gatewayToken: env('OVO_MEDIA_WORKER_TOKEN'),
@@ -172,8 +174,7 @@ export async function runWorkerLoop(input: {
       await composition.dispose();
       server.close();
     })());
-  process.once('SIGTERM', () => void shutdown());
-  process.once('SIGINT', () => void shutdown());
+  watchShutdown(input, shutdown);
 
   while (status.state !== 'draining') {
     if (active) {
@@ -243,4 +244,15 @@ export async function runWorkerLoop(input: {
     }
   }
   await shutdown();
+}
+
+function watchShutdown(
+  input: { registerShutdown?: (callback: () => void) => void },
+  shutdown: () => Promise<void>,
+): void {
+  if (input.registerShutdown) input.registerShutdown(() => void shutdown());
+  else {
+    process.once('SIGTERM', () => void shutdown());
+    process.once('SIGINT', () => void shutdown());
+  }
 }

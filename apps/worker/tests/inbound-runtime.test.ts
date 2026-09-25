@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DurableJob, SessionRoute } from '@winsendotai/ovo-plugin-orchestration';
 import { InboundWorkerRuntime } from '../src/inbound-runtime.ts';
+import { runWorkerLoop, type WorkerStatus } from '../src/worker-loop.ts';
 
 function fixture() {
   const registerProtectedCapacity = vi.fn(async () => true);
@@ -70,7 +71,7 @@ const route = {
 } satisfies SessionRoute;
 
 describe('InboundWorkerRuntime', () => {
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
   it('does not hang up an inbound leg before its ownership fence resolves', async () => {
     const subject = fixture();
@@ -228,5 +229,102 @@ describe('InboundWorkerRuntime', () => {
       'inbound cost admission blocked: budget exceeded',
     );
     expect(subject.hangup).toHaveBeenCalledWith('CA1');
+  });
+});
+
+describe('runWorkerLoop forced exit cost settlement', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  function fixture(accepted: boolean) {
+    vi.stubEnv('OVO_INBOUND_CAPACITY_ENABLED', 'false');
+    vi.stubEnv('OVO_MEDIA_GATEWAY_WS_URL', 'ws://gateway.test/worker');
+    vi.stubEnv('OVO_MEDIA_WORKER_TOKEN', 'test-token');
+    const events: string[] = [];
+    const status: WorkerStatus = { state: 'starting', detail: '' };
+    const route = {
+      sessionId: '00000000-0000-4000-8000-000000000002',
+      jobId: '00000000-0000-4000-8000-000000000001',
+      workerId: 'worker-1', ownerEpoch: 1, carrierCallId: 'CA1', status: 'accepted',
+    };
+    let shutdown!: () => void;
+    let terminate!: (jobId: string, epoch: number, reason: string) => Promise<boolean>;
+    let releaseQueue!: (messages: unknown[]) => void;
+    let deliveries = 0;
+    const finalize = vi.fn(async () => { events.push('finalize'); });
+    const media = {
+      start: async () => undefined,
+      terminate: async () => { events.push('media'); },
+      closeSession: async () => { events.push('close-session'); },
+      close: async () => { events.push('media-close'); },
+    };
+    const store = {
+      reportWorker: async () => true,
+      get: async () => ({ id: route.jobId, workspaceId: 'ws-1', payload: {} }),
+      getSessionRoute: async () => route,
+      requestSessionTermination: async () => { events.push('fence'); return { carrierCallId: 'CA1' }; },
+    };
+    const runner = {
+      beginDrain: vi.fn(),
+      setTerminationHandler(handler: typeof terminate) { terminate = handler; },
+      handle: async () => ({
+        kind: 'accepted' as const, jobId: route.jobId, sessionId: route.sessionId,
+        carrierCallId: 'CA1', lease: { ownerEpoch: 1, stop: vi.fn() },
+        protection: { release: vi.fn(async () => undefined) },
+      }),
+    };
+    const queue = {
+      receive: async () => {
+        if (accepted && deliveries++ === 0)
+          return [{ messageId: 'hint', receiptHandle: 'receipt', receiveCount: 1,
+            reference: { schemaVersion: 1, jobId: route.jobId } }];
+        return new Promise<unknown[]>((resolve) => { releaseQueue = resolve; });
+      },
+    };
+    const runtime = {
+      kind: 'ready', workerId: 'worker-1', workerEpoch: 1,
+      workerEndpoint: 'ws://worker.test:4100/internal/media',
+      store, queue, runner, telephony: {}, protection: {}, operations: {},
+      costs: { finalize, setTerminationHandler: vi.fn() },
+      recordings: { live: {} }, controlStore: { close: async () => undefined },
+      costLedger: { close: async () => undefined }, telemetry: { close: async () => undefined },
+      secrets: {}, speechCache: { close: vi.fn() }, extensions: {},
+      composition: { dispose: async () => undefined }, distribution: {},
+      carriers: { forJob: async () => ({
+        control: { hangup: async () => { events.push('hangup'); return 'ended'; } },
+        carrier: { capabilities: { control: { hangup: 'close-stream' } } },
+      }) },
+    };
+    const running = runWorkerLoop({
+      status, server: { close: vi.fn() } as never,
+      openProcess: async () => runtime as never,
+      createMedia: () => media as never,
+      registerShutdown: (handler) => { shutdown = handler; },
+    });
+    return {
+      running, status, events, finalize,
+      terminate: (jobId: string, epoch: number, reason: string) => terminate(jobId, epoch, reason),
+      shutdown: () => shutdown(),
+      releaseQueue: () => releaseQueue?.([]),
+    };
+  }
+
+  it('finalizes cost after the real loop termination callback handles lease loss', async () => {
+    const subject = fixture(false);
+    await vi.waitFor(() => expect(subject.status.state).toBe('ready'));
+    await subject.terminate('00000000-0000-4000-8000-000000000001', 1, 'job-lease-lost');
+    expect(subject.events.slice(0, 5)).toEqual(['fence', 'hangup', 'media', 'close-session', 'finalize']);
+    expect(subject.finalize).toHaveBeenCalledOnce();
+    subject.shutdown();
+    subject.releaseQueue();
+    await subject.running;
+  });
+
+  it('finalizes cost exactly once after the active route is terminated on shutdown', async () => {
+    const subject = fixture(true);
+    await vi.waitFor(() => expect(subject.status.state).toBe('active'));
+    subject.shutdown();
+    await vi.waitFor(() => expect(subject.finalize).toHaveBeenCalledOnce());
+    expect(subject.events.slice(0, 5)).toEqual(['fence', 'hangup', 'media', 'close-session', 'finalize']);
+    await subject.running;
   });
 });

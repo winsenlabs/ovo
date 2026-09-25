@@ -134,8 +134,9 @@ export async function reconcileClaimedCarrierDial(input: {
       reason,
       new Date(Date.now() + input.deferSeconds * 1_000),
     );
+    if (!deferred) return { kind: 'deferred', reason: 'reconciliation-ownership-lost' };
     await input.queue.delete(input.delivery);
-    return { kind: 'deferred', reason: deferred ? reason : 'reconciliation-ownership-lost' };
+    return { kind: 'deferred', reason };
   }
   const route = await input.store.getSessionRoute(input.job.id);
   const outcome = await selected.control.reconcile({
