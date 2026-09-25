@@ -1,6 +1,7 @@
 import { bound, errorMessage } from './session-engine-guards.ts';
 import type { Behavior, SpeechReceipt } from '@winsendotai/ovo-contracts';
 import { isAbortError } from './async.ts';
+import { LegacySessionIngress } from './legacy-session-ingress.ts';
 import type { BoundedSpeechScheduler } from './scheduler.ts';
 import type {
   StreamingStt,
@@ -8,7 +9,7 @@ import type {
   TranscriptRevision,
   VoiceMediaTransport,
 } from './provider-types.ts';
-import { TranscriptTurnPolicy, type TurnPolicyConfig } from './turn-policy.ts';
+import { TranscriptTurnPolicy, type TurnPolicyConfig } from './legacy-turn-policy.ts';
 
 export interface VoiceSessionEngineConfig extends TurnPolicyConfig {
   language?: string;
@@ -44,24 +45,16 @@ type VoiceBehavior = Behavior & {
 export class VoiceSessionEngine {
   private readonly controller = new AbortController();
   private readonly policy: TranscriptTurnPolicy;
-  private readonly audioQueue: Uint8Array[] = [];
   private readonly turnTasks = new Set<Promise<void>>();
-  private readonly maxIngressFrames: number;
-  private readonly maxIngressBytes: number;
   private readonly maxConcurrentTurns: number;
   private readonly maxStreamingSegmentsAhead: number;
   private sttSession?: StreamingSttSession;
-  private ingressDrain?: Promise<void>;
+  private ingress?: LegacySessionIngress;
   private started = false;
   private disposed = false;
   private disposePromise?: Promise<void>;
   private activeTurn?: number;
   private nextTurn = 0;
-  private acceptedFrames = 0;
-  private acceptedBytes = 0;
-  private pendingFrames = 0;
-  private pendingBytes = 0;
-  private overflows = 0;
   private readonly unsubscribers: (() => void)[] = [];
 
   constructor(
@@ -73,13 +66,6 @@ export class VoiceSessionEngine {
     private readonly hooks: VoiceSessionEngineHooks = {},
   ) {
     this.policy = new TranscriptTurnPolicy(config);
-    this.maxIngressFrames = bound(config.maxIngressFrames ?? 100, 1, 1_000, 'maxIngressFrames');
-    this.maxIngressBytes = bound(
-      config.maxIngressBytes ?? 512 * 1024,
-      1,
-      8 * 1024 * 1024,
-      'maxIngressBytes',
-    );
     this.maxConcurrentTurns = bound(config.maxConcurrentTurns ?? 4, 1, 16, 'maxConcurrentTurns');
     this.maxStreamingSegmentsAhead = bound(
       config.maxStreamingSegmentsAhead ?? 2,
@@ -90,13 +76,15 @@ export class VoiceSessionEngine {
   }
 
   get ingressStats(): VoiceIngressStats {
-    return {
-      acceptedFrames: this.acceptedFrames,
-      acceptedBytes: this.acceptedBytes,
-      pendingFrames: this.pendingFrames,
-      pendingBytes: this.pendingBytes,
-      overflows: this.overflows,
-    };
+    return (
+      this.ingress?.stats ?? {
+        acceptedFrames: 0,
+        acceptedBytes: 0,
+        pendingFrames: 0,
+        pendingBytes: 0,
+        overflows: 0,
+      }
+    );
   }
 
   async start(): Promise<void> {
@@ -118,57 +106,20 @@ export class VoiceSessionEngine {
         signal: this.controller.signal,
         onTranscript: (revision) => this.onTranscript(revision),
       });
+      this.ingress = new LegacySessionIngress(
+        this.sttSession,
+        this.controller.signal,
+        (reason) => this.disposeInBackground(reason),
+        this.config.maxIngressFrames,
+        this.config.maxIngressBytes,
+      );
       this.unsubscribers.push(
-        this.media.onAudio((audio) => this.enqueueAudio(audio)),
+        this.media.onAudio((audio) => this.ingress?.accept(audio)),
         this.media.onDtmf((digit) => this.startTurn(digit, { inputEvent: 'dtmf' })),
       );
     }
     if (this.config.initialInput !== undefined)
       this.startTurn(this.config.initialInput, this.config.initialVariables);
-  }
-
-  private enqueueAudio(audio: Uint8Array): void {
-    if (this.disposed || this.controller.signal.aborted || !this.sttSession) return;
-    if (
-      this.pendingFrames + 1 > this.maxIngressFrames ||
-      this.pendingBytes + audio.byteLength > this.maxIngressBytes
-    ) {
-      this.overflows++;
-      this.disposeInBackground('STT ingress capacity exceeded');
-      return;
-    }
-    const owned = audio.slice();
-    this.audioQueue.push(owned);
-    this.acceptedFrames++;
-    this.acceptedBytes += owned.byteLength;
-    this.pendingFrames++;
-    this.pendingBytes += owned.byteLength;
-    this.ensureIngressDrain();
-  }
-
-  private ensureIngressDrain(): void {
-    if (this.ingressDrain || !this.audioQueue.length || !this.sttSession) return;
-    this.ingressDrain = this.drainIngress()
-      .catch((error) => {
-        if (!this.controller.signal.aborted && !isAbortError(error))
-          this.disposeInBackground(`STT input failed: ${errorMessage(error)}`);
-      })
-      .finally(() => {
-        this.ingressDrain = undefined;
-        if (this.audioQueue.length && !this.disposed) this.ensureIngressDrain();
-      });
-  }
-
-  private async drainIngress(): Promise<void> {
-    while (this.audioQueue.length && !this.controller.signal.aborted) {
-      const audio = this.audioQueue.shift()!;
-      try {
-        await this.sttSession!.write(audio, this.controller.signal);
-      } finally {
-        this.pendingFrames--;
-        this.pendingBytes -= audio.byteLength;
-      }
-    }
   }
 
   private onTranscript(revision: TranscriptRevision): void {
@@ -301,9 +252,7 @@ export class VoiceSessionEngine {
     this.cancelBehavior();
     this.controller.abort(new DOMException(reason, 'AbortError'));
     for (const unsubscribe of this.unsubscribers.splice(0)) unsubscribe();
-    const queued = this.audioQueue.splice(0);
-    this.pendingFrames -= queued.length;
-    this.pendingBytes -= queued.reduce((total, audio) => total + audio.byteLength, 0);
+    this.ingress?.dispose();
     try {
       await this.sttSession?.finish();
     } catch {}

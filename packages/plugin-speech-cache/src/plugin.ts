@@ -1,10 +1,10 @@
-import type { ByteCache } from '@winsendotai/ovo-plugin-cache';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 import { CachedSpeechOutput } from './output.ts';
 import {
   SPEECH_CACHE_PLUGIN_ID,
   SPEECH_CACHE_SERVICE_KEYS,
   type AudioPlayer,
+  type ByteCache,
   type NormalizedTts,
   type SpeechCacheOutputConfig,
   type SpeechCacheTelemetrySink,

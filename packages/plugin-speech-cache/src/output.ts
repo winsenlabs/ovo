@@ -1,13 +1,9 @@
-import type { ByteCache } from '@winsendotai/ovo-plugin-cache';
-import type {
-  SpeechOutput,
-  SpeechOutputResult,
-  SpeechSegment,
-} from '@winsendotai/ovo-plugin-voice';
+import type { SpeechOutput, SpeechOutputResult, SpeechSegment } from '../../contracts/src/index.ts';
 import { createSpeechCacheKey } from './key.ts';
 import { ApprovedSpeechPolicy } from './policy.ts';
 import type {
   AudioPlayer,
+  ByteCache,
   NativeUsage,
   NormalizedTts,
   SpeechCacheOutputConfig,
@@ -28,6 +24,7 @@ export class CachedSpeechOutput implements SpeechOutput {
   private readonly policy: ApprovedSpeechPolicy;
   private readonly emit: SpeechCacheTelemetrySink;
   private readonly now: () => number;
+  private readonly prepared = new Map<string, Promise<Uint8Array>>();
 
   constructor(
     private readonly config: SpeechCacheOutputConfig,
@@ -43,6 +40,16 @@ export class CachedSpeechOutput implements SpeechOutput {
     this.now = dependencies.now ?? Date.now;
   }
 
+  async prepare(segment: SpeechSegment, signal: AbortSignal): Promise<void> {
+    if (!this.policy.permits(segment.text, segment.kind)) return;
+    const key = createSpeechCacheKey(this.config, segment.text);
+    if (this.dependencies.cache.get(key, this.config.workspaceId)) return;
+    if (this.prepared.has(segment.id)) return;
+    const pending = this.cachedAudio(segment, signal);
+    this.prepared.set(segment.id, pending);
+    void pending.catch(() => undefined);
+  }
+
   async play(
     segment: SpeechSegment,
     options: {
@@ -52,8 +59,9 @@ export class CachedSpeechOutput implements SpeechOutput {
   ): Promise<SpeechOutputResult> {
     options.signal.throwIfAborted();
     const audio = this.policy.permits(segment.text, segment.kind)
-      ? await this.cachedAudio(segment, options.signal)
+      ? await (this.prepared.get(segment.id) ?? this.cachedAudio(segment, options.signal))
       : await this.uncachedAudio(segment, options.signal);
+    this.prepared.delete(segment.id);
     options.signal.throwIfAborted();
     const result = await this.dependencies.player.play(
       {

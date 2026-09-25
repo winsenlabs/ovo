@@ -1,7 +1,15 @@
-import type { Speech, SpeechReceipt } from '@winsendotai/ovo-contracts';
+import type {
+  SessionInput,
+  Speech,
+  SpeechKindV2,
+  SpeechReceipt,
+  TextFilter,
+} from '@winsendotai/ovo-contracts';
 import { errorMessage, isAbortError, raceAbort } from './async.ts';
 import { resolveSpeechSchedulerConfig, SpeechQueueBudget } from './budgets.ts';
 import { SpeechEvidenceHistory } from './history.ts';
+import { SpeechSettlement, type QueueEntry } from './scheduler-settlement.ts';
+import type { SpeechTimingSink } from './speech/timing.ts';
 import {
   SpeechEpochError,
   SpeechSchedulerDisposedError,
@@ -13,21 +21,20 @@ import {
   type SpeechSegment,
 } from './types.ts';
 
-interface QueueEntry {
-  segment: SpeechSegment;
-  resolve: (receipt: SpeechReceipt) => void;
-  reject: (error: unknown) => void;
-  settled: boolean;
-}
-
 export class BoundedSpeechScheduler implements Speech {
   readonly history: SpeechEvidence[];
   private readonly limits: ReturnType<typeof resolveSpeechSchedulerConfig>;
   private readonly budget: SpeechQueueBudget;
   private readonly evidence: SpeechEvidenceHistory;
+  private readonly settlement: SpeechSettlement;
   private readonly queue: QueueEntry[] = [];
-  private current?: { entry: QueueEntry; controller: AbortController };
+  private readonly active = new Map<QueueEntry, AbortController>();
+  private readonly tasks = new Set<Promise<void>>();
   private pumping?: Promise<void>;
+  private prefetchSegments = 0;
+  private filters: readonly TextFilter[] = [];
+  private language = 'en-US';
+  private timing?: SpeechTimingSink;
   private nextSegment = 0;
   private disposed = false;
   private _epoch = 0;
@@ -40,6 +47,7 @@ export class BoundedSpeechScheduler implements Speech {
     this.limits = resolveSpeechSchedulerConfig(config);
     this.budget = new SpeechQueueBudget(this.limits);
     this.evidence = new SpeechEvidenceHistory(this.limits.maxEvidenceEntries, now);
+    this.settlement = new SpeechSettlement(this.budget, this.evidence);
     this.history = this.evidence.entries;
   }
 
@@ -48,15 +56,55 @@ export class BoundedSpeechScheduler implements Speech {
   }
 
   get pendingCount(): number {
-    return this.queue.length + (this.current ? 1 : 0);
+    return this.queue.length + this.active.size;
+  }
+
+  /** The native engine enables bounded overlap; legacy callers keep serial playback. */
+  configurePipeline(prefetchSegments: number): void {
+    if (!Number.isInteger(prefetchSegments) || prefetchSegments < 0 || prefetchSegments > 4)
+      throw new RangeError('prefetchSegments must be between 0 and 4');
+    this.prefetchSegments = prefetchSegments;
+  }
+
+  configureSession(session: SessionInput): void {
+    (
+      this.output as SpeechOutput & { configureSession?: (value: SessionInput) => void }
+    ).configureSession?.(session);
+  }
+
+  configureOutput(options: { markTimeoutMs?: number; maxPrefetchBytes?: number }): void {
+    (
+      this.output as SpeechOutput & {
+        configure?: (value: typeof options) => void;
+      }
+    ).configure?.(options);
+  }
+
+  configureTiming(listener: SpeechTimingSink): void {
+    this.timing = listener;
+    (
+      this.output as SpeechOutput & {
+        configureTiming?: (sink: SpeechTimingSink) => void;
+      }
+    ).configureTiming?.(listener);
+  }
+
+  configureFilters(filters: readonly TextFilter[], language: string): void {
+    this.filters = [...filters].sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+    this.language = language;
   }
 
   subscribe(listener: (evidence: SpeechEvidence) => void): () => void {
     return this.evidence.subscribe(listener);
   }
 
-  speak(text: string, options: { epoch?: number; kind?: SpeechKind } = {}): Promise<SpeechReceipt> {
+  speak(
+    text: string,
+    options: { epoch?: number; kind?: SpeechKindV2 } = {},
+  ): Promise<SpeechReceipt> {
     if (this.disposed) return Promise.reject(new SpeechSchedulerDisposedError());
+    const requestedAt = this.now();
+    for (const filter of this.filters) text = filter.apply(text, { language: this.language });
     if (!text.trim()) return Promise.reject(new TypeError('Speech text must not be empty'));
 
     const epoch = options.epoch ?? this._epoch;
@@ -65,9 +113,10 @@ export class BoundedSpeechScheduler implements Speech {
       id: `speech-${++this.nextSegment}`,
       text,
       epoch,
-      kind: options.kind ?? 'response',
+      kind: (options.kind ?? 'response') as SpeechKind,
       generatedAt: this.now(),
     });
+    this.timing?.('text-ready', segment, Math.max(0, segment.generatedAt - requestedAt));
     this.evidence.record(segment, 'generated', 'generated');
 
     const overflow = this.budget.overflow(this.pendingCount, text);
@@ -77,7 +126,13 @@ export class BoundedSpeechScheduler implements Speech {
     }
 
     const promise = new Promise<SpeechReceipt>((resolve, reject) => {
-      this.queue.push({ segment, resolve, reject, settled: false });
+      this.queue.push({
+        segment,
+        resolve,
+        reject,
+        settled: false,
+        controller: new AbortController(),
+      });
       this.budget.add(text);
       this.evidence.record(segment, 'queued', 'generated');
     });
@@ -94,19 +149,17 @@ export class BoundedSpeechScheduler implements Speech {
   }
 
   async cancelEpoch(epoch: number, reason = 'epoch cancelled'): Promise<void> {
-    const active = this.current?.entry.segment.epoch === epoch ? this.current : undefined;
-    if (active) {
-      active.controller.abort(new DOMException(reason, 'AbortError'));
-    }
+    const active = [...this.active].filter(([entry]) => entry.segment.epoch === epoch);
+    for (const [, controller] of active) controller.abort(new DOMException(reason, 'AbortError'));
     for (let index = this.queue.length - 1; index >= 0; index -= 1) {
       const entry = this.queue[index];
       if (entry.segment.epoch !== epoch) continue;
       this.queue.splice(index, 1);
-      this.completeInterrupted(entry, reason);
+      entry.controller.abort(new DOMException(reason, 'AbortError'));
+      this.settlement.interrupted(entry, reason);
     }
-    // No media exists to flush before the first segment starts. A clear here can
-    // precede the gateway's session.accept frame for an initial announcement.
-    if (active) await this.output.interrupt(epoch);
+    // Initial announcements must not clear before media acceptance.
+    if (active.length) await this.output.interrupt(epoch);
   }
 
   async interrupt(): Promise<void> {
@@ -115,6 +168,7 @@ export class BoundedSpeechScheduler implements Speech {
 
   async idle(): Promise<void> {
     while (this.pumping) await this.pumping;
+    while (this.tasks.size) await Promise.all([...this.tasks]);
   }
 
   async dispose(): Promise<void> {
@@ -124,6 +178,7 @@ export class BoundedSpeechScheduler implements Speech {
     this._epoch += 1;
     await this.cancelEpoch(epoch, 'scheduler disposed');
     await this.pumping;
+    await Promise.all([...this.tasks]);
     this.evidence.clearListeners();
   }
 
@@ -131,16 +186,22 @@ export class BoundedSpeechScheduler implements Speech {
     while (!this.disposed && this.queue.length > 0) {
       const entry = this.queue.shift()!;
       if (entry.segment.epoch !== this._epoch) {
-        this.completeInterrupted(entry, 'stale response epoch');
+        this.settlement.interrupted(entry, 'stale response epoch');
         continue;
       }
-      await this.play(entry);
+      if (this.prefetchSegments === 0) {
+        await this.play(entry);
+        continue;
+      }
+      const task = this.play(entry).finally(() => this.tasks.delete(task));
+      this.tasks.add(task);
+      if (this.tasks.size >= this.prefetchSegments + 1) await Promise.race([...this.tasks]);
     }
   }
 
   private async play(entry: QueueEntry): Promise<void> {
-    const controller = new AbortController();
-    this.current = { entry, controller };
+    const controller = entry.controller;
+    this.active.set(entry, controller);
     this.evidence.record(entry.segment, 'started', 'generated');
     const timeout = setTimeout(() => {
       controller.abort(new DOMException('speech playback timed out', 'TimeoutError'));
@@ -148,6 +209,7 @@ export class BoundedSpeechScheduler implements Speech {
     timeout.unref?.();
 
     try {
+      await this.output.prepare?.(entry.segment, controller.signal);
       const result = await raceAbort(
         this.output.play(entry.segment, {
           signal: controller.signal,
@@ -160,27 +222,16 @@ export class BoundedSpeechScheduler implements Speech {
         controller.signal.aborted ||
         result.state === 'interrupted'
       ) {
-        this.completeInterrupted(entry, 'playback interrupted', result.evidence);
+        this.settlement.interrupted(entry, 'playback interrupted', result.evidence);
       } else {
-        this.completePlayed(entry, result);
+        this.settlement.played(entry, result);
       }
     } catch (error) {
       await this.handlePlaybackError(entry, controller, error);
     } finally {
       clearTimeout(timeout);
-      if (this.current?.entry === entry) this.current = undefined;
+      this.active.delete(entry);
     }
-  }
-
-  private completePlayed(entry: QueueEntry, result: SpeechOutputResult): void {
-    this.settle(entry, {
-      id: entry.segment.id,
-      text: entry.segment.text,
-      epoch: entry.segment.epoch,
-      state: 'completed',
-      evidence: result.evidence,
-    });
-    this.evidence.record(entry.segment, 'completed', result.evidence);
   }
 
   private async handlePlaybackError(
@@ -190,7 +241,7 @@ export class BoundedSpeechScheduler implements Speech {
   ): Promise<void> {
     if (!controller.signal.aborted && !isAbortError(error)) {
       this.evidence.record(entry.segment, 'failed', 'generated', errorMessage(error));
-      this.reject(entry, error);
+      this.settlement.reject(entry, error);
       return;
     }
     if (
@@ -208,7 +259,10 @@ export class BoundedSpeechScheduler implements Speech {
         );
       }
     }
-    this.completeInterrupted(entry, abortReason(controller.signal));
+    this.settlement.interrupted(
+      entry,
+      errorMessage(controller.signal.reason ?? 'speech playback aborted'),
+    );
   }
 
   private ensurePump(): void {
@@ -218,38 +272,4 @@ export class BoundedSpeechScheduler implements Speech {
       this.ensurePump();
     });
   }
-
-  private completeInterrupted(
-    entry: QueueEntry,
-    reason: string,
-    evidence: SpeechOutputResult['evidence'] = 'estimated',
-  ): void {
-    if (entry.settled) return;
-    this.settle(entry, {
-      id: entry.segment.id,
-      text: entry.segment.text,
-      epoch: entry.segment.epoch,
-      state: 'interrupted',
-      evidence,
-    });
-    this.evidence.record(entry.segment, 'interrupted', evidence, reason);
-  }
-
-  private settle(entry: QueueEntry, receipt: SpeechReceipt): void {
-    if (entry.settled) return;
-    entry.settled = true;
-    this.budget.remove(entry.segment.text);
-    entry.resolve(receipt);
-  }
-
-  private reject(entry: QueueEntry, error: unknown): void {
-    if (entry.settled) return;
-    entry.settled = true;
-    this.budget.remove(entry.segment.text);
-    entry.reject(error);
-  }
-}
-
-function abortReason(signal: AbortSignal): string {
-  return errorMessage(signal.reason ?? 'speech playback aborted');
 }

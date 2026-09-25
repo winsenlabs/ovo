@@ -1,0 +1,70 @@
+import { Cap, type TextFilter } from '@winsendotai/ovo-contracts';
+import { definePlugin } from '@winsendotai/ovo-runtime';
+
+export const MARKDOWN_FILTER_ID = '@winsendotai/ovo-text-filter-markdown';
+export const URL_FILTER_ID = '@winsendotai/ovo-text-filter-url';
+
+/** Strip formatting tokens but retain the words the caller should hear. */
+export const markdownFilter: TextFilter = {
+  id: MARKDOWN_FILTER_ID,
+  order: 10,
+  apply(text) {
+    return text
+      .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/(?:^|\n)\s{0,3}#{1,6}\s+/g, ' ')
+      .replace(/(?:^|\n)\s*[-*+]\s+/g, ' ')
+      .replace(/[*_`~]+/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  },
+};
+
+/** Speak punctuation in addresses instead of reading it as a path or a word. */
+export const urlFilter: TextFilter = {
+  id: URL_FILTER_ID,
+  order: 20,
+  apply(text) {
+    return text
+      .replace(/https?:\/\/[^\s]+/gi, (url) =>
+        url
+          .replace(/^https?:\/\//i, '')
+          .replace(/\./g, ' dot ')
+          .replace(/\//g, ' slash ')
+          .replace(/:/g, ' colon '),
+      )
+      .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, (email) =>
+        email.replace('@', ' at ').replace(/\./g, ' dot '),
+      )
+      .replace(/\s+/g, ' ')
+      .trim();
+  },
+};
+
+function defineFilter(id: string, filter: TextFilter) {
+  return definePlugin(
+    {
+      id,
+      version: '0.1.0',
+      contractVersion: 2,
+      scope: 'session',
+      kind: 'text-filter',
+      provider: 'ovo',
+      requires: [],
+      provides: [Cap.textFilters],
+      configSchema: { type: 'object', additionalProperties: false },
+      secretFields: [],
+    },
+    (ctx) => {
+      ctx.provide(Cap.textFilters, filter);
+    },
+  );
+}
+
+export function createMarkdownTextFilterPlugin() {
+  return defineFilter(MARKDOWN_FILTER_ID, markdownFilter);
+}
+
+export function createUrlTextFilterPlugin() {
+  return defineFilter(URL_FILTER_ID, urlFilter);
+}

@@ -1,4 +1,16 @@
-import type { SpeechKind, SpeechOutputResult, SpeechSegment } from '@winsendotai/ovo-plugin-voice';
+import type { SpeechKind, SpeechOutputResult, SpeechSegment } from '../../contracts/src/index.ts';
+
+/** The cache operations this package needs; plugin-cache satisfies it structurally. */
+export interface ByteCache {
+  get(key: string, workspaceId: string): Uint8Array | undefined;
+  getOrLoad(request: {
+    key: string;
+    workspaceId: string;
+    signal?: AbortSignal;
+    onSource?(source: 'hit' | 'miss' | 'coalesced'): void;
+    load(signal: AbortSignal): Promise<Uint8Array>;
+  }): Promise<{ value: Uint8Array; source: 'hit' | 'miss' | 'coalesced'; stored: boolean }>;
+}
 
 export const SPEECH_CACHE_SERVICE_KEYS = Object.freeze({
   cache: 'ovo.cache',
