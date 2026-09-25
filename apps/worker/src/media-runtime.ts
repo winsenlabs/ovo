@@ -71,7 +71,7 @@ export class WorkerMediaRuntime {
     this.detachServer = attachWorkerMediaServer({
       httpServer: this.config.httpServer,
       token: this.config.token,
-      onOpen: (open, socket) => this.accept(open, socket),
+      onOpen: (open, socket, handoff) => this.accept(open, socket, handoff),
     });
   }
 
@@ -103,13 +103,18 @@ export class WorkerMediaRuntime {
     await engine?.dispose(asEndReason(reason));
   }
 
-  private async accept(open: Open, socket: WebSocket): Promise<void> {
+  private async accept(open: Open, socket: WebSocket, handoff: () => void): Promise<void> {
     const route = await this.authenticatedRoute(open);
     const existing = this.links.get(route.sessionId);
+    if (socket.readyState !== WebSocket.OPEN) {
+      if (!existing) await this.onSessionClose?.(route, 'error:media-disconnected-before-accept');
+      throw new Error('worker media socket closed during route authentication');
+    }
     if (existing) {
       if (open.generation <= existing.identity.generation)
         throw new Error('media rebind generation must advance');
       existing.rebind(open, socket);
+      handoff();
       socket.send(JSON.stringify({ type: 'session.accept' }));
       return;
     }
@@ -121,6 +126,13 @@ export class WorkerMediaRuntime {
         console.error('Worker media finalization failed', error);
       });
     });
+    try {
+      handoff();
+    } catch (error) {
+      link.finish('error:media-handshake-closed');
+      await this.finalizing.get(route.sessionId);
+      throw error;
+    }
     // Acceptance is written before the factory awaits STT, TTS or graph composition.
     socket.send(JSON.stringify({ type: 'session.accept' }));
     try {

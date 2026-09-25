@@ -23,6 +23,7 @@ export function attachWorkerMediaServer(input: {
   onOpen(
     open: Extract<GatewayToWorkerMessage, { type: 'session.open' }>,
     socket: WebSocket,
+    handoff: () => void,
   ): Promise<void>;
 }): () => Promise<void> {
   const server = new WebSocketServer({
@@ -38,21 +39,42 @@ export function attachWorkerMediaServer(input: {
       return;
     }
     server.handleUpgrade(request, socket, head, (ws) => {
+      let phase: 'waiting' | 'authenticating' | 'ready' | 'closed' = 'waiting';
+      ws.once('close', () => {
+        phase = 'closed';
+      });
       ws.once('message', (data, binary) => {
         if (binary) return ws.close(1008, 'binary session.open');
         try {
           const open = parseGatewayMessage(data.toString(), 65_536);
           if (open.type !== 'session.open') throw new Error('session.open required');
-          void input.onOpen(open, ws).catch((error) => {
-            if (ws.readyState !== WebSocket.OPEN) return;
-            ws.send(
-              JSON.stringify({
-                type: 'session.reject',
-                reason: error instanceof Error ? error.message : 'session refused',
-              }),
-            );
-            ws.close(1008, 'session refused');
-          });
+          phase = 'authenticating';
+          // The durable route lookup awaits SQL. No frame can disappear in that gap.
+          const earlyFrame = () => {
+            if (phase === 'authenticating') ws.close(1008, 'media before session acceptance');
+          };
+          ws.on('message', earlyFrame);
+          const handoff = () => {
+            if (phase !== 'authenticating' || ws.readyState !== WebSocket.OPEN)
+              throw new Error('worker media socket closed before acceptance');
+            ws.off('message', earlyFrame);
+            phase = 'ready';
+          };
+          void input
+            .onOpen(open, ws, handoff)
+            .then(() => {
+              if (phase === 'authenticating') ws.close(1011, 'worker handler did not accept');
+            })
+            .catch((error) => {
+              if (ws.readyState !== WebSocket.OPEN) return;
+              ws.send(
+                JSON.stringify({
+                  type: 'session.reject',
+                  reason: error instanceof Error ? error.message : 'session refused',
+                }),
+              );
+              ws.close(1008, 'session refused');
+            });
         } catch {
           ws.close(1008, 'invalid session.open');
         }
