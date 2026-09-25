@@ -12,8 +12,8 @@ export interface LiveRecording {
   createdAt: string;
   updatedAt: string;
   expiresAt: string;
-  codec: 'audio/x-mulaw';
-  sampleRate: 8000;
+  codec: 'audio/x-mulaw' | 'audio/pcm';
+  sampleRate: 8000 | 16000;
   channels: 2;
   segmentBytes: number;
   failure?: string;

@@ -1,3 +1,4 @@
+import { Cap, type CarrierIngress } from '@winsendotai/ovo-contracts';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 import { MediaGateway } from './gateway.ts';
 import type { MediaGatewayConfig } from './gateway-types.ts';
@@ -44,25 +45,23 @@ export function createMediaDuplexPlugin(media: MediaDuplex) {
     },
     (ctx) => {
       ctx.provide(MEDIA_DUPLEX_SERVICE_KEY, media);
-      ctx.effect(() => () => media.close('media plugin disposed'));
+      ctx.effect(() => () => media.close('error:media-plugin-disposed'));
     },
   );
 }
 
 export function createMediaGatewayPlugin(
-  secrets: {
-    twilioAuthToken: string;
-    workerToken: string;
-  },
-  dependencies: Pick<MediaGatewayConfig, 'httpHandler'> = {},
+  secrets: { workerToken: string },
+  dependencies: Pick<MediaGatewayConfig, 'hostFor'>,
 ) {
   return definePlugin(
     {
       id: MEDIA_PLUGIN_IDS.gateway,
       version: '0.1.0',
-      contractVersion: 1,
+      contractVersion: 2,
       scope: 'process',
-      requires: [MEDIA_SERVICE_KEYS.routeResolver],
+      kind: 'host',
+      requires: [MEDIA_SERVICE_KEYS.routeResolver, Cap.carrierIngress],
       provides: [MEDIA_SERVICE_KEYS.gateway],
       configSchema: {
         type: 'object',
@@ -75,6 +74,7 @@ export function createMediaGatewayPlugin(
           maxAudioFrameBytes: { type: 'integer', minimum: 160, maximum: 65536 },
           maxBufferedBytes: { type: 'integer', minimum: 1024, maximum: 16777216 },
           maxPendingFrames: { type: 'integer', minimum: 1, maximum: 1000 },
+          preAcceptBufferMs: { type: 'integer', minimum: 1, maximum: 30000 },
           handshakeTimeoutMs: { type: 'integer', minimum: 100, maximum: 120000 },
           idleTimeoutMs: { type: 'integer', minimum: 1000, maximum: 3600000 },
           drainTimeoutMs: { type: 'integer', minimum: 100, maximum: 3600000 },
@@ -86,10 +86,13 @@ export function createMediaGatewayPlugin(
     async (ctx, config) => {
       const resolver = ctx.get(MEDIA_SERVICE_KEYS.routeResolver) as MediaRouteResolver | undefined;
       if (!resolver) throw new Error(`Missing ${MEDIA_SERVICE_KEYS.routeResolver}`);
+      const ingresses = [...ctx.all(Cap.carrierIngress).values()] as CarrierIngress[];
+      if (ingresses.length === 0) throw new Error('No carrier ingress is installed');
       const gateway = new MediaGateway(resolver, {
         publicBaseUrl: String(config.publicBaseUrl),
-        twilioAuthToken: secrets.twilioAuthToken,
         workerToken: secrets.workerToken,
+        ingresses,
+        hostFor: dependencies.hostFor,
         host: typeof config.host === 'string' ? config.host : undefined,
         port: typeof config.port === 'number' ? config.port : undefined,
         maxMessageBytes:
@@ -100,12 +103,13 @@ export function createMediaGatewayPlugin(
           typeof config.maxBufferedBytes === 'number' ? config.maxBufferedBytes : undefined,
         maxPendingFrames:
           typeof config.maxPendingFrames === 'number' ? config.maxPendingFrames : undefined,
+        preAcceptBufferMs:
+          typeof config.preAcceptBufferMs === 'number' ? config.preAcceptBufferMs : undefined,
         handshakeTimeoutMs:
           typeof config.handshakeTimeoutMs === 'number' ? config.handshakeTimeoutMs : undefined,
         idleTimeoutMs: typeof config.idleTimeoutMs === 'number' ? config.idleTimeoutMs : undefined,
         drainTimeoutMs:
           typeof config.drainTimeoutMs === 'number' ? config.drainTimeoutMs : undefined,
-        httpHandler: dependencies.httpHandler,
       });
       await gateway.listen();
       ctx.provide(MEDIA_SERVICE_KEYS.gateway, gateway);

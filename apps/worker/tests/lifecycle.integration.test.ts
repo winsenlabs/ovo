@@ -1,9 +1,15 @@
-import { createHmac, randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { once } from 'node:events';
+import { createServer, type Server } from 'node:http';
 import { createConnection, type Socket } from 'node:net';
 import { describe, expect, it } from 'vitest';
-import { AgentConfig } from '@winsendotai/ovo-contracts';
+import { AgentConfig, type CarrierHostPorts, type DialRequest } from '@winsendotai/ovo-contracts';
 import { compose, type Composition } from '@winsendotai/ovo-runtime';
 import { MediaGateway } from '@winsendotai/ovo-plugin-media';
+import {
+  fixtureCarrierIngress,
+  fixtureSignature,
+} from '../../../packages/conformance/src/drivers/fixture-carrier.ts';
 import { PostgresControlStore } from '@winsendotai/ovo-plugin-storage';
 import {
   BoundedSpeechScheduler,
@@ -15,7 +21,9 @@ import {
 import {
   OutboxPublisher,
   PostgresOrchestrationStore,
-  SqsDurableQueue,
+  type DurableQueue,
+  type JobReference,
+  type QueueDelivery,
   type TaskProtection,
   type TelephonyControl,
   type TelephonyDialRequest,
@@ -27,10 +35,25 @@ import {
   createCallRecorderPlugin,
   type CallRecorder,
 } from '../src/index.ts';
+import type { WorkerCarrierRuntime, SelectedJobCarrier } from '../src/carrier-runtime.ts';
 
 const postgresUrl = process.env.OVO_TEST_POSTGRES_URL;
-const queueUrl = process.env.OVO_TEST_QUEUE_URL;
-const queueEndpoint = process.env.OVO_TEST_QUEUE_ENDPOINT;
+
+class FixtureQueue implements DurableQueue {
+  private pending: QueueDelivery[] = [];
+  async send(reference: JobReference) {
+    const messageId = randomUUID();
+    this.pending.push({ messageId, receiptHandle: messageId, reference, receiveCount: 1 });
+    return { messageId };
+  }
+  async receive(options: { maxMessages?: number; waitSeconds?: number } = {}) {
+    return this.pending.slice(0, options.maxMessages ?? 1);
+  }
+  async delete(delivery: QueueDelivery) {
+    this.pending = this.pending.filter((row) => row.messageId !== delivery.messageId);
+  }
+  async changeVisibility() {}
+}
 
 class SyntheticProtection implements TaskProtection {
   established = 0;
@@ -107,12 +130,10 @@ class RawCarrier {
 async function connectCarrier(port: number, authToken: string): Promise<RawCarrier> {
   const socket = createConnection({ host: '127.0.0.1', port });
   const key = randomBytes(16).toString('base64');
-  const path = '/twilio/media';
-  const signature = createHmac('sha1', authToken)
-    .update(`https://voice.example.test${path}`)
-    .digest('base64');
+  const path = '/carriers/fixture/env/media';
+  const signature = fixtureSignature(authToken, `wss://voice.example.test${path}`);
   socket.write(
-    `GET ${path} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ${key}\r\nX-Twilio-Signature: ${signature}\r\n\r\n`,
+    `GET ${path} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ${key}\r\nx-fixture-signature: ${signature}\r\n\r\n`,
   );
   const response = await new Promise<string>((resolve, reject) => {
     let value = '';
@@ -129,203 +150,255 @@ async function connectCarrier(port: number, authToken: string): Promise<RawCarri
   return new RawCarrier(socket);
 }
 
-describe.skipIf(!postgresUrl || !queueUrl || !queueEndpoint)(
-  'worker PostgreSQL and ElasticMQ lifecycle',
-  () => {
-    it('publishes one durable job, authenticates its route, dials once and releases once', async () => {
-      const store = new PostgresOrchestrationStore({ connectionString: postgresUrl });
-      const control = await PostgresControlStore.open(postgresUrl!);
-      const queue = new SqsDurableQueue(queueUrl!, {
-        region: 'local',
-        endpoint: queueEndpoint,
-        credentials: { accessKeyId: 'local', secretAccessKey: 'local' },
+describe.skipIf(!postgresUrl)('worker PostgreSQL and fixture-queue lifecycle', () => {
+  it('publishes one durable job, authenticates its route, dials once and releases once', async () => {
+    const store = new PostgresOrchestrationStore({ connectionString: postgresUrl });
+    const control = await PostgresControlStore.open(postgresUrl!);
+    const queue = new FixtureQueue();
+    const jobId = randomUUID();
+    const organizationId = `single-org-e2e-${jobId}`;
+    const workerId = `worker-e2e-${jobId}`;
+    const carrier = new SyntheticCarrier();
+    const protection = new SyntheticProtection();
+    let gateway: MediaGateway | undefined;
+    let mediaRuntime: WorkerMediaRuntime | undefined;
+    let mediaCarrier: RawCarrier | undefined;
+    let healthServer: Server | undefined;
+    let callComposition: Composition | undefined;
+    try {
+      await store.migrate();
+      await control.ensureWorkspace(organizationId, 'E2E organization');
+      const agent = await control.createAgent(
+        organizationId,
+        AgentConfig.parse({ name: 'E2E announcement', mode: 'announcement', message: 'Hello' }),
+      );
+      const release = await control.createRelease({
+        workspaceId: organizationId,
+        agent,
+        plugins: [{ id: '@winsendotai/ovo-behavior-announcement', version: '0.1.0' }],
+        createdBy: 'test-operator',
       });
-      const jobId = randomUUID();
-      const organizationId = `single-org-e2e-${jobId}`;
-      const carrier = new SyntheticCarrier();
-      const protection = new SyntheticProtection();
-      let gateway: MediaGateway | undefined;
-      let mediaRuntime: WorkerMediaRuntime | undefined;
-      let mediaCarrier: RawCarrier | undefined;
-      let callComposition: Composition | undefined;
-      try {
-        await store.migrate();
-        await control.ensureWorkspace(organizationId, 'E2E organization');
-        const agent = await control.createAgent(
-          organizationId,
-          AgentConfig.parse({ name: 'E2E announcement', mode: 'announcement', message: 'Hello' }),
-        );
-        const release = await control.createRelease({
-          workspaceId: organizationId,
-          agent,
-          plugins: [{ id: '@winsendotai/ovo-behavior-announcement', version: '0.1.0' }],
-          createdBy: 'test-operator',
-        });
-        await store.enqueue({
-          id: jobId,
-          workspaceId: organizationId,
-          idempotencyKey: 'one-carrier-side-effect',
-          payload: {
-            to: '+910000000001',
-            from: '+910000000002',
-            streamUrl: 'wss://voice.example.test/twilio/media',
-            statusCallbackUrl: 'https://voice.example.test/callbacks/twilio/status',
-            releaseId: release.id,
-            callId: jobId,
-          },
-        });
-        expect(await new OutboxPublisher('e2e-dispatcher', store, queue).flush()).toEqual({
-          sent: 1,
-          failed: 0,
-        });
-        const [delivery] = await queue.receive({ maxMessages: 1, waitSeconds: 1 });
-        if (!delivery) throw new Error('expected ElasticMQ delivery');
-        const runner = new WorkerRunner(
-          'worker-e2e',
-          store,
-          queue,
-          {
-            async check() {
-              return { ready: true as const };
+      healthServer = createServer((_request, response) => response.writeHead(404).end());
+      healthServer.listen(0, '127.0.0.1');
+      await once(healthServer, 'listening');
+      const address = healthServer.address();
+      if (!address || typeof address === 'string') throw new Error('health port unavailable');
+      const workerEndpoint = `ws://127.0.0.1:${address.port}/internal/media`;
+      await store.reportWorker({
+        workerId,
+        state: 'active',
+        ownershipEpoch: 1,
+        leaseMs: 120_000,
+      });
+      const ingress = fixtureCarrierIngress();
+      const dialRequests: DialRequest[] = [];
+      const carriers = {
+        async forJob(): Promise<SelectedJobCarrier> {
+          return {
+            release,
+            selections: {},
+            carrier: {
+              carrierId: ingress.carrierId,
+              bindingId: 'env',
+              capabilities: ingress.capabilities,
             },
-          },
-          protection,
-          carrier,
-          {
-            leaseMs: 60_000,
-            protectionRenewMs: 120_000,
-            deferSeconds: 1,
-            visibilitySeconds: 120,
-            workerEndpoint: 'ws://worker-e2e:4100/internal/media',
-            organizationId,
-            handshakeTtlMs: 60_000,
-            callRecorder: await (async () => {
-              const plugin = createCallRecorderPlugin(control);
-              callComposition = await compose([{ id: plugin.manifest.id, config: {} }], [plugin]);
-              return callComposition.ctx.get(CALL_RECORDER_SERVICE_KEY) as CallRecorder;
-            })(),
-          },
-        );
-        const outcome = await runner.handle(delivery);
-        expect(outcome).toMatchObject({ kind: 'accepted', carrierCallId: 'CA-e2e' });
-        if (outcome.kind !== 'accepted') throw new Error('expected accepted outcome');
-        expect(carrier.requests).toHaveLength(1);
-        expect(await control.getCall(organizationId, jobId)).toMatchObject({
+            control: {
+              async dial(request: DialRequest) {
+                dialRequests.push(request);
+                return {
+                  kind: 'accepted' as const,
+                  requestId: request.requestId,
+                  carrierCallId: 'CA-e2e',
+                };
+              },
+            },
+            ports: {
+              mediaUrl: () => 'wss://voice.example.test/carriers/fixture/env/media',
+              callbackUrl: (_carrierId: string, _bindingId: string, purpose: string) =>
+                `https://voice.example.test/carriers/fixture/env/${purpose}`,
+            },
+          } as unknown as SelectedJobCarrier;
+        },
+      } as unknown as WorkerCarrierRuntime;
+      await store.enqueue({
+        id: jobId,
+        workspaceId: organizationId,
+        idempotencyKey: 'one-carrier-side-effect',
+        payload: {
+          to: '+910000000001',
+          from: '+910000000002',
           releaseId: release.id,
-          kind: 'live',
-          status: 'dialing',
-        });
-        const token = carrier.requests[0]!.streamParameters?.routeToken;
-        expect(carrier.requests[0]!.streamParameters?.sessionId).toBe(outcome.sessionId);
-        expect(token).toBeTruthy();
-        let responses = 0;
-        gateway = new MediaGateway(store, {
-          publicBaseUrl: 'https://voice.example.test',
-          twilioAuthToken: 'twilio-fixture',
-          workerToken: 'worker-fixture',
-        });
-        const { port } = await gateway.listen();
-        mediaRuntime = new WorkerMediaRuntime(
-          { url: `ws://127.0.0.1:${port}/worker`, workerId: 'worker-e2e', token: 'worker-fixture' },
-          store,
-          {
-            async create(input) {
-              expect((await control.getRelease(organizationId, release.id))?.id).toBe(release.id);
-              const tts: StreamingTts = {
-                async *synthesize() {
-                  yield Uint8Array.of(1, 2, 3);
-                },
-              };
-              const stt: StreamingStt = {
-                async start(start) {
-                  return {
-                    async write() {
-                      start.onTranscript({
-                        revision: 1,
-                        text: 'hello',
-                        isFinal: true,
-                        speechFinal: true,
-                      });
-                    },
-                    async finish() {},
-                    async close() {},
-                  };
-                },
-              };
-              const engine = new VoiceSessionEngine(
-                {
-                  async respond() {
-                    responses += 1;
-                    return 'world';
+          callId: jobId,
+        },
+      });
+      expect(await new OutboxPublisher('e2e-dispatcher', store, queue).flush()).toEqual({
+        sent: 1,
+        failed: 0,
+      });
+      const [delivery] = await queue.receive({ maxMessages: 1, waitSeconds: 1 });
+      if (!delivery) throw new Error('expected ElasticMQ delivery');
+      const runner = new WorkerRunner(
+        workerId,
+        store,
+        queue,
+        {
+          async check() {
+            return { ready: true as const };
+          },
+        },
+        protection,
+        carrier,
+        {
+          leaseMs: 60_000,
+          protectionRenewMs: 120_000,
+          deferSeconds: 1,
+          visibilitySeconds: 120,
+          workerEndpoint,
+          organizationId,
+          handshakeTtlMs: 60_000,
+          carriers,
+          callRecorder: await (async () => {
+            const plugin = createCallRecorderPlugin(control);
+            callComposition = await compose([{ id: plugin.manifest.id, config: {} }], [plugin]);
+            return callComposition.ctx.get(CALL_RECORDER_SERVICE_KEY) as CallRecorder;
+          })(),
+        },
+      );
+      const outcome = await runner.handle(delivery);
+      expect(outcome).toMatchObject({ kind: 'accepted', carrierCallId: 'CA-e2e' });
+      if (outcome.kind !== 'accepted') throw new Error('expected accepted outcome');
+      expect(dialRequests).toHaveLength(1);
+      expect(await control.getCall(organizationId, jobId)).toMatchObject({
+        releaseId: release.id,
+        kind: 'live',
+        status: 'dialing',
+      });
+      const token = dialRequests[0]!.media.routeParams.rt;
+      expect(dialRequests[0]!.media.routeParams.sid).toBe(outcome.sessionId);
+      expect(token).toBeTruthy();
+      let responses = 0;
+      gateway = new MediaGateway(store, {
+        publicBaseUrl: 'https://voice.example.test',
+        workerToken: 'worker-fixture',
+        ingresses: [ingress],
+        hostFor: () =>
+          ({
+            resolveBinding: async () => ({
+              bindingId: 'env',
+              pluginId: 'fixture',
+              workspaceId: organizationId,
+              config: {},
+              secret: 'fixture-secret',
+            }),
+            verifyUrlSecret: () => true,
+          }) as unknown as CarrierHostPorts,
+      });
+      const { port } = await gateway.listen();
+      mediaRuntime = new WorkerMediaRuntime(
+        { httpServer: healthServer, workerId, token: 'worker-fixture' },
+        store,
+        {
+          async create(input) {
+            expect((await control.getRelease(organizationId, release.id))?.id).toBe(release.id);
+            const tts: StreamingTts = {
+              async *synthesize() {
+                yield Uint8Array.of(1, 2, 3);
+              },
+            };
+            const stt: StreamingStt = {
+              async start(start) {
+                return {
+                  async write() {
+                    start.onTranscript({
+                      revision: 1,
+                      text: 'hello',
+                      isFinal: true,
+                      speechFinal: true,
+                    });
                   },
+                  async finish() {},
+                  async close() {},
+                };
+              },
+            };
+            const engine = new VoiceSessionEngine(
+              {
+                async respond() {
+                  responses += 1;
+                  return 'world';
                 },
-                new BoundedSpeechScheduler(new StreamingMediaSpeechOutput(tts, input.media)),
-                stt,
-                input.media,
-                { language: 'en-IN' },
-              );
-              await engine.start();
-              return engine;
-            },
+              },
+              new BoundedSpeechScheduler(new StreamingMediaSpeechOutput(tts, input.media)),
+              stt,
+              input.media,
+              { language: 'en-IN' },
+            );
+            await engine.start();
+            return engine;
           },
-        );
-        await mediaRuntime.connect();
-        mediaCarrier = await connectCarrier(port, 'twilio-fixture');
-        mediaCarrier.send({
-          event: 'start',
-          sequenceNumber: '1',
-          streamSid: 'MZ-e2e',
-          start: {
-            accountSid: 'AC-e2e',
-            callSid: 'CA-e2e',
-            customParameters: { sessionId: outcome.sessionId, routeToken: token },
-            mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: '8000', channels: '1' },
-          },
-        });
-        mediaCarrier.send({
-          event: 'media',
-          sequenceNumber: '2',
-          streamSid: 'MZ-e2e',
-          media: { track: 'inbound', chunk: '1', timestamp: '20', payload: 'AQ==' },
-        });
-        await expect.poll(() => responses).toBe(1);
-        await expect
-          .poll(() => mediaCarrier!.messages.some((value) => JSON.parse(value).event === 'mark'))
-          .toBe(true);
+        },
+      );
+      await mediaRuntime.start();
+      mediaCarrier = await connectCarrier(port, 'fixture-secret');
+      mediaCarrier.send({
+        event: 'start',
+        sequenceNumber: '1',
+        streamSid: 'MZ-e2e',
+        start: {
+          accountSid: 'AC-e2e',
+          callSid: 'CA-e2e',
+          customParameters: { sessionId: outcome.sessionId, routeToken: token },
+          mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: '8000', channels: '1' },
+        },
+      });
+      mediaCarrier.send({
+        event: 'media',
+        sequenceNumber: '2',
+        streamSid: 'MZ-e2e',
+        media: { track: 'inbound', chunk: '1', timestamp: '20', payload: 'AQ==' },
+      });
+      await expect.poll(() => responses).toBe(1);
+      await expect
+        .poll(() => mediaCarrier!.messages.some((value) => JSON.parse(value).event === 'mark'))
+        .toBe(true);
 
-        await store.applyCarrierCallback({
-          provider: 'synthetic',
-          eventId: 'e2e-answered',
-          dialRequestId: carrier.requests[0]!.requestId,
-          carrierCallId: 'CA-e2e',
-          status: 'answered',
-          occurredAt: new Date(),
-        });
-        await store.applyCarrierCallback({
-          provider: 'synthetic',
-          eventId: 'e2e-completed',
-          carrierCallId: 'CA-e2e',
-          status: 'completed',
-          occurredAt: new Date(),
-        });
-        outcome.lease.stop();
-        await outcome.protection.release();
-        await control.finishCall(organizationId, jobId, 'completed');
-        expect(await store.releaseTerminalSession(jobId)).toBe(true);
-        expect(await store.releaseTerminalSession(jobId)).toBe(false);
-        expect(protection).toMatchObject({ established: 1, released: 1 });
-        expect(await queue.receive({ maxMessages: 1, waitSeconds: 0 })).toEqual([]);
-      } finally {
-        mediaCarrier?.close();
-        await mediaRuntime?.close();
-        await gateway?.close();
-        await callComposition?.dispose();
-        await control.close();
-        await store.pool.query('DELETE FROM ovo_outbox WHERE aggregate_id = $1', [jobId]);
-        await store.pool.query('DELETE FROM ovo_jobs WHERE id = $1', [jobId]);
-        await store.close();
-        queue.destroy();
-      }
-    });
-  },
-);
+      await store.applyCarrierCallback({
+        organizationId,
+        carrierId: ingress.carrierId,
+        provider: 'synthetic',
+        eventId: 'e2e-answered',
+        dialRequestId: dialRequests[0]!.requestId,
+        carrierCallId: 'CA-e2e',
+        status: 'answered',
+        occurredAt: new Date(),
+      });
+      await store.applyCarrierCallback({
+        organizationId,
+        carrierId: ingress.carrierId,
+        provider: 'synthetic',
+        eventId: 'e2e-completed',
+        carrierCallId: 'CA-e2e',
+        status: 'completed',
+        occurredAt: new Date(),
+      });
+      outcome.lease.stop();
+      await outcome.protection.release();
+      await control.finishCall(organizationId, jobId, 'completed');
+      expect(await store.releaseTerminalSession(jobId)).toBe(true);
+      expect(await store.releaseTerminalSession(jobId)).toBe(false);
+      expect(protection).toMatchObject({ established: 1, released: 1 });
+      expect(await queue.receive({ maxMessages: 1, waitSeconds: 0 })).toEqual([]);
+    } finally {
+      mediaCarrier?.close();
+      await mediaRuntime?.close();
+      await gateway?.close();
+      await new Promise<void>((resolve) => healthServer?.close(() => resolve()) ?? resolve());
+      await callComposition?.dispose();
+      await control.close();
+      await store.pool.query('DELETE FROM ovo_outbox WHERE aggregate_id = $1', [jobId]);
+      await store.pool.query('DELETE FROM ovo_jobs WHERE id = $1', [jobId]);
+      await store.pool.query('DELETE FROM ovo_worker_slots WHERE worker_id = $1', [workerId]);
+      await store.close();
+    }
+  });
+});

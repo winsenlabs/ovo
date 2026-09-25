@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach } from 'vitest';
+import type { AudioFormat } from '../../contracts/src/audio.ts';
 import {
   LiveRecordingCapture,
   LiveRecordingService,
@@ -19,13 +20,19 @@ afterEach(async () => {
 
 class FakeMedia implements RecordingMediaTransport {
   readonly sessionId = 'session-1';
-  readonly codec = 'audio/x-mulaw' as const;
-  readonly sampleRate = 8000 as const;
+  readonly codec: RecordingMediaTransport['codec'];
+  readonly sampleRate: RecordingMediaTransport['sampleRate'];
   readonly bufferedBytes = 0;
   sent: Uint8Array[] = [];
   private audio = new Set<(audio: Uint8Array, timestampMs: number) => void>();
   private marks = new Set<(name: string) => void>();
   private closes = new Set<(reason: string) => void>();
+  constructor(
+    readonly format: AudioFormat = { encoding: 'mulaw', sampleRate: 8_000, channels: 1 },
+  ) {
+    this.codec = format.encoding === 'pcm_s16le' ? 'audio/pcm' : 'audio/x-mulaw';
+    this.sampleRate = format.sampleRate as 8000 | 16000;
+  }
   async sendAudio(audio: Uint8Array) {
     this.sent.push(Uint8Array.from(audio));
   }
@@ -108,10 +115,11 @@ export async function captureFixture(input?: {
   failPutAt?: number;
   clock?: { value: number };
   lateEvidence?: boolean;
+  format?: AudioFormat;
 }) {
   const setup = await harness(input?.clock);
   setup.objects.failPutAt = input?.failPutAt;
-  const media = new FakeMedia();
+  const media = new FakeMedia(input?.format);
   const evidence = new Evidence();
   let monotonic = 1_000;
   const capture = await LiveRecordingCapture.start({
