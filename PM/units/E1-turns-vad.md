@@ -14,6 +14,10 @@ Defects fixed: [3, 18]
 
 - none
 
+## Checker note (2026-09-25)
+
+The specification below says to emit `force-endpoint` on every `vad.stop`, but the frozen turn-detector conformance kit requires no new endpoint request after a final transcript has already arrived. The checker approved the kit's invariant as authoritative: emit `force-endpoint` on `vad.stop` only while the current turn is still awaiting a final transcript. A redundant request can incur provider cost and truncate the next turn. The regression test asserts that a final transcript preceding `vad.stop` causes no immediate or delayed `force-endpoint`. The frozen kit is unchanged; E2 inherits this behavior when it integrates the detector.
+
 ## Specification
 
 GOAL: provide the user-turn logic as swappable plugins, so turn-taking no longer depends on one STT vendor's endpointing. This fixes defect #3:

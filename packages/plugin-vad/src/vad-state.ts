@@ -11,7 +11,10 @@ export class VadState {
   private readonly startFrames: number;
   private readonly stopFrames: number;
 
-  constructor(private readonly params: VadParams, private readonly frameMs = 20) {
+  constructor(
+    private readonly params: VadParams,
+    private readonly frameMs = 20,
+  ) {
     this.startFrames = Math.max(1, Math.round(params.startMs / frameMs));
     this.stopFrames = Math.max(1, Math.round(params.stopMs / frameMs));
   }
@@ -20,18 +23,32 @@ export class VadState {
     const frame = this.frame++;
     const speaking = confidence >= this.params.confidence && volume >= this.params.minVolume;
     if (this.phase === 'QUIET' || this.phase === 'STARTING') {
-      if (!speaking) { this.phase = 'QUIET'; this.consecutive = 0; return; }
+      if (!speaking) {
+        this.phase = 'QUIET';
+        this.consecutive = 0;
+        return;
+      }
       this.phase = 'STARTING';
       if (++this.consecutive < this.startFrames) return;
-      this.phase = 'SPEAKING'; this.consecutive = 0;
+      this.phase = 'SPEAKING';
+      this.consecutive = 0;
       return { type: 'vad.start', atMs: frame * this.frameMs, frame };
     }
-    if (speaking) { this.phase = 'SPEAKING'; this.consecutive = 0; return; }
+    if (speaking) {
+      this.phase = 'SPEAKING';
+      this.consecutive = 0;
+      return;
+    }
     this.phase = 'STOPPING';
     if (++this.consecutive < this.stopFrames) return;
-    this.phase = 'QUIET'; this.consecutive = 0;
+    this.phase = 'QUIET';
+    this.consecutive = 0;
     return { type: 'vad.stop', atMs: frame * this.frameMs, frame };
   }
 
-  reset(): void { this.phase = 'QUIET'; this.consecutive = 0; this.frame = 0; }
+  reset(): void {
+    this.phase = 'QUIET';
+    this.consecutive = 0;
+    this.frame = 0;
+  }
 }

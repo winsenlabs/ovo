@@ -12,9 +12,13 @@ it('loads and composes both v2 session plugins through the frozen distribution c
   expect(vad.manifest.contractVersion).toBe(2);
   expect(registry.get(turn.manifest.id)).toBe(turn);
   expect(registry.get(vad.manifest.id)).toBe(vad);
-  const graph = await compose([{ id: turn.manifest.id }, { id: vad.manifest.id }], loaded.catalog, { scope: 'session' });
+  const graph = await compose([{ id: turn.manifest.id }, { id: vad.manifest.id }], loaded.catalog, {
+    scope: 'session',
+  });
   try {
     expect((graph.get(Cap.turnDetector) as TurnDetectorFactory).create).toBeTypeOf('function');
     expect((graph.get(Cap.vad) as VadAnalyzerFactory).create(8000).frameSamples).toBe(160);
-  } finally { await graph.dispose(); }
+  } finally {
+    await graph.dispose();
+  }
 });

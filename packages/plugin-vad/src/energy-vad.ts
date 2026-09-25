@@ -8,7 +8,7 @@ function level(pcm: Int16Array): { db: number; crossings: number } {
   for (let i = 0; i < pcm.length; i++) {
     const sample = pcm[i]!;
     power += sample * sample;
-    if (i && (sample >= 0) !== (pcm[i - 1]! >= 0)) crossings++;
+    if (i && sample >= 0 !== pcm[i - 1]! >= 0) crossings++;
   }
   const rms = pcm.length ? Math.sqrt(power / pcm.length) / 32768 : 0;
   return { db: rms ? 20 * Math.log10(rms) : -110, crossings };
@@ -21,7 +21,10 @@ export class EnergyVad implements VadAnalyzer {
   private confidenceState = 0;
   private volumeState = 0;
 
-  constructor(readonly sampleRate: 8000 | 16000, private readonly params: VadParams) {
+  constructor(
+    readonly sampleRate: 8000 | 16000,
+    private readonly params: VadParams,
+  ) {
     this.frameSamples = sampleRate / 50;
   }
 
@@ -31,10 +34,9 @@ export class EnergyVad implements VadAnalyzer {
     const rawVolume = this.normalizedVolume(db);
     this.volumeState = 0.1 * this.volumeState + 0.9 * rawVolume;
     const enoughCrossings = crossings >= 3;
-    const raw = enoughCrossings
-      ? sigmoid((db - this.floor - 9) / 3) : 0;
-    this.confidenceState = this.params.smoothing * this.confidenceState +
-      (1 - this.params.smoothing) * raw;
+    const raw = enoughCrossings ? sigmoid((db - this.floor - 9) / 3) : 0;
+    this.confidenceState =
+      this.params.smoothing * this.confidenceState + (1 - this.params.smoothing) * raw;
     const tauMs = db > this.floor ? 2000 : 100;
     this.floor += (1 - Math.exp(-20 / tauMs)) * (db - this.floor);
     return Math.max(0, Math.min(1, this.confidenceState));
@@ -47,7 +49,11 @@ export class EnergyVad implements VadAnalyzer {
     return this.volumeState;
   }
 
-  reset(): void { this.floor = -65; this.confidenceState = 0; this.volumeState = 0; }
+  reset(): void {
+    this.floor = -65;
+    this.confidenceState = 0;
+    this.volumeState = 0;
+  }
 
   private normalizedVolume(db: number): number {
     const linear = Math.max(0, Math.min(1, (db + 110) / 100));
@@ -55,6 +61,7 @@ export class EnergyVad implements VadAnalyzer {
   }
 
   private checkFrame(pcm: Int16Array): void {
-    if (pcm.length !== this.frameSamples) throw new RangeError(`expected ${this.frameSamples} PCM samples per 20 ms frame`);
+    if (pcm.length !== this.frameSamples)
+      throw new RangeError(`expected ${this.frameSamples} PCM samples per 20 ms frame`);
   }
 }

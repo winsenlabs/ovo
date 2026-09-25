@@ -12,10 +12,14 @@ export function confirmationPrompt(view: MuteView, rules: readonly MuteRule[]): 
 }
 
 export function speechMuted(view: MuteView, rules: readonly MuteRule[]): boolean {
-  return view.toolRunning && rules.includes('during-tools') ||
-    view.botSpeaking && (view.kind === 'disclosure' || rules.includes('always-while-speaking') ||
-      rules.includes('first-speech') && !view.firstSpeechComplete ||
-      rules.includes('until-first-complete') && !view.firstSpeechComplete);
+  return (
+    (view.toolRunning && rules.includes('during-tools')) ||
+    (view.botSpeaking &&
+      (view.kind === 'disclosure' ||
+        rules.includes('always-while-speaking') ||
+        (rules.includes('first-speech') && !view.firstSpeechComplete) ||
+        (rules.includes('until-first-complete') && !view.firstSpeechComplete)))
+  );
 }
 
 export function canInterrupt(view: MuteView, rules: readonly MuteRule[]): boolean {

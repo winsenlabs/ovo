@@ -11,10 +11,18 @@ export class TurnAggregator {
     if (segment.stability === 'final') this.finals.set(segment.segmentId, segment.text);
   }
 
-  get view(): string { return joinSegments([...this.views.values()]); }
-  get text(): string { return joinSegments([...this.finals.values()]); }
-  get segments(): number { return this.finals.size; }
-  get hasText(): boolean { return this.text.length > 0; }
+  get view(): string {
+    return joinSegments([...this.views.values()]);
+  }
+  get text(): string {
+    return joinSegments([...this.finals.values()]);
+  }
+  get segments(): number {
+    return this.finals.size;
+  }
+  get hasText(): boolean {
+    return this.text.length > 0;
+  }
 
   take(): { text: string; segments: number } {
     const result = { text: this.text, segments: this.segments };
@@ -22,7 +30,10 @@ export class TurnAggregator {
     return result;
   }
 
-  clear(): void { this.finals.clear(); this.views.clear(); }
+  clear(): void {
+    this.finals.clear();
+    this.views.clear();
+  }
 }
 
 function joinSegments(parts: readonly string[]): string {
