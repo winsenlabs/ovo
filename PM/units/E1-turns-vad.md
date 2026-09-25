@@ -16,7 +16,7 @@ Defects fixed: [3, 18]
 
 ## Checker note (2026-09-25)
 
-The specification below says to emit `force-endpoint` on every `vad.stop`, but the frozen turn-detector conformance kit requires no new endpoint request after a final transcript has already arrived. The checker approved the kit's invariant as authoritative: emit `force-endpoint` on `vad.stop` only while the current turn is still awaiting a final transcript. A redundant request can incur provider cost and truncate the next turn. The regression test asserts that a final transcript preceding `vad.stop` causes no immediate or delayed `force-endpoint`. The frozen kit is unchanged; E2 inherits this behavior when it integrates the detector.
+The specification below says to emit `force-endpoint` on every `vad.stop`, but the frozen turn-detector conformance kit requires no new endpoint request after a final transcript has already arrived. The checker approved the kit's invariant as authoritative: emit `force-endpoint` on `vad.stop` only while the utterance is still awaiting a final transcript and its speech is not muted. A redundant request can incur provider cost and truncate the next turn. The regression tests assert that a final transcript preceding `vad.stop`, or speech discarded during a tool, causes no immediate or delayed `force-endpoint`. The frozen kit is unchanged; E2 inherits this behavior when it integrates the detector.
 
 ## Specification
 

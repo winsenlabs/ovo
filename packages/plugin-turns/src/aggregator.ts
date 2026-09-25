@@ -6,7 +6,10 @@ export class TurnAggregator {
   private views = new Map<string, string>();
 
   observe(segment: TranscriptSegment): void {
-    if (this.finals.has(segment.segmentId)) return;
+    if (this.finals.has(segment.segmentId)) {
+      if (segment.stability === 'interim') this.views.set(segment.segmentId, segment.text);
+      return;
+    }
     this.views.set(segment.segmentId, segment.text);
     if (segment.stability === 'final') this.finals.set(segment.segmentId, segment.text);
   }

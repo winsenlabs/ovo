@@ -1,5 +1,6 @@
 import {
   TurnConfigSchema,
+  classifyConfirmation,
   defaultMuteRules,
   type Clock,
   type Mode,
@@ -49,9 +50,11 @@ export class TurnControllerState {
   protected providerSpeaking = false;
   protected providerEndPending = false;
   protected vadStopPending = false;
+  protected vadStopReady = false;
   protected forceSent = false;
   protected finalSeen = false;
   protected deferredStop = false;
+  protected awaitingConfirmationFinal = false;
   protected disposed = false;
 
   constructor(
@@ -76,6 +79,7 @@ export class TurnControllerState {
       },
       () => {
         this.vadStopPending = false;
+        this.vadStopReady = true;
         this.tryStop();
       },
     );
@@ -117,8 +121,10 @@ export class TurnControllerState {
     this.aggregate.clear();
     this.finalSeen = false;
     this.deferredStop = false;
+    this.awaitingConfirmationFinal = false;
     this.providerEndPending = false;
     this.vadStopPending = false;
+    this.vadStopReady = false;
     this.cancelSafety?.();
     this.cancelSafety = undefined;
     this.stopTimers.cancel();
@@ -139,6 +145,7 @@ export class TurnControllerState {
       !this.turnId ||
       this.speaking() ||
       this.vadStopPending ||
+      this.awaitingConfirmationFinal ||
       confirmationPrompt(this.view(), this.rules)
     )
       return;
@@ -160,10 +167,14 @@ export class TurnControllerState {
   protected safety(): void {
     this.cancelSafety?.();
     if (this.turnId && !this.speaking() && this.config.stopTimeoutMs > 0)
-      this.cancelSafety = this.input.clock.setTimeout(
-        () => this.tryStop(),
-        this.config.stopTimeoutMs,
-      );
+      this.cancelSafety = this.input.clock.setTimeout(() => {
+        if (!this.turnId || this.speaking()) return;
+        if (this.awaitingConfirmationFinal || (!this.aggregate.text && !this.aggregate.view)) {
+          this.reset(this.awaitingConfirmationFinal ? 'muted' : 'backchannel');
+          return;
+        }
+        this.tryStop();
+      }, this.config.stopTimeoutMs);
   }
 
   protected onTranscript(event: Extract<SttEvent, { type: 'transcript' }>): void {
@@ -180,10 +191,6 @@ export class TurnControllerState {
     if (!prompt && !this.bot && !transcriptStartsTurn(segment.text, this.input.language)) return;
     this.start();
     this.aggregate.observe(segment);
-    if (segment.stability === 'final') {
-      this.finalSeen = true;
-      this.stopTimers.final();
-    }
     if (
       this.bot &&
       !prompt &&
@@ -199,7 +206,20 @@ export class TurnControllerState {
       this.interruptedEpoch = this.bot.epoch;
       this.emit({ type: 'interrupt', reason: 'transcript' });
     }
+    if (segment.stability === 'final') {
+      this.finalSeen = true;
+      if (this.awaitingConfirmationFinal) {
+        this.awaitingConfirmationFinal = false;
+        if (classifyConfirmation(this.aggregate.text) === 'unclear') {
+          this.reset('muted');
+          return;
+        }
+        this.deferredStop = true;
+      }
+      this.stopTimers.final();
+    }
     this.safety();
+    if (this.vadStopReady || this.deferredStop) this.tryStop();
   }
 
   protected onStt(event: SttEvent): void {
@@ -214,7 +234,7 @@ export class TurnControllerState {
     }
     if (event.type === 'speech-end') {
       this.providerSpeaking = false;
-      if (this.providerEndPending) this.tryStop();
+      if (this.providerEndPending || this.vadStopReady || this.deferredStop) this.tryStop();
       else this.safety();
       return;
     }

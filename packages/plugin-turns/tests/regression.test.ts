@@ -104,6 +104,14 @@ describe('turn regressions', () => {
     f.transcript('please stop now', 'interim', 'a');
     expect(f.decisions).toContainEqual({ type: 'interrupt', reason: 'transcript' });
   });
+  it('uses a later interim for barge-in without replacing a final segment', () => {
+    const f = fixture({}, 'faq', true);
+    f.send({ type: 'vad.start' });
+    f.transcript('yeah', 'final', 'x');
+    f.send({ type: 'bot.started', epoch: 1, kind: 'response' });
+    f.transcript('please stop now', 'interim', 'x');
+    expect(f.decisions).toContainEqual({ type: 'interrupt', reason: 'transcript' });
+  });
   it('counts Devanagari as a word when the bot is silent', () => {
     const f = fixture();
     f.say('हाँ');
@@ -143,6 +151,40 @@ describe('turn regressions', () => {
     expect(f.speech()).toEqual([]);
     f.send({ type: 'bot.stopped', epoch: 1, kind: 'confirmation' });
     expect(f.speech()).toEqual(['yes']);
+  });
+  it('holds a buffered confirmation until user speech stops', () => {
+    const f = fixture({}, 'agent', true);
+    f.send({ type: 'confirmation.pending' });
+    f.send({ type: 'bot.started', epoch: 1, kind: 'confirmation' });
+    f.send({ type: 'vad.start' });
+    f.transcript('yes');
+    f.send({ type: 'bot.stopped', epoch: 1, kind: 'confirmation' });
+    expect(f.speech()).toEqual([]);
+    f.send({ type: 'vad.stop' });
+    f.clock.advance(1000);
+    expect(f.speech()).toEqual(['yes']);
+  });
+  it('releases a buffered confirmation at provider speech-end without VAD', () => {
+    const f = fixture({ stopTimeoutMs: 0 }, 'agent', false, speechSignals);
+    f.send({ type: 'confirmation.pending' });
+    f.send({ type: 'bot.started', epoch: 1, kind: 'confirmation' });
+    f.send({ type: 'stt', event: { type: 'speech-start' } });
+    f.transcript('yes');
+    f.send({ type: 'bot.stopped', epoch: 1, kind: 'confirmation' });
+    expect(f.speech()).toEqual([]);
+    f.send({ type: 'stt', event: { type: 'speech-end' } });
+    expect(f.speech()).toEqual(['yes']);
+  });
+  it('waits for a final before releasing a confirmation answer', () => {
+    const f = fixture({}, 'agent');
+    f.send({ type: 'confirmation.pending' });
+    f.send({ type: 'bot.started', epoch: 1, kind: 'confirmation' });
+    f.transcript('yes', 'interim', 'x');
+    f.send({ type: 'bot.stopped', epoch: 1, kind: 'confirmation' });
+    expect(f.speech()).toEqual([]);
+    f.transcript('no', 'final', 'x');
+    f.send({ type: 'stt', event: { type: 'end-of-turn' } });
+    expect(f.speech()).toEqual(['no']);
   });
   it('preserves NO precedence during a confirmation prompt', () => {
     const f = fixture({}, 'agent');
@@ -220,6 +262,20 @@ describe('turn regressions', () => {
     f.clock.advance(1500);
     expect(f.decisions.filter((d) => d.type === 'force-endpoint')).toHaveLength(0);
   });
+  it('resets a VAD-only turn after the stop safety timeout', () => {
+    const f = fixture({}, 'faq', true);
+    f.send({ type: 'vad.start' });
+    f.send({ type: 'vad.stop' });
+    expect(f.decisions).toContainEqual({ type: 'turn.started', turnId: 'turn-1' });
+    f.clock.advance(4999);
+    expect(f.decisions.some((d) => d.type === 'turn.reset')).toBe(false);
+    f.clock.advance(1);
+    expect(f.decisions).toContainEqual({
+      type: 'turn.reset',
+      turnId: 'turn-1',
+      reason: 'backchannel',
+    });
+  });
   it('holds a turn when STT still reports speaking even after VAD goes quiet', () => {
     const f = fixture({}, 'faq', true, speechSignals);
     f.send({ type: 'vad.start' });
@@ -231,6 +287,44 @@ describe('turn regressions', () => {
     expect(f.speech()).toEqual([]);
     f.send({ type: 'stt', event: { type: 'speech-end' } });
     expect(f.speech()).toEqual(['hello there']);
+  });
+  it('stops when provider speech ends after both VAD timers have elapsed', () => {
+    const f = fixture({}, 'faq', true, speechSignals);
+    f.send({ type: 'vad.start' });
+    f.send({ type: 'stt', event: { type: 'speech-start' } });
+    f.transcript('hello there');
+    f.send({ type: 'vad.stop' });
+    f.clock.advance(1000);
+    expect(f.speech()).toEqual([]);
+    f.send({ type: 'stt', event: { type: 'speech-end' } });
+    expect(f.speech()).toEqual(['hello there']);
+  });
+  it('stops on late transcript once both VAD timers have elapsed', () => {
+    const f = fixture({}, 'faq', true);
+    f.send({ type: 'vad.start' });
+    f.send({ type: 'vad.stop' });
+    f.clock.advance(2000);
+    f.transcript('hello there', 'interim');
+    expect(f.speech()).toEqual(['hello there']);
+  });
+  it('interrupts before a late final can close the turn during bot speech', () => {
+    const f = fixture({}, 'faq', true);
+    f.send({ type: 'bot.started', epoch: 1, kind: 'response' });
+    f.send({ type: 'vad.start' });
+    f.send({ type: 'vad.stop' });
+    f.clock.advance(2000);
+    f.transcript('please stop now');
+    const types = f.decisions.map((d) => d.type);
+    expect(types).toContain('interrupt');
+    expect(types.indexOf('interrupt')).toBeLessThan(types.indexOf('turn.stopped'));
+  });
+  it('does not force an endpoint for discarded speech during a tool', () => {
+    const f = fixture({}, 'agent', true);
+    f.send({ type: 'tool.started' });
+    f.send({ type: 'vad.start' });
+    f.send({ type: 'vad.stop' });
+    f.clock.advance(2000);
+    expect(f.decisions.filter((d) => d.type === 'force-endpoint')).toEqual([]);
   });
   it('does not arm idle while provider or VAD speech continues after bot.stopped', () => {
     for (const vad of [false, true]) {

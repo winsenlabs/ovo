@@ -17,6 +17,7 @@ export class TurnController extends TurnControllerState implements UserTurnContr
       case 'vad.start':
         this.vadSpeaking = true;
         this.vadStopPending = false;
+        this.vadStopReady = false;
         this.forceSent = false;
         this.stopTimers.cancel();
         this.idle.cancel();
@@ -30,8 +31,10 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         break;
       case 'vad.stop':
         this.vadSpeaking = false;
+        if (speechMuted(this.view(), this.rules)) break;
         if (this.strategy === 'vad-timeout') {
           this.vadStopPending = true;
+          this.vadStopReady = false;
           if (!this.finalSeen) {
             this.forceSent = true;
             this.emit({ type: 'force-endpoint' });
@@ -45,7 +48,8 @@ export class TurnController extends TurnControllerState implements UserTurnContr
             ),
             this.finalSeen,
           );
-        }
+          this.safety();
+        } else if (this.deferredStop) this.tryStop();
         break;
       case 'dtmf':
         if (this.tools && this.rules.includes('during-tools') && !this.config.allowDtmfWhileMuted)
@@ -63,10 +67,13 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         this.bot = undefined;
         this.firstSpeechComplete = true;
         if (wasPrompt && this.turnId) {
-          if (classifyConfirmation(this.aggregate.text || this.aggregate.view) === 'unclear')
-            this.reset('muted');
+          if (!this.aggregate.hasText) {
+            this.awaitingConfirmationFinal = true;
+            if (!this.speaking()) this.safety();
+          } else if (classifyConfirmation(this.aggregate.text) === 'unclear') this.reset('muted');
+          else if (this.speaking()) this.deferredStop = true;
           else this.stop();
-        } else if (this.deferredStop) this.stop();
+        } else if (this.deferredStop && !this.speaking()) this.stop();
         if (!this.turnId && !this.tools && !this.speaking()) this.idle.arm();
         break;
       case 'tool.started':
