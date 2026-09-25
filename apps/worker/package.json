@@ -1,0 +1,33 @@
+{
+  "name": "@winsendotai/ovo-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --format=cjs --loader:.sql=text --outfile=dist/main.cjs",
+    "start": "node dist/main.cjs"
+  },
+  "dependencies": {
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-distribution": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-session-host": "workspace:*",
+    "@winsendotai/ovo-plugin-cache": "workspace:*",
+    "@winsendotai/ovo-plugin-orchestration": "workspace:*",
+    "@winsendotai/ovo-plugin-operations": "workspace:*",
+    "@winsendotai/ovo-plugin-media": "workspace:*",
+    "@winsendotai/ovo-plugin-ledger": "workspace:*",
+    "@winsendotai/ovo-plugin-observability": "workspace:*",
+    "@winsendotai/ovo-plugin-providers": "workspace:*",
+    "@winsendotai/ovo-plugin-recordings": "workspace:*",
+    "@winsendotai/ovo-plugin-secrets": "workspace:*",
+    "@winsendotai/ovo-plugin-session": "workspace:*",
+    "@winsendotai/ovo-plugin-speech-cache": "workspace:*",
+    "@winsendotai/ovo-plugin-storage": "workspace:*",
+    "@winsendotai/ovo-plugin-telephony-twilio": "workspace:*",
+    "@winsendotai/ovo-plugin-voice": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "ws": "8.21.3"
+  }
+}

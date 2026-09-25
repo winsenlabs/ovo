@@ -1,0 +1,17 @@
+{
+  "name": "@winsendotai/ovo-dispatcher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --format=cjs --loader:.sql=text --outfile=dist/main.cjs",
+    "start": "node dist/main.cjs"
+  },
+  "dependencies": {
+    "@winsendotai/ovo-plugin-orchestration": "workspace:*",
+    "@winsendotai/ovo-plugin-operations": "workspace:*",
+    "@winsendotai/ovo-plugin-storage": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*"
+  }
+}

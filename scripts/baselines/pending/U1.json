@@ -1,0 +1,43 @@
+{
+  "duplication": [
+    {
+      "files": ["apps/api/src/infrastructure-types.ts", "apps/console/lib/types/infrastructure.ts"],
+      "windows": 139,
+      "reason": "U1 split the existing console operator API types to keep every module at or below 300 lines; the pre-existing infrastructure type overlap moved from the baselined operator-api.ts file. I1 should consolidate the shared contract.",
+      "removeBy": "I1"
+    },
+    {
+      "files": [
+        "apps/console/lib/types/evaluations.ts",
+        "packages/plugin-evaluations/src/provider-policy.ts"
+      ],
+      "windows": 4,
+      "reason": "U1 moved existing console evaluation API types out of the oversized operator-api.ts; I1 should consolidate the existing shared contract overlap.",
+      "removeBy": "I1"
+    },
+    {
+      "files": [
+        "apps/console/lib/types/evaluations.ts",
+        "packages/plugin-evaluations/src/types.ts"
+      ],
+      "windows": 1,
+      "reason": "U1 moved existing console evaluation API types out of the oversized operator-api.ts; I1 should consolidate the existing shared contract overlap.",
+      "removeBy": "I1"
+    },
+    {
+      "files": ["apps/console/lib/types/pricing.ts", "packages/plugin-ledger/src/types.ts"],
+      "windows": 21,
+      "reason": "U1 moved existing console pricing API types out of the oversized operator-api.ts; I1 should consolidate the existing shared contract overlap.",
+      "removeBy": "I1"
+    },
+    {
+      "files": [
+        "apps/console/lib/types/operations.ts",
+        "packages/plugin-observability/src/telemetry-types.ts"
+      ],
+      "windows": 21,
+      "reason": "U1 moved existing console operations API types out of the oversized operator-api.ts; I1 should consolidate the existing shared contract overlap.",
+      "removeBy": "I1"
+    }
+  ]
+}

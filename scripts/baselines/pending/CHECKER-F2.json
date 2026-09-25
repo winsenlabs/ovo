@@ -1,0 +1,47 @@
+{
+  "note": "F2 checker pass: the guarded plugin context now blocks raw Cordis members (context-escape). packages/runtime/tests/facade.test.ts provokes these deliberately to prove the block, so they are assertions, not defects. I1 folds them into runtime-violations.json when it regenerates the top-level baselines.",
+  "runtimeViolations": [
+    {
+      "pluginId": "escapee",
+      "kind": "context-escape",
+      "key": "plugin",
+      "reason": "facade.test.ts proves ctx.plugin is blocked",
+      "removeBy": "I1"
+    },
+    {
+      "pluginId": "escapee",
+      "kind": "context-escape",
+      "key": "inject",
+      "reason": "facade.test.ts proves ctx.inject is blocked",
+      "removeBy": "I1"
+    },
+    {
+      "pluginId": "escapee",
+      "kind": "context-escape",
+      "key": "root",
+      "reason": "facade.test.ts proves ctx.root is blocked",
+      "removeBy": "I1"
+    },
+    {
+      "pluginId": "escapee",
+      "kind": "context-escape",
+      "key": "scope",
+      "reason": "facade.test.ts proves ctx.scope is blocked",
+      "removeBy": "I1"
+    },
+    {
+      "pluginId": "escapee",
+      "kind": "context-escape",
+      "key": "extend",
+      "reason": "facade.test.ts proves ctx.extend is blocked",
+      "removeBy": "I1"
+    },
+    {
+      "pluginId": "escapee",
+      "kind": "context-escape",
+      "key": "on",
+      "reason": "facade.test.ts proves the event bus is blocked",
+      "removeBy": "I1"
+    }
+  ]
+}

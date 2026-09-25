@@ -1,0 +1,115 @@
+# OVO implementation progress
+
+Updated: 2026-09-22 IST. Branch: `vorflux/ovo-foundation`.
+
+## Plugin platform rebuild (2026-09-22 IST)
+
+- **Where things stand.** The inherited branch was reviewed read-only. It had never made a real call, and 27 defects were confirmed or reported. The founder then set the direction:
+  - everything is a plugin, with the engine, carrier, STT, TTS and LLM chosen per agent;
+  - an OVO native engine that takes in Pipecat's best ideas, plus a LiveKit Agents JS engine;
+  - Twilio, Exotel and Plivo as carriers;
+  - Deepgram, AssemblyAI, Sarvam and OpenAI as speech and model providers;
+  - Fargate-native autoscaling;
+  - a console refactor;
+  - no large files.
+- **Plan.** The design and a 20-unit plan are in [`docs/architecture/plugin-platform.md`](architecture/plugin-platform.md) (`92ea8b7`).
+- **Progress.**
+  - F1 (contracts v2 and host enforcement) is verified at `da075a7`. The Postgres serial run gave 590 passed, 9 skipped, 0 failed.
+  - F2 is partial and paused.
+  - Status is tracked on the [unit board](../PM/units/README.md).
+- **Baseline before F1**, measured locally: 380 passed and 87 skipped without Postgres; 458 passed and 9 skipped with the Postgres serial run. The Postgres suites need `--no-file-parallelism`.
+- **Not verified.** Nothing is pushed. No real carrier or provider traffic has run, and no AWS action has been taken.
+
+## Current production integration status
+
+The production implementation now supports one self-hosted organization with PostgreSQL, all four behavior modes, provider/media workers, campaigns and inbound wait/callback, recording lifecycle, telemetry, costs, evaluations, and the operating console. Twilio, Deepgram STT, and OpenAI TTS/inference form the initial production profile. Provider evaluations require durable authorization and remain disabled by default.
+
+The integrated implementation is pushed to the existing PR. Builder verification passed 359 tests with 82 environment-gated skips; dedicated PostgreSQL suites and all five production container builds also passed. These overlapping builder checks are not final integrated certification.
+
+Final independent local testing is underway. The focused review identified restore-quarantine and inbound ownership-renewal corrections. A suspected final-attempt evaluation defect was already fixed at the reviewed head; a new PostgreSQL crash regression confirms exhaustion and preserves unknown-spend reservations for reconciliation.
+
+[PM/NEXT.md](../PM/NEXT.md) replaces the obsolete foundation-only backlog below. Earlier checkpoints remain historical evidence, not the current capability inventory. No paid provider/carrier traffic, AWS deployment, package publication, or human certification occurred.
+
+## Repository baseline
+
+The starting repository contained README and 12 specification documents only. No application, CI, package manifest, infrastructure or tests existed. All documents were read before application implementation. GitHub Actions are suspended; checks run locally.
+
+## Current checkpoint
+
+- Initial upstream source audit complete for DeepSeek Harness/Cordis, Pipecat, LiveKit Agents JS, AI SDK and carrier/AWS documentation.
+- DeepSeek pinned to `ddefc45fbc7f8e46dd73185e68295696d1297887`; actual patched Cordis/Cosmokit and scope source imported. Profile composition and lifecycle adapted, not independently recreated.
+- Strict TypeScript/pnpm workspace exists; first-party packages remain private under `@winsendotai/ovo-*`.
+- Retained upstream scope/store tests: 21 passed locally on Node 22.21.0. Vendor declarations use the upstream compiler exceptions; first-party code remains strict.
+- Parallel implementation: voice behaviors/scheduler, shared tool execution/MCP/HTTP, management API/storage/secrets, console design, scheduling/Fargate/Twilio and comparative real-SDK prototypes.
+
+## Project management
+
+[PM/README.md](../PM/README.md) tracks W01–W20. Each package has its complete task checklist. [PM/acceptance.md](../PM/acceptance.md) tracks all 75 criteria; no criterion is yet fully verified.
+
+## Verification and blockers
+
+Source inspection is not live integration evidence. No provider account, live carrier call, AWS deployment, paid action, package publication or customer call occurred. Production engine selection remains provisional until comparable prototypes and carrier evidence meet the research gate. No launch claim is made.
+
+## Next actions
+
+1. Verify composition, startup rollback, session isolation and plugin replacement.
+2. Complete local vertical slices and connect the management console to persisted APIs.
+3. Execute comparative prototype fixtures and local CI; keep remaining certification gates visible.
+
+## Checkpoint 2 — foundation and independent slices
+
+- PM now contains all 20 work-package checklists and the exact 75 acceptance requirements, with explicit dependency links.
+- All 32 foundation/schema tests pass. An SDK-only external plugin adds an isolated configuration/disposal conformance test.
+- The observability plugin adds exact decimal/native-unit pricing, currency-separated summaries, deterministic replay validation and conservative redaction. Five local tests pass. Durable API projection integration remains open.
+- Console visual design approved; Next.js implementation uses the real management API contract.
+- Local dependency audit identified vulnerable older AWS/Ajv transitive versions during parallel implementation. Builders received pinned-version upgrades. The final lockfile audit remains pending; no remote CI is assumed.
+
+## User requirement — modular code
+
+The user explicitly requires no large monolithic files. All active implementation tasks received this requirement. A local gate measures canonically formatted first-party code, with a 400 nonblank-line/24 KiB cap (500 lines for tests). The preferred target is under 300 lines and one responsibility per module. Exact imported upstream files retain their layout and source hashes.
+
+## Checkpoint 3 — runnable local services and dependency audit
+
+- The persisted management API serves its health check through the public preview proxy. The Next.js console starts on port 3000 and returns its page through the public preview host. Full browser journeys are not yet verified.
+- Local bootstrap generates random keys into an ignored mode-0600 file without printing them.
+- Backend bundle compilation succeeds for API, worker and dispatcher. Console TypeScript checking succeeds at this checkpoint.
+- Production dependency audit reports zero advisories after pinned updates. Dependency/license inventory includes LiveKit's model-specific terms and LGPL native dependencies; experimental dependencies are not silently approved for deployment.
+- The initial comparative spike uses real LiveKit `AgentSession` and AI SDK APIs under the DeepSeek-derived host. Seven tests and 80 fixture samples pass. The first cold-session timings are intentionally not a production engine ranking; a matched hot-session refinement is underway.
+- Domain implementations now split oversized files under the user's modularity requirement. The local size gate currently blocks remaining oversized storage/API/MCP files until those splits finish.
+
+## Checkpoint 4 — integrated local gate before independent verification
+
+- `./scripts/local-ci.sh` passes: frozen install, architecture/provenance/module-size gates, formatting, full workspace/console types, 117 tests, three backend bundles, production Next.js build and all-dependency advisory audit.
+- Four PostgreSQL-only cases skip in the default suite. The deployment slice separately ran its real disposable PostgreSQL suite: 5/5 passed, including ten concurrent claims with one owner.
+- The first integrated build failed because the root bundler did not load SQL assets. The canonical worker/dispatcher package builds now own those artifacts, and the complete gate passes after the fix.
+- All first-party source files pass the size gate. Imported upstream files remain untouched and hash-locked.
+- Recording storage and the real API/console playback path exist. Local tests use generated WAV fixtures only. S3 and live carrier capture remain unverified.
+- The final comparative experiment uses matched hot sessions and actual focused components. It retains 100 passing samples with source/lockfile identities; no live audio conclusion follows.
+- Default API releases support announcement and FAQ. Context and agent behavior plugins work in focused tests/prototypes but need approved inference/execution/speech/tool composition before the default API can publish them. This is an open integration task, not merely a credential blocker.
+- Independent browser verification and one focused post-implementation review remain before this checkpoint's handoff.
+
+## Review corrections in progress
+
+The focused review found three implemented-path defects: superseded turns did not cancel active execution, crash-left dial intents could remain unrecoverable, and desired-count writes did not enforce the capacity lease epoch. Builders now address these with targeted regressions. MCP admission now shares the HTTP connector policy, and release validation checks the exact remote name plus actual discovered input/output schemas. The PR remains draft; final browser/local CI evidence awaits these corrections.
+
+## User refinement — speech caching
+
+Caching remains required. Implementation now adds bounded process-owned audio caches and a cached speech-output plugin behind the existing scheduler. Exact approved static phrases/announcements may cache; dynamic customer text, model answers and tool results do not cache by default. Cache identity includes workspace and synthesis configuration. Generation usage, cache hits and repeated playback remain separate; a cache hit never makes carrier/media minutes free. Local generated-audio fixtures will verify these paths without claiming a live TTS integration.
+
+## Safety and cache checkpoint
+
+The review's cancellation, expired-dial reclaim, stale scaling authority and MCP schema/endpoint defects are corrected. Unknown or in-flight ECS writes fail closed; desired-count readback alone cannot release the fence. Audio cache resident reads now enforce workspace ownership independently of key construction. Thirteen cache tests pass. AI SDK native cache token details remain separate from total usage.
+
+Local CI passed after correcting an exact-timer-count fixture and outdated successful-operation expectations after cancellation. The regenerated comparison records 100 samples, zero failures, and truthful failed states for interrupted reads. Browser and independent PostgreSQL verification remain in progress. Full-project gaps remain in PM/NEXT.md; this checkpoint does not certify production.
+
+## Independent verification checkpoint
+
+Final local CI passed: 150 tests passed, with nine PostgreSQL-only cases skipped in the default run. All nine cases passed separately against disposable PostgreSQL. Public browser checks passed for authentication, announcement simulation, FAQ authoring, stale-draft conflict/recovery UI, redacted credential lifecycle, MCP default-deny boundaries, fixture WAV playback and narrow-screen layout. Explicit loopback dev origins corrected local session loading; fresh localhost and 127.0.0.1 contexts now reach login. Generated Next declarations are excluded from formatting checks.
+
+The final reviewer confirmed the original P1 corrections and rated the checkpoint 5/10 (Medium), conditional on a cache workspace-read fix. That fix now has a passing cross-workspace regression and independent CI verification; no extra broad review ran. Live provider/carrier/AWS certification, recording-expiry browser timing, and the full remaining engineering scope remain open. No walkthrough video is claimed because browser-daemon recording reset failed. This is a reviewed local foundation, not completion of all 75 criteria.
+
+## Production engineering continuation
+
+The user requested completion beyond the foundation. The deployment model is one self-hosted installation for one organization, not SaaS tenant administration. Existing workspace identifiers remain internal compatibility/security namespaces. PostgreSQL supports shared durable state across workers. The selected initial adapter profile is Twilio, Deepgram STT and OpenAI TTS/inference. Authorization currently permits engineering and local tests only; paid provider traffic, real calls and AWS provisioning remain disabled.
+
+Parallel implementation covers asynchronous PostgreSQL control storage, production media/session routing, provider protocol adapters, durable worker lifecycle and cost/budget reconciliation. Deterministic script graphs and checked FAQ execution now have seven focused passing tests; remaining API/console integration is in progress. No new production acceptance claim follows from these unit results.

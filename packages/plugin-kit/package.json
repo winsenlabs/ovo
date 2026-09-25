@@ -1,0 +1,21 @@
+{
+  "name": "@winsendotai/ovo-plugin-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "$comment": "index.ts is the curated surface. The two subpaths exist only so the packages a class was moved out of can re-export it without a plugin→plugin import; internal modules (fixture-match, fixture-socket, net-pinning, ai-sdk-support, shims) stay private.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ai-sdk-inference": "./src/ai-sdk-inference.ts",
+    "./tool-errors": "./src/tool-errors.ts"
+  },
+  "dependencies": {
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "ai": "7.0.107",
+    "undici": "8.10.2",
+    "ws": "8.21.3"
+  },
+  "devDependencies": {
+    "@types/ws": "8.18.1"
+  }
+}

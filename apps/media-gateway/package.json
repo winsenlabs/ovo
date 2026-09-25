@@ -1,0 +1,20 @@
+{
+  "name": "@winsendotai/ovo-media-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --format=cjs --loader:.sql=text --outfile=dist/main.cjs",
+    "start": "node dist/main.cjs"
+  },
+  "dependencies": {
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-distribution": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-session-host": "workspace:*",
+    "@winsendotai/ovo-plugin-media": "workspace:*",
+    "@winsendotai/ovo-plugin-operations": "workspace:*",
+    "@winsendotai/ovo-plugin-orchestration": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*"
+  }
+}

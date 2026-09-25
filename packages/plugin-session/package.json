@@ -1,0 +1,13 @@
+{
+  "name": "@winsendotai/ovo-plugin-session",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@winsendotai/ovo-session-host": "workspace:*",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "@winsendotai/ovo-plugin-tools": "workspace:*"
+  }
+}

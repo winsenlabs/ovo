@@ -1,0 +1,12 @@
+{
+  "name": "@winsendotai/ovo-plugin-speech-cache",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@winsendotai/ovo-plugin-cache": "workspace:*",
+    "@winsendotai/ovo-plugin-voice": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*"
+  }
+}

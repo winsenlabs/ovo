@@ -1,0 +1,25 @@
+{
+  "repository": "https://example.invalid/fixture/upstream",
+  "commit": "0000000000000000000000000000000000000000",
+  "files": [
+    {
+      "upstream": "src/unchanged.txt",
+      "local": "pinned/unchanged.txt",
+      "sha256": "2128958963e94bd0e9496776a19b45288baa69151d04a2204c9807c07df9f953",
+      "modifications": "none"
+    },
+    {
+      "upstream": "src/tampered.txt",
+      "local": "pinned/tampered.txt",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "localSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "modifications": "Known violation: the file on disk no longer matches this hash."
+    },
+    {
+      "upstream": "src/deleted.txt",
+      "local": "pinned/deleted.txt",
+      "localSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "modifications": "Known violation: the pinned file is not in the checkout at all."
+    }
+  ]
+}

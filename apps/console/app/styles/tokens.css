@@ -1,0 +1,62 @@
+:root {
+  color-scheme: light;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --type-xs: 12px;
+  --type-sm: 14px;
+  --type-md: 16px;
+  --type-lg: 20px;
+  --type-xl: 24px;
+  --type-xxl: 28px;
+  --color-canvas: #f5f5f2;
+  --color-surface: #fff;
+  --color-text: #202923;
+  --color-text-muted: #5b665f;
+  --color-border: #dce1da;
+  --color-accent: #315a42;
+  --color-accent-hover: #274a36;
+  --color-accent-soft: #edf3ed;
+  --color-nav: #19271f;
+  --color-nav-text: #dce9de;
+  --color-warning: #805514;
+  --color-warning-soft: #faf2df;
+  --color-danger: #8a302b;
+  --color-danger-soft: #fbefee;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --shadow-panel: 0 2px 12px rgb(24 38 29 / 7%);
+  --z-nav: 10;
+  --z-overlay: 50;
+  --focus-ring: #315a42;
+  --duration-fast: 140ms;
+  /* Existing domain styles consume these aliases during the route migration. */
+  --canvas: var(--color-canvas);
+  --surface: var(--color-surface);
+  --ink: var(--color-text);
+  --muted: var(--color-text-muted);
+  --border: var(--color-border);
+  --accent: var(--color-accent);
+  --accent-hover: var(--color-accent-hover);
+  --accent-soft: var(--color-accent-soft);
+  --nav: var(--color-nav);
+  --nav-text: var(--color-nav-text);
+  --warning: var(--color-warning);
+  --warning-soft: var(--color-warning-soft);
+  --danger: var(--color-danger);
+  --danger-soft: var(--color-danger-soft);
+  --radius: var(--radius-md);
+}
+.sidebar {
+  --focus-ring-inverse: #a7f3c4;
+  --focus-ring: var(--focus-ring-inverse);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@winsendotai/ovo-plugin-llm-openai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "ovo": {
+    "skeleton": true
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "4.0.71",
+    "@winsendotai/ovo-audio": "workspace:*",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "@winsendotai/ovo-sdk": "workspace:*",
+    "ai": "7.0.107"
+  },
+  "devDependencies": {
+    "@winsendotai/ovo-conformance": "workspace:*"
+  }
+}

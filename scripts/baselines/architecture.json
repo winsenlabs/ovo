@@ -1,0 +1,104 @@
+{
+  "edges": [
+    {
+      "from": "apps/worker",
+      "to": "packages/plugin-voice",
+      "reason": "apps may not import vendor-plugin packages"
+    },
+    {
+      "from": "packages/plugin-evaluations",
+      "to": "packages/behaviors",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-evaluations",
+      "to": "packages/plugin-ledger",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-evaluations",
+      "to": "packages/plugin-tools",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-ledger",
+      "to": "packages/plugin-observability",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-media",
+      "to": "packages/plugin-telephony-twilio",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-observability",
+      "to": "packages/plugin-voice",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-secrets",
+      "to": "packages/plugin-storage",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-speech-cache",
+      "to": "packages/plugin-cache",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-speech-cache",
+      "to": "packages/plugin-voice",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-storage",
+      "to": "apps/api",
+      "reason": "plugins may not import app packages"
+    },
+    {
+      "from": "packages/plugin-storage",
+      "to": "packages/plugin-evaluations",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-storage",
+      "to": "packages/plugin-ledger",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-storage",
+      "to": "packages/plugin-observability",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-storage",
+      "to": "packages/plugin-operations",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-storage",
+      "to": "packages/plugin-orchestration",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-storage",
+      "to": "packages/plugin-recordings",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-tools-http",
+      "to": "packages/plugin-tools",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-tools-mcp",
+      "to": "packages/plugin-tools",
+      "reason": "plugins may not import another plugin or behaviors"
+    },
+    {
+      "from": "packages/plugin-tools-mcp",
+      "to": "packages/plugin-tools-http",
+      "reason": "plugins may not import another plugin or behaviors"
+    }
+  ]
+}

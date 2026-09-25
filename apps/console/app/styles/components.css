@@ -1,0 +1,117 @@
+.panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 2px 4px #20292305;
+}
+.panel-head {
+  display: flex;
+  min-height: 58px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 19px 20px 0;
+}
+.panel-head > div {
+  display: grid;
+  gap: 5px;
+}
+.panel-body {
+  padding: 18px 20px 21px;
+}
+.panel-body > h3,
+.panel-body > div > h3 {
+  margin-bottom: 12px;
+}
+.badge {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #f8f9f7;
+  color: #526058;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+.badge .status-mark {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.badge.good {
+  border-color: #c8dacc;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.badge.warning {
+  border-color: #ead8aa;
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.badge.danger {
+  border-color: #e7c7c4;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.badge.soft {
+  border-color: #d5e2d6;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 12px;
+  border: 1px solid #ccd3cc;
+  border-radius: 6px;
+  background: var(--surface);
+  font-weight: 650;
+}
+.button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.button.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.button.danger {
+  border-color: #e4c6c3;
+  color: var(--danger);
+}
+.button.small {
+  min-height: 30px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.text-button,
+.table-link {
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.danger-text {
+  color: var(--danger);
+}
+.field {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}

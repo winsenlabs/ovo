@@ -1,0 +1,21 @@
+{
+  "name": "@winsendotai/ovo-plugin-providers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@ai-sdk/openai": "4.0.71",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-inference": "workspace:*",
+    "@winsendotai/ovo-plugin-speech-cache": "workspace:*",
+    "@winsendotai/ovo-plugin-tools-http": "workspace:*",
+    "@winsendotai/ovo-plugin-voice": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "ws": "8.21.3",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/ws": "8.18.1"
+  }
+}

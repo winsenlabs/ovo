@@ -1,0 +1,27 @@
+{
+  "name": "@winsendotai/ovo-plugin-operations",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./background-tasks": "./src/background-tasks.ts"
+  },
+  "scripts": {
+    "test": "vitest --root ../.. run packages/plugin-operations/tests",
+    "test:integration": "vitest --root ../.. run packages/plugin-operations/tests/postgres.test.ts"
+  },
+  "dependencies": {
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "ajv": "8.20.0",
+    "pg": "8.16.3",
+    "twilio": "5.10.4",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/pg": "8.15.5",
+    "@winsendotai/ovo-plugin-storage": "workspace:*",
+    "fastify": "5.12.5"
+  }
+}

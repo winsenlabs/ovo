@@ -1,0 +1,10 @@
+{
+  "name": "@winsendotai/ovo-plugin-example",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@winsendotai/ovo-sdk": "workspace:*"
+  }
+}

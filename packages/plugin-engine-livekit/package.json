@@ -1,0 +1,25 @@
+{
+  "name": "@winsendotai/ovo-plugin-engine-livekit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "ovo": {
+    "skeleton": true
+  },
+  "dependencies": {
+    "@livekit/agents": "1.9.0",
+    "@livekit/rtc-node": "0.13.34",
+    "@winsendotai/ovo-audio": "workspace:*",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "@winsendotai/ovo-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@winsendotai/ovo-conformance": "workspace:*"
+  }
+}

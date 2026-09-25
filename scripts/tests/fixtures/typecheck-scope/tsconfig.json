@@ -1,0 +1,4 @@
+{
+  "compilerOptions": { "strict": true, "noEmit": true, "types": [], "skipLibCheck": true },
+  "include": ["good/*.ts", "bad/*.ts"]
+}

@@ -1,0 +1,267 @@
+name: ovo-compact
+
+x-common-environment: &common
+  OVO_ENVIRONMENT: compact
+  OVO_ORGANIZATION_ID: ${OVO_ORGANIZATION_ID:?set OVO_ORGANIZATION_ID}
+  DATABASE_URL: ${DATABASE_URL:?run ./scripts/bootstrap-compose.sh first}
+  AWS_REGION: ${AWS_REGION:-ap-south-1}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID-local}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY-local}
+  OVO_SQS_ENDPOINT: ${OVO_SQS_ENDPOINT-http://queue:9324}
+  OVO_QUEUE_URL: ${OVO_QUEUE_URL:?run ./scripts/bootstrap-compose.sh first}
+  OVO_PLUGIN_MODULES: ${OVO_PLUGIN_MODULES:-[]}
+
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    profiles: [local-postgres]
+    environment:
+      POSTGRES_USER: ovo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ovo
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-54329}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../../packages/plugin-orchestration/migrations/001_durable_orchestration.sql:/docker-entrypoint-initdb.d/010-orchestration.sql:ro
+      - ../../packages/plugin-orchestration/migrations/002_session_lifecycle.sql:/docker-entrypoint-initdb.d/020-session-lifecycle.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ovo -d ovo']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    mem_limit: 1g
+    cpus: 1.0
+    restart: unless-stopped
+
+  queue:
+    image: softwaremill/elasticmq-native:1.6.15
+    profiles: [local-queue]
+    volumes:
+      - ./elasticmq.conf:/opt/elasticmq.conf:ro
+    ports:
+      - '127.0.0.1:${ELASTICMQ_PORT:-9324}:9324'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:9324/health']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    mem_limit: 256m
+    cpus: 0.5
+    restart: unless-stopped
+
+  api:
+    image: ${OVO_API_IMAGE:-ovo-api:local}
+    build:
+      context: ../..
+      dockerfile: infra/container/Dockerfile
+      target: api
+    environment:
+      <<: *common
+      OVO_ADMIN_ID: ${OVO_ADMIN_ID:-first-admin}
+      OVO_ADMIN_LABEL: ${OVO_ADMIN_LABEL:-First administrator}
+      OVO_ADMIN_WORKSPACE_ID: ${OVO_ORGANIZATION_ID:?set OVO_ORGANIZATION_ID}
+      OVO_ALLOW_LOCAL_HTTP: ${OVO_ALLOW_LOCAL_HTTP:-true}
+      OVO_SESSION_SECRET: ${OVO_SESSION_SECRET:?run ./scripts/bootstrap-compose.sh first}
+      OVO_SEED_ADMIN_EMAIL: ${OVO_SEED_ADMIN_EMAIL:?run ./scripts/bootstrap-compose.sh first}
+      OVO_SEED_ADMIN_PASSWORD: ${OVO_SEED_ADMIN_PASSWORD:?run ./scripts/bootstrap-compose.sh first}
+      OVO_SEED_ADMIN_LABEL: ${OVO_SEED_ADMIN_LABEL:-First administrator}
+      OVO_RESTORE_ADMIN_RECOVERY: ${OVO_RESTORE_ADMIN_RECOVERY:-false}
+      OVO_STORAGE_ADAPTER: postgres
+      OVO_SECRETS_BACKEND: encrypted-store
+      OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?set OVO_SECRETS_MASTER_KEY}
+      OVO_RECORDINGS_BACKEND: filesystem
+      OVO_RECORDINGS_DIRECTORY: /var/lib/ovo-recordings
+      OVO_RECORDINGS_DURABLE_MOUNTED: 'true'
+      OVO_RECORDINGS_SHARED_ACROSS_WORKERS: 'true'
+      OVO_RECORDING_RETENTION_DAYS: ${OVO_RECORDING_RETENTION_DAYS:-30}
+      OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
+      OVO_PROVIDER_EVALUATIONS_ENABLED: ${OVO_PROVIDER_EVALUATIONS_ENABLED:-false}
+    depends_on:
+      postgres: { condition: service_healthy, required: false }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - '127.0.0.1:${API_PORT:-4000}:4000'
+    volumes:
+      - recordings-data:/var/lib/ovo-recordings
+    mem_limit: 1g
+    cpus: 1.0
+    restart: unless-stopped
+
+  console:
+    image: ${OVO_CONSOLE_IMAGE:-ovo-console:local}
+    build:
+      context: ../..
+      dockerfile: infra/container/Dockerfile
+      target: console
+    environment:
+      OVO_API_URL: http://api:4000
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - '127.0.0.1:${CONSOLE_PORT:-3000}:3000'
+    mem_limit: 512m
+    cpus: 0.5
+    restart: unless-stopped
+
+  gateway:
+    image: ${OVO_GATEWAY_IMAGE:-ovo-gateway:local}
+    build:
+      context: ../..
+      dockerfile: infra/container/Dockerfile
+      target: gateway
+    environment:
+      <<: *common
+      OVO_MEDIA_PUBLIC_BASE_URL: ${OVO_MEDIA_PUBLIC_BASE_URL:?set OVO_MEDIA_PUBLIC_BASE_URL}
+      OVO_MEDIA_PORT: '4001'
+      OVO_MEDIA_WORKER_TOKEN: ${OVO_MEDIA_WORKER_TOKEN:?set OVO_MEDIA_WORKER_TOKEN}
+      OVO_INBOUND_ENABLED: ${OVO_INBOUND_ENABLED:-false}
+      OVO_INBOUND_ROUTE_SECRET: ${OVO_INBOUND_ROUTE_SECRET:-not-configured}
+      OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
+      OVO_PERMITTED_FROM_NUMBERS: ${OVO_PERMITTED_FROM_NUMBERS:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-not-configured}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-not-configured}
+    depends_on:
+      postgres: { condition: service_healthy, required: false }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - '127.0.0.1:${GATEWAY_PORT:-4001}:4001'
+    mem_limit: 1g
+    cpus: 1.0
+    restart: unless-stopped
+
+  dispatcher:
+    image: ${OVO_DISPATCHER_IMAGE:-ovo-dispatcher:local}
+    build:
+      context: ../..
+      dockerfile: infra/container/Dockerfile
+      target: dispatcher
+    environment:
+      <<: *common
+      OVO_CAPACITY_AUTHORITY: compact-dispatcher
+      OVO_DISPATCHER_ID: compact-dispatcher
+      OVO_DESIRED_WRITER: compose-static-two-workers
+      OVO_INBOUND_WARM_FLOOR: '2'
+      OVO_WORKER_MAX_CAPACITY: '2'
+      OVO_CARRIER_CONCURRENCY: '2'
+      OVO_PROVIDER_CONCURRENCY: '2'
+      OVO_AWS_TASK_LIMIT: '2'
+      OVO_SPEND_PERMITTED_STARTS: '2'
+    depends_on:
+      postgres: { condition: service_healthy, required: false }
+      queue: { condition: service_healthy, required: false }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4002/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+    cpus: 0.5
+    restart: unless-stopped
+
+  worker-1:
+    image: ${OVO_WORKER_IMAGE:-ovo-worker:local}
+    build: &worker-build
+      context: ../..
+      dockerfile: infra/container/Dockerfile
+      target: worker
+    environment: &worker
+      <<: *common
+      OVO_WORKER_ID: compact-worker-1
+      OVO_CALL_SLOTS: '1'
+      OVO_PROTECTION_MODE: process-lifecycle
+      OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
+      OVO_INBOUND_CAPACITY_ENABLED: ${OVO_INBOUND_ENABLED:-false}
+      OVO_TRANSPORT_CERTIFIED: ${OVO_TRANSPORT_CERTIFIED:-false}
+      OVO_MEDIA_READINESS_URL: http://gateway:4001/health
+      OVO_MEDIA_GATEWAY_WS_URL: ws://gateway:4001/worker
+      OVO_MEDIA_WORKER_TOKEN: ${OVO_MEDIA_WORKER_TOKEN:?set OVO_MEDIA_WORKER_TOKEN}
+      OVO_MEDIA_PUBLIC_BASE_URL: ${OVO_MEDIA_PUBLIC_BASE_URL:?set OVO_MEDIA_PUBLIC_BASE_URL}
+      OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?set OVO_SECRETS_MASTER_KEY}
+      OVO_RECORDINGS_BACKEND: filesystem
+      OVO_RECORDINGS_DIRECTORY: /var/lib/ovo-recordings
+      OVO_RECORDINGS_DURABLE_MOUNTED: 'true'
+      OVO_RECORDINGS_SHARED_ACROSS_WORKERS: 'true'
+      OVO_RECORDING_RETENTION_DAYS: ${OVO_RECORDING_RETENTION_DAYS:-30}
+      OVO_WORKER_ENDPOINT: ws://worker-1:4100/internal/media
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-not-configured}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-not-configured}
+    depends_on:
+      postgres: { condition: service_healthy, required: false }
+      queue: { condition: service_healthy, required: false }
+      gateway: { condition: service_healthy }
+    healthcheck: &worker-health
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4100/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - recordings-data:/var/lib/ovo-recordings
+    mem_limit: 2g
+    cpus: 1.5
+    restart: unless-stopped
+
+  worker-2:
+    image: ${OVO_WORKER_IMAGE:-ovo-worker:local}
+    build: *worker-build
+    environment:
+      <<: *worker
+      OVO_WORKER_ID: compact-worker-2
+      OVO_WORKER_ENDPOINT: ws://worker-2:4100/internal/media
+    depends_on:
+      postgres: { condition: service_healthy, required: false }
+      queue: { condition: service_healthy, required: false }
+      gateway: { condition: service_healthy }
+    healthcheck: *worker-health
+    volumes:
+      - recordings-data:/var/lib/ovo-recordings
+    mem_limit: 2g
+    cpus: 1.5
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  recordings-data:

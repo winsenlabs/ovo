@@ -1,0 +1,186 @@
+import { randomUUID } from 'node:crypto';
+import type { Pool } from 'pg';
+import type { ClaimedJob, DurableJob, JobClaimResult, JobReference } from '../types.ts';
+import { fromJobRow, jobColumns, transaction, type JobRow } from './database.ts';
+
+export class JobRepository {
+  constructor(private readonly pool: Pool) {}
+
+  async enqueue(input: {
+    id: string;
+    workspaceId: string;
+    idempotencyKey: string;
+    payload: Record<string, unknown>;
+    notBefore?: Date;
+  }): Promise<{ job: DurableJob; created: boolean }> {
+    return transaction(this.pool, async (client) => {
+      const inserted = await client.query<JobRow>(
+        `INSERT INTO ovo_jobs (id, workspace_id, idempotency_key, payload, status, not_before)
+         VALUES ($1, $2, $3, $4::jsonb, 'queued', COALESCE($5, now()))
+         ON CONFLICT (workspace_id, idempotency_key) DO NOTHING RETURNING ${jobColumns}`,
+        [
+          input.id,
+          input.workspaceId,
+          input.idempotencyKey,
+          JSON.stringify(input.payload),
+          input.notBefore ?? null,
+        ],
+      );
+      if (inserted.rowCount === 1) {
+        const reference: JobReference = { schemaVersion: 1, jobId: input.id };
+        await client.query(
+          `INSERT INTO ovo_outbox (id, topic, aggregate_id, payload) VALUES ($1, 'job.eligible', $2, $3::jsonb)`,
+          [randomUUID(), input.id, JSON.stringify(reference)],
+        );
+        return { job: fromJobRow(inserted.rows[0]!), created: true };
+      }
+      const existing = await client.query<JobRow>(
+        `SELECT ${jobColumns} FROM ovo_jobs WHERE workspace_id = $1 AND idempotency_key = $2`,
+        [input.workspaceId, input.idempotencyKey],
+      );
+      if (!existing.rows[0]) throw new Error('Idempotent job disappeared during enqueue');
+      return { job: fromJobRow(existing.rows[0]), created: false };
+    });
+  }
+
+  async claim(jobId: string, workerId: string, leaseMs: number): Promise<JobClaimResult> {
+    if (!Number.isInteger(leaseMs) || leaseMs <= 0)
+      throw new Error('leaseMs must be a positive integer');
+    return transaction(this.pool, async (client) => {
+      const result = await client.query<JobRow>(
+        `UPDATE ovo_jobs SET
+           status = CASE WHEN status IN ('dialing', 'reconcile_required', 'accepted', 'connected')
+                         THEN 'reconcile_required' ELSE 'owned' END,
+           owner_id = $2, owner_epoch = owner_epoch + 1,
+           lease_expires_at = now() + ($3 * interval '1 millisecond'), updated_at = now(), last_error = NULL
+         WHERE id = $1 AND not_before <= now()
+           AND (
+             status = 'queued'
+             OR (status = 'owned' AND (lease_expires_at IS NULL OR lease_expires_at < now()))
+             OR (status IN ('dialing', 'reconcile_required', 'accepted', 'connected')
+                 AND (owner_id IS NULL OR lease_expires_at IS NULL OR lease_expires_at < now()))
+           )
+         RETURNING ${jobColumns}`,
+        [jobId, workerId, leaseMs],
+      );
+      const row = result.rows[0];
+      if (!row) {
+        const unavailable = await client.query<
+          Pick<JobRow, 'status' | 'lease_expires_at'> & {
+            not_before: Date;
+            before_ready: boolean;
+            currently_leased: boolean;
+          }
+        >(
+          `SELECT status, lease_expires_at, not_before,
+             not_before > now() AS before_ready,
+             lease_expires_at > now() AS currently_leased
+           FROM ovo_jobs WHERE id = $1`,
+          [jobId],
+        );
+        const current = unavailable.rows[0];
+        if (!current) return { kind: 'missing' };
+        if (current.before_ready) {
+          return { kind: 'defer', reason: 'not_before', retryAt: current.not_before };
+        }
+        if (
+          ['owned', 'dialing', 'reconcile_required', 'accepted', 'connected'].includes(
+            current.status,
+          ) &&
+          current.currently_leased
+        ) {
+          return {
+            kind: 'defer',
+            reason: 'currently_leased',
+            retryAt: current.lease_expires_at ?? undefined,
+          };
+        }
+        return { kind: 'settled' };
+      }
+      const mode = row.status === 'reconcile_required' ? 'reconcile' : 'execute';
+      await client.query(
+        `INSERT INTO ovo_job_attempts (job_id, epoch, worker_id, state) VALUES ($1, $2, $3, $4)`,
+        [jobId, row.owner_epoch, workerId, mode === 'reconcile' ? 'reconcile_owned' : 'owned'],
+      );
+      const job = fromJobRow(row);
+      if (!job.ownerId || !job.leaseExpiresAt)
+        throw new Error('Claim returned incomplete ownership');
+      const claimed: ClaimedJob = {
+        ...job,
+        ownerId: job.ownerId,
+        leaseExpiresAt: job.leaseExpiresAt,
+      };
+      return { kind: mode, job: claimed };
+    });
+  }
+
+  async heartbeat(
+    jobId: string,
+    workerId: string,
+    epoch: number,
+    leaseMs: number,
+  ): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE ovo_jobs SET lease_expires_at = now() + ($4 * interval '1 millisecond'), updated_at = now()
+       WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3
+         AND status IN ('owned', 'dialing', 'reconcile_required', 'accepted', 'connected')`,
+      [jobId, workerId, epoch, leaseMs],
+    );
+    return result.rowCount === 1;
+  }
+
+  async release(
+    jobId: string,
+    workerId: string,
+    epoch: number,
+    reason: string,
+    notBefore = new Date(),
+  ): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE ovo_jobs SET status = 'queued', owner_id = NULL, lease_expires_at = NULL,
+         last_error = $4, not_before = $5, updated_at = now()
+       WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3 AND status = 'owned'`,
+      [jobId, workerId, epoch, reason, notBefore],
+    );
+    return result.rowCount === 1;
+  }
+
+  async updateOwnedPayload(
+    jobId: string,
+    workerId: string,
+    epoch: number,
+    payload: Record<string, unknown>,
+  ): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE ovo_jobs SET payload = $4::jsonb, updated_at = now()
+       WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3 AND status = 'owned'
+         AND lease_expires_at > now()`,
+      [jobId, workerId, epoch, JSON.stringify(payload)],
+    );
+    return result.rowCount === 1;
+  }
+
+  async deferReconciliation(
+    jobId: string,
+    workerId: string,
+    epoch: number,
+    reason: string,
+    notBefore: Date,
+  ): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE ovo_jobs SET owner_id = NULL, lease_expires_at = NULL, last_error = $4,
+         not_before = $5, updated_at = now()
+       WHERE id = $1 AND owner_id = $2 AND owner_epoch = $3 AND status = 'reconcile_required'`,
+      [jobId, workerId, epoch, reason, notBefore],
+    );
+    return result.rowCount === 1;
+  }
+
+  async get(jobId: string): Promise<DurableJob | undefined> {
+    const result = await this.pool.query<JobRow>(
+      `SELECT ${jobColumns} FROM ovo_jobs WHERE id = $1`,
+      [jobId],
+    );
+    return result.rows[0] ? fromJobRow(result.rows[0]) : undefined;
+  }
+}

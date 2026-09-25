@@ -1,0 +1,36 @@
+{
+  "name": "@winsendotai/ovo-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.23.0",
+  "engines": {
+    "node": ">=22.19.0 <23 || >=24"
+  },
+  "scripts": {
+    "typecheck": "pnpm build:vendor && tsc --noEmit && pnpm --filter @winsendotai/ovo-console typecheck",
+    "test": "vitest run",
+    "build": "node scripts/build.mjs && pnpm --filter @winsendotai/ovo-console build",
+    "lint": "node scripts/lint.mjs",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm audit",
+    "build:vendor": "tsc -p vendor/cosmokit/tsconfig.json && tsc -p vendor/cordis/tsconfig.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "audit": "pnpm audit --audit-level moderate",
+    "dev:api": "node scripts/run-local.mjs api",
+    "dev:console": "node scripts/run-local.mjs console",
+    "setup:local": "node scripts/setup-local.mjs",
+    "lint:scope": "node scripts/lint.mjs --only",
+    "typecheck:scope": "node scripts/typecheck-scope.mjs",
+    "check:terraform": "node scripts/check-terraform.mjs",
+    "test:console:e2e": "pnpm --filter @winsendotai/ovo-console --if-present run e2e"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.11",
+    "tsx": "4.22.4",
+    "prettier": "3.9.8",
+    "esbuild": "0.28.2"
+  }
+}

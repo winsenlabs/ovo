@@ -1,0 +1,38 @@
+{
+  "name": "@winsendotai/ovo-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/server.ts",
+  "scripts": {
+    "dev": "tsx --import ../../scripts/register-sql.mjs src/index.ts"
+  },
+  "dependencies": {
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-distribution": "workspace:*",
+    "@winsendotai/ovo-fixture-calls": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-session-host": "workspace:*",
+    "@winsendotai/ovo-behaviors": "workspace:*",
+    "@winsendotai/ovo-plugin-observability": "workspace:*",
+    "@winsendotai/ovo-plugin-operations": "workspace:*",
+    "@winsendotai/ovo-plugin-recordings": "workspace:*",
+    "@winsendotai/ovo-plugin-secrets": "workspace:*",
+    "@winsendotai/ovo-plugin-storage": "workspace:*",
+    "@winsendotai/ovo-plugin-tools-mcp": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "fastify": "5.12.5",
+    "zod": "4.6.5",
+    "@winsendotai/ovo-plugin-tools-http": "workspace:*",
+    "@winsendotai/ovo-plugin-session": "workspace:*",
+    "@winsendotai/ovo-plugin-tools": "workspace:*",
+    "@winsendotai/ovo-plugin-ledger": "workspace:*",
+    "@winsendotai/ovo-plugin-evaluations": "workspace:*",
+    "@winsendotai/ovo-plugin-inference": "workspace:*",
+    "@winsendotai/ovo-plugin-providers": "workspace:*",
+    "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "@types/pg": "8.15.5"
+  }
+}

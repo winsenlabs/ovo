@@ -1,0 +1,59 @@
+{
+  "violations": [
+    {
+      "pluginId": "connector",
+      "kind": "engine-tool-access",
+      "key": "ovo.tool-connector.native"
+    },
+    {
+      "pluginId": "consumer",
+      "kind": "provide-undeclared",
+      "key": "extra"
+    },
+    {
+      "pluginId": "consumer",
+      "kind": "read-undeclared",
+      "key": "b"
+    },
+    {
+      "pluginId": "egress",
+      "kind": "egress-denied",
+      "key": "api.example.test"
+    },
+    {
+      "pluginId": "egress",
+      "kind": "egress-denied",
+      "key": "cdn.example.test"
+    },
+    {
+      "pluginId": "egress",
+      "kind": "egress-denied",
+      "key": "not a url"
+    },
+    {
+      "pluginId": "legacy",
+      "kind": "egress-denied",
+      "key": "api.example.test"
+    },
+    {
+      "pluginId": "reader",
+      "kind": "read-undeclared",
+      "key": "b"
+    },
+    {
+      "pluginId": "sneaky",
+      "kind": "engine-tool-access",
+      "key": "ovo.execution"
+    },
+    {
+      "pluginId": "snoop",
+      "kind": "read-undeclared",
+      "key": "ovo.operations"
+    },
+    {
+      "pluginId": "writer",
+      "kind": "provide-undeclared",
+      "key": "other"
+    }
+  ]
+}

@@ -1,0 +1,151 @@
+@media (min-width: 1500px) {
+  .studio-layout {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+  .mode-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1050px) {
+  .sidebar {
+    width: 190px;
+  }
+  .shell {
+    margin-left: 190px;
+  }
+  .content,
+  .topbar {
+    padding-right: 22px;
+    padding-left: 22px;
+  }
+  .studio-layout {
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 15px;
+  }
+}
+
+@media (max-width: 850px) {
+  .sidebar {
+    position: relative;
+    width: 100%;
+    padding: 14px 16px;
+  }
+  .workspace-switcher,
+  .sidebar-status,
+  .nav-group > p {
+    display: none;
+  }
+  .nav-group {
+    margin-top: 10px;
+  }
+  .nav-group nav {
+    display: flex;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .nav-group a {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .shell {
+    margin-left: 0;
+  }
+  .topbar {
+    position: relative;
+    min-height: 56px;
+  }
+  .studio-layout,
+  .call-layout {
+    grid-template-columns: 1fr;
+  }
+  .studio-rail {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .studio-rail .panel:last-child {
+    grid-column: 1 / -1;
+  }
+  .page-heading {
+    align-items: flex-start;
+  }
+  .skip-link {
+    left: 12px;
+  }
+}
+
+@media (max-width: 520px) {
+  body {
+    min-width: 0;
+  }
+  .content {
+    width: 100%;
+    padding: 20px 16px 48px;
+    overflow: hidden;
+  }
+  .topbar {
+    padding: 0 16px;
+  }
+  .topbar-actions .operator,
+  .topbar-actions .badge {
+    display: none;
+  }
+  .page-heading {
+    display: grid;
+    gap: 14px;
+  }
+  .page-heading h1 {
+    font-size: 24px;
+  }
+  .heading-actions {
+    width: 100%;
+  }
+  .heading-actions select {
+    flex: 1 1 100%;
+  }
+  .form-grid,
+  .mode-grid,
+  .metrics,
+  .studio-rail,
+  .conflict-grid {
+    grid-template-columns: 1fr;
+  }
+  .studio-rail .panel:last-child {
+    grid-column: auto;
+  }
+  .panel-head,
+  .panel-body {
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+  .panel-head {
+    min-height: 54px;
+  }
+  .metrics > :is(div, article) {
+    min-width: 0;
+  }
+  .table-region {
+    width: 100%;
+  }
+  .desktop-authoring-note {
+    display: block;
+  }
+  .compact-secret {
+    width: 100%;
+  }
+  .metadata-list {
+    grid-template-columns: 1fr;
+  }
+  .key-callout {
+    display: grid;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .spinner {
+    animation: none;
+  }
+}

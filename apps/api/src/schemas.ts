@@ -1,0 +1,98 @@
+import { z } from 'zod';
+import { AgentConfig, ToolDefinition } from '@winsendotai/ovo-contracts';
+import { hasInlineCredential } from './provider-config.ts';
+export const Id = z.string().uuid();
+export const PluginSelection = z.array(z.string().min(1)).min(1).max(50);
+export const AgentBody = z.object({ config: AgentConfig });
+export const CredentialBody = z.object({
+  label: z.string().min(1).max(120),
+  provider: z.string().min(1).max(120),
+  type: z.string().min(1).max(120),
+  environment: z.string().min(1).max(120),
+  value: z.string().min(1).max(100_000),
+  expiresAt: z.iso.datetime().nullable().optional(),
+  permittedAgentIds: z.array(Id).max(100).default([]),
+});
+export const ProviderBindingBody = z.object({
+  label: z.string().min(1).max(120),
+  provider: z.string().min(1).max(120),
+  pluginId: z.string().min(1).max(240).nullable().optional(),
+  environment: z.string().min(1).max(120),
+  credentialId: Id,
+  config: z
+    .record(z.string(), z.unknown())
+    .refine(
+      (value) => !hasInlineCredential(value),
+      'Provider configuration cannot contain inline credentials; use credentialId',
+    )
+    .default({}),
+});
+export const McpBody = z.object({
+  label: z.string().min(1).max(120),
+  endpoint: z
+    .url()
+    .refine((value) => !hasInlineCredential(value), 'Endpoint cannot contain credentials'),
+  auth: z.enum(['none', 'bearer']),
+  credentialId: Id.nullable().optional(),
+});
+export const ApprovalBody = z.object({
+  connectionId: Id,
+  remoteName: z.string().min(1).max(240),
+  schemaDigest: z.string().min(8).max(256),
+});
+export const SimulationBody = z.object({
+  releaseId: Id,
+  input: z.string().min(1).max(20_000),
+  followUpInputs: z.array(z.string().max(20_000)).max(19).optional(),
+  variables: z.record(z.string(), z.unknown()).default({}),
+  bindings: z
+    .object({
+      modelReplies: z
+        .array(
+          z.discriminatedUnion('kind', [
+            z.object({ kind: z.literal('text'), text: z.string().max(20_000) }),
+            z.object({
+              kind: z.literal('tool'),
+              toolId: ToolDefinition.shape.id,
+              input: z.unknown(),
+            }),
+          ]),
+        )
+        .max(20)
+        .optional(),
+      toolResults: z.record(ToolDefinition.shape.id, z.unknown()).optional(),
+    })
+    .optional(),
+});
+export const EvaluationBody = z.object({
+  releaseId: Id,
+  fixtures: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(120),
+        input: z.string().min(1).max(20_000),
+        variables: z.record(z.string(), z.unknown()).default({}),
+        expectedOutput: z.string().optional(),
+        forbiddenOutput: z.array(z.string()).max(100).default([]),
+      }),
+    )
+    .min(1)
+    .max(100),
+});
+export const UsageBody = z.object({
+  id: Id,
+  provider: z.string().min(1),
+  providerRequestId: z.string().min(1),
+  quantity: z.string().regex(/^(0|[1-9]\d{0,29})(\.\d{1,12})?$/),
+  unit: z.string().min(1),
+  state: z.enum(['estimated', 'reconciled']),
+  priceCard: z.object({
+    id: z.string().min(1),
+    version: z.string().min(1),
+    provider: z.string().min(1),
+    unit: z.string().min(1),
+    currency: z.string().regex(/^[A-Z]{3}$/),
+    minorUnitsPerBlock: z.string(),
+    blockQuantity: z.string(),
+  }),
+});

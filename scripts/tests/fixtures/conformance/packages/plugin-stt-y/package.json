@@ -1,0 +1,7 @@
+{
+  "name": "@winsendotai/ovo-plugin-stt-y",
+  "private": true,
+  "ovo": {
+    "skeleton": true
+  }
+}
