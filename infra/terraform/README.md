@@ -18,6 +18,8 @@ This is configuration only. It has not been applied to an AWS account and is not
 4. Confirm PostgreSQL backups/PITR, deletion protection, TLS requirements, and migrations in the database platform that owns the control schema.
 5. Confirm carrier callback URLs, DNS, certificate, NAT/VPC endpoint routing, quotas, and desired-count maximums.
 
+The dispatcher receives `carrier_concurrency`, `provider_concurrency`, and `spend_permitted_starts` as configured capacity ceilings. Each defaults to 100. Raise these values only after checking the carrier, provider, and spend limits in the deployed environment; these Terraform values are configuration, not a live quota feed. `worker_max_capacity` remains the overall ceiling.
+
 The S3 backend example uses Terraform 1.10's `use_lockfile = true` for state locking. If adapting this profile for an older Terraform version, lower `required_version` and configure `dynamodb_table` with a pre-existing lock table instead. Review the locking migration before switching methods.
 
 Do not apply this profile until the runbook gates in `docs/runbooks/fargate-deployment.md` pass. The media gateway executable/routing handshake and control API currently remain integration gates; Terraform resources do not prove those application paths.

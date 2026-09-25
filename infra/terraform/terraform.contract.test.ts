@@ -73,6 +73,22 @@ describe('Fargate scaling contract', () => {
     expect(tf('tasks.tf')).not.toContain('OVO_DISPATCHER_ID');
   });
 
+  it('selects the Fargate distribution profile in every task', () => {
+    expect(tf('main.tf')).toContain('{ name = "OVO_DEPLOYMENT_PROFILE", value = "fargate" }');
+    for (const name of ['api', 'console', 'gateway', 'dispatcher', 'worker'])
+      expect(block(tf('tasks.tf'), 'resource "aws_ecs_task_definition"', name))
+        .toContain('environment = concat(local.common_environment, [');
+  });
+
+  it('passes explicit carrier, provider and spend ceilings to the dispatcher', () => {
+    const dispatcher = block(tf('tasks.tf'), 'resource "aws_ecs_task_definition"', 'dispatcher');
+    for (const [key, variable] of [
+      ['OVO_CARRIER_CONCURRENCY', 'carrier_concurrency'],
+      ['OVO_PROVIDER_CONCURRENCY', 'provider_concurrency'],
+      ['OVO_SPEND_PERMITTED_STARTS', 'spend_permitted_starts'],
+    ]) expect(dispatcher).toContain(`{ name = "${key}", value = tostring(var.${variable}) }`);
+  });
+
   it('provides every required variable in the example and S3 state locking', () => {
     const vars = tf('variables.tf');
     const example = tf('terraform.tfvars.example');

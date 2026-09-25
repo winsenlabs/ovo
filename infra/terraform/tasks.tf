@@ -96,6 +96,9 @@ resource "aws_ecs_task_definition" "dispatcher" {
       { name = "OVO_INBOUND_ENABLED", value = tostring(var.enable_inbound_calls) },
       { name = "OVO_INBOUND_WARM_FLOOR", value = tostring(var.inbound_warm_floor) },
       { name = "OVO_WORKER_MAX_CAPACITY", value = tostring(var.worker_max_capacity) },
+      { name = "OVO_CARRIER_CONCURRENCY", value = tostring(var.carrier_concurrency) },
+      { name = "OVO_PROVIDER_CONCURRENCY", value = tostring(var.provider_concurrency) },
+      { name = "OVO_SPEND_PERMITTED_STARTS", value = tostring(var.spend_permitted_starts) },
       { name = "OVO_CAPACITY_SIGNAL", value = "cloudwatch" },
     ])
     secrets = concat(local.runtime_secrets, [

@@ -111,6 +111,21 @@ variable "worker_max_capacity" {
   type    = number
   default = 100
 }
+variable "carrier_concurrency" {
+  type        = number
+  default     = 100
+  description = "Configured carrier starts ceiling; reconcile with the live carrier quota before raising."
+}
+variable "provider_concurrency" {
+  type        = number
+  default     = 100
+  description = "Configured provider starts ceiling; reconcile with the live provider quota before raising."
+}
+variable "spend_permitted_starts" {
+  type        = number
+  default     = 100
+  description = "Configured spend-permitted starts ceiling; reconcile with the live spend gate before raising."
+}
 variable "max_call_seconds" {
   type    = number
   default = 3600

@@ -67,7 +67,14 @@ export async function openDispatcherProcess(input: {
   const distribution = await loadDistribution({ role: 'dispatcher', profile, env,
     firstParty: [...FIRST_PARTY, { package: 'ovo-dispatcher-host', roles: ['dispatcher'],
       load: async () => ({ plugins: [operationsPlugin, ledgerPlugin, netPlugin] }) }] });
-  const composition = await compose(distribution.processRows, distribution.catalog,
+  const signalId = `@winsendotai/ovo-plugin-orchestration/${profile === 'fargate' ? 'cloudwatch' : 'log'}-capacity-signal`;
+  const signalRows = distribution.processRows.filter((row) =>
+    row.id.endsWith('/cloudwatch-capacity-signal') || row.id.endsWith('/log-capacity-signal'));
+  if (signalRows.filter((row) => row.id === signalId).length !== 1)
+    throw new Error(`Dispatcher profile must select exactly one ${signalId} row`);
+  const rows = distribution.processRows.filter((row) =>
+    !signalRows.includes(row) || row.id === signalId);
+  const composition = await compose(rows, distribution.catalog,
     { scope: 'process' });
   let controlStore: ControlStore | undefined;
   try {
@@ -97,11 +104,13 @@ export async function openDispatcherProcess(input: {
         await Promise.all([outbox.flush(), campaignOutbox.flush(), releaseTerminalCalls(store, control)]);
       } },
     ];
-    const readProvisionedTasks = input.readProvisionedTasks ?? (profile === 'fargate'
+    const ecsReader = !input.readProvisionedTasks && profile === 'fargate'
+      ? new EcsServiceReader(required(env, 'OVO_ECS_CLUSTER'),
+        { workers: required(env, 'OVO_WORKER_SERVICE') }, { region: required(env, 'AWS_REGION') })
+      : undefined;
+    const readProvisionedTasks = input.readProvisionedTasks ?? (ecsReader
       ? async () => {
-          const reader = new EcsServiceReader(required(env, 'OVO_ECS_CLUSTER'),
-            { workers: required(env, 'OVO_WORKER_SERVICE') }, { region: required(env, 'AWS_REGION') });
-          const service = await reader.read('workers');
+          const service = await ecsReader.read('workers');
           return service.runningCount + service.pendingCount;
         }
       : async () => positiveInteger(env, 'OVO_COMPOSE_WORKERS', 2));
