@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { authorizeCampaignPayload, recordCampaignAttempt } from '../src/campaign-dial.ts';
 import { reconcileClaimedCarrierDial } from '../src/reconciliation.ts';
+import { dialOwnedJob } from '../src/worker-dial.ts';
 
 const job = {
   id: 'job-1',
@@ -104,5 +105,49 @@ describe('carrier dial reconciliation', () => {
     );
     expect(deferReconciliation.mock.calls[0]?.[4].getTime()).toBeGreaterThan(Date.now() + 14_000);
     expect(events).toEqual(['defer', 'delete']);
+  });
+});
+
+describe('last pre-dial drain gate', () => {
+  it('releases the owned job and protection before creating a route or dialing', async () => {
+    const events: string[] = [];
+    const release = vi.fn(async () => { events.push('release'); return true; });
+    const deleteHint = vi.fn(async () => { events.push('delete'); });
+    const releaseProtection = vi.fn(async () => { events.push('protection'); });
+    const beginDialSession = vi.fn();
+    const dial = vi.fn();
+    const result = await dialOwnedJob({
+      job: { ...job, id: '00000000-0000-4000-8000-000000000001' },
+      dialPayload: {
+        to: '+910000000011', from: '+910000000022',
+        streamUrl: 'wss://example.test/media', statusCallbackUrl: 'https://example.test/status',
+      },
+      delivery: {
+        messageId: 'hint', receiptHandle: 'receipt', receiveCount: 1,
+        reference: { schemaVersion: 1, jobId: '00000000-0000-4000-8000-000000000001' },
+      },
+      lease: { stop: vi.fn() } as never,
+      visibility: { stop: vi.fn() } as never,
+      renewal: { release: releaseProtection } as never,
+      workerId: 'worker-1',
+      store: { release, beginDialSession } as never,
+      queue: { delete: deleteHint } as never,
+      telephony: { dial } as never,
+      options: {
+        leaseMs: 60_000, protectionRenewMs: 120_000, deferSeconds: 15,
+        visibilitySeconds: 120, workerEndpoint: 'ws://worker.test:4100/internal/media',
+        handshakeTtlMs: 60_000,
+      },
+      recordAttempt: async () => undefined,
+      onCarrierAccepted: () => undefined,
+      isDraining: () => true,
+    });
+    expect(result).toEqual({ kind: 'deferred', reason: 'worker-draining' });
+    expect(release).toHaveBeenCalledWith(
+      '00000000-0000-4000-8000-000000000001', 'worker-1', 1, 'worker-draining', expect.any(Date),
+    );
+    expect(events).toEqual(['release', 'delete', 'protection']);
+    expect(beginDialSession).not.toHaveBeenCalled();
+    expect(dial).not.toHaveBeenCalled();
   });
 });

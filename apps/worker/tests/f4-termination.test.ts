@@ -1,7 +1,35 @@
 import { describe, expect, it, vi } from 'vitest';
-import { terminateOwnedJob } from '../src/worker-termination.ts';
+import { terminateOwnedJob, terminateOwnedJobAndFinalize } from '../src/worker-termination.ts';
 
 describe('owned carrier termination', () => {
+  it.each(['job-lease-lost', 'worker-shutdown'])(
+    'finalizes cost after a forced %s carrier exit even when media close throws', async (reason) => {
+      const events: string[] = [];
+      const finalizeCost = vi.fn(async () => { events.push('finalize'); });
+      await expect(terminateOwnedJobAndFinalize({
+        jobId: 'job-forced', workerId: 'worker-1', ownerEpoch: 7, reason,
+        store: {
+          get: async () => ({ id: 'job-forced', payload: {} }),
+          getSessionRoute: async () => ({
+            sessionId: 'session-forced', jobId: 'job-forced', workerId: 'worker-1',
+            ownerEpoch: 7, carrierCallId: 'CA-forced',
+          }),
+          requestSessionTermination: async () => { events.push('fence'); return { carrierCallId: 'CA-forced' }; },
+        } as never,
+        carriers: { forJob: async () => ({
+          control: { hangup: async () => { events.push('hangup'); return 'ended'; } },
+          carrier: { capabilities: { control: { hangup: 'close-stream' } } },
+        }) } as never,
+        media: {
+          terminate: async () => { events.push('media'); },
+          closeSession: async () => { events.push('close'); throw new Error('close failed'); },
+        } as never,
+        finalizeCost,
+      })).rejects.toThrow('close failed');
+      expect(events).toEqual(['fence', 'hangup', 'media', 'close', 'finalize']);
+      expect(finalizeCost).toHaveBeenCalledExactlyOnceWith('job-forced');
+    },
+  );
   it.each([
     ['job-lease-lost', 'ownership_lost'],
     ['cost-max-duration', 'max_duration'],

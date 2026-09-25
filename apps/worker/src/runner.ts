@@ -232,6 +232,7 @@ export class WorkerRunner {
       onCarrierAccepted: (carrierCallId) => {
         activeCarrierCallId = carrierCallId;
       },
+      isDraining: () => this.draining,
     });
   }
 

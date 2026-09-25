@@ -15,6 +15,17 @@ export interface OwnedTermination {
   media: Pick<WorkerMediaRuntime, 'terminate' | 'closeSession'>;
 }
 
+/** Forced exits can bypass onSessionClose, so settle their cost attachment here. */
+export async function terminateOwnedJobAndFinalize(
+  input: OwnedTermination & { finalizeCost(jobId: string): Promise<void> },
+): Promise<boolean> {
+  try {
+    return await terminateOwnedJob(input);
+  } finally {
+    await input.finalizeCost(input.jobId);
+  }
+}
+
 /** One route fence before carrier control and local media teardown. */
 export async function terminateOwnedJob(input: OwnedTermination): Promise<boolean> {
   const job = await input.store.get(input.jobId);

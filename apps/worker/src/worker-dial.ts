@@ -38,6 +38,7 @@ export async function dialOwnedJob(input: {
     reason?: string,
   ): Promise<unknown>;
   onCarrierAccepted(carrierCallId?: string): void;
+  isDraining(): boolean;
 }): Promise<DeliveryOutcome> {
   const { job, dialPayload, delivery, lease, visibility, renewal } = input;
   let selected: SelectedJobCarrier | undefined;
@@ -161,6 +162,18 @@ export async function dialOwnedJob(input: {
     visibility.stop();
     await renewal.release();
     return { kind: 'failed', reason };
+  }
+  if (input.isDraining()) {
+    await cost?.releaseBeforeStart();
+    await input.store.release(
+      job.id, input.workerId, job.ownerEpoch, 'worker-draining',
+      new Date(Date.now() + input.options.deferSeconds * 1_000),
+    );
+    await input.queue.delete(delivery);
+    lease.stop();
+    visibility.stop();
+    await renewal.release();
+    return { kind: 'deferred', reason: 'worker-draining' };
   }
   const route = await input.store.beginDialSession(handshake.route);
   if (!route) {

@@ -5,7 +5,7 @@ import { createProductionWorkerMediaRuntime } from './worker-media-bootstrap.ts'
 import { openWorkerProcess } from './worker-process.ts';
 import { recordingRetentionDays } from './recording-runtime.ts';
 import { terminateActiveSession } from './worker-cleanup.ts';
-import { terminateOwnedJob } from './worker-termination.ts';
+import { terminateOwnedJobAndFinalize } from './worker-termination.ts';
 import { WorkerReporter } from './worker-reporter.ts';
 import { env } from './worker-environment.ts';
 
@@ -56,6 +56,11 @@ export async function runWorkerLoop(input: {
     carriers,
   } = processRuntime;
   let mediaRuntime: ReturnType<typeof createProductionWorkerMediaRuntime>;
+  const terminateCostedJob = (jobId: string, ownerEpoch: number, reason: string) =>
+    terminateOwnedJobAndFinalize({
+      jobId, ownerEpoch, reason, workerId, store, carriers, media: mediaRuntime,
+      finalizeCost: (id) => costs.finalize(id),
+    });
   const inboundRuntime = createInboundWorkerRuntime(
     process.env.OVO_INBOUND_CAPACITY_ENABLED === 'true',
     {
@@ -67,16 +72,7 @@ export async function runWorkerLoop(input: {
       store,
       telephony,
       costs,
-      terminateOwned: (jobId, ownerEpoch, reason) =>
-        terminateOwnedJob({
-          jobId,
-          ownerEpoch,
-          reason,
-          workerId,
-          store,
-          carriers,
-          media: mediaRuntime,
-        }),
+      terminateOwned: terminateCostedJob,
       onProtectionLost: (reason) => {
         status.state = 'draining';
         status.detail = reason;
@@ -127,27 +123,9 @@ export async function runWorkerLoop(input: {
     inbound: inboundRuntime,
     graph: { distribution, parent: composition, carriers },
   });
-  runner.setTerminationHandler((jobId, ownerEpoch, reason) =>
-    terminateOwnedJob({
-      jobId,
-      ownerEpoch,
-      reason,
-      workerId,
-      store,
-      carriers,
-      media: mediaRuntime,
-    }),
-  );
+  runner.setTerminationHandler(terminateCostedJob);
   costs.setTerminationHandler(async (job, reason) => {
-    await terminateOwnedJob({
-      jobId: job.id,
-      ownerEpoch: job.ownerEpoch ?? 0,
-      reason,
-      workerId,
-      store,
-      carriers,
-      media: mediaRuntime,
-    });
+    await terminateCostedJob(job.id, job.ownerEpoch ?? 0, reason);
   });
   await mediaRuntime.start();
   await inboundRuntime?.start();
@@ -174,15 +152,14 @@ export async function runWorkerLoop(input: {
       runner.beginDrain();
       await reporter.stop();
       if (active) {
-        await terminateActiveSession({
-          active,
-          reason: 'worker-shutdown',
-          workerId,
-          store,
-          telephony,
-          carriers,
-          media: mediaRuntime,
-        });
+        try {
+          await terminateActiveSession({
+            active, reason: 'worker-shutdown', workerId, store, telephony,
+            carriers, media: mediaRuntime,
+          });
+        } finally {
+          await costs.finalize(active.jobId);
+        }
         active.lease.stop();
         await active.protection.release();
       }
