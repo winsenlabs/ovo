@@ -1,0 +1,110 @@
+.field label,
+form > label {
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.2px;
+}
+.field [data-field-control] {
+  display: grid;
+}
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid #cfd6cf;
+  border-radius: 6px;
+  background: #fff;
+}
+textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+select[multiple] {
+  min-height: 86px;
+}
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: #9eaaa1;
+}
+input:user-invalid,
+select:user-invalid,
+textarea:user-invalid,
+[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+.code-input {
+  min-height: 150px;
+  font:
+    12px/1.55 ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+}
+.field-error {
+  color: var(--danger);
+}
+.notice {
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #f7f8f6;
+  color: #4f5c53;
+  font-size: 12px;
+}
+.notice.warning {
+  border-color: #e7d29f;
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.notice.danger {
+  border-color: #e4c4c1;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 30px 20px;
+  border: 1px dashed #cfd7cf;
+  border-radius: 8px;
+  text-align: center;
+}
+.empty-state p {
+  max-width: 54ch;
+  color: var(--muted);
+}
+.empty-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 18px;
+}
+.loading-block {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--muted);
+}
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

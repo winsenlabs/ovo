@@ -6,6 +6,14 @@ const previewOrigins =
     .filter(Boolean) ?? [];
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      { source: '/providers', destination: '/settings/providers', permanent: true },
+      { source: '/tools', destination: '/settings/tools', permanent: true },
+      { source: '/suppressions', destination: '/operations/suppressions', permanent: true },
+      { source: '/handoffs', destination: '/operations/handoffs', permanent: true },
+    ];
+  },
   allowedDevOrigins: ['localhost', '127.0.0.1', ...previewOrigins],
   transpilePackages: [
     '@winsendotai/ovo-contracts',
