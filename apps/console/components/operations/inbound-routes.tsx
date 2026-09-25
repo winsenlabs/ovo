@@ -5,6 +5,8 @@ import { apiRequest, ApiError, items, type Release, type SessionIdentity } from 
 import type { InboundRouteRecord } from '../../lib/operator-api';
 import type { ProviderBinding } from '../../lib/api';
 import type { PluginCatalog } from '../plugins/types';
+import { InboundRouteForm } from './inbound-route-form';
+import { InboundRoutesTable } from './inbound-routes-table';
 import {
   EmptyState,
   Field,
@@ -210,140 +212,13 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
             {notice}
           </Notice>
         )}
-        <form className="nested-card stack" onSubmit={save}>
-          <strong>{editing ? `Edit route v${editing.version}` : 'Add inbound route'}</strong>
-          <div className="form-grid">
-            <Field label="Inbound phone number" htmlFor="inbound-route-number">
-              <input
-                id="inbound-route-number"
-                type="tel"
-                placeholder="+91…"
-                pattern="\+[1-9][0-9]{7,14}"
-                value={phoneNumber}
-                onChange={(event) => setPhoneNumber(event.target.value)}
-                disabled={role !== 'admin' || Boolean(editing)}
-                required
-              />
-            </Field>
-            <Field label="Immutable release" htmlFor="inbound-route-release">
-              <select
-                id="inbound-route-release"
-                value={releaseId}
-                onChange={(event) => setReleaseId(event.target.value)}
-                disabled={role !== 'admin'}
-                required
-              >
-                <option value="">Select immutable release</option>
-                {releases.map((release) => (
-                  <option key={release.id} value={release.id}>
-                    {release.agentName} · {release.id} · {displayTime(release.createdAt)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Carrier plugin" htmlFor="inbound-route-carrier">
-              <select id="inbound-route-carrier" value={carrierPluginId} disabled={role !== 'admin'} onChange={event => { setCarrierPluginId(event.target.value); setCarrierBindingId(''); }}>
-                <option value="">Environment carrier</option>
-                {carriers.map(carrier => <option key={carrier.id} value={carrier.id}>{carrier.ui?.label ?? carrier.id}</option>)}
-              </select>
-            </Field>
-            <Field label="Carrier binding" htmlFor="inbound-route-carrier-binding">
-              <select id="inbound-route-carrier-binding" value={carrierBindingId} disabled={role !== 'admin'} onChange={event => setCarrierBindingId(event.target.value)}>
-                <option value="">Environment binding</option>
-                {bindings.filter(binding => binding.pluginId === carrierPluginId).map(binding => <option key={binding.id} value={binding.id}>{binding.label}</option>)}
-              </select>
-            </Field>
-            <Field
-              label="Release variables JSON"
-              htmlFor="inbound-route-variables"
-              help="Use a JSON object whose values are strings. The API validates required variables against the selected release."
-            >
-              <textarea
-                id="inbound-route-variables"
-                className="code-input compact"
-                value={variables}
-                onChange={(event) => setVariables(event.target.value)}
-                disabled={role !== 'admin'}
-                required
-              />
-            </Field>
-            <label className="checkbox-row" htmlFor="inbound-route-enabled">
-              <input
-                id="inbound-route-enabled"
-                type="checkbox"
-                checked={enabled}
-                onChange={(event) => setEnabled(event.target.checked)}
-                disabled={role !== 'admin'}
-              />
-              <span>Accept inbound admission on this route</span>
-            </label>
-          </div>
-          <div className="button-row">
-            <button className="button primary" disabled={role !== 'admin' || busy}>
-              {busy ? 'Saving…' : editing ? 'Save route version' : 'Create route'}
-            </button>
-            {editing && (
-              <button className="button" type="button" onClick={resetForm} disabled={busy}>
-                Cancel edit
-              </button>
-            )}
-          </div>
-        </form>
-        {!routes.length ? (
-          <EmptyState title="No inbound number routes">
-            An administrator must bind a carrier number to an immutable release before inbound
-            admission can resolve an agent configuration.
-          </EmptyState>
-        ) : (
-          <ResponsiveTable label="Configured inbound number routes">
-            <thead>
-              <tr>
-                <th>Phone number</th>
-                <th>Immutable release</th>
-                <th>Carrier</th>
-                <th>State</th>
-                <th>Version</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {routes.map((route) => (
-                <tr key={route.phoneNumber}>
-                  <td className="mono">{route.phoneNumber}</td>
-                  <td>
-                    <span className="mono">{route.releaseId}</span>
-                    <JsonEvidence label="Snapshotted variables" value={route.variables} />
-                  </td>
-                  <td>{route.carrierPluginId ?? 'Environment'}<small>{route.carrierBindingId ?? 'Environment binding'}</small></td>
-                  <td>
-                    <StatusBadge tone={route.enabled ? 'good' : 'warning'}>
-                      {route.enabled ? 'Enabled' : 'Disabled'}
-                    </StatusBadge>
-                  </td>
-                  <td>
-                    v{route.version}
-                    <small>{displayTime(route.updatedAt)}</small>
-                  </td>
-                  <td>
-                    <div className="button-row">
-                      <button className="button small" type="button" onClick={() => edit(route)}>
-                        Edit
-                      </button>
-                      <button
-                        className="button small danger"
-                        type="button"
-                        onClick={() => void remove(route)}
-                        disabled={role !== 'admin' || busy}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </ResponsiveTable>
-        )}
+        <InboundRouteForm editing={editing} phoneNumber={phoneNumber} setPhoneNumber={setPhoneNumber}
+          releaseId={releaseId} setReleaseId={setReleaseId} carrierPluginId={carrierPluginId}
+          setCarrierPluginId={setCarrierPluginId} carrierBindingId={carrierBindingId} setCarrierBindingId={setCarrierBindingId}
+          variables={variables} setVariables={setVariables} enabled={enabled} setEnabled={setEnabled}
+          releases={releases} carriers={carriers} bindings={bindings} role={role} busy={busy}
+          onSave={save} onCancel={resetForm} />
+        <InboundRoutesTable routes={routes} role={role} busy={busy} onEdit={edit} onRemove={remove} />
         {nextCursor && (
           <button
             className="button align-start"

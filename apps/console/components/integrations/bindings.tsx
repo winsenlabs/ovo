@@ -18,6 +18,7 @@ import {
   StatusBadge,
 } from '../primitives';
 import type { PluginCatalog } from '../plugins/types';
+import { BindingsTable } from './bindings-table';
 
 interface BindingDraft {
   id?: string;
@@ -202,59 +203,7 @@ export function BindingManager({
             )}
           </div>
         </form>
-        {!bindings.length ? (
-          <EmptyState title="No provider bindings">
-            Create a binding before assigning provider roles to an agent.
-          </EmptyState>
-        ) : (
-          <ResponsiveTable label="Provider bindings">
-            <thead>
-              <tr>
-                <th>Binding</th>
-                <th>Provider</th>
-                <th>Environment</th>
-                <th>Credential</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bindings.map((binding) => (
-                <tr key={binding.id}>
-                  <td>
-                    <strong>{binding.label}</strong>
-                    <small className="mono">{binding.id}</small>
-                  </td>
-                  <td>
-                    {binding.provider}
-                    <JsonEvidence label="Configuration" value={binding.config ?? {}} />
-                  </td>
-                  <td>{binding.environment}</td>
-                  <td className="mono">{binding.credentialId}</td>
-                  <td>
-                    <div className="button-row">
-                      <button
-                        className="button small"
-                        type="button"
-                        disabled={role !== 'admin' || busy}
-                        onClick={() => setDraft(bindingDraft(binding))}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="button small danger"
-                        type="button"
-                        disabled={role !== 'admin' || busy}
-                        onClick={() => void remove(binding)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </ResponsiveTable>
-        )}
+        <BindingsTable bindings={bindings} role={role} busy={busy} onEdit={binding => setDraft(bindingDraft(binding))} onRemove={remove} />
       </div>
     </Panel>
   );

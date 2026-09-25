@@ -9,38 +9,13 @@ import {
   Notice,
   Panel,
   PanelHeader,
-  ResponsiveTable,
   StatusBadge,
 } from '../primitives';
 import { RecordingExportPanel } from './recording-export-panel';
-import { ProductionTrackPlayer, type RecordingTrackSegment } from './production-track-player';
-
-type LiveRecording = {
-  id: string;
-  state:
-    | 'starting'
-    | 'active'
-    | 'paused'
-    | 'finalizing'
-    | 'available'
-    | 'partial'
-    | 'failed'
-    | 'expired';
-  source: 'carrier';
-  createdAt: string;
-  updatedAt: string;
-  expiresAt: string;
-  codec: 'audio/x-mulaw';
-  sampleRate: 8000;
-  channels: 2;
-  segmentBytes: number;
-};
-type Segment = RecordingTrackSegment & {
-  timestampEvidence?: string;
-  sha256?: string;
-};
-type Manifest = LiveRecording & { segments: Segment[]; timeline?: unknown };
-type DetailState = { manifest: Manifest; alignment: unknown };
+import { RecordingSegmentsTable } from './recording-segments-table';
+import { RecordingManifestMetadata } from './recording-manifest-metadata';
+import type { LiveRecording, Manifest, DetailState } from './live-recording-types';
+import { ProductionTrackPlayer } from './production-track-player';
 
 const messageFor = (error: unknown, fallback: string) =>
   error instanceof ApiError && error.status === 503
@@ -196,24 +171,7 @@ export function LiveRecordingsPanel({
             </label>
             {detail && (
               <>
-                <dl className="metadata-list">
-                  <div>
-                    <dt>State</dt>
-                    <dd>{detail.manifest.state}</dd>
-                  </div>
-                  <div>
-                    <dt>Format</dt>
-                    <dd>8 kHz μ-law · two captured tracks</dd>
-                  </div>
-                  <div>
-                    <dt>Created</dt>
-                    <dd>{new Date(detail.manifest.createdAt).toLocaleString()}</dd>
-                  </div>
-                  <div>
-                    <dt>Expires</dt>
-                    <dd>{new Date(detail.manifest.expiresAt).toLocaleString()}</dd>
-                  </div>
-                </dl>
+                <RecordingManifestMetadata manifest={detail.manifest} />
                 <div className="stack">
                   <Notice tone="neutral">
                     The server assembles each captured μ-law track into authenticated PCM WAV for
@@ -230,44 +188,7 @@ export function LiveRecordingsPanel({
                     />
                   ))}
                 </div>
-                <ResponsiveTable label="Recording segments">
-                  <thead>
-                    <tr>
-                      <th>Track</th>
-                      <th>Sequence</th>
-                      <th>State</th>
-                      <th>Window</th>
-                      <th>Bytes</th>
-                      <th>Evidence</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.manifest.segments.map((segment) => (
-                      <tr key={`${segment.track}-${segment.sequence}`}>
-                        <td>{segment.track}</td>
-                        <td>{segment.sequence}</td>
-                        <td>{segment.state}</td>
-                        <td>
-                          {segment.startMs}–{segment.endMs} ms
-                        </td>
-                        <td>{segment.bytes.toLocaleString()}</td>
-                        <td>
-                          {segment.state === 'available' ? (
-                            <a
-                              className="text-button"
-                              href={`/api/v1${callBase}/${encodeURIComponent(selectedId)}/segments/${encodeURIComponent(segment.track)}/${segment.sequence}/audio`}
-                              download
-                            >
-                              Download source μ-law segment
-                            </a>
-                          ) : (
-                            (segment.timestampEvidence ?? 'Unavailable')
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </ResponsiveTable>
+                <RecordingSegmentsTable segments={detail.manifest.segments} callBase={callBase} selectedId={selectedId} />
                 <JsonEvidence label="Alignment and transcript evidence" value={detail.alignment} />
                 <div className="button-row">
                   <button className="button" type="button" onClick={loadReplay} disabled={busy}>

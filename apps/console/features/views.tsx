@@ -1,7 +1,6 @@
 'use client';
 import { useSession } from '../components/shell/session-provider';
 import { Integrations } from '../components/integrations';
-import { CallsView } from '../components/operations/calls-view';
 import { CampaignsView } from '../components/operations/campaigns-view';
 import { SuppressionsView } from '../components/operations/suppressions-view';
 import { HandoffsView } from '../components/operations/handoffs-view';
@@ -14,7 +13,6 @@ import { TeamView } from '../components/team/team-view';
 import { AccountView } from '../components/team/account-view';
 export function ProvidersFeature() { const identity = useSession(); return <Integrations identity={identity} initialTab="providers" />; }
 export function ToolsFeature() { const identity = useSession(); return <Integrations identity={identity} initialTab="tools" />; }
-export function CallsFeature() { const identity = useSession(); return <CallsView role={identity.role} />; }
 export function CampaignsFeature() { const identity = useSession(); return <CampaignsView role={identity.role} />; }
 export function SuppressionsFeature() { const identity = useSession(); return <SuppressionsView role={identity.role} />; }
 export function HandoffsFeature() { const identity = useSession(); return <HandoffsView role={identity.role} />; }
