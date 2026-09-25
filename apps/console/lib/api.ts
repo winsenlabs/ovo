@@ -42,6 +42,8 @@ export interface ProviderBinding {
   id: string;
   label: string;
   provider: string;
+  pluginId?: string | null;
+  kind?: string | null;
   environment: string;
   credentialId: string;
   config?: Record<string, unknown>;

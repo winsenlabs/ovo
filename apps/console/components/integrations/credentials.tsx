@@ -1,5 +1,5 @@
 'use client';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import {
   apiRequest,
   ApiError,
@@ -17,6 +17,7 @@ import {
   ResponsiveTable,
   StatusBadge,
 } from '../primitives';
+import type { PluginCatalog } from '../plugins/types';
 const safeMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 export function CredentialManager({
@@ -30,6 +31,9 @@ export function CredentialManager({
   reload: () => Promise<void>;
   role: SessionIdentity['role'];
 }) {
+  const [plugins, setPlugins] = useState<PluginCatalog['plugins']>([]);
+  const [pluginId, setPluginId] = useState('');
+  useEffect(() => { void apiRequest<PluginCatalog>('/plugins').then(({ data }) => setPlugins(data.plugins.filter(plugin => ['carrier', 'stt', 'tts', 'llm', 'tool'].includes(plugin.kind)))).catch(() => undefined); }, []);
   const [message, setMessage] = useState<{ tone: 'neutral' | 'danger'; text: string }>();
   const [busy, setBusy] = useState<string>();
 
@@ -45,7 +49,7 @@ export function CredentialManager({
         method: 'POST',
         body: JSON.stringify({
           label: values.get('label'),
-          provider: values.get('provider'),
+          provider: plugins.find(plugin => plugin.id === pluginId)?.provider,
           type: values.get('type'),
           environment: values.get('environment'),
           value: values.get('value'),
@@ -150,14 +154,9 @@ export function CredentialManager({
             <Field label="Label" htmlFor="credential-label">
               <input id="credential-label" name="label" required />
             </Field>
-            <Field label="Provider" htmlFor="credential-provider">
-              <input
-                id="credential-provider"
-                name="provider"
-                placeholder="e.g. deepgram"
-                required
-              />
-            </Field>
+            <Field label="Plugin" htmlFor="credential-plugin"><select id="credential-plugin" value={pluginId} onChange={event => setPluginId(event.target.value)} required>
+              <option value="">Select installed plugin</option>{plugins.map(plugin => <option key={plugin.id} value={plugin.id}>{plugin.ui?.label ?? plugin.id}</option>)}
+            </select></Field>
             <Field label="Credential type" htmlFor="credential-type">
               <select id="credential-type" name="type">
                 <option value="stt">STT</option>

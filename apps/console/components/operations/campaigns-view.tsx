@@ -12,6 +12,10 @@ import {
 } from '../primitives';
 import { CampaignCreateForm } from './campaign-create-form';
 
+export function campaignAttemptLabel(status: string): string {
+  return status === 'unknown' ? 'Reconciling' : status === 'superseded' ? 'Superseded' : status;
+}
+
 export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
   const [error, setError] = useState<string>();
@@ -134,6 +138,7 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
                       {campaign.perNumberAttemptLimit}/number · {campaign.maxAttemptsPerLocalDay}
                       /day
                     </small>
+                    <small>{campaign.maxConcurrency ?? 1} concurrent</small>
                   </td>
                   <td>
                     <StatusBadge
@@ -148,6 +153,7 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
                       {campaign.status}
                     </StatusBadge>
                     <small>v{campaign.version}</small>
+                    {campaign.attempts?.map(attempt => <small key={attempt.id} className={attempt.status === 'unknown' ? 'badge warning' : 'badge soft'}>{campaignAttemptLabel(attempt.status)}</small>)}
                   </td>
                   <td>
                     <div className="button-row">

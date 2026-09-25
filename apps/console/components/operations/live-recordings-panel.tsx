@@ -1,4 +1,5 @@
 'use client';
+import { useConfirm } from '../ui/dialog';
 import { useCallback, useEffect, useState } from 'react';
 import { apiRequest, ApiError, items, type CallSummary, type SessionIdentity } from '../../lib/api';
 import {
@@ -55,6 +56,7 @@ export function LiveRecordingsPanel({
   call: CallSummary;
   role: SessionIdentity['role'];
 }) {
+  const confirm = useConfirm();
   const [recordings, setRecordings] = useState<LiveRecording[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [detail, setDetail] = useState<DetailState>();
@@ -109,8 +111,7 @@ export function LiveRecordingsPanel({
   }, [callBase, selectedId]);
 
   async function tombstone() {
-    if (!selectedId || !window.confirm('Tombstone this recording and schedule physical cleanup?'))
-      return;
+    if (!selectedId || !(await confirm('Tombstone recording', 'Tombstone this recording and schedule physical cleanup?'))) return;
     setBusy(true);
     try {
       await apiRequest(`${callBase}/${encodeURIComponent(selectedId)}`, { method: 'DELETE' });

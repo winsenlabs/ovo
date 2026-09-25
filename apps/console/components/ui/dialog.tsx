@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 export function Dialog({ open, onClose, title, children, className = '' }: {
   open: boolean; onClose: () => void; title: string; children: ReactNode; className?: string;
@@ -12,7 +12,7 @@ export function Dialog({ open, onClose, title, children, className = '' }: {
     if (open && !dialog.open) { trigger.current = document.activeElement as HTMLElement; dialog.showModal(); }
     if (!open && dialog.open) { dialog.close(); trigger.current?.focus(); }
   }, [open]);
-  return <dialog ref={ref} className={className} onClose={() => { onClose(); trigger.current?.focus(); }} onCancel={onClose} aria-label={title}>
+  return <dialog ref={ref} className={className} onClose={() => { onClose(); trigger.current?.focus(); }} aria-label={title}>
     <div className="ui-dialog"><h2>{title}</h2>{children}</div>
   </dialog>;
 }
@@ -38,4 +38,15 @@ export function useConfirmDialog() {
     confirm,
     dialog: request ? <ConfirmDialog open title={request.title} message={request.message} onChoice={choose} /> : null,
   };
+}
+
+const ConfirmContext = createContext<((title: string, message: string) => Promise<boolean>) | null>(null);
+export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
+  const { confirm, dialog } = useConfirmDialog();
+  return <ConfirmContext.Provider value={confirm}>{children}{dialog}</ConfirmContext.Provider>;
+}
+export function useConfirm() {
+  const confirm = useContext(ConfirmContext);
+  if (!confirm) throw new Error('Confirmation dialog unavailable');
+  return confirm;
 }

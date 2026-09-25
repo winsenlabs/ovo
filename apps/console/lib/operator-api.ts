@@ -89,6 +89,8 @@ export interface CampaignRecord {
   perNumberAttemptLimit: number;
   maxAttemptsTotal: number;
   maxAttemptsPerLocalDay: number;
+  maxConcurrency?: number;
+  attempts?: { id: string; status: string }[];
   activeCallPolicy: 'continue' | 'request_end';
 }
 export interface CampaignPreview {
@@ -125,6 +127,8 @@ export interface InboundRouteRecord {
   organizationId: string;
   phoneNumber: string;
   releaseId: string;
+  carrierPluginId?: string | null;
+  carrierBindingId?: string | null;
   variables: Record<string, string>;
   enabled: boolean;
   version: number;

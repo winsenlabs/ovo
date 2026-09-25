@@ -1,7 +1,10 @@
 'use client';
+import { useConfirm } from '../ui/dialog';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, ApiError, items, type Release, type SessionIdentity } from '../../lib/api';
 import type { InboundRouteRecord } from '../../lib/operator-api';
+import type { ProviderBinding } from '../../lib/api';
+import type { PluginCatalog } from '../plugins/types';
 import {
   EmptyState,
   Field,
@@ -26,6 +29,7 @@ interface ReleaseOption extends Release {
 const displayTime = (value: string) => new Date(value).toLocaleString();
 
 export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
+  const confirm = useConfirm();
   const [routes, setRoutes] = useState<InboundRouteRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<string>();
   const [releases, setReleases] = useState<ReleaseOption[]>([]);
@@ -34,6 +38,10 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
   const [releaseId, setReleaseId] = useState('');
   const [variables, setVariables] = useState('{}');
   const [enabled, setEnabled] = useState(true);
+  const [carrierPluginId, setCarrierPluginId] = useState('');
+  const [carrierBindingId, setCarrierBindingId] = useState('');
+  const [carriers, setCarriers] = useState<PluginCatalog['plugins']>([]);
+  const [bindings, setBindings] = useState<ProviderBinding[]>([]);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -80,6 +88,11 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
       ),
     );
   }, [loadReleases, loadRoutes]);
+  useEffect(() => {
+    void Promise.all([apiRequest<PluginCatalog>('/plugins?kind=carrier'), apiRequest<unknown>('/provider-bindings')])
+      .then(([catalog, rows]) => { setCarriers(catalog.data.plugins); setBindings(items(rows.data)); })
+      .catch(failure => setError(failure instanceof Error ? failure.message : 'Carrier choices unavailable'));
+  }, []);
 
   function resetForm() {
     setEditing(undefined);
@@ -87,6 +100,8 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
     setReleaseId('');
     setVariables('{}');
     setEnabled(true);
+    setCarrierPluginId('');
+    setCarrierBindingId('');
   }
 
   function edit(route: InboundRouteRecord) {
@@ -95,6 +110,8 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
     setReleaseId(route.releaseId);
     setVariables(JSON.stringify(route.variables, null, 2));
     setEnabled(route.enabled);
+    setCarrierPluginId(route.carrierPluginId ?? '');
+    setCarrierBindingId(route.carrierBindingId ?? '');
     setError(undefined);
     setNotice(undefined);
   }
@@ -122,6 +139,8 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
           releaseId,
           variables: routeVariables,
           enabled,
+          carrierPluginId: carrierPluginId || null,
+          carrierBindingId: carrierBindingId || null,
         }),
       });
       setEditing(data);
@@ -140,7 +159,7 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
   }
 
   async function remove(route: InboundRouteRecord) {
-    if (!window.confirm(`Delete inbound route ${route.phoneNumber}?`)) return;
+    if (!(await confirm('Delete inbound route', `Delete inbound route ${route.phoneNumber}?`))) return;
     setBusy(true);
     setError(undefined);
     setNotice(undefined);
@@ -222,6 +241,18 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
                 ))}
               </select>
             </Field>
+            <Field label="Carrier plugin" htmlFor="inbound-route-carrier">
+              <select id="inbound-route-carrier" value={carrierPluginId} disabled={role !== 'admin'} onChange={event => { setCarrierPluginId(event.target.value); setCarrierBindingId(''); }}>
+                <option value="">Environment carrier</option>
+                {carriers.map(carrier => <option key={carrier.id} value={carrier.id}>{carrier.ui?.label ?? carrier.id}</option>)}
+              </select>
+            </Field>
+            <Field label="Carrier binding" htmlFor="inbound-route-carrier-binding">
+              <select id="inbound-route-carrier-binding" value={carrierBindingId} disabled={role !== 'admin'} onChange={event => setCarrierBindingId(event.target.value)}>
+                <option value="">Environment binding</option>
+                {bindings.filter(binding => binding.pluginId === carrierPluginId).map(binding => <option key={binding.id} value={binding.id}>{binding.label}</option>)}
+              </select>
+            </Field>
             <Field
               label="Release variables JSON"
               htmlFor="inbound-route-variables"
@@ -269,6 +300,7 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
               <tr>
                 <th>Phone number</th>
                 <th>Immutable release</th>
+                <th>Carrier</th>
                 <th>State</th>
                 <th>Version</th>
                 <th>Actions</th>
@@ -282,6 +314,7 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
                     <span className="mono">{route.releaseId}</span>
                     <JsonEvidence label="Snapshotted variables" value={route.variables} />
                   </td>
+                  <td>{route.carrierPluginId ?? 'Environment'}<small>{route.carrierBindingId ?? 'Environment binding'}</small></td>
                   <td>
                     <StatusBadge tone={route.enabled ? 'good' : 'warning'}>
                       {route.enabled ? 'Enabled' : 'Disabled'}

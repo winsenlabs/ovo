@@ -1,3 +1,2 @@
-import { consoleExtensions } from '../layout';
-import { AgentsFeature } from '../../../features/agents';
-export default async function Page() { return <AgentsFeature extensions={await consoleExtensions} />; }
+import { AgentListFeature } from '../../../features/agent-list';
+export default function Page() { return <AgentListFeature />; }

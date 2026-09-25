@@ -1,4 +1,5 @@
 'use client';
+import { useConfirm } from '../ui/dialog';
 import { useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, items, type SessionIdentity } from '../../lib/api';
 import type {
@@ -28,6 +29,7 @@ export function EvaluationDatasetPanel({
   datasets: EvaluationDataset[];
   reload: () => Promise<void>;
 }) {
+  const confirm = useConfirm();
   const [selectedId, setSelectedId] = useState('');
   const [versions, setVersions] = useState<EvaluationDatasetVersion[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<number>();
@@ -100,11 +102,7 @@ export function EvaluationDatasetPanel({
   }
 
   async function archive() {
-    if (
-      !selected ||
-      !window.confirm(`Archive “${selected.name}”? Immutable versions remain evidence.`)
-    )
-      return;
+    if (!selected || !(await confirm('Archive dataset', `Archive “${selected.name}”? Immutable versions remain evidence.`))) return;
     setBusy(true);
     try {
       await apiRequest(`/evaluation-datasets/${encodeURIComponent(selected.id)}`, {

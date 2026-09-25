@@ -8,7 +8,7 @@ import {
   type SessionIdentity,
 } from '../../lib/api';
 import { Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
-import { JsonObjectInput } from '../studio/json-object-input';
+import { JsonEditor } from '../forms/json-editor';
 
 type LaunchReceipt = {
   callId: string;
@@ -175,7 +175,7 @@ export function LiveCallForm({
           htmlFor="live-call-variables"
           help="Must satisfy the immutable release variable schema."
         >
-          <JsonObjectInput id="live-call-variables" value={variables} onValid={setVariables} />
+          <JsonEditor id="live-call-variables" value={variables} onValid={value => setVariables(value as Record<string, unknown>)} />
         </Field>
         {releases.length === 0 && !loading && (
           <Notice tone="warning">Publish an immutable release before starting a live call.</Notice>

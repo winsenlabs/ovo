@@ -1,4 +1,5 @@
 'use client';
+import { useConfirm } from '../ui/dialog';
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   apiRequest,
@@ -16,11 +17,13 @@ import {
   ResponsiveTable,
   StatusBadge,
 } from '../primitives';
+import type { PluginCatalog } from '../plugins/types';
 
 interface BindingDraft {
   id?: string;
   label: string;
   provider: string;
+  pluginId: string;
   environment: string;
   credentialId: string;
   configText: string;
@@ -28,6 +31,7 @@ interface BindingDraft {
 const emptyDraft = (): BindingDraft => ({
   label: '',
   provider: '',
+  pluginId: '',
   environment: 'production',
   credentialId: '',
   configText: '{\n  "model": ""\n}',
@@ -36,7 +40,7 @@ const safeMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
 function bindingDraft(binding: ProviderBinding): BindingDraft {
-  return { ...binding, configText: JSON.stringify(binding.config ?? {}, null, 2) };
+  return { ...binding, pluginId: binding.pluginId ?? '', configText: JSON.stringify(binding.config ?? {}, null, 2) };
 }
 
 export function BindingManager({
@@ -50,6 +54,9 @@ export function BindingManager({
   reload: () => Promise<void>;
   role: SessionIdentity['role'];
 }) {
+  const confirm = useConfirm();
+  const [plugins, setPlugins] = useState<PluginCatalog['plugins']>([]);
+  useEffect(() => { void apiRequest<PluginCatalog>('/plugins').then(({ data }) => setPlugins(data.plugins.filter(plugin => ['carrier', 'stt', 'tts', 'llm'].includes(plugin.kind)))).catch(() => undefined); }, []);
   const [draft, setDraft] = useState<BindingDraft>(emptyDraft);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -78,6 +85,7 @@ export function BindingManager({
         body: JSON.stringify({
           label: draft.label,
           provider: draft.provider,
+          pluginId: draft.pluginId,
           environment: draft.environment,
           credentialId: draft.credentialId,
           config,
@@ -93,12 +101,7 @@ export function BindingManager({
   }
 
   async function remove(binding: ProviderBinding) {
-    if (
-      !window.confirm(
-        `Delete provider binding “${binding.label}”? Agents using it will fail readiness checks.`,
-      )
-    )
-      return;
+    if (!(await confirm('Delete binding', `Delete provider binding “${binding.label}”? Agents using it will fail readiness checks.`))) return;
     setBusy(true);
     setError(undefined);
     try {
@@ -142,17 +145,11 @@ export function BindingManager({
                 onChange={(event) => patch({ label: event.target.value })}
               />
             </Field>
-            <Field
-              label="Provider"
-              htmlFor="binding-provider"
-              help="Provider adapter ID, for example openai, elevenlabs or twilio."
-            >
-              <input
-                id="binding-provider"
-                required
-                value={draft.provider}
-                onChange={(event) => patch({ provider: event.target.value })}
-              />
+            <Field label="Plugin" htmlFor="binding-plugin" help="Select the installed adapter for this binding.">
+              <select id="binding-plugin" required value={draft.pluginId} onChange={event => {
+                const plugin = plugins.find(item => item.id === event.target.value);
+                patch({ pluginId: plugin?.id ?? '', provider: plugin?.provider ?? '' });
+              }}><option value="">Select installed plugin</option>{plugins.map(plugin => <option key={plugin.id} value={plugin.id}>{plugin.ui?.label ?? plugin.id}</option>)}</select>
             </Field>
             <Field label="Environment" htmlFor="binding-environment">
               <select

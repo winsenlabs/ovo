@@ -12,7 +12,7 @@ import {
   ResponsiveTable,
   StatusBadge,
 } from '../primitives';
-import { JsonObjectInput } from '../studio/json-object-input';
+import { JsonEditor } from '../forms/json-editor';
 import { parseFollowUpInputs, simulationRequest, type SimulationMode } from './simulation-request';
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
@@ -206,10 +206,10 @@ export function TestAndEvaluationView({
                 htmlFor="simulation-bindings"
                 help='Optional modelReplies entries are {"kind":"text","text":"…"} or {"kind":"tool","toolId":"…","input":{}}. toolResults maps each tool ID to its fixture result. An empty object stays isolated and uses uncertainty/errors for missing fixtures.'
               >
-                <JsonObjectInput
+                <JsonEditor
                   id="simulation-bindings"
                   value={simulationBindings}
-                  onValid={setSimulationBindings}
+                  onValid={value => setSimulationBindings(value as Record<string, unknown>)}
                 />
               </Field>
             ) : (

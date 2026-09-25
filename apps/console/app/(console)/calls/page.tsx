@@ -1,2 +1,2 @@
-import { CallsFeature } from '../../../features/views';
-export default function Page() { return <CallsFeature />; }
+import { CallsIndexFeature } from '../../../features/calls-index';
+export default function Page() { return <CallsIndexFeature />; }

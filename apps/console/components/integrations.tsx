@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   apiRequest,
   ApiError,
@@ -29,9 +29,10 @@ export function Integrations({
   const [connections, setConnections] = useState<McpConnection[]>([]);
   const [agents, setAgents] = useState<AgentDraft[]>([]);
   const [loading, setLoading] = useState(true);
+  const loaded = useRef(false);
   const [error, setError] = useState<string>();
   const reload = useCallback(async () => {
-    setLoading(true);
+    if (!loaded.current) setLoading(true);
     setError(undefined);
     const results = await Promise.allSettled([
       apiRequest<unknown>('/credentials'),
@@ -53,6 +54,7 @@ export function Integrations({
           .filter((value) => value.config)
           .map((value) => normalizeDraft(value)),
       );
+    loaded.current = true;
     setLoading(false);
   }, []);
   useEffect(() => {

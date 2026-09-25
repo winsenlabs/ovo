@@ -1,6 +1,8 @@
 'use client';
 import { useMemo, useState } from 'react';
 import type { AgentConfig } from '../../lib/api';
+import { ListTextInput } from '../forms/list-text-input';
+import { useRowKeys } from '../forms/use-row-keys';
 import {
   EmptyState,
   Field,
@@ -63,6 +65,7 @@ export function ScriptEditor({
   update: (next: AgentConfig) => void;
 }) {
   const script = config.script;
+  const rowKeys = useRowKeys(script?.nodes.length ?? 0);
   const [source, setSource] = useState('');
   const [importError, setImportError] = useState<string>();
   const diagnostics = useMemo(() => (script ? diagnoseScript(script) : []), [script]);
@@ -89,6 +92,7 @@ export function ScriptEditor({
       const parsed = JSON.parse(source) as Script;
       if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.nodes))
         throw new Error('Script requires a nodes array.');
+      rowKeys.reset();
       setScript(parsed);
       setImportError(undefined);
       setSource('');
@@ -170,7 +174,7 @@ export function ScriptEditor({
               </thead>
               <tbody>
                 {script.nodes.map((node, nodeIndex) => (
-                  <tr key={`${node.id}-${nodeIndex}`}>
+                  <tr key={rowKeys.keyAt(nodeIndex)}>
                     <td>
                       <label className="sr-only" htmlFor={`node-id-${nodeIndex}`}>
                         Node {nodeIndex + 1} ID
@@ -220,18 +224,8 @@ export function ScriptEditor({
                             <option value="text">Text</option>
                             <option value="dtmf">DTMF</option>
                           </select>
-                          <input
-                            aria-label="Matches, comma separated"
-                            value={edge.matches.join(', ')}
-                            onChange={(event) =>
-                              patchTransition(nodeIndex, edgeIndex, {
-                                matches: event.target.value
-                                  .split(',')
-                                  .map((value) => value.trim())
-                                  .filter(Boolean),
-                              })
-                            }
-                          />
+                          <ListTextInput id={`script-matches-${nodeIndex}-${edgeIndex}`} rows={2} value={edge.matches}
+                            onChange={matches => patchTransition(nodeIndex, edgeIndex, { matches })} />
                           <select
                             aria-label="Target node"
                             value={edge.to}
@@ -282,12 +276,13 @@ export function ScriptEditor({
                         className="text-button danger-text"
                         type="button"
                         disabled={script.nodes.length === 1}
-                        onClick={() =>
+                        onClick={() => {
+                          rowKeys.remove(nodeIndex);
                           setScript({
                             ...script,
                             nodes: script.nodes.filter((_, current) => current !== nodeIndex),
-                          })
-                        }
+                          });
+                        }}
                       >
                         Remove
                       </button>
@@ -300,7 +295,8 @@ export function ScriptEditor({
               <button
                 className="button"
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  rowKeys.insert(script.nodes.length);
                   setScript({
                     ...script,
                     nodes: [
@@ -312,8 +308,8 @@ export function ScriptEditor({
                         transitions: [],
                       },
                     ],
-                  })
-                }
+                  });
+                }}
               >
                 Add node
               </button>

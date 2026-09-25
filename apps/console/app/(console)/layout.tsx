@@ -12,7 +12,7 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
   const session = await serverSession();
   if (session.status === 401 || session.status === 403) {
     const header = await headers();
-    const path = header.get('x-next-url') ?? '/agents';
+    const path = header.get('x-ovo-console-path') ?? '/agents';
     redirect(`/login?next=${encodeURIComponent(path)}`);
   }
   if (!session.identity) throw new Error('Management API session check unavailable');

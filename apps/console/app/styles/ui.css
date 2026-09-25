@@ -2,6 +2,9 @@
 .ui-cluster, .ui-toolbar, .ui-pagination { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .ui-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: var(--space-4); }
 .ui-stat { display: grid; gap: var(--space-1); }
+.inspector-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: var(--space-4); }
+.latency-bar { height: var(--space-3); min-width: var(--space-1); border-radius: var(--radius-sm); background: var(--color-accent); }
+@media (max-width: 800px) { .inspector-grid { grid-template-columns: 1fr; } }
 .ui-dialog { display: grid; gap: var(--space-4); min-width: min(340px, 80vw); }
 dialog { max-width: calc(100vw - 2 * var(--space-4)); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-panel); }
 dialog::backdrop { background: rgb(0 0 0 / 45%); }

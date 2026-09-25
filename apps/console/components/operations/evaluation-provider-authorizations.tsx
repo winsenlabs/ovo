@@ -1,4 +1,5 @@
 'use client';
+import { useConfirm } from '../ui/dialog';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, ApiError, items, type Release, type SessionIdentity } from '../../lib/api';
 import type { ProviderEvaluationAuthorization } from '../../lib/operator-api';
@@ -37,6 +38,7 @@ export function EvaluationProviderAuthorizations({
     availability: ProviderEvaluationAvailability,
   ): void;
 }) {
+  const confirm = useConfirm();
   const [authorizations, setAuthorizations] = useState<ProviderEvaluationAuthorization[]>([]);
   const [releases, setReleases] = useState<ReleaseOption[]>([]);
   const [nextCursor, setNextCursor] = useState<string>();
@@ -158,7 +160,7 @@ export function EvaluationProviderAuthorizations({
   }
 
   async function revoke(authorization: ProviderEvaluationAuthorization) {
-    if (!window.confirm(`Revoke provider evaluation authorization ${authorization.id}?`)) return;
+    if (!(await confirm('Revoke authorization', `Revoke provider evaluation authorization ${authorization.id}?`))) return;
     setBusy(true);
     setError(undefined);
     setNotice(undefined);

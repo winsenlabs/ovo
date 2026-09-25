@@ -1,7 +1,8 @@
 'use client';
 import type { AgentConfig } from '../../lib/api';
 import { EmptyState, Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
-import { JsonObjectInput } from './json-object-input';
+import { JsonEditor } from '../forms/json-editor';
+import { useRowKeys } from '../forms/use-row-keys';
 
 type Tool = AgentConfig['tools'][number];
 const emptyTool = (): Tool => ({
@@ -22,6 +23,7 @@ export function ToolsEditor({
   config: AgentConfig;
   update: (next: AgentConfig) => void;
 }) {
+  const rowKeys = useRowKeys(config.tools.length);
   const setTools = (tools: Tool[]) =>
     update({
       ...config,
@@ -54,7 +56,7 @@ export function ToolsEditor({
           </EmptyState>
         )}
         {config.tools.map((tool, index) => (
-          <fieldset className="nested-card" key={`${tool.id}-${index}`}>
+          <fieldset className="nested-card" key={rowKeys.keyAt(index)}>
             <legend>Tool {index + 1}</legend>
             <div className="form-grid">
               <Field label="Tool ID" htmlFor={`tool-id-${index}`}>
@@ -246,17 +248,17 @@ export function ToolsEditor({
             )}
             <div className="form-grid">
               <Field label="Input JSON Schema" htmlFor={`tool-input-${index}`}>
-                <JsonObjectInput
+                <JsonEditor
                   id={`tool-input-${index}`}
                   value={tool.inputSchema}
-                  onValid={(inputSchema) => patch(index, { inputSchema })}
+                  onValid={(inputSchema) => patch(index, { inputSchema: inputSchema as Record<string, unknown> })}
                 />
               </Field>
               <Field label="Output JSON Schema (optional)" htmlFor={`tool-output-${index}`}>
-                <JsonObjectInput
+                <JsonEditor
                   id={`tool-output-${index}`}
                   value={tool.outputSchema ?? {}}
-                  onValid={(outputSchema) => patch(index, { outputSchema })}
+                  onValid={(outputSchema) => patch(index, { outputSchema: outputSchema as Record<string, unknown> })}
                 />
               </Field>
             </div>
@@ -283,7 +285,7 @@ export function ToolsEditor({
             <button
               className="text-button danger-text"
               type="button"
-              onClick={() => setTools(config.tools.filter((_, current) => current !== index))}
+              onClick={() => { rowKeys.remove(index); setTools(config.tools.filter((_, current) => current !== index)); }}
             >
               Remove tool
             </button>
@@ -292,7 +294,7 @@ export function ToolsEditor({
         <button
           className="button align-start"
           type="button"
-          onClick={() => setTools([...config.tools, emptyTool()])}
+          onClick={() => { rowKeys.insert(config.tools.length); setTools([...config.tools, emptyTool()]); }}
         >
           Add tool
         </button>

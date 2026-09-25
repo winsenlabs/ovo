@@ -1,0 +1,47 @@
+'use client';
+import type { JsonShape, PluginOption } from './types';
+import { FormField } from '../ui/form-field';
+import { JsonEditor } from '../forms/json-editor';
+
+function fieldValue(value: Record<string, unknown>, key: string): string { return value[key] == null ? '' : String(value[key]); }
+export function SchemaForm({ plugin, schema = plugin.bindingSchema ?? plugin.configSchema, value, onChange, onSecret, fingerprints = {} }: {
+  plugin: PluginOption; schema?: JsonShape; value: Record<string, unknown>;
+  onChange: (value: Record<string, unknown>) => void; onSecret?: (pointer: string, secret: string) => void;
+  fingerprints?: Record<string, string>;
+}) {
+  const properties = Object.entries(schema?.properties ?? {});
+  const patch = (key: string, next: unknown) => onChange({ ...value, [key]: next });
+  return <div className="ui-stack">
+    {properties.filter(([key]) => !plugin.ui?.fields?.[key]?.advanced).map(([key, shape]) => {
+      const hint = plugin.ui?.fields?.[key];
+      const id = `schema-${plugin.id.replace(/[^a-z0-9-]/gi, '-')}-${key}`;
+      const required = schema?.required?.includes(key) ?? false;
+      const label = hint?.label ?? key;
+      const help = hint?.help ?? shape.description;
+      if (plugin.secretFields?.includes(`/${key}`) || hint?.widget === 'secret')
+        return <FormField key={key} id={id} label={label} help={fingerprints[key] ? `Stored · fingerprint ${fingerprints[key]}` : help} required={required}>
+          {props => <input {...props} type="password" autoComplete="off" defaultValue="" onBlur={event => { if (event.target.value) onSecret?.(`/${key}`, event.target.value); event.target.value = ''; }} />}
+        </FormField>;
+      if (shape.const === true)
+        return <FormField key={key} id={id} label={label} help={help} required>
+          {props => <label className="toggle-row"><input {...props} type="checkbox" checked={value[key] === true} onChange={event => patch(key, event.target.checked)} />I attest this requirement is met</label>}
+        </FormField>;
+      if (shape.enum?.length)
+        return <FormField key={key} id={id} label={label} help={help} required={required}>
+          {props => <select {...props} value={fieldValue(value, key)} onChange={event => patch(key, event.target.value)}><option value="">Select</option>{shape.enum?.map(option => <option key={String(option)} value={String(option)}>{String(option)}</option>)}</select>}
+        </FormField>;
+      if (shape.type === 'boolean')
+        return <FormField key={key} id={id} label={label} help={help} required={required}>
+          {props => <input {...props} type="checkbox" role="switch" checked={value[key] === true} onChange={event => patch(key, event.target.checked)} />}
+        </FormField>;
+      if (shape.type === 'number' || shape.type === 'integer')
+        return <FormField key={key} id={id} label={label} help={help} required={required}>
+          {props => <input {...props} type="number" min={shape.minimum} max={shape.maximum} value={fieldValue(value, key)} onChange={event => patch(key, event.target.value === '' ? undefined : Number(event.target.value))} />}
+        </FormField>;
+      return <FormField key={key} id={id} label={label} help={help} required={required}>
+        {props => <input {...props} type="text" value={fieldValue(value, key)} onChange={event => patch(key, event.target.value)} />}
+      </FormField>;
+    })}
+    <details><summary>Advanced JSON</summary><JsonEditor id={`schema-json-${plugin.id.replace(/[^a-z0-9-]/gi, '-')}`} value={value} onValid={next => onChange(next as Record<string, unknown>)} /></details>
+  </div>;
+}

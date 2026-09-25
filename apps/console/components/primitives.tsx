@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Children, cloneElement, isValidElement, type ReactNode } from 'react';
 
 export function Panel({
   children,
@@ -71,11 +71,11 @@ export function Field({
   return (
     <div className="field">
       <label htmlFor={htmlFor}>{label}</label>
-      {children && (
-        <div data-field-control data-describedby={describedBy}>
-          {children}
-        </div>
-      )}
+      {children && <div data-field-control>{Children.map(children, child =>
+        isValidElement<Record<string, unknown>>(child)
+          ? cloneElement(child, { 'aria-describedby': describedBy, 'aria-invalid': error ? true : undefined })
+          : child,
+      )}</div>}
       {help && <small id={`${htmlFor}-help`}>{help}</small>}
       {error && (
         <small className="field-error" id={`${htmlFor}-error`}>
@@ -101,7 +101,7 @@ export function EmptyState({
         ○
       </span>
       <strong>{title}</strong>
-      <p>{children}</p>
+      <div>{children}</div>
       {action}
     </div>
   );

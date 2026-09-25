@@ -2,6 +2,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, items, type Release } from '../../lib/api';
 import type { CampaignPreview, CampaignRecord } from '../../lib/operator-api';
+import { useFormAction } from '../forms/use-form-action';
+import { useOperationId } from '../../lib/ids';
 import { EmptyState, Field, Notice } from '../primitives';
 import { CampaignContactImport } from './campaign-contact-import';
 
@@ -17,6 +19,8 @@ export function CampaignCreateForm({
   const [preview, setPreview] = useState<CampaignPreview>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const formAction = useFormAction();
+  const operationId = useOperationId();
   useEffect(() => {
     apiRequest<unknown>('/agents')
       .then(({ data }) => {
@@ -53,31 +57,27 @@ export function CampaignCreateForm({
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!preview?.rows.length || preview.errors.length) return;
-    const values = new FormData(event.currentTarget);
     setBusy(true);
     setError(undefined);
     try {
-      const { data } = await apiRequest<CampaignRecord>('/operations/campaigns', {
-        method: 'POST',
-        body: JSON.stringify({
-          operationId: crypto.randomUUID(),
-          name: values.get('name'),
-          releaseId,
-          fromNumber: values.get('fromNumber'),
-          schedule: {
-            localDateTime: values.get('localDateTime'),
-            timezone: values.get('timezone'),
-          },
-          perNumberAttemptLimit: Number(values.get('perNumberAttemptLimit')),
-          maxAttemptsTotal: Number(values.get('maxAttemptsTotal')),
-          maxAttemptsPerLocalDay: Number(values.get('maxAttemptsPerLocalDay')),
-          activeCallPolicy: values.get('activeCallPolicy'),
-          contacts: preview.rows,
-        }),
+      await formAction(event, async values => {
+        const { data } = await apiRequest<CampaignRecord>('/operations/campaigns', {
+          method: 'POST',
+          body: JSON.stringify({
+            operationId: operationId.current(),
+            name: values.get('name'), releaseId, fromNumber: values.get('fromNumber'),
+            schedule: { localDateTime: values.get('localDateTime'), timezone: values.get('timezone') },
+            perNumberAttemptLimit: Number(values.get('perNumberAttemptLimit')),
+            maxAttemptsTotal: Number(values.get('maxAttemptsTotal')),
+            maxAttemptsPerLocalDay: Number(values.get('maxAttemptsPerLocalDay')),
+            maxConcurrency: Number(values.get('maxConcurrency')),
+            activeCallPolicy: values.get('activeCallPolicy'), contacts: preview.rows,
+          }),
+        });
+        onCreated(data);
+        setPreview(undefined);
+        operationId.succeeded();
       });
-      onCreated(data);
-      setPreview(undefined);
-      event.currentTarget.reset();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Campaign could not be created.');
     } finally {
@@ -204,6 +204,9 @@ export function CampaignCreateForm({
               required
               disabled={!preview}
             />
+          </Field>
+          <Field label="Maximum concurrent calls" htmlFor="campaign-concurrency">
+            <input id="campaign-concurrency" name="maxConcurrency" type="number" min={1} max={1000} defaultValue={1} required disabled={!preview} />
           </Field>
           <Field label="Active calls on cancel" htmlFor="campaign-active-policy">
             <select id="campaign-active-policy" name="activeCallPolicy" disabled={!preview}>

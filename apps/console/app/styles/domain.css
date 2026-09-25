@@ -86,7 +86,7 @@
   background: #18221c;
   color: #dfe9e1;
   font:
-    11px/1.5 ui-monospace,
+    var(--type-xs)/1.5 ui-monospace,
     monospace;
   white-space: pre-wrap;
   word-break: break-word;

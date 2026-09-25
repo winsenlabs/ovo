@@ -254,9 +254,9 @@ export function CallsView({ role }: { role: SessionIdentity['role'] }) {
                               {entry.quantity} {entry.unit}
                             </td>
                             <td>
-                              {entry.amountMinor
+                              {entry.amountMinor != null
                                 ? `${entry.amountMinor} minor ${entry.currency ?? ''}`
-                                : 'Not supplied'}
+                                : 'unpriced'}
                             </td>
                             <td>
                               {entry.state ?? (entry.estimated ? 'estimated' : 'not classified')}

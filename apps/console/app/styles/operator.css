@@ -18,7 +18,7 @@
   max-width: 260px;
   overflow-wrap: anywhere;
   font:
-    11px/1.4 ui-monospace,
+    var(--type-xs)/1.4 ui-monospace,
     monospace;
 }
 .transition-row {

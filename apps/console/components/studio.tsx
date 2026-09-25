@@ -48,9 +48,11 @@ const modes: { id: AgentConfig['mode']; title: string; description: string; kind
 export function AgentStudio({
   extensions,
   identity,
+  preferredAgentId,
 }: {
   extensions: readonly ConsoleExtension[];
   identity: SessionIdentity;
+  preferredAgentId?: string;
 }) {
   const {
     agents,
@@ -72,7 +74,7 @@ export function AgentStudio({
     createAgent,
     publish,
     activeForms,
-  } = useAgentStudio(extensions);
+  } = useAgentStudio(extensions, preferredAgentId);
   const applyUpdate: typeof update = identity.role === 'viewer' ? () => undefined : update;
   if (loading) return <LoadingBlock label="Loading agents" />;
   if (loadError && !selected)
