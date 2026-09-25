@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { transaction } from './database.ts';
 
 export interface WorkerReport {
   workerId: string;
@@ -24,13 +25,95 @@ export interface CapacitySnapshot {
 export class CapacityRepository {
   constructor(private readonly pool: Pool) {}
 
+  async claimInboundFloorToken(input: {
+    workerId: string;
+    organizationId: string;
+    ownershipEpoch: number;
+    floor: number;
+    leaseMs: number;
+  }): Promise<boolean> {
+    if (
+      !input.workerId ||
+      !input.organizationId ||
+      !Number.isSafeInteger(input.ownershipEpoch) ||
+      !Number.isSafeInteger(input.floor) ||
+      input.floor < 0 ||
+      !Number.isSafeInteger(input.leaseMs) ||
+      input.leaseMs < 1
+    )
+      throw new Error('Invalid inbound floor token claim');
+    if (input.floor === 0) return false;
+    return transaction(this.pool, async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        `ovo-inbound-floor:${input.organizationId}`,
+      ]);
+      const own = await client.query<{
+        ownership_epoch: string;
+        token: boolean;
+        lease_expires_at: Date;
+        token_organization_id: string | null;
+      }>(
+        `SELECT ownership_epoch, metadata->>'inboundFloorToken' = 'true' AS token,
+           metadata->>'inboundFloorOrganizationId' AS token_organization_id,
+           lease_expires_at FROM ovo_worker_slots WHERE worker_id = $1 FOR UPDATE`,
+        [input.workerId],
+      );
+      const previous = own.rows[0];
+      if (previous && Number(previous.ownership_epoch) > input.ownershipEpoch) return false;
+      const hasToken =
+        previous?.token &&
+        previous.lease_expires_at.getTime() > Date.now() &&
+        previous.token_organization_id === input.organizationId &&
+        Number(previous.ownership_epoch) === input.ownershipEpoch;
+      if (!hasToken) {
+        const occupied = await client.query<{ count: string }>(
+          `SELECT count(*)::text AS count FROM ovo_worker_slots
+           WHERE lease_expires_at > now() AND metadata->>'inboundFloorToken' = 'true'
+             AND metadata->>'inboundFloorOrganizationId' = $1 AND worker_id <> $2`,
+          [input.organizationId, input.workerId],
+        );
+        if (Number(occupied.rows[0]?.count ?? 0) >= input.floor) return false;
+      }
+      const result = await client.query(
+        `INSERT INTO ovo_worker_slots
+           (worker_id, state, ownership_epoch, observed_at, lease_expires_at, metadata)
+         VALUES ($1, 'ready_idle', $2, now(), now() + ($3 * interval '1 millisecond'),
+           jsonb_build_object('inboundFloorToken', true, 'inboundFloorOrganizationId', $4::text))
+         ON CONFLICT (worker_id) DO UPDATE SET
+           ownership_epoch = EXCLUDED.ownership_epoch,
+           lease_expires_at = EXCLUDED.lease_expires_at,
+           metadata = ovo_worker_slots.metadata || EXCLUDED.metadata
+         WHERE ovo_worker_slots.ownership_epoch <= EXCLUDED.ownership_epoch`,
+        [input.workerId, input.ownershipEpoch, input.leaseMs, input.organizationId],
+      );
+      return result.rowCount === 1;
+    });
+  }
+
+  async releaseInboundFloorToken(workerId: string, ownershipEpoch: number): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE ovo_worker_slots
+       SET metadata = metadata - 'inboundFloorToken' - 'inboundFloorOrganizationId'
+       WHERE worker_id = $1 AND ownership_epoch = $2`,
+      [workerId, ownershipEpoch],
+    );
+    return result.rowCount === 1;
+  }
+
   async reportWorker(input: WorkerReport): Promise<boolean> {
     const result = await this.pool.query(
       `INSERT INTO ovo_worker_slots (worker_id, state, ownership_epoch, observed_at, lease_expires_at, metadata)
        VALUES ($1, $2, $3, now(), now() + ($4 * interval '1 millisecond'), $5::jsonb)
        ON CONFLICT (worker_id) DO UPDATE SET
          state = EXCLUDED.state, ownership_epoch = EXCLUDED.ownership_epoch,
-         observed_at = EXCLUDED.observed_at, lease_expires_at = EXCLUDED.lease_expires_at, metadata = EXCLUDED.metadata
+         observed_at = EXCLUDED.observed_at, lease_expires_at = EXCLUDED.lease_expires_at,
+         metadata = EXCLUDED.metadata || CASE
+           WHEN ovo_worker_slots.ownership_epoch = EXCLUDED.ownership_epoch
+             AND ovo_worker_slots.lease_expires_at > now()
+             AND ovo_worker_slots.metadata->>'inboundFloorToken' = 'true'
+           THEN jsonb_build_object('inboundFloorToken', true,
+             'inboundFloorOrganizationId', ovo_worker_slots.metadata->>'inboundFloorOrganizationId')
+           ELSE '{}'::jsonb END
        WHERE ovo_worker_slots.ownership_epoch <= EXCLUDED.ownership_epoch`,
       [
         input.workerId,

@@ -124,6 +124,7 @@ resource "aws_ecs_task_definition" "worker" {
       { name = "OVO_CALL_SLOTS", value = "1" },
       { name = "OVO_LIVE_DIAL_ENABLED", value = tostring(var.enable_live_dial) },
       { name = "OVO_INBOUND_CAPACITY_ENABLED", value = tostring(var.enable_inbound_calls) },
+      { name = "OVO_INBOUND_WARM_FLOOR", value = tostring(var.inbound_warm_floor) },
       { name = "OVO_HANDOFF_PROVIDER", value = var.enable_twilio_handoff ? "twilio" : "" },
       { name = "OVO_TWILIO_HANDOFF_RESUME_URL", value = var.twilio_handoff_resume_url },
       { name = "OVO_TRANSPORT_CERTIFIED", value = tostring(var.transport_certified) },

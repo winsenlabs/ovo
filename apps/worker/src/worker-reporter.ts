@@ -1,6 +1,47 @@
 import type { PostgresOrchestrationStore } from '@winsendotai/ovo-plugin-orchestration';
 import { WorkerInfrastructureMetrics } from './infrastructure-metrics.ts';
 
+/** Advisory-locked slot claim; the worker report keeps its live token row leased. */
+export class InboundFloorLease {
+  private held = false;
+
+  constructor(
+    private readonly store: Pick<
+      PostgresOrchestrationStore,
+      'claimInboundFloorToken' | 'releaseInboundFloorToken'
+    >,
+    private readonly workerId: string,
+    private readonly organizationId: string,
+    private readonly ownershipEpoch: number,
+    private readonly floor: number,
+  ) {}
+
+  get isHeld(): boolean {
+    return this.held;
+  }
+
+  async claim(): Promise<boolean> {
+    const wasHeld = this.held;
+    const claimed = await this.store.claimInboundFloorToken({
+      workerId: this.workerId,
+      organizationId: this.organizationId,
+      ownershipEpoch: this.ownershipEpoch,
+      floor: this.floor,
+      leaseMs: 15_000,
+    });
+    if (!claimed && wasHeld)
+      await this.store.releaseInboundFloorToken(this.workerId, this.ownershipEpoch);
+    this.held = claimed;
+    return claimed;
+  }
+
+  async release(): Promise<void> {
+    if (!this.held) return;
+    await this.store.releaseInboundFloorToken(this.workerId, this.ownershipEpoch);
+    this.held = false;
+  }
+}
+
 type WorkerState = 'starting' | 'dial-disabled' | 'ready' | 'active' | 'draining' | 'failed';
 
 export class WorkerReporter {

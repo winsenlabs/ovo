@@ -6,6 +6,8 @@ import { runWorkerLoop, type WorkerStatus } from '../src/worker-loop.ts';
 function fixture() {
   const registerProtectedCapacity = vi.fn(async () => true);
   const suspendProtectedCapacity = vi.fn(async () => true);
+  const claimInboundFloorToken = vi.fn(async () => true);
+  const releaseInboundFloorToken = vi.fn(async () => true);
   const protection = {
     establish: vi.fn(async () => true),
     renew: vi.fn(async () => true),
@@ -23,6 +25,9 @@ function fixture() {
     workerId: 'worker-1',
     workerEndpoint: 'worker://worker-1',
     generation: 42,
+    organizationId: 'ovo',
+    inboundWarmFloor: 2,
+    floor: { claimInboundFloorToken, releaseInboundFloorToken },
     protection,
     operations: { inbound: { registerProtectedCapacity, suspendProtectedCapacity } } as never,
     store: { heartbeat, requestSessionTermination } as never,
@@ -36,6 +41,8 @@ function fixture() {
     protection,
     registerProtectedCapacity,
     suspendProtectedCapacity,
+    claimInboundFloorToken,
+    releaseInboundFloorToken,
     requestSessionTermination,
     heartbeat,
     hangup,
@@ -115,7 +122,56 @@ describe('InboundWorkerRuntime', () => {
     expect(subject.registerProtectedCapacity).toHaveBeenLastCalledWith(
       expect.objectContaining({ ready: false }),
     );
-    expect(subject.protection.release).toHaveBeenCalledOnce();
+    expect(subject.protection.release).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves workers without a floor token unprotected and retries after outbound work', async () => {
+    const subject = fixture();
+    subject.claimInboundFloorToken.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    await subject.runtime.start();
+    expect(subject.protection.establish).not.toHaveBeenCalled();
+    expect(subject.registerProtectedCapacity).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ready: false }),
+    );
+    await expect(subject.runtime.suspendForOutbound()).resolves.toBe(true);
+    expect(subject.suspendProtectedCapacity).not.toHaveBeenCalled();
+    await subject.runtime.resume();
+    expect(subject.protection.establish).toHaveBeenCalledOnce();
+    expect(subject.registerProtectedCapacity).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ready: true }),
+    );
+    await subject.runtime.close();
+  });
+
+  it('releases a floor token while an inbound call is active and reclaims it before advertising idle', async () => {
+    const subject = fixture();
+    subject.costs.reserve.mockResolvedValue({ admitted: true, beginActiveCall: vi.fn() });
+    await subject.runtime.start();
+    await subject.runtime.admitSession(inboundJob, route);
+    expect(subject.releaseInboundFloorToken).toHaveBeenCalledOnce();
+    expect(subject.registerProtectedCapacity).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ready: false }),
+    );
+    await expect(subject.runtime.suspendForOutbound()).resolves.toBe(false);
+    subject.runtime.completeSession(inboundJob.id);
+    await vi.waitFor(() => expect(subject.protection.establish).toHaveBeenCalledTimes(2));
+    expect(subject.registerProtectedCapacity).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ready: true }),
+    );
+    await subject.runtime.close();
+  });
+
+  it('keeps the worker drained when protection cannot be restored after an inbound call', async () => {
+    const subject = fixture();
+    subject.protection.establish.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    subject.costs.reserve.mockResolvedValue({ admitted: true, beginActiveCall: vi.fn() });
+    await subject.runtime.start();
+    await subject.runtime.admitSession(inboundJob, route);
+    subject.runtime.completeSession(inboundJob.id);
+    await vi.waitFor(() => expect(subject.onProtectionLost).toHaveBeenCalledWith(
+      'failed to re-establish inbound task protection',
+    ));
+    expect(subject.onSessionIdle).not.toHaveBeenCalled();
   });
 
   it('starts admitted inbound cost timing before composition', async () => {

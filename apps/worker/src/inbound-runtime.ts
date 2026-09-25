@@ -5,10 +5,12 @@ import {
   type ClaimedJob,
   type DurableJob,
   type DurableJobStore,
+  type PostgresOrchestrationStore,
   type SessionRoute,
   type TelephonyControl,
 } from '@winsendotai/ovo-plugin-orchestration';
 import type { ProductionWorkerCostRuntime } from './cost-runtime.ts';
+import { InboundFloorLease } from './worker-reporter.ts';
 
 const RENEW_INTERVAL_MS = 45_000;
 const PROTECTION_RENEW_INTERVAL_MS = 120_000;
@@ -31,6 +33,7 @@ export class InboundWorkerRuntime {
   private stopped = false;
   private failed = false;
   private renewing = false;
+  private readonly floorLease: InboundFloorLease;
   private activeSession?: {
     jobId: string;
     workerId: string;
@@ -46,6 +49,12 @@ export class InboundWorkerRuntime {
       protection: TaskProtection;
       operations: OperationsService;
       store: DurableJobStore;
+      floor: Pick<
+        PostgresOrchestrationStore,
+        'claimInboundFloorToken' | 'releaseInboundFloorToken'
+      >;
+      organizationId: string;
+      inboundWarmFloor: number;
       telephony: TelephonyControl;
       costs: ProductionWorkerCostRuntime;
       terminateOwned?: (jobId: string, ownerEpoch: number, reason: string) => Promise<boolean>;
@@ -55,48 +64,53 @@ export class InboundWorkerRuntime {
     },
   ) {
     this.slotId = `${input.workerId}:inbound`;
+    this.floorLease = new InboundFloorLease(
+      input.floor,
+      input.workerId,
+      input.organizationId,
+      input.generation,
+      input.inboundWarmFloor,
+    );
   }
 
   async start(): Promise<void> {
-    this.protectionRenewal = new ProtectionRenewal(
-      this.input.protection,
-      PROTECTION_RENEW_INTERVAL_MS,
-      () => this.failClosed('inbound task protection renewal failed'),
-    );
-    if (!(await this.protectionRenewal.establish()))
-      throw new Error('Unable to establish task protection for inbound capacity');
-    try {
-      if (!(await this.register(true))) throw new Error('Unable to register inbound capacity');
-    } catch (error) {
-      await this.protectionRenewal.release();
-      throw error;
-    }
+    if (await this.floorLease.claim()) await this.activateIdleCapacity();
+    else await this.register(false);
     this.timer = setInterval(() => void this.renew(), RENEW_INTERVAL_MS);
     this.timer.unref();
   }
 
   async suspendForOutbound(): Promise<boolean> {
     if (this.stopped || this.failed || this.suspended) return false;
-    const suspended = await this.input.operations.inbound.suspendProtectedCapacity({
-      slotId: this.slotId,
-      workerId: this.input.workerId,
-      generation: this.input.generation,
-    });
-    if (suspended) this.suspended = true;
-    return suspended;
+    if (this.floorLease.isHeld) {
+      const suspended = await this.input.operations.inbound.suspendProtectedCapacity({
+        slotId: this.slotId,
+        workerId: this.input.workerId,
+        generation: this.input.generation,
+      });
+      if (!suspended) return false;
+      await this.floorLease.release();
+      await this.protectionRenewal?.release();
+      this.protectionRenewal = undefined;
+    }
+    this.suspended = true;
+    return true;
   }
 
   async resume(): Promise<void> {
     if (this.stopped || this.failed || !this.suspended) return;
-    if (!(await this.protectionRenewal?.establish())) {
-      this.input.onProtectionLost('failed to re-establish inbound task protection');
-      return;
-    }
-    if (!(await this.register(true))) {
-      this.input.onProtectionLost('failed to re-register inbound protected capacity');
-      return;
-    }
     this.suspended = false;
+    if (await this.floorLease.claim()) {
+      try {
+        await this.activateIdleCapacity();
+      } catch {
+        await this.failClosed('failed to re-establish inbound task protection');
+      }
+    } else {
+      await this.register(false);
+      await this.protectionRenewal?.release();
+      this.protectionRenewal = undefined;
+    }
   }
 
   async admitSession(job: DurableJob, route: SessionRoute): Promise<void> {
@@ -108,12 +122,20 @@ export class InboundWorkerRuntime {
     );
     if (admission.admitted) {
       admission.beginActiveCall();
+      this.suspended = true;
       this.activeSession = {
         jobId: job.id,
         workerId: route.workerId,
         ownerEpoch: route.ownerEpoch,
         carrierCallId: route.carrierCallId,
       };
+      try {
+        await this.floorLease.release();
+        await this.register(false);
+      } catch (error) {
+        await this.failClosed(`inbound floor release failed: ${String(error)}`);
+        throw error;
+      }
       this.input.onSessionActive?.(job.id);
       return;
     }
@@ -135,7 +157,13 @@ export class InboundWorkerRuntime {
   completeSession(jobId: string): void {
     if (this.activeSession?.jobId !== jobId) return;
     this.activeSession = undefined;
-    this.input.onSessionIdle?.(jobId);
+    void this.resume()
+      .then(() => {
+        if (!this.failed && !this.stopped) this.input.onSessionIdle?.(jobId);
+      })
+      .catch((error) =>
+        this.failClosed(`inbound idle protection restore failed: ${String(error)}`),
+      );
   }
 
   async close(): Promise<void> {
@@ -143,7 +171,26 @@ export class InboundWorkerRuntime {
     this.stopped = true;
     if (this.timer) clearInterval(this.timer);
     await this.register(false).catch(() => undefined);
+    await this.floorLease.release();
     await this.protectionRenewal?.release();
+  }
+
+  private async activateIdleCapacity(): Promise<void> {
+    this.protectionRenewal ??= new ProtectionRenewal(
+      this.input.protection,
+      PROTECTION_RENEW_INTERVAL_MS,
+      () => this.failClosed('inbound task protection renewal failed'),
+    );
+    try {
+      if (!(await this.protectionRenewal.establish()))
+        throw new Error('Unable to establish task protection for inbound capacity');
+      if (!(await this.register(true))) throw new Error('Unable to register inbound capacity');
+    } catch (error) {
+      await this.protectionRenewal.release();
+      this.protectionRenewal = undefined;
+      await this.floorLease.release();
+      throw error;
+    }
   }
 
   private async register(ready: boolean): Promise<boolean> {
@@ -153,7 +200,9 @@ export class InboundWorkerRuntime {
       workerEndpoint: this.input.workerEndpoint,
       generation: this.input.generation,
       ready,
-      protectedUntil: ready ? this.protectionRenewal?.protectedUntil() ?? new Date(0) : new Date(),
+      protectedUntil: ready
+        ? (this.protectionRenewal?.protectedUntil() ?? new Date(0))
+        : new Date(),
     });
   }
 
@@ -183,8 +232,16 @@ export class InboundWorkerRuntime {
           return;
         }
       }
-      if (!this.suspended && !(await this.register(true))) {
-        await this.failClosed('inbound capacity renewal was fenced');
+      if (!this.suspended) {
+        if (!(await this.floorLease.claim())) {
+          await this.register(false);
+          await this.protectionRenewal?.release();
+          this.protectionRenewal = undefined;
+        } else if (!this.protectionRenewal) {
+          await this.activateIdleCapacity();
+        } else if (!(await this.register(true))) {
+          await this.failClosed('inbound capacity renewal was fenced');
+        }
       }
     } catch (error) {
       await this.failClosed(
@@ -207,6 +264,7 @@ export class InboundWorkerRuntime {
     }
     const active = this.activeSession;
     this.activeSession = undefined;
+    await this.floorLease.release().catch(() => undefined);
     if (active && this.input.terminateOwned) {
       await Promise.allSettled([
         this.register(false),

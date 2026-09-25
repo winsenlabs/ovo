@@ -60,6 +60,64 @@ describe.skipIf(!url)('capacity and hint PostgreSQL eligibility', () => {
     expect(Date.now() - snapshot.observedAtMs).toBeGreaterThan(30_000);
   });
 
+  it('caps advisory-locked idle floor tokens and preserves only the current epoch marker', async () => {
+    const first = `floor-${randomUUID()}`;
+    const second = `floor-${randomUUID()}`;
+    const claim = (workerId: string, ownershipEpoch = 1) =>
+      store.claimInboundFloorToken({
+        workerId,
+        organizationId: schema,
+        ownershipEpoch,
+        floor: 1,
+        leaseMs: 15_000,
+      });
+    const winners = await Promise.all([claim(first), claim(second)]);
+    expect(winners.filter(Boolean)).toHaveLength(1);
+    const winner = winners[0] ? first : second;
+    const loser = winners[0] ? second : first;
+    await store.reportWorker({
+      workerId: winner,
+      state: 'ready_idle',
+      ownershipEpoch: 1,
+      leaseMs: 15_000,
+      metadata: { infrastructure: 'sample' },
+    });
+    const token = (
+      await store.pool.query(`SELECT metadata FROM ovo_worker_slots WHERE worker_id = $1`, [winner])
+    ).rows[0]?.metadata;
+    expect(token).toMatchObject({
+      inboundFloorToken: true,
+      inboundFloorOrganizationId: schema,
+      infrastructure: 'sample',
+    });
+    expect(await claim(loser)).toBe(false);
+    expect(await store.releaseInboundFloorToken(winner, 0)).toBe(false);
+    expect(await claim(loser)).toBe(false);
+    expect(await store.releaseInboundFloorToken(winner, 1)).toBe(true);
+    expect(await claim(loser)).toBe(true);
+    expect(await claim(winner, 0)).toBe(false);
+    await store.pool.query(
+      `UPDATE ovo_worker_slots SET lease_expires_at = now() - interval '1 second'
+       WHERE worker_id = $1`,
+      [loser],
+    );
+    await store.reportWorker({
+      workerId: loser,
+      state: 'ready_idle',
+      ownershipEpoch: 1,
+      leaseMs: 15_000,
+    });
+    expect(
+      (
+        await store.pool.query(
+          `SELECT metadata->>'inboundFloorToken' AS token FROM ovo_worker_slots WHERE worker_id = $1`,
+          [loser],
+        )
+      ).rows[0]?.token,
+    ).toBeNull();
+    expect(await claim(winner, 2)).toBe(true);
+  });
+
   it('fails a repeatedly hinted unstarted job terminally without adding another outbox row', async () => {
     const id = randomUUID();
     await store.pool.query(

@@ -72,6 +72,10 @@ export async function runWorkerLoop(input: {
       protection,
       operations,
       store,
+      floor: store,
+      organizationId: process.env.OVO_INBOUND_CAPACITY_ENABLED === 'true'
+        ? env('OVO_ORGANIZATION_ID') : '',
+      inboundWarmFloor: Number(process.env.OVO_INBOUND_WARM_FLOOR ?? 0),
       telephony,
       costs,
       terminateOwned: terminateCostedJob,

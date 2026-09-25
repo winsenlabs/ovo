@@ -87,6 +87,14 @@ export class PostgresOrchestrationStore
   reportWorker(input: WorkerReport): Promise<boolean> {
     return this.capacity.reportWorker(input);
   }
+  claimInboundFloorToken(
+    input: Parameters<CapacityRepository['claimInboundFloorToken']>[0],
+  ): Promise<boolean> {
+    return this.capacity.claimInboundFloorToken(input);
+  }
+  releaseInboundFloorToken(workerId: string, ownershipEpoch: number): Promise<boolean> {
+    return this.capacity.releaseInboundFloorToken(workerId, ownershipEpoch);
+  }
   readCapacitySnapshot(): Promise<CapacitySnapshot> {
     return this.capacity.readSnapshot();
   }
