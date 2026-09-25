@@ -127,7 +127,7 @@ export function AgentStudio({
                 ? `Resolve ${readiness.blockers.length} release blocker${readiness.blockers.length === 1 ? '' : 's'}`
                 : !readiness
                   ? 'Checking release readiness'
-                : 'Publish release'}
+                  : 'Publish release'}
           </button>
         </div>
       </header>
@@ -213,7 +213,11 @@ export function AgentStudio({
           <ProviderMap config={selected.config} bindings={bindings} update={applyUpdate} />
           <SpeechCacheEditor config={selected.config} update={applyUpdate} />
           <CostPolicyEditor config={selected.config} update={applyUpdate} />
-          <RecordingPolicyPanel config={selected.config} role={identity.role} update={applyUpdate} />
+          <RecordingPolicyPanel
+            config={selected.config}
+            role={identity.role}
+            update={applyUpdate}
+          />
           <div className="desktop-authoring-note">
             <strong>Desktop is recommended for script table authoring.</strong> JSON import remains
             available on smaller screens, and diagnostics never depend on a canvas.

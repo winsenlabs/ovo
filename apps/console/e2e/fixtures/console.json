@@ -5702,9 +5702,7 @@
               "description": "Confirm carrier stream behavior"
             }
           },
-          "required": [
-            "streamEndTerminatesCall"
-          ]
+          "required": ["streamEndTerminatesCall"]
         },
         "configSchema": {
           "type": "object",
@@ -5714,9 +5712,7 @@
             }
           }
         },
-        "secretFields": [
-          "/token"
-        ],
+        "secretFields": ["/token"],
         "meters": [
           {
             "key": "carrier.stream.minute",
@@ -5781,18 +5777,10 @@
   },
   "readiness": {
     "releaseReady": false,
-    "requiredPluginIds": [
-      "engine-good",
-      "carrier-good"
-    ],
-    "blockers": [
-      "Choose a compatible engine",
-      "Choose a compatible carrier"
-    ],
+    "requiredPluginIds": ["engine-good", "carrier-good"],
+    "blockers": ["Choose a compatible engine", "Choose a compatible carrier"],
     "liveReady": false,
-    "liveBlockers": [
-      "No live number"
-    ]
+    "liveBlockers": ["No live number"]
   },
   "carrierUrls": {
     "answerUrl": "https://ovo.fixture.test/carrier/answer",

@@ -1,13 +1,6 @@
 'use client';
 import type { AgentConfig } from '../../lib/api';
-import {
-  EmptyState,
-  Field,
-  Panel,
-  PanelHeader,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
+import { EmptyState, Field, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
 
 type CostPolicy = NonNullable<AgentConfig['costPolicy']>;
 type PriceReference = CostPolicy['priceCards'][string];

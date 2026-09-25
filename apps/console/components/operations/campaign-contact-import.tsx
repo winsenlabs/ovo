@@ -53,7 +53,11 @@ export function CampaignContactImport({
   return (
     <fieldset className="nested-card">
       <legend>2 · Contact CSV preview</legend>
-      {error && <div className="field-error" role="alert">{error}</div>}
+      {error && (
+        <div className="field-error" role="alert">
+          {error}
+        </div>
+      )}
       <Field label="CSV file" htmlFor="campaign-csv">
         <input
           id="campaign-csv"

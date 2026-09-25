@@ -130,7 +130,16 @@ export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
           {error}
         </div>
       )}
-      <HandoffRequestPanel calls={calls} targetKind={targetKind} setTargetKind={setTargetKind} fallbackKind={fallbackKind} setFallbackKind={setFallbackKind} role={role} busy={busy} create={create} />
+      <HandoffRequestPanel
+        calls={calls}
+        targetKind={targetKind}
+        setTargetKind={setTargetKind}
+        fallbackKind={fallbackKind}
+        setFallbackKind={setFallbackKind}
+        role={role}
+        busy={busy}
+        create={create}
+      />
       <Panel labelledBy="handoff-evidence-title">
         <PanelHeader
           id="handoff-evidence-title"

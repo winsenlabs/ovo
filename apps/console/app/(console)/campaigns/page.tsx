@@ -1,2 +1,4 @@
 import { CampaignsFeature } from '../../../features/views';
-export default function Page() { return <CampaignsFeature />; }
+export default function Page() {
+  return <CampaignsFeature />;
+}

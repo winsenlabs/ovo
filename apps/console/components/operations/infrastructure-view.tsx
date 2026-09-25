@@ -2,14 +2,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, ApiError } from '../../lib/api';
 import type { InfrastructureSnapshot } from '../../lib/operator-api';
-import {
-  EmptyState,
-  Field,
-  LoadingBlock,
-  Panel,
-  PanelHeader,
-  StatusBadge,
-} from '../primitives';
+import { EmptyState, Field, LoadingBlock, Panel, PanelHeader, StatusBadge } from '../primitives';
 import { ProviderCapacityPanel } from './provider-capacity-panel';
 
 const value = (item: number | null, suffix = '') =>
@@ -64,7 +57,11 @@ export function InfrastructureView() {
           </p>
         </div>
       </header>
-      {error && <div className="field-error" role="alert">{error}</div>}
+      {error && (
+        <div className="field-error" role="alert">
+          {error}
+        </div>
+      )}
       <form className="filter-bar" onSubmit={submit}>
         <Field label="Optional release ID" htmlFor="infrastructure-release">
           <input
@@ -98,9 +95,7 @@ export function InfrastructureView() {
               }
             />
             <div className="panel-body stack">
-              <div className="muted">
-                {snapshot.installation.admissionSafety}
-              </div>
+              <div className="muted">{snapshot.installation.admissionSafety}</div>
               {snapshot.installation.reasons.length > 0 && (
                 <ul>
                   {snapshot.installation.reasons.map((reason) => (

@@ -158,7 +158,28 @@ export function EvaluationRunsPanel({
           </div>
         )}
         {role !== 'viewer' && (
-          <EvaluationRunForm datasets={datasets} runDatasetId={runDatasetId} setRunDatasetId={setRunDatasetId} agents={agents} agentId={agentId} setAgentId={setAgentId} releases={releases} releaseId={releaseId} setReleaseId={setReleaseId} executorKind={executorKind} setExecutorKind={setExecutorKind} role={role} providerAvailability={providerAvailability} maxAttempts={maxAttempts} setMaxAttempts={setMaxAttempts} providerAuthorizationId={providerAuthorizationId} setProviderAuthorizationId={setProviderAuthorizationId} matchingAuthorizations={matchingAuthorizations} busy={busy} createRun={createRun} />
+          <EvaluationRunForm
+            datasets={datasets}
+            runDatasetId={runDatasetId}
+            setRunDatasetId={setRunDatasetId}
+            agents={agents}
+            agentId={agentId}
+            setAgentId={setAgentId}
+            releases={releases}
+            releaseId={releaseId}
+            setReleaseId={setReleaseId}
+            executorKind={executorKind}
+            setExecutorKind={setExecutorKind}
+            role={role}
+            providerAvailability={providerAvailability}
+            maxAttempts={maxAttempts}
+            setMaxAttempts={setMaxAttempts}
+            providerAuthorizationId={providerAuthorizationId}
+            setProviderAuthorizationId={setProviderAuthorizationId}
+            matchingAuthorizations={matchingAuthorizations}
+            busy={busy}
+            createRun={createRun}
+          />
         )}
         <EvaluationRunEvidence
           role={role}

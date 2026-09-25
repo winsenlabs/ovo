@@ -12,12 +12,7 @@ import {
   type SessionIdentity,
   type ToolApproval,
 } from '../../lib/api';
-import {
-  Field,
-  Panel,
-  PanelHeader,
-  StatusBadge,
-} from '../primitives';
+import { Field, Panel, PanelHeader, StatusBadge } from '../primitives';
 import { bindDiscoveredMcpTool } from './mcp-agent-config';
 import { McpReviewPanel } from './mcp-review-panel';
 const safeMessage = (error: unknown, fallback: string) =>
@@ -230,7 +225,20 @@ export function McpManager({
           {message.text}
         </div>
       )}
-      <McpReviewPanel drifted={drifted} connection={connection} connections={connections} setSelectedConnection={setSelectedConnection} agent={agent} agents={agents} setSelectedAgent={setSelectedAgent} role={role} connectionAction={connectionAction} discovered={discovered} approvals={approvals} approve={approve} />
+      <McpReviewPanel
+        drifted={drifted}
+        connection={connection}
+        connections={connections}
+        setSelectedConnection={setSelectedConnection}
+        agent={agent}
+        agents={agents}
+        setSelectedAgent={setSelectedAgent}
+        role={role}
+        connectionAction={connectionAction}
+        discovered={discovered}
+        approvals={approvals}
+        approve={approve}
+      />
     </div>
   );
 }

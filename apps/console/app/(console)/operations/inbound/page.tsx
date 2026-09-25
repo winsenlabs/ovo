@@ -1,2 +1,4 @@
 import { InboundFeature } from '../../../../features/views';
-export default function Page() { return <InboundFeature />; }
+export default function Page() {
+  return <InboundFeature />;
+}

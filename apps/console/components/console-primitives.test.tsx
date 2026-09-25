@@ -11,11 +11,18 @@ import { SlotPicker } from './plugins/slot-picker';
 import { ConfirmDialog } from './ui/dialog';
 import { safeReturnPath } from '../features/login';
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('console form and plugin primitives', () => {
   it('puts help and error references on the real form control', () => {
-    render(<FormField id="number" label="Number" help="E.164" error="Invalid" required>{props => <input {...props} />}</FormField>);
+    render(
+      <FormField id="number" label="Number" help="E.164" error="Invalid" required>
+        {(props) => <input {...props} />}
+      </FormField>,
+    );
     const control = screen.getByLabelText('Number');
     expect(control.getAttribute('aria-describedby')).toBe('number-help number-error');
     expect(control.getAttribute('aria-invalid')).toBe('true');
@@ -37,10 +44,21 @@ describe('console form and plugin primitives', () => {
 
   it('captures the form before await and resets only after successful submit', async () => {
     let finish!: () => void;
-    const pending = new Promise<void>(resolve => { finish = resolve; });
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
     function Example() {
       const action = useFormAction();
-      return <form onSubmit={event => { void action(event, async () => pending); }}><input aria-label="Value" defaultValue="" /><button>Save</button></form>;
+      return (
+        <form
+          onSubmit={(event) => {
+            void action(event, async () => pending);
+          }}
+        >
+          <input aria-label="Value" defaultValue="" />
+          <button>Save</button>
+        </form>
+      );
     }
     render(<Example />);
     const input = screen.getByRole('textbox') as HTMLInputElement;
@@ -55,7 +73,18 @@ describe('console form and plugin primitives', () => {
     function Rows() {
       const [items, setItems] = useState([{ id: 'first' }]);
       const keys = useRowKeys(items.length);
-      return <>{items.map((item, index) => <input aria-label="Row id" key={keys.keyAt(index)} value={item.id} onChange={event => setItems([{ id: event.target.value }])} />)}</>;
+      return (
+        <>
+          {items.map((item, index) => (
+            <input
+              aria-label="Row id"
+              key={keys.keyAt(index)}
+              value={item.id}
+              onChange={(event) => setItems([{ id: event.target.value }])}
+            />
+          ))}
+        </>
+      );
     }
     render(<Rows />);
     const control = screen.getByRole('textbox');
@@ -78,9 +107,25 @@ describe('console form and plugin primitives', () => {
 
   it('renders a required const attestation and write-only secret control', async () => {
     const onSecret = vi.fn();
-    render(<SchemaForm plugin={{ id: 'carrier', version: '1.0.0', kind: 'carrier', available: true, secretFields: ['/token'] }}
-      schema={{ properties: { streamEndTerminatesCall: { const: true }, token: { type: 'string' } }, required: ['streamEndTerminatesCall'] }}
-      value={{ streamEndTerminatesCall: false }} onChange={vi.fn()} onSecret={onSecret} fingerprints={{ token: 'abc123' }} />);
+    render(
+      <SchemaForm
+        plugin={{
+          id: 'carrier',
+          version: '1.0.0',
+          kind: 'carrier',
+          available: true,
+          secretFields: ['/token'],
+        }}
+        schema={{
+          properties: { streamEndTerminatesCall: { const: true }, token: { type: 'string' } },
+          required: ['streamEndTerminatesCall'],
+        }}
+        value={{ streamEndTerminatesCall: false }}
+        onChange={vi.fn()}
+        onSecret={onSecret}
+        fingerprints={{ token: 'abc123' }}
+      />,
+    );
     const attestation = screen.getByRole('checkbox') as HTMLInputElement;
     expect(attestation.required).toBe(true);
     const secret = screen.getByLabelText('token') as HTMLInputElement;
@@ -94,9 +139,43 @@ describe('console form and plugin primitives', () => {
   });
 
   it('keeps an incompatible plugin visible with a linked reason', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, headers: new Headers(), text: async () => JSON.stringify([{ code: 'format_unreachable', severity: 'error', stage: 'live', slot: 'stt', pluginId: 'bad-stt', message: 'Audio format unreachable' }]) })));
-    render(<SlotPicker slot="stt" plugins={[{ id: 'bad-stt', version: '1.0.0', kind: 'stt', available: true, ui: { label: 'Bad STT' } }]}
-      voice={{ textFilters: [], acknowledgements: [] }} mode="announcement" language="en-IN" onChange={vi.fn()} />);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        text: async () =>
+          JSON.stringify([
+            {
+              code: 'format_unreachable',
+              severity: 'error',
+              stage: 'live',
+              slot: 'stt',
+              pluginId: 'bad-stt',
+              message: 'Audio format unreachable',
+            },
+          ]),
+      })),
+    );
+    render(
+      <SlotPicker
+        slot="stt"
+        plugins={[
+          {
+            id: 'bad-stt',
+            version: '1.0.0',
+            kind: 'stt',
+            available: true,
+            ui: { label: 'Bad STT' },
+          },
+        ]}
+        voice={{ textFilters: [], acknowledgements: [] }}
+        mode="announcement"
+        language="en-IN"
+        onChange={vi.fn()}
+      />,
+    );
     const card = screen.getByRole('radio', { name: /Bad STT/i }) as HTMLInputElement;
     await waitFor(() => expect(card.disabled).toBe(true));
     const reason = document.getElementById(card.getAttribute('aria-describedby')!);
@@ -112,7 +191,9 @@ describe('console form and plugin primitives', () => {
 
   it('settles Escape confirmation once when cancel and close both fire', () => {
     vi.stubGlobal('HTMLDialogElement', HTMLDialogElement);
-    HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    HTMLDialogElement.prototype.showModal = function () {
+      this.open = true;
+    };
     const choice = vi.fn();
     render(<ConfirmDialog open title="Delete" message="Sure?" onChoice={choice} />);
     const dialog = screen.getByRole('dialog');
@@ -125,7 +206,18 @@ describe('console form and plugin primitives', () => {
   it('preserves form data after a rejected async submit', async () => {
     function Example() {
       const action = useFormAction();
-      return <form onSubmit={event => { void action(event, async () => { throw new Error('rejected'); }).catch(() => undefined); }}><input aria-label="Value" defaultValue="" /><button>Save</button></form>;
+      return (
+        <form
+          onSubmit={(event) => {
+            void action(event, async () => {
+              throw new Error('rejected');
+            }).catch(() => undefined);
+          }}
+        >
+          <input aria-label="Value" defaultValue="" />
+          <button>Save</button>
+        </form>
+      );
     }
     render(<Example />);
     const input = screen.getByRole('textbox') as HTMLInputElement;
@@ -138,9 +230,31 @@ describe('console form and plugin primitives', () => {
     function Rows() {
       const [items, setItems] = useState(['first', 'second']);
       const keys = useRowKeys(items.length);
-      return <><div>{items.map((item, index) => <input aria-label={item} key={keys.keyAt(index)} defaultValue={item} />)}</div>
-        <button onClick={() => { keys.insert(1); setItems(['first', 'middle', 'second']); }}>Insert</button>
-        <button onClick={() => { keys.remove(1); setItems(['first', 'second']); }}>Remove</button></>;
+      return (
+        <>
+          <div>
+            {items.map((item, index) => (
+              <input aria-label={item} key={keys.keyAt(index)} defaultValue={item} />
+            ))}
+          </div>
+          <button
+            onClick={() => {
+              keys.insert(1);
+              setItems(['first', 'middle', 'second']);
+            }}
+          >
+            Insert
+          </button>
+          <button
+            onClick={() => {
+              keys.remove(1);
+              setItems(['first', 'second']);
+            }}
+          >
+            Remove
+          </button>
+        </>
+      );
     }
     render(<Rows />);
     const first = screen.getByLabelText('first');

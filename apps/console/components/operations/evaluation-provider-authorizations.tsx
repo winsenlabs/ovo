@@ -3,13 +3,7 @@ import { useConfirm } from '../ui/dialog';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, ApiError, items, type Release, type SessionIdentity } from '../../lib/api';
 import type { ProviderEvaluationAuthorization } from '../../lib/operator-api';
-import {
-  EmptyState,
-  Notice,
-  Panel,
-  PanelHeader,
-  StatusBadge,
-} from '../primitives';
+import { EmptyState, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
 import type { ProviderEvaluationAvailability } from './evaluation-provider-state';
 import { ProviderAuthorizationsTable } from './provider-authorizations-table';
 import { ProviderAuthorizationForm } from './provider-authorization-form';
@@ -160,7 +154,13 @@ export function EvaluationProviderAuthorizations({
   }
 
   async function revoke(authorization: ProviderEvaluationAuthorization) {
-    if (!(await confirm('Revoke authorization', `Revoke provider evaluation authorization ${authorization.id}?`))) return;
+    if (
+      !(await confirm(
+        'Revoke authorization',
+        `Revoke provider evaluation authorization ${authorization.id}?`,
+      ))
+    )
+      return;
     setBusy(true);
     setError(undefined);
     setNotice(undefined);
@@ -232,7 +232,11 @@ export function EvaluationProviderAuthorizations({
             immutable release and budget reservation authorization.
           </EmptyState>
         ) : role === 'admin' && authorizations.length ? (
-          <ProviderAuthorizationsTable authorizations={authorizations} busy={busy} revoke={revoke} />
+          <ProviderAuthorizationsTable
+            authorizations={authorizations}
+            busy={busy}
+            revoke={revoke}
+          />
         ) : null}
         {nextCursor && (
           <button

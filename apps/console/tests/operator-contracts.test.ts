@@ -25,21 +25,37 @@ describe('wave-2 plugin and readiness API shapes', () => {
   it('filters installed manifest projections by the requested slot, retaining unavailable choices', () => {
     const plugins = [
       { id: 'engine-one', kind: 'engine', version: '1', available: true },
-      { id: 'carrier-one', kind: 'carrier', version: '1', available: false, unavailableReason: 'Native codec unavailable' },
+      {
+        id: 'carrier-one',
+        kind: 'carrier',
+        version: '1',
+        available: false,
+        unavailableReason: 'Native codec unavailable',
+      },
     ];
     expect(pluginOptionsForSlot(plugins, 'carrier')).toEqual([plugins[1]]);
     expect(pluginOptionsForSlot(plugins, 'turnDetector')).toEqual([]);
   });
 
   it('uses the API carrier URL items envelope and fails closed on malformed rows', () => {
-    const answer = { purpose: 'answer', label: 'Answer URL', url: 'https://fixture.test/answer?t=opaque' };
+    const answer = {
+      purpose: 'answer',
+      label: 'Answer URL',
+      url: 'https://fixture.test/answer?t=opaque',
+    };
     expect(carrierOperatorUrls({ items: [answer] })).toEqual([answer]);
-    expect(() => carrierOperatorUrls({ items: [{ purpose: 'answer' }] })).toThrow('Carrier URL response is invalid');
-    expect(() => carrierOperatorUrls({ answerUrl: answer.url })).toThrow('Carrier URL response is invalid');
+    expect(() => carrierOperatorUrls({ items: [{ purpose: 'answer' }] })).toThrow(
+      'Carrier URL response is invalid',
+    );
+    expect(() => carrierOperatorUrls({ answerUrl: answer.url })).toThrow(
+      'Carrier URL response is invalid',
+    );
   });
 
   it('links a readiness detail to its exact agent slot', () => {
-    expect(readinessIssueHref('agent/one', 'carrier')).toBe('/agents/agent%2Fone/plugins#slot-carrier');
+    expect(readinessIssueHref('agent/one', 'carrier')).toBe(
+      '/agents/agent%2Fone/plugins#slot-carrier',
+    );
   });
 });
 

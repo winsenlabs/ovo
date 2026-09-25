@@ -87,12 +87,15 @@ export function StudioRail({
             <div className="ui-stack" aria-label="Compatibility details">
               {readiness.details.map((issue, index) => (
                 <p key={`${issue.code}-${index}`}>
-                  <strong>{issue.stage}{issue.slot ? ` · ${issue.slot}` : ''}:</strong>{' '}
+                  <strong>
+                    {issue.stage}
+                    {issue.slot ? ` · ${issue.slot}` : ''}:
+                  </strong>{' '}
                   {issue.slot ? (
-                    <a href={readinessIssueHref(selected.id, issue.slot)}>
-                      {issue.message}
-                    </a>
-                  ) : issue.message}
+                    <a href={readinessIssueHref(selected.id, issue.slot)}>{issue.message}</a>
+                  ) : (
+                    issue.message
+                  )}
                 </p>
               ))}
             </div>

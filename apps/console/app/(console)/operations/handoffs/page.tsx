@@ -1,2 +1,4 @@
 import { HandoffsFeature } from '../../../../features/views';
-export default function Page() { return <HandoffsFeature />; }
+export default function Page() {
+  return <HandoffsFeature />;
+}

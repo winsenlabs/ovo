@@ -127,7 +127,11 @@ export function FaqEditor({
               />
             </Field>
             <Field label="Aliases (one per line)" htmlFor={`faq-a-${index}`}>
-              <ListTextInput id={`faq-a-${index}`} value={row.aliases} onChange={aliases => edit(index, { aliases })} />
+              <ListTextInput
+                id={`faq-a-${index}`}
+                value={row.aliases}
+                onChange={(aliases) => edit(index, { aliases })}
+              />
             </Field>
             <Field label="Approved answer" htmlFor={`faq-answer-${index}`}>
               <textarea
@@ -141,14 +145,19 @@ export function FaqEditor({
                 <JsonEditor
                   id={`faq-tool-input-${index}`}
                   value={row.toolInput ?? {}}
-                  onValid={(toolInput) => edit(index, { toolInput: toolInput as Record<string, unknown> })}
+                  onValid={(toolInput) =>
+                    edit(index, { toolInput: toolInput as Record<string, unknown> })
+                  }
                 />
               </Field>
             )}
             <button
               className="text-button danger-text"
               type="button"
-              onClick={() => { rowKeys.remove(index); update({ ...config, faq: config.faq.filter((_, current) => current !== index) }); }}
+              onClick={() => {
+                rowKeys.remove(index);
+                update({ ...config, faq: config.faq.filter((_, current) => current !== index) });
+              }}
             >
               Remove entry
             </button>

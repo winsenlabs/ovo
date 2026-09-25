@@ -13,14 +13,7 @@ import {
   userManagementErrorMessage,
   userUpdateInvalidatesCurrentSession,
 } from '../../lib/user-contract';
-import {
-  EmptyState,
-  Field,
-  LoadingBlock,
-  Panel,
-  PanelHeader,
-  StatusBadge,
-} from '../primitives';
+import { EmptyState, Field, LoadingBlock, Panel, PanelHeader, StatusBadge } from '../primitives';
 import { TeamUsersTable } from './team-users-table';
 import { TeamAddPanel } from './team-add-panel';
 
@@ -161,7 +154,11 @@ export function TeamView({
           {error}
         </div>
       )}
-      {notice && <div className="field-error" role="alert">{notice}</div>}
+      {notice && (
+        <div className="field-error" role="alert">
+          {notice}
+        </div>
+      )}
 
       {!unavailable && (
         <TeamAddPanel createUser={createUser} createPassword={createPassword} busy={busy} />
@@ -239,7 +236,15 @@ export function TeamView({
               Seed the first administrator on the server before managing this organization.
             </EmptyState>
           ) : users.length ? (
-            <TeamUsersTable users={users} identity={identity} busy={busy} resetPassword={resetPassword} setEditing={setEditing} setError={setError} setNotice={setNotice} />
+            <TeamUsersTable
+              users={users}
+              identity={identity}
+              busy={busy}
+              resetPassword={resetPassword}
+              setEditing={setEditing}
+              setError={setError}
+              setNotice={setNotice}
+            />
           ) : null}
         </div>
       </Panel>

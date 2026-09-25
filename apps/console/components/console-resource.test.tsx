@@ -13,9 +13,17 @@ describe('shared console resource and mutation', () => {
     function Surface({ workspace }: { workspace: string }) {
       const key = `plugins:test-${workspace}`;
       const resource = useResource(key, load, 60_000);
-      const mutation = useMutation(async () => { version++; }, [key]);
-      return <><output data-testid="version">{resource.status === 'ready' ? resource.data.version : resource.status}</output>
-        <button onClick={() => void mutation.run(undefined)}>Update plugins</button></>;
+      const mutation = useMutation(async () => {
+        version++;
+      }, [key]);
+      return (
+        <>
+          <output data-testid="version">
+            {resource.status === 'ready' ? resource.data.version : resource.status}
+          </output>
+          <button onClick={() => void mutation.run(undefined)}>Update plugins</button>
+        </>
+      );
     }
     const view = render(<Surface workspace="one" />);
     await waitFor(() => expect(screen.getByTestId('version').textContent).toBe('1'));
@@ -30,10 +38,15 @@ describe('shared console resource and mutation', () => {
   it('does not show another workspace cache while its own resource loads', async () => {
     cacheSet('plugins:test-workspace-A', { version: 'A' });
     let finish!: (value: { version: string }) => void;
-    const load = () => new Promise<{ version: string }>(resolve => { finish = resolve; });
+    const load = () =>
+      new Promise<{ version: string }>((resolve) => {
+        finish = resolve;
+      });
     function Surface({ workspace }: { workspace: string }) {
       const resource = useResource(`plugins:test-workspace-${workspace}`, load, 60_000);
-      return <output>{resource.status === 'ready' ? resource.data.version : resource.status}</output>;
+      return (
+        <output>{resource.status === 'ready' ? resource.data.version : resource.status}</output>
+      );
     }
     const view = render(<Surface workspace="A" />);
     expect(screen.getByText('A')).toBeDefined();

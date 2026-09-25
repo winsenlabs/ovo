@@ -60,18 +60,24 @@ export function CampaignCreateForm({
     setBusy(true);
     setError(undefined);
     try {
-      await formAction(event, async values => {
+      await formAction(event, async (values) => {
         const { data } = await apiRequest<CampaignRecord>('/operations/campaigns', {
           method: 'POST',
           body: JSON.stringify({
             operationId: operationId.current(),
-            name: values.get('name'), releaseId, fromNumber: values.get('fromNumber'),
-            schedule: { localDateTime: values.get('localDateTime'), timezone: values.get('timezone') },
+            name: values.get('name'),
+            releaseId,
+            fromNumber: values.get('fromNumber'),
+            schedule: {
+              localDateTime: values.get('localDateTime'),
+              timezone: values.get('timezone'),
+            },
             perNumberAttemptLimit: Number(values.get('perNumberAttemptLimit')),
             maxAttemptsTotal: Number(values.get('maxAttemptsTotal')),
             maxAttemptsPerLocalDay: Number(values.get('maxAttemptsPerLocalDay')),
             maxConcurrency: Number(values.get('maxConcurrency')),
-            activeCallPolicy: values.get('activeCallPolicy'), contacts: preview.rows,
+            activeCallPolicy: values.get('activeCallPolicy'),
+            contacts: preview.rows,
           }),
         });
         onCreated(data);
@@ -206,7 +212,16 @@ export function CampaignCreateForm({
             />
           </Field>
           <Field label="Maximum concurrent calls" htmlFor="campaign-concurrency">
-            <input id="campaign-concurrency" name="maxConcurrency" type="number" min={1} max={1000} defaultValue={1} required disabled={!preview} />
+            <input
+              id="campaign-concurrency"
+              name="maxConcurrency"
+              type="number"
+              min={1}
+              max={1000}
+              defaultValue={1}
+              required
+              disabled={!preview}
+            />
           </Field>
           <Field label="Active calls on cancel" htmlFor="campaign-active-policy">
             <select id="campaign-active-policy" name="activeCallPolicy" disabled={!preview}>

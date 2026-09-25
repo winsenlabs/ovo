@@ -50,10 +50,10 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[], preferre
           }),
         );
         setAgents(details);
-        setSelected(details.find(item => item.id === preferredAgentId) ?? details[0]);
+        setSelected(details.find((item) => item.id === preferredAgentId) ?? details[0]);
       } else {
         setAgents(drafts);
-        setSelected(drafts.find(item => item.id === preferredAgentId) ?? drafts[0]);
+        setSelected(drafts.find((item) => item.id === preferredAgentId) ?? drafts[0]);
       }
       setBindings(items<ProviderBinding>(bindingResult.data));
     } catch (error) {

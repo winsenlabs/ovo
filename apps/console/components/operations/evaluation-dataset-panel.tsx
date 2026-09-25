@@ -7,18 +7,11 @@ import type {
   EvaluationDataset,
   EvaluationDatasetVersion,
 } from '../../lib/operator-api';
-import {
-  EmptyState,
-  Field,
-  Panel,
-  PanelHeader,
-  StatusBadge,
-} from '../primitives';
+import { EmptyState, Field, Panel, PanelHeader, StatusBadge } from '../primitives';
 import { parseEvaluationCorpus } from './evaluation-import';
 import { EvaluationDatasetImport } from './evaluation-dataset-import';
 import { EvaluationCasesTable } from './evaluation-cases-table';
 import { loadCases } from './load-evaluation-cases';
-
 
 export function EvaluationDatasetPanel({
   role,
@@ -102,7 +95,14 @@ export function EvaluationDatasetPanel({
   }
 
   async function archive() {
-    if (!selected || !(await confirm('Archive dataset', `Archive “${selected.name}”? Immutable versions remain evidence.`))) return;
+    if (
+      !selected ||
+      !(await confirm(
+        'Archive dataset',
+        `Archive “${selected.name}”? Immutable versions remain evidence.`,
+      ))
+    )
+      return;
     setBusy(true);
     try {
       await apiRequest(`/evaluation-datasets/${encodeURIComponent(selected.id)}`, {
@@ -227,7 +227,13 @@ export function EvaluationDatasetPanel({
           </form>
         )}
         {selected && role !== 'viewer' && (
-          <EvaluationDatasetImport importCases={importCases} importName={importName} busy={busy} readImport={readImport} importVersion={importVersion} />
+          <EvaluationDatasetImport
+            importCases={importCases}
+            importName={importName}
+            busy={busy}
+            readImport={readImport}
+            importVersion={importVersion}
+          />
         )}
         {!selected ? (
           <EmptyState title="Select or create a dataset">

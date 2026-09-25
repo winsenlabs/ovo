@@ -90,9 +90,17 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
     );
   }, [loadReleases, loadRoutes]);
   useEffect(() => {
-    void Promise.all([apiRequest<PluginCatalog>('/plugins?kind=carrier'), apiRequest<unknown>('/provider-bindings')])
-      .then(([catalog, rows]) => { setCarriers(catalog.data.plugins); setBindings(items(rows.data)); })
-      .catch(failure => setError(failure instanceof Error ? failure.message : 'Carrier choices unavailable'));
+    void Promise.all([
+      apiRequest<PluginCatalog>('/plugins?kind=carrier'),
+      apiRequest<unknown>('/provider-bindings'),
+    ])
+      .then(([catalog, rows]) => {
+        setCarriers(catalog.data.plugins);
+        setBindings(items(rows.data));
+      })
+      .catch((failure) =>
+        setError(failure instanceof Error ? failure.message : 'Carrier choices unavailable'),
+      );
   }, []);
 
   function resetForm() {
@@ -160,7 +168,8 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
   }
 
   async function remove(route: InboundRouteRecord) {
-    if (!(await confirm('Delete inbound route', `Delete inbound route ${route.phoneNumber}?`))) return;
+    if (!(await confirm('Delete inbound route', `Delete inbound route ${route.phoneNumber}?`)))
+      return;
     setBusy(true);
     setError(undefined);
     setNotice(undefined);
@@ -211,13 +220,35 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
             {notice}
           </div>
         )}
-        <InboundRouteForm editing={editing} phoneNumber={phoneNumber} setPhoneNumber={setPhoneNumber}
-          releaseId={releaseId} setReleaseId={setReleaseId} carrierPluginId={carrierPluginId}
-          setCarrierPluginId={setCarrierPluginId} carrierBindingId={carrierBindingId} setCarrierBindingId={setCarrierBindingId}
-          variables={variables} setVariables={setVariables} enabled={enabled} setEnabled={setEnabled}
-          releases={releases} carriers={carriers} bindings={bindings} role={role} busy={busy}
-          onSave={save} onCancel={resetForm} />
-        <InboundRoutesTable routes={routes} role={role} busy={busy} onEdit={edit} onRemove={remove} />
+        <InboundRouteForm
+          editing={editing}
+          phoneNumber={phoneNumber}
+          setPhoneNumber={setPhoneNumber}
+          releaseId={releaseId}
+          setReleaseId={setReleaseId}
+          carrierPluginId={carrierPluginId}
+          setCarrierPluginId={setCarrierPluginId}
+          carrierBindingId={carrierBindingId}
+          setCarrierBindingId={setCarrierBindingId}
+          variables={variables}
+          setVariables={setVariables}
+          enabled={enabled}
+          setEnabled={setEnabled}
+          releases={releases}
+          carriers={carriers}
+          bindings={bindings}
+          role={role}
+          busy={busy}
+          onSave={save}
+          onCancel={resetForm}
+        />
+        <InboundRoutesTable
+          routes={routes}
+          role={role}
+          busy={busy}
+          onEdit={edit}
+          onRemove={remove}
+        />
         {nextCursor && (
           <button
             className="button align-start"

@@ -5,10 +5,29 @@ import { Topbar } from './topbar';
 import { SessionProvider } from './session-provider';
 import { ConfirmDialogProvider } from '../ui/dialog';
 
-export function AppShell({ identity, children }: { identity: SessionIdentity; children: ReactNode }) {
-  return <SessionProvider identity={identity}>
-    <a className="skip-link" href="#main">Skip to content</a>
-    <div className="desktop-nav"><Sidebar identity={identity} /></div>
-    <ConfirmDialogProvider><div className="shell"><Topbar identity={identity} /><main id="main" className="content">{children}</main></div></ConfirmDialogProvider>
-  </SessionProvider>;
+export function AppShell({
+  identity,
+  children,
+}: {
+  identity: SessionIdentity;
+  children: ReactNode;
+}) {
+  return (
+    <SessionProvider identity={identity}>
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
+      <div className="desktop-nav">
+        <Sidebar identity={identity} />
+      </div>
+      <ConfirmDialogProvider>
+        <div className="shell">
+          <Topbar identity={identity} />
+          <main id="main" className="content">
+            {children}
+          </main>
+        </div>
+      </ConfirmDialogProvider>
+    </SessionProvider>
+  );
 }

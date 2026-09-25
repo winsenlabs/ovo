@@ -153,7 +153,16 @@ export function TestAndEvaluationView({
           {message.text}
         </div>
       )}
-      {!evaluationsOnly && <SimulationPanel releases={releases} simulationMode={simulationMode} setSimulationMode={setSimulationMode} simulationBindings={simulationBindings} setSimulationBindings={setSimulationBindings} simulate={simulate} />}
+      {!evaluationsOnly && (
+        <SimulationPanel
+          releases={releases}
+          simulationMode={simulationMode}
+          setSimulationMode={setSimulationMode}
+          simulationBindings={simulationBindings}
+          setSimulationBindings={setSimulationBindings}
+          simulate={simulate}
+        />
+      )}
       {!simulationsOnly && (
         <>
           <Panel labelledBy="evaluation-run-title">

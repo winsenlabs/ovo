@@ -93,7 +93,11 @@ export function RecordingExportPanel({
         )}
       </div>
       {job && <JsonEvidence label="Export receipt" value={job} />}
-      {error && <div className="field-error" role="alert">{error}</div>}
+      {error && (
+        <div className="field-error" role="alert">
+          {error}
+        </div>
+      )}
     </section>
   );
 }

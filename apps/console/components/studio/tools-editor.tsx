@@ -56,12 +56,27 @@ export function ToolsEditor({
           </EmptyState>
         )}
         {config.tools.map((tool, index) => (
-          <ToolRow key={rowKeys.keyAt(index)} tool={tool} index={index} config={config} update={update} patch={patch} emptyTool={emptyTool} onRemove={() => { rowKeys.remove(index); setTools(config.tools.filter((_, current) => current !== index)); }} />
+          <ToolRow
+            key={rowKeys.keyAt(index)}
+            tool={tool}
+            index={index}
+            config={config}
+            update={update}
+            patch={patch}
+            emptyTool={emptyTool}
+            onRemove={() => {
+              rowKeys.remove(index);
+              setTools(config.tools.filter((_, current) => current !== index));
+            }}
+          />
         ))}
         <button
           className="button align-start"
           type="button"
-          onClick={() => { rowKeys.insert(config.tools.length); setTools([...config.tools, emptyTool()]); }}
+          onClick={() => {
+            rowKeys.insert(config.tools.length);
+            setTools([...config.tools, emptyTool()]);
+          }}
         >
           Add tool
         </button>

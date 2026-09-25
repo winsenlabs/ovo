@@ -7,13 +7,19 @@
       "removeBy": "I1"
     },
     {
-      "files": ["apps/console/lib/types/evaluations.ts", "packages/plugin-evaluations/src/provider-policy.ts"],
+      "files": [
+        "apps/console/lib/types/evaluations.ts",
+        "packages/plugin-evaluations/src/provider-policy.ts"
+      ],
       "windows": 4,
       "reason": "U1 moved existing console evaluation API types out of the oversized operator-api.ts; I1 should consolidate the existing shared contract overlap.",
       "removeBy": "I1"
     },
     {
-      "files": ["apps/console/lib/types/evaluations.ts", "packages/plugin-evaluations/src/types.ts"],
+      "files": [
+        "apps/console/lib/types/evaluations.ts",
+        "packages/plugin-evaluations/src/types.ts"
+      ],
       "windows": 1,
       "reason": "U1 moved existing console evaluation API types out of the oversized operator-api.ts; I1 should consolidate the existing shared contract overlap.",
       "removeBy": "I1"
@@ -25,7 +31,10 @@
       "removeBy": "I1"
     },
     {
-      "files": ["apps/console/lib/types/operations.ts", "packages/plugin-observability/src/telemetry-types.ts"],
+      "files": [
+        "apps/console/lib/types/operations.ts",
+        "packages/plugin-observability/src/telemetry-types.ts"
+      ],
       "windows": 21,
       "reason": "U1 moved existing console operations API types out of the oversized operator-api.ts; I1 should consolidate the existing shared contract overlap.",
       "removeBy": "I1"

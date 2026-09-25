@@ -86,7 +86,14 @@ export function LiveRecordingsPanel({
   }, [callBase, selectedId]);
 
   async function tombstone() {
-    if (!selectedId || !(await confirm('Tombstone recording', 'Tombstone this recording and schedule physical cleanup?'))) return;
+    if (
+      !selectedId ||
+      !(await confirm(
+        'Tombstone recording',
+        'Tombstone this recording and schedule physical cleanup?',
+      ))
+    )
+      return;
     setBusy(true);
     try {
       await apiRequest(`${callBase}/${encodeURIComponent(selectedId)}`, { method: 'DELETE' });
@@ -188,7 +195,11 @@ export function LiveRecordingsPanel({
                     />
                   ))}
                 </div>
-                <RecordingSegmentsTable segments={detail.manifest.segments} callBase={callBase} selectedId={selectedId} />
+                <RecordingSegmentsTable
+                  segments={detail.manifest.segments}
+                  callBase={callBase}
+                  selectedId={selectedId}
+                />
                 <JsonEvidence label="Alignment and transcript evidence" value={detail.alignment} />
                 <div className="button-row">
                   <button className="button" type="button" onClick={loadReplay} disabled={busy}>

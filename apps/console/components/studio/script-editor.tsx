@@ -3,13 +3,7 @@ import { useMemo, useState } from 'react';
 import type { AgentConfig } from '../../lib/api';
 import { useRowKeys } from '../forms/use-row-keys';
 import { ScriptNodesTable } from './script-nodes-table';
-import {
-  EmptyState,
-  Field,
-  Panel,
-  PanelHeader,
-  StatusBadge,
-} from '../primitives';
+import { EmptyState, Field, Panel, PanelHeader, StatusBadge } from '../primitives';
 
 type Script = NonNullable<AgentConfig['script']>;
 type Node = Script['nodes'][number];
@@ -160,7 +154,13 @@ export function ScriptEditor({
                 </ul>
               </div>
             )}
-            <ScriptNodesTable script={script} rowKeys={rowKeys} patchNode={patchNode} patchTransition={patchTransition} setScript={setScript} />
+            <ScriptNodesTable
+              script={script}
+              rowKeys={rowKeys}
+              patchNode={patchNode}
+              patchTransition={patchTransition}
+              setScript={setScript}
+            />
             <div className="button-row">
               <button
                 className="button"

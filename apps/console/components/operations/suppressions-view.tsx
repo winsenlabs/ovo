@@ -4,14 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, ApiError, items, type SessionIdentity } from '../../lib/api';
 import type { SuppressionRecord } from '../../lib/operator-api';
 import { useFormAction } from '../forms/use-form-action';
-import {
-  EmptyState,
-  Field,
-  Panel,
-  PanelHeader,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
+import { EmptyState, Field, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
 
 export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
   const formAction = useFormAction();
@@ -47,7 +40,10 @@ export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
       await formAction(event, async (values) => {
         await apiRequest('/operations/suppressions', {
           method: 'POST',
-          body: JSON.stringify({ phoneNumber: values.get('phoneNumber'), reason: values.get('reason') }),
+          body: JSON.stringify({
+            phoneNumber: values.get('phoneNumber'),
+            reason: values.get('reason'),
+          }),
         });
         await load();
       });
@@ -58,7 +54,13 @@ export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
     }
   }
   async function remove(row: SuppressionRecord) {
-    if (!(await confirm('Remove suppression', `Remove suppression for ${row.phoneNumber}? The number may become eligible immediately.`))) return;
+    if (
+      !(await confirm(
+        'Remove suppression',
+        `Remove suppression for ${row.phoneNumber}? The number may become eligible immediately.`,
+      ))
+    )
+      return;
     setBusy(true);
     setError(undefined);
     try {

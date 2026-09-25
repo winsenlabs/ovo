@@ -71,11 +71,18 @@ export function Field({
   return (
     <div className="field">
       <label htmlFor={htmlFor}>{label}</label>
-      {children && <div data-field-control>{Children.map(children, child =>
-        isValidElement<Record<string, unknown>>(child)
-          ? cloneElement(child, { 'aria-describedby': describedBy, 'aria-invalid': error ? true : undefined })
-          : child,
-      )}</div>}
+      {children && (
+        <div data-field-control>
+          {Children.map(children, (child) =>
+            isValidElement<Record<string, unknown>>(child)
+              ? cloneElement(child, {
+                  'aria-describedby': describedBy,
+                  'aria-invalid': error ? true : undefined,
+                })
+              : child,
+          )}
+        </div>
+      )}
       {help && <small id={`${htmlFor}-help`}>{help}</small>}
       {error && (
         <small className="field-error" id={`${htmlFor}-error`}>

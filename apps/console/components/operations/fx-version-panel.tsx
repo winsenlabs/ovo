@@ -2,14 +2,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, items, type SessionIdentity } from '../../lib/api';
 import type { FxVersion } from '../../lib/operator-api';
-import {
-  EmptyState,
-  Field,
-  Panel,
-  PanelHeader,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
+import { EmptyState, Field, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
 
 export function FxVersionPanel({ role }: { role: SessionIdentity['role'] }) {
   const [versions, setVersions] = useState<FxVersion[]>([]);
@@ -68,7 +61,11 @@ export function FxVersionPanel({ role }: { role: SessionIdentity['role'] }) {
           Non-INR charges require an immutable rational conversion into INR. Floating-point rates
           are not accepted.
         </p>
-        {error && <div className="field-error" role="alert">{error}</div>}
+        {error && (
+          <div className="field-error" role="alert">
+            {error}
+          </div>
+        )}
         {role === 'admin' && (
           <form className="nested-card stack" onSubmit={save}>
             <h4>Add immutable FX version</h4>

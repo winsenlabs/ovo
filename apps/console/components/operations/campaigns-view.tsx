@@ -2,13 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiRequest, ApiError, items, type SessionIdentity } from '../../lib/api';
 import type { CampaignRecord } from '../../lib/operator-api';
-import {
-  EmptyState,
-  Panel,
-  PanelHeader,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
+import { EmptyState, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
 import { CampaignCreateForm } from './campaign-create-form';
 
 export function campaignAttemptLabel(status: string): string {
@@ -152,7 +146,14 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
                       {campaign.status}
                     </StatusBadge>
                     <small>v{campaign.version}</small>
-                    {campaign.attempts?.map(attempt => <small key={attempt.id} className={attempt.status === 'unknown' ? 'badge warning' : 'badge soft'}>{campaignAttemptLabel(attempt.status)}</small>)}
+                    {campaign.attempts?.map((attempt) => (
+                      <small
+                        key={attempt.id}
+                        className={attempt.status === 'unknown' ? 'badge warning' : 'badge soft'}
+                      >
+                        {campaignAttemptLabel(attempt.status)}
+                      </small>
+                    ))}
                   </td>
                   <td>
                     <div className="button-row">

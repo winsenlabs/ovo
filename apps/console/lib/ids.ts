@@ -4,6 +4,8 @@ export function useOperationId() {
   const id = useRef<string | null>(null);
   return {
     current: () => (id.current ??= crypto.randomUUID()),
-    succeeded: () => { id.current = null; },
+    succeeded: () => {
+      id.current = null;
+    },
   };
 }

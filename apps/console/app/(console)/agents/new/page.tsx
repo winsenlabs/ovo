@@ -1,2 +1,4 @@
 import { AgentWizardFeature } from '../../../../features/agent-wizard';
-export default function Page() { return <AgentWizardFeature />; }
+export default function Page() {
+  return <AgentWizardFeature />;
+}

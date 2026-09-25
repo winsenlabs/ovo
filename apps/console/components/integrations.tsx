@@ -72,7 +72,11 @@ export function Integrations({
           </p>
         </div>
       </header>
-      {error && <div className="field-error" role="alert">{error}</div>}
+      {error && (
+        <div className="field-error" role="alert">
+          {error}
+        </div>
+      )}
       {initialTab === 'providers' ? (
         <div className="stack">
           <CredentialManager

@@ -181,7 +181,9 @@ export function PerformanceView() {
       {loading ? (
         <LoadingBlock label="Loading performance cohorts" />
       ) : error ? (
-        <div className="field-error" role="alert">{error}</div>
+        <div className="field-error" role="alert">
+          {error}
+        </div>
       ) : !result?.groups.length ? (
         <EmptyState title="No telemetry matched">
           Change the bounded range or filters. This empty result is not a zero-latency claim.

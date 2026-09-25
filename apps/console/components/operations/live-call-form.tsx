@@ -175,7 +175,11 @@ export function LiveCallForm({
           htmlFor="live-call-variables"
           help="Must satisfy the immutable release variable schema."
         >
-          <JsonEditor id="live-call-variables" value={variables} onValid={value => setVariables(value as Record<string, unknown>)} />
+          <JsonEditor
+            id="live-call-variables"
+            value={variables}
+            onValid={(value) => setVariables(value as Record<string, unknown>)}
+          />
         </Field>
         {releases.length === 0 && !loading && (
           <div className="muted">Publish an immutable release before starting a live call.</div>

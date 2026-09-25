@@ -40,7 +40,11 @@ const safeMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
 function bindingDraft(binding: ProviderBinding): BindingDraft {
-  return { ...binding, pluginId: binding.pluginId ?? '', configText: JSON.stringify(binding.config ?? {}, null, 2) };
+  return {
+    ...binding,
+    pluginId: binding.pluginId ?? '',
+    configText: JSON.stringify(binding.config ?? {}, null, 2),
+  };
 }
 
 export function BindingManager({
@@ -56,7 +60,15 @@ export function BindingManager({
 }) {
   const confirm = useConfirm();
   const [plugins, setPlugins] = useState<PluginCatalog['plugins']>([]);
-  useEffect(() => { void apiRequest<PluginCatalog>('/plugins').then(({ data }) => setPlugins(data.plugins.filter(plugin => ['carrier', 'stt', 'tts', 'llm'].includes(plugin.kind)))).catch(() => undefined); }, []);
+  useEffect(() => {
+    void apiRequest<PluginCatalog>('/plugins')
+      .then(({ data }) =>
+        setPlugins(
+          data.plugins.filter((plugin) => ['carrier', 'stt', 'tts', 'llm'].includes(plugin.kind)),
+        ),
+      )
+      .catch(() => undefined);
+  }, []);
   const [draft, setDraft] = useState<BindingDraft>(emptyDraft);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -101,7 +113,13 @@ export function BindingManager({
   }
 
   async function remove(binding: ProviderBinding) {
-    if (!(await confirm('Delete binding', `Delete provider binding “${binding.label}”? Agents using it will fail readiness checks.`))) return;
+    if (
+      !(await confirm(
+        'Delete binding',
+        `Delete provider binding “${binding.label}”? Agents using it will fail readiness checks.`,
+      ))
+    )
+      return;
     setBusy(true);
     setError(undefined);
     try {
@@ -145,11 +163,27 @@ export function BindingManager({
                 onChange={(event) => patch({ label: event.target.value })}
               />
             </Field>
-            <Field label="Plugin" htmlFor="binding-plugin" help="Select the installed adapter for this binding.">
-              <select id="binding-plugin" required value={draft.pluginId} onChange={event => {
-                const plugin = plugins.find(item => item.id === event.target.value);
-                patch({ pluginId: plugin?.id ?? '', provider: plugin?.provider ?? '' });
-              }}><option value="">Select installed plugin</option>{plugins.map(plugin => <option key={plugin.id} value={plugin.id}>{plugin.ui?.label ?? plugin.id}</option>)}</select>
+            <Field
+              label="Plugin"
+              htmlFor="binding-plugin"
+              help="Select the installed adapter for this binding."
+            >
+              <select
+                id="binding-plugin"
+                required
+                value={draft.pluginId}
+                onChange={(event) => {
+                  const plugin = plugins.find((item) => item.id === event.target.value);
+                  patch({ pluginId: plugin?.id ?? '', provider: plugin?.provider ?? '' });
+                }}
+              >
+                <option value="">Select installed plugin</option>
+                {plugins.map((plugin) => (
+                  <option key={plugin.id} value={plugin.id}>
+                    {plugin.ui?.label ?? plugin.id}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="Environment" htmlFor="binding-environment">
               <select
@@ -202,7 +236,13 @@ export function BindingManager({
             )}
           </div>
         </form>
-        <BindingsTable bindings={bindings} role={role} busy={busy} onEdit={binding => setDraft(bindingDraft(binding))} onRemove={remove} />
+        <BindingsTable
+          bindings={bindings}
+          role={role}
+          busy={busy}
+          onEdit={(binding) => setDraft(bindingDraft(binding))}
+          onRemove={remove}
+        />
       </div>
     </Panel>
   );

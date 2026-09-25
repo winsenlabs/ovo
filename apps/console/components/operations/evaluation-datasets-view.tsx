@@ -56,7 +56,11 @@ export function EvaluationDatasetsView({ role }: { role: SessionIdentity['role']
           </p>
         </div>
       </header>
-      {error && <div className="field-error" role="alert">{error}</div>}
+      {error && (
+        <div className="field-error" role="alert">
+          {error}
+        </div>
+      )}
       <TestAndEvaluationView simulationsOnly embedded />
       <EvaluationDatasetPanel role={role} datasets={datasets} reload={load} />
       <EvaluationProviderAuthorizations

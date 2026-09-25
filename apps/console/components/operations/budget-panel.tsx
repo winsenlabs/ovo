@@ -3,14 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, ApiError, items, type SessionIdentity } from '../../lib/api';
 import type { BudgetSnapshot } from '../../lib/operator-api';
 import { useFormAction } from '../forms/use-form-action';
-import {
-  EmptyState,
-  Field,
-  Panel,
-  PanelHeader,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
+import { EmptyState, Field, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
 
 const formatInr = (paise: string) => {
   const value = Number(paise);
@@ -51,7 +44,11 @@ export function BudgetPanel({ role }: { role: SessionIdentity['role'] }) {
       await formAction(event, async (values) => {
         await apiRequest('/cost/budgets', {
           method: 'POST',
-          body: JSON.stringify({ id: values.get('id'), limitPaise: values.get('limitPaise'), admissionOverspendPaise: values.get('admissionOverspendPaise') }),
+          body: JSON.stringify({
+            id: values.get('id'),
+            limitPaise: values.get('limitPaise'),
+            admissionOverspendPaise: values.get('admissionOverspendPaise'),
+          }),
         });
         await load();
       });
@@ -111,7 +108,9 @@ export function BudgetPanel({ role }: { role: SessionIdentity['role'] }) {
           </form>
         )}
         {error ? (
-          <div className="field-error" role="alert">{error}</div>
+          <div className="field-error" role="alert">
+            {error}
+          </div>
         ) : role === 'admin' && !budgets.length ? (
           <EmptyState title="No budgets configured">
             Create a persisted budget to gate new work by exact reserved and spent paise.

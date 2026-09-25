@@ -8,10 +8,19 @@ export function safeReturnPath(next?: string): string {
     const url = new URL(next, base);
     if (url.origin !== base) return '/agents';
     return `${url.pathname}${url.search}${url.hash}`;
-  } catch { return '/agents'; }
+  } catch {
+    return '/agents';
+  }
 }
 export function LoginFeature({ next }: { next?: string }) {
   const router = useRouter();
   const destination = safeReturnPath(next);
-  return <Login onAuthenticated={() => { router.replace(destination); router.refresh(); }} />;
+  return (
+    <Login
+      onAuthenticated={() => {
+        router.replace(destination);
+        router.refresh();
+      }}
+    />
+  );
 }

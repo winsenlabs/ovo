@@ -6,13 +6,7 @@ import type {
   EvaluationComparison,
   EvaluationRunRecord,
 } from '../../lib/operator-api';
-import {
-  EmptyState,
-  Field,
-  JsonEvidence,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
+import { EmptyState, Field, JsonEvidence, ResponsiveTable, StatusBadge } from '../primitives';
 
 type Page<T> = { items: T[]; nextCursor?: string };
 
