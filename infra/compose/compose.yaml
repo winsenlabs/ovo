@@ -10,6 +10,7 @@ x-common-environment: &common
   OVO_SQS_ENDPOINT: ${OVO_SQS_ENDPOINT-http://queue:9324}
   OVO_QUEUE_URL: ${OVO_QUEUE_URL:?run ./scripts/bootstrap-compose.sh first}
   OVO_PLUGIN_MODULES: ${OVO_PLUGIN_MODULES:-[]}
+  OVO_CARRIER_ENV_BINDINGS: '{"twilio":{"accountSid":"${TWILIO_ACCOUNT_SID:-}","authToken":"${TWILIO_AUTH_TOKEN:-}"}}'
 
 services:
   postgres:
@@ -77,6 +78,7 @@ services:
       OVO_RECORDING_RETENTION_DAYS: ${OVO_RECORDING_RETENTION_DAYS:-30}
       OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
       OVO_PROVIDER_EVALUATIONS_ENABLED: ${OVO_PROVIDER_EVALUATIONS_ENABLED:-false}
+      OVO_FIXTURE_TEST_CALLS: 'true'
     depends_on:
       postgres: { condition: service_healthy, required: false }
     healthcheck:
@@ -140,8 +142,6 @@ services:
       OVO_INBOUND_ROUTE_SECRET: ${OVO_INBOUND_ROUTE_SECRET:-not-configured}
       OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
       OVO_PERMITTED_FROM_NUMBERS: ${OVO_PERMITTED_FROM_NUMBERS:-}
-      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-not-configured}
-      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-not-configured}
     depends_on:
       postgres: { condition: service_healthy, required: false }
     healthcheck:
@@ -169,9 +169,8 @@ services:
       target: dispatcher
     environment:
       <<: *common
-      OVO_CAPACITY_AUTHORITY: compact-dispatcher
-      OVO_DISPATCHER_ID: compact-dispatcher
-      OVO_DESIRED_WRITER: compose-static-two-workers
+      OVO_CAPACITY_SIGNAL: log
+      OVO_DLQ_URL: ${OVO_DLQ_URL:-http://queue:9324/000000000000/ovo-jobs-dlq}
       OVO_INBOUND_WARM_FLOOR: '2'
       OVO_WORKER_MAX_CAPACITY: '2'
       OVO_CARRIER_CONCURRENCY: '2'
@@ -221,8 +220,6 @@ services:
       OVO_RECORDINGS_SHARED_ACROSS_WORKERS: 'true'
       OVO_RECORDING_RETENTION_DAYS: ${OVO_RECORDING_RETENTION_DAYS:-30}
       OVO_WORKER_ENDPOINT: ws://worker-1:4100/internal/media
-      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-not-configured}
-      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-not-configured}
     depends_on:
       postgres: { condition: service_healthy, required: false }
       queue: { condition: service_healthy, required: false }

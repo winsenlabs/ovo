@@ -9,7 +9,6 @@ import {
 import {
   ECSClient,
   DescribeServicesCommand,
-  UpdateServiceCommand,
   UpdateTaskProtectionCommand,
   type ECSClientConfig,
 } from '@aws-sdk/client-ecs';
@@ -18,9 +17,8 @@ import {
   PutMetricDataCommand,
   type CloudWatchClientConfig,
 } from '@aws-sdk/client-cloudwatch';
+import { CAPACITY_METRIC_NAMES, type CapacitySignal, type CapacitySignalPublisher } from '@winsendotai/ovo-contracts';
 import type {
-  DesiredCountWriter,
-  CapacityWriteGuard,
   DurableQueue,
   JobReference,
   QueueDelivery,
@@ -28,26 +26,17 @@ import type {
 } from './types.ts';
 
 export interface EcsServiceApi {
-  update(input: { cluster: string; service: string; desiredCount: number }): Promise<void>;
   describe(input: {
     cluster: string;
     service: string;
   }): Promise<{ desiredCount: number; runningCount: number; pendingCount: number }>;
 }
 
-export class StaleCapacityAuthorityError extends Error {}
-export class UnresolvedCapacityWriteError extends Error {}
-export class UncertainCapacityWriteError extends Error {}
-
 class AwsEcsServiceApi implements EcsServiceApi {
   private readonly client: ECSClient;
 
   constructor(config: ECSClientConfig) {
     this.client = new ECSClient(config);
-  }
-
-  async update(input: { cluster: string; service: string; desiredCount: number }): Promise<void> {
-    await this.client.send(new UpdateServiceCommand(input));
   }
 
   async describe(input: {
@@ -155,7 +144,7 @@ export class EcsTaskProtection implements TaskProtection {
   constructor(
     private readonly cluster: string,
     private readonly taskArn: string,
-    private readonly expiresInMinutes = 10,
+    private readonly expiresInMinutes = 60,
     config: ECSClientConfig = {},
   ) {
     this.client = new ECSClient(config);
@@ -190,61 +179,17 @@ export class EcsTaskProtection implements TaskProtection {
   }
 }
 
-/** The dispatcher is the only component constructed with this writer. Terraform ignores desiredCount drift. */
-export class EcsDesiredCountWriter implements DesiredCountWriter {
+/** ECS is diagnostic input only; Application Auto Scaling owns DesiredCount. */
+export class EcsServiceReader {
   private readonly api: EcsServiceApi;
 
   constructor(
-    readonly authorityId: string,
     private readonly cluster: string,
     private readonly serviceByKey: Readonly<Record<string, string>>,
-    private readonly guard: CapacityWriteGuard,
     config: ECSClientConfig = {},
     api?: EcsServiceApi,
   ) {
     this.api = api ?? new AwsEcsServiceApi(config);
-  }
-
-  async write(serviceKey: string, desiredCount: number, epoch: number): Promise<void> {
-    const service = this.serviceByKey[serviceKey];
-    if (!service) throw new Error(`No ECS service mapping for ${serviceKey}`);
-    if (!Number.isInteger(desiredCount) || desiredCount < 0)
-      throw new Error('desiredCount must be a non-negative integer');
-    const permit = await this.guard.begin({
-      serviceKey,
-      authorityId: this.authorityId,
-      epoch,
-      desiredCount,
-    });
-    if (permit.kind === 'stale_authority') {
-      throw new StaleCapacityAuthorityError('Capacity authority or epoch is stale');
-    }
-    if (permit.kind === 'unresolved') {
-      throw new UnresolvedCapacityWriteError(
-        `Capacity write ${permit.attempt.attemptId} has an unresolved AWS outcome`,
-      );
-    }
-    try {
-      await this.api.update({ cluster: this.cluster, service, desiredCount });
-    } catch (error) {
-      await this.guard
-        .markUnknown(
-          permit.attempt.attemptId,
-          error instanceof Error ? error.message : String(error),
-        )
-        .catch(() => false);
-      throw new UncertainCapacityWriteError('ECS desired-count outcome is unknown');
-    }
-    try {
-      if (!(await this.guard.markApplied(permit.attempt.attemptId))) {
-        throw new Error('Capacity write intent was not current');
-      }
-    } catch {
-      // AWS accepted the request but durable settlement failed. The inflight record blocks takeover writes.
-      throw new UncertainCapacityWriteError(
-        'ECS desired-count applied but durable settlement is unknown',
-      );
-    }
   }
 
   async read(
@@ -254,38 +199,54 @@ export class EcsDesiredCountWriter implements DesiredCountWriter {
     if (!service) throw new Error(`No ECS service mapping for ${serviceKey}`);
     return this.api.describe({ cluster: this.cluster, service });
   }
-
-  async reconcile(serviceKey: string): Promise<boolean> {
-    const pending = await this.guard.pending(serviceKey);
-    if (!pending) return true;
-    // Desired count is diagnostic only. It can match a preexisting value while a timed-out
-    // UpdateService request is still able to arrive, so readback must never release this fence.
-    await this.read(serviceKey).catch(() => undefined);
-    return false;
-  }
 }
 
-export class AwsCapacityMetricPublisher {
-  private readonly client: CloudWatchClient;
+export interface CloudWatchMetricClient {
+  send(command: PutMetricDataCommand): Promise<unknown>;
+}
+
+/** One high-resolution metric batch per tick. The client is injected for deterministic tests. */
+export class AwsCapacityMetricPublisher implements CapacitySignalPublisher {
+  private readonly client: CloudWatchMetricClient;
+  private previous?: CapacitySignal;
 
   constructor(
-    private readonly namespace = 'OVO/Capacity',
+    private readonly environment: string,
+    client?: CloudWatchMetricClient,
     config: CloudWatchClientConfig = {},
   ) {
-    this.client = new CloudWatchClient(config);
+    this.client = client ?? new CloudWatchClient(config);
   }
 
-  async publish(serviceKey: string, values: Readonly<Record<string, number>>): Promise<void> {
-    await this.client.send(
-      new PutMetricDataCommand({
-        Namespace: this.namespace,
-        MetricData: Object.entries(values).map(([MetricName, Value]) => ({
-          MetricName,
-          Value,
-          Unit: MetricName.endsWith('AgeMs') ? 'Milliseconds' : 'Count',
-          Dimensions: [{ Name: 'Service', Value: serviceKey }],
-        })),
-      }),
-    );
+  async publish(signal: CapacitySignal): Promise<void> {
+    const names = CAPACITY_METRIC_NAMES;
+    const values = [
+      [names.required, signal.requiredSlots],
+      [names.provisioned, signal.provisionedTasks],
+      [names.busy, signal.busySlots],
+      [names.readyIdle, signal.readyIdleSlots],
+      [names.eligible, signal.eligibleJobs],
+      [names.campaign, signal.campaignDemand],
+      [names.oldestAge, signal.oldestEligibleJobAgeSeconds],
+    ] as const;
+    await this.client.send(new PutMetricDataCommand({
+      Namespace: names.namespace,
+      MetricData: values.map(([MetricName, Value]) => ({
+        MetricName,
+        Value,
+        Unit: MetricName === names.oldestAge ? 'Seconds' : 'Count',
+        StorageResolution: 1,
+        Timestamp: signal.at,
+        Dimensions: [
+          { Name: 'Environment', Value: this.environment },
+          { Name: 'Service', Value: 'workers' },
+        ],
+      })),
+    }));
+    this.previous = signal;
+  }
+
+  last(): CapacitySignal | undefined {
+    return this.previous;
   }
 }

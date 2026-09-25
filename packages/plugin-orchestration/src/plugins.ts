@@ -1,6 +1,6 @@
 import { definePlugin, type Context } from '@winsendotai/ovo-runtime';
 import { PostgresOrchestrationStore } from './postgres.ts';
-import { EcsDesiredCountWriter, EcsTaskProtection, SqsDurableQueue } from './aws.ts';
+import { EcsTaskProtection, SqsDurableQueue } from './aws.ts';
 
 function requiredString(config: Record<string, unknown>, key: string): string {
   const value = config[key];
@@ -88,40 +88,6 @@ export const ecsProtectionPlugin = definePlugin(
         requiredString(config, 'cluster'),
         requiredString(config, 'taskArn'),
         typeof config.expiresInMinutes === 'number' ? config.expiresInMinutes : 10,
-        { region: requiredString(config, 'region') },
-      ),
-    );
-  },
-);
-
-export const ecsCapacityWriterPlugin = definePlugin(
-  {
-    id: '@winsendotai/ovo-plugin-orchestration/ecs-capacity-writer',
-    version: '0.1.0',
-    contractVersion: 1,
-    scope: 'process',
-    requires: ['orchestration.store'],
-    provides: ['capacity.writer'],
-    configSchema: {
-      type: 'object',
-      required: ['authorityId', 'cluster', 'workerService', 'region'],
-      properties: {
-        authorityId: { type: 'string' },
-        cluster: { type: 'string' },
-        workerService: { type: 'string' },
-        region: { type: 'string' },
-      },
-    },
-    secretFields: [],
-  },
-  (ctx: Context, config) => {
-    ctx.provide(
-      'capacity.writer',
-      new EcsDesiredCountWriter(
-        requiredString(config, 'authorityId'),
-        requiredString(config, 'cluster'),
-        { workers: requiredString(config, 'workerService') },
-        ctx.get('orchestration.store') as PostgresOrchestrationStore,
         { region: requiredString(config, 'region') },
       ),
     );

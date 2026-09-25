@@ -12,6 +12,14 @@ resource "aws_vpc_security_group_ingress_rule" "alb_https" {
   ip_protocol       = "tcp"
 }
 
+resource "aws_vpc_security_group_egress_rule" "alb_to_application" {
+  security_group_id            = aws_security_group.alb.id
+  referenced_security_group_id = aws_security_group.application.id
+  from_port                    = 3000
+  to_port                      = 4001
+  ip_protocol                  = "tcp"
+}
+
 resource "aws_security_group" "application" {
   name        = "${local.name}-application"
   description = "Private OVO application tasks"
@@ -62,6 +70,14 @@ resource "aws_vpc_security_group_egress_rule" "application_https" {
   from_port         = 443
   to_port           = 443
   ip_protocol       = "tcp"
+}
+
+resource "aws_vpc_security_group_egress_rule" "application_to_api" {
+  security_group_id            = aws_security_group.application.id
+  referenced_security_group_id = aws_security_group.application.id
+  from_port                    = 4000
+  to_port                      = 4000
+  ip_protocol                  = "tcp"
 }
 
 resource "aws_vpc_security_group_egress_rule" "worker_https" {
@@ -191,7 +207,7 @@ resource "aws_lb_target_group" "gateway" {
   protocol             = "HTTP"
   target_type          = "ip"
   vpc_id               = var.vpc_id
-  deregistration_delay = 300
+  deregistration_delay = min(3600, var.max_call_seconds)
   health_check {
     path    = "/health"
     matcher = "200-399"
@@ -230,7 +246,7 @@ resource "aws_lb_listener_rule" "gateway" {
     target_group_arn = aws_lb_target_group.gateway.arn
   }
   condition {
-    path_pattern { values = ["/twilio/*", "/callbacks/twilio/*", "/voice/inbound/*"] }
+    path_pattern { values = ["/carriers/*", "/twilio/*", "/callbacks/twilio/*", "/voice/inbound/*"] }
   }
 }
 

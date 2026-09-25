@@ -184,13 +184,4 @@ describe.skipIf(!postgresUrl)('PostgreSQL durable orchestration integration', ()
     });
   });
 
-  it('fences the desired-count authority to one lease owner and epoch', async () => {
-    const serviceKey = `workers-${randomUUID()}`;
-    const first = await store.acquire(serviceKey, 'dispatcher-a', 60_000);
-    expect(first).toEqual({ epoch: 1 });
-    expect(await store.acquire(serviceKey, 'dispatcher-b', 60_000)).toBeUndefined();
-    expect(await store.renew(serviceKey, 'dispatcher-a', first!.epoch + 1, 60_000)).toBe(false);
-    expect(await store.renew(serviceKey, 'dispatcher-a', first!.epoch, 60_000)).toBe(true);
-    await store.pool.query('DELETE FROM ovo_capacity_leases WHERE service_key = $1', [serviceKey]);
-  });
 });

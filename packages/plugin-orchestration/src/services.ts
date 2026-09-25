@@ -1,12 +1,5 @@
-import type {
-  CapacityLeaseStore,
-  DesiredCountWriter,
-  DurableQueue,
-  OutboxRecord,
-  TaskProtection,
-} from './types.ts';
+import type { DurableQueue, OutboxRecord, TaskProtection } from './types.ts';
 import type { PostgresOrchestrationStore } from './postgres.ts';
-import { decideCapacity, type CapacityDecision, type CapacityInput } from './capacity.ts';
 
 export class OutboxPublisher {
   constructor(
@@ -34,54 +27,6 @@ export class OutboxPublisher {
       }
     }
     return { sent, failed };
-  }
-}
-
-export class CapacityController {
-  private epoch?: number;
-
-  constructor(
-    private readonly serviceKey: string,
-    private readonly leaseMs: number,
-    private readonly leases: CapacityLeaseStore,
-    private readonly writer: DesiredCountWriter,
-  ) {}
-
-  async tick(input: CapacityInput): Promise<CapacityDecision & { wrote: boolean }> {
-    const lease =
-      this.epoch === undefined
-        ? await this.leases.acquire(this.serviceKey, this.writer.authorityId, this.leaseMs)
-        : (await this.leases.renew(
-              this.serviceKey,
-              this.writer.authorityId,
-              this.epoch,
-              this.leaseMs,
-            ))
-          ? { epoch: this.epoch }
-          : undefined;
-    if (!lease) {
-      this.epoch = undefined;
-      return {
-        ...decideCapacity(input),
-        writeDesiredCount: false,
-        wrote: false,
-        reason: 'not-capacity-leader',
-      };
-    }
-    this.epoch = lease.epoch;
-    const decision = decideCapacity(input);
-    if (this.writer.reconcile && !(await this.writer.reconcile(this.serviceKey))) {
-      return {
-        ...decision,
-        writeDesiredCount: false,
-        failClosed: true,
-        wrote: false,
-        reason: 'capacity-write-outcome-unresolved',
-      };
-    }
-    if (!decision.writeDesiredCount) return { ...decision, wrote: false };
-    await this.writer.write(this.serviceKey, decision.desiredCount, lease.epoch);
-    return { ...decision, wrote: true };
   }
 }
 

@@ -18,7 +18,8 @@ export type JobStatus =
   | 'connected'
   | 'completed'
   | 'failed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'superseded';
 
 export interface JobReference {
   schemaVersion: 1;
@@ -199,47 +200,6 @@ export interface TelephonyControl {
   reconcile(requestId: string, carrierCallId?: string): Promise<DialReconciliation>;
   hangup(carrierCallId: string): Promise<void>;
   transfer(carrierCallId: string, target: { twiml?: string; url?: string }): Promise<void>;
-}
-
-export interface DesiredCountWriter {
-  readonly authorityId: string;
-  write(serviceKey: string, desiredCount: number, epoch: number): Promise<void>;
-  reconcile?(serviceKey: string): Promise<boolean>;
-}
-
-export interface CapacityLeaseStore {
-  acquire(
-    serviceKey: string,
-    authorityId: string,
-    leaseMs: number,
-  ): Promise<{ epoch: number } | undefined>;
-  renew(serviceKey: string, authorityId: string, epoch: number, leaseMs: number): Promise<boolean>;
-}
-
-export interface CapacityWriteAttempt {
-  attemptId: string;
-  serviceKey: string;
-  authorityId: string;
-  epoch: number;
-  desiredCount: number;
-  status: 'inflight' | 'unknown';
-}
-
-export type CapacityWritePermit =
-  | { kind: 'permitted'; attempt: CapacityWriteAttempt }
-  | { kind: 'stale_authority' }
-  | { kind: 'unresolved'; attempt: CapacityWriteAttempt };
-
-export interface CapacityWriteGuard {
-  begin(input: {
-    serviceKey: string;
-    authorityId: string;
-    epoch: number;
-    desiredCount: number;
-  }): Promise<CapacityWritePermit>;
-  markApplied(attemptId: string): Promise<boolean>;
-  markUnknown(attemptId: string, error: string): Promise<boolean>;
-  pending(serviceKey: string): Promise<CapacityWriteAttempt | undefined>;
 }
 
 /**

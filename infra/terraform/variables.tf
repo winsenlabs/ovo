@@ -30,7 +30,11 @@ variable "private_subnet_ids" { type = list(string) }
 variable "certificate_arn" { type = string }
 variable "runtime_secret_arn" {
   type        = string
-  description = "Secrets Manager JSON secret containing DATABASE_URL, OVO_SECRETS_MASTER_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, OVO_MEDIA_WORKER_TOKEN and, when inbound is enabled, OVO_INBOUND_ROUTE_SECRET."
+  description = "Secrets Manager JSON secret containing DATABASE_URL, OVO_SECRETS_MASTER_KEY, OVO_SESSION_SECRET, OVO_SEED_ADMIN_EMAIL, OVO_SEED_ADMIN_PASSWORD, OVO_CARRIER_ENV_BINDINGS, OVO_MEDIA_WORKER_TOKEN and OVO_INBOUND_ROUTE_SECRET."
+}
+variable "alb_subnet_cidrs" {
+  type        = list(string)
+  description = "CIDRs of the ALB subnets trusted by the API proxy boundary."
 }
 variable "enable_inbound_calls" {
   type        = bool
@@ -53,17 +57,17 @@ variable "console_desired_count" {
 }
 variable "gateway_desired_count" {
   type        = number
-  default     = 1
-  description = "One active gateway while worker WebSocket ownership is process-local."
+  default     = 2
+  description = "Stateless gateway replicas behind the ALB."
   validation {
-    condition     = var.gateway_desired_count == 1
-    error_message = "gateway_desired_count must remain 1 until gateway worker connections use a distributed ownership transport."
+    condition     = var.gateway_desired_count >= 2
+    error_message = "gateway_desired_count must be at least 2."
   }
 }
 variable "worker_initial_desired_count" {
   type        = number
   default     = 0
-  description = "Bootstrap only. Terraform ignores later drift; the fenced dispatcher is the only runtime writer."
+  description = "Bootstrap only. Terraform ignores later drift; Application Auto Scaling is the only runtime writer."
 }
 variable "enable_live_dial" {
   type        = bool
@@ -106,6 +110,32 @@ variable "inbound_warm_floor" {
 variable "worker_max_capacity" {
   type    = number
   default = 100
+}
+variable "max_call_seconds" {
+  type    = number
+  default = 3600
+}
+variable "worker_scale_in_cooldown_seconds" {
+  type    = number
+  default = 300
+}
+variable "worker_schedules" {
+  description = "Scheduled capacity overrides (paired raise and restore entries)."
+  type = list(object({
+    name         = string
+    schedule     = string
+    min_capacity = number
+    max_capacity = number
+  }))
+  default = []
+}
+variable "alarm_topic_arn" {
+  description = "SNS topic receiving every OVO infrastructure alarm."
+  type        = string
+}
+variable "job_age_slo_seconds" {
+  type    = number
+  default = 120
 }
 variable "worker_cpu" {
   type    = number

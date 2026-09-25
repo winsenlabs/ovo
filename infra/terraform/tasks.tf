@@ -14,11 +14,16 @@ resource "aws_ecs_task_definition" "api" {
       { name = "OVO_PERMITTED_FROM_NUMBERS", value = join(",", var.permitted_from_numbers) },
       { name = "OVO_HANDOFF_PROVIDER", value = var.enable_twilio_handoff ? "twilio" : "" },
       { name = "OVO_TWILIO_HANDOFF_RESUME_URL", value = var.twilio_handoff_resume_url },
+      { name = "OVO_TRUSTED_PROXY_CIDRS", value = join(",", var.alb_subnet_cidrs) },
+      { name = "OVO_MEDIA_PUBLIC_BASE_URL", value = var.media_public_base_url },
     ])
     secrets = concat(local.runtime_secrets, [
       { name = "OVO_SECRETS_MASTER_KEY", valueFrom = "${var.runtime_secret_arn}:OVO_SECRETS_MASTER_KEY::" },
-      { name = "TWILIO_ACCOUNT_SID", valueFrom = "${var.runtime_secret_arn}:TWILIO_ACCOUNT_SID::" },
-      { name = "TWILIO_AUTH_TOKEN", valueFrom = "${var.runtime_secret_arn}:TWILIO_AUTH_TOKEN::" },
+      { name = "OVO_SESSION_SECRET", valueFrom = "${var.runtime_secret_arn}:OVO_SESSION_SECRET::" },
+      { name = "OVO_SEED_ADMIN_EMAIL", valueFrom = "${var.runtime_secret_arn}:OVO_SEED_ADMIN_EMAIL::" },
+      { name = "OVO_SEED_ADMIN_PASSWORD", valueFrom = "${var.runtime_secret_arn}:OVO_SEED_ADMIN_PASSWORD::" },
+      { name = "OVO_INBOUND_ROUTE_SECRET", valueFrom = "${var.runtime_secret_arn}:OVO_INBOUND_ROUTE_SECRET::" },
+      { name = "OVO_CARRIER_ENV_BINDINGS", valueFrom = "${var.runtime_secret_arn}:OVO_CARRIER_ENV_BINDINGS::" },
     ])
     healthCheck      = { command = ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""], interval = 15, timeout = 5, retries = 3, startPeriod = 30 }
     logConfiguration = { logDriver = "awslogs", options = { awslogs-group = aws_cloudwatch_log_group.application.name, awslogs-region = var.aws_region, awslogs-stream-prefix = "api" } }
@@ -63,12 +68,10 @@ resource "aws_ecs_task_definition" "gateway" {
       { name = "OVO_PERMITTED_FROM_NUMBERS", value = join(",", var.permitted_from_numbers) },
     ])
     secrets = concat(local.runtime_secrets, [
-      { name = "TWILIO_AUTH_TOKEN", valueFrom = "${var.runtime_secret_arn}:TWILIO_AUTH_TOKEN::" },
       { name = "OVO_MEDIA_WORKER_TOKEN", valueFrom = "${var.runtime_secret_arn}:OVO_MEDIA_WORKER_TOKEN::" },
-      ], var.enable_inbound_calls ? [
-      { name = "TWILIO_ACCOUNT_SID", valueFrom = "${var.runtime_secret_arn}:TWILIO_ACCOUNT_SID::" },
       { name = "OVO_INBOUND_ROUTE_SECRET", valueFrom = "${var.runtime_secret_arn}:OVO_INBOUND_ROUTE_SECRET::" },
-    ] : [])
+      { name = "OVO_CARRIER_ENV_BINDINGS", valueFrom = "${var.runtime_secret_arn}:OVO_CARRIER_ENV_BINDINGS::" },
+    ])
     healthCheck      = { command = ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""], interval = 15, timeout = 5, retries = 3, startPeriod = 30 }
     logConfiguration = { logDriver = "awslogs", options = { awslogs-group = aws_cloudwatch_log_group.application.name, awslogs-region = var.aws_region, awslogs-stream-prefix = "gateway" } }
   }])
@@ -87,14 +90,16 @@ resource "aws_ecs_task_definition" "dispatcher" {
     portMappings = [{ containerPort = 4002, protocol = "tcp" }]
     environment = concat(local.common_environment, [
       { name = "OVO_QUEUE_URL", value = aws_sqs_queue.jobs.url },
+      { name = "OVO_DLQ_URL", value = aws_sqs_queue.jobs_dlq.url },
       { name = "OVO_ECS_CLUSTER", value = aws_ecs_cluster.this.name },
       { name = "OVO_WORKER_SERVICE", value = local.worker_service },
       { name = "OVO_INBOUND_WARM_FLOOR", value = tostring(var.inbound_warm_floor) },
       { name = "OVO_WORKER_MAX_CAPACITY", value = tostring(var.worker_max_capacity) },
-      { name = "OVO_CAPACITY_AUTHORITY", value = "dispatcher-postgres-fenced" },
-      { name = "OVO_DISPATCHER_ID", value = "dispatcher-postgres-fenced" },
+      { name = "OVO_CAPACITY_SIGNAL", value = "cloudwatch" },
     ])
-    secrets          = local.runtime_secrets
+    secrets = concat(local.runtime_secrets, [
+      { name = "OVO_CARRIER_ENV_BINDINGS", valueFrom = "${var.runtime_secret_arn}:OVO_CARRIER_ENV_BINDINGS::" },
+    ])
     healthCheck      = { command = ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4002/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""], interval = 15, timeout = 5, retries = 3, startPeriod = 30 }
     logConfiguration = { logDriver = "awslogs", options = { awslogs-group = aws_cloudwatch_log_group.application.name, awslogs-region = var.aws_region, awslogs-stream-prefix = "dispatcher" } }
   }])
@@ -127,10 +132,9 @@ resource "aws_ecs_task_definition" "worker" {
       { name = "OVO_MEDIA_PUBLIC_BASE_URL", value = var.media_public_base_url },
     ])
     secrets = concat(local.runtime_secrets, [
-      { name = "TWILIO_ACCOUNT_SID", valueFrom = "${var.runtime_secret_arn}:TWILIO_ACCOUNT_SID::" },
-      { name = "TWILIO_AUTH_TOKEN", valueFrom = "${var.runtime_secret_arn}:TWILIO_AUTH_TOKEN::" },
       { name = "OVO_MEDIA_WORKER_TOKEN", valueFrom = "${var.runtime_secret_arn}:OVO_MEDIA_WORKER_TOKEN::" },
       { name = "OVO_SECRETS_MASTER_KEY", valueFrom = "${var.runtime_secret_arn}:OVO_SECRETS_MASTER_KEY::" },
+      { name = "OVO_CARRIER_ENV_BINDINGS", valueFrom = "${var.runtime_secret_arn}:OVO_CARRIER_ENV_BINDINGS::" },
     ])
     stopTimeout      = 120
     healthCheck      = { command = ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4100/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""], interval = 15, timeout = 5, retries = 3, startPeriod = 30 }

@@ -67,9 +67,15 @@ resource "aws_iam_role_policy" "dispatcher" {
         Resource = [aws_sqs_queue.jobs.arn]
       },
       {
-        Sid      = "OnlyDesiredCountWriter"
+        Sid      = "ReconcileDeadLetterHints"
         Effect   = "Allow"
-        Action   = ["ecs:UpdateService", "ecs:DescribeServices"]
+        Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+        Resource = [aws_sqs_queue.jobs_dlq.arn]
+      },
+      {
+        Sid      = "ReadWorkerProvisioning"
+        Effect   = "Allow"
+        Action   = ["ecs:DescribeServices"]
         Resource = [local.worker_service_arn]
       },
       {
@@ -102,7 +108,7 @@ resource "aws_iam_role_policy" "worker" {
       {
         Sid       = "ProtectWorkerTasks"
         Effect    = "Allow"
-        Action    = ["ecs:UpdateTaskProtection"]
+        Action    = ["ecs:UpdateTaskProtection", "ecs:GetTaskProtection"]
         Resource  = "*"
         Condition = { ArnEquals = { "ecs:cluster" = aws_ecs_cluster.this.arn } }
       },

@@ -1,9 +1,5 @@
 import { type PoolConfig, Pool } from 'pg';
 import type {
-  CapacityLeaseStore,
-  CapacityWriteAttempt,
-  CapacityWriteGuard,
-  CapacityWritePermit,
   CarrierRouteStore,
   DurableJob,
   DurableJobStore,
@@ -17,26 +13,20 @@ import {
   type WorkerReport,
   type CapacitySnapshot,
 } from './postgres/capacity-repository.ts';
-import { CapacityLeaseRepository } from './postgres/leases.ts';
-import { PostgresCapacityWriteGuard } from './postgres/capacity-writes.ts';
 import { PostgresSessionStoreBase } from './postgres-session-store.ts';
 
 /** Thin facade preserving one pooled transaction boundary while repositories stay responsibility-focused. */
 export class PostgresOrchestrationStore
   extends PostgresSessionStoreBase
-  implements DurableJobStore, CarrierRouteStore, CapacityLeaseStore, CapacityWriteGuard
+  implements DurableJobStore, CarrierRouteStore
 {
   readonly outbox: OutboxRepository;
   readonly capacity: CapacityRepository;
-  readonly leases: CapacityLeaseRepository;
-  readonly capacityWrites: PostgresCapacityWriteGuard;
 
   constructor(config: PoolConfig | Pool) {
     super(config);
     this.outbox = new OutboxRepository(this.pool);
     this.capacity = new CapacityRepository(this.pool);
-    this.leases = new CapacityLeaseRepository(this.pool);
-    this.capacityWrites = new PostgresCapacityWriteGuard(this.pool);
   }
 
   migrate(): Promise<void> {
@@ -91,33 +81,6 @@ export class PostgresOrchestrationStore
     return this.outbox.markFailed(id, publisherId, error);
   }
 
-  acquire(
-    serviceKey: string,
-    authorityId: string,
-    leaseMs: number,
-  ): Promise<{ epoch: number } | undefined> {
-    return this.leases.acquire(serviceKey, authorityId, leaseMs);
-  }
-  renew(serviceKey: string, authorityId: string, epoch: number, leaseMs: number): Promise<boolean> {
-    return this.leases.renew(serviceKey, authorityId, epoch, leaseMs);
-  }
-  begin(input: {
-    serviceKey: string;
-    authorityId: string;
-    epoch: number;
-    desiredCount: number;
-  }): Promise<CapacityWritePermit> {
-    return this.capacityWrites.begin(input);
-  }
-  markApplied(attemptId: string): Promise<boolean> {
-    return this.capacityWrites.markApplied(attemptId);
-  }
-  markUnknown(attemptId: string, error: string): Promise<boolean> {
-    return this.capacityWrites.markUnknown(attemptId, error);
-  }
-  pending(serviceKey: string): Promise<CapacityWriteAttempt | undefined> {
-    return this.capacityWrites.pending(serviceKey);
-  }
   reportWorker(input: WorkerReport): Promise<boolean> {
     return this.capacity.reportWorker(input);
   }
