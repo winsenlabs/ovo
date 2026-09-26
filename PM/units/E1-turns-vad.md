@@ -14,6 +14,10 @@ Defects fixed: [3, 18]
 
 - none
 
+## Checker note (2026-09-25)
+
+The specification below says to emit `force-endpoint` on every `vad.stop`, but the frozen turn-detector conformance kit requires no new endpoint request after a final transcript has already arrived. The checker approved the kit's invariant as authoritative: emit `force-endpoint` on `vad.stop` only while the utterance is still awaiting a final transcript and its speech is not muted. A redundant request can incur provider cost and truncate the next turn. The regression tests assert that a final transcript preceding `vad.stop`, or speech discarded during a tool, causes no immediate or delayed `force-endpoint`. The frozen kit is unchanged; E2 inherits this behavior when it integrates the detector.
+
 ## Specification
 
 GOAL: provide the user-turn logic as swappable plugins, so turn-taking no longer depends on one STT vendor's endpointing. This fixes defect #3:
@@ -130,3 +134,33 @@ CONSTRAINTS:
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/lint.mjs --only packages/plugin-turns packages/plugin-vad`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/typecheck-scope.mjs packages/plugin-turns packages/plugin-vad`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run packages/plugin-turns packages/plugin-vad packages/distribution --reporter=dot`
+
+## Merge review corrections — 2026-09-26
+
+Independent review reproduced two mute-boundary defects in `ebd0cd2` (rebased
+unchanged as `07dc6f5` before the corrections): a zero minimum word threshold
+allowed a VAD interrupt during a confirmation prompt, and starting disclosure
+left an existing transcript available to a later provider-end or timer event.
+
+The VAD interrupt path now uses the same `canInterrupt` policy as transcript
+interrupts. A confirmation can still start and buffer a user turn, but VAD cannot
+interrupt its prompt regardless of the configured word threshold. Entering a
+speech-discarding mute state resets the existing aggregate and cancels its stop
+and safety timers. The common stop path also refuses to release speech while
+that mute state remains active. Confirmation buffering remains a separate policy.
+All edits are inside E1's owned package; frozen contracts and kits are unchanged.
+
+Seven new production-factory regressions were run before changing implementation.
+The zero-threshold case failed because it received `interrupt` with reason `vad`
+where the expected list was empty. Six cases (disclosure and explicitly muted
+response, each followed by provider-end, safety timeout or VAD timeout) failed
+with `expected [ 'please change my booking' ] to deeply equal []`. They now pass
+and also prove that a fresh turn after the mute window is accepted without the
+old text, confirmation `yes` is released only after the prompt, and disposal
+leaves no timer. The full E1 plus distribution scope passes 102 tests.
+
+The added stop guard initially made `controller-state.ts` 301 canonical lines.
+The existing DTMF decision handler was moved unchanged into `TurnController`,
+which owns event dispatch, leaving an abstract callback in the shared state
+base. This separates the responsibility instead of compressing code or adding a
+module-size baseline; the final gate measures both modules under 300 lines.
