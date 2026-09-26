@@ -216,3 +216,12 @@ exception for `@types/ws`. No compatibility bypass was added to production.
 The owned Postgres resume fixture now signs the complete raw HTTP callback URL,
 including `r` and `t`. The first serial run exposed its old query-stripping signature
 as HTTP 401; the corrected fixture passes in both the focused and full serial runs.
+
+Independent review of this checkpoint reran the router and empty-termination tests
+(11 passed), the Postgres resume lifecycle (1 passed), and malformed/duplicate URL
+probes. It found no blocker in the delta. The frozen fixture signer and verifier
+each append `request.query` to `externalUrl`; with a full external URL they agree
+on a doubled query. Consequently the Postgres test proves resume state and socket
+behavior, not vendor signature fidelity. The exact raw router assertion and real
+C1 Twilio handler proof establish the latter. I1 must correct that frozen fixture
+helper and its consumers together.
