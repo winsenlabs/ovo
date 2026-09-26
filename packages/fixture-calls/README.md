@@ -46,15 +46,13 @@ does not change stored values.
   Atomic creation needs `control-store.ts`, `postgres/calls-repository.ts` and
   `sqlite/calls-repository.ts`. Both stores bind repository methods automatically;
   no store wiring change is currently identified.
-- Default agent confirmed-write fixtures fail closed pending playback-gated STT
-  replay. Known frozen seams are `packages/contracts/src/net.ts` (template/step
-  shape), `packages/plugin-kit/src/{fixture-net,fixture-socket}.ts`, and
-  `packages/conformance/src/drivers/fixture-stt.ts`. Selected provider templates
-  must then implement the same gate. A delayed-confirmation production regression
-  remains required.
-- `apps/worker/src/speech-cache-runtime.ts` still imports the implementation
-  `StreamingMediaSpeechOutput` from plugin-voice. Moving that implementation into
-  a shared kit needs a ruling; a contracts type cannot replace it.
+- Default agent confirmed-write fixtures remain fail closed while D1 investigates
+  an owned NetPort/Clock replay adapter. The latest user ruling requires local
+  adapters; the earlier proposal to edit frozen fixture contracts/kits is
+  superseded. A selected-engine delayed-confirmation regression remains required.
+- The owned worker cache output now implements streaming locally; no shared kit
+  move or plugin-voice implementation import is required. It needs final composed
+  engine integration after E2 lands.
 - C2's negotiated PCM16 link/recording integration and selected carrier fixture
   encoders must land before claiming the complete demo matrix.
 
@@ -114,3 +112,68 @@ checker decision; the production carrier format requirement stays strict.
 The refreshed normal default suite also exits 0 (1,196 passed / 139 skipped).
 Full `pnpm typecheck` still exits 2, now with only the missing-format fixture's
 TS2741 diagnostic; the owned simulation diagnostic is gone.
+
+## Batch A resumption — 2026-09-26
+
+Rebased onto foundation `4f17b64`. The approved shared test change adds
+`MULAW_8K` to the real-LLM release fixture's carrier media without weakening any
+assertion. No frozen contract or storage implementation changed.
+
+The production cache-host integration runs `createV2SpeechCachePlugin` through
+real `compose`. Cached and streaming branches now both prefetch within the
+configured byte bound, use the negotiated μ-law or PCM16 format, and share one
+ordered send queue. The queue releases after bytes and mark are sent, while the
+receipt may remain pending. Interruption cancels every queued/active segment,
+waits for a blocked write to return, clears the carrier, and only then permits
+new-epoch sends. A flushed mark cannot upgrade interrupted speech. Missing marks
+complete with estimated evidence; explicitly accepted carrier-processed marks
+retain their source. This is host-output proof; the selected native-engine demo
+matrix still needs E2/C2 integration.
+
+True negatives against the previous production adapter (same new assertions):
+streaming `prepare()` produced 0 chunks instead of 2; PCM16 cache identity received
+`mulaw/8000` instead of `pcm_s16le/16000`; weak confirmed playback lacked
+`evidenceSource: carrier-processed`. The cancellation mutation that merely drops
+the buffered audio without aborting epoch state emits extra audio and
+`mark:late:3` / `mark:queued:3` after interruption. Restoring the implementation
+passes all eight legacy/v2 cache cases across both formats.
+
+The child-process runtime now handles a failed event write immediately and
+cleans up if its initial IPC send throws. The old runtime left `activeCount=1`
+and returned `pending` instead of `audit write refused`, also producing an
+unhandled rejection; a synchronous IPC throw left child kill count at 0 instead
+of 1. A separate mutation that bypasses the successful event-write barrier
+settles the child result before its write, violating the expected pending state.
+
+Two durable admission defects remain pending the storage-scope decision. A real
+SQLite store with the production route and `app.inject` returns
+`422 draft_snapshot_required` for `useDraft:true`; a deliberately delayed first
+`fixture.request` write makes an identical concurrent key return
+`409 idempotency_conflict` instead of 202. The proof uses a method wrapper at the
+public store boundary, never private database access. No polling workaround or
+publication of drafts as ordinary releases is included. Proposed storage methods
+can be consumed via D1-local structural types and the existing dynamic repository
+binding, leaving frozen `ControlStore` unchanged. Migration 007 must preserve
+M1's reserved 006 and prove 006 still applies when integrated afterward.
+
+Independent cache review found three further transport defects, now covered by
+`tests/cache-transport.test.ts` through real host-plugin composition. With the
+normal prefetch budget, a successful small-frame synthesis was followed by an
+80,000-byte cache hit/shared result that threw `audio frame exceeds limit`;
+these are separate hit and shared-result cases for μ-law and PCM16. Every send
+is now capped independently of prefetch capacity, with split PCM samples joined
+without changing bytes. A split-sample negative previously sent one odd byte.
+A carrier write failure previously left the dynamic TTS producer's signal live
+(`false` instead of `true`), and a previously prepared segment with an already
+aborted play signal returned `completed` rather than `interrupted`. The eight
+transport cases now pass, including an additional race where the play signal aborts during the awaited prepare step; that race previously completed
+and sent audio instead of returning interrupted.
+The shared-cache waiter survival regression remains green: stopping one consumer
+does not cancel a producer still needed by another consumer.
+
+The recording-disabled API regression now passes a valid child recording payload
+into the production route while using a real local recording archive. It proves
+zero persisted recordings and no recording entry in `fixture.result`. Forcing the
+route to persist the payload produces two actual archive rows instead of `[]`.
+This supplements the library's recording-disabled check that observes zero
+capture opens and writes; neither proof is counted as a new real-carrier demo.

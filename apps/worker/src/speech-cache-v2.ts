@@ -1,9 +1,6 @@
 import {
   Cap,
-  MULAW_8K,
   type MediaDuplex,
-  type SpeechOutput,
-  type SpeechOutputResult,
   type SpeechSegment,
   type TextToSpeech,
   type UsageSink,
@@ -17,13 +14,9 @@ import { legacyFromDuplex } from '@winsendotai/ovo-plugin-kit';
 import { createSpeechCacheKey, ApprovedSpeechPolicy } from '@winsendotai/ovo-plugin-speech-cache';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { definePlugin } from '@winsendotai/ovo-runtime';
-import {
-  BoundedAudioPrefetch,
-  CachedMediaAudioPlayer,
-  observeFirstByte,
-  streamCachedAudio,
-  waitForSendSlot,
-} from './cached-media-player.ts';
+import { CachedMediaAudioPlayer, observeFirstByte } from './cached-media-player.ts';
+import { BoundedAudioPrefetch, streamCachedAudio } from './session-graph-speech-buffer.ts';
+import { SessionSpeechOutput, prefetchSpeech } from './session-graph-speech-output.ts';
 import { approvedSpeechPhrases, HYBRID_SPEECH_CACHE_PLUGIN_ID } from './speech-cache-runtime.ts';
 
 /** Session host override for the engine's streaming-output companion. */
@@ -50,11 +43,12 @@ export function createV2SpeechCachePlugin(release: ReleaseRecord, cache: ByteCac
       const usage = ctx.get(Cap.usage) as UsageSink;
       const transport = legacyFromDuplex(media);
       const player = new CachedMediaAudioPlayer(transport, {
+        format: media.format,
         playbackEvidence: media.playbackEvidence,
         allowWeakEvidence:
           release.config.voice?.acknowledgements.includes('weak-playback-evidence'),
       });
-      const identity = tts.cacheIdentity(MULAW_8K, voice);
+      const identity = tts.cacheIdentity(media.format, voice);
       const cacheKey = {
         workspaceId: release.workspaceId,
         provider: identity.provider,
@@ -66,8 +60,8 @@ export function createV2SpeechCachePlugin(release: ReleaseRecord, cache: ByteCac
         model: identity.model,
         voice: identity.voice,
         locale: release.config.language,
-        codec: 'audio/x-mulaw',
-        sampleRate: 8_000,
+        codec: media.format.encoding,
+        sampleRate: media.format.sampleRate,
         pronunciation: 'default',
         prosodyRevision: 'default',
         optionsRevision: identity.revision,
@@ -93,7 +87,7 @@ export function createV2SpeechCachePlugin(release: ReleaseRecord, cache: ByteCac
               tts.synthesize({
                 sessionId: media.sessionId,
                 text: segment.text,
-                format: MULAW_8K,
+                format: media.format,
                 language: release.config.language,
                 voice,
                 kind: segment.kind,
@@ -116,136 +110,52 @@ export function createV2SpeechCachePlugin(release: ReleaseRecord, cache: ByteCac
             return joined;
           },
         });
-      type Prepared = {
-        epoch: number;
-        chosen: 'cached' | 'streaming';
-        prior: Promise<void>;
-        release(): void;
-        audio?: AsyncIterable<Uint8Array>;
-        cancel?: () => void;
-      };
-      const prepared = new Map<string, Prepared>();
-      const active = new Map<number, Set<Prepared>>();
-      let sendTail: Promise<void> = Promise.resolve();
-      const reserve = (segment: SpeechSegment, signal: AbortSignal): Prepared => {
-        let chosen: Prepared['chosen'] = allowed.permits(segment.text, segment.kind)
-          ? 'cached'
-          : 'streaming';
-        let cached: ReturnType<typeof loadCached> | undefined;
-        if (chosen === 'cached') {
+      const createAudio = (segment: SpeechSegment, signal: AbortSignal) => {
+        if (allowed.permits(segment.text, segment.kind)) {
           try {
-            cached = loadCached(segment, signal);
+            return { ...loadCached(segment, signal), suffix: 'cache' };
           } catch (error) {
-            if (error instanceof CachePendingCapacityError || error instanceof CacheKeyPendingError)
-              chosen = 'streaming';
-            else throw error;
+            if (!(
+              error instanceof CachePendingCapacityError || error instanceof CacheKeyPendingError
+            ))
+              throw error;
           }
         }
-        const prior = sendTail;
-        let finish!: () => void;
-        let released = false;
-        sendTail = new Promise<void>((resolve) => (finish = resolve));
-        const state: Prepared = {
-          epoch: segment.epoch,
-          chosen,
-          prior,
-          release: () => {
-            if (released) return;
-            released = true;
-            signal.removeEventListener('abort', state.release);
-            state.cancel?.();
-            finish();
+        return prefetchSpeech(
+          observeFirstByte(
+            tts.synthesize({
+              sessionId: media.sessionId,
+              text: segment.text,
+              format: media.format,
+              language: release.config.language,
+              voice,
+              kind: segment.kind,
+              signal,
+              onUsage: usage,
+            }),
+            () => timing?.('tts-first-byte', segment),
+          ),
+          signal,
+          maxPrefetchBytes,
+        );
+      };
+      const output = Object.assign(
+        new SessionSpeechOutput(player, createAudio, (segment) =>
+          timing?.('carrier-first-audio', segment),
+        ),
+        {
+          configure(options: { markTimeoutMs?: number; maxPrefetchBytes?: number }) {
+            player.configure(options);
+            if (options.maxPrefetchBytes !== undefined)
+              maxPrefetchBytes = new BoundedAudioPrefetch(options.maxPrefetchBytes).maxBytes;
           },
-          audio: cached?.audio,
-          cancel: cached?.cancel,
-        };
-        signal.addEventListener('abort', state.release, { once: true });
-        if (signal.aborted) state.release();
-        prepared.set(segment.id, state);
-        return state;
-      };
-      const output: SpeechOutput & {
-        configure(options: { markTimeoutMs?: number; maxPrefetchBytes?: number }): void;
-        configureTiming(listener: typeof timing): void;
-      } = {
-        configure(options) {
-          player.configure(options);
-          if (options.maxPrefetchBytes !== undefined)
-            maxPrefetchBytes = new BoundedAudioPrefetch(options.maxPrefetchBytes).maxBytes;
+          configureTiming(listener: typeof timing) {
+            timing = listener;
+          },
         },
-        configureTiming(listener) {
-          timing = listener;
-        },
-        async prepare(segment, signal) {
-          if (!prepared.has(segment.id)) reserve(segment, signal);
-        },
-        async play(segment: SpeechSegment, options): Promise<SpeechOutputResult> {
-          if (options.signal.aborted) return { state: 'interrupted', evidence: 'estimated' };
-          await output.prepare!(segment, options.signal);
-          const state = prepared.get(segment.id)!;
-          const epochActive = active.get(segment.epoch) ?? new Set<Prepared>();
-          epochActive.add(state);
-          active.set(segment.epoch, epochActive);
-          try {
-            await waitForSendSlot(state.prior, options.signal);
-            options.signal.throwIfAborted();
-            const playbackOptions = {
-              ...options,
-              afterSent: state.release,
-              report: (phase: 'sent' | 'acknowledged', evidence: 'estimated' | 'confirmed') => {
-                if (phase === 'sent') timing?.('carrier-first-audio', segment);
-                options.report?.(phase, evidence);
-              },
-            };
-            if (state.chosen === 'streaming') {
-              return await player.playStream(
-                observeFirstByte(
-                  tts.synthesize({
-                    sessionId: media.sessionId,
-                    text: segment.text,
-                    format: MULAW_8K,
-                    language: release.config.language,
-                    voice,
-                    kind: segment.kind,
-                    signal: options.signal,
-                    onUsage: usage,
-                  }),
-                  () => timing?.('tts-first-byte', segment),
-                ),
-                segment,
-                playbackOptions,
-              );
-            }
-            return await player.playStream(state.audio!, segment, playbackOptions, 'cache');
-          } catch (error) {
-            if (options.signal.aborted) return { state: 'interrupted', evidence: 'estimated' };
-            throw error;
-          } finally {
-            state.release();
-            prepared.delete(segment.id);
-            epochActive.delete(state);
-            if (epochActive.size === 0) active.delete(segment.epoch);
-          }
-        },
-        async interrupt(epoch) {
-          for (const [id, state] of prepared) {
-            if (state.epoch !== epoch) continue;
-            state.release();
-            prepared.delete(id);
-          }
-          const current = active.get(epoch);
-          if (!current?.size) return;
-          const cleared = player.interrupt(epoch);
-          sendTail = cleared.catch(() => undefined);
-          await cleared;
-        },
-      };
+      );
       ctx.provide(Cap.output, output);
-      ctx.effect(() => () => {
-        for (const state of prepared.values()) state.release();
-        prepared.clear();
-        player.dispose();
-      });
+      ctx.effect(() => () => output.dispose());
     },
   );
 }

@@ -1,6 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { Cap } from '@winsendotai/ovo-contracts';
+import { Cap, MULAW_8K } from '@winsendotai/ovo-contracts';
 import { loadDistribution } from '@winsendotai/ovo-distribution';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { compose } from '@winsendotai/ovo-runtime';
@@ -122,6 +122,7 @@ it.each(['context', 'agent'] as const)(
         } as never,
         extensions: { plugins: [], nativeHandlers: {} },
         carrierMedia: {
+          format: MULAW_8K,
           carrierId: 'twilio',
           playbackEvidence: 'carrier-played',
           clearFlushesMarkers: true,

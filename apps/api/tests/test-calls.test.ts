@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { MULAW_8K } from '@winsendotai/ovo-contracts';
+import { Cap, MULAW_8K } from '@winsendotai/ovo-contracts';
 import {
   LocalRecordingBackend,
   RecordingArchive,
@@ -26,6 +26,8 @@ const createdAt = '2026-09-25T12:00:00.000Z';
 
 describe('fixture test-call inspection', () => {
   it('returns 404 when disabled and durably streams a release-backed call when enabled', async () => {
+    const directory = await mkdtemp('/var/tmp/ovo-disabled-fixture-recording-');
+    const archive = new RecordingArchive(new LocalRecordingBackend(join(directory, 'objects')));
     const release = {
       id: releaseId,
       agentId,
@@ -141,6 +143,13 @@ describe('fixture test-call inspection', () => {
             ],
             carrierFrames: [],
             compatIssues: [],
+            recording: {
+              format: MULAW_8K,
+              tracks: {
+                caller: [{ atMs: 0, bytesBase64: '/w==' }],
+                agent: [{ atMs: 0, bytesBase64: '/w==' }],
+              },
+            },
           };
         },
       });
@@ -156,17 +165,20 @@ describe('fixture test-call inspection', () => {
           },
         } as never,
         ctx: {
-          get: () => ({
-            getPriceCard: async () => ({
-              id: 'card-1',
-              version: 'v1',
-              provider: 'fixture',
-              unit: 'characters',
-              currency: 'INR',
-              minorUnitsPerBlock: '2',
-              blockQuantity: '1',
-            }),
-          }),
+          get: (key: string) =>
+            key === Cap.recordings
+              ? archive
+              : {
+                  getPriceCard: async () => ({
+                    id: 'card-1',
+                    version: 'v1',
+                    provider: 'fixture',
+                    unit: 'characters',
+                    currency: 'INR',
+                    minorUnitsPerBlock: '2',
+                    blockQuantity: '1',
+                  }),
+                },
         } as never,
       });
       registerInspectionRoutes({
@@ -212,6 +224,10 @@ describe('fixture test-call inspection', () => {
         'fixture.usage',
         'fixture.result',
       ]);
+      expect(await archive.list('workspace', createdCallId)).toEqual([]);
+      expect(
+        eventRows.get(createdCallId)?.find((row) => row.type === 'fixture.result')?.payload,
+      ).not.toHaveProperty('recording');
       expect(usageRows).toMatchObject([{ amountMinor: '20', currency: 'INR', state: 'estimated' }]);
       await vi.waitFor(() =>
         expect(telemetryEvents.map((row) => row.kind)).toEqual([
@@ -263,6 +279,7 @@ describe('fixture test-call inspection', () => {
       expect((store.createCall as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2);
     } finally {
       await enabled.close();
+      await rm(directory, { recursive: true, force: true });
     }
   });
 

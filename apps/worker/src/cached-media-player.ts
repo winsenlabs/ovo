@@ -1,22 +1,27 @@
 import type { AudioPlayer, AudioPlaybackRequest } from '@winsendotai/ovo-plugin-speech-cache';
-import type { ByteCache } from '@winsendotai/ovo-plugin-cache';
+import { carrierFrames, storedAudio } from './session-graph-speech-buffer.ts';
 import type {
+  AudioFormat,
   PlaybackEvidence,
   SpeechOutputResult,
   SpeechSegment,
   VoiceMediaTransport,
 } from '@winsendotai/ovo-contracts';
+import { bytesPerSecond, MULAW_8K } from '@winsendotai/ovo-contracts';
 
+type PlaybackResult = SpeechOutputResult & { usage: []; evidenceSource?: PlaybackEvidence };
+/** Keep the frozen reporter contract; the result retains accepted weak-evidence provenance. */
+type Reporter = (phase: 'sent' | 'acknowledged', evidence: 'estimated' | 'confirmed') => void;
 interface PendingMark {
   epoch: number;
-  resolve(result: SpeechOutputResult & { usage: [] }): void;
+  resolve(result: PlaybackResult): void;
   timer: NodeJS.Timeout;
-  report?: (phase: 'sent' | 'acknowledged', evidence: 'estimated' | 'confirmed') => void;
+  report?: Reporter;
 }
 
 type PlaybackOptions = {
   signal: AbortSignal;
-  report?: (phase: 'sent' | 'acknowledged', evidence: 'estimated' | 'confirmed') => void;
+  report?: Reporter;
   afterSent?: () => void;
 };
 
@@ -28,6 +33,7 @@ export class CachedMediaAudioPlayer implements AudioPlayer {
     private readonly media: VoiceMediaTransport,
     private readonly options: {
       frameBytes?: number;
+      format?: AudioFormat;
       markTimeoutMs?: number;
       playbackEvidence?: PlaybackEvidence;
       allowWeakEvidence?: boolean;
@@ -43,10 +49,7 @@ export class CachedMediaAudioPlayer implements AudioPlayer {
     if (options.markTimeoutMs !== undefined) this.options.markTimeoutMs = options.markTimeoutMs;
   }
 
-  async play(
-    request: AudioPlaybackRequest,
-    options: PlaybackOptions,
-  ): Promise<SpeechOutputResult & { usage: [] }> {
+  async play(request: AudioPlaybackRequest, options: PlaybackOptions): Promise<PlaybackResult> {
     if (request.codec !== 'audio/x-mulaw' || request.sampleRate !== 8_000)
       throw new TypeError('Live cached playback requires 8 kHz mu-law audio');
     const frames = storedAudio(request.audio, this.options.frameBytes ?? 160);
@@ -58,7 +61,7 @@ export class CachedMediaAudioPlayer implements AudioPlayer {
     segment: SpeechSegment,
     options: PlaybackOptions,
     suffix?: string,
-  ): Promise<SpeechOutputResult & { usage: [] }> {
+  ): Promise<PlaybackResult> {
     return this.playFrames(audio, segment, options, suffix);
   }
 
@@ -67,14 +70,14 @@ export class CachedMediaAudioPlayer implements AudioPlayer {
     segment: SpeechSegment,
     options: PlaybackOptions,
     suffix?: string,
-  ): Promise<SpeechOutputResult & { usage: [] }> {
+  ): Promise<PlaybackResult> {
     if (options.signal.aborted) return interrupted();
     const mark = `${segment.id}:${segment.epoch}${suffix ? `:${suffix}` : ''}`;
     const onAbort = () => this.cancel(mark);
     options.signal.addEventListener('abort', onAbort, { once: true });
     try {
       let sent = false;
-      for await (const frame of frames) {
+      for await (const frame of carrierFrames(frames, this.options.format ?? MULAW_8K)) {
         options.signal.throwIfAborted();
         if (frame.byteLength === 0) continue;
         await this.media.sendAudio(frame, options.signal);
@@ -115,7 +118,7 @@ export class CachedMediaAudioPlayer implements AudioPlayer {
     name: string,
     epoch: number,
     report?: PendingMark['report'],
-  ): Promise<SpeechOutputResult & { usage: [] }> {
+  ): Promise<PlaybackResult> {
     return new Promise((resolve) => {
       const timer = setTimeout(
         () => {
@@ -123,7 +126,8 @@ export class CachedMediaAudioPlayer implements AudioPlayer {
           resolve({ state: 'completed', evidence: 'estimated', usage: [] });
         },
         Math.ceil(
-          (this.media.bufferedBytes / 8_000) * 1_000 + (this.options.markTimeoutMs ?? 15_000),
+          (this.media.bufferedBytes / bytesPerSecond(this.options.format ?? MULAW_8K)) * 1_000 +
+            (this.options.markTimeoutMs ?? 15_000),
         ),
       );
       timer.unref?.();
@@ -141,8 +145,17 @@ export class CachedMediaAudioPlayer implements AudioPlayer {
       (this.options.playbackEvidence === 'carrier-processed' && !this.options.allowWeakEvidence)
         ? 'estimated'
         : 'confirmed';
+    const evidenceSource =
+      evidence === 'confirmed' && this.options.playbackEvidence === 'carrier-processed'
+        ? ('carrier-processed' as const)
+        : undefined;
     pending.report?.('acknowledged', evidence);
-    pending.resolve({ state: 'completed', evidence, usage: [] });
+    pending.resolve({
+      state: 'completed',
+      evidence,
+      usage: [],
+      ...(evidenceSource ? { evidenceSource } : {}),
+    });
   }
 
   private cancel(name: string): void {
@@ -158,7 +171,7 @@ export class CachedMediaAudioPlayer implements AudioPlayer {
   }
 }
 
-function interrupted(): SpeechOutputResult & { usage: [] } {
+function interrupted(): PlaybackResult {
   return { state: 'interrupted', evidence: 'estimated', usage: [] };
 }
 
@@ -195,103 +208,4 @@ export function waitForSendSlot(prior: Promise<void>, signal: AbortSignal): Prom
       },
     );
   });
-}
-
-export class BoundedAudioPrefetch implements AsyncIterable<Uint8Array> {
-  private readonly chunks: Uint8Array[] = [];
-  private readonly readers: (() => void)[] = [];
-  private readonly writers: (() => void)[] = [];
-  private bytes = 0;
-  private ended = false;
-  private detached = false;
-  private failure?: unknown;
-
-  constructor(readonly maxBytes: number) {
-    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1)
-      throw new RangeError('maxPrefetchBytes must be a positive integer');
-  }
-
-  async push(chunk: Uint8Array, signal: AbortSignal): Promise<void> {
-    for (let offset = 0; offset < chunk.length; offset += this.maxBytes) {
-      const part = chunk.subarray(offset, offset + this.maxBytes);
-      while (this.bytes + part.length > this.maxBytes) {
-        signal.throwIfAborted();
-        if (this.ended) {
-          if (this.detached) return;
-          throw this.failure ?? new Error('Speech prefetch closed');
-        }
-        await new Promise<void>((resolve) => this.writers.push(resolve));
-      }
-      signal.throwIfAborted();
-      if (this.ended) {
-        if (this.detached) return;
-        throw this.failure ?? new Error('Speech prefetch closed');
-      }
-      this.chunks.push(part.slice());
-      this.bytes += part.length;
-      this.readers.shift()?.();
-    }
-  }
-
-  end(error?: unknown, detached = false): void {
-    if (this.ended) return;
-    this.ended = true;
-    this.detached = detached;
-    this.failure = error;
-    for (const wake of this.readers.splice(0)) wake();
-    for (const wake of this.writers.splice(0)) wake();
-  }
-
-  async *[Symbol.asyncIterator](): AsyncIterator<Uint8Array> {
-    while (true) {
-      if (this.chunks.length) {
-        const chunk = this.chunks.shift()!;
-        this.bytes -= chunk.length;
-        this.writers.shift()?.();
-        yield chunk;
-      } else if (this.failure) throw this.failure;
-      else if (this.ended) return;
-      else await new Promise<void>((resolve) => this.readers.push(resolve));
-    }
-  }
-}
-
-export function streamCachedAudio(
-  cache: ByteCache,
-  request: {
-    key: string;
-    workspaceId: string;
-    signal: AbortSignal;
-    maxPrefetchBytes: number;
-    load(signal: AbortSignal, push: (chunk: Uint8Array) => Promise<void>): Promise<Uint8Array>;
-  },
-): { audio: AsyncIterable<Uint8Array>; cancel(): void } {
-  const hit = cache.get(request.key, request.workspaceId);
-  if (hit) return { audio: storedAudio(hit, request.maxPrefetchBytes), cancel: () => undefined };
-  const buffer = new BoundedAudioPrefetch(request.maxPrefetchBytes);
-  let producing = false;
-  void cache
-    .getOrLoad({
-      key: request.key,
-      workspaceId: request.workspaceId,
-      signal: request.signal,
-      load: (signal) => {
-        producing = true;
-        return request.load(signal, (chunk) => buffer.push(chunk, signal));
-      },
-    })
-    .then(async (result) => {
-      if (!producing) await buffer.push(result.value, request.signal);
-      buffer.end();
-    })
-    .catch((error: unknown) => buffer.end(error));
-  return {
-    audio: buffer,
-    cancel: () => buffer.end(undefined, true),
-  };
-}
-
-async function* storedAudio(audio: Uint8Array, chunkBytes: number): AsyncIterable<Uint8Array> {
-  for (let offset = 0; offset < audio.byteLength; offset += chunkBytes)
-    yield audio.slice(offset, offset + chunkBytes);
 }

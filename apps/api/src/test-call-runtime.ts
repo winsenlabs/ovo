@@ -1,9 +1,9 @@
 import { fork, type ChildProcess } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { Cap, type CarrierIngress } from '@winsendotai/ovo-contracts';
 import { loadDistribution } from '@winsendotai/ovo-distribution';
 import {
   fixtureCarrierInboundFrame,
+  fixtureCallsEnabled,
   runFixtureCall,
   withFixtureEgressSentinel,
 } from '@winsendotai/ovo-fixture-calls';
@@ -17,6 +17,11 @@ import type {
   FixtureCallResult,
 } from '@winsendotai/ovo-fixture-calls';
 import type { SessionGraphRelease } from '@winsendotai/ovo-session-host';
+export {
+  fixtureCallsEnabled,
+  fixtureCallsEnvironmentEnabled,
+  idempotentFixtureCallId,
+} from '@winsendotai/ovo-fixture-calls';
 
 export interface FixtureChildJob {
   callId: string;
@@ -40,25 +45,6 @@ export interface TestCallRuntimeOptions {
     job: FixtureChildJob,
     onEvent: (event: FixtureCallEvent) => void | Promise<void>,
   ) => Promise<FixtureCallResult>;
-}
-
-export function fixtureCallsEnabled(input: { enabled?: boolean; nodeEnv?: string }): boolean {
-  return input.enabled ?? input.nodeEnv !== 'production';
-}
-
-export function fixtureCallsEnvironmentEnabled(value: string | undefined): boolean | undefined {
-  if (value === undefined) return undefined;
-  if (value === 'true') return true;
-  if (value === 'false') return false;
-  throw new Error('OVO_FIXTURE_TEST_CALLS must be true or false');
-}
-
-export function idempotentFixtureCallId(workspaceId: string, agentId: string, key: string): string {
-  const bytes = createHash('sha256').update(`${workspaceId}\0${agentId}\0${key}`).digest();
-  bytes[6] = (bytes[6]! & 0x0f) | 0x50;
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
-  const hex = bytes.subarray(0, 16).toString('hex');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 /** A bounded process boundary. API callers receive a call ID before the child completes. */
@@ -159,15 +145,23 @@ export class TestCallRuntime {
       );
       child.on('message', (value: FixtureChildMessage) => {
         if (!value || typeof value !== 'object') return;
-        if (value.type === 'event') writes = writes.then(() => onEvent(value.event));
-        else if (value.type === 'result') finish(undefined, value.result);
+        if (value.type === 'event') {
+          writes = writes.then(() => onEvent(value.event));
+          void writes.catch((cause: unknown) =>
+            finish(cause instanceof Error ? cause : new Error(String(cause))),
+          );
+        } else if (value.type === 'result') finish(undefined, value.result);
         else if (value.type === 'error') finish(new Error(value.message));
       });
       child.once('error', (error) => finish(error));
       child.once('exit', (code, signal) =>
         finish(new Error(`Fixture call child exited before completion (${code ?? signal})`)),
       );
-      child.send({ type: 'start', job });
+      try {
+        child.send({ type: 'start', job });
+      } catch (cause) {
+        finish(cause instanceof Error ? cause : new Error(String(cause)));
+      }
     });
   }
 }

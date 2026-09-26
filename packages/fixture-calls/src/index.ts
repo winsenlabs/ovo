@@ -11,3 +11,9 @@ export * from './egress.ts';
 export const plugins = [];
 export const fixtures = {};
 export const fixtureTemplates = {};
+
+export {
+  fixtureCallsEnabled,
+  fixtureCallsEnvironmentEnabled,
+  idempotentFixtureCallId,
+} from './request.ts';
