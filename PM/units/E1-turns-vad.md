@@ -164,3 +164,37 @@ The existing DTMF decision handler was moved unchanged into `TurnController`,
 which owns event dispatch, leaving an abstract callback in the shared state
 base. This separates the responsibility instead of compressing code or adding a
 module-size baseline; the final gate measures both modules under 300 lines.
+
+## Merge verification — 2026-09-26
+
+E1 was rebased onto S1's tested foundation and merged at `ac8661d`. The independent
+reviewer reran the mute boundary, original regression and conformance tests after
+the final DTMF handler relocation: **56 passed**, exit **0**, with no new blocker.
+The E1 plus distribution scope passed **102 tests**. The complete normal gate
+then ran on the merge code tree using Node 22:
+
+```sh
+export PATH=/opt/homebrew/opt/node@22/bin:$PATH
+node scripts/lint.mjs --only packages/plugin-turns packages/plugin-vad
+pnpm format:check
+node scripts/check-duplication.mjs
+node scripts/typecheck-scope.mjs packages/plugin-turns packages/plugin-vad
+pnpm check
+OVO_TEST_POSTGRES_URL=postgres://postgres:ovo@127.0.0.1:32898/ovo pnpm exec vitest run --no-file-parallelism --reporter=dot
+```
+
+All commands exited **0**. Scoped lint and full formatting were checked together
+before merging; the standalone duplication scan passed with 772 source files and
+57 existing pairs. The largest E1 source is 282 canonical lines; no baseline was
+changed. Normal `pnpm check` includes full seven-gate lint, full format check,
+typecheck, default tests, three application bundles, console production build,
+audit and console E2E.
+
+- Default: **1,270 passed / 138 skipped**.
+- Postgres serial: **1,399 passed / 9 skipped / 0 failed**.
+- Playwright: **41 passed / 1 skipped**, only the invisible desktop Menu trigger.
+- Arithmetic: `1270 + 138 = 1399 + 9 = 1408`; 129 tests are database-gated.
+
+The loopback-only Postgres 17.6 container was removed. No live provider request,
+AWS operation, push or PR change was performed. E1 remains Built — awaiting
+checker verification. This documentation records the already-tested merge tree.
