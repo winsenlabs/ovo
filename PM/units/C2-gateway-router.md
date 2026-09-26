@@ -340,3 +340,24 @@ C4's foundation Twilio-only gateway expectation is discharged by the non-Twilio
 production gateway tests and the actual Postgres test described above. I1 inherits
 these regressions. The production fix does not depend on a carrier-specific exception.
 The disposable `ovo-pg-c2-builder` container was removed after these checks.
+
+### Final-commit Postgres confirmation — 2026-09-26
+
+The full Postgres serial suite was rerun on the clean, exact final code commit
+`45c410adc80498cbb0d1f2c9ae4995e339331177`, after the mechanical fixture extraction:
+
+```sh
+export PATH=/opt/homebrew/opt/node@22/bin:$PATH
+OVO_TEST_POSTGRES_URL=postgres://postgres:ovo@127.0.0.1:32900/ovo pnpm exec vitest run --no-file-parallelism --reporter=dot --reporter=json --outputFile=/tmp/c2-45c410a-postgres.json
+```
+
+**EXIT 0: 1,455 passed / 8 skipped / 0 failed; 1,463 total.** Console output was
+captured in `/tmp/c2-45c410a-postgres.log`; the JSON report confirms every skip:
+one API ledger test requires `LEDGER_TEST_DATABASE_URL`, four recording tests
+require `RECORDING_TEST_DATABASE_URL`, and three restore-drill tests require
+`OVO_BACKUP_DRILL_POSTGRES_URL`. All eight are database-gated; none is disabled.
+The own disposable `postgres:17.6` container `ovo-pg-c2-final` was removed afterward.
+
+The eight paused heads were checked before and after the run and are unchanged:
+C1 `382d690`, C3 `eaeb03f`, C4 `45ef2df`, E3 `e4e821d`, M1 `dc9f471`,
+O1 `1e49894`, O2 `cd77047`, S2 `00c80ec`. This follow-up changes documentation only.
