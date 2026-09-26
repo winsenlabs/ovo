@@ -3,7 +3,7 @@ import {
   type UserTurnController,
   type VoiceEvent,
 } from '@winsendotai/ovo-contracts';
-import { confirmationPrompt, speechMuted } from './mute.ts';
+import { canInterrupt, confirmationPrompt, speechMuted } from './mute.ts';
 import { vadStartsTurn } from './start-vad.ts';
 import { TurnControllerState } from './controller-state.ts';
 
@@ -23,7 +23,11 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         this.idle.cancel();
         if (vadStartsTurn(!!this.bot, speechMuted(this.view(), this.rules), this.config)) {
           this.start();
-          if (this.bot && this.interruptedEpoch !== this.bot.epoch) {
+          if (
+            this.bot &&
+            canInterrupt(this.view(), this.rules) &&
+            this.interruptedEpoch !== this.bot.epoch
+          ) {
             this.interruptedEpoch = this.bot.epoch;
             this.emit({ type: 'interrupt', reason: 'vad' });
           }
@@ -60,6 +64,7 @@ export class TurnController extends TurnControllerState implements UserTurnContr
       case 'bot.started':
         this.idle.cancel();
         this.bot = { epoch: event.epoch, kind: event.kind };
+        if (speechMuted(this.view(), this.rules)) this.reset('muted');
         break;
       case 'bot.stopped':
         if (this.bot && this.bot.epoch !== event.epoch) break;
@@ -91,5 +96,22 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         this.confirmationPending = false;
         break;
     }
+  }
+
+  protected onDigits(digits: string): void {
+    if (!digits) {
+      if (
+        this.bot &&
+        !confirmationPrompt(this.view(), this.rules) &&
+        this.interruptedEpoch !== this.bot.epoch
+      ) {
+        this.interruptedEpoch = this.bot.epoch;
+        this.emit({ type: 'interrupt', reason: 'dtmf' });
+      }
+      return;
+    }
+    const turnId = `turn-${++this.sequence}`;
+    this.emit({ type: 'turn.started', turnId });
+    this.emit({ type: 'turn.stopped', turnId, input: { kind: 'dtmf', digits } });
   }
 }

@@ -29,7 +29,7 @@ export interface ControllerInput {
   overrides?: Partial<TurnConfig>;
 }
 
-export class TurnControllerState {
+export abstract class TurnControllerState {
   protected listeners = new Set<(decision: TurnDecision) => void>();
   protected readonly config: TurnConfig;
   protected readonly rules: MuteRule[];
@@ -141,6 +141,10 @@ export class TurnControllerState {
   }
 
   protected tryStop(): void {
+    if (speechMuted(this.view(), this.rules)) {
+      this.reset('muted');
+      return;
+    }
     if (
       !this.turnId ||
       this.speaking() ||
@@ -249,22 +253,7 @@ export class TurnControllerState {
     }
   }
 
-  protected onDigits(digits: string): void {
-    if (!digits) {
-      if (
-        this.bot &&
-        !confirmationPrompt(this.view(), this.rules) &&
-        this.interruptedEpoch !== this.bot.epoch
-      ) {
-        this.interruptedEpoch = this.bot.epoch;
-        this.emit({ type: 'interrupt', reason: 'dtmf' });
-      }
-      return;
-    }
-    const turnId = `turn-${++this.sequence}`;
-    this.emit({ type: 'turn.started', turnId });
-    this.emit({ type: 'turn.stopped', turnId, input: { kind: 'dtmf', digits } });
-  }
+  protected abstract onDigits(digits: string): void;
 
   dispose(): void {
     this.disposed = true;
