@@ -195,3 +195,33 @@ that a returned provider ID was lost on HTTP failure. All tests invoke the actua
 owned provider classes; Deepgram uses FixtureNet and FakeClock, and TTS supplies
 responses through the actual NetPort input. No missing-export or selector failure
 is counted as proof.
+
+## Merge verification — 2026-09-26
+
+Code merge `e2c7cc5` passed the complete normal gate with Node 22. The independent
+reviewer's six request-correlation regressions passed separately (exit 0), and
+no additional blocker was found. S1 is Built — awaiting checker verification.
+
+```sh
+export PATH=/opt/homebrew/opt/node@22/bin:$PATH
+node scripts/lint.mjs --only packages/plugin-stt-deepgram packages/plugin-tts-openai packages/plugin-llm-openai packages/plugin-providers packages/plugin-inference
+node scripts/check-duplication.mjs
+pnpm check
+OVO_TEST_POSTGRES_URL=postgres://postgres:ovo@127.0.0.1:32897/ovo pnpm exec vitest run --no-file-parallelism --reporter=dot
+```
+
+Each command exited **0**. The `pnpm check` command includes full lint (seven
+gates), **full `pnpm format:check` exit 0**, typecheck, default tests, all three
+application bundles, console production build, audit and the newly required
+console E2E suite. Scoped lint and full formatting are reported together;
+standalone duplication also passed (758 source files, 57 existing pairs).
+No baseline was changed.
+
+- Default: **1,199 passed / 138 skipped**.
+- Postgres serial: **1,328 passed / 9 skipped / 0 failed**.
+- Playwright: **41 passed / 1 skipped**, only the invisible desktop Menu trigger.
+- Arithmetic: `1199 + 138 = 1328 + 9 = 1337`; 129 tests are database-gated.
+
+The Postgres 17.6 container was bound only to 127.0.0.1 and removed after the run.
+No live provider traffic, AWS operation, push or PR change was performed. This
+verification record is documentation added after the tested merge code tree.
