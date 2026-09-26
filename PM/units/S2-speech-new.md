@@ -123,3 +123,7 @@ CONSTRAINTS:
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/lint.mjs --only packages/plugin-stt-assemblyai packages/plugin-speech-sarvam`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/typecheck-scope.mjs packages/plugin-stt-assemblyai packages/plugin-speech-sarvam`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run packages/plugin-stt-assemblyai packages/plugin-speech-sarvam packages/distribution --reporter=dot`
+
+## Builder continuation (2026-09-26)
+
+The two owned package manifests now remove `ovo.skeleton`. Design §15.2 freezes manifests outside the owned paths; these manifests are inside them and no lockfile edit is needed. The scoped architecture gate reports two filled vendor packages and zero skeleton exemptions. The 45 focused tests pass. Three production distribution regressions load each provider from `loadDistribution()` and compose its session graph; replacing the two implementations with foundation `14fef02` skeletons makes all three fail with `<plugin id> must be installed by the production catalog: expected undefined to be defined`. Implementations were restored after the proof. The frozen fixture/compat decisions already recorded above remain pending; this is WIP, not a handover.
