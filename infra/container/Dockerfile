@@ -1,4 +1,4 @@
-FROM node:24.8.0-alpine AS workspace
+FROM node:24.8.0-bookworm-slim AS workspace
 RUN corepack enable && corepack prepare pnpm@10.23.0 --activate
 WORKDIR /workspace
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -10,15 +10,12 @@ COPY tsconfig.json ./
 RUN pnpm install --frozen-lockfile
 
 FROM workspace AS api-build
-RUN pnpm exec esbuild apps/api/src/index.ts --bundle --platform=node --format=esm --target=node24 \
-      --loader:.sql=text --external:fastify --external:pg --external:pg-native \
-      --banner:js="import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" \
-      --outfile=apps/api/dist/index.js \
+RUN pnpm --filter @winsendotai/ovo-api build \
   && pnpm --filter @winsendotai/ovo-api deploy --prod --legacy /runtime/api \
   && mkdir -p /runtime/api/dist \
   && cp apps/api/dist/index.js /runtime/api/dist/index.js
 
-FROM node:24.8.0-alpine AS api
+FROM node:24.8.0-bookworm-slim AS api
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=api-build /runtime/api/ ./
@@ -34,7 +31,7 @@ RUN pnpm build:vendor \
   && pnpm --filter @winsendotai/ovo-console deploy --prod --legacy /runtime/console \
   && cp -R apps/console/.next /runtime/console/.next
 
-FROM node:24.8.0-alpine AS console
+FROM node:24.8.0-bookworm-slim AS console
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=console-build /runtime/console/ ./
@@ -48,7 +45,7 @@ RUN pnpm --filter @winsendotai/ovo-media-gateway build \
   && mkdir -p /runtime/gateway/dist \
   && cp apps/media-gateway/dist/main.cjs /runtime/gateway/dist/main.cjs
 
-FROM node:24.8.0-alpine AS gateway
+FROM node:24.8.0-bookworm-slim AS gateway
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=gateway-build /runtime/gateway/ ./
@@ -62,7 +59,7 @@ RUN pnpm --filter @winsendotai/ovo-dispatcher build \
   && mkdir -p /runtime/dispatcher/dist \
   && cp apps/dispatcher/dist/main.cjs /runtime/dispatcher/dist/main.cjs
 
-FROM node:24.8.0-alpine AS dispatcher
+FROM node:24.8.0-bookworm-slim AS dispatcher
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=dispatcher-build /runtime/dispatcher/ ./
@@ -76,7 +73,7 @@ RUN pnpm --filter @winsendotai/ovo-worker build \
   && mkdir -p /runtime/worker/dist \
   && cp apps/worker/dist/main.cjs /runtime/worker/dist/main.cjs
 
-FROM node:24.8.0-alpine AS worker
+FROM node:24.8.0-bookworm-slim AS worker
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=worker-build /runtime/worker/ ./

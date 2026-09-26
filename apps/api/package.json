@@ -5,7 +5,8 @@
   "type": "module",
   "exports": "./src/server.ts",
   "scripts": {
-    "dev": "tsx --import ../../scripts/register-sql.mjs src/index.ts"
+    "dev": "tsx --import ../../scripts/register-sql.mjs src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --loader:.sql=text --external:fastify --external:pg --external:pg-native --external:@livekit/* --external:sharp --external:onnxruntime-node --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outfile=dist/index.js"
   },
   "dependencies": {
     "@winsendotai/ovo-contracts": "workspace:*",

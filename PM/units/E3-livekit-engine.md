@@ -147,3 +147,60 @@ CONSTRAINTS:
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/typecheck-scope.mjs packages/plugin-engine-livekit`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run packages/plugin-engine-livekit --reporter=dot`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm --filter @winsendotai/ovo-worker build && pnpm --filter @winsendotai/ovo-api build`
+
+## Checker notes — 2026-09-26
+
+- **Pinned confirmation contradiction.** The short-answer paragraph assumes
+  `allowInterruptions: false` causes a one-word response to reach the user-turn
+  hook. Agents 1.9.0 `src/voice/agent_activity.ts:2975–2981` instead returns before
+  that hook whenever a non-interruptible speech is active. The real kit's tail
+  confirmation failed with `timed out waiting for the confirmed write` (21/22
+  checks passed). The owned `SttGate` adapter buffers provider events during
+  confirmation and releases them through the real LiveKit SpeechStream only
+  after the exact receipt is delivered and the speech handle completes; the
+  isolated tail check then passes. Disclosure events are discarded, overflow
+  fails closed, and Behavior is never called directly from this adapter.
+- **Empty SDK tool context.** Agents constructs `ToolContext.empty()` even with no
+  configured tools. The guard rejects populated tool contexts and any LLM, while
+  permitting the unavoidable empty context. Tests exercise the real no-LLM
+  early return and zero `FunctionToolsExecuted` events.
+- **Conformance timing assumption.** `engine-scenario-setup.ts:43–46` defines
+  `spoken()` as generated transcript; the FAQ check immediately assumes carrier
+  audio exists. Asynchronous TTS can legitimately follow generation, producing
+  an intermittent `no audio reached the carrier` even though the independent
+  production composition completes real audio and receipts. This frozen kit
+  issue is reported separately; E3 does not delay or mislabel generation events.
+- **Native packaging verification.** Offline worker deploy was attempted, with
+  zero downloads, and failed at missing offline metadata for root
+  `prettier@3.9.8`. No install/network fallback was run. I1 inherits the native
+  deploy/SBOM check; the worker CJS flags separately pass an executed native
+  runner/audio smoke on Node 22.
+
+- **Gateway reachability.** The gateway already calls `loadDistribution`, whose
+  session catalog reaches the lazy engine module at bundle time. Its unchanged
+  build failed with esbuild `No loader is configured for .node files`. The owned
+  gateway `scripts.build` therefore adds the same native externals; the dispatcher
+  currently has no distribution import and remains unchanged. O1 must inherit
+  these externals when its dispatcher entry starts loading distribution.
+
+- **Production confirmation dependency on M1.** The current foundation's real
+  `AgentBehavior` has no `speechKind` method; the conformance kit supplies a
+  classifier in its spy, which cannot establish production acceptance. E3 now
+  includes a separate real-class tail-confirmation regression, without that
+  spy or a regex. It must be rerun after M1's exact-prompt `speechKind` and
+  subscription implementation lands. E3 does not add a heuristic classifier.
+- **Review regressions.** Before the fixes, four real-engine lifecycle cases
+  failed: duplicate final IDs produced `book Friday book Friday`; a synchronous
+  media close error left Behavior cancellation count zero and ingress attached;
+  a throwing end observer rejected dispose; and a throwing unsubscribe rejected
+  dispose. The adapter now deduplicates final segment IDs and attempts media
+  closure first while isolating every local cleanup and observer. All four
+  regressions then passed.
+
+- **Independent re-review.** After the lifecycle fixes, the reviewer ran 43 owned
+  checks successfully and found no additional owned blocker. Pairing current E3
+  with M1’s actual pending `AgentBehavior` (without the kit classifier) produced
+  zero executions before mark acknowledgement and one afterward. The same probe
+  on the current foundation produced zero executions for the early yes. The
+  unskipped `production-confirmation.test.ts` therefore remains red until M1
+  lands; E3 stays WIP, not Built.

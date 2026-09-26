@@ -7,9 +7,6 @@
     ".": "./src/index.ts",
     "./testing": "./src/testing.ts"
   },
-  "ovo": {
-    "skeleton": true
-  },
   "dependencies": {
     "@livekit/agents": "1.9.0",
     "@livekit/rtc-node": "0.13.34",
