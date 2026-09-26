@@ -691,6 +691,9 @@ importers:
       '@winsendotai/ovo-plugin-voice':
         specifier: workspace:*
         version: link:../plugin-voice
+      '@types/ws':
+        specifier: 8.18.1
+        version: 8.18.1
 
   packages/plugin-observability:
     dependencies:

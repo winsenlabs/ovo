@@ -115,13 +115,14 @@ export function createGatewayHost(options: GatewayHostOptions) {
     const route = selected.rows[0];
     if (!route) return; // Operations records the normal unrouted refusal.
     if (route.carrier_plugin_id && !registry.get(route.carrier_plugin_id)) return; // Operations records its durable uninstalled-plugin refusal.
-    if (
-      !route.carrier_plugin_id &&
-      !route.carrier_binding_id &&
-      options.environmentCarrierId !== inbound.carrierId
-    )
-      return; // Operations records the env refusal.
     const bindingId = route.carrier_binding_id ?? 'env';
+    if (bindingId !== inbound.bindingId)
+      throw new Error('Inbound route binding differs from the authenticated request');
+    if (!route.carrier_plugin_id && !route.carrier_binding_id) {
+      if (!options.environmentCarrierId) return; // Operations records its durable env refusal.
+      if (options.environmentCarrierId !== inbound.carrierId)
+        throw new Error('Inbound route environment carrier differs from the authenticated request');
+    }
     const binding = await bindings(bindingId, inbound.carrierId);
     if (route.carrier_plugin_id && route.carrier_plugin_id !== binding.pluginId)
       throw new Error('Inbound route carrier plugin differs from the resolved binding');

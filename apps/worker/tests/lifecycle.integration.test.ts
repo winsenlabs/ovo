@@ -1,7 +1,11 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer, type Server } from 'node:http';
-import { createConnection, type Socket } from 'node:net';
+import {
+  FixtureQueue,
+  SyntheticProtection,
+} from '../../../packages/plugin-media/tests/worker-lifecycle-fixture.ts';
+import { connectJsonRaw } from '../../../packages/plugin-media/tests/gateway-socket-fixture.ts';
 import { describe, expect, it } from 'vitest';
 import { AgentConfig, type CarrierHostPorts, type DialRequest } from '@winsendotai/ovo-contracts';
 import { compose, type Composition } from '@winsendotai/ovo-runtime';
@@ -23,10 +27,7 @@ import {
 import {
   OutboxPublisher,
   PostgresOrchestrationStore,
-  type DurableQueue,
   type JobReference,
-  type QueueDelivery,
-  type TaskProtection,
   type TelephonyControl,
   type TelephonyDialRequest,
 } from '@winsendotai/ovo-plugin-orchestration';
@@ -41,41 +42,8 @@ import type { WorkerCarrierRuntime, SelectedJobCarrier } from '../src/carrier-ru
 
 const postgresUrl = process.env.OVO_TEST_POSTGRES_URL;
 
-class FixtureQueue implements DurableQueue {
-  private pending: QueueDelivery[] = [];
-  async send(reference: JobReference) {
-    const messageId = randomUUID();
-    this.pending.push({ messageId, receiptHandle: messageId, reference, receiveCount: 1 });
-    return { messageId };
-  }
-  async receive(options: { maxMessages?: number; waitSeconds?: number } = {}) {
-    return this.pending.slice(0, options.maxMessages ?? 1);
-  }
-  async delete(delivery: QueueDelivery) {
-    this.pending = this.pending.filter((row) => row.messageId !== delivery.messageId);
-  }
-  async changeVisibility() {}
-}
-
-class SyntheticProtection implements TaskProtection {
-  established = 0;
-  released = 0;
-  async establish() {
-    this.established += 1;
-    return true;
-  }
-  async renew() {
-    return true;
-  }
-  async release() {
-    this.released += 1;
-  }
-}
-
 class SyntheticCarrier implements TelephonyControl {
-  requests: TelephonyDialRequest[] = [];
   async dial(request: TelephonyDialRequest) {
-    this.requests.push(request);
     return { kind: 'accepted' as const, requestId: request.requestId, carrierCallId: 'CA-e2e' };
   }
   async reconcile() {
@@ -85,82 +53,18 @@ class SyntheticCarrier implements TelephonyControl {
   async transfer() {}
 }
 
-class RawCarrier {
-  readonly messages: string[] = [];
-  private buffer = Buffer.alloc(0);
-  constructor(private readonly socket: Socket) {
-    socket.on('data', (chunk) => this.consume(chunk));
-  }
-  send(message: unknown) {
-    const payload = Buffer.from(JSON.stringify(message));
-    const mask = randomBytes(4);
-    const header = Buffer.alloc(payload.length < 126 ? 6 : 8);
-    header[0] = 0x81;
-    if (payload.length < 126) header[1] = 0x80 | payload.length;
-    else {
-      header[1] = 0x80 | 126;
-      header.writeUInt16BE(payload.length, 2);
-    }
-    const offset = payload.length < 126 ? 2 : 4;
-    mask.copy(header, offset);
-    for (let index = 0; index < payload.length; index++) payload[index] ^= mask[index % 4]!;
-    this.socket.write(Buffer.concat([header, payload]));
-  }
-  close() {
-    this.socket.destroy();
-  }
-  private consume(chunk: Buffer) {
-    this.buffer = Buffer.concat([this.buffer, chunk]);
-    while (this.buffer.length >= 2) {
-      const code = this.buffer[1]! & 0x7f;
-      const header = code < 126 ? 2 : code === 126 ? 4 : 10;
-      if (this.buffer.length < header) return;
-      const length =
-        code < 126
-          ? code
-          : code === 126
-            ? this.buffer.readUInt16BE(2)
-            : Number(this.buffer.readBigUInt64BE(2));
-      if (this.buffer.length < header + length) return;
-      if ((this.buffer[0]! & 0x0f) === 8) {
-        this.socket.destroy();
-        return;
-      }
-      if ((this.buffer[0]! & 0x0f) === 1)
-        this.messages.push(this.buffer.subarray(header, header + length).toString());
-      this.buffer = this.buffer.subarray(header + length);
-    }
-  }
-}
-
-async function connectCarrier(port: number, authToken: string): Promise<RawCarrier> {
-  const socket = createConnection({ host: '127.0.0.1', port });
-  const key = randomBytes(16).toString('base64');
+async function connectCarrier(port: number, authToken: string) {
   const path = '/carriers/fixture/env/media';
   const signature = fixtureSignature(authToken, `wss://voice.example.test${path}`);
-  socket.write(
-    `GET ${path} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ${key}\r\nx-fixture-signature: ${signature}\r\n\r\n`,
-  );
-  const response = await new Promise<string>((resolve, reject) => {
-    let value = '';
-    const receive = (chunk: Buffer) => {
-      value += chunk.toString('latin1');
-      if (!value.includes('\r\n\r\n')) return;
-      socket.off('data', receive);
-      resolve(value);
-    };
-    socket.on('data', receive);
-    socket.once('error', reject);
-  });
-  if (!response.startsWith('HTTP/1.1 101')) throw new Error(response.split('\r\n')[0]);
-  return new RawCarrier(socket);
+  return connectJsonRaw(port, path, signature);
 }
+type RawCarrier = Awaited<ReturnType<typeof connectCarrier>>;
 
 describe.skipIf(!postgresUrl)('worker PostgreSQL and fixture-queue lifecycle', () => {
   it('publishes one durable job, authenticates its route, dials once and releases once', async () => {
     const store = new PostgresOrchestrationStore({ connectionString: postgresUrl });
     const control = await PostgresControlStore.open(postgresUrl!);
-    const queue = new FixtureQueue();
+    const queue = new FixtureQueue<JobReference>();
     const jobId = randomUUID();
     const organizationId = `single-org-e2e-${jobId}`;
     const workerId = `worker-e2e-${jobId}`;

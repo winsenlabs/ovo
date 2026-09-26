@@ -1,4 +1,4 @@
-import { WebSocket } from 'ws';
+import { WebSocket } from '@winsendotai/ovo-plugin-media';
 import {
   MULAW_8K,
   PCM16_8K,
@@ -100,6 +100,9 @@ export class WorkerMediaLink implements WorkerMediaSession {
         this.finish('error:invalid-media-frame');
       }
     });
+    socket.on('error', () => {
+      if (this.socket === socket && !this.closed) this.finish('error:media-transport');
+    });
     socket.once('close', () => {
       if (this.socket !== socket || this.closed) return;
       this.socket = undefined;
@@ -118,6 +121,7 @@ export class WorkerMediaLink implements WorkerMediaSession {
   receive(message: GatewayToWorkerMessage): void {
     if (this.closed) return;
     if (message.type === 'session.open') throw new Error('duplicate session.open');
+    if (message.type === 'session.close') return this.finish(message.reason);
     if (!this.activated) {
       const size =
         message.type === 'media.audio' ? Buffer.from(message.payload, 'base64').length : 0;

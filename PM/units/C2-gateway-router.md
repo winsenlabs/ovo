@@ -147,9 +147,17 @@ CONSTRAINTS:
 
 ## Verify commands
 
-- `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/lint.mjs --only packages/plugin-media apps/media-gateway apps/worker/src/media-runtime.ts apps/worker/src/session-handshake.ts apps/worker/src/worker-media-bootstrap.ts apps/worker/src/worker-media-server.ts packages/plugin-recordings/src/capture.ts packages/plugin-recordings/src/wav.ts packages/distribution/src/profiles/gateway.ts`
-- `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/typecheck-scope.mjs packages/plugin-media apps/media-gateway apps/worker/src/media-runtime.ts apps/worker/src/session-handshake.ts apps/worker/src/worker-media-bootstrap.ts apps/worker/src/worker-media-server.ts apps/worker/tests/media-runtime.test.ts apps/worker/tests/lifecycle.integration.test.ts packages/plugin-recordings packages/distribution/src/profiles/gateway.ts`
-- `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run packages/plugin-media apps/media-gateway apps/worker/tests/media-runtime.test.ts packages/plugin-recordings --reporter=dot`
+Run from the current C2 worktree with `export PATH=/opt/homebrew/opt/node@22/bin:$PATH`.
+
+- `node scripts/lint.mjs --only packages/plugin-media apps/media-gateway apps/worker/src/media-runtime.ts apps/worker/src/session-handshake.ts apps/worker/src/worker-media-bootstrap.ts apps/worker/src/worker-media-server.ts apps/worker/tests/media-runtime.test.ts apps/worker/tests/lifecycle.integration.test.ts apps/worker/tests/input-enabled-session-lifecycle.test.ts apps/worker/tests/production-session-lifecycle.test.ts apps/worker/tests/real-gateway-first-call.test.ts apps/worker/tests/carrier-neutral-gateway.test.ts packages/plugin-recordings packages/distribution/src/profiles/gateway.ts` **paired with** `pnpm format:check`.
+- `node scripts/typecheck-scope.mjs packages/plugin-media apps/media-gateway apps/worker/src/media-runtime.ts apps/worker/src/session-handshake.ts apps/worker/src/worker-media-bootstrap.ts apps/worker/src/worker-media-server.ts apps/worker/tests/media-runtime.test.ts apps/worker/tests/lifecycle.integration.test.ts apps/worker/tests/input-enabled-session-lifecycle.test.ts apps/worker/tests/production-session-lifecycle.test.ts apps/worker/tests/real-gateway-first-call.test.ts apps/worker/tests/carrier-neutral-gateway.test.ts packages/plugin-recordings packages/distribution/src/profiles/gateway.ts`; final whole-repository validation uses `pnpm typecheck`.
+- `pnpm exec vitest run packages/plugin-media apps/media-gateway apps/worker/tests/media-runtime.test.ts apps/worker/tests/lifecycle.integration.test.ts apps/worker/tests/input-enabled-session-lifecycle.test.ts apps/worker/tests/production-session-lifecycle.test.ts apps/worker/tests/real-gateway-first-call.test.ts apps/worker/tests/carrier-neutral-gateway.test.ts packages/plugin-recordings --reporter=dot`.
+- For the same scope against the disposable loopback database, prefix
+  `OVO_TEST_POSTGRES_URL=<disposable-loopback-db>` and add `--no-file-parallelism`.
+- Full bar: `pnpm lint`, `pnpm format:check`, `node scripts/check-duplication.mjs`,
+  `pnpm typecheck`, `pnpm test`, `pnpm build`, and
+  `OVO_TEST_POSTGRES_URL=<disposable-loopback-db> pnpm exec vitest run --no-file-parallelism --reporter=dot`.
+- Recording database gate: `RECORDING_TEST_DATABASE_URL=<disposable-loopback-db> pnpm exec vitest run packages/plugin-recordings/tests/postgres-recordings.test.ts --no-file-parallelism --reporter=dot`.
 
 ## Builder review note — 2026-09-26: real callback and empty-frame closure paths
 
@@ -225,3 +233,110 @@ on a doubled query. Consequently the Postgres test proves resume state and socke
 behavior, not vendor signature fidelity. The exact raw router assertion and real
 C1 Twilio handler proof establish the latter. I1 must correct that frozen fixture
 helper and its consumers together.
+
+## Checker note — 2026-09-26: approved Batch A shared files
+
+The original owned list excludes three worker lifecycle harnesses and every manifest,
+although C2 replaces the entry points those harnesses exercise. The checker explicitly
+authorized the minimum `@types/ws` development dependency in
+`packages/plugin-media/package.json` and its matching `pnpm-lock.yaml` importer, plus
+`apps/worker/tests/input-enabled-session-lifecycle.test.ts`,
+`apps/worker/tests/production-session-lifecycle.test.ts`,
+`apps/worker/tests/real-gateway-first-call.test.ts` and a new production regression.
+The declaration version was already locked; no dependency version or unrelated importer
+changed. The worktree's dependency store and workspace links are local (zero links
+resolving into the foundation worktree), and the frozen offline install succeeds.
+
+The two lifecycle harnesses now open the authenticated `/internal/media` transport and
+retain their engine, STT, fencing, telemetry, completion and recording-disabled assertions.
+The first-call harness now uses an installed fixture ingress with a non-Twilio carrier
+identity, the actual health-server socket and delayed native engine composition. Its
+injected SQL fixture is transport evidence only. The new
+`apps/worker/tests/carrier-neutral-gateway.test.ts` separately uses real Postgres jobs,
+worker slots, route-token claims and `media.opened` rows through MediaGateway and
+WorkerMediaRuntime, with a deliberately small echo engine. These are complementary
+proofs, not vendor protocol certification.
+
+Worker code imports the identical `ws` constructor through a typed re-export in the
+owned plugin-media root index. This local adapter uses the worker's existing declared
+plugin-media dependency; it adds no worker manifest dependency, export-map change or
+TypeScript alias. I1 inherits this adapter and the shared harnesses; D1 inherits the
+worker production-lifecycle coverage. No persisted-value format changed in this round.
+
+### Independent review repairs and true negatives
+
+- Before admission, a bearer-authenticated oversized WebSocket frame crashed Node with
+  `Unhandled 'error' event`, `RangeError: Max payload size exceeded` and
+  `WS_ERR_UNSUPPORTED_MESSAGE_LENGTH`. The subprocess regression now observes a clean
+  close with code 1009 and zero admission calls. An immediate peer error listener handles
+  this path; a guarded WorkerMediaLink listener finalizes an active failed link once.
+  The active real-socket test failed before the link listener with `Number of calls: 0`
+  for route finalization. A superseded peer's error cannot finish the replacement link,
+  and the real Postgres case verifies a malformed second peer leaves the live route alone.
+- The actual inbound fixture handler authenticated binding A while the route selected B;
+  the old host admitted it and returned 200/Connect. A NULL route with a different configured
+  environment carrier had the same failure. Both regressions failed with
+  `promise resolved "{ status: 200, …(2) }" instead of rejecting`. The host now rejects
+  either identity mismatch before admission. A matching authenticated binding still admits;
+  the existing Postgres missing/uninstalled/unavailable configuration refusal tests remain.
+  The existing current-route validation read and operations' pinned wait state were not redesigned.
+- An explicit `session.close` received after acceptance but during pending engine startup
+  used to queue behind startup. The production socket regression failed with
+  `expected "vi.fn()" to be called once, but got 0 times`. It now finalizes immediately,
+  never records `media.opened`, and disposes a late returned engine once. Plain transport
+  disconnects retain the existing resume window.
+- The actual Postgres non-Twilio regression fails if the handshake comparison is changed
+  back to a Twilio literal: `expected "vi.fn()" to be called once, but got 0 times`.
+  Removing `recordSessionOpened` fails with `expected [] to deeply equal
+[ { status: 'session_opened' } ]`. Both source mutants were restored immediately.
+  These behavioral negatives supplement the three obsolete harness failures
+  (`undefined.sessionId` twice and `options.ingresses is not iterable`), which alone
+  would not prove production correctness.
+
+The four worker-link scenarios were mechanically moved from the oversized owned
+`apps/worker/tests/media-runtime.test.ts` into
+`packages/plugin-media/tests/worker-media-runtime-link.test.ts`. Titles and assertions
+are retained; the exact scoped commands above include both files. No baseline changed.
+
+### Final Batch A measurements — 2026-09-26
+
+All commands below used Node 22.23.2, the normal repository configuration and local
+workspace dependencies. No aliases, baseline edits, live flags or carrier/provider calls
+were used.
+
+| Command                                                                                                    | Result                                                                                                                                       |
+| ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile --offline`                                                                 | EXIT 0; only the approved plugin-media importer differs in the lockfile                                                                      |
+| Exact scoped lint command in Verify commands, paired with `pnpm format:check`                              | EXIT 0 / EXIT 0                                                                                                                              |
+| `node scripts/check-duplication.mjs`                                                                       | EXIT 0; no baseline changes                                                                                                                  |
+| `pnpm check`                                                                                               | EXIT 0: all seven lint gates, full formatting, full typecheck, full tests, three app bundles, console production build, audit and Playwright |
+| Full Vitest within `pnpm check` (`pnpm test`)                                                              | **1,319 passed / 144 skipped / 0 failed**                                                                                                    |
+| `OVO_TEST_POSTGRES_URL=<disposable-loopback-db> pnpm exec vitest run --no-file-parallelism --reporter=dot` | **1,455 passed / 8 skipped / 0 failed**, EXIT 0                                                                                              |
+| Exact scoped Vitest command in Verify commands                                                             | **99 passed / 18 skipped / 0 failed**, EXIT 0                                                                                                |
+| Same scoped command with `OVO_TEST_POSTGRES_URL` and `--no-file-parallelism`                               | **113 passed / 4 skipped / 0 failed**, EXIT 0                                                                                                |
+| Dedicated recording database command in Verify commands                                                    | **4 passed / 0 skipped / 0 failed**, EXIT 0                                                                                                  |
+| Playwright within `pnpm check`                                                                             | **41 passed / 1 skipped**; the skip is the desktop-hidden mobile menu                                                                        |
+
+Skip arithmetic: **1,319 + 144 = 1,455 + 8 = 1,463**. The extra 136 default
+skips are database-gated tests, not disabled tests. The scoped totals are likewise
+**99 + 18 = 113 + 4 = 117**; the four remaining scoped skips use the separate recording
+database variable and passed in the dedicated run. That dedicated run is additional
+evidence and is not added to the full-suite counts.
+
+The complete Postgres run preceded the final mechanical lifecycle-fixture extraction;
+the exact scoped Postgres run above passed afterward. The final `pnpm check` ran after
+that extraction. The large lifecycle scenario now reuses the existing raw WebSocket
+fixture, with generic queue/protection fixtures extracted into plugin-media's owned tests.
+All assertions remain. Both worker test files now meet the 500 canonical-line gate.
+
+Independent review reproduced the three owned blockers before repair, then ran
+inbound-binding, worker-errors, worker-upgrade, carrier-neutral-gateway and media-runtime:
+**27 passed / 1 Postgres-gated skip**, EXIT 0. This was before the mechanical split of
+four link scenarios; a current reproducer adds
+`packages/plugin-media/tests/worker-media-runtime-link.test.ts` to that same list.
+The independent source review found no remaining blocker in those deltas.
+
+C4's foundation Twilio-only gateway expectation is discharged by the non-Twilio
+production gateway tests and the actual Postgres test described above. I1 inherits
+these regressions. The production fix does not depend on a carrier-specific exception.
+The disposable `ovo-pg-c2-builder` container was removed after these checks.

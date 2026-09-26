@@ -433,9 +433,10 @@ Operator action: investigate a replay conflict against the retained original eve
 before retrying it; the changed hash does not authorize replacing its projections.
 
 I1 inherits both notes and operator actions verbatim. C4's known foundation
-Twilio-only gateway expectation is a **blocking I1 item** unless discharged by
-C2's carrier-neutral production gateway regression before integration; it must
-never be hidden with a carrier-specific exception or treated as a minor carry-forward.
+Twilio-only gateway expectation is **discharged by C2**: the production gateway
+first-call test and actual-Postgres admission regression use a non-Twilio carrier,
+with a true negative that restores the Twilio-only handshake comparison. I1 must
+preserve these regressions during integration; C4's paused branch is unchanged.
 
 ## Batch A builder handoff — 2026-09-26
 

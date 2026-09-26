@@ -40,6 +40,10 @@ export function attachWorkerMediaServer(input: {
     }
     server.handleUpgrade(request, socket, head, (ws) => {
       let phase: 'waiting' | 'authenticating' | 'ready' | 'closed' = 'waiting';
+      ws.on('error', () => {
+        phase = 'closed';
+        if (ws.readyState === WebSocket.OPEN) ws.close(1011, 'worker media transport error');
+      });
       ws.once('close', () => {
         phase = 'closed';
       });

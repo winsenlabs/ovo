@@ -1,5 +1,5 @@
 import type { Server } from 'node:http';
-import { WebSocket } from 'ws';
+import { WebSocket } from '@winsendotai/ovo-plugin-media';
 import type { DurableJob, SessionRoute } from '@winsendotai/ovo-plugin-orchestration';
 import type { GatewayToWorkerMessage, WorkerMediaSession } from '@winsendotai/ovo-plugin-media';
 import type { EndReason } from '@winsendotai/ovo-contracts';

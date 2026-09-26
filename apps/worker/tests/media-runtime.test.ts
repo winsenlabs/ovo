@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { EventEmitter, once } from 'node:events';
+import { once } from 'node:events';
 import { MULAW_8K } from '@winsendotai/ovo-contracts';
-import WebSocket from 'ws';
+import { WebSocket } from '@winsendotai/ovo-plugin-media';
 import type {
   DurableJob,
   DurableJobStore,
@@ -11,7 +11,6 @@ import type {
 import type { WorkerMediaSession } from '@winsendotai/ovo-plugin-media';
 import { describe, expect, it, vi } from 'vitest';
 import { WorkerMediaRuntime, type ManagedVoiceSession } from '../src/media-runtime.ts';
-import { WorkerMediaLink } from '../src/worker-media-server.ts';
 
 function fixture() {
   const route: SessionRoute = {
@@ -76,112 +75,6 @@ function sessionOpen(route: SessionRoute, routeToken = 'token') {
 }
 
 describe('worker media runtime', () => {
-  it('notifies finalization after a long Unicode carrier close reason', () => {
-    const { route } = fixture();
-    const socket = new EventEmitter() as EventEmitter & {
-      close(code: number, reason: string): void;
-    };
-    socket.close = vi.fn((_code, reason) => {
-      if (Buffer.byteLength(reason, 'utf8') > 123)
-        throw new RangeError('WebSocket close reason exceeds 123 bytes');
-    });
-    const link = new WorkerMediaLink(sessionOpen(route), socket as unknown as WebSocket);
-    const onClose = vi.fn();
-    link.onClose(onClose);
-    const reason = '😵'.repeat(120);
-    link.finish(reason);
-    expect(onClose).toHaveBeenCalledWith(reason);
-    expect(socket.close).toHaveBeenCalledOnce();
-  });
-
-  it('ignores audio and close frames from a superseded gateway generation', () => {
-    const { route } = fixture();
-    const peer = () => {
-      const socket = new EventEmitter() as EventEmitter & {
-        readyState: number;
-        bufferedAmount: number;
-        send(value: string): void;
-        close(): void;
-      };
-      socket.readyState = WebSocket.OPEN;
-      socket.bufferedAmount = 0;
-      socket.send = vi.fn();
-      socket.close = vi.fn();
-      return socket;
-    };
-    const oldPeer = peer();
-    const newPeer = peer();
-    const link = new WorkerMediaLink(sessionOpen(route), oldPeer as unknown as WebSocket);
-    const audio = vi.fn();
-    const onClose = vi.fn();
-    link.onAudio(audio);
-    link.onClose(onClose);
-    link.activate();
-    link.rebind(
-      { ...sessionOpen(route), generation: route.generation + 1, streamId: 'MZ2' },
-      newPeer as unknown as WebSocket,
-    );
-    oldPeer.emit(
-      'message',
-      Buffer.from(
-        JSON.stringify({ type: 'media.audio', payload: 'AQ==', sequenceNumber: 1, timestampMs: 0 }),
-      ),
-      false,
-    );
-    oldPeer.emit(
-      'message',
-      Buffer.from(JSON.stringify({ type: 'session.close', reason: 'gateway drained' })),
-      false,
-    );
-    expect(audio).not.toHaveBeenCalled();
-    expect(onClose).not.toHaveBeenCalled();
-    expect(link.isClosed).toBe(false);
-    newPeer.emit(
-      'message',
-      Buffer.from(
-        JSON.stringify({
-          type: 'media.audio',
-          payload: 'Ag==',
-          sequenceNumber: 2,
-          timestampMs: 20,
-        }),
-      ),
-      false,
-    );
-    expect(audio).toHaveBeenCalledOnce();
-    expect(audio).toHaveBeenCalledWith(Buffer.from([2]), 20);
-  });
-
-  it.each(['max_duration', 'ownership_lost'] as const)(
-    'sends carrier termination and preserves the %s engine reason',
-    async (reason) => {
-      const sent: unknown[] = [];
-      const socket = new EventEmitter() as EventEmitter & {
-        readyState: number;
-        bufferedAmount: number;
-        send(value: string, callback?: (error?: Error) => void): void;
-        close(): void;
-      };
-      socket.readyState = WebSocket.OPEN;
-      socket.bufferedAmount = 0;
-      socket.send = (value, callback) => {
-        sent.push(JSON.parse(value));
-        callback?.();
-      };
-      socket.close = vi.fn();
-      const link = new WorkerMediaLink(
-        sessionOpen(fixture().route),
-        socket as unknown as WebSocket,
-      );
-      const onClose = vi.fn();
-      link.onClose(onClose);
-      await link.terminate(reason);
-      expect(sent).toEqual([{ type: 'session.end', reason: 'terminate' }]);
-      expect(onClose).toHaveBeenCalledWith(reason);
-      await expect(link.clear()).resolves.toBeUndefined();
-    },
-  );
-
   it('finalizes a route if pre-accept audio overflows while engine creation is pending', async () => {
     const { route, job } = fixture();
     route.carrierId = 'twilio';

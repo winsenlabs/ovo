@@ -6,7 +6,7 @@ import type {
   SessionRoute,
 } from '@winsendotai/ovo-plugin-orchestration';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
-import type { WorkerMediaSession } from '@winsendotai/ovo-plugin-media';
+import { workerSessionFixture } from '../../../packages/plugin-media/tests/worker-session-fixture.ts';
 import { compose, definePlugin } from '@winsendotai/ovo-runtime';
 import { describe, expect, it, vi } from 'vitest';
 import { WorkerMediaRuntime } from '../src/media-runtime.ts';
@@ -217,49 +217,6 @@ describe('input-enabled production session lifecycle', () => {
       ownerEpoch: route.ownerEpoch,
       leaseExpiresAt: new Date(Date.now() + 60_000),
     } as DurableJob;
-    const dtmfListeners = new Set<(digit: string) => void>();
-    const audioListeners = new Set<(audio: Uint8Array, timestampMs: number) => void>();
-    const markListeners = new Set<(name: string) => void>();
-    const closeListeners = new Set<(reason: string) => void>();
-    const media = {
-      identity: {
-        sessionId: route.sessionId,
-        callSid: route.carrierCallId,
-        streamSid: 'MZ-input',
-        ownerId: route.workerId,
-        ownerEpoch: route.ownerEpoch,
-        generation: route.generation,
-      },
-      sessionId: route.sessionId,
-      bufferedBytes: 0,
-      sendAudio: async () => undefined,
-      sendMark: async (name: string) => {
-        queueMicrotask(() => {
-          for (const listener of markListeners) listener(name);
-        });
-      },
-      clear: async () => undefined,
-      onAudio: (listener: (audio: Uint8Array, timestampMs: number) => void) => {
-        audioListeners.add(listener);
-        return () => audioListeners.delete(listener);
-      },
-      onMark: (listener: (name: string) => void) => {
-        markListeners.add(listener);
-        return () => markListeners.delete(listener);
-      },
-      onDtmf: (listener: (digit: string) => void) => {
-        dtmfListeners.add(listener);
-        return () => dtmfListeners.delete(listener);
-      },
-      onClose: (listener: (reason: string) => void) => {
-        closeListeners.add(listener);
-        return () => closeListeners.delete(listener);
-      },
-      close: async (reason: string) => {
-        order.push('media.close');
-        for (const listener of [...closeListeners]) listener(reason);
-      },
-    } as unknown as WorkerMediaSession;
     const audit = vi.fn();
     const telemetryClose = vi.fn(async () => undefined);
     const factory = new ProductionVoiceSessionFactory(
@@ -307,37 +264,54 @@ describe('input-enabled production session lifecycle', () => {
         order.push(`fence:${reason}`);
       },
     );
-    const runtime = new WorkerMediaRuntime(
-      { url: 'ws://127.0.0.1:1/worker', workerId: route.workerId, token: 'test' },
-      {
-        resolveSessionRoute: async () => route,
-        get: async () => job,
-      } as unknown as DurableJobStore,
-      factory,
-      async () => {
-        order.push('leg.terminated');
+    const transport = await workerSessionFixture(
+      route,
+      job,
+      (httpServer, store) =>
+        new WorkerMediaRuntime(
+          { httpServer, workerId: route.workerId, token: 'worker-fixture-token' },
+          store as unknown as DurableJobStore,
+          factory,
+          async () => {
+            order.push('leg.terminated');
+          },
+        ),
+      (frame) => {
+        if (frame.type === 'session.end') order.push('media.close');
       },
     );
     try {
-      await (runtime as unknown as { open(media: WorkerMediaSession): Promise<void> }).open(media);
-      expect(sttStart).toHaveBeenCalledOnce();
-      for (const listener of dtmfListeners) listener('start');
+      expect(transport.messages[0]).toEqual({ type: 'session.accept' });
+      await vi.waitFor(() =>
+        expect(
+          transport.store.queries.some((sql) => sql.includes('INSERT INTO ovo_carrier_callbacks')),
+        ).toBe(true),
+      );
+      await vi.waitFor(() => expect(sttStart).toHaveBeenCalledOnce());
+      transport.send({ type: 'media.dtmf', digit: 'start' });
       await vi.waitFor(() =>
         expect(audit).toHaveBeenCalledWith(
           'transcript.agent',
           expect.objectContaining({ state: 'played' }),
         ),
       );
-      for (const listener of audioListeners) listener(Uint8Array.of(1), 20);
+      transport.send({ type: 'media.audio', payload: 'AQ==', sequenceNumber: 1, timestampMs: 20 });
       await vi.waitFor(() =>
         expect(telemetryClose).toHaveBeenCalledWith('ended', 'behavior_completed'),
       );
       expect(finish).toHaveBeenCalledOnce();
       expect(order).toContain('fence:behavior_completed');
+      await vi.waitFor(() =>
+        expect(transport.messages.some((frame) => frame.type === 'session.end')).toBe(true),
+      );
       expect(order).toContain('media.close');
       expect(order.indexOf('fence:behavior_completed')).toBeLessThan(order.indexOf('media.close'));
+      expect(order.indexOf('fence:behavior_completed')).toBeLessThan(
+        order.indexOf('leg.terminated'),
+      );
       await vi.waitFor(() => expect(order).toContain('leg.terminated'));
     } finally {
+      await transport.close();
       await parent.dispose();
     }
   });

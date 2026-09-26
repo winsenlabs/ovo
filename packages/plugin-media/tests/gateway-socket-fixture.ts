@@ -84,3 +84,12 @@ export async function connectRaw(
   if (!response.startsWith('HTTP/1.1 101')) throw new Error(response.split('\r\n')[0]);
   return new RawWebSocket(socket);
 }
+
+export async function connectJsonRaw(port: number, path: string, signature: string) {
+  const peer = await connectRaw(port, path, signature);
+  return {
+    messages: peer.messages,
+    send: (message: unknown) => peer.send(JSON.stringify(message)),
+    close: () => peer.close(),
+  };
+}

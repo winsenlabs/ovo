@@ -1,3 +1,4 @@
+export { WebSocket } from 'ws';
 export * from './gateway.ts';
 export * from './plugin.ts';
 export * from './ports.ts';
