@@ -12,7 +12,7 @@
     "test": "vitest run",
     "build": "node scripts/build.mjs && pnpm --filter @winsendotai/ovo-console build",
     "lint": "node scripts/lint.mjs",
-    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm audit",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm audit && pnpm test:console:e2e",
     "build:vendor": "tsc -p vendor/cosmokit/tsconfig.json && tsc -p vendor/cordis/tsconfig.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

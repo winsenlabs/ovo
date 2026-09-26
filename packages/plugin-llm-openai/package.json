@@ -7,9 +7,6 @@
     ".": "./src/index.ts",
     "./testing": "./src/testing.ts"
   },
-  "ovo": {
-    "skeleton": true
-  },
   "dependencies": {
     "@ai-sdk/openai": "4.0.71",
     "@winsendotai/ovo-audio": "workspace:*",

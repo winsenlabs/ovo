@@ -71,7 +71,13 @@ interface UsageBase {
 export type ProviderUsage =
   | (UsageBase & {
       quantity: string;
-      unit: 'audio_seconds' | 'characters' | 'input_tokens' | 'output_tokens' | 'total_tokens';
+      unit:
+        | 'audio_seconds'
+        | 'characters'
+        | 'input_tokens'
+        | 'output_tokens'
+        | 'audio_output_tokens'
+        | 'total_tokens';
       state: 'estimated' | 'reconciled';
       missing?: never;
     })
