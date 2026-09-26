@@ -172,6 +172,13 @@ export class TurnDriver {
         ),
       )
       .then(() => undefined)
+      .catch(() => {
+        // Receipt failures can arrive while respondStream is still awaiting its
+        // next item. Observe them immediately, before removing the pending entry.
+        this.stopped = true;
+        this.activeTurn?.abort(new DOMException('speech receipt failed', 'AbortError'));
+        this.end('error:turn');
+      })
       .finally(() => this.receipts.delete(delivery));
     this.receipts.add(delivery);
   }

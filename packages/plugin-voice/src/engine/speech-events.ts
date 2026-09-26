@@ -1,14 +1,20 @@
-import type { EngineEvent, SpeechEvidence, SpeechSegment } from '@winsendotai/ovo-contracts';
+import type {
+  EngineEvent,
+  SpeechEvidence,
+  SpeechKindV2,
+  SpeechSegment,
+} from '@winsendotai/ovo-contracts';
 import type { SpeechTimingPhase } from '../speech/timing.ts';
 import { VoiceEventBus } from './events.ts';
 import { TurnLatency } from './latency.ts';
 
 /** Projects scheduler evidence into the native engine event and timing streams. */
 export class SpeechEventProjector {
+  private latestEpoch = -1;
   private readonly acknowledged = new Set<string>();
   private readonly segmentTurns = new Map<string, string>();
   private readonly syntheticTurns = new Set<string>();
-  private readonly activeByEpoch = new Map<number, Set<string>>();
+  private readonly activeByEpoch = new Map<number, { segments: Set<string>; kind: SpeechKindV2 }>();
 
   constructor(
     private readonly bus: VoiceEventBus,
@@ -65,17 +71,24 @@ export class SpeechEventProjector {
         this.acknowledged.delete(evidence.segmentId);
       }
     }
-    if (evidence.phase === 'started') {
-      const active = this.activeByEpoch.get(evidence.epoch) ?? new Set<string>();
-      if (!active.size)
-        this.bus.observe({
-          type: 'bot.started',
-          epoch: evidence.epoch,
-          atMs: evidence.at,
-          kind: evidence.kind as 'response',
-        });
-      active.add(evidence.segmentId);
-      this.activeByEpoch.set(evidence.epoch, active);
+    if (evidence.phase === 'started' && evidence.epoch >= this.latestEpoch) {
+      if (evidence.epoch > this.latestEpoch) this.activeByEpoch.clear();
+      this.latestEpoch = evidence.epoch;
+      const kind = evidence.kind as SpeechKindV2;
+      const active = this.activeByEpoch.get(evidence.epoch);
+      // Overlapping playback shares one speaking interval. A response must never
+      // unmute a confirmation/disclosure whose receipt is still outstanding.
+      const protectedKind = active?.kind === 'confirmation' || active?.kind === 'disclosure';
+      const promote =
+        !active ||
+        (!protectedKind && kind === 'confirmation') ||
+        (active.kind !== 'disclosure' && kind === 'disclosure');
+      const group = active ?? { segments: new Set<string>(), kind };
+      group.segments.add(evidence.segmentId);
+      if (promote) group.kind = kind;
+      this.activeByEpoch.set(evidence.epoch, group);
+      if (promote)
+        this.bus.observe({ type: 'bot.started', epoch: evidence.epoch, atMs: evidence.at, kind });
     }
     if (
       evidence.phase === 'completed' ||
@@ -83,13 +96,13 @@ export class SpeechEventProjector {
       evidence.phase === 'failed'
     ) {
       const active = this.activeByEpoch.get(evidence.epoch);
-      if (active?.delete(evidence.segmentId) && !active.size) {
+      if (active?.segments.delete(evidence.segmentId) && !active.segments.size) {
         this.activeByEpoch.delete(evidence.epoch);
         this.bus.observe({
           type: 'bot.stopped',
           epoch: evidence.epoch,
           atMs: evidence.at,
-          kind: evidence.kind as 'response',
+          kind: active.kind,
         });
       }
     }

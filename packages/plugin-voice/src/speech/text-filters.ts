@@ -14,7 +14,17 @@ export const markdownFilter: TextFilter = {
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
       .replace(/(?:^|\n)\s{0,3}#{1,6}\s+/g, ' ')
       .replace(/(?:^|\n)\s*[-*+]\s+/g, ' ')
-      .replace(/[*_`~]+/g, '')
+      .replace(/(^|\s)(\*{1,2}|~{2})(?=\S)(.+?)(?<!\s)\2(?=$|[\s.,!?;:])/g, '$1$3')
+      .replace(/`([^`]+)`/g, '$1')
+      .split(/(https?:\/\/[^\s]+|[\w.!#$%&'*+/=?^`{|}~-]+@[\w.-]+\.[A-Za-z]{2,})/gi)
+      .map((part, index) =>
+        index % 2
+          ? part
+          : part
+              .replace(/(^|\s)(_{1,2})(?=\S)(.+?)(?<!\s)\2(?=$|[\s.,!?;:])/g, '$1$3')
+              .replace(/[*`~]+/g, ''),
+      )
+      .join('')
       .replace(/\s+/g, ' ')
       .trim();
   },

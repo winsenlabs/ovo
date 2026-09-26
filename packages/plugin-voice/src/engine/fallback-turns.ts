@@ -34,6 +34,11 @@ export class FallbackTurns implements UserTurnController {
     if (event.type === 'bot.started') {
       this.bot = { epoch: event.epoch, kind: event.kind };
       this.interrupted = false;
+      if (event.kind === 'disclosure') {
+        this.finals.clear();
+        this.interim = '';
+        this.buffered = undefined;
+      }
     } else if (event.type === 'bot.stopped') {
       if (this.bot?.epoch === event.epoch) this.bot = undefined;
       if (this.buffered) {
@@ -64,6 +69,7 @@ export class FallbackTurns implements UserTurnController {
         this.digits = '';
       } else this.digits += event.digit;
     } else if (event.type === 'stt') {
+      if (this.bot?.kind === 'disclosure') return;
       const stt = event.event;
       if (stt.type === 'transcript') {
         const text = stt.segment.text.trim();

@@ -101,10 +101,10 @@ export class NativeStreamingSpeechOutput implements SpeechOutput {
         let stream: AsyncIterable<Uint8Array>;
         if (this.tts.capabilities.incrementalText && this.tts.open) {
           const incremental = await this.tts.open(input);
-          incremental.push(segment.text);
-          incremental.flush();
-          stream = incremental.audio;
           try {
+            incremental.push(segment.text);
+            incremental.flush();
+            stream = incremental.audio;
             for await (const chunk of stream) await queueChunk(chunk);
           } finally {
             await incremental.close();

@@ -197,41 +197,53 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
       timer.unref?.();
     });
     let endedReason = reason;
-    let close: Promise<void>;
-    try {
-      // Invoke close first, but never let a stalled carrier prevent local teardown.
-      close = Promise.resolve(this.ports.media.close(reason));
-    } catch (error) {
-      close = Promise.reject(error);
-    }
-    this.cancelWatchdog?.();
-    this.turnController.dispose();
+    const failed = () => {
+      endedReason = 'error:native-engine-disposal';
+    };
+    // Every acquired port gets its cleanup attempt even when another hook throws
+    // synchronously. Invoke close first to preserve the carrier termination fence.
+    const attempt = (cleanup: () => void | Promise<void>): Promise<void> => {
+      try {
+        return Promise.resolve(cleanup()).catch(failed);
+      } catch {
+        failed();
+        return Promise.resolve();
+      }
+    };
+    const close = attempt(() => this.ports.media.close(reason));
+    const watchdog = attempt(() => this.cancelWatchdog?.());
+    const detector = attempt(() => this.turnController.dispose());
     const graceful = reason === 'behavior_completed';
     if (!graceful) this.controller.abort(new DOMException(reason, 'AbortError'));
-    const ingress = this.ingress?.dispose(graceful) ?? Promise.resolve();
-    if (graceful) void ingress.finally(() => this.controller.abort());
-    const cleanup = Promise.allSettled([
+    const ingress = attempt(() => this.ingress?.dispose(graceful));
+    if (graceful) void ingress.then(() => this.controller.abort());
+    const cleanup = [
+      close,
+      watchdog,
+      detector,
       ingress,
-      this.ports.scheduler.dispose(),
-      this.driver.dispose(),
-    ]).then((results) => {
-      const failed = results.find((result) => result.status === 'rejected');
-      if (failed?.status === 'rejected') throw failed.reason;
-    });
+      attempt(() => this.ports.scheduler.dispose()),
+      attempt(() => this.driver.dispose()),
+    ];
+    const unsubscribe = () => Promise.all(this.unsubs.splice(0).map(attempt));
     try {
-      await Promise.race([Promise.all([close, cleanup]), deadline]);
+      // Keep evidence subscribed until scheduler disposal publishes each terminal
+      // phase. Unsubscription still shares the overall deadline.
+      await Promise.race([Promise.all(cleanup).then(unsubscribe), deadline]);
     } catch {
-      endedReason = 'error:native-engine-disposal';
+      failed();
     } finally {
       clearTimeout(timer);
       this.controller.abort();
-      this.cancelWatchdog?.();
+      void unsubscribe();
     }
     const outcome = { reason: endedReason, outcome: outcomeFor(endedReason) };
-    this.emit({ type: 'end', reason: endedReason });
-    for (const unsub of this.unsubs.splice(0)) unsub();
-    this.resolveEnded(outcome);
-    this.bus.clear();
+    try {
+      this.emit({ type: 'end', reason: endedReason });
+    } finally {
+      this.resolveEnded(outcome);
+      this.bus.clear();
+    }
     return outcome;
   }
 

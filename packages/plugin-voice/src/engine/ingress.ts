@@ -7,7 +7,7 @@ import type {
   VadAnalyzerFactory,
   VoiceEvent,
 } from '@winsendotai/ovo-contracts';
-import { mulawToPcm16 } from '../../../audio/src/g711.ts';
+import { IngressVad } from './ingress-vad.ts';
 
 export interface IngressLimits {
   maxFrames: number;
@@ -28,7 +28,7 @@ export class VoiceIngress {
   private draining?: Promise<void>;
   private disposed = false;
   private preSttBytes = 0;
-  private vadActive = false;
+  private readonly vad?: IngressVad;
   private acceptedFrames = 0;
   private acceptedBytes = 0;
   private pendingBytes = 0;
@@ -41,8 +41,11 @@ export class VoiceIngress {
     private readonly signal: AbortSignal,
     private readonly observe: (event: VoiceEvent) => void,
     private readonly fail: () => void,
-    private readonly vadFactory?: VadAnalyzerFactory,
+    vadFactory?: VadAnalyzerFactory,
   ) {
+    const rate = media.format.sampleRate;
+    if (vadFactory && (rate === 8000 || rate === 16000))
+      this.vad = new IngressVad(media.format, vadFactory, observe);
     this.unsub = media.onAudio((bytes, atMs) => this.accept(bytes, atMs));
   }
 
@@ -111,6 +114,7 @@ export class VoiceIngress {
     this.disposed = true;
     this.cancelConnect?.();
     this.unsub();
+    this.vad?.reset();
     for (const item of this.queued) if (item.kind === 'endpoint') item.resolve();
     this.queued.length = 0;
     this.pendingBytes = 0;
@@ -129,7 +133,6 @@ export class VoiceIngress {
 
   private accept(bytes: Uint8Array, atMs: number): void {
     if (this.disposed || this.signal.aborted) return;
-    this.feedVad(bytes, atMs);
     const owned = bytes.slice();
     const preLimit =
       (this.media.format.sampleRate *
@@ -151,7 +154,10 @@ export class VoiceIngress {
     this.pendingBytes += owned.length;
     this.pendingFrames++;
     if (!this.stt) this.preSttBytes += owned.length;
-    else this.drain();
+    // A VAD-stop observer may synchronously request forceEndpoint. Its triggering
+    // carrier bytes must already precede that endpoint in the STT queue.
+    this.vad?.feed(owned, atMs);
+    this.drain();
   }
 
   private drain(): void {
@@ -184,31 +190,4 @@ export class VoiceIngress {
         if (this.queued.length) this.drain();
       });
   }
-
-  private feedVad(bytes: Uint8Array, atMs: number): void {
-    if (!this.vadFactory) return;
-    const rate = this.media.format.sampleRate;
-    if (rate !== 8000 && rate !== 16000) return;
-    const vad = (this.vad ??= this.vadFactory.create(rate));
-    const samples = decodeForVad(bytes, this.media.format.encoding);
-    const active =
-      vad.confidence(samples) >= this.vadFactory.params.confidence &&
-      vad.volume(samples) >= this.vadFactory.params.minVolume;
-    if (active === this.vadActive) return;
-    this.vadActive = active;
-    this.observe({ type: active ? 'vad.start' : 'vad.stop', atMs });
-  }
-
-  private vad?: ReturnType<VadAnalyzerFactory['create']>;
-}
-
-/** Only the VAD copy is decoded. STT receives original carrier bytes. */
-function decodeForVad(bytes: Uint8Array, encoding: string): Int16Array {
-  if (encoding === 'pcm_s16le') {
-    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const pcm = new Int16Array(Math.floor(bytes.length / 2));
-    for (let i = 0; i < pcm.length; i++) pcm[i] = view.getInt16(i * 2, true);
-    return pcm;
-  }
-  return mulawToPcm16(bytes);
 }

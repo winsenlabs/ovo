@@ -84,7 +84,7 @@ it('buffers original carrier frames until STT connects and decodes only for VAD'
     [0x00, 0xff],
   ]);
   expect(seenPcm).toHaveLength(2);
-  expect(events.some((event) => event.type === 'vad.start')).toBe(true);
+  expect(events.some((event) => event.type === 'vad.start')).toBe(false);
   await ingress.dispose();
 });
 

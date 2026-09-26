@@ -63,9 +63,9 @@ it('attributes VAD stop and final STT wait to the accepted speech turn', async (
     media: carrier.duplex,
     stt,
     vad: {
-      params: { confidence: 0.5, startMs: 1, stopMs: 1, minVolume: 0, smoothing: 0 },
+      params: { confidence: 0.5, startMs: 20, stopMs: 20, minVolume: 0, smoothing: 0 },
       create: () => ({
-        frameSamples: 1,
+        frameSamples: 160,
         sampleRate: 8000,
         confidence: (pcm) => (pcm[0] === 0 ? 0 : 1),
         volume: () => 1,
@@ -80,8 +80,8 @@ it('attributes VAD stop and final STT wait to the accepted speech turn', async (
   });
   try {
     await engine.start();
-    carrier.caller.audio(Uint8Array.of(0));
-    carrier.caller.audio(Uint8Array.of(0xff));
+    carrier.caller.audio(new Uint8Array(160));
+    carrier.caller.audio(new Uint8Array(160).fill(0xff));
     emit({
       type: 'transcript',
       segment: { segmentId: 'user-1', revision: 1, text: 'question', stability: 'final' },
