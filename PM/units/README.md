@@ -26,10 +26,10 @@ This board is the single source of truth for unit status. The specs in this fold
 | Unit                               | Title                                                         | Defects                  | Status                                                                                                                                                                                                                                                                                                                                                                    |
 | ---------------------------------- | ------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [E1](E1-turns-vad.md)              | Turn detector and VAD plugins, Pipecat-style                  | 3, 18                    | **Built – awaiting check.** Merged at `ac8661d`; independent review closed two mute-boundary defects with seven true negatives. Node 22 scoped lint, full format, standalone duplication and normal `pnpm check` all exit 0. Default 1,270 passed / 138 skipped; Postgres serial 1,399 passed / 9 skipped / 0 failed; Playwright 41 passed / 1 visibility-gated skip.     |
-| [E2](E2-native-engine.md)          | OVO native engine rebuild                                     | 3, 4, 9, 26              | **In progress.** Isolated worktree preparation started 2026-09-25 after E1 handover.                                                                                                                                                                                                                                                                                      |
+| [E2](E2-native-engine.md)          | OVO native engine rebuild                                     | 3, 4, 9, 26              | **In progress.** `w2/E2` at `52c71f2` (code `f4b240c`). Owned engine review complete; pending one-line I1-owned API caller clone. Normal default 1,361 passed / 138 skipped / 8 failed on source-draft mutation; no Built claim.                                                                                                                                          |
 | [E3](E3-livekit-engine.md)         | LiveKit Agents JS engine plugin                               | 4                        | **In progress — paused by checker.** WIP committed at `e4e821d` on `w2/E3`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                           |
 | [C1](C1-carrier-twilio.md)         | Twilio carrier plugin                                         | 1, 21, 26                | **In progress — paused by checker.** WIP committed at `382d690` on `w2/C1`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                           |
-| [C2](C2-gateway-router.md)         | Carrier-neutral gateway router                                | 1, 2, 23, 26, 27         | **In progress.** Isolated worktree started 2026-09-25 after S1 handover.                                                                                                                                                                                                                                                                                                  |
+| [C2](C2-gateway-router.md)         | Carrier-neutral gateway router                                | 1, 2, 23, 26, 27         | **Built – awaiting check.** Unmerged `w2/C2` code `45c410a`, report `1b14bfb`. Normal `pnpm check`, scoped lint/full format and duplication exit 0. Default 1,319 passed / 144 skipped; exact-code Postgres serial 1,455 passed / 8 database-gated skips / 0 failed; Playwright 41 passed / 1 visibility-gated skip.                                                      |
 | [C3](C3-carrier-exotel.md)         | Exotel carrier plugin                                         | 21                       | **In progress — paused by checker.** WIP committed at `eaeb03f` on `w2/C3`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                           |
 | [C4](C4-carrier-plivo.md)          | Plivo carrier plugin                                          | 21, 26                   | **In progress — paused by checker.** WIP committed at `45ef2df` on `w2/C4`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                           |
 | [S1](S1-speech-split.md)           | Split out the Deepgram STT, OpenAI TTS and OpenAI LLM plugins | 21, 27                   | **Built – awaiting check.** Merged at `e2c7cc5`; independent review closed the request-ID metering blocker with six true negatives. Node 22 scoped lint, full format, standalone duplication and normal `pnpm check` all exit 0. Default 1,199 passed / 138 skipped; Postgres serial 1,328 passed / 9 skipped / 0 failed; Playwright 41 passed / 1 visibility-gated skip. |
@@ -37,7 +37,7 @@ This board is the single source of truth for unit status. The specs in this fold
 | [O1](O1-fargate-scaling.md)        | Fargate-native autoscaling, Terraform, Fargate prep           | 7, 15, 17, 23            | **In progress — paused by checker.** WIP committed at `1e49894` on `w2/O1`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                           |
 | [O2](O2-ops-ledger.md)             | Campaign driver, queue liveness, reservation expiry           | 5, 15, 16, 19            | **In progress — paused by checker.** WIP committed at `cd77047` on `w2/O2`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                           |
 | [U1](U1-console.md)                | Console refactor                                              | 8, 15                    | **Verified `75c55c0`** by the checker (verdict received 2026-09-26). Console cold build, lint and format exit 0; Postgres serial 1,277 passed / 9 skipped / 0 failed; Playwright 41 passed / 1 visibility-gated desktop skip; 69 axe analyses with 0 violations and a positive control; 0 overflow at 390 px across 23 routes.                                            |
-| [D1](D1-demo-backend.md)           | Fixture test calls and the demo backend                       | 19, 20                   | **In progress.** Demo backend WIP committed on `w2/D1`; checker rulings and selected-carrier integration pending.                                                                                                                                                                                                                                                         |
+| [D1](D1-demo-backend.md)           | Fixture test calls and the demo backend                       | 19, 20                   | **In progress.** `w2/D1` checkpoint `e3db794`. Replay/default-script 21/21; callback/run/child 29/29; scoped lint/full format 0/0, full typecheck/duplication 0. Normal default 1,358 passed / 139 skipped / 1 failed on the F4-engine confirmation dependency. Pending durable storage scope and E2/C2 integration.                                                      |
 | [M1](M1-misc-defects.md)           | Behaviors, tools and security defects                         | 6, 10–14, 18, 19, 24, 25 | **In progress — paused by checker.** WIP committed at `dc9f471` on `w2/M1`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                           |
 | [M2](M2-evaluations-decoupling.md) | Decouple the evaluations package from other plugins           | 19                       | **Verified `d322467`** by the checker; verdict recorded in `d45baee`.                                                                                                                                                                                                                                                                                                     |
 
@@ -381,3 +381,43 @@ I1 inherits both notes and operator actions verbatim. C4's known foundation
 Twilio-only gateway expectation is a **blocking I1 item** unless discharged by
 C2's carrier-neutral production gateway regression before integration; it must
 never be hidden with a carrier-specific exception or treated as a minor carry-forward.
+
+## Batch A builder handoff — 2026-09-26
+
+S1 is merged at `e2c7cc5` and E1 at `ac8661d`, with exact-merge full bars recorded
+above; both await checker verdicts. C2 is Built on its branch, not merged. The
+normal root `check` script now includes `pnpm test:console:e2e`.
+
+C2 final-code Postgres confirmation at `45c410a`: **1,455 passed / 8 skipped /
+0 failed**. **1,319 + 144 = 1,455 + 8 = 1,463**; 136 default skips activated with
+the database, and all eight remaining skips are separately database-gated.
+C2's full report and true-negative proofs are committed at `1b14bfb` on `w2/C2`.
+The disposable Postgres container was removed. Its carrier-neutral gateway
+regression discharges the Twilio-only test assumption when C2 is merged.
+
+Two ownership decisions remain pending; no dependent shared file was changed:
+
+- **E2:** the required markdown registration exposes mutation in the frozen
+  normalizer before E2 receives control. Proposed one-line local boundary repair
+  in I1-owned `apps/api/src/release-selections.ts`:
+  `normalizeAgentConfig(structuredClone(agent.config), ...)`. The real API/SQLite
+  regression fails now; the temporary caller clone gives 71 passed / 10 skipped
+  for API plus regression. The caller file was restored. The frozen host stays
+  untouched, and I1 inherits the general input-immutability gap.
+- **D1:** `useDraft` needs a durable fixture snapshot, and idempotency needs atomic
+  call plus initial fingerprint creation. The concrete production-route SQLite
+  probes return `422 draft_snapshot_required` and, under the concurrent window,
+  `409 idempotency_conflict`. The pending scope covers both storage backends'
+  call/release repositories, migration runners, new control migration 007, and
+  tests. D1 uses local structural types, with no frozen `ControlStore` edit.
+  Public/live release reads must exclude fixture snapshots, non-test calls must
+  reject them, and snapshots must not consume a publication slot. M1 retains 006.
+
+D1's local replay/cleanup work is committed. The combined E2+D1 diagnostic proves
+played confirmation before final `yes`, exactly one actual fixture handler
+execution afterward, and no live handler call. Its temporary E2 source overlay
+was reversed; it is not a normal D1 green bar. The current normal suite retains
+the failing F4-engine regression. Neither E2 nor D1 is Built.
+
+Four worktrees remain. The eight frozen unit heads are unchanged. No unit outside
+Batch A resumed; I1 has not started. Nothing was pushed.
