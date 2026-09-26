@@ -59,7 +59,7 @@ export const CARRIER_MEDIA_CHECKS: readonly KitCheck<CarrierKitContext>[] = [
     },
   },
   {
-    name: 'close-stream carriers frame terminate() and never hang up over REST',
+    name: 'close-stream carriers expose optional termination frames and never hang up over REST',
     async run(context) {
       const { ingress, telephony, net } = await carrier(context);
       if (ingress.capabilities.control.hangup !== 'close-stream') return [];
@@ -73,10 +73,6 @@ export const CARRIER_MEDIA_CHECKS: readonly KitCheck<CarrierKitContext>[] = [
       ) {
         const frames = session.terminate!();
         f.expect(Array.isArray(frames), 'terminate() must return frames');
-        f.expect(
-          Array.isArray(frames) && frames.length > 0,
-          'terminate() returned no frames: nothing tells the carrier the call is over',
-        );
         for (const [index, frame] of (Array.isArray(frames) ? frames : []).entries())
           f.expect(
             typeof frame === 'string' && frame.length > 0,

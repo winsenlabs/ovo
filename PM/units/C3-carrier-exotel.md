@@ -136,3 +136,52 @@ CONSTRAINTS:
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/lint.mjs --only packages/plugin-carrier-exotel`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/typecheck-scope.mjs packages/plugin-carrier-exotel`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run packages/plugin-carrier-exotel packages/distribution --reporter=dot`
+
+## Checker note — 2026-09-26: approved shared kit and operator URL fixes
+
+The checker approved two narrow exceptions to §15.2. This spec requires
+`terminate()` to return `[]` because Exotel documents no outbound termination frame;
+the frozen carrier kit instead required a nonempty array. In
+`packages/conformance/src/kit/carrier-media-checks.ts` only that nonempty-array
+requirement is removed. A termination method and array return remain required,
+every returned frame must be a nonempty string, REST hangup must remain unsupported,
+and a close-stream hangup must not reach the network. The added broken-fake tests
+in `packages/conformance/tests/broken-fakes-carrier.test.ts` defend those rules.
+The positive empty-array test failed on the old kit with
+`terminate() returned no frames — stream close would not end the call`.
+
+`apps/api/src/routes/credentials.ts` previously routed both `media` and
+`media-url` operator purposes through `mediaUrl`, producing an unsigned WSS URL for
+the Exotel applet's HTTPS configuration endpoint. Only `media` now uses `mediaUrl`;
+`media-url` uses `callbackUrl`. The real `buildManagementApi` + `app.inject`
+regression in `apps/api/tests/f4-routes.test.ts` failed on the old branch with the
+actual `wss://…/media` instead of the expected signed `https://…/media-url?t=…`.
+I1 inherits these four shared files.
+
+C2 separately adds `packages/plugin-media/tests/empty-termination.test.ts`: the real
+SessionBridge over a loopback WebSocket closes with code 1000 and no wire frames
+when `terminate()` returns `[]`. Removing its production close call makes that test
+fail with `expected 1 to be 3` (OPEN versus CLOSED). No REST hangup is substituted.
+
+Independent review also found that a valid status URL for request A could name B
+in `CustomField`. Status handling now refuses that mismatch with 403 and only
+forwards the authenticated request identity. Its real host-HMAC regression failed
+before the fix with `expected 200 to be 403`; matching and omitted CustomField
+remain accepted. The production catalog regression fails if the plugin export is
+replaced by its foundation skeleton.
+
+**Still held:** the checker rejected a reduced 8 kHz/no-handoff delivery and requires
+complete authenticated 16 kHz operation and end handoff. Those requirements are not
+complete. The present four-pair conflict and missing owner-fenced stream-close
+handoff port are still open; this branch is not ready for check. No claim is made
+that a four-parameter Exotel URL is documented or tested against the vendor.
+
+### Verification checkpoint (Node 22, 2026-09-26)
+
+- `node scripts/lint.mjs --only packages/plugin-carrier-exotel packages/conformance/src/kit/carrier-media-checks.ts packages/conformance/tests/broken-fakes-carrier.test.ts apps/api/src/routes/credentials.ts apps/api/tests/f4-routes.test.ts`: EXIT 0 (7 gates; architecture has zero baselined edges; largest scoped source 300 canonical lines).
+- `pnpm format:check`: EXIT 0. `node scripts/check-duplication.mjs`: EXIT 0 (767 source files, 59 existing baseline pairs; no additions).
+- `pnpm typecheck`: EXIT 0 after correcting a readonly-array type in the new test helper.
+- `pnpm exec vitest run packages/plugin-carrier-exotel packages/distribution packages/conformance/tests/broken-fakes-carrier.test.ts apps/api/tests/f4-routes.test.ts --reporter=dot`: EXIT 0, 85 passed.
+- `pnpm build`: EXIT 0, three application bundles plus the normal console production build.
+- `pnpm exec vitest run --reporter=dot`: **EXIT 1**, 1,186 passed / 138 skipped / 1 failed (1,325 total). The foundation `apps/media-gateway/tests/inbound-carrier-installation.test.ts` assumes Twilio is the sole installed control; enabling Exotel correctly makes that ambiguous. C2 already replaces this test and its env-selection path on its branch. This is an integration dependency, not permission to assume a carrier.
+- No storage implementation changed in this C3 checkpoint; no Postgres run is claimed. The full bar is not green, and C3 remains in progress/held.

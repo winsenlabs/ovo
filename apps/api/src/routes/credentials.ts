@@ -231,7 +231,7 @@ export function registerCredentialsRoutes(dependencies: any) {
         items: ingress.operatorUrls.map((item) => ({
           ...item,
           url:
-            item.purpose === 'media' || item.purpose === 'media-url'
+            item.purpose === 'media'
               ? ports.mediaUrl(ingress.carrierId, binding.id)
               : ports.callbackUrl(ingress.carrierId, binding.id, item.purpose),
         })),

@@ -189,6 +189,8 @@ export const exotelRoutes: readonly CarrierHttpRoute[] = [
           return json(401, { error: 'exotel_status_unauthorized' });
         const input = fields(req);
         logUnknown(input, STATUS_FIELDS);
+        if (input.CustomField && input.CustomField !== req.query.r)
+          return json(403, { error: 'exotel_status_request_mismatch' });
         const callSid = required(input, 'CallSid');
         const state = mapExotelStatus(required(input, 'Status'));
         if (!state) return json(400, { error: 'exotel_unknown_status' });
@@ -199,7 +201,7 @@ export const exotelRoutes: readonly CarrierHttpRoute[] = [
           bindingId: req.bindingId,
           eventId: `exotel:${callSid}:${eventType}:${stamp}:${state}`,
           carrierCallId: callSid,
-          dialRequestId: input.CustomField || req.query.r,
+          dialRequestId: req.query.r,
           state,
           occurredAt: new Date(),
           payload: {

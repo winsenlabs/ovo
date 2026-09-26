@@ -66,6 +66,11 @@ const ingress = definePlugin(
       operatorUrls: [
         { purpose: 'inbound', label: 'Inbound', help: 'Paste into the carrier console' },
         { purpose: 'media', label: 'Media', help: 'Issued by the host' },
+        {
+          purpose: 'media-url',
+          label: 'Dynamic media URL',
+          help: 'HTTP callback returning a media URL',
+        },
       ],
     } satisfies CarrierIngress);
   },
@@ -193,6 +198,12 @@ describe('F4 API catalog and release wiring', () => {
             purpose: 'inbound',
             url: expect.stringMatching(
               /^https:\/\/carrier\.example\.test\/carriers\/twilio\/[^/]+\/inbound\?t=[a-f0-9]{64}$/,
+            ),
+          }),
+          expect.objectContaining({
+            purpose: 'media-url',
+            url: expect.stringMatching(
+              /^https:\/\/carrier\.example\.test\/carriers\/twilio\/[^/]+\/media-url\?t=[a-f0-9]{64}$/,
             ),
           }),
           expect.objectContaining({

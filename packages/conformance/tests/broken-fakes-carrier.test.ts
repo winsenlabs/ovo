@@ -230,3 +230,60 @@ describe('checkCarrier rejects undeclared media framing and untested transcripts
     expect(messages(failures)).toMatch(/flush\(\) is never exercised/);
   });
 });
+
+describe('close-stream termination has optional protocol frames', () => {
+  const check = (terminate: (() => string[]) | undefined, useRest = false) =>
+    broken(
+      ({ control, ingress }) => {
+        const capabilities = {
+          ...ingress.capabilities,
+          control: { ...ingress.capabilities.control, hangup: 'close-stream' as const },
+        };
+        return {
+          control: withControl(
+            control,
+            {
+              hangup: async (query) => {
+                if (!useRest) return 'unsupported';
+                try {
+                  await control.create(fixtureCarrierKitOptions().binding).hangup(query);
+                } catch {
+                  /* the attempted request is still observable by FixtureNet */
+                }
+                return 'ended';
+              },
+            },
+            capabilities,
+          ),
+          ingress: {
+            ...ingress,
+            capabilities,
+            serializer: {
+              ...ingress.serializer,
+              createSession(params) {
+                const session = ingress.serializer.createSession(params);
+                return { ...session, decode: (raw) => session.decode(raw), terminate };
+              },
+            },
+          },
+        };
+      },
+      ['close-stream carriers'],
+    );
+
+  it('accepts no wire frames when the host closes the stream', async () => {
+    expect(await check(() => [])).toEqual([]);
+  });
+  it.each([
+    ['missing method', undefined, /must implement terminate/],
+    ['non-array result', () => undefined as never, /must return frames/],
+    ['empty frame', () => [''], /not a non-empty string/],
+  ] as const)('rejects %s', async (_name, terminate, message) => {
+    expect(messages(await check(terminate))).toMatch(message);
+  });
+  it('still rejects a REST hangup and records its network call', async () => {
+    const failures = messages(await check(() => [], true));
+    expect(failures).toMatch(/hangup must return 'unsupported'/);
+    expect(failures).toMatch(/close-stream hangup reached the network/);
+  });
+});
