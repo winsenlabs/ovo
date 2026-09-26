@@ -84,3 +84,33 @@ All commands ran from the repository root, with
 ```sh
 pnpm exec vitest run packages/fixture-calls packages/plugin-observability apps/api/tests/test-calls.test.ts apps/api/tests/test-call-inspection-runtime.test.ts apps/api/tests/performance-route.test.ts apps/api/tests/script-simulation.test.ts apps/worker/tests/telemetry-runtime.test.ts apps/worker/tests/telemetry-stages.test.ts apps/worker/tests/production-session-lifecycle.test.ts apps/worker/tests/speech-cache-runtime.test.ts apps/api/tests/voice-engine-release.test.ts apps/worker/tests/production-engine-selection.test.ts apps/worker/tests/native-extension-pins.test.ts apps/worker/tests/session-recording.test.ts --reporter=dot
 ```
+
+### Follow-up: owned type fix and local dependency repair
+
+The D1-owned `simulationUsage` callback in `apps/api/src/release-simulation.ts`
+now uses a block body so registration returns `void`. Previously the scoped
+typecheck reported TS2769 because the expression returned `ctx.provide`'s
+disposer. Its usage service registration is unchanged. The existing simulation
+route tests exercise the registration; no new runtime test is counted for this
+type correction.
+
+The build failure was an inherited worktree dependency-layout defect:
+`node_modules/.pnpm` pointed at the foundation checkout, and several dependency
+scope directories did too. Turbopack correctly refused those paths outside its
+root. Local APFS copies replaced those links; workspace package links now point
+at this checkout. A subsequent audit found zero external links at the workspace
+dependency scope/package level. No tracked configuration, manifest or lockfile
+was changed. `CI=true pnpm install --frozen-lockfile --offline --ignore-scripts`
+then exited 0 across all 51 workspace projects. Lifecycle scripts were disabled
+to prevent dependency repair from triggering vendor downloads.
+
+After repair, the unchanged **`pnpm build` exits 0**, including all three
+application bundles and the console. This supersedes the earlier build failure.
+`pnpm exec vitest run packages/fixture-calls apps/api/tests/script-simulation.test.ts --reporter=dot`
+passes 23 tests. Scoped lint and scoped typecheck including
+`apps/api/src/release-simulation.ts` pass. The frozen
+`apps/api/tests/real-llm-release.test.ts` missing-format fixture remains a separate
+checker decision; the production carrier format requirement stays strict.
+The refreshed normal default suite also exits 0 (1,196 passed / 139 skipped).
+Full `pnpm typecheck` still exits 2, now with only the missing-format fixture's
+TS2741 diagnostic; the owned simulation diagnostic is gone.

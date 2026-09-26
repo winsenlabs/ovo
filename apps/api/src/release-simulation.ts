@@ -16,7 +16,9 @@ const simulationUsage = definePlugin(
     configSchema: { type: 'object', additionalProperties: false },
     secretFields: [],
   },
-  (ctx) => ctx.provide(Cap.usage, () => undefined),
+  (ctx) => {
+    ctx.provide(Cap.usage, () => undefined);
+  },
 );
 
 export async function runRelease(
