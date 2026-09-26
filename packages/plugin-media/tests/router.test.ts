@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { once } from 'node:events';
+import type { Socket } from 'node:net';
 import { afterEach, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import {
@@ -14,13 +15,15 @@ import type {
 } from '@winsendotai/ovo-contracts';
 import { CarrierRouter, type CarrierRouterOptions } from '../src/router.ts';
 import { publicRequestUrl } from '../src/upgrade.ts';
+import { createCarrierHostPorts } from '../../session-host/src/host-ports.ts';
 
 const source = fixtureCarrierIngress();
-const opened: Array<{ server: Server; router: CarrierRouter }> = [];
+const opened: Array<{ server: Server; router: CarrierRouter; sockets: Set<Socket> }> = [];
 afterEach(async () => {
-  for (const { server, router } of opened.splice(0)) {
+  for (const { server, router, sockets } of opened.splice(0)) {
     router.close();
     server.closeAllConnections();
+    for (const socket of sockets) socket.destroy();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
@@ -65,12 +68,17 @@ async function serve(options: CarrierRouterOptions) {
       if (!handled) response.writeHead(404).end();
     });
   });
+  const sockets = new Set<Socket>();
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+  });
   server.on('upgrade', (request, socket, head) => {
     void router.handleUpgrade(request, socket, head);
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
-  opened.push({ server, router });
+  opened.push({ server, router, sockets });
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('No test port');
   return `http://127.0.0.1:${address.port}`;
@@ -103,7 +111,7 @@ it('routes canonical GET/POST and aliases by carrier, binding and purpose with e
     onConnected: () => undefined,
   });
   const body = 'CallSid=CA123';
-  const post = await fetch(`${origin}/carriers/fixture/b%20id/status?sid=A&t=T`, {
+  const post = await fetch(`${origin}/carriers/fixture/b%20id/status?sid=A&t=T&raw=%2f+%20`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-test': 'wire' },
     body,
@@ -112,8 +120,8 @@ it('routes canonical GET/POST and aliases by carrier, binding and purpose with e
   expect(await post.text()).toBe('POST:b id');
   expect(seen[0]).toMatchObject({
     method: 'POST',
-    externalUrl: 'https://voice.example:8443/carriers/fixture/b%20id/status',
-    query: { sid: 'A', t: 'T' },
+    externalUrl: 'https://voice.example:8443/carriers/fixture/b%20id/status?sid=A&t=T&raw=%2f+%20',
+    query: { sid: 'A', t: 'T', raw: '/  ' },
     headers: { 'x-test': 'wire' },
     bindingId: 'b id',
     remoteAddress: '127.0.0.1',
@@ -122,7 +130,7 @@ it('routes canonical GET/POST and aliases by carrier, binding and purpose with e
   const alias = await fetch(`${origin}/legacy/status?x=1`);
   expect(await alias.text()).toBe('GET:alias-binding');
   expect(seen[1]).toMatchObject({
-    externalUrl: 'https://voice.example:8443/legacy/status',
+    externalUrl: 'https://voice.example:8443/legacy/status?x=1',
     query: { x: '1' },
   });
   expect(selected).toEqual(['fixture/b id', 'fixture/alias-binding']);
@@ -212,7 +220,7 @@ it('passes full wss URL including query, query-free external URL, and scoped URL
   );
   expect(requests[0]?.externalUrl).toBe('wss://voice.example:8443/carriers/fixture/binding/media');
   expect(verifications[0]).toMatchObject({
-    externalUrl: 'https://voice.example:8443/carriers/fixture/binding/media',
+    externalUrl: 'https://voice.example:8443/carriers/fixture/binding/media?sid=A&rt=B&t=token',
     query: { sid: 'A', rt: 'B', t: 'token' },
     bindingId: 'binding',
   });
@@ -259,3 +267,76 @@ it('does not substitute a query token when the serializer reports a missing toke
   expect(hostChecks).toBe(0);
   expect(accepted).toBe(0);
 });
+
+it.each(['valid', 'wrong-session', 'wrong-binding', 'wrong-token', 'conflicting-request'] as const)(
+  'checks a sid/rt/t media URL using the real host HMAC: %s',
+  async (variant) => {
+    const ports = createCarrierHostPorts({
+      publicBaseUrl: 'https://voice.example',
+      routeSecret: 'fixture-route-secret-at-least-32-bytes',
+      bindings: host().resolveBinding,
+      operations: {
+        async admitInbound() {
+          throw new Error('not admitting');
+        },
+        async confirmCallback() {
+          throw new Error('not confirming');
+        },
+      },
+      orchestration: {} as Parameters<typeof createCarrierHostPorts>[0]['orchestration'],
+    });
+    const signed = new URL(
+      // The host supports media secrets; the frozen route-purpose union omits media.
+      ports.callbackUrl(
+        'fixture',
+        'binding',
+        'media' as Parameters<CarrierHostPorts['callbackUrl']>[2],
+        { requestId: 'session-A' },
+      ),
+    );
+    const token = signed.searchParams.get('t')!;
+    const ingress: CarrierIngress = {
+      ...source,
+      serializer: {
+        createSession: source.serializer.createSession,
+        async authenticateUpgrade(request, ctx) {
+          const ok = ctx.verifyUrlSecret({
+            purpose: 'media',
+            bindingId: ctx.bindingId,
+            requestId: request.url.searchParams.get('sid') ?? undefined,
+            token: request.url.searchParams.get('t'),
+          });
+          return ok ? { ok: true, params: {} } : { ok: false, status: 401 };
+        },
+      },
+    };
+    let accepted = 0;
+    const origin = await serve({
+      ingresses: [ingress],
+      publicBaseUrl: 'https://voice.example',
+      hostFor: () => ports,
+      onConnected() {
+        accepted++;
+      },
+    });
+    const binding = variant === 'wrong-binding' ? 'another-binding' : 'binding';
+    const query = new URLSearchParams({
+      sid: variant === 'wrong-session' ? 'session-B' : 'session-A',
+      rt: 'route-token',
+      t: variant === 'wrong-token' ? 'forged' : token,
+    });
+    if (variant === 'conflicting-request') query.set('r', 'session-B');
+    const client = new WebSocket(
+      `${origin.replace('http:', 'ws:')}/carriers/fixture/${binding}/media?${query}`,
+    );
+    if (variant === 'valid') {
+      await expect(once(client, 'open')).resolves.toBeDefined();
+      expect(accepted).toBe(1);
+      client.close();
+      await once(client, 'close');
+    } else {
+      await expect(once(client, 'open')).rejects.toThrow('Unexpected server response: 401');
+      expect(accepted).toBe(0);
+    }
+  },
+);

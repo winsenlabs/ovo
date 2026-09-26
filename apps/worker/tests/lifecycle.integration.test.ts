@@ -425,7 +425,7 @@ describe.skipIf(!postgresUrl)('worker PostgreSQL and fixture-queue lifecycle', (
       const resumeRequest = signFixtureRequest(
         'fixture-secret',
         fixtureWebhook({
-          externalUrl: 'https://voice.example.test/carriers/fixture/env/resume',
+          externalUrl: 'https://voice.example.test/carriers/fixture/env/resume?r=CA-e2e&t=fixture',
           bindingId: 'env',
           query: { r: 'CA-e2e', t: 'fixture' },
           form: { CallSid: 'CA-e2e' },

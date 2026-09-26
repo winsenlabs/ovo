@@ -37,7 +37,8 @@ export function publicRequestUrl(
   if (!requestUrl.startsWith('/') || requestUrl.startsWith('//') || requestUrl.includes('#'))
     throw new TypeError('Carrier request URL must be an origin-relative path');
   const pathname = requestUrl.split('?', 1)[0]!;
-  const externalUrl = `${scheme}://${base.host}${pathname}`;
+  // HTTP signatures cover the raw query too; media upgrade signatures use the bare URL.
+  const externalUrl = `${scheme}://${base.host}${scheme === 'https' ? requestUrl : pathname}`;
   const url = new URL(`${scheme}://${base.host}${requestUrl}`);
   if (url.pathname !== pathname) throw new TypeError('Carrier request path must be canonical');
   return { url, externalUrl, pathname };
@@ -101,10 +102,13 @@ export class CarrierUpgradeRouter {
           },
           verifyUrlSecret: ({ bindingId, requestId, token }) => {
             if (bindingId !== match.bindingId || token === null) return false;
+            if (requestId && query.r !== undefined && query.r !== requestId) return false;
             const verificationRequest: CarrierHttpRequest = {
               method: 'GET',
               externalUrl: httpUrl.externalUrl,
-              query: { ...query, t: token },
+              // The serializer supplies the signed identity (e.g. a sid query).
+              // Adapt it to the host verifier without adding a carrier URL pair.
+              query: { ...query, ...(requestId ? { r: requestId } : {}), t: token },
               headers,
               rawBody: new Uint8Array(0),
               bindingId: match.bindingId,

@@ -150,3 +150,69 @@ CONSTRAINTS:
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/lint.mjs --only packages/plugin-media apps/media-gateway apps/worker/src/media-runtime.ts apps/worker/src/session-handshake.ts apps/worker/src/worker-media-bootstrap.ts apps/worker/src/worker-media-server.ts packages/plugin-recordings/src/capture.ts packages/plugin-recordings/src/wav.ts packages/distribution/src/profiles/gateway.ts`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/typecheck-scope.mjs packages/plugin-media apps/media-gateway apps/worker/src/media-runtime.ts apps/worker/src/session-handshake.ts apps/worker/src/worker-media-bootstrap.ts apps/worker/src/worker-media-server.ts apps/worker/tests/media-runtime.test.ts apps/worker/tests/lifecycle.integration.test.ts packages/plugin-recordings packages/distribution/src/profiles/gateway.ts`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run packages/plugin-media apps/media-gateway apps/worker/tests/media-runtime.test.ts packages/plugin-recordings --reporter=dot`
+
+## Builder review note — 2026-09-26: real callback and empty-frame closure paths
+
+The URL-secret adapter now passes the serializer's authenticated request identity
+as the host verifier's `r` field in memory, without adding a wire query parameter.
+This fixes the documented Exotel `sid/rt/t` upgrade: the real host HMAC verifier
+previously refused the valid token with `Unexpected server response: 401`.
+Wrong session, binding, token and a conflicting supplied `r` remain refused. The
+regression drives the production CarrierRouter over loopback WebSockets.
+
+HTTP `CarrierHttpRequest.externalUrl` now retains the complete raw query string.
+The spec's query-free `externalUrl` rule applies to **UpgradeRequest**; Twilio's
+HTTP callback signature covers the full callback URL, including `r` and `t`.
+Neither decoded query reconstruction nor proxy headers are used. The production
+HTTP router test failed before this correction because its actual URL lacked
+`?sid=A&t=T&raw=%2f+%20`. Independent C1 review reproduced the consequence with the
+real Twilio status handler: stripped URL → 403, complete URL → 204 and one applied
+event. WSS continues to expose both the exact bare `externalUrl` and the separate
+full `url` as before.
+
+`packages/plugin-media/tests/empty-termination.test.ts` drives the real
+SessionBridge with a real loopback WebSocket and a close-stream serializer whose
+`flush()` and `terminate()` return `[]`. The carrier receives no frames and closes
+with code 1000 and `worker ended session: terminate`. Removing the production
+close call fails with `expected 1 to be 3` (OPEN versus CLOSED). The production
+closure logic already handled this case; this is regression proof, not a new
+runtime fix. C3's checker-approved kit exception retains the requirement to close
+the actual stream and only removes its nonempty termination-array requirement.
+
+### Checkpoint measurements — 2026-09-26
+
+This is an **In progress** checkpoint, not a green handover. All commands used Node 22.
+
+- The exact scoped Vitest command above: **90 passed / 16 skipped**, exit 0.
+- The same scope plus `apps/worker/tests/lifecycle.integration.test.ts`, with
+  `OVO_TEST_POSTGRES_URL` pointing at our disposable loopback `postgres:17.6` and
+  `--no-file-parallelism`: **103 passed / 4 skipped**, exit 0. The four remaining
+  scoped skips require `RECORDING_TEST_DATABASE_URL`, not the standard Postgres variable.
+- `pnpm exec vitest run --reporter=dot`: **1,188 passed / 143 skipped / 3 failed**, exit 1.
+- `OVO_TEST_POSTGRES_URL=<disposable-loopback-db> pnpm exec vitest run --no-file-parallelism --reporter=dot`:
+  **1,323 passed / 8 skipped / 3 failed**, exit 1. Both full runs total **1,334**;
+  the additional 135 default skips are database-gated. Our container was removed afterward.
+- `pnpm build`: exit 0 (three application bundles and production console build).
+- The exact scoped lint command above: **EXIT 0** (7 gates); `pnpm format:check`:
+  **EXIT 0**; `node scripts/check-duplication.mjs`: **EXIT 0** (764 source files,
+  56 existing baseline pairs). No baseline changes were made in this checkpoint.
+- Separately, `RECORDING_TEST_DATABASE_URL=<disposable-loopback-db> pnpm exec vitest
+run packages/plugin-recordings/tests/postgres-recordings.test.ts --no-file-parallelism --reporter=dot`:
+  **4 passed / 0 skipped / 0 failed**, exit 0. This used another disposable
+  `postgres:17.6` container, removed after completion; it is additional evidence,
+  not four tests added to the full-suite counts above.
+- `node scripts/typecheck-scope.mjs packages/plugin-media`: exit 1; the 28 diagnostics
+  are the missing `@types/ws` declarations and the consequent implicit-any errors.
+
+The three full-suite failures are the pre-C2 harnesses
+`apps/worker/tests/input-enabled-session-lifecycle.test.ts`,
+`apps/worker/tests/production-session-lifecycle.test.ts`, and
+`apps/worker/tests/real-gateway-first-call.test.ts`. The first two invoke the replaced
+private open shape without a durable route (`undefined.sessionId`); the last passes
+the replaced gateway options without ingresses (`options.ingresses is not iterable`).
+Their narrow shared-file rewrite remains requested, together with the manifest/lock
+exception for `@types/ws`. No compatibility bypass was added to production.
+
+The owned Postgres resume fixture now signs the complete raw HTTP callback URL,
+including `r` and `t`. The first serial run exposed its old query-stripping signature
+as HTTP 401; the corrected fixture passes in both the focused and full serial runs.
