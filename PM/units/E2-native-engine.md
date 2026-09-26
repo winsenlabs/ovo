@@ -178,8 +178,34 @@ The independent review reproduced and the owned-path fixes now refute these fail
 
 The timing fixture now supplies actual 20ms speech and silence frames for its 20ms duration thresholds. Its previous one-sample input did not satisfy the declared 1ms threshold. Final focused E2 plus worker/API compatibility command: 135 passed. Independent reviewer: no remaining concrete blocker in the reviewed owned-path delta; conformance plus disposal 47/47, regression batch 21/21, and VAD/ingress/pipeline/playback-state batch 26/26.
 
-## Pending frozen-host decision (2026-09-26)
+## Pending API caller ownership decision (2026-09-26)
 
-E2 must register the default markdown filter (board obligation from F3), which exposes aliasing in frozen `packages/session-host/src/normalize.ts`: `{ ...config.voice }` shares `textFilters` with the input draft, then pushes the installed default into that draft. A read-only execution reports `originalChanged: true`, `sharedArray: true`; seven existing API release tests return `409 draft_conflict` instead of `201`. Proposed minimal shared repair: spread `structuredClone(config.voice)` and add an input-immutability regression in `packages/session-host/tests/selections.test.ts`. Checker permission was requested because design §15.2 freezes this host directory. No frozen file has been edited. I1 inherits the shared host boundary if authorized. E2 remains WIP until this full-suite failure is repaired; scoped green results are not a completed unit.
+The latest checker ruling supersedes the earlier proposal to edit frozen
+`packages/session-host/src/normalize.ts`. That file and its interfaces remain
+unchanged. E2 must retain its required default markdown registration.
 
-Measured final owned-code gates on Node 22 (2026-09-26): `node scripts/lint.mjs --only packages/plugin-voice packages/plugin-speech-cache experiments/voice` EXIT=0 (7 gates, largest source 291 canonical lines); `pnpm format:check` EXIT=0; `node scripts/check-duplication.mjs --only packages/plugin-voice packages/plugin-speech-cache experiments/voice` EXIT=0 (777 source files, 59 existing baseline pairs); `pnpm typecheck` EXIT=0; `pnpm build` EXIT=0 (three application bundles and normal Turbopack console build). `pnpm test` EXIT=1: 1,239 passed / 138 skipped / 7 failed, total 1,384. Every failure is an existing API release-publication test reaching the shared-normalizer draft conflict above. No storage implementation changed in E2, so no Postgres suite was required for this owned-code pass. This is explicitly not a green full bar.
+The real API publication path calls the normalizer before any E2-owned callback.
+The normalizer shallow-copies `voice` and pushes the installed default into the
+source draft's shared `textFilters`; storage correctly rejects the changed source
+as `draft_conflict`. The minimal local boundary repair is
+`normalizeAgentConfig(structuredClone(agent.config), ...)` in the I1-owned
+`apps/api/src/release-selections.ts`. A shared-touchpoint ruling for that single
+caller is pending. The proposed patch is outside the repository and the working
+API file is restored. I1 also inherits the general normalizer input-immutability
+gap for other callers.
+
+The new owned `packages/plugin-voice/tests/release-normalization.test.ts` executes
+`buildManagementApi` + `app.inject` against SQLite. It requires unchanged loaded
+and durable drafts, HTTP 201, and the native engine plus markdown selection. The
+current code fails because the source filter array changes. With only the proposed
+caller clone temporarily applied, the exact combined API command passes
+**71 passed / 10 skipped**. The API file was restored afterward.
+
+Current normal commands and complete evidence are in
+[`packages/plugin-voice/README.md`](../../packages/plugin-voice/README.md).
+Scoped lint and full format both exit 0; standalone duplication, full typecheck,
+and normal build exit 0. The default suite is **1,361 passed / 138 skipped /
+8 failed** (1,507 total): seven existing publication failures and the new
+immutability regression for the same defect. No aliases or suppressed tests are
+used. E2 remains **In progress**, not Built; its full green bar, including the
+Postgres serial run, remains required after the ownership decision.
