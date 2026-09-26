@@ -27,6 +27,18 @@ function contentType(binding: ResolvedBinding): string {
   return typeof value === 'string' ? value : 'audio/x-mulaw;rate=8000';
 }
 
+function withStreamStatus<T extends { statusUrl?: string }>(
+  grant: T,
+  req: CarrierHttpRequest,
+  host: CarrierHostPorts,
+  callId: string,
+): T {
+  return {
+    ...grant,
+    statusUrl: host.callbackUrl(carrierId, req.bindingId, 'stream-status', { requestId: callId }),
+  };
+}
+
 async function authenticate(
   req: CarrierHttpRequest,
   host: CarrierHostPorts,
@@ -119,7 +131,12 @@ export function plivoRoutes(
           carrierRequestId: params.RequestUUID,
         });
         return xml(
-          grant.kind === 'stream' ? streamMarkup(grant, contentType(binding)) : hangupMarkup(),
+          grant.kind === 'stream'
+            ? streamMarkup(
+                withStreamStatus(grant, req, host, params.CallUUID),
+                contentType(binding),
+              )
+            : hangupMarkup(),
         );
       },
     },
@@ -135,7 +152,14 @@ export function plivoRoutes(
         const decision = params.Digits
           ? await host.confirmCallback({ ...received, digits: params.Digits })
           : await host.admitInbound(received);
-        return xml(inboundMarkup(decision, contentType(binding)));
+        return xml(
+          inboundMarkup(
+            decision.kind === 'connect'
+              ? withStreamStatus(decision, req, host, params.CallUUID)
+              : decision,
+            contentType(binding),
+          ),
+        );
       },
     },
     {
@@ -173,7 +197,12 @@ export function plivoRoutes(
           carrierCallId: params.CallUUID,
         });
         return xml(
-          grant.kind === 'stream' ? streamMarkup(grant, contentType(binding)) : hangupMarkup(),
+          grant.kind === 'stream'
+            ? streamMarkup(
+                withStreamStatus(grant, req, host, params.CallUUID),
+                contentType(binding),
+              )
+            : hangupMarkup(),
         );
       },
     },

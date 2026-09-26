@@ -76,15 +76,23 @@ describe('Plivo documented protocol', () => {
       event: 'checkpoint',
       name: 'm1',
     });
-    expect(session.decode(JSON.stringify({ event: 'playedStream', name: 'm1' }))).toEqual([
-      { type: 'played', name: 'm1' },
-    ]);
+    expect(
+      session.decode(
+        JSON.stringify({
+          event: 'playedStream',
+          streamId: '87654321-4321-4321-4321-cba987654321',
+          name: 'm1',
+        }),
+      ),
+    ).toEqual([{ type: 'played', name: 'm1' }]);
     expect(JSON.parse(session.encode({ type: 'clear' })[0]!)).toMatchObject({
       event: 'clearAudio',
     });
-    expect(session.decode(JSON.stringify({ event: 'clearedAudio' }))).toEqual([
-      { type: 'cleared' },
-    ]);
+    expect(
+      session.decode(
+        JSON.stringify({ event: 'clearedAudio', streamId: '87654321-4321-4321-4321-cba987654321' }),
+      ),
+    ).toEqual([{ type: 'cleared' }]);
   });
 
   it('matches independent PHP-SDK-derived V3 GET, query POST, no-query POST and MA vectors', async () => {

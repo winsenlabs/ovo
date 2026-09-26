@@ -2,10 +2,51 @@
 
 - **Reconciliation:** C4's spec calls `GET /Call/{request_uuid}/?status=queued` and `reconcile: 'by-request-id'`. [Plivo's Calls API](https://www.plivo.com/docs/voice/api/calls) documents `GET /Call/?status=queued` as a list of call UUIDs, `GET /Call/{call_uuid}/?status=live` for a live call, and `GET /Call/{call_uuid}/` for a CDR. It documents no request UUID lookup. C4 therefore advertises `by-call-id`, returns pending without a callback-provided CallUUID, and performs live then CDR lookup by CallUUID. CDR outcome uses `hangup_cause_name`; `call_state` is explicitly legacy. The checker must decide whether this documented fail-closed behavior replaces the spec or requires a shared request-ID correlation mechanism. The latter belongs to C2 if approved.
 - **Handoff:** C4 requires phone, resume, and end; [Plivo transfer](https://www.plivo.com/docs/voice/api/calls) requires a URL that serves transfer XML as `aleg_url`, while `TelephonyControl.handoff` supplies only the target and request id. C4 advertises and implements end; phone and resume reject without a network call. A host-owned transfer URL seam would need a separate shared-contract decision, owned by F1/C2. Never construct a callback secret or transfer XML URL in this plugin.
-- **Webhook V3:** The design describes URL + nonce, while [Plivo's official PHP SDK](https://github.com/plivo/plivo-php/blob/master/src/Plivo/Util/v3SignatureValidation.php) signs the SDK-constructed URL, a dot, and nonce. It also has POST query and body canonicalization. Independent golden fixtures follow the SDK. The host must pass the exact external URL, including query and port; a reconstructed URL fails closed. The checker is deciding whether a raw signed URL host seam is needed. C2 owns the shared handoff.
+- **Webhook V3:** The design describes URL + nonce, while [Plivo's official PHP SDK](https://github.com/plivo/plivo-php/blob/master/src/Plivo/Util/v3SignatureValidation.php) signs the SDK-constructed URL, a dot, and nonce. It also has POST query and body canonicalization. Independent golden fixtures follow the SDK. The host must pass the exact external URL, including query and port; a reconstructed URL fails closed. C2 now preserves the raw HTTP query in its owned gateway adapter; that fix must land before C4 integration. WSS still uses its separate no-query signature URL.
 - **`extraHeaders`:** The [Stream XML reference](https://www.plivo.com/docs/voice/xml/audio-streaming) shows comma-separated pairs, while the [streaming guide](https://www.plivo.com/docs/voice-agents/audio-streaming/concepts/audio-streaming-guide) uses semicolons. C4 emits commas as directed by the spec's XML source and accepts either delimiter on received start frames.
-- **Manifest:** The spec requires removing `ovo.skeleton` from `package.json`; design §15.2 freezes manifests. That change awaits an explicit shared-touchpoint ruling. Until then, the source and tests are implemented but the package conformance lint cannot pass. No frozen file was edited.
+- **Manifest (corrected 2026-09-26):** Design §15.2 freezes manifests outside a unit's owned paths. C4 owns `packages/plugin-carrier-plivo/**`, so removing its own `ovo.skeleton` flag is authorized by the spec and needs no shared exception. The flag is now removed; dependency and lockfile contents are unchanged.
 - **Gateway integration:** With Plivo's control present, the distribution has two carrier controls. The gateway deliberately selects no environment carrier when no binding names one. The foundation's `apps/media-gateway/tests/inbound-carrier-installation.test.ts` still expects Twilio as the sole default; C2 owns that test and has already updated the expectation on its active branch. C4 leaves it untouched and will recheck after C2 merges.
+
+## Builder review — 2026-09-26
+
+The independent review found two owned defects and reproduced both before repair.
+
+- Stream markup used the real host grant's call-status URL for Stream events.
+  The new `stream-status.test.ts` follows the URL rendered from a real host grant
+  into the signed production handler for answer, inbound and resume. Before the
+  route enrichment all three failed with `Stream callback routed to status: expected
+400 to be 204`; after it, all three pass. The plugin asks the host for a signed
+  `stream-status` callback URL and preserves every other grant field.
+- The serializer discarded stream identity before normalization. After starting
+  stream-A it accepted stream-B audio, DTMF, playback receipts, clear and stop
+  events. `stream-identity.test.ts` first accepts a matching frame, then rejects
+  mismatched/missing IDs; its five identity cases failed against the old source
+  with `expected [Function] to throw an error`. Six additional cases exposed
+  outbound, invalid and missing media/DTMF tracks with the same assertion.
+  All eleven now pass. Runtime errors identify `Plivo frame streamId does not match
+the established stream`, `Plivo media track must be inbound`, or `Plivo DTMF track
+must be inbound`. The checks run before any normalized event can escape.
+
+The real distribution catalog test also passes with this carrier installed. The
+independent reviewer reran all package tests (43 passed), scoped typecheck/lint,
+owned Prettier and full format:check, all exit 0. The unit remains In progress for
+the reconciliation, handoff and nonce decisions above; this is not a green handover.
+
+### Final checkpoint measurements
+
+- `node scripts/lint.mjs --only packages/plugin-carrier-plivo`: **EXIT 0** (7 gates;
+  largest scoped source 235 canonical lines); `pnpm format:check`: **EXIT 0**;
+  `node scripts/check-duplication.mjs`: **EXIT 0** (767 source files, 59 existing
+  baseline pairs). No baseline was added for the fixes.
+- `pnpm exec vitest run packages/plugin-carrier-plivo packages/distribution --reporter=dot`:
+  **74 passed**, EXIT 0.
+- `pnpm typecheck`: EXIT 0. `pnpm build`: EXIT 0, including all three application
+  bundles and the normal production console build.
+- `pnpm exec vitest run --reporter=dot`: **1,190 passed / 138 skipped / 1 failed**,
+  EXIT 1, total 1,329. The sole failure is the foundation's Twilio-only default
+  expectation in `apps/media-gateway/tests/inbound-carrier-installation.test.ts`
+  described above. It must be rechecked after C2 integration. No storage paths
+  changed and no Postgres run is claimed for C4.
 
 ## Carry-forwards
 

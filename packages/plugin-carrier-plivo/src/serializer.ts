@@ -59,6 +59,10 @@ function codec(params: Record<string, string>): MediaCodecSession {
       } catch {
         throw new CarrierProtocolError('Invalid Plivo JSON frame');
       }
+      if (frame.event !== 'start' && (!streamId || frame.streamId !== streamId))
+        throw new CarrierProtocolError(
+          'Plivo frame streamId does not match the established stream',
+        );
       switch (frame.event) {
         case 'start': {
           const start = record(frame.start);
@@ -83,6 +87,8 @@ function codec(params: Record<string, string>): MediaCodecSession {
         }
         case 'media': {
           const media = record(frame.media);
+          if (media.track !== 'inbound')
+            throw new CarrierProtocolError('Plivo media track must be inbound');
           const seq = Number(frame.sequenceNumber);
           const timestampMs = Number(media.timestamp);
           if (
@@ -94,8 +100,12 @@ function codec(params: Record<string, string>): MediaCodecSession {
             throw new CarrierProtocolError('Invalid Plivo media sequence or timestamp');
           return [{ type: 'audio', seq, timestampMs, payload: audioBytes(media.payload) }];
         }
-        case 'dtmf':
-          return [{ type: 'dtmf', digit: string(record(frame.dtmf).digit, 'dtmf.digit') }];
+        case 'dtmf': {
+          const dtmf = record(frame.dtmf);
+          if (dtmf.track !== 'inbound')
+            throw new CarrierProtocolError('Plivo DTMF track must be inbound');
+          return [{ type: 'dtmf', digit: string(dtmf.digit, 'dtmf.digit') }];
+        }
         case 'playedStream':
           return [{ type: 'played', name: string(frame.name, 'playedStream.name') }];
         case 'clearedAudio':
