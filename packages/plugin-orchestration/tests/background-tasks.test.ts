@@ -23,11 +23,22 @@ describe('dispatcher orchestration background tasks', () => {
   it('resets a valid DLQ hint, deletes malformed messages and never sends blind redrives', async () => {
     const store = fixture();
     const messages: DeadLetterMessage[] = [
-      { messageId: 'valid', receiptHandle: 'a', body: JSON.stringify({ schemaVersion: 1, jobId: id }) },
+      {
+        messageId: 'valid',
+        receiptHandle: 'a',
+        body: JSON.stringify({ schemaVersion: 1, jobId: id }),
+      },
       { messageId: 'malformed', receiptHandle: 'b', body: '{broken' },
-      { messageId: 'bad-id', receiptHandle: 'c', body: JSON.stringify({ schemaVersion: 1, jobId: 'not-a-uuid' }) },
+      {
+        messageId: 'bad-id',
+        receiptHandle: 'c',
+        body: JSON.stringify({ schemaVersion: 1, jobId: 'not-a-uuid' }),
+      },
     ];
-    const queue: DeadLetterQueue = { receive: vi.fn(async () => messages), delete: vi.fn(async () => undefined) };
+    const queue: DeadLetterQueue = {
+      receive: vi.fn(async () => messages),
+      delete: vi.fn(async () => undefined),
+    };
     const log = vi.fn();
     const task = new DlqReconcilerTask(store, queue, log);
     await task.tick(new AbortController().signal);
@@ -42,7 +53,13 @@ describe('dispatcher orchestration background tasks', () => {
     const store = fixture();
     store.hints.resetHint.mockRejectedValue(new Error('database unavailable'));
     const queue: DeadLetterQueue = {
-      receive: async () => [{ messageId: 'valid', receiptHandle: 'a', body: JSON.stringify({ schemaVersion: 1, jobId: id }) }],
+      receive: async () => [
+        {
+          messageId: 'valid',
+          receiptHandle: 'a',
+          body: JSON.stringify({ schemaVersion: 1, jobId: id }),
+        },
+      ],
       delete: vi.fn(async () => undefined),
     };
     const task = new DlqReconcilerTask(store, queue);

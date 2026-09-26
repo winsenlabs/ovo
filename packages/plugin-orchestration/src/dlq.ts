@@ -20,17 +20,22 @@ export interface DeadLetterQueue {
 export class SqsDeadLetterQueue implements DeadLetterQueue {
   private readonly client: SQSClient;
 
-  constructor(private readonly url: string, config: SQSClientConfig = {}) {
+  constructor(
+    private readonly url: string,
+    config: SQSClientConfig = {},
+  ) {
     this.client = new SQSClient(config);
   }
 
   async receive(): Promise<DeadLetterMessage[]> {
-    const response = await this.client.send(new ReceiveMessageCommand({
-      QueueUrl: this.url,
-      MaxNumberOfMessages: 10,
-      WaitTimeSeconds: 0,
-      VisibilityTimeout: 30,
-    }));
+    const response = await this.client.send(
+      new ReceiveMessageCommand({
+        QueueUrl: this.url,
+        MaxNumberOfMessages: 10,
+        WaitTimeSeconds: 0,
+        VisibilityTimeout: 30,
+      }),
+    );
     return (response.Messages ?? []).map((message) => {
       if (!message.MessageId || !message.ReceiptHandle)
         throw new Error('DLQ message has no SQS identity');
@@ -43,10 +48,12 @@ export class SqsDeadLetterQueue implements DeadLetterQueue {
   }
 
   async delete(message: DeadLetterMessage): Promise<void> {
-    await this.client.send(new DeleteMessageCommand({
-      QueueUrl: this.url,
-      ReceiptHandle: message.receiptHandle,
-    }));
+    await this.client.send(
+      new DeleteMessageCommand({
+        QueueUrl: this.url,
+        ReceiptHandle: message.receiptHandle,
+      }),
+    );
   }
 
   destroy(): void {

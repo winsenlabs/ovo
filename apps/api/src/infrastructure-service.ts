@@ -32,7 +32,13 @@ export class PostgresInfrastructureService implements InfrastructureService {
     const tables = await this.tables();
     const [workers, queue, capacity, recordings, telemetry] = await Promise.all([
       tables.orchestration
-        ? readWorkerSamples(this.pool, workspaceId, releaseId, this.heartbeatMaxAgeMs, this.maxWorkerSamples)
+        ? readWorkerSamples(
+            this.pool,
+            workspaceId,
+            releaseId,
+            this.heartbeatMaxAgeMs,
+            this.maxWorkerSamples,
+          )
         : undefined,
       tables.orchestration ? this.queue(workspaceId, releaseId) : undefined,
       tables.capacity ? this.capacity() : undefined,
@@ -71,7 +77,11 @@ export class PostgresInfrastructureService implements InfrastructureService {
         samplesTruncated: workers ? workers.samplesTruncated : null,
       },
       queue: queue ?? emptyQueue(),
-      capacity: capacity ?? { lastSignal: null, ageMs: null, maxAgeMs: this.capacitySignalMaxAgeMs },
+      capacity: capacity ?? {
+        lastSignal: null,
+        ageMs: null,
+        maxAgeMs: this.capacitySignalMaxAgeMs,
+      },
       providers: { quotas: workerMetrics.quotas, throttling: workerMetrics.throttling },
       process: workerMetrics.process,
       recordings: recordings ?? null,
@@ -127,12 +137,16 @@ export class PostgresInfrastructureService implements InfrastructureService {
 
   private async capacity(): Promise<InfrastructureSnapshot['capacity']> {
     const result = await this.pool.query<{
-      signal: InfrastructureSnapshot['capacity']['lastSignal']; age_ms: string;
+      signal: InfrastructureSnapshot['capacity']['lastSignal'];
+      age_ms: string;
     }>(`SELECT signal, extract(epoch FROM (now() - signal_at))*1000 AS age_ms
         FROM ovo_capacity_signal_latest WHERE service_key = 'workers'`);
     const row = result.rows[0];
-    return { lastSignal: row?.signal ?? null, ageMs: row ? Math.max(0, Number(row.age_ms)) : null,
-      maxAgeMs: this.capacitySignalMaxAgeMs };
+    return {
+      lastSignal: row?.signal ?? null,
+      ageMs: row ? Math.max(0, Number(row.age_ms)) : null,
+      maxAgeMs: this.capacitySignalMaxAgeMs,
+    };
   }
 
   private async recordings(workspaceId: string, releaseId: string | undefined, control: boolean) {

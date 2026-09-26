@@ -170,9 +170,36 @@ export class InboundWorkerRuntime {
     if (this.stopped) return;
     this.stopped = true;
     if (this.timer) clearInterval(this.timer);
+    const active = this.activeSession;
+    this.activeSession = undefined;
     await this.register(false).catch(() => undefined);
-    await this.floorLease.release();
-    await this.protectionRenewal?.release();
+    try {
+      if (active) await this.terminateSession(active, 'worker-shutdown');
+    } finally {
+      try {
+        await this.floorLease.release();
+      } finally {
+        await this.protectionRenewal?.release();
+        this.protectionRenewal = undefined;
+      }
+    }
+  }
+
+  private async terminateSession(
+    active: NonNullable<InboundWorkerRuntime['activeSession']>,
+    reason: string,
+  ): Promise<void> {
+    if (this.input.terminateOwned) {
+      await this.input.terminateOwned(active.jobId, active.ownerEpoch, reason);
+      return;
+    }
+    const fenced = await this.input.store.requestSessionTermination(
+      active.jobId,
+      active.workerId,
+      active.ownerEpoch,
+      reason,
+    );
+    if (fenced && active.carrierCallId) await this.input.telephony.hangup(active.carrierCallId);
   }
 
   private async activateIdleCapacity(): Promise<void> {
@@ -265,29 +292,9 @@ export class InboundWorkerRuntime {
     const active = this.activeSession;
     this.activeSession = undefined;
     await this.floorLease.release().catch(() => undefined);
-    if (active && this.input.terminateOwned) {
-      await Promise.allSettled([
-        this.register(false),
-        this.input.terminateOwned(active.jobId, active.ownerEpoch, reason),
-      ]);
-      return;
-    }
     await Promise.allSettled([
       this.register(false),
-      ...(active
-        ? [
-            (async () => {
-              const fenced = await this.input.store.requestSessionTermination(
-                active.jobId,
-                active.workerId,
-                active.ownerEpoch,
-                reason,
-              );
-              if (fenced && active.carrierCallId)
-                await this.input.telephony.hangup(active.carrierCallId);
-            })(),
-          ]
-        : []),
+      ...(active ? [this.terminateSession(active, reason)] : []),
     ]);
   }
 }

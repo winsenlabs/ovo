@@ -87,9 +87,15 @@ describe('carrier dial reconciliation', () => {
       events.push('defer');
       return true;
     });
-    const queue = { delete: vi.fn(async () => { events.push('delete'); }) };
+    const queue = {
+      delete: vi.fn(async () => {
+        events.push('delete');
+      }),
+    };
     const delivery = {
-      messageId: 'hint-1', receiptHandle: 'receipt-1', receiveCount: 1,
+      messageId: 'hint-1',
+      receiptHandle: 'receipt-1',
+      receiveCount: 1,
       reference: { schemaVersion: 1 as const, jobId: job.id },
     };
     const reason = 'carrier-reconciliation-unavailable:temporary carrier config outage';
@@ -99,12 +105,20 @@ describe('carrier dial reconciliation', () => {
       delivery,
       store: { deferReconciliation } as never,
       queue: queue as never,
-      carriers: { forJob: async () => { throw new Error('temporary carrier config outage'); } } as never,
+      carriers: {
+        forJob: async () => {
+          throw new Error('temporary carrier config outage');
+        },
+      } as never,
       deferSeconds: 15,
     });
     expect(result).toEqual({ kind: 'deferred', reason });
     expect(deferReconciliation).toHaveBeenCalledWith(
-      job.id, 'worker-1', 1, reason, expect.any(Date),
+      job.id,
+      'worker-1',
+      1,
+      reason,
+      expect.any(Date),
     );
     expect(deferReconciliation.mock.calls[0]?.[4].getTime()).toBeGreaterThan(Date.now() + 14_000);
     expect(events).toEqual(['defer', 'delete']);
@@ -116,12 +130,18 @@ describe('carrier dial reconciliation', () => {
       workerId: 'worker-1',
       job: { ...job, status: 'reconcile_required', dialRequestId: 'dial-1' },
       delivery: {
-        messageId: 'hint-2', receiptHandle: 'receipt-2', receiveCount: 1,
+        messageId: 'hint-2',
+        receiptHandle: 'receipt-2',
+        receiveCount: 1,
         reference: { schemaVersion: 1, jobId: job.id },
       },
       store: { deferReconciliation: async () => false } as never,
       queue: { delete: deleteHint } as never,
-      carriers: { forJob: async () => { throw new Error('temporary carrier config outage'); } } as never,
+      carriers: {
+        forJob: async () => {
+          throw new Error('temporary carrier config outage');
+        },
+      } as never,
       deferSeconds: 15,
     });
     expect(result).toEqual({ kind: 'deferred', reason: 'reconciliation-ownership-lost' });
@@ -132,19 +152,30 @@ describe('carrier dial reconciliation', () => {
 describe('last pre-dial drain gate', () => {
   it('releases the owned job and protection before creating a route or dialing', async () => {
     const events: string[] = [];
-    const release = vi.fn(async () => { events.push('release'); return true; });
-    const deleteHint = vi.fn(async () => { events.push('delete'); });
-    const releaseProtection = vi.fn(async () => { events.push('protection'); });
+    const release = vi.fn(async () => {
+      events.push('release');
+      return true;
+    });
+    const deleteHint = vi.fn(async () => {
+      events.push('delete');
+    });
+    const releaseProtection = vi.fn(async () => {
+      events.push('protection');
+    });
     const beginDialSession = vi.fn();
     const dial = vi.fn();
     const result = await dialOwnedJob({
       job: { ...job, id: '00000000-0000-4000-8000-000000000001' },
       dialPayload: {
-        to: '+910000000011', from: '+910000000022',
-        streamUrl: 'wss://example.test/media', statusCallbackUrl: 'https://example.test/status',
+        to: '+910000000011',
+        from: '+910000000022',
+        streamUrl: 'wss://example.test/media',
+        statusCallbackUrl: 'https://example.test/status',
       },
       delivery: {
-        messageId: 'hint', receiptHandle: 'receipt', receiveCount: 1,
+        messageId: 'hint',
+        receiptHandle: 'receipt',
+        receiveCount: 1,
         reference: { schemaVersion: 1, jobId: '00000000-0000-4000-8000-000000000001' },
       },
       lease: { stop: vi.fn() } as never,
@@ -155,8 +186,11 @@ describe('last pre-dial drain gate', () => {
       queue: { delete: deleteHint } as never,
       telephony: { dial } as never,
       options: {
-        leaseMs: 60_000, protectionRenewMs: 120_000, deferSeconds: 15,
-        visibilitySeconds: 120, workerEndpoint: 'ws://worker.test:4100/internal/media',
+        leaseMs: 60_000,
+        protectionRenewMs: 120_000,
+        deferSeconds: 15,
+        visibilitySeconds: 120,
+        workerEndpoint: 'ws://worker.test:4100/internal/media',
         handshakeTtlMs: 60_000,
       },
       recordAttempt: async () => undefined,
@@ -165,7 +199,11 @@ describe('last pre-dial drain gate', () => {
     });
     expect(result).toEqual({ kind: 'deferred', reason: 'worker-draining' });
     expect(release).toHaveBeenCalledWith(
-      '00000000-0000-4000-8000-000000000001', 'worker-1', 1, 'worker-draining', expect.any(Date),
+      '00000000-0000-4000-8000-000000000001',
+      'worker-1',
+      1,
+      'worker-draining',
+      expect.any(Date),
     );
     expect(events).toEqual(['release', 'delete', 'protection']);
     expect(beginDialSession).not.toHaveBeenCalled();
@@ -173,86 +211,122 @@ describe('last pre-dial drain gate', () => {
   });
 });
 
-describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('durable carrier reconciliation deferral', () => {
-  const schema = `o1_reconcile_${randomUUID().replaceAll('-', '')}`;
-  let admin: PostgresOrchestrationStore;
-  let store: PostgresOrchestrationStore;
+describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)(
+  'durable carrier reconciliation deferral',
+  () => {
+    const schema = `o1_reconcile_${randomUUID().replaceAll('-', '')}`;
+    let admin: PostgresOrchestrationStore;
+    let store: PostgresOrchestrationStore;
 
-  beforeAll(async () => {
-    admin = new PostgresOrchestrationStore({ connectionString: process.env.OVO_TEST_POSTGRES_URL });
-    await admin.pool.query(`CREATE SCHEMA ${schema}`);
-    store = new PostgresOrchestrationStore({
-      connectionString: process.env.OVO_TEST_POSTGRES_URL,
-      options: `-c search_path=${schema}`,
+    beforeAll(async () => {
+      admin = new PostgresOrchestrationStore({
+        connectionString: process.env.OVO_TEST_POSTGRES_URL,
+      });
+      await admin.pool.query(`CREATE SCHEMA ${schema}`);
+      store = new PostgresOrchestrationStore({
+        connectionString: process.env.OVO_TEST_POSTGRES_URL,
+        options: `-c search_path=${schema}`,
+      });
+      await store.migrate();
+      // Removed when the separately reviewed hint migration joins this branch.
+      await store.pool.query('ALTER TABLE ovo_jobs ADD COLUMN IF NOT EXISTS hinted_at timestamptz');
+      await store.pool.query(
+        'ALTER TABLE ovo_jobs ADD COLUMN IF NOT EXISTS hint_count int NOT NULL DEFAULT 0',
+      );
     });
-    await store.migrate();
-    // Removed when the separately reviewed hint migration joins this branch.
-    await store.pool.query('ALTER TABLE ovo_jobs ADD COLUMN IF NOT EXISTS hinted_at timestamptz');
-    await store.pool.query('ALTER TABLE ovo_jobs ADD COLUMN IF NOT EXISTS hint_count int NOT NULL DEFAULT 0');
-  });
 
-  afterAll(async () => {
-    await store?.close();
-    if (admin) {
-      await admin.pool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-      await admin.close();
-    }
-  });
+    afterAll(async () => {
+      await store?.close();
+      if (admin) {
+        await admin.pool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+        await admin.close();
+      }
+    });
 
-  async function claimedReconciliation() {
-    const id = randomUUID();
-    await store.enqueue({ id, workspaceId: schema, idempotencyKey: id, payload: {} });
-    const owned = await store.claim(id, 'worker-1', 60_000);
-    if (owned.kind !== 'execute') throw new Error('expected owned job');
-    const requestId = `${id}:1`;
-    await store.pool.query(
-      `UPDATE ovo_jobs SET status = 'reconcile_required', dial_request_id = $2,
+    async function claimedReconciliation() {
+      const id = randomUUID();
+      await store.enqueue({ id, workspaceId: schema, idempotencyKey: id, payload: {} });
+      const owned = await store.claim(id, 'worker-1', 60_000);
+      if (owned.kind !== 'execute') throw new Error('expected owned job');
+      const requestId = `${id}:1`;
+      await store.pool.query(
+        `UPDATE ovo_jobs SET status = 'reconcile_required', dial_request_id = $2,
          lease_expires_at = now() - interval '1 second', hinted_at = now()
-       WHERE id = $1`, [id, requestId],
-    );
-    const reclaimed = await store.claim(id, 'worker-1', 60_000);
-    if (reclaimed.kind !== 'reconcile') throw new Error('expected reconciliation claim');
-    return reclaimed.job;
-  }
+       WHERE id = $1`,
+        [id, requestId],
+      );
+      const reclaimed = await store.claim(id, 'worker-1', 60_000);
+      if (reclaimed.kind !== 'reconcile') throw new Error('expected reconciliation claim');
+      return reclaimed.job;
+    }
 
-  it('persists future due time and clears hinted_at before deleting the SQS receipt', async () => {
-    const claimed = await claimedReconciliation();
-    const deleteHint = vi.fn(async () => {
-      const row = (await store.pool.query(
-        'SELECT owner_id, hinted_at, not_before FROM ovo_jobs WHERE id = $1', [claimed.id],
-      )).rows[0];
-      expect(row.owner_id).toBeNull();
-      expect(row.hinted_at).toBeNull();
-      expect(row.not_before.getTime()).toBeGreaterThan(Date.now());
+    it('persists future due time and clears hinted_at before deleting the SQS receipt', async () => {
+      const claimed = await claimedReconciliation();
+      const deleteHint = vi.fn(async () => {
+        const row = (
+          await store.pool.query(
+            'SELECT owner_id, hinted_at, not_before FROM ovo_jobs WHERE id = $1',
+            [claimed.id],
+          )
+        ).rows[0];
+        expect(row.owner_id).toBeNull();
+        expect(row.hinted_at).toBeNull();
+        expect(row.not_before.getTime()).toBeGreaterThan(Date.now());
+      });
+      const result = await reconcileClaimedCarrierDial({
+        workerId: 'worker-1',
+        job: claimed,
+        delivery: {
+          messageId: 'hint',
+          receiptHandle: 'receipt',
+          receiveCount: 1,
+          reference: { schemaVersion: 1, jobId: claimed.id },
+        },
+        store,
+        queue: { delete: deleteHint } as never,
+        carriers: {
+          forJob: async () => {
+            throw new Error('carrier config offline');
+          },
+        } as never,
+        deferSeconds: 15,
+      });
+      expect(result).toEqual({
+        kind: 'deferred',
+        reason: 'carrier-reconciliation-unavailable:carrier config offline',
+      });
+      expect(deleteHint).toHaveBeenCalledOnce();
     });
-    const result = await reconcileClaimedCarrierDial({
-      workerId: 'worker-1', job: claimed,
-      delivery: { messageId: 'hint', receiptHandle: 'receipt', receiveCount: 1,
-        reference: { schemaVersion: 1, jobId: claimed.id } },
-      store, queue: { delete: deleteHint } as never,
-      carriers: { forJob: async () => { throw new Error('carrier config offline'); } } as never,
-      deferSeconds: 15,
-    });
-    expect(result).toEqual({ kind: 'deferred', reason: 'carrier-reconciliation-unavailable:carrier config offline' });
-    expect(deleteHint).toHaveBeenCalledOnce();
-  });
 
-  it('leaves the receipt available when the claimed epoch was superseded', async () => {
-    const claimed = await claimedReconciliation();
-    await store.pool.query('UPDATE ovo_jobs SET owner_epoch = owner_epoch + 1 WHERE id = $1', [claimed.id]);
-    const deleteHint = vi.fn();
-    const result = await reconcileClaimedCarrierDial({
-      workerId: 'worker-1', job: claimed,
-      delivery: { messageId: 'hint', receiptHandle: 'receipt', receiveCount: 1,
-        reference: { schemaVersion: 1, jobId: claimed.id } },
-      store, queue: { delete: deleteHint } as never,
-      carriers: { forJob: async () => { throw new Error('carrier config offline'); } } as never,
-      deferSeconds: 15,
+    it('leaves the receipt available when the claimed epoch was superseded', async () => {
+      const claimed = await claimedReconciliation();
+      await store.pool.query('UPDATE ovo_jobs SET owner_epoch = owner_epoch + 1 WHERE id = $1', [
+        claimed.id,
+      ]);
+      const deleteHint = vi.fn();
+      const result = await reconcileClaimedCarrierDial({
+        workerId: 'worker-1',
+        job: claimed,
+        delivery: {
+          messageId: 'hint',
+          receiptHandle: 'receipt',
+          receiveCount: 1,
+          reference: { schemaVersion: 1, jobId: claimed.id },
+        },
+        store,
+        queue: { delete: deleteHint } as never,
+        carriers: {
+          forJob: async () => {
+            throw new Error('carrier config offline');
+          },
+        } as never,
+        deferSeconds: 15,
+      });
+      expect(result).toEqual({ kind: 'deferred', reason: 'reconciliation-ownership-lost' });
+      expect(deleteHint).not.toHaveBeenCalled();
     });
-    expect(result).toEqual({ kind: 'deferred', reason: 'reconciliation-ownership-lost' });
-    expect(deleteHint).not.toHaveBeenCalled();
-  });
-});
+  },
+);
 
 describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('lost campaign admission lease', () => {
   const schema = `o1_superseded_${randomUUID().replaceAll('-', '')}`;
@@ -269,9 +343,12 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('lost campaign admission lea
     await store.migrate();
     // Remove these setup alterations when the separately reviewed O1 migration lands.
     await store.pool.query('ALTER TABLE ovo_jobs ADD COLUMN IF NOT EXISTS hinted_at timestamptz');
-    await store.pool.query('ALTER TABLE ovo_jobs ADD COLUMN IF NOT EXISTS hint_count int NOT NULL DEFAULT 0');
+    await store.pool.query(
+      'ALTER TABLE ovo_jobs ADD COLUMN IF NOT EXISTS hint_count int NOT NULL DEFAULT 0',
+    );
     await store.pool.query('ALTER TABLE ovo_jobs DROP CONSTRAINT ovo_jobs_status_check');
-    await store.pool.query(`ALTER TABLE ovo_jobs ADD CONSTRAINT ovo_jobs_status_check CHECK (status IN (
+    await store.pool
+      .query(`ALTER TABLE ovo_jobs ADD CONSTRAINT ovo_jobs_status_check CHECK (status IN (
       'queued', 'owned', 'dialing', 'reconcile_required', 'accepted', 'connected',
       'completed', 'failed', 'cancelled', 'superseded'))`);
   });
@@ -287,10 +364,14 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('lost campaign admission lea
   async function run(lostJobEpoch: boolean) {
     const id = randomUUID();
     await store.enqueue({
-      id, workspaceId: schema, idempotencyKey: id,
+      id,
+      workspaceId: schema,
+      idempotencyKey: id,
       payload: {
-        kind: 'campaign_dial_candidate', contactId: 'contact-1',
-        admissionOwnerId: 'admission-1', admissionEpoch: 3,
+        kind: 'campaign_dial_candidate',
+        contactId: 'contact-1',
+        admissionOwnerId: 'admission-1',
+        admissionEpoch: 3,
       },
     });
     const deleted = vi.fn(async () => undefined);
@@ -298,29 +379,42 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('lost campaign admission lea
     const releaseProtection = vi.fn(async () => undefined);
     const authorizeDial = vi.fn(async () => {
       if (lostJobEpoch)
-        await store.pool.query('UPDATE ovo_jobs SET owner_epoch = owner_epoch + 1 WHERE id = $1', [id]);
+        await store.pool.query('UPDATE ovo_jobs SET owner_epoch = owner_epoch + 1 WHERE id = $1', [
+          id,
+        ]);
       return { kind: 'blocked' as const, reason: 'lease_lost' };
     });
     const runner = new WorkerRunner(
-      'worker-1', store,
+      'worker-1',
+      store,
       { delete: deleted, changeVisibility: async () => undefined } as never,
       { check: async () => ({ ready: true as const }) },
       { establish: async () => true, renew: async () => true, release: releaseProtection },
       { dial } as never,
       {
-        leaseMs: 60_000, protectionRenewMs: 120_000, deferSeconds: 5,
-        visibilitySeconds: 120, workerEndpoint: 'ws://worker.test/internal/media',
-        handshakeTtlMs: 60_000, streamUrl: 'wss://voice.test/media',
-        statusCallbackUrl: 'https://voice.test/status', campaigns: { authorizeDial },
+        leaseMs: 60_000,
+        protectionRenewMs: 120_000,
+        deferSeconds: 5,
+        visibilitySeconds: 120,
+        workerEndpoint: 'ws://worker.test/internal/media',
+        handshakeTtlMs: 60_000,
+        streamUrl: 'wss://voice.test/media',
+        statusCallbackUrl: 'https://voice.test/status',
+        campaigns: { authorizeDial },
       },
     );
     const outcome = await runner.handle({
-      messageId: id, receiptHandle: `receipt-${id}`, receiveCount: 1,
+      messageId: id,
+      receiptHandle: `receipt-${id}`,
+      receiveCount: 1,
       reference: { schemaVersion: 1, jobId: id },
     });
-    const row = (await store.pool.query(
-      'SELECT status, last_error, owner_epoch, dial_request_id FROM ovo_jobs WHERE id = $1', [id],
-    )).rows[0];
+    const row = (
+      await store.pool.query(
+        'SELECT status, last_error, owner_epoch, dial_request_id FROM ovo_jobs WHERE id = $1',
+        [id],
+      )
+    ).rows[0];
     return { outcome, row, deleted, dial, releaseProtection, authorizeDial };
   }
 
@@ -328,8 +422,10 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('lost campaign admission lea
     const result = await run(false);
     expect(result.outcome).toEqual({ kind: 'failed', reason: 'campaign-dial-blocked:lease_lost' });
     expect(result.row).toMatchObject({
-      status: 'superseded', last_error: 'campaign-dial-blocked:lease_lost',
-      owner_epoch: '1', dial_request_id: null,
+      status: 'superseded',
+      last_error: 'campaign-dial-blocked:lease_lost',
+      owner_epoch: '1',
+      dial_request_id: null,
     });
     expect(result.deleted).toHaveBeenCalledOnce();
     expect(result.dial).not.toHaveBeenCalled();

@@ -166,7 +166,10 @@ export async function dialOwnedJob(input: {
   if (input.isDraining()) {
     await cost?.releaseBeforeStart();
     await input.store.release(
-      job.id, input.workerId, job.ownerEpoch, 'worker-draining',
+      job.id,
+      input.workerId,
+      job.ownerEpoch,
+      'worker-draining',
       new Date(Date.now() + input.options.deferSeconds * 1_000),
     );
     await input.queue.delete(delivery);

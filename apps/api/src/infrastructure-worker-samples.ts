@@ -17,8 +17,13 @@ export async function readWorkerSamples(
   maxWorkerSamples: number,
 ) {
   const result = await pool.query<{
-    ready: string; reserved: string; active: string; starting: string;
-    draining: string; total: string; freshest: Date | null;
+    ready: string;
+    reserved: string;
+    active: string;
+    starting: string;
+    draining: string;
+    total: string;
+    freshest: Date | null;
   }>(
     `SELECT count(*) FILTER (WHERE state='ready_idle')::text AS ready,
       count(*) FILTER (WHERE state='reserved')::text AS reserved,
@@ -39,8 +44,12 @@ export async function readWorkerSamples(
   const row = result.rows[0]!;
   return {
     counts: {
-      ready: Number(row.ready), reserved: Number(row.reserved), active: Number(row.active),
-      starting: Number(row.starting), draining: Number(row.draining), total: Number(row.total),
+      ready: Number(row.ready),
+      reserved: Number(row.reserved),
+      active: Number(row.active),
+      starting: Number(row.starting),
+      draining: Number(row.draining),
+      total: Number(row.total),
     },
     freshestHeartbeatAt: row.freshest?.toISOString() ?? null,
     samples: samples.rows.slice(0, maxWorkerSamples),

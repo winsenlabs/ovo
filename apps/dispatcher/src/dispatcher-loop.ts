@@ -1,4 +1,7 @@
-import { computeCapacitySignal, type CapacitySignalInput } from '@winsendotai/ovo-plugin-orchestration';
+import {
+  computeCapacitySignal,
+  type CapacitySignalInput,
+} from '@winsendotai/ovo-plugin-orchestration';
 
 export interface DispatcherTask {
   id: string;
@@ -17,13 +20,15 @@ export class DispatcherLoop {
   private status = { healthy: false, detail: 'initializing' };
   private lastSignal?: Signal;
 
-  constructor(private readonly input: {
-    tasks: readonly DispatcherTask[];
-    readCapacityInput(): Promise<CapacitySignalInput>;
-    publish(signal: Signal): Promise<void>;
-    log?: (entry: Record<string, unknown>) => void;
-    random?: () => number;
-  }) {}
+  constructor(
+    private readonly input: {
+      tasks: readonly DispatcherTask[];
+      readCapacityInput(): Promise<CapacitySignalInput>;
+      publish(signal: Signal): Promise<void>;
+      log?: (entry: Record<string, unknown>) => void;
+      random?: () => number;
+    },
+  ) {}
 
   health(): { healthy: boolean; detail: string; lastCapacity?: Signal } {
     return { ...this.status, lastCapacity: this.lastSignal };
@@ -73,7 +78,12 @@ export class DispatcherLoop {
     return Math.floor((this.input.random?.() ?? Math.random()) * (maxMs + 1));
   }
 
-  private schedule(delayMs: number, tick: () => Promise<void>, intervalMs: number, task?: DispatcherTask): void {
+  private schedule(
+    delayMs: number,
+    tick: () => Promise<void>,
+    intervalMs: number,
+    task?: DispatcherTask,
+  ): void {
     if (this.abort.signal.aborted) return;
     const timer = setTimeout(() => {
       this.timers.delete(timer);
@@ -81,7 +91,11 @@ export class DispatcherLoop {
         try {
           await tick();
         } catch (error) {
-          this.input.log?.({ event: 'background_task_failed', taskId: task?.id, error: String(error) });
+          this.input.log?.({
+            event: 'background_task_failed',
+            taskId: task?.id,
+            error: String(error),
+          });
         } finally {
           if (!this.abort.signal.aborted)
             this.schedule(intervalMs + this.jitter(task?.jitterMs ?? 0), tick, intervalMs, task);

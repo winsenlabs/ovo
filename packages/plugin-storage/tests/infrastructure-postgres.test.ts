@@ -132,9 +132,18 @@ suite('PostgreSQL infrastructure snapshot', () => {
        VALUES ('workers', $1::jsonb, now(), now())
        ON CONFLICT (service_key) DO UPDATE SET signal=EXCLUDED.signal,
          signal_at=EXCLUDED.signal_at, published_at=EXCLUDED.published_at`,
-      [JSON.stringify({ requiredSlots: 3, provisionedTasks: 2, busySlots: 1,
-        readyIdleSlots: 1, eligibleJobs: 2, campaignDemand: 0,
-        oldestEligibleJobAgeSeconds: 5, at: new Date().toISOString() })],
+      [
+        JSON.stringify({
+          requiredSlots: 3,
+          provisionedTasks: 2,
+          busySlots: 1,
+          readyIdleSlots: 1,
+          eligibleJobs: 2,
+          campaignDemand: 0,
+          oldestEligibleJobAgeSeconds: 5,
+          at: new Date().toISOString(),
+        }),
+      ],
     );
     const service = new PostgresInfrastructureService(pool, {
       organizationId: workspaceId,

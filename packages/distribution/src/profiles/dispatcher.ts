@@ -9,14 +9,17 @@ export const rows: ProfileRows = (profile, env) => {
   return [
     ...durableRows(profile, env),
     { id: 'ovo.operations.postgres' },
-    { id: '@winsendotai/ovo-plugin-ledger',
-      config: { databaseUrl: required(env, 'DATABASE_URL') } },
+    {
+      id: '@winsendotai/ovo-plugin-ledger',
+      config: { databaseUrl: required(env, 'DATABASE_URL') },
+    },
     { id: 'ovo.dispatcher.node-net' },
     {
       id: `@winsendotai/ovo-plugin-orchestration/${signal}-capacity-signal`,
-      config: signal === 'cloudwatch'
-        ? { environment: required(env, 'OVO_ENVIRONMENT'), region: required(env, 'AWS_REGION') }
-        : {},
+      config:
+        signal === 'cloudwatch'
+          ? { environment: required(env, 'OVO_ENVIRONMENT'), region: required(env, 'AWS_REGION') }
+          : {},
     },
     { id: '@winsendotai/ovo-plugin-orchestration/job-hint-sweeper', config: {} },
     {

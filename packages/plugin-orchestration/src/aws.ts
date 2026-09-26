@@ -17,13 +17,12 @@ import {
   PutMetricDataCommand,
   type CloudWatchClientConfig,
 } from '@aws-sdk/client-cloudwatch';
-import { CAPACITY_METRIC_NAMES, type CapacitySignal, type CapacitySignalPublisher } from '@winsendotai/ovo-contracts';
-import type {
-  DurableQueue,
-  JobReference,
-  QueueDelivery,
-  TaskProtection,
-} from './types.ts';
+import {
+  CAPACITY_METRIC_NAMES,
+  type CapacitySignal,
+  type CapacitySignalPublisher,
+} from '@winsendotai/ovo-contracts';
+import type { DurableQueue, JobReference, QueueDelivery, TaskProtection } from './types.ts';
 
 export interface EcsServiceApi {
   describe(input: {
@@ -229,20 +228,22 @@ export class AwsCapacityMetricPublisher implements CapacitySignalPublisher {
       [names.campaign, signal.campaignDemand],
       [names.oldestAge, signal.oldestEligibleJobAgeSeconds],
     ] as const;
-    await this.client.send(new PutMetricDataCommand({
-      Namespace: names.namespace,
-      MetricData: values.map(([MetricName, Value]) => ({
-        MetricName,
-        Value,
-        Unit: MetricName === names.oldestAge ? 'Seconds' : 'Count',
-        StorageResolution: 1,
-        Timestamp: signal.at,
-        Dimensions: [
-          { Name: 'Environment', Value: this.environment },
-          { Name: 'Service', Value: 'workers' },
-        ],
-      })),
-    }));
+    await this.client.send(
+      new PutMetricDataCommand({
+        Namespace: names.namespace,
+        MetricData: values.map(([MetricName, Value]) => ({
+          MetricName,
+          Value,
+          Unit: MetricName === names.oldestAge ? 'Seconds' : 'Count',
+          StorageResolution: 1,
+          Timestamp: signal.at,
+          Dimensions: [
+            { Name: 'Environment', Value: this.environment },
+            { Name: 'Service', Value: 'workers' },
+          ],
+        })),
+      }),
+    );
     this.previous = signal;
   }
 

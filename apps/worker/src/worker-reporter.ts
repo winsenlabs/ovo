@@ -1,5 +1,6 @@
 import type { PostgresOrchestrationStore } from '@winsendotai/ovo-plugin-orchestration';
 import { WorkerInfrastructureMetrics } from './infrastructure-metrics.ts';
+import type { WorkerStatus } from './worker-health.ts';
 
 /** Advisory-locked slot claim; the worker report keeps its live token row leased. */
 export class InboundFloorLease {
@@ -42,8 +43,6 @@ export class InboundFloorLease {
   }
 }
 
-type WorkerState = 'starting' | 'dial-disabled' | 'ready' | 'active' | 'draining' | 'failed';
-
 export class WorkerReporter {
   private readonly metrics = new WorkerInfrastructureMetrics();
   private timer?: NodeJS.Timeout;
@@ -53,7 +52,7 @@ export class WorkerReporter {
       store: PostgresOrchestrationStore;
       workerId: string;
       ownershipEpoch: number;
-      state: () => WorkerState;
+      state: () => WorkerStatus['state'];
       onFailure: (error: unknown) => void;
     },
   ) {}
@@ -86,7 +85,8 @@ export class WorkerReporter {
       workerId: this.input.workerId,
       ownershipEpoch: this.input.ownershipEpoch,
       leaseMs: 15_000,
-      state: state === 'active' ? 'active' : state === 'draining' ? 'draining' : 'ready_idle',
+      state:
+        state === 'active' || state === 'reserved' || state === 'draining' ? state : 'ready_idle',
       metadata: this.metadata(),
     });
   }

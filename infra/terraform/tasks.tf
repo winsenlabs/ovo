@@ -140,6 +140,7 @@ resource "aws_ecs_task_definition" "worker" {
       { name = "OVO_MEDIA_WORKER_TOKEN", valueFrom = "${var.runtime_secret_arn}:OVO_MEDIA_WORKER_TOKEN::" },
       { name = "OVO_SECRETS_MASTER_KEY", valueFrom = "${var.runtime_secret_arn}:OVO_SECRETS_MASTER_KEY::" },
       { name = "OVO_CARRIER_ENV_BINDINGS", valueFrom = "${var.runtime_secret_arn}:OVO_CARRIER_ENV_BINDINGS::" },
+      { name = "OVO_INBOUND_ROUTE_SECRET", valueFrom = "${var.runtime_secret_arn}:OVO_INBOUND_ROUTE_SECRET::" },
     ])
     stopTimeout      = 120
     healthCheck      = { command = ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4100/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""], interval = 15, timeout = 5, retries = 3, startPeriod = 30 }

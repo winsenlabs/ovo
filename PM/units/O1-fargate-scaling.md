@@ -191,3 +191,171 @@ CONSTRAINTS:
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/typecheck-scope.mjs infra packages/plugin-orchestration apps/dispatcher apps/worker/src apps/worker/tests/worker.test.ts apps/worker/tests/inbound-runtime.test.ts apps/api/src/infrastructure-service.ts apps/api/src/routes/infrastructure.ts packages/distribution/src/profiles`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run packages/plugin-orchestration apps/dispatcher apps/worker/tests/worker.test.ts apps/worker/tests/inbound-runtime.test.ts apps/worker/tests/infrastructure-metrics.test.ts apps/worker/tests/campaign-dial.test.ts apps/api/tests/infrastructure.test.ts infra --reporter=dot`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/check-terraform.mjs`
+
+## Builder checkpoint — 2026-09-26 (not Built)
+
+### Scope and migration sequence
+
+The orchestration migration is `006_job_hints_drop_capacity.sql`, superseding the
+specification's proposed `004_job_hints_drop_capacity.sql`: foundation already has
+immutable orchestration migrations 004 and 005. This is a choice inside O1's owned
+package, not a claimed checker exception. A scan of all 14 local branches found
+exactly one orchestration 006 claim, this unit's file on `w2/O1`; M1's control-store
+006 belongs to a different migration ledger. Existing migrations are unchanged.
+
+The F4 owner map on the unit board assigns `worker-termination.ts`, `worker-dial.ts`,
+`carrier-dial-settlement.ts` and their F4 tests to O1. The forced-exit cost obligation
+on the board applies to inbound shutdown as well as outbound shutdown and lease
+loss. The frozen media runtime remains unchanged; termination uses the supplied
+`terminateOwnedJobAndFinalize` callback before releasing task protection and before
+closing the shared media runtime.
+
+### Independent review corrections and true negatives
+
+- Active inbound shutdown now captures the session identity, fences and terminates
+  through the production callback, and finalizes cost before releasing protection.
+  Both success and carrier-resolution-failure tests run through `runWorkerLoop`.
+  Before the fix, their complete event sequence was only `protection-release`,
+  `media-close`, `composition-close`; the assertions failed because fence,
+  termination and finalization were absent. Cleanup still runs after termination
+  failure and the worker's draining status records the error.
+- A worker remains `reserved` throughout an outbound admission or dial, including
+  periodic heartbeat reports. The real loop regression held `runner.handle`
+  pending for ten seconds. Before the fix, the report sequence was `ready_idle`,
+  `reserved`, `ready_idle`, `ready_idle`; afterward both heartbeat reports remain
+  `reserved`, and completion or draining changes the state explicitly.
+- Shutdown waits for an in-flight dial before disposing shared resources. A late
+  accepted result is terminated and finalized while the worker remains draining.
+  The true negative initiated shutdown while the dial was blocked: old code had
+  already emitted `media-close`, `composition-close` before the dial settled and
+  then returned to `active` on the late accepted result.
+- Outbound shutdown preserves lease/protection and shared-resource cleanup even
+  when carrier termination or cost finalization rejects. Both true negatives
+  omitted `media-close` and `composition-close` after `finalize`; the repaired
+  production loop records the failure and the tests assert each lease stop and
+  protection release exactly once. A late unknown dial remains in reconciliation
+  and the draining loop does not dial again.
+- The production worker requires `OVO_INBOUND_ROUTE_SECRET`; Terraform and Compose
+  now supply it, and the Compose API supplies the media base URL and route secret
+  required to construct carrier URLs. Tests read the actual service blocks.
+  Before the fix, five assertions failed for missing service-specific inputs;
+  the resulting Terraform/Compose suite passes 13 tests.
+- Default log sinks now serialize event objects as JSON so Terraform's JSON event
+  metric filters can observe them. Four tests capture actual Node Console output
+  for hint exhaustion, protection-renewal failure, malformed DLQ data and capacity
+  signals. Old output failed `JSON.parse` at position 2 (three error events) or
+  position 4 (multiline capacity event). Injected structured-log callbacks retain
+  their object argument.
+- The carrier-correlation test now asserts a synchronous validation throw with
+  `expect(() => ...).toThrow`; `.rejects` evaluated the throw before installing its
+  matcher. The runtime still refuses missing organization/carrier/request scope.
+
+### Postgres isolation correction
+
+The first complete alias-enabled serial run returned 153 passed / 1 failed:
+`dispatcher-process.test.ts` waited eight seconds for health to become ready.
+Independent reproduction seeded one live worker whose observation was forty
+seconds old; the real `/health` response was `{"healthy":false,"detail":"capacity
+input stale or inconsistent"}`. A prior suite's worker row was correctly rejected
+by the production freshness check. The dispatcher production suite now creates a
+unique Postgres schema and drops it afterward, passing that schema through the
+real DATABASE_URL. Neither the eight-second test deadline nor the production
+fifteen-second freshness limit was relaxed. The focused production entry run then
+passed all three cases.
+
+### Remaining manifest decision
+
+The dispatcher source requires four direct workspace dependencies:
+`@winsendotai/ovo-contracts`, `@winsendotai/ovo-distribution`,
+`@winsendotai/ovo-plugin-kit` and `@winsendotai/ovo-plugin-ledger`. The unit owns
+`apps/dispatcher/**` **except package.json** and the root lockfile is frozen.
+`apps/dispatcher/package.json` and the corresponding `pnpm-lock.yaml` importer are
+still unchanged, pending the requested checker ruling. No import violation is
+baselined as a workaround.
+
+Temporary `/tmp/ovo-o1-vitest.config.mts` and `/tmp/ovo-o1-tsconfig.json` map only
+those four exact package names to the existing package entry points for source
+verification. Their results are interim source proofs, not the normal green bar.
+The ordinary scoped typecheck reports six missing-module errors and four inferred
+parameter errors; ordinary tests cannot load two dispatcher suites.
+
+### Carry-forwards
+
+| Item                                                                                                                                                                         | Owner  |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Preserve the orchestration 006 sequence when merging migrations; the capacity tables are intentionally dropped and the restore-fence script's guarded block stays unchanged. | I1     |
+| Resolve the four dispatcher manifest dependencies and lock importer before claiming a normal green bar; temporary aliases are not a deployable dependency fix.               | O1, I1 |
+| Keep inbound/outbound forced-exit finalization before protection release and shared media disposal. The frozen media close callback contract remains C2's seam.              | O2, C2 |
+| Preserve service-specific route secrets and JSON log event shapes when integrating deployment profiles and alarm filters. No live AWS validation has been performed.         | I1     |
+
+### Verification commands and measurements
+
+All commands use Node 22 and this worktree. The actual test scope includes the F4
+termination regression and the storage infrastructure tests in addition to the
+original specification's command:
+
+```sh
+O1_TEST_PATHS=(packages/plugin-orchestration apps/dispatcher
+  apps/worker/tests/worker.test.ts apps/worker/tests/inbound-runtime.test.ts
+  apps/worker/tests/infrastructure-metrics.test.ts apps/worker/tests/campaign-dial.test.ts
+  apps/worker/tests/f4-termination.test.ts apps/api/tests/infrastructure.test.ts
+  packages/plugin-storage/tests/infrastructure-postgres.test.ts infra)
+pnpm exec vitest run "${O1_TEST_PATHS[@]}" --reporter=dot
+OVO_TEST_POSTGRES_URL=postgres://postgres:ovo@127.0.0.1:32896/ovo \
+  pnpm exec vitest run "${O1_TEST_PATHS[@]}" --reporter=dot --no-file-parallelism
+```
+
+The source-proof variants add `--config /tmp/ovo-o1-vitest.config.mts` after `run`.
+Only the latter variants resolve the four pending direct dependencies by their
+exact names; the repository configuration, manifests and lockfile are unchanged.
+
+| Check                                                       | Exit | Measurement                                                                                                                                                          |
+| ----------------------------------------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ordinary default scoped tests                               | 1    | 90 passed / 59 database-gated skips; two dispatcher suites fail to load their missing dependencies                                                                   |
+| Ordinary Postgres scoped serial tests                       | 1    | 149 passed / 0 skipped; the same two suites fail to load                                                                                                             |
+| Interim alias Postgres serial scoped tests                  | 0    | 154 passed / 0 skipped / 0 failed across 26 files after schema isolation                                                                                             |
+| Interim alias default scoped tests                          | 0    | 93 passed / 61 database-gated skips                                                                                                                                  |
+| Ordinary scoped typecheck                                   | 1    | Six missing-module diagnostics and four resulting implicit-any diagnostics, all under dispatcher                                                                     |
+| Interim alias scoped typecheck                              | 0    | Same source prefixes, with `OVO_TYPECHECK_PROJECT=/tmp/ovo-o1-tsconfig.json`                                                                                         |
+| `pnpm build`                                                | 0    | API, worker and dispatcher bundles plus the console production build                                                                                                 |
+| Terraform via pinned Docker image                           | 0    | `OVO_TERRAFORM_BIN=/nonexistent-ovo-terraform node scripts/check-terraform.mjs`: `hashicorp/terraform:1.10` fmt check, init without backend, validate; no plan/apply |
+| Terraform/Compose service-input tests                       | 0    | 13 passed after five substantive missing-input failures on the old service blocks                                                                                    |
+| Default JSON logging plus neighboring task/protection tests | 0    | 12 passed; four new default-console tests failed before the correction                                                                                               |
+
+The independent review's final bounded command was:
+
+```sh
+pnpm exec vitest run \
+  packages/plugin-orchestration/tests/default-logging.test.ts \
+  packages/plugin-orchestration/tests/protection-renewal.test.ts \
+  packages/plugin-orchestration/tests/background-tasks.test.ts \
+  apps/worker/tests/inbound-runtime.test.ts apps/worker/tests/infrastructure-metrics.test.ts \
+  apps/worker/tests/f4-termination.test.ts infra --reporter=dot
+```
+
+It returned **57 passed / 10 database-gated skips**. Normal collection has
+`90 + 59 = 149` cases; the temporary alias admits five additional dispatcher
+cases, giving `93 + 61 = 154`, identical to `154 + 0` in the serial Postgres source proof. No test was disabled to produce these counts.
+
+The final hygiene pair is the following scoped lint plus the full format check:
+
+```sh
+node scripts/lint.mjs --only infra packages/plugin-orchestration apps/dispatcher apps/worker \
+  apps/api/src/infrastructure-service.ts apps/api/src/infrastructure-types.ts \
+  apps/api/src/infrastructure-worker-samples.ts apps/api/src/infrastructure-plugin.ts \
+  apps/api/src/infrastructure-runtime.ts apps/api/src/routes/infrastructure.ts \
+  apps/api/tests/infrastructure.test.ts packages/plugin-storage/tests/infrastructure-postgres.test.ts \
+  packages/distribution/src/profiles/worker.ts packages/distribution/src/profiles/dispatcher.ts
+pnpm format:check
+```
+
+Both exit **0**. Lint runs all seven gates; the duplication scan covers 762 source
+files and 58 existing baseline pairs. No baseline was added or modified. The
+expanded worker scope includes inherited modules (largest 396 canonical lines);
+the modified inbound runtime is 298, worker loop 290, and the infrastructure
+regression test 493, below its 500-line limit.
+
+The disposable `postgres:17.6` instance used only loopback port 32896. No real
+carrier/provider request, AWS API operation, Terraform plan/apply, merge or push
+was performed. The pending dispatcher manifest/lockfile ruling prevents a normal
+full green bar; this remains a WIP checkpoint, not **Built – awaiting check**.

@@ -36,7 +36,13 @@ export async function recordCarrierCallIdMismatch(
 
 export async function persistBoundCarrierIdentity(
   client: PoolClient,
-  row: { session_id: string; organization_id: string; carrier_id: string; job_id: string; carrier_call_id: string | null },
+  row: {
+    session_id: string;
+    organization_id: string;
+    carrier_id: string;
+    job_id: string;
+    carrier_call_id: string | null;
+  },
   primary: string | null,
   alias: string | null,
 ): Promise<void> {

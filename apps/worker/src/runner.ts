@@ -43,13 +43,27 @@ export class WorkerRunner {
   }
 
   async defer(delivery: QueueDelivery, reason: string): Promise<DeliveryOutcome> {
-    const claim = await this.store.claim(delivery.reference.jobId, this.workerId, this.options.leaseMs);
+    const claim = await this.store.claim(
+      delivery.reference.jobId,
+      this.workerId,
+      this.options.leaseMs,
+    );
     const notBefore = new Date(Date.now() + this.options.deferSeconds * 1_000);
     if (claim.kind === 'execute') {
-      await this.store.release(claim.job.id, this.workerId, claim.job.ownerEpoch, reason, notBefore);
+      await this.store.release(
+        claim.job.id,
+        this.workerId,
+        claim.job.ownerEpoch,
+        reason,
+        notBefore,
+      );
     } else if (claim.kind === 'reconcile') {
       await this.store.deferReconciliation(
-        claim.job.id, this.workerId, claim.job.ownerEpoch, reason, notBefore,
+        claim.job.id,
+        this.workerId,
+        claim.job.ownerEpoch,
+        reason,
+        notBefore,
       );
     }
     await this.queue.delete(delivery);
@@ -171,8 +185,15 @@ export class WorkerRunner {
     }
 
     const campaign = await prepareCampaignDial({
-      job, workerId: this.workerId, store: this.store, queue: this.queue,
-      delivery, lease, visibility, renewal, options: this.options,
+      job,
+      workerId: this.workerId,
+      store: this.store,
+      queue: this.queue,
+      delivery,
+      lease,
+      visibility,
+      renewal,
+      options: this.options,
     });
     if (campaign.kind === 'outcome') return campaign.outcome;
     const dialPayload = campaign.payload;

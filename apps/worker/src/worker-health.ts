@@ -1,11 +1,11 @@
 import { createServer } from 'node:http';
 
-type WorkerState = 'starting' | 'dial-disabled' | 'ready' | 'active' | 'draining' | 'failed';
+export interface WorkerStatus {
+  state: 'starting' | 'dial-disabled' | 'ready' | 'reserved' | 'active' | 'draining' | 'failed';
+  detail: string;
+}
 
-export function createWorkerHealthServer(
-  port: number,
-  snapshot: () => { state: WorkerState; detail: string },
-) {
+export function createWorkerHealthServer(port: number, snapshot: () => WorkerStatus) {
   const server = createServer((request, response) => {
     if (request.url !== '/health' && request.url !== '/ready') {
       response.writeHead(404).end();
@@ -26,4 +26,15 @@ export function createWorkerHealthServer(
   });
   server.listen(port, '0.0.0.0');
   return server;
+}
+
+export function watchWorkerShutdown(
+  input: { registerShutdown?: (callback: () => void) => void },
+  shutdown: () => Promise<void>,
+): void {
+  if (input.registerShutdown) input.registerShutdown(() => void shutdown());
+  else {
+    process.once('SIGTERM', () => void shutdown());
+    process.once('SIGINT', () => void shutdown());
+  }
 }

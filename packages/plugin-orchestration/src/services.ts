@@ -41,7 +41,10 @@ export class ProtectionRenewal {
     private readonly protection: TaskProtection,
     private readonly intervalMs: number,
     private readonly onRenewalFailure: () => void | Promise<void>,
-    private readonly log: (event: { event: 'protection_renewal_failed'; remainingMs: number }) => void = console.error,
+    private readonly log: (event: {
+      event: 'protection_renewal_failed';
+      remainingMs: number;
+    }) => void = (event) => console.error(JSON.stringify(event)),
   ) {}
 
   async establish(): Promise<boolean> {

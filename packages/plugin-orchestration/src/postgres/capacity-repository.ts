@@ -171,7 +171,11 @@ export class CapacityRepository {
       counts.total += Number(row.count);
       observedAtMs = Math.min(observedAtMs, row.observed_at.getTime());
     }
-    return { counts, observedAtMs, eligibleUnclaimed: Number(jobs.rows[0]?.count ?? 0),
-      oldestEligibleJobAgeSeconds: Math.ceil(Math.max(0, Number(jobs.rows[0]?.oldest_age ?? 0))) };
+    return {
+      counts,
+      observedAtMs,
+      eligibleUnclaimed: Number(jobs.rows[0]?.count ?? 0),
+      oldestEligibleJobAgeSeconds: Math.ceil(Math.max(0, Number(jobs.rows[0]?.oldest_age ?? 0))),
+    };
   }
 }

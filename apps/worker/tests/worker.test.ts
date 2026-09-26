@@ -64,7 +64,13 @@ class MemoryStore implements DurableJobStore {
   async heartbeat(): Promise<boolean> {
     return true;
   }
-  async release(_jobId: string, _workerId: string, _epoch: number, reason: string, notBefore?: Date): Promise<boolean> {
+  async release(
+    _jobId: string,
+    _workerId: string,
+    _epoch: number,
+    reason: string,
+    notBefore?: Date,
+  ): Promise<boolean> {
     this.state = 'queued';
     this.released = { reason, notBefore };
     return true;
@@ -175,8 +181,12 @@ class MemoryQueue implements DurableQueue {
   visibilityChanges = 0;
   send = async () => ({ messageId: 'sent' });
   receive = async () => [];
-  delete = async () => { this.deleted += 1; };
-  changeVisibility = async () => { this.visibilityChanges += 1; };
+  delete = async () => {
+    this.deleted += 1;
+  };
+  changeVisibility = async () => {
+    this.visibilityChanges += 1;
+  };
 }
 
 class FakeProtection implements TaskProtection {
@@ -187,8 +197,7 @@ class FakeProtection implements TaskProtection {
   async renew() {
     return this.allowed;
   }
-  async release() {
-  }
+  async release() {}
 }
 
 class FakeTelephony implements TelephonyControl {
@@ -221,19 +230,34 @@ function makeWorker(
   protection = true,
   workerId = 'worker-1',
 ): WorkerRunner {
-  return new WorkerRunner(workerId, store, queue,
-    { check: async () => readiness }, new FakeProtection(protection), telephony);
+  return new WorkerRunner(
+    workerId,
+    store,
+    queue,
+    { check: async () => readiness },
+    new FakeProtection(protection),
+    telephony,
+  );
 }
 
 describe('worker admission simulation', () => {
   it.each(['worker-draining', 'inbound-reserved'])(
-    'claims and releases %s with a future due time before deleting the hint', async (reason) => {
+    'claims and releases %s with a future due time before deleting the hint',
+    async (reason) => {
       const store = new MemoryStore();
       const queue = new MemoryQueue();
-      const telephony = new FakeTelephony({ kind: 'rejected', requestId: 'unused', reason: 'unused', retryable: false });
+      const telephony = new FakeTelephony({
+        kind: 'rejected',
+        requestId: 'unused',
+        reason: 'unused',
+        retryable: false,
+      });
       const worker = makeWorker(store, queue, telephony);
       if (reason === 'worker-draining') worker.beginDrain();
-      const outcome = reason === 'worker-draining' ? await worker.handle(delivery) : await worker.defer(delivery, reason);
+      const outcome =
+        reason === 'worker-draining'
+          ? await worker.handle(delivery)
+          : await worker.defer(delivery, reason);
       expect(outcome).toEqual({ kind: 'deferred', reason });
       expect(store.released?.notBefore?.getTime()).toBeGreaterThan(Date.now());
       expect([queue.deleted, queue.visibilityChanges, telephony.dials]).toEqual([1, 0, 0]);
@@ -244,8 +268,10 @@ describe('worker admission simulation', () => {
     const store = new MemoryStore();
     const queue = new MemoryQueue();
     const telephony = new FakeTelephony({ kind: 'accepted', requestId: 'r', carrierCallId: 'CA1' });
-    const worker = makeWorker(store, queue, telephony,
-      { ready: false, reason: 'plugins-not-ready' });
+    const worker = makeWorker(store, queue, telephony, {
+      ready: false,
+      reason: 'plugins-not-ready',
+    });
     expect(await worker.handle(delivery)).toEqual({
       kind: 'deferred',
       reason: 'plugins-not-ready',
@@ -300,8 +326,14 @@ describe('worker admission simulation', () => {
       { kind: 'rejected', requestId: 'unused', reason: 'must-not-dial', retryable: false },
       { kind: 'accepted', carrierCallId: 'CA-reconciled' },
     );
-    const worker = makeWorker(store, queue, telephony,
-      { ready: false, reason: 'not-needed-for-reconcile' }, false, 'worker-2');
+    const worker = makeWorker(
+      store,
+      queue,
+      telephony,
+      { ready: false, reason: 'not-needed-for-reconcile' },
+      false,
+      'worker-2',
+    );
     expect(await worker.handle(delivery)).toEqual({
       kind: 'reconcile_required',
       jobId: delivery.reference.jobId,
@@ -327,8 +359,7 @@ describe('worker admission simulation', () => {
         reason: 'unused',
         retryable: false,
       });
-      const worker = makeWorker(store, queue, telephony,
-        { ready: true }, true, 'worker-duplicate');
+      const worker = makeWorker(store, queue, telephony, { ready: true }, true, 'worker-duplicate');
       expect(await worker.handle(delivery)).toMatchObject({ kind: 'deferred', reason });
       expect(queue.deleted).toBe(1);
       expect(queue.visibilityChanges).toBe(0);

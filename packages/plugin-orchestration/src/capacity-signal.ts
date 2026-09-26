@@ -42,7 +42,13 @@ function natural(value: number): boolean {
 /** The dispatcher publishes demand; Application Auto Scaling alone changes desired count. */
 export function computeCapacitySignal(input: CapacitySignalInput): CapacitySignal | undefined {
   const { counts } = input;
-  const parts = [counts.readyIdle, counts.reserved, counts.active, counts.starting, counts.draining];
+  const parts = [
+    counts.readyIdle,
+    counts.reserved,
+    counts.active,
+    counts.starting,
+    counts.draining,
+  ];
   const numbers = [
     input.nowMs,
     input.observedAtMs,
@@ -65,20 +71,24 @@ export function computeCapacitySignal(input: CapacitySignalInput): CapacitySigna
     input.observedAtMs > input.nowMs ||
     input.nowMs - input.observedAtMs > input.maxMetricAgeMs ||
     parts.reduce((sum, part) => sum + part, 0) !== counts.total
-  ) return undefined;
+  )
+    return undefined;
 
   const leadSeconds = input.prewarmLeadSeconds ?? 600;
   if (!natural(leadSeconds)) return undefined;
   let campaignDemand = 0;
   let prewarm = 0;
   for (const campaign of input.campaigns) {
-    if (![
-      campaign.scheduledAtMs,
-      campaign.maxConcurrency,
-      campaign.dueQueuedContacts,
-      campaign.alreadyAdmitted,
-      campaign.contacts,
-    ].every(natural)) return undefined;
+    if (
+      ![
+        campaign.scheduledAtMs,
+        campaign.maxConcurrency,
+        campaign.dueQueuedContacts,
+        campaign.alreadyAdmitted,
+        campaign.contacts,
+      ].every(natural)
+    )
+      return undefined;
     if (campaign.running || campaign.scheduledAtMs <= input.nowMs) {
       campaignDemand += Math.max(
         0,
@@ -99,7 +109,11 @@ export function computeCapacitySignal(input: CapacitySignalInput): CapacitySigna
     item[1] < lowest[1] ? item : lowest,
   );
   const jobs = Math.min(input.eligibleDueJobs, input.admissionHorizon);
-  const requested = busySlots + jobs + campaignDemand + prewarm +
+  const requested =
+    busySlots +
+    jobs +
+    campaignDemand +
+    prewarm +
     (input.inboundEnabled ? input.inboundWarmFloor : 0);
   return {
     requiredSlots: Math.max(busySlots, Math.min(hardMax, requested)),

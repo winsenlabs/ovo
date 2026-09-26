@@ -9,9 +9,12 @@ export async function startDispatcher(input: {
   port?: number;
   readProvisionedTasks?: () => Promise<number>;
   log?: (entry: Record<string, unknown>) => void;
-}): Promise<{ server: Server; loop: Awaited<ReturnType<typeof openDispatcherProcess>>['loop'];
+}): Promise<{
+  server: Server;
+  loop: Awaited<ReturnType<typeof openDispatcherProcess>>['loop'];
   composition: Awaited<ReturnType<typeof openDispatcherProcess>>['composition'];
-  close(): Promise<void> }> {
+  close(): Promise<void>;
+}> {
   const runtime = await openDispatcherProcess(input);
   const server = createServer((request, response) => {
     if (request.url !== '/health') {
@@ -25,8 +28,10 @@ export async function startDispatcher(input: {
   try {
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject);
-      server.listen(input.port ?? Number(input.env.PORT ?? 4002), input.host ?? '0.0.0.0',
-        () => { server.off('error', reject); resolve(); });
+      server.listen(input.port ?? Number(input.env.PORT ?? 4002), input.host ?? '0.0.0.0', () => {
+        server.off('error', reject);
+        resolve();
+      });
     });
   } catch (error) {
     await runtime.close();
@@ -34,13 +39,16 @@ export async function startDispatcher(input: {
   }
   runtime.loop.start();
   let closing: Promise<void> | undefined;
-  const close = () => closing ??= (async () => {
-    process.off('SIGTERM', onTerminate);
-    process.off('SIGINT', onTerminate);
-    await runtime.close();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  })();
-  const onTerminate = () => { void close(); };
+  const close = () =>
+    (closing ??= (async () => {
+      process.off('SIGTERM', onTerminate);
+      process.off('SIGINT', onTerminate);
+      await runtime.close();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    })());
+  const onTerminate = () => {
+    void close();
+  };
   process.once('SIGTERM', onTerminate);
   process.once('SIGINT', onTerminate);
   return { server, loop: runtime.loop, composition: runtime.composition, close };
@@ -51,5 +59,8 @@ if (process.argv[1] && /(?:^|\/)main\.(?:cjs|ts)$/.test(process.argv[1])) {
   void startDispatcher({
     env: process.env,
     log: (entry) => console.error(JSON.stringify(entry)),
-  }).catch((error) => { console.error(error); process.exitCode = 1; });
+  }).catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
 }

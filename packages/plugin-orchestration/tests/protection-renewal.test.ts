@@ -26,7 +26,9 @@ describe('ProtectionRenewal', () => {
     await vi.advanceTimersByTimeAsync(120_000);
     expect(subject.protection.renew).toHaveBeenCalledTimes(1);
     expect(subject.fatal).not.toHaveBeenCalled();
-    expect(subject.log).toHaveBeenCalledWith(expect.objectContaining({ event: 'protection_renewal_failed' }));
+    expect(subject.log).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'protection_renewal_failed' }),
+    );
     await vi.advanceTimersByTimeAsync(5_000);
     expect(subject.protection.renew).toHaveBeenCalledTimes(2);
     expect(subject.renewal.protectedUntil().getTime()).toBe(Date.now() + 3_600_000);
@@ -56,7 +58,10 @@ describe('ProtectionRenewal', () => {
     const subject = fixture();
     let finishFirst!: (value: boolean) => void;
     subject.protection.renew.mockImplementationOnce(
-      () => new Promise<boolean>((resolve) => { finishFirst = resolve; }),
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishFirst = resolve;
+        }),
     );
     await subject.renewal.establish();
     vi.advanceTimersByTime(120_000);

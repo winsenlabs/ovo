@@ -8,11 +8,9 @@ import { terminateActiveSession } from './worker-cleanup.ts';
 import { terminateOwnedJobAndFinalize } from './worker-termination.ts';
 import { WorkerReporter } from './worker-reporter.ts';
 import { env } from './worker-environment.ts';
+import { watchWorkerShutdown, type WorkerStatus } from './worker-health.ts';
 
-export interface WorkerStatus {
-  state: 'starting' | 'dial-disabled' | 'ready' | 'active' | 'draining' | 'failed';
-  detail: string;
-}
+export type { WorkerStatus } from './worker-health.ts';
 
 /** Delivery loop and active-session supervision; process composition lives in worker-process. */
 export async function runWorkerLoop(input: {
@@ -32,7 +30,7 @@ export async function runWorkerLoop(input: {
       await processRuntime.composition.dispose();
       server.close();
     };
-    watchShutdown(input, shutdown);
+    watchWorkerShutdown(input, shutdown);
     return;
   }
   const {
@@ -60,7 +58,13 @@ export async function runWorkerLoop(input: {
   let mediaRuntime: ReturnType<typeof createProductionWorkerMediaRuntime>;
   const terminateCostedJob = (jobId: string, ownerEpoch: number, reason: string) =>
     terminateOwnedJobAndFinalize({
-      jobId, ownerEpoch, reason, workerId, store, carriers, media: mediaRuntime,
+      jobId,
+      ownerEpoch,
+      reason,
+      workerId,
+      store,
+      carriers,
+      media: mediaRuntime,
       finalizeCost: (id) => costs.finalize(id),
     });
   const inboundRuntime = createInboundWorkerRuntime(
@@ -73,8 +77,8 @@ export async function runWorkerLoop(input: {
       operations,
       store,
       floor: store,
-      organizationId: process.env.OVO_INBOUND_CAPACITY_ENABLED === 'true'
-        ? env('OVO_ORGANIZATION_ID') : '',
+      organizationId:
+        process.env.OVO_INBOUND_CAPACITY_ENABLED === 'true' ? env('OVO_ORGANIZATION_ID') : '',
       inboundWarmFloor: Number(process.env.OVO_INBOUND_WARM_FLOOR ?? 0),
       telephony,
       costs,
@@ -95,6 +99,8 @@ export async function runWorkerLoop(input: {
     },
   );
   let active: Extract<DeliveryOutcome, { kind: 'accepted' }> | undefined;
+  let inFlight: Promise<DeliveryOutcome> | undefined;
+  const draining = () => status.state === 'draining';
   mediaRuntime = (input.createMedia ?? createProductionWorkerMediaRuntime)({
     httpServer: server,
     gatewayUrl: env('OVO_MEDIA_GATEWAY_WS_URL'),
@@ -157,19 +163,25 @@ export async function runWorkerLoop(input: {
       status.state = 'draining';
       runner.beginDrain();
       await reporter.stop();
+      await inFlight?.catch((error) => {
+        status.detail = `shutdown admission failed: ${String(error)}`;
+      });
       if (active) {
         try {
-          await terminateActiveSession({
-            active, reason: 'worker-shutdown', workerId, store, telephony,
-            carriers, media: mediaRuntime,
-          });
-        } finally {
-          await costs.finalize(active.jobId);
+          await terminateCostedJob(active.jobId, active.lease.ownerEpoch, 'worker-shutdown');
+        } catch (error) {
+          status.detail = `outbound shutdown failed: ${String(error)}`;
         }
         active.lease.stop();
-        await active.protection.release();
+        await active.protection.release().catch((error) => {
+          status.detail = `protection release failed: ${String(error)}`;
+        });
       }
-      await inboundRuntime?.close();
+      try {
+        await inboundRuntime?.close();
+      } catch (error) {
+        status.detail = `inbound shutdown failed: ${String(error)}`;
+      }
       await mediaRuntime.close('worker-shutdown');
       await telemetry.close();
       speechCache.close();
@@ -178,7 +190,7 @@ export async function runWorkerLoop(input: {
       await composition.dispose();
       server.close();
     })());
-  watchShutdown(input, shutdown);
+  watchWorkerShutdown(input, shutdown);
 
   while (status.state !== 'draining') {
     if (active) {
@@ -224,15 +236,25 @@ export async function runWorkerLoop(input: {
       visibilitySeconds: 120,
     });
     for (const delivery of deliveries) {
+      if (draining()) break;
       if (inboundRuntime && !(await inboundRuntime.suspendForOutbound())) {
         status.detail = 'Inbound capacity is reserved; deferred outbound delivery';
         await runner.defer(delivery, 'inbound-reserved');
         continue;
       }
-      await reporter.reportReserved();
-      const outcome = await runner.handle(delivery);
+      if (draining()) break;
+      status.state = 'reserved';
+      status.detail = 'Admitting outbound delivery';
+      inFlight = (async () => {
+        await reporter.reportReserved();
+        const outcome = await runner.handle(delivery);
+        if (outcome.kind === 'accepted') active = outcome;
+        return outcome;
+      })();
+      const outcome = await inFlight;
+      inFlight = undefined;
+      if (draining()) break;
       if (outcome.kind === 'accepted') {
-        active = outcome;
         status.state = 'active';
         status.detail = `Active carrier leg ${outcome.carrierCallId ?? outcome.carrierRequestId}`;
       } else if (outcome.kind === 'deferred' && outcome.reason.includes('protection')) {
@@ -248,15 +270,4 @@ export async function runWorkerLoop(input: {
     }
   }
   await shutdown();
-}
-
-function watchShutdown(
-  input: { registerShutdown?: (callback: () => void) => void },
-  shutdown: () => Promise<void>,
-): void {
-  if (input.registerShutdown) input.registerShutdown(() => void shutdown());
-  else {
-    process.once('SIGTERM', () => void shutdown());
-    process.once('SIGINT', () => void shutdown());
-  }
 }

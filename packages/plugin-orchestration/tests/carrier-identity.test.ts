@@ -109,10 +109,14 @@ describe.skipIf(!url)('carrier identity migrations and grants', () => {
       hinted_at: null,
       hint_count: 0,
     });
-    expect((await store.pool.query(
-      `SELECT to_regclass('ovo_capacity_writes') AS writes,
+    expect(
+      (
+        await store.pool.query(
+          `SELECT to_regclass('ovo_capacity_writes') AS writes,
         to_regclass('ovo_capacity_leases') AS leases`,
-    )).rows[0]).toEqual({ writes: null, leases: null });
+        )
+      ).rows[0],
+    ).toEqual({ writes: null, leases: null });
     expect(
       (
         await store.pool.query(

@@ -4,18 +4,25 @@ import type { PostgresOrchestrationStore } from './postgres.ts';
 import { SqsDeadLetterQueue, type DeadLetterQueue, type DeadLetterMessage } from './dlq.ts';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-type JobHintStore = { hints: {
-  sweep(limit?: number): Promise<{ hinted: number; poisoned: string[] }>;
-  resetHint(jobId: string): Promise<void>;
-} };
+type JobHintStore = {
+  hints: {
+    sweep(limit?: number): Promise<{ hinted: number; poisoned: string[] }>;
+    resetHint(jobId: string): Promise<void>;
+  };
+};
 
 function jobId(message: DeadLetterMessage): string | undefined {
   let parsed: unknown;
-  try { parsed = JSON.parse(message.body ?? ''); } catch { return undefined; }
+  try {
+    parsed = JSON.parse(message.body ?? '');
+  } catch {
+    return undefined;
+  }
   if (!parsed || typeof parsed !== 'object') return undefined;
   const value = parsed as { schemaVersion?: unknown; jobId?: unknown };
   return value.schemaVersion === 1 && typeof value.jobId === 'string' && uuid.test(value.jobId)
-    ? value.jobId : undefined;
+    ? value.jobId
+    : undefined;
 }
 
 export class JobHintSweeperTask implements BackgroundTask {
@@ -25,7 +32,8 @@ export class JobHintSweeperTask implements BackgroundTask {
 
   constructor(
     private readonly store: JobHintStore,
-    private readonly log: (entry: Record<string, unknown>) => void = console.error,
+    private readonly log: (entry: Record<string, unknown>) => void = (entry) =>
+      console.error(JSON.stringify(entry)),
   ) {}
 
   async tick(signal: AbortSignal): Promise<void> {
@@ -44,7 +52,8 @@ export class DlqReconcilerTask implements BackgroundTask {
   constructor(
     private readonly store: JobHintStore,
     private readonly queue: DeadLetterQueue,
-    private readonly log: (entry: Record<string, unknown>) => void = console.error,
+    private readonly log: (entry: Record<string, unknown>) => void = (entry) =>
+      console.error(JSON.stringify(entry)),
   ) {}
 
   async tick(signal: AbortSignal): Promise<void> {
@@ -66,24 +75,39 @@ export class DlqReconcilerTask implements BackgroundTask {
 export const jobHintSweeperPlugin = definePlugin(
   {
     id: '@winsendotai/ovo-plugin-orchestration/job-hint-sweeper',
-    version: '0.1.0', contractVersion: 1, scope: 'process',
-    requires: [Cap.orchestrationStore], provides: [Cap.backgroundTask],
-    configSchema: { type: 'object' }, secretFields: [],
+    version: '0.1.0',
+    contractVersion: 1,
+    scope: 'process',
+    requires: [Cap.orchestrationStore],
+    provides: [Cap.backgroundTask],
+    configSchema: { type: 'object' },
+    secretFields: [],
   },
   (ctx: Context) => {
-    ctx.provide(Cap.backgroundTask,
-      new JobHintSweeperTask(ctx.get(Cap.orchestrationStore) as PostgresOrchestrationStore));
+    ctx.provide(
+      Cap.backgroundTask,
+      new JobHintSweeperTask(ctx.get(Cap.orchestrationStore) as PostgresOrchestrationStore),
+    );
   },
 );
 
 export const dlqReconcilerPlugin = definePlugin(
   {
     id: '@winsendotai/ovo-plugin-orchestration/dlq-reconciler',
-    version: '0.1.0', contractVersion: 1, scope: 'process',
-    requires: [Cap.orchestrationStore], provides: [Cap.backgroundTask],
-    configSchema: { type: 'object', required: ['queueUrl', 'region'], properties: {
-      queueUrl: { type: 'string' }, region: { type: 'string' }, endpoint: { type: 'string' },
-    } },
+    version: '0.1.0',
+    contractVersion: 1,
+    scope: 'process',
+    requires: [Cap.orchestrationStore],
+    provides: [Cap.backgroundTask],
+    configSchema: {
+      type: 'object',
+      required: ['queueUrl', 'region'],
+      properties: {
+        queueUrl: { type: 'string' },
+        region: { type: 'string' },
+        endpoint: { type: 'string' },
+      },
+    },
     secretFields: [],
   },
   (ctx: Context, config) => {
@@ -93,8 +117,10 @@ export const dlqReconcilerPlugin = definePlugin(
       region: typeof config.region === 'string' ? config.region : undefined,
       endpoint: typeof config.endpoint === 'string' ? config.endpoint : undefined,
     });
-    ctx.provide(Cap.backgroundTask,
-      new DlqReconcilerTask(ctx.get(Cap.orchestrationStore) as PostgresOrchestrationStore, queue));
+    ctx.provide(
+      Cap.backgroundTask,
+      new DlqReconcilerTask(ctx.get(Cap.orchestrationStore) as PostgresOrchestrationStore, queue),
+    );
     ctx.effect(() => () => queue.destroy());
   },
 );

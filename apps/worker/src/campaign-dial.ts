@@ -1,5 +1,10 @@
 import type {
-  ClaimedJob, DurableJob, DurableJobStore, DurableQueue, QueueDelivery, ProtectionRenewal,
+  ClaimedJob,
+  DurableJob,
+  DurableJobStore,
+  DurableQueue,
+  QueueDelivery,
+  ProtectionRenewal,
 } from '@winsendotai/ovo-plugin-orchestration';
 import { failBeforeDial } from './worker-cleanup.ts';
 import type { JobLeaseRenewal, DeliveryVisibilityRenewal } from './renewal.ts';
@@ -136,38 +141,72 @@ export async function prepareCampaignDial(input: {
     hostRouting: !!options.carriers,
   });
   if (campaign.kind === 'blocked' && campaign.reason === 'campaign-dial-blocked:lease_lost') {
-    const superseded = await store.markSuperseded(job.id, workerId, job.ownerEpoch, campaign.reason);
+    const superseded = await store.markSuperseded(
+      job.id,
+      workerId,
+      job.ownerEpoch,
+      campaign.reason,
+    );
     lease.stop();
     visibility.stop();
     await renewal.release();
     if (!superseded)
-      return { kind: 'outcome', outcome: { kind: 'deferred', reason: 'campaign-job-ownership-lost' } };
+      return {
+        kind: 'outcome',
+        outcome: { kind: 'deferred', reason: 'campaign-job-ownership-lost' },
+      };
     await queue.delete(delivery);
     return { kind: 'outcome', outcome: { kind: 'failed', reason: campaign.reason } };
   }
   if (campaign.kind === 'blocked')
-    return { kind: 'outcome', outcome: await failBeforeDial({
-      job, workerId, store, queue, delivery, lease, visibility, renewal, reason: campaign.reason,
-    }) };
+    return {
+      kind: 'outcome',
+      outcome: await failBeforeDial({
+        job,
+        workerId,
+        store,
+        queue,
+        delivery,
+        lease,
+        visibility,
+        renewal,
+        reason: campaign.reason,
+      }),
+    };
   if (campaign.kind === 'unavailable') {
     lease.stop();
     visibility.stop();
     await renewal.release();
-    await store.release(job.id, workerId, job.ownerEpoch, campaign.reason,
-      new Date(Date.now() + options.deferSeconds * 1_000));
+    await store.release(
+      job.id,
+      workerId,
+      job.ownerEpoch,
+      campaign.reason,
+      new Date(Date.now() + options.deferSeconds * 1_000),
+    );
     await queue.delete(delivery);
     return { kind: 'outcome', outcome: { kind: 'deferred', reason: campaign.reason } };
   }
   const payload = campaign.payload;
-  if (campaign.kind === 'authorized' &&
-    !(await store.updateOwnedPayload(job.id, workerId, job.ownerEpoch, payload))) {
-    await recordCampaignAttempt(options.campaigns, payload, `pre-dial:${job.id}:${job.ownerEpoch}`,
-      'failed', 'campaign-payload-ownership-lost').catch(() => undefined);
+  if (
+    campaign.kind === 'authorized' &&
+    !(await store.updateOwnedPayload(job.id, workerId, job.ownerEpoch, payload))
+  ) {
+    await recordCampaignAttempt(
+      options.campaigns,
+      payload,
+      `pre-dial:${job.id}:${job.ownerEpoch}`,
+      'failed',
+      'campaign-payload-ownership-lost',
+    ).catch(() => undefined);
     lease.stop();
     visibility.stop();
     await renewal.release();
     await queue.delete(delivery);
-    return { kind: 'outcome', outcome: { kind: 'deferred', reason: 'campaign-payload-ownership-lost' } };
+    return {
+      kind: 'outcome',
+      outcome: { kind: 'deferred', reason: 'campaign-payload-ownership-lost' },
+    };
   }
   return { kind: 'continue', payload };
 }

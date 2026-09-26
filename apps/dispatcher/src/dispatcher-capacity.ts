@@ -1,4 +1,8 @@
-import type { CapacitySignalInput, CampaignCapacityDemand, PostgresOrchestrationStore } from '@winsendotai/ovo-plugin-orchestration';
+import type {
+  CapacitySignalInput,
+  CampaignCapacityDemand,
+  PostgresOrchestrationStore,
+} from '@winsendotai/ovo-plugin-orchestration';
 import type { PostgresOperationsService } from '@winsendotai/ovo-plugin-operations';
 
 type Environment = Record<string, string | undefined>;
@@ -32,9 +36,16 @@ export async function readDispatcherCapacityInput(input: {
   if (!Number.isSafeInteger(provisionedTasks) || provisionedTasks < 0)
     throw new Error('Provisioned task count is invalid');
   const starting = snapshot.counts.starting + Math.max(0, provisionedTasks - snapshot.counts.total);
-  const counts = { ...snapshot.counts, starting,
-    total: snapshot.counts.readyIdle + snapshot.counts.reserved + snapshot.counts.active +
-      starting + snapshot.counts.draining };
+  const counts = {
+    ...snapshot.counts,
+    starting,
+    total:
+      snapshot.counts.readyIdle +
+      snapshot.counts.reserved +
+      snapshot.counts.active +
+      starting +
+      snapshot.counts.draining,
+  };
   return {
     nowMs: input.nowMs?.() ?? Date.now(),
     observedAtMs: snapshot.observedAtMs,
@@ -74,8 +85,12 @@ async function readCampaignCapacity(
     return [];
   }
   const rows = await operations.pool.query<{
-    status: string; schedule_at: Date; max_concurrency: number;
-    due_queued: string; admitted: string; contacts: string;
+    status: string;
+    schedule_at: Date;
+    max_concurrency: number;
+    due_queued: string;
+    admitted: string;
+    contacts: string;
   }>(
     `SELECT c.status,c.schedule_at,c.max_concurrency,
        count(k.id) FILTER (WHERE k.state='queued' AND k.not_before<=now())::text AS due_queued,

@@ -20,11 +20,15 @@ describe.skipIf(!url)('capacity and hint PostgreSQL eligibility', () => {
       application_name: schema,
     });
     await store.migrate();
-    expect((await store.pool.query<{ hinted_at: string | null }>(
-      `SELECT column_name AS hinted_at FROM information_schema.columns
+    expect(
+      (
+        await store.pool.query<{ hinted_at: string | null }>(
+          `SELECT column_name AS hinted_at FROM information_schema.columns
        WHERE table_schema = $1 AND table_name = 'ovo_jobs' AND column_name = 'hinted_at'`,
-      [schema],
-    )).rows[0]?.hinted_at).toBe('hinted_at');
+          [schema],
+        )
+      ).rows[0]?.hinted_at,
+    ).toBe('hinted_at');
   });
 
   afterAll(async () => {
@@ -45,11 +49,22 @@ describe.skipIf(!url)('capacity and hint PostgreSQL eligibility', () => {
       [id, schema],
     );
     expect(await store.hints.sweep()).toEqual({ hinted: 0, poisoned: [] });
-    expect((await store.pool.query('SELECT hinted_at, hint_count FROM ovo_jobs WHERE id = $1', [id])).rows[0])
-      .toEqual({ hinted_at: null, hint_count: 0 });
-    expect((await store.pool.query('SELECT count(*)::int AS count FROM ovo_outbox WHERE aggregate_id = $1', [id])).rows[0]?.count)
-      .toBe(0);
-    await store.pool.query(`UPDATE ovo_jobs SET not_before = now() - interval '1 second' WHERE id = $1`, [id]);
+    expect(
+      (await store.pool.query('SELECT hinted_at, hint_count FROM ovo_jobs WHERE id = $1', [id]))
+        .rows[0],
+    ).toEqual({ hinted_at: null, hint_count: 0 });
+    expect(
+      (
+        await store.pool.query(
+          'SELECT count(*)::int AS count FROM ovo_outbox WHERE aggregate_id = $1',
+          [id],
+        )
+      ).rows[0]?.count,
+    ).toBe(0);
+    await store.pool.query(
+      `UPDATE ovo_jobs SET not_before = now() - interval '1 second' WHERE id = $1`,
+      [id],
+    );
     expect(await store.hints.sweep()).toEqual({ hinted: 1, poisoned: [] });
   });
 
@@ -65,16 +80,22 @@ describe.skipIf(!url)('capacity and hint PostgreSQL eligibility', () => {
        VALUES ($1,$2,$3,'{}'::jsonb,'superseded')`,
       [id, schema, id],
     );
-    const signal = { requiredSlots: 3, provisionedTasks: 2, busySlots: 1,
-      readyIdleSlots: 1, eligibleJobs: 2, campaignDemand: 0,
-      oldestEligibleJobAgeSeconds: 5, at: new Date(Date.now() - 2_000) };
+    const signal = {
+      requiredSlots: 3,
+      provisionedTasks: 2,
+      busySlots: 1,
+      readyIdleSlots: 1,
+      eligibleJobs: 2,
+      campaignDemand: 0,
+      oldestEligibleJobAgeSeconds: 5,
+      at: new Date(Date.now() - 2_000),
+    };
     await store.recordCapacitySignal(signal);
     const newer = { ...signal, requiredSlots: 4, at: new Date(signal.at.getTime() + 1_000) };
     const delayed = { ...signal, requiredSlots: 99, at: new Date(signal.at.getTime() - 60_000) };
     await store.recordCapacitySignal(newer);
     await store.recordCapacitySignal(delayed);
-    const reader = new Pool({ connectionString: url,
-      options: `-c search_path=${schema}` });
+    const reader = new Pool({ connectionString: url, options: `-c search_path=${schema}` });
     try {
       const row = await reader.query<{ signal: Record<string, unknown>; age_ms: string }>(
         `SELECT signal, extract(epoch FROM (now()-signal_at))*1000 AS age_ms
@@ -83,17 +104,33 @@ describe.skipIf(!url)('capacity and hint PostgreSQL eligibility', () => {
       expect(row.rows[0]?.signal).toMatchObject({ requiredSlots: 4, at: newer.at.toISOString() });
       expect(Number(row.rows[0]?.age_ms)).toBeGreaterThanOrEqual(0);
       await store.migrate();
-      expect((await reader.query(`SELECT count(*)::int AS count
-        FROM ovo_orch_schema_migrations WHERE version=6`)).rows[0]?.count).toBe(1);
+      expect(
+        (
+          await reader.query(`SELECT count(*)::int AS count
+        FROM ovo_orch_schema_migrations WHERE version=6`)
+        ).rows[0]?.count,
+      ).toBe(1);
     } finally {
       await reader.end();
     }
   });
 
   it('uses the oldest active slot observation so one stale slot blocks the signal', async () => {
-    await store.capacity.reportWorker({ workerId: 'slot-old', state: 'active', ownershipEpoch: 1, leaseMs: 120_000 });
-    await store.capacity.reportWorker({ workerId: 'slot-new', state: 'active', ownershipEpoch: 1, leaseMs: 120_000 });
-    await store.pool.query(`UPDATE ovo_worker_slots SET observed_at = now() - interval '40 seconds' WHERE worker_id = 'slot-old'`);
+    await store.capacity.reportWorker({
+      workerId: 'slot-old',
+      state: 'active',
+      ownershipEpoch: 1,
+      leaseMs: 120_000,
+    });
+    await store.capacity.reportWorker({
+      workerId: 'slot-new',
+      state: 'active',
+      ownershipEpoch: 1,
+      leaseMs: 120_000,
+    });
+    await store.pool.query(
+      `UPDATE ovo_worker_slots SET observed_at = now() - interval '40 seconds' WHERE worker_id = 'slot-old'`,
+    );
     const snapshot = await store.readCapacitySnapshot();
     expect(snapshot.counts.active).toBe(2);
     expect(Date.now() - snapshot.observedAtMs).toBeGreaterThan(30_000);
@@ -166,10 +203,22 @@ describe.skipIf(!url)('capacity and hint PostgreSQL eligibility', () => {
       [id, schema],
     );
     expect(await store.hints.sweep()).toEqual({ hinted: 0, poisoned: [id] });
-    expect((await store.pool.query('SELECT status, last_error, hint_count FROM ovo_jobs WHERE id = $1', [id])).rows[0])
-      .toEqual({ status: 'failed', last_error: 'hint_exhausted', hint_count: 21 });
-    expect((await store.pool.query('SELECT count(*)::int AS count FROM ovo_outbox WHERE aggregate_id = $1', [id])).rows[0]?.count)
-      .toBe(0);
+    expect(
+      (
+        await store.pool.query(
+          'SELECT status, last_error, hint_count FROM ovo_jobs WHERE id = $1',
+          [id],
+        )
+      ).rows[0],
+    ).toEqual({ status: 'failed', last_error: 'hint_exhausted', hint_count: 21 });
+    expect(
+      (
+        await store.pool.query(
+          'SELECT count(*)::int AS count FROM ovo_outbox WHERE aggregate_id = $1',
+          [id],
+        )
+      ).rows[0]?.count,
+    ).toBe(0);
   });
 
   it('does not poison a hinted owned job that already has a dial request', async () => {
@@ -182,10 +231,22 @@ describe.skipIf(!url)('capacity and hint PostgreSQL eligibility', () => {
       [id, schema],
     );
     expect(await store.hints.sweep()).toEqual({ hinted: 1, poisoned: [] });
-    expect((await store.pool.query('SELECT status, last_error, hint_count FROM ovo_jobs WHERE id = $1', [id])).rows[0])
-      .toEqual({ status: 'owned', last_error: null, hint_count: 21 });
-    expect((await store.pool.query('SELECT count(*)::int AS count FROM ovo_outbox WHERE aggregate_id = $1', [id])).rows[0]?.count)
-      .toBe(1);
+    expect(
+      (
+        await store.pool.query(
+          'SELECT status, last_error, hint_count FROM ovo_jobs WHERE id = $1',
+          [id],
+        )
+      ).rows[0],
+    ).toEqual({ status: 'owned', last_error: null, hint_count: 21 });
+    expect(
+      (
+        await store.pool.query(
+          'SELECT count(*)::int AS count FROM ovo_outbox WHERE aggregate_id = $1',
+          [id],
+        )
+      ).rows[0]?.count,
+    ).toBe(1);
   });
 
   it('resets a DLQ hint in Postgres and lets the sweeper rehint due work', async () => {
@@ -198,16 +259,31 @@ describe.skipIf(!url)('capacity and hint PostgreSQL eligibility', () => {
     );
     const deleted: string[] = [];
     const task = new DlqReconcilerTask(store, {
-      receive: async () => [{ messageId: 'dlq-1', receiptHandle: 'receipt-1',
-        body: JSON.stringify({ schemaVersion: 1, jobId: id }) }],
-      delete: async (message) => { deleted.push(message.receiptHandle); },
+      receive: async () => [
+        {
+          messageId: 'dlq-1',
+          receiptHandle: 'receipt-1',
+          body: JSON.stringify({ schemaVersion: 1, jobId: id }),
+        },
+      ],
+      delete: async (message) => {
+        deleted.push(message.receiptHandle);
+      },
     });
     await task.tick(new AbortController().signal);
     expect(deleted).toEqual(['receipt-1']);
-    expect((await store.pool.query('SELECT hinted_at FROM ovo_jobs WHERE id = $1', [id])).rows[0]?.hinted_at)
-      .toBeNull();
+    expect(
+      (await store.pool.query('SELECT hinted_at FROM ovo_jobs WHERE id = $1', [id])).rows[0]
+        ?.hinted_at,
+    ).toBeNull();
     expect(await store.hints.sweep()).toEqual({ hinted: 1, poisoned: [] });
-    expect((await store.pool.query('SELECT count(*)::int AS count FROM ovo_outbox WHERE aggregate_id = $1', [id])).rows[0]?.count)
-      .toBe(1);
+    expect(
+      (
+        await store.pool.query(
+          'SELECT count(*)::int AS count FROM ovo_outbox WHERE aggregate_id = $1',
+          [id],
+        )
+      ).rows[0]?.count,
+    ).toBe(1);
   });
 });

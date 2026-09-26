@@ -138,19 +138,27 @@ describe.skipIf(!url)('carrier correlation and session grants', () => {
         carrierId: 'other-carrier',
       }),
     ).toMatchObject({ sessionId: third.route.sessionId });
-    expect(await store.findCarrierCallId({
-      organizationId: first.route.organizationId,
-      carrierId: first.route.carrierId!,
-      requestId: first.route.dialRequestId,
-    })).toBe('CA-shared-scope');
-    expect(await store.findCarrierCallId({
-      organizationId: 'other-org', carrierId: first.route.carrierId!,
-      requestId: first.route.dialRequestId,
-    })).toBe('CA-shared-scope');
-    await expect(store.findCarrierCallId({
-      organizationId: first.route.organizationId, carrierId: '',
-      requestId: first.route.dialRequestId,
-    })).rejects.toThrow('requires organizationId, carrierId and requestId');
+    expect(
+      await store.findCarrierCallId({
+        organizationId: first.route.organizationId,
+        carrierId: first.route.carrierId!,
+        requestId: first.route.dialRequestId,
+      }),
+    ).toBe('CA-shared-scope');
+    expect(
+      await store.findCarrierCallId({
+        organizationId: 'other-org',
+        carrierId: first.route.carrierId!,
+        requestId: first.route.dialRequestId,
+      }),
+    ).toBe('CA-shared-scope');
+    expect(() =>
+      store.findCarrierCallId({
+        organizationId: first.route.organizationId,
+        carrierId: '',
+        requestId: first.route.dialRequestId,
+      }),
+    ).toThrow('requires organizationId, carrierId and requestId');
     for (const expected of [
       {
         route: first.route,
@@ -250,12 +258,18 @@ describe.skipIf(!url)('carrier correlation and session grants', () => {
 
   it('commits a mismatched stream grant and its audit together, rolling both back on audit failure', async () => {
     const { route, jobId, owner } = await begin('grant-audit-atomic');
-    expect(await store.markDialAccepted({
-      jobId, workerId: owner.ownerId, ownerEpoch: owner.ownerEpoch,
-      dialRequestId: route.dialRequestId, carrierCallId: 'CA-dial-atomic',
-    })).toBe(true);
+    expect(
+      await store.markDialAccepted({
+        jobId,
+        workerId: owner.ownerId,
+        ownerEpoch: owner.ownerEpoch,
+        dialRequestId: route.dialRequestId,
+        carrierCallId: 'CA-dial-atomic',
+      }),
+    ).toBe(true);
     const before = await store.pool.query<{ handshake_token_hash: string }>(
-      'SELECT handshake_token_hash FROM ovo_session_routes WHERE session_id = $1', [route.sessionId],
+      'SELECT handshake_token_hash FROM ovo_session_routes WHERE session_id = $1',
+      [route.sessionId],
     );
     const input = {
       dialRequestId: route.dialRequestId,
@@ -270,10 +284,17 @@ describe.skipIf(!url)('carrier correlation and session grants', () => {
       FOR EACH ROW EXECUTE FUNCTION ${schema}.reject_grant_audit()`);
     try {
       await expect(scoped.issueStreamGrant(input)).rejects.toThrow('audit refused');
-      expect((await store.pool.query<{ handshake_token_hash: string; carrier_stream_call_id: string | null }>(
-        'SELECT handshake_token_hash, carrier_stream_call_id FROM ovo_session_routes WHERE session_id = $1',
-        [route.sessionId],
-      )).rows[0]).toEqual({
+      expect(
+        (
+          await store.pool.query<{
+            handshake_token_hash: string;
+            carrier_stream_call_id: string | null;
+          }>(
+            'SELECT handshake_token_hash, carrier_stream_call_id FROM ovo_session_routes WHERE session_id = $1',
+            [route.sessionId],
+          )
+        ).rows[0],
+      ).toEqual({
         handshake_token_hash: before.rows[0]!.handshake_token_hash,
         carrier_stream_call_id: null,
       });
@@ -281,10 +302,17 @@ describe.skipIf(!url)('carrier correlation and session grants', () => {
       await store.pool.query('DROP TRIGGER reject_grant_audit ON ovo_orch_audit_events');
       await store.pool.query(`DROP FUNCTION ${schema}.reject_grant_audit()`);
     }
-    expect(await scoped.issueStreamGrant(input)).toMatchObject({ carrierStreamCallId: input.carrierCallId });
-    expect((await store.pool.query<{ handshake_token_hash: string }>(
-      'SELECT handshake_token_hash FROM ovo_session_routes WHERE session_id = $1', [route.sessionId],
-    )).rows[0]?.handshake_token_hash).toBe(input.tokenHash);
+    expect(await scoped.issueStreamGrant(input)).toMatchObject({
+      carrierStreamCallId: input.carrierCallId,
+    });
+    expect(
+      (
+        await store.pool.query<{ handshake_token_hash: string }>(
+          'SELECT handshake_token_hash FROM ovo_session_routes WHERE session_id = $1',
+          [route.sessionId],
+        )
+      ).rows[0]?.handshake_token_hash,
+    ).toBe(input.tokenHash);
     const audit = await store.pool.query(
       `SELECT 1 FROM ovo_orch_audit_events WHERE session_id = $1
        AND event_type = 'carrier.call_id_mismatch' AND dial_call_id = $2 AND stream_call_id = $3`,

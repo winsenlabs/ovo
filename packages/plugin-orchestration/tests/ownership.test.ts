@@ -183,5 +183,4 @@ describe.skipIf(!postgresUrl)('PostgreSQL durable orchestration integration', ()
       carrierCallId: 'CA-reconciled',
     });
   });
-
 });

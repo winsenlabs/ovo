@@ -40,15 +40,39 @@ describe('computeCapacitySignal', () => {
 
   it('applies the inbound floor only when inbound is enabled', () => {
     expect(computeCapacitySignal({ ...fixture(), eligibleDueJobs: 0 })?.requiredSlots).toBe(3);
-    expect(computeCapacitySignal({ ...fixture(), eligibleDueJobs: 0, inboundEnabled: true })?.requiredSlots).toBe(5);
+    expect(
+      computeCapacitySignal({ ...fixture(), eligibleDueJobs: 0, inboundEnabled: true })
+        ?.requiredSlots,
+    ).toBe(5);
   });
 
   it('prewarms only within the future lead window and admits due demand separately', () => {
     const base = fixture();
-    const campaign = { running: false, scheduledAtMs: base.nowMs + 600_000, maxConcurrency: 4, dueQueuedContacts: 3, alreadyAdmitted: 1, contacts: 5 };
-    expect(computeCapacitySignal({ ...base, eligibleDueJobs: 0, campaigns: [campaign] })?.requiredSlots).toBe(7);
-    expect(computeCapacitySignal({ ...base, eligibleDueJobs: 0, campaigns: [{ ...campaign, scheduledAtMs: base.nowMs + 600_001 }] })?.requiredSlots).toBe(3);
-    expect(computeCapacitySignal({ ...base, eligibleDueJobs: 0, campaigns: [{ ...campaign, scheduledAtMs: base.nowMs }] })).toMatchObject({ requiredSlots: 5, campaignDemand: 2 });
+    const campaign = {
+      running: false,
+      scheduledAtMs: base.nowMs + 600_000,
+      maxConcurrency: 4,
+      dueQueuedContacts: 3,
+      alreadyAdmitted: 1,
+      contacts: 5,
+    };
+    expect(
+      computeCapacitySignal({ ...base, eligibleDueJobs: 0, campaigns: [campaign] })?.requiredSlots,
+    ).toBe(7);
+    expect(
+      computeCapacitySignal({
+        ...base,
+        eligibleDueJobs: 0,
+        campaigns: [{ ...campaign, scheduledAtMs: base.nowMs + 600_001 }],
+      })?.requiredSlots,
+    ).toBe(3);
+    expect(
+      computeCapacitySignal({
+        ...base,
+        eligibleDueJobs: 0,
+        campaigns: [{ ...campaign, scheduledAtMs: base.nowMs }],
+      }),
+    ).toMatchObject({ requiredSlots: 5, campaignDemand: 2 });
   });
 
   it.each([
@@ -57,14 +81,21 @@ describe('computeCapacitySignal', () => {
     ['spend', { spendPermitted: 1 }],
     ['configured', { configuredMax: 4 }],
   ] as const)('reports the %s limiting quota', (name, limits) => {
-    expect(computeCapacitySignal({ ...fixture(), ...limits })).toMatchObject({ requiredSlots: 4, limitingQuota: name });
+    expect(computeCapacitySignal({ ...fixture(), ...limits })).toMatchObject({
+      requiredSlots: 4,
+      limitingQuota: name,
+    });
   });
 
   it('publishes nothing for stale, future, or inconsistent snapshots', () => {
     const base = fixture();
     expect(computeCapacitySignal({ ...base, observedAtMs: base.nowMs - 15_001 })).toBeUndefined();
     expect(computeCapacitySignal({ ...base, observedAtMs: base.nowMs + 1 })).toBeUndefined();
-    expect(computeCapacitySignal({ ...base, counts: { ...base.counts, total: 7 } })).toBeUndefined();
-    expect(computeCapacitySignal({ ...base, counts: { ...base.counts, active: -1 } })).toBeUndefined();
+    expect(
+      computeCapacitySignal({ ...base, counts: { ...base.counts, total: 7 } }),
+    ).toBeUndefined();
+    expect(
+      computeCapacitySignal({ ...base, counts: { ...base.counts, active: -1 } }),
+    ).toBeUndefined();
   });
 });

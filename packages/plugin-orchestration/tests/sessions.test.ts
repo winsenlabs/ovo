@@ -87,9 +87,13 @@ describe.skipIf(!postgresUrl)('PostgreSQL session lifecycle integration', () => 
       occurredAt: new Date('2026-09-20T14:00:00Z'),
     });
     expect(initiated).toMatchObject({ kind: 'applied', route: { status: 'accepted' } });
-    expect(await store.findCarrierCallId({
-      organizationId, carrierId: route.carrierId ?? 'twilio', requestId: route.dialRequestId,
-    })).toBe('CA-session-1');
+    expect(
+      await store.findCarrierCallId({
+        organizationId,
+        carrierId: route.carrierId ?? 'twilio',
+        requestId: route.dialRequestId,
+      }),
+    ).toBe('CA-session-1');
     expect(
       await store.applyCarrierCallback({
         provider: 'synthetic',

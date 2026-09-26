@@ -33,7 +33,10 @@ export async function terminateOwnedJob(input: OwnedTermination): Promise<boolea
   if (!job || !route) return false;
   const reason: EndReason = asEndReason(input.reason);
   const fenced = await input.store.requestSessionTermination(
-    input.jobId, input.workerId, input.ownerEpoch, reason,
+    input.jobId,
+    input.workerId,
+    input.ownerEpoch,
+    reason,
   );
   if (!fenced) throw new Error(`Session ${route.sessionId} termination fence failed`);
   let selected;

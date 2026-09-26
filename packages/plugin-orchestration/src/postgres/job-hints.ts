@@ -32,8 +32,11 @@ export class JobHintRepository {
       let hinted = 0;
       const poisoned: string[] = [];
       for (const row of candidates.rows) {
-        if (row.hint_count >= 20 && row.dial_request_id === null &&
-          (row.status === 'queued' || row.status === 'owned')) {
+        if (
+          row.hint_count >= 20 &&
+          row.dial_request_id === null &&
+          (row.status === 'queued' || row.status === 'owned')
+        ) {
           await client.query(
             `UPDATE ovo_jobs SET status = 'failed', owner_id = NULL, lease_expires_at = NULL,
                last_error = 'hint_exhausted', hinted_at = now(), hint_count = hint_count + 1,
