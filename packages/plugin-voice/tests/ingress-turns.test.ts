@@ -134,9 +134,12 @@ it('cancels an STT session that finishes connecting after ingress disposal', asy
     'en-US',
     () => undefined,
   );
+  const rejected = expect(starting).rejects.toMatchObject({ name: 'AbortError' });
+  await Promise.resolve();
   await ingress.dispose();
+  await rejected;
   connect();
-  await starting;
+  await waitFor(() => cancels === 1);
   expect(cancels).toBe(1);
 });
 

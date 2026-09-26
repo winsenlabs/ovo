@@ -24,6 +24,7 @@ export class VoiceIngress {
   private readonly queued: QueuedIngress[] = [];
   private readonly unsub: () => void;
   private stt?: SttSession;
+  private cancelConnect?: () => void;
   private draining?: Promise<void>;
   private disposed = false;
   private preSttBytes = 0;
@@ -56,25 +57,59 @@ export class VoiceIngress {
   }
 
   async connect(provider: SpeechToText, language: string, usage: UsageSink): Promise<void> {
-    const session = await provider.start({
-      sessionId: this.media.sessionId,
-      format: this.media.format,
-      language,
-      signal: this.signal,
-      onEvent: (event: SttEvent) => this.observe({ type: 'stt', event, atMs: Date.now() }),
-      onUsage: usage,
+    this.signal.throwIfAborted();
+    if (this.disposed) throw new DOMException('engine disposed', 'AbortError');
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        this.signal.removeEventListener('abort', abort);
+        if (this.cancelConnect === abort) this.cancelConnect = undefined;
+      };
+      const abort = () => {
+        cleanup();
+        reject(this.signal.reason ?? new DOMException('engine disposed', 'AbortError'));
+      };
+      this.cancelConnect = abort;
+      this.signal.addEventListener('abort', abort, { once: true });
+      void Promise.resolve()
+        .then(() => {
+          if (this.disposed || this.signal.aborted)
+            throw this.signal.reason ?? new DOMException('engine disposed', 'AbortError');
+          return provider.start({
+            sessionId: this.media.sessionId,
+            format: this.media.format,
+            language,
+            signal: this.signal,
+            onEvent: (event: SttEvent) => {
+              if (!this.disposed && !this.signal.aborted)
+                this.observe({ type: 'stt', event, atMs: Date.now() });
+            },
+            onUsage: usage,
+          });
+        })
+        .then((session) => {
+          if (this.disposed || this.signal.aborted) {
+            void Promise.resolve()
+              .then(() => session.cancel('engine disposed'))
+              .catch(() => undefined);
+            abort();
+            return;
+          }
+          this.stt = session;
+          this.drain();
+          cleanup();
+          resolve();
+        })
+        .catch((error: unknown) => {
+          cleanup();
+          reject(error);
+        });
     });
-    if (this.disposed || this.signal.aborted) {
-      await session.cancel('engine disposed').catch(() => undefined);
-      return;
-    }
-    this.stt = session;
-    this.drain();
   }
 
   async dispose(graceful = false): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    this.cancelConnect?.();
     this.unsub();
     for (const item of this.queued) if (item.kind === 'endpoint') item.resolve();
     this.queued.length = 0;
