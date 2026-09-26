@@ -206,6 +206,9 @@ The approved control-migration collision scan covered all 14 local branches (`vo
 
 ### Checkpoint measurements
 
+- Final paired rerun after the checkpoint commit: scoped lint **EXIT 0** and full
+  `pnpm format:check` **EXIT 0**. The builder's disposable Postgres container was
+  removed; the branch is preserved without a green-handover claim.
 - Scoped lint (the spec's command plus `apps/api/tests/mcp-routes.test.ts`): exit **0**, all seven gates; paired Prettier check of every changed/new file: exit **0**. Standalone duplication: exit **0**; only the four credential-port/type adapter entries are in `pending/M1.json`. Architecture originates no prohibited edges.
 - Ordinary scoped typecheck: exit **1**, nine missing-kit-import diagnostics and two resulting inferred-parameter diagnostics. Ordinary HTTP/MCP test command: exit **1**, five suites cannot load the undeclared/unlinked kit dependency; the independent dispatcher test passes. No ordinary green bar or build is claimed.
 - Interim source typecheck using `OVO_TYPECHECK_PROJECT=/tmp/ovo-m1-tsconfig.json` (extends the normal project, adds only the exact kit path alias and local Node type root): exit **0**.
