@@ -1,4 +1,10 @@
-import type { SpeechReceipt, ToolDefinition } from '@winsendotai/ovo-contracts';
+import {
+  classifyConfirmation,
+  type BehaviorEvent,
+  type SpeechReceipt,
+  type ToolDefinition,
+} from '@winsendotai/ovo-contracts';
+import { speakArguments } from './args-speaker.ts';
 
 export interface ConfirmedSelection {
   tool: ToolDefinition;
@@ -6,10 +12,16 @@ export interface ConfirmedSelection {
   operationId: string;
 }
 
-/** Exact acknowledgments only, after the confirmation request finishes playback. */
+/** Whole-utterance confirmation requires actual playback evidence; NO always wins. */
 export class ToolConfirmation {
   private pending?: ConfirmedSelection & { prompt: string; epoch?: number; heard: boolean };
   private epoch?: number;
+
+  constructor(private readonly emit: (event: BehaviorEvent) => void = () => undefined) {}
+
+  speechKind(text: string): 'confirmation' | undefined {
+    return this.pending?.prompt === text ? 'confirmation' : undefined;
+  }
 
   beginTurn(epoch: number): void {
     this.epoch = epoch;
@@ -18,14 +30,16 @@ export class ToolConfirmation {
     return !!this.pending;
   }
 
-  request(selection: ConfirmedSelection): string {
-    const details = JSON.stringify(selection.input, (key, value) =>
-      /password|secret|token|authorization|api.?key/i.test(key) ? '[redacted]' : value,
-    );
-    if (details.length > 800)
-      throw new Error('Action details are too large for voice confirmation');
+  request(selection: ConfirmedSelection, language = 'en-IN'): string {
+    const details = speakArguments(selection.input, selection.tool.inputSchema, language);
+    if (this.pending) this.resolve('expired');
     const prompt = `Please confirm: ${selection.tool.description}. Details: ${details}. Say yes to proceed or no to cancel.`;
     this.pending = { ...selection, prompt, epoch: this.epoch, heard: false };
+    this.emit({
+      type: 'confirmation.pending',
+      toolId: selection.tool.id,
+      operationId: selection.operationId,
+    });
     return prompt;
   }
 
@@ -37,21 +51,22 @@ export class ToolConfirmation {
     | { kind: 'repeat'; prompt: string } {
     const pending = this.pending;
     if (!pending) throw new Error('No confirmation request is pending');
-    const normalized = input
-      .normalize('NFKC')
-      .trim()
-      .toLowerCase()
-      .replace(/[.!?]+$/, '');
-    if (['no', 'cancel', 'do not proceed', 'stop'].includes(normalized)) {
-      this.pending = undefined;
+    const classification = classifyConfirmation(input);
+    if (classification === 'no') {
+      this.resolve('declined');
       return { kind: 'declined' };
     }
-    if (pending.heard && ['yes', 'confirm', 'go ahead', 'proceed'].includes(normalized)) {
-      this.pending = undefined;
+    if (pending.heard && classification === 'yes') {
+      this.resolve('confirmed');
       return { kind: 'approved', selection: pending };
     }
     pending.epoch = this.epoch;
     pending.heard = false;
+    this.emit({
+      type: 'confirmation.pending',
+      toolId: pending.tool.id,
+      operationId: pending.operationId,
+    });
     return { kind: 'repeat', prompt: pending.prompt };
   }
 
@@ -62,6 +77,18 @@ export class ToolConfirmation {
       receipt.epoch !== this.pending.epoch
     )
       return;
-    this.pending.heard = receipt.state === 'completed';
+    this.pending.heard = receipt.state === 'completed' && receipt.evidence !== 'estimated';
+  }
+
+  private resolve(result: 'confirmed' | 'declined' | 'expired'): void {
+    const pending = this.pending;
+    this.pending = undefined;
+    if (pending)
+      this.emit({
+        type: 'confirmation.resolved',
+        toolId: pending.tool.id,
+        operationId: pending.operationId,
+        result,
+      });
   }
 }

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { bootstrapIdentitiesFromEnv } from '../src/auth-env.ts';
+import { bootstrapIdentitiesFromEnv, sessionSecretFromEnv } from '../src/auth-env.ts';
 import { Authenticator } from '../src/auth-service.ts';
 
 const environment = {
@@ -10,6 +10,18 @@ const environment = {
   ]),
   OVO_OPERATOR_AUDITOR_TOKEN: 'b'.repeat(40),
 };
+
+it('requires a production session secret of at least 32 UTF-8 bytes', () => {
+  const identity = bootstrapIdentitiesFromEnv(environment)[0]!;
+  for (const secret of [undefined, '', 'a'.repeat(31)])
+    expect(() =>
+      sessionSecretFromEnv(identity, { NODE_ENV: 'production', OVO_SESSION_SECRET: secret }),
+    ).toThrow('32 bytes');
+  const secret = 'अ'.repeat(11);
+  expect(
+    sessionSecretFromEnv(identity, { NODE_ENV: 'production', OVO_SESSION_SECRET: secret }),
+  ).toBe(secret);
+});
 
 it('loads distinct operators into one installation namespace without token values in metadata', () => {
   const identities = bootstrapIdentitiesFromEnv(environment);

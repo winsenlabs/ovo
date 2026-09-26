@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolDefinition } from '@winsendotai/ovo-contracts';
-import { ExecutionPolicyError, ToolInvocationError } from '@winsendotai/ovo-plugin-tools';
+import { ExecutionPolicyError, ToolInvocationError } from '../../plugin-kit/src/tool-errors.ts';
 import {
   createHttpConnector,
   createPinnedFetch,
@@ -210,4 +210,41 @@ describe('HTTP connector mapping', () => {
     ).rejects.toThrow('another workspace');
     expect(touched).toBe(false);
   });
+});
+
+it('refuses an invalid response pointer before sending a write', async () => {
+  let sent = 0;
+  const invoke = async () =>
+    createHttpConnector(
+      [
+        {
+          toolId: 'write',
+          workspaceId: 'w',
+          endpoint: 'https://tools.example.test/write',
+          method: 'POST',
+          response: { type: 'json', pointer: 'invalid' },
+        },
+      ],
+      {
+        lookup: publicLookup,
+        fetch: async () => {
+          sent += 1;
+          return new Response('{}');
+        },
+      },
+    ).invoke(
+      {
+        id: 'write',
+        description: '',
+        connector: 'http',
+        effect: 'write',
+        confirmation: true,
+        inputSchema: {},
+        timeoutMs: 1000,
+      },
+      {},
+      { operationId: 'op', workspaceId: 'w', signal: new AbortController().signal },
+    );
+  await expect(invoke()).rejects.toThrow('Invalid JSON pointer');
+  expect(sent).toBe(0);
 });

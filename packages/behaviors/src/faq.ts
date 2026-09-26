@@ -1,5 +1,6 @@
 import {
   AgentConfig as AgentConfigSchema,
+  normalizeForMatch,
   type AgentConfig,
   type Behavior,
 } from '@winsendotai/ovo-contracts';
@@ -76,7 +77,7 @@ export class FaqBehavior implements Behavior {
   }
 
   match(input: string): FaqMatch {
-    const query = tokenize(input, this.config.locale);
+    const query = tokenize(input);
     if (query.tokens.length === 0) return { kind: 'clarify', reason: 'no-match', evidence: [] };
 
     const evidence = this.config.faq
@@ -89,7 +90,7 @@ export class FaqBehavior implements Behavior {
           negationMismatch: false,
         };
         for (const phrase of phrases) {
-          const candidate = tokenize(phrase, this.config.locale);
+          const candidate = tokenize(phrase);
           const negationMismatch = query.negated !== candidate.negated;
           const exact = query.normalized === candidate.normalized;
           const score = negationMismatch ? 0 : exact ? 1 : dice(query.tokens, candidate.tokens);
@@ -99,7 +100,10 @@ export class FaqBehavior implements Behavior {
         }
         return best;
       })
-      .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id));
+      .sort(
+        (left, right) =>
+          right.score - left.score || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
+      );
 
     const first = evidence[0];
     if (!first || first.score === 0) return { kind: 'clarify', reason: 'no-match', evidence };
@@ -136,19 +140,12 @@ export function createFaqBehavior(config: AgentConfig): FaqBehavior {
   return new FaqBehavior(config);
 }
 
-function tokenize(
-  input: string,
-  locale: string,
-): { normalized: string; tokens: string[]; negated: boolean } {
-  const normalized = input
-    .normalize('NFKC')
-    .toLocaleLowerCase(locale)
-    .replace(/[’']/g, '')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim()
-    .replace(/\s+/g, ' ');
+function tokenize(input: string): { normalized: string; tokens: string[]; negated: boolean } {
+  const normalized = normalizeForMatch(input);
   const raw = normalized ? normalized.split(' ') : [];
-  const negated = raw.some((token) => NEGATIONS.has(token));
+  const negated =
+    raw.some((token) => NEGATIONS.has(token)) ||
+    /\b(?:don|doesn|didn|isn|wasn|won|can|couldn|wouldn|shouldn|ain) t\b/.test(normalized);
   const informative = raw.filter((token) => !FILLER.has(token));
   return { normalized, tokens: unique(informative.length ? informative : raw), negated };
 }

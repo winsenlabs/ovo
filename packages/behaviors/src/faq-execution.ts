@@ -7,6 +7,7 @@ import type {
 import { FaqBehavior } from './faq.ts';
 import { renderAnnouncementTemplate, validateTemplatePaths } from './announcement.ts';
 import { ToolConfirmation } from './confirmation.ts';
+import { ToolEvents } from './tool-events.ts';
 
 export interface FaqExecutionOptions {
   workspaceId: string;
@@ -17,7 +18,12 @@ export interface FaqExecutionOptions {
 /** Deterministic selection and rendering; Execution alone may perform effects. */
 export class ExecutingFaqBehavior extends FaqBehavior {
   private active?: AbortController;
-  private readonly confirmation = new ToolConfirmation();
+  private readonly events = new ToolEvents();
+  private readonly confirmation = new ToolConfirmation(this.events.emit);
+  readonly subscribe = this.events.subscribe;
+  speechKind(text: string) {
+    return this.confirmation.speechKind(text);
+  }
   private readonly operationId: () => string;
   private pendingEntry?: { operationId: string; entry: AgentConfig['faq'][number] };
   private uncertainWrite = false;
@@ -80,7 +86,10 @@ export class ExecutingFaqBehavior extends FaqBehavior {
       const operationId = this.operationId();
       if (tool.effect === 'write' || tool.confirmation) {
         this.pendingEntry = { operationId, entry };
-        return this.confirmation.request({ tool, input: toolInput, operationId });
+        return this.confirmation.request(
+          { tool, input: toolInput, operationId },
+          this.config.locale,
+        );
       }
       return await this.executeSelection(tool, toolInput, entry, operationId, false, controller);
     } catch (error) {
@@ -115,7 +124,8 @@ export class ExecutingFaqBehavior extends FaqBehavior {
     if (tool.effect === 'write') this.uncertainWrite = true;
     let result;
     try {
-      result = await this.execution.execute(
+      result = await this.events.execute(
+        this.execution,
         {
           id: operationId,
           workspaceId: this.identity.workspaceId,
@@ -124,7 +134,7 @@ export class ExecutingFaqBehavior extends FaqBehavior {
           input,
           confirmed,
         },
-        { signal: controller.signal },
+        controller.signal,
       );
     } catch {
       controller.signal.throwIfAborted();

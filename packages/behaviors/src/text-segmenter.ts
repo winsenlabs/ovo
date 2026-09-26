@@ -1,3 +1,5 @@
+import { sentenceBoundary } from './sentence-boundary.ts';
+
 const DEFAULT_MAX_SEGMENT_CHARACTERS = 240;
 const DEFAULT_MAX_TOTAL_CHARACTERS = 32_000;
 
@@ -5,15 +7,22 @@ const DEFAULT_MAX_TOTAL_CHARACTERS = 32_000;
 export class StreamingTextSegmenter {
   private buffer = '';
   private totalCharacters = 0;
+  private first = true;
 
   constructor(
     private readonly maxSegmentCharacters = DEFAULT_MAX_SEGMENT_CHARACTERS,
     private readonly maxTotalCharacters = DEFAULT_MAX_TOTAL_CHARACTERS,
+    private readonly options: { language?: string; firstSegmentMaxChars?: number } = {},
   ) {
     if (!Number.isInteger(maxSegmentCharacters) || maxSegmentCharacters < 32)
       throw new TypeError('maxSegmentCharacters must be an integer of at least 32');
     if (!Number.isInteger(maxTotalCharacters) || maxTotalCharacters < maxSegmentCharacters)
       throw new TypeError('maxTotalCharacters must contain at least one segment');
+    if (
+      !Number.isInteger(options.firstSegmentMaxChars ?? 60) ||
+      (options.firstSegmentMaxChars ?? 60) < 1
+    )
+      throw new TypeError('firstSegmentMaxChars must be a positive integer');
   }
 
   push(delta: string): string[] {
@@ -32,13 +41,24 @@ export class StreamingTextSegmenter {
   private take(flush: boolean): string[] {
     const segments: string[] = [];
     while (this.buffer.trim()) {
-      const boundary = sentenceBoundary(this.buffer, this.maxSegmentCharacters);
-      if (boundary === undefined && !flush && this.buffer.length <= this.maxSegmentCharacters)
-        break;
-      const end = boundary ?? boundedBoundary(this.buffer, this.maxSegmentCharacters);
+      const maximum = this.first
+        ? Math.min(this.maxSegmentCharacters, this.options.firstSegmentMaxChars ?? 60)
+        : this.maxSegmentCharacters;
+      const boundary = sentenceBoundary(
+        this.buffer,
+        maximum,
+        this.options.language ?? 'en',
+        flush,
+        this.first,
+      );
+      if (boundary === undefined && !flush && this.buffer.length <= maximum) break;
+      const end = boundary ?? boundedBoundary(this.buffer, maximum);
       const segment = this.buffer.slice(0, end).trim();
       this.buffer = this.buffer.slice(end).trimStart();
-      if (segment) segments.push(segment);
+      if (segment) {
+        segments.push(segment);
+        this.first = false;
+      }
       if (flush && boundary === undefined && this.buffer.length <= this.maxSegmentCharacters) {
         const remainder = this.buffer.trim();
         this.buffer = '';
@@ -48,13 +68,6 @@ export class StreamingTextSegmenter {
     if (flush && !this.buffer.trim()) this.buffer = '';
     return segments;
   }
-}
-
-function sentenceBoundary(text: string, maximum: number): number | undefined {
-  const search = text.slice(0, maximum + 1);
-  const expression = /[.!?](?:["')\]]*)\s+/gu;
-  const match = expression.exec(search);
-  return match ? match.index + match[0].trimEnd().length : undefined;
 }
 
 function boundedBoundary(text: string, maximum: number): number {

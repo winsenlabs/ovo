@@ -372,4 +372,49 @@ integration('PostgresControlStore', () => {
       store.operationStore.settle({ ...record, state: 'failed', error: 'rewrite' }),
     ).rejects.toThrow('Invalid operation transition');
   });
+  it('retains approved MCP tools on removal and clears the tombstone on rediscovery', async () => {
+    const connection = await store.createMcpConnection({
+      workspaceId,
+      label: 'Rediscovery',
+      endpoint: 'https://mcp.example.test',
+      auth: 'none',
+    });
+    const tool = {
+      remoteName: 'lookup',
+      description: 'Lookup',
+      inputSchema: { type: 'object' },
+      outputSchema: null,
+      schemaDigest: 'digest',
+    };
+    await store.replaceMcpDiscoveredTools(workspaceId, connection.id, [tool]);
+    const agent = await store.createAgent(
+      workspaceId,
+      AgentConfig.parse({ name: 'Agent', mode: 'announcement', message: 'Hello' }),
+    );
+    const approval = {
+      workspaceId,
+      agentId: agent.id,
+      toolId: 'lookup',
+      connectionId: connection.id,
+      remoteName: 'lookup',
+      schemaDigest: 'digest',
+    };
+    await store.upsertMcpApproval(approval);
+    await expect(store.replaceMcpDiscoveredTools(workspaceId, connection.id, [])).resolves.toEqual(
+      [],
+    );
+    expect(
+      (await store.getMcpDiscoveredTool(workspaceId, connection.id, 'lookup'))?.removedAt,
+    ).toEqual(expect.any(String));
+    expect(await store.getMcpApproval(workspaceId, agent.id, 'lookup')).toMatchObject({
+      schemaDigest: 'digest',
+    });
+    await expect(store.upsertMcpApproval({ ...approval, toolId: 'new-approval' })).rejects.toThrow(
+      'latest discovered MCP schema',
+    );
+    await store.replaceMcpDiscoveredTools(workspaceId, connection.id, [tool]);
+    expect(
+      (await store.getMcpDiscoveredTool(workspaceId, connection.id, 'lookup'))?.removedAt,
+    ).toBeNull();
+  });
 });

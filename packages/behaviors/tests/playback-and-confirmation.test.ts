@@ -65,7 +65,7 @@ const agentConfig = () =>
     allowedTools: ['change'],
   });
 
-it('requires completed confirmation playback and an exact affirmative before the effect', async () => {
+it('requires heard confirmation playback and whole-utterance approval with NO taking precedence', async () => {
   const effects: unknown[] = [];
   const behavior = new AgentBehavior(
     agentConfig(),
@@ -94,10 +94,12 @@ it('requires completed confirmation playback and an exact affirmative before the
   behavior.onPlayback(played(repeated, 1));
   behavior.beginTurn(2);
   const qualified = await behavior.respond('yes but do not change it');
-  expect(qualified).toBe(prompt);
+  expect(qualified).toBe('Cancelled. No change was made.');
   expect(effects).toHaveLength(0);
-  behavior.onPlayback(played(qualified, 2));
   behavior.beginTurn(3);
+  const fresh = await behavior.respond('Move my appointment');
+  behavior.onPlayback(played(fresh, 3));
+  behavior.beginTurn(4);
   expect(await behavior.respond('yes')).toBe('Updated.');
   expect(effects).toHaveLength(1);
   expect(effects[0]).toMatchObject({ confirmed: true, input: { day: 'Monday' } });

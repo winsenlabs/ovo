@@ -1,14 +1,19 @@
-import type { Execution, ExecutionRequest, OperationRecord } from '@winsendotai/ovo-contracts';
+import {
+  Cap,
+  type Execution,
+  type ExecutionRequest,
+  type OperationRecord,
+} from '@winsendotai/ovo-contracts';
 
 export const serviceKeys = {
-  execution: 'ovo.execution',
-  operationStore: 'ovo.operation-store',
-  speech: 'ovo.speech',
-  secretResolver: 'ovo.secret-resolver',
+  execution: Cap.execution,
+  operationStore: Cap.operationStore,
+  speech: Cap.speech,
+  secretResolver: Cap.secrets,
   connector: {
-    native: 'ovo.tool-connector.native',
-    http: 'ovo.tool-connector.http',
-    mcp: 'ovo.tool-connector.mcp',
+    native: Cap.toolNative,
+    http: Cap.toolHttp,
+    mcp: Cap.toolMcp,
   },
 } as const;
 

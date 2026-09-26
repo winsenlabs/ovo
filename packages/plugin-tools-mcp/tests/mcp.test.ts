@@ -5,7 +5,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolConnection, ToolDefinition } from '@winsendotai/ovo-contracts';
-import { ExecutionPolicyError } from '@winsendotai/ovo-plugin-tools';
+import { ExecutionPolicyError } from '../../plugin-kit/src/tool-errors.ts';
 import {
   createMcpConnector,
   mcpSchemaDigest,
@@ -13,8 +13,10 @@ import {
 } from '../src/index.ts';
 
 const servers: Array<ReturnType<typeof createServer>> = [];
+const connectors: Array<{ dispose(): Promise<void> }> = [];
 
 afterEach(async () => {
+  await Promise.all(connectors.splice(0).map((connector) => connector.dispose()));
   await Promise.all(
     servers.splice(0).map(async (server) => {
       server.close();
@@ -129,6 +131,7 @@ describe('remote HTTP MCP connector', () => {
       },
     });
 
+    connectors.push(connector);
     const discovery = await connector.discover({
       workspaceId: 'workspace-1',
       connectionId: 'connection-1',
@@ -187,6 +190,7 @@ describe('remote HTTP MCP connector', () => {
         },
       },
     );
+    connectors.push(connector);
     const remote = (
       await connector.discover({ workspaceId: 'workspace-1', connectionId: 'connection-1' })
     ).tools[0]!;

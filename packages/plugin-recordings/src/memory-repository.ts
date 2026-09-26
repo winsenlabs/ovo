@@ -32,11 +32,8 @@ export class MemoryRecordingRepository implements RecordingRepository {
   }
 
   async get(workspaceId: string, callId: string, id: string): Promise<LiveRecording | undefined> {
-    if (this.tombstones.has(id)) return undefined;
-    const item = this.recordings.get(id);
-    return item?.workspaceId === workspaceId && item.callId === callId
-      ? structuredClone(item)
-      : undefined;
+    const item = await this.findByArtifact(workspaceId, id);
+    return item?.callId === callId ? item : undefined;
   }
 
   async list(workspaceId: string, callId: string, limit = 100): Promise<LiveRecording[]> {
@@ -47,7 +44,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
           item.callId === callId &&
           !this.tombstones.has(item.id),
       )
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+      .sort((a, b) => compare(a.createdAt, b.createdAt) || compare(a.id, b.id))
       .slice(0, Math.min(100, Math.max(1, limit)))
       .map((item) => structuredClone(item));
   }
@@ -100,7 +97,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
           item.expiresAt > cursor.expiresAt ||
           (item.expiresAt === cursor.expiresAt && item.id > cursor.artifactId),
       )
-      .sort((a, b) => a.expiresAt.localeCompare(b.expiresAt) || a.id.localeCompare(b.id))
+      .sort((a, b) => compare(a.expiresAt, b.expiresAt) || compare(a.id, b.id))
       .slice(0, Math.min(100, Math.max(1, limit)));
     const last = items.at(-1);
     return {
@@ -144,8 +141,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
   }
 
   async getTombstone(id: string) {
-    const item = this.tombstones.get(id);
-    return item ? structuredClone(item) : undefined;
+    return structuredClone(this.tombstones.get(id));
   }
 
   async pendingTombstones(limit: number) {
@@ -240,9 +236,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
     owner: string,
     epoch: number,
     at: string,
-    result:
-      | { state: 'succeeded'; outputKey: string; outputSha256: string; outputBytes: number }
-      | { state: 'failed'; error: string },
+    result: Parameters<RecordingRepository['settleExport']>[4],
   ) {
     const item = this.exports.get(id);
     if (
@@ -256,4 +250,8 @@ export class MemoryRecordingRepository implements RecordingRepository {
     if (this.tombstones.has(item.artifactId)) throw new RecordingUnavailableError();
     this.exports.set(id, { ...item, ...result, updatedAt: at, leaseExpiresAt: undefined });
   }
+}
+
+function compare(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }

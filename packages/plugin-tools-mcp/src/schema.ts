@@ -1,5 +1,6 @@
 import type { JsonSchema, ToolDefinition } from '@winsendotai/ovo-contracts';
-import { canonicalJson, schemaDigest } from '@winsendotai/ovo-plugin-tools';
+import { createHash } from 'node:crypto';
+import { canonicalJson } from '@winsendotai/ovo-contracts';
 
 export interface McpDiscoveredTool {
   remoteName: string;
@@ -44,7 +45,11 @@ export interface RemoteToolShape {
 export function mcpSchemaDigest(
   tool: Pick<RemoteToolShape, 'inputSchema' | 'outputSchema'>,
 ): string {
-  return schemaDigest({ inputSchema: tool.inputSchema, outputSchema: tool.outputSchema ?? null });
+  return createHash('sha256')
+    .update(
+      canonicalJson({ inputSchema: tool.inputSchema, outputSchema: tool.outputSchema ?? null }),
+    )
+    .digest('hex');
 }
 
 export function toDiscoveredTool(tool: RemoteToolShape): McpDiscoveredTool {

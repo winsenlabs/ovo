@@ -30,11 +30,11 @@ export function operationFingerprint(
  * raised before the connector dispatches anything, so the side effect provably never started and
  * the operation is `failed`, not `unknown`. Only a `ToolInvocationError` can say otherwise.
  */
-function outcomeOf(error: unknown): 'not-applied' | 'unknown' | undefined {
+function outcomeOf(error: unknown, resultReceived: boolean): 'not-applied' | 'unknown' | undefined {
   if (error instanceof ToolInvocationError) return error.outcome;
-  // A ToolSchemaError can also come from validating the *result*, once the connector has run and
-  // a write may already have landed, so it proves nothing about the side effect.
-  if (error instanceof ToolSchemaError) return undefined;
+  // Connector schema errors are pre-dispatch approval refusals. Output validation happens only
+  // after a result returns, when a write may already have landed.
+  if (error instanceof ToolSchemaError) return resultReceived ? undefined : 'not-applied';
   if (error instanceof ExecutionPolicyError) return 'not-applied';
   return undefined;
 }
@@ -149,8 +149,10 @@ export async function runOperation(
 
   try {
     let settled: OperationRecord;
+    let resultReceived = false;
     try {
       const result = await invocation;
+      resultReceived = true;
       if (tool.output && !tool.output(result)) {
         throw new ToolSchemaError(
           `Tool ${request.toolId} returned an invalid result`,
@@ -159,7 +161,7 @@ export async function runOperation(
       }
       settled = { ...running, state: 'succeeded', result: structuredClone(result) };
     } catch (error) {
-      const explicitOutcome = outcomeOf(error);
+      const explicitOutcome = outcomeOf(error, resultReceived);
       const unknown =
         tool.definition.effect === 'write' &&
         effectStarted &&

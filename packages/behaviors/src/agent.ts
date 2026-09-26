@@ -1,4 +1,15 @@
-import Ajv, { type ValidateFunction } from 'ajv';
+import type { ValidateFunction } from 'ajv';
+import {
+  AgentToolSelectionError,
+  compileAgentTools,
+  type AgentBehaviorOptions,
+  type AgentToolErrorRecord,
+} from './agent-tools.ts';
+export {
+  AgentToolSelectionError,
+  type AgentBehaviorOptions,
+  type AgentToolErrorRecord,
+} from './agent-tools.ts';
 import {
   AgentConfig as AgentConfigSchema,
   type AgentConfig,
@@ -12,45 +23,26 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { PlaybackConversation } from './history.ts';
 import { ToolConfirmation } from './confirmation.ts';
+import { ToolEvents } from './tool-events.ts';
 import { assembleBoundedContext } from './context.ts';
-import { addIsoFormats } from './schema-formats.ts';
-import { StreamingTextSegmenter } from './text-segmenter.ts';
-
-export class AgentToolSelectionError extends Error {
-  constructor(
-    readonly toolId: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'AgentToolSelectionError';
-  }
-}
-
-export interface AgentBehaviorOptions {
-  workspaceId: string;
-  sessionId: string;
-  operationId?: () => string;
-}
-
-export interface AgentToolErrorRecord {
-  turn: number;
-  toolId: string;
-  kind: 'unknown-or-unapproved' | 'invalid-input';
-  message: string;
-  at: string;
-}
+import { streamAgentReply } from './agent-stream.ts';
 
 export class AgentBehavior implements Behavior {
   readonly config: AgentConfig;
   readonly assembledContext: string;
   readonly toolErrors: AgentToolErrorRecord[] = [];
   private readonly tools: ToolDefinition[];
-  private readonly validators = new Map<string, ValidateFunction>();
+  private readonly validators: Map<string, ValidateFunction>;
   private readonly operationId: () => string;
   private active?: AbortController;
   private turn = 0;
   private readonly conversation = new PlaybackConversation();
-  private readonly confirmation = new ToolConfirmation();
+  private readonly events = new ToolEvents();
+  private readonly confirmation = new ToolConfirmation(this.events.emit);
+  readonly subscribe = this.events.subscribe;
+  speechKind(text: string) {
+    return this.confirmation.speechKind(text);
+  }
   private uncertainWrite = false;
 
   constructor(
@@ -68,14 +60,9 @@ export class AgentBehavior implements Behavior {
     this.assembledContext = assembleBoundedContext(this.config.context, this.config.contextBudget);
     this.operationId = options.operationId ?? (() => crypto.randomUUID());
 
-    const allowed = new Set(this.config.allowedTools);
-    this.tools = this.config.tools.filter((tool) => allowed.has(tool.id));
-    if (new Set(this.config.tools.map((tool) => tool.id)).size !== this.config.tools.length) {
-      throw new TypeError('Agent tool IDs must be unique');
-    }
-    const ajv = new Ajv({ allErrors: true, strict: false });
-    addIsoFormats(ajv);
-    for (const tool of this.tools) this.validators.set(tool.id, ajv.compile(tool.inputSchema));
+    const compiled = compileAgentTools(this.config);
+    this.tools = compiled.tools;
+    this.validators = compiled.validators;
   }
 
   async respond(input: string, _variables: Record<string, unknown> = {}): Promise<string> {
@@ -110,7 +97,8 @@ export class AgentBehavior implements Behavior {
         }
         const { tool, input: approvedInput, operationId } = decision.selection;
         if (tool.effect === 'write') this.uncertainWrite = true;
-        const outcome = await this.execution.execute(
+        const outcome = await this.events.execute(
+          this.execution,
           {
             id: operationId,
             workspaceId: this.options.workspaceId,
@@ -119,7 +107,7 @@ export class AgentBehavior implements Behavior {
             input: approvedInput,
             confirmed: true,
           },
-          { signal: controller.signal },
+          controller.signal,
         );
         if (tool.effect === 'write' && ['succeeded', 'failed'].includes(outcome.state))
           this.uncertainWrite = false;
@@ -146,40 +134,17 @@ export class AgentBehavior implements Behavior {
         };
         let reply: InferenceReply;
         if (streaming && this.inference.stream) {
-          const segmenter = new StreamingTextSegmenter();
-          let toolReply: { kind: 'tool'; toolId: string; input: unknown } | undefined;
-          let emittedText = false;
-          let receivedText = false;
-          for await (const event of this.inference.stream(request)) {
-            controller.signal.throwIfAborted();
-            if (turn !== this.turn) throw new DOMException('stale agent turn', 'AbortError');
-            if (event.kind === 'tool') {
-              if (receivedText)
-                throw new AgentToolSelectionError(
-                  event.toolId,
-                  'Tool call followed streamed response text',
-                );
-              if (toolReply) throw new AgentToolSelectionError(event.toolId, 'Multiple tool calls');
-              toolReply = event;
-            } else if (event.kind === 'text-delta') {
-              if (toolReply)
-                throw new AgentToolSelectionError(
-                  toolReply.toolId,
-                  'Streamed response text followed a tool call',
-                );
-              receivedText ||= Boolean(event.delta);
-              for (const segment of segmenter.push(event.delta)) {
-                emittedText = true;
-                yield this.conversation.generated(segment);
-              }
-            }
-          }
-          for (const segment of segmenter.finish()) {
-            emittedText = true;
-            yield this.conversation.generated(segment);
-          }
-          if (emittedText) return;
-          reply = toolReply ?? { kind: 'text' as const, text: '' };
+          const streamed = yield* streamAgentReply(
+            this.inference.stream(request),
+            this.config.locale,
+            () => {
+              controller.signal.throwIfAborted();
+              if (turn !== this.turn) throw new DOMException('stale agent turn', 'AbortError');
+            },
+            (text) => this.conversation.generated(text),
+          );
+          if (!streamed) return;
+          reply = streamed;
         } else {
           reply = await this.inference.generate(request);
         }
@@ -226,13 +191,17 @@ export class AgentBehavior implements Behavior {
         const operationId = this.operationId();
         if (tool.effect === 'write' || tool.confirmation) {
           yield this.conversation.generated(
-            this.confirmation.request({ tool, input: reply.input, operationId }),
+            this.confirmation.request(
+              { tool, input: reply.input, operationId },
+              this.config.locale,
+            ),
           );
           return;
         }
 
         // Execution is the sole policy, durable-intent, acknowledgement, and connector boundary.
-        const result = await this.execution.execute(
+        const result = await this.events.execute(
+          this.execution,
           {
             id: operationId,
             workspaceId: this.options.workspaceId,
@@ -241,7 +210,7 @@ export class AgentBehavior implements Behavior {
             input: reply.input,
             confirmed: false,
           },
-          { signal: controller.signal },
+          controller.signal,
         );
         controller.signal.throwIfAborted();
         if (turn !== this.turn) throw new DOMException('stale agent turn', 'AbortError');

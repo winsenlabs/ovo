@@ -5,6 +5,7 @@ import { releaseMcpToolsV3 } from './migrations/003-release-mcp-tools.ts';
 import { releaseSelectionsV4 } from './migrations/004-release-selections.ts';
 import { callKindConstraintV5 } from './migrations/005-call-kind-constraint.ts';
 import { fixtureSnapshotsV6 } from './migrations/006-fixture-snapshots.ts';
+import { mcpToolRemovedV6 } from './migrations/006-mcp-tool-removed.ts';
 import { migrationChecksum, transaction } from './shared.ts';
 
 const migrations = [
@@ -14,6 +15,7 @@ const migrations = [
   { version: 4, name: 'release-selections', sql: releaseSelectionsV4 },
   { version: 5, name: 'call-kind-constraint', sql: callKindConstraintV5 },
   { version: 6, name: 'fixture-snapshots', sql: fixtureSnapshotsV6 },
+  { version: 6, name: 'mcp-tool-removed', sql: mcpToolRemovedV6 },
 ] as const;
 
 const legacyKindDefinition = "CHECK ((kind = ANY (ARRAY['live'::text, 'simulation'::text])))";

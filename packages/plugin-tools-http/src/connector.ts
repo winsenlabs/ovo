@@ -1,9 +1,5 @@
-import type { SecretResolver, ToolConnector } from '@winsendotai/ovo-contracts';
-import {
-  ExecutionPolicyError,
-  ToolInvocationError,
-  serviceKeys,
-} from '@winsendotai/ovo-plugin-tools';
+import { Cap, type SecretResolver, type ToolConnector } from '@winsendotai/ovo-contracts';
+import { ConnectorPolicyError, ToolInvocationError } from '@winsendotai/ovo-plugin-kit';
 import { definePlugin, type Context, type PluginDefinition } from '@winsendotai/ovo-runtime';
 import {
   createPinnedFetch,
@@ -47,15 +43,24 @@ const FORBIDDEN_HEADERS = new Set([
 function assertHeaderName(name: string): void {
   const normalized = name.toLowerCase();
   if (FORBIDDEN_HEADERS.has(normalized) || normalized.startsWith('sec-')) {
-    throw new ExecutionPolicyError(`HTTP header is controlled by the connector: ${name}`);
+    throw new ConnectorPolicyError(`HTTP header is controlled by the connector: ${name}`);
   }
   if (!/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(name))
-    throw new ExecutionPolicyError(`Invalid HTTP header: ${name}`);
+    throw new ConnectorPolicyError(`Invalid HTTP header: ${name}`);
+}
+
+function assertPointer(pointer: unknown): asserts pointer is string {
+  if (
+    typeof pointer !== 'string' ||
+    (pointer !== '' && !pointer.startsWith('/')) ||
+    /~(?![01])/u.test(pointer)
+  )
+    throw new ConnectorPolicyError(`Invalid JSON pointer: ${String(pointer)}`);
 }
 
 function readPointer(input: unknown, pointer: string): unknown {
   if (pointer === '') return input;
-  if (!pointer.startsWith('/')) throw new ExecutionPolicyError(`Invalid JSON pointer: ${pointer}`);
+  assertPointer(pointer);
   return pointer
     .slice(1)
     .split('/')
@@ -71,8 +76,12 @@ function compileBindings(bindings: readonly HttpToolBinding[]): Map<string, Http
   const approved = new Map<string, HttpToolBinding>();
   for (const binding of bindings) {
     if (approved.has(binding.toolId))
-      throw new ExecutionPolicyError(`Duplicate HTTP binding: ${binding.toolId}`);
+      throw new ConnectorPolicyError(`Duplicate HTTP binding: ${binding.toolId}`);
     parseApprovedEndpoint(binding.endpoint);
+    for (const pointer of Object.values(binding.query ?? {})) assertPointer(pointer);
+    if (binding.response?.pointer !== undefined) assertPointer(binding.response.pointer);
+    if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(binding.method))
+      throw new ConnectorPolicyError(`Disallowed HTTP method: ${binding.method}`);
     for (const name of Object.keys(binding.headers ?? {})) assertHeaderName(name);
     if (binding.auth?.type === 'header') assertHeaderName(binding.auth.header);
     if (binding.idempotencyHeader) assertHeaderName(binding.idempotencyHeader);
@@ -89,12 +98,12 @@ export function createHttpConnector(
   return {
     async invoke(tool, input, options) {
       if (tool.connector !== 'http')
-        throw new ExecutionPolicyError(`HTTP connector cannot invoke ${tool.connector} tool`);
+        throw new ConnectorPolicyError(`HTTP connector cannot invoke ${tool.connector} tool`);
       const binding = approved.get(tool.id);
       if (!binding)
-        throw new ExecutionPolicyError(`No operator-approved HTTP binding for ${tool.id}`);
+        throw new ConnectorPolicyError(`No operator-approved HTTP binding for ${tool.id}`);
       if (binding.workspaceId !== options.workspaceId)
-        throw new ExecutionPolicyError('HTTP tool binding belongs to another workspace');
+        throw new ConnectorPolicyError('HTTP tool binding belongs to another workspace');
 
       const url = new URL(binding.endpoint);
       for (const [name, pointer] of Object.entries(binding.query ?? {})) {
@@ -113,7 +122,7 @@ export function createHttpConnector(
       if (bodyMode === 'input') headers.set('content-type', 'application/json');
       if (binding.auth) {
         if (!dependencies.secrets)
-          throw new ExecutionPolicyError(
+          throw new ConnectorPolicyError(
             'HTTP authentication requires a server-side secret resolver',
           );
         let secret: string;
@@ -123,7 +132,7 @@ export function createHttpConnector(
             binding.auth.credentialId,
           );
         } catch {
-          throw new ToolInvocationError('HTTP credential resolution failed', 'not-applied');
+          throw new ConnectorPolicyError('HTTP credential resolution failed');
         }
         if (binding.auth.type === 'bearer') headers.set('authorization', `Bearer ${secret}`);
         else headers.set(binding.auth.header, secret);
@@ -141,7 +150,13 @@ export function createHttpConnector(
             signal: options.signal,
           });
         } catch (error) {
-          if (error instanceof ToolInvocationError || error instanceof ExecutionPolicyError)
+          // Undici wraps a pre-write peer-policy refusal in fetch's TypeError cause.
+          let cause: unknown = error;
+          for (let depth = 0; cause instanceof Error && depth < 8; depth += 1) {
+            if (cause instanceof ConnectorPolicyError) throw cause;
+            cause = cause.cause;
+          }
+          if (error instanceof ToolInvocationError || error instanceof ConnectorPolicyError)
             throw error;
           throw new ToolInvocationError(
             'HTTP tool request did not produce a definite response',
@@ -177,19 +192,14 @@ export function createHttpToolsPlugin(
       version: '0.1.0',
       contractVersion: 1,
       scope: 'session',
-      requires: needsSecrets ? [serviceKeys.secretResolver] : [],
-      provides: [serviceKeys.connector.http],
+      requires: needsSecrets ? [Cap.secrets] : [],
+      provides: [Cap.toolHttp],
       configSchema: { type: 'object', additionalProperties: false },
       secretFields: ['bindings.*.auth.credentialId'],
     },
     (ctx: Context) => {
-      const secrets = needsSecrets
-        ? (ctx.get(serviceKeys.secretResolver) as SecretResolver)
-        : undefined;
-      ctx.provide(
-        serviceKeys.connector.http,
-        createHttpConnector(bindings, { ...dependencies, secrets }),
-      );
+      const secrets = needsSecrets ? (ctx.get(Cap.secrets) as SecretResolver) : undefined;
+      ctx.provide(Cap.toolHttp, createHttpConnector(bindings, { ...dependencies, secrets }));
     },
   );
 }

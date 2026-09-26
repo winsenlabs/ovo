@@ -1,4 +1,4 @@
-import { ExecutionPolicyError, ToolInvocationError } from '@winsendotai/ovo-plugin-tools';
+import { ConnectorPolicyError, ToolInvocationError } from '@winsendotai/ovo-plugin-kit';
 
 export const DEFAULT_MAX_RESPONSE_BYTES = 1024 * 1024;
 
@@ -11,7 +11,7 @@ export class ResponseBodyLimitError extends ToolInvocationError {
 export function validateResponseByteLimit(value: number | undefined): number {
   const limit = value ?? DEFAULT_MAX_RESPONSE_BYTES;
   if (!Number.isSafeInteger(limit) || limit <= 0) {
-    throw new ExecutionPolicyError('Tool response byte limit must be a positive safe integer');
+    throw new ConnectorPolicyError('Tool response byte limit must be a positive safe integer');
   }
   return limit;
 }

@@ -31,7 +31,7 @@ describe('streaming behaviors', () => {
       async *stream(request) {
         requests.push(request);
         if (requests.length === 1) {
-          yield { kind: 'text-delta', delta: 'First sentence. ' };
+          yield { kind: 'text-delta', delta: 'First sentence! ' };
           await gate;
           yield { kind: 'text-delta', delta: 'Second sentence.' };
         } else {
@@ -46,8 +46,8 @@ describe('streaming behaviors', () => {
     );
     behavior.beginTurn(1);
     const iterator = behavior.respondStream('first')[Symbol.asyncIterator]();
-    await expect(iterator.next()).resolves.toEqual({ done: false, value: 'First sentence.' });
-    behavior.onPlayback(played('First sentence.', 1));
+    await expect(iterator.next()).resolves.toEqual({ done: false, value: 'First sentence!' });
+    behavior.onPlayback(played('First sentence!', 1));
     release();
     await expect(iterator.next()).resolves.toEqual({ done: false, value: 'Second sentence.' });
     behavior.onPlayback(played('Second sentence.', 1, 'interrupted'));
@@ -58,7 +58,7 @@ describe('streaming behaviors', () => {
     await next.next();
     expect(requests[1]?.history).toEqual([
       { role: 'user', content: 'first' },
-      { role: 'assistant', content: 'First sentence.' },
+      { role: 'assistant', content: 'First sentence!' },
       {
         role: 'assistant',
         content: '[The response was interrupted. Do not assume any unconfirmed words were heard.]',

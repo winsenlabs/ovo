@@ -1,59 +1,37 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import type { SecretResolver, ToolConnection } from '@winsendotai/ovo-contracts';
-import { ExecutionPolicyError } from '@winsendotai/ovo-plugin-tools';
-import {
-  createPinnedFetch,
-  type SecureNetworkDependencies,
-} from '@winsendotai/ovo-plugin-tools-http';
+import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
+import { ConnectorPolicyError } from '@winsendotai/ovo-plugin-kit';
+import type { SecretResolver } from '@winsendotai/ovo-contracts';
+import { mcpNetwork, type McpNetworkDependencies } from './network.ts';
+import { discoverTools } from './discovery.ts';
+import type { McpDiscoveredTool } from './schema.ts';
 
 export interface McpConnectorDependencies {
   secrets?: SecretResolver;
-  network?: SecureNetworkDependencies;
+  network?: McpNetworkDependencies;
+  idleTtlMs?: number;
+  discoveryTtlMs?: number;
+  maxClients?: number;
+  now?: () => number;
 }
-
-async function closeQuietly(client: Client, dispose: () => Promise<void>): Promise<void> {
-  try {
-    await client.close();
-  } catch {
-    // A stateless server may reject DELETE. The request has already settled.
-  } finally {
-    await dispose();
-  }
+export interface PooledClient {
+  client: Client;
+  tools(signal?: AbortSignal, force?: boolean): Promise<readonly McpDiscoveredTool[]>;
+  close(): Promise<void>;
 }
-
-export async function withMcpClient<T>(
-  connection: ToolConnection,
+export async function connectClient(
+  endpoint: string,
+  secret: string | undefined,
   dependencies: McpConnectorDependencies,
-  signal: AbortSignal | undefined,
-  use: (client: Client) => Promise<T>,
-): Promise<T> {
-  const policy = await createPinnedFetch(connection.endpoint, dependencies.network);
-  const headers = new Headers();
-  try {
-    if (connection.auth === 'bearer') {
-      if (!dependencies.secrets) {
-        throw new ExecutionPolicyError('MCP authentication requires a server-side secret resolver');
-      }
-      let secret: string;
-      try {
-        secret = await dependencies.secrets.resolve(
-          connection.workspaceId,
-          connection.credentialId!,
-        );
-      } catch {
-        throw new ExecutionPolicyError('MCP credential resolution failed');
-      }
-      headers.set('authorization', `Bearer ${secret}`);
-    }
-  } catch (error) {
-    await policy.dispose();
-    throw error;
-  }
-
-  const transport = new StreamableHTTPClientTransport(new URL(connection.endpoint), {
-    requestInit: { headers, signal },
-    fetch: policy.fetch as typeof globalThis.fetch,
+  signal?: AbortSignal,
+): Promise<PooledClient> {
+  const net = await mcpNetwork(endpoint, dependencies.network);
+  const headers = new Headers(secret === undefined ? {} : { authorization: `Bearer ${secret}` });
+  // Per-operation signals belong to SDK requests, never the lifetime of the pooled transport.
+  const transport = new StreamableHTTPClientTransport(new URL(endpoint), {
+    requestInit: { headers },
+    fetch: net.fetch,
     reconnectionOptions: {
       initialReconnectionDelay: 100,
       maxReconnectionDelay: 1_000,
@@ -63,15 +41,57 @@ export async function withMcpClient<T>(
   });
   const client = new Client(
     { name: '@winsendotai/ovo-plugin-tools-mcp', version: '0.1.0' },
-    {
-      capabilities: {},
-      enforceStrictCapabilities: true,
-    },
+    { capabilities: {}, enforceStrictCapabilities: true },
   );
+  const now = dependencies.now ?? Date.now;
+  let generation = 0;
+  let cachedGeneration = -1;
+  let expiresAt = 0;
+  let cached: readonly McpDiscoveredTool[] = [];
+  let loading: Promise<readonly McpDiscoveredTool[]> | undefined;
+
+  const close = async () => {
+    try {
+      await client.close();
+    } finally {
+      await net.close();
+    }
+  };
   try {
     await client.connect(transport, { signal, timeout: 10_000, maxTotalTimeout: 10_000 });
-    return await use(client);
-  } finally {
-    await closeQuietly(client, policy.dispose);
+  } catch (error) {
+    await close().catch(() => undefined);
+    throw error;
   }
+  const tools = async (
+    signal?: AbortSignal,
+    force = false,
+  ): Promise<readonly McpDiscoveredTool[]> => {
+    if (force) generation += 1;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (cachedGeneration === generation && now() < expiresAt) return cached;
+      if (!loading) {
+        const requestedGeneration = generation;
+        loading = discoverTools(client, signal)
+          .then((tools) => {
+            cached = tools;
+            cachedGeneration = requestedGeneration;
+            expiresAt = now() + (dependencies.discoveryTtlMs ?? 300_000);
+            return tools;
+          })
+          .finally(() => {
+            loading = undefined;
+          });
+      }
+      await loading;
+    }
+    throw new ConnectorPolicyError('MCP discovery kept changing during validation');
+  };
+  client.setNotificationHandler(ToolListChangedNotificationSchema, () => {
+    generation += 1;
+    // A failed background refresh leaves the generation invalid; the next acquisition fails
+    // or refreshes before executing a tool. Never accept stale discovery after a notification.
+    void tools().catch(() => undefined);
+  });
+  return { client, close, tools };
 }

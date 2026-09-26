@@ -2,10 +2,35 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { NodeSqliteControlStore, ReferencedResourceError } from '@winsendotai/ovo-plugin-storage';
+import { NodeSqliteControlStore, ReferencedResourceError } from '../../plugin-storage/src/index.ts';
 import { LocalAesGcmSecretManager } from '../src/index.ts';
 
 describe('LocalAesGcmSecretManager', () => {
+  it('keeps concurrent rotation AAD aligned with unique sequential versions', async () => {
+    const store = new NodeSqliteControlStore(':memory:');
+    try {
+      await store.ensureWorkspace('workspace');
+      const secrets = new LocalAesGcmSecretManager(store, Buffer.alloc(32, 7));
+      const credential = await secrets.create({
+        workspaceId: 'workspace',
+        label: 'Concurrent',
+        provider: 'fixture',
+        type: 'api-key',
+        environment: 'test',
+        value: 'initial',
+        createdBy: 'test',
+      });
+      const versions = await Promise.all([
+        secrets.rotate('workspace', credential.id, 'rotation-two'),
+        secrets.rotate('workspace', credential.id, 'rotation-three'),
+      ]);
+      expect(versions.map((item) => item.currentVersion).sort()).toEqual([2, 3]);
+      await expect(secrets.resolve('workspace', credential.id)).resolves.toBe('rotation-three');
+    } finally {
+      await store.close();
+    }
+  });
+
   it('encrypts at rest, rotates, survives reopen, and bounds retirement references', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'ovo-secrets-')),
       filename = join(directory, 'control.sqlite'),

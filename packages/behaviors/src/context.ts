@@ -64,7 +64,9 @@ export class ContextBehavior implements Behavior {
     };
     try {
       if (streaming && this.inference.stream) {
-        const segmenter = new StreamingTextSegmenter();
+        const segmenter = new StreamingTextSegmenter(undefined, undefined, {
+          language: this.config.locale,
+        });
         let emitted = false;
         for await (const event of this.inference.stream(request)) {
           controller.signal.throwIfAborted();

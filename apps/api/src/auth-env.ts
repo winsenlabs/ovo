@@ -69,12 +69,21 @@ export function bootstrapIdentityFromEnv(env: NodeJS.ProcessEnv = process.env): 
   };
 }
 
+let localSessionSecret: string | undefined;
+
 export function sessionSecretFromEnv(
-  identity: BootstrapIdentity,
+  _identity: BootstrapIdentity,
   env: NodeJS.ProcessEnv = process.env,
 ) {
-  return (
-    env.OVO_SESSION_SECRET ??
-    createHash('sha256').update(`ovo-session:${identity.token}`).digest('hex')
-  );
+  const configured = env.OVO_SESSION_SECRET;
+  if (env.NODE_ENV === 'production' && (!configured || Buffer.byteLength(configured, 'utf8') < 32))
+    throw new Error('Production OVO_SESSION_SECRET requires at least 32 bytes (UTF-8)');
+  if (configured) return configured;
+  if (!localSessionSecret) {
+    localSessionSecret = randomBytes(32).toString('hex');
+    console.warn(
+      'OVO_SESSION_SECRET is unset; development sessions expire when this process restarts.',
+    );
+  }
+  return localSessionSecret;
 }

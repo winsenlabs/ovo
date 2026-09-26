@@ -1,5 +1,11 @@
-import type { AgentConfig, Behavior, ScriptGraph, SpeechReceipt } from '@winsendotai/ovo-contracts';
-import { AgentConfig as AgentConfigSchema } from '@winsendotai/ovo-contracts';
+import type {
+  AgentConfig,
+  Behavior,
+  BehaviorEvent,
+  ScriptGraph,
+  SpeechReceipt,
+} from '@winsendotai/ovo-contracts';
+import { AgentConfig as AgentConfigSchema, normalizeForMatch } from '@winsendotai/ovo-contracts';
 import { renderAnnouncementTemplate, validateTemplatePaths } from './announcement.ts';
 
 /** A script advances on playback completion, never on generated text alone. */
@@ -10,6 +16,7 @@ export class ScriptBehavior implements Behavior {
   private started = false;
   private visits = 0;
   private generation = 0;
+  private faqConfirmation = false;
   private readonly graph: ScriptGraph;
 
   constructor(
@@ -29,35 +36,47 @@ export class ScriptBehavior implements Behavior {
     const node = this.graph.nodes.find((node) => node.id === this.current)!;
     if (!this.started) return this.prepare(node.id, variables);
     if (node.terminal) return '';
+    if (this.faqConfirmation) return this.detour(input, variables, node.id, generation);
     if (this.visits >= this.graph.maxVisits) return this.config.clarification;
     const event = variables.inputEvent === 'dtmf' ? 'dtmf' : 'text';
-    const normalized = input.normalize('NFKC').trim().toLowerCase();
+    const normalized = normalizeForMatch(input);
     const transition = node.transitions.find(
       (transition) =>
         transition.event === event &&
-        transition.matches.some(
-          (match) => match.normalize('NFKC').trim().toLowerCase() === normalized,
-        ),
+        transition.matches.some((match) => normalizeForMatch(match) === normalized),
     );
     if (transition) return this.prepare(transition.to, variables);
     if (event === 'dtmf' || !this.faq) return this.config.clarification;
-    const answer = await this.faq.respond(input, variables);
-    if (generation !== this.generation)
-      throw new DOMException('Stale script response', 'AbortError');
-    // An FAQ detour never changes the script state. Repeat its current prompt so
-    // the caller has an explicit, deterministic resume point.
-    return `${answer} ${this.render(node.id, variables)}`;
+    return this.detour(input, variables, node.id, generation);
   }
 
-  onPlayback(receipt: SpeechReceipt): void {
+  private async detour(
+    input: string,
+    variables: Record<string, unknown>,
+    node: string,
+    generation: number,
+  ): Promise<string> {
+    const answer = await this.faq!.respond(input, variables);
+    if (generation !== this.generation)
+      throw new DOMException('Stale script response', 'AbortError');
+    this.faqConfirmation = this.faq?.speechKind?.(answer) === 'confirmation';
+    if (this.faqConfirmation) return answer;
+    // An FAQ detour never changes the script state. Repeat its current prompt so
+    // the caller has an explicit, deterministic resume point.
+    return `${answer} ${this.render(node, variables)}`;
+  }
+
+  onPlayback(receipt: SpeechReceipt): void | Promise<void> {
+    const forwarded = this.faq?.onPlayback?.(receipt);
     if (!this.pending || receipt.text !== this.pending.text || receipt.epoch !== this.pending.epoch)
-      return;
+      return forwarded;
     if (receipt.state === 'completed') {
       this.current = this.pending.node;
       this.started = true;
       this.visits++;
     }
     this.pending = undefined;
+    return forwarded;
   }
 
   cancel(): void {
@@ -85,6 +104,15 @@ export class ScriptBehavior implements Behavior {
       throw new Error('Script turns require increasing playback epochs');
     this.cancel();
     this.epoch = epoch;
+    this.faq?.beginTurn?.(epoch);
+  }
+
+  speechKind(text: string) {
+    return this.faq?.speechKind?.(text);
+  }
+
+  subscribe(listener: (event: BehaviorEvent) => void): () => void {
+    return this.faq?.subscribe?.(listener) ?? (() => undefined);
   }
 
   private prepare(node: string, variables: Record<string, unknown>): string {
