@@ -2,8 +2,22 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import type {
   BeginDialSessionInput,
   ClaimedJob,
+  DurableJob,
+  DurableJobStore,
   SessionRoute,
 } from '@winsendotai/ovo-plugin-orchestration';
+import type { GatewayToWorkerMessage } from '@winsendotai/ovo-plugin-media';
+
+type Open = Extract<GatewayToWorkerMessage, { type: 'session.open' }>;
+
+export interface RouteTokenStore extends DurableJobStore {
+  pool?: {
+    query<T extends object>(
+      sql: string,
+      values: unknown[],
+    ): Promise<{ rows: T[]; rowCount?: number | null }>;
+  };
+}
 
 export interface SessionHandshake {
   token: string;
@@ -14,6 +28,82 @@ export function sameHash(left: string, right: string): boolean {
   const a = Buffer.from(left, 'hex');
   const b = Buffer.from(right, 'hex');
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** Admit only a claimed route whose job, slot, epoch, binding and call still match. */
+export async function authenticatedMediaRoute(
+  store: RouteTokenStore,
+  workerId: string,
+  open: Open,
+): Promise<SessionRoute> {
+  if (!store.pool) throw new Error('durable route token store is unavailable');
+  const claim = await store.pool.query<{
+    job_id: string;
+    organization_id: string;
+    carrier_id: string;
+    handshake_token_hash: string;
+    handshake_claimed_at: Date | null;
+    worker_slot_epoch: string | null;
+  }>(
+    `SELECT job_id, organization_id, carrier_id, handshake_token_hash,
+            handshake_claimed_at, worker_slot_epoch
+     FROM ovo_session_routes WHERE session_id = $1`,
+    [open.sessionId],
+  );
+  const row = claim.rows[0];
+  const actualHash = createHash('sha256').update(open.routeToken, 'utf8').digest('hex');
+  if (!row?.handshake_claimed_at || !sameHash(row.handshake_token_hash, actualHash))
+    throw new Error('media route token was not claimed');
+  const route = await store.resolveSessionRoute({
+    organizationId: row.organization_id,
+    carrierId: row.carrier_id,
+    sessionId: open.sessionId,
+    carrierCallId: open.carrierCallId,
+  });
+  if (
+    !route ||
+    route.sessionId !== open.sessionId ||
+    route.jobId !== row.job_id ||
+    route.workerId !== workerId ||
+    route.ownerEpoch !== open.ownerEpoch ||
+    route.generation !== open.generation ||
+    route.carrierId !== open.carrierId ||
+    row.carrier_id !== open.carrierId ||
+    (route.bindingId ?? 'env') !== open.bindingId ||
+    (route.carrierCallId !== open.carrierCallId &&
+      route.carrierStreamCallId !== open.carrierCallId) ||
+    route.terminalAt ||
+    route.releasedAt ||
+    route.status === 'terminating'
+  )
+    throw new Error('media route does not match the active owner');
+  const slot = await store.pool.query<{ ownership_epoch: string }>(
+    `SELECT ownership_epoch FROM ovo_worker_slots
+     WHERE worker_id = $1 AND state IN ('reserved', 'active')
+       AND lease_expires_at > now()`,
+    [route.workerId],
+  );
+  if (!row.worker_slot_epoch || slot.rows[0]?.ownership_epoch !== row.worker_slot_epoch)
+    throw new Error('worker slot lease no longer owns the media route');
+  await activelyOwnedMediaJob(store, route);
+  return route;
+}
+
+export async function activelyOwnedMediaJob(
+  store: DurableJobStore,
+  route: SessionRoute,
+): Promise<DurableJob> {
+  const job = await store.get(route.jobId);
+  if (
+    !job ||
+    job.ownerId !== route.workerId ||
+    job.ownerEpoch !== route.ownerEpoch ||
+    !job.leaseExpiresAt ||
+    job.leaseExpiresAt.getTime() <= Date.now() ||
+    !['dialing', 'reconcile_required', 'accepted', 'connected'].includes(job.status)
+  )
+    throw new Error('durable job is not actively owned by the routed worker');
+  return job;
 }
 
 export function createSessionHandshake(input: {

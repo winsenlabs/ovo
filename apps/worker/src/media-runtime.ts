@@ -1,16 +1,16 @@
-import { createHash } from 'node:crypto';
 import type { Server } from 'node:http';
 import { WebSocket } from 'ws';
-import type {
-  DurableJob,
-  DurableJobStore,
-  SessionRoute,
-} from '@winsendotai/ovo-plugin-orchestration';
+import type { DurableJob, SessionRoute } from '@winsendotai/ovo-plugin-orchestration';
 import type { GatewayToWorkerMessage, WorkerMediaSession } from '@winsendotai/ovo-plugin-media';
 import type { EndReason } from '@winsendotai/ovo-contracts';
 import { asEndReason } from '@winsendotai/ovo-plugin-kit';
 import { attachWorkerMediaServer, WorkerMediaLink } from './worker-media-server.ts';
-import { recordSessionOpened, sameHash } from './session-handshake.ts';
+import {
+  authenticatedMediaRoute,
+  activelyOwnedMediaJob,
+  recordSessionOpened,
+  type RouteTokenStore,
+} from './session-handshake.ts';
 
 export interface ManagedVoiceSession {
   dispose(reason?: EndReason, closeMedia?: boolean): Promise<unknown>;
@@ -25,15 +25,6 @@ export interface VoiceSessionFactory {
 }
 
 type Open = Extract<GatewayToWorkerMessage, { type: 'session.open' }>;
-
-interface RouteTokenStore extends DurableJobStore {
-  pool?: {
-    query<T extends object>(
-      sql: string,
-      values: unknown[],
-    ): Promise<{ rows: T[]; rowCount?: number | null }>;
-  };
-}
 
 export class WorkerMediaRuntime {
   private readonly engines = new Map<string, ManagedVoiceSession>();
@@ -104,7 +95,7 @@ export class WorkerMediaRuntime {
   }
 
   private async accept(open: Open, socket: WebSocket, handoff: () => void): Promise<void> {
-    const route = await this.authenticatedRoute(open);
+    const route = await authenticatedMediaRoute(this.store, this.config.workerId, open);
     const existing = this.links.get(route.sessionId);
     if (socket.readyState !== WebSocket.OPEN) {
       if (!existing) await this.onSessionClose?.(route, 'error:media-disconnected-before-accept');
@@ -145,69 +136,6 @@ export class WorkerMediaRuntime {
     }
   }
 
-  private async authenticatedRoute(open: Open): Promise<SessionRoute> {
-    if (!this.store.pool) throw new Error('durable route token store is unavailable');
-    const claim = await this.store.pool.query<{
-      job_id: string;
-      organization_id: string;
-      carrier_id: string;
-      handshake_token_hash: string;
-      handshake_claimed_at: Date | null;
-      worker_slot_epoch: string | null;
-    }>(
-      `SELECT job_id, organization_id, carrier_id, handshake_token_hash,
-              handshake_claimed_at, worker_slot_epoch
-       FROM ovo_session_routes WHERE session_id = $1`,
-      [open.sessionId],
-    );
-    const row = claim.rows[0];
-    const actualHash = createHash('sha256').update(open.routeToken, 'utf8').digest('hex');
-    if (!row?.handshake_claimed_at || !sameHash(row.handshake_token_hash, actualHash))
-      throw new Error('media route token was not claimed');
-    const route = await this.store.resolveSessionRoute({
-      organizationId: row.organization_id,
-      carrierId: row.carrier_id,
-      sessionId: open.sessionId,
-      carrierCallId: open.carrierCallId,
-    });
-    if (
-      !route ||
-      route.sessionId !== open.sessionId ||
-      route.jobId !== row.job_id ||
-      route.workerId !== this.config.workerId ||
-      route.ownerEpoch !== open.ownerEpoch ||
-      route.generation !== open.generation ||
-      route.carrierId !== open.carrierId ||
-      row.carrier_id !== open.carrierId ||
-      (route.bindingId ?? 'env') !== open.bindingId ||
-      (route.carrierCallId !== open.carrierCallId &&
-        route.carrierStreamCallId !== open.carrierCallId) ||
-      route.terminalAt ||
-      route.releasedAt ||
-      route.status === 'terminating'
-    )
-      throw new Error('media route does not match the active owner');
-    const slot = await this.store.pool.query<{ ownership_epoch: string }>(
-      `SELECT ownership_epoch FROM ovo_worker_slots
-       WHERE worker_id = $1 AND state IN ('reserved', 'active')
-         AND lease_expires_at > now()`,
-      [route.workerId],
-    );
-    if (!row.worker_slot_epoch || slot.rows[0]?.ownership_epoch !== row.worker_slot_epoch)
-      throw new Error('worker slot lease no longer owns the media route');
-    const job = await this.store.get(route.jobId);
-    if (
-      !job ||
-      job.ownerId !== route.workerId ||
-      job.ownerEpoch !== route.ownerEpoch ||
-      !job.leaseExpiresAt ||
-      job.leaseExpiresAt.getTime() <= Date.now() ||
-      !['dialing', 'reconcile_required', 'accepted', 'connected'].includes(job.status)
-    )
-      throw new Error('durable job is not actively owned by the routed worker');
-    return route;
-  }
-
   /** The route is selected by a scoped durable authentication before factory work begins. */
   private async open(media: WorkerMediaSession, route: SessionRoute): Promise<void> {
     if (
@@ -218,16 +146,7 @@ export class WorkerMediaRuntime {
     )
       throw new Error('gateway session does not match durable route identity');
     if (route.terminalAt || route.releasedAt) throw new Error('durable session route is terminal');
-    const job = await this.store.get(route.jobId);
-    if (
-      !job ||
-      job.ownerId !== route.workerId ||
-      job.ownerEpoch !== route.ownerEpoch ||
-      !job.leaseExpiresAt ||
-      job.leaseExpiresAt.getTime() <= Date.now() ||
-      !['dialing', 'reconcile_required', 'accepted', 'connected'].includes(job.status)
-    )
-      throw new Error('durable job is not actively owned by the routed worker');
+    const job = await activelyOwnedMediaJob(this.store, route);
     await this.beforeSessionOpen?.(job, route);
     let engine: ManagedVoiceSession;
     try {
