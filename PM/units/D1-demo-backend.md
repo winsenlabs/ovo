@@ -47,7 +47,7 @@ Defects fixed: [20, 19]
 
 - F4's [wave-2 owner map](F4-apps-data-driven.md) assigns `apps/api/src/release-simulation.ts` to D1 even though this unit's owned-path list and design §15.5 omit it. The checker authorized the F4 owner map as the governing shared-touchpoint list. D1 changes only the selected voice-LLM simulation path there; I1 inherits this shared file at integration.
 - The selected live carrier can negotiate PCM16 media. D1 now validates the negotiated worker-media format and passes it into the session graph, while the old gateway path retains its μ-law default. C2's unmerged worker link and recording capture provide the actual PCM16 format and recording support; the production test uses a capture stub until D1 rebases onto C2 and reruns the integrated recording path.
-- A default agent caller must wait for confirmation playback before speaking `yes`, but the current fixture STT template can emit its scripted `yes` transcript as soon as the first audio frame arrives. D1 currently fails closed for default-agent confirmed-write calls while an owned playback-gated replay adapter is investigated; the latest ruling does not permit frozen fixture-contract or kit edits. The caller clock test proves its audio timing only; it does not prove a completed write. D1 must add a selected-engine, delayed-prompt write regression after that seam lands.
+- A default agent caller must wait for confirmation playback before speaking `yes`, but the frozen STT templates emit all turns on the first audio frame. The latest ruling forbids frozen fixture-contract/kit edits. D1 now uses an owned structural replay adapter that retains provider wire assertions and releases each transcript only with its actual caller turn. Only explicitly scripted caller hangup may omit a validated finish/metadata/normal-close tail, after every caller frame has been delivered; earlier mismatches stay fatal. I1 inherits the missing fixture delivery/cancellation contract. The selected-engine regression passes with the E2 candidate and remains red on the current F4 engine, which discards `yes` as a backchannel; the candidate diagnostic is not a normal D1 green bar.
 - The spec names `apps/api/tests/test-calls.test.ts` as D1-owned, but the production-entry test scenarios exceed the 500-line test gate when kept in one file. `apps/api/tests/test-call-inspection-runtime.test.ts` is the minimal split, tests the same D1 surfaces, and is recorded for I1 as a shared test touchpoint. No application behavior moved with the split.
 - The current builder ruling permits edits under this unit's owned package, including removal of its `ovo.skeleton` flag. That metadata change is included; it does not activate runtime code and is not presented as a behavioral true negative.
 - The 2026-09-26 user ruling requires local structural adapters instead of frozen contract/kit edits. D1 now implements its cache/streaming carrier output in owned `session-graph-speech-{output,buffer}.ts`, removes the last `plugin-voice` implementation import, and preserves the v1 compatibility path. Negotiated media format, bounded prefetch in both branches, one carrier send queue, epoch cancellation, and accepted weak-evidence provenance are covered through the composed v2 host output. E2 integration must still prove the complete engine path.
@@ -160,3 +160,81 @@ CONSTRAINTS:
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/typecheck-scope.mjs packages/fixture-calls packages/plugin-observability apps/api/src/index.ts apps/api/src/test-call-runtime.ts apps/api/src/recording-runtime.ts apps/api/src/routes apps/api/tests/test-calls.test.ts apps/worker/src apps/worker/tests`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run packages/fixture-calls packages/plugin-observability apps/api/tests/test-calls.test.ts apps/api/tests/performance-route.test.ts apps/api/tests/script-simulation.test.ts apps/worker/tests/telemetry-runtime.test.ts apps/worker/tests/telemetry-stages.test.ts apps/worker/tests/production-session-lifecycle.test.ts apps/worker/tests/speech-cache-runtime.test.ts --reporter=dot`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run apps/api/tests/voice-engine-release.test.ts apps/worker/tests/production-engine-selection.test.ts apps/worker/tests/native-extension-pins.test.ts apps/worker/tests/session-recording.test.ts --reporter=dot`
+
+## Builder checkpoint — 2026-09-26: fixture replay and persistence failures
+
+No frozen contracts, conformance kit, host, or storage file changed. The owned
+STT replay implementation infers turn boundaries by rendering successive template
+prefixes. It retains wire payloads and strict FixtureNet request validation;
+nonmonotonic templates and static-only confirmed-write STT are refused explicitly.
+The generic and Deepgram provider clients both withhold the final `yes` through a
+10-second delay, then deliver it on the released turn. Initial provider messages
+wait for listeners. Unsupported shutdown shapes have no cancellation exemption.
+
+`packages/fixture-calls/tests/native-fixture-call.test.ts` exercises the actual
+native engine, behaviors, fixture LLM/STT/TTS and carrier serializer. It records
+played confirmation < final `yes` < exactly one actual fixture handler execution,
+requires the second LLM request to carry one tool result, requires `All done.` to
+finish playback, and observes zero live handler calls. The E2 candidate source
+was temporarily overlaid for this diagnostic and immediately reversed; it passed
+1/1. D1's base still contains the F4 engine, which discards confirmation `yes`.
+This dependency remains visible in the normal suite, without a skip or alias.
+
+| Deliberately broken implementation                                 | Failure with the new assertion                                                                      |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| Deliver future STT turns immediately                               | Generic and Deepgram: `expected [ 'Please do that.', 'yes' ] to deeply equal [ 'Please do that.' ]` |
+| Drain initial messages before any listener                         | `expected [] to deeply equal [ 'ready' ]`                                                           |
+| Exempt an unsolicited engine cancellation                          | `expected [Function] to throw an error`                                                             |
+| Exempt explicit abnormal close codes 1005/1006/1011                | Three failures: `expected [Function] to throw an error`                                             |
+| Discard a prior wire mismatch when accepting scripted cancellation | `expected [Function] to throw an error`                                                             |
+| Permit a shutdown tail without a terminal normal close             | `expected [ 3 ] to deeply equal [ undefined ]`                                                      |
+
+The public fixture runner now observes telemetry and recording callback promises
+immediately, catches synchronous callback failures, and races persistence failure
+against engine startup and active execution. Successful effects still drain before
+recording completion. Each cleanup is attempted even when another throws, and the
+original persistence error is preserved. It also observes teardown-time effects.
+
+Against the previous `execute.ts`, seven callback cases failed: asynchronous event,
+usage and recording failures left the call `still running`; synchronous failures
+escaped their trigger; cleanup timed out with an unhandled rejection. Narrow
+mutations separately reproduce a pending startup (`still running` instead of
+`startup event refused`), premature recording completion (finish count 1 instead
+of 0), and replacement of the original error with `engine cleanup failed`.
+
+Exact focused commands (Node 22, normal dependency configuration):
+
+```sh
+pnpm exec vitest run packages/fixture-calls/tests/stt-replay.test.ts packages/fixture-calls/tests/stt-replay-cancel.test.ts packages/fixture-calls/tests/default-script.test.ts --reporter=dot
+pnpm exec vitest run packages/fixture-calls/tests/callback-failure.test.ts packages/fixture-calls/tests/run.test.ts packages/fixture-calls/tests/child-runtime.test.ts --reporter=dot
+node scripts/typecheck-scope.mjs packages/fixture-calls
+```
+
+The replay/default-script command passed **21/21**, independently reproduced. The
+callback/run/child command passed **29/29**; typecheck passed. Mutation logs are
+`/tmp/ovo-d1-stt-*-red.log` and `/tmp/ovo-d1-callback-*-red.log`; the separate
+candidate engine diagnostic is `/tmp/ovo-d1-native-with-e2-probe.log`.
+
+D1 remains **In progress**. Shared storage scope for draft snapshots and atomic
+call/fingerprint creation is pending. That proposal uses local structural types;
+no frozen `ControlStore` change is needed. The normal full bar including Postgres
+must be rerun after those decisions and E2/C2 integration. No complete demo or
+Built status is claimed by this checkpoint.
+
+### Normal checkpoint bar (2026-09-26)
+
+With the temporary E2 source overlay removed, `pnpm exec vitest run --reporter=dot`
+exits 1: **1,358 passed / 139 skipped / 1 failed**, 1,498 total. The sole failure
+is the new native-engine fixture regression: final `yes` index is -1 while played
+confirmation is index 16 (`expected -1 to be greater than 16`). It exposes the
+F4 engine dependency described above and remains enabled.
+
+The exact scoped lint command in Verify commands and `pnpm format:check` both
+exit **0 / 0**; `pnpm typecheck` and standalone
+`node scripts/check-duplication.mjs` exit 0. No baselines changed. Independent
+callback review ran `pnpm exec vitest run packages/fixture-calls/tests/callback-failure.test.ts packages/fixture-calls/tests/child-runtime.test.ts --reporter=dot`:
+**12 passed / 0 failed**, and found no remaining concrete blocker in that delta.
+Logs: `/tmp/ovo-d1-current-default.log`, `/tmp/ovo-d1-checkpoint-{lint,format,typecheck,duplication}.log`.
+
+No final Postgres run or full green bar is claimed for this WIP checkpoint; both
+remain required after the pending storage work and normal E2/C2 integration.

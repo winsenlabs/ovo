@@ -12,6 +12,7 @@ import type {
 import type { PluginRegistry } from '@winsendotai/ovo-runtime';
 import { PluginRegistry as Registry } from '@winsendotai/ovo-runtime';
 import type { FixtureCallInput, CallerScript } from './types.ts';
+import { planSttReplay, type SttReplayPlan } from './stt-replay-plan.ts';
 
 /** Prefer each installed provider's template, then its static fixture. Generic speech is last. */
 export function selectFixtureScripts(
@@ -22,12 +23,14 @@ export function selectFixtureScripts(
   sessionId: string,
   language: string,
   agentTexts: readonly string[],
+  gateStt = false,
 ) {
   const selections: ReleaseSelections = { ...choices };
   const scripts: NetFixtureScript[] = [];
   const generic = { stt: fixtureSttPlugin, tts: fixtureTtsPlugin };
   let sttMode: 'template' | 'static' | 'fixture-generic' | 'none' = 'none';
   let genericUsed = false;
+  let sttReplay: SttReplayPlan | undefined;
   let ttsTemplate: ((text: string) => NetFixtureScript[]) | undefined;
   const templateInput = {
     format,
@@ -45,6 +48,11 @@ export function selectFixtureScripts(
     const template = input.fixtureTemplates[choice.pluginId];
     const staticScripts = input.fixtures[choice.pluginId];
     if (template) {
+      if (slot === 'stt' && gateStt) {
+        sttReplay = planSttReplay(template, { ...templateInput, agentTexts });
+        sttMode = 'template';
+        continue;
+      }
       if (slot === 'tts') {
         deferTts(template);
         continue;
@@ -61,6 +69,8 @@ export function selectFixtureScripts(
       );
       if (slot === 'stt') sttMode = 'template';
     } else if (staticScripts) {
+      if (slot === 'stt' && gateStt)
+        throw new Error('fixture_unavailable: confirmed write requires a templated STT replay');
       scripts.push(...staticScripts);
       if (slot === 'stt') sttMode = 'static';
     } else if (slot === 'stt' || slot === 'tts') {
@@ -75,13 +85,17 @@ export function selectFixtureScripts(
       const fixtureTemplate = genericTemplates[id];
       if (!fixtureTemplate) throw new Error(`fixture_unavailable: ${choice.pluginId}`);
       if (slot === 'tts') deferTts(fixtureTemplate);
+      else if (gateStt)
+        sttReplay = planSttReplay(fixtureTemplate, { ...templateInput, agentTexts });
       else scripts.push(...fixtureTemplate({ ...templateInput, agentTexts }));
       if (slot === 'stt') sttMode = 'fixture-generic';
       genericUsed = true;
     }
   }
+  if (gateStt && !sttReplay)
+    throw new Error('fixture_unavailable: confirmed write requires a templated STT replay');
   const registry: PluginRegistry = genericUsed
     ? new Registry([...input.registry.list(), fixtureSttPlugin, fixtureTtsPlugin])
     : input.registry;
-  return { selections, scripts, registry, sttMode, ttsTemplate };
+  return { selections, scripts, registry, sttMode, ttsTemplate, sttReplay };
 }

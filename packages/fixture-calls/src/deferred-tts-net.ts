@@ -5,6 +5,9 @@ import {
   type FixtureNet,
 } from '@winsendotai/ovo-plugin-kit';
 
+import { createSttReplayNet } from './stt-replay-net.ts';
+import type { SttReplayPlan } from './stt-replay-plan.ts';
+
 type NetworkStep = Extract<NetFixtureStep, { expect: 'http' | 'ws-open' }>;
 
 function firstNetworkStep(scripts: readonly NetFixtureScript[]): NetworkStep[] {
@@ -27,8 +30,15 @@ export function deferredTtsNet(
   scripts: readonly NetFixtureScript[],
   ttsTemplate: ((text: string) => NetFixtureScript[]) | undefined,
   clock: Clock,
-): NetPort & { generated(text: string): void; assertComplete(): void } {
+  sttPlan?: SttReplayPlan,
+): NetPort & {
+  generated(text: string): void;
+  callerTurn(index: number): void;
+  callerHangup(): void;
+  assertComplete(): void;
+} {
   const base = createFixtureNet(scripts, { clock });
+  const stt = sttPlan ? createSttReplayNet(sttPlan, clock) : undefined;
   const generated: { text: string; claimed: boolean; rendered?: NetFixtureScript[] }[] = [];
   const activated: FixtureNet[] = [];
   const candidates = () =>
@@ -43,6 +53,12 @@ export function deferredTtsNet(
     activated.push(net);
   };
   return {
+    callerHangup() {
+      stt?.callerHangup();
+    },
+    callerTurn(index) {
+      stt?.release(index);
+    },
     generated(text) {
       if (ttsTemplate) generated.push({ text, claimed: false });
     },
@@ -83,6 +99,7 @@ export function deferredTtsNet(
       throw mismatch ?? new Error('Selected TTS fixture did not match the synthesis request');
     },
     websocket(url, opts) {
+      if (stt?.matches(url)) return stt.port.websocket(url, opts);
       const normalizedUrl = new URL(url).href;
       const matching = candidates().filter(({ first }) =>
         first.some((step) => step.expect === 'ws-open' && matchesUrl(step.url, normalizedUrl)),
@@ -104,6 +121,7 @@ export function deferredTtsNet(
     },
     assertComplete() {
       base.assertComplete();
+      stt?.assertComplete();
       for (const net of activated) net.assertComplete();
     },
   };

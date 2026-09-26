@@ -59,7 +59,7 @@ describe('default fixture caller', () => {
     }
   });
 
-  it('refuses a default agent write until the fixture STT transcript can wait for playback', () => {
+  it('refuses a default agent write when only static STT replay is available', () => {
     const base = input();
     const config = AgentConfig.parse({
       ...base.release.config,
@@ -82,6 +82,12 @@ describe('default fixture caller', () => {
         ...base,
         registry,
         callerScript: 'default',
+        fixtureTemplates: Object.fromEntries(
+          Object.entries(base.fixtureTemplates).filter(
+            ([id]) => id !== base.release.selections.stt.pluginId,
+          ),
+        ),
+        fixtures: { ...base.fixtures, [base.release.selections.stt.pluginId]: [] },
         release: {
           ...base.release,
           config,
@@ -97,6 +103,6 @@ describe('default fixture caller', () => {
         },
       });
       void call.done.catch(() => undefined);
-    }).toThrow('fixture_unavailable: confirmed write needs playback-gated STT replay');
+    }).toThrow('fixture_unavailable: confirmed write requires a templated STT replay');
   });
 });

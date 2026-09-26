@@ -94,15 +94,13 @@ export function runFixtureCall(input: FixtureCallInput): {
     Object.fromEntries(Object.values(source.providerBindings ?? {}).map((row) => [row.id, row])),
     input.defaults ?? { engine: source.selections?.engine?.pluginId ?? '' },
   ).config;
-  if (
+  const gateStt =
     config.mode === 'agent' &&
     (input.callerScript === undefined || input.callerScript === 'default') &&
     config.tools.some(
       (tool) =>
         config.allowedTools.includes(tool.id) && (tool.effect === 'write' || tool.confirmation),
-    )
-  )
-    throw new Error('fixture_unavailable: confirmed write needs playback-gated STT replay');
+    );
   if (config.recording && !input.recording)
     throw new Error('fixture_unavailable: recording port is required for this release');
   const release = { ...source, config };
@@ -132,6 +130,7 @@ export function runFixtureCall(input: FixtureCallInput): {
       callId,
       config.language,
       input.agentTexts ?? predictedAgentTexts(config),
+      gateStt,
     );
   } finally {
     setupSentinel.restore();

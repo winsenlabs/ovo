@@ -39,7 +39,7 @@ export function callerPlayback(input: {
   clock: Clock;
   script: CallerScript;
   reactiveConfirmation: boolean;
-  say(text: string): void;
+  say(text: string, turnIndex: number): void;
   dtmf(digit: string): void;
   hangup(): void;
 }) {
@@ -47,11 +47,11 @@ export function callerPlayback(input: {
   let confirmed = false;
   return {
     start() {
-      for (const turn of input.script.turns) {
+      for (const [turnIndex, turn] of input.script.turns.entries()) {
         if (input.reactiveConfirmation && turn.say === 'yes') continue;
         cancels.push(
           input.clock.setTimeout(() => {
-            if (turn.say) input.say(turn.say);
+            if (turn.say) input.say(turn.say, turnIndex);
             if (turn.dtmf) for (const digit of turn.dtmf) input.dtmf(digit);
           }, turn.atMs),
         );
@@ -78,7 +78,9 @@ export function callerPlayback(input: {
       )
         return;
       confirmed = true;
-      cancels.push(input.clock.setTimeout(() => input.say('yes'), 0));
+      const turnIndex = input.script.turns.findIndex((turn) => turn.say === 'yes');
+      if (turnIndex >= 0)
+        cancels.push(input.clock.setTimeout(() => input.say('yes', turnIndex), 0));
     },
     cancel() {
       for (const cancel of cancels) cancel();

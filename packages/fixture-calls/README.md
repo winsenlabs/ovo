@@ -38,18 +38,17 @@ does not change stored values.
 
 ### Pending shared work
 
-- Draft calls still return `draft_snapshot_required`. A durable snapshot operation
-  needs a ruling for `packages/plugin-storage/src/control-store.ts` and its
-  `postgres/releases-repository.ts` and `sqlite/releases-repository.ts`
-  implementations; any necessary schema change also needs explicit scope.
+- Draft calls still return `draft_snapshot_required`. The pending scope request
+  covers both storage backends' release/call repositories, migration runners and
+  new control migration 007, plus storage tests. D1 would consume them via local
+  structural types and existing dynamic repository binding. Frozen `ControlStore`
+  stays unchanged; M1 retains control migration 006.
 - Call creation and initial `fixture.request` insertion are separate today.
-  Atomic creation needs `control-store.ts`, `postgres/calls-repository.ts` and
-  `sqlite/calls-repository.ts`. Both stores bind repository methods automatically;
-  no store wiring change is currently identified.
-- Default agent confirmed-write fixtures remain fail closed while D1 investigates
-  an owned NetPort/Clock replay adapter. The latest user ruling requires local
-  adapters; the earlier proposal to edit frozen fixture contracts/kits is
-  superseded. A selected-engine delayed-confirmation regression remains required.
+  The same request covers atomic creation; the real SQLite race proof still
+  returns `409 idempotency_conflict` for an identical concurrent key.
+- Default agent confirmed-write replay now has an owned adapter and real native
+  engine regression. The combined E2 candidate diagnostic passes; normal D1 still
+  uses the F4 engine, which discards `yes`. No skip or alias hides that dependency.
 - The owned worker cache output now implements streaming locally; no shared kit
   move or plugin-voice implementation import is required. It needs final composed
   engine integration after E2 lands.
@@ -177,3 +176,18 @@ zero persisted recordings and no recording entry in `fixture.result`. Forcing th
 route to persist the payload produces two actual archive rows instead of `[]`.
 This supplements the library's recording-disabled check that observes zero
 capture opens and writes; neither proof is counted as a new real-carrier demo.
+
+## Replay and callback checkpoint — 2026-09-26
+
+The current evidence, exact commands, true negatives and contract gaps are recorded
+in [the D1 unit report](../../../PM/units/D1-demo-backend.md#builder-checkpoint--2026-09-26-fixture-replay-and-persistence-failures).
+The replay/default-script command passes 21 tests; callback/run/child passes 29;
+full-package scoped typecheck passes. The normal native-engine integration still
+fails on D1's F4 engine and passes only in the separately disclosed, reverted E2
+candidate diagnostic. Storage scope and E2/C2 integration remain open. D1 is WIP.
+
+Normal current suite: **1,358 passed / 139 skipped / 1 failed** (native confirmation
+`expected -1 to be greater than 16`). Scoped lint/full format: **0 / 0**;
+full typecheck and standalone duplication: **0 / 0**. Independent callback/child
+review: **12/12 passed**, no concrete blocker. Final Postgres/full green bar is
+still outstanding after integration and approved storage work.

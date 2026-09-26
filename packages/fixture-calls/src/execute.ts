@@ -12,6 +12,7 @@ import { selectSessionGraph } from '@winsendotai/ovo-session-host';
 import { deferredTtsNet } from './deferred-tts-net.ts';
 import { callerPlayback } from './default-script.ts';
 import { selectFixtureScripts } from './fixture-scripts.ts';
+import { FixtureEffects } from './fixture-effects.ts';
 import { fixtureExtensions, fixtureHostService } from './host-service.ts';
 import type { FixtureCallInput, FixtureCallResult, FixtureRecordingWriter } from './types.ts';
 
@@ -19,20 +20,23 @@ function recordingMedia(
   media: MediaDuplex,
   clock: Clock,
   writer: FixtureRecordingWriter,
-  writes: Promise<void>[],
-): MediaDuplex {
+  effects: FixtureEffects,
+): { media: MediaDuplex; off: () => void } {
   const write = (track: 'caller' | 'agent', bytes: Uint8Array, atMs: number) => {
-    writes.push(Promise.resolve(writer.write(track, bytes.slice(), atMs)));
+    effects.run(() => writer.write(track, bytes.slice(), atMs));
   };
-  media.onAudio((bytes, atMs) => write('caller', bytes, atMs));
+  const off = media.onAudio((bytes, atMs) => write('caller', bytes, atMs));
   return {
-    ...media,
-    get bufferedBytes() {
-      return media.bufferedBytes;
-    },
-    async sendAudio(bytes, signal) {
-      write('agent', bytes, clock.now());
-      await media.sendAudio(bytes, signal);
+    off,
+    media: {
+      ...media,
+      get bufferedBytes() {
+        return media.bufferedBytes;
+      },
+      async sendAudio(bytes, signal) {
+        write('agent', bytes, clock.now());
+        await media.sendAudio(bytes, signal);
+      },
     },
   };
 }
@@ -73,9 +77,8 @@ export async function executeFixtureCall(
 ): Promise<FixtureCallResult> {
   const events: FixtureCallResult['events'] = [];
   const usage: FixtureCallResult['usage'] = [];
-  const callbacks: Promise<unknown>[] = [];
-  const writes: Promise<void>[] = [];
-  const net = deferredTtsNet(fixture.scripts, fixture.ttsTemplate, clock);
+  const effects = new FixtureEffects();
+  const net = deferredTtsNet(fixture.scripts, fixture.ttsTemplate, clock, fixture.sttReplay);
   const ingress = input.carrier.ingress;
   const codec = ingress.serializer.createSession({});
   const fake = createFakeCarrier({
@@ -98,15 +101,17 @@ export async function executeFixtureCall(
   if (!codec.decode(start).some((event) => event.type === 'start'))
     throw new Error('fixture_unavailable: selected carrier did not decode its start frame');
   const writer = input.release.config.recording ? await input.recording?.open(callId) : undefined;
-  const media = writer ? recordingMedia(fake.duplex, clock, writer, writes) : fake.duplex;
+  const recordingMediaHandle = writer
+    ? recordingMedia(fake.duplex, clock, writer, effects)
+    : undefined;
+  const media = recordingMediaHandle?.media ?? fake.duplex;
   const host = fixtureHostService({
     media,
     clock,
     usage: (meter) => {
       const estimated = { ...meter, state: 'estimated' as const };
       usage.push(estimated);
-      const pending = input.telemetry?.onUsage?.(estimated);
-      if (pending) callbacks.push(Promise.resolve(pending));
+      effects.run(() => input.telemetry?.onUsage?.(estimated));
     },
     transcript: () => undefined,
   });
@@ -140,26 +145,33 @@ export async function executeFixtureCall(
     reactiveConfirmation:
       input.release.config.mode === 'agent' &&
       (input.callerScript === undefined || input.callerScript === 'default'),
-    say: (text) => fake.caller.audio(speechBytes(format, Math.max(100, text.length * 20), 1)),
+    say: (text, turnIndex) => {
+      net.callerTurn(turnIndex);
+      fake.caller.audio(speechBytes(format, Math.max(100, text.length * 20), 1));
+    },
     dtmf: (digit) => fake.caller.dtmf(digit),
-    hangup: () => fake.caller.hangup('caller_hangup'),
+    hangup: () => {
+      net.callerHangup();
+      fake.caller.hangup('caller_hangup');
+    },
   });
   const off = engine.subscribe((event) => {
     caller.onEvent(event);
     if (event.type === 'agent.transcript' && event.state === 'generated') net.generated(event.text);
     const row = { seq: events.length + 1, atMs: clock.now(), event };
     events.push(row);
-    const pending = input.telemetry?.onEvent?.(row);
-    if (pending) callbacks.push(Promise.resolve(pending));
+    effects.run(() => input.telemetry?.onEvent?.(row));
   });
   let outcome: EngineOutcome | undefined;
+  let failed = false;
+  let failure: unknown;
   try {
-    await engine.start();
+    await effects.wait(() => engine.start());
     caller.start();
-    outcome = await engine.ended;
-    await Promise.all([...callbacks, ...writes]);
+    outcome = await effects.wait(() => engine.ended);
+    await effects.drain();
     net.assertComplete();
-    const recording = writer ? await writer.finish(outcome) : undefined;
+    const recording = writer ? await effects.wait(() => writer.finish(outcome!)) : undefined;
     return {
       callId,
       kind: 'test',
@@ -173,10 +185,27 @@ export async function executeFixtureCall(
       carrierFrames: [...fake.wire],
       ...(recording === undefined ? {} : { recording }),
     };
+  } catch (error) {
+    failed = true;
+    failure = error;
+    throw error;
   } finally {
-    caller.cancel();
-    off();
-    if (!outcome) await engine.dispose('error:fixture-call');
-    await composition.dispose();
+    const cleanup = async (action: () => unknown) => {
+      try {
+        await action();
+      } catch (error) {
+        if (!failed) {
+          failed = true;
+          failure = error;
+        }
+      }
+    };
+    await cleanup(() => caller.cancel());
+    await cleanup(off);
+    await cleanup(() => recordingMediaHandle?.off());
+    if (!outcome) await cleanup(() => engine.dispose('error:fixture-call'));
+    await cleanup(() => composition.dispose());
+    await cleanup(() => effects.drain());
+    if (failed) throw failure;
   }
 }
