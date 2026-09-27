@@ -177,3 +177,9 @@ hardcoded array and checks only whether each individual version was applied: it
 would silently apply a newly added 006 after an already-applied 007. Checksums
 then prevent renumbering applied migrations. I1 inherits a required contiguity
 assertion in `runControlMigrations` to reject such gaps before applying SQL.
+
+Checker reminder (2026-09-27): **renumber to 007 as the first act on resumption**.
+Foundation now has verified fixture-snapshots control migration 006. The paused
+M1 branch still has mcp-tool-removed as 006; merging it unchanged would throw
+`Control migration 6 checksum changed` on every already-migrated database. Keep
+the branch paused until authorized, then rename/register 007 before integration.

@@ -565,3 +565,14 @@ node scripts/check-duplication.mjs
 Pasted exits: **SCOPED_LINT_EXIT=0**, **FORMAT_EXIT=0**,
 **DUPLICATION_EXIT=0**. No baseline or frozen contract changed. Console test
 artifacts were cleaned up after the successful Playwright run.
+
+## Checker verification — 2026-09-27
+
+**Verified `043b310`.** The checker confirmed all three fixture safety layers,
+including the production egress sentinel and SQL-literal `kind='test'`, contiguous
+control migrations 001..006 with SQLite parity, and behavioral true negatives
+for both defects. The new, unreferenced manual seed script is an explicitly
+approved §15.2 exception under design §18.10, also recorded on the board.
+I1 inherits the stale plugin-observability -> plugin-voice manifest dependency,
+fixture env-parser/static-STT branch coverage, and removal of this unit's two
+normalizer clones after fixing the frozen normalizer itself.

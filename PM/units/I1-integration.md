@@ -129,12 +129,18 @@ CONSTRAINTS:
 
 ## Incoming checker obligations (2026-09-27)
 
-- **BLOCKING contract gap from E2:** `normalizeAgentConfig` mutates its input
-  through a shared `voice.textFilters` array. E2's approved one-line clone in
-  `apps/api/src/release-selections.ts` protects that caller only. I1 must fix
-  input immutability in the normalizer and test its direct contract; do not
-  accumulate caller clones. The exposed production failure was seven HTTP 409
-  publication conflicts when the default markdown filter became installed.
+- **HARD BLOCKING B2, reconfirmed 2026-09-27:** fix `normalizeAgentConfig`
+  so it never mutates its input. Then remove all three workaround clones from
+  `apps/api/src/release-selections.ts`, `apps/api/src/test-call-runtime.ts`, and
+  `packages/fixture-calls/src/run.ts`. A fourth caller is currently unprotected:
+  `packages/session-host/src/legacy-session-selections.ts` passes
+  `input.release.config` directly and mutates a release record in memory during
+  legacy worker derivation. This is an executed/live mutation path, not a
+  hypothetical risk. Do not add a fourth clone; the file is frozen for wave 2.
+  The current API clone-reversion proof is **nine** HTTP 409 failures (api.test,
+  default-modes, f4-routes x2, real-llm-release x2, script-simulation x3), replacing
+  the historical seven count after D1 added call sites. Regress all four callers
+  and direct input immutability when removing the workarounds.
 - `runControlMigrations` checks each entry of a hardcoded array independently
   and currently applies missing lower versions after higher recorded versions.
   Add a contiguity assertion that rejects gaps before applying migration SQL,
@@ -151,3 +157,10 @@ CONSTRAINTS:
   no meters for that role. The immediate storage fix carries existing binding
   snapshots into reconstructed legacy selections; it does not repair this frozen
   host contract. Never compensate with unconditional meters or duplicate billing.
+
+- Remove `@winsendotai/ovo-plugin-voice` from
+  `packages/plugin-observability/package.json` and its matching lock importer;
+  D1 removed the source edge but the unused manifest dependency remains.
+- Close the recorded nonblocking fixture coverage gaps:
+  `fixtureCallsEnvironmentEnabled` must cover undefined, true, false and invalid
+  strings; exercise `sttMode: 'static'` separately from playback-gated replay.

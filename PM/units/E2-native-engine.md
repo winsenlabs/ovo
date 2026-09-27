@@ -221,7 +221,7 @@ frozen list: the earlier stop was an ownership question, not a frozen-path one.
 No frozen normalizer or interface is changed.
 
 **BLOCKING I1 contract gap:** `normalizeAgentConfig` mutates its input. This clone
-protects one caller, but the source draft mutation and seven HTTP 409 publication
+protects one caller, but the source draft mutation and nine current HTTP 409 publication
 failures remain reachable for future callers. I1 must fix and directly regress
 normalizer input immutability, rather than collecting caller clones. This is
 recorded as blocking on the board.
@@ -255,7 +255,7 @@ requiring the queue URL/endpoint in addition to Postgres. None is disabled.
 
 The input-mutation true negative remains the same production route: without the
 clone, the source `textFilters` changes from `[]` to the installed markdown filter,
-and seven existing API publication tests return HTTP 409 instead of 201. The
+and nine current API publication cases return HTTP 409 instead of 201 (the historical E2 measurement was seven, before D1 added call sites). The
 independent reviewer confirmed the final diff is exactly one argument and
 reproduced 71/10 with normal resolution. Earlier owned-engine true negatives and
 independent review measurements remain recorded above.
@@ -300,3 +300,17 @@ E2 is handed over for check now, before D1 and the still-unmerged C2. The eight
 paused heads are unchanged; I1 has not started. The own Postgres container was
 removed. Board/spec updates are in separate documentation-only commits; no
 current code or stored value is changed by this report.
+
+## Checker changes requested — 2026-09-27
+
+E2 is not approved: the manual `respondStream` loop never releases its iterator.
+`Behavior.cancel` is optional, so no-cancel plugins leak generator cleanup on
+barge-in, shutdown or epoch change. Return the iterator on every exit path and
+regress a real engine barge-in with a try/finally generator and no cancel method.
+Keep next-turn progress while cleanup is pending. D1 is separately Verified.
+
+B2 is a hard I1 blocker: repair normalizer immutability, then remove all three
+caller clones. The unprotected frozen legacy worker caller and the current
+**nine** API 409 clone-reversion failures are explicitly recorded on the board
+and in I1's spec. No fourth clone is authorized. Historical count tables retain
+their original measured totals; nine is the current checker reproduction.
