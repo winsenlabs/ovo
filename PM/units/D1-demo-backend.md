@@ -497,3 +497,71 @@ scoped typecheck (`pnpm typecheck:scope packages/fixture-calls`), full
 `pnpm format:check`, standalone duplication and `git diff --check` all exit 0.
 Only the new script, owned data-only test and documentation changed in this
 follow-up; all previously reviewed source remains untouched.
+
+## Final merged handoff — 2026-09-27
+
+**Built – awaiting check**, merged after E2 at `043b310` on
+`vorflux/ovo-foundation`. Source checkpoints rebased onto `6890b48` are
+`1dc357e` (admission/cache) and `479ad7e` (the required opt-in seed).
+Only a documentation conflict needed resolution during the final D1 rebase;
+all received checker verdicts and E2/I1 obligations were retained. The D1
+worktree was removed immediately after merge. No paused unit resumed or moved.
+
+### Exact-merge full bar
+
+All commands used `export PATH=/opt/homebrew/opt/node@22/bin:$PATH` and the
+normal dependency configuration. On exact merge `043b310`:
+
+| Command                                                                                                                                                                                               | Result                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm check`                                                                                                                                                                                          | **EXIT 0**: seven lint gates, full formatting, full typecheck, default tests, three application bundles, console production build, audit and Playwright |
+| `pnpm test` within that check                                                                                                                                                                         | **1,478 passed / 147 skipped / 0 failed**; 1,625 total                                                                                                  |
+| `OVO_TEST_POSTGRES_URL=postgresql://postgres:fixture@127.0.0.1:32902/postgres pnpm exec vitest run --no-file-parallelism --reporter=dot --reporter=json --outputFile=/tmp/ovo-d1-final-postgres.json` | **EXIT 0: 1,616 passed / 9 skipped / 0 failed**; 1,625 total                                                                                            |
+| Playwright within `pnpm check`                                                                                                                                                                        | **41 passed / 1 skipped**; the mobile Menu is hidden at desktop width                                                                                   |
+
+Arithmetic: **1,478 + 147 = 1,625**. Separately,
+**1,616 + 9 = 1,625**. The Postgres run activates 138 database-gated tests;
+none was disabled. The remaining nine comprise one ledger test requiring
+`LEDGER_TEST_DATABASE_URL`, four recording tests requiring
+`RECORDING_TEST_DATABASE_URL`, three restore-drill tests requiring
+`OVO_BACKUP_DRILL_POSTGRES_URL`, and one worker lifecycle test additionally
+requiring ElasticMQ. The latter is an infrastructure gate, not a database-only
+skip. The JSON report was inspected per skipped case.
+
+Logs: `/tmp/ovo-d1-final-merge-check.log`,
+`/tmp/ovo-d1-final-postgres.log` and its JSON report. The team-owned disposable
+`postgres:17.6` container `ovo-d1-admission-0927` was removed after verification;
+no other project's container or database was touched.
+
+### Acceptance and inherited obligations
+
+| Acceptance                                                                     | Production evidence                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Selected engine, provider fixtures and carrier serializer without live effects | Normal native fixture test requires confirmation playback before final yes, one fixture write-handler call, the result in the next LLM request, completed reply playback and zero live handler calls; egress sentinel and strict FixtureNet remain active |
+| Child-process fixture API, durable draft and idempotency                       | Production route tests plus both real storage backends; atomic snapshot/call/initial event, pre-capacity coalescing, failure cleanup, hidden snapshots and preserved publication slots; independent admission review 22/22                                |
+| Recording policy and call inspection                                           | Capture and durable metadata only when requested; paged stream/evidence, resolved selections, transcripts, latency, priced/unpriced usage and named heartbeat route tests pass                                                                            |
+| Native worker cache and speech output                                          | Independent cache scope 21/21; real native 8 kHz/16 kHz sessions synthesize once across two calls, with bounded prefetch, ordered sends, cancellation and evidence checks                                                                                 |
+| Typed outcomes, latency and canonical telemetry hashes                         | Observability and worker tests pass; telemetry module split meets size gates; persisted hash compatibility and operator action are recorded above                                                                                                         |
+| Selected voice-LLM simulation                                                  | Real API simulation tests with selected LLMs pass; F4/M2 carry-forward discharged                                                                                                                                                                         |
+| Optional demo price cards                                                      | New manual script, independent real CLI/API/Postgres proof: eight labelled rows, repeat stays eight, zero preview requests, redirects refused, conflicting value retained; no automatic seeding in any gate                                               |
+
+The true-negative tables above record the broken versions and observed failure
+messages. Independent reviewers closed the admission, binding-identity, byte-ring
+and seed-script findings. Full integration of paused carrier fixture encoders,
+C2's live PCM16 recording path and later I1 contracts remains explicit in the
+carry-forward table; no real provider/carrier traffic or deployment was tested.
+The frozen normalizer immutability defect remains **BLOCKING I1**. D1 owns
+control migration **006**; M1 must use **007** after rebasing on resumption, and
+I1 must enforce migration contiguity. Frozen `ControlStore` was unchanged.
+
+Final report hygiene was rerun after the documentation update:
+
+```sh
+node scripts/lint.mjs --only packages/fixture-calls packages/plugin-observability packages/plugin-storage apps/api apps/worker
+pnpm format:check
+node scripts/check-duplication.mjs
+```
+
+Pasted exits: **SCOPED_LINT_EXIT=0**, **FORMAT_EXIT=0**,
+**DUPLICATION_EXIT=0**. No baseline or frozen contract changed. Console test
+artifacts were cleaned up after the successful Playwright run.
