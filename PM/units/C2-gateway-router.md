@@ -444,3 +444,66 @@ and `/tmp/ovo-c2-rebased-postgres.json`. The own loopback-only `postgres:17.6`
 container `ovo-c2-rebased-0927` was stopped and removed after the runs. Only the
 foundation and C2 worktrees remain. The eight paused branch heads match the
 previous handoff exactly; I1 has not started and nothing was pushed.
+
+## Refreshed submission after D1 verification and E2 repair — 2026-09-27
+
+C2 is **Built – awaiting check, unmerged**. It was rebased onto foundation code
+**`a27a5e4`**, including the legacy binding-snapshot correction `724c0a0` and
+E2's iterator cleanup. The checked C2 source checkpoint is **`ef82ffd`**;
+its rebased final implementation commit is `b75efea`. Only board conflicts
+occurred in this refresh. Current S1/E1/D1 verdicts and I1 obligations were kept,
+as were C2's existing carry-forwards. There were no production or test conflicts.
+Compared with the previous C2 head `733907f`, all C2-owned code, tests and the
+lockfile are unchanged; the source differences are the two inherited foundation
+repairs and their regressions. The E2 report was subsequently copied in a separate
+documentation-only commit; it changes no tested source.
+
+All commands used Node 22 and normal resolution. The complete bar was measured
+again on this combined tree, rather than reusing the previous C2 counts:
+
+| Command                                                                                                                                                                                                     | Result                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile --offline`                                                                                                                                                                  | **EXIT 0**, lockfile unchanged                                                                                                          |
+| Exact scoped lint command in Verify commands, paired with `pnpm format:check`                                                                                                                               | **SCOPED_LINT_EXIT=0 / FORMAT_EXIT=0**                                                                                                  |
+| `node scripts/check-duplication.mjs`                                                                                                                                                                        | **EXIT 0**, baselines unchanged                                                                                                         |
+| `pnpm check`                                                                                                                                                                                                | **EXIT 0**: seven lint gates, formatting, typecheck, default tests, application bundles, console production build, audit and Playwright |
+| Default Vitest within check                                                                                                                                                                                 | **1,552 passed / 153 skipped / 0 failed**                                                                                               |
+| Playwright within check                                                                                                                                                                                     | **41 passed / 1 skipped**, desktop Menu visibility gate                                                                                 |
+| `OVO_TEST_POSTGRES_URL=postgresql://postgres:fixture@127.0.0.1:32905/postgres pnpm exec vitest run --no-file-parallelism --reporter=dot --reporter=json --outputFile=/tmp/ovo-c2-refreshed-postgres.json`   | **EXIT 0: 1,697 passed / 8 skipped / 0 failed**                                                                                         |
+| `RECORDING_TEST_DATABASE_URL=postgresql://postgres:fixture@127.0.0.1:32905/postgres pnpm exec vitest run packages/plugin-recordings/tests/postgres-recordings.test.ts --no-file-parallelism --reporter=dot` | **EXIT 0: 4 passed / 0 skipped / 0 failed**                                                                                             |
+
+Separate sums: **1,552 + 153 = 1,705**. **1,697 + 8 = 1,705**.
+145 database-gated cases activate with Postgres. The eight remaining skips are
+one ledger case (LEDGER_TEST_DATABASE_URL), four recording cases
+(RECORDING_TEST_DATABASE_URL), and three restore drills
+(OVO_BACKUP_DRILL_POSTGRES_URL). None is disabled. The extra recording 4/4 is
+reported separately and is not added to either full-suite total. The C2 worker
+lifecycle runs with real Postgres and its fixture queue.
+
+### Proof provenance
+
+The previous C2 failure proofs and independent lifecycle/recording **25/25**
+remain in the preceding report; they were not rerun or relabelled as new
+independent measurements during this source-conflict-free refresh. In particular,
+forcing the shared fixture to ignore PCM16 produces `expected false to be true`
+and `promise resolved ... instead of rejecting`; restored lifecycle is 3/3.
+The gateway's carrier-neutral and signed URL/empty-frame proofs also remain
+unchanged. This refresh's full serial run includes those regression files.
+
+The inherited E2 repair was independently measured **15/15** on the identical
+engine code. Its original manual loop fails eight value assertions
+(`expected +0 to be 1`) for no-cancel generator/iterator release, including real
+DTMF barge-in. Its absent-return case is a positive counterpart, not a true
+negative. See E2's latest report for the exact command and the normal JavaScript
+limitation that generator return queues behind a pending next. The inherited
+legacy meter correction's prior independent **25/25** and nine pre-fix value
+failures are recorded in S1's correction report, not claimed as new C2 proof.
+
+Logs: `/tmp/ovo-c2-refreshed-{install,lint,format,duplication,check,postgres,recording}.log`
+and `/tmp/ovo-c2-refreshed-postgres.json`. The own loopback-only postgres:17.6
+container `ovo-e2-c2-recheck-0927` was stopped and removed after both units' runs.
+Only foundation and C2 worktrees remain; both are retained for review. D1 is
+Verified at `043b310`, E2 is resubmitted at `a27a5e4`, and C2 is submitted without
+merging. All eight paused heads are unchanged. No I1 work, new normalizer clone,
+frozen production edit, paid/live traffic or push. Current handoff notes are
+committed separately from code.
