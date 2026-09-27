@@ -53,6 +53,8 @@ These are minor findings that don't block their own unit. The owner resolves the
 
 | From | Issue                                                                                                                                                                                                                                                                                                                                                                                                                                       | Resolve in |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| E2   | **BLOCKING I1 contract gap:** `normalizeAgentConfig` mutates its input by sharing and appending to `voice.textFilters`. E2's approved clone in `apps/api/src/release-selections.ts` protects one API caller only. I1 must fix the normalizer's input immutability and regress it directly; do not accumulate caller clones.                                                                                                                 | I1         |
+| D1   | Control migration allocation is D1 **006**, then M1 **007** on resumption. Both edit the migration runners; the second unit must rebase and re-verify both backends. `runControlMigrations` currently permits silent out-of-order application of a missing lower version; I1 must add a contiguity assertion before applying SQL. The paused M1 branch stays unchanged until Batch A is verified.                                           | M1, I1     |
 | S1   | The frozen session host emits a root `credentialRef`, while older fixtures put one under `/credentialRef`; S1 accepts both through `ctx.secret`. I1 must normalize the host and fixtures to one guarded shape, and remove the legacy `api: responses` binding field and worker-added `workspaceId` / `bindingId` / `updatedAt` provider config fields once persisted rows and the frozen bridge are migrated.                               | I1         |
 | S1   | The frozen catalog and contracts have no batch STT slot. S1 moved the OpenAI batch implementation to `plugin-tts-openai` but leaves it unregistered; I1 must decide a batch contract and registration. I1 also owns deletion of the `plugin-providers` façade, its local cached/streaming TTS adapter, and frozen same-ID bridges after migration, including pruning the legacy package's now-stale dependencies and baseline entries.      | I1         |
 | F1   | The guarded plugin context passes Cordis `inject`, `plugin` and accessors straight through to the raw context, so a plugin could bypass its declared `requires` and `provides`.                                                                                                                                                                                                                                                             | I1         |
@@ -389,13 +391,14 @@ above; both await checker verdicts. C2 is Built on its branch, not merged. The
 normal root `check` script now includes `pnpm test:console:e2e`.
 
 C2 final-code Postgres confirmation at `45c410a`: **1,455 passed / 8 skipped /
-0 failed**. **1,319 + 144 = 1,455 + 8 = 1,463**; 136 default skips activated with
+0 failed**. **1,319 + 144 = 1,463**; **1,455 + 8 = 1,463**; 136 default skips activated with
 the database, and all eight remaining skips are separately database-gated.
 C2's full report and true-negative proofs are committed at `1b14bfb` on `w2/C2`.
 The disposable Postgres container was removed. Its carrier-neutral gateway
 regression discharges the Twilio-only test assumption when C2 is merged.
 
-Two ownership decisions remain pending; no dependent shared file was changed:
+The following ownership proposals were pending at this checkpoint; both are
+approved by the 2026-09-27 ruling below:
 
 - **E2:** the required markdown registration exposes mutation in the frozen
   normalizer before E2 receives control. Proposed one-line local boundary repair
@@ -408,10 +411,10 @@ Two ownership decisions remain pending; no dependent shared file was changed:
   call plus initial fingerprint creation. The concrete production-route SQLite
   probes return `422 draft_snapshot_required` and, under the concurrent window,
   `409 idempotency_conflict`. The pending scope covers both storage backends'
-  call/release repositories, migration runners, new control migration 007, and
+  call/release repositories, migration runners, new control migration 006, and
   tests. D1 uses local structural types, with no frozen `ControlStore` edit.
   Public/live release reads must exclude fixture snapshots, non-test calls must
-  reject them, and snapshots must not consume a publication slot. M1 retains 006.
+  reject them, and snapshots must not consume a publication slot. M1 must renumber its unpublished migration to 007 on resumption.
 
 D1's local replay/cleanup work is committed. The combined E2+D1 diagnostic proves
 played confirmation before final `yes`, exactly one actual fixture handler
@@ -421,3 +424,22 @@ the failing F4-engine regression. Neither E2 nor D1 is Built.
 
 Four worktrees remain. The eight frozen unit heads are unchanged. No unit outside
 Batch A resumed; I1 has not started. Nothing was pushed.
+
+## Checker decisions received 2026-09-27
+
+S1 and E1 are under independent check; their verdicts are pending. E2's single
+API caller clone is approved with its existing immutability regression. This is
+an ownership exception: no `apps/**` path appears in design §15.2's frozen list.
+The frozen normalizer remains unchanged in wave 2, and its mutation is a
+**BLOCKING I1 contract gap**, not a permanent caller-clone convention.
+
+D1's snapshot and atomic idempotency storage scope is approved, with **control
+migration 006**. The M1 spec now allocates **007** when that paused unit resumes.
+Read-only inspection confirms the current Postgres runner has no contiguity
+check and would apply missing 006 after recorded 007; the previous proposal to
+permit that sequence is superseded. I1 must prevent this class of gap.
+
+Merge **E2, then D1**. D1 rebases onto landed E2 and must pass its normal full
+bar, including the native confirmation test, before Built status. Hand C2 over
+after those two land. All eight paused unit heads remain unchanged until Batch A
+is merged and verified. No push is authorized.

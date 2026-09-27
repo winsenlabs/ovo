@@ -17,7 +17,7 @@ Defects fixed: [6, 10, 11, 12, 13, 14, 18, 19, 24, 25]
 - apps/api/tests/mcp-routes.test.ts
 - packages/plugin-storage/src/postgres/mcp-*.ts
 - packages/plugin-storage/src/sqlite/mcp-*.ts
-- packages/plugin-storage/src/postgres/migrations/005-mcp-tool-removed.ts
+- packages/plugin-storage/src/postgres/migrations/007-mcp-tool-removed.ts
 - packages/plugin-storage/src/postgres/migrations.ts
 - packages/plugin-storage/src/sqlite/migrations.ts
 - packages/plugin-storage/tests/storage.test.ts
@@ -84,12 +84,12 @@ Sentence boundaries (packages/behaviors/src/text-segmenter.ts, and a new sentenc
 - A schemaDigest mismatch at invoke → a ToolSchemaError (a policy failure, not unknown).
 - Remove the plugin-tools-mcp → plugin-tools-http and plugin-tools imports (use plugin-kit).
 
-#6 (the plugin-storage MCP repositories plus migration 005). replaceMcpDiscoveredTools currently does a DELETE that the agent_mcp_tools ON DELETE RESTRICT FK blocks.
+#6 (the plugin-storage MCP repositories plus migration 007). replaceMcpDiscoveredTools currently does a DELETE that the agent_mcp_tools ON DELETE RESTRICT FK blocks.
 
 - Split postgres/mcp-repository.ts (370 canonical lines) and sqlite/mcp-repository.ts (330) into mcp-*.ts modules below 300 FIRST.
 - Change the method to a diff-upsert: upsert every discovered tool; tools missing from the new discovery get removed_at = now() and are never deleted; a tool that reappears clears removed_at.
 - Keep the RESTRICT FK and the release snapshot semantics.
-- Migration 005-mcp-tool-removed: a Postgres TS migration registered in postgres/migrations.ts, plus sqlite parity. It adds removed_at TIMESTAMPTZ NULL on the discovered-tools table.
+- Migration 007-mcp-tool-removed: a Postgres TS migration registered in postgres/migrations.ts, plus sqlite parity. It adds removed_at TIMESTAMPTZ NULL on the discovered-tools table.
 - Repositories read and write removedAt (the model field exists).
 - apps/api/src/routes/mcp.ts (308 lines; split first) handles and presents removed tools.
 - The session-host compat rule mcp_tool_removed already exists (F3). Do not edit session-host.
@@ -158,3 +158,22 @@ CONSTRAINTS:
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/lint.mjs --only packages/behaviors packages/plugin-tools packages/plugin-tools-http packages/plugin-tools-mcp packages/plugin-secrets packages/plugin-storage/src/postgres packages/plugin-storage/src/sqlite packages/plugin-recordings/src/memory-repository.ts apps/api/src/auth-env.ts apps/api/src/routes/mcp.ts`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/typecheck-scope.mjs packages/behaviors packages/plugin-tools packages/plugin-tools-http packages/plugin-tools-mcp packages/plugin-secrets packages/plugin-storage packages/plugin-recordings/src/memory-repository.ts apps/api/src/auth-env.ts apps/api/src/routes/mcp.ts apps/api/tests/operator-auth.test.ts`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run packages/behaviors packages/plugin-tools packages/plugin-tools-http packages/plugin-tools-mcp packages/plugin-secrets packages/plugin-storage packages/plugin-recordings/tests/memory-ordering.test.ts apps/api/tests/operator-auth.test.ts --reporter=dot`
+
+## Checker note (2026-09-27): D1 takes control migration 006; M1 takes 007
+
+This supersedes the original 005 requirement and the 2026-09-26 approval of
+006 on the paused M1 branch. Foundation's Postgres control ledger ends at 005.
+D1 is authorized to land 006 for durable fixture snapshots and atomic call
+idempotency. When M1 resumes, rename its unpublished migration to
+`007-mcp-tool-removed.ts`, update the exported SQL constant and registered version,
+and use SQLite version 7 with corrected migration tests. Do not resume or change
+the frozen M1 branch to perform this work before Batch A is verified.
+
+Both units touch `packages/plugin-storage/src/postgres/migrations.ts` and the
+SQLite runner. The unit that lands second must rebase onto the first and rerun
+both-backend migration tests; never resolve the migration array mechanically
+without checking the resulting order. The existing Postgres runner iterates a
+hardcoded array and checks only whether each individual version was applied: it
+would silently apply a newly added 006 after an already-applied 007. Checksums
+then prevent renumbering applied migrations. I1 inherits a required contiguity
+assertion in `runControlMigrations` to reject such gaps before applying SQL.
