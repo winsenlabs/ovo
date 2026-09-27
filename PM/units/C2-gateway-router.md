@@ -589,3 +589,29 @@ and removed after the runs. Both remaining worktrees are retained. Condition 2 i
 complete; condition 1's prepared design patch awaits the doc/frozen-fixture
 sequencing ruling. No conformance edit, C2 merge, Batch B resumption, baseline
 change or push has occurred. PM changes are separate from the test commit.
+
+## Approved to merge — checker ruling (2026-09-27)
+
+Both conditions are discharged. The checker approved the multi-ingress/no-ingress
+coverage and corrected single-ingress title, and confirmed the six deliberate
+assertion failures. Those tests rebased from `4cf850d` to `4003748` unchanged.
+Design correction **`c3e691e`** amends both normative locations and the HTTP
+request field comment: HTTPS keeps the exact path and raw query; WSS keeps the
+bare path while UpgradeRequest.url retains its query. The text explains the
+Twilio verifier's verbatim URL requirement.
+
+The added warning names `packages/conformance/src/drivers/fixture-carrier-routes.ts`
+and `packages/conformance/src/drivers/fixture-carrier.ts`, explains their current
+`${externalUrl}?${query}` duplication, identifies the document as authoritative,
+and assigns correction to I1. Both frozen helpers remain untouched. The checker
+explicitly superseded the contradictory simultaneous-doc/helper instruction:
+fix the currently authorized artifacts and document the remaining frozen gap where
+a reader will encounter it. Keep the existing HARD I1 blocker.
+
+Rebase onto foundation `67c25af` was clean; the resulting tree is identical to
+pre-rebase design commit `8013d61`. No source conflict, behavior change, migration
+claim or baseline edit was introduced. The following verification will be run on
+the actual foundation merge commit, not substituted from the pre-merge results.
+C2's worktree will be removed after merge. Batch B begins with C1 after the handoff;
+C3 remains held pending confirmed Exotel 16 kHz information. Keep no more than two
+worktrees total. M1 remains paused and must renumber 006 to 007 first when resumed.
