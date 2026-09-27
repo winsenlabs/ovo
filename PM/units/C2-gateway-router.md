@@ -219,7 +219,11 @@ The three full-suite failures are the pre-C2 harnesses
 private open shape without a durable route (`undefined.sessionId`); the last passes
 the replaced gateway options without ingresses (`options.ingresses is not iterable`).
 Their narrow shared-file rewrite remains requested, together with the manifest/lock
-exception for `@types/ws`. No compatibility bypass was added to production.
+exception for `@types/ws`. Correction from the 2026-09-27 checker: production
+`media-runtime.ts` does retain a test-only non-WorkerMediaLink branch in open(),
+used by `media-runtime.test.ts`. That is a compatibility bypass in production
+source; the previous denial was inaccurate. I1 owns migrating that remaining test
+to the authenticated socket path and removing the branch.
 
 The owned Postgres resume fixture now signs the complete raw HTTP callback URL,
 including `r` and `t`. The first serial run exposed its old query-stripping signature
@@ -507,3 +511,81 @@ Verified at `043b310`, E2 is resubmitted at `a27a5e4`, and C2 is submitted witho
 merging. All eight paused heads are unchanged. No I1 work, new normalizer clone,
 frozen production edit, paid/live traffic or push. Current handoff notes are
 committed separately from code.
+
+## Conditional merge approval — checker note (2026-09-27)
+
+The checker reproduced the prior full bar, recording 4/4 and frozen offline
+install, and verified three-carrier canonical/legacy routing, fourteen rejected
+HMAC attacks, unknown-carrier 404, cross-carrier-secret 401 and duplicate guards.
+C2 is merge-approved after two conditions: correct the normative externalUrl
+contract and add multi-ingress/no-ingress regression coverage.
+
+Test-only commit **`4cf850d`** adds three simultaneously installed carrier
+ingresses exercised through MediaGateway and its actual HTTP/WebSocket router.
+Each carrier runs canonical and legacy GET/POST callbacks and media upgrades.
+Identical binding IDs across carriers have distinct secrets; beta's secret signs
+alpha's exact request URL and must still produce 401, for HTTP and WebSocket.
+Unknown carriers produce 404 before host lookup. Separate tests reject duplicate
+carrier IDs, duplicate aliases and the gateway plugin's zero-ingress apply path.
+The old router test title now explicitly describes its one-carrier scope.
+
+The dispatch implementation already passed these tests; this is new regression
+coverage, not a claim that the previous C2 code failed. Six controlled production
+mutations prove the assertions below. Every mutation was restored byte-for-byte
+in a finally block; no frozen helper or baseline changed.
+
+| Broken version                                           | Failure from the targeted new regression            |
+| -------------------------------------------------------- | --------------------------------------------------- |
+| Install only ingresses.slice(0, 1)                       | `expected 404 to be 200`                            |
+| Resolve every HTTP carrier host as alpha                 | `expected 401 to be 200`                            |
+| Unknown carrier falls back to the first ingress          | `expected 401 to be 404`                            |
+| Remove duplicate carrier-ID guard, with distinct aliases | `expected [Function] to throw an error`             |
+| Remove duplicate alias guard, with distinct carrier IDs  | `expected [Function] to throw an error`             |
+| Remove zero-ingress startup guard                        | `promise resolved "undefined" instead of rejecting` |
+
+Each mutation ran `pnpm exec vitest run packages/plugin-media/tests/multi-carrier.test.ts -t <case title> --reporter=dot` and failed its one selected test,
+EXIT 1. The other three cases were filtered by -t, not disabled. Logs are
+`/tmp/ovo-c2-condition-{singleton,host-scope,unknown-fallback,duplicate-id,duplicate-alias,no-ingress}-red.log`.
+After restoring production source, the exact command
+`pnpm exec vitest run packages/plugin-media/tests/multi-carrier.test.ts packages/plugin-media/tests/router.test.ts --reporter=dot`
+passed **14/14**, EXIT 0. Scoped typecheck passed, and scoped lint
+`node scripts/lint.mjs --only packages/plugin-media apps/media-gateway packages/plugin-recordings`
+paired with full `pnpm format:check` exited **0 / 0**; standalone duplication **0**.
+These are builder measurements. The independent checker measurements above
+belong to the preceding C2 tree and are not relabelled as review of these tests.
+
+The externalUrl amendment is prepared as `/tmp/ovo-c2-external-url-design.patch`.
+The verdict both requires the design amendment now and says the frozen signer,
+verifier and doc must move together, while forbidding conformance edits now.
+Sequencing clarification is pending; neither frozen fixture helper has been
+changed. All additional checker findings are recorded on the board and in I1's
+spec with named owners, including the production test-only seam correction.
+
+### Refreshed green bar on condition-2 commit 4cf850d
+
+All commands used `PATH=/opt/homebrew/opt/node@22/bin:$PATH` and normal resolution.
+Production C2 source and the lockfile are unchanged in this condition-2 commit.
+
+| Command                                                                                                                                                                                                     | Result                                                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm check`                                                                                                                                                                                                | **EXIT 0**: seven lint gates, formatting, typecheck, default tests, app bundles, console production build, audit, Playwright |
+| Default Vitest within check                                                                                                                                                                                 | **1,556 passed / 153 skipped / 0 failed**                                                                                    |
+| Playwright within check                                                                                                                                                                                     | **41 passed / 1 skipped**, desktop Menu hidden                                                                               |
+| `OVO_TEST_POSTGRES_URL=postgresql://postgres:fixture@127.0.0.1:32906/postgres pnpm exec vitest run --no-file-parallelism --reporter=dot --reporter=json --outputFile=/tmp/ovo-c2-conditions-postgres.json`  | **EXIT 0: 1,701 passed / 8 skipped / 0 failed**                                                                              |
+| `RECORDING_TEST_DATABASE_URL=postgresql://postgres:fixture@127.0.0.1:32906/postgres pnpm exec vitest run packages/plugin-recordings/tests/postgres-recordings.test.ts --no-file-parallelism --reporter=dot` | **EXIT 0: 4 passed / 0 skipped / 0 failed**                                                                                  |
+| `pnpm install --frozen-lockfile --offline`                                                                                                                                                                  | **EXIT 0**, no lockfile change                                                                                               |
+
+**1,556 + 153 = 1,709**. Separately, **1,701 + 8 = 1,709**. Postgres activates
+145 database-gated cases; none is disabled. The remaining eight are one ledger
+case (LEDGER_TEST_DATABASE_URL), four recording cases (RECORDING_TEST_DATABASE_URL)
+and three restore drills (OVO_BACKUP_DRILL_POSTGRES_URL). The additional recording
+run is outside the full-suite counts. Logs are
+`/tmp/ovo-c2-conditions-{check,postgres,recording,install}.log` and
+`/tmp/ovo-c2-conditions-postgres.json`; focused/types/lint/format/duplication logs
+use the same conditions prefix. The six mutation failures are recorded above.
+
+The own loopback-only postgres:17.6 container `ovo-c2-conditions-0927` was stopped
+and removed after the runs. Both remaining worktrees are retained. Condition 2 is
+complete; condition 1's prepared design patch awaits the doc/frozen-fixture
+sequencing ruling. No conformance edit, C2 merge, Batch B resumption, baseline
+change or push has occurred. PM changes are separate from the test commit.
