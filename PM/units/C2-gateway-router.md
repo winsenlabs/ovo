@@ -154,8 +154,8 @@ Run from the current C2 worktree with `export PATH=/opt/homebrew/opt/node@22/bin
 - `pnpm exec vitest run packages/plugin-media apps/media-gateway apps/worker/tests/media-runtime.test.ts apps/worker/tests/lifecycle.integration.test.ts apps/worker/tests/input-enabled-session-lifecycle.test.ts apps/worker/tests/production-session-lifecycle.test.ts apps/worker/tests/real-gateway-first-call.test.ts apps/worker/tests/carrier-neutral-gateway.test.ts packages/plugin-recordings --reporter=dot`.
 - For the same scope against the disposable loopback database, prefix
   `OVO_TEST_POSTGRES_URL=<disposable-loopback-db>` and add `--no-file-parallelism`.
-- Full bar: `pnpm lint`, `pnpm format:check`, `node scripts/check-duplication.mjs`,
-  `pnpm typecheck`, `pnpm test`, `pnpm build`, and
+- Full bar: `pnpm check` (lint, format, typecheck, default tests, builds, audit
+  and console Playwright), `node scripts/check-duplication.mjs`, and
   `OVO_TEST_POSTGRES_URL=<disposable-loopback-db> pnpm exec vitest run --no-file-parallelism --reporter=dot`.
 - Recording database gate: `RECORDING_TEST_DATABASE_URL=<disposable-loopback-db> pnpm exec vitest run packages/plugin-recordings/tests/postgres-recordings.test.ts --no-file-parallelism --reporter=dot`.
 
@@ -361,3 +361,86 @@ The own disposable `postgres:17.6` container `ovo-pg-c2-final` was removed after
 The eight paused heads were checked before and after the run and are unchanged:
 C1 `382d690`, C3 `eaeb03f`, C4 `45ef2df`, E3 `e4e821d`, M1 `dc9f471`,
 O1 `1e49894`, O2 `cd77047`, S2 `00c80ec`. This follow-up changes documentation only.
+
+## Current-foundation handoff — 2026-09-27
+
+C2 remains **Built – awaiting check and unmerged** on `w2/C2`. It was rebased
+onto foundation `58fb2f2`, which contains E2 merge `007606f` and D1 merge
+`043b310`. The checked source checkpoint is `8bd0cf1` (rebased implementation
+commit `33fe188`); the measurements in the earlier sections belong to the
+historical `45c410a` tree, not this combined tree.
+
+The rebase had documentation conflicts and one source-test conflict in the
+checker-approved shared `apps/worker/tests/production-session-lifecycle.test.ts`.
+The resolution preserves D1's three format/recording cases and C2's authenticated
+WebSocket plus durable-session-open/fencing path. The owned worker fixture now
+accepts an optional `AudioFormat`, retaining the original mu-law 8 kHz default,
+and sends that format through the actual `session.open`. The unsupported case
+still checks the exact negotiated-format error, no recording or durable opened
+write, and finalization. No production source conflict required a change.
+
+Independent review ran the resolved lifecycle and recording paths with:
+
+```sh
+env -u OVO_TEST_POSTGRES_URL -u RECORDING_TEST_DATABASE_URL PATH=/opt/homebrew/opt/node@22/bin:$PATH pnpm exec vitest run apps/worker/tests/production-session-lifecycle.test.ts apps/worker/tests/session-recording.test.ts apps/worker/tests/f4-recording-evidence.test.ts packages/plugin-recordings/tests/production-recordings.test.ts packages/plugin-recordings/tests/recordings.test.ts --reporter=dot
+```
+
+**25/25 passed, EXIT 0**, with both edited files' Prettier check and
+`git diff --check` also exit 0. These preserve the existing regression assertions;
+they add no claim of a real provider/carrier round trip. The lifecycle test uses
+a recording wrapper spy; C2's actual capture/WAV and Postgres metadata tests are
+separate evidence. The D1/C2/I1 end-to-end PCM16 recording carry-forward remains.
+
+### Rebase regression true negative
+
+Temporarily changing the worker fixture's actual `session.open` payload from
+`format` to `format: MULAW_8K` makes the preserved PCM16 checks fail by behavior:
+
+| Broken version                                                               | Observed failure                                                                                                 |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Ignore the caller's selected PCM16 format and always negotiate mu-law        | PCM16 composition: `AssertionError: expected false to be true`                                                   |
+| Same mutation silently substitutes a supported format for an unsupported one | Unsupported case: `AssertionError: promise resolved "{ dispose: [AsyncFunction dispose] }" instead of rejecting` |
+
+Both the mutant and restored runs used:
+
+```sh
+PATH=/opt/homebrew/opt/node@22/bin:$PATH pnpm exec vitest run apps/worker/tests/production-session-lifecycle.test.ts --reporter=dot
+```
+
+The mutation produced **2 failed / 1 passed**, EXIT 1. The file was restored
+byte-for-byte in a `finally` block; the same lifecycle command then passed
+**3/3**, EXIT 0. Logs: `/tmp/ovo-c2-rebased-format-{red,green}.log`. The full
+normal and Postgres bars below ran on the original source before this temporary
+mutation; there are no residual source changes. Earlier C2 true-negative proofs
+remain recorded above and were not counted as new measurements here.
+
+### Full green bar on the rebased code
+
+All commands used Node 22 and normal dependency resolution. No test aliases,
+baseline changes, live flags, paid requests or provider/carrier calls were used.
+
+| Command                                                                                                                                                                                                     | Result                                                                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile --offline`                                                                                                                                                                  | **EXIT 0**; only the approved plugin-media importer changes                                                                           |
+| Scoped lint command in Verify commands, paired with `pnpm format:check`                                                                                                                                     | **SCOPED_LINT_EXIT=0 / FORMAT_EXIT=0**                                                                                                |
+| `node scripts/check-duplication.mjs`                                                                                                                                                                        | **EXIT 0**; no baseline changed                                                                                                       |
+| `pnpm check`                                                                                                                                                                                                | **EXIT 0**: seven lint gates, formatting, typecheck, default tests, three app bundles, console production build, audit and Playwright |
+| Vitest within `pnpm check`                                                                                                                                                                                  | **1,527 passed / 153 skipped / 0 failed**; 1,680 total                                                                                |
+| `OVO_TEST_POSTGRES_URL=postgresql://postgres:fixture@127.0.0.1:32903/postgres pnpm exec vitest run --no-file-parallelism --reporter=dot --reporter=json --outputFile=/tmp/ovo-c2-rebased-postgres.json`     | **EXIT 0: 1,672 passed / 8 skipped / 0 failed**; 1,680 total                                                                          |
+| `RECORDING_TEST_DATABASE_URL=postgresql://postgres:fixture@127.0.0.1:32903/postgres pnpm exec vitest run packages/plugin-recordings/tests/postgres-recordings.test.ts --no-file-parallelism --reporter=dot` | **EXIT 0: 4 passed / 0 skipped / 0 failed**                                                                                           |
+| Playwright within `pnpm check`                                                                                                                                                                              | **41 passed / 1 skipped**; the Menu trigger is hidden at desktop width                                                                |
+
+Arithmetic: **1,527 + 153 = 1,680**. Separately,
+**1,672 + 8 = 1,680**. Postgres activates **145 database-gated tests**, not
+disabled tests. The JSON report identifies all eight remaining skips: one ledger
+case needs `LEDGER_TEST_DATABASE_URL`, four recording cases need
+`RECORDING_TEST_DATABASE_URL`, and three restore-drill cases need
+`OVO_BACKUP_DRILL_POSTGRES_URL`. The recording run above is additional evidence,
+not added to either full-suite total. C2's worker lifecycle now uses the fixture
+queue plus real Postgres, so D1's additional ElasticMQ-gated skip is absent.
+
+Logs: `/tmp/ovo-c2-rebased-{install,scoped-lint,format,duplication,check,postgres,recording}.log`
+and `/tmp/ovo-c2-rebased-postgres.json`. The own loopback-only `postgres:17.6`
+container `ovo-c2-rebased-0927` was stopped and removed after the runs. Only the
+foundation and C2 worktrees remain. The eight paused branch heads match the
+previous handoff exactly; I1 has not started and nothing was pushed.
