@@ -270,3 +270,33 @@ previously failing native fixture test now passes normally (1/1).
 The normalizer mutation remains a **BLOCKING I1 contract gap**. The caller fix
 is not a change to the frozen normalizer's contract. E2 is Built, not independently
 Verified; S1 and E1 also remain under checker review.
+
+## Refreshed checker handoff — 2026-09-27
+
+E2 merge **`007606f` remains Built – awaiting check**. After the checker
+Verified S1 `e2c7cc5` and E1 `ac8661d`, the entire bar was rerun on current
+foundation code **`724c0a0`**. This tree also contains D1 `043b310` (control
+migration 006) and the separately requested legacy TTS binding propagation fix.
+No isolated-E2 or historical S1+E1 count is substituted for this measurement.
+
+With Node 22, `pnpm check` exits **0**: full seven-gate lint, formatting,
+typecheck, default tests, application bundles, console production build, audit
+and console E2E. Default **1,494 passed / 147 skipped / 0 failed**; Playwright
+**41 passed / 1 visibility-gated desktop skip**. The exact full database command
+was:
+
+```sh
+OVO_TEST_POSTGRES_URL=postgresql://postgres:fixture@127.0.0.1:32904/postgres pnpm exec vitest run --no-file-parallelism --reporter=dot --reporter=json --outputFile=/tmp/ovo-current-foundation-postgres.json
+```
+
+Postgres **1,632 passed / 9 skipped / 0 failed**, EXIT 0.
+**1,494 + 147 = 1,641**. Separately, **1,632 + 9 = 1,641**.
+The S1 correction report records the exact commands, skip inventory, independent
+25/25 and nine pre-fix value failures. Its frozen `metersFor` contract gap remains
+BLOCKING I1, alongside E2's frozen normalizer immutability gap. Scoped lint/full
+formatting and standalone duplication exit **0 / 0 / 0**. No baseline changed.
+
+E2 is handed over for check now, before D1 and the still-unmerged C2. The eight
+paused heads are unchanged; I1 has not started. The own Postgres container was
+removed. Board/spec updates are in separate documentation-only commits; no
+current code or stored value is changed by this report.

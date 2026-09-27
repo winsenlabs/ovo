@@ -247,3 +247,106 @@ The root `check` change in S1's merge was the checker's 2026-09-26 U1 instructio
 reconfirmed 2026-09-27: console regressions must run in the repository gate. The
 board records this approved §15.2 exception and its cross-unit E2E blast radius.
 All new documentation updates are committed separately from code.
+
+## Legacy-meter correction built — 2026-09-27
+
+Code-only commit **`724c0a0`** retains the already-loaded binding in
+`deriveLegacySelections`; local adapter input/output types now describe the full
+provider binding carried through. There is one behavior-line change. It neither
+invents a version/fingerprint nor changes any stored snapshot, price card or
+usage row. The frozen host and conditional meter declarations are unchanged.
+The preceding board/verdict/exception notes are in documentation-only commit
+`98b7196`; this report is also separate from code.
+
+The tests deliberately start without per-selection binding snapshots. The host
+matrix takes absent and empty legacy `selections` through reconstruction and
+`metersFor` for both model branches, retaining a live LLM meter to expose the
+nonempty-result trap. Production admission tests invoke
+`ProductionWorkerCostRuntime.reserve` with the real Deepgram STT, OpenAI LLM and
+OpenAI TTS manifests. All four TTS models are exercised: `tts-1`, `tts-1-hd`,
+`gpt-4o-mini-tts` and `gpt-4o-mini-tts-2025-12-15`. Missing TTS cards must refuse
+before any budget lookup/reservation; matching-card legacy and v2 cases admit.
+For token-priced models, the positive cases supply no character price card,
+so an unconditional fallback meter would fail them.
+
+### Behavioral true negatives and independent measurement
+
+With these tests installed on pre-fix `98b7196`, the normal command was:
+
+```sh
+export PATH=/opt/homebrew/opt/node@22/bin:$PATH
+pnpm exec vitest run packages/session-host/tests/selections.test.ts packages/plugin-storage/tests/f3-storage.test.ts apps/worker/tests/legacy-cost-meters.test.ts --reporter=dot
+```
+
+| Broken version before the one-line fix                                           | Observed failure                                                                                                                                                 |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| All four real TTS model variants omit TTS cards while STT/LLM remain selected    | Four cases: `expected { admitted: true, …(2) } to match object { admitted: false, …(1) }`; expected reason names the character meter or both native token meters |
+| Absent/empty legacy selections lose their conditional neural/basic TTS binding   | Four cases: `expected [ 'llm.tokens' ] to deeply equal [ 'tts.neural', 'llm.tokens' ]` (or `tts.basic`)                                                          |
+| Storage reconstruction discards the immutable release's existing provider record | Deep equality fails on the missing `binding` object while the plugin ID and binding ID still match                                                               |
+
+Pre-fix result: **9 failed / 16 passed**, EXIT 1. No import, selector or module
+resolution error is counted. After the minimal repair, that exact command passes
+**25/25**, EXIT 0. Independent read-only review ran the same three files with
+Postgres variables unset and reproduced **25/25**, finding no concrete blocker.
+These are complementary reconstruction/admission checks, not real paid-provider
+or real-ledger traffic. Existing Postgres tests are covered by the full serial
+bar below. Logs: `/tmp/ovo-legacy-meter-{red,green}.log`.
+
+Scoped typecheck, owned-path Prettier, scoped lint/full formatting and standalone
+duplication passed with Node 22:
+
+```sh
+node scripts/typecheck-scope.mjs packages/plugin-storage packages/session-host/tests/selections.test.ts apps/worker/tests/legacy-cost-meters.test.ts
+pnpm exec prettier --check packages/plugin-storage/src/legacy-selections.ts packages/plugin-storage/tests/f3-storage.test.ts packages/session-host/tests/selections.test.ts apps/worker/tests/legacy-cost-meters.test.ts
+node scripts/lint.mjs --only packages/plugin-storage packages/session-host/tests/selections.test.ts apps/worker/tests/legacy-cost-meters.test.ts
+pnpm format:check
+node scripts/check-duplication.mjs
+```
+
+**TYPECHECK_EXIT=0, SCOPED_LINT_EXIT=0, FORMAT_EXIT=0, DUPLICATION_EXIT=0.**
+No baseline, manifest or lockfile changed. Logs are
+`/tmp/ovo-legacy-meter-{typecheck,lint,format,duplication}.log`.
+
+The separate missing-binding/missing-condition/unknown-value fail-closed contract
+in frozen `metersFor` remains **BLOCKING I1 before legacy bridge deletion**. It
+is not represented by a skipped, expected-failure or incorrectly passing test.
+This correction covers the legacy reconstruction path that had discarded a valid
+snapshot. Operational effect: releases missing their model's TTS price cards now
+refuse admission until published with complete coverage; no persisted value is
+rewritten and no fallback meter is added.
+
+### Refreshed full current-foundation bar
+
+The following complete bar ran on code commit **`724c0a0`**, including E2
+`007606f`, D1 `043b310` with control migration 006, and the metering correction.
+These are current combined-foundation numbers, not the historical S1+E1 totals.
+
+```sh
+export PATH=/opt/homebrew/opt/node@22/bin:$PATH
+pnpm check
+OVO_TEST_POSTGRES_URL=postgresql://postgres:fixture@127.0.0.1:32904/postgres pnpm exec vitest run --no-file-parallelism --reporter=dot --reporter=json --outputFile=/tmp/ovo-current-foundation-postgres.json
+```
+
+- `pnpm check`: **EXIT 0**; full lint (seven gates), full formatting,
+  full typecheck, default tests, three application bundles, console production
+  build, audit and console E2E all pass.
+- Default Vitest: **1,494 passed / 147 skipped / 0 failed**.
+- Full Postgres serial: **1,632 passed / 9 skipped / 0 failed**, EXIT 0.
+- Playwright: **41 passed / 1 skipped**, only the desktop-hidden Menu trigger.
+- Separate sums: **1,494 + 147 = 1,641**. **1,632 + 9 = 1,641**.
+
+The 138 cases activated by Postgres are database-gated. The JSON report confirms
+all nine remaining skips: one ledger case needs `LEDGER_TEST_DATABASE_URL`, four
+recording cases need `RECORDING_TEST_DATABASE_URL`, three restore cases need
+`OVO_BACKUP_DRILL_POSTGRES_URL`, and one worker lifecycle case additionally needs
+ElasticMQ. None is disabled; the ElasticMQ case is not a database-only skip.
+Logs: `/tmp/ovo-current-foundation-check.log`,
+`/tmp/ovo-current-foundation-postgres.log` and the JSON report above.
+
+The disposable loopback-only `postgres:17.6` container
+`ovo-meter-foundation-0927` was stopped and removed. Two worktrees remain.
+No paused branch, frozen production-host file, baseline or console code changed.
+Nothing was pushed and no real provider traffic or AWS operation was performed.
+The current-foundation code is handed to the checker for **E2 first**, then D1;
+C2 remains unmerged and will refresh on this foundation before its later check.
+The subsequent documentation-only commit contains no code changes.
