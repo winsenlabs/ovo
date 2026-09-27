@@ -84,7 +84,7 @@ async function serve(options: CarrierRouterOptions) {
   return `http://127.0.0.1:${address.port}`;
 }
 
-it('routes canonical GET/POST and aliases by carrier, binding and purpose with exact public URLs', async () => {
+it('routes one carrier’s canonical GET/POST and aliases by binding and purpose with exact public URLs', async () => {
   const seen: CarrierHttpRequest[] = [];
   const selected: string[] = [];
   const ingress: CarrierIngress = {
