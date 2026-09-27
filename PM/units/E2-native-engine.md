@@ -209,3 +209,23 @@ and normal build exit 0. The default suite is **1,361 passed / 138 skipped /
 immutability regression for the same defect. No aliases or suppressed tests are
 used. E2 remains **In progress**, not Built; its full green bar, including the
 Postgres serial run, remains required after the ownership decision.
+
+## Checker note (2026-09-27): API caller clone approved
+
+The checker approved the single `structuredClone(agent.config)` argument in
+`apps/api/src/release-selections.ts`, together with E2's existing real API/SQLite
+immutability regression. The unit specification requires registering the default
+markdown filter but does not own this API caller; that required edit is now a
+minimal shared touchpoint inherited by I1. `apps/**` is not on design §15.2's
+frozen list: the earlier stop was an ownership question, not a frozen-path one.
+No frozen normalizer or interface is changed.
+
+**BLOCKING I1 contract gap:** `normalizeAgentConfig` mutates its input. This clone
+protects one caller, but the source draft mutation and seven HTTP 409 publication
+failures remain reachable for future callers. I1 must fix and directly regress
+normalizer input immutability, rather than collecting caller clones. This is
+recorded as blocking on the board.
+
+The branch was rebased onto foundation `a63daec`, preserving the latest M1/D1
+migration allocation and paused heads. Full normal verification is being rerun;
+the failed baseline counts above describe the code before this approved repair.

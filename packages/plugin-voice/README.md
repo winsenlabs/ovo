@@ -4,7 +4,7 @@ The production catalog exports the native v2 engine, its speech scheduler and
 streaming output companions, and the markdown and URL text filters. The default
 markdown filter remains registered as required by the F3 carry-forward.
 
-## Checker ruling and normalization boundary — 2026-09-26
+## Normalization boundary: reproduced failure before approval — 2026-09-26
 
 The checker requires unit-local structural adapters for frozen contract gaps.
 E2 must not change `packages/session-host` or frozen interfaces. The eight units
@@ -60,7 +60,7 @@ external root dependency links were copied locally before frozen offline
 verification; no manifest, lockfile or tracked configuration changed. No alias or
 test suppression is used. E2 remains WIP while this publication path is blocked.
 
-### Normal gate results with the API file restored
+### Pre-approval normal gate results with the API file restored
 
 - `node scripts/lint.mjs --only packages/plugin-voice packages/plugin-speech-cache experiments/voice`:
   exit 0, seven gates, zero scoped architecture baseline edges, largest source
@@ -79,3 +79,15 @@ test suppression is used. E2 remains WIP while this publication path is blocked.
 ```sh
 pnpm exec vitest run packages/plugin-voice packages/plugin-speech-cache apps/api/tests/voice-engine-release.test.ts apps/worker/tests/production-engine-selection.test.ts apps/worker/tests/native-extension-pins.test.ts apps/worker/tests/session-recording.test.ts --reporter=dot
 ```
+
+## Approved repair — 2026-09-27
+
+The checker authorized the one-line `structuredClone(agent.config)` at the API
+caller. It is now applied with the existing real API/SQLite regression; the
+frozen normalizer remains untouched. The API path is an I1-owned shared touchpoint,
+not a frozen path. The earlier failed counts above are the pre-repair baseline.
+Full normal verification is being rerun before Built status.
+
+**BLOCKING I1:** the normalizer mutates its input. Fix the normalizer and regress
+that contract directly at integration; this one caller clone is not a general
+repair and must not become a pattern of collecting clones.
