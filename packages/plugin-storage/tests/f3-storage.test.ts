@@ -240,7 +240,20 @@ describe('legacy selections', () => {
     const release = {
       selections: {},
       config: config('Legacy', { stt: 'binding' }),
-      providerBindings: { stt: { id: 'binding', provider: 'deepgram', pluginId: null } },
+      providerBindings: {
+        stt: {
+          id: 'binding',
+          provider: 'deepgram',
+          pluginId: null,
+          workspaceId: 'w',
+          label: 'STT',
+          environment: 'test',
+          credentialId: 'credential',
+          config: { model: 'nova-3' },
+          createdAt: '2026-09-27T00:00:00Z',
+          updatedAt: '2026-09-27T00:00:00Z',
+        },
+      },
     } as unknown as Parameters<typeof deriveLegacySelections>[0];
     const registry = {
       resolve: (_kind: string, provider: string) => ({ manifest: { id: provider + '-plugin' } }),
@@ -248,7 +261,12 @@ describe('legacy selections', () => {
     } as unknown as Parameters<typeof deriveLegacySelections>[1];
     const result = deriveLegacySelections(release, registry, { engine: 'default-engine' });
     expect(result).toEqual({
-      stt: { pluginId: 'deepgram-plugin', bindingId: 'binding', config: {} },
+      stt: {
+        pluginId: 'deepgram-plugin',
+        bindingId: 'binding',
+        binding: release.providerBindings.stt,
+        config: {},
+      },
       engine: { pluginId: 'default-engine', config: {} },
     });
     expect('version' in result.stt!).toBe(false);

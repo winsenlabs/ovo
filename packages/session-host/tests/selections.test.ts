@@ -9,6 +9,7 @@ import { definePlugin, PluginRegistry } from '@winsendotai/ovo-runtime';
 import { normalizeAgentConfig } from '../src/normalize.ts';
 import { selectEngine } from '../src/engine-selection.ts';
 import { metersFor } from '../src/meters.ts';
+import { deriveLegacySelections } from '../../plugin-storage/src/legacy-selections.ts';
 import { CarrierRegistry } from '../src/carrier-registry.ts';
 import { createCarrierBindingResolver } from '../src/carrier-bindings.ts';
 
@@ -207,6 +208,51 @@ describe('selection helpers', () => {
       metersFor(selections, registry, { requiresInput: true }).map((row) => row.meter.key),
     ).toEqual(['carrier.call', 'tts.basic']);
   });
+  it.each([
+    ['absent', 'neural'],
+    ['absent', 'basic'],
+    ['empty', 'neural'],
+    ['empty', 'basic'],
+  ])(
+    'restores conditional meters from legacy bindings with %s selections and %s model',
+    (shape, model) => {
+      const registry = new PluginRegistry([tts, llm('llm-a')]);
+      const binding = (id: string, provider: string, config: Record<string, unknown>) => ({
+        id,
+        provider,
+        config,
+        workspaceId: 'w',
+        label: id,
+        environment: 'test',
+        credentialId: 'credential',
+        createdAt: '2026-09-27T00:00:00Z',
+        updatedAt: '2026-09-27T00:00:00Z',
+      });
+      const release = {
+        config: AgentConfig.parse({
+          name: 'legacy',
+          mode: 'context',
+          providers: { tts: 'tts-binding', inference: 'llm-binding' },
+        }),
+        ...(shape === 'empty' ? { selections: {} } : {}),
+        providerBindings: {
+          tts: binding('tts-binding', 'fixture', { model }),
+          inference: binding('llm-binding', 'openai', { model: 'llm-model' }),
+        },
+      };
+      // No caller-built selection binding snapshot: exercise the legacy reconstruction path.
+      const legacy = deriveLegacySelections(release, registry, {});
+      const selections = Object.fromEntries(
+        Object.entries(legacy).map(([slot, choice]) => [
+          slot,
+          { ...choice, version: registry.get(choice.pluginId)!.manifest.version },
+        ]),
+      ) as ReleaseSelections;
+      expect(
+        metersFor(selections, registry, { requiresInput: true }).map((row) => row.meter.key),
+      ).toEqual([`tts.${model}`, 'llm.tokens']);
+    },
+  );
   it('keeps exact v1 replacement pins/messages and accepts same-major v2 pins', () => {
     const old = oldEngine();
     const release = {

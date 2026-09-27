@@ -3,12 +3,13 @@ import type { PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { ProviderBinding, ReleaseRecord } from './models.ts';
 
 export type LegacyReleaseInput = Pick<ReleaseRecord, 'config' | 'selections'> & {
-  providerBindings: Record<string, Pick<ProviderBinding, 'id' | 'provider' | 'pluginId'>>;
+  providerBindings: Record<string, ProviderBinding>;
 };
 
 export interface LegacySelection {
   pluginId: string;
   bindingId?: string;
+  binding?: ProviderBinding;
   config: Record<string, unknown>;
 }
 
@@ -44,7 +45,7 @@ export function deriveLegacySelections(
     if (!binding || binding.id !== bindingId)
       throw new Error(`Legacy ${legacy} binding snapshot is missing`);
     const plugin = registry.resolve(kinds[slot]!, binding.pluginId ?? binding.provider);
-    result[slot] = { pluginId: plugin.manifest.id, bindingId, config: {} };
+    result[slot] = { pluginId: plugin.manifest.id, bindingId, binding, config: {} };
   }
   const voice = release.config.voice;
   if (voice) {
