@@ -126,3 +126,20 @@ CONSTRAINTS:
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm test`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm build`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/check-terraform.mjs`
+
+## Incoming checker obligations (2026-09-27)
+
+- **BLOCKING contract gap from E2:** `normalizeAgentConfig` mutates its input
+  through a shared `voice.textFilters` array. E2's approved one-line clone in
+  `apps/api/src/release-selections.ts` protects that caller only. I1 must fix
+  input immutability in the normalizer and test its direct contract; do not
+  accumulate caller clones. The exposed production failure was seven HTTP 409
+  publication conflicts when the default markdown filter became installed.
+- `runControlMigrations` checks each entry of a hardcoded array independently
+  and currently applies missing lower versions after higher recorded versions.
+  Add a contiguity assertion that rejects gaps before applying migration SQL,
+  with an out-of-order true negative. D1 owns control 006, and M1 must renumber
+  its unpublished migration to 007 when it resumes. The second unit must rebase
+  and re-verify the shared Postgres/SQLite runners; checksums of already-applied
+  migrations must remain immutable. This note records future I1 work; I1 has
+  not started.

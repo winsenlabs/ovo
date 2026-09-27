@@ -91,3 +91,13 @@ Full normal verification is being rerun before Built status.
 **BLOCKING I1:** the normalizer mutates its input. Fix the normalizer and regress
 that contract directly at integration; this one caller clone is not a general
 repair and must not become a pattern of collecting clones.
+
+## Final normal bar — 2026-09-27
+
+Merged at `007606f`: `pnpm check` EXIT 0, **1,369 passed / 138 skipped**;
+Postgres serial **1,498 passed / 9 skipped / 0 failed**; Playwright **41 passed /
+1 visibility-gated skip**. Scoped lint/full format **0 / 0**, standalone
+duplication **0**. Independent real API/immutability regression **71 passed /
+10 skipped**. The unit spec records exact commands, skip gates and true negatives.
+E2 is **Built — awaiting check**. The normalizer's input mutation remains a
+**BLOCKING I1** obligation despite the repaired API caller.

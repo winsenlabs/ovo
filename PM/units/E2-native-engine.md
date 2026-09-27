@@ -229,3 +229,44 @@ recorded as blocking on the board.
 The branch was rebased onto foundation `a63daec`, preserving the latest M1/D1
 migration allocation and paused heads. Full normal verification is being rerun;
 the failed baseline counts above describe the code before this approved repair.
+
+## Built — awaiting check (2026-09-27)
+
+E2 landed at merge **`007606f`**, with the approved caller fix at `6561737`.
+The final merge tree passed the normal configuration on Node 22, without aliases,
+overlays, disabled tests, baseline edits or live/paid traffic:
+
+| Command                                                                                                                                                                                                 | Result                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `node scripts/lint.mjs --only packages/plugin-voice packages/plugin-speech-cache experiments/voice apps/api/src/release-selections.ts`, paired with `pnpm format:check`                                 | EXIT 0 / EXIT 0 (pre-merge branch; same code)                                                                                     |
+| `pnpm check` on `007606f`                                                                                                                                                                               | EXIT 0: seven lint gates, full formatting/typecheck/tests, three application bundles, console production build, audit, Playwright |
+| Full Vitest inside `pnpm check`                                                                                                                                                                         | 1,369 passed / 138 skipped / 0 failed                                                                                             |
+| `node scripts/check-duplication.mjs` on `007606f`                                                                                                                                                       | EXIT 0; no baseline changes                                                                                                       |
+| `OVO_TEST_POSTGRES_URL=postgres://postgres:ovo@127.0.0.1:32901/ovo pnpm exec vitest run --no-file-parallelism --reporter=dot --reporter=json --outputFile=/tmp/ovo-e2-final-postgres.json` on `007606f` | EXIT 0: 1,498 passed / 9 skipped / 0 failed                                                                                       |
+| Playwright inside `pnpm check`                                                                                                                                                                          | 41 passed / 1 skipped (Menu hidden at desktop viewport)                                                                           |
+| Independent API plus immutability regression command from the prior section                                                                                                                             | 71 passed / 10 skipped / 0 failed                                                                                                 |
+
+Separate sums: **1,369 + 138 = 1,507**. **1,498 + 9 = 1,507**.
+The additional 129 default skips activate with Postgres. The remaining skips are
+one ledger API (`LEDGER_TEST_DATABASE_URL`), four recording metadata
+(`RECORDING_TEST_DATABASE_URL`), three restore drills
+(`OVO_BACKUP_DRILL_POSTGRES_URL`), and one worker Postgres/ElasticMQ lifecycle
+requiring the queue URL/endpoint in addition to Postgres. None is disabled.
+
+The input-mutation true negative remains the same production route: without the
+clone, the source `textFilters` changes from `[]` to the installed markdown filter,
+and seven existing API publication tests return HTTP 409 instead of 201. The
+independent reviewer confirmed the final diff is exactly one argument and
+reproduced 71/10 with normal resolution. Earlier owned-engine true negatives and
+independent review measurements remain recorded above.
+
+Logs: `/tmp/ovo-e2-approved-scoped-lint.log`, `/tmp/ovo-e2-approved-format-check.log`,
+`/tmp/ovo-e2-final-merge-check.log`, `/tmp/ovo-e2-final-duplication.log`, and
+`/tmp/ovo-e2-final-postgres.{log,json}`. The own `postgres:17.6` container
+`ovo-pg-e2-final-20260927` was removed. The merged E2 worktree was removed; the
+branch remains as committed review history. D1 has rebased onto E2 and its
+previously failing native fixture test now passes normally (1/1).
+
+The normalizer mutation remains a **BLOCKING I1 contract gap**. The caller fix
+is not a change to the frozen normalizer's contract. E2 is Built, not independently
+Verified; S1 and E1 also remain under checker review.
