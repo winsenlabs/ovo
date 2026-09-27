@@ -1,32 +1,14 @@
 import type { LiveRecordingService } from './live-service.ts';
 import type { LiveRecording, RecordingTimelineEvent, RecordingTrack } from './types.ts';
+import { MULAW_8K } from '../../contracts/src/audio.ts';
+import {
+  recordingBytesPerSecond,
+  supportedRecordingFormat,
+  type PlaybackEvidenceSource,
+  type RecordingMediaTransport,
+} from './capture-types.ts';
 
-export interface RecordingMediaTransport {
-  readonly identity?: unknown;
-  readonly sessionId: string;
-  readonly codec: 'audio/x-mulaw';
-  readonly sampleRate: 8000;
-  readonly bufferedBytes: number;
-  sendAudio(audio: Uint8Array, signal?: AbortSignal): Promise<void>;
-  sendMark(name: string, signal?: AbortSignal): Promise<void>;
-  clear(signal?: AbortSignal): Promise<void>;
-  close(reason: string): Promise<void>;
-  onAudio(listener: (audio: Uint8Array, timestampMs: number) => void): () => void;
-  onMark(listener: (name: string) => void): () => void;
-  onDtmf(listener: (digit: string) => void): () => void;
-  onClose(listener: (reason: string) => void): () => void;
-}
-
-export interface PlaybackEvidenceSource {
-  subscribe(
-    listener: (event: {
-      segmentId: string;
-      phase: string;
-      at: number;
-      evidence: 'generated' | 'simulated' | 'estimated' | 'confirmed';
-    }) => void,
-  ): () => void;
-}
+export type { PlaybackEvidenceSource, RecordingMediaTransport } from './capture-types.ts';
 
 interface PendingTrack {
   bytes: Uint8Array[];
@@ -39,8 +21,9 @@ interface PendingTrack {
 export class LiveRecordingCapture implements RecordingMediaTransport {
   readonly identity: unknown;
   readonly sessionId: string;
-  readonly codec = 'audio/x-mulaw' as const;
-  readonly sampleRate = 8000 as const;
+  readonly format: NonNullable<RecordingMediaTransport['format']>;
+  readonly codec: RecordingMediaTransport['codec'];
+  readonly sampleRate: RecordingMediaTransport['sampleRate'];
   private readonly startedMonotonic: number;
   private readonly tracks: Record<RecordingTrack, PendingTrack> = {
     inbound: { bytes: [], byteLength: 0, sequence: 0 },
@@ -63,6 +46,9 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
   ) {
     this.identity = media.identity;
     this.sessionId = media.sessionId;
+    this.format = media.format ?? MULAW_8K;
+    this.codec = media.codec;
+    this.sampleRate = media.sampleRate;
     this.monotonicNow = monotonicNow;
     this.startedMonotonic = monotonicNow();
     this.unsubscribers.push(
@@ -92,9 +78,15 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
     monotonicNow?: () => number;
     evidence?: PlaybackEvidenceSource;
   }): Promise<LiveRecordingCapture> {
-    if (input.media.codec !== 'audio/x-mulaw' || input.media.sampleRate !== 8000)
-      throw new Error('Live recording requires 8 kHz G.711 mu-law media');
-    const recording = await input.service.create(input);
+    const format = input.media.format ?? MULAW_8K;
+    if (!supportedRecordingFormat(format))
+      throw new Error('Live recording requires μ-law 8 kHz or PCM16 8/16 kHz media');
+    if (
+      input.media.codec !== (format.encoding === 'mulaw' ? 'audio/x-mulaw' : 'audio/pcm') ||
+      input.media.sampleRate !== format.sampleRate
+    )
+      throw new Error('Live recording media format and codec disagree');
+    const recording = await input.service.create({ ...input, format });
     await input.service.state(recording.id, 'active');
     return new LiveRecordingCapture(
       input.service,
@@ -223,8 +215,9 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
       const chunk = audio.slice(offset, offset + remaining);
       track.bytes.push(chunk);
       track.byteLength += chunk.byteLength;
-      track.startMs ??= timestampMs + offset / 8;
-      track.endMs = timestampMs + (offset + chunk.byteLength) / 8;
+      const bytesPerMs = recordingBytesPerSecond(this.format) / 1_000;
+      track.startMs ??= timestampMs + offset / bytesPerMs;
+      track.endMs = timestampMs + (offset + chunk.byteLength) / bytesPerMs;
       offset += chunk.byteLength;
       if (track.byteLength === this.recording.segmentBytes) await this.flush(trackName);
     }

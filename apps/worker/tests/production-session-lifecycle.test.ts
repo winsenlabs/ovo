@@ -14,7 +14,7 @@ import type {
   SessionRoute,
 } from '@winsendotai/ovo-plugin-orchestration';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
-import type { WorkerMediaSession } from '@winsendotai/ovo-plugin-media';
+import { workerSessionFixture } from '../../../packages/plugin-media/tests/worker-session-fixture.ts';
 import { LiveRecordingCapture } from '@winsendotai/ovo-plugin-recordings';
 import { AgentConfig, outcomeFor } from '@winsendotai/ovo-contracts';
 import { compose, definePlugin } from '@winsendotai/ovo-runtime';
@@ -152,36 +152,6 @@ describe('production session lifecycle from a loaded distribution', () => {
       ownerEpoch: 7,
       leaseExpiresAt: new Date(Date.now() + 60_000),
     } as DurableJob;
-    const closeListeners = new Set<(reason: string) => void>();
-    const media = {
-      identity: {
-        sessionId: route.sessionId,
-        callSid: route.carrierCallId,
-        streamSid: 'MZ1',
-        ownerId: route.workerId,
-        ownerEpoch: route.ownerEpoch,
-        generation: route.generation,
-      },
-      sessionId: route.sessionId,
-      format,
-      codec: format.encoding === 'pcm_s16le' ? 'audio/pcm' : 'audio/x-mulaw',
-      sampleRate: format.sampleRate,
-      bufferedBytes: 0,
-      sendAudio: async () => undefined,
-      sendMark: async () => undefined,
-      clear: async () => undefined,
-      onAudio: () => () => undefined,
-      onMark: () => () => undefined,
-      onDtmf: () => () => undefined,
-      onClose: (listener: (reason: string) => void) => {
-        closeListeners.add(listener);
-        return () => closeListeners.delete(listener);
-      },
-      close: async (reason: string) => {
-        order.push('media.close');
-        for (const listener of [...closeListeners]) listener(reason);
-      },
-    } as unknown as WorkerMediaSession;
     const carrierLookup = vi.fn(async () => ({
       carrier: {
         carrierId: 'fixture',
@@ -195,14 +165,18 @@ describe('production session lifecycle from a loaded distribution', () => {
       },
     }));
     if (recording)
-      captureStart.mockImplementation(
-        async () =>
-          ({
-            ...media,
-            finish: vi.fn(async () => undefined),
-            attachEvidence: vi.fn(() => () => undefined),
-          }) as never,
-      );
+      captureStart.mockImplementation(async ({ media }) => {
+        const finish = vi.fn(async () => undefined);
+        const attachEvidence = vi.fn(() => () => undefined);
+        return new Proxy(media, {
+          get(target, key) {
+            if (key === 'finish') return finish;
+            if (key === 'attachEvidence') return attachEvidence;
+            const value: unknown = Reflect.get(target, key, target);
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
+        }) as never;
+      });
     const factory = new ProductionVoiceSessionFactory(
       {
         getRelease: async () => release,
@@ -230,27 +204,44 @@ describe('production session lifecycle from a loaded distribution', () => {
         order.push(`fence:${reason}`);
       },
     );
-    const runtime = new WorkerMediaRuntime(
-      { url: 'ws://127.0.0.1:1/worker', workerId: route.workerId, token: 'test' },
-      {
-        resolveSessionRoute: async () => route,
-        get: async () => job,
-      } as unknown as DurableJobStore,
-      factory,
-      async () => {
-        order.push('session.close');
+    const createSession = vi.spyOn(factory, 'create');
+    const transport = await workerSessionFixture(
+      route,
+      job,
+      (httpServer, store) =>
+        new WorkerMediaRuntime(
+          { httpServer, workerId: route.workerId, token: 'worker-fixture-token' },
+          store as unknown as DurableJobStore,
+          factory,
+          async () => {
+            order.push('session.close');
+          },
+        ),
+      (frame) => {
+        if (frame.type === 'session.end') order.push('media.close');
       },
+      format,
     );
     try {
+      expect(transport.messages[0]).toEqual({ type: 'session.accept' });
+      await vi.waitFor(() => expect(createSession).toHaveBeenCalledOnce());
       if (unsupported) {
-        await expect(
-          (runtime as unknown as { open(media: WorkerMediaSession): Promise<void> }).open(media),
-        ).rejects.toThrow('Selected carrier does not support negotiated worker media format');
+        await expect(createSession.mock.results[0]!.value).rejects.toThrow(
+          'Selected carrier does not support negotiated worker media format',
+        );
         expect(composedFormat).toBeUndefined();
         expect(captureStart).not.toHaveBeenCalled();
+        expect(
+          transport.store.queries.some((sql) => sql.includes('INSERT INTO ovo_carrier_callbacks')),
+        ).toBe(false);
+        await vi.waitFor(() => expect(order).toContain('session.close'));
         return;
       }
-      await (runtime as unknown as { open(media: WorkerMediaSession): Promise<void> }).open(media);
+      await vi.waitFor(() =>
+        expect(
+          transport.store.queries.some((sql) => sql.includes('INSERT INTO ovo_carrier_callbacks')),
+        ).toBe(true),
+      );
       expect(carrierLookup).toHaveBeenCalledWith(job, false);
       expect(composedFormat && sameFormat(composedFormat, format)).toBe(true);
       await complete('behavior_completed');
@@ -261,17 +252,24 @@ describe('production session lifecycle from a loaded distribution', () => {
         }),
       );
       expect(order).toContain('fence:behavior_completed');
+      await vi.waitFor(() =>
+        expect(transport.messages.some((frame) => frame.type === 'session.end')).toBe(true),
+      );
       expect(order).toContain('media.close');
       expect(order.indexOf('fence:behavior_completed')).toBeLessThan(order.indexOf('media.close'));
+      expect(order.indexOf('fence:behavior_completed')).toBeLessThan(
+        order.indexOf('engine.dispose'),
+      );
       await vi.waitFor(() =>
         expect(telemetryClose).toHaveBeenCalledWith('ended', 'behavior_completed'),
       );
       if (recording) {
         expect(captureStart).toHaveBeenCalledOnce();
-        expect(captureStart.mock.calls[0]?.[0].media).toBe(media);
+        expect(captureStart.mock.calls[0]?.[0].media).toBe(createSession.mock.calls[0]?.[0].media);
       } else expect(captureStart).not.toHaveBeenCalled();
     } finally {
       captureStart.mockRestore();
+      await transport.close();
       await parent.dispose();
     }
   });

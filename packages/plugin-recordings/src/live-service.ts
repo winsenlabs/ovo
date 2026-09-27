@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
+import type { AudioFormat } from '../../contracts/src/audio.ts';
+import { supportedRecordingFormat } from './capture-types.ts';
 import type { ObjectBackend } from './backend.ts';
 import type { RecordingRepository } from './repository.ts';
 import { RecordingUnavailableError } from './repository.ts';
@@ -17,6 +19,7 @@ export interface CreateLiveRecording {
   callId: string;
   retentionDays: number;
   segmentBytes?: number;
+  format?: AudioFormat;
 }
 
 export class LiveRecordingService {
@@ -46,6 +49,15 @@ export class LiveRecordingService {
       segmentBytes > 8 * 1024 * 1024
     )
       throw new Error('Segment bytes must be from 64 KiB to 8 MiB');
+    const format: AudioFormat = input.format ?? {
+      encoding: 'mulaw',
+      sampleRate: 8_000,
+      channels: 1,
+    };
+    if (!supportedRecordingFormat(format))
+      throw new Error('Live recording requires μ-law 8 kHz or PCM16 8/16 kHz media');
+    if (format.encoding === 'pcm_s16le' && segmentBytes % 2 !== 0)
+      throw new Error('PCM16 segment size must preserve complete samples');
     const at = this.clock();
     const recording: LiveRecording = {
       id: randomUUID(),
@@ -56,8 +68,8 @@ export class LiveRecordingService {
       createdAt: new Date(at).toISOString(),
       updatedAt: new Date(at).toISOString(),
       expiresAt: new Date(at + input.retentionDays * 86_400_000).toISOString(),
-      codec: 'audio/x-mulaw',
-      sampleRate: 8000,
+      codec: format.encoding === 'mulaw' ? 'audio/x-mulaw' : 'audio/pcm',
+      sampleRate: format.sampleRate as 8000 | 16000,
       channels: 2,
       segmentBytes,
     };
@@ -81,11 +93,17 @@ export class LiveRecordingService {
       throw new Error('Recording segment sequence exceeds manifest bound');
     if (!input.bytes.byteLength || input.bytes.byteLength > input.recording.segmentBytes)
       throw new Error('Recording segment exceeds configured bound');
+    if (input.recording.codec === 'audio/pcm' && input.bytes.byteLength % 2 !== 0)
+      throw new Error('PCM16 recording segment must contain complete samples');
     const suffix = `${input.sequence.toString().padStart(8, '0')}-${randomUUID()}`;
-    const objectKey = `recordings/${input.recording.workspaceId}/${input.recording.callId}/${input.recording.id}/${input.track}/${suffix}.mulaw`;
+    const objectKey = `recordings/${input.recording.workspaceId}/${input.recording.callId}/${input.recording.id}/${input.track}/${suffix}.${input.recording.codec === 'audio/pcm' ? 'pcm16' : 'mulaw'}`;
     const sha256 = createHash('sha256').update(input.bytes).digest('hex');
     try {
-      await this.objects.put(objectKey, input.bytes, 'audio/basic');
+      await this.objects.put(
+        objectKey,
+        input.bytes,
+        input.recording.codec === 'audio/pcm' ? 'audio/L16' : 'audio/basic',
+      );
     } catch (error) {
       await this.repository
         .appendSegment({

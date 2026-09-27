@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, it, expect } from 'vitest';
 import { compose } from '@winsendotai/ovo-runtime';
-import { RecordingArchive, inspectWav, recordingsPlugin } from '../src/index.ts';
+import {
+  RecordingArchive,
+  encodeRecordingWav,
+  inspectWav,
+  recordingsPlugin,
+} from '../src/index.ts';
 import { LocalRecordingBackend } from '../src/backend.ts';
 const directories: string[] = [];
 afterEach(async () => {
@@ -31,6 +36,28 @@ async function archive() {
   return { dir, store: new RecordingArchive(new LocalRecordingBackend(dir)) };
 }
 describe('recording archive, real local files and simulated audio', () => {
+  it.each([
+    [{ encoding: 'mulaw', sampleRate: 8_000, channels: 1 }, 800, 'mulaw', 8],
+    [{ encoding: 'pcm_s16le', sampleRate: 8_000, channels: 1 }, 1_600, 'pcm', 16],
+    [{ encoding: 'pcm_s16le', sampleRate: 16_000, channels: 1 }, 3_200, 'pcm', 16],
+  ] as const)(
+    'encodes the captured audio format in the WAV header',
+    (format, bytes, expected, bits) => {
+      const wav = encodeRecordingWav(format, new Uint8Array(bytes));
+      expect(inspectWav(wav)).toMatchObject({
+        format: expected,
+        sampleRate: format.sampleRate,
+        channels: 1,
+        bitsPerSample: bits,
+        durationMs: 100,
+      });
+      if (format.encoding === 'mulaw') {
+        expect(Buffer.from(wav).toString('ascii', 38, 42)).toBe('fact');
+        expect(Buffer.from(wav).readUInt16LE(36)).toBe(0);
+      }
+    },
+  );
+
   it('validates the real envelope and computes duration rather than trusting metadata', () => {
     expect(inspectWav(fixture())).toMatchObject({ durationMs: 100, sampleRate: 8000, channels: 1 });
     const truncated = fixture().subarray(0, 100);

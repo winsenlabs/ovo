@@ -1,5 +1,13 @@
-import { createHmac } from 'node:crypto';
-import { AgentConfig, MULAW_8K } from '@winsendotai/ovo-contracts';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
+import { WebSocket } from '@winsendotai/ovo-plugin-media';
+import {
+  fixtureCarrierIngress,
+  fixtureSignature,
+  fixtureInboundFrame,
+} from '../../../packages/conformance/src/drivers/fixture-carrier.ts';
+import { routeStore } from '../../../packages/plugin-media/tests/worker-session-fixture.ts';
+import { AgentConfig, MULAW_8K, type CarrierHostPorts } from '@winsendotai/ovo-contracts';
 import { FIRST_PARTY, loadDistribution } from '@winsendotai/ovo-distribution';
 import { MediaGateway, type DurableMediaRoute } from '@winsendotai/ovo-plugin-media';
 import type { DurableJob, SessionRoute } from '@winsendotai/ovo-plugin-orchestration';
@@ -11,7 +19,7 @@ import { selectedSpeechFixture } from '../../api/tests/selected-speech-fixture.t
 import { WorkerMediaRuntime } from '../src/media-runtime.ts';
 import { ProductionVoiceSessionFactory } from '../src/production-session-factory.ts';
 
-it('isolates a failed open, then accepts production audio despite extra create awaits', async () => {
+it('isolates a failed open, then accepts non-Twilio production audio despite extra create awaits', async () => {
   const distribution = await loadDistribution({
     role: 'worker',
     profile: 'compose',
@@ -75,7 +83,7 @@ it('isolates a failed open, then accepts production audio despite extra create a
     generation: 2,
     dialRequestId: 'job-real-gateway:3',
     carrierCallId: 'CA-real-gateway',
-    carrierId: 'twilio',
+    carrierId: 'plivo',
     status: 'accepted',
     handshakeExpiresAt: new Date(Date.now() + 60_000),
   } as SessionRoute;
@@ -123,7 +131,7 @@ it('isolates a failed open, then accepts production audio despite extra create a
       carriers: {
         forJob: async () => ({
           carrier: {
-            carrierId: 'twilio',
+            carrierId: 'plivo',
             capabilities: {
               media: {
                 formats: [MULAW_8K],
@@ -137,36 +145,58 @@ it('isolates a failed open, then accepts production audio despite extra create a
     },
   );
   const publicBase = 'https://voice.example.test';
-  const path = '/twilio/media?edge=loopback';
+  const path = '/carriers/plivo/env/media';
+  const health = createServer((_request, response) => response.writeHead(404).end());
+  health.listen(0, '127.0.0.1');
+  await once(health, 'listening');
+  const address = health.address();
+  if (!address || typeof address === 'string') throw new Error('worker test port unavailable');
+  route.workerEndpoint = `ws://127.0.0.1:${address.port}/internal/media`;
+  badRoute.workerEndpoint = route.workerEndpoint;
+  const baseIngress = fixtureCarrierIngress();
   const gateway = new MediaGateway(
     {
-      authenticateSessionRoute: async (id: string, token: string) =>
-        id === route.sessionId && token === 'route-token'
+      authenticateSessionRoute: async (id, token) =>
+        id === route.sessionId && token === 'route-fixture-token'
           ? (route as DurableMediaRoute)
-          : id === badRoute.sessionId && token === 'route-token-bad'
+          : id === badRoute.sessionId && token === 'bad-token'
             ? (badRoute as DurableMediaRoute)
             : undefined,
-      resolveSessionRoute: async ({ carrierCallId }: { carrierCallId: string }) =>
+      resolveSessionRoute: async ({ carrierCallId }) =>
         carrierCallId === route.carrierCallId
           ? (route as DurableMediaRoute)
-          : carrierCallId === badRoute.carrierCallId
-            ? (badRoute as DurableMediaRoute)
-            : undefined,
+          : (badRoute as DurableMediaRoute),
+      bindCarrierCallId: async () => ({ kind: 'unmatched' }),
+      recordCarrierCallIdMismatch: async () => undefined,
     },
     {
       publicBaseUrl: publicBase,
-      twilioAuthToken: 'twilio-test-token',
       workerToken: 'worker-token',
+      ingresses: [
+        {
+          ...baseIngress,
+          carrierId: 'plivo',
+          capabilities: { ...baseIngress.capabilities, carrierId: 'plivo' },
+        },
+      ],
+      hostFor: () =>
+        ({
+          resolveBinding: async () => ({
+            bindingId: 'env',
+            pluginId: 'fixture',
+            workspaceId: release.workspaceId,
+            config: {},
+            secret: 'fixture-secret',
+          }),
+          verifyUrlSecret: () => true,
+        }) as unknown as CarrierHostPorts,
     },
   );
   const { port } = await gateway.listen();
+  const store = routeStore(route, job);
   const runtime = new WorkerMediaRuntime(
-    { url: `ws://127.0.0.1:${port}/worker`, workerId: route.workerId, token: 'worker-token' },
-    {
-      resolveSessionRoute: async ({ carrierCallId }: { carrierCallId: string }) =>
-        carrierCallId === route.carrierCallId ? route : undefined,
-      get: async () => job,
-    } as never,
+    { httpServer: health, workerId: route.workerId, token: 'worker-token' },
+    store as never,
     {
       create: async (input) => {
         const result = await factory.create(input);
@@ -183,13 +213,8 @@ it('isolates a failed open, then accepts production audio despite extra create a
     data,
     ...args
   ) {
-    if (typeof data === 'string') {
-      try {
-        frames.push((JSON.parse(data) as { type?: string }).type ?? 'unknown');
-      } catch {
-        /* binary frame */
-      }
-    }
+    if (typeof data === 'string')
+      frames.push((JSON.parse(data) as { type?: string }).type ?? 'carrier');
     return originalSend.call(
       this,
       data,
@@ -199,49 +224,45 @@ it('isolates a failed open, then accepts production audio despite extra create a
   let carrier: Awaited<ReturnType<typeof connectRaw>> | undefined;
   let badCarrier: Awaited<ReturnType<typeof connectRaw>> | undefined;
   try {
-    await runtime.connect();
-    const signature = createHmac('sha1', 'twilio-test-token')
-      .update(`${publicBase}${path}`)
-      .digest('base64');
+    await runtime.start();
+    const signature = fixtureSignature(
+      'fixture-secret',
+      'wss://voice.example.test/carriers/plivo/env/media',
+    );
+    const start = (selected: SessionRoute, rt: string) =>
+      fixtureInboundFrame({
+        type: 'start',
+        carrierCallId: selected.carrierCallId!,
+        streamId: `stream-${selected.sessionId}`,
+        format: MULAW_8K,
+        routeParams: { sid: selected.sessionId, rt },
+      });
     badCarrier = await connectRaw(port, path, signature);
-    badCarrier.send({
-      event: 'start',
-      sequenceNumber: '1',
-      streamSid: 'MZ-bad',
-      start: {
-        accountSid: 'AC1',
-        callSid: badRoute.carrierCallId,
-        customParameters: { sessionId: badRoute.sessionId, routeToken: 'route-token-bad' },
-        mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: '8000', channels: '1' },
-      },
-    });
+    badCarrier.send(start(badRoute, 'bad-token'));
     await vi.waitFor(() => expect(badCarrier!.closed).toBe(true));
     expect(frames).not.toContain('session.accept');
     carrier = await connectRaw(port, path, signature);
-    carrier.send({
-      event: 'start',
-      sequenceNumber: '1',
-      streamSid: 'MZ-real-gateway',
-      start: {
-        accountSid: 'AC1',
-        callSid: route.carrierCallId,
-        customParameters: { sessionId: route.sessionId, routeToken: 'route-token' },
-        mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: '8000', channels: '1' },
-      },
-    });
+    carrier.send(start(route, 'route-fixture-token'));
     await vi.waitFor(() =>
       expect(carrier!.messages.some((raw) => JSON.parse(raw).event === 'mark')).toBe(true),
     );
     expect(carrier.messages.some((raw) => JSON.parse(raw).event === 'media')).toBe(true);
     expect(frames.indexOf('session.accept')).toBeGreaterThanOrEqual(0);
-    expect(frames.indexOf('session.accept')).toBeLessThan(frames.indexOf('media.audio'));
-    expect(frames.indexOf('media.audio')).toBeLessThan(frames.indexOf('media.mark'));
+    expect(frames.indexOf('session.accept')).toBeLessThan(frames.indexOf('audio'));
+    expect(frames.indexOf('audio')).toBeLessThan(frames.indexOf('mark'));
+    await vi.waitFor(() =>
+      expect(store.queries.some((sql) => sql.includes('INSERT INTO ovo_carrier_callbacks'))).toBe(
+        true,
+      ),
+    );
   } finally {
     badCarrier?.close();
     carrier?.close();
     sendSpy.mockRestore();
     await runtime.close();
     await gateway.close();
+    health.closeAllConnections();
+    await new Promise<void>((resolve) => health.close(() => resolve()));
     await parent.dispose();
   }
 });

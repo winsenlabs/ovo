@@ -10,7 +10,7 @@ const terminal = new Set([
   'cancelled',
 ]);
 
-/** Project a verified Twilio call status after the orchestration callback store accepts it. */
+/** Project a verified carrier status after the orchestration callback store accepts it. */
 export async function projectInboundTerminalStatus(
   operations: OperationsService,
   event: { carrierCallId: string; status: string },

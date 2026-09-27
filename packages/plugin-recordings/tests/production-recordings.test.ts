@@ -12,6 +12,22 @@ import { validateProductionObjectConfig } from '../src/production.ts';
 import { captureFixture, harness } from './production-fixtures.ts';
 
 describe('production live recording capture', () => {
+  it.each([
+    ['8 kHz', { encoding: 'pcm_s16le', sampleRate: 8_000, channels: 1 }, 320],
+    ['16 kHz', { encoding: 'pcm_s16le', sampleRate: 16_000, channels: 1 }, 640],
+  ] as const)(
+    'persists %s PCM16 media with correct timing and artifact metadata',
+    async (_label, format, bytes) => {
+      const run = await captureFixture({ format });
+      run.media.receive(new Uint8Array(bytes), 100);
+      await run.capture.finish();
+      const manifest = await run.service.manifest('workspace', 'call', run.capture.artifact.id);
+      expect(manifest).toMatchObject({ codec: 'audio/pcm', sampleRate: format.sampleRate });
+      expect(manifest.segments[0]).toMatchObject({ startMs: 100, endMs: 120, bytes });
+      expect(manifest.segments[0]?.objectKey).toMatch(/\.pcm16$/);
+    },
+  );
+
   it('strictly validates root production storage configuration', () => {
     expect(
       PRODUCTION_RECORDINGS_CONFIG_SCHEMA.parse({

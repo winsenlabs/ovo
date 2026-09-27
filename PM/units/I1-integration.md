@@ -173,8 +173,9 @@ CONSTRAINTS:
   already query-bearing externalUrl. Update all consumers and reference docs
   consistently, and prove a literal raw-wire signature matches without duplicated
   or re-encoded query bytes. Their current self-consistent doubled payload is not
-  vendor signature fidelity. The checker's requirement to amend C2's design now
-  versus to move frozen helpers and docs simultaneously awaits clarification.
+  vendor signature fidelity. The checker resolved sequencing on 2026-09-27:
+  C2 corrects the normative document now and visibly names these known-inconsistent
+  shipped drivers; this HARD I1 helper/consumer correction remains unchanged.
 - Guard inbound confirmCallback with the same validateBeforeAdmission identity
   validation as admitInbound before adding its first production caller.
 - I1 integrates C1/C3/C4 negative-capability coverage: clearFlushesMarkers false

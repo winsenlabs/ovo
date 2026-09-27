@@ -7,14 +7,14 @@ import { installInboundCarriers } from '../src/inbound-carrier-installation.ts';
 
 describe('media gateway inbound carrier installation', () => {
   it.each([
-    ['without credentials', {}, 'twilio'],
+    ['without credentials', {}, undefined],
     [
       'with incompatible configured bindings',
       { OVO_CARRIER_ENV_BINDINGS: JSON.stringify({ other: { accountSid: 'AC-other' } }) },
       undefined,
     ],
   ] as const)(
-    'selects a sole control only when the environment permits it %s',
+    'selects an environment carrier only when a usable binding exists %s',
     async (_label, env, carrierId) => {
       const operations = new PostgresOperationsService({
         connectionString: 'postgres://unused:unused@127.0.0.1/unused',

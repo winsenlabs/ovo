@@ -39,8 +39,6 @@ export function createProductionWorkerMediaRuntime(input: {
   graph?: LiveGraphOptions;
   carriers?: WorkerCarrierRuntime;
 }): WorkerMediaRuntime {
-  // The legacy gateway still owns the websocket in F4; C2 mounts it on this server.
-  void input.httpServer;
   let runtime!: WorkerMediaRuntime;
   const terminate = async (route: SessionRoute, reason: EndReason, closingFromEngine = false) => {
     const current = await input.store.getSessionRoute(route.jobId);
@@ -70,10 +68,9 @@ export function createProductionWorkerMediaRuntime(input: {
   };
   runtime = new WorkerMediaRuntime(
     {
-      url: input.gatewayUrl,
       workerId: input.workerId,
       token: input.gatewayToken,
-      onDisconnect: input.onDisconnect,
+      httpServer: input.httpServer,
     },
     input.store,
     new ProductionVoiceSessionFactory(
