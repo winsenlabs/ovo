@@ -931,7 +931,7 @@ export type MediaCommand =
   { type: 'audio'; payload: Uint8Array } | { type: 'mark'; name: string } | { type: 'clear' };
 export interface UpgradeRequest {
   url: URL; // the full request URL INCLUDING its query (Exotel carries sid/rt/t there)
-  externalUrl: string; // public origin (+ explicit non-default port) + exact path, NO query
+  externalUrl: string; // wss: public origin (+ explicit non-default port) + exact path, NO query; https CarrierHttpRequest includes the raw query
   headers: Readonly<Record<string, string | undefined>>;
   remoteAddress?: string;
 }
@@ -960,7 +960,7 @@ export interface MediaCodecSession {
 // carrier/ingress.ts
 export interface CarrierHttpRequest {
   method: 'GET' | 'POST';
-  externalUrl: string;
+  externalUrl: string; // https: public origin (+ explicit non-default port) + exact path AND raw query
   query: Record<string, string>;
   headers: Record<string, string | undefined>;
   rawBody: Uint8Array;
@@ -1702,7 +1702,11 @@ The gateway process composition reads `ctx.all(Cap.carrierIngress)` and mounts t
 
 An unknown carrier or purpose returns 404.
 
-**`externalUrl`** = the `OVO_MEDIA_PUBLIC_BASE_URL` origin, including an explicit non-default port when there is one, plus the **exact** path, with **no query**. The scheme is `wss` for upgrades and `https` for HTTP.
+**`externalUrl`** uses the `OVO_MEDIA_PUBLIC_BASE_URL` origin, including an explicit non-default port when present. For **HTTPS HTTP callbacks**, it includes the **exact path AND raw query**, preserving parameter order and encoding. For **WSS upgrades**, it includes the **exact path with no query**; `UpgradeRequest.url` separately retains the full query for serializers that need it.
+
+HTTP signature verifiers must consume `CarrierHttpRequest.externalUrl` verbatim, without appending or rebuilding it from the parsed `query` object. The existing `plugin-telephony-twilio/src/media.ts` passes `externalUrl` directly to `twilio.validateRequest`; stripping an HTTP callback's query would reject real Twilio signatures. The previous query-free rule for both schemes was incorrect.
+
+**Known conformance-driver inconsistency — hard I1 blocker:** the shipped `packages/conformance/src/drivers/fixture-carrier-routes.ts` verifier and `packages/conformance/src/drivers/fixture-carrier.ts` signer currently rebuild the signature URL as `${externalUrl}?${query}`. With a query-bearing `externalUrl`, that appends the query twice and is known-inconsistent with the authoritative rule above. I1 must correct both helpers and their consumers together. Until then, their self-consistent fixture signatures do not prove vendor HTTP signature fidelity; carrier authors must follow this rule rather than copy that URL reconstruction.
 
 **Per-socket flow**
 
