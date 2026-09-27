@@ -1,10 +1,29 @@
 import { Cap, type CarrierControlFactory } from '@winsendotai/ovo-contracts';
 import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
-import { compose } from '@winsendotai/ovo-runtime';
+import { compose, PluginRegistry } from '@winsendotai/ovo-runtime';
 import { describe, expect, it } from 'vitest';
 import { loadDistribution } from '../../distribution/src/load.ts';
 
 describe('Twilio production catalog', () => {
+  it('deliberately accepts either hex case but rejects absent or nonhex account SIDs in the installed binding schema', async () => {
+    const installed = await loadDistribution({
+      role: 'gateway',
+      profile: 'compose',
+      env: {},
+      log() {},
+    });
+    const registry = new PluginRegistry(installed.catalog);
+    const id = '@winsendotai/ovo-carrier-twilio';
+    for (const accountSid of ['AC' + 'abcdef01'.repeat(4), 'AC' + 'ABCDEF01'.repeat(4)])
+      expect(registry.validateBinding(id, { accountSid })).toEqual({ ok: true });
+    for (const config of [
+      {},
+      { accountSid: '' },
+      { accountSid: 'AC' + 'g'.repeat(32) },
+      { accountSid: 'ACabc' },
+    ])
+      expect(registry.validateBinding(id, config)).toMatchObject({ ok: false });
+  });
   it('loads and composes the new carrier instead of the transitional bridge', async () => {
     const installed = await loadDistribution({ role: 'gateway', profile: 'compose', env: {} });
     const definitions = installed.catalog.filter(

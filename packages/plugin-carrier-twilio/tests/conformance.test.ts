@@ -205,6 +205,15 @@ describe('Twilio signature vectors', () => {
       'L/OH5YylLD5NRKLltdqwSvS0BnU=',
     );
   });
+  it.each(['x'.repeat(64), 'x'.repeat(65), 'ø'.repeat(40)])(
+    'matches Node HMAC at and beyond the 64-byte key boundary: %s',
+    (token) => {
+      const target = 'https://voice.example.test/inbound?x=%2F';
+      expect(twilioSignature(token, target)).toBe(
+        createHmac('sha1', token).update(target).digest('base64'),
+      );
+    },
+  );
   it('matches Node HMAC-SHA1 over deterministic varied inputs', () => {
     for (let i = 0; i < 128; i++) {
       const token = `token-${i}-${'ø'.repeat(i % 7)}`;

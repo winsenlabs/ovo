@@ -64,8 +64,8 @@ describe('Twilio documented HTTP wire rules', () => {
     },
   );
 
-  // Voice HTTPS callbacks omit the port; WSS retains its separate exact-URL rule.
-  // https://www.twilio.com/docs/usage/security#a-few-notes (retrieved 2026-09-26)
+  // The installed Twilio SDK accepts signatures with or without the HTTPS port.
+  // WSS retains its separate exact-URL rule.
   it.each([false, true])(
     'validates HTTPS callback with port included in signature: %s',
     async (includePort) => {
@@ -96,12 +96,24 @@ describe('Twilio documented HTTP wire rules', () => {
           },
           host,
         );
-      expect(result.status).toBe(includePort ? 403 : 200);
-      expect(host.calls.filter((entry) => entry.method === 'admitInbound')).toHaveLength(
-        includePort ? 0 : 1,
-      );
+      expect(result.status).toBe(200);
+      expect(host.calls.filter((entry) => entry.method === 'admitInbound')).toHaveLength(1);
     },
   );
+
+  it('rejects a query-bearing WSS URL even with its exact valid HMAC', async () => {
+    const url = `${streamUrl}?edge=1`;
+    expect(
+      await twilioMediaSerializer.authenticateUpgrade(
+        {
+          url: new URL(url),
+          externalUrl: url,
+          headers: { 'x-twilio-signature': sign(url) },
+        },
+        { bindingId: 'b1', resolveBinding: async () => binding, verifyUrlSecret: () => false },
+      ),
+    ).toEqual({ ok: false, status: 403 });
+  });
 
   it('preserves the exact WSS port and trailing-slash retry', async () => {
     const context = {

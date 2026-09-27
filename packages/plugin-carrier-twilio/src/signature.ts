@@ -85,15 +85,33 @@ export function twilioSignature(
   return base64(hmacSha1(authToken, payload));
 }
 
-/** Voice HTTPS callbacks omit credentials and port; preserve the raw path/query bytes.
- * WSS handshakes use the original URL and their separate trailing-slash retry.
- * https://www.twilio.com/docs/usage/security#a-few-notes
+/** Match node:querystring's decode/group/encode behavior without a Node dependency. */
+function legacyQueryUrl(value: string): string {
+  const url = new URL(value);
+  if (!url.search) return value;
+  const grouped: Record<string, string[]> = Object.create(null);
+  // The reference querystring.parse defaults to at most 1,000 pairs.
+  const pairs = url.search.slice(1).split('&').slice(0, 1000).join('&');
+  for (const [key, entry] of new URLSearchParams(pairs)) (grouped[key] ??= []).push(entry);
+  const query = Object.keys(grouped)
+    .flatMap((key) =>
+      grouped[key]!.map((entry) => `${encodeURIComponent(key)}=${encodeURIComponent(entry)}`),
+    )
+    .join('&');
+  url.search = '';
+  return `${url.href}?${query}`;
+}
+
+/** Twilio 5.10.4 accepts four HTTPS forms because its backend signing is inconsistent.
+ * WSS retains the exact URL, with its separate trailing-slash retry in the serializer.
  */
-function signatureUrl(url: string): string {
-  return url.replace(/^https:\/\/([^/?#]+)/, (_match, authority: string) => {
-    const host = authority.slice(authority.lastIndexOf('@') + 1).replace(/:\d+$/, '');
-    return `https://${host}`;
-  });
+function signatureUrls(value: string): string[] {
+  if (value.startsWith('wss://')) return [value];
+  const url = new URL(value);
+  const withPort = url.port ? url.href : url.href.replace(/^(https:\/\/[^/?#]+)/, '$1:443');
+  url.port = '';
+  const withoutPort = url.href;
+  return [withoutPort, withPort, legacyQueryUrl(withoutPort), legacyQueryUrl(withPort)];
 }
 
 /** Fixed-length byte comparison even when the presented signature is malformed. */
@@ -104,14 +122,12 @@ export function validateTwilioSignature(input: {
   parameters?: Record<string, string>;
 }): boolean {
   if (!/^https:\/\//.test(input.externalUrl) && !/^wss:\/\//.test(input.externalUrl)) return false;
-  const expected = twilioSignature(
-    input.authToken,
-    signatureUrl(input.externalUrl),
-    input.parameters,
-  );
-  const actual = input.signature ?? '';
-  let diff = expected.length ^ actual.length;
-  for (let i = 0; i < expected.length; i++)
-    diff |= expected.charCodeAt(i) ^ (actual.charCodeAt(i) || 0);
-  return diff === 0;
+  return signatureUrls(input.externalUrl).some((url) => {
+    const expected = twilioSignature(input.authToken, url, input.parameters);
+    const actual = input.signature ?? '';
+    let diff = expected.length ^ actual.length;
+    for (let i = 0; i < expected.length; i++)
+      diff |= expected.charCodeAt(i) ^ (actual.charCodeAt(i) || 0);
+    return diff === 0;
+  });
 }

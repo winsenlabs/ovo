@@ -276,28 +276,23 @@ it.each([{}, { status: 'future' }, [], 'bad json'].map((value) => [value]))(
     );
   },
 );
-it.each([undefined, 'human', 'machine_end_beep', 'other'])(
-  'maps optional answering-machine evidence %s',
-  async (answered_by) => {
-    await run('reconcile', 200, { status: 'completed', answered_by }, async (control) =>
-      expect(await control.reconcile({ requestId: 'r1', carrierCallId: 'CAfixture' })).toEqual({
-        kind: 'ended',
-        state: 'completed',
-        carrierCallId: 'CAfixture',
-        ...(answered_by
-          ? {
-              answeredBy:
-                answered_by === 'human'
-                  ? 'human'
-                  : answered_by.startsWith('machine_')
-                    ? 'machine'
-                    : 'unknown',
-            }
-          : {}),
-      }),
-    );
-  },
-);
+it.each([
+  [undefined, undefined],
+  ['human', 'human'],
+  ['machine_end_beep', 'machine'],
+  ['machine', 'machine'],
+  ['fax', 'unknown'],
+  ['other', 'unknown'],
+])('maps optional answering-machine evidence %s', async (answered_by, expected) => {
+  await run('reconcile', 200, { status: 'completed', answered_by }, async (control) =>
+    expect(await control.reconcile({ requestId: 'r1', carrierCallId: 'CAfixture' })).toEqual({
+      kind: 'ended',
+      state: 'completed',
+      carrierCallId: 'CAfixture',
+      ...(expected ? { answeredBy: expected } : {}),
+    }),
+  );
+});
 it('honors the already-ended error code independently of HTTP status and throws other hangup errors', async () => {
   await run('hangup', 400, { code: 20404 }, async (control) =>
     expect(await control.hangup({ carrierCallId: 'CAfixture' })).toBe('already_ended'),

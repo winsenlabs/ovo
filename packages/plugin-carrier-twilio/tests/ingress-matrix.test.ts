@@ -305,6 +305,16 @@ const start = (customParameters?: Record<string, string>) => ({
     customParameters,
   },
 });
+it('accepts canonical and legacy route aliases when both agree', () => {
+  const codec = ingress.serializer.createSession({});
+  let events: unknown[] = [];
+  expect(() => {
+    events = codec.decode(
+      JSON.stringify(start({ sid: 's1', rt: 'rt1', sessionId: 's1', routeToken: 'rt1' })),
+    );
+  }).not.toThrow();
+  expect(events[0]).toMatchObject({ routeParams: { sid: 's1', rt: 'rt1' } });
+});
 it('accepts v1 route aliases and rejects absent, empty, or contradictory route parameters', () => {
   expect(
     ingress.serializer
