@@ -143,3 +143,11 @@ CONSTRAINTS:
   and re-verify the shared Postgres/SQLite runners; checksums of already-applied
   migrations must remain immutable. This note records future I1 work; I1 has
   not started.
+
+- **BLOCKING before deleting legacy bridges (S1 cross-unit, 2026-09-27):**
+  `metersFor` must reject a selected slot when its plugin declares role meters
+  but `when` filtering selects none. Cover absent binding snapshots, missing
+  condition fields, unknown values, valid model branches and plugins that declare
+  no meters for that role. The immediate storage fix carries existing binding
+  snapshots into reconstructed legacy selections; it does not repair this frozen
+  host contract. Never compensate with unconditional meters or duplicate billing.

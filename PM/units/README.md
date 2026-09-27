@@ -25,14 +25,14 @@ This board is the single source of truth for unit status. The specs in this fold
 
 | Unit                               | Title                                                         | Defects                  | Status                                                                                                                                                                                                                                                                                                                                                                                       |
 | ---------------------------------- | ------------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [E1](E1-turns-vad.md)              | Turn detector and VAD plugins, Pipecat-style                  | 3, 18                    | **Built – awaiting check.** Merged at `ac8661d`; independent review closed two mute-boundary defects with seven true negatives. Node 22 scoped lint, full format, standalone duplication and normal `pnpm check` all exit 0. Default 1,270 passed / 138 skipped; Postgres serial 1,399 passed / 9 skipped / 0 failed; Playwright 41 passed / 1 visibility-gated skip.                        |
+| [E1](E1-turns-vad.md)              | Turn detector and VAD plugins, Pipecat-style                  | 3, 18                    | **Verified `ac8661d`** (checker verdict received 2026-09-27). Structural mute/confirmation guards and seven behavioral true negatives confirmed. Independent bar: 1,270 passed / 138 skipped default; 1,399 passed / 9 skipped / 0 failed Postgres serial; lint seven gates, format, typecheck and build exit 0.                                                                             |
 | [E2](E2-native-engine.md)          | OVO native engine rebuild                                     | 3, 4, 9, 26              | **Built – awaiting check.** Merged at `007606f`; approved API caller clone and real API/SQLite immutability regression. Normal `pnpm check`, scoped lint/full format and duplication exit 0. Default 1,369 passed / 138 skipped; Postgres serial 1,498 passed / 9 skipped / 0 failed; Playwright 41 passed / 1 visibility-gated skip. Normalizer mutation remains BLOCKING I1.               |
 | [E3](E3-livekit-engine.md)         | LiveKit Agents JS engine plugin                               | 4                        | **In progress — paused by checker.** WIP committed at `e4e821d` on `w2/E3`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                                              |
 | [C1](C1-carrier-twilio.md)         | Twilio carrier plugin                                         | 1, 21, 26                | **In progress — paused by checker.** WIP committed at `382d690` on `w2/C1`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                                              |
 | [C2](C2-gateway-router.md)         | Carrier-neutral gateway router                                | 1, 2, 23, 26, 27         | **Built – awaiting check.** Unmerged `w2/C2` at `733907f`, rebased onto foundation `58fb2f2`; checked source `8bd0cf1` (implementation `33fe188`). Full `pnpm check`, scoped lint/full format and duplication exit 0. Default 1,527 passed / 153 skipped; Postgres serial 1,672 passed / 8 database-gated skips / 0 failed; Playwright 41/1; separate recording database 4/4.                |
 | [C3](C3-carrier-exotel.md)         | Exotel carrier plugin                                         | 21                       | **In progress — paused by checker.** WIP committed at `eaeb03f` on `w2/C3`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                                              |
 | [C4](C4-carrier-plivo.md)          | Plivo carrier plugin                                          | 21, 26                   | **In progress — paused by checker.** WIP committed at `45ef2df` on `w2/C4`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                                              |
-| [S1](S1-speech-split.md)           | Split out the Deepgram STT, OpenAI TTS and OpenAI LLM plugins | 21, 27                   | **Built – awaiting check.** Merged at `e2c7cc5`; independent review closed the request-ID metering blocker with six true negatives. Node 22 scoped lint, full format, standalone duplication and normal `pnpm check` all exit 0. Default 1,199 passed / 138 skipped; Postgres serial 1,328 passed / 9 skipped / 0 failed; Playwright 41 passed / 1 visibility-gated skip.                    |
+| [S1](S1-speech-split.md)           | Split out the Deepgram STT, OpenAI TTS and OpenAI LLM plugins | 21, 27                   | **Verified `e2c7cc5`** (checker verdict received 2026-09-27). Independent and mixed provider selections passed; defect 21 closed; six behavioral true negatives reproduced. Subsequent cross-unit legacy TTS meter propagation fix is tracked below.                                                                                                                                         |
 | [S2](S2-speech-new.md)             | AssemblyAI STT and Sarvam STT/TTS                             | 9, 21                    | **In progress — paused by checker.** WIP committed at `00c80ec` on `w2/S2`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                                              |
 | [O1](O1-fargate-scaling.md)        | Fargate-native autoscaling, Terraform, Fargate prep           | 7, 15, 17, 23            | **In progress — paused by checker.** WIP committed at `1e49894` on `w2/O1`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                                              |
 | [O2](O2-ops-ledger.md)             | Campaign driver, queue liveness, reservation expiry           | 5, 15, 16, 19            | **In progress — paused by checker.** WIP committed at `cd77047` on `w2/O2`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                                              |
@@ -122,6 +122,23 @@ The named owner must resolve these findings. Items marked **BLOCKING** prevent t
 | C2 | HTTP carrier externalUrl retains the raw query for callback signatures; WSS retains its query-free signature URL. The upgrade adapter maps the serializer request identity to the real host verifier without adding a query pair. C3 inherits the loopback SessionBridge proof that empty termination frames still close the carrier socket. Preserve these cross-unit regressions during integration. | C1, C3, I1 |
 | C2 | The frozen fixture carrier signer/verifier append query to externalUrl, doubling it now that HTTP externalUrl is complete. Update both helpers and consumers together. The PG resume fixture proves lifecycle behavior; raw signature proof comes from exact router assertions and the real Twilio handler. | I1 |
 | C2 | Checker-approved `@types/ws` manifest/lock importer and three shared worker lifecycle harnesses now use the authenticated media runtime. A local typed WebSocket re-export uses the existing worker dependency. I1 inherits these shared paths and the actual-PG non-Twilio gateway regression; D1 must retain lifecycle, STT, telemetry, fencing and recording-disabled assertions. | I1, D1 |
+
+| S1 cross-unit | **BLOCKING, owner S1 integration builder:** preserve the already-loaded provider binding in `deriveLegacySelections`; legacy releases currently lose every conditional OpenAI TTS meter while STT/LLM meters keep admission's fallback inactive. Fix now in plugin-storage, with missing-selection-snapshot and actual worker admission regressions. Do not add an unconditional fallback meter. | S1 integration builder; I1 retains regressions |
+| S1 cross-unit | **BLOCKING before legacy bridge deletion:** frozen `session-host/src/meters.ts` must fail closed when a selected plugin declares meters for the role but no meter survives conditional filtering. I1 must add the validation error and absent-binding/missing-model/unknown-model tests, preserving valid conditional selection without duplicate charges. The storage propagation fix does not close this contract gap. | I1 |
+
+## Approved frozen-path exceptions and commit policy
+
+- **2026-09-26 approval, confirmed 2026-09-27:** the checker instructed root
+  `package.json` to append `&& pnpm test:console:e2e` to `check` in the U1 verdict;
+  it landed with S1 merge `e2c7cc5`. This is an explicit design §15.2 exception.
+  Reason: U1's console regressions, accessibility sweep and keyboard assertions
+  otherwise ran only in an optional suite outside the repository green bar.
+  Blast radius: every Wave 2 unit's `pnpm check` now runs console E2E. A failure
+  confined to console E2E and unrelated to a unit's scope must be escalated to
+  the checker; unrelated units must not change console code to make it green.
+- **2026-09-27:** continuing board/spec updates are approved despite the PM freeze.
+  Put all `PM/**` updates in documentation-only commits, separate from code, so
+  reverting unit code cannot also revert the board. Do not rewrite prior merges.
 
 ## Changes requested
 
@@ -509,3 +526,20 @@ All eight paused heads remain unchanged; I1 has not started and nothing was push
 Queue: Wave 1 complete; six of 15 Wave 2 units merged (M2, U1, S1, E1, E2, D1).
 Of the nine unmerged units, C2 is Built and eight remain paused. I1 follows all
 15 landed units and a green W2 gate. This board-only update changes no code.
+
+## Checker verdict and legacy-meter correction — 2026-09-27
+
+S1 **Verified `e2c7cc5`** and E1 **Verified `ac8661d`**. The checker exercised
+all three provider selections independently and in a mixed graph, found no
+provider names in the production session host/factory/legacy engine paths, and
+reproduced six S1 plus seven E1 value-assertion true negatives. The reported
+S1+E1 bar is an historical measurement of that tree, not the later E2+D1 tree.
+
+The S1 integration builder owns the newly reported cross-unit storage snapshot
+propagation defect now. The checker explicitly authorizes the minimal storage
+fix and absent-input regression in session-host tests; the frozen `metersFor`
+implementation remains untouched. Current foundation already includes E2
+`007606f` and D1 `043b310` with control migration 006. Re-run the entire normal
+bar and Postgres serial suite on the corrected current foundation, then hand
+E2 over first for check; D1 follows, then unmerged C2. The eight paused heads
+remain paused; I1 has not started.

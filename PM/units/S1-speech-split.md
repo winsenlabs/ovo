@@ -220,8 +220,30 @@ No baseline was changed.
 - Default: **1,199 passed / 138 skipped**.
 - Postgres serial: **1,328 passed / 9 skipped / 0 failed**.
 - Playwright: **41 passed / 1 skipped**, only the invisible desktop Menu trigger.
-- Arithmetic: `1199 + 138 = 1328 + 9 = 1337`; 129 tests are database-gated.
+- Arithmetic: `1199 + 138 = 1337` and `1328 + 9 = 1337`; 129 tests are database-gated.
 
 The Postgres 17.6 container was bound only to 127.0.0.1 and removed after the run.
 No live provider traffic, AWS operation, push or PR change was performed. This
 verification record is documentation added after the tested merge code tree.
+
+## Checker verdict and shared correction — 2026-09-27
+
+The checker **Verified `e2c7cc5`**: independent/mixed selection of all three
+providers passed, defect 21 is closed, and all six behavioral true negatives
+reproduced. E1 was separately Verified at `ac8661d`.
+
+A later cross-unit defect is assigned to the S1 integration builder for immediate
+repair: `deriveLegacySelections` discarded the already-loaded binding snapshot,
+so OpenAI TTS's conditional meters disappeared on legacy releases. The checker
+explicitly authorized passing that snapshot through in plugin-storage and adding
+the absent-snapshot case in session-host tests. The minimal shared touchpoints
+are `packages/plugin-storage/src/legacy-selections.ts`, its storage regression,
+`packages/session-host/tests/selections.test.ts` and a production worker cost
+admission regression. I1 inherits these tests and must separately make the frozen
+`metersFor` implementation fail closed before removing the legacy bridges.
+No unconditional fallback meter or frozen production-host edit is authorized.
+
+The root `check` change in S1's merge was the checker's 2026-09-26 U1 instruction,
+reconfirmed 2026-09-27: console regressions must run in the repository gate. The
+board records this approved §15.2 exception and its cross-unit E2E blast radius.
+All new documentation updates are committed separately from code.
