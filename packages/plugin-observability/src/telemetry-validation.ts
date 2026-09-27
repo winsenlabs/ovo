@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { canonicalJson } from '@winsendotai/ovo-contracts';
 import type { TelemetryEvent } from './telemetry-types.ts';
 
 const ID_MAX = 200;
@@ -47,18 +48,7 @@ export function validateTelemetryEvent(event: TelemetryEvent): void {
     throw new Error('Telemetry payload exceeds 16 KiB');
 }
 
-function stable(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
-  if (value && typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${stable(item)}`)
-      .join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
-
 export function telemetryEventHash(event: TelemetryEvent): Buffer {
   validateTelemetryEvent(event);
-  return createHash('sha256').update(stable(event)).digest();
+  return createHash('sha256').update(canonicalJson(event)).digest();
 }

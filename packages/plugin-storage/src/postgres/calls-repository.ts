@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { PostgresReleasesRepository } from './releases-repository.ts';
 import type { Pool } from 'pg';
-import type { CallListFilters } from '../control-store.ts';
-import type { CallRecord, StoredCallEvent } from '../models.ts';
+import type { ControlStore, CallListFilters } from '../control-store.ts';
+import type { ReleaseRecord, CallRecord, StoredCallEvent } from '../models.ts';
 import {
   decodeCursor,
   now,
@@ -11,6 +12,38 @@ import {
   toIso,
   transaction,
 } from './shared.ts';
+
+export type FixtureInput = {
+  workspaceId: string;
+  id: string;
+  agentId: string;
+  fingerprint: string;
+} & ({ releaseId: string } | { draft: Parameters<ControlStore['createRelease']>[0] });
+export function assertFixtureIntent(
+  kind: unknown,
+  payload: Record<string, unknown> | undefined,
+  input: FixtureInput,
+): void {
+  if (
+    kind !== 'test' ||
+    payload?.fingerprint !== input.fingerprint ||
+    payload?.agentId !== input.agentId
+  )
+    throw Object.assign(new Error('Fixture idempotency key conflicts'), {
+      statusCode: 409,
+      code: 'idempotency_conflict',
+    });
+}
+export function assertFixtureDraftScope(
+  input: FixtureInput & { draft: Parameters<ControlStore['createRelease']>[0] },
+): void {
+  if (
+    input.draft.workspaceId !== input.workspaceId ||
+    input.draft.agent.workspaceId !== input.workspaceId ||
+    input.draft.agent.id !== input.agentId
+  )
+    throw new Error('Fixture draft scope mismatch');
+}
 
 export class PostgresCallsRepository {
   constructor(private readonly pool: Pool) {}
@@ -37,10 +70,72 @@ export class PostgresCallsRepository {
       at = now();
     const result = await this.pool.query<Row>(
       `INSERT INTO ovo_ctl_calls(workspace_id,id,release_id,kind,status,created_at)
-       VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
+       SELECT $1,$2,$3,$4,$5,$6 FROM ovo_ctl_releases WHERE workspace_id=$1 AND id=$3 AND ($4='test' OR purpose='published') RETURNING *`,
       [input.workspaceId, id, input.releaseId, input.kind, input.status, at],
     );
+    if (!result.rowCount) throw new Error('Release is unavailable for this call kind');
     return this.mapCall(result.rows[0]!);
+  }
+
+  async createFixtureCall(input: FixtureInput) {
+    return transaction(this.pool, async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))', [
+        input.workspaceId,
+        input.id,
+      ]);
+      const existing = await client.query<Row>(
+        'SELECT * FROM ovo_ctl_calls WHERE workspace_id=$1 AND id=$2 FOR UPDATE',
+        [input.workspaceId, input.id],
+      );
+      if (existing.rowCount) {
+        const intent = await client.query<Row>(
+          "SELECT payload FROM ovo_ctl_call_events WHERE workspace_id=$1 AND call_id=$2 AND sequence=1 AND type='fixture.request'",
+          [input.workspaceId, input.id],
+        );
+        const payload = intent.rows[0]?.payload as Record<string, unknown> | undefined;
+        assertFixtureIntent(existing.rows[0]!.kind, payload, input);
+        return { created: false as const, call: this.mapCall(existing.rows[0]!) };
+      }
+      let snapshot: ReleaseRecord;
+      let releaseId: string;
+      if ('draft' in input) {
+        assertFixtureDraftScope(input);
+        snapshot = await PostgresReleasesRepository.createFixtureSnapshot(
+          this.pool,
+          client,
+          input.draft,
+        );
+        releaseId = snapshot.id;
+      } else {
+        const release = await client.query(
+          "SELECT * FROM ovo_ctl_releases WHERE workspace_id=$1 AND id=$2 AND agent_id=$3 AND purpose='published' FOR SHARE",
+          [input.workspaceId, input.releaseId, input.agentId],
+        );
+        if (!release.rowCount)
+          throw Object.assign(new Error('Release not found for agent'), {
+            statusCode: 404,
+            code: 'not_found',
+          });
+        snapshot = PostgresReleasesRepository.mapRelease(release.rows[0]!);
+        releaseId = input.releaseId;
+      }
+      const at = now();
+      const result = await client.query<Row>(
+        `INSERT INTO ovo_ctl_calls(workspace_id,id,release_id,kind,status,created_at) VALUES($1,$2,$3,'test','running',$4) RETURNING *`,
+        [input.workspaceId, input.id, releaseId, at],
+      );
+      await client.query(
+        `INSERT INTO ovo_ctl_call_events(workspace_id,call_id,id,sequence,at,type,epoch,payload) VALUES($1,$2,$3,1,$4,'fixture.request',0,$5)`,
+        [
+          input.workspaceId,
+          input.id,
+          randomUUID(),
+          at,
+          { fingerprint: input.fingerprint, agentId: input.agentId, releaseId },
+        ],
+      );
+      return { created: true as const, call: this.mapCall(result.rows[0]!), release: snapshot };
+    });
   }
 
   async getCall(workspaceId: string, id: string) {

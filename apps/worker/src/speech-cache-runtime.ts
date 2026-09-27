@@ -20,7 +20,6 @@ import {
   type SpeechCacheTelemetry,
 } from '@winsendotai/ovo-plugin-speech-cache';
 import { definePlugin, type PluginDefinition } from '@winsendotai/ovo-runtime';
-import { StreamingMediaSpeechOutput } from '@winsendotai/ovo-plugin-voice';
 import { CachedMediaAudioPlayer } from './cached-media-player.ts';
 
 export const HYBRID_SPEECH_CACHE_PLUGIN_ID = '@winsendotai/ovo-worker/hybrid-speech-cache-output';
@@ -124,9 +123,22 @@ export function createHybridSpeechOutput(input: LiveSpeechCacheInput): {
       },
     },
   );
-  const streaming = new StreamingMediaSpeechOutput(input.streamingTts, input.media, {
-    voice: input.binding.voice,
-  });
+  const streaming: SpeechOutput = {
+    play: (segment, options) =>
+      player.playStream(
+        input.streamingTts.synthesize({
+          sessionId: input.media.sessionId,
+          text: segment.text,
+          codec: 'audio/x-mulaw',
+          sampleRate: 8000,
+          voice: input.binding.voice,
+          signal: options.signal,
+        }),
+        segment,
+        options,
+      ),
+    interrupt: (epoch) => player.interrupt(epoch),
+  };
   const output = new HybridSpeechOutput(
     cached,
     streaming,
@@ -139,7 +151,6 @@ export function createHybridSpeechOutput(input: LiveSpeechCacheInput): {
     output,
     dispose: () => {
       player.dispose();
-      streaming.dispose();
     },
   };
 }

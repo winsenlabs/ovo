@@ -1,4 +1,12 @@
-import { Cap, MULAW_8K, type EndReason, type MediaDuplex } from '@winsendotai/ovo-contracts';
+import {
+  Cap,
+  MULAW_8K,
+  PCM16_16K,
+  sameFormat,
+  type AudioFormat,
+  type EndReason,
+  type MediaDuplex,
+} from '@winsendotai/ovo-contracts';
 import { FIRST_PARTY, loadDistribution } from '@winsendotai/ovo-distribution';
 import type {
   DurableJob,
@@ -15,11 +23,25 @@ import { WorkerMediaRuntime } from '../src/media-runtime.ts';
 import { ProductionVoiceSessionFactory } from '../src/production-session-factory.ts';
 
 describe('production session lifecycle from a loaded distribution', () => {
-  it('fences before an engine completion closes media and records a completed outcome', async () => {
+  it.each([
+    { name: 'μ-law with recording disabled', format: MULAW_8K, recording: false },
+    {
+      name: 'selected PCM16-only carrier with recording enabled',
+      format: PCM16_16K,
+      recording: true,
+    },
+    {
+      name: 'unsupported negotiated PCM16 format',
+      format: PCM16_16K,
+      recording: false,
+      unsupported: true,
+    },
+  ])('fences completion and composes $name', async ({ format, recording, unsupported }) => {
     const order: string[] = [];
     const audit = vi.fn();
     const telemetryClose = vi.fn(async () => undefined);
     const captureStart = vi.spyOn(LiveRecordingCapture, 'start');
+    let composedFormat: AudioFormat | undefined;
     let complete!: (reason: EndReason) => Promise<void>;
     const engine = definePlugin(
       {
@@ -39,7 +61,7 @@ describe('production session lifecycle from a loaded distribution', () => {
           dtmf: true,
           confirmedPlayback: true,
           ownsProviders: false,
-          formats: [MULAW_8K],
+          formats: [MULAW_8K, PCM16_16K],
           consumesTurnDetector: false,
         },
         runtime: { egressHosts: [], modelLicences: [] },
@@ -47,6 +69,7 @@ describe('production session lifecycle from a loaded distribution', () => {
       },
       (ctx) => {
         const media = ctx.get(Cap.media) as MediaDuplex;
+        composedFormat = media.format;
         complete = (reason) => media.close(reason);
         ctx.provide(Cap.engine, {
           start: async () => undefined,
@@ -88,7 +111,7 @@ describe('production session lifecycle from a loaded distribution', () => {
       name: 'Lifecycle',
       mode: 'announcement',
       message: 'Done',
-      recording: false,
+      recording,
     });
     const release = {
       id: 'release-1',
@@ -140,6 +163,9 @@ describe('production session lifecycle from a loaded distribution', () => {
         generation: route.generation,
       },
       sessionId: route.sessionId,
+      format,
+      codec: format.encoding === 'pcm_s16le' ? 'audio/pcm' : 'audio/x-mulaw',
+      sampleRate: format.sampleRate,
       bufferedBytes: 0,
       sendAudio: async () => undefined,
       sendMark: async () => undefined,
@@ -161,13 +187,22 @@ describe('production session lifecycle from a loaded distribution', () => {
         carrierId: 'fixture',
         capabilities: {
           media: {
-            formats: [MULAW_8K],
+            formats: unsupported ? [MULAW_8K] : [format],
             playbackEvidence: 'carrier-played',
             clearFlushesMarkers: true,
           },
         },
       },
     }));
+    if (recording)
+      captureStart.mockImplementation(
+        async () =>
+          ({
+            ...media,
+            finish: vi.fn(async () => undefined),
+            attachEvidence: vi.fn(() => () => undefined),
+          }) as never,
+      );
     const factory = new ProductionVoiceSessionFactory(
       {
         getRelease: async () => release,
@@ -207,8 +242,17 @@ describe('production session lifecycle from a loaded distribution', () => {
       },
     );
     try {
+      if (unsupported) {
+        await expect(
+          (runtime as unknown as { open(media: WorkerMediaSession): Promise<void> }).open(media),
+        ).rejects.toThrow('Selected carrier does not support negotiated worker media format');
+        expect(composedFormat).toBeUndefined();
+        expect(captureStart).not.toHaveBeenCalled();
+        return;
+      }
       await (runtime as unknown as { open(media: WorkerMediaSession): Promise<void> }).open(media);
       expect(carrierLookup).toHaveBeenCalledWith(job, false);
+      expect(composedFormat && sameFormat(composedFormat, format)).toBe(true);
       await complete('behavior_completed');
       await vi.waitFor(() =>
         expect(audit).toHaveBeenCalledWith('session.outcome', {
@@ -222,7 +266,10 @@ describe('production session lifecycle from a loaded distribution', () => {
       await vi.waitFor(() =>
         expect(telemetryClose).toHaveBeenCalledWith('ended', 'behavior_completed'),
       );
-      expect(captureStart).not.toHaveBeenCalled();
+      if (recording) {
+        expect(captureStart).toHaveBeenCalledOnce();
+        expect(captureStart.mock.calls[0]?.[0].media).toBe(media);
+      } else expect(captureStart).not.toHaveBeenCalled();
     } finally {
       captureStart.mockRestore();
       await parent.dispose();

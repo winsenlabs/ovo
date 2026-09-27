@@ -2,6 +2,7 @@ import {
   MULAW_8K,
   outcomeFor,
   sameFormat,
+  type AudioFormat,
   type EndReason,
   type InferenceUsageEvidence,
 } from '@winsendotai/ovo-contracts';
@@ -80,11 +81,11 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
     });
     const cleanup = new SessionCleanupStack();
     let requestedOutcome: 'ended' | 'failed' = 'failed';
-    let requestedReason: string | undefined = 'session setup failed';
+    let requestedReason: EndReason = 'error:session_setup_failed';
     cleanup.defer((failure) =>
       telemetry.close(
         failure === undefined ? requestedOutcome : 'failed',
-        failure === undefined ? requestedReason : 'session cleanup failed',
+        failure === undefined ? requestedReason : 'error:session_cleanup_failed',
       ),
     );
     try {
@@ -105,10 +106,15 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
         const carrier = await this.graph.carriers.forJob(job, false);
         if (route.carrierId && route.carrierId !== carrier.carrier.carrierId)
           throw new Error('Session route carrier differs from selected carrier');
+        const format: AudioFormat = 'format' in media ? (media.format as AudioFormat) : MULAW_8K;
+        if (!format || typeof format !== 'object')
+          throw new Error('Worker media format is missing');
         if (
-          !carrier.carrier.capabilities.media.formats.some((format) => sameFormat(format, MULAW_8K))
+          !carrier.carrier.capabilities.media.formats.some((supported) =>
+            sameFormat(supported, format),
+          )
         )
-          throw new Error('Legacy worker media requires a carrier supporting MULAW_8K');
+          throw new Error('Selected carrier does not support negotiated worker media format');
         const graph = await composeLiveSessionGraph({
           graph: this.graph,
           release,
@@ -123,6 +129,7 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
           speechCache: this.speechCache,
           carrierMedia: {
             carrierId: carrier.carrier.carrierId,
+            format,
             playbackEvidence: carrier.carrier.capabilities.media.playbackEvidence,
             clearFlushesMarkers: carrier.carrier.capabilities.media.clearFlushesMarkers,
           },
@@ -135,7 +142,7 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
         cleanup.defer(() => unsubscribe());
         if (capture) cleanup.defer(attachRecordingEvidence(capture, graph.engine));
         cleanup.defer(async () => {
-          await graph.engine.dispose(asEndReason(requestedReason ?? 'drain'));
+          await graph.engine.dispose(requestedReason);
         });
         await graph.engine.start();
         return {

@@ -1,7 +1,8 @@
 import type { ServerResponse } from 'node:http';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { PerformanceService } from '@winsendotai/ovo-plugin-observability';
+import { streamEventName, type PerformanceService } from '@winsendotai/ovo-plugin-observability';
+import type { Page, StoredCallEvent } from '@winsendotai/ovo-plugin-storage';
 
 interface ScopedPrincipal {
   workspaceId: string;
@@ -9,6 +10,12 @@ interface ScopedPrincipal {
 
 interface CallLookup {
   getCall(workspaceId: string, callId: string): Promise<{ id: string } | undefined>;
+  listCallEvents(
+    workspaceId: string,
+    callId: string,
+    limit?: number,
+    cursor?: string,
+  ): Promise<Page<StoredCallEvent>>;
 }
 
 export interface PerformanceRouteOptions {
@@ -35,7 +42,7 @@ const performanceQuery = z.object({
   model: z.string().min(1).max(200).optional(),
   language: z.string().min(1).max(100).optional(),
   stage: z.string().min(1).max(500).optional(),
-  source: z.enum(['live', 'simulation']).optional(),
+  source: z.enum(['live', 'simulation', 'test']).optional(),
   maxGroups: z.coerce.number().int().min(1).max(200).default(100),
   callLimit: z.coerce.number().int().min(0).max(50).default(25),
 });
@@ -81,7 +88,6 @@ export function registerPerformanceRoutes(options: PerformanceRouteOptions) {
       const { callId } = idParams.parse(request.params);
       if (!(await options.store.getCall(principal.workspaceId, callId)))
         return reply.code(404).send({ error: { code: 'not_found', message: 'Call not found' } });
-      if (!options.performance) return unavailable(reply);
       if (activeConnections >= maxConnections)
         return reply
           .code(429)
@@ -107,25 +113,23 @@ export function registerPerformanceRoutes(options: PerformanceRouteOptions) {
       let lastWrite = 0;
       try {
         while (!controller.signal.aborted && Date.now() < deadline) {
-          const page = await options.performance.listCallEvents(
+          const page = await options.store.listCallEvents(
             principal.workspaceId,
             callId,
-            cursor,
             100,
+            String(Math.max(0, cursor)),
           );
-          if (page.gap) {
+          for (const event of page.items) {
+            if (event.sequence > Math.max(0, cursor) + 1)
+              await writeSse(
+                response,
+                `event: gap\ndata: ${JSON.stringify({ expected: Math.max(0, cursor) + 1, actual: event.sequence })}\n\n`,
+                maxBuffered,
+                controller.signal,
+              );
             await writeSse(
               response,
-              `event: gap\ndata: ${JSON.stringify(page.gap)}\n\n`,
-              maxBuffered,
-              controller.signal,
-            );
-            lastWrite = Date.now();
-          }
-          for (const event of page.events) {
-            await writeSse(
-              response,
-              `id: ${event.sequence}\nevent: telemetry\ndata: ${JSON.stringify(event)}\n\n`,
+              `id: ${event.sequence}\nevent: ${streamEventName(event)}\ndata: ${JSON.stringify(event)}\n\n`,
               maxBuffered,
               controller.signal,
             );
@@ -135,7 +139,7 @@ export function registerPerformanceRoutes(options: PerformanceRouteOptions) {
           if (Date.now() - lastWrite >= heartbeatMs) {
             await writeSse(
               response,
-              `: heartbeat ${Date.now()}\n\n`,
+              'event: heartbeat\ndata: {}\n\n',
               maxBuffered,
               controller.signal,
             );

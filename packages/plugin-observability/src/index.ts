@@ -9,6 +9,11 @@ export * from './postgres-telemetry.ts';
 export * from './telemetry-ingestion.ts';
 export * from './telemetry-types.ts';
 export * from './worker-telemetry-adapter.ts';
+export * from './latency-breakdown.ts';
+export * from './transcript-projection.ts';
+export * from './call-stream-events.ts';
+export * from './fixture-telemetry.ts';
+export * from './call-evidence.ts';
 export * from './telemetry-plugin.ts';
 
 export const observabilityPlugin = definePlugin(

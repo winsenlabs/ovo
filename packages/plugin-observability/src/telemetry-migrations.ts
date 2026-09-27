@@ -109,6 +109,21 @@ CREATE TABLE IF NOT EXISTS ovo_telemetry_operations (
 );
 `;
 
+const fixtureSourceMigration = `
+ALTER TABLE ovo_telemetry_events
+  DROP CONSTRAINT ovo_telemetry_events_source_check,
+  ADD CONSTRAINT ovo_telemetry_events_source_check
+    CHECK (source IN ('live', 'simulation', 'test'));
+ALTER TABLE ovo_telemetry_calls
+  DROP CONSTRAINT ovo_telemetry_calls_source_check,
+  ADD CONSTRAINT ovo_telemetry_calls_source_check
+    CHECK (source IN ('live', 'simulation', 'test'));
+ALTER TABLE ovo_telemetry_stages
+  DROP CONSTRAINT ovo_telemetry_stages_source_check,
+  ADD CONSTRAINT ovo_telemetry_stages_source_check
+    CHECK (source IN ('live', 'simulation', 'test'));
+`;
+
 export async function migrateTelemetry(client: PoolClient): Promise<void> {
   await client.query('SELECT pg_advisory_xact_lock($1)', [1_513_504_015]);
   await client.query(`CREATE TABLE IF NOT EXISTS ovo_telemetry_schema_migrations (
@@ -122,10 +137,23 @@ export async function migrateTelemetry(client: PoolClient): Promise<void> {
   );
   if (current.rows[0] && current.rows[0].checksum !== checksum)
     throw new Error('Telemetry migration checksum mismatch');
-  if (current.rows[0]) return;
-  await client.query(migration);
+  if (!current.rows[0]) {
+    await client.query(migration);
+    await client.query(
+      'INSERT INTO ovo_telemetry_schema_migrations(version, checksum) VALUES (1, $1)',
+      [checksum],
+    );
+  }
+  const fixtureChecksum = createHash('sha256').update(fixtureSourceMigration).digest('hex');
+  const fixtureCurrent = await client.query<{ checksum: string }>(
+    'SELECT checksum FROM ovo_telemetry_schema_migrations WHERE version=2',
+  );
+  if (fixtureCurrent.rows[0] && fixtureCurrent.rows[0].checksum !== fixtureChecksum)
+    throw new Error('Telemetry fixture-source migration checksum mismatch');
+  if (fixtureCurrent.rows[0]) return;
+  await client.query(fixtureSourceMigration);
   await client.query(
-    'INSERT INTO ovo_telemetry_schema_migrations(version, checksum) VALUES (1, $1)',
-    [checksum],
+    'INSERT INTO ovo_telemetry_schema_migrations(version, checksum) VALUES (2, $1)',
+    [fixtureChecksum],
   );
 }

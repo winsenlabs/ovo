@@ -78,6 +78,26 @@ CREATE TABLE IF NOT EXISTS audit_entries(id TEXT PRIMARY KEY,workspace_id TEXT N
         new Date().toISOString(),
       );
     }
+    // PostgreSQL v5 repairs its historical kind check. SQLite v4 already enforces
+    // the same three kinds; record that parity before the shared v6 allocation.
+    if (!db.prepare('SELECT 1 FROM ovo_control_schema_migrations WHERE version=5').get()) {
+      const calls = db
+        .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='calls'")
+        .get() as { sql: string };
+      if (!calls.sql.includes("'test'")) throw new Error('SQLite call-kind migration is missing');
+      db.prepare('INSERT INTO ovo_control_schema_migrations(version,applied_at) VALUES(5,?)').run(
+        new Date().toISOString(),
+      );
+    }
+    if (!db.prepare('SELECT 1 FROM ovo_control_schema_migrations WHERE version=6').get()) {
+      db.exec(`ALTER TABLE releases ADD COLUMN purpose TEXT NOT NULL DEFAULT 'published'
+        CHECK (purpose IN ('published','fixture-snapshot'));
+        CREATE UNIQUE INDEX releases_published_draft_idx ON releases(workspace_id,agent_id,draft_version)
+        WHERE purpose='published';`);
+      db.prepare('INSERT INTO ovo_control_schema_migrations(version,applied_at) VALUES(6,?)').run(
+        new Date().toISOString(),
+      );
+    }
     if (db.prepare('PRAGMA foreign_key_check').all().length)
       throw new Error('Control migration left broken foreign keys');
     db.exec('COMMIT');

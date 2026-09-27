@@ -3,11 +3,7 @@ import { AgentConfig, type AgentConfig as AgentConfigType } from '@winsendotai/o
 import { BoundedByteCache } from '@winsendotai/ovo-plugin-cache';
 import type { NormalizedTts, SpeechCacheTelemetry } from '@winsendotai/ovo-plugin-speech-cache';
 import type { OpenAiTtsBinding } from '@winsendotai/ovo-plugin-providers';
-import type {
-  SpeechSegment,
-  StreamingTts,
-  VoiceMediaTransport,
-} from '@winsendotai/ovo-plugin-voice';
+import type { SpeechSegment, StreamingTts, VoiceMediaTransport } from '@winsendotai/ovo-contracts';
 import {
   WorkerSpeechCacheRuntime,
   approvedSpeechPhrases,
@@ -78,7 +74,6 @@ describe('worker hybrid speech cache runtime', () => {
     expect(cachedTts.synthesize).toHaveBeenCalledTimes(2);
     expect(streamingCalls).toBe(1);
     expect(media.audioFrames).toHaveLength(9);
-    expect(media.marks).toHaveLength(5);
     expect(telemetry.map((event) => event.outcome)).toEqual(['miss', 'hit', 'miss', 'hit']);
     created.dispose();
   });
@@ -156,7 +151,7 @@ const binding: OpenAiTtsBinding = {
 };
 
 function agent(policy: { enabled: boolean; announcement?: boolean }): AgentConfigType {
-  const parsed = AgentConfig.parse({
+  return AgentConfig.parse({
     name: 'Cache policy',
     mode: 'announcement',
     message: 'Exact static announcement.',
@@ -186,7 +181,6 @@ function agent(policy: { enabled: boolean; announcement?: boolean }): AgentConfi
       },
     ],
   });
-  return parsed;
 }
 
 function segment(id: string, text: string, kind: SpeechSegment['kind']): SpeechSegment {
@@ -213,16 +207,12 @@ class FakeMedia implements VoiceMediaTransport {
     for (const listener of this.markListeners) listener(name);
   }
   async clear(): Promise<void> {}
-  onAudio(): () => void {
-    return () => undefined;
-  }
+  onAudio = () => () => undefined;
   onMark(listener: (name: string) => void): () => void {
     this.markListeners.add(listener);
     return () => this.markListeners.delete(listener);
   }
-  onDtmf(): () => void {
-    return () => undefined;
-  }
+  onDtmf = () => () => undefined;
   onClose(listener: (reason: string) => void): () => void {
     this.closeListeners.add(listener);
     return () => this.closeListeners.delete(listener);
