@@ -29,7 +29,7 @@ This board is the single source of truth for unit status. The specs in this fold
 | [E2](E2-native-engine.md)          | OVO native engine rebuild                                     | 3, 4, 9, 26              | **Built – awaiting re-check at `a27a5e4`.** Iterator cleanup now covers optional-cancel behaviors and every turn exit. Eight pre-fix value failures; focused 15/15 independently reproduced. Full check 0: default 1,503/147, Postgres serial 1,641/9/0, Playwright 41/1. Scoped lint/full format 0/0; duplication 0.          |
 | [E3](E3-livekit-engine.md)         | LiveKit Agents JS engine plugin                               | 4                        | **In progress — paused by checker.** WIP committed at `e4e821d` on `w2/E3`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                |
 | [C1](C1-carrier-twilio.md)         | Twilio carrier plugin                                         | 1, 21, 26                | **In progress — paused by checker.** WIP committed at `382d690` on `w2/C1`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                |
-| [C2](C2-gateway-router.md)         | Carrier-neutral gateway router                                | 1, 2, 23, 26, 27         | **Built – awaiting check, unmerged `w2/C2` at `733907f`.** Historical check on base `58fb2f2`: default 1,527/153; Postgres serial 1,672/8/0; Playwright 41/1; recording database 4/4. Waits behind E2/D1 and must refresh on the newer legacy-meter correction before its next handoff.                                        |
+| [C2](C2-gateway-router.md)         | Carrier-neutral gateway router                                | 1, 2, 23, 26, 27         | **Built – awaiting check, unmerged `w2/C2` at `2ac8f9e`.** Rebased on `a27a5e4`; checked source `ef82ffd`. Full check 0: default 1,552/153, Postgres serial 1,697/8/0, Playwright 41/1, dedicated recording 4/4. Scoped lint/full format 0/0; duplication and frozen offline install 0.                                        |
 | [C3](C3-carrier-exotel.md)         | Exotel carrier plugin                                         | 21                       | **In progress — paused by checker.** WIP committed at `eaeb03f` on `w2/C3`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                |
 | [C4](C4-carrier-plivo.md)          | Plivo carrier plugin                                          | 21, 26                   | **In progress — paused by checker.** WIP committed at `45ef2df` on `w2/C4`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                |
 | [S1](S1-speech-split.md)           | Split out the Deepgram STT, OpenAI TTS and OpenAI LLM plugins | 21, 27                   | **Verified `e2c7cc5`** (checker verdict received 2026-09-27). Independent and mixed provider selections passed; defect 21 closed; six behavioral true negatives reproduced. Subsequent cross-unit legacy TTS meter propagation fix is tracked below.                                                                           |
@@ -619,3 +619,52 @@ D1 remains Verified. C2 has rebased onto this repaired foundation with only boar
 conflicts and is running its refreshed full bar before submission, still unmerged.
 The own test container is retained for C2's sequential run. All eight paused
 heads remain unchanged; no I1 work or push. Board updates remain separate from code.
+
+## E2 and refreshed C2 handed over — 2026-09-27
+
+**E2:** source repair `a27a5e4`, separate report `b08f1b9`, Built awaiting
+re-check. **C2:** unmerged `w2/C2` at **`2ac8f9e`**, checked source checkpoint
+`ef82ffd` (rebased implementation `b75efea`) on foundation code `a27a5e4`.
+Later C2 commits only copy E2's report and record this handoff. C2's own source,
+tests and lockfile are unchanged from its previous handoff; inherited foundation
+repairs and regression cases are included. No production/test rebase conflicts.
+
+Both complete `pnpm check` runs exit **0**, including lint, formatting,
+typecheck, default tests, all builds, audit and console E2E. Both scoped lint/full
+format pairs exit **0 / 0**; both standalone duplication runs exit **0**.
+No baselines changed. Playwright is **41 passed / 1 desktop Menu visibility skip**
+on each tree. C2's frozen offline install also exits **0**.
+
+| Tree                      | Default passed / skipped / failed | Postgres serial passed / skipped / failed |
+| ------------------------- | --------------------------------- | ----------------------------------------- |
+| Foundation / E2 `a27a5e4` | 1,503 / 147 / 0                   | 1,641 / 9 / 0                             |
+| C2 `ef82ffd`              | 1,552 / 153 / 0                   | 1,697 / 8 / 0                             |
+
+Foundation: **1,503 + 147 = 1,650**. Separately, **1,641 + 9 = 1,650**.
+C2: **1,552 + 153 = 1,705**. Separately, **1,697 + 8 = 1,705**.
+138 and 145 database-gated tests activate respectively. Foundation's remaining
+nine include one additionally ElasticMQ-gated case; C2's remaining eight use
+separate ledger/recording/restore database variables. No disabled tests.
+C2's dedicated recording database command passed **4/4**, outside the totals.
+
+The exact current C2 database commands were:
+
+```sh
+OVO_TEST_POSTGRES_URL=postgresql://postgres:fixture@127.0.0.1:32905/postgres pnpm exec vitest run --no-file-parallelism --reporter=dot --reporter=json --outputFile=/tmp/ovo-c2-refreshed-postgres.json
+RECORDING_TEST_DATABASE_URL=postgresql://postgres:fixture@127.0.0.1:32905/postgres pnpm exec vitest run packages/plugin-recordings/tests/postgres-recordings.test.ts --no-file-parallelism --reporter=dot
+```
+
+The E2 report records eight pre-fix value failures (`expected +0 to be 1`),
+independent focused **15/15**, the optional-return positive and async-generator
+pending-next limit. C2's branch spec records its existing true-negative proofs
+and prior independent **25/25** accurately as historical measurements; they are
+not claimed as a fresh independent audit of this rebase. Both full bars are new.
+
+D1 remains **Verified `043b310`**. The own loopback-only test container
+`ovo-e2-c2-recheck-0927` was stopped and removed after both serial runs and the
+recording check. Only foundation and C2 worktrees remain. The eight paused heads
+remain C1 `382d690`, C3 `eaeb03f`, C4 `45ef2df`, S2 `00c80ec`, O1 `1e49894`,
+O2 `cd77047`, M1 `dc9f471`, E3 `e4e821d`. No I1 work or push. B2 is still hard
+blocking I1; no fourth clone was added. M1 first renumbers control 006 to 007 when
+unfrozen. Board updates are separate from code; C2 awaits checker approval before
+merge, and paused units remain paused until Batch A is merged and verified.

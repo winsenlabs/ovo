@@ -387,7 +387,9 @@ queue URL/endpoint. None is disabled. The Postgres JSON identifies each case.
 
 Logs: `/tmp/ovo-e2-iterator-{lint,format,duplication,check,postgres}.log` and
 `/tmp/ovo-e2-iterator-postgres.json`. The own loopback-only postgres:17.6 container
-is retained temporarily for the sequential C2 verification, then removed.
+was retained for sequential C2 verification, then stopped and removed after
+C2's full serial run and dedicated recording check. C2 remains unmerged at
+`2ac8f9e`; the foundation board records its refreshed submission.
 
 E2 is resubmitted for check. D1 is Verified at `043b310`; the eight paused heads
 remain unchanged. B2 remains a hard I1 blocker: repair the normalizer and remove
