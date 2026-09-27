@@ -131,3 +131,11 @@ CONSTRAINTS:
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/lint.mjs --only packages/plugin-carrier-twilio packages/plugin-telephony-twilio`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/typecheck-scope.mjs packages/plugin-carrier-twilio packages/plugin-telephony-twilio`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run packages/plugin-carrier-twilio packages/plugin-telephony-twilio packages/distribution --reporter=dot`
+
+## Checker resumption note — 2026-09-27
+
+Batch B starts with C1 on current foundation; C3 remains held. Acceptance includes the real distribution selecting `Cap.carrierIngress` through `release.selections` and routing through C2 without Twilio-specific gateway code. Prove HTTPS raw-query fidelity with the genuine Twilio SDK validator used offline in tests: the exact external URL passes and the pre-C2 query-stripped URL fails the same signature. Production code still uses only host ports; no SDK client, real credentials, vendor endpoint, non-loopback test socket, paid/live/provider flag or actual call is permitted. Frozen conformance is unchanged and its doubled-query fixture remains a HARD I1 blocker.
+
+The legacy façade may depend on/re-export the new vendor package; the vendor package must never depend on the legacy package or another plugin. The approved legacy manifest dependency and lockfile are shared touchpoints inherited by I1 for deletion with the façade. Confirm an offline frozen-lockfile install after the manifest update. Any vendor architecture violation stops rather than being baselined.
+
+The frozen binding contract is not widened for resume URLs. Use an owned structural adapter carrying a validated host callback; report the remaining contract gap for I1. Every introduced optional field, capability guard and conditional requires absent and negative cases as well as positive cases, with behavioral true-negative evidence through existing production entry points. Board/docs commits remain separate from code commits.
