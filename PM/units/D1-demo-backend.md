@@ -41,7 +41,9 @@ Defects fixed: [20, 19]
 
 ## Shared touchpoints (minimal edits allowed)
 
-- none
+- Both `packages/plugin-storage/src/{postgres,sqlite}/{calls,releases}-repository.ts`, their migration runners, the new Postgres `migrations/006-fixture-snapshots.ts`, and storage tests: explicitly authorized for private draft snapshots and atomic fixture call/fingerprint admission on 2026-09-27.
+- `apps/api/tests/fixture-admission.test.ts` and `fixture-admission-support.ts`: the authorized durable admission regressions split to respect module limits; I1 inherits these shared test paths.
+- Earlier authorized shared paths remain described in the dated checker notes below.
 
 ## Checker notes (2026-09-26)
 
@@ -238,3 +240,196 @@ Logs: `/tmp/ovo-d1-current-default.log`, `/tmp/ovo-d1-checkpoint-{lint,format,ty
 
 No final Postgres run or full green bar is claimed for this WIP checkpoint; both
 remain required after the pending storage work and normal E2/C2 integration.
+
+## Builder checkpoint — 2026-09-27: durable draft admission
+
+This checkpoint supersedes the historical pending storage scope and E2-overlay
+limitations above. The checker explicitly allocated control migration **006 to
+D1**, requiring M1's paused `006-mcp-tool-removed` migration to become 007 when M1
+resumes. The 2026-09-27 local-branch scan found only D1's fixture snapshot 006 and
+M1's conflicting 006 (`w2/M1` head `dc9f471`); no other 006/007 claim was found.
+M1's branch was not edited. PostgreSQL was at 005; SQLite's version 4 already
+supports test calls, so its version 5 parity marker verifies that existing kind
+invariant before recording 005. Both runners then apply 006. Per-migration
+contiguity hardening remains I1's separate obligation.
+
+The approved repositories now store a fixture snapshot with purpose
+`fixture-snapshot`; existing releases retain `published`. Public get/list and
+non-test call admission reject fixture snapshots. A partial unique index leaves
+the normal published draft slot available. Snapshot, test call and sequence-1
+`fixture.request` fingerprint commit in one transaction. PostgreSQL serializes
+same workspace/call IDs with a transaction advisory lock; SQLite uses its existing
+immediate transaction. Changed fingerprints fail with `idempotency_conflict`.
+Current-draft, voice-binding and MCP guards run inside that same transaction.
+Declared binding plugin IDs and kinds must match the selected plugin/role even
+when updatedAt is unchanged. Legacy null kind/plugin identity remains allowed;
+the independent real API + production selection probe verifies both refusal of
+a same-tick identity swap and acceptance of the normal legacy-null case.
+
+D1's local `FixtureAdmissionStore` in `apps/api/src/test-call-runtime.ts` consumes
+these dynamically bound repository methods without editing frozen `ControlStore`.
+The successful transaction returns the immutable selected release, so runtime
+startup needs no postcommit snapshot lookup. Local in-flight coalescing happens
+before capacity reservation, while durable storage still arbitrates requests
+from separate processes. Startup telemetry failure cancels the local reservation
+and persists a failed call instead of leaving a running orphan.
+
+The API draft proof uses actual distribution discovery and production release
+selection, captures the immutable runtime snapshot, edits the draft afterward,
+and verifies the durable snapshot remains unchanged and unavailable through public
+release APIs. Its injected executor is safe; actual native engine and carrier
+execution is separately measured by the public fixture runner test. It does not
+claim execution of the paused vendor carriers.
+
+### Minimal extraction and I1 carry-forwards
+
+| Owner | Exact paths / obligation                                                                                                                                                                                                                                    |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I1    | `apps/api/tests/fixture-admission.test.ts` and `fixture-admission-support.ts`: explicitly authorized durable API tests split from the existing inspection/runtime test to meet module limits.                                                               |
+| I1    | `apps/api/src/test-call-runtime.ts` local `FixtureAdmissionStore`: formalize the fixture-only structural capability after frozen contracts reopen; preserve test-scoped snapshot access and atomic admission.                                               |
+| I1    | `packages/fixture-calls/src/child-runtime.ts`: the existing IPC class/protocol moved from the owned API runtime into the owned package to meet module limits; the API re-exports retain its callers. No child protocol behavior changed in this extraction. |
+| M1    | Rename its paused control migration from 006 to 007 on resumption. Do not backfill another meaning into D1's allocated 006.                                                                                                                                 |
+| I1    | Retain the telemetry persisted-value release/operator note below; no hash backfill is part of D1.                                                                                                                                                           |
+
+The duplicate fixture intent/scope validation is shared through the already
+approved Postgres calls repository and imported by the SQLite repository. No new
+production storage helper path or duplication baseline was introduced.
+
+### True-negative evidence
+
+Every row below restores the implementation after its probe. Filtered mutant
+runs intentionally skip nonmatching tests; those skips are not disabled tests or
+the database-gated default-suite count.
+
+| Deliberately broken path                                           | New assertion's actual failure                                                                                                                                                                           |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Original API rejects draft and separates call/event writes         | Draft returns 422 `draft_snapshot_required` instead of 202; identical concurrent request returns 409 `idempotency_conflict` instead of 202.                                                              |
+| Original pretransaction capacity admission                         | Identical concurrent request returns 429 `fixture_calls_capacity` instead of remaining pending and sharing the first admission.                                                                          |
+| Remove transaction rollback from either repository                 | Initial-event trigger refuses the write, but releases count is 1 instead of 0 (one failure per backend).                                                                                                 |
+| Remove published-purpose filter from either release reader         | Public `getRelease` returns the private snapshot instead of `undefined` (one failure per backend).                                                                                                       |
+| Change only pluginId or kind within the same Date tick             | All four old-code cases (two fields × two databases) accept `{created:true,...}` instead of rejecting `binding_conflict`; declared identity now matches selected plugin/role independently of updatedAt. |
+| Remove either voice-binding snapshot guard                         | Changed binding admission resolves `{created:true,...}` instead of rejecting with `binding_conflict` (one failure per backend).                                                                          |
+| Give migrated old rows fixture-snapshot purpose                    | Existing populated published release becomes `undefined` instead of matching its prior record (one failure per backend).                                                                                 |
+| Remove fingerprint equality guard                                  | Changed payload resolves `{created:false,...}` instead of rejecting with `idempotency_conflict` (two backend failures).                                                                                  |
+| Reintroduce postcommit fixture-release lookup                      | Injected lookup failure produces HTTP 500 `postcommit lookup failed` instead of 202 and a launched job.                                                                                                  |
+| Move startup telemetry outside guarded startup                     | Runtime reservation remains active (1 instead of 0); the restored implementation cancels it and persists failed status.                                                                                  |
+| Remove the worker factory's `speechCache: this.speechCache` wiring | Both native 8k/16k cases synthesize twice: `expected vi.fn() to be called once, but got 2 times`.                                                                                                        |
+
+Separate isolation mutations avoid mistaking an early reader assertion for proof
+of later guards:
+
+| Narrow isolation mutation                                               | Actual failure                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Remove only listReleases purpose filter, each backend                   | Private row returned: `expected [ { … } ] to deeply equal []`.                                                                                                                                                    |
+| Remove the common non-test createCall purpose predicate, each backend   | The live call promise resolves instead of rejecting `Release is unavailable`; the unchanged positive test also checks simulation.                                                                                 |
+| Remove createFixtureCall's published-source purpose guard, each backend | A snapshot supplied as releaseId resolves instead of rejecting `not_found`.                                                                                                                                       |
+| Remove only partial unique-index predicate, each backend                | Publishing after a fixture snapshot fails: SQLite `UNIQUE constraint failed: releases.workspace_id, releases.agent_id, releases.draft_version`; PostgreSQL `This draft version already has an immutable release`. |
+| Remove SQLite's published-only duplicate lookup                         | Publishing after the snapshot throws `This draft version already has an immutable release`.                                                                                                                       |
+
+The stale-draft and wrong-agent assertions preserve pre-existing guards; they
+are not represented as newly added safeguards. Same-timestamp binding logs are
+`/tmp/ovo-d1-binding-identity-{red,green}.log`; isolation logs are
+`/tmp/ovo-d1-isolation-*-red.log`.
+
+Logs are `/tmp/ovo-d1-admission-current-red.log`,
+`/tmp/ovo-d1-local-admission-red.log`,
+`/tmp/ovo-d1-admission-{sqlite,postgres}-{atomic,private,binding,upgrade}-red.log`,
+`/tmp/ovo-d1-admission-{fingerprint,lookup,prestart}-red.log`, and
+`/tmp/ovo-d1-native-cache-wiring-{red,green}.log`.
+
+### Independent production measurements
+
+The normal native fixture test now passes 1/1 after E2 landed, with no alias or
+source overlay. It requires played confirmation before final `yes`, exactly one
+fixture handler invocation, a second LLM request carrying that result, final reply
+playback, zero live handler calls, and strict fixture shutdown. The real
+`ProductionVoiceSessionFactory` plus E2 engine cache test passes both 8k/16k cases
+under the egress sentinel, with one synthesis across two sessions per format.
+The separate bounded output tests retain prefetch, send ordering, PCM sample
+carry, failure cancellation, shared producer survival and evidence provenance.
+These discharge the E2 cache prepare/pipeline/evidence carry-forwards for D1.
+
+The root independently ran the normal worker/native/simulation HANDOFF scope:
+10 files, **36 passed / 0 failed**, including selected voice-LLM simulation and
+unchanged HANDOFF `voice-engine-release`; log `/tmp/ovo-d1-root-worker-handoff.log`. This
+supports discharge of the F4/M2 selected voice-LLM simulation obligation. The
+new durable snapshot/admission tests discharge the draft snapshot obligation.
+No alternate build, fixture alias, disabled regression or new baseline is used.
+
+### Persisted-value release/operator note (retained)
+
+D1's observability change from locale-sensitive sorting to contracts
+`canonicalJson` changes persisted telemetry hash values when key ordering differs,
+including mixed-case and non-ASCII payload keys. `telemetryEventHash` is stored in
+`ovo_telemetry_events.event_hash`. Replaying an affected old event with the same
+identity now increments the conflict count rather than the duplicate count;
+the existing event and projections are retained. No hash backfill is included.
+I1 must retain this release note when integrating D1. The current manifest change
+does not change stored values.
+
+### E2 integration duplication cleanup
+
+The standalone repository duplication command initially failed after E2 landed:
+D1's worker prefetch queue and E2's engine prefetch queue shared 43 token windows.
+The earlier scoped storage lint did not cover that worker pair. D1 replaced only
+its owned buffer with fixed-capacity byte-ring storage and transition broadcasts,
+keeping the host's detachable shared-cache producer behavior. This changes the
+actual buffer implementation, not names or gate thresholds. The new direct tests
+exercise wraparound and byte ownership, exact capacity backpressure, abort wakeup
+without a consumer, and detaching playback while shared synthesis may finish.
+All existing cache transport and real native cache checks remain enabled.
+
+| Ring safety mutation                    | Actual assertion failure                                  |
+| --------------------------------------- | --------------------------------------------------------- |
+| Return early when storage is full       | Producer is already settled: `expected true to be false`. |
+| Remove blocked-producer abort wakeup    | `expected 'still blocked' to be 'aborted'`.               |
+| Keep unread playback bytes after detach | Iterator still yields: `expected false to be true`.       |
+
+Logs: `/tmp/ovo-d1-ring-{capacity,abort,detach}-red.log` and
+`/tmp/ovo-d1-ring-cache-green.log` (21/21). I1 inherits consolidation of bounded
+prefetch semantics into a future shared API; no frozen kit, engine implementation
+import or baseline change was used.
+
+### Current scoped checkpoint commands and counts
+
+All commands use Node 22 and normal dependency resolution from the D1 worktree.
+The Postgres URL is the disposable `postgres:17.6` container
+`ovo-d1-admission-0927`, bound only to loopback. Its isolated test schemas are
+removed by the harness; the idle container is handed to the root builder for the
+exact-merge whole-repo serial run and removal.
+
+```sh
+export PATH=/opt/homebrew/opt/node@22/bin:$PATH
+OVO_TEST_POSTGRES_URL=postgresql://postgres:fixture@127.0.0.1:32902/postgres pnpm exec vitest run packages/plugin-storage/tests/fixture-admission.test.ts packages/plugin-storage/tests/postgres.test.ts packages/plugin-storage/tests/f3-postgres.test.ts apps/api/tests/fixture-admission.test.ts apps/api/tests/test-calls.test.ts apps/api/tests/test-call-inspection-runtime.test.ts packages/fixture-calls/tests/child-runtime.test.ts --reporter=dot --no-file-parallelism
+pnpm exec vitest run packages/fixture-calls/tests/prefetch-buffer.test.ts packages/fixture-calls/tests/cache-transport.test.ts packages/fixture-calls/tests/worker-speech-cache.test.ts packages/fixture-calls/tests/native-worker-cache.test.ts apps/worker/tests/speech-cache-runtime.test.ts --reporter=dot
+pnpm lint:scope packages/plugin-storage packages/fixture-calls apps/api/src/routes/test-calls.ts apps/api/src/routes/inspection.ts apps/api/src/test-call-runtime.ts apps/api/tests/fixture-admission.test.ts apps/api/tests/fixture-admission-support.ts apps/api/tests/test-call-inspection-runtime.test.ts apps/api/tests/test-calls.test.ts apps/worker/src/session-graph-speech-buffer.ts
+pnpm typecheck:scope packages/plugin-storage packages/fixture-calls apps/api/src/test-call-runtime.ts apps/api/src/routes/test-calls.ts apps/api/src/routes/inspection.ts apps/api/tests apps/worker/src/session-graph-speech-buffer.ts
+pnpm format:check
+node scripts/check-duplication.mjs
+git diff --check
+```
+
+The serial storage/API/child command passes **49/49**, seven files, exit 0. The
+cache command passes **21/21**, five files, exit 0. Independent storage review
+reran the storage/API pair **22/22** (8 SQLite, 8 Postgres, 6 API) and reproduced
+the actual same-tick binding PUT refusal plus the normal legacy-null positive.
+The library, source, test and migration paths were audited for ignored files;
+no intended source is hidden by `.gitignore`.
+
+The root's normal default command before the byte-ring cleanup passed
+**1,474 / 147 skipped / 0 failed** (1,621 total), proving the old E2 dependency
+failure is gone. This is explicitly a pre-cleanup measurement. The final normal
+full check, exact-merge default count and whole-repo serial Postgres run remain
+required and belong to the root builder; this scoped checkpoint is not a Built
+or checker verification claim.
+
+Operator action for affected historic telemetry replay conflicts: investigate
+against the retained original event and projections. Do not overwrite stored
+hashes or backfill them as part of D1.
+
+Final checkpoint hygiene: scoped lint **exit 0** (seven gates), scoped typecheck
+**exit 0** (no diagnostics), full `pnpm format:check` **exit 0**, standalone
+`node scripts/check-duplication.mjs` **exit 0** (818 source files; 57 existing
+baseline pairs), and `git diff --check` **exit 0**. Independent ring/cache review
+reproduced **21/21** and additionally verified terminal-error drain and wakeup.
+No baseline changed. Logs: `/tmp/ovo-d1-admission-final-{postgres,lint,type,format,duplication}.log`.

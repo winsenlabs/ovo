@@ -1,6 +1,31 @@
 import { createHash } from 'node:crypto';
 import type { CallerScript } from './types.ts';
 
+/** Coalesce local admission before capacity reservation; the database remains the arbiter. */
+export class FixtureAdmissions<T> {
+  private readonly pending = new Map<string, { fingerprint: string; result: Promise<T> }>();
+  run(id: string, fingerprint: string, admit: () => Promise<T>): Promise<T> {
+    const existing = this.pending.get(id);
+    if (existing) {
+      if (existing.fingerprint !== fingerprint)
+        return Promise.reject(
+          Object.assign(new Error('Fixture idempotency key conflicts'), {
+            statusCode: 409,
+            code: 'idempotency_conflict',
+          }),
+        );
+      return existing.result;
+    }
+    const result = Promise.resolve()
+      .then(admit)
+      .finally(() => {
+        this.pending.delete(id);
+      });
+    this.pending.set(id, { fingerprint, result });
+    return result;
+  }
+}
+
 export function callerScriptFitsWallTimeout(script: CallerScript, wallTimeoutMs: number): boolean {
   const lastTurnMs = Math.max(0, ...script.turns.map((turn) => turn.atMs + (turn.silenceMs ?? 0)));
   return lastTurnMs + 5_000 < wallTimeoutMs - 5_000;

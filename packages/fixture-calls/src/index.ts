@@ -17,3 +17,5 @@ export {
   fixtureCallsEnvironmentEnabled,
   idempotentFixtureCallId,
 } from './request.ts';
+
+export * from './child-runtime.ts';

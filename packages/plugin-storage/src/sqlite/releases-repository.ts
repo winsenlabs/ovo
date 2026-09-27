@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import type { DatabaseSync } from 'node:sqlite';
 import { AgentConfig } from '@winsendotai/ovo-contracts';
 import type { ControlStore } from '../control-store.ts';
@@ -9,6 +10,7 @@ import {
   type ReleaseRecord,
   type ReleaseSelection,
 } from '../models.ts';
+import { fixtureSelectionKind } from '../postgres/releases-repository.ts';
 import { AgentsRepository } from './agents-repository.ts';
 import { cursorValue, json, now, pageLimit, parseArray, type Row, transaction } from './shared.ts';
 
@@ -17,7 +19,7 @@ export class ReleasesRepository {
   private loadAgentForRelease(workspaceId: string, id: string) {
     return new AgentsRepository(this.db).getAgent(workspaceId, id);
   }
-  private mapRelease(row: Row): ReleaseRecord {
+  static mapRelease(row: Row): ReleaseRecord {
     return {
       id: String(row.id),
       workspaceId: String(row.workspace_id),
@@ -85,6 +87,34 @@ export class ReleasesRepository {
         updatedAt: String(row.updated_at),
       };
     }
+    // Fixture snapshots pin voice bindings under the same transaction as the draft.
+    // A binding edited after selection preparation must be retried, never silently mixed.
+    if (purpose === 'fixture-snapshot')
+      for (const [slot, selection] of Object.entries(input.selections ?? {})) {
+        if (!selection.bindingId || selection.bindingId === 'env') continue;
+        const binding = this.db
+          .prepare(
+            `SELECT b.*, c.fingerprint FROM provider_bindings b JOIN credentials c ON c.workspace_id=b.workspace_id AND c.id=b.credential_id WHERE b.workspace_id=? AND b.id=?`,
+          )
+          .get(input.workspaceId, selection.bindingId) as Row | undefined;
+        const pin = selection.binding;
+        if (
+          !binding ||
+          !pin ||
+          // Legacy null identities remain valid; declared identities must match the selection.
+          (binding.plugin_id != null && binding.plugin_id !== selection.pluginId) ||
+          (binding.kind != null && binding.kind !== fixtureSelectionKind(slot)) ||
+          pin.provider !== binding.provider ||
+          pin.credentialId !== binding.credential_id ||
+          pin.fingerprint !== binding.fingerprint ||
+          pin.updatedAt !== String(binding.updated_at) ||
+          !isDeepStrictEqual(pin.config, JSON.parse(String(binding.config_json)))
+        )
+          throw Object.assign(new Error('Fixture provider binding changed'), {
+            statusCode: 409,
+            code: 'binding_conflict',
+          });
+      }
     const mcpTools: ReleaseRecord['mcpTools'] = {};
     for (const tool of input.agent.config.tools.filter(
       (candidate) =>
@@ -165,7 +195,7 @@ export class ReleasesRepository {
         input.createdBy,
         purpose,
       );
-    return this.mapRelease(
+    return ReleasesRepository.mapRelease(
       this.db
         .prepare('SELECT * FROM releases WHERE workspace_id=? AND id=?')
         .get(input.workspaceId, id) as Row,
@@ -175,7 +205,7 @@ export class ReleasesRepository {
     const row = this.db
       .prepare("SELECT * FROM releases WHERE workspace_id=? AND id=? AND purpose='published'")
       .get(workspaceId, id) as Row | undefined;
-    return row ? this.mapRelease(row) : undefined;
+    return row ? ReleasesRepository.mapRelease(row) : undefined;
   }
   getFixtureCallRelease(workspaceId: string, callId: string) {
     const row = this.db
@@ -185,7 +215,7 @@ export class ReleasesRepository {
       WHERE c.workspace_id=? AND c.id=? AND c.kind='test'`,
       )
       .get(workspaceId, callId) as Row | undefined;
-    return row ? this.mapRelease(row) : undefined;
+    return row ? ReleasesRepository.mapRelease(row) : undefined;
   }
 
   listReleases(workspaceId: string, agentId: string, limit = 50, cursor?: string) {
@@ -198,7 +228,7 @@ export class ReleasesRepository {
       more = rows.length > size;
     if (more) rows.pop();
     return {
-      items: rows.map((row) => this.mapRelease(row)),
+      items: rows.map((row) => ReleasesRepository.mapRelease(row)),
       nextCursor: more ? String(rows.at(-1)!.cursor) : null,
     };
   }

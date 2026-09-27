@@ -1,3 +1,4 @@
+import { mockFixtureAdmission } from './fixture-admission-support.ts';
 import Fastify from 'fastify';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
@@ -155,7 +156,7 @@ describe('fixture test-call inspection', () => {
       });
       registerTestCallRoutes({
         app,
-        store,
+        store: mockFixtureAdmission(store),
         requireRole: () => ({ workspaceId: 'workspace' }) as never,
         testCallRuntime: runtime,
         telemetry: {
@@ -341,7 +342,7 @@ describe('fixture test-call inspection', () => {
       const app = Fastify();
       registerTestCallRoutes({
         app,
-        store,
+        store: mockFixtureAdmission(store),
         requireRole: () => ({ workspaceId: 'workspace' }) as never,
         testCallRuntime: new TestCallRuntime({
           enabled: true,
@@ -406,7 +407,7 @@ describe('fixture test-call inspection', () => {
     } as unknown as ControlStore;
     registerTestCallRoutes({
       app,
-      store,
+      store: mockFixtureAdmission(store),
       requireRole: () => ({ workspaceId: 'workspace' }) as never,
       testCallRuntime: new TestCallRuntime({
         enabled: true,

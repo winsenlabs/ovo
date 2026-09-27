@@ -36,24 +36,27 @@ the existing event and projections are retained. No hash backfill is included.
 I1 must retain this release note when integrating D1. The current manifest change
 does not change stored values.
 
-### Pending shared work
+### Current integration status — 2026-09-27
 
-- Draft calls still return `draft_snapshot_required`. The pending scope request
-  covers both storage backends' release/call repositories, migration runners and
-  new control migration 007, plus storage tests. D1 would consume them via local
-  structural types and existing dynamic repository binding. Frozen `ControlStore`
-  stays unchanged; M1 retains control migration 006.
-- Call creation and initial `fixture.request` insertion are separate today.
-  The same request covers atomic creation; the real SQLite race proof still
-  returns `409 idempotency_conflict` for an identical concurrent key.
-- Default agent confirmed-write replay now has an owned adapter and real native
-  engine regression. The combined E2 candidate diagnostic passes; normal D1 still
-  uses the F4 engine, which discards `yes`. No skip or alias hides that dependency.
-- The owned worker cache output now implements streaming locally; no shared kit
-  move or plugin-voice implementation import is required. It needs final composed
-  engine integration after E2 lands.
-- C2's negotiated PCM16 link/recording integration and selected carrier fixture
-  encoders must land before claiming the complete demo matrix.
+The prior pending-scope and F4-engine results below are historical. The checker
+approved both storage backends' fixture snapshot/admission implementation and
+allocated control migration **006 to D1**. M1 must rename its paused migration
+to 007 on resumption. The frozen `ControlStore` interface remains unchanged;
+D1 uses a local structural capability through existing repository binding.
+
+Draft snapshots are private release rows with purpose `fixture-snapshot`. They
+neither appear in published release reads nor consume the published draft slot.
+The snapshot, test call and initial request fingerprint commit together. Runtime
+admission coalesces identical local requests before reserving capacity; the
+storage transaction remains the arbiter across processes. Its successful result
+returns the immutable release, eliminating the postcommit lookup failure window.
+
+E2 is now integrated normally. The real native confirmed-write fixture and the
+native worker cache tests run with normal imports, without a candidate overlay.
+The complete vendor demo matrix still depends on C1/C3/C4's selected fixture
+encoders; these paused carrier units are not claimed as verified by D1's
+conformance-carrier proof. The current durable evidence and exact gate commands
+are in [the D1 unit report](../../../PM/units/D1-demo-backend.md#builder-checkpoint--2026-09-27-durable-draft-admission).
 
 ### Verification (Node 22)
 
@@ -152,8 +155,8 @@ SQLite store with the production route and `app.inject` returns
 public store boundary, never private database access. No polling workaround or
 publication of drafts as ordinary releases is included. Proposed storage methods
 can be consumed via D1-local structural types and the existing dynamic repository
-binding, leaving frozen `ControlStore` unchanged. Migration 007 must preserve
-M1's reserved 006 and prove 006 still applies when integrated afterward.
+binding, leaving frozen `ControlStore` unchanged. That historical 007 proposal is superseded by the 2026-09-27 checker ruling:
+D1 uses 006; M1 renumbers its paused migration to 007 when it resumes.
 
 Independent cache review found three further transport defects, now covered by
 `tests/cache-transport.test.ts` through real host-plugin composition. With the
@@ -191,3 +194,23 @@ Normal current suite: **1,358 passed / 139 skipped / 1 failed** (native confirma
 full typecheck and standalone duplication: **0 / 0**. Independent callback/child
 review: **12/12 passed**, no concrete blocker. Final Postgres/full green bar is
 still outstanding after integration and approved storage work.
+
+## Durable admission checkpoint — 2026-09-27
+
+The approved SQLite/Postgres snapshots and atomic call/fingerprint admission are
+implemented with migration 006 and local structural storage types. Normal native
+E2 fixture execution now passes; the prior red and candidate-only counts above
+are historical. The latest scoped storage/API/child run is **49/49** with the
+loopback disposable Postgres container. Independent storage/API review reproduced
+**22/22**, including refusal of a same-timestamp binding identity change and
+acceptance of a legacy null-identity binding.
+
+Worker cache/native tests pass **21/21**, including three direct tests for the
+new fixed-capacity byte ring. This owned implementation removes the cross-unit
+prefetch duplication without a frozen-kit edit or baseline. Actual native worker
+sessions reuse synthesis in both 8k and 16k formats; selected paused vendor
+carriers still require their own integrated fixture encoders. See the current
+[unit report](../../../PM/units/D1-demo-backend.md#builder-checkpoint--2026-09-27-durable-draft-admission)
+for exact commands, independent measures, every mutation failure, migration
+allocation and I1 carry-forwards. Final full-repository checks and Built status
+remain the root builder's next step.

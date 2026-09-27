@@ -159,7 +159,7 @@ integration('F3 Postgres storage upgrade', () => {
             'SELECT version FROM ovo_control_schema_migrations ORDER BY version',
           )
         ).rows.map((row) => row.version),
-      ).toEqual([1, 2, 3, 4, 5]);
+      ).toEqual([1, 2, 3, 4, 5, 6]);
       await compoundPool.query(
         'ALTER TABLE ovo_ctl_calls DROP CONSTRAINT ovo_ctl_calls_kind_allowed',
       );
@@ -192,7 +192,7 @@ integration('F3 Postgres storage upgrade', () => {
     const versions = await pool.query(
       'SELECT version FROM ovo_control_schema_migrations ORDER BY version',
     );
-    expect(versions.rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5]);
+    expect(versions.rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6]);
     expect(
       (await pool.query("SELECT id,selections FROM ovo_ctl_releases WHERE id='r'")).rows[0],
     ).toMatchObject({ id: 'r', selections: {} });

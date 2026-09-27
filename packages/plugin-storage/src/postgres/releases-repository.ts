@@ -22,6 +22,13 @@ import {
   transaction,
 } from './shared.ts';
 
+export function fixtureSelectionKind(slot: string): string {
+  if (slot.startsWith('textFilter:')) return 'text-filter';
+  if (slot === 'turnDetector') return 'turn-detector';
+  if (slot === 'audioFilter') return 'audio-filter';
+  return slot;
+}
+
 export class PostgresReleasesRepository {
   constructor(private readonly pool: Pool) {}
   private mapReleaseAgent(row: Row): AgentDraft {
@@ -35,7 +42,7 @@ export class PostgresReleasesRepository {
     };
   }
 
-  private mapRelease(row: Row): ReleaseRecord {
+  static mapRelease(row: Row): ReleaseRecord {
     return {
       id: String(row.id),
       workspaceId: String(row.workspace_id),
@@ -96,6 +103,34 @@ export class PostgresReleasesRepository {
         updatedAt: toIso(row.updated_at),
       };
     }
+    // Fixture snapshots pin voice bindings under the same transaction as the draft.
+    // A binding edited after selection preparation must be retried, never silently mixed.
+    if (purpose === 'fixture-snapshot')
+      for (const [slot, selection] of Object.entries(input.selections ?? {})) {
+        if (!selection.bindingId || selection.bindingId === 'env') continue;
+        const result = await client.query<Row>(
+          `SELECT b.*, c.fingerprint FROM ovo_ctl_provider_bindings b JOIN ovo_ctl_credentials c ON c.workspace_id=b.workspace_id AND c.id=b.credential_id WHERE b.workspace_id=$1 AND b.id=$2 FOR SHARE OF b,c`,
+          [input.workspaceId, selection.bindingId],
+        );
+        const binding = result.rows[0];
+        const pin = selection.binding;
+        if (
+          !binding ||
+          !pin ||
+          // Legacy null identities remain valid; declared identities must match the selection.
+          (binding.plugin_id != null && binding.plugin_id !== selection.pluginId) ||
+          (binding.kind != null && binding.kind !== fixtureSelectionKind(slot)) ||
+          pin.provider !== binding.provider ||
+          pin.credentialId !== binding.credential_id ||
+          pin.fingerprint !== binding.fingerprint ||
+          pin.updatedAt !== toIso(binding.updated_at) ||
+          !isDeepStrictEqual(pin.config, binding.config)
+        )
+          throw Object.assign(new Error('Fixture provider binding changed'), {
+            statusCode: 409,
+            code: 'binding_conflict',
+          });
+      }
     const mcpTools: ReleaseRecord['mcpTools'] = {};
     for (const tool of input.agent.config.tools.filter(
       (candidate) =>
@@ -186,7 +221,7 @@ export class PostgresReleasesRepository {
           purpose,
         ],
       );
-      return this.mapRelease(result.rows[0]!);
+      return PostgresReleasesRepository.mapRelease(result.rows[0]!);
     } catch (error) {
       if (isUniqueViolation(error))
         throw Object.assign(new Error('This draft version already has an immutable release'), {
@@ -202,7 +237,7 @@ export class PostgresReleasesRepository {
       "SELECT * FROM ovo_ctl_releases WHERE workspace_id=$1 AND id=$2 AND purpose='published'",
       [workspaceId, id],
     );
-    return result.rowCount ? this.mapRelease(result.rows[0]!) : undefined;
+    return result.rowCount ? PostgresReleasesRepository.mapRelease(result.rows[0]!) : undefined;
   }
 
   async getFixtureCallRelease(workspaceId: string, callId: string) {
@@ -212,7 +247,7 @@ export class PostgresReleasesRepository {
        WHERE c.workspace_id=$1 AND c.id=$2 AND c.kind='test'`,
       [workspaceId, callId],
     );
-    return result.rowCount ? this.mapRelease(result.rows[0]!) : undefined;
+    return result.rowCount ? PostgresReleasesRepository.mapRelease(result.rows[0]!) : undefined;
   }
 
   async listReleases(workspaceId: string, agentId: string, limit = 50, cursor?: string) {
@@ -224,6 +259,6 @@ export class PostgresReleasesRepository {
        ORDER BY created_at,id LIMIT $5`,
       [workspaceId, agentId, after?.at ?? null, after?.id ?? '', size + 1],
     );
-    return pageFromRows(result.rows, size, (row) => this.mapRelease(row));
+    return pageFromRows(result.rows, size, (row) => PostgresReleasesRepository.mapRelease(row));
   }
 }

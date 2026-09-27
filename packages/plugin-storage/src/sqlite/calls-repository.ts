@@ -1,7 +1,13 @@
+import {
+  assertFixtureIntent,
+  assertFixtureDraftScope,
+  type FixtureInput,
+} from '../postgres/calls-repository.ts';
 import { randomUUID } from 'node:crypto';
+import { ReleasesRepository } from './releases-repository.ts';
 import type { DatabaseSync } from 'node:sqlite';
 import type { CallListFilters } from '../control-store.ts';
-import type { CallRecord, Page, StoredCallEvent } from '../models.ts';
+import type { ReleaseRecord, CallRecord, Page, StoredCallEvent } from '../models.ts';
 import { decodeCursor, encodeCursor } from '../postgres/shared.ts';
 import { cursorValue, json, now, pageLimit, parseObject, type Row, transaction } from './shared.ts';
 
@@ -16,13 +22,81 @@ export class CallsRepository {
   }) {
     const id = input.id ?? randomUUID(),
       at = now();
-    this.db
+    const result = this.db
       .prepare(
-        'INSERT INTO calls(id,workspace_id,release_id,kind,status,created_at) VALUES(?,?,?,?,?,?)',
+        `INSERT INTO calls(id,workspace_id,release_id,kind,status,created_at) SELECT ?,?,?,?,?,? FROM releases WHERE workspace_id=? AND id=? AND (?='test' OR purpose='published')`,
       )
-      .run(id, input.workspaceId, input.releaseId, input.kind, input.status, at);
+      .run(
+        id,
+        input.workspaceId,
+        input.releaseId,
+        input.kind,
+        input.status,
+        at,
+        input.workspaceId,
+        input.releaseId,
+        input.kind,
+      );
+    if (!result.changes) throw new Error('Release is unavailable for this call kind');
     return this.getCall(input.workspaceId, id)!;
   }
+  createFixtureCall(input: FixtureInput) {
+    return transaction(this.db, () => {
+      const existing = this.getCall(input.workspaceId, input.id);
+      if (existing) {
+        const row = this.db
+          .prepare(
+            "SELECT payload_json FROM call_events WHERE call_id=? AND sequence=1 AND type='fixture.request'",
+          )
+          .get(input.id) as Row | undefined;
+        const payload = row ? parseObject(row.payload_json) : undefined;
+        assertFixtureIntent(existing.kind, payload, input);
+        return { created: false as const, call: existing };
+      }
+      let snapshot: ReleaseRecord;
+      let releaseId: string;
+      if ('draft' in input) {
+        assertFixtureDraftScope(input);
+        snapshot = ReleasesRepository.createFixtureSnapshot(this.db, input.draft);
+        releaseId = snapshot.id;
+      } else {
+        const release = this.db
+          .prepare(
+            "SELECT * FROM releases WHERE workspace_id=? AND id=? AND agent_id=? AND purpose='published'",
+          )
+          .get(input.workspaceId, input.releaseId, input.agentId);
+        if (!release)
+          throw Object.assign(new Error('Release not found for agent'), {
+            statusCode: 404,
+            code: 'not_found',
+          });
+        snapshot = ReleasesRepository.mapRelease(release);
+        releaseId = input.releaseId;
+      }
+      const at = now();
+      this.db
+        .prepare(
+          "INSERT INTO calls(workspace_id,id,release_id,kind,status,created_at) VALUES(?,?,?,'test','running',?)",
+        )
+        .run(input.workspaceId, input.id, releaseId, at);
+      this.db
+        .prepare(
+          "INSERT INTO call_events(call_id,id,sequence,at,type,epoch,payload_json) VALUES(?,?,1,?,'fixture.request',0,?)",
+        )
+        .run(
+          input.id,
+          randomUUID(),
+          at,
+          json({ fingerprint: input.fingerprint, agentId: input.agentId, releaseId }),
+        );
+      return {
+        created: true as const,
+        call: this.getCall(input.workspaceId, input.id)!,
+        release: snapshot,
+      };
+    });
+  }
+
   private mapCall(row: Row): CallRecord {
     return {
       id: String(row.id),

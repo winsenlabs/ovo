@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { AgentConfig, MULAW_8K } from '@winsendotai/ovo-contracts';
+import { MULAW_8K } from '@winsendotai/ovo-contracts';
 import {
   LocalRecordingBackend,
   RecordingArchive,
@@ -16,7 +16,7 @@ import { registerTestCallRoutes } from '../src/routes/test-calls.ts';
 import { TestCallRuntime, fixtureCallsEnabled } from '../src/test-call-runtime.ts';
 import { createFixtureRecordingPort, persistFixtureRecording } from '../src/recording-runtime.ts';
 import { createRecordingExportInputLoader } from '../src/routes/recording-lifecycle-data.ts';
-import { NodeSqliteControlStore, type ControlStore } from '@winsendotai/ovo-plugin-storage';
+import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import type { TelemetryEvent } from '@winsendotai/ovo-plugin-observability';
 
 const callId = '20a1422f-2905-420d-b97b-215918dc07f9';
@@ -370,107 +370,3 @@ describe('fixture test-call inspection', () => {
     }
   });
 });
-
-// The real store is wrapped only at its public asynchronous boundary: the first
-// response waits after its durable write, while a concurrent request reads it.
-it.each([true, false])(
-  'durably admits draft=%s with an atomic idempotency intent',
-  async (useDraft) => {
-    const store = new NodeSqliteControlStore(':memory:');
-    const workspaceId = 'admission-proof';
-    await store.ensureWorkspace(workspaceId);
-    const agent = await store.createAgent(
-      workspaceId,
-      AgentConfig.parse({
-        name: 'Draft',
-        mode: 'announcement',
-        message: 'Draft speech',
-        recording: false,
-      }),
-      agentId,
-    );
-    const release = useDraft
-      ? undefined
-      : await store.createRelease({ workspaceId, agent, plugins: [], createdBy: 'test' });
-    let entered!: () => void, unblock!: () => void;
-    const writing = new Promise<void>((resolve) => {
-      entered = resolve;
-    });
-    const blocked = new Promise<void>((resolve) => {
-      unblock = resolve;
-    });
-    const wrapped = new Proxy({} as ControlStore, {
-      get(_target, key) {
-        const value = Reflect.get(store, key);
-        if (!useDraft && (key === 'createCall' || key === 'createFixtureCall'))
-          return async (...args: unknown[]) => {
-            const result = await value(...args);
-            entered();
-            await blocked;
-            return result;
-          };
-        return value;
-      },
-    });
-    const jobs: unknown[] = [];
-    const runtime = new TestCallRuntime({
-      enabled: true,
-      execute: async (job) => {
-        jobs.push(job);
-        return {
-          callId: job.callId,
-          kind: 'test',
-          status: 'completed',
-          outcome: { reason: 'behavior_completed', outcome: 'completed' },
-          events: [],
-          selections: {},
-          sttMode: 'none',
-          usage: [],
-          carrierFrames: [],
-          compatIssues: [],
-        };
-      },
-    });
-    const app = Fastify();
-    registerTestCallRoutes({
-      app,
-      store: wrapped,
-      requireRole: () => ({ workspaceId, identityId: 'test' }) as never,
-      testCallRuntime: runtime,
-    });
-    const request = {
-      method: 'POST' as const,
-      url: `/v1/agents/${agentId}/test-calls`,
-      headers: { 'idempotency-key': 'identical' },
-      payload: useDraft ? { useDraft: true } : { releaseId: release!.id },
-    };
-    const first = app.inject(request).then((reply) => reply);
-    try {
-      if (!useDraft) {
-        await writing;
-        const concurrent = await app.inject(request);
-        expect(concurrent.statusCode, concurrent.body).toBe(202);
-        unblock();
-        expect(concurrent.json().callId).toBe((await first).json().callId);
-      }
-      const accepted = await first;
-      expect(accepted.statusCode, accepted.body).toBe(202);
-      await vi.waitFor(() => expect(jobs).toHaveLength(1));
-      const call = await store.getCall(workspaceId, accepted.json().callId);
-      expect(call?.kind).toBe('test');
-      expect((await store.listCallEvents(workspaceId, call!.id)).items[0]?.type).toBe(
-        'fixture.request',
-      );
-      if (useDraft) {
-        expect(await store.getRelease(workspaceId, call!.releaseId)).toBeUndefined();
-        expect((await store.listReleases(workspaceId, agentId)).items).toEqual([]);
-      }
-    } finally {
-      unblock();
-      await first;
-      await vi.waitFor(() => expect(runtime.activeCount).toBe(0));
-      await app.close();
-      await store.close();
-    }
-  },
-);

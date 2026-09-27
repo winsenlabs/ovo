@@ -1,196 +1,68 @@
-import { fork, type ChildProcess } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { buildReleaseSelections } from './release-selections.ts';
+import { createDefaultReleaseFactory, type DefaultSessionOptions } from './session-factory.ts';
+import type { SessionDefaults } from '@winsendotai/ovo-session-host';
+import type { PluginDefinition, Context } from '@winsendotai/ovo-runtime';
+import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
+import type { createFixtureTelemetry } from '@winsendotai/ovo-plugin-observability';
 import { Cap, type CarrierIngress } from '@winsendotai/ovo-contracts';
 import { loadDistribution } from '@winsendotai/ovo-distribution';
 import {
   fixtureCarrierInboundFrame,
-  fixtureCallsEnabled,
+  persistFixtureUsage,
   runFixtureCall,
   withFixtureEgressSentinel,
 } from '@winsendotai/ovo-fixture-calls';
 import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
 import { compose, manifestKeys, PluginRegistry } from '@winsendotai/ovo-runtime';
 import { loadInstalledSessionExtensions } from '@winsendotai/ovo-session-host';
-import { createFixtureRecordingPort } from './recording-runtime.ts';
+import { createFixtureRecordingPort, persistFixtureRecording } from './recording-runtime.ts';
+import type { FixtureCallEvent, FixtureCallResult } from '@winsendotai/ovo-fixture-calls';
 import type {
-  CallerScript,
-  FixtureCallEvent,
-  FixtureCallResult,
-} from '@winsendotai/ovo-fixture-calls';
-import type { SessionGraphRelease } from '@winsendotai/ovo-session-host';
+  ControlStore,
+  CallRecord,
+  ReleaseRecord,
+  AgentDraft,
+  ReleaseSelection,
+} from '@winsendotai/ovo-plugin-storage';
+
+/** D1-local capability until I1 integrates the frozen ControlStore interface. */
+export interface FixtureAdmissionStore {
+  createFixtureCall(
+    input: {
+      workspaceId: string;
+      id: string;
+      agentId: string;
+      fingerprint: string;
+    } & ({ releaseId: string } | { draft: Parameters<ControlStore['createRelease']>[0] }),
+  ): Promise<
+    | { created: true; call: CallRecord; release: ReleaseRecord }
+    | { created: false; call: CallRecord }
+  >;
+  getFixtureCallRelease(workspaceId: string, callId: string): Promise<ReleaseRecord | undefined>;
+}
+export function fixtureAdmissionStore(store: ControlStore): FixtureAdmissionStore {
+  const extension = store as ControlStore & Partial<FixtureAdmissionStore>;
+  if (
+    typeof extension.createFixtureCall !== 'function' ||
+    typeof extension.getFixtureCallRelease !== 'function'
+  )
+    throw new Error('fixture_unavailable: atomic fixture admission storage is required');
+  return extension as ControlStore & FixtureAdmissionStore;
+}
 export {
   fixtureCallsEnabled,
   fixtureCallsEnvironmentEnabled,
   idempotentFixtureCallId,
 } from '@winsendotai/ovo-fixture-calls';
 
-export interface FixtureChildJob {
-  callId: string;
-  release: SessionGraphRelease;
-  callerScript?: CallerScript | 'default';
-}
-
-export type FixtureChildMessage =
-  | { type: 'event'; event: FixtureCallEvent }
-  | { type: 'result'; result: FixtureCallResult }
-  | { type: 'error'; message: string };
-
-export interface TestCallRuntimeOptions {
-  enabled?: boolean;
-  nodeEnv?: string;
-  maxConcurrent?: number;
-  wallTimeoutMs?: number;
-  modulePath?: string;
-  forkChild?: (modulePath: string, args: string[]) => ChildProcess;
-  execute?: (
-    job: FixtureChildJob,
-    onEvent: (event: FixtureCallEvent) => void | Promise<void>,
-  ) => Promise<FixtureCallResult>;
-}
-
-/** A bounded process boundary. API callers receive a call ID before the child completes. */
-export class TestCallRuntime {
-  private active = 0;
-  readonly enabled: boolean;
-  readonly wallTimeoutMs: number;
-
-  constructor(private readonly options: TestCallRuntimeOptions = {}) {
-    this.enabled = fixtureCallsEnabled(options);
-    this.wallTimeoutMs = options.wallTimeoutMs ?? 120_000;
-  }
-
-  get activeCount(): number {
-    return this.active;
-  }
-
-  /** Reserve before durable call creation, so capacity refusal leaves no call row. */
-  reserve(): {
-    start: (
-      job: FixtureChildJob,
-      onEvent?: (event: FixtureCallEvent) => void | Promise<void>,
-    ) => Promise<FixtureCallResult>;
-    cancel: () => void;
-  } {
-    if (!this.enabled) throw new Error('fixture_calls_disabled');
-    if (this.active >= (this.options.maxConcurrent ?? 2)) throw new Error('fixture_calls_capacity');
-    this.active++;
-    let used = false;
-    const cancel = () => {
-      if (used) return;
-      used = true;
-      this.active--;
-    };
-    return {
-      cancel,
-      start: (job, onEvent = () => undefined) => {
-        if (used) throw new Error('Fixture call reservation was already used');
-        used = true;
-        try {
-          const result = this.options.execute
-            ? Promise.resolve().then(() => this.options.execute!(job, onEvent))
-            : this.runChild(job, onEvent);
-          return result.finally(() => {
-            this.active--;
-          });
-        } catch (error) {
-          this.active--;
-          throw error;
-        }
-      },
-    };
-  }
-
-  start(
-    job: FixtureChildJob,
-    onEvent: (event: FixtureCallEvent) => void | Promise<void> = () => undefined,
-  ): Promise<FixtureCallResult> {
-    return this.reserve().start(job, onEvent);
-  }
-
-  private runChild(
-    job: FixtureChildJob,
-    onEvent: (event: FixtureCallEvent) => void | Promise<void>,
-  ): Promise<FixtureCallResult> {
-    const modulePath = this.options.modulePath ?? process.argv[1];
-    if (!modulePath) throw new Error('Fixture child module path is unavailable');
-    const child = this.options.forkChild
-      ? this.options.forkChild(modulePath, ['--ovo-fixture-call-child'])
-      : fork(modulePath, ['--ovo-fixture-call-child'], {
-          stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
-        });
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      let terminal = false;
-      let writes = Promise.resolve();
-      const settle = (error?: Error, result?: FixtureCallResult) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        child.removeAllListeners('message');
-        child.removeAllListeners('error');
-        child.removeAllListeners('exit');
-        if (child.connected) child.disconnect();
-        if (error) child.kill();
-        if (error) reject(error);
-        else resolve(result!);
-      };
-      const finish = (error?: Error, result?: FixtureCallResult) => {
-        if (terminal) return;
-        terminal = true;
-        if (error) settle(error);
-        else void writes.then(() => settle(undefined, result), settle);
-      };
-      const timeout = setTimeout(
-        () => settle(new Error('Fixture call exceeded the 120 second wall timeout')),
-        this.wallTimeoutMs,
-      );
-      child.on('message', (value: FixtureChildMessage) => {
-        if (!value || typeof value !== 'object') return;
-        if (value.type === 'event') {
-          writes = writes.then(() => onEvent(value.event));
-          void writes.catch((cause: unknown) =>
-            finish(cause instanceof Error ? cause : new Error(String(cause))),
-          );
-        } else if (value.type === 'result') finish(undefined, value.result);
-        else if (value.type === 'error') finish(new Error(value.message));
-      });
-      child.once('error', (error) => finish(error));
-      child.once('exit', (code, signal) =>
-        finish(new Error(`Fixture call child exited before completion (${code ?? signal})`)),
-      );
-      try {
-        child.send({ type: 'start', job });
-      } catch (cause) {
-        finish(cause instanceof Error ? cause : new Error(String(cause)));
-      }
-    });
-  }
-}
-
-/** The child accepts exactly one job and exits; it never starts the HTTP server. */
-export function runFixtureCallChild(execute: TestCallRuntimeOptions['execute']): void {
-  if (!execute || !process.send) throw new Error('Fixture child requires an IPC executor');
-  process.once('message', (value: { type?: string; job?: FixtureChildJob }) => {
-    if (value?.type !== 'start' || !value.job) {
-      process.send?.({ type: 'error', message: 'Invalid fixture child request' }, () =>
-        process.exit(1),
-      );
-      return;
-    }
-    void execute(value.job, (event) => {
-      process.send?.({ type: 'event', event });
-    }).then(
-      (result) => process.send?.({ type: 'result', result }, () => process.exit(0)),
-      (error) =>
-        process.send?.(
-          {
-            type: 'error',
-            message: error instanceof Error ? error.message : 'Fixture call failed',
-          },
-          () => process.exit(1),
-        ),
-    );
-  });
-}
+export { TestCallRuntime, runFixtureCallChild } from '@winsendotai/ovo-fixture-calls';
+export type {
+  FixtureChildJob,
+  FixtureChildMessage,
+  TestCallRuntimeOptions,
+} from '@winsendotai/ovo-fixture-calls';
+import type { FixtureChildJob } from '@winsendotai/ovo-fixture-calls';
 
 /** Resolves the selected carrier inside the child under the fixture egress fence. */
 export async function executeFixtureChildJob(
@@ -255,4 +127,109 @@ export async function executeFixtureChildJob(
       await carrier.dispose();
     }
   });
+}
+
+export async function fixtureDraft(
+  input: {
+    store: ControlStore;
+    catalog?: readonly PluginDefinition[];
+    distributionDefaults?: SessionDefaults;
+    options?: { defaultSession?: DefaultSessionOptions };
+  },
+  agent: AgentDraft,
+  createdBy: string,
+) {
+  const generated = await createDefaultReleaseFactory(
+    input.store,
+    input.options?.defaultSession,
+  )({
+    agent,
+    sessionId: randomUUID(),
+    fixtureBindings: true,
+  });
+  const registry = new PluginRegistry([...(input.catalog ?? []), ...generated]);
+  const selections = await buildReleaseSelections({
+    agent: structuredClone(agent),
+    store: input.store,
+    registry,
+    defaults: input.distributionDefaults ?? {
+      engine: '@winsendotai/ovo-plugin-voice-session-engine',
+    },
+  });
+  const pinned: Record<string, ReleaseSelection> = {};
+  for (const [slot, selection] of Object.entries(selections))
+    if (selection) pinned[slot] = selection;
+  return {
+    workspaceId: agent.workspaceId,
+    agent,
+    plugins: generated.map(({ manifest }) => ({ id: manifest.id, version: manifest.version })),
+    selections: pinned,
+    createdBy,
+  };
+}
+
+export async function persistFixtureResult(input: {
+  result: FixtureCallResult;
+  release: ReleaseRecord;
+  workspaceId: string;
+  callId: string;
+  store: ControlStore;
+  ctx?: Pick<Context, 'get'>;
+  trace?: ReturnType<typeof createFixtureTelemetry>;
+}) {
+  const { result, release, workspaceId, callId, store, ctx, trace } = input;
+  const recording = release.config.recording
+    ? await persistFixtureRecording({
+        context: ctx ?? ({ get: () => undefined } as Pick<Context, 'get'>),
+        workspaceId: workspaceId,
+        callId,
+        payload: result.recording,
+      })
+    : undefined;
+  const ledger = ctx?.get(Cap.costLedger) as CostLedgerService | undefined;
+  await persistFixtureUsage({
+    workspaceId: workspaceId,
+    callId,
+    meters: result.usage,
+    priceCards: release.config.costPolicy?.priceCards,
+    getPriceCard: ledger?.getPriceCard.bind(ledger),
+    createId: randomUUID,
+    writePriced: async (priced) => {
+      const {
+        sessionId: _sessionId,
+        providerRequestId: requestId,
+        rounding: _rounding,
+        ...record
+      } = priced;
+      await store.addUsage({ ...record, callId, requestId });
+    },
+    writeMeter: (meter, key, unpriced) => {
+      trace?.usage(meter);
+      return store.appendCallEvent(workspaceId, callId, 'fixture.usage', {
+        ...meter,
+        key,
+        unpriced,
+      });
+    },
+  });
+  await store.appendCallEvent(workspaceId, callId, 'fixture.result', {
+    outcome: result.outcome,
+    selections: result.selections,
+    sttMode: result.sttMode,
+    compatIssues: result.compatIssues,
+    ...(recording === undefined ? {} : { recording }),
+  });
+  await store.finishCall(workspaceId, callId, result.status);
+  trace?.ended(result.outcome.reason);
+}
+
+export function fixtureCallRelease(
+  store: ControlStore,
+  workspaceId: string,
+  call: Pick<CallRecord, 'id' | 'kind' | 'releaseId'>,
+) {
+  const extension = store as ControlStore & Partial<FixtureAdmissionStore>;
+  return call.kind === 'test' && typeof extension.getFixtureCallRelease === 'function'
+    ? extension.getFixtureCallRelease(workspaceId, call.id)
+    : store.getRelease(workspaceId, call.releaseId);
 }

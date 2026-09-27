@@ -68,7 +68,7 @@ export function registerInspectionRoutes(dependencies: any) {
         ? (await live.list(principal.workspaceId, callId, 100)).map(publicRecording)
         : [];
     const [release, events, usage] = await Promise.all([
-      store.getRelease(principal.workspaceId, call.releaseId),
+      fixtureCallRelease(store, principal.workspaceId, call),
       allEvidencePages<StoredCallEvent>((cursor) =>
         store.listCallEvents(principal.workspaceId, callId, 100, cursor),
       ),
@@ -230,3 +230,4 @@ export function registerInspectionRoutes(dependencies: any) {
     return await store.listAudit(principal.workspaceId, page.limit, page.cursor);
   });
 }
+import { fixtureCallRelease } from '../test-call-runtime.ts';

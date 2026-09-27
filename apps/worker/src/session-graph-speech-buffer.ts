@@ -1,61 +1,84 @@
 import { bytesPerSecond, type AudioFormat } from '@winsendotai/ovo-contracts';
 import type { ByteCache } from '@winsendotai/ovo-plugin-cache';
 
+/** Fixed byte capacity, independent of provider chunk size; detached cache producers may finish. */
 export class BoundedAudioPrefetch implements AsyncIterable<Uint8Array> {
-  private readonly chunks: Uint8Array[] = [];
-  private readonly readers: (() => void)[] = [];
-  private readonly writers: (() => void)[] = [];
-  private bytes = 0;
-  private ended = false;
-  private detached = false;
-  private failure?: unknown;
+  private readonly ring: Uint8Array;
+  private head = 0;
+  private occupied = 0;
+  private terminal?: { error?: unknown; detached: boolean };
+  private wake!: () => void;
+  private transition = this.nextTransition();
 
   constructor(readonly maxBytes: number) {
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 1)
       throw new RangeError('maxPrefetchBytes must be a positive integer');
+    this.ring = new Uint8Array(maxBytes);
+  }
+
+  private nextTransition(): Promise<void> {
+    return new Promise((resolve) => (this.wake = resolve));
+  }
+  private notify(): void {
+    const release = this.wake;
+    this.transition = this.nextTransition();
+    release();
   }
 
   async push(chunk: Uint8Array, signal: AbortSignal): Promise<void> {
-    for (let offset = 0; offset < chunk.length; offset += this.maxBytes) {
-      const part = chunk.subarray(offset, offset + this.maxBytes);
-      while (this.bytes + part.length > this.maxBytes) {
+    const aborted = () => this.notify();
+    signal.addEventListener('abort', aborted, { once: true });
+    try {
+      let offset = 0;
+      while (offset < chunk.byteLength) {
         signal.throwIfAborted();
-        if (this.ended) {
-          if (this.detached) return;
-          throw this.failure ?? new Error('Speech prefetch closed');
+        if (this.terminal) {
+          if (this.terminal.detached) return;
+          throw this.terminal.error ?? new Error('Speech prefetch closed');
         }
-        await new Promise<void>((resolve) => this.writers.push(resolve));
+        if (this.occupied === this.maxBytes) {
+          await this.transition;
+          continue;
+        }
+        const tail = (this.head + this.occupied) % this.maxBytes;
+        const count = Math.min(
+          chunk.byteLength - offset,
+          this.maxBytes - this.occupied,
+          this.maxBytes - tail,
+        );
+        this.ring.set(chunk.subarray(offset, offset + count), tail);
+        offset += count;
+        this.occupied += count;
+        this.notify();
       }
-      signal.throwIfAborted();
-      if (this.ended) {
-        if (this.detached) return;
-        throw this.failure ?? new Error('Speech prefetch closed');
-      }
-      this.chunks.push(part.slice());
-      this.bytes += part.length;
-      this.readers.shift()?.();
+    } finally {
+      signal.removeEventListener('abort', aborted);
     }
   }
 
   end(error?: unknown, detached = false): void {
-    if (this.ended) return;
-    this.ended = true;
-    this.detached = detached;
-    this.failure = error;
-    for (const wake of this.readers.splice(0)) wake();
-    for (const wake of this.writers.splice(0)) wake();
+    if (this.terminal) return;
+    this.terminal = { error, detached };
+    if (detached) this.occupied = 0;
+    this.notify();
   }
 
   async *[Symbol.asyncIterator](): AsyncIterator<Uint8Array> {
-    while (true) {
-      if (this.chunks.length) {
-        const chunk = this.chunks.shift()!;
-        this.bytes -= chunk.length;
-        this.writers.shift()?.();
-        yield chunk;
-      } else if (this.failure) throw this.failure;
-      else if (this.ended) return;
-      else await new Promise<void>((resolve) => this.readers.push(resolve));
+    for (;;) {
+      if (!this.occupied) {
+        if (this.terminal) {
+          if (this.terminal.error) throw this.terminal.error;
+          return;
+        }
+        await this.transition;
+        continue;
+      }
+      const count = Math.min(this.occupied, this.maxBytes - this.head);
+      const owned = this.ring.slice(this.head, this.head + count);
+      this.head = (this.head + count) % this.maxBytes;
+      this.occupied -= count;
+      this.notify();
+      yield owned;
     }
   }
 }
