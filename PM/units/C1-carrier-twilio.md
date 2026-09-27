@@ -155,13 +155,18 @@ use one owned form encoder and emit four separate event fields. The real control
 regressions failed on the prior code with one joined value instead of four values.
 C1's owned conformance fixture is corrected to assert this wire representation.
 
-[Twilio's voice callback signature rules](https://www.twilio.com/docs/usage/security#a-few-notes)
-exclude the HTTPS URL's port and userinfo. Validation now removes those authority
-parts while preserving the exact raw path and query. The WSS signature rule remains
-separate: it retains the port and its documented trailing-slash retry. Independent
-Node-HMAC tests previously saw 403 for a valid no-port signature and 200 for a wrong
-port-signed callback; both now return the intended 200/403. One hundred independent
-HMAC vectors (including long keys and Unicode) matched the implementation.
+**Corrected by the checker on 2026-09-27:** the earlier reading of the voice
+callback documentation incorrectly treated omission of the HTTPS port as the only
+valid signing form. The installed Twilio 5.10.4 validator accepts both port forms
+and both legacy-querystring forms because backend signing is inconsistent. The
+previous 200/403 test cemented the wrong rejection; the corrected expectation is
+200 for both. WSS retains its separate exact-URL and trailing-slash behavior.
+
+**Coverage correction:** the earlier “including long keys” claim was inaccurate.
+The 128 committed HMAC vectors used 8–22-byte keys; none exercised the >64-byte
+branch. The re-check adds independently checked 64-, 65-, and 80-byte keys (the last
+is 40 Unicode characters). Their new proof is recorded below, separately from the
+historical short-key measurements.
 
 The production catalog regression composes the actual first-party export. Replacing
 that export with `plugins = []` makes the bridge fallback fail for missing
@@ -197,7 +202,7 @@ The resumption ruling supersedes the pending resume decision recorded above. The
 
 **Contract gaps:** `apps/api/src/carrier-handoff.ts` still supplies only `{kind:'resume'}`. I1 must formalize the callback context and wire this caller to its authenticated host URL builder; this unit does not claim that API resume handoff works before that integration. O2 inherits the requirement to preserve ledger and idempotency semantics. The existing stream-continuation HTTP route already uses `host.resumeStream` and `host.callbackUrl`, and returns Hangup for an ended route. D1's per-session fixture encoder remains a local ingress extension for I1's shared-contract decision.
 
-The latest checker explicitly requires the genuine Twilio validator as an independent **test-only** oracle, superseding the spec's blanket “no SDK” wording for this proof. Only the legacy package's existing `twilio` dependency is imported by that test; production vendor sources import contracts/runtime and their own modules only. The SDK oracle invokes validateRequest only; production C1 constructs no SDK client. The saved 2026-09-26 published example is reused; no vendor documentation or endpoint was fetched this round. Explicit-port WSS behavior is still UNCONFIRMED. Frozen conformance stays byte-identical to foundation.
+The latest checker explicitly requires the genuine Twilio validator as an independent **test-only** oracle, superseding the spec's blanket “no SDK” wording for this proof. Only the legacy package's existing `twilio` dependency is imported by that test; production vendor sources import contracts/runtime and their own modules only. The SDK oracle invokes only the offline validateRequest and getExpectedTwilioSignature functions; production C1 constructs no SDK client. The saved 2026-09-26 published example is reused; no vendor documentation or endpoint was fetched this round. Explicit-port WSS behavior is still UNCONFIRMED. Frozen conformance stays byte-identical to foundation.
 
 The restored WIP's regex decoder duplicated C2's new protocol check. C1 now decodes and checks canonical base64 by re-encoding, rejecting whitespace, unpadded and noncanonical encodings; no baseline or shared source changed. Route aliases that contradict each other, non-inbound/invalid DTMF, unsafe numeric fields and inherited object keys masquerading as call states also fail closed.
 
@@ -289,3 +294,126 @@ Logs are `/tmp/ovo-c1-{install,frozen,lint,format,duplication,owned-format,full-
 - The frozen conformance doubled-query reference driver remains HARD BLOCKING I1. Explicit-port WSS behavior is UNCONFIRMED; there is no live carrier or vendor-sandbox claim.
 - Only synthetic credentials, FixtureNet and loopback sockets were used. No real credentials, vendor endpoint, live/provider/paid flags, actual call, AWS, push or PR was used.
 - The owned `postgres:17.6` container `ovo-c1-verify-0927`, bound only to `127.0.0.1:32908`, was stopped and removed. C1's Playwright artifacts were removed. No other container/image was stopped, removed or pruned. Disk is 21 GiB free at cleanup; foundation plus C1 are the only two worktrees. Keep C1 for the checker, then remove it after merge.
+
+## Checker turnaround — HTTPS signature compatibility (2026-09-27)
+
+The checker rejected C1 solely for narrowing the SDK’s HTTPS signature variants.
+`signature.ts` now tries no-port, with-port (including explicit default 443 when the
+base omits a port), and the legacy-querystring version of each. This supersedes the
+earlier port-stripping-only note. Raw externalUrl still arrives unchanged from C2;
+only this carrier’s authentication layer constructs the SDK-compatible candidates.
+The original raw-query HMAC proof remains valid. Legacy query reserialization is
+an explicit additional accepted form, not a claim that every raw-query byte change
+must fail. Each candidate still needs a valid full HMAC. WSS receives none of this
+HTTPS normalization and still rejects query-bearing URLs, even when correctly signed.
+
+The legacy conversion uses web primitives in the vendor plugin, with no Node import
+or new dependency. Tests compare it against the installed SDK and node:querystring
+for absent/empty queries, escaping and numeric key ordering, repeated/inherited keys,
+malformed encodings, and the reference parser’s 1,000-pair limit. Wrong/empty tokens
+fail for every case. The four HTTPS candidates are also driven independently through the real
+distribution, release selection and C2 loopback gateway for both `:8443` and an
+omitted public port (all four are distinct at `:8443`).
+
+**Deliberate spec deviation — account SID syntax:** retain
+`^AC[0-9a-fA-F]{32}$` rather than the spec’s lowercase-only hex suffix. This keeps the
+binding schema consistent with the existing case-insensitive control validator and
+legacy compatibility; it neither rewrites nor lowercases identifiers. The production
+PluginRegistry test accepts lowercase and uppercase hexadecimal suffixes and rejects
+absent, empty, nonhex and short values. This is a syntactic compatibility decision,
+not a vendor-confirmation claim.
+
+Additional requested cases run through the installed ingress/control: matching
+canonical+legacy aliases; raw machine → machine and fax → unknown; callerId alone;
+timeout alone; timeout 0 omitted; and announce:true without a message emits no Say.
+The existing absent, contradictory and invalid cases remain. No shared production
+file, frozen file, manifest, lockfile or baseline changes in this correction. I1
+inherits these compatibility tests when deleting the legacy façade; the existing
+resume-context and conformance-driver blockers remain unchanged.
+
+### Re-check proof: independent oracle and deliberate breakages
+
+Before the correction, the final `wire-regression.test.ts` and `signature-query.test.ts` were run with `signature.ts` restored verbatim from `9207fc1`. Result: **BEFORE_FIX_EXIT=1, 10 failed / 6 passed**. The port-signed inbound case reported `expected 403 to be 200`; the with-port and two legacy-query gateway cases reported `expected 403 to be 204`; all six SDK query-parity cases reported `expected false to be true`. The genuine SDK accepted each signature before the production assertion failed. The no-port gateway counterpart passed. This is a pre-repair behavioral proof, not a missing-module failure. Log: `/tmp/ovo-c1-recheck-before-final.log`.
+
+With the fix restored, the SDK and independent Node HMAC agree. All four HTTPS candidates pass through the actual distribution, release selection and C2 gateway with one host event per request: eight successful loopback requests across `:8443` and omitted-port bases. All four candidates are distinct at `:8443`; the SDK's legacy default-port candidates coincide after URL normalization. Six additional query cases agree with the SDK and reject empty/wrong tokens. The original raw-query and real worker/media proofs remain in the unchanged `production-ingress.test.ts` and pass in the scoped/full runs.
+
+Each mutation below was applied alone to production source, tested, and restored. **All 16 returned EXIT=1 with assertion failures**, then the restored scoped suite passed **177/177**. The extra cases for existing correct behavior are defended by mutations, not misrepresented as defects in the pre-repair code.
+
+| Check                          | Deliberately broken production version                                                            | Observed assertion failure                                                                                                                                                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No-port HTTPS candidate        | Delete just `withoutPort` from the candidate set                                                  | `expected 403 to be 204`                                                                                                                                                                                               |
+| With-port HTTPS candidate      | Delete just `withPort`                                                                            | `expected 403 to be 204`                                                                                                                                                                                               |
+| Legacy query without port      | Delete just `legacyQueryUrl(withoutPort)`                                                         | `expected 403 to be 204`                                                                                                                                                                                               |
+| Legacy query with port         | Delete just `legacyQueryUrl(withPort)`                                                            | `expected 403 to be 204`                                                                                                                                                                                               |
+| WSS query prohibition          | Remove `new URL(url).search` from the upgrade guard; request still has its correct exact-URL HMAC | `expected { ok: true, params: {} } to deeply equal { ok: false, status: 403 }`                                                                                                                                         |
+| Equal canonical/legacy aliases | Reject co-presence regardless of `!==`                                                            | `expected [Function] to not throw an error`; received `CarrierProtocolError: Conflicting Twilio session route parameters`                                                                                              |
+| Raw machine answer             | Remove `raw === 'machine'`                                                                        | Expected `answeredBy: 'machine'`, received `'unknown'`                                                                                                                                                                 |
+| Fax answer                     | Map only fax to machine                                                                           | Expected `answeredBy: 'unknown'`, received `'machine'`                                                                                                                                                                 |
+| callerId alone                 | Require timeout too before emitting callerId                                                      | Expected `<Dial callerId="+15550456">`, received `<Dial>`                                                                                                                                                              |
+| Timeout alone                  | Require callerId too before emitting timeout                                                      | Expected `<Dial timeout="4">`, received `<Dial>`                                                                                                                                                                       |
+| Zero timeout                   | Emit timeout whenever defined                                                                     | Expected `<Dial>`, received `<Dial timeout="0">`                                                                                                                                                                       |
+| Announcement without message   | Drop the message-presence guard                                                                   | `expected 400 to be 200`                                                                                                                                                                                               |
+| HMAC key boundary              | Skip hashing keys longer than 64 bytes                                                            | 65-byte: expected `BxgBfjymdUGCUOFm/m6rl6XyW/Y=`, received `Tei/CPsUXa0ixidIXGcmI2IuJm4=`; 80-byte: expected `J8dMy8hxwHoxpf1QBpgyreZLyb8=`, received `Eo89EYcsibTmgla2kK0GQqWT5wk=`; 64-byte counterpart still passes |
+| Deliberate SID syntax          | Narrow only the installed schema to lowercase                                                     | Expected `{ ok: true }`, received `{ ok: false, errors: … }` for uppercase hex                                                                                                                                         |
+| Legacy query encoding          | Substitute URLSearchParams serialization                                                          | `expected false to be true` against the SDK-signed legacy candidate                                                                                                                                                    |
+| Reference query limit          | Remove the 1,000-pair cap                                                                         | `expected false to be true` for the 1,001-pair case                                                                                                                                                                    |
+
+Exact mutation commands, filters and assertion summaries are in `/tmp/ovo-c1-recheck-mutations.json`; full outputs are `/tmp/ovo-c1-recheck-mutant-*.log`. No production mutation remains. Historical 16-mutation and pre-C1 proofs above remain valid and are not counted again as new tests.
+
+### Re-check handover — Built – awaiting check
+
+**Correction `fa9aa00` on `w2/C1`, unmerged.** Rebased onto foundation `b5ce7ab`
+before the repair; the earlier C1 source commit is now `ced1e8e`. This report and
+the board update are a separate documentation commit. The checker’s approval is
+pending; C4 and S2 have not started. C3 and all other held heads remain paused.
+
+Only `packages/plugin-carrier-twilio/src/signature.ts` changes in production in
+this correction. Tests are in the two owned carrier packages. No frozen source,
+gateway, other unit’s source, manifest, lockfile or baseline changed in this pass.
+The architecture gate still reports **0 baselined edges**.
+
+All following commands ran in `/Users/tejassuds/work/ovo-w2-C1` with
+`export PATH=/opt/homebrew/opt/node@22/bin:$PATH` and **Node v22.23.2**. Commands
+match the measured counts; no aggregate `pnpm check` or network registry audit is
+claimed. Gate components include the standing console E2E obligation.
+
+| Actual command                                                                                                                                                                                          | Measured result                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `node scripts/lint.mjs --only packages/plugin-carrier-twilio packages/plugin-telephony-twilio`                                                                                                          | `SCOPED_LINT_EXIT=0`, seven gates, 0 baselined architecture edges           |
+| `pnpm format:check`                                                                                                                                                                                     | `FORMAT_EXIT=0`                                                             |
+| `node scripts/check-duplication.mjs`                                                                                                                                                                    | `DUPLICATION_EXIT=0`, 834 source files / 54 existing baseline pairs         |
+| `pnpm exec prettier --check packages/plugin-carrier-twilio packages/plugin-telephony-twilio`                                                                                                            | `OWNED_FORMAT_EXIT=0`                                                       |
+| `pnpm lint`                                                                                                                                                                                             | `FULL_LINT_EXIT=0`, seven gates                                             |
+| `node scripts/typecheck-scope.mjs packages/plugin-carrier-twilio packages/plugin-telephony-twilio`                                                                                                      | `SCOPED_TYPECHECK_EXIT=0`                                                   |
+| `pnpm typecheck`                                                                                                                                                                                        | `TYPECHECK_EXIT=0`                                                          |
+| `pnpm install --frozen-lockfile --offline`                                                                                                                                                              | `FROZEN_OFFLINE_EXIT=0`                                                     |
+| `pnpm exec vitest run packages/plugin-carrier-twilio packages/plugin-telephony-twilio packages/distribution --reporter=dot`                                                                             | `SCOPED_TEST_EXIT=0`, 177 passed                                            |
+| `pnpm exec vitest run --reporter=dot --reporter=json --outputFile=/tmp/ovo-c1-recheck-default.json`                                                                                                     | `DEFAULT_TEST_EXIT=0`, **1,698 passed / 153 skipped / 0 failed**, 52.16 s   |
+| `OVO_TEST_POSTGRES_URL=postgresql://postgres:fixture@127.0.0.1:32909/postgres pnpm exec vitest run --no-file-parallelism --reporter=dot --reporter=json --outputFile=/tmp/ovo-c1-recheck-postgres.json` | `POSTGRES_SERIAL_EXIT=0`, **1,843 passed / 8 skipped / 0 failed**, 191.85 s |
+| `pnpm build`                                                                                                                                                                                            | `BUILD_EXIT=0`, three app bundles and console production build              |
+| `pnpm test:console:e2e`                                                                                                                                                                                 | `CONSOLE_E2E_EXIT=0`, **41 passed / 1 desktop visibility skip**             |
+
+**1,698 + 153 = 1,851.** Separately, **1,843 + 8 = 1,851.** This repair adds
+22 runtime test cases over the previous 1,829 total and adds no skips. All 153
+default skips are database-gated; 145 activate in this serial run. The remaining
+eight are one ledger case (`LEDGER_TEST_DATABASE_URL`), four recording cases
+(`RECORDING_TEST_DATABASE_URL`), and three backup/restore cases
+(`OVO_BACKUP_DRILL_POSTGRES_URL`). No disabled tests.
+
+**Intermediate gate failure:** the first lint/format/duplication pass was **1/0/0**.
+Two expanded tests exceeded 500 canonical lines (519 and 514). The new scenarios
+were split into `inbound-optionals.test.ts` and `signature-query.test.ts`; no
+baseline was added. Both original production-gateway tests remain unchanged.
+The subsequent lint/format/duplication pass was **0/0/0**. There was no failure in
+the complete default or Postgres run this round. Logs use the prefix
+`/tmp/ovo-c1-recheck-`; before-fix and mutation failures are intentional proof.
+
+**Cleanup and limits:** `ovo-c1-recheck-0927` used local `postgres:17.6`, published
+only on `127.0.0.1:32909`, and was stopped and removed after the serial run. Own
+Playwright artifacts were removed; no other containers or images were touched.
+Disk was 20 GiB free at cleanup. Only foundation and C1 worktrees remain. All
+carrier work used synthetic tokens, FixtureNet, offline SDK functions and loopback;
+no real credentials, vendor requests, live/provider/paid flags, real calls, AWS,
+push or PR. **Contract gaps:** I1 still owns the authenticated API resume context
+and the frozen conformance doubled-query correction. WSS explicit-port behavior
+remains vendor-unconfirmed. No operational claim is made beyond the offline proof.
