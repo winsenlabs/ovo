@@ -144,3 +144,88 @@ CONSTRAINTS:
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/typecheck-scope.mjs packages/plugin-voice packages/plugin-speech-cache experiments/voice packages/session-host apps/worker`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run packages/plugin-voice packages/plugin-speech-cache --reporter=dot`
 - `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run apps/api/tests/voice-engine-release.test.ts apps/worker/tests/production-engine-selection.test.ts apps/worker/tests/native-extension-pins.test.ts apps/worker/tests/session-recording.test.ts --reporter=dot`
+
+## Checker note (2026-09-25)
+
+- The native v2 engine now runs directly from `src/engine/`; the F4 adapter and `src/turn-policy.ts` are deleted. The spec also says to delete the old engine internals, but frozen worker and plugin-media tests still construct the exported v1 `VoiceSessionEngine` and its old factory. Its compatibility path remains, split into `legacy-session-ingress.ts` and `legacy-turn-policy.ts`, while the production v2 catalog selects only the native engine. I1 owns removal when those callers migrate.
+- The instruction that `HybridSpeechOutput` implement `prepare()` points to a private class in `apps/worker/src/speech-cache-runtime.ts`, which design §15.5 assigns to D1 and freezes for E2. E2 implements and tests `prepare()` on its owned `CachedSpeechOutput`; D1 must wire preparation in the worker hybrid output before calling the live cache path pipelined.
+- The spec asks for `@winsendotai/ovo-audio` in VAD ingress and contracts imports in `plugin-speech-cache`, but their package manifests omit those dependencies while §15.2 freezes the lockfile and forbids install. E2 uses a relative import of the existing audio decoder and type-only relative contracts imports. The source has no plugin-to-plugin imports; I1 must add the two manifest dependencies, update the lockfile, and replace the relative paths when the lockfile opens.
+- Frozen contracts type `SpeechSegment.kind` and `Speech.speak` with three v1 kinds although §2.7 requires confirmation, disclosure and idle-prompt. E2 uses a local structural cast so those v2 values reach the turn controller; I1 owns widening the contracts. The stale speech-cache manifest dependencies on plugin-cache and plugin-voice, and their now-stale architecture baseline entries, also belong to I1.
+- The latency requirement names a `total` timing event, but frozen `StageKey` and the frozen conformance kit reject `total`. E2 computes total internally and verifies that emitted stage durations sum to the elapsed span; I1 must add `total` to the contract and conformance kit before it can be emitted. `llm_ttfb` is measured at the first streamed behavior segment because the frozen Behavior port does not expose a separate provider-token timestamp.
+- The host passes engine selection config into the engine row but an empty output companion row. E2 forwards `maxPrefetchBytes` and `markTimeoutMs` through its owned scheduler/output port when the engine starts, so no frozen session-host edit is needed for those limits.
+
+## Checker note (2026-09-26)
+
+- `apps/worker/src/speech-cache-v2.ts` is a D1-owned host output override. It has no `prepare()`, so E2 now enables concurrent scheduler plays only for outputs with that method; cache-enabled v2 sessions remain serial until D1 adds bounded prefetch and ordered carrier sends. The host override keeps one active output per epoch, and `CachedMediaAudioPlayer` has no shared send tail. E2's multi-chunk deferred-send test proves the native output does not interleave segments; D1 must add the corresponding cache-enabled production test.
+- D1 also owns receipt parity in that override: `CachedMediaAudioPlayer.waitForMark()` treats a timeout as interrupted instead of completed with estimated evidence, and carrier-processed playback with the release's `weak-playback-evidence` acknowledgement never becomes confirmed. D1 must test both paths through the cache-enabled live graph and preserve the clear-before-mark fence.
+
+## Builder review loop (2026-09-26)
+
+The independent review reproduced and the owned-path fixes now refute these failures:
+
+| Broken path                                               | Failing regression before the fix                                                                              | Construction after the fix                                                                                                                                                                      |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider startup ignores cancellation                     | Four startup probes: `expected 'pending' to be 'rejected'`                                                     | Ingress owns settlement; disposal rejects startup and cancels a provider session that arrives later.                                                                                            |
+| Cached preparations survive abort, rejection or interrupt | Retry raises the stale `AbortError`; cancellation counts are `0` instead of `1`                                | Abort-aware entries are removed on abandonment and play cleans them in `finally`.                                                                                                               |
+| Incremental TTS push/flush throws after opening           | Both cases: close count `0` instead of `1`                                                                     | The acquired incremental session is closed by the same `finally` covering push, flush and iteration.                                                                                            |
+| Response overlaps a confirmation                          | Two user-turn events before playback, expected zero                                                            | Confirmation/disclosure protects the whole overlapping playback group until all receipts settle; stale epochs cannot change the current group. The reverse ordering is a positive guard.        |
+| Disclosure reaches fallback input                         | One interrupt, expected zero                                                                                   | Disclosure clears pending speech text and discards STT without buffering.                                                                                                                       |
+| Detector disposal/unsubscribe throws                      | `detector failed` / `detector unsubscribe failed` escapes instead of an error outcome                          | Every cleanup is attempted within the deadline; speech evidence stays subscribed until scheduler cancellation has emitted terminal phases.                                                      |
+| Receipt fails while the behavior stream waits             | Undefined end reason instead of `error:turn`, plus unhandled `TTS provider failed` / `receipt delivery failed` | Receipt rejection immediately stops the driver and aborts its iterator before dropping the tracked receipt. Independent execution observed `unhandled=[]` and failed end before stream release. |
+| Arbitrary carrier chunks reach strict VAD                 | `expected 160/320 PCM samples per 20ms frame`; a single short pulse incorrectly starts speech                  | A bounded VAD-only assembler preserves split PCM bytes and exact analyzer frames; consecutive frame counts apply start/stop durations. Original STT chunks are unchanged.                       |
+| VAD stop overtakes its audio                              | Operations `['force-endpoint', 'audio:320']`                                                                   | Original audio is enqueued before synchronous VAD callbacks; independent result is `['audio:320', 'force-endpoint']`.                                                                           |
+| Markdown strips address characters                        | `username` / `resettoken` / `alice` replace `user_name` / `reset_token` / `~alice`                             | URL/email spans retain their literal punctuation while surrounding markdown is stripped.                                                                                                        |
+
+The timing fixture now supplies actual 20ms speech and silence frames for its 20ms duration thresholds. Its previous one-sample input did not satisfy the declared 1ms threshold. Final focused E2 plus worker/API compatibility command: 135 passed. Independent reviewer: no remaining concrete blocker in the reviewed owned-path delta; conformance plus disposal 47/47, regression batch 21/21, and VAD/ingress/pipeline/playback-state batch 26/26.
+
+## Pending API caller ownership decision (2026-09-26)
+
+The latest checker ruling supersedes the earlier proposal to edit frozen
+`packages/session-host/src/normalize.ts`. That file and its interfaces remain
+unchanged. E2 must retain its required default markdown registration.
+
+The real API publication path calls the normalizer before any E2-owned callback.
+The normalizer shallow-copies `voice` and pushes the installed default into the
+source draft's shared `textFilters`; storage correctly rejects the changed source
+as `draft_conflict`. The minimal local boundary repair is
+`normalizeAgentConfig(structuredClone(agent.config), ...)` in the I1-owned
+`apps/api/src/release-selections.ts`. A shared-touchpoint ruling for that single
+caller is pending. The proposed patch is outside the repository and the working
+API file is restored. I1 also inherits the general normalizer input-immutability
+gap for other callers.
+
+The new owned `packages/plugin-voice/tests/release-normalization.test.ts` executes
+`buildManagementApi` + `app.inject` against SQLite. It requires unchanged loaded
+and durable drafts, HTTP 201, and the native engine plus markdown selection. The
+current code fails because the source filter array changes. With only the proposed
+caller clone temporarily applied, the exact combined API command passes
+**71 passed / 10 skipped**. The API file was restored afterward.
+
+Current normal commands and complete evidence are in
+[`packages/plugin-voice/README.md`](../../packages/plugin-voice/README.md).
+Scoped lint and full format both exit 0; standalone duplication, full typecheck,
+and normal build exit 0. The default suite is **1,361 passed / 138 skipped /
+8 failed** (1,507 total): seven existing publication failures and the new
+immutability regression for the same defect. No aliases or suppressed tests are
+used. E2 remains **In progress**, not Built; its full green bar, including the
+Postgres serial run, remains required after the ownership decision.
+
+## Checker note (2026-09-27): API caller clone approved
+
+The checker approved the single `structuredClone(agent.config)` argument in
+`apps/api/src/release-selections.ts`, together with E2's existing real API/SQLite
+immutability regression. The unit specification requires registering the default
+markdown filter but does not own this API caller; that required edit is now a
+minimal shared touchpoint inherited by I1. `apps/**` is not on design §15.2's
+frozen list: the earlier stop was an ownership question, not a frozen-path one.
+No frozen normalizer or interface is changed.
+
+**BLOCKING I1 contract gap:** `normalizeAgentConfig` mutates its input. This clone
+protects one caller, but the source draft mutation and seven HTTP 409 publication
+failures remain reachable for future callers. I1 must fix and directly regress
+normalizer input immutability, rather than collecting caller clones. This is
+recorded as blocking on the board.
+
+The branch was rebased onto foundation `a63daec`, preserving the latest M1/D1
+migration allocation and paused heads. Full normal verification is being rerun;
+the failed baseline counts above describe the code before this approved repair.

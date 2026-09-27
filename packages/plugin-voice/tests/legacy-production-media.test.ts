@@ -2,19 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { AgentConfig, type SpeechReceipt } from '@winsendotai/ovo-contracts';
 import { compose, definePlugin } from '@winsendotai/ovo-runtime';
 import { ScriptBehavior } from '../../behaviors/src/script.ts';
-import { StreamingMediaSpeechOutput } from './media-output.ts';
-import type { StreamingStt, TranscriptRevision } from './provider-types.ts';
-import { BoundedSpeechScheduler } from './scheduler.ts';
-import { VoiceSessionEngine } from './session-engine.ts';
+import { StreamingMediaSpeechOutput } from '../src/media-output.ts';
+import type { StreamingStt, TranscriptRevision } from '../src/provider-types.ts';
+import { BoundedSpeechScheduler } from '../src/scheduler.ts';
+import { VoiceSessionEngine } from '../src/session-engine.ts';
 import {
   createStreamingMediaSpeechOutputPlugin,
   createVoiceSessionEnginePlugin,
   STREAMING_VOICE_PLUGIN_IDS,
   STREAMING_VOICE_SERVICE_KEYS,
-} from './production-plugins.ts';
-import { createSpeechSchedulerPlugin } from './plugins.ts';
-import { VOICE_PLUGIN_IDS } from './types.ts';
-import { FakeMedia, FakeStt, tts, until } from './production-media-fixtures.ts';
+} from '../src/production-plugins.ts';
+import { createSpeechSchedulerPlugin } from '../src/plugins.ts';
+import { VOICE_PLUGIN_IDS } from '../src/types.ts';
+import { FakeMedia, FakeStt, tts, until } from '../src/production-media-fixtures.ts';
 
 describe('production media speech and session semantics', () => {
   it('records sent and confirmed playback only after the carrier mark', async () => {

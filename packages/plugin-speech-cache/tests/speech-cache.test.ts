@@ -103,6 +103,39 @@ function deferred<T>() {
 }
 
 describe('CachedSpeechOutput', () => {
+  it('prefetches one approved miss and treats an existing hit as a no-op', async () => {
+    const cache = new BoundedByteCache();
+    const pending = deferred<Awaited<ReturnType<NormalizedTts['synthesize']>>>();
+    let calls = 0;
+    const tts: NormalizedTts = {
+      synthesize: () => {
+        calls++;
+        return pending.promise;
+      },
+    };
+    const player = new FixturePlayer();
+    const adapter = new CachedSpeechOutput(baseConfig, { cache, tts, player });
+    const first = segment('Please wait.');
+    const signal = new AbortController().signal;
+    await adapter.prepare(first, signal);
+    expect(calls).toBe(1);
+    const playing = adapter.play(first, { signal });
+    pending.resolve({
+      audio: Uint8Array.of(1, 2, 3),
+      usage: {
+        provider: 'simulated-tts',
+        requestId: 'prefetched-generation',
+        quantity: '12',
+        unit: 'characters',
+        state: 'reconciled',
+      },
+    });
+    await playing;
+    await adapter.prepare(segment('Please wait.'), signal);
+    expect(calls).toBe(1);
+    expect(player.played).toEqual([[1, 2, 3]]);
+  });
+
   it('plays real cached bytes through BoundedSpeechScheduler on every hit', async () => {
     const cache = new BoundedByteCache();
     const tts = new FixtureTts();

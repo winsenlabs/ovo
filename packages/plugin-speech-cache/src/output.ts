@@ -1,13 +1,9 @@
-import type { ByteCache } from '@winsendotai/ovo-plugin-cache';
-import type {
-  SpeechOutput,
-  SpeechOutputResult,
-  SpeechSegment,
-} from '@winsendotai/ovo-plugin-voice';
+import type { SpeechOutput, SpeechOutputResult, SpeechSegment } from '../../contracts/src/index.ts';
 import { createSpeechCacheKey } from './key.ts';
 import { ApprovedSpeechPolicy } from './policy.ts';
 import type {
   AudioPlayer,
+  ByteCache,
   NativeUsage,
   NormalizedTts,
   SpeechCacheOutputConfig,
@@ -23,11 +19,18 @@ interface SpeechCacheOutputDependencies {
   now?: () => number;
 }
 
+interface PreparedSpeech {
+  epoch: number;
+  audio: Promise<Uint8Array>;
+  abandon(reason?: unknown): void;
+}
+
 /** Session output adapter. Provider and media SDK ownership remains in their own plugins. */
 export class CachedSpeechOutput implements SpeechOutput {
   private readonly policy: ApprovedSpeechPolicy;
   private readonly emit: SpeechCacheTelemetrySink;
   private readonly now: () => number;
+  private readonly prepared = new Map<string, PreparedSpeech>();
 
   constructor(
     private readonly config: SpeechCacheOutputConfig,
@@ -43,6 +46,29 @@ export class CachedSpeechOutput implements SpeechOutput {
     this.now = dependencies.now ?? Date.now;
   }
 
+  async prepare(segment: SpeechSegment, signal: AbortSignal): Promise<void> {
+    signal.throwIfAborted();
+    if (!this.policy.permits(segment.text, segment.kind)) return;
+    const key = createSpeechCacheKey(this.config, segment.text);
+    if (this.dependencies.cache.get(key, this.config.workspaceId)) return;
+    if (this.prepared.has(segment.id)) return;
+    const controller = new AbortController();
+    const onAbort = () => entry.abandon(signal.reason);
+    const entry: PreparedSpeech = {
+      epoch: segment.epoch,
+      audio: this.cachedAudio(segment, controller.signal),
+      abandon: (reason = new DOMException('Speech preparation abandoned', 'AbortError')) => {
+        if (this.prepared.get(segment.id) === entry) this.prepared.delete(segment.id);
+        signal.removeEventListener('abort', onAbort);
+        controller.abort(reason);
+      },
+    };
+    this.prepared.set(segment.id, entry);
+    signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted) onAbort();
+    void entry.audio.catch((error) => entry.abandon(error));
+  }
+
   async play(
     segment: SpeechSegment,
     options: {
@@ -50,10 +76,16 @@ export class CachedSpeechOutput implements SpeechOutput {
       report?: (phase: 'sent' | 'acknowledged', evidence: 'estimated' | 'confirmed') => void;
     },
   ): Promise<SpeechOutputResult> {
-    options.signal.throwIfAborted();
-    const audio = this.policy.permits(segment.text, segment.kind)
-      ? await this.cachedAudio(segment, options.signal)
-      : await this.uncachedAudio(segment, options.signal);
+    const prepared = this.prepared.get(segment.id);
+    let audio: Uint8Array;
+    try {
+      options.signal.throwIfAborted();
+      audio = this.policy.permits(segment.text, segment.kind)
+        ? await (prepared?.audio ?? this.cachedAudio(segment, options.signal))
+        : await this.uncachedAudio(segment, options.signal);
+    } finally {
+      prepared?.abandon();
+    }
     options.signal.throwIfAborted();
     const result = await this.dependencies.player.play(
       {
@@ -78,6 +110,7 @@ export class CachedSpeechOutput implements SpeechOutput {
   }
 
   interrupt(epoch: number): Promise<void> {
+    for (const entry of this.prepared.values()) if (entry.epoch === epoch) entry.abandon();
     return this.dependencies.player.interrupt(epoch);
   }
 
