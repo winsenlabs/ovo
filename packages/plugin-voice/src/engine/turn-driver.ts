@@ -99,6 +99,7 @@ export class TurnDriver {
     const turn = new AbortController();
     this.activeTurn = turn;
     let epoch: number | undefined;
+    let iterator: AsyncIterator<string> | undefined;
     try {
       await this.interrupting;
       await this.deliverReceipts();
@@ -111,7 +112,7 @@ export class TurnDriver {
       this.latency.stage(turnId, 'turn_decision');
       const variables = { ...structuredClone(this.session.variables), ...extra };
       if (this.behavior.respondStream) {
-        const iterator = this.behavior.respondStream(input, variables)[Symbol.asyncIterator]();
+        iterator = this.behavior.respondStream(input, variables)[Symbol.asyncIterator]();
         let first = true;
         while (!turn.signal.aborted) {
           const next = await raceAbort(iterator.next(), turn.signal);
@@ -150,6 +151,9 @@ export class TurnDriver {
     } catch (error) {
       if (!turn.signal.aborted) throw error;
     } finally {
+      void Promise.resolve()
+        .then(() => iterator?.return?.())
+        .catch(() => undefined);
       if (epoch !== undefined) {
         this.latency.total(turnId);
         this.latency.clear(turnId);
