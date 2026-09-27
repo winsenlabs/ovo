@@ -1,7 +1,9 @@
 import { createHmac } from 'node:crypto';
+import * as vendor from '@winsendotai/ovo-plugin-carrier-twilio';
 import { describe, expect, it } from 'vitest';
 import {
   TwilioTelephonyControl,
+  twilioTelephonyPlugin,
   parseTwilioMediaMessage,
   twilioClear,
   twilioMark,
@@ -10,6 +12,15 @@ import {
 } from '../src/index.ts';
 
 describe('Twilio media protocol', () => {
+  it('uses the vendor carrier implementation for every legacy façade export', () => {
+    expect(TwilioTelephonyControl).toBe(vendor.TwilioTelephonyControl);
+    expect(twilioTelephonyPlugin).toBe(vendor.twilioTelephonyPlugin);
+    expect(parseTwilioMediaMessage).toBe(vendor.parseTwilioMediaMessage);
+    expect(twilioClear).toBe(vendor.twilioClear);
+    expect(twilioMark).toBe(vendor.twilioMark);
+    expect(validateTwilioSignature).toBe(vendor.validateTwilioSignature);
+  });
+
   it('parses the documented 8 kHz mu-law start and mark messages', () => {
     const start = parseTwilioMediaMessage(
       JSON.stringify({
@@ -65,7 +76,7 @@ describe('Twilio media protocol', () => {
     ).toThrow(/Unsupported Twilio media format/);
   });
 
-  it('uses the Twilio SDK signature validator against the exact public URL', () => {
+  it('validates the exact public URL through the legacy signature façade', () => {
     const token = 'fixture-token-not-a-secret';
     const externalUrl = 'https://voice.example.test/media?session=123';
     const signature = createHmac('sha1', token).update(externalUrl).digest('base64');

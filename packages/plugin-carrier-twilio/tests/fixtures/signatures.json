@@ -1,0 +1,17 @@
+{
+  "source": "https://www.twilio.com/docs/usage/security",
+  "retrieved": "2026-09-26",
+  "published": {
+    "url": "https://example.com/myapp.php?foo=1&bar=2",
+    "authToken": "12345",
+    "params": {
+      "Digits": "1234",
+      "To": "+18005551212",
+      "From": "+14158675310",
+      "Caller": "+14158675310",
+      "CallSid": "CA1234567890ABCDE"
+    },
+    "signature": "L/OH5YylLD5NRKLltdqwSvS0BnU="
+  },
+  "note": "WSS explicit-port signature handling is UNCONFIRMED in Twilio's published worked example."
+}
