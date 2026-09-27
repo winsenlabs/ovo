@@ -29,7 +29,7 @@ This board is the single source of truth for unit status. The specs in this fold
 | [E2](E2-native-engine.md)          | OVO native engine rebuild                                     | 3, 4, 9, 26              | **Built – awaiting check.** Merged at `007606f`; approved API caller clone and real API/SQLite immutability regression. Normal `pnpm check`, scoped lint/full format and duplication exit 0. Default 1,369 passed / 138 skipped; Postgres serial 1,498 passed / 9 skipped / 0 failed; Playwright 41 passed / 1 visibility-gated skip. Normalizer mutation remains BLOCKING I1.               |
 | [E3](E3-livekit-engine.md)         | LiveKit Agents JS engine plugin                               | 4                        | **In progress — paused by checker.** WIP committed at `e4e821d` on `w2/E3`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                                              |
 | [C1](C1-carrier-twilio.md)         | Twilio carrier plugin                                         | 1, 21, 26                | **In progress — paused by checker.** WIP committed at `382d690` on `w2/C1`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                                              |
-| [C2](C2-gateway-router.md)         | Carrier-neutral gateway router                                | 1, 2, 23, 26, 27         | **Built – awaiting check.** Unmerged `w2/C2` code `45c410a`, report `1b14bfb`, arithmetic clarification `cdd1f95`. Normal `pnpm check`, scoped lint/full format and duplication exit 0. Default 1,319 passed / 144 skipped; exact-code Postgres serial 1,455 passed / 8 database-gated skips / 0 failed; Playwright 41 passed / 1 visibility-gated skip.                                     |
+| [C2](C2-gateway-router.md)         | Carrier-neutral gateway router                                | 1, 2, 23, 26, 27         | **Built – awaiting check.** Unmerged `w2/C2` at `733907f`, rebased onto foundation `58fb2f2`; checked source `8bd0cf1` (implementation `33fe188`). Full `pnpm check`, scoped lint/full format and duplication exit 0. Default 1,527 passed / 153 skipped; Postgres serial 1,672 passed / 8 database-gated skips / 0 failed; Playwright 41/1; separate recording database 4/4.                |
 | [C3](C3-carrier-exotel.md)         | Exotel carrier plugin                                         | 21                       | **In progress — paused by checker.** WIP committed at `eaeb03f` on `w2/C3`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                                              |
 | [C4](C4-carrier-plivo.md)          | Plivo carrier plugin                                          | 21, 26                   | **In progress — paused by checker.** WIP committed at `45ef2df` on `w2/C4`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                                                                              |
 | [S1](S1-speech-split.md)           | Split out the Deepgram STT, OpenAI TTS and OpenAI LLM plugins | 21, 27                   | **Built – awaiting check.** Merged at `e2c7cc5`; independent review closed the request-ID metering blocker with six true negatives. Node 22 scoped lint, full format, standalone duplication and normal `pnpm check` all exit 0. Default 1,199 passed / 138 skipped; Postgres serial 1,328 passed / 9 skipped / 0 failed; Playwright 41 passed / 1 visibility-gated skip.                    |
@@ -118,6 +118,10 @@ The named owner must resolve these findings. Items marked **BLOCKING** prevent t
 | D1   | The checker authorized the required `carrierMedia.format: MULAW_8K` field and import in `apps/api/tests/real-llm-release.test.ts` on 2026-09-26. All assertions are unchanged; I1 inherits the corrected shared fixture.                                                                                                                                                                                                                                                                                      | I1                 |
 | D1   | **Discharged by D1:** checker-approved control migration 006 and both storage backends create private draft snapshots, calls and initial fingerprints atomically. Public/live readers exclude snapshots; published slots remain available; identical local admissions coalesce before capacity and cross-process admissions serialize in storage. New `apps/api/tests/fixture-admission{,-support}.ts` and local `FixtureAdmissionStore` are I1 touchpoints; frozen ControlStore was not changed.             | I1                 |
 | D1   | After E2 integration, standalone duplication exposed copied prefetch logic. D1 now uses owned fixed-capacity byte-ring storage with transition notifications and explicit shared-producer detach. I1 owns any future shared bounded-prefetch contract/consolidation; no kit or baseline was changed.                                                                                                                                                                                                          | I1                 |
+
+| C2 | HTTP carrier externalUrl retains the raw query for callback signatures; WSS retains its query-free signature URL. The upgrade adapter maps the serializer request identity to the real host verifier without adding a query pair. C3 inherits the loopback SessionBridge proof that empty termination frames still close the carrier socket. Preserve these cross-unit regressions during integration. | C1, C3, I1 |
+| C2 | The frozen fixture carrier signer/verifier append query to externalUrl, doubling it now that HTTP externalUrl is complete. Update both helpers and consumers together. The PG resume fixture proves lifecycle behavior; raw signature proof comes from exact router assertions and the real Twilio handler. | I1 |
+| C2 | Checker-approved `@types/ws` manifest/lock importer and three shared worker lifecycle harnesses now use the authenticated media runtime. A local typed WebSocket re-export uses the existing worker dependency. I1 inherits these shared paths and the actual-PG non-Twilio gateway regression; D1 must retain lifecycle, STT, telemetry, fencing and recording-disabled assertions. | I1, D1 |
 
 ## Changes requested
 
@@ -480,7 +484,28 @@ The exact-merge full check and serial Postgres run both exit 0:
 Its detailed acceptance, independent measurements, failure proofs and remaining
 contract gaps are in the D1 spec. The D1 worktree and test container were removed.
 
-C2's historical Built code is `45c410a`; it remains unmerged. Its worktree is
-being rebased onto this foundation and reverified before the current-foundation
-handoff. S1/E1 checker verdicts remain pending. All eight paused heads remain
-unchanged; I1 has not started and nothing has been pushed.
+C2 is **Built – awaiting check and unmerged** at `733907f` on `w2/C2`,
+rebased onto foundation `58fb2f2` after E2/D1. Its full report is committed in
+`PM/units/C2-gateway-router.md` on that branch. Source checkpoint `8bd0cf1`
+(implementation `33fe188`) passed the full normal check: 1,527 passed /
+153 skipped / 0 failed, plus 41 Playwright passed / 1 desktop-hidden Menu skip.
+Full Postgres serial: 1,672 passed / 8 skipped / 0 failed. **1,527 + 153 = 1,680**.
+Separately, **1,672 + 8 = 1,680**. All skips are database-gated; 145 activate with
+Postgres. The four separately gated recording cases also passed 4/4.
+
+Independent review of the resolved shared lifecycle/recording paths passed 25/25.
+Forcing the fixture to ignore the negotiated format fails both PCM16 assertions:
+`expected false to be true` and `promise resolved ... instead of rejecting`.
+The fixture was restored byte-for-byte and its lifecycle tests passed 3/3.
+The preceding C2 proofs remain in its spec; this rebase did not change production
+behavior beyond the previously reported C2 implementation.
+
+Frozen offline install, full `pnpm check`, scoped lint/full format **0 / 0**, and
+standalone duplication **0** all pass. No baseline or frozen contract changed.
+Both worktrees are retained for this handoff; the own test container was removed.
+S1/E1 checker verdicts remain pending. C2 is handed over now, without merging.
+All eight paused heads remain unchanged; I1 has not started and nothing was pushed.
+
+Queue: Wave 1 complete; six of 15 Wave 2 units merged (M2, U1, S1, E1, E2, D1).
+Of the nine unmerged units, C2 is Built and eight remain paused. I1 follows all
+15 landed units and a green W2 gate. This board-only update changes no code.
