@@ -317,9 +317,9 @@ were used.
 | Dedicated recording database command in Verify commands                                                    | **4 passed / 0 skipped / 0 failed**, EXIT 0                                                                                                  |
 | Playwright within `pnpm check`                                                                             | **41 passed / 1 skipped**; the skip is the desktop-hidden mobile menu                                                                        |
 
-Skip arithmetic: **1,319 + 144 = 1,455 + 8 = 1,463**. The extra 136 default
+Skip arithmetic: **1,319 + 144 = 1,463** and **1,455 + 8 = 1,463**. The extra 136 default
 skips are database-gated tests, not disabled tests. The scoped totals are likewise
-**99 + 18 = 113 + 4 = 117**; the four remaining scoped skips use the separate recording
+**99 + 18 = 117** and **113 + 4 = 117**; the four remaining scoped skips use the separate recording
 database variable and passed in the dedicated run. That dedicated run is additional
 evidence and is not added to the full-suite counts.
 
