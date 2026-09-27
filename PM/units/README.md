@@ -26,7 +26,7 @@ This board is the single source of truth for unit status. The specs in this fold
 | Unit                               | Title                                                         | Defects                  | Status                                                                                                                                                                                                                                                                                                                         |
 | ---------------------------------- | ------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [E1](E1-turns-vad.md)              | Turn detector and VAD plugins, Pipecat-style                  | 3, 18                    | **Verified `ac8661d`** (checker verdict received 2026-09-27). Structural mute/confirmation guards and seven behavioral true negatives confirmed. Independent bar: 1,270 passed / 138 skipped default; 1,399 passed / 9 skipped / 0 failed Postgres serial; lint seven gates, format, typecheck and build exit 0.               |
-| [E2](E2-native-engine.md)          | OVO native engine rebuild                                     | 3, 4, 9, 26              | **Changes requested (2026-09-27).** One blocker: manual respondStream iterator is never returned on early exit; optional Behavior.cancel cannot provide that guarantee. Fix and test real barge-in with no cancel method, rerun the full bar, then resubmit E2 and C2.                                                         |
+| [E2](E2-native-engine.md)          | OVO native engine rebuild                                     | 3, 4, 9, 26              | **Built – awaiting re-check at `a27a5e4`.** Iterator cleanup now covers optional-cancel behaviors and every turn exit. Eight pre-fix value failures; focused 15/15 independently reproduced. Full check 0: default 1,503/147, Postgres serial 1,641/9/0, Playwright 41/1. Scoped lint/full format 0/0; duplication 0.          |
 | [E3](E3-livekit-engine.md)         | LiveKit Agents JS engine plugin                               | 4                        | **In progress — paused by checker.** WIP committed at `e4e821d` on `w2/E3`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                |
 | [C1](C1-carrier-twilio.md)         | Twilio carrier plugin                                         | 1, 21, 26                | **In progress — paused by checker.** WIP committed at `382d690` on `w2/C1`; do not resume until Batch A is merged and verified.                                                                                                                                                                                                |
 | [C2](C2-gateway-router.md)         | Carrier-neutral gateway router                                | 1, 2, 23, 26, 27         | **Built – awaiting check, unmerged `w2/C2` at `733907f`.** Historical check on base `58fb2f2`: default 1,527/153; Postgres serial 1,672/8/0; Playwright 41/1; recording database 4/4. Waits behind E2/D1 and must refresh on the newer legacy-meter correction before its next handoff.                                        |
@@ -596,3 +596,26 @@ to 007. Foundation already owns fixture-snapshots 006; an unrenumbered merge
 throws `Control migration 6 checksum changed` against migrated databases. Keep
 M1's paused branch unchanged until unfreeze. Once E2's iterator repair lands,
 hand E2 back and submit refreshed C2. Batch A is otherwise done. No push.
+
+## E2 iterator repair resubmitted — 2026-09-27
+
+Code-only **`a27a5e4`** returns the optional behavior iterator in finally, with
+nonblocking cleanup and rejection/synchronous-throw handling. A no-cancel
+try/finally generator is exercised through real carrier DTMF barge-in, hangup,
+disposal and epoch change. Eight pre-fix failures all report
+`AssertionError: expected +0 to be 1`; the fixed focused suite and independent
+rerun both pass **15/15**. The absent-return positive case is reported separately.
+
+At that exact current-foundation code, `pnpm check` **EXIT 0**: default
+**1,503 passed / 147 skipped / 0 failed**, Playwright **41 passed / 1 skipped**,
+plus all lint, formatting, typecheck, build and audit steps. Full Postgres serial
+**1,641 passed / 9 skipped / 0 failed**, **EXIT 0**. **1,503 + 147 = 1,650**.
+Separately, **1,641 + 9 = 1,650**. 138 database-gated cases activate; the remaining
+nine comprise eight separately database-gated cases and one also ElasticMQ-gated
+worker lifecycle. Scoped lint/full format **0 / 0**; standalone duplication **0**.
+Exact commands, failure proofs, generator limitation and logs are in E2's spec.
+
+D1 remains Verified. C2 has rebased onto this repaired foundation with only board
+conflicts and is running its refreshed full bar before submission, still unmerged.
+The own test container is retained for C2's sequential run. All eight paused
+heads remain unchanged; no I1 work or push. Board updates remain separate from code.

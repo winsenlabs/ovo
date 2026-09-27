@@ -314,3 +314,83 @@ caller clones. The unprotected frozen legacy worker caller and the current
 **nine** API 409 clone-reversion failures are explicitly recorded on the board
 and in I1's spec. No fourth clone is authorized. Historical count tables retain
 their original measured totals; nine is the current checker reproduction.
+
+## Iterator cleanup repair — Built, awaiting re-check (2026-09-27)
+
+Code-only commit **`a27a5e4`** addresses the checker's remaining E2 blocker.
+The acquired iterator is held outside the try block and its optional return is
+requested from finally on every exit. A promise boundary catches both synchronous
+throws and rejected cleanup promises. Cleanup is not awaited, so an upstream
+pending next cannot block interruption, disposal or the following turn. No frozen
+contract, baseline, provider integration or normalizer caller was changed.
+
+The new `behavior-stream-release.test.ts` includes a contract-legal behavior
+with no cancel method and an async generator with try/finally. Its barge-in runs
+carrier DTMF through the production fallback turn controller and real native
+engine/scheduler. The test proves that the next turn starts before the pending
+provider resolves, then proves generator cleanup runs and stale text is never
+spoken. Hangup, disposal and epoch change have equivalent cleanup assertions.
+JavaScript async-generator return queues behind an already-pending next; the test
+explicitly releases that await after proving engine progress. This is a cleanup
+request guarantee, not a claim that JavaScript can preempt arbitrary provider code.
+
+### Value true negatives and independent review
+
+Before changing production code, at `d3bd8ad`, the new file ran with:
+
+```sh
+pnpm exec vitest run packages/plugin-voice/tests/behavior-stream-release.test.ts --reporter=dot
+```
+
+**8 failed / 1 passed, EXIT 1**. No resolution or missing-module failure:
+
+| Broken implementation                  | Regression cases                                                        | Observed failure                                                                   |
+| -------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Manual loop never calls return on exit | no-cancel generator: real barge-in, hangup, disposal, epoch change      | Each reports `AssertionError: expected +0 to be 1` for generator finally execution |
+| Same missing return                    | iterator done, next error, rejected return, synchronous throwing return | Each reports `AssertionError: expected +0 to be 1` for return invocation           |
+| Optional return is absent              | no-return counterpart                                                   | Positive case passes before and after; it is not counted as a true negative        |
+
+After repair, the exact focused command below passes **15/15, EXIT 0**. An
+independent reviewer reran it with the same result and checked real DTMF routing,
+absence of cancel, optional return method binding, rejected/synchronous cleanup,
+and the fact that teardown cannot satisfy the earlier finally assertion.
+
+```sh
+pnpm exec vitest run packages/plugin-voice/tests/behavior-stream-release.test.ts packages/plugin-voice/tests/stalled-stream-interrupt.test.ts packages/plugin-voice/tests/stream-receipt-failure.test.ts packages/plugin-voice/tests/disposal.test.ts --reporter=dot
+node scripts/typecheck-scope.mjs packages/plugin-voice
+```
+
+Scoped typecheck also exits **0**. Logs:
+`/tmp/ovo-e2-iterator-{red,green,typecheck}.log`.
+
+### Complete current-foundation bar
+
+All runs used Node 22 (`PATH=/opt/homebrew/opt/node@22/bin:$PATH`), normal
+resolution and source commit **`a27a5e4`**, which includes D1 and the legacy
+meter-binding correction. No paid/live/provider traffic or test disabling.
+
+| Command                                                                                                                                                                                                  | Result                                                                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `node scripts/lint.mjs --only packages/plugin-voice packages/plugin-speech-cache experiments/voice`, paired with `pnpm format:check`                                                                     | **SCOPED_LINT_EXIT=0 / FORMAT_EXIT=0**                                                                                      |
+| `node scripts/check-duplication.mjs`                                                                                                                                                                     | **EXIT 0**, no baseline edits                                                                                               |
+| `pnpm check`                                                                                                                                                                                             | **EXIT 0**: seven lint gates, full formatting/typecheck/tests, app bundles, console production build, audit and console E2E |
+| Default Vitest within check                                                                                                                                                                              | **1,503 passed / 147 skipped / 0 failed**                                                                                   |
+| Playwright within check                                                                                                                                                                                  | **41 passed / 1 skipped**, Menu hidden at desktop width                                                                     |
+| `OVO_TEST_POSTGRES_URL=postgresql://postgres:fixture@127.0.0.1:32905/postgres pnpm exec vitest run --no-file-parallelism --reporter=dot --reporter=json --outputFile=/tmp/ovo-e2-iterator-postgres.json` | **EXIT 0: 1,641 passed / 9 skipped / 0 failed**                                                                             |
+
+Separate sums: **1,503 + 147 = 1,650**. **1,641 + 9 = 1,650**.
+138 database-gated tests activate with Postgres. The nine remaining cases are
+one ledger test gated by LEDGER_TEST_DATABASE_URL, four recording tests gated by
+RECORDING_TEST_DATABASE_URL, three restore drills gated by
+OVO_BACKUP_DRILL_POSTGRES_URL, and one worker lifecycle also requiring ElasticMQ
+queue URL/endpoint. None is disabled. The Postgres JSON identifies each case.
+
+Logs: `/tmp/ovo-e2-iterator-{lint,format,duplication,check,postgres}.log` and
+`/tmp/ovo-e2-iterator-postgres.json`. The own loopback-only postgres:17.6 container
+is retained temporarily for the sequential C2 verification, then removed.
+
+E2 is resubmitted for check. D1 is Verified at `043b310`; the eight paused heads
+remain unchanged. B2 remains a hard I1 blocker: repair the normalizer and remove
+the three clones, including protection for the currently unprotected legacy
+worker caller. No fourth clone was added. I1 has not started; nothing was pushed.
+This report and the board update are committed separately from the code repair.
