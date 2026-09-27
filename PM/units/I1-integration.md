@@ -164,3 +164,32 @@ CONSTRAINTS:
 - Close the recorded nonblocking fixture coverage gaps:
   `fixtureCallsEnvironmentEnabled` must cover undefined, true, false and invalid
   strings; exercise `sttMode: 'static'` separately from playback-gated replay.
+
+## Incoming C2 checker carry-forwards (2026-09-27)
+
+- **HARD BLOCKING:** repair the frozen fixture HTTP signer and verifier together:
+  `conformance/src/drivers/fixture-carrier.ts` signFixtureRequest and
+  `fixture-carrier-routes.ts` verified both append reconstructed query to an
+  already query-bearing externalUrl. Update all consumers and reference docs
+  consistently, and prove a literal raw-wire signature matches without duplicated
+  or re-encoded query bytes. Their current self-consistent doubled payload is not
+  vendor signature fidelity. The checker's requirement to amend C2's design now
+  versus to move frozen helpers and docs simultaneously awaits clarification.
+- Guard inbound confirmCallback with the same validateBeforeAdmission identity
+  validation as admitInbound before adding its first production caller.
+- I1 integrates C1/C3/C4 negative-capability coverage: clearFlushesMarkers false
+  and unknown, playbackEvidence none and carrier-processed, queryOnMediaUrl true
+  (especially Exotel's sid/rt/t), and legacy callSid/streamSid aliases.
+- Cover 2+ inbound env bindings, explicit OVO_MEDIA_PRE_ACCEPT_MS, and deprecated
+  OVO_MEDIA_MAX_PENDING_FRAMES ×20 conversion. Raise the preAcceptBufferMs schema
+  minimum so a valid first frame cannot be refused by the 1 ms configuration.
+- Cover the six new recordings guard branches. Declare the contracts dependency
+  and use its public exports in plugin-recordings capture-types.ts, capture.ts,
+  wav.ts and live-service.ts; all four currently deep-import contracts internals,
+  and only capture-types.ts records the adapter.
+- Remove dead gatewayInfrastructureRows (and its false host-caller comment),
+  encodeWorkerMessage, sameIdentity and WorkerMediaRuntime.connect.
+- Migrate the remaining media-runtime.test.ts direct fixture to the authenticated
+  socket and remove open()'s production non-WorkerMediaLink test-only branch.
+  C2's previous assertion that no production compatibility bypass existed was
+  inaccurate; its report now acknowledges the seam explicitly.
