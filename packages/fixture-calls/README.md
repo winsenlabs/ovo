@@ -214,3 +214,32 @@ carriers still require their own integrated fixture encoders. See the current
 for exact commands, independent measures, every mutation failure, migration
 allocation and I1 carry-forwards. Final full-repository checks and Built status
 remain the root builder's next step.
+
+## Optional illustrative demo prices
+
+Preview without requests:
+
+```sh
+node scripts/seed-demo-price-cards.mjs
+```
+
+To write to an explicitly chosen local demo API, first set its admin token in
+`OVO_ADMIN_TOKEN`, then run manually:
+
+```sh
+node scripts/seed-demo-price-cards.mjs --apply --api-url http://127.0.0.1:4000
+```
+
+The API must have its cost ledger configured. Every card's version and persisted
+provenance say **ILLUSTRATIVE — NOT A QUOTE**. All values are invented (100 paise
+per 1000 native units), not vendor pricing. The script writes only demo price
+cards, never release selections or budgets. To use one for fixture estimates,
+select its printed id/version in the release's `costPolicy.priceCards` for the
+matching meter key; otherwise the meter remains explicitly unpriced. A repeat
+is idempotent, while a conflicting existing immutable version fails rather than
+being overwritten. Partial writes can remain if the API refuses a later card.
+
+This is an approved new-script ownership exception inherited by I1. No existing
+script, lint/check/CI step or automatic setup invokes it. The permanent test only
+checks pure preview data; the actual CLI/API/Postgres proof is a separately run
+manual probe documented in the D1 unit report.

@@ -43,7 +43,9 @@ Defects fixed: [20, 19]
 
 - Both `packages/plugin-storage/src/{postgres,sqlite}/{calls,releases}-repository.ts`, their migration runners, the new Postgres `migrations/006-fixture-snapshots.ts`, and storage tests: explicitly authorized for private draft snapshots and atomic fixture call/fingerprint admission on 2026-09-27.
 - `apps/api/tests/fixture-admission.test.ts` and `fixture-admission-support.ts`: the authorized durable admission regressions split to respect module limits; I1 inherits these shared test paths.
-- Earlier authorized shared paths remain described in the dated checker notes below.
+- `apps/api/tests/test-call-inspection-runtime.test.ts`: the earlier approved API test split; `apps/api/tests/real-llm-release.test.ts`: required `MULAW_8K` fixture field/import only, with all assertions preserved. I1 inherits these tests.
+- `apps/api/src/release-simulation.ts`: the F4 owner-map ruling assigns the selected voice-LLM simulation path to D1; I1 inherits it.
+- New `scripts/seed-demo-price-cards.mjs` only: explicitly approved on 2026-09-27 to satisfy design §18.10. No existing script, lint/check/CI wiring or dependency changes are authorized by this exception; I1 inherits the manual seed entry.
 
 ## Checker notes (2026-09-26)
 
@@ -433,3 +435,65 @@ Final checkpoint hygiene: scoped lint **exit 0** (seven gates), scoped typecheck
 baseline pairs), and `git diff --check` **exit 0**. Independent ring/cache review
 reproduced **21/21** and additionally verified terminal-error drain and wakeup.
 No baseline changed. Logs: `/tmp/ovo-d1-admission-final-{postgres,lint,type,format,duplication}.log`.
+
+## Checker note — 2026-09-27: manual illustrative price-card seed
+
+Design §18.10 explicitly requires `scripts/seed-demo-price-cards.mjs`, while the
+unit ownership list omitted it and scripts are otherwise frozen. The checker
+approved this **new file only**. It has no dependencies beyond Node's URL helper,
+is not referenced by any existing script or CI/gate, and never runs automatically.
+The permanent owned `packages/fixture-calls/tests/demo-price-cards.test.ts` only
+imports its pure preview builder, verifies import has no side effects and checks
+native-unit arithmetic. That test never invokes the CLI or creates price cards.
+I1 inherits this approved script exception and the requirement to keep seeding
+manual and the persisted labels intact.
+
+The default invocation prints a preview and makes zero requests. Mutation requires
+both `--apply` and an explicit literal-loopback API origin plus `OVO_ADMIN_TOKEN`.
+The CLI POSTs the real strict cost API schema with string money, deterministic
+identities/effective timestamps, and **ILLUSTRATIVE — NOT A QUOTE** in both version
+and persisted provenance. It invents 100 paise per 1000 native units solely for
+demo arithmetic. It changes no release pins, budgets or vendor settings. Existing
+meter references remain unpriced until an operator explicitly selects a card.
+Redirects are refused, HTTP error bodies and credentials are not printed, and
+immutable-catalog conflicts stop the script without overwriting existing cards.
+If a later write fails, prior cards may remain; deterministic identities make a
+repeat of the same seed idempotent through the ledger.
+
+Manual proof (not installed as a test/gate) runs the actual CLI against real
+`registerCostRoutes` plus `PostgresCostLedger`, listening only on loopback and
+using an isolated disposable-Postgres schema. Exact commands:
+
+```sh
+PATH=/opt/homebrew/opt/node@22/bin:$PATH pnpm exec vitest run packages/fixture-calls/tests/demo-price-cards.test.ts --reporter=dot
+PATH=/opt/homebrew/opt/node@22/bin:$PATH OVO_TEST_POSTGRES_URL=postgresql://postgres:fixture@127.0.0.1:32902/postgres node --import ./scripts/register-sql.mjs --import tsx /tmp/ovo-d1-demo-seed-proof.ts
+```
+
+The pure-data test passes **1/1**, exit 0. The completed manual probe exits 0:
+preview/missing opt-in/missing credentials each create zero requests; eight
+labelled cards persist; repeating the CLI still leaves eight cards with 16 audited
+puts. No redirect is followed and no token is logged. A conflicting existing
+card returns HTTP 409 and retains its 999-paise value. The probe drops only its
+own schema. Initial probe setup attempts failed on a missing SQL loader and a
+foreign-key-protected TRUNCATE; neither is counted as passing evidence. The
+completed probe uses the repository SQL loader and deletes only its isolated
+empty-use catalog before the conflict case.
+
+| Seed mutation                                    | Actual failure                                                                 |
+| ------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Bypass the opt-in preview branch                 | Manual probe observes 8 API requests instead of 0.                             |
+| Replace the illustrative label with `Demo price` | Data test: `expected 'Demo price v1' to contain 'ILLUSTRATIVE — NOT A QUOTE'`. |
+| Follow redirects                                 | Manual probe records 1 redirect destination request instead of 0.              |
+
+All mutations were restored. Logs are
+`/tmp/ovo-d1-demo-seed-data-green.log`, `/tmp/ovo-d1-demo-seed-proof-green.log`,
+and `/tmp/ovo-d1-demo-seed-{opt-in,label,redirect}-red.log`. No real vendor or
+paid request was made, and the manual seed is never invoked by lint, check or CI.
+
+Independent seed review reproduced the pure-data **1/1** and real CLI/API/ledger
+manual probe, both exit 0, with no remaining finding. Final seed scoped lint
+(`pnpm lint:scope scripts/seed-demo-price-cards.mjs packages/fixture-calls`),
+scoped typecheck (`pnpm typecheck:scope packages/fixture-calls`), full
+`pnpm format:check`, standalone duplication and `git diff --check` all exit 0.
+Only the new script, owned data-only test and documentation changed in this
+follow-up; all previously reviewed source remains untouched.
