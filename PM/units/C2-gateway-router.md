@@ -615,3 +615,60 @@ the actual foundation merge commit, not substituted from the pre-merge results.
 C2's worktree will be removed after merge. Batch B begins with C1 after the handoff;
 C3 remains held pending confirmed Exotel 16 kHz information. Keep no more than two
 worktrees total. M1 remains paused and must renumber 006 to 007 first when resumed.
+
+## Merged and verified — Batch A handoff (2026-09-27)
+
+C2 is merged on foundation at **`e41c079`**, after the checker's explicit approval.
+The full normal gate and all measurements below ran on that exact merge commit
+with a clean working tree, before this separate PM report. Rebase was clean and
+produced the identical pre-rebase tree; no source conflict or control migration
+change was introduced. The normative design correction and shipped-fixture warning
+are in `c3e691e`; the frozen helper correction remains HARD BLOCKING I1.
+
+With Node 22 (`export PATH=/opt/homebrew/opt/node@22/bin:$PATH`):
+
+| Command                                                                                                                                                                                                     | Exit and measurement on e41c079                                                                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm install --frozen-lockfile --offline`                                                                                                                                                                  | **EXIT 0**, lockfile unchanged                                                                                                       |
+| `pnpm check`                                                                                                                                                                                                | **EXIT 0**: seven lint gates, formatting, typecheck, default tests, all app bundles, console production build, audit and console E2E |
+| Default Vitest within check                                                                                                                                                                                 | **1,556 passed / 153 skipped / 0 failed**                                                                                            |
+| Playwright within check                                                                                                                                                                                     | **41 passed / 1 skipped**, desktop Menu hidden                                                                                       |
+| Exact scoped lint command under Verify commands, paired with `pnpm format:check`                                                                                                                            | **SCOPED_LINT_EXIT=0 / FORMAT_EXIT=0**                                                                                               |
+| `node scripts/check-duplication.mjs`                                                                                                                                                                        | **DUPLICATION_EXIT=0**, baselines unchanged                                                                                          |
+| `OVO_TEST_POSTGRES_URL=postgresql://postgres:fixture@127.0.0.1:32907/postgres pnpm exec vitest run --no-file-parallelism --reporter=dot --reporter=json --outputFile=/tmp/ovo-c2-merge-postgres.json`       | **POSTGRES_SERIAL_EXIT=0: 1,701 passed / 8 skipped / 0 failed**                                                                      |
+| `RECORDING_TEST_DATABASE_URL=postgresql://postgres:fixture@127.0.0.1:32907/postgres pnpm exec vitest run packages/plugin-recordings/tests/postgres-recordings.test.ts --no-file-parallelism --reporter=dot` | **RECORDING_EXIT=0: 4 passed / 0 skipped / 0 failed**                                                                                |
+
+Literal exit summaries returned by the commands:
+
+```text
+FROZEN_OFFLINE_INSTALL_EXIT=0
+FULL_CHECK_EXIT=0
+SCOPED_LINT_EXIT=0 FORMAT_EXIT=0 DUPLICATION_EXIT=0
+POSTGRES_SERIAL_EXIT=0
+RECORDING_EXIT=0
+```
+
+Separate sums: **1,556 + 153 = 1,709**. **1,701 + 8 = 1,709**.
+145 database-gated tests activate with Postgres, not disabled tests. The remaining
+eight are one ledger case using LEDGER_TEST_DATABASE_URL, four recording cases
+using RECORDING_TEST_DATABASE_URL, and three restore drills using
+OVO_BACKUP_DRILL_POSTGRES_URL. The separate recording 4/4 is not added to either
+full-suite total. The new regression cases and all six mutation proofs remain
+recorded above and were independently accepted by the checker; no new independent
+review is claimed for this merge-only gate run.
+
+Logs: `/tmp/ovo-c2-merge-{install,check,scoped-lint,format,duplication,postgres,recording}.log`
+and `/tmp/ovo-c2-merge-postgres.json`. The merged C2 worktree was removed immediately
+after merge. The own loopback-only postgres:17.6 container `ovo-c2-merge-0927` was
+stopped and removed after the serial and recording runs. Only foundation remains;
+its code is unchanged since e41c079. This final report and the board closure are
+committed separately from code.
+
+**Batch A is closed per the checker. C1 (Twilio) is next in Batch B.** Recreate its
+worktree from preserved w2/C1 head 382d690 and rebase onto current foundation when
+starting; keep at most two worktrees total. C3 remains held pending confirmed
+Exotel 16 kHz wire-format information. C4 and S2 follow in Batch B; the other
+paused units remain held. All eight saved heads are unchanged. M1's FIRST action
+on resumption remains renumbering control 006 to 007. I1 has not started and no
+push occurred. No production carrier ingress is supplied by this host merge;
+C1 is the next step toward replacing the fixture-only demo ingress.
