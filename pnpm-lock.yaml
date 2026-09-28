@@ -949,6 +949,9 @@ importers:
 
   packages/plugin-telephony-twilio:
     dependencies:
+      '@winsendotai/ovo-plugin-carrier-twilio':
+        specifier: workspace:*
+        version: link:../plugin-carrier-twilio
       '@winsendotai/ovo-plugin-orchestration':
         specifier: workspace:*
         version: link:../plugin-orchestration

@@ -5,6 +5,7 @@
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
+    "@winsendotai/ovo-plugin-carrier-twilio": "workspace:*",
     "@winsendotai/ovo-plugin-orchestration": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*",
     "twilio": "5.10.4"
