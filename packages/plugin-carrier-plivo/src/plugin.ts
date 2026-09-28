@@ -5,11 +5,13 @@ import {
   PCM16_16K,
   type CarrierCapabilities,
   type CarrierIngress,
+  type CarrierMediaEvent,
 } from '@winsendotai/ovo-contracts';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 import { plivoControl } from './control.ts';
 import { plivoRoutes } from './routes.ts';
 import { plivoSerializer } from './serializer.ts';
+import { createPlivoFixtureFrameEncoder } from './testing.ts';
 
 export const plivoCapabilities = {
   carrierId: 'plivo',
@@ -38,10 +40,13 @@ export const plivoCapabilities = {
   pacing: { cps: 2 },
 } as const satisfies CarrierCapabilities;
 
-export const plivoIngress: CarrierIngress = {
+export const plivoIngress: CarrierIngress & {
+  createFixtureFrameEncoder(): (event: CarrierMediaEvent) => string;
+} = {
   carrierId: 'plivo',
   capabilities: plivoCapabilities,
   serializer: plivoSerializer,
+  createFixtureFrameEncoder: createPlivoFixtureFrameEncoder,
   routes: plivoRoutes(),
   operatorUrls: [
     {

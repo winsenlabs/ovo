@@ -13,15 +13,14 @@ import { decodeExtraHeaders } from './extra-headers.ts';
 import { header, verifyV3 } from './signature.ts';
 
 function record(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw new CarrierProtocolError('Plivo frame must be an object');
-  return value as Record<string, unknown>;
+  if (typeof value === 'object' && value !== null && !Array.isArray(value))
+    return value as Record<string, unknown>;
+  throw new CarrierProtocolError('Plivo frame must be an object');
 }
 
 function string(value: unknown, name: string): string {
-  if (typeof value !== 'string' || !value)
-    throw new CarrierProtocolError(`Plivo ${name} is missing`);
-  return value;
+  if (typeof value === 'string' && value.length > 0) return value;
+  throw new CarrierProtocolError(`Plivo ${name} is missing`);
 }
 
 function formatOf(value: Record<string, unknown>): AudioFormat {
@@ -43,9 +42,10 @@ function formatOf(value: Record<string, unknown>): AudioFormat {
 
 function audioBytes(value: unknown): Uint8Array {
   const encoded = string(value, 'media.payload');
-  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded))
+  const decoded = Buffer.from(encoded, 'base64');
+  if (decoded.toString('base64') !== encoded)
     throw new CarrierProtocolError('Plivo media payload is not canonical base64');
-  return Buffer.from(encoded, 'base64');
+  return new Uint8Array(decoded);
 }
 
 function codec(params: Record<string, string>): MediaCodecSession {

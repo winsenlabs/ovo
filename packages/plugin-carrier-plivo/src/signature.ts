@@ -20,6 +20,47 @@ export function formParams(body: Uint8Array): Record<string, string> {
   return result;
 }
 
+// The official PHP V3 validator calls SORT_NATURAL for query keys, repeated
+// values and POST field names. Match its case-sensitive ASCII digit runs;
+// localeCompare and ordinary lexical sort disagree for key2/key10.
+function naturalOrder(a: string, b: string): number {
+  const digit = (value: string, at: number) =>
+    at < value.length && value[at]! >= '0' && value[at]! <= '9';
+  let left = 0;
+  let right = 0;
+  while (a[left] === '0' && digit(a, left + 1)) left++;
+  while (b[right] === '0' && digit(b, right + 1)) right++;
+  while (left < a.length && right < b.length) {
+    while (/\s/.test(a[left] ?? '') && left < a.length) left++;
+    while (/\s/.test(b[right] ?? '') && right < b.length) right++;
+    if (digit(a, left) && digit(b, right)) {
+      let leftEnd = left;
+      let rightEnd = right;
+      while (digit(a, leftEnd)) leftEnd++;
+      while (digit(b, rightEnd)) rightEnd++;
+      const l = a.slice(left, leftEnd);
+      const r = b.slice(right, rightEnd);
+      if (l[0] === '0' || r[0] === '0') {
+        for (let n = 0; n < Math.min(l.length, r.length); n++)
+          if (l[n] !== r[n]) return l.charCodeAt(n) < r.charCodeAt(n) ? -1 : 1;
+      } else if (l.length === r.length) {
+        for (let n = 0; n < l.length; n++)
+          if (l[n] !== r[n]) return l.charCodeAt(n) < r.charCodeAt(n) ? -1 : 1;
+      }
+      if (l.length !== r.length) return l.length < r.length ? -1 : 1;
+      left = leftEnd;
+      right = rightEnd;
+      continue;
+    }
+    if (left >= a.length || right >= b.length) break;
+    const difference = a.charCodeAt(left) - b.charCodeAt(right);
+    if (difference) return difference < 0 ? -1 : 1;
+    left++;
+    right++;
+  }
+  return left === a.length && right === b.length ? 0 : left === a.length ? -1 : 1;
+}
+
 /** Mirrors Plivo's documented SDK construction without normalizing percent escapes or ports. */
 export function signatureInput(
   url: string,
@@ -41,8 +82,8 @@ export function signatureInput(
     for (const [key, value] of Object.entries(params))
       query.set(key, [...(query.get(key) ?? []), value]);
   const queryString = [...query.entries()]
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .flatMap(([key, values]) => values.sort().map((value) => `${key}=${value}`))
+    .sort(([a], [b]) => naturalOrder(a, b))
+    .flatMap(([key, values]) => values.sort(naturalOrder).map((value) => `${key}=${value}`))
     .join('&');
   let constructed = match[1]!;
   if (queryString || (method === 'POST' && Object.keys(params).length))
@@ -50,7 +91,7 @@ export function signatureInput(
   if (method === 'POST' && queryString && Object.keys(params).length) constructed += '.';
   if (method === 'POST')
     constructed += Object.entries(params)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .sort(([a], [b]) => naturalOrder(a, b))
       .map(([key, value]) => key + value)
       .join('');
   return `${constructed}.${nonce}`;
