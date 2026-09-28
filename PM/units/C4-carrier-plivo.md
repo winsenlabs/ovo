@@ -13,6 +13,25 @@ Defects fixed: [21, 26]
 
 - none
 
+## Checker note (2026-09-28)
+
+The checker started C4 after C1 merge `0567c56`. C2's board carry-forward
+requires `queryOnMediaUrl: true` to be exercised here even though this unit's
+Plivo capability is `false` because Plivo uses extraHeaders. C4 must use a
+C4-owned synthetic alternate carrier/capability case to drive C2's existing
+carrier-neutral branch, keep the real Plivo declaration unchanged, and report
+that distinction. Native Plivo covers `clearFlushesMarkers: 'unknown'` and
+`playbackEvidence: 'carrier-played'`. I1 owns generic synthetic `false`/`none`
+and protocol v1 `callSid`/`streamSid` aliases; C3 owns actual Exotel
+`queryOnMediaUrl: true` and `carrier-processed` when the founder releases it.
+
+For Plivo signature validation, inspect any available official reference signer
+or validator for **every** URL, port, query, method and body decision, not only
+the first vector. The spec says the SDK is absent from the store and forbids
+installation; an official source/reference can be read without adding a
+production dependency or making a vendor request in tests. All tests use
+synthetic credentials, FixtureNet and loopback only.
+
 ## Specification
 
 GOAL: add Plivo as a first-class carrier with no edits to shared code. Read docs/architecture/plugin-platform.md (revision 2): section 2.8, section 4.10 and section 8.3 (normative).
