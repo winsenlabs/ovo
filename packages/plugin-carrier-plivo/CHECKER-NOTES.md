@@ -1,5 +1,28 @@
 # C4 checker notes — 2026-09-26
 
+## Rebased implementation checkpoint — 2026-09-28
+
+C1 and C2 are now on the foundation under C4. The old Twilio-only gateway
+default failure below is historical: the baseline C4 default suite passes.
+The C2 raw-query adapter also landed, so V3 verification receives the
+externally requested HTTPS URL including query and port.
+
+The [Plivo PHP V3 reference](https://github.com/plivo/plivo-php/blob/master/src/Plivo/Util/v3SignatureValidation.php)
+sorts query keys, repeated values and POST fields with `SORT_NATURAL`.
+Lexical sorting in the restored WIP failed three independent numeric-key
+HMAC checks, including the production HTTP verifier. The repaired signer
+passes GET, POST, repeated-query, port and case-sensitive field vectors;
+path, body, method, token and missing-header negatives fail closed. Removing
+the WSS query guard accepts a valid no-query signature on `?edge=outside`;
+the regression now rejects it. No Plivo SDK was installed or contacted.
+
+The selected ingress now supplies a per-call Plivo frame encoder for D1
+fixture replay. The production distribution test round-trips its frames
+through the real Plivo serializer. A separate C4-owned synthetic alternate
+carrier drives C2's `queryOnMediaUrl: true` branch through the production
+gateway adapter; native Plivo stays `false`. The checker decision on the
+documented reconciliation and transfer conflicts below is still pending.
+
 - **Reconciliation:** C4's spec calls `GET /Call/{request_uuid}/?status=queued` and `reconcile: 'by-request-id'`. [Plivo's Calls API](https://www.plivo.com/docs/voice/api/calls) documents `GET /Call/?status=queued` as a list of call UUIDs, `GET /Call/{call_uuid}/?status=live` for a live call, and `GET /Call/{call_uuid}/` for a CDR. It documents no request UUID lookup. C4 therefore advertises `by-call-id`, returns pending without a callback-provided CallUUID, and performs live then CDR lookup by CallUUID. CDR outcome uses `hangup_cause_name`; `call_state` is explicitly legacy. The checker must decide whether this documented fail-closed behavior replaces the spec or requires a shared request-ID correlation mechanism. The latter belongs to C2 if approved.
 - **Handoff:** C4 requires phone, resume, and end; [Plivo transfer](https://www.plivo.com/docs/voice/api/calls) requires a URL that serves transfer XML as `aleg_url`, while `TelephonyControl.handoff` supplies only the target and request id. C4 advertises and implements end; phone and resume reject without a network call. A host-owned transfer URL seam would need a separate shared-contract decision, owned by F1/C2. Never construct a callback secret or transfer XML URL in this plugin.
 - **Webhook V3:** The design describes URL + nonce, while [Plivo's official PHP SDK](https://github.com/plivo/plivo-php/blob/master/src/Plivo/Util/v3SignatureValidation.php) signs the SDK-constructed URL, a dot, and nonce. It also has POST query and body canonicalization. Independent golden fixtures follow the SDK. The host must pass the exact external URL, including query and port; a reconstructed URL fails closed. C2 now preserves the raw HTTP query in its owned gateway adapter; that fix must land before C4 integration. WSS still uses its separate no-query signature URL.

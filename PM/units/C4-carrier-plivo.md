@@ -32,6 +32,40 @@ installation; an official source/reference can be read without adding a
 production dependency or making a vendor request in tests. All tests use
 synthetic credentials, FixtureNet and loopback only.
 
+## Checker note (2026-09-28): documented API and signing conflicts
+
+The spec asks for `reconcile: 'by-request-id'` through
+`GET /Call/{request_uuid}/?status=queued`. [Plivo's Calls API](https://www.plivo.com/docs/voice/api/calls)
+documents a queued-call **list** at `GET /Call/?status=queued`, live and
+completed lookups by **CallUUID**, and `DELETE /Request/{request_uuid}/` for
+cancellation. It does not document a request-UUID call lookup. The current
+implementation reports `pending` without a callback-provided CallUUID and
+advertises `by-call-id`; it never substitutes a guessed endpoint or maps a
+different call. This is a deliberate spec divergence pending checker approval.
+
+The same Calls API requires a host-served XML `aleg_url` for phone/resume
+transfer. Frozen `TelephonyControl.handoff` supplies a target and request ID
+but no URL, and C4 has no authorized host transfer URL seam. The current
+implementation advertises `['end']`; phone and resume reject before NetPort.
+This conservative declaration follows design §8's instruction to use
+conservative capabilities when vendor behavior is unconfirmed. F1/C2 and I1
+inherit the host/contract decision if full handoff remains required; the
+checker decision is pending.
+
+The [official PHP V3 validator](https://github.com/plivo/plivo-php/blob/master/src/Plivo/Util/v3SignatureValidation.php)
+constructs the URL with `SORT_NATURAL` for query keys, repeated values and
+POST fields, then signs the URL, a dot and nonce. The previous C4 lexical sort
+rejected valid numeric-key signatures. Independent Node HMAC vectors now
+exercise GET/POST, explicit port, query/repeated values, case-sensitive POST
+fields, nonce, path, method and body negatives. The SDK was inspected as
+source and was neither installed nor contacted. WSS signatures remain
+vendor-unconfirmed; both WSS and HTTPS candidate forms are tested locally.
+
+C4 also supplies a per-call Plivo frame encoder on its production ingress for
+D1 fixture replay. A C4-owned synthetic alternate ingress drives C2's
+`queryOnMediaUrl: true` branch through the production gateway host adapter;
+Plivo itself remains `false`. No network request is made by this test.
+
 ## Specification
 
 GOAL: add Plivo as a first-class carrier with no edits to shared code. Read docs/architecture/plugin-platform.md (revision 2): section 2.8, section 4.10 and section 8.3 (normative).
