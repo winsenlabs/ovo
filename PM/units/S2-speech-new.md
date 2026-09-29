@@ -107,8 +107,26 @@ CONSTRAINTS:
 - The spec says `ctx.secret('/credentialRef')`, but the F3 row stores the reference at the root as `{ binding, credentialRef: { credentialId } }`. The frozen runtime's `ctx.secret(pointer)` requires the value **at** the pointer to contain `credentialRef`. S2 therefore calls `ctx.secret('')` in all three owned plugins. Real `compose` tests first failed with `config /credentialRef holds no {credentialRef}` and now resolve the root reference for each plugin.
 - Sarvam's current realtime endpoint uses `or-IN` for Odia and `linear16` for PCM; `od-IN` belongs to its legacy endpoint. Its WebSocket TTS config uses `language_code` and `speech_sample_rate`, while the REST fallback requires `text`, `language_code`, and `speech_sample_rate`. The owned wire fixtures and URL checks follow the current [realtime STT](https://docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/realtime-streaming), [WebSocket TTS](https://docs.sarvam.ai/api/api-guides-tutorials/text-to-speech/streaming-api/web-socket), and [REST TTS](https://docs.sarvam.ai/api-reference/text-to-speech/convert) references.
 - AssemblyAI's default English model, six-language multilingual model, and 19-language 3.5 Pro model have different language sets. Instance capabilities and direct `start` now enforce that. Host compatibility still reads only static manifest capabilities and compares the full release tag exactly; its static English intersection therefore includes `en-IN`, the `AgentConfig` default, as well as `en`. A test drives the real live compatibility rule and reproduces `language_unsupported` if `en-IN` is removed. Other 3.5 Pro languages await a binding-aware rule. Sarvam fixed-language bindings similarly reject a conflicting release language at `start`.
-- The existing FixtureNet script language can release all STT turns after the first audio frame. The two owned templates now fail loudly on a second `say` turn; they cannot yet claim multi-turn replay. A narrow shared audio-gated fixture step has been requested. The 20 ms / close 3007 claim also conflicts with AssemblyAI's current documentation, which describes 3007 as excess buffered audio or rate; that wording awaits checker direction.
+- The original `FixtureNet` script language can release all STT turns after the first audio frame, but D1's existing `planSttReplay`/`createSttReplayNet` wrapper tags appended server messages per caller turn and gates delivery on `release(turn)`. The 2026-09-29 continuation removed the owned templates' one-turn refusal and proved two full turns for AssemblyAI and Sarvam through that production replay wrapper; no shared fixture step is needed. [AssemblyAI's current error table](https://www.assemblyai.com/docs/streaming/common-session-errors-and-closures) lists **both** out-of-range 50–1000 ms input chunks and faster-than-real-time transmission under close code 3007. The existing 20 ms aggregation and typed 3007 close tests cover those distinct behaviors without claiming that a 20 ms provider frame was sent.
 - A formatted duplicate after `end_of_turn` can contaminate the frozen `sttAsLegacy` bridge's next turn because it clears finals at the first end-of-turn. S2 always requests `format_turns=false`, so this variant is outside its configured production path. A narrow bridge correction has been requested; until then, the direct v2 test covers parsing but does not claim legacy-bridge correctness for the `format_turns=true` variant.
+
+## Checker note — 2026-09-29: REST output envelope and shared ownership
+
+[Sarvam's REST TTS response](https://docs.sarvam.ai/api-reference/text-to-speech/convert)
+documents base64 WAV audio. The rebased WIP forwarded decoded response bytes
+as native μ-law or PCM16, which would pass a RIFF header into playback. S2 now
+extracts WAV data only when its codec, mono channel count and sample rate match
+the requested native format; raw native responses remain accepted. The test
+drives the public `synthesize()` fallback through FixtureNet and fails against
+the previous path with 1,018 bytes instead of 960. Wrong-rate and wrong-codec
+WAV cases fail closed. No real provider request was made.
+
+The `sttAsLegacy` formatted-duplicate behavior remains an I1 contract gap:
+S2's production URL always sends `format_turns=false`, while the direct v2
+parser supports a revision for the same `turn_order`. I1 owns the frozen kit
+bridge if formatted turns become a selectable mode. The C4 two-real-carrier
+integration test also remains with I1; S2's owned paths are speech plugins and
+do not include the carrier gateway test files.
 
 ## Acceptance
 
