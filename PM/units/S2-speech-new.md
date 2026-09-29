@@ -142,20 +142,30 @@ the pre-fix implementation makes it fail with `expected 'shubh' to be
 'anushka'`, not a module-resolution error. The static manifest still says
 2,500; I1's binding-aware host capability work must include this v2 limit.
 
+## Checker note — 2026-09-29: nonfatal Sarvam errors
+
+The [Sarvam realtime guide](https://docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/realtime-streaming)
+shows a receiver returning only when `error.is_fatal` is true. The first S2
+parser ended the session for both values. It now continues for explicit
+`false` and fails closed for `true` or an absent flag. A FixtureNet test sends
+the nonfatal error, then caller audio and a final transcript, and verifies one
+reconciled usage meter. Replacing the parser with the earlier version makes
+that test fail with `Sarvam STT session is no longer writable`. The fatal and
+absent cases each verify a typed failure and one estimated meter.
+
 ## Built handoff — 2026-09-29
 
-At code head `9ec296f`, Node 22.23.2, scoped lint EXIT 0 (seven gates),
+At code head `4bd03bb`, Node 22.23.2, scoped lint EXIT 0 (seven gates),
 `pnpm format:check` EXIT 0, standalone duplication EXIT 0, typecheck EXIT 0,
 and root `pnpm check` EXIT 0, including build, audit and console E2E (41
-passed / 1 skipped). Focused S2 and distribution tests: 78 passed / 0 failed.
-Default Vitest: 1,796 passed + 153 skipped = 1,949. Disposable localhost
-Postgres 17.6 with `--no-file-parallelism`: 1,945 passed + 4 skipped = 1,949,
-0 failed, EXIT 0. The 149 additional default skips are database-gated. The
-owned container and Playwright result artifact were removed. The two-turn
-fixture tests fail against the earlier one-turn refusal with `multi-turn
-unsupported`; the REST audio test fails against the earlier path with 1,018
-instead of 960 bytes. No provider endpoint, credentials, paid flag, or
-non-loopback test socket was used.
+passed / 1 skipped). Default Vitest: 1,799 passed + 153 skipped = 1,952.
+Disposable localhost Postgres 17.6 with `--no-file-parallelism`: 1,948 passed,
+4 skipped, 0 failed (1,952 total), EXIT 0. The 149 additional default skips
+are database-gated. The owned container and Playwright result artifact were
+removed. The two-turn fixture tests fail against the earlier one-turn refusal
+with `multi-turn unsupported`; the REST audio test fails against the earlier
+path with 1,018 instead of 960 bytes. No provider endpoint, credentials,
+paid flag, or non-loopback test socket was used.
 
 ## Acceptance
 
