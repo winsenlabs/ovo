@@ -1,3 +1,4 @@
+import { padWithSilence } from '@winsendotai/ovo-audio';
 import {
   bytesPerSecond,
   type Clock,
@@ -125,9 +126,7 @@ export class AssemblyAiSession implements SttSession {
   private flushPending(): void {
     if (!this.pending.byteLength) return;
     const minimum = Math.ceil(bytesPerSecond(this.input.format) * 0.05);
-    const frame = new Uint8Array(Math.max(minimum, this.pending.byteLength));
-    if (this.input.format.encoding === 'mulaw') frame.fill(0xff);
-    frame.set(this.pending);
+    const frame = padWithSilence(this.pending, minimum, this.input.format);
     this.socket.send(frame);
     this.pending = new Uint8Array(0);
   }

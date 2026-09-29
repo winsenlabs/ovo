@@ -152,6 +152,8 @@ export class SarvamTts implements TextToSpeech {
   }
 
   private async rest(input: SynthesisInput): Promise<{ audios: Uint8Array[]; requestId?: string }> {
+    if (!this.capabilities.outputFormats.some((format) => sameFormat(format, input.format)))
+      throw new TypeError('Sarvam TTS REST requires a native mu-law or PCM16 format');
     const response = await this.net.fetch('https://api.sarvam.ai/text-to-speech', {
       method: 'POST',
       headers: { 'Api-Subscription-Key': this.key, 'Content-Type': 'application/json' },

@@ -1,6 +1,7 @@
 import {
   MULAW_8K,
   PCM16_8K,
+  type SynthesisInput,
   type NetFixtureScript,
   type SttEvent,
   type UsageMeter,
@@ -369,7 +370,7 @@ describe('Sarvam documented wire behavior', () => {
     net.assertComplete();
   });
 
-  it('accepts native REST audio and refuses a WAV with the wrong rate or codec', () => {
+  it('accepts native REST audio and refuses wrong rate, codec, bit depth, or empty WAV data', () => {
     const samples = Uint8Array.of(0x7f, 0xff);
     expect(decodeRestAudio(Buffer.from(samples).toString('base64'), MULAW_8K)).toEqual(samples);
     expect(() =>
@@ -380,6 +381,31 @@ describe('Sarvam documented wire behavior', () => {
     expect(() => decodeRestAudio(Buffer.from(wrongCodec).toString('base64'), MULAW_8K)).toThrow(
       'does not match the requested native format',
     );
+    const wrongBitDepth = mulawWav(samples);
+    new DataView(wrongBitDepth.buffer).setUint16(34, 16, true);
+    expect(() => decodeRestAudio(Buffer.from(wrongBitDepth).toString('base64'), MULAW_8K)).toThrow(
+      'does not match the requested native format',
+    );
+    expect(() =>
+      decodeRestAudio(Buffer.from(mulawWav(new Uint8Array(0))).toString('base64'), MULAW_8K),
+    ).toThrow('does not match the requested native format');
+  });
+
+  it('refuses an unsupported REST format before touching the billable NetPort', async () => {
+    const net = createFixtureNet([]);
+    const tts = new SarvamTts(net, 'fixture-key', { restFallback: true });
+    const rest = tts as unknown as { rest(input: SynthesisInput): Promise<unknown> };
+    await expect(
+      rest.rest({
+        sessionId: 'unsupported-rest',
+        text: 'hello',
+        format: { encoding: 'alaw', sampleRate: 8000, channels: 1 },
+        language: 'hi-IN',
+        signal: new AbortController().signal,
+        onUsage: () => undefined,
+      }),
+    ).rejects.toThrow('requires a native mu-law or PCM16 format');
+    expect(net.log).toHaveLength(0);
   });
 
   it('refuses an unsupported format before attempting WebSocket or REST fallback', async () => {
