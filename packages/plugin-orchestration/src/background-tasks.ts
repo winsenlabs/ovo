@@ -3,7 +3,17 @@ import { definePlugin, type Context } from '@winsendotai/ovo-runtime';
 import type { PostgresOrchestrationStore } from './postgres.ts';
 import { SqsDeadLetterQueue, type DeadLetterQueue, type DeadLetterMessage } from './dlq.ts';
 
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuidGroupWidths = [8, 4, 4, 4, 12] as const;
+
+function isUuid(value: string): boolean {
+  const groups = value.split('-');
+  return (
+    groups.length === uuidGroupWidths.length &&
+    groups.every(
+      (group, index) => group.length === uuidGroupWidths[index] && /^[0-9a-f]+$/i.test(group),
+    )
+  );
+}
 type JobHintStore = {
   hints: {
     sweep(limit?: number): Promise<{ hinted: number; poisoned: string[] }>;
@@ -20,7 +30,7 @@ function jobId(message: DeadLetterMessage): string | undefined {
   }
   if (!parsed || typeof parsed !== 'object') return undefined;
   const value = parsed as { schemaVersion?: unknown; jobId?: unknown };
-  return value.schemaVersion === 1 && typeof value.jobId === 'string' && uuid.test(value.jobId)
+  return value.schemaVersion === 1 && typeof value.jobId === 'string' && isUuid(value.jobId)
     ? value.jobId
     : undefined;
 }

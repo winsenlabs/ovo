@@ -34,6 +34,16 @@ describe('dispatcher orchestration background tasks', () => {
         receiptHandle: 'c',
         body: JSON.stringify({ schemaVersion: 1, jobId: 'not-a-uuid' }),
       },
+      {
+        messageId: 'bad-width',
+        receiptHandle: 'd',
+        body: JSON.stringify({ schemaVersion: 1, jobId: `${id}0` }),
+      },
+      {
+        messageId: 'bad-hex',
+        receiptHandle: 'e',
+        body: JSON.stringify({ schemaVersion: 1, jobId: id.replace('4000', 'g000') }),
+      },
     ];
     const queue: DeadLetterQueue = {
       receive: vi.fn(async () => messages),
@@ -43,8 +53,8 @@ describe('dispatcher orchestration background tasks', () => {
     const task = new DlqReconcilerTask(store, queue, log);
     await task.tick(new AbortController().signal);
     expect(store.hints.resetHint).toHaveBeenCalledExactlyOnceWith(id);
-    expect(queue.delete).toHaveBeenCalledTimes(3);
-    expect(task.malformed).toBe(2);
+    expect(queue.delete).toHaveBeenCalledTimes(5);
+    expect(task.malformed).toBe(4);
     expect(log).toHaveBeenCalledWith({ event: 'dlq_malformed', messageId: 'malformed' });
     expect('send' in queue).toBe(false);
   });
