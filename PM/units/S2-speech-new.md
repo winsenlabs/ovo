@@ -128,6 +128,35 @@ bridge if formatted turns become a selectable mode. The C4 two-real-carrier
 integration test also remains with I1; S2's owned paths are speech plugins and
 do not include the carrier gateway test files.
 
+## Checker note — 2026-09-29: Bulbul v2 model defaults
+
+The spec's single `speaker` default of `shubh` conflicts with the current
+[Sarvam REST reference](https://docs.sarvam.ai/api-reference/text-to-speech/convert):
+`shubh` is the v3 default, while v2 defaults to `anushka` and limits text to
+1,500 characters. The owned binding schema no longer injects a universal
+speaker default; the implementation chooses the model-specific speaker for
+WebSocket, REST and cache identity, and its instance capability and push limit
+use 1,500 for v2. V3 keeps 2,500 and `shubh`. The v2 fixture test checks the
+absent speaker, native audio, exact usage, and over-limit refusal. Restoring
+the pre-fix implementation makes it fail with `expected 'shubh' to be
+'anushka'`, not a module-resolution error. The static manifest still says
+2,500; I1's binding-aware host capability work must include this v2 limit.
+
+## Built handoff — 2026-09-29
+
+At code head `9ec296f`, Node 22.23.2, scoped lint EXIT 0 (seven gates),
+`pnpm format:check` EXIT 0, standalone duplication EXIT 0, typecheck EXIT 0,
+and root `pnpm check` EXIT 0, including build, audit and console E2E (41
+passed / 1 skipped). Focused S2 and distribution tests: 78 passed / 0 failed.
+Default Vitest: 1,796 passed + 153 skipped = 1,949. Disposable localhost
+Postgres 17.6 with `--no-file-parallelism`: 1,945 passed + 4 skipped = 1,949,
+0 failed, EXIT 0. The 149 additional default skips are database-gated. The
+owned container and Playwright result artifact were removed. The two-turn
+fixture tests fail against the earlier one-turn refusal with `multi-turn
+unsupported`; the REST audio test fails against the earlier path with 1,018
+instead of 960 bytes. No provider endpoint, credentials, paid flag, or
+non-loopback test socket was used.
+
 ## Acceptance
 
 - The AssemblyAI STT, Sarvam STT and Sarvam TTS plugins load via the distribution catalog without skeleton flags and pass their conformance kits, using doc-faithful FixtureNet scripts, fixture templates and UNCONFIRMED annotations.

@@ -33,7 +33,7 @@ This board is the single source of truth for unit status. The specs in this fold
 | [C3](C3-carrier-exotel.md)         | Exotel carrier plugin                                         | 21                       | **Held — Batch B.** Preserved WIP `eaeb03f` on `w2/C3`; confirmed Exotel 16 kHz wire-format answer is still required. Do not resume on an inferred or downgraded capability decision.                                                                                                                                               |
 | [C4](C4-carrier-plivo.md)          | Plivo carrier plugin                                          | 21, 26                   | **Checker approved; merged `25e9e67` on 2026-09-29.** Production Plivo ingress is selected through the carrier-neutral gateway. Reduced `by-call-id` and end-only capabilities were explicitly approved. C3 stays founder-held.                                                                                                     |
 | [S1](S1-speech-split.md)           | Split out the Deepgram STT, OpenAI TTS and OpenAI LLM plugins | 21, 27                   | **Verified `e2c7cc5`** (checker verdict received 2026-09-27). Independent and mixed provider selections passed; defect 21 closed; six behavioral true negatives reproduced. Subsequent cross-unit legacy TTS meter propagation fix is tracked below.                                                                                |
-| [S2](S2-speech-new.md)             | AssemblyAI STT and Sarvam STT/TTS                             | 9, 21                    | **In progress — Batch B started 2026-09-29.** Restored `w2/S2` from `00c80ec` and rebased its owned WIP onto C4-merged foundation. Review the remaining fixture and compatibility decisions before handover.                                                                                                                        |
+| [S2](S2-speech-new.md)             | AssemblyAI STT and Sarvam STT/TTS                             | 9, 21                    | **Built — awaiting check (2026-09-29).** Owned code head `9ec296f`; full root check and Postgres serial gate pass. Unmerged for independent review.                                                                                                                                                                                 |
 | [O1](O1-fargate-scaling.md)        | Fargate-native autoscaling, Terraform, Fargate prep           | 7, 15, 17, 23            | **In progress — paused by checker.** WIP committed at `1e49894` on `w2/O1`; remains paused for its later batch; no resumption authorized in this handoff.                                                                                                                                                                           |
 | [O2](O2-ops-ledger.md)             | Campaign driver, queue liveness, reservation expiry           | 5, 15, 16, 19            | **In progress — paused by checker.** WIP committed at `cd77047` on `w2/O2`; remains paused for its later batch; no resumption authorized in this handoff.                                                                                                                                                                           |
 | [U1](U1-console.md)                | Console refactor                                              | 8, 15                    | **Verified `75c55c0`** by the checker (verdict received 2026-09-26). Console cold build, lint and format exit 0; Postgres serial 1,277 passed / 9 skipped / 0 failed; Playwright 41 passed / 1 visibility-gated desktop skip; 69 axe analyses with 0 violations and a positive control; 0 overflow at 390 px across 23 routes.      |
@@ -160,11 +160,11 @@ The named owner must resolve these findings. Items marked **BLOCKING** prevent t
 
 ### S2 carry-forwards (started 2026-09-29)
 
-| Source | Obligation                                                                                                                                                                                                                                                                               | Owner |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| S2     | The frozen `sttAsLegacy` bridge clears finals on the first end-of-turn and may carry a later formatted revision into the next turn. S2's production AssemblyAI URL uses `format_turns=false`, and its v2 parser test covers the revision. Fix the bridge before exposing formatted mode. | I1    |
-| S2     | Host compatibility reads static AssemblyAI manifest languages, while the selected model has a narrower or wider language set. Direct `start()` enforces the instance set; make compatibility selection binding-aware so release validation agrees with the selected model.               | I1    |
-| S2     | Sarvam REST TTS can return a base64 WAV envelope. Keep its native-format extraction and wrong-codec/rate refusal when integrating provider output; the old path sent RIFF bytes as audio.                                                                                                | I1    |
+| Source | Obligation                                                                                                                                                                                                                                                                                                                          | Owner |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| S2     | The frozen `sttAsLegacy` bridge clears finals on the first end-of-turn and may carry a later formatted revision into the next turn. S2's production AssemblyAI URL uses `format_turns=false`, and its v2 parser test covers the revision. Fix the bridge before exposing formatted mode.                                            | I1    |
+| S2     | Host compatibility reads static AssemblyAI manifest languages, while the selected model has a narrower or wider language set. Sarvam TTS's static manifest says 2,500 characters while the v2 instance correctly limits to 1,500. Make compatibility and limits binding-aware so release validation agrees with the selected model. | I1    |
+| S2     | Sarvam REST TTS can return a base64 WAV envelope. Keep its native-format extraction and wrong-codec/rate refusal when integrating provider output; the old path sent RIFF bytes as audio.                                                                                                                                           | I1    |
 
 ## Approved frozen-path exceptions and commit policy
 
@@ -906,3 +906,17 @@ owned AssemblyAI and Sarvam implementations and tests. The 2026-09-29
 continuation resolved the fixture replay question in owned paths; the frozen
 legacy STT bridge remains an I1 integration gap. C3 remains
 founder-held; no other paused unit was resumed.
+
+## Batch B: S2 built for independent check — 2026-09-29
+
+S2 code head `9ec296f` fills both production speech packages: AssemblyAI
+Universal Streaming STT, Sarvam realtime STT, and Sarvam Bulbul TTS. Owned
+tests drive distribution composition, two-turn fixture replay, native audio,
+model-specific defaults and provider usage. The final full `pnpm check` exits
+0 with 1,796 passed / 153 skipped default tests and 41 passed / 1 skipped
+console E2E. The Postgres 17.6 serial run exits 0 with 1,945 passed / 4
+skipped / 0 failed; both totals are 1,949, with 149 database-gated skips in
+the default run. Scoped lint, full format check, standalone duplication,
+typecheck, build and audit all exit 0. The S2 unit note holds the independent
+true negatives and I1 carry-forwards. No merge, push, PR, real provider call,
+or work on founder-held C3 occurred.
