@@ -83,7 +83,7 @@ export const sarvamTtsPlugin = definePlugin(
       type: 'object',
       properties: {
         model: { type: 'string', enum: ['bulbul:v2', 'bulbul:v3'], default: 'bulbul:v3' },
-        speaker: { type: 'string', default: 'shubh' },
+        speaker: { type: 'string' },
         pace: { type: 'number', minimum: 0.5, maximum: 2 },
         temperature: { type: 'number', minimum: 0.01, maximum: 1 },
         dictId: { type: 'string' },

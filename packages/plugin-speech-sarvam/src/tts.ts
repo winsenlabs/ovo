@@ -14,6 +14,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { decimal, syntheticRequestId, systemClock, usageOnce } from '@winsendotai/ovo-plugin-kit';
 import { decodeRestAudio } from './rest-audio.ts';
+import { sarvamSpeaker, sarvamTextLimit } from './tts-options.ts';
 import { SarvamTtsSession } from './tts-session.ts';
 
 export interface SarvamTtsBinding {
@@ -56,7 +57,7 @@ export function sarvamTtsUrl(binding: SarvamTtsBinding): string {
 }
 
 export class SarvamTts implements TextToSpeech {
-  readonly capabilities = SARVAM_TTS_CAPABILITIES;
+  readonly capabilities: Omit<typeof SARVAM_TTS_CAPABILITIES, 'maxChars'> & { maxChars: number };
   readonly binding: Readonly<SarvamTtsBinding>;
 
   constructor(
@@ -66,13 +67,17 @@ export class SarvamTts implements TextToSpeech {
     private readonly clock: Clock = systemClock,
   ) {
     this.binding = Object.freeze(structuredClone(binding));
+    this.capabilities = Object.freeze({
+      ...SARVAM_TTS_CAPABILITIES,
+      maxChars: sarvamTextLimit(this.binding),
+    });
   }
 
   cacheIdentity(format: AudioFormat, voice?: string) {
     return {
       provider: 'sarvam',
       model: this.binding.model ?? 'bulbul:v3',
-      voice: voice ?? this.binding.speaker ?? 'shubh',
+      voice: sarvamSpeaker(this.binding, voice),
       revision: `sarvam-${format.encoding}-${format.sampleRate}-v1`,
     };
   }
@@ -92,8 +97,10 @@ export class SarvamTts implements TextToSpeech {
   async *synthesize(input: SynthesisInput): AsyncIterable<Uint8Array> {
     if (!this.capabilities.outputFormats.some((format) => sameFormat(format, input.format)))
       throw new TypeError('Sarvam TTS requires a native mu-law or PCM16 format');
-    if (!input.text || [...input.text].length > 2500)
-      throw new TypeError('Sarvam TTS text must contain 1–2500 characters');
+    if (!input.text || [...input.text].length > sarvamTextLimit(this.binding))
+      throw new TypeError(
+        `Sarvam TTS text must contain 1–${sarvamTextLimit(this.binding)} characters`,
+      );
     const once = usageOnce(input.onUsage);
     const meters: UsageMeter[] = [];
     const startedAt = this.clock.now();
@@ -151,7 +158,7 @@ export class SarvamTts implements TextToSpeech {
       body: JSON.stringify({
         text: input.text,
         language_code: input.language,
-        speaker: input.voice ?? this.binding.speaker ?? 'shubh',
+        speaker: sarvamSpeaker(this.binding, input.voice),
         model: this.binding.model ?? 'bulbul:v3',
         output_audio_codec: input.format.encoding === 'mulaw' ? 'mulaw' : 'linear16',
         speech_sample_rate: input.format.sampleRate,

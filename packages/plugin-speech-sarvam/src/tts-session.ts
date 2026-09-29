@@ -5,6 +5,7 @@ import type {
   WebSocketLike,
 } from '@winsendotai/ovo-contracts';
 import { decimal, syntheticRequestId, usageOnce } from '@winsendotai/ovo-plugin-kit';
+import { sarvamSpeaker, sarvamTextLimit } from './tts-options.ts';
 import type { SarvamTtsBinding } from './tts.ts';
 
 type Input = Omit<SynthesisInput, 'text'>;
@@ -62,8 +63,10 @@ export class SarvamTtsSession implements IncrementalTts {
   push(text: string): void {
     if (this.closed || this.finished || this.socket.readyState !== 1)
       throw new Error('Sarvam TTS session is closed');
-    if (!text || this.characters + [...text].length > 2500)
-      throw new TypeError('Sarvam TTS text must contain 1–2500 characters');
+    if (!text || this.characters + [...text].length > sarvamTextLimit(this.binding))
+      throw new TypeError(
+        `Sarvam TTS text must contain 1–${sarvamTextLimit(this.binding)} characters`,
+      );
     this.characters += [...text].length;
     this.socket.send(JSON.stringify({ type: 'text', data: { text } }));
   }
@@ -89,7 +92,7 @@ export class SarvamTtsSession implements IncrementalTts {
         JSON.stringify({
           type: 'config',
           data: {
-            speaker: this.input.voice ?? this.binding.speaker ?? 'shubh',
+            speaker: sarvamSpeaker(this.binding, this.input.voice),
             language_code: this.input.language,
             output_audio_codec: this.input.format.encoding === 'mulaw' ? 'mulaw' : 'linear16',
             speech_sample_rate: this.input.format.sampleRate,

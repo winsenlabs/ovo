@@ -240,6 +240,65 @@ describe('Sarvam documented wire behavior', () => {
     net.assertComplete();
   });
 
+  it('uses the v2 speaker when absent and enforces its smaller text limit', async () => {
+    const net = createFixtureNet([
+      {
+        host: 'api.sarvam.ai',
+        source: 'https://docs.sarvam.ai/api-reference/text-to-speech/convert',
+        retrieved: '2026-09-29',
+        steps: [
+          {
+            expect: 'ws-open',
+            url: /^wss:\/\/api\.sarvam\.ai\/text-to-speech\/ws\?model=bulbul%3Av2&/,
+            headers: { 'api-subscription-key': 'fixture-key' },
+          },
+          {
+            expect: 'ws-send',
+            match: 'json',
+            where: {
+              type: 'config',
+              data: {
+                speaker: 'anushka',
+                language_code: 'hi-IN',
+                output_audio_codec: 'mulaw',
+                speech_sample_rate: 8000,
+              },
+            },
+          },
+          { expect: 'ws-send', match: 'json', where: { type: 'text', data: { text: 'ok' } } },
+          { expect: 'ws-send', match: 'json', where: { type: 'flush' } },
+          {
+            send: JSON.stringify({
+              type: 'audio',
+              data: { audio: btoa(String.fromCharCode(0x7f)), request_id: 'v2-request' },
+            }),
+          },
+          { send: JSON.stringify({ type: 'event', data: { event_type: 'final' } }) },
+        ],
+      },
+    ]);
+    const tts = new SarvamTts(net, 'fixture-key', { model: 'bulbul:v2' });
+    expect(tts.capabilities.maxChars).toBe(1500);
+    expect(tts.cacheIdentity(MULAW_8K).voice).toBe('anushka');
+    const usage: UsageMeter[] = [];
+    const session = await tts.open({
+      sessionId: 'v2-test',
+      format: MULAW_8K,
+      language: 'hi-IN',
+      signal: new AbortController().signal,
+      onUsage: (meter) => usage.push(meter),
+    });
+    expect(() => session.push('a'.repeat(1501))).toThrow('1–1500 characters');
+    session.push('ok');
+    session.flush();
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of session.audio) chunks.push(chunk);
+    await session.close();
+    expect(chunks).toEqual([Uint8Array.of(0x7f)]);
+    expect(usage).toMatchObject([{ requestId: 'v2-request', quantity: '2', state: 'reconciled' }]);
+    net.assertComplete();
+  });
+
   it('REST fallback uses its own request id and emits one usage meter after a failed stream', async () => {
     const samples = new Uint8Array(960).fill(0x7f);
     const net = createFixtureNet([
