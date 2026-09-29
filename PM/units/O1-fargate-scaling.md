@@ -467,3 +467,6 @@ installed Terraform binary passes `fmt`, backend-disabled `init`, and
 `pnpm install --frozen-lockfile --offline` exits **0** with only the four
 approved dispatcher importer entries. The shared distribution fixture
 change and its approved-exception row are committed together.
+
+**Builder status: Built – awaiting check at `0455365`.** O1 remains
+unmerged; the board-status update is documentation-only.
