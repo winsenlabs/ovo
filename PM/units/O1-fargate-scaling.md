@@ -470,3 +470,57 @@ change and its approved-exception row are committed together.
 
 **Builder status: Built – awaiting check at `0455365`.** O1 remains
 unmerged; the board-status update is documentation-only.
+
+## Checker turnaround — 2026-09-29
+
+The independent checker reproduced the 2,027-test bar and requested four
+corrections. Code commit `7d0c934` restores local media and engine teardown
+when the eager route fence returns no row **or throws**. The original fence
+error still propagates, carrier selection and hangup remain untouched, and a
+structured `termination_fence_failed` error records the fence and any local
+cleanup failure. The prior code failed the new test with only
+`['fence-failed']`; it now records `['fence-failed','media','local-close']`.
+The durable wrong-epoch case also asserts unchanged route state and no carrier
+selection while both local close methods run.
+
+The default dispatcher test now requires one published signal per replica and
+checks `provisionedTasks`, busy/idle slots and eligible jobs. Deleting its
+`publish(signal)` call fails with **expected 1 call, received 0**. The
+Postgres hint suite adds an unexpired owned lease, a future queued job,
+the 150-second rehint boundary and a held-row/concurrent-sweeper case.
+Temporary source mutations each failed on a value assertion: deleting the
+lease guard or queued due guard yielded `{hinted:1}` where `{hinted:0}` was
+required; shortening the backoff did the same; removing `SKIP LOCKED` made
+the held-row sweep block instead of returning while the row was locked.
+Two concurrent sweeps still create exactly one hint and one outbox row.
+
+The production-profile test now supplies test-only synthetic AWS credentials,
+sets `AWS_EC2_METADATA_DISABLED=true` in the SDK's process environment, and
+routes SQS to `127.0.0.1:1`. No credential-chain metadata request is needed.
+Terraform's lock now contains provider checksums for both darwin_arm64 and
+linux_arm64, generated with `terraform providers lock`; the owned
+`infra/terraform/.gitignore` excludes local `.terraform/`. No plan or apply
+was run.
+
+Node 22 `pnpm check` **EXIT 0**: full lint seven gates, format, typecheck,
+default Vitest **1,858 passed / 173 skipped / 0 failed**, builds, audit and
+console E2E **41 passed / 1 skipped**. Full disposable Postgres 17.6 serial
+Vitest with both database URLs **EXIT 0**: **2,027 passed / 4 skipped /
+0 failed**. Both totals are **2,031**. The prior O1 skip audit remains valid
+for its 22 new and 5 removed/replaced database cases; this correction adds
+three more `OVO_TEST_POSTGRES_URL`-gated tests. Thus the updated comparison
+to foundation is **153 + 25 − 5 = 173** default skips and
+**149 + 25 − 5 = 169** unlocked by Postgres, with the same four remaining
+serial skips. None of these three new tests is disabled under Postgres.
+Terraform fmt, backend-disabled init and validate **EXIT 0**. The owned
+Postgres container was removed after the serial run. O1 remains unmerged.
+
+The checker also recorded nonblocking handoffs on stale operator runbooks,
+Terraform assertion precision, migration constraint matching, starting-task
+fixtures, the explicit one-gateway deployment policy, ownership-loss wake-up
+latency and stale baselines. Their named owners are in the board's O1 re-check
+carry-forward table. The `>= 2` gateway validation is O1's deliberate
+redundancy requirement; I1 owns the decision whether an explicit one-replica
+deployment should be supported despite that stricter rule.
+
+**Builder status: Built – awaiting re-check at `7d0c934`.**
