@@ -95,7 +95,7 @@ describe('Plivo documented protocol', () => {
     ).toEqual([{ type: 'cleared' }]);
   });
 
-  it('matches independent PHP-SDK-derived V3 GET, query POST, no-query POST and MA vectors', async () => {
+  it('locks V3 GET, query POST, no-query POST and MA golden vectors', async () => {
     const vectors = fixture('v3').lines.map(
       (line) =>
         line.frame as {
@@ -222,6 +222,47 @@ describe('Plivo documented protocol', () => {
         .reconcile({ requestId: 'dial-1', carrierRequestId: 'request-1' }),
     ).toEqual({ kind: 'pending' });
     expect(pendingNet.log).toHaveLength(0);
+  });
+
+  it('treats HTTP 201 without request_uuid as an unknown dial outcome', async () => {
+    const ports = host();
+    const net = createFixtureNet([
+      {
+        host: 'api.plivo.com',
+        source: 'https://www.plivo.com/docs/voice/api/calls',
+        retrieved: '2026-09-22',
+        steps: [
+          {
+            expect: 'http',
+            method: 'POST',
+            url: 'https://api.plivo.com/v1/Account/AUTH1/Call/',
+            body: 'json',
+            reply: { status: 201, body: '{}' },
+          },
+        ],
+      },
+    ]);
+    const requestId = 'dial-no-uuid';
+    const result = await plivoControl(net)
+      .create(binding)
+      .dial({
+        requestId,
+        jobId: 'job-1',
+        to: '+15550100',
+        from: '+15550199',
+        media: { url: ports.mediaUrl('plivo', 'b1'), routeParams: {}, format: MULAW_8K },
+        callbacks: {
+          answer: ports.callbackUrl('plivo', 'b1', 'answer', { requestId }),
+          status: ports.callbackUrl('plivo', 'b1', 'status', { requestId }),
+        },
+        maxDurationSec: 600,
+      });
+    expect(result).toEqual({
+      kind: 'unknown',
+      requestId,
+      reason: 'Plivo accepted a call without request_uuid',
+    });
+    net.assertComplete();
   });
 
   it('publishes the documented dial fixture for catalog consumers', async () => {

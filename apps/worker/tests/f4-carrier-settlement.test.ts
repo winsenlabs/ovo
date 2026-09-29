@@ -1,13 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import { settleCarrierDial } from '../src/carrier-dial-settlement.ts';
 
-function fixture(reconciled: unknown, route: Record<string, unknown> = {}) {
+function fixture(
+  reconciled: unknown,
+  route: Record<string, unknown> = {},
+  correlated: Record<string, unknown> = { carrierCallId: 'CA1' },
+) {
   const markFailed = vi.fn(async () => true);
   const markDialAccepted = vi.fn(async () => ({ sessionId: 'session-1' }));
   const deferReconciliation = vi.fn(async () => true);
   const store = {
     markDialUnknown: async () => true,
-    get: async () => ({ carrierCallId: 'CA1' }),
+    get: async () => correlated,
     getSessionRoute: async () => ({
       sessionId: 'session-1',
       carrierRequestId: 'CR1',
@@ -37,7 +41,7 @@ function fixture(reconciled: unknown, route: Record<string, unknown> = {}) {
     request: { requestId: 'request-1' },
     dial: { kind: 'unknown', reason: 'timed out' } as Record<string, unknown>,
     store,
-    selected: { control: { reconcile: async () => reconciled, hangup } },
+    selected: { control: { reconcile: vi.fn(async () => reconciled), hangup } },
     onCarrierAccepted: vi.fn(),
   };
   return { input, markFailed, markDialAccepted, deferReconciliation, hangup };
@@ -80,5 +84,25 @@ describe('carrier dial settlement', () => {
         carrierRequestId: 'CR-only',
       }),
     );
+  });
+
+  it('defers a live carrier outcome with no correlation IDs without accepting it', async () => {
+    const { input, markDialAccepted, deferReconciliation } = fixture(
+      { kind: 'live', state: 'ringing' },
+      { carrierRequestId: undefined },
+      {},
+    );
+    await expect(settleCarrierDial(input as never)).resolves.toEqual({
+      kind: 'reconcile_required',
+      jobId: 'job-1',
+      requestId: 'request-1',
+    });
+    expect(input.selected.control.reconcile).toHaveBeenCalledWith({
+      requestId: 'request-1',
+      carrierCallId: undefined,
+      carrierRequestId: undefined,
+    });
+    expect(markDialAccepted).not.toHaveBeenCalled();
+    expect(deferReconciliation).toHaveBeenCalledOnce();
   });
 });
