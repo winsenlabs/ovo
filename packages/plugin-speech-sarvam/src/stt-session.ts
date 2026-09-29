@@ -144,7 +144,7 @@ export function createSarvamSttSession(
     } else if (value.event === 'session.end') sessionEnd(value);
     else if (value.event === 'ping') socket.send(JSON.stringify({ event: 'pong' }));
     else if (value.event === 'error') {
-      stop(providerFailure(value), true);
+      if (value.is_fatal !== false) stop(providerFailure(value), true);
     }
   };
   offs.push(
@@ -210,7 +210,7 @@ function providerFailure(frame: Record<string, unknown>): SarvamSttError {
   return new SarvamSttError(
     String(frame.message ?? 'Sarvam STT error'),
     code,
-    frame.is_fatal !== true,
+    frame.is_fatal === false,
   );
 }
 
