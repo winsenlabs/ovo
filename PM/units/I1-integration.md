@@ -194,3 +194,30 @@ CONSTRAINTS:
   socket and remove open()'s production non-WorkerMediaLink test-only branch.
   C2's previous assertion that no production compatibility bypass existed was
   inaccurate; its report now acknowledges the seam explicitly.
+
+## Wave-level S2 checker obligations (2026-09-29)
+
+- **BLOCKING: drive selected plugins through the real session graph.** Follow
+  S1's `production-entry.test.ts` pattern for AssemblyAI STT and Sarvam STT/TTS
+  so a production integration test exercises each selected plugin's behavior,
+  not just `graph.get(Cap.stt)` existence. The checker made all three S2 entry
+  points throw; only five files failed, all inside S2's two packages. In a
+  separate sweep, 86 of 140 S2 guards survived both S2-only and full-repo
+  tests, and 85 simultaneous behavioral defects left the 1,952-test repository
+  suite green. This is a wave-level test-architecture gap, not an S2-only
+  fixture count to patch locally.
+- **BLOCKING: run a production integration case with the real Twilio and Plivo
+  ingresses installed together.** The C2 multi-carrier test clones one ingress
+  and the carrier-neutral gateway test labels Twilio-derived code as Plivo.
+  This has been possible since C4 merged and remains unproved.
+- Export `decodeBase64` from plugin-kit to remove S2's three local copies;
+  repair the stt@1 frame-size kit so JSON-framed Sarvam audio is measured;
+  make the tts@1 non-native check independently pin each redundant guard.
+- Resolve the formatted-duplicate conflict with stt@1's locked-finals
+  invariant as well as the `sttAsLegacy` bridge before exposing that mode.
+  Establish consumers for `ttfsP99Ms` and `maxChars`, and police conformance
+  `only:` subsetting so a plugin cannot pass with one selected check.
+- Vendor questions remain with Tejas: Universal-3.5-Pro Urdu support versus
+  the S2 spec; Sarvam Odia `or-IN` for realtime STT versus `od-IN` for TTS;
+  and the supported Sarvam speaker roster before restricting the binding
+  schema. Do not resolve these by inference in I1.

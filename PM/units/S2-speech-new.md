@@ -155,17 +155,43 @@ absent cases each verify a typed failure and one estimated meter.
 
 ## Built handoff — 2026-09-29
 
-At code head `4bd03bb`, Node 22.23.2, scoped lint EXIT 0 (seven gates),
+At code head `9d89a50`, Node 22.23.2, scoped lint EXIT 0 (seven gates),
 `pnpm format:check` EXIT 0, standalone duplication EXIT 0, typecheck EXIT 0,
 and root `pnpm check` EXIT 0, including build, audit and console E2E (41
-passed / 1 skipped). Default Vitest: 1,799 passed + 153 skipped = 1,952.
-Disposable localhost Postgres 17.6 with `--no-file-parallelism`: 1,948 passed,
-4 skipped, 0 failed (1,952 total), EXIT 0. The 149 additional default skips
+passed / 1 skipped). Default Vitest: 1,802 passed + 153 skipped = 1,955.
+Disposable localhost Postgres 17.6 with `--no-file-parallelism`: 1,951 passed,
+4 skipped, 0 failed (1,955 total), EXIT 0. The 149 additional default skips
 are database-gated. The owned container and Playwright result artifact were
 removed. The two-turn fixture tests fail against the earlier one-turn refusal
 with `multi-turn unsupported`; the REST audio test fails against the earlier
 path with 1,018 instead of 960 bytes. No provider endpoint, credentials,
 paid flag, or non-loopback test socket was used.
+
+## Checker approval conditions — 2026-09-29
+
+The independent checker approved S2 conditional on behavioral coverage and a
+REST spending guard. Owned FixtureNet tests now assert AssemblyAI
+`SpeechStarted` → `speech-start`, Sarvam `vad.speech_start` and
+`vad.speech_end` → their distinct events, and a VAD session with no
+`forceEndpoint` method. They inspect a 20 ms Sarvam JSON audio flush and a
+short AssemblyAI binary flush byte by byte, including the μ-law `0xFF`
+silence tail. AssemblyAI now calls the existing audio package's
+`padWithSilence`, avoiding an incomplete local encoding rule. REST tests
+reject wrong WAV bit depth and an empty data chunk; `SarvamTts.rest()`
+checks the requested native format before `NetPort.fetch`, even if the outer
+`synthesize()` gate is bypassed. Nine targeted source breakages fail on the
+new value assertions or attempted request, with no module-resolution failure.
+Removing only the outer `synthesize()` format gate leaves the public
+unsupported-format test green with zero NetPort calls, proving the REST guard
+independently prevents a billable request.
+
+The checker elevated two items to **blocking I1 integration work**: run
+selected speech plugins through the real session graph, and run the real
+Twilio and Plivo ingresses together. See `PM/units/I1-integration.md` for the
+canary and mutation evidence. The checker also assigned kit and capability
+gaps to F2/I1 on the board. Universal-3.5-Pro Urdu support, Sarvam Odia
+codes across STT/TTS, and the supported Sarvam speaker roster require Tejas's
+vendor confirmation; S2 does not infer answers.
 
 ## Acceptance
 
