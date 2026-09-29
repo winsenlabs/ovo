@@ -285,6 +285,7 @@ parameter errors; ordinary tests cannot load two dispatcher suites.
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | Preserve the orchestration 006 sequence when merging migrations; the capacity tables are intentionally dropped and the restore-fence script's guarded block stays unchanged. | I1     |
 | The four dispatcher manifest dependencies and lock importer are now approved and added by O1; I1 inherits this deployable dependency graph.                                  | I1     |
+| The shared distribution test now supplies dispatcher-only host plugins and a loopback DLQ URL; I1 inherits this fixture when changing the distribution profile.              | I1     |
 | Keep inbound/outbound forced-exit finalization before protection release and shared media disposal. The frozen media close callback contract remains C2's seam.              | O2, C2 |
 | Preserve service-specific route secrets and JSON log event shapes when integrating deployment profiles and alarm filters. No live AWS validation has been performed.         | I1     |
 
@@ -408,5 +409,61 @@ the same 2,027; both failures are the same missing fixture field.
 Independent `pnpm build`, `pnpm audit --audit-level moderate`, and
 `pnpm test:console:e2e` exit 0, with E2E **41 passed / 1 skipped**.
 The shared `packages/distribution/tests/distribution.test.ts` fixture is
-outside O1's owned paths. A ruling for a one-line loopback DLQ URL there is
-pending; no production fallback or test bypass has been added.
+outside O1's owned paths. The checker approved a dispatcher-only environment
+with a loopback `OVO_DLQ_URL`, leaving `workerEnv` unchanged, plus test-local
+inert definitions for the three host plugins that production injects. The
+broken tests first failed with `Missing required environment variable
+OVO_DLQ_URL`; adding the URL alone exposed `Profile plugin is not installed:
+ovo.operations.postgres`. The generic config test also tried to validate
+the unused CloudWatch signal's empty default row under Compose, although
+production selects the log signal before composition. It now checks the
+selected rows and explicitly retains the log signal assertion. Both
+dispatcher cases remain in the suite. No production fallback or test bypass
+was added. The dated
+approval is in the central exceptions table in the same commit as the test.
+
+## Final O1 gate and skip audit — 2026-09-29
+
+After the shared fixture correction, Node 22 `pnpm check` exits **0**:
+all seven lint gates, format, typecheck, default Vitest
+**1,857 passed / 170 skipped / 0 failed**, three application bundles and
+console production build, audit, and console E2E **41 passed / 1 skipped**.
+The full `OVO_TEST_POSTGRES_URL` plus `RECORDING_TEST_DATABASE_URL` serial
+Vitest run on disposable `postgres:17.6` bound to loopback exits **0** with
+**2,023 passed / 4 skipped / 0 failed**. Both totals are 2,027. The
+database container was removed.
+
+Compared with the S2 foundation, default skips increased from 153 to 170.
+A JSON-reporter comparison of the affected files at foundation `516a874`
+and this O1 tree identifies **22 newly skipped assertions** and **5 removed
+or replaced skipped assertions**, a net **+17**. Every one of the 22 is
+guarded by `OVO_TEST_POSTGRES_URL` (the storage suite aliases this to
+`databaseUrl`); none was disabled. They are:
+
+| File                                                                  | Count | Newly gated cases                                                                                                                                                                   |
+| --------------------------------------------------------------------- | ----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/worker/tests/campaign-dial.test.ts`                             |     4 | Durable deferral persists due time and clears hint before deleting; stale epoch retains receipt; lost admission lease fences `superseded`; changed ownership epoch retains receipt. |
+| `apps/worker/tests/f4-termination.test.ts`                            |     2 | Real-route fence precedes media close on binding failure; an epoch that cannot fence never closes media.                                                                            |
+| `apps/worker/tests/infrastructure-metrics.test.ts`                    |     4 | Durable hint clearing before receipt deletion for `handle`/`defer` × `not_before`/`currently_leased`.                                                                               |
+| `apps/dispatcher/src/dispatcher-process.test.ts`                      |     2 | Fargate CloudWatch-only composition; Compose signal persistence and installed hint sweeper.                                                                                         |
+| `packages/plugin-storage/tests/infrastructure-postgres.test.ts`       |     1 | Latest durable signal after the capacity-write table is removed.                                                                                                                    |
+| `packages/plugin-orchestration/tests/capacity-hints-postgres.test.ts` |     7 | Deferred expired lease; migration and durable signal; oldest stale slot; advisory-locked floor token; poison cap; dial-request poison exclusion; DLQ reset and rehint.              |
+| `packages/plugin-orchestration/tests/carrier-correlation.test.ts`     |     1 | Mismatched stream grant and audit commit or roll back together.                                                                                                                     |
+| `packages/plugin-orchestration/tests/carrier-identity.test.ts`        |     1 | Populated pre-ledger rows adopt migration 006 without rewriting jobs.                                                                                                               |
+
+The five removed or replaced gated assertions are three deleted
+`capacity-writes.test.ts` desired-count writer cases, the old
+`carrier-identity.test.ts` migration-003 adoption case (replaced by the
+006 case above), and the removed `ownership.test.ts` capacity-writer
+lease-authority case. That writer and its tables are intentionally removed
+by O1. The accounting is `153 + 22 - 5 = 170` default skips; of these,
+`149 + 22 - 5 = 166` are unlocked by the Postgres gate, while the same
+four skips remain in both foundation and O1 Postgres serial runs.
+
+The final scoped lint (seven gates), full format check, and standalone scoped
+duplication gate each exit **0**, with no added baseline. The locally
+installed Terraform binary passes `fmt`, backend-disabled `init`, and
+`validate` (exit **0**); no plan, apply, or AWS API call was made.
+`pnpm install --frozen-lockfile --offline` exits **0** with only the four
+approved dispatcher importer entries. The shared distribution fixture
+change and its approved-exception row are committed together.

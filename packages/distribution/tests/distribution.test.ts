@@ -49,6 +49,35 @@ describe('distribution inventory', () => {
     AWS_REGION: 'us-east-1',
     OVO_SECRETS_MASTER_KEY: Buffer.alloc(32, 7).toString('base64'),
   };
+  const dispatcherEnv = {
+    ...workerEnv,
+    OVO_DLQ_URL: 'http://127.0.0.1:9324/000000000000/ovo-jobs-dlq',
+  };
+  const dispatcherHost = {
+    package: 'fixture-dispatcher-host',
+    roles: ['dispatcher'] as const,
+    load: async () => ({
+      plugins: [
+        'ovo.operations.postgres',
+        '@winsendotai/ovo-plugin-ledger',
+        'ovo.dispatcher.node-net',
+      ].map((id) =>
+        definePlugin(
+          {
+            id,
+            version: '0.1.0',
+            contractVersion: 1,
+            scope: 'process',
+            requires: [],
+            provides: [],
+            configSchema: { type: 'object' },
+            secretFields: [],
+          },
+          () => {},
+        ),
+      ),
+    }),
+  };
   it('pre-registers every F3 skeleton and frozen dispatcher subpath', () => {
     const names = new Set(FIRST_PARTY.map((entry) => entry.package));
     for (const name of [
@@ -98,7 +127,8 @@ describe('distribution inventory', () => {
       const loaded = await loadDistribution({
         role,
         profile: 'compose',
-        env: role === 'worker' || role === 'dispatcher' ? workerEnv : {},
+        env: role === 'dispatcher' ? dispatcherEnv : role === 'worker' ? workerEnv : {},
+        firstParty: role === 'dispatcher' ? [...FIRST_PARTY, dispatcherHost] : undefined,
       });
       const processIds = loaded.catalog
         .filter((definition) => definition.manifest.scope === 'process')
@@ -109,14 +139,27 @@ describe('distribution inventory', () => {
   );
 
   it.each(['api', 'worker', 'dispatcher', 'gateway'] as const)(
-    'builds valid process configs for %s',
+    'builds valid selected process configs for %s',
     async (role) => {
       const loaded = await loadDistribution({
         role,
         profile: 'compose',
-        env: role === 'worker' || role === 'dispatcher' ? workerEnv : {},
+        env: role === 'dispatcher' ? dispatcherEnv : role === 'worker' ? workerEnv : {},
+        firstParty: role === 'dispatcher' ? [...FIRST_PARTY, dispatcherHost] : undefined,
       });
-      for (const row of loaded.processRows) {
+      // The dispatcher selects the log signal for Compose before composition.
+      const selectedRows =
+        role === 'dispatcher'
+          ? loaded.processRows.filter(
+              (row) =>
+                row.id !== '@winsendotai/ovo-plugin-orchestration/cloudwatch-capacity-signal',
+            )
+          : loaded.processRows;
+      if (role === 'dispatcher')
+        expect(selectedRows.map((row) => row.id)).toContain(
+          '@winsendotai/ovo-plugin-orchestration/log-capacity-signal',
+        );
+      for (const row of selectedRows) {
         const definition = loaded.catalog.find((plugin) => plugin.manifest.id === row.id)!;
         expect(configError(definition.manifest, row.config ?? {}), row.id).toBeUndefined();
       }
