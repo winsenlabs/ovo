@@ -60,14 +60,18 @@ export class AssemblyAiSession implements SttSession {
     });
     void this.ready.catch(() => undefined);
     void this.done.catch(() => undefined);
+    this.subscribe();
+  }
+
+  private subscribe(): void {
     this.offs.push(
-      socket.on('message', (raw, binary) => this.message(raw, binary)),
-      socket.on('close', (code, reason) => this.close(code, reason)),
-      socket.on('error', (error) => this.fail(error)),
+      this.socket.on('message', (raw, binary) => this.message(raw, binary)),
+      this.socket.on('close', (code, reason) => this.close(code, reason)),
+      this.socket.on('error', (error) => this.fail(error)),
     );
     const abort = () => this.fail(new DOMException('AssemblyAI session aborted', 'AbortError'));
-    input.signal.addEventListener('abort', abort, { once: true });
-    this.offs.push(() => input.signal.removeEventListener('abort', abort));
+    this.input.signal.addEventListener('abort', abort, { once: true });
+    this.offs.push(() => this.input.signal.removeEventListener('abort', abort));
   }
 
   async write(frame: Uint8Array, signal?: AbortSignal): Promise<void> {

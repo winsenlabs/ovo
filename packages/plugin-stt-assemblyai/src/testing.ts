@@ -12,8 +12,6 @@ const RETRIEVED = '2026-09-26';
 /** The conformance template follows the documented Begin, Turn and Termination sequence. */
 export const assemblyAiTemplate: FixtureTemplate = (input): NetFixtureScript[] => {
   const says = input.turns.flatMap((turn) => (turn.say ? [turn.say] : []));
-  if (says.length > 1)
-    throw new Error('AssemblyAI multi-turn fixture requires an audio-gated replay step');
   const steps: NetFixtureStep[] = [
     {
       expect: 'ws-open',

@@ -17,8 +17,6 @@ const TTS_SOURCE =
   'https://docs.sarvam.ai/api/api-guides-tutorials/text-to-speech/streaming-api/web-socket';
 
 export const sarvamSttTemplate: FixtureTemplate = (input): NetFixtureScript[] => {
-  if (input.turns.filter((turn) => Boolean(turn.say)).length > 1)
-    throw new Error('Sarvam STT multi-turn fixture requires an audio-gated replay step');
   const steps: NetFixtureStep[] = [
     {
       expect: 'ws-open',

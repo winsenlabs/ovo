@@ -13,6 +13,7 @@ import {
   type UsageMeter,
 } from '@winsendotai/ovo-contracts';
 import { decimal, syntheticRequestId, systemClock, usageOnce } from '@winsendotai/ovo-plugin-kit';
+import { decodeRestAudio } from './rest-audio.ts';
 import { SarvamTtsSession } from './tts-session.ts';
 
 export interface SarvamTtsBinding {
@@ -166,13 +167,9 @@ export class SarvamTts implements TextToSpeech {
     )
       throw new Error('Sarvam TTS REST returned no audio');
     return {
-      audios: (body.audios as string[]).map(decodeBase64),
+      audios: (body.audios as string[]).map((audio) => decodeRestAudio(audio, input.format)),
       requestId:
         typeof body.request_id === 'string' && body.request_id ? body.request_id : undefined,
     };
   }
-}
-
-function decodeBase64(value: string): Uint8Array {
-  return Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
 }

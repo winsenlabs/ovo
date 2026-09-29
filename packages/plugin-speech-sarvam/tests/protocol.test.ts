@@ -8,7 +8,10 @@ import {
 import { FakeClock } from '@winsendotai/ovo-conformance';
 import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
 import { describe, expect, it } from 'vitest';
+import { createSttReplayNet } from '../../fixture-calls/src/stt-replay-net.ts';
+import { planSttReplay } from '../../fixture-calls/src/stt-replay-plan.ts';
 import { SarvamStt, sarvamSttUrl } from '../src/stt.ts';
+import { decodeRestAudio } from '../src/rest-audio.ts';
 import { SarvamTts, sarvamTtsUrl } from '../src/tts.ts';
 import { sarvamSttTemplate, sarvamTtsTemplate } from '../src/testing.ts';
 
@@ -28,6 +31,28 @@ function sttInput(events: SttEvent[], usage: UsageMeter[]) {
     onEvent: (event: SttEvent) => events.push(event),
     onUsage: (meter: UsageMeter) => usage.push(meter),
   };
+}
+
+function mulawWav(samples: Uint8Array, sampleRate = 8000): Uint8Array {
+  const wav = new Uint8Array(58 + samples.byteLength);
+  const view = new DataView(wav.buffer);
+  wav.set(new TextEncoder().encode('RIFF'), 0);
+  view.setUint32(4, wav.byteLength - 8, true);
+  wav.set(new TextEncoder().encode('WAVEfmt '), 8);
+  view.setUint32(16, 18, true);
+  view.setUint16(20, 7, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate, true);
+  view.setUint16(32, 1, true);
+  view.setUint16(34, 8, true);
+  wav.set(new TextEncoder().encode('fact'), 38);
+  view.setUint32(42, 4, true);
+  view.setUint32(46, samples.byteLength, true);
+  wav.set(new TextEncoder().encode('data'), 50);
+  view.setUint32(54, samples.byteLength, true);
+  wav.set(samples, 58);
+  return wav;
 }
 
 describe('Sarvam documented wire behavior', () => {
@@ -54,18 +79,40 @@ describe('Sarvam documented wire behavior', () => {
     net.assertComplete();
   });
 
-  it('refuses to script a second STT turn without an audio gate', () => {
-    expect(() =>
-      sarvamSttTemplate({
-        format: MULAW_8K,
-        language: 'hi-IN',
-        sessionId: 'two-turns',
-        turns: [
-          { atMs: 0, say: 'पहला' },
-          { atMs: 2000, say: 'दूसरा' },
-        ],
-      }),
-    ).toThrow('multi-turn fixture requires an audio-gated replay step');
+  it('holds a second scripted STT turn until its caller audio is released', async () => {
+    const clock = new FakeClock();
+    const plan = planSttReplay(sarvamSttTemplate, {
+      format: MULAW_8K,
+      language: 'hi-IN',
+      sessionId: 'two-turns',
+      turns: [
+        { atMs: 0, say: 'पहला' },
+        { atMs: 2000, say: 'दूसरा' },
+      ],
+    });
+    const replay = createSttReplayNet(plan, clock);
+    const events: SttEvent[] = [];
+    const session = await new SarvamStt(replay.port, 'fixture-key', {}, clock).start({
+      ...sttInput(events, []),
+      sessionId: 'two-turns',
+    });
+    const finals = () =>
+      events.flatMap((event) =>
+        event.type === 'transcript' && event.segment.stability === 'final'
+          ? [event.segment.text]
+          : [],
+      );
+    replay.release(0);
+    await session.write(new Uint8Array(800));
+    await clock.advanceAsync(0);
+    expect(finals()).toEqual(['पहला']);
+    expect(() => replay.assertComplete()).toThrow();
+    replay.release(1);
+    await session.write(new Uint8Array(800));
+    await clock.advanceAsync(0);
+    expect(finals()).toEqual(['पहला', 'दूसरा']);
+    await session.finish();
+    expect(() => replay.assertComplete()).not.toThrow();
   });
 
   it('uses the realtime Odia code and linear16 encoding', () => {
@@ -194,7 +241,7 @@ describe('Sarvam documented wire behavior', () => {
   });
 
   it('REST fallback uses its own request id and emits one usage meter after a failed stream', async () => {
-    const raw = String.fromCharCode(...new Uint8Array(960).fill(0x7f));
+    const samples = new Uint8Array(960).fill(0x7f);
     const net = createFixtureNet([
       {
         host: 'api.sarvam.ai',
@@ -237,7 +284,10 @@ describe('Sarvam documented wire behavior', () => {
             },
             reply: {
               status: 200,
-              body: JSON.stringify({ request_id: 'rest-1', audios: [btoa(raw)] }),
+              body: JSON.stringify({
+                request_id: 'rest-1',
+                audios: [Buffer.from(mulawWav(samples)).toString('base64')],
+              }),
             },
           },
         ],
@@ -255,8 +305,22 @@ describe('Sarvam documented wire behavior', () => {
     }))
       chunks.push(chunk);
     expect(chunks.map((chunk) => chunk.byteLength)).toEqual([960]);
+    expect(chunks[0]).toEqual(samples);
     expect(usage).toMatchObject([{ requestId: 'rest-1', quantity: '6', state: 'reconciled' }]);
     net.assertComplete();
+  });
+
+  it('accepts native REST audio and refuses a WAV with the wrong rate or codec', () => {
+    const samples = Uint8Array.of(0x7f, 0xff);
+    expect(decodeRestAudio(Buffer.from(samples).toString('base64'), MULAW_8K)).toEqual(samples);
+    expect(() =>
+      decodeRestAudio(Buffer.from(mulawWav(samples, 16000)).toString('base64'), MULAW_8K),
+    ).toThrow('does not match the requested native format');
+    const wrongCodec = mulawWav(samples);
+    new DataView(wrongCodec.buffer).setUint16(20, 1, true);
+    expect(() => decodeRestAudio(Buffer.from(wrongCodec).toString('base64'), MULAW_8K)).toThrow(
+      'does not match the requested native format',
+    );
   });
 
   it('refuses an unsupported format before attempting WebSocket or REST fallback', async () => {

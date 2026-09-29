@@ -1,6 +1,9 @@
 import { MULAW_8K, type NetFixtureScript, type SttEvent } from '@winsendotai/ovo-contracts';
+import { FakeClock } from '@winsendotai/ovo-conformance';
 import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
 import { describe, expect, it } from 'vitest';
+import { createSttReplayNet } from '../../fixture-calls/src/stt-replay-net.ts';
+import { planSttReplay } from '../../fixture-calls/src/stt-replay-plan.ts';
 import { AssemblyAiStt, assemblyAiUrl } from '../src/provider.ts';
 import { AssemblyAiProviderError } from '../src/session.ts';
 import { assemblyAiTemplate } from '../src/testing.ts';
@@ -38,18 +41,40 @@ function input(events: SttEvent[], usage: unknown[]) {
 }
 
 describe('AssemblyAI documented wire protocol', () => {
-  it('refuses to script a second turn without an audio gate', () => {
-    expect(() =>
-      assemblyAiTemplate({
-        format: MULAW_8K,
-        language: 'en',
-        sessionId: 'two-turns',
-        turns: [
-          { atMs: 0, say: 'first' },
-          { atMs: 2000, say: 'second' },
-        ],
-      }),
-    ).toThrow('multi-turn fixture requires an audio-gated replay step');
+  it('holds a second scripted turn until its caller audio is released', async () => {
+    const clock = new FakeClock();
+    const plan = planSttReplay(assemblyAiTemplate, {
+      format: MULAW_8K,
+      language: 'en',
+      sessionId: 'two-turns',
+      turns: [
+        { atMs: 0, say: 'first' },
+        { atMs: 2000, say: 'second' },
+      ],
+    });
+    const replay = createSttReplayNet(plan, clock);
+    const events: SttEvent[] = [];
+    const session = await new AssemblyAiStt(replay.port, 'fixture-key', {}, clock).start({
+      ...input(events, []),
+      sessionId: 'two-turns',
+    });
+    const finals = () =>
+      events.flatMap((event) =>
+        event.type === 'transcript' && event.segment.stability === 'final'
+          ? [event.segment.text]
+          : [],
+      );
+    replay.release(0);
+    await session.write(new Uint8Array(800));
+    await clock.advanceAsync(0);
+    expect(finals()).toEqual(['first']);
+    expect(() => replay.assertComplete()).toThrow();
+    replay.release(1);
+    await session.write(new Uint8Array(800));
+    await clock.advanceAsync(0);
+    expect(finals()).toEqual(['first', 'second']);
+    await session.finish();
+    expect(() => replay.assertComplete()).not.toThrow();
   });
 
   it('advertises only languages supported by the selected model and rejects an unsupported start', async () => {
