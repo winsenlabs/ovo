@@ -171,24 +171,28 @@ The named owner must resolve these findings. Items marked **BLOCKING** prevent t
 | S2 checker | Add consumers/tests for declared `ttfsP99Ms` and `maxChars`; perturbing them currently leaves the suite green. Forbid unapproved conformance `only:` subsetting, which can make a plugin pass with one check.                                                                                                                                                                                                                                                          | I1      |
 | S2 checker | **Founder/vendor confirmation required:** reconcile AssemblyAI Universal-3.5-Pro Urdu support against the original spec; confirm Sarvam Odia `or-IN` for STT versus `od-IN` for TTS; confirm the supported Sarvam speaker roster before constraining `bindingSchema.speaker`. Do not settle any of these from inference.                                                                                                                                               | Tejas   |
 
-## Approved frozen-path exceptions and commit policy
+## Approved exceptions
 
-- **2026-09-26 approval, confirmed 2026-09-27:** the checker instructed root
-  `package.json` to append `&& pnpm test:console:e2e` to `check` in the U1 verdict;
-  it landed with S1 merge `e2c7cc5`. This is an explicit design §15.2 exception.
-  Reason: U1's console regressions, accessibility sweep and keyboard assertions
-  otherwise ran only in an optional suite outside the repository green bar.
-  Blast radius: every Wave 2 unit's `pnpm check` now runs console E2E. A failure
-  confined to console E2E and unrelated to a unit's scope must be escalated to
-  the checker; unrelated units must not change console code to make it green.
-- **2026-09-27, explicitly reconfirmed with D1 verification:** the new
-  `scripts/seed-demo-price-cards.mjs` is an approved §15.2 exception. Design
-  §18.10 requires it by name. It is referenced by no script, gate or CI path;
-  adding this unreferenced manual seed changes no shared tooling behavior.
-  Existing scripts remain frozen and the illustrative labels stay mandatory.
-- **2026-09-27:** continuing board/spec updates are approved despite the PM freeze.
-  Put all `PM/**` updates in documentation-only commits, separate from code, so
-  reverting unit code cannot also revert the board. Do not rewrite prior merges.
+These dates record the checker/founder's approvals on the board; earlier rulings
+were reconfirmed on 2026-09-29. Each row is the full approved scope, not a
+general waiver of design §15.2 or unit ownership.
+
+| Date       | Unit  | Approved exception                                                                                                                                         | Reason and limit                                                                                                                                                                             | Approved by            |
+| ---------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| 2026-09-29 | U1    | Root `package.json` appends `&& pnpm test:console:e2e` to `check`.                                                                                         | Makes the axe sweep and mobile-nav keyboard assertions part of the repository gate. Every wave-2 unit now runs console E2E; unrelated failures go to the checker, not into that unit's code. | Tejas, checker/founder |
+| 2026-09-29 | D1    | New, unreferenced `scripts/seed-demo-price-cards.mjs` under frozen `scripts/*.mjs`.                                                                        | Design §18.10 requires it. No existing script or gate changes; created cards say **ILLUSTRATIVE — NOT A QUOTE**.                                                                             | Tejas, checker/founder |
+| 2026-09-29 | O1    | Add only contracts, distribution, plugin-kit and plugin-ledger workspace dependencies to `apps/dispatcher/package.json` and its `pnpm-lock.yaml` importer. | The production dispatcher imports all four directly; the owned-path list omits its frozen manifest. No other dependency or version changes.                                                  | Tejas, checker/founder |
+| 2026-09-29 | C2    | Add `@types/ws` to `packages/plugin-media/package.json` and its lockfile importer.                                                                         | The authenticated WebSocket media code needs the already-locked declaration version for typecheck.                                                                                           | Tejas, checker/founder |
+| 2026-09-29 | O2    | Remove only plugin-ledger's obsolete plugin-observability manifest dependency and matching lockfile importer on O2 resumption.                             | The ledger must import pricing contracts directly; keep the dependency graph consistent with that decoupling.                                                                                | Tejas, checker/founder |
+| 2026-09-29 | M1    | Fix secret rotation inside the existing storage row lock.                                                                                                  | The AAD version must be chosen under the same lock as the credential update; limit edits to the rotation obligation.                                                                         | Tejas, checker/founder |
+| 2026-09-29 | M1    | Add the `apps/api/src/routes/mcp-discovery.ts` module split.                                                                                               | Keep the MCP discovery route within the module-size gate while implementing M1; no general API ownership transfer.                                                                           | Tejas, checker/founder |
+| 2026-09-29 | D1/M1 | D1 owns control migration 006; M1 renumbers its paused migration to 007 before resumption.                                                                 | The control runner lacks a contiguity check, so landing 007 before 006 would silently apply migrations out of order. The second unit rebases and re-verifies both backends.                  | Tejas, checker/founder |
+| 2026-09-29 | C2    | `CarrierHttpRequest.externalUrl` carries the raw HTTPS query; `docs/architecture/plugin-platform.md` lines 934, 960 and 1702–1709 were amended.            | Twilio signatures require the exact query-bearing URL. WSS upgrades retain the exact path without query; the frozen conformance driver's conflicting URL rebuild remains a hard I1 blocker.  | Tejas, checker/founder |
+| 2026-09-29 | D1    | Correct the shared test fixture to `format: MULAW_8K`.                                                                                                     | Make the fixture satisfy the carrier-media contract without weakening production validation or changing its assertions.                                                                      | Tejas, checker/founder |
+| 2026-09-29 | M1    | Extend expected-version fixture arrays to include control migration 6.                                                                                     | Existing fixtures must reflect D1's landed migration; M1 must also renumber its own migration to 007.                                                                                        | Tejas, checker/founder |
+| 2026-09-29 | C2    | Update three shared worker harness tests for the authenticated gateway and installed ingress.                                                              | The prior private open shape was replaced. Preserve their lifecycle assertions and treat the shared tests as narrow touchpoints.                                                             | Tejas, checker/founder |
+| 2026-09-29 | S2/I1 | Assign the real-Twilio-plus-real-Plivo integration test to I1 as a **BLOCKER**.                                                                            | S2's plugin tests cannot prove the selected-carrier production path; I1 must run this integration before approval.                                                                           | Tejas, checker/founder |
+| 2026-09-29 | All   | Continue updating `PM/**` despite its freeze, in documentation-only commits separate from code.                                                            | The board is the unit status and checker-decision record; separating commits keeps unit-code reverts from reverting decisions.                                                               | Tejas, checker/founder |
 
 ## Changes requested
 

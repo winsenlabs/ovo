@@ -148,6 +148,18 @@ importers:
 
   apps/dispatcher:
     dependencies:
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@winsendotai/ovo-distribution':
+        specifier: workspace:*
+        version: link:../../packages/distribution
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../../packages/plugin-kit
+      '@winsendotai/ovo-plugin-ledger':
+        specifier: workspace:*
+        version: link:../../packages/plugin-ledger
       '@winsendotai/ovo-plugin-operations':
         specifier: workspace:*
         version: link:../../packages/plugin-operations

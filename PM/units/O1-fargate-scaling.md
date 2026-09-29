@@ -263,7 +263,7 @@ real DATABASE_URL. Neither the eight-second test deadline nor the production
 fifteen-second freshness limit was relaxed. The focused production entry run then
 passed all three cases.
 
-### Remaining manifest decision
+### Manifest decision pending at the 2026-09-26 checkpoint
 
 The dispatcher source requires four direct workspace dependencies:
 `@winsendotai/ovo-contracts`, `@winsendotai/ovo-distribution`,
@@ -284,7 +284,7 @@ parameter errors; ordinary tests cannot load two dispatcher suites.
 | Item                                                                                                                                                                         | Owner  |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | Preserve the orchestration 006 sequence when merging migrations; the capacity tables are intentionally dropped and the restore-fence script's guarded block stays unchanged. | I1     |
-| Resolve the four dispatcher manifest dependencies and lock importer before claiming a normal green bar; temporary aliases are not a deployable dependency fix.               | O1, I1 |
+| The four dispatcher manifest dependencies and lock importer are now approved and added by O1; I1 inherits this deployable dependency graph.                                  | I1     |
 | Keep inbound/outbound forced-exit finalization before protection release and shared media disposal. The frozen media close callback contract remains C2's seam.              | O2, C2 |
 | Preserve service-specific route secrets and JSON log event shapes when integrating deployment profiles and alarm filters. No live AWS validation has been performed.         | I1     |
 
@@ -381,3 +381,32 @@ disposable `postgres:17.6` bound to `127.0.0.1:32770`, that same scope passed
 **142 + 0 skips = 142** under `--no-file-parallelism`. The container was removed.
 The direct-dependency ruling remains pending, so these measurements do not
 constitute the full per-unit or repository green bar.
+
+## Checker ruling — 2026-09-29: dispatcher manifest exception
+
+The checker confirmed the prior Wave 2 checkpoint approval for exactly four
+direct dispatcher workspace dependencies: contracts, distribution, plugin-kit
+and plugin-ledger. The original owned-path list excludes
+`apps/dispatcher/package.json`, and design §15.2 freezes manifests; this
+dated ruling overrides both only for those four entries and the matching
+`pnpm-lock.yaml` importer. The central approved-exceptions table in
+`PM/units/README.md` records the same ruling in this commit. No dependency
+version or unrelated importer changes. `pnpm install --frozen-lockfile
+--offline` exits 0. The earlier pending-decision and temporary-alias
+measurements above are historical checkpoints; the normal scoped typecheck
+now exits 0 and ordinary scoped tests collect all 154 cases
+(93 passed / 61 database-gated skips). I1 inherits the dispatcher manifest
+and its four direct dependencies.
+
+The first normal root `pnpm check` reaches tests and exits 1 on exactly two
+existing distribution inventory cases: both reuse `workerEnv` for the
+dispatcher without `OVO_DLQ_URL`, which the new dispatcher profile correctly
+requires. The default suite reports **1,855 passed / 170 skipped / 2 failed**
+out of 2,027. A full serial Postgres run on a disposable loopback
+`postgres:17.6` reports **2,021 passed / 4 skipped / 2 failed** out of
+the same 2,027; both failures are the same missing fixture field.
+Independent `pnpm build`, `pnpm audit --audit-level moderate`, and
+`pnpm test:console:e2e` exit 0, with E2E **41 passed / 1 skipped**.
+The shared `packages/distribution/tests/distribution.test.ts` fixture is
+outside O1's owned paths. A ruling for a one-line loopback DLQ URL there is
+pending; no production fallback or test bypass has been added.
