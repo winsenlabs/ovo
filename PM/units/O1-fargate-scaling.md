@@ -359,3 +359,25 @@ The disposable `postgres:17.6` instance used only loopback port 32896. No real
 carrier/provider request, AWS API operation, Terraform plan/apply, merge or push
 was performed. The pending dispatcher manifest/lockfile ruling prevents a normal
 full green bar; this remains a WIP checkpoint, not **Built – awaiting check**.
+
+## Rebase checkpoint — 2026-09-29 (not Built)
+
+The saved O1 branch was rebased onto foundation `516a874` before work resumed.
+The ordinary scoped lint initially failed on five duplicated 60-token windows
+between the DLQ UUID parser and `packages/fixture-calls/src/run.ts`. O1 commit
+`0f6b7b2` replaced only the parser's duplicated expression with equivalent
+five-group validation and added wrong-width and non-hex DLQ messages. The
+focused background-task tests pass 3/3; the old parser accepted and rejected
+the same IDs, so these are boundary checks for the duplication repair, not a
+claim of a new behavioral regression test. No baseline changed.
+
+At this rebased head, scoped lint (all seven gates), full `pnpm format:check`,
+standalone scoped duplication, `pnpm build`, and `node scripts/check-terraform.mjs`
+each exited 0. Terraform used the locally installed binary for `fmt`,
+backend-disabled `init`, and `validate`; no plan, apply, or AWS call occurred.
+Ordinary tests excluding the two dispatcher suites that cannot resolve the
+undeclared imports passed **83 + 59 database-gated skips = 142**. With a
+disposable `postgres:17.6` bound to `127.0.0.1:32770`, that same scope passed
+**142 + 0 skips = 142** under `--no-file-parallelism`. The container was removed.
+The direct-dependency ruling remains pending, so these measurements do not
+constitute the full per-unit or repository green bar.
