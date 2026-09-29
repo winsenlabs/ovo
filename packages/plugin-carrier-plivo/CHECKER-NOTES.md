@@ -20,11 +20,11 @@ The selected ingress now supplies a per-call Plivo frame encoder for D1
 fixture replay. The production distribution test round-trips its frames
 through the real Plivo serializer. A separate C4-owned synthetic alternate
 carrier drives C2's `queryOnMediaUrl: true` branch through the production
-gateway adapter; native Plivo stays `false`. The checker decision on the
-documented reconciliation and transfer conflicts below is still pending.
+gateway adapter; native Plivo stays `false`. The checker approved the reduced
+reconciliation and transfer capabilities on 2026-09-29.
 
-- **Reconciliation:** C4's spec calls `GET /Call/{request_uuid}/?status=queued` and `reconcile: 'by-request-id'`. [Plivo's Calls API](https://www.plivo.com/docs/voice/api/calls) documents `GET /Call/?status=queued` as a list of call UUIDs, `GET /Call/{call_uuid}/?status=live` for a live call, and `GET /Call/{call_uuid}/` for a CDR. It documents no request UUID lookup. C4 therefore advertises `by-call-id`, returns pending without a callback-provided CallUUID, and performs live then CDR lookup by CallUUID. CDR outcome uses `hangup_cause_name`; `call_state` is explicitly legacy. The checker must decide whether this documented fail-closed behavior replaces the spec or requires a shared request-ID correlation mechanism. The latter belongs to C2 if approved.
-- **Handoff:** C4 requires phone, resume, and end; [Plivo transfer](https://www.plivo.com/docs/voice/api/calls) requires a URL that serves transfer XML as `aleg_url`, while `TelephonyControl.handoff` supplies only the target and request id. C4 advertises and implements end; phone and resume reject without a network call. A host-owned transfer URL seam would need a separate shared-contract decision, owned by F1/C2. Never construct a callback secret or transfer XML URL in this plugin.
+- **Reconciliation:** C4's spec calls `GET /Call/{request_uuid}/?status=queued` and `reconcile: 'by-request-id'`. [Plivo's Calls API](https://www.plivo.com/docs/voice/api/calls) documents `GET /Call/?status=queued` as a list of call UUIDs, `GET /Call/{call_uuid}/?status=live` for a live call, and `GET /Call/{call_uuid}/` for a CDR. It documents no request UUID lookup. C4 therefore advertises `by-call-id`, returns pending without a callback-provided CallUUID, and performs live then CDR lookup by CallUUID. CDR outcome uses `hangup_cause_name`; `call_state` is explicitly legacy. The checker approved this reduced capability on 2026-09-29. C2 preserves callback correlation; I1 owns the final integration.
+- **Handoff:** C4 requires phone, resume, and end; [Plivo transfer](https://www.plivo.com/docs/voice/api/calls) requires a URL that serves transfer XML as `aleg_url`, while `TelephonyControl.handoff` supplies only the target and request id. C4 advertises and implements end; phone and resume reject without a network call. The checker approved end-only on 2026-09-29. A host-owned transfer URL seam would need a separate shared-contract decision, owned by F1/C2. Never construct a callback secret or transfer XML URL in this plugin.
 - **Webhook V3:** The design describes URL + nonce, while [Plivo's official PHP SDK](https://github.com/plivo/plivo-php/blob/master/src/Plivo/Util/v3SignatureValidation.php) signs the SDK-constructed URL, a dot, and nonce. It also has POST query and body canonicalization. Independent golden fixtures follow the SDK. The host must pass the exact external URL, including query and port; a reconstructed URL fails closed. C2 now preserves the raw HTTP query in its owned gateway adapter; that fix must land before C4 integration. WSS still uses its separate no-query signature URL.
 - **`extraHeaders`:** The [Stream XML reference](https://www.plivo.com/docs/voice/xml/audio-streaming) shows comma-separated pairs, while the [streaming guide](https://www.plivo.com/docs/voice-agents/audio-streaming/concepts/audio-streaming-guide) uses semicolons. C4 emits commas as directed by the spec's XML source and accepts either delimiter on received start frames.
 - **Manifest (corrected 2026-09-26):** Design §15.2 freezes manifests outside a unit's owned paths. C4 owns `packages/plugin-carrier-plivo/**`, so removing its own `ovo.skeleton` flag is authorized by the spec and needs no shared exception. The flag is now removed; dependency and lockfile contents are unchanged.
@@ -55,21 +55,16 @@ independent reviewer reran all package tests (43 passed), scoped typecheck/lint,
 owned Prettier and full format:check, all exit 0. The unit remains In progress for
 the reconciliation, handoff and nonce decisions above; this is not a green handover.
 
-### Final checkpoint measurements
+### Final checkpoint measurements — 2026-09-29
 
-- `node scripts/lint.mjs --only packages/plugin-carrier-plivo`: **EXIT 0** (7 gates;
-  largest scoped source 235 canonical lines); `pnpm format:check`: **EXIT 0**;
-  `node scripts/check-duplication.mjs`: **EXIT 0** (767 source files, 59 existing
-  baseline pairs). No baseline was added for the fixes.
-- `pnpm exec vitest run packages/plugin-carrier-plivo packages/distribution --reporter=dot`:
-  **74 passed**, EXIT 0.
-- `pnpm typecheck`: EXIT 0. `pnpm build`: EXIT 0, including all three application
-  bundles and the normal production console build.
-- `pnpm exec vitest run --reporter=dot`: **1,190 passed / 138 skipped / 1 failed**,
-  EXIT 1, total 1,329. The sole failure is the foundation's Twilio-only default
-  expectation in `apps/media-gateway/tests/inbound-carrier-installation.test.ts`
-  described above. It must be rechecked after C2 integration. No storage paths
-  changed and no Postgres run is claimed for C4.
+These measurements are on C4's rebased tree with both approval-condition tests.
+The earlier 2026-09-26 default failure was resolved when C2 landed beneath C4.
+
+- `node scripts/lint.mjs --only packages/plugin-carrier-plivo apps/worker/tests/f4-carrier-settlement.test.ts`: **EXIT 0**, seven gates. `pnpm lint`: **EXIT 0**, seven gates. `pnpm format:check`: **EXIT 0**. `node scripts/check-duplication.mjs`: **EXIT 0**, 842 source files and 54 existing baseline pairs. No baseline was added.
+- `pnpm typecheck`: **EXIT 0**. `pnpm build`: **EXIT 0**, including the application bundles and console production build. `pnpm audit --audit-level moderate`: **EXIT 0**, no known vulnerabilities.
+- `pnpm exec vitest run --reporter=dot`: **1,749 passed / 153 skipped / 0 failed**, **EXIT 0**. `OVO_TEST_POSTGRES_URL=… RECORDING_TEST_DATABASE_URL=… pnpm exec vitest run --no-file-parallelism --reporter=dot` against a disposable loopback `postgres:17.6`: **1,898 passed / 4 skipped / 0 failed**, **EXIT 0**. Both runs total **1,902** cases; the extra default-run skips are database-gated. The owned container was removed.
+- `pnpm test:console:e2e`: **41 passed / 1 skipped**, **EXIT 0**. The skip is the desktop-only mobile-menu visibility case.
+- Removing the Plivo missing-UUID guard changes the new test's result to `accepted` and fails its `unknown` value assertion. Bypassing the worker's no-correlation live-result guard makes its new settlement test reject with `Carrier accepted without a correlation id` instead of resolving to `reconcile_required`. Both broken-source runs exited 1; source was restored before the green bar.
 
 ## Carry-forwards
 

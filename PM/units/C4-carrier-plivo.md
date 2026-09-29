@@ -11,7 +11,24 @@ Defects fixed: [21, 26]
 
 ## Shared touchpoints (minimal edits allowed)
 
-- none
+- `apps/worker/tests/f4-carrier-settlement.test.ts` — the 2026-09-29 checker condition
+  requires an assertion at the production settlement boundary for a live result
+  with no correlation IDs. The worker implementation is unchanged; O2 inherits
+  this test when it owns worker dial settlement.
+
+## Checker note (2026-09-29): C4 approval conditions
+
+The checker approved C4's documented `by-call-id` reconciliation and end-only
+handoff declarations. The spec's request-UUID lookup and phone/resume transfer
+requirements remain superseded because the published API has no request-UUID
+call lookup and the current host contract supplies no transfer XML URL. The
+checker required two missing-correlation assertions before merge. C4 adds the
+HTTP 201 response without `request_uuid` case in its owned tests and the
+settlement assertion in the shared worker test named above. Removing the Plivo
+guard changes the former to `accepted`; bypassing the worker's live-correlation
+guard makes the latter throw `Carrier accepted without a correlation id`.
+The V3 fixture test is now titled as a golden-vector regression lock; the
+independent Node HMAC construction is in `v3-oracle.test.ts`.
 
 ## Checker note (2026-09-28)
 
@@ -41,7 +58,7 @@ completed lookups by **CallUUID**, and `DELETE /Request/{request_uuid}/` for
 cancellation. It does not document a request-UUID call lookup. The current
 implementation reports `pending` without a callback-provided CallUUID and
 advertises `by-call-id`; it never substitutes a guessed endpoint or maps a
-different call. This is a deliberate spec divergence pending checker approval.
+different call. This deliberate spec divergence was approved on 2026-09-29.
 
 The same Calls API requires a host-served XML `aleg_url` for phone/resume
 transfer. Frozen `TelephonyControl.handoff` supplies a target and request ID
@@ -50,7 +67,7 @@ implementation advertises `['end']`; phone and resume reject before NetPort.
 This conservative declaration follows design §8's instruction to use
 conservative capabilities when vendor behavior is unconfirmed. F1/C2 and I1
 inherit the host/contract decision if full handoff remains required; the
-checker decision is pending.
+checker approved the end-only declaration on 2026-09-29.
 
 The [official PHP V3 validator](https://github.com/plivo/plivo-php/blob/master/src/Plivo/Util/v3SignatureValidation.php)
 constructs the URL with `SORT_NATURAL` for query keys, repeated values and
