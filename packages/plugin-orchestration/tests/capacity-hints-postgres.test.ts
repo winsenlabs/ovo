@@ -68,6 +68,90 @@ describe.skipIf(!url)('capacity and hint PostgreSQL eligibility', () => {
     expect(await store.hints.sweep()).toEqual({ hinted: 1, poisoned: [] });
   });
 
+  it('does not hint an owned job while its lease remains live', async () => {
+    const id = randomUUID();
+    await store.pool.query(
+      `INSERT INTO ovo_jobs (id, workspace_id, idempotency_key, payload, status,
+         owner_id, owner_epoch, lease_expires_at, not_before)
+       VALUES ($1, $2, $3, '{}'::jsonb, 'owned',
+         'worker', 1, now() + interval '30 seconds', now() - interval '1 second')`,
+      [id, schema, id],
+    );
+    expect(await store.hints.sweep()).toEqual({ hinted: 0, poisoned: [] });
+    expect(
+      (await store.pool.query('SELECT hinted_at, hint_count FROM ovo_jobs WHERE id=$1', [id]))
+        .rows[0],
+    ).toEqual({ hinted_at: null, hint_count: 0 });
+    await store.pool.query(
+      `UPDATE ovo_jobs SET lease_expires_at = now() - interval '1 second' WHERE id=$1`,
+      [id],
+    );
+    expect(await store.hints.sweep()).toEqual({ hinted: 1, poisoned: [] });
+  });
+
+  it('does not hint queued work before not_before or repeat a recent hint', async () => {
+    const id = randomUUID();
+    await store.pool.query(
+      `INSERT INTO ovo_jobs (id, workspace_id, idempotency_key, payload, status, not_before)
+       VALUES ($1, $2, $3, '{}'::jsonb, 'queued', now() + interval '30 seconds')`,
+      [id, schema, id],
+    );
+    expect(await store.hints.sweep()).toEqual({ hinted: 0, poisoned: [] });
+    await store.pool.query(
+      `UPDATE ovo_jobs SET not_before = now() - interval '1 second',
+         hinted_at = now() - interval '2 seconds' WHERE id=$1`,
+      [id],
+    );
+    expect(await store.hints.sweep()).toEqual({ hinted: 0, poisoned: [] });
+    await store.pool.query(
+      `UPDATE ovo_jobs SET hinted_at = now() - interval '151 seconds' WHERE id=$1`,
+      [id],
+    );
+    expect(await store.hints.sweep()).toEqual({ hinted: 1, poisoned: [] });
+    expect(
+      (await store.pool.query('SELECT hint_count FROM ovo_jobs WHERE id=$1', [id])).rows[0],
+    ).toEqual({ hint_count: 1 });
+  });
+
+  it('skips a row locked by another sweeper and never double-claims concurrent work', async () => {
+    const lockedId = randomUUID();
+    await store.pool.query(
+      `INSERT INTO ovo_jobs (id, workspace_id, idempotency_key, payload, status, not_before)
+       VALUES ($1, $2, $3, '{}'::jsonb, 'queued', now() - interval '1 second')`,
+      [lockedId, schema, lockedId],
+    );
+    const holder = await store.pool.connect();
+    let sweep: ReturnType<typeof store.hints.sweep> | undefined;
+    let completedWhileLocked = false;
+    try {
+      await holder.query('BEGIN');
+      await holder.query('SELECT id FROM ovo_jobs WHERE id=$1 FOR UPDATE', [lockedId]);
+      sweep = store.hints.sweep();
+      completedWhileLocked = await Promise.race([
+        sweep.then(() => true),
+        new Promise<false>((resolve) => setTimeout(() => resolve(false), 500)),
+      ]);
+    } finally {
+      await holder.query('COMMIT');
+      holder.release();
+      await sweep;
+    }
+    expect(completedWhileLocked).toBe(true);
+    const results = await Promise.all([store.hints.sweep(), store.hints.sweep()]);
+    expect(results.map((item) => item.hinted).sort()).toEqual([0, 1]);
+    expect(
+      (await store.pool.query('SELECT hint_count FROM ovo_jobs WHERE id=$1', [lockedId])).rows[0],
+    ).toEqual({ hint_count: 1 });
+    expect(
+      (
+        await store.pool.query(
+          "SELECT count(*)::int AS count FROM ovo_outbox WHERE aggregate_id=$1 AND topic='job.eligible'",
+          [lockedId],
+        )
+      ).rows[0]?.count,
+    ).toBe(1);
+  });
+
   it('migrates away writer state and persists the last published signal across store instances', async () => {
     const tables = await store.pool.query<{ writes: string | null; leases: string | null }>(
       `SELECT to_regclass('ovo_capacity_writes')::text AS writes,

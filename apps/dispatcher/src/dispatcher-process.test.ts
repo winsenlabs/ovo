@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PostgresOrchestrationStore } from '@winsendotai/ovo-plugin-orchestration';
 import { randomUUID } from 'node:crypto';
 import { Cap } from '@winsendotai/ovo-contracts';
@@ -31,6 +31,9 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('dispatcher production profi
   let admin: PostgresOrchestrationStore;
   let databaseUrl: string;
   beforeAll(async () => {
+    vi.stubEnv('AWS_ACCESS_KEY_ID', 'local-dispatcher-test');
+    vi.stubEnv('AWS_SECRET_ACCESS_KEY', 'local-dispatcher-test');
+    vi.stubEnv('AWS_EC2_METADATA_DISABLED', 'true');
     admin = new PostgresOrchestrationStore({
       connectionString: process.env.OVO_TEST_POSTGRES_URL!,
     });
@@ -40,6 +43,7 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('dispatcher production profi
     databaseUrl = url.toString();
   });
   afterAll(async () => {
+    vi.unstubAllEnvs();
     if (!admin) return;
     try {
       await admin.pool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
@@ -54,11 +58,13 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('dispatcher production profi
         OVO_ORGANIZATION_ID: 'dispatcher-fargate-profile-test',
         OVO_QUEUE_URL: 'http://127.0.0.1:1/unused-jobs',
         OVO_DLQ_URL: 'http://127.0.0.1:1/unused-dlq',
+        OVO_SQS_ENDPOINT: 'http://127.0.0.1:1',
         OVO_DEPLOYMENT_PROFILE: 'fargate',
         OVO_CAPACITY_SIGNAL: 'cloudwatch',
         OVO_ENVIRONMENT: 'test',
         OVO_INBOUND_ENABLED: 'false',
         AWS_REGION: 'us-east-1',
+        AWS_EC2_METADATA_DISABLED: 'true',
       },
       readProvisionedTasks: async () => 2,
     });
@@ -87,11 +93,13 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('dispatcher production profi
         OVO_ORGANIZATION_ID: 'dispatcher-profile-test',
         OVO_QUEUE_URL: 'http://127.0.0.1:1/unused-jobs',
         OVO_DLQ_URL: 'http://127.0.0.1:1/unused-dlq',
+        OVO_SQS_ENDPOINT: 'http://127.0.0.1:1',
         OVO_DEPLOYMENT_PROFILE: 'compose',
         OVO_CAPACITY_SIGNAL: 'log',
         OVO_INBOUND_ENABLED: 'false',
         OVO_INBOUND_WARM_FLOOR: '2',
         AWS_REGION: 'us-east-1',
+        AWS_EC2_METADATA_DISABLED: 'true',
       },
       readProvisionedTasks: async () => {
         reading = true;

@@ -26,19 +26,29 @@ export async function terminateOwnedJobAndFinalize(
   }
 }
 
-/** One route fence before carrier control and local media teardown. */
+/** Fence carrier control first; local resources must still close if the fence fails. */
 export async function terminateOwnedJob(input: OwnedTermination): Promise<boolean> {
   const job = await input.store.get(input.jobId);
   const route = await input.store.getSessionRoute(input.jobId);
   if (!job || !route) return false;
   const reason: EndReason = asEndReason(input.reason);
-  const fenced = await input.store.requestSessionTermination(
-    input.jobId,
-    input.workerId,
-    input.ownerEpoch,
-    reason,
-  );
-  if (!fenced) throw new Error(`Session ${route.sessionId} termination fence failed`);
+  let fenced;
+  try {
+    fenced = await input.store.requestSessionTermination(
+      input.jobId,
+      input.workerId,
+      input.ownerEpoch,
+      reason,
+    );
+  } catch (error) {
+    await closeLocalAfterFenceFailure(input, route.sessionId, reason, error);
+    throw error;
+  }
+  if (!fenced) {
+    const error = new Error(`Session ${route.sessionId} termination fence failed`);
+    await closeLocalAfterFenceFailure(input, route.sessionId, reason, error);
+    throw error;
+  }
   let selected;
   try {
     selected = await input.carriers.forJob(job, false);
@@ -74,4 +84,34 @@ export async function terminateOwnedJob(input: OwnedTermination): Promise<boolea
     reason,
   });
   return true;
+}
+
+async function closeLocalAfterFenceFailure(
+  input: OwnedTermination,
+  sessionId: string,
+  reason: EndReason,
+  error: unknown,
+): Promise<void> {
+  const cleanupErrors: string[] = [];
+  try {
+    await input.media.terminate(sessionId, reason);
+  } catch (cleanupError) {
+    cleanupErrors.push(String(cleanupError));
+  }
+  try {
+    await input.media.closeSession(sessionId, reason);
+  } catch (cleanupError) {
+    cleanupErrors.push(String(cleanupError));
+  }
+  console.error(
+    JSON.stringify({
+      event: 'termination_fence_failed',
+      jobId: input.jobId,
+      sessionId,
+      workerId: input.workerId,
+      ownerEpoch: input.ownerEpoch,
+      error: String(error),
+      cleanupErrors,
+    }),
+  );
 }

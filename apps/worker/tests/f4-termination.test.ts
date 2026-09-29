@@ -91,8 +91,9 @@ describe('owned carrier termination', () => {
     expect(terminate).toHaveBeenCalledWith('session-reason', expected);
     expect(closeSession).toHaveBeenCalledWith('session-reason', expected);
   });
-  it('does not select a carrier or close media when the host route fence fails', async () => {
+  it('closes local media and engine, but never selects a carrier, when the route fence fails', async () => {
     const order: string[] = [];
+    const alarm = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const route = {
       sessionId: 'session-lost',
       jobId: 'job-lost',
@@ -135,7 +136,53 @@ describe('owned carrier termination', () => {
         } as never,
       }),
     ).rejects.toThrow('termination fence failed');
-    expect(order).toEqual(['fence-failed']);
+    expect(order).toEqual(['fence-failed', 'media', 'local-close']);
+    expect(alarm).toHaveBeenCalledWith(expect.stringContaining('termination_fence_failed'));
+    alarm.mockRestore();
+  });
+
+  it('closes the engine and alarms when the fence query throws and local media close also fails', async () => {
+    const order: string[] = [];
+    const alarm = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      await expect(
+        terminateOwnedJob({
+          jobId: 'job-db-error',
+          workerId: 'worker-1',
+          ownerEpoch: 2,
+          reason: 'drain',
+          store: {
+            get: async () => ({ id: 'job-db-error', payload: {} }),
+            getSessionRoute: async () => ({ sessionId: 'session-db-error' }),
+            requestSessionTermination: async () => {
+              order.push('fence-error');
+              throw new Error('database unavailable');
+            },
+          } as never,
+          carriers: {
+            forJob: async () => {
+              order.push('select');
+              throw new Error('carrier must not be selected');
+            },
+          } as never,
+          media: {
+            terminate: async () => {
+              order.push('media');
+              throw new Error('media close failed');
+            },
+            closeSession: async () => {
+              order.push('engine');
+            },
+          } as never,
+        }),
+      ).rejects.toThrow('database unavailable');
+      expect(order).toEqual(['fence-error', 'media', 'engine']);
+      expect(alarm).toHaveBeenCalledWith(
+        expect.stringContaining('"cleanupErrors":["Error: media close failed"]'),
+      );
+    } finally {
+      alarm.mockRestore();
+    }
   });
 
   it('fences the durable route before carrier and media closure, with engine disposal last', async () => {
@@ -322,10 +369,12 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)(
       ).toBe('ownership_lost');
     });
 
-    it('never closes media when the owner epoch cannot fence the durable route', async () => {
-      const { jobId, epoch } = await route();
+    it('closes only local resources when the owner epoch cannot fence the durable route', async () => {
+      const { jobId, sessionId, epoch } = await route();
       const select = vi.fn();
-      const terminate = vi.fn();
+      const terminate = vi.fn(async () => undefined);
+      const closeSession = vi.fn(async () => undefined);
+      const alarm = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       await expect(
         terminateOwnedJob({
           jobId,
@@ -334,11 +383,14 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)(
           reason: 'job-lease-lost',
           store,
           carriers: { forJob: select } as never,
-          media: { terminate, closeSession: terminate } as never,
+          media: { terminate, closeSession } as never,
         }),
       ).rejects.toThrow('termination fence failed');
       expect(select).not.toHaveBeenCalled();
-      expect(terminate).not.toHaveBeenCalled();
+      expect(terminate).toHaveBeenCalledExactlyOnceWith(sessionId, 'ownership_lost');
+      expect(closeSession).toHaveBeenCalledExactlyOnceWith(sessionId, 'ownership_lost');
+      expect(alarm).toHaveBeenCalledWith(expect.stringContaining('termination_fence_failed'));
+      alarm.mockRestore();
       expect((await store.getSessionRoute(jobId))?.status).toBe('dialing');
     });
   },

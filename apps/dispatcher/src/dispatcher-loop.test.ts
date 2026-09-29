@@ -53,7 +53,7 @@ describe('dispatcher loop', () => {
     });
   });
 
-  it('allows independent replicas to publish identical demand', async () => {
+  it('publishes the computed capacity signal from each independent replica', async () => {
     const first = vi.fn(async (_signal: unknown) => undefined);
     const second = vi.fn(async (_signal: unknown) => undefined);
     for (const publish of [first, second]) {
@@ -65,7 +65,15 @@ describe('dispatcher loop', () => {
       await loop.capacityTick();
       expect(loop.health()).toMatchObject({ healthy: true });
     }
-    expect(first.mock.calls[0]?.[0]).toEqual(second.mock.calls[0]?.[0]);
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(first.mock.calls[0]![0]).toMatchObject({
+      provisionedTasks: 4,
+      busySlots: 2,
+      readyIdleSlots: 2,
+      eligibleJobs: 2,
+    });
+    expect(second.mock.calls[0]![0]).toEqual(first.mock.calls[0]![0]);
   });
 
   it('runs every installed task with jitter, isolates failures, and aborts on stop', async () => {
