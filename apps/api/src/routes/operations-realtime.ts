@@ -1,11 +1,12 @@
+import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ControlStore, Role } from '@winsendotai/ovo-plugin-storage';
 import {
   operationsApiSchemas as schemas,
   operationsPage,
   operationsRequestError,
+  normalizePhoneNumber,
   publicHandoff,
-  type InboundOverflowPolicy,
   type OperationsService,
 } from '@winsendotai/ovo-plugin-operations';
 import type { Principal } from '../types.ts';
@@ -29,71 +30,95 @@ export function registerOperationsRealtimeRoutes(input: RealtimeRouteDependencie
   const { app, store, requireRole, use, audit } = input;
   registerOperationsInboundRouteManagement(input);
 
-  app.get('/v1/operations/inbound/policy', async (request, reply) => {
-    const principal = requireRole(request, 'viewer');
+  app.patch('/v1/operations/campaigns/:campaignId', async (request, reply) => {
+    const principal = requireRole(request, 'editor');
     const operations = use(reply, principal);
     if (!operations) return;
-    return { policy: await operations.inbound.getPolicy() };
-  });
-
-  app.put('/v1/operations/inbound/policy', async (request, reply) => {
-    const principal = requireRole(request, 'admin'),
-      operations = use(reply, principal);
-    if (!operations) return;
-    const body = schemas.inboundPolicy.parse(request.body);
-    const policy = await operations.inbound.setPolicy(
-      body.policy as InboundOverflowPolicy,
-      body.expectedVersion,
-    );
-    if (!policy)
-      return reply.code(409).send({
-        error: { code: 'inbound_policy_conflict', message: 'Inbound policy state changed' },
-        current: await operations.inbound.getPolicy(),
+    const { campaignId } = schemas.campaignParams.parse(request.params);
+    const body = schemas.campaignConcurrency.parse(request.body);
+    const result = await operations.campaigns
+      .patchConcurrency(campaignId, body.expectedVersion, body.maxConcurrency)
+      .catch((error: unknown) => {
+        if ((error as Error).message === 'Campaign not found')
+          return operationsRequestError(404, 'campaign_not_found', 'Campaign not found');
+        throw error;
       });
-    await audit(principal, 'operations.inbound.policy.update', 'inbound_policy', 'default', {
-      version: policy.version,
-      kind: policy.policy.kind,
+    if (result.kind === 'conflict')
+      return reply.code(409).send({
+        error: { code: 'campaign_conflict', message: 'Campaign state changed' },
+        current: result.campaign,
+      });
+    await audit(principal, 'operations.campaign.concurrency.update', 'campaign', campaignId, {
+      version: result.campaign.version,
+      maxConcurrency: result.campaign.maxConcurrency,
     });
-    return policy;
+    return result.campaign;
   });
 
-  app.get('/v1/operations/inbound/capacity', async (request, reply) => {
-    const principal = requireRole(request, 'viewer');
+  app.post('/v1/operations/contacts/:contactId/redrive', async (request, reply) => {
+    const principal = requireRole(request, 'admin');
     const operations = use(reply, principal);
     if (!operations) return;
-    return { readyProtected: await operations.inbound.readyProtectedCapacity() };
+    if (!operations.config.liveEnabled)
+      return operationsRequestError(503, 'live_calls_disabled', 'Live calling is not enabled');
+    const { contactId } = schemas.redriveParams.parse(request.params);
+    const { notBefore } = schemas.redrive.parse(request.body);
+    const result = await operations.retries
+      .redrive(contactId, new Date(notBefore ?? Date.now()))
+      .catch((error: unknown) => {
+        if ((error as Error).message === 'Campaign contact not found')
+          return operationsRequestError(404, 'campaign_contact_not_found', 'Contact not found');
+        throw error;
+      });
+    if (result.kind === 'blocked')
+      return reply.code(409).send({
+        error: { code: 'campaign_redrive_blocked', message: 'Contact cannot be redriven' },
+        reason: result.reason,
+      });
+    await audit(principal, 'operations.campaign.contact.redrive', 'campaign-contact', contactId, {
+      notBefore: notBefore ?? null,
+    });
+    return reply.code(202).send(result);
   });
 
-  app.get('/v1/operations/inbound/decisions', async (request, reply) => {
-    const principal = requireRole(request, 'viewer');
-    const operations = use(reply, principal);
+  app.get('/v1/operations/suppressions', async (request, reply) => {
+    const query = schemas.suppressionPage.parse(request.query);
+    const operations = use(reply, requireRole(request, 'viewer'));
     if (!operations) return;
-    const query = schemas.uuidPage.parse(request.query),
-      items = await operations.inbound.listDecisions(query.limit, query.cursor);
-    return operationsPage(items, query.limit);
+    return operationsPage(
+      await operations.campaigns.listSuppressions(query.limit, query.cursor),
+      query.limit,
+    );
   });
 
-  app.post('/v1/operations/inbound/decisions', async (request, reply) => {
-    const principal = requireRole(request, 'admin'),
+  app.post('/v1/operations/suppressions', async (request, reply) => {
+    const principal = requireRole(request, 'editor'),
       operations = use(reply, principal);
     if (!operations) return;
-    const { callId } = schemas.inboundDecision.parse(request.body);
-    let decision;
-    try {
-      decision = await operations.inbound.admitUsingPolicy(callId);
-    } catch (error) {
-      if ((error as Error).message.includes('not configured'))
-        return operationsRequestError(
-          409,
-          'inbound_policy_missing',
-          'Inbound policy is not configured',
-        );
-      throw error;
-    }
-    await audit(principal, 'operations.inbound.decide', 'inbound_call', callId, {
-      decision: decision.kind,
-    });
-    return reply.code(201).send(decision);
+    const body = schemas.suppression.parse(request.body);
+    await operations.campaigns.suppress(body.phoneNumber, body.reason);
+    const resourceId = createHash('sha256')
+      .update(normalizePhoneNumber(body.phoneNumber))
+      .digest('hex');
+    await audit(principal, 'operations.suppression.upsert', 'suppression', resourceId);
+    return reply.code(204).send();
+  });
+
+  app.delete('/v1/operations/suppressions/:phoneNumber', async (request, reply) => {
+    const principal = requireRole(request, 'editor'),
+      operations = use(reply, principal);
+    if (!operations) return;
+    const { phoneNumber } = schemas.suppressionParams.parse(request.params);
+    const removed = await operations.campaigns.unsuppress(phoneNumber);
+    if (!removed)
+      return operationsRequestError(404, 'suppression_not_found', 'Suppression not found');
+    await audit(
+      principal,
+      'operations.suppression.delete',
+      'suppression',
+      createHash('sha256').update(phoneNumber).digest('hex'),
+    );
+    return reply.code(204).send();
   });
 
   app.post('/v1/operations/handoffs', async (request, reply) => {

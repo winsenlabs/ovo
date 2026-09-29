@@ -12,6 +12,8 @@ import {
   providerSourceKind,
   usageIdentity,
   validatePolicy,
+  durableReservationFields,
+  accumulateInferenceEvidence,
   type NormalizedUsage,
 } from './cost-policy-support.ts';
 import type {
@@ -255,6 +257,7 @@ export class WorkerCostPolicyController {
       reservationId: this.options.sessionId,
       amountPaise: this.policy.reservationPaise,
       sourceRef: `session:${this.options.sessionId}`,
+      ...durableReservationFields(this.options, this.policy.maxCallSeconds),
     });
     this.admitted = result.admitted;
     return result;
@@ -357,12 +360,7 @@ export class WorkerCostPolicyController {
     state: 'reported' | 'estimated' | 'unknown',
     reasons: readonly string[],
   ): void {
-    if (state === 'reported') this.inferenceEvidence.reportedSteps += 1;
-    if (state === 'estimated') this.inferenceEvidence.estimatedSteps += 1;
-    if (state === 'unknown') this.inferenceEvidence.unknownSteps += 1;
-    this.inferenceEvidence.reasons = [
-      ...new Set([...this.inferenceEvidence.reasons, ...reasons]),
-    ].sort();
+    accumulateInferenceEvidence(this.inferenceEvidence, state, reasons);
   }
 }
 

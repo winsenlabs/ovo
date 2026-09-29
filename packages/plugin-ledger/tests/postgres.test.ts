@@ -68,7 +68,7 @@ describe.skipIf(!postgresUrl)('PostgreSQL production cost ledger', () => {
 
   it('runs a versioned migration with only ovo_cost_ ledger tables', async () => {
     const version = await pool.query('SELECT version FROM ovo_cost_schema_migrations');
-    expect(version.rows).toEqual([{ version: 1 }]);
+    expect(version.rows).toEqual([{ version: 1 }, { version: 2 }]);
   });
 
   it('keeps price card versions immutable and idempotent', async () => {

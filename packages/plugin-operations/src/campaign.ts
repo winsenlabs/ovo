@@ -52,6 +52,14 @@ export class CampaignService {
     return this.admin.command(id, command, expectedVersion);
   }
 
+  patchConcurrency(
+    id: string,
+    expectedVersion: number,
+    maxConcurrency: number,
+  ): Promise<CampaignCommandResult> {
+    return this.admin.patchConcurrency(id, expectedVersion, maxConcurrency);
+  }
+
   suppress(phoneNumber: string, reason: string): Promise<void> {
     return this.admin.suppress(phoneNumber, reason);
   }

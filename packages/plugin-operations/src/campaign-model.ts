@@ -17,6 +17,12 @@ export interface CampaignRow extends QueryResultRow {
   max_attempts_total: number;
   max_attempts_per_local_day: number;
   active_call_policy: 'continue' | 'request_end';
+  max_concurrency: number;
+  carrier_plugin_id: string | null;
+  carrier_id: string | null;
+  carrier_binding_id: string | null;
+  binding_cps: string | null;
+  driver_error: string | null;
   version: string;
 }
 
@@ -33,7 +39,8 @@ export interface ContactRow extends QueryResultRow {
 }
 
 export const campaignColumns = `id, operation_id, input_digest, name, agent_release_id, from_number, status, schedule_at, timezone,
-  per_number_attempt_limit, max_attempts_total, max_attempts_per_local_day, active_call_policy, version`;
+  per_number_attempt_limit, max_attempts_total, max_attempts_per_local_day, active_call_policy,
+  max_concurrency, carrier_plugin_id, carrier_id, carrier_binding_id, binding_cps, driver_error, version`;
 
 export function campaignFromRow(row: CampaignRow): CampaignRecord {
   return {
@@ -49,6 +56,12 @@ export function campaignFromRow(row: CampaignRow): CampaignRecord {
     maxAttemptsTotal: row.max_attempts_total,
     maxAttemptsPerLocalDay: row.max_attempts_per_local_day,
     activeCallPolicy: row.active_call_policy,
+    maxConcurrency: row.max_concurrency,
+    ...(row.carrier_plugin_id ? { carrierPluginId: row.carrier_plugin_id } : {}),
+    ...(row.carrier_id ? { carrierId: row.carrier_id } : {}),
+    carrierBindingId: row.carrier_binding_id,
+    bindingCps: row.binding_cps === null ? null : Number(row.binding_cps),
+    ...(row.driver_error ? { driverError: row.driver_error } : {}),
     version: Number(row.version),
   };
 }
@@ -67,6 +80,13 @@ export function validateCampaignConfig(config: CampaignConfig): Date {
   positiveInteger(config.perNumberAttemptLimit, 'perNumberAttemptLimit', 100);
   positiveInteger(config.maxAttemptsTotal, 'maxAttemptsTotal', 10_000_000);
   positiveInteger(config.maxAttemptsPerLocalDay, 'maxAttemptsPerLocalDay', 10_000_000);
+  positiveInteger(config.maxConcurrency ?? 1, 'maxConcurrency', 1_000);
+  if (
+    config.bindingCps !== undefined &&
+    config.bindingCps !== null &&
+    (!Number.isFinite(config.bindingCps) || config.bindingCps <= 0)
+  )
+    throw new Error('bindingCps is out of range');
   if (!['continue', 'request_end'].includes(config.activeCallPolicy))
     throw new Error('activeCallPolicy is invalid');
   return resolveScheduledInstant(config.schedule.localDateTime, config.schedule.timezone);

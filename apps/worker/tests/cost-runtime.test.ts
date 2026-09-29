@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type {
   ClaimedJob,
+  DurableJob,
   DurableJobStore,
   DurableQueue,
   QueueDelivery,
@@ -9,6 +10,7 @@ import type {
 } from '@winsendotai/ovo-plugin-orchestration';
 import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
 import type { ControlStore, ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
+import { definePlugin, PluginRegistry } from '@winsendotai/ovo-runtime';
 import {
   LIVE_COST_METER_KEYS,
   ProductionWorkerCostRuntime,
@@ -96,7 +98,174 @@ describe('live cost coverage', () => {
     expect(ledger.reserveBudget).not.toHaveBeenCalled();
     expect(costs.usageForJob(jobId)).toBeUndefined();
   });
+
+  it('requires the conditional OpenAI TTS card for a legacy-shaped binding selection', async () => {
+    const currentRelease = release('announcement');
+    currentRelease.config.providers.tts = 'legacy-tts-binding';
+    currentRelease.providerBindings.tts = {
+      id: 'legacy-tts-binding',
+      workspaceId: currentRelease.workspaceId,
+      label: 'Legacy OpenAI TTS',
+      provider: 'openai',
+      pluginId: 'legacy-openai-tts-test',
+      environment: 'test',
+      credentialId: 'credential',
+      config: { model: 'tts-1', voice: 'alloy' },
+      createdAt: currentRelease.createdAt,
+      updatedAt: currentRelease.createdAt,
+    };
+    delete currentRelease.config.costPolicy!.priceCards[LIVE_COST_METER_KEYS.tts];
+    const registry = new PluginRegistry([
+      definePlugin(
+        {
+          id: 'legacy-openai-tts-test',
+          version: '1.0.0',
+          contractVersion: 2,
+          kind: 'tts',
+          provider: 'openai',
+          scope: 'session',
+          provides: [],
+          requires: [],
+          configSchema: { type: 'object' },
+          secretFields: [],
+          capabilities: {
+            languages: ['*'],
+            interim: false,
+            wordTimestamps: false,
+            turnSignals: [],
+            forceEndpoint: false,
+            outputFormats: [],
+          },
+          meters: [
+            {
+              key: LIVE_COST_METER_KEYS.tts,
+              unit: 'characters',
+              role: 'tts',
+              label: 'OpenAI TTS characters',
+              when: { field: 'model', in: ['tts-1'] },
+            },
+          ],
+          runtime: { egressHosts: [], modelLicences: [] },
+          conformance: ['tts@1'],
+        } as never,
+        () => undefined,
+      ),
+    ]);
+    const ledger = ledgerMock();
+    const costs = new ProductionWorkerCostRuntime(
+      ledger,
+      { getRelease: vi.fn(async () => currentRelease) } as unknown as ControlStore,
+      workerStore(currentRelease.id),
+      telephonyMock(),
+      'worker-1',
+      true,
+      registry,
+      { engine: '' },
+    );
+    expect(
+      await costs.reserve(
+        { id: jobId, workspaceId: currentRelease.workspaceId } as DurableJob,
+        { kind: 'live', releaseId: currentRelease.id },
+        jobId,
+      ),
+    ).toMatchObject({
+      admitted: false,
+      reason: `cost-meter-unconfigured:${LIVE_COST_METER_KEYS.tts}`,
+    });
+    expect(ledger.reserveBudget).not.toHaveBeenCalled();
+  });
 });
+
+describe('durable worker reservation heartbeat', () => {
+  const job = { id: jobId, workspaceId: 'workspace-1', ownerEpoch: 1 } as DurableJob;
+
+  function runtime() {
+    const currentRelease = release('announcement');
+    const ledger = {
+      getBudget: vi.fn(async () => ({ workspaceId: 'workspace-1' })),
+      getPriceCard: vi.fn(async (id: string, version: string) => ({
+        id,
+        version,
+        provider: 'fixture',
+        unit: 'audio_seconds',
+        currency: 'INR',
+      })),
+      reserveBudget: vi.fn(async () => ({ admitted: true, state: 'reserved' })),
+      extendReservation: vi.fn(async () => true),
+      releaseReservation: vi.fn(async () => ({ state: 'released' })),
+    };
+    const control = { getRelease: vi.fn(async () => currentRelease) } as unknown as ControlStore;
+    const costs = new ProductionWorkerCostRuntime(
+      ledger as unknown as CostLedgerService,
+      control,
+      workerStore(currentRelease.id),
+      telephonyMock(),
+      'worker-1',
+    );
+    return { costs, ledger, currentRelease };
+  }
+
+  it('bypasses only explicit fixture calls and refuses live jobs missing a release', async () => {
+    const { costs, ledger } = runtime();
+    expect(await costs.reserve(job, { kind: 'test' }, jobId)).toMatchObject({ admitted: true });
+    expect(await costs.reserve(job, { kind: 'live' }, jobId)).toMatchObject({
+      admitted: false,
+      reason: 'release-id-required',
+    });
+    expect(ledger.reserveBudget).not.toHaveBeenCalled();
+  });
+
+  it('extends the held reservation and terminates on lost holder or rejected extension', async () => {
+    vi.useFakeTimers();
+    try {
+      const { costs, ledger, currentRelease } = runtime();
+      const terminate = vi.fn(async () => undefined);
+      costs.setTerminationHandler(terminate);
+      expect(
+        await costs.reserve(job, { kind: 'live', releaseId: currentRelease.id }, jobId),
+      ).toMatchObject({ admitted: true });
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(ledger.extendReservation).toHaveBeenCalledWith(
+        jobId,
+        `worker-1:${jobId}`,
+        expect.any(Date),
+      );
+      ledger.extendReservation.mockResolvedValueOnce(false);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(terminate).toHaveBeenCalledWith(job, 'cost-reservation-lost');
+      await costs.reserve(job, { kind: 'test' }, randomSessionId());
+      expect(ledger.reserveBudget).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('retries termination after an extension error and a transient termination failure', async () => {
+    vi.useFakeTimers();
+    try {
+      const { costs, ledger, currentRelease } = runtime();
+      const terminate = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('termination transport unavailable'))
+        .mockResolvedValue(undefined);
+      costs.setTerminationHandler(terminate);
+      ledger.extendReservation.mockRejectedValueOnce(new Error('ledger unavailable'));
+      expect(
+        await costs.reserve(job, { kind: 'live', releaseId: currentRelease.id }, jobId),
+      ).toMatchObject({ admitted: true });
+      await vi.advanceTimersByTimeAsync(60_000);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(terminate).toHaveBeenCalledTimes(2);
+      expect(ledger.extendReservation).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+function randomSessionId() {
+  return '00000000-0000-4000-8000-000000000099';
+}
 
 function release(
   mode: ReleaseRecord['config']['mode'],

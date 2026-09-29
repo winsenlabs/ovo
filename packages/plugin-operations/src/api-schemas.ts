@@ -103,6 +103,7 @@ export const operationsApiSchemas = {
       perNumberAttemptLimit: z.number().int().min(1).max(100),
       maxAttemptsTotal: z.number().int().min(1).max(10_000_000),
       maxAttemptsPerLocalDay: z.number().int().min(1).max(10_000_000),
+      maxConcurrency: z.number().int().min(1).max(1_000).default(1),
       activeCallPolicy: z.enum(['continue', 'request_end']),
       contacts: z.array(contact).min(1).max(100),
     })
@@ -123,7 +124,15 @@ export const operationsApiSchemas = {
       'At most 50 variables are allowed',
     ),
   campaignParams: z.object({ campaignId: uuid }).strict(),
+  redriveParams: z.object({ contactId: uuid }).strict(),
+  redrive: z.object({ notBefore: z.iso.datetime({ offset: true }).optional() }).strict(),
   campaignCommand: z.object({ expectedVersion: z.number().int().min(1) }).strict(),
+  campaignConcurrency: z
+    .object({
+      expectedVersion: z.number().int().min(1),
+      maxConcurrency: z.number().int().min(1).max(1_000),
+    })
+    .strict(),
   suppression: z
     .object({ phoneNumber: phone, reason: z.string().trim().min(1).max(1_000) })
     .strict(),
@@ -140,6 +149,8 @@ export const operationsApiSchemas = {
         .record(z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/), z.string().max(2_000))
         .default({}),
       enabled: z.boolean().default(true),
+      carrierPluginId: id.nullable().optional(),
+      carrierBindingId: id.nullable().optional(),
     })
     .strict()
     .refine(

@@ -10,6 +10,7 @@ export type ContactState =
   | 'failed'
   | 'cancelled'
   | 'unknown'
+  | 'superseded'
   | 'suppressed'
   | 'exhausted';
 
@@ -28,6 +29,11 @@ export interface CampaignConfig {
   maxAttemptsTotal: number;
   maxAttemptsPerLocalDay: number;
   activeCallPolicy: 'continue' | 'request_end';
+  maxConcurrency?: number;
+  carrierPluginId?: string;
+  carrierId?: string;
+  carrierBindingId?: string | null;
+  bindingCps?: number | null;
 }
 
 export interface CampaignContactInput {
@@ -43,6 +49,7 @@ export interface CampaignRecord extends Omit<CampaignConfig, 'schedule'> {
   scheduleAt: Date;
   timezone: string;
   version: number;
+  driverError?: string;
 }
 
 export type CampaignCommandResult =
@@ -53,6 +60,7 @@ export type ContactAdmission =
   | { kind: 'campaign_not_running'; status: CampaignStatus }
   | { kind: 'scheduled'; scheduleAt: Date }
   | { kind: 'quota_exhausted'; quota: 'total' | 'daily' }
+  | { kind: 'capacity_exhausted' }
   | { kind: 'empty' };
 
 export interface DialAuthorization {
@@ -92,7 +100,14 @@ export type DialAuthorizationResult =
 export interface CampaignCounters {
   contacts: Record<ContactState, number>;
   attempts: Record<
-    'authorized' | 'dialing' | 'connected' | 'succeeded' | 'failed' | 'cancelled' | 'unknown',
+    | 'authorized'
+    | 'dialing'
+    | 'connected'
+    | 'succeeded'
+    | 'failed'
+    | 'cancelled'
+    | 'reconciling'
+    | 'superseded',
     number
   >;
 }
@@ -125,7 +140,7 @@ export interface CampaignJobPort {
   }): Promise<void>;
 }
 
-export type AttemptTerminalStatus = 'succeeded' | 'failed' | 'cancelled' | 'unknown';
+export type AttemptTerminalStatus = 'succeeded' | 'failed' | 'cancelled' | 'unknown' | 'superseded';
 
 export type InboundOverflowPolicy =
   | { kind: 'busy'; reason: string }

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { priceUsage } from '@winsendotai/ovo-plugin-observability';
+import { priceUsage } from '@winsendotai/ovo-contracts';
 import type { Pool, PoolClient } from 'pg';
 import { parseMinor } from '../money.ts';
 import type {
@@ -14,111 +14,100 @@ import { transaction } from './database.ts';
 import { fingerprint } from './fingerprint.ts';
 import { convertExplicit, getPriceCard, priceInInr } from './usage-pricing.ts';
 import { validateReconciliation, validateUsage } from './usage-validation.ts';
-
-interface ChargeRow {
-  usage_id: string;
-  charge_id: string;
-  state: 'estimated' | 'reconciled';
-  quantity: string;
-  unit: string;
-  native_amount_minor: string;
-  native_currency: string;
-  amount_paise: string;
-  price_card_id: string;
-  price_card_version: string;
-  fx_id: string | null;
-  fx_version: string | null;
-}
+import { mapRecorded, usageFingerprint, type ChargeRow } from './usage-support.ts';
 
 export class UsageRepository {
   constructor(private readonly pool: Pool) {}
 
   async record(input: RecordUsageInput): Promise<RecordedUsage> {
     validateUsage(input);
-    return await transaction(this.pool, async (client) => {
-      const existing = await this.findExisting(client, input);
-      if (existing) return existing;
-      const card = await getPriceCard(client, input.priceCard.id, input.priceCard.version);
-      if (card.provider !== input.provider || card.unit !== input.unit)
-        throw new TypeError('Usage provider/native unit does not match the explicit price card');
-      const usageId = input.usageId ?? randomUUID();
-      const nativeAmount = priceUsage(
-        {
-          id: usageId,
-          workspaceId: input.workspaceId,
-          sessionId: input.sessionId,
-          provider: input.provider,
-          providerRequestId: input.providerRequestId ?? input.sourceEventId,
-          quantity: input.quantity,
-          unit: input.unit,
-          state: 'estimated',
-        },
-        card,
-      ).amountMinor;
-      const { amountPaise, fx } = await priceInInr(client, nativeAmount, card.currency, input.fx);
-      const chargeId = randomUUID();
-      const digest = usageFingerprint(input);
-      const inserted = await client.query(
-        `INSERT INTO ovo_cost_native_usage
+    return transaction(this.pool, (client) => this.recordWithClient(client, input));
+  }
+
+  async recordWithClient(client: PoolClient, input: RecordUsageInput): Promise<RecordedUsage> {
+    validateUsage(input);
+    const existing = await this.findExisting(client, input);
+    if (existing) return existing;
+    const card = await getPriceCard(client, input.priceCard.id, input.priceCard.version);
+    if (card.provider !== input.provider || card.unit !== input.unit)
+      throw new TypeError('Usage provider/native unit does not match the explicit price card');
+    const usageId = input.usageId ?? randomUUID();
+    const nativeAmount = priceUsage(
+      {
+        id: usageId,
+        workspaceId: input.workspaceId,
+        sessionId: input.sessionId,
+        provider: input.provider,
+        providerRequestId: input.providerRequestId ?? input.sourceEventId,
+        quantity: input.quantity,
+        unit: input.unit,
+        state: 'estimated',
+      },
+      card,
+    ).amountMinor;
+    const { amountPaise, fx } = await priceInInr(client, nativeAmount, card.currency, input.fx);
+    const chargeId = randomUUID();
+    const digest = usageFingerprint(input);
+    const inserted = await client.query(
+      `INSERT INTO ovo_cost_native_usage
            (id,idempotency_key,fingerprint,workspace_id,session_id,call_id,attempt_id,provider,
             provider_request_id,source_kind,source_event_type,source_event_id,activity,
             cache_disposition,quantity,unit,occurred_at,state)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'estimated')
            ON CONFLICT DO NOTHING RETURNING id`,
-        [
-          usageId,
-          input.idempotencyKey,
-          digest,
-          input.workspaceId,
-          input.sessionId,
-          input.callId ?? null,
-          input.attemptId ?? null,
-          input.provider,
-          input.providerRequestId ?? null,
-          input.sourceKind,
-          input.sourceEventType,
-          input.sourceEventId,
-          input.activity,
-          input.cacheDisposition,
-          input.quantity,
-          input.unit,
-          input.occurredAt,
-        ],
-      );
-      if (!inserted.rowCount) {
-        const raced = await this.findExisting(client, input);
-        if (raced) return raced;
-        throw new LedgerConflictError('Usage uniqueness conflict could not be resolved');
-      }
-      await client.query(
-        `INSERT INTO ovo_cost_charges
+      [
+        usageId,
+        input.idempotencyKey,
+        digest,
+        input.workspaceId,
+        input.sessionId,
+        input.callId ?? null,
+        input.attemptId ?? null,
+        input.provider,
+        input.providerRequestId ?? null,
+        input.sourceKind,
+        input.sourceEventType,
+        input.sourceEventId,
+        input.activity,
+        input.cacheDisposition,
+        input.quantity,
+        input.unit,
+        input.occurredAt,
+      ],
+    );
+    if (!inserted.rowCount) {
+      const raced = await this.findExisting(client, input);
+      if (raced) return raced;
+      throw new LedgerConflictError('Usage uniqueness conflict could not be resolved');
+    }
+    await client.query(
+      `INSERT INTO ovo_cost_charges
          (id,usage_id,price_card_id,price_card_version,fx_id,fx_version,native_amount_minor,native_currency,amount_paise)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [
-          chargeId,
-          usageId,
-          card.id,
-          card.version,
-          fx?.id ?? null,
-          fx?.version ?? null,
-          nativeAmount,
-          card.currency,
-          amountPaise,
-        ],
-      );
-      return {
-        usageId,
+      [
         chargeId,
-        state: 'estimated',
-        nativeQuantity: input.quantity,
-        nativeUnit: input.unit,
-        nativeAmountMinor: nativeAmount,
-        nativeCurrency: card.currency,
+        usageId,
+        card.id,
+        card.version,
+        fx?.id ?? null,
+        fx?.version ?? null,
+        nativeAmount,
+        card.currency,
         amountPaise,
-        priceCard: input.priceCard,
-        fx: input.fx,
-      };
-    });
+      ],
+    );
+    return {
+      usageId,
+      chargeId,
+      state: 'estimated',
+      nativeQuantity: input.quantity,
+      nativeUnit: input.unit,
+      nativeAmountMinor: nativeAmount,
+      nativeCurrency: card.currency,
+      amountPaise,
+      priceCard: input.priceCard,
+      fx: input.fx,
+    };
   }
 
   async reconcile(input: ReconcileUsageInput): Promise<ReconciliationResult> {
@@ -284,26 +273,6 @@ async function applySettledBudgetCorrection(
     'UPDATE ovo_cost_budgets SET spent_paise=spent_paise+$2,updated_at=now() WHERE id=$1',
     [budgetId, input.deltaPaise],
   );
-}
-
-function usageFingerprint(input: RecordUsageInput): string {
-  const { idempotencyKey: _, usageId: __, ...content } = input;
-  return fingerprint(content);
-}
-
-function mapRecorded(row: ChargeRow): RecordedUsage {
-  return {
-    usageId: row.usage_id,
-    chargeId: row.charge_id,
-    state: row.state,
-    nativeQuantity: row.quantity,
-    nativeUnit: row.unit,
-    nativeAmountMinor: row.native_amount_minor,
-    nativeCurrency: row.native_currency,
-    amountPaise: row.amount_paise,
-    priceCard: { id: row.price_card_id, version: row.price_card_version },
-    fx: row.fx_id ? { id: row.fx_id, version: row.fx_version! } : undefined,
-  };
 }
 
 async function findCorrection(client: PoolClient, input: ReconcileUsageInput) {

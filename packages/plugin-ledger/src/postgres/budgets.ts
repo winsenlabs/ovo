@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Pool, PoolClient } from 'pg';
+import type { Pool } from 'pg';
 import { parseMinor } from '../money.ts';
 import type {
   BudgetPolicy,
@@ -12,15 +12,15 @@ import { LedgerConflictError } from '../types.ts';
 import { transaction } from './database.ts';
 import { fingerprint } from './fingerprint.ts';
 import { decodeCursor, pageFromRows, pageLimit } from './pagination.ts';
-
-interface BudgetRow {
-  id: string;
-  workspace_id: string;
-  limit_paise: string;
-  admission_overspend_paise: string;
-  spent_paise: string;
-  reserved_paise: string;
-}
+import {
+  budgetSelect,
+  lockBudget,
+  lockReservation,
+  reservationFingerprint,
+  snapshot,
+  updateBudget,
+  type BudgetRow,
+} from './budget-support.ts';
 
 export class BudgetRepository {
   constructor(private readonly pool: Pool) {}
@@ -85,15 +85,34 @@ export class BudgetRepository {
     const amount = parseMinor(input.amountPaise);
     if (!input.reservationId || !input.sourceRef)
       throw new TypeError('Reservation provenance is required');
+    if (
+      (input.holder || input.expiresAt || input.sessionId) &&
+      (!input.holder ||
+        !input.expiresAt ||
+        !input.sessionId ||
+        !Number.isFinite(input.expiresAt.getTime()))
+    )
+      throw new TypeError('Durable reservation requires holder, expiry and session');
     return await transaction(this.pool, async (client) => {
       const budget = await lockBudget(client, input.budgetId);
       const prior = await client.query(
-        `SELECT id,fingerprint,state FROM ovo_cost_reservations WHERE id=$1`,
+        `SELECT id,fingerprint,state,expires_at FROM ovo_cost_reservations WHERE id=$1`,
         [input.reservationId],
       );
       if (prior.rowCount) {
-        if (prior.rows[0]!.fingerprint !== fingerprint(input))
+        if (prior.rows[0]!.fingerprint !== reservationFingerprint(input))
           throw new LedgerConflictError('Reservation identity conflicts with existing content');
+        if (
+          prior.rows[0]!.state !== 'reserved' ||
+          (prior.rows[0]!.expires_at && new Date(prior.rows[0]!.expires_at).getTime() <= Date.now())
+        )
+          return {
+            admitted: false,
+            reservationId: input.reservationId,
+            state: prior.rows[0]!.state,
+            reason: 'reservation-not-active',
+            budget: snapshot(budget),
+          };
         return {
           admitted: true,
           reservationId: input.reservationId,
@@ -110,14 +129,25 @@ export class BudgetRepository {
           budget: snapshot(budget),
         };
       await client.query(
-        `INSERT INTO ovo_cost_reservations(id,fingerprint,budget_id,amount_paise,source_ref,state)
-         VALUES($1,$2,$3,$4,$5,'reserved')`,
+        `INSERT INTO ovo_cost_reservations
+           (id,fingerprint,budget_id,amount_paise,source_ref,state,holder,expires_at,session_id,
+            carrier_provider,carrier_meter_key,carrier_price_card_id,carrier_price_card_version,carrier_fx_id,carrier_fx_version)
+         VALUES($1,$2,$3,$4,$5,'reserved',$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
         [
           input.reservationId,
-          fingerprint(input),
+          reservationFingerprint(input),
           input.budgetId,
           input.amountPaise,
           input.sourceRef,
+          input.holder ?? null,
+          input.expiresAt ?? null,
+          input.sessionId ?? null,
+          input.carrierUsage?.provider ?? null,
+          input.carrierUsage?.meterKey ?? null,
+          input.carrierUsage?.priceCard.id ?? null,
+          input.carrierUsage?.priceCard.version ?? null,
+          input.carrierUsage?.fx?.id ?? null,
+          input.carrierUsage?.fx?.version ?? null,
         ],
       );
       const updated = await updateBudget(client, input.budgetId, 0n, amount);
@@ -128,6 +158,17 @@ export class BudgetRepository {
         budget: snapshot(updated),
       };
     });
+  }
+
+  async extend(id: string, holder: string, until: Date): Promise<boolean> {
+    if (!id || !holder || !Number.isFinite(until.getTime()))
+      throw new TypeError('Reservation extension requires id, holder and expiry');
+    const result = await this.pool.query(
+      `UPDATE ovo_cost_reservations SET expires_at = GREATEST(expires_at, $3::timestamptz)
+       WHERE id = $1 AND holder = $2 AND state = 'reserved' AND expires_at IS NOT NULL`,
+      [id, holder, until],
+    );
+    return result.rowCount === 1;
   }
 
   async settle(reservationId: string, actualPaise: string): Promise<ReservationResult> {
@@ -214,55 +255,4 @@ export class BudgetRepository {
       return snapshot(await updateBudget(client, input.budgetId, delta, 0n));
     });
   }
-}
-
-async function lockBudget(client: PoolClient, id: string): Promise<BudgetRow> {
-  const result = await client.query<BudgetRow>(budgetSelect('WHERE id=$1 FOR UPDATE'), [id]);
-  if (!result.rowCount) throw new Error('Budget not found');
-  return result.rows[0]!;
-}
-
-async function lockReservation(client: PoolClient, id: string): Promise<any> {
-  const result = await client.query('SELECT * FROM ovo_cost_reservations WHERE id=$1 FOR UPDATE', [
-    id,
-  ]);
-  if (!result.rowCount) throw new Error('Reservation not found');
-  return result.rows[0]!;
-}
-
-async function updateBudget(
-  client: PoolClient,
-  id: string,
-  spentDelta: bigint,
-  reservedDelta: bigint,
-): Promise<BudgetRow> {
-  const result = await client.query<BudgetRow>(
-    `UPDATE ovo_cost_budgets
-     SET spent_paise=spent_paise+$2,reserved_paise=reserved_paise+$3,updated_at=now()
-     WHERE id=$1
-     RETURNING id,workspace_id,limit_paise::text,admission_overspend_paise::text,
-               spent_paise::text,reserved_paise::text`,
-    [id, spentDelta.toString(), reservedDelta.toString()],
-  );
-  return result.rows[0]!;
-}
-
-function budgetSelect(suffix: string): string {
-  return `SELECT id,workspace_id,limit_paise::text,admission_overspend_paise::text,
-                 spent_paise::text,reserved_paise::text FROM ovo_cost_budgets ${suffix}`;
-}
-
-function snapshot(row: BudgetRow): BudgetSnapshot {
-  const ceiling = BigInt(row.limit_paise) + BigInt(row.admission_overspend_paise);
-  const committed = BigInt(row.spent_paise) + BigInt(row.reserved_paise);
-  return {
-    id: row.id,
-    workspaceId: row.workspace_id,
-    limitPaise: row.limit_paise,
-    admissionOverspendPaise: row.admission_overspend_paise,
-    spentPaise: row.spent_paise,
-    reservedPaise: row.reserved_paise,
-    availableForAdmissionPaise: (ceiling > committed ? ceiling - committed : 0n).toString(),
-    overLimit: BigInt(row.spent_paise) > BigInt(row.limit_paise),
-  };
 }

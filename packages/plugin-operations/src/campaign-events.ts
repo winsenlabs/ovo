@@ -22,15 +22,37 @@ export class CampaignEventService {
         [eventId, attemptId, status, JSON.stringify(reason ? { reason } : {}), occurredAt],
       );
       if (!event.rowCount) return 'duplicate';
-      const attempt = await client.query<{ status: string; contact_id: string }>(
-        `SELECT a.status, a.contact_id FROM ovo_ops_attempts a JOIN ovo_ops_campaigns c ON c.id = a.campaign_id
+      const attempt = await client.query<{
+        status: string;
+        contact_id: string;
+        campaign_id: string;
+        request_id: string;
+      }>(
+        `SELECT a.status, a.contact_id, a.campaign_id, a.request_id FROM ovo_ops_attempts a JOIN ovo_ops_campaigns c ON c.id = a.campaign_id
          WHERE a.id = $1 AND c.organization_id = $2 FOR UPDATE OF a`,
         [attemptId, this.organizationId],
       );
       const row = attempt.rows[0];
       if (!row) throw new Error('Attempt not found');
-      if (['succeeded', 'failed', 'cancelled', 'unknown'].includes(row.status))
+      if (['succeeded', 'failed', 'cancelled', 'superseded'].includes(row.status))
         return 'ignored_terminal';
+      const contact = await client.query<{ owner_epoch: string; state: string }>(
+        'SELECT owner_epoch, state FROM ovo_ops_campaign_contacts WHERE id = $1 FOR UPDATE',
+        [row.contact_id],
+      );
+      const current = contact.rows[0]!;
+      if (
+        row.request_id !== `${row.campaign_id}:${row.contact_id}:${current.owner_epoch}` ||
+        ['queued', 'suppressed', 'exhausted'].includes(current.state)
+      ) {
+        await client.query(
+          `UPDATE ovo_ops_attempts SET status = 'superseded', updated_at = now() WHERE id = $1`,
+          [attemptId],
+        );
+        return 'ignored_terminal';
+      }
+      if (row.status === 'unknown' && !['succeeded', 'failed', 'cancelled'].includes(status))
+        return 'ignored_out_of_order';
       const progressRank = { authorized: 0, dialing: 1, connected: 2 } as const;
       if (
         status in progressRank &&
@@ -72,7 +94,7 @@ export class CampaignEventService {
            ELSE c.state END`,
         [campaignId],
       ),
-      this.pool.query<{ status: keyof CampaignCounters['attempts']; count: string }>(
+      this.pool.query<{ status: string; count: string }>(
         'SELECT status, count(*)::text AS count FROM ovo_ops_attempts WHERE campaign_id = $1 GROUP BY status',
         [campaignId],
       ),
@@ -87,17 +109,30 @@ export class CampaignEventService {
         'failed',
         'cancelled',
         'unknown',
+        'superseded',
         'suppressed',
         'exhausted',
       ].map((state) => [state, 0]),
     ) as CampaignCounters['contacts'];
     const attemptCounts = Object.fromEntries(
-      ['authorized', 'dialing', 'connected', 'succeeded', 'failed', 'cancelled', 'unknown'].map(
-        (state) => [state, 0],
-      ),
+      [
+        'authorized',
+        'dialing',
+        'connected',
+        'succeeded',
+        'failed',
+        'cancelled',
+        'reconciling',
+        'superseded',
+      ].map((state) => [state, 0]),
     ) as CampaignCounters['attempts'];
     for (const row of contacts.rows) contactCounts[row.state] = Number(row.count);
-    for (const row of attempts.rows) attemptCounts[row.status] = Number(row.count);
+    for (const row of attempts.rows)
+      attemptCounts[
+        (row.status === 'unknown'
+          ? 'reconciling'
+          : row.status) as keyof CampaignCounters['attempts']
+      ] = Number(row.count);
     return { contacts: contactCounts, attempts: attemptCounts };
   }
 }

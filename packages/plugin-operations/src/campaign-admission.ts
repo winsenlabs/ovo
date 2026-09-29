@@ -29,67 +29,85 @@ export class CampaignAdmissionService {
     requestedJobId?: string,
   ): Promise<ContactAdmission> {
     positiveInteger(leaseMs, 'leaseMs', 300_000);
-    return transaction(this.pool, async (client) => {
-      let campaign = await lockedCampaign(client, this.organizationId, campaignId);
-      if (campaign.status === 'scheduled') {
-        if (campaign.schedule_at.getTime() > Date.now())
-          return { kind: 'scheduled', scheduleAt: campaign.schedule_at };
-        const started = await client.query<CampaignRow>(
-          `UPDATE ovo_ops_campaigns SET status = 'running', version = version + 1, updated_at = now()
+    return transaction(this.pool, (client) =>
+      this.admitWithClient(client, campaignId, ownerId, leaseMs, requestedJobId),
+    );
+  }
+
+  async admitWithClient(
+    client: PoolClient,
+    campaignId: string,
+    ownerId: string,
+    leaseMs: number,
+    requestedJobId?: string,
+  ): Promise<ContactAdmission> {
+    positiveInteger(leaseMs, 'leaseMs', 300_000);
+    let campaign = await lockedCampaign(client, this.organizationId, campaignId);
+    if (campaign.status === 'scheduled') {
+      if (campaign.schedule_at.getTime() > Date.now())
+        return { kind: 'scheduled', scheduleAt: campaign.schedule_at };
+      const started = await client.query<CampaignRow>(
+        `UPDATE ovo_ops_campaigns SET status = 'running', version = version + 1, updated_at = now()
            WHERE id = $1 RETURNING ${campaignColumns}`,
-          [campaignId],
-        );
-        campaign = started.rows[0]!;
-      }
-      if (campaign.status !== 'running')
-        return { kind: 'campaign_not_running', status: campaign.status };
-      await this.reclassifyContacts(client, campaign);
-      const quota = await campaignQuotaState(client, campaign);
-      if (quota) return { kind: 'quota_exhausted', quota };
-      const selected = await client.query<ContactRow>(
-        `SELECT c.* FROM ovo_ops_campaign_contacts c
+        [campaignId],
+      );
+      campaign = started.rows[0]!;
+    }
+    if (campaign.status !== 'running')
+      return { kind: 'campaign_not_running', status: campaign.status };
+    await this.reclassifyContacts(client, campaign);
+    const capacity = await client.query<{ active: string }>(
+      `SELECT count(*)::text AS active FROM ovo_ops_campaign_contacts
+         WHERE campaign_id = $1 AND state IN ('admitted','dialing','active','unknown')`,
+      [campaignId],
+    );
+    if (Number(capacity.rows[0]!.active) >= campaign.max_concurrency)
+      return { kind: 'capacity_exhausted' };
+    const quota = await campaignQuotaState(client, campaign);
+    if (quota) return { kind: 'quota_exhausted', quota };
+    const selected = await client.query<ContactRow>(
+      `SELECT c.* FROM ovo_ops_campaign_contacts c
          WHERE c.campaign_id = $1 AND c.state = 'queued' AND c.not_before <= now()
            AND NOT EXISTS (SELECT 1 FROM ovo_ops_suppressions s
              WHERE s.organization_id = $2 AND s.phone_number = c.phone_number)
            AND (SELECT count(*) FROM ovo_ops_attempts a WHERE a.contact_id = c.id) < $3
          ORDER BY c.source_row, c.id FOR UPDATE SKIP LOCKED LIMIT 1`,
-        [campaignId, this.organizationId, campaign.per_number_attempt_limit],
-      );
-      const contact = selected.rows[0];
-      if (!contact) return { kind: 'empty' };
-      const claimed = await client.query<ContactRow>(
-        `UPDATE ovo_ops_campaign_contacts SET state = 'admitted', owner_id = $2,
+      [campaignId, this.organizationId, campaign.per_number_attempt_limit],
+    );
+    const contact = selected.rows[0];
+    if (!contact) return { kind: 'empty' };
+    const claimed = await client.query<ContactRow>(
+      `UPDATE ovo_ops_campaign_contacts SET state = 'admitted', owner_id = $2,
            owner_epoch = owner_epoch + 1, admission_campaign_version = $4,
            lease_expires_at = now() + $3 * interval '1 millisecond', updated_at = now()
          WHERE id = $1 RETURNING *`,
-        [contact.id, ownerId, leaseMs, campaign.version],
-      );
-      const row = claimed.rows[0]!;
-      const jobId = requestedJobId ?? randomUUID();
-      const job: CampaignDialJob = {
-        kind: 'campaign_dial_candidate',
-        jobId,
-        campaignId,
-        contactId: row.id,
-        admissionOwnerId: ownerId,
-        admissionEpoch: Number(row.owner_epoch),
-      };
-      await client.query(
-        `INSERT INTO ovo_ops_outbox (id, topic, aggregate_id, dedup_key, payload)
+      [contact.id, ownerId, leaseMs, campaign.version],
+    );
+    const row = claimed.rows[0]!;
+    const jobId = requestedJobId ?? randomUUID();
+    const job: CampaignDialJob = {
+      kind: 'campaign_dial_candidate',
+      jobId,
+      campaignId,
+      contactId: row.id,
+      admissionOwnerId: ownerId,
+      admissionEpoch: Number(row.owner_epoch),
+    };
+    await client.query(
+      `INSERT INTO ovo_ops_outbox (id, topic, aggregate_id, dedup_key, payload)
          VALUES ($1,'campaign.dial.candidate',$2,$3,$4::jsonb)`,
-        [randomUUID(), jobId, `${campaignId}:${row.id}:${row.owner_epoch}`, JSON.stringify(job)],
-      );
-      return {
-        kind: 'admitted',
-        jobId,
-        contactId: row.id,
-        ownerEpoch: Number(row.owner_epoch),
-        leaseExpiresAt: row.lease_expires_at!,
-      };
-    });
+      [randomUUID(), jobId, `${campaignId}:${row.id}:${row.owner_epoch}`, JSON.stringify(job)],
+    );
+    return {
+      kind: 'admitted',
+      jobId,
+      contactId: row.id,
+      ownerEpoch: Number(row.owner_epoch),
+      leaseExpiresAt: row.lease_expires_at!,
+    };
   }
 
-  private async reclassifyContacts(client: PoolClient, campaign: CampaignRow): Promise<void> {
+  async reclassifyContacts(client: PoolClient, campaign: CampaignRow): Promise<void> {
     await client.query(
       `WITH expired AS (SELECT id FROM ovo_ops_campaign_contacts
          WHERE campaign_id = $1 AND state = 'admitted'

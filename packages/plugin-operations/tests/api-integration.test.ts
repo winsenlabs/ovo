@@ -4,30 +4,13 @@ import { AgentConfig } from '@winsendotai/ovo-contracts';
 import { PostgresControlStore, type Role } from '@winsendotai/ovo-plugin-storage';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { registerOperationsRoutes } from '../../../apps/api/src/routes/operations.ts';
-import {
-  PostgresOperationsService,
-  type HandoffProviderPort,
-  type HandoffProviderResult,
-  type HandoffReconciliation,
-} from '../src/index.ts';
+import { apiCarrierFixture, ApiHandoffProvider } from './api-carrier-fixture.ts';
+import { registerCampaignCarrierResolver } from '../../../apps/api/src/operations-plugin.ts';
+import { PostgresOperationsService } from '../src/index.ts';
 
 const postgresUrl = process.env.OVO_TEST_POSTGRES_URL;
 const integration = postgresUrl ? describe : describe.skip;
 const roleRank: Record<Role, number> = { viewer: 1, editor: 2, admin: 3 };
-
-class ApiHandoffProvider implements HandoffProviderPort {
-  requests = 0;
-  async request(): Promise<HandoffProviderResult> {
-    this.requests += 1;
-    return { kind: 'confirmed', receiptId: 'transfer-receipt' };
-  }
-  async reconcile(): Promise<HandoffReconciliation> {
-    return { kind: 'pending' };
-  }
-  async fallback(): Promise<HandoffProviderResult> {
-    return { kind: 'confirmed', receiptId: 'fallback-receipt' };
-  }
-}
 
 integration('operations Fastify registrar with PostgreSQL services', () => {
   const workspaceId = `operations-api-${randomUUID()}`;
@@ -46,7 +29,7 @@ integration('operations Fastify registrar with PostgreSQL services', () => {
   }
 
   const inject = (input: {
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
     url: string;
     payload?: object;
     role?: Role;
@@ -65,6 +48,8 @@ integration('operations Fastify registrar with PostgreSQL services', () => {
       handoffProvider: provider,
       config: { permittedFromNumbers: [fromNumber], liveEnabled: true },
     });
+    const carrier = apiCarrierFixture();
+    registerCampaignCarrierResolver(operations, carrier.catalog, carrier.controls);
     store = await PostgresControlStore.open(postgresUrl!);
     await Promise.all([operations.migrate(), store.ensureWorkspace(workspaceId, 'Operations API')]);
     const agent = await store.createAgent(

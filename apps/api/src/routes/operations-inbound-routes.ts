@@ -3,11 +3,81 @@ import {
   operationsApiSchemas as schemas,
   operationsPage,
   validateReleaseVariables,
+  operationsRequestError,
+  type InboundOverflowPolicy,
 } from '@winsendotai/ovo-plugin-operations';
 import type { RealtimeRouteDependencies } from './operations-realtime.ts';
+import { validateInboundCarrier } from '../operations-plugin.ts';
 
 export function registerOperationsInboundRouteManagement(input: RealtimeRouteDependencies): void {
   const { app, store, requireRole, use, audit } = input;
+
+  app.get('/v1/operations/inbound/policy', async (request, reply) => {
+    const principal = requireRole(request, 'viewer');
+    const operations = use(reply, principal);
+    if (!operations) return;
+    return { policy: await operations.inbound.getPolicy() };
+  });
+
+  app.put('/v1/operations/inbound/policy', async (request, reply) => {
+    const principal = requireRole(request, 'admin'),
+      operations = use(reply, principal);
+    if (!operations) return;
+    const body = schemas.inboundPolicy.parse(request.body);
+    const policy = await operations.inbound.setPolicy(
+      body.policy as InboundOverflowPolicy,
+      body.expectedVersion,
+    );
+    if (!policy)
+      return reply.code(409).send({
+        error: { code: 'inbound_policy_conflict', message: 'Inbound policy state changed' },
+        current: await operations.inbound.getPolicy(),
+      });
+    await audit(principal, 'operations.inbound.policy.update', 'inbound_policy', 'default', {
+      version: policy.version,
+      kind: policy.policy.kind,
+    });
+    return policy;
+  });
+
+  app.get('/v1/operations/inbound/capacity', async (request, reply) => {
+    const principal = requireRole(request, 'viewer');
+    const operations = use(reply, principal);
+    if (!operations) return;
+    return { readyProtected: await operations.inbound.readyProtectedCapacity() };
+  });
+
+  app.get('/v1/operations/inbound/decisions', async (request, reply) => {
+    const principal = requireRole(request, 'viewer');
+    const operations = use(reply, principal);
+    if (!operations) return;
+    const query = schemas.uuidPage.parse(request.query),
+      items = await operations.inbound.listDecisions(query.limit, query.cursor);
+    return operationsPage(items, query.limit);
+  });
+
+  app.post('/v1/operations/inbound/decisions', async (request, reply) => {
+    const principal = requireRole(request, 'admin'),
+      operations = use(reply, principal);
+    if (!operations) return;
+    const { callId } = schemas.inboundDecision.parse(request.body);
+    let decision;
+    try {
+      decision = await operations.inbound.admitUsingPolicy(callId);
+    } catch (error) {
+      if ((error as Error).message.includes('not configured'))
+        return operationsRequestError(
+          409,
+          'inbound_policy_missing',
+          'Inbound policy is not configured',
+        );
+      throw error;
+    }
+    await audit(principal, 'operations.inbound.decide', 'inbound_call', callId, {
+      decision: decision.kind,
+    });
+    return reply.code(201).send(decision);
+  });
 
   app.get('/v1/operations/inbound/routes', async (request, reply) => {
     const principal = requireRole(request, 'viewer'),
@@ -38,12 +108,27 @@ export function registerOperationsInboundRouteManagement(input: RealtimeRouteDep
           details: validation.errors,
         },
       });
+    try {
+      await validateInboundCarrier(
+        operations,
+        principal.workspaceId,
+        body.carrierPluginId,
+        body.carrierBindingId,
+        store,
+      );
+    } catch (error) {
+      return reply.code(422).send({
+        error: { code: 'inbound_carrier_invalid', message: (error as Error).message },
+      });
+    }
     const route = await operations.inboundRoutes.put({
       phoneNumber,
       releaseId: release.id,
       variables: body.variables,
       enabled: body.enabled,
       expectedVersion: body.expectedVersion,
+      carrierPluginId: body.carrierPluginId ?? null,
+      carrierBindingId: body.carrierBindingId ?? null,
     });
     if (!route)
       return reply.code(409).send({

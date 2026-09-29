@@ -5,6 +5,8 @@ import { PostgresControlStore, type Role } from '@winsendotai/ovo-plugin-storage
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { registerOperationsRoutes } from '../../../apps/api/src/routes/operations.ts';
 import { PostgresOperationsService } from '../src/index.ts';
+import { apiCarrierFixture } from './api-carrier-fixture.ts';
+import { registerCampaignCarrierResolver } from '../../../apps/api/src/operations-plugin.ts';
 
 const postgresUrl = process.env.OVO_TEST_POSTGRES_URL;
 const integration = postgresUrl ? describe : describe.skip;
@@ -31,6 +33,8 @@ integration('operations direct live API with PostgreSQL services', () => {
       organizationId: workspaceId,
       config: { permittedFromNumbers: [fromNumber], liveEnabled: true },
     });
+    const carrier = apiCarrierFixture();
+    registerCampaignCarrierResolver(operations, carrier.catalog, carrier.controls);
     store = await PostgresControlStore.open(postgresUrl!);
     await Promise.all([
       operations.migrate(),

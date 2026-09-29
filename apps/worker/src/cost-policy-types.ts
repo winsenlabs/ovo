@@ -80,6 +80,10 @@ export interface WorkerCostPolicyOptions {
   policy: CostPolicy;
   workspaceId: string;
   sessionId: string;
+  reservationHolder?: string;
+  carrierUsage?: NonNullable<
+    import('@winsendotai/ovo-plugin-ledger').BudgetReservationInput['carrierUsage']
+  >;
   callId?: string;
   attemptId?: string;
   sessionStartedAt: string;

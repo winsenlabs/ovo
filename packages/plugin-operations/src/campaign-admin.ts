@@ -45,8 +45,9 @@ export class CampaignAdminService {
       const inserted = await client.query<CampaignRow>(
         `INSERT INTO ovo_ops_campaigns (
           id, organization_id, operation_id, input_digest, name, agent_release_id, from_number, status, schedule_at, timezone,
-          per_number_attempt_limit, max_attempts_total, max_attempts_per_local_day, active_call_policy
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+          per_number_attempt_limit, max_attempts_total, max_attempts_per_local_day, active_call_policy,
+          max_concurrency, carrier_plugin_id, carrier_id, carrier_binding_id, binding_cps
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
         ON CONFLICT (organization_id, operation_id) DO NOTHING RETURNING ${campaignColumns}`,
         [
           id,
@@ -63,6 +64,11 @@ export class CampaignAdminService {
           config.maxAttemptsTotal,
           config.maxAttemptsPerLocalDay,
           config.activeCallPolicy,
+          config.maxConcurrency ?? 1,
+          config.carrierPluginId ?? null,
+          config.carrierId ?? null,
+          config.carrierBindingId ?? null,
+          config.bindingCps ?? null,
         ],
       );
       if (!inserted.rows[0]) {
@@ -71,9 +77,10 @@ export class CampaignAdminService {
            WHERE organization_id = $1 AND operation_id = $2`,
           [this.organizationId, config.operationId],
         );
-        if (!existing.rows[0] || existing.rows[0].input_digest !== digest)
+        const old = existing.rows[0];
+        if (!old || (old.input_digest !== digest && !matchesLegacyDigest(old, config, normalized)))
           throw new Error('Campaign operationId collision');
-        return campaignFromRow(existing.rows[0]);
+        return campaignFromRow(old);
       }
       await this.insertContacts(client, id, normalized);
       return campaignFromRow(inserted.rows[0]!);
@@ -172,6 +179,34 @@ export class CampaignAdminService {
     });
   }
 
+  async patchConcurrency(
+    id: string,
+    expectedVersion: number,
+    maxConcurrency: number,
+  ): Promise<CampaignCommandResult> {
+    if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > 1_000)
+      throw new TypeError('Campaign maxConcurrency must be between 1 and 1000');
+    return transaction(this.pool, async (client) => {
+      const current = await lockedCampaign(client, this.organizationId, id);
+      if (
+        Number(current.version) !== expectedVersion ||
+        ['completed', 'cancelled'].includes(current.status)
+      )
+        return { kind: 'conflict', campaign: campaignFromRow(current) };
+      const result = await client.query<CampaignRow>(
+        `UPDATE ovo_ops_campaigns SET max_concurrency = $2, version = version + 1,
+           updated_at = now() WHERE id = $1 RETURNING ${campaignColumns}`,
+        [id, maxConcurrency],
+      );
+      await client.query(
+        `UPDATE ovo_ops_campaign_contacts SET admission_campaign_version = $2
+         WHERE campaign_id = $1 AND state IN ('admitted','dialing')`,
+        [id, result.rows[0]!.version],
+      );
+      return { kind: 'applied', campaign: campaignFromRow(result.rows[0]!) };
+    });
+  }
+
   async suppress(phoneNumber: string, reason: string): Promise<void> {
     if (!reason.trim()) throw new Error('Suppression reason is required');
     const normalized = normalizePhoneNumber(phoneNumber);
@@ -218,4 +253,22 @@ export class CampaignAdminService {
       createdAt: row.created_at,
     }));
   }
+}
+
+function matchesLegacyDigest(
+  row: CampaignRow,
+  config: CampaignConfig,
+  contacts: readonly CampaignContactInput[],
+): boolean {
+  if (row.carrier_id !== null || row.max_concurrency !== 1 || (config.maxConcurrency ?? 1) !== 1)
+    return false;
+  const {
+    maxConcurrency: _maxConcurrency,
+    carrierPluginId: _carrierPluginId,
+    carrierId: _carrierId,
+    carrierBindingId: _carrierBindingId,
+    bindingCps: _bindingCps,
+    ...legacyConfig
+  } = config;
+  return row.input_digest === inputDigest({ config: legacyConfig, contacts });
 }

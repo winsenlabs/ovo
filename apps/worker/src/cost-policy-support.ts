@@ -1,3 +1,9 @@
+import type { DurableJob } from '@winsendotai/ovo-plugin-orchestration';
+import { liveSessionRequiresInput } from './live-input-policy.ts';
+import { deriveLegacySelections, type ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
+import type { ReleaseSelections } from '@winsendotai/ovo-contracts';
+import { PluginRegistry } from '@winsendotai/ovo-runtime';
+import { metersFor, type SessionDefaults } from '@winsendotai/ovo-session-host';
 import type { ProviderUsage } from './cost-policy-types.ts';
 import { meterKey, type UsageMeter } from '@winsendotai/ovo-contracts';
 import type {
@@ -6,7 +12,8 @@ import type {
   RecordUsageInput,
   UsageSourceKind,
 } from '@winsendotai/ovo-plugin-ledger';
-import type { CostPolicy } from './cost-policy-types.ts';
+import type { CostPolicy, WorkerCostPolicyOptions } from './cost-policy-types.ts';
+import type { InferenceEvidenceSummary } from './cost-inference.ts';
 
 export interface NormalizedUsage {
   meterKey: string;
@@ -20,6 +27,27 @@ export interface NormalizedUsage {
   quantity: string;
   unit: string;
   occurredAt: string;
+}
+
+export function durableReservationFields(options: WorkerCostPolicyOptions, maxCallSeconds: number) {
+  if (!options.reservationHolder) return {};
+  return {
+    holder: options.reservationHolder,
+    expiresAt: new Date(Date.now() + (maxCallSeconds + 300) * 1000),
+    sessionId: options.sessionId,
+    carrierUsage: options.carrierUsage,
+  };
+}
+
+export function accumulateInferenceEvidence(
+  summary: InferenceEvidenceSummary,
+  state: 'reported' | 'estimated' | 'unknown',
+  reasons: readonly string[],
+): void {
+  if (state === 'reported') summary.reportedSteps += 1;
+  if (state === 'estimated') summary.estimatedSteps += 1;
+  if (state === 'unknown') summary.unknownSteps += 1;
+  summary.reasons = [...new Set([...summary.reasons, ...reasons])].sort();
 }
 
 export function providerMeterKey(
@@ -87,4 +115,104 @@ export async function loadCostCatalog(
     cards.set(meterKey, card);
   }
   return cards;
+}
+
+export function requiredCostMeterKeys(
+  release: Pick<ReleaseRecord, 'config'>,
+  keys: {
+    carrier: string;
+    tts: string;
+    stt: string;
+    inference: {
+      aggregateInput: string;
+      uncachedInput: string;
+      cacheReadInput: string;
+      cacheWriteInput: string;
+      output: string;
+    };
+  },
+  selected?: { selections: ReleaseSelections; registry: PluginRegistry },
+): readonly string[] {
+  const policy = release.config.costPolicy;
+  if (!policy) return [];
+  if (selected)
+    return metersFor(selected.selections, selected.registry, {
+      requiresInput: liveSessionRequiresInput(release.config),
+    }).map((row) => row.meter.key);
+  const required: string[] = [keys.carrier, keys.tts];
+  const requiresInput = liveSessionRequiresInput(release.config);
+  if (requiresInput) required.push(keys.stt);
+  if (release.config.mode === 'context' || release.config.mode === 'agent') {
+    const detailedInput = [
+      keys.inference.uncachedInput,
+      keys.inference.cacheReadInput,
+      keys.inference.cacheWriteInput,
+    ];
+    required.push(
+      ...(detailedInput.every((meterKey) => policy.priceCards[meterKey])
+        ? detailedInput
+        : policy.priceCards[keys.inference.aggregateInput]
+          ? [keys.inference.aggregateInput]
+          : detailedInput),
+      keys.inference.output,
+    );
+  }
+  return required;
+}
+
+export async function extendHeldCostReservations(
+  ledger: CostLedgerService,
+  sessions: readonly {
+    reservationId: string;
+    holder: string;
+    maxCallSeconds: number;
+    job: DurableJob;
+    extensionLost?: boolean;
+  }[],
+  terminate: (job: DurableJob, reason: string) => Promise<void>,
+): Promise<void> {
+  await Promise.all(
+    sessions.map(async (session) => {
+      if (!session.extensionLost) {
+        try {
+          const extended = await ledger.extendReservation(
+            session.reservationId,
+            session.holder,
+            new Date(Date.now() + (session.maxCallSeconds + 300) * 1000),
+          );
+          if (extended) return;
+        } catch {
+          // A failed expiry write loses the admission guarantee just like a holder mismatch.
+        }
+        session.extensionLost = true;
+      }
+      try {
+        await terminate(session.job, 'cost-reservation-lost');
+      } catch {
+        // Keep retrying termination on each heartbeat while this session remains active.
+      }
+    }),
+  );
+}
+
+export function selectedReleaseSelections(
+  release: ReleaseRecord,
+  registry?: PluginRegistry,
+  defaults?: SessionDefaults,
+): ReleaseSelections | undefined {
+  if (Object.keys(release.selections ?? {}).length) return release.selections as ReleaseSelections;
+  if (!registry) return undefined;
+  const legacy = deriveLegacySelections(release, registry, {
+    engine: defaults?.engine ?? '@winsendotai/ovo-plugin-voice-session-engine',
+    ...(defaults?.turnDetector ? { turnDetector: defaults.turnDetector } : {}),
+  });
+  return Object.fromEntries(
+    Object.entries(legacy).map(([slot, selection]) => [
+      slot,
+      {
+        ...selection,
+        version: registry!.get(selection.pluginId)!.manifest.version,
+      },
+    ]),
+  ) as ReleaseSelections;
 }

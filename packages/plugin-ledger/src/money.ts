@@ -92,7 +92,15 @@ export function allocateMinor(
   }));
   let remaining = total - rows.reduce((value, row) => value + row.amount, 0n);
   rows.sort((a, b) =>
-    a.remainder === b.remainder ? a.id.localeCompare(b.id) : a.remainder > b.remainder ? -1 : 1,
+    a.remainder === b.remainder
+      ? a.id < b.id
+        ? -1
+        : a.id > b.id
+          ? 1
+          : 0
+      : a.remainder > b.remainder
+        ? -1
+        : 1,
   );
   for (const row of rows) {
     if (remaining === 0n) break;

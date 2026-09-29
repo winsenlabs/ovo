@@ -6,15 +6,16 @@ import type {
 } from '@winsendotai/ovo-plugin-orchestration';
 import type { ProviderUsageSink } from './cost-policy-types.ts';
 import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
-import {
-  deriveLegacySelections,
-  type ControlStore,
-  type ReleaseRecord,
-} from '@winsendotai/ovo-plugin-storage';
+import { type ControlStore, type ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { manifestKeys, PluginRegistry } from '@winsendotai/ovo-runtime';
 import { metersFor, type SessionDefaults } from '@winsendotai/ovo-session-host';
 import type { ReleaseSelections } from '@winsendotai/ovo-contracts';
 import type { SelectedJobCarrier } from './carrier-runtime.ts';
+import {
+  requiredCostMeterKeys,
+  extendHeldCostReservations,
+  selectedReleaseSelections,
+} from './cost-policy-support.ts';
 import {
   createWorkerCostPolicyAttachment,
   type WorkerCostPolicyAttachment,
@@ -55,44 +56,25 @@ export function requiredLiveCostMeterKeys(
   release: Pick<ReleaseRecord, 'config'>,
   selected?: { selections: ReleaseSelections; registry: PluginRegistry },
 ): readonly string[] {
-  const policy = release.config.costPolicy;
-  if (!policy) return [];
-  if (selected)
-    return metersFor(selected.selections, selected.registry, {
-      requiresInput: liveSessionRequiresInput(release.config),
-    }).map((row) => row.meter.key);
-  const required: string[] = [LIVE_COST_METER_KEYS.carrier, LIVE_COST_METER_KEYS.tts];
-  const requiresInput = liveSessionRequiresInput(release.config);
-  if (requiresInput) required.push(LIVE_COST_METER_KEYS.stt);
-  if (release.config.mode === 'context' || release.config.mode === 'agent') {
-    const detailedInput = [
-      LIVE_COST_METER_KEYS.inference.uncachedInput,
-      LIVE_COST_METER_KEYS.inference.cacheReadInput,
-      LIVE_COST_METER_KEYS.inference.cacheWriteInput,
-    ];
-    required.push(
-      ...(detailedInput.every((meterKey) => policy.priceCards[meterKey])
-        ? detailedInput
-        : policy.priceCards[LIVE_COST_METER_KEYS.inference.aggregateInput]
-          ? [LIVE_COST_METER_KEYS.inference.aggregateInput]
-          : detailedInput),
-      LIVE_COST_METER_KEYS.inference.output,
-    );
-  }
-  return required;
+  return requiredCostMeterKeys(release, LIVE_COST_METER_KEYS, selected);
+}
+
+interface HeldSession {
+  attachment: WorkerCostPolicyAttachment;
+  startedAt?: number;
+  carrierMeter?: string;
+  carrierProvider: string;
+  reservationId: string;
+  holder: string;
+  maxCallSeconds: number;
+  job: DurableJob;
+  extensionLost?: boolean;
 }
 
 export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
   private terminationHandler?: (job: DurableJob, reason: string) => Promise<void>;
-  private readonly sessions = new Map<
-    string,
-    {
-      attachment: WorkerCostPolicyAttachment;
-      startedAt?: number;
-      carrierMeter: string;
-      carrierProvider: string;
-    }
-  >();
+  private heartbeatTimer?: ReturnType<typeof setInterval>;
+  private readonly sessions = new Map<string, HeldSession>();
 
   constructor(
     private readonly ledger: CostLedgerService,
@@ -115,8 +97,12 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
     sessionId: string,
     selected?: SelectedJobCarrier,
   ) {
+    if (payload.kind === 'test') return noCostAdmission();
     const releaseId = text(payload.releaseId);
-    if (!releaseId) return noCostAdmission();
+    if (!releaseId)
+      return this.requirePolicy
+        ? { ...noCostAdmission(), admitted: false, reason: 'release-id-required' }
+        : noCostAdmission();
     const release = await this.control.getRelease(job.workspaceId, releaseId);
     const policy = release?.config.costPolicy;
     if (!policy)
@@ -143,6 +129,9 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
     const inferenceRecord = release.providerBindings.inference;
     const inferenceModel = inferenceRecord?.config.model;
     const carrier = selectedMeters.find((row) => row.slot === 'carrier');
+    const carrierMeter =
+      carrier?.meter.key ?? (!selectedMeters.length ? LIVE_COST_METER_KEYS.carrier : undefined);
+    const carrierCard = carrierMeter ? policy.priceCards[carrierMeter] : undefined;
     const carrierProvider =
       carrier && this.registry
         ? (manifestKeys(this.registry.get(carrier.pluginId)!.manifest).manifest.provider ??
@@ -153,6 +142,19 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
       policy,
       workspaceId: job.workspaceId,
       sessionId,
+      reservationHolder: `${this.workerId}:${job.id}`,
+      ...(carrierMeter && carrierCard
+        ? {
+            carrierUsage: {
+              meterKey: carrierMeter,
+              provider: carrierProvider,
+              priceCard: { id: carrierCard.id, version: carrierCard.version },
+              ...(carrierCard.fxId
+                ? { fx: { id: carrierCard.fxId, version: carrierCard.fxVersion! } }
+                : {}),
+            },
+          }
+        : {}),
       callId: text(payload.callId) ?? job.id,
       attemptId: text(payload.attemptId),
       sessionStartedAt: new Date().toISOString(),
@@ -170,17 +172,17 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
         admitted: false,
         reason: result.reason ?? 'cost-budget-blocked',
       };
-    const session: {
-      attachment: WorkerCostPolicyAttachment;
-      startedAt?: number;
-      carrierMeter: string;
-      carrierProvider: string;
-    } = {
+    const session: HeldSession = {
       attachment,
-      carrierMeter: carrier?.meter.key ?? LIVE_COST_METER_KEYS.carrier,
+      carrierMeter,
       carrierProvider,
+      reservationId: sessionId,
+      holder: `${this.workerId}:${job.id}`,
+      maxCallSeconds: policy.maxCallSeconds,
+      job,
     };
     this.sessions.set(job.id, session);
+    this.startHeartbeat();
     return {
       admitted: true,
       beginActiveCall: () => {
@@ -190,6 +192,7 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
       },
       releaseBeforeStart: async () => {
         this.sessions.delete(job.id);
+        this.stopHeartbeatIfIdle();
         return attachment.releaseBeforeStart();
       },
     };
@@ -207,7 +210,8 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
     const session = this.sessions.get(jobId);
     if (!session) return;
     this.sessions.delete(jobId);
-    if (session.startedAt)
+    this.stopHeartbeatIfIdle();
+    if (session.startedAt && session.carrierMeter)
       session.attachment.recordElapsed({
         meterKey: session.carrierMeter,
         sourceKind: 'carrier',
@@ -217,6 +221,26 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
         occurredAt: new Date().toISOString(),
       });
     await session.attachment.finalizeKnownUsage();
+  }
+
+  private startHeartbeat(): void {
+    if (this.heartbeatTimer) return;
+    this.heartbeatTimer = setInterval(() => {
+      void this.extendHeldReservations();
+    }, 60_000);
+    this.heartbeatTimer.unref?.();
+  }
+
+  private stopHeartbeatIfIdle(): void {
+    if (this.sessions.size || !this.heartbeatTimer) return;
+    clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = undefined;
+  }
+
+  private async extendHeldReservations(): Promise<void> {
+    await extendHeldCostReservations(this.ledger, [...this.sessions.values()], (job, reason) =>
+      this.terminate(job, reason),
+    );
   }
 
   private async terminate(job: DurableJob, reason: string): Promise<void> {
@@ -233,22 +257,7 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
   }
 
   private releaseSelections(release: ReleaseRecord): ReleaseSelections | undefined {
-    if (Object.keys(release.selections ?? {}).length)
-      return release.selections as ReleaseSelections;
-    if (!this.registry) return undefined;
-    const legacy = deriveLegacySelections(release, this.registry, {
-      engine: this.defaults?.engine ?? '@winsendotai/ovo-plugin-voice-session-engine',
-      ...(this.defaults?.turnDetector ? { turnDetector: this.defaults.turnDetector } : {}),
-    });
-    return Object.fromEntries(
-      Object.entries(legacy).map(([slot, selection]) => [
-        slot,
-        {
-          ...selection,
-          version: this.registry!.get(selection.pluginId)!.manifest.version,
-        },
-      ]),
-    ) as ReleaseSelections;
+    return selectedReleaseSelections(release, this.registry, this.defaults);
   }
 }
 

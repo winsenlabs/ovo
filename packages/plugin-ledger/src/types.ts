@@ -131,13 +131,23 @@ export interface BudgetReservationInput {
   reservationId: string;
   amountPaise: string;
   sourceRef: string;
+  /** Durable worker ownership. Legacy standalone reservations may omit these fields. */
+  holder?: string;
+  expiresAt?: Date;
+  sessionId?: string;
+  carrierUsage?: {
+    meterKey: string;
+    provider: string;
+    priceCard: { id: string; version: string };
+    fx?: { id: string; version: string };
+  };
 }
 
 export interface ReservationResult {
   admitted: boolean;
   reservationId: string;
   state?: 'reserved' | 'settled' | 'released';
-  reason?: 'budget-threshold';
+  reason?: 'budget-threshold' | 'reservation-not-active';
   budget: BudgetSnapshot;
 }
 
@@ -168,6 +178,7 @@ export interface CostLedgerService {
   allocateCharge(input: AllocateChargeInput): Promise<AllocationResult>;
   createBudget(policy: BudgetPolicy): Promise<BudgetSnapshot>;
   reserveBudget(input: BudgetReservationInput): Promise<ReservationResult>;
+  extendReservation(id: string, holder: string, until: Date): Promise<boolean>;
   settleReservation(reservationId: string, actualPaise: string): Promise<ReservationResult>;
   releaseReservation(reservationId: string): Promise<ReservationResult>;
   applyLateAdjustment(input: {

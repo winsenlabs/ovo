@@ -87,6 +87,10 @@ export class PostgresCostLedger implements CostLedgerService {
     return this.budgets.reserve(input);
   }
 
+  extendReservation(id: string, holder: string, until: Date): Promise<boolean> {
+    return this.budgets.extend(id, holder, until);
+  }
+
   settleReservation(reservationId: string, actualPaise: string): Promise<ReservationResult> {
     return this.budgets.settle(reservationId, actualPaise);
   }

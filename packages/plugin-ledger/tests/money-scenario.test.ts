@@ -1,4 +1,4 @@
-import { priceUsage } from '@winsendotai/ovo-plugin-observability';
+import { priceUsage } from '@winsendotai/ovo-contracts';
 import { describe, expect, it } from 'vitest';
 import {
   allocateMinor,
@@ -12,6 +12,20 @@ import {
   roundMinor,
   type InrScenarioInput,
 } from '../src/index.ts';
+
+describe('stable allocation tie-break', () => {
+  it('assigns the first remaining paise by code-unit target ID order', () => {
+    expect([
+      ...allocateMinor('1', [
+        { id: 'a', weight: '1' },
+        { id: 'A', weight: '1' },
+      ]),
+    ]).toEqual([
+      ['A', '1'],
+      ['a', '0'],
+    ]);
+  });
+});
 
 function nativePrice(quantity: string, minorUnitsPerBlock: string, blockQuantity: string): string {
   return priceUsage(

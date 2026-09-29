@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ControlStore, Role } from '@winsendotai/ovo-plugin-storage';
 import {
@@ -11,6 +10,7 @@ import {
   type OperationsService,
 } from '@winsendotai/ovo-plugin-operations';
 import type { Principal } from '../types.ts';
+import { resolveCampaignCarrier } from '../operations-plugin.ts';
 import { registerOperationsRealtimeRoutes } from './operations-realtime.ts';
 
 const schemas = operationsApiSchemas;
@@ -98,6 +98,12 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
           details: variableValidation.errors,
         },
       });
+    let carrier;
+    try {
+      carrier = await resolveCampaignCarrier(operations, release, store);
+    } catch (error) {
+      return operationsRequestError(422, 'campaign_carrier_unavailable', (error as Error).message);
+    }
     let campaign;
     try {
       campaign = await operations.campaigns.create(
@@ -111,6 +117,8 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
           maxAttemptsTotal: 1,
           maxAttemptsPerLocalDay: 1,
           activeCallPolicy: 'continue',
+          maxConcurrency: 1,
+          ...carrier,
         },
         [{ sourceRow: 1, phoneNumber: body.to, variables: body.variables }],
       );
@@ -201,10 +209,16 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
         'from_number_not_permitted',
         'Caller number is not permitted',
       );
+    let carrier;
+    try {
+      carrier = await resolveCampaignCarrier(operations, release, store);
+    } catch (error) {
+      return operationsRequestError(422, 'campaign_carrier_unavailable', (error as Error).message);
+    }
     let campaign;
     try {
       campaign = await operations.campaigns.create(
-        { ...campaignConfig, fromNumber, agentReleaseId: release.id },
+        { ...campaignConfig, ...carrier, fromNumber, agentReleaseId: release.id },
         contacts,
       );
     } catch (error) {
@@ -273,45 +287,6 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
       return result.campaign;
     });
   }
-
-  app.get('/v1/operations/suppressions', async (request, reply) => {
-    const principal = requireRole(request, 'viewer');
-    const operations = use(reply, principal);
-    if (!operations) return;
-    const query = schemas.suppressionPage.parse(request.query),
-      items = await operations.campaigns.listSuppressions(query.limit, query.cursor);
-    return operationsPage(items, query.limit);
-  });
-
-  app.post('/v1/operations/suppressions', async (request, reply) => {
-    const principal = requireRole(request, 'editor'),
-      operations = use(reply, principal);
-    if (!operations) return;
-    const body = schemas.suppression.parse(request.body);
-    await operations.campaigns.suppress(body.phoneNumber, body.reason);
-    const resourceId = createHash('sha256')
-      .update(normalizePhoneNumber(body.phoneNumber))
-      .digest('hex');
-    await audit(principal, 'operations.suppression.upsert', 'suppression', resourceId);
-    return reply.code(204).send();
-  });
-
-  app.delete('/v1/operations/suppressions/:phoneNumber', async (request, reply) => {
-    const principal = requireRole(request, 'editor'),
-      operations = use(reply, principal);
-    if (!operations) return;
-    const { phoneNumber } = schemas.suppressionParams.parse(request.params);
-    const removed = await operations.campaigns.unsuppress(phoneNumber);
-    if (!removed)
-      return operationsRequestError(404, 'suppression_not_found', 'Suppression not found');
-    await audit(
-      principal,
-      'operations.suppression.delete',
-      'suppression',
-      createHash('sha256').update(phoneNumber).digest('hex'),
-    );
-    return reply.code(204).send();
-  });
 
   registerOperationsRealtimeRoutes({ app, store, requireRole, use, audit });
 }
