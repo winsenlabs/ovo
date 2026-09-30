@@ -25,12 +25,22 @@ Defects fixed: [21]
 
 ## Specification
 
-GOAL: integrate wave 2, delete the transition scaffolding, prove the founder demo with an automated matrix, and update the docs and PM records. Read docs/architecture/plugin-platform.md (revision 2) in full, especially section 0.2 (the HANDOFF invariants), section 13 (gates), section 15 (coordination) and section 16. HANDOFF says: one branch (vorflux/ovo-foundation), no excessive review, the Test Report stays PARTIAL, and PM/acceptance.json keeps all 75 criteria. You may edit any file, but only to integrate, dedupe, clean up or fix defects found by the matrix or CI. No new features.
+GOAL: integrate wave 2, delete the transition scaffolding, prove the founder demo with an automated matrix, and update the docs and PM records. Read docs/architecture/plugin-platform.md (revision 2) in full, especially section 0.2 (the HANDOFF invariants), section 13 (gates), section 15 (coordination) and section 16. HANDOFF says: one branch (vorflux/ovo-foundation), no excessive review, the Test Report stays PARTIAL, and PM/acceptance.json keeps all 75 criteria. You may edit any file for integration, dedupe, cleanup, defects found by the matrix or CI, and the contract definitions explicitly added below. Implementations of those new contracts belong to the post-I1 roadmap, not I1.
 
 0. The W2 gate (FIRST):
    - Run pnpm install --offline, pnpm lint, pnpm typecheck and pnpm test on the combined tree, and fix every cross-unit break.
    - Collect every wave-2 report's 'Contract gaps', and resolve each one properly: move local structural types or adapters into contracts, session-host or plugin-kit where appropriate, and delete the local copies.
    - Prune dependency lines that are no longer used, for example in plugin-evaluations/package.json, then reinstall.
+
+### Founder scope addition (2026-09-30): define post-I1 contracts while contracts are open
+
+This is a narrow exception to I1's integration-only scope: define and validate these contracts in `packages/contracts` during I1, without implementing the post-I1 features. The [Post-I1 roadmap](README.md#post-i1-roadmap) remains unstarted. Defining these later would reopen a frozen package.
+
+- `Cap.decision`: a decision-model capability with choice, noul and score primitives; natural-language criteria; and a calibrated confidence plus per-option probabilities in each response. Model the shape on the TypeSafe Jev API while keeping it suitable for Laya and the OpenAI Decisions API, which expose the same three primitives.
+- `Cap.humanHandoff`: request, presence, accept and release behind one port. It must fit both a built-in open-pickup queue and an OCSO assignment plugin. OVO and OCSO remain separate deployments; OVO must work with neither, either or both integrations available.
+- An intent-graph script schema with intent descriptions, a confidence threshold, slot extraction, slot-conditional targets, global intents layered on every node, and an LLM fallback that resumes at a named node. Base it on OCSO's validated, versioned, pure `RouterStep` (`ASK` / `CLASSIFY` / `KNOWN`) at `~/work/ocso/packages/domain/src/routing/router-definition.ts`; do not invent a parallel schema. It supersedes literal-only `ScriptGraph` transitions (`{ event, matches: string[], to }`) for the future behavior mode.
+- Templated clips with variables so per-contact audio can be rendered before a call.
+- Multilingual confirmation phrases extending `contracts/src/text.ts`'s English and Hindi `CONFIRM_YES` / `CONFIRM_NO` with Tamil, Telugu, Kannada, Marathi and Bengali at minimum, including code-mixed forms.
 
 1. Remove the scaffolding:
    - delete packages/plugin-providers, packages/plugin-telephony-twilio, packages/plugin-session and packages/plugin-operations/src/twilio-handoff.ts (plus its index export);
@@ -100,13 +110,14 @@ GOAL: integrate wave 2, delete the transition scaffolding, prove the founder dem
 
 CONSTRAINTS:
 
-- No new features beyond integration and cleanup.
+- No new implementations beyond integration and cleanup; the founder's 2026-09-30 exception above requires contract definitions in I1.
 - Preserve every HANDOFF safety constraint. Never bulk-clear restore fences. Live flags stay off.
 - Git: follow the user's and HANDOFF instructions. Do not create branches, and commit only if the orchestrator explicitly says the user authorized it.
 - Modules ≤300 lines.
 
 ## Acceptance
 
+- The five founder-added post-I1 contracts are defined and validated in `packages/contracts` while it is open. Decision and handoff ports, the OCSO-derived intent graph, templated clips, and multilingual confirmation phrases have contract tests; their implementations remain in the unstarted roadmap.
 - The combined tree passed the W2 gate. Every wave-2 contract gap was resolved and its local copies removed.
 - plugin-providers, plugin-telephony-twilio, plugin-session, the distribution legacy bridges and twilio-handoff.ts are deleted, and nothing imports them.
 - Runtime enforcement defaults to enforce for v1 manifests, the listed infra plugins are verified under enforce, and the runtime-violations baseline is empty.
