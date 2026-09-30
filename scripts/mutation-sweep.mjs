@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { enumerateSites } from './mutation-sites.mjs';
+import { isolatedPostgres } from './mutation-postgres.mjs';
+import { enumerateSites, sourceFiles } from './mutation-sites.mjs';
 
 const separator = process.argv.indexOf('--');
 const ownArgs = separator < 0 ? process.argv.slice(2) : process.argv.slice(2, separator);
@@ -21,7 +22,8 @@ const counts = Object.fromEntries(
 if (!command.length) {
   console.log(
     JSON.stringify({
-      files: new Set(sites.map((site) => site.file)).size,
+      scannedFiles: sourceFiles.length,
+      filesWithSites: new Set(sites.map((site) => site.file)).size,
       sites: sites.length,
       counts,
     }),
@@ -31,7 +33,24 @@ if (!command.length) {
 const from = Number(flag('from', '0'));
 const to = Math.min(sites.length, Number(flag('to', String(sites.length))));
 const resultPath = flag('results', 'mutation-results.jsonl');
-if (from === 0) fs.writeFileSync(resultPath, '');
+if (from === 0) {
+  const database = isolatedPostgres(process.env.OVO_TEST_POSTGRES_URL, 'baseline');
+  try {
+    const baseline = spawnSync(command[0], command.slice(1), {
+      encoding: 'utf8',
+      env: database.env,
+      timeout: Number(flag('timeout-ms', '300000')),
+      maxBuffer: 2 * 1024 * 1024,
+    });
+    if (baseline.status !== 0)
+      throw new Error(
+        `Unmutated baseline failed:\n${baseline.stdout || ''}\n${baseline.stderr || ''}`,
+      );
+  } finally {
+    database.close();
+  }
+  fs.writeFileSync(resultPath, '');
+}
 const originals = new Map();
 for (const site of sites.slice(from, to))
   if (!originals.has(site.file)) originals.set(site.file, fs.readFileSync(site.file, 'utf8'));
@@ -53,18 +72,24 @@ try {
     const source = originals.get(site.file);
     if (source.slice(site.start, site.end) !== site.original)
       throw new Error(`Source changed since enumeration: ${site.file}:${site.line}`);
-    fs.writeFileSync(
-      site.file,
-      source.slice(0, site.start) + site.replacement + source.slice(site.end),
-    );
+    const database = isolatedPostgres(process.env.OVO_TEST_POSTGRES_URL, String(index));
     const start = Date.now();
-    const run = spawnSync(command[0], command.slice(1), {
-      encoding: 'utf8',
-      env: process.env,
-      timeout: Number(flag('timeout-ms', '300000')),
-      maxBuffer: 2 * 1024 * 1024,
-    });
-    fs.writeFileSync(site.file, source);
+    let run;
+    try {
+      fs.writeFileSync(
+        site.file,
+        source.slice(0, site.start) + site.replacement + source.slice(site.end),
+      );
+      run = spawnSync(command[0], command.slice(1), {
+        encoding: 'utf8',
+        env: database.env,
+        timeout: Number(flag('timeout-ms', '300000')),
+        maxBuffer: 2 * 1024 * 1024,
+      });
+    } finally {
+      fs.writeFileSync(site.file, source);
+      database.close();
+    }
     const output = `${run.stdout || ''}\n${run.stderr || ''}`;
     const row = {
       ...site,

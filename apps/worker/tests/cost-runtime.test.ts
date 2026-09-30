@@ -179,7 +179,7 @@ describe('live cost coverage', () => {
 describe('durable worker reservation heartbeat', () => {
   const job = { id: jobId, workspaceId: 'workspace-1', ownerEpoch: 1 } as DurableJob;
 
-  it('finalizes a started no-carrier graph without recording undefined carrier usage', async () => {
+  it('finalizes a started session without recording an absent carrier meter', async () => {
     const recordElapsed = vi.fn();
     const finalizeKnownUsage = vi.fn(async () => undefined);
     const costs = new ProductionWorkerCostRuntime(
