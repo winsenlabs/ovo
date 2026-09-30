@@ -818,11 +818,14 @@ interrupted and the write not to execute. That expectation predates the behavior
 `confirmation.pending` hook and contradicts the receipt-ordering and answer
 rules above. With the hook, `yes` is a genuine answer: it must not interrupt,
 and a confirmed write may execute only after the prompt's completed receipt.
-I1 must correct the frozen scenario to use non-answer speech for its interrupted
-prompt case while preserving a separate `yes`-during-prompt ordering check.
 The reference run with `hello there` interrupts the prompt and executes no
-write. Until that correction, the frozen meta-test is known inconsistent with
-this normative rule; do not alter production to make `yes` interrupt.
+write. **Resolution (2026-10-01):** the checker authorized M1 to change only
+that scenario utterance to `hello there`, preserving the frozen meta-test's
+interrupted-receipt and zero-write assertions and the separate
+`yes`-during-prompt ordering case. Suppressing the reference detector's
+transcript interrupt now fails the meta-test on `completed` versus
+`interrupted`. I1 preserves both cases; production must never make `yes`
+interrupt merely to satisfy a scenario.
 
 ### 2.8 Carrier contracts
 

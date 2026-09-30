@@ -241,8 +241,9 @@ confirmed prompt at sequence 22, the `yes` response at 24 and one confirmed
 write at 25. The scenario itself reports no failure; the extra frozen meta-test
 still expects an interruption and zero writes. Replaying the same setup with
 `hello there` produces one interrupt, an interrupted receipt and zero writes.
-The design §2.7 now records this known mismatch and I1 owns the frozen scenario
-correction. Neither frozen file is changed in M1 pending a checker ruling.
+The design §2.7 recorded this mismatch before the checker ruled. The
+2026-10-01 note below supersedes the pending correction and assigns I1 only
+the regression-preservation obligation.
 
 Separately, M1 §10 requires humanized tool arguments rather than raw JSON.
 M2's built-in agent confirmation corpus template retains raw JSON for eight
@@ -251,8 +252,27 @@ expected spoken details differ. Replacing the template changes the built-in
 dataset fingerprint, so a previously imported dataset can gain a new version.
 An in-memory replacement of only that template makes all eight cases pass
 through the real fixture executor, including their existing operation checks.
-The board records both values and I1 owns the release note. M1 has not changed
-the M2-owned corpus before the checker rules on this correction.
+The board recorded both values before the checker ruled. The 2026-10-01 note
+below supersedes this pending state and assigns I1 the release note.
+
+## Checker note (2026-10-01): confirmed correction and true negative
+
+The checker approved correcting the frozen scenario now because its `yes`
+utterance relied on M1's missing confirmation lifecycle signal. M1 changed
+only that utterance to `hello there`; the existing meta-test still checks the
+interrupted receipt and zero writes. Suppressing the reference turn detector's
+transcript-interrupt emission makes the test fail on a value assertion:
+`expected 'completed' to be 'interrupted'` at
+`packages/conformance/tests/engine-paths.test.ts:49`. The mutation was restored
+immediately, leaving no diff in the reference detector. I1 preserves both this
+case and the separate genuine-`yes` ordering case.
+
+The checker also approved changing only M2's built-in corpus confirmation
+template. All eight `agent-confirm-*` and `agent-decline-*` cases now match
+M1 §10's spoken arguments; no corpus assertion or fixture changed. This is a
+correction to a verified unit's expectation, not a reversal of M2's behavior.
+The dataset fingerprint changes as recorded in the board's release note, which
+I1 must inherit verbatim with the operator action.
 
 ## WIP implementation notes (2026-09-26)
 

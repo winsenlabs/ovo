@@ -232,3 +232,28 @@ CONSTRAINTS:
   the S2 spec; Sarvam Odia `or-IN` for realtime STT versus `od-IN` for TTS;
   and the supported Sarvam speaker roster before restricting the binding
   schema. Do not resolve these by inference in I1.
+
+## Incoming M1 confirmation corrections (2026-10-01)
+
+M1 corrected only the frozen interrupted-confirmation scenario's utterance to
+`hello there`, leaving the meta-test's interrupted receipt and zero-write
+assertions intact. Suppressing the reference detector's transcript interrupt
+fails that test on `completed` versus `interrupted`. Preserve this regression
+and the separate genuine-`yes` ordering scenario in I1.
+
+Inherit this M1 release note verbatim:
+
+> The verified M2 built-in 120-case evaluation corpus had eight agent confirmation
+> and cancellation expectations that spoke raw JSON. M1 corrected only their
+> expected prompt template to match §10's schema-ordered spoken arguments. The
+> dataset fingerprint changes from
+> `sha256:f0bdd567be030277a910c9a553196ae6b9373d4d1dbe193b55319831ebca3994`
+> to `sha256:5c25fcf40110b18dccfd26576555f8ada09d587e649c8ee19e900970f1d838ec`.
+> On importing the corrected built-in corpus into a dataset that holds the old
+> version, operators see one new immutable dataset version rather than a dedupe;
+> historical runs remain pinned to their original version. No data is backfilled.
+
+Operator action: import the corrected built-in corpus as a new version, then
+re-baseline comparisons that should use its spoken expectations or explicitly
+accept the one-time fingerprint change. Retain the old version for historical
+comparisons; do not rewrite prior runs.
