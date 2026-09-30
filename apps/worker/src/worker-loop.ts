@@ -56,17 +56,22 @@ export async function runWorkerLoop(input: {
     carriers,
   } = processRuntime;
   let mediaRuntime: ReturnType<typeof createProductionWorkerMediaRuntime>;
-  const terminateCostedJob = (jobId: string, ownerEpoch: number, reason: string) =>
-    terminateOwnedJobAndFinalize({
-      jobId,
-      ownerEpoch,
-      reason,
-      workerId,
-      store,
-      carriers,
-      media: mediaRuntime,
-      finalizeCost: (id) => costs.finalize(id),
-    });
+  const terminateCostedJob = async (jobId: string, ownerEpoch: number, reason: string) => {
+    try {
+      return await terminateOwnedJobAndFinalize({
+        jobId,
+        ownerEpoch,
+        reason,
+        workerId,
+        store,
+        carriers,
+        media: mediaRuntime,
+        finalizeCost: (id) => costs.finalize(id),
+      });
+    } finally {
+      inboundRuntime?.completeSession(jobId);
+    }
+  };
   const inboundRuntime = createInboundWorkerRuntime(
     process.env.OVO_INBOUND_CAPACITY_ENABLED === 'true',
     {

@@ -356,6 +356,27 @@ describe('runWorkerLoop forced exit cost settlement', () => {
     await subject.running;
   });
 
+  it('releases inbound session state after forced job lease loss', async () => {
+    const subject = fixture(false, { inbound: true });
+    await vi.waitFor(() => expect(subject.status.state).toBe('ready'));
+    await subject.admit();
+    expect(subject.status.state).toBe('active');
+
+    await subject.terminate('00000000-0000-4000-8000-000000000001', 1, 'job-lease-lost');
+    await vi.waitFor(() => expect(subject.status.state).toBe('ready'));
+    expect(subject.status.detail).toBe('Inbound session closed');
+    expect(subject.events.slice(0, 5)).toEqual([
+      'floor-release',
+      'fence',
+      'hangup',
+      'media',
+      'close-session',
+    ]);
+    subject.shutdown();
+    subject.releaseQueue();
+    await subject.running;
+  });
+
   it.each(['none', 'termination', 'finalization'])(
     'closes outbound shutdown resources despite %s failure',
     async (failure) => {
