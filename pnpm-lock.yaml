@@ -994,6 +994,9 @@ importers:
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
       '@winsendotai/ovo-plugin-tools':
         specifier: workspace:*
         version: link:../plugin-tools
@@ -1012,6 +1015,9 @@ importers:
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
       '@winsendotai/ovo-plugin-tools':
         specifier: workspace:*
         version: link:../plugin-tools
