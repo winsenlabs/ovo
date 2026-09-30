@@ -210,6 +210,17 @@ version-7 ledger row before remigration, then expects versions 1–7. This keeps
 the fixture genuinely pre-006 and preserves its published-call and event
 assertions. I1 inherits that shared test.
 
+## Checker note (2026-09-30): tool connector dependency declaration
+
+The checker approved adding only `@winsendotai/ovo-plugin-kit` to
+`packages/plugin-tools-http/package.json` and
+`packages/plugin-tools-mcp/package.json`, with matching `pnpm-lock.yaml`
+importer entries. Both packages already import kit source. This supersedes the
+broader manifest removal proposed above: the stale plugin-tools and
+plugin-tools-http manifest dependencies stay until I1 removes them with the
+legacy bridges. No third-party versions or unrelated importers change. The
+normal frozen offline install succeeds; temporary local links are gone.
+
 ## WIP implementation notes (2026-09-26)
 
 This checkpoint is not built. The three scope proposals above remain pending. Ordinary tests/typechecking of tools-http and tools-mcp cannot resolve their new kit imports until the manifest and lockfile decision lands. Interim source proof uses a temporary configuration outside the repository that aliases only the existing kit source; it is not the normal verification bar.
