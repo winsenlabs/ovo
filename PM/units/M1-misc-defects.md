@@ -221,6 +221,16 @@ plugin-tools-http manifest dependencies stay until I1 removes them with the
 legacy bridges. No third-party versions or unrelated importers change. The
 normal frozen offline install succeeds; temporary local links are gone.
 
+## Checker note (2026-09-30): architecture baseline replay test
+
+M1's removal of tool connector plugin edges leaves all seven current architecture
+baseline edges originating from plugin-storage. The shared
+`scripts/tests/tools.test.ts` had assumed there must be edges from more than one
+source, so its assertion failed after the intended decoupling. M1 corrected only
+that assertion: the test writes a baseline and reruns the real architecture scan
+against it, checking a clean exit. The test remains sensitive to a new edge or
+a broken baseline reader. I1 inherits this shared test as it prunes stale edges.
+
 ## WIP implementation notes (2026-09-26)
 
 This checkpoint is not built. The three scope proposals above remain pending. Ordinary tests/typechecking of tools-http and tools-mcp cannot resolve their new kit imports until the manifest and lockfile decision lands. Interim source proof uses a temporary configuration outside the repository that aliases only the existing kit source; it is not the normal verification bar.
