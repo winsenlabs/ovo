@@ -200,7 +200,15 @@ changed the registered Postgres version and SQLite marker to 7, and updated the
 new storage test's expected versions. After rebasing on foundation, the runners
 retain D1's fixture-snapshots version 6 before M1's MCP-removal version 7. The
 older 006 allocation and paused-state notes above are historical; 007 governs
-M1. Reverify both backends and update the two F3 fixture arrays to include 7.
+M1. Both backends and the two corrected F3 expected-version arrays passed on
+the disposable loopback Postgres 17.6 database (16/16 focused tests).
+
+The 2026-09-26 checker rule for contract-correct test fixtures also covers
+`packages/plugin-storage/tests/fixture-admission.test.ts`, a D1-owned shared
+touchpoint: its pre-006 upgrade setup now removes M1's `removed_at` column and
+version-7 ledger row before remigration, then expects versions 1–7. This keeps
+the fixture genuinely pre-006 and preserves its published-call and event
+assertions. I1 inherits that shared test.
 
 ## WIP implementation notes (2026-09-26)
 
