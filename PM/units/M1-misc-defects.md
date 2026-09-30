@@ -36,7 +36,7 @@ Defects fixed: [6, 10, 11, 12, 13, 14, 18, 19, 24, 25]
 - API extraction: permit one new helper, `apps/api/src/routes/mcp-discovery.ts`, for the test/discover/tools routes extracted from `mcp.ts`, which retains connection CRUD and approval routes. The spec requires splitting this module before changes but owns only the original exact filename.
 - Dependencies: in owned `plugin-tools-http/package.json`, replace `@winsendotai/ovo-plugin-tools` with `@winsendotai/ovo-plugin-kit`; in owned `plugin-tools-mcp/package.json`, remove `@winsendotai/ovo-plugin-tools` and `@winsendotai/ovo-plugin-tools-http`, add `@winsendotai/ovo-plugin-kit`; in owned `plugin-secrets/package.json`, remove `@winsendotai/ovo-plugin-storage`. The frozen root lockfile needs only corresponding importer entries removed/added (kit remains `specifier: workspace:*`, `version: link:../plugin-kit`), with no third-party version changes. This reconciles required plugin-edge removal with §15.2's frozen lockfile. I1 inherits dependency and baseline cleanup after approval.
 
-- Migration test follow-up (found by the full scoped Postgres run): permit only the two expected-version arrays in `packages/plugin-storage/tests/f3-postgres.test.ts` to change from `[1, 2, 3, 4, 5]` to `[1, 2, 3, 4, 5, 6]`. The implementation and migration are already authorized; this separate test file is outside the original owned paths. It is untouched pending a ruling.
+- Migration test follow-up (found by the full scoped Postgres run): update only the two expected-version arrays in `packages/plugin-storage/tests/f3-postgres.test.ts` from `[1, 2, 3, 4, 5]` to `[1, 2, 3, 4, 5, 6, 7]`. The checker approved correcting these shared fixtures; D1 owns version 6 and M1 now owns version 7. Preserve every other assertion.
 
 ## Specification
 
@@ -191,6 +191,16 @@ Foundation now has verified fixture-snapshots control migration 006. The paused
 M1 branch still has mcp-tool-removed as 006; merging it unchanged would throw
 `Control migration 6 checksum changed` on every already-migrated database. Keep
 the branch paused until authorized, then rename/register 007 before integration.
+
+## Resumption note (2026-09-30): control migrations remain contiguous
+
+The checker verified and merged O2, then authorized M1 to resume. The first M1
+edit renamed its unpublished MCP-removal migration to `007-mcp-tool-removed.ts`,
+changed the registered Postgres version and SQLite marker to 7, and updated the
+new storage test's expected versions. After rebasing on foundation, the runners
+retain D1's fixture-snapshots version 6 before M1's MCP-removal version 7. The
+older 006 allocation and paused-state notes above are historical; 007 governs
+M1. Reverify both backends and update the two F3 fixture arrays to include 7.
 
 ## WIP implementation notes (2026-09-26)
 

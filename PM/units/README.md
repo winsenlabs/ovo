@@ -40,7 +40,7 @@ This board is the single source of truth for unit status. The specs in this fold
 | [O2](O2-ops-ledger.md)             | Campaign driver, queue liveness, reservation expiry           | 5, 15, 16, 19            | **Verified `fc2c8a5`; merged `f628448` (2026-09-30).** The checker reproduced root `pnpm check` with 1,867 passed / 206 skipped and lint and format exit 0. The fresh Postgres serial run passed 2,069 / 4 / 0. The four re-check items and isolated SQL mutation evidence are recorded in the unit note.                           |
 | [U1](U1-console.md)                | Console refactor                                              | 8, 15                    | **Verified `75c55c0`** by the checker (verdict received 2026-09-26). Console cold build, lint and format exit 0; Postgres serial 1,277 passed / 9 skipped / 0 failed; Playwright 41 passed / 1 visibility-gated desktop skip; 69 axe analyses with 0 violations and a positive control; 0 overflow at 390 px across 23 routes.      |
 | [D1](D1-demo-backend.md)           | Fixture test calls and the demo backend                       | 19, 20                   | **Verified `043b310`** (checker verdict received 2026-09-27). Three fixture isolation layers including production egress sentinel and SQL-literal test kind; control migrations contiguous 001..006 with SQLite parity; both defects closed with behavioral true negatives.                                                         |
-| [M1](M1-misc-defects.md)           | Behaviors, tools and security defects                         | 6, 10–14, 18, 19, 24, 25 | **In progress — paused by checker.** WIP committed at `dc9f471` on `w2/M1`; remains paused for its later batch; no resumption authorized in this handoff.                                                                                                                                                                           |
+| [M1](M1-misc-defects.md)           | Behaviors, tools and security defects                         | 6, 10–14, 18, 19, 24, 25 | **In progress (resumed 2026-09-30).** The first edit renumbered MCP removal to control migration 007; M1 rebased onto O2's merged foundation with D1's immutable fixture-snapshots migration 006 retained. Defects 13 (rotation) and 14 (production session secret) are priority.                                                   |
 | [M2](M2-evaluations-decoupling.md) | Decouple the evaluations package from other plugins           | 19                       | **Verified `d322467`** by the checker; verdict recorded in `d45baee`.                                                                                                                                                                                                                                                               |
 
 ## Wave 3
@@ -1018,3 +1018,13 @@ at `f628448`; the code and tests remain the checker-verified tree. The four
 re-check items are closed. I1 inherits the tracked 190/360 isolated SQL
 survival baseline above. M1 is next, with migration 006 → 007 as its first
 change; C3 remains founder-held. No push or PR.
+
+## M1 resumed — 2026-09-30
+
+After O2 was verified and merged, M1's preserved branch was recreated as the
+second worktree. Its first edit allocated MCP-tool removal to control migration
+007, then the branch rebased on foundation. The merged migration order is D1's
+immutable fixture-snapshots 006 followed by M1's MCP removal 007 in both
+Postgres and SQLite. M1 remains in progress, with production startup secret
+enforcement (#14) and concurrent rotation (#13) prioritized. C3 stays held;
+the post-I1 roadmap remains unstarted.
