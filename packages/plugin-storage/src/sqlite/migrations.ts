@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS audit_entries(id TEXT PRIMARY KEY,workspace_id TEXT N
     if (!discoveredColumns.some((column) => column.name === 'removed_at'))
       db.exec('ALTER TABLE mcp_discovered_tools ADD COLUMN removed_at TEXT');
     db.prepare(
-      'INSERT OR IGNORE INTO ovo_control_schema_migrations(version,applied_at) VALUES(6,?)',
+      'INSERT OR IGNORE INTO ovo_control_schema_migrations(version,applied_at) VALUES(7,?)',
     ).run(new Date().toISOString());
     if (db.prepare('PRAGMA foreign_key_check').all().length)
       throw new Error('Control migration left broken foreign keys');
