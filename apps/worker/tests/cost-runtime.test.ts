@@ -179,6 +179,31 @@ describe('live cost coverage', () => {
 describe('durable worker reservation heartbeat', () => {
   const job = { id: jobId, workspaceId: 'workspace-1', ownerEpoch: 1 } as DurableJob;
 
+  it('finalizes a started no-carrier graph without recording undefined carrier usage', async () => {
+    const recordElapsed = vi.fn();
+    const finalizeKnownUsage = vi.fn(async () => undefined);
+    const costs = new ProductionWorkerCostRuntime(
+      ledgerMock(),
+      {} as ControlStore,
+      workerStore('release-id'),
+      telephonyMock(),
+      'worker-1',
+    );
+    const sessions = (costs as unknown as { sessions: Map<string, unknown> }).sessions;
+    sessions.set(jobId, {
+      attachment: { recordElapsed, finalizeKnownUsage },
+      startedAt: Date.now() - 1000,
+      carrierProvider: 'none',
+      reservationId: jobId,
+      holder: `worker-1:${jobId}`,
+      maxCallSeconds: 120,
+      job,
+    });
+    await costs.finalize(jobId);
+    expect(finalizeKnownUsage).toHaveBeenCalledOnce();
+    expect(recordElapsed).not.toHaveBeenCalled();
+  });
+
   function runtime() {
     const currentRelease = release('announcement');
     const ledger = {

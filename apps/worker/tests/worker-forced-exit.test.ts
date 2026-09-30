@@ -227,26 +227,33 @@ describe('runWorkerLoop forced exit cost settlement', () => {
     await subject.running;
   });
 
-  it('releases inbound session state after forced job lease loss', async () => {
-    const subject = fixture(false, { inbound: true });
-    await vi.waitFor(() => expect(subject.status.state).toBe('ready'));
-    await subject.admit();
-    expect(subject.status.state).toBe('active');
+  it.each([false, true])(
+    'releases inbound session state after forced job lease loss (termination fails: %s)',
+    async (terminationFails) => {
+      const subject = fixture(false, { inbound: true, terminationFails });
+      await vi.waitFor(() => expect(subject.status.state).toBe('ready'));
+      await subject.admit();
+      expect(subject.status.state).toBe('active');
 
-    await subject.terminate('00000000-0000-4000-8000-000000000001', 1, 'job-lease-lost');
-    await vi.waitFor(() => expect(subject.status.state).toBe('ready'));
-    expect(subject.status.detail).toBe('Inbound session closed');
-    expect(subject.events.slice(0, 5)).toEqual([
-      'floor-release',
-      'fence',
-      'hangup',
-      'media',
-      'close-session',
-    ]);
-    subject.shutdown();
-    subject.releaseQueue();
-    await subject.running;
-  });
+      if (terminationFails)
+        await expect(
+          subject.terminate('00000000-0000-4000-8000-000000000001', 1, 'job-lease-lost'),
+        ).rejects.toThrow('selected carrier unavailable');
+      else await subject.terminate('00000000-0000-4000-8000-000000000001', 1, 'job-lease-lost');
+      await vi.waitFor(() => expect(subject.status.state).toBe('ready'));
+      expect(subject.status.detail).toBe('Inbound session closed');
+      expect(subject.events.slice(0, terminationFails ? 4 : 5)).toEqual([
+        'floor-release',
+        'fence',
+        ...(terminationFails ? [] : ['hangup']),
+        'media',
+        'close-session',
+      ]);
+      subject.shutdown();
+      subject.releaseQueue();
+      await subject.running;
+    },
+  );
 
   it.each(['none', 'termination', 'finalization'])(
     'closes outbound shutdown resources despite %s failure',

@@ -77,7 +77,7 @@ describe.skipIf(!postgresUrl)('durable reservation expiry on Postgres', () => {
     return { ...input, workspaceId, jobId };
   }
 
-  it('does not extend an expired reservation after another worker reclaims the job', async () => {
+  it('releases an expired reservation when the job lease belongs to another worker', async () => {
     const row = await reservation();
     jobs.set(row.jobId, {
       status: 'running',
@@ -104,7 +104,7 @@ describe.skipIf(!postgresUrl)('durable reservation expiry on Postgres', () => {
     ).toEqual([{ outcome: 'released' }]);
   });
 
-  it('extends only when the original holder owns a live job lease', async () => {
+  it('extends an expired reservation when the sweeper sees a live lease for its holder', async () => {
     const row = await reservation();
     jobs.set(row.jobId, {
       status: 'running',
@@ -174,6 +174,42 @@ describe.skipIf(!postgresUrl)('durable reservation expiry on Postgres', () => {
         )
       ).rows,
     ).toEqual([{ outcome: 'settled' }]);
+  });
+
+  it('keeps the reserved-state fence on settlement when a row changes during resolution', async () => {
+    const row = await reservation(randomUUID(), false);
+    jobs.set(row.jobId, { status: 'completed', ownerId: 'worker-A' });
+    const connected = new Date(Date.now() - 12_000);
+    await pool.query(
+      'INSERT INTO ovo_session_routes(session_id,organization_id,connected_at,terminal_at) VALUES($1,$2,$3,$4)',
+      [row.sessionId, row.workspaceId, connected, new Date()],
+    );
+    let injected = false;
+    const interceptingPool = {
+      connect: async () => {
+        const client = await pool.connect();
+        return {
+          query: async (sql: string, params?: unknown[]) => {
+            if (!injected && sql.includes("SET state = 'settled'")) {
+              injected = true;
+              await client.query("UPDATE ovo_cost_reservations SET state='released' WHERE id=$1", [
+                params?.[0],
+              ]);
+            }
+            return client.query(sql, params);
+          },
+          release: () => client.release(),
+        };
+      },
+    } as unknown as Pool;
+    expect(
+      await new ReservationSweeper(interceptingPool, jobPort).tick(new AbortController().signal),
+    ).toBe(1);
+    expect(injected).toBe(true);
+    expect(
+      (await pool.query('SELECT state FROM ovo_cost_reservations WHERE id=$1', [row.sessionId]))
+        .rows[0],
+    ).toEqual({ state: 'released' });
   });
 
   it('does not double-charge a carrier elapsed event already written by normal finalization', async () => {

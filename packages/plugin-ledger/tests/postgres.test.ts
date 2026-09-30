@@ -277,6 +277,40 @@ describe.skipIf(!postgresUrl)('PostgreSQL production cost ledger', () => {
     });
   });
 
+  it('refuses to extend a reservation for a different holder', async () => {
+    await ledger.createBudget({
+      id: 'holder-budget',
+      workspaceId: 'single-org-compat',
+      limitPaise: '100',
+      admissionOverspendPaise: '0',
+    });
+    expect(
+      await ledger.reserveBudget({
+        budgetId: 'holder-budget',
+        reservationId: 'holder-reservation',
+        amountPaise: '20',
+        sourceRef: 'holder-job',
+        holder: 'worker-A:holder-job',
+        expiresAt: new Date(Date.now() + 30_000),
+        sessionId: 'holder-session',
+      }),
+    ).toMatchObject({ admitted: true });
+    const before = await pool.query('SELECT expires_at FROM ovo_cost_reservations WHERE id=$1', [
+      'holder-reservation',
+    ]);
+    expect(
+      await ledger.extendReservation(
+        'holder-reservation',
+        'worker-B:holder-job',
+        new Date(Date.now() + 120_000),
+      ),
+    ).toBe(false);
+    const after = await pool.query('SELECT expires_at FROM ovo_cost_reservations WHERE id=$1', [
+      'holder-reservation',
+    ]);
+    expect(after.rows[0]?.expires_at).toEqual(before.rows[0]?.expires_at);
+  });
+
   it('updates a workspace budget policy without discarding incurred or reserved amounts', async () => {
     await ledger.createBudget({
       id: 'daily',

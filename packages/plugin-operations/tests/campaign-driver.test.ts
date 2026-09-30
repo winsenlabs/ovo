@@ -287,6 +287,56 @@ integration('campaign driver on durable Postgres rows', () => {
     ).toEqual({ status: 'superseded' });
   });
 
+  it('ignores a late callback when the contact is queued without an epoch change', async () => {
+    const { campaign, service } = await setup({ contacts: 1 });
+    const admitted = await service.campaigns.admit(campaign.id, 'worker', 60_000);
+    if (admitted.kind !== 'admitted') throw new Error('admission missing');
+    const dial = await service.campaigns.authorizeDial(
+      admitted.contactId,
+      'worker',
+      admitted.ownerEpoch,
+    );
+    if (dial.kind !== 'authorized') throw new Error('authorization missing');
+    await pool.query("UPDATE ovo_ops_campaign_contacts SET state='queued' WHERE id=$1", [
+      admitted.contactId,
+    ]);
+    expect(
+      await service.campaigns.recordAttempt(dial.attemptId, randomUUID(), 'connected', new Date()),
+    ).toBe('ignored_terminal');
+    expect((await contacts(campaign.id))[0]).toMatchObject({
+      state: 'queued',
+      owner_epoch: String(admitted.ownerEpoch),
+    });
+    expect(
+      (await pool.query('SELECT status FROM ovo_ops_attempts WHERE id=$1', [dial.attemptId]))
+        .rows[0],
+    ).toEqual({ status: 'superseded' });
+  });
+
+  it('does not rewind an unknown attempt to dialing or connected', async () => {
+    const { campaign, service } = await setup({ contacts: 1 });
+    const admitted = await service.campaigns.admit(campaign.id, 'worker', 60_000);
+    if (admitted.kind !== 'admitted') throw new Error('admission missing');
+    const dial = await service.campaigns.authorizeDial(
+      admitted.contactId,
+      'worker',
+      admitted.ownerEpoch,
+    );
+    if (dial.kind !== 'authorized') throw new Error('authorization missing');
+    expect(
+      await service.campaigns.recordAttempt(dial.attemptId, randomUUID(), 'unknown', new Date()),
+    ).toBe('applied');
+    for (const status of ['dialing', 'connected'] as const)
+      expect(
+        await service.campaigns.recordAttempt(dial.attemptId, randomUUID(), status, new Date()),
+      ).toBe('ignored_out_of_order');
+    expect((await contacts(campaign.id))[0]?.state).toBe('unknown');
+    expect(
+      (await pool.query('SELECT status FROM ovo_ops_attempts WHERE id=$1', [dial.attemptId]))
+        .rows[0],
+    ).toEqual({ status: 'unknown' });
+  });
+
   it('keeps env-binding pacing tokens separate between organizations', async () => {
     const left = await setup({ contacts: 1, cps: 1 });
     const right = await setup({ contacts: 1, cps: 1 });
@@ -322,48 +372,5 @@ integration('campaign driver on durable Postgres rows', () => {
       await service.campaigns.authorizeDial(first.contactId, 'worker', first.ownerEpoch),
     ).toMatchObject({ kind: 'authorized' });
     expect((await contacts(campaign.id))[0]?.state).toBe('dialing');
-  });
-
-  it('accepts an old operationId retry after adding the default concurrency and carrier snapshot', async () => {
-    const organizationId = `o2-legacy-idempotency-${randomUUID()}`;
-    const service = new PostgresOperationsService({ pool, organizationId });
-    const config = {
-      operationId: randomUUID(),
-      name: 'Old campaign',
-      agentReleaseId: randomUUID(),
-      fromNumber: number,
-      schedule: { localDateTime: '2000-01-01T00:00', timezone: 'UTC' },
-      perNumberAttemptLimit: 1,
-      maxAttemptsTotal: 1,
-      maxAttemptsPerLocalDay: 1,
-      activeCallPolicy: 'continue' as const,
-    };
-    const list = [
-      {
-        sourceRow: 1,
-        phoneNumber: `+1415555${String(++sequence).padStart(4, '0')}`,
-        variables: {},
-      },
-    ];
-    const old = await service.campaigns.create(config, list);
-    const retry = await service.campaigns.create(
-      {
-        ...config,
-        maxConcurrency: 1,
-        carrierPluginId: 'carrier.fixture',
-        carrierId: 'carrier-fixture',
-        carrierBindingId: null,
-        bindingCps: null,
-      },
-      list,
-    );
-    expect(retry.id).toBe(old.id);
-    expect(
-      (
-        await pool.query('SELECT count(*)::int AS n FROM ovo_ops_campaigns WHERE operation_id=$1', [
-          config.operationId,
-        ])
-      ).rows[0]?.n,
-    ).toBe(1);
   });
 });

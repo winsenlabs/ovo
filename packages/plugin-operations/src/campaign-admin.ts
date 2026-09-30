@@ -262,6 +262,13 @@ function matchesLegacyDigest(
 ): boolean {
   if (row.carrier_id !== null || row.max_concurrency !== 1 || (config.maxConcurrency ?? 1) !== 1)
     return false;
+  if (
+    config.carrierPluginId != null ||
+    config.carrierId != null ||
+    config.carrierBindingId != null ||
+    config.bindingCps != null
+  )
+    return false;
   const {
     maxConcurrency: _maxConcurrency,
     carrierPluginId: _carrierPluginId,
