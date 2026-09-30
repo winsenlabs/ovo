@@ -116,7 +116,9 @@ export class PostgresSecretsRepository {
     id: string,
     input: {
       fingerprint: string;
-      secret: Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>;
+      secret:
+        | Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>
+        | ((version: number) => Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>);
     },
   ) {
     return transaction(this.pool, async (client) => {
@@ -129,7 +131,8 @@ export class PostgresSecretsRepository {
       const current = this.mapCredential(locked.rows[0]!),
         version = current.currentVersion + 1,
         at = now();
-      await this.insertSecret(client, workspaceId, id, version, current.backend, input.secret, at);
+      const secret = typeof input.secret === 'function' ? input.secret(version) : input.secret;
+      await this.insertSecret(client, workspaceId, id, version, current.backend, secret, at);
       const result = await client.query<Row>(
         `UPDATE ovo_ctl_credentials SET current_version=$1,rotated_at=$2,fingerprint=$3
          WHERE workspace_id=$4 AND id=$5 RETURNING *`,

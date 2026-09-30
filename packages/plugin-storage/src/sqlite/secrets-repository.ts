@@ -96,7 +96,9 @@ export class SecretsRepository {
     id: string,
     input: {
       fingerprint: string;
-      secret: Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>;
+      secret:
+        | Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>
+        | ((version: number) => Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>);
     },
   ) {
     return transaction(this.db, () => {
@@ -104,19 +106,12 @@ export class SecretsRepository {
       if (!current || current.status !== 'active') throw new Error('Active credential not found');
       const version = current.currentVersion + 1,
         at = now();
+      const secret = typeof input.secret === 'function' ? input.secret(version) : input.secret;
       this.db
         .prepare(
           'INSERT INTO secret_versions(credential_id,version,ciphertext,nonce,auth_tag,backend_ref,created_at) VALUES(?,?,?,?,?,?,?)',
         )
-        .run(
-          id,
-          version,
-          input.secret.ciphertext,
-          input.secret.nonce,
-          input.secret.authTag,
-          input.secret.backendRef,
-          at,
-        );
+        .run(id, version, secret.ciphertext, secret.nonce, secret.authTag, secret.backendRef, at);
       this.db
         .prepare(
           'UPDATE credentials SET current_version=?,rotated_at=?,fingerprint=? WHERE workspace_id=? AND id=?',

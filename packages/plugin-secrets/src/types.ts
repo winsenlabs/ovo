@@ -45,6 +45,8 @@ export interface SecretManager extends SecretResolver {
   forAgent(agentId: string): SecretResolver;
 }
 
+type StoredSecret = Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>;
+
 export interface CredentialStore {
   createCredential(input: {
     workspaceId: string;
@@ -57,7 +59,7 @@ export interface CredentialStore {
     expiresAt?: string | null;
     createdBy: string;
     fingerprint: string;
-    secret: Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>;
+    secret: StoredSecret;
     id?: string;
   }): Promise<CredentialMetadata>;
   rotateCredential(
@@ -65,7 +67,7 @@ export interface CredentialStore {
     id: string,
     input: {
       fingerprint: string;
-      secret: Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>;
+      secret: StoredSecret | ((version: number) => StoredSecret);
     },
   ): Promise<CredentialMetadata>;
   getCredential(workspaceId: string, id: string): Promise<CredentialMetadata | undefined>;

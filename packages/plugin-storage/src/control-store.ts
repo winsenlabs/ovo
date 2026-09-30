@@ -65,7 +65,9 @@ export interface ControlStore {
     id: string,
     input: {
       fingerprint: string;
-      secret: Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>;
+      secret:
+        | Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>
+        | ((version: number) => Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>);
     },
   ): Promise<CredentialMetadata>;
   getCredential(workspaceId: string, id: string): Promise<CredentialMetadata | undefined>;

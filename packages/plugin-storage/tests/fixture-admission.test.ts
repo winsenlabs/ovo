@@ -387,16 +387,16 @@ for (const backend of ['sqlite', 'postgres']) {
           });
           const event = await store.appendCallEvent('w', call.id, 'existing', { retained: true });
           await db.sql(
-            'DROP INDEX releases_published_draft_idx; ALTER TABLE releases DROP COLUMN purpose; DELETE FROM ovo_control_schema_migrations WHERE version IN (5,6);',
-            'DROP INDEX ovo_ctl_releases_published_draft_idx; ALTER TABLE ovo_ctl_releases DROP COLUMN purpose; ALTER TABLE ovo_ctl_releases ADD UNIQUE(workspace_id,agent_id,draft_version); DELETE FROM ovo_control_schema_migrations WHERE version=6;',
+            'DROP INDEX releases_published_draft_idx; ALTER TABLE releases DROP COLUMN purpose; ALTER TABLE mcp_discovered_tools DROP COLUMN removed_at; DELETE FROM ovo_control_schema_migrations WHERE version IN (5,6,7);',
+            'DROP INDEX ovo_ctl_releases_published_draft_idx; ALTER TABLE ovo_ctl_releases DROP COLUMN purpose; ALTER TABLE ovo_ctl_releases ADD UNIQUE(workspace_id,agent_id,draft_version); ALTER TABLE ovo_ctl_mcp_discovered_tools DROP COLUMN removed_at; DELETE FROM ovo_control_schema_migrations WHERE version IN (6,7);',
           );
           await db.remigrate();
           expect(await store.getRelease('w', release.id)).toEqual(release);
           expect(await store.getCall('w', call.id)).toEqual(call);
           expect((await store.listCallEvents('w', call.id)).items).toEqual([event]);
-          expect(await db.versions()).toEqual([1, 2, 3, 4, 5, 6]);
+          expect(await db.versions()).toEqual([1, 2, 3, 4, 5, 6, 7]);
           await db.remigrate();
-          expect(await db.versions()).toEqual([1, 2, 3, 4, 5, 6]);
+          expect(await db.versions()).toEqual([1, 2, 3, 4, 5, 6, 7]);
         } finally {
           await db.close();
         }

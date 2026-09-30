@@ -31,11 +31,9 @@ export class LocalAesGcmSecretManager implements SecretManager {
     });
   }
   async rotate(workspaceId: string, credentialId: string, value: string) {
-    const metadata = await this.store.getCredential(workspaceId, credentialId);
-    if (!metadata || metadata.status !== 'active') throw new Error('Active credential not found');
     return this.store.rotateCredential(workspaceId, credentialId, {
       fingerprint: fingerprint(value),
-      secret: this.encrypt(workspaceId, credentialId, metadata.currentVersion + 1, value),
+      secret: (version) => this.encrypt(workspaceId, credentialId, version, value),
     });
   }
   async resolve(workspaceId: string, credentialId: string) {
