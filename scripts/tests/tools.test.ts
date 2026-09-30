@@ -108,11 +108,11 @@ describe('--write-baseline with --only', () => {
       const run = runGate('check-architecture.mjs', ['--baseline-dir', dir, '--write-baseline']);
       expect(run.status).toBe(0);
       const written = JSON.parse(readFileSync(`${dir}/architecture.json`, 'utf8'));
-      expect(written.edges.length).toBeGreaterThan(0);
-      // Edges from packages the scoped run above would have dropped are all still there.
-      expect(
-        new Set(written.edges.map((edge: { from: string }) => edge.from)).size,
-      ).toBeGreaterThan(1);
+      expect(Array.isArray(written.edges)).toBe(true);
+      // A normal repository-wide scan must accept exactly the baseline just written,
+      // including when integration has reduced violations to one source or none.
+      const checked = runGate('check-architecture.mjs', ['--baseline-dir', dir]);
+      expect(checked.status).toBe(0);
     },
     SPAWN_TIMEOUT_MS,
   );
