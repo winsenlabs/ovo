@@ -810,6 +810,20 @@ export interface AudioFilter {
 
 **Answers are not backchannels.** Between `confirmation.pending` and `confirmation.resolved`, a word from `CONFIRM_YES` or `CONFIRM_NO` is never treated as a backchannel and never discarded by the min-words rule. It is aggregated and released at `bot.stopped`, which is subject to the receipt-ordering rule in §2.6.
 
+**Checker note (2026-09-30): confirmation during playback.** The shipped frozen
+`conformance/src/kit/engine-scenarios-speech.ts` scenario named “an interrupted
+confirmation does not execute” says `yes` while the confirmation prompt plays,
+yet `conformance/tests/engine-paths.test.ts` requires that prompt to be
+interrupted and the write not to execute. That expectation predates the behavior's
+`confirmation.pending` hook and contradicts the receipt-ordering and answer
+rules above. With the hook, `yes` is a genuine answer: it must not interrupt,
+and a confirmed write may execute only after the prompt's completed receipt.
+I1 must correct the frozen scenario to use non-answer speech for its interrupted
+prompt case while preserving a separate `yes`-during-prompt ordering check.
+The reference run with `hello there` interrupts the prompt and executes no
+write. Until that correction, the frozen meta-test is known inconsistent with
+this normative rule; do not alter production to make `yes` interrupt.
+
 ### 2.8 Carrier contracts
 
 Every carrier plugin provides two capabilities, both with cardinality `many` and keyed by `manifest.provider`: `ovo.carrier.control` and `ovo.carrier.ingress`. The worker, API and dispatcher consume control. The gateway and API consume ingress (the API only to list URLs).

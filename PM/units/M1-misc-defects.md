@@ -231,6 +231,29 @@ that assertion: the test writes a baseline and reruns the real architecture scan
 against it, checking a clean exit. The test remains sensitive to a new edge or
 a broken baseline reader. I1 inherits this shared test as it prunes stale edges.
 
+## Checker note (2026-09-30): confirmation cross-unit expectations
+
+M1 does not change `contracts/src/text.ts` or `classifyConfirmation`. The frozen
+kit's interrupted-confirmation scenario says `yes`, which the existing lexicon
+correctly classifies as confirmation. M1's required `confirmation.pending` hook
+activates E1's guard: a direct reference-engine run records the completed,
+confirmed prompt at sequence 22, the `yes` response at 24 and one confirmed
+write at 25. The scenario itself reports no failure; the extra frozen meta-test
+still expects an interruption and zero writes. Replaying the same setup with
+`hello there` produces one interrupt, an interrupted receipt and zero writes.
+The design §2.7 now records this known mismatch and I1 owns the frozen scenario
+correction. Neither frozen file is changed in M1 pending a checker ruling.
+
+Separately, M1 §10 requires humanized tool arguments rather than raw JSON.
+M2's built-in agent confirmation corpus template retains raw JSON for eight
+cases. Their actual outcome and operation counts remain correct; only the
+expected spoken details differ. Replacing the template changes the built-in
+dataset fingerprint, so a previously imported dataset can gain a new version.
+An in-memory replacement of only that template makes all eight cases pass
+through the real fixture executor, including their existing operation checks.
+The board records both values and I1 owns the release note. M1 has not changed
+the M2-owned corpus before the checker rules on this correction.
+
 ## WIP implementation notes (2026-09-26)
 
 This checkpoint is not built. The three scope proposals above remain pending. Ordinary tests/typechecking of tools-http and tools-mcp cannot resolve their new kit imports until the manifest and lockfile decision lands. Interim source proof uses a temporary configuration outside the repository that aliases only the existing kit source; it is not the normal verification bar.
