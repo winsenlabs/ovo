@@ -274,6 +274,25 @@ correction to a verified unit's expectation, not a reversal of M2's behavior.
 The dataset fingerprint changes as recorded in the board's release note, which
 I1 must inherit verbatim with the operator action.
 
+## Final builder gate (2026-10-01)
+
+M1 is **Built - awaiting check**. Node 22.23.2 root `pnpm check` exited 0:
+all seven lint gates (including architecture and duplication), format, typecheck,
+the three application bundles and console production build, audit with no known
+vulnerabilities, and console E2E (41 passed, 1 viewport skip). Default Vitest
+passed **1,920 + 208 = 2,128** tests. Separately, serial Vitest on the builder's
+disposable Postgres 17.6 bound to `127.0.0.1` passed
+**2,124 + 4 = 2,128** tests, with zero failures. The container was removed.
+
+Compared with O2's merged foundation, M1 adds 55 tests. The default skip count
+increases from 206 to 208 because two new Postgres-backed cases are gated by
+`OVO_TEST_POSTGRES_URL`: the concurrent credential-rotation lock case in
+`packages/plugin-secrets/tests/rotation-postgres.test.ts`, and the MCP
+removal/rediscovery case inside the Postgres integration suite in
+`packages/plugin-storage/tests/postgres.test.ts`. Both run in the serial
+Postgres bar. Four skips remain there behind independent database prerequisites.
+No test was disabled.
+
 ## WIP implementation notes (2026-09-26)
 
 This checkpoint is not built. The three scope proposals above remain pending. Ordinary tests/typechecking of tools-http and tools-mcp cannot resolve their new kit imports until the manifest and lockfile decision lands. Interim source proof uses a temporary configuration outside the repository that aliases only the existing kit source; it is not the normal verification bar.
