@@ -1,7 +1,7 @@
 import type { EvaluationCase } from '../types.ts';
 
 const confirmation = (state: string) =>
-  `Please confirm: Update account state. Details: {"state":"${state}"}. Say yes to proceed or no to cancel.`;
+  `Please confirm: Update account state. Details: state: ${state}. Say yes to proceed or no to cancel.`;
 
 export const agentCases: EvaluationCase[] = [
   ...Array.from({ length: 10 }, (_, index): EvaluationCase => ({

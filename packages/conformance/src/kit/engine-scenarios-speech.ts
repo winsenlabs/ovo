@@ -97,7 +97,7 @@ export const SPEECH_SCENARIOS: readonly EngineScenario[] = [
     async run(h, f) {
       await h.say('book a table for two');
       await h.until(() => promptSent(h), 'the confirmation prompt to play');
-      await h.say('yes');
+      await h.say('hello there');
       const promptDone = () => h.receipts().some((r) => PROMPT.test(r.receipt.text));
       await h.until(
         () => respondSeq(h, /^yes$/i) !== undefined || promptDone(),
