@@ -3,15 +3,7 @@ import { mapDiscovered, replaceDiscovered } from './mcp-discovery.ts';
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { ReferencedResourceError, type McpConnection, type McpDiscoveredTool } from '../models.ts';
-import {
-  decodeCursor,
-  now,
-  pageFromRows,
-  pageLimit,
-  type Row,
-  toIso,
-  transaction,
-} from './shared.ts';
+import { now, selectPage, type Row, toIso, transaction } from './shared.ts';
 
 export class PostgresMcpRepository {
   constructor(private readonly pool: Pool) {}
@@ -55,15 +47,16 @@ export class PostgresMcpRepository {
   }
 
   async listMcpConnections(workspaceId: string, limit = 50, cursor?: string) {
-    const size = pageLimit(limit),
-      after = decodeCursor(cursor);
-    const result = await this.pool.query<Row>(
+    return selectPage(
+      this.pool,
       `SELECT * FROM ovo_ctl_mcp_connections WHERE workspace_id=$1
        AND ($2::timestamptz IS NULL OR (created_at,id) > ($2::timestamptz,$3::text))
        ORDER BY created_at,id LIMIT $4`,
-      [workspaceId, after?.at ?? null, after?.id ?? '', size + 1],
+      [workspaceId],
+      limit,
+      cursor,
+      (row) => mapConnection(row),
     );
-    return pageFromRows(result.rows, size, (row) => mapConnection(row));
   }
 
   async updateMcpConnection(
@@ -154,18 +147,15 @@ export class PostgresMcpRepository {
     limit = 50,
     cursor?: string,
   ) {
-    const size = pageLimit(limit),
-      after = decodeCursor(cursor);
-    const result = await this.pool.query<Row>(
+    return selectPage(
+      this.pool,
       `SELECT *,remote_name AS id FROM ovo_ctl_mcp_discovered_tools
        WHERE workspace_id=$1 AND connection_id=$2
        AND ($3::timestamptz IS NULL OR (discovered_at,remote_name) > ($3::timestamptz,$4::text))
        ORDER BY discovered_at,remote_name LIMIT $5`,
-      [workspaceId, connectionId, after?.at ?? null, after?.id ?? '', size + 1],
-    );
-    return pageFromRows(
-      result.rows,
-      size,
+      [workspaceId, connectionId],
+      limit,
+      cursor,
       (row) => mapDiscovered(row),
       (row) => ({
         at: toIso(row.discovered_at),
@@ -228,18 +218,15 @@ export class PostgresMcpRepository {
   }
 
   async listMcpApprovals(workspaceId: string, agentId: string, limit = 50, cursor?: string) {
-    const size = pageLimit(limit),
-      after = decodeCursor(cursor);
-    const result = await this.pool.query<Row>(
+    return selectPage(
+      this.pool,
       `SELECT *,tool_id AS id FROM ovo_ctl_agent_mcp_tools
        WHERE workspace_id=$1 AND agent_id=$2
        AND ($3::timestamptz IS NULL OR (created_at,tool_id) > ($3::timestamptz,$4::text))
        ORDER BY created_at,tool_id LIMIT $5`,
-      [workspaceId, agentId, after?.at ?? null, after?.id ?? '', size + 1],
-    );
-    return pageFromRows(
-      result.rows,
-      size,
+      [workspaceId, agentId],
+      limit,
+      cursor,
       (row) => mapApproval(row),
       (row) => ({
         at: toIso(row.created_at),

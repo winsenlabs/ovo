@@ -60,6 +60,23 @@ export interface ProviderBinding {
   createdAt: string;
   updatedAt: string;
 }
+export type CreateProviderBindingInput = Omit<
+  ProviderBinding,
+  'id' | 'createdAt' | 'updatedAt' | 'kind' | 'pluginId'
+> & {
+  id?: string;
+  kind?: string | null;
+  pluginId?: string | null;
+};
+export interface UpdateProviderBindingInput {
+  label: string;
+  provider: string;
+  environment: string;
+  credentialId: string;
+  config: Record<string, unknown>;
+  kind?: string | null;
+  pluginId?: string | null;
+}
 export interface McpConnection {
   id: string;
   workspaceId: string;

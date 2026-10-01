@@ -12,7 +12,7 @@ import {
 } from '../models.ts';
 import { fixtureSelectionKind } from '../postgres/releases-repository.ts';
 import { AgentsRepository } from './agents-repository.ts';
-import { cursorValue, json, now, pageLimit, parseArray, type Row, transaction } from './shared.ts';
+import { json, now, parseArray, selectPage, type Row, transaction } from './shared.ts';
 
 export class ReleasesRepository {
   constructor(private readonly db: DatabaseSync) {}
@@ -221,17 +221,13 @@ export class ReleasesRepository {
   }
 
   listReleases(workspaceId: string, agentId: string, limit = 50, cursor?: string) {
-    const size = pageLimit(limit),
-      rows = this.db
-        .prepare(
-          "SELECT rowid AS cursor,* FROM releases WHERE workspace_id=? AND agent_id=? AND purpose='published' AND rowid>? ORDER BY rowid LIMIT ?",
-        )
-        .all(workspaceId, agentId, cursorValue(cursor), size + 1) as Row[],
-      more = rows.length > size;
-    if (more) rows.pop();
-    return {
-      items: rows.map((row) => ReleasesRepository.mapRelease(row)),
-      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
-    };
+    return selectPage(
+      this.db,
+      "SELECT rowid AS cursor,* FROM releases WHERE workspace_id=? AND agent_id=? AND purpose='published' AND rowid>? ORDER BY rowid LIMIT ?",
+      [workspaceId, agentId],
+      limit,
+      cursor,
+      (row) => ReleasesRepository.mapRelease(row),
+    );
   }
 }

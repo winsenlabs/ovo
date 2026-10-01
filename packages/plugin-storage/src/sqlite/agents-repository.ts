@@ -9,7 +9,7 @@ import {
   type ReleaseRecord,
   type ReleaseSelection,
 } from '../models.ts';
-import { cursorValue, json, now, pageLimit, parseArray, type Row, transaction } from './shared.ts';
+import { json, now, parseArray, selectPage, type Row, transaction } from './shared.ts';
 
 export class AgentsRepository {
   constructor(private readonly db: DatabaseSync) {}
@@ -46,18 +46,14 @@ export class AgentsRepository {
     return row ? this.mapAgent(row) : undefined;
   }
   listAgents(workspaceId: string, limit = 50, cursor?: string): Page<AgentDraft> {
-    const size = pageLimit(limit),
-      rows = this.db
-        .prepare(
-          'SELECT rowid AS cursor,* FROM agents WHERE workspace_id=? AND rowid>? ORDER BY rowid LIMIT ?',
-        )
-        .all(workspaceId, cursorValue(cursor), size + 1) as Row[],
-      more = rows.length > size;
-    if (more) rows.pop();
-    return {
-      items: rows.map((row) => this.mapAgent(row)),
-      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
-    };
+    return selectPage(
+      this.db,
+      'SELECT rowid AS cursor,* FROM agents WHERE workspace_id=? AND rowid>? ORDER BY rowid LIMIT ?',
+      [workspaceId],
+      limit,
+      cursor,
+      (row) => this.mapAgent(row),
+    );
   }
   updateAgent(workspaceId: string, id: string, expectedVersion: number, config: AgentConfigValue) {
     return transaction(this.db, () => {

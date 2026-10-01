@@ -5,12 +5,14 @@ import type {
   CallRecord,
   CredentialMetadata,
   CredentialReferences,
+  CreateProviderBindingInput,
   EvaluationRecord,
   McpConnection,
   McpDiscoveredTool,
   McpToolApproval,
   Page,
   ProviderBinding,
+  UpdateProviderBindingInput,
   ReleaseRecord,
   ReleaseSelection,
   StoredCallEvent,
@@ -55,13 +57,7 @@ export interface ControlStore extends CredentialStore {
     id: string,
     maxIds?: number,
   ): Promise<CredentialReferences>;
-  createProviderBinding(
-    input: Omit<ProviderBinding, 'id' | 'createdAt' | 'updatedAt' | 'kind' | 'pluginId'> & {
-      id?: string;
-      kind?: string | null;
-      pluginId?: string | null;
-    },
-  ): Promise<ProviderBinding>;
+  createProviderBinding(input: CreateProviderBindingInput): Promise<ProviderBinding>;
   getProviderBinding(workspaceId: string, id: string): Promise<ProviderBinding | undefined>;
   listProviderBindings(
     workspaceId: string,
@@ -71,15 +67,7 @@ export interface ControlStore extends CredentialStore {
   updateProviderBinding(
     workspaceId: string,
     id: string,
-    input: {
-      label: string;
-      provider: string;
-      environment: string;
-      credentialId: string;
-      config: Record<string, unknown>;
-      kind?: string | null;
-      pluginId?: string | null;
-    },
+    input: UpdateProviderBindingInput,
   ): Promise<ProviderBinding>;
   deleteProviderBinding(workspaceId: string, id: string): Promise<void>;
   createMcpConnection(input: {

@@ -1,32 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
-import type { ProviderBinding } from '../models.ts';
-import {
-  decodeCursor,
-  now,
-  pageFromRows,
-  pageLimit,
-  type Row,
-  toIso,
-  transaction,
-} from './shared.ts';
+import type {
+  CreateProviderBindingInput,
+  ProviderBinding,
+  UpdateProviderBindingInput,
+} from '../models.ts';
+import { mapProviderBinding } from '../binding-mapping.ts';
+import { now, selectPage, type Row, toIso, transaction } from './shared.ts';
 
 export class PostgresBindingsRepository {
   constructor(private readonly pool: Pool) {}
   private mapBinding(row: Row): ProviderBinding {
-    return {
-      id: String(row.id),
-      workspaceId: String(row.workspace_id),
-      label: String(row.label),
-      provider: String(row.provider),
-      kind: row.kind === null ? null : String(row.kind),
-      pluginId: row.plugin_id === null ? null : String(row.plugin_id),
-      environment: String(row.environment),
-      credentialId: String(row.credential_id),
-      config: row.config as Record<string, unknown>,
-      createdAt: toIso(row.created_at),
-      updatedAt: toIso(row.updated_at),
-    };
+    return mapProviderBinding(row, 'config', (value) => value as Record<string, unknown>, toIso);
   }
 
   private async lockActiveCredential(client: PoolClient, workspaceId: string, id: string) {
@@ -38,13 +23,7 @@ export class PostgresBindingsRepository {
     if (!result.rowCount) throw new Error('Active credential not found');
   }
 
-  async createProviderBinding(
-    input: Omit<ProviderBinding, 'id' | 'createdAt' | 'updatedAt' | 'kind' | 'pluginId'> & {
-      id?: string;
-      kind?: string | null;
-      pluginId?: string | null;
-    },
-  ) {
+  async createProviderBinding(input: CreateProviderBindingInput) {
     return transaction(this.pool, async (client) => {
       await this.lockActiveCredential(client, input.workspaceId, input.credentialId);
       const id = input.id ?? randomUUID(),
@@ -79,30 +58,19 @@ export class PostgresBindingsRepository {
   }
 
   async listProviderBindings(workspaceId: string, limit = 50, cursor?: string) {
-    const size = pageLimit(limit),
-      after = decodeCursor(cursor);
-    const result = await this.pool.query<Row>(
+    return selectPage(
+      this.pool,
       `SELECT * FROM ovo_ctl_provider_bindings WHERE workspace_id=$1
        AND ($2::timestamptz IS NULL OR (created_at,id) > ($2::timestamptz,$3::text))
        ORDER BY created_at,id LIMIT $4`,
-      [workspaceId, after?.at ?? null, after?.id ?? '', size + 1],
+      [workspaceId],
+      limit,
+      cursor,
+      (row) => this.mapBinding(row),
     );
-    return pageFromRows(result.rows, size, (row) => this.mapBinding(row));
   }
 
-  async updateProviderBinding(
-    workspaceId: string,
-    id: string,
-    input: {
-      label: string;
-      provider: string;
-      environment: string;
-      credentialId: string;
-      config: Record<string, unknown>;
-      kind?: string | null;
-      pluginId?: string | null;
-    },
-  ) {
+  async updateProviderBinding(workspaceId: string, id: string, input: UpdateProviderBindingInput) {
     return transaction(this.pool, async (client) => {
       await this.lockActiveCredential(client, workspaceId, input.credentialId);
       const result = await client.query<Row>(

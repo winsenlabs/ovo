@@ -53,6 +53,27 @@ export function pageFromRows<T>(
   };
 }
 
+/** Execute a workspace-scoped keyset query whose last three parameters are cursor time, id and limit. */
+export async function selectPage<T>(
+  queryable: Queryable,
+  sql: string,
+  prefix: unknown[],
+  limit: number,
+  cursor: string | undefined,
+  map: (row: Row) => T,
+  rowCursor?: (row: Row) => PageCursor,
+) {
+  const size = pageLimit(limit);
+  const after = decodeCursor(cursor);
+  const result = await queryable.query<Row>(sql, [
+    ...prefix,
+    after?.at ?? null,
+    after?.id ?? '',
+    size + 1,
+  ]);
+  return pageFromRows(result.rows, size, map, rowCursor);
+}
+
 export const toIso = (value: unknown) =>
   value instanceof Date ? value.toISOString() : new Date(String(value)).toISOString();
 

@@ -6,21 +6,12 @@ import type { ControlStore } from '../control-store.ts';
 type ReleaseInput = Parameters<ControlStore['createRelease']>[0];
 import {
   DraftConflictError,
-  type AgentDraft,
   type ProviderBinding,
   type ReleaseRecord,
   type ReleaseSelection,
 } from '../models.ts';
-import {
-  decodeCursor,
-  isUniqueViolation,
-  now,
-  pageFromRows,
-  pageLimit,
-  type Row,
-  toIso,
-  transaction,
-} from './shared.ts';
+import { isUniqueViolation, now, selectPage, type Row, toIso, transaction } from './shared.ts';
+import { mapAgent } from './agent-mapping.ts';
 
 export function fixtureSelectionKind(slot: string): string {
   if (slot.startsWith('textFilter:')) return 'text-filter';
@@ -31,17 +22,6 @@ export function fixtureSelectionKind(slot: string): string {
 
 export class PostgresReleasesRepository {
   constructor(private readonly pool: Pool) {}
-  private mapReleaseAgent(row: Row): AgentDraft {
-    return {
-      id: String(row.id),
-      workspaceId: String(row.workspace_id),
-      config: AgentConfig.parse(row.config),
-      draftVersion: Number(row.draft_version),
-      createdAt: toIso(row.created_at),
-      updatedAt: toIso(row.updated_at),
-    };
-  }
-
   static mapRelease(row: Row): ReleaseRecord {
     return {
       id: String(row.id),
@@ -74,7 +54,7 @@ export class PostgresReleasesRepository {
       [input.workspaceId, input.agent.id],
     );
     if (!locked.rowCount) throw new Error('Agent not found');
-    const current = this.mapReleaseAgent(locked.rows[0]!);
+    const current = mapAgent(locked.rows[0]!);
     if (
       current.draftVersion !== input.agent.draftVersion ||
       !isDeepStrictEqual(current.config, input.agent.config)
@@ -252,14 +232,15 @@ export class PostgresReleasesRepository {
   }
 
   async listReleases(workspaceId: string, agentId: string, limit = 50, cursor?: string) {
-    const size = pageLimit(limit),
-      after = decodeCursor(cursor);
-    const result = await this.pool.query<Row>(
+    return selectPage(
+      this.pool,
       `SELECT * FROM ovo_ctl_releases WHERE workspace_id=$1 AND agent_id=$2 AND purpose='published'
        AND ($3::timestamptz IS NULL OR (created_at,id) > ($3::timestamptz,$4::text))
        ORDER BY created_at,id LIMIT $5`,
-      [workspaceId, agentId, after?.at ?? null, after?.id ?? '', size + 1],
+      [workspaceId, agentId],
+      limit,
+      cursor,
+      (row) => PostgresReleasesRepository.mapRelease(row),
     );
-    return pageFromRows(result.rows, size, (row) => PostgresReleasesRepository.mapRelease(row));
   }
 }

@@ -7,16 +7,7 @@ import {
   type ProviderBinding,
   type SecretBlob,
 } from '../models.ts';
-import {
-  decodeCursor,
-  now,
-  pageFromRows,
-  pageLimit,
-  type Queryable,
-  type Row,
-  toIso,
-  transaction,
-} from './shared.ts';
+import { now, selectPage, type Queryable, type Row, toIso, transaction } from './shared.ts';
 
 export class PostgresSecretsRepository {
   constructor(private readonly pool: Pool) {}
@@ -151,15 +142,16 @@ export class PostgresSecretsRepository {
   }
 
   async listCredentials(workspaceId: string, limit = 50, cursor?: string) {
-    const size = pageLimit(limit),
-      after = decodeCursor(cursor);
-    const result = await this.pool.query<Row>(
+    return selectPage(
+      this.pool,
       `SELECT * FROM ovo_ctl_credentials WHERE workspace_id=$1
        AND ($2::timestamptz IS NULL OR (created_at,id) > ($2::timestamptz,$3::text))
        ORDER BY created_at,id LIMIT $4`,
-      [workspaceId, after?.at ?? null, after?.id ?? '', size + 1],
+      [workspaceId],
+      limit,
+      cursor,
+      (row) => this.mapCredential(row),
     );
-    return pageFromRows(result.rows, size, (row) => this.mapCredential(row));
   }
 
   async getActiveSecretBlob(workspaceId: string, id: string): Promise<SecretBlob | undefined> {

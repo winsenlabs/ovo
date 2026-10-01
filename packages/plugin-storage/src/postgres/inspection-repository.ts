@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { type AuditEntry, type EvaluationRecord, type UsageEntry } from '../models.ts';
 import { redactAudit } from '../sqlite/shared.ts';
-import { decodeCursor, now, pageFromRows, pageLimit, type Row, toIso } from './shared.ts';
+import { now, selectPage, type Row, toIso } from './shared.ts';
 
 export class PostgresInspectionRepository {
   constructor(private readonly pool: Pool) {}
@@ -54,18 +54,15 @@ export class PostgresInspectionRepository {
   }
 
   async listEvaluations(workspaceId: string, limit = 50, cursor?: string) {
-    const size = pageLimit(limit),
-      after = decodeCursor(cursor);
-    const result = await this.pool.query<Row>(
+    return selectPage(
+      this.pool,
       `SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
        FROM ovo_ctl_evaluations WHERE workspace_id=$1
        AND ($2::timestamptz IS NULL OR (created_at,id) > ($2::timestamptz,$3::text))
        ORDER BY created_at,id LIMIT $4`,
-      [workspaceId, after?.at ?? null, after?.id ?? '', size + 1],
-    );
-    return pageFromRows(
-      result.rows,
-      size,
+      [workspaceId],
+      limit,
+      cursor,
       (row) => this.mapEvaluation(row),
       (row) => ({ at: String(row.cursor_at), id: String(row.id) }),
     );
@@ -118,18 +115,15 @@ export class PostgresInspectionRepository {
   }
 
   async listUsage(workspaceId: string, callId: string, limit = 50, cursor?: string) {
-    const size = pageLimit(limit),
-      after = decodeCursor(cursor);
-    const result = await this.pool.query<Row>(
+    return selectPage(
+      this.pool,
       `SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
        FROM ovo_ctl_usage_entries WHERE workspace_id=$1 AND call_id=$2
        AND ($3::timestamptz IS NULL OR (created_at,id) > ($3::timestamptz,$4::text))
        ORDER BY created_at,id LIMIT $5`,
-      [workspaceId, callId, after?.at ?? null, after?.id ?? '', size + 1],
-    );
-    return pageFromRows(
-      result.rows,
-      size,
+      [workspaceId, callId],
+      limit,
+      cursor,
       (row) => this.mapUsage(row),
       (row) => ({ at: String(row.cursor_at), id: String(row.id) }),
     );
@@ -172,18 +166,15 @@ export class PostgresInspectionRepository {
   }
 
   async listAudit(workspaceId: string, limit = 50, cursor?: string) {
-    const size = pageLimit(limit),
-      after = decodeCursor(cursor);
-    const result = await this.pool.query<Row>(
+    return selectPage(
+      this.pool,
       `SELECT *, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
        FROM ovo_ctl_audit_entries WHERE workspace_id=$1
        AND ($2::timestamptz IS NULL OR (created_at,id) > ($2::timestamptz,$3::text))
        ORDER BY created_at,id LIMIT $4`,
-      [workspaceId, after?.at ?? null, after?.id ?? '', size + 1],
-    );
-    return pageFromRows(
-      result.rows,
-      size,
+      [workspaceId],
+      limit,
+      cursor,
       (row) => ({
         id: String(row.id),
         workspaceId: String(row.workspace_id),

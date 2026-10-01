@@ -5,6 +5,7 @@ import {
 } from '../postgres/calls-repository.ts';
 import { randomUUID } from 'node:crypto';
 import { ReleasesRepository } from './releases-repository.ts';
+import { mapCall } from '../call-mapping.ts';
 import type { DatabaseSync } from 'node:sqlite';
 import type { CallListFilters } from '../control-store.ts';
 import type { ReleaseRecord, CallRecord, Page, StoredCallEvent } from '../models.ts';
@@ -98,15 +99,7 @@ export class CallsRepository {
   }
 
   private mapCall(row: Row): CallRecord {
-    return {
-      id: String(row.id),
-      workspaceId: String(row.workspace_id),
-      releaseId: String(row.release_id),
-      kind: String(row.kind) as CallRecord['kind'],
-      status: String(row.status),
-      createdAt: String(row.created_at),
-      completedAt: row.completed_at === null ? null : String(row.completed_at),
-    };
+    return mapCall(row, String);
   }
   getCall(workspaceId: string, id: string) {
     const row = this.db

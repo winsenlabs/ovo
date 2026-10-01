@@ -7,16 +7,7 @@ import {
   type ProviderBinding,
   type SecretBlob,
 } from '../models.ts';
-import {
-  cursorValue,
-  json,
-  now,
-  pageLimit,
-  parseArray,
-  parseObject,
-  type Row,
-  transaction,
-} from './shared.ts';
+import { json, now, parseArray, parseObject, selectPage, type Row, transaction } from './shared.ts';
 
 export class SecretsRepository {
   constructor(private readonly db: DatabaseSync) {}
@@ -127,18 +118,14 @@ export class SecretsRepository {
     return row ? this.mapCredential(row) : undefined;
   }
   listCredentials(workspaceId: string, limit = 50, cursor?: string) {
-    const size = pageLimit(limit),
-      rows = this.db
-        .prepare(
-          'SELECT rowid AS cursor,* FROM credentials WHERE workspace_id=? AND rowid>? ORDER BY rowid LIMIT ?',
-        )
-        .all(workspaceId, cursorValue(cursor), size + 1) as Row[],
-      more = rows.length > size;
-    if (more) rows.pop();
-    return {
-      items: rows.map((row) => this.mapCredential(row)),
-      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
-    };
+    return selectPage(
+      this.db,
+      'SELECT rowid AS cursor,* FROM credentials WHERE workspace_id=? AND rowid>? ORDER BY rowid LIMIT ?',
+      [workspaceId],
+      limit,
+      cursor,
+      (row) => this.mapCredential(row),
+    );
   }
   getActiveSecretBlob(workspaceId: string, id: string): SecretBlob | undefined {
     const row = this.db

@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import type { ProviderBinding } from '../models.ts';
-import { cursorValue, json, now, pageLimit, parseObject, type Row } from './shared.ts';
+import type {
+  CreateProviderBindingInput,
+  ProviderBinding,
+  UpdateProviderBindingInput,
+} from '../models.ts';
+import { mapProviderBinding } from '../binding-mapping.ts';
+import { json, now, parseObject, selectPage, type Row } from './shared.ts';
 
 export class BindingsRepository {
   constructor(private readonly db: DatabaseSync) {}
@@ -11,27 +16,9 @@ export class BindingsRepository {
       .get(workspaceId, id) as { status: string } | undefined;
   }
   private mapBinding(row: Row): ProviderBinding {
-    return {
-      id: String(row.id),
-      workspaceId: String(row.workspace_id),
-      label: String(row.label),
-      provider: String(row.provider),
-      kind: row.kind === null ? null : String(row.kind),
-      pluginId: row.plugin_id === null ? null : String(row.plugin_id),
-      environment: String(row.environment),
-      credentialId: String(row.credential_id),
-      config: parseObject(row.config_json),
-      createdAt: String(row.created_at),
-      updatedAt: String(row.updated_at),
-    };
+    return mapProviderBinding(row, 'config_json', parseObject, String);
   }
-  createProviderBinding(
-    input: Omit<ProviderBinding, 'id' | 'createdAt' | 'updatedAt' | 'kind' | 'pluginId'> & {
-      id?: string;
-      kind?: string | null;
-      pluginId?: string | null;
-    },
-  ) {
+  createProviderBinding(input: CreateProviderBindingInput) {
     const credential = this.loadCredentialForBinding(input.workspaceId, input.credentialId);
     if (!credential || credential.status !== 'active')
       throw new Error('Active credential not found');
@@ -63,32 +50,16 @@ export class BindingsRepository {
     return row ? this.mapBinding(row) : undefined;
   }
   listProviderBindings(workspaceId: string, limit = 50, cursor?: string) {
-    const size = pageLimit(limit),
-      rows = this.db
-        .prepare(
-          'SELECT rowid AS cursor,* FROM provider_bindings WHERE workspace_id=? AND rowid>? ORDER BY rowid LIMIT ?',
-        )
-        .all(workspaceId, cursorValue(cursor), size + 1) as Row[],
-      more = rows.length > size;
-    if (more) rows.pop();
-    return {
-      items: rows.map((row) => this.mapBinding(row)),
-      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
-    };
+    return selectPage(
+      this.db,
+      'SELECT rowid AS cursor,* FROM provider_bindings WHERE workspace_id=? AND rowid>? ORDER BY rowid LIMIT ?',
+      [workspaceId],
+      limit,
+      cursor,
+      (row) => this.mapBinding(row),
+    );
   }
-  updateProviderBinding(
-    workspaceId: string,
-    id: string,
-    input: {
-      label: string;
-      provider: string;
-      environment: string;
-      credentialId: string;
-      config: Record<string, unknown>;
-      kind?: string | null;
-      pluginId?: string | null;
-    },
-  ) {
+  updateProviderBinding(workspaceId: string, id: string, input: UpdateProviderBindingInput) {
     const credential = this.loadCredentialForBinding(workspaceId, input.credentialId);
     if (!credential || credential.status !== 'active')
       throw new Error('Active credential not found');

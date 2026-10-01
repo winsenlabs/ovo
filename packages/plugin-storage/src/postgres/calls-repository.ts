@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PostgresReleasesRepository } from './releases-repository.ts';
+import { mapCall } from '../call-mapping.ts';
 import type { Pool } from 'pg';
 import type { ControlStore, CallListFilters } from '../control-store.ts';
 import type { ReleaseRecord, CallRecord, StoredCallEvent } from '../models.ts';
@@ -48,15 +49,7 @@ export function assertFixtureDraftScope(
 export class PostgresCallsRepository {
   constructor(private readonly pool: Pool) {}
   private mapCall(row: Row): CallRecord {
-    return {
-      id: String(row.id),
-      workspaceId: String(row.workspace_id),
-      releaseId: String(row.release_id),
-      kind: String(row.kind) as CallRecord['kind'],
-      status: String(row.status),
-      createdAt: toIso(row.created_at),
-      completedAt: row.completed_at === null ? null : toIso(row.completed_at),
-    };
+    return mapCall(row, toIso);
   }
 
   async createCall(input: {

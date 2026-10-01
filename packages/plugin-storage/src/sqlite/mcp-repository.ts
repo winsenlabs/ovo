@@ -10,7 +10,7 @@ import {
   type McpDiscoveredTool,
   type McpToolApproval,
 } from '../models.ts';
-import { cursorValue, now, pageLimit, type Row } from './shared.ts';
+import { now, selectPage, type Row } from './shared.ts';
 
 export class McpRepository {
   constructor(
@@ -52,18 +52,14 @@ export class McpRepository {
     return row ? mapConnection(row, String) : undefined;
   }
   listMcpConnections(workspaceId: string, limit = 50, cursor?: string) {
-    const size = pageLimit(limit),
-      rows = this.db
-        .prepare(
-          'SELECT rowid AS cursor,* FROM mcp_connections WHERE workspace_id=? AND rowid>? ORDER BY rowid LIMIT ?',
-        )
-        .all(workspaceId, cursorValue(cursor), size + 1) as Row[],
-      more = rows.length > size;
-    if (more) rows.pop();
-    return {
-      items: rows.map((row) => mapConnection(row, String)),
-      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
-    };
+    return selectPage(
+      this.db,
+      'SELECT rowid AS cursor,* FROM mcp_connections WHERE workspace_id=? AND rowid>? ORDER BY rowid LIMIT ?',
+      [workspaceId],
+      limit,
+      cursor,
+      (row) => mapConnection(row, String),
+    );
   }
   updateMcpConnection(
     workspaceId: string,
@@ -145,18 +141,14 @@ export class McpRepository {
   listMcpDiscoveredTools(workspaceId: string, connectionId: string, limit = 50, cursor?: string) {
     if (!this.getMcpConnection(workspaceId, connectionId))
       throw new Error('MCP connection not found');
-    const size = pageLimit(limit),
-      rows = this.db
-        .prepare(
-          'SELECT rowid AS cursor,* FROM mcp_discovered_tools WHERE connection_id=? AND rowid>? ORDER BY rowid LIMIT ?',
-        )
-        .all(connectionId, cursorValue(cursor), size + 1) as Row[],
-      more = rows.length > size;
-    if (more) rows.pop();
-    return {
-      items: rows.map((row) => mapDiscovered(row)),
-      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
-    };
+    return selectPage(
+      this.db,
+      'SELECT rowid AS cursor,* FROM mcp_discovered_tools WHERE connection_id=? AND rowid>? ORDER BY rowid LIMIT ?',
+      [connectionId],
+      limit,
+      cursor,
+      (row) => mapDiscovered(row),
+    );
   }
   upsertMcpApproval(input: {
     workspaceId: string;
@@ -204,18 +196,14 @@ export class McpRepository {
     return row ? mapApproval(row, String) : undefined;
   }
   listMcpApprovals(workspaceId: string, agentId: string, limit = 50, cursor?: string) {
-    const size = pageLimit(limit),
-      rows = this.db
-        .prepare(
-          'SELECT rowid AS cursor,* FROM agent_mcp_tools WHERE workspace_id=? AND agent_id=? AND rowid>? ORDER BY rowid LIMIT ?',
-        )
-        .all(workspaceId, agentId, cursorValue(cursor), size + 1) as Row[],
-      more = rows.length > size;
-    if (more) rows.pop();
-    return {
-      items: rows.map((row) => mapApproval(row, String)),
-      nextCursor: more ? String(rows.at(-1)!.cursor) : null,
-    };
+    return selectPage(
+      this.db,
+      'SELECT rowid AS cursor,* FROM agent_mcp_tools WHERE workspace_id=? AND agent_id=? AND rowid>? ORDER BY rowid LIMIT ?',
+      [workspaceId, agentId],
+      limit,
+      cursor,
+      (row) => mapApproval(row, String),
+    );
   }
   deleteMcpApproval(workspaceId: string, agentId: string, toolId: string) {
     this.db
