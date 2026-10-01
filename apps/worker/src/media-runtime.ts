@@ -133,7 +133,9 @@ export class WorkerMediaRuntime {
   }
 
   /** The route is selected by a scoped durable authentication before factory work begins. */
-  private async open(media: WorkerMediaSession, route: SessionRoute): Promise<void> {
+  private async open(media: WorkerMediaLink, route: SessionRoute): Promise<void> {
+    if (!(media instanceof WorkerMediaLink))
+      throw new Error('worker media requires an authenticated socket link');
     if (
       route.sessionId !== media.identity.sessionId ||
       route.workerId !== this.config.workerId ||
@@ -144,39 +146,15 @@ export class WorkerMediaRuntime {
     if (route.terminalAt || route.releasedAt) throw new Error('durable session route is terminal');
     const job = await activelyOwnedMediaJob(this.store, route);
     await this.beforeSessionOpen?.(job, route);
-    let engine: ManagedVoiceSession;
-    try {
-      engine = await this.factory.create({ job, route, media });
-    } catch (error) {
-      if (!(media instanceof WorkerMediaLink))
-        await this.onSessionClose?.(route, 'error:session-open-failed');
-      throw error;
-    }
-    if (media instanceof WorkerMediaLink && media.isClosed) {
+    const engine = await this.factory.create({ job, route, media });
+    if (media.isClosed) {
       await engine.dispose(asEndReason(media.closedReason ?? 'ownership_lost'), false);
       return;
     }
     this.engines.set(route.sessionId, engine);
-    if (media instanceof WorkerMediaLink) {
-      if (!this.store.pool || media.isClosed)
-        throw new Error('media session closed before opening');
-      await recordSessionOpened(this.store.pool, route);
-      if (media.isClosed) throw new Error('media session opening was not durably recorded');
-      return;
-    }
-    // Direct legacy fixture seam until the owned media-runtime tests migrate to the socket path.
-    media.onClose((reason) => {
-      if (this.engines.get(route.sessionId) !== engine) return;
-      this.engines.delete(route.sessionId);
-      this.links.delete(route.sessionId);
-      void (async () => {
-        try {
-          await engine.dispose(asEndReason(reason), false);
-        } finally {
-          await this.onSessionClose?.(route, asEndReason(reason));
-        }
-      })();
-    });
+    if (!this.store.pool || media.isClosed) throw new Error('media session closed before opening');
+    await recordSessionOpened(this.store.pool, route);
+    if (media.isClosed) throw new Error('media session opening was not durably recorded');
   }
 
   private finalizeSession(
