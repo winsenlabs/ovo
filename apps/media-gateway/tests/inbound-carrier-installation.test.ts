@@ -13,6 +13,16 @@ describe('media gateway inbound carrier installation', () => {
       { OVO_CARRIER_ENV_BINDINGS: JSON.stringify({ other: { accountSid: 'AC-other' } }) },
       undefined,
     ],
+    [
+      'with two configured carriers and no ambiguous environment default',
+      {
+        OVO_CARRIER_ENV_BINDINGS: JSON.stringify({
+          twilio: { authToken: 'synthetic-twilio' },
+          plivo: { authToken: 'synthetic-plivo' },
+        }),
+      },
+      undefined,
+    ],
   ] as const)(
     'selects an environment carrier only when a usable binding exists %s',
     async (_label, env, carrierId) => {
