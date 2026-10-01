@@ -305,3 +305,29 @@ chose native failed on a value assertion: expected
 `@winsendotai/ovo-engine-livekit`, received
 `@winsendotai/ovo-plugin-voice-session-engine`. Restoring the selector made
 the test pass again.
+
+### Checker-approved merge follow-up — 2026-10-01
+
+The checker verified `b7be790` and approved four final changes before merge.
+The merged source head is `2a0221d`. Tests now exercise an LLM alone, session
+tools alone and agent tool context alone against `assertSession`, and check
+transcripts below and exactly at `minInterruptionWords`. Replacing either
+independent guard `||` with `&&` fails with `expected [Function] to throw an
+error`. Changing `>=` to `>` fails with `expected "vi.fn()" to be called once`;
+changing it to `<=` fails with `expected "vi.fn()" to not be called at all`.
+The bundle scratch directory is ignored by Git, and the dispatcher build now
+sets `--target=node24` like the other three app builds. The approved exception
+on the foundation board records that the API build no longer emits the old
+inline esbuild sourcemap or `--external:next`, while the shipped image artifact
+is unchanged.
+
+Node 22.23.2 final gate: `pnpm check` EXIT 0, including seven lint gates,
+format, typecheck, build, audit and console E2E (41 passed, one expected skip).
+Default tests: **1,972 passed + 209 skipped = 2,181**. Postgres serial tests:
+**2,177 passed + 4 skipped = 2,181**, zero failed. The serial command set both
+`OVO_TEST_POSTGRES_URL` and `RECORDING_TEST_DATABASE_URL` to the same disposable
+Postgres 17.6 database bound to `127.0.0.1`, then used
+`pnpm exec vitest run --no-file-parallelism`. All 205 additional running tests
+were Postgres-gated. Scoped lint, full `format:check` and standalone duplication
+each exited 0. The owned container was removed. The checker measured 44 of
+141 TypeScript mutations surviving (31.2%); E3 owns no SQL, so SQL is N/A.
