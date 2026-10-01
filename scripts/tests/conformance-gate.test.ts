@@ -1,3 +1,6 @@
+import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { FIXTURES, PENDING, baselineDir, runGate } from './gate-helpers.ts';
 
@@ -32,6 +35,29 @@ describe('check-conformance', () => {
     expect(
       gate(['--baseline-dir', baselineDir(), '--only', `${root}/packages/plugin-stt-z`]).status,
     ).toBe(0);
+  });
+
+  it('rejects an unapproved vendor kit subset by name', () => {
+    const scratch = mkdtempSync(join(tmpdir(), 'ovo-conformance-gate-'));
+    const copied = join(scratch, 'repo');
+    try {
+      cpSync(root, copied, { recursive: true });
+      writeFileSync(
+        join(copied, 'packages/plugin-stt-z/tests/conformance.test.ts'),
+        "import { describeSpeechToText } from '@winsendotai/ovo-conformance';\n" +
+          "describeSpeechToText('fixture z', () => { throw new Error('never run'); }, { only: ['capabilities are coherent'] });\n",
+      );
+      const run = runGate('check-conformance.mjs', [
+        '--root',
+        copied,
+        '--baseline-dir',
+        baselineDir(),
+      ]);
+      expect(run.status).toBe(1);
+      expect(run.output).toContain('plugin-stt-z: unapproved conformance only: subset 1');
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
   });
 
   it('merges the baseline and pending entries', () => {

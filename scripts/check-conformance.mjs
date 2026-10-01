@@ -31,11 +31,28 @@ const root = rootOf(args);
 const kindsFile =
   args.kinds ?? (args.root ? under(root, 'package-kinds.json') : 'scripts/package-kinds.json');
 const kinds = (await readJson(kindsFile)).kinds;
+// Existing protocol-specific subsets are paired with dedicated wire tests. A new vendor cannot
+// silently opt out of kit checks, and even these packages cannot widen their lists unnoticed.
+const APPROVED_SUBSETS = new Map([
+  [
+    'packages/plugin-llm-openai/tests/conformance.test.ts',
+    [['exposes provider', 'the template drives', 'an aborted request'], ['stream() reaches']],
+  ],
+  [
+    'packages/plugin-stt-assemblyai/tests/conformance.test.ts',
+    [['capabilities are coherent', 'a scripted utterance', 'cancel closes', 'a provider failure']],
+  ],
+  [
+    'packages/plugin-stt-deepgram/tests/conformance.test.ts',
+    [['capabilities are coherent', 'a scripted utterance', 'cancel closes', 'a provider failure']],
+  ],
+]);
 
 function problemsOf(file, text) {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   let imports = false;
   let calls = false;
+  const subsets = [];
   const visit = (node) => {
     if (
       ts.isImportDeclaration(node) &&
@@ -49,12 +66,31 @@ function problemsOf(file, text) {
       KITS.has(node.expression.text)
     )
       calls = true;
+    if (
+      ts.isPropertyAssignment(node) &&
+      (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name)) &&
+      node.name.text === 'only'
+    )
+      subsets.push(
+        ts.isArrayLiteralExpression(node.initializer)
+          ? node.initializer.elements.map((item) =>
+              ts.isStringLiteral(item) ? item.text : '<dynamic>',
+            )
+          : ['<dynamic>'],
+      );
     ts.forEachChild(node, visit);
   };
   visit(source);
+  const relative = path.relative(root, file).replaceAll('\\', '/');
+  const approved = APPROVED_SUBSETS.get(relative) ?? [];
   return [
     ...(imports ? [] : ['does not import @winsendotai/ovo-conformance']),
     ...(calls ? [] : ['does not call a describe* conformance kit']),
+    ...subsets.flatMap((subset, index) =>
+      JSON.stringify(subset) === JSON.stringify(approved[index])
+        ? []
+        : [`unapproved conformance only: subset ${index + 1} (${JSON.stringify(subset)})`],
+    ),
   ];
 }
 
