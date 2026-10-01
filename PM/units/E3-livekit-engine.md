@@ -236,15 +236,17 @@ configured for .node files` at the pinned LiveKit native binding. Adding only
   rtc-node and the Darwin native binding; the lockfile includes the Linux glibc
   binding. I1 retains the Linux image/SBOM verification and license notices, not
   the earlier local metadata failure. The disposable deploy directory was removed.
-- **FAQ timing remains under review.** The generated transcript is emitted
+- **FAQ timing corrected by checker ruling.** The generated transcript is emitted
   before the asynchronous TTS carrier writer, as a direct event-time probe
   confirms. The same FAQ then reaches audio with a bounded wait. The unmodified
   frozen kit checks audio immediately after generated text: the parallel
   default suite fails with `no audio reached the carrier`, while the serial
-  Postgres suite passes. A broken engine whose carrier writer discards every
-  frame still produces that failure message. The narrow bounded-wait kit
-  correction has been sent for checker approval; E3 does not delay or mislabel
-  the generated event to satisfy a timing assumption.
+  Postgres suite passes. The checker approved changing only that immediate
+  assertion to `h.until` under the existing timeout. A broken engine whose
+  carrier writer discards every frame now fails with `timed out waiting for FAQ
+carrier audio`; the rest of the scenario is unchanged. E3 does not delay or
+  mislabel the generated event to satisfy a timing assumption. Foundation
+  records the dated exception and the blocking I1 sweep in `010f31a`.
 
 Node 22.23.2 results before the FAQ kit correction: full lint 0 (seven gates),
 format 0, typecheck 0, API/worker/gateway/dispatcher and console builds 0,
@@ -252,5 +254,50 @@ audit 0, console E2E 41 passed / 1 skipped. Default tests: 1,969 passed +
 209 skipped + 1 failed = 2,179. Disposable loopback Postgres 17.6 serial:
 2,175 passed + 4 skipped = 2,179; it exited 0 and its container was removed.
 The 205 skip difference is Postgres-gated; the remaining pass difference is the
-FAQ timing failure in the parallel default run. The root `pnpm check` remains
-red until that frozen-kit correction is authorized and verified.
+FAQ timing failure in the parallel default run. These are historical results
+before the authorized kit correction; the full green bar follows below.
+
+The first real alternative engine exposed a frozen kit assertion that encoded
+the reference engine's same-tick timing rather than the engine contract. This
+is direct evidence that per-agent engine selection is real: both production
+engines now run the same release configuration, and the kit had to be made
+implementation-independent without weakening its silent-engine check. I1 owns
+a blocking sweep of `packages/conformance` for similar timing assumptions;
+M1's interrupted-confirmation utterance is the other known instance.
+
+### Contract gaps
+
+The pinned LiveKit Web `ReadableStream` declaration and Node's vendored
+declaration disagree on BYOB generic parameters. `carrier-input.ts` uses a
+local structural cast at that SDK boundary; the runtime stream is Node's
+standard stream. I1 should check whether a later pinned SDK or type update
+removes the cast while preserving the bounded input queue. No OVO contract
+was widened for this dependency mismatch.
+
+### Final builder verification — 2026-10-01
+
+All commands used Node 22.23.2. The verified code commit is `e865f42`;
+the board update is a separate documentation commit. `pnpm check` exited 0,
+including all seven lint gates, `format:check`, typecheck, default tests,
+API/worker/dispatcher and console builds, audit and console E2E. The separately
+invoked media-gateway build exited 0. The offline frozen-lockfile install and
+worker production deploy exited 0 with zero downloads. The deploy contained
+Agents, rtc-node and a platform native binding.
+
+- Default suite: 1,970 passed + 209 skipped = 2,179.
+- Disposable loopback Postgres 17.6 serial suite with
+  `--no-file-parallelism`: 2,175 passed + 4 skipped = 2,179; 0 failed. The
+  205 newly running cases were Postgres-gated, not disabled tests. The owned
+  container was removed after the run.
+- Console E2E: 41 passed, 1 expected desktop navigation skip.
+
+**New true negatives:** With the frozen FAQ scenario corrected, a real LiveKit
+engine whose `sendAudio` discards every frame fails on `timed out waiting for
+FAQ carrier audio`; the generated-text wait still passes first. Replacing E3's
+per-turn deep clone with a shallow spread makes the second production Behavior
+call receive `Mutated by Behavior` instead of `Asha`. Running the unchanged
+dispatcher build after O1's distribution import failed at esbuild's `No loader
+is configured for .node files`; adding only the three approved native externals
+makes it pass. The selected-engine test uses real distribution and both real
+engines, checks the resolved plugin ID for each release selection, and observes
+actual carrier audio from both.
