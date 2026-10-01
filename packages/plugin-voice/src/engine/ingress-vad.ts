@@ -4,7 +4,7 @@ import type {
   VadAnalyzerFactory,
   VoiceEvent,
 } from '@winsendotai/ovo-contracts';
-import { alawToPcm16, mulawToPcm16 } from '../../../audio/src/g711.ts';
+import { alawToPcm16, mulawToPcm16 } from '@winsendotai/ovo-audio';
 
 /** Owns only the VAD copy; carrier bytes, including split PCM samples, keep their STT boundaries. */
 export class IngressVad {

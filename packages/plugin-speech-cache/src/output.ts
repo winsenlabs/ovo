@@ -1,4 +1,4 @@
-import type { SpeechOutput, SpeechOutputResult, SpeechSegment } from '../../contracts/src/index.ts';
+import type { SpeechOutput, SpeechOutputResult, SpeechSegment } from '@winsendotai/ovo-contracts';
 import { createSpeechCacheKey } from './key.ts';
 import { ApprovedSpeechPolicy } from './policy.ts';
 import type {

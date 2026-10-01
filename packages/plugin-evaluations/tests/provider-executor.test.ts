@@ -5,7 +5,7 @@ import type {
   CostLedgerService,
   InferenceUsageEvidence,
   RecordUsageInput,
-} from '@winsendotai/ovo-plugin-ledger';
+} from '../../plugin-ledger/src/index.ts';
 import { FIXTURE_RELEASES } from '../src/corpus/index.ts';
 import { LedgerProviderEvaluationGate } from '../src/provider-gate.ts';
 import { ProviderEvaluationExecutor } from '../src/provider-executor.ts';

@@ -582,18 +582,9 @@ importers:
       '@types/pg':
         specifier: 8.15.5
         version: 8.15.5
-      '@winsendotai/ovo-behaviors':
-        specifier: workspace:*
-        version: link:../behaviors
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@winsendotai/ovo-plugin-ledger':
-        specifier: workspace:*
-        version: link:../plugin-ledger
-      '@winsendotai/ovo-plugin-tools':
-        specifier: workspace:*
-        version: link:../plugin-tools
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
@@ -694,24 +685,21 @@ importers:
         specifier: 8.21.3
         version: 8.21.3
     devDependencies:
+      '@types/ws':
+        specifier: 8.18.1
+        version: 8.18.1
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../contracts
       '@winsendotai/ovo-plugin-voice':
         specifier: workspace:*
         version: link:../plugin-voice
-      '@types/ws':
-        specifier: 8.18.1
-        version: 8.18.1
 
   packages/plugin-observability:
     dependencies:
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@winsendotai/ovo-plugin-voice':
-        specifier: workspace:*
-        version: link:../plugin-voice
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
@@ -864,12 +852,9 @@ importers:
 
   packages/plugin-speech-cache:
     dependencies:
-      '@winsendotai/ovo-plugin-cache':
+      '@winsendotai/ovo-contracts':
         specifier: workspace:*
-        version: link:../plugin-cache
-      '@winsendotai/ovo-plugin-voice':
-        specifier: workspace:*
-        version: link:../plugin-voice
+        version: link:../contracts
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
@@ -1099,6 +1084,9 @@ importers:
 
   packages/plugin-voice:
     dependencies:
+      '@winsendotai/ovo-audio':
+        specifier: workspace:*
+        version: link:../audio
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../contracts

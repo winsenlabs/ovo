@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BoundedByteCache } from '@winsendotai/ovo-plugin-cache';
-import type { SpeechSegment } from '../../contracts/src/index.ts';
+import { BoundedByteCache } from '../../plugin-cache/src/index.ts';
+import type { SpeechSegment } from '@winsendotai/ovo-contracts';
 import { CachedSpeechOutput, type NormalizedTts } from '../src/index.ts';
 
 function fixture() {

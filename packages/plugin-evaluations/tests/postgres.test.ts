@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AgentConfig } from '@winsendotai/ovo-contracts';
-import { PostgresCostLedger } from '@winsendotai/ovo-plugin-ledger';
+import { PostgresCostLedger } from '../../plugin-ledger/src/index.ts';
 import { LedgerProviderEvaluationGate } from '../src/provider-gate.ts';
 import { PostgresProviderEvaluationAuthorizations } from '../src/provider-authorizations.ts';
 import { PostgresEvaluationService } from '../src/service.ts';

@@ -1,4 +1,4 @@
-import type { SpeechKind } from '../../contracts/src/index.ts';
+import type { SpeechKind } from '@winsendotai/ovo-contracts';
 import type { ApprovedSpeechPhrase } from './types.ts';
 
 export class ApprovedSpeechPolicy {

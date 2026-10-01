@@ -1,4 +1,4 @@
-import type { SpeechKind, SpeechOutputResult, SpeechSegment } from '../../contracts/src/index.ts';
+import type { SpeechKind, SpeechOutputResult, SpeechSegment } from '@winsendotai/ovo-contracts';
 
 /** The cache operations this package needs; plugin-cache satisfies it structurally. */
 export interface ByteCache {

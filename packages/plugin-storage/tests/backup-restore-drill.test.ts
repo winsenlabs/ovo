@@ -12,7 +12,7 @@ import { PostgresOperationsService } from '../../plugin-operations/src/index.ts'
 import {
   seedRestoreDrillFixture,
   type RestoreDrillFixture,
-} from './backup-restore-drill-fixture.ts';
+} from '../../../apps/api/tests/restore-drill/seed.ts';
 
 const exec = promisify(execFile);
 const adminUrl = process.env.OVO_BACKUP_DRILL_POSTGRES_URL;

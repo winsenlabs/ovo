@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { BoundedByteCache } from '@winsendotai/ovo-plugin-cache';
-import {
-  BoundedSpeechScheduler,
-  type SpeechOutputResult,
-  type SpeechSegment,
-} from '@winsendotai/ovo-plugin-voice';
+import { BoundedByteCache } from '../../plugin-cache/src/index.ts';
+import { BoundedSpeechScheduler } from '../../plugin-voice/src/index.ts';
+import type { SpeechOutputResult, SpeechSegment } from '@winsendotai/ovo-contracts';
 import {
   CachedSpeechOutput,
   createSpeechCacheKey,

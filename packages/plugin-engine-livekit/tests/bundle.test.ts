@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 import { withEgressSentinel } from '@winsendotai/ovo-conformance/drivers';
@@ -8,8 +10,12 @@ const root = fileURLToPath(new URL('../../../', import.meta.url));
 it('the real worker build flags load the lazy ESM native runner in CommonJS and speak offline', async () => {
   await withEgressSentinel(
     async (sentinel) => {
-      const folder = await mkdtemp(`${root}packages/plugin-engine-livekit/.bundle-`);
+      const folder = await mkdtemp(join(tmpdir(), 'ovo-e3-bundle-'));
       try {
+        await symlink(
+          `${root}packages/plugin-engine-livekit/node_modules`,
+          `${folder}/node_modules`,
+        );
         const script = JSON.parse(await readFile(`${root}apps/worker/package.json`, 'utf8')).scripts
           .build as string;
         const entry = `${folder}/entry.ts`,
@@ -17,9 +23,9 @@ it('the real worker build flags load the lazy ESM native runner in CommonJS and 
         await writeFile(
           entry,
           `
-import { plugins, ENGINE_ID } from '../src/index.ts';
-import { Cap } from '@winsendotai/ovo-contracts';
-import { createFakeCarrier, createScriptedTts, realClock, withEgressSentinel } from '../../conformance/src/drivers.ts';
+import { plugins, ENGINE_ID } from ${JSON.stringify(`${root}packages/plugin-engine-livekit/src/index.ts`)};
+import { Cap } from ${JSON.stringify(`${root}packages/contracts/src/index.ts`)};
+import { createFakeCarrier, createScriptedTts, realClock, withEgressSentinel } from ${JSON.stringify(`${root}packages/conformance/src/drivers.ts`)};
 (async () => {
  await withEgressSentinel(async (sentinel) => {
   const carrier = createFakeCarrier();
