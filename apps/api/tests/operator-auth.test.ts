@@ -39,6 +39,9 @@ it('loads distinct operators into one installation namespace without token value
     bootstrapIdentitiesFromEnv({ ...environment, OVO_OPERATOR_AUDITOR_TOKEN: '' }),
   ).toThrow('32 characters');
   expect(() =>
+    bootstrapIdentitiesFromEnv({ ...environment, OVO_OPERATOR_AUDITOR_TOKEN: undefined }),
+  ).toThrow('Operator token requires at least 32 characters: auditor');
+  expect(() =>
     bootstrapIdentitiesFromEnv({ ...environment, OVO_OPERATORS_JSON: '{ secret-fragment' }),
   ).toThrow('valid operator metadata');
 });

@@ -36,11 +36,9 @@ export class AwsSecretsManagerSecretManager implements SecretManager {
         ],
       }),
     );
-    const backendRef = JSON.stringify({
-      arn: String(result.ARN ?? name),
-      versionId: String(result.VersionId ?? ''),
-    });
+    const arn = typeof result.ARN === 'string' && result.ARN.trim() ? result.ARN : name;
     try {
+      const backendRef = JSON.stringify({ arn, versionId: this.versionId(result) });
       return await this.store.createCredential({
         ...input,
         id,
@@ -53,7 +51,7 @@ export class AwsSecretsManagerSecretManager implements SecretManager {
       await this.client
         .send(
           new this.aws.DeleteSecretCommand({
-            SecretId: this.reference(backendRef).arn,
+            SecretId: arn,
             ForceDeleteWithoutRecovery: true,
           }),
         )
@@ -76,7 +74,7 @@ export class AwsSecretsManagerSecretManager implements SecretManager {
       );
     const backendRef = JSON.stringify({
       arn: reference.arn,
-      versionId: String(result.VersionId ?? ''),
+      versionId: this.versionId(result),
     });
     return this.store.rotateCredential(workspaceId, credentialId, {
       fingerprint: fingerprint(value),
@@ -119,5 +117,10 @@ export class AwsSecretsManagerSecretManager implements SecretManager {
     } catch {
       return { arn: value, versionId: '' };
     }
+  }
+  private versionId(result: Record<string, unknown>): string {
+    if (typeof result.VersionId !== 'string' || !result.VersionId.trim())
+      throw new Error('AWS secret version is missing');
+    return result.VersionId;
   }
 }
