@@ -10,7 +10,6 @@ describe('Twilio production catalog', () => {
       role: 'gateway',
       profile: 'compose',
       env: {},
-      log() {},
     });
     const registry = new PluginRegistry(installed.catalog);
     const id = '@winsendotai/ovo-carrier-twilio';

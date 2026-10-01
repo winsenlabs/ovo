@@ -3,9 +3,9 @@ import { loadDistribution } from '@winsendotai/ovo-distribution';
 import { compose } from '@winsendotai/ovo-runtime';
 import {
   createSessionPluginCatalog,
-  nativeHandlerMarkerService,
   type InstalledSessionExtensions,
-} from '@winsendotai/ovo-plugin-session';
+} from '@winsendotai/ovo-session-host';
+import { nativeHandlerMarkerService } from '@winsendotai/ovo-runtime';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { describe, expect, it, vi } from 'vitest';
 import { ProductionVoiceSessionFactory } from '../src/production-session-factory.ts';

@@ -2,16 +2,9 @@ import { definePlugin, type PluginDefinition } from '@winsendotai/ovo-runtime';
 import {
   OPERATIONS_SERVICE_KEY,
   PostgresOperationsService,
-  createTwilioHandoffProvider,
   normalizePhoneNumber,
   type OperationsService,
   type HandoffProviderPort,
-  type TwilioHandoffClient,
-} from '@winsendotai/ovo-plugin-operations';
-
-export {
-  TwilioHandoffProvider,
-  type TwilioHandoffClient,
 } from '@winsendotai/ovo-plugin-operations';
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -23,7 +16,7 @@ export interface OperationsRuntimeConfig {
     permittedFromNumbers: readonly string[];
     liveEnabled: boolean;
   }>;
-  handoffProvider: 'carrier' | 'twilio' | 'unavailable';
+  handoffProvider: 'carrier' | 'unavailable';
 }
 
 export interface OperationsRuntime {
@@ -41,12 +34,6 @@ export interface CreateOperationsRuntimeOptions {
   maxConnections?: number;
   liveEnabled?: boolean;
   permittedFromNumbers?: readonly string[];
-  twilio?: {
-    accountSid: string;
-    authToken: string;
-    resumeUrl?: string;
-    client?: TwilioHandoffClient;
-  };
   handoffProvider?: HandoffProviderPort;
 }
 
@@ -100,38 +87,14 @@ export async function createOperationsRuntime(
   });
 
   const configuredProvider = environment.OVO_HANDOFF_PROVIDER?.trim();
-  if (
-    !options.handoffProvider &&
-    !options.twilio &&
-    configuredProvider &&
-    configuredProvider !== 'twilio'
-  )
+  if (configuredProvider && configuredProvider !== 'carrier')
     throw new Error(`Unsupported OVO_HANDOFF_PROVIDER ${configuredProvider}`);
-  const twilioOptions =
-    options.twilio ??
-    (!options.handoffProvider && configuredProvider === 'twilio'
-      ? {
-          accountSid: required(environment.TWILIO_ACCOUNT_SID, 'TWILIO_ACCOUNT_SID'),
-          authToken: required(environment.TWILIO_AUTH_TOKEN, 'TWILIO_AUTH_TOKEN'),
-          resumeUrl: environment.OVO_TWILIO_HANDOFF_RESUME_URL,
-        }
-      : undefined);
-  const handoffProvider =
-    options.handoffProvider ??
-    (twilioOptions
-      ? createTwilioHandoffProvider({
-          accountSid: required(twilioOptions.accountSid, 'TWILIO_ACCOUNT_SID'),
-          authToken: required(twilioOptions.authToken, 'TWILIO_AUTH_TOKEN'),
-          resumeUrl: twilioOptions.resumeUrl,
-          client: twilioOptions.client,
-        })
-      : undefined);
 
   const service = new PostgresOperationsService({
     organizationId,
     connectionString: databaseUrl,
     maxConnections,
-    handoffProvider,
+    handoffProvider: options.handoffProvider,
     config: operationsConfig,
   });
   try {
@@ -164,11 +127,7 @@ export async function createOperationsRuntime(
       organizationId,
       maxConnections,
       operations: operationsConfig,
-      handoffProvider: options.handoffProvider
-        ? 'carrier'
-        : handoffProvider
-          ? 'twilio'
-          : 'unavailable',
+      handoffProvider: options.handoffProvider ? 'carrier' : 'unavailable',
     },
     service,
     plugin,

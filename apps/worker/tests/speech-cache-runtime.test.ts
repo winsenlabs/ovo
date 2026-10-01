@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { AgentConfig, type AgentConfig as AgentConfigType } from '@winsendotai/ovo-contracts';
 import { BoundedByteCache } from '@winsendotai/ovo-plugin-cache';
 import type { NormalizedTts, SpeechCacheTelemetry } from '@winsendotai/ovo-plugin-speech-cache';
-import type { OpenAiTtsBinding } from '@winsendotai/ovo-plugin-providers';
 import type { SpeechSegment, StreamingTts, VoiceMediaTransport } from '@winsendotai/ovo-contracts';
 import {
   WorkerSpeechCacheRuntime,
@@ -137,7 +136,7 @@ describe('worker hybrid speech cache runtime', () => {
   });
 });
 
-const binding: OpenAiTtsBinding = {
+const binding = {
   workspaceId: 'workspace-a',
   bindingVersion: 'binding:v1',
   credentialId: 'credential-a',

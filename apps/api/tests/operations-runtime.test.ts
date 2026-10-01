@@ -1,79 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { compose } from '@winsendotai/ovo-runtime';
-import {
-  TwilioHandoffProvider,
-  createOperationsRuntime,
-  type OperationsRuntime,
-  type TwilioHandoffClient,
-} from '../src/operations-runtime.ts';
-
-describe('Twilio operations handoff provider', () => {
-  it('returns a redacted authoritative receipt only after an accepted update', async () => {
-    const updates: unknown[] = [];
-    const client: TwilioHandoffClient = {
-      async updateCall(callSid, update) {
-        updates.push({ callSid, update });
-        return { sid: callSid, dateUpdated: new Date('2026-09-20T12:00:00Z') };
-      },
-    };
-    const provider = new TwilioHandoffProvider(client, 'https://voice.example/resume');
-    const transferred = await provider.request({
-      requestId: 'request-1',
-      carrierCallId: 'CA-secret-carrier-id',
-      target: { kind: 'phone', value: '+14155550100' },
-    });
-    expect(transferred).toMatchObject({ kind: 'confirmed' });
-    expect(JSON.stringify(transferred)).not.toContain('CA-secret-carrier-id');
-    expect(updates).toEqual([
-      {
-        callSid: 'CA-secret-carrier-id',
-        update: {
-          twiml: '<Response><Dial><Number>+14155550100</Number></Dial></Response>',
-        },
-      },
-    ]);
-    expect(
-      await provider.fallback({
-        requestId: 'request-2',
-        carrierCallId: 'CA-secret-carrier-id',
-        fallback: { kind: 'resume', message: 'Please wait' },
-      }),
-    ).toMatchObject({ kind: 'confirmed' });
-    expect(updates.at(-1)).toMatchObject({
-      update: { url: 'https://voice.example/resume', method: 'POST' },
-    });
-  });
-
-  it('fails unknown without retry and classifies deterministic rejection', async () => {
-    const timeout = new TwilioHandoffProvider({
-      async updateCall() {
-        throw new Error('network timeout');
-      },
-    });
-    expect(
-      await timeout.request({
-        requestId: 'request-1',
-        carrierCallId: 'CA1',
-        target: { kind: 'queue', value: 'support' },
-      }),
-    ).toEqual({ kind: 'unknown', reason: 'Twilio handoff outcome is unknown' });
-    expect(await timeout.reconcile('request-1')).toEqual({ kind: 'pending' });
-
-    const rejected = new TwilioHandoffProvider({
-      async updateCall() {
-        throw Object.assign(new Error('bad target'), { status: 400 });
-      },
-    });
-    expect(
-      await rejected.request({
-        requestId: 'request-2',
-        carrierCallId: 'CA2',
-        target: { kind: 'queue', value: 'support' },
-      }),
-    ).toEqual({ kind: 'rejected', retryable: false, reason: 'Twilio rejected handoff (400)' });
-  });
-});
+import { createOperationsRuntime, type OperationsRuntime } from '../src/operations-runtime.ts';
 
 const databaseUrl = process.env.OVO_TEST_POSTGRES_URL;
 const databaseTest = databaseUrl ? it : it.skip;
@@ -140,19 +68,15 @@ describe('operations runtime', () => {
         liveEnabled: true,
         maxConnections: 1,
         permittedFromNumbers: ['+14155550101'],
-        twilio: {
-          accountSid: 'AC-test',
-          authToken: 'test-token',
-          client: {
-            async updateCall(callSid) {
-              return { sid: callSid };
-            },
-          },
+        handoffProvider: {
+          request: async () => ({ kind: 'confirmed', receiptId: 'fixture' }),
+          fallback: async () => ({ kind: 'confirmed', receiptId: 'fixture' }),
+          reconcile: async () => ({ kind: 'pending' }),
         },
       });
       expect(runtime.config).toMatchObject({
         operations: { liveEnabled: true },
-        handoffProvider: 'twilio',
+        handoffProvider: 'carrier',
       });
       expect(runtime.service.handoffs.available).toBe(true);
     },

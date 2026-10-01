@@ -1,14 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Cap } from '@winsendotai/ovo-contracts';
 import { compose, configError, definePlugin } from '@winsendotai/ovo-runtime';
 import { recordingsPlugin } from '@winsendotai/ovo-plugin-recordings';
 import { secretsPlugin } from '@winsendotai/ovo-plugin-secrets';
 import { FIRST_PARTY } from '../src/catalog.ts';
 import { legacyEnvBindings } from '../src/env-bindings.ts';
-import { deepgramSttBridge } from '../src/legacy/deepgram-stt.ts';
-import { openAiLlmBridge } from '../src/legacy/openai-llm.ts';
-import { openAiTtsBridge } from '../src/legacy/openai-tts.ts';
-import { twilioCarrierBridge } from '../src/legacy/twilio-carrier.ts';
 import { loadDistribution } from '../src/load.ts';
 
 describe('distribution inventory', () => {
@@ -104,21 +100,15 @@ describe('distribution inventory', () => {
       expect(names.has(`@winsendotai/ovo-${name}`)).toBe(true);
   });
 
-  it('loads skeletons, the old engine and all four valid bridge definitions', async () => {
+  it('loads the installed engine and carrier plugins without transition bridges', async () => {
     const loaded = await loadDistribution({ role: 'gateway', profile: 'compose', env: {} });
-    for (const bridge of [
-      deepgramSttBridge,
-      openAiTtsBridge,
-      openAiLlmBridge,
-      twilioCarrierBridge,
-    ]) {
-      const installed = loaded.catalog.find((item) => item.manifest.id === bridge.manifest.id);
-      expect(installed?.manifest.contractVersion).toBe(2);
-    }
+    expect(
+      loaded.catalog.some((item) => item.manifest.id === '@winsendotai/ovo-carrier-twilio'),
+    ).toBe(true);
     expect(loaded.catalog.map((item) => item.manifest.id)).toContain(
       '@winsendotai/ovo-plugin-voice-session-engine',
     );
-    expect(loaded.processRows.map((row) => row.id)).toContain(twilioCarrierBridge.manifest.id);
+    expect(loaded.processRows.map((row) => row.id)).toContain('@winsendotai/ovo-carrier-twilio');
   });
 
   it.each(['api', 'worker', 'gateway', 'dispatcher'] as const)(
@@ -222,33 +212,6 @@ describe('distribution inventory', () => {
     );
   });
 
-  it('uses the catalog package over an identically identified bridge', async () => {
-    const log = vi.fn();
-    const replacement = {
-      ...twilioCarrierBridge,
-      manifest: { ...twilioCarrierBridge.manifest, version: '0.2.0' },
-    };
-    const loaded = await loadDistribution({
-      role: 'gateway',
-      profile: 'compose',
-      env: {},
-      firstParty: [
-        {
-          package: '@winsendotai/ovo-plugin-carrier-twilio',
-          roles: ['gateway'],
-          load: async () => ({ plugins: [replacement] }),
-        },
-      ],
-      legacyBridges: [twilioCarrierBridge],
-      log,
-    });
-    expect(
-      loaded.catalog.filter((item) => item.manifest.id === twilioCarrierBridge.manifest.id),
-    ).toHaveLength(1);
-    expect(loaded.catalog[0]?.manifest.version).toBe('0.2.0');
-    expect(log).toHaveBeenCalledWith(expect.stringContaining('supersedes legacy bridge'));
-  });
-
   it('rejects duplicate catalog packages and malformed exports', async () => {
     const entry = {
       package: '@winsendotai/ovo-plugin-vad',
@@ -261,7 +224,6 @@ describe('distribution inventory', () => {
         profile: 'compose',
         env: {},
         firstParty: [entry, entry],
-        legacyBridges: [],
       }),
     ).rejects.toThrow('Duplicate catalog package');
     await expect(
@@ -270,7 +232,6 @@ describe('distribution inventory', () => {
         profile: 'compose',
         env: {},
         firstParty: [{ ...entry, load: async () => ({ plugins: 'broken' }) }],
-        legacyBridges: [],
       }),
     ).rejects.toThrow('Invalid plugin catalog package');
   });
@@ -288,7 +249,6 @@ describe('distribution inventory', () => {
             load: async () => ({ plugins: [] }),
           },
         ],
-        legacyBridges: [],
       }),
     ).rejects.toThrow('duplicates catalog package');
   });

@@ -18,7 +18,6 @@ beforeAll(async () => {
     role: 'gateway',
     profile: 'compose',
     env: {},
-    log() {},
   });
   const plugin = distribution.catalog.find((p) => p.manifest.id === binding.pluginId)!;
   graph = await compose([{ id: plugin.manifest.id }], [plugin], {

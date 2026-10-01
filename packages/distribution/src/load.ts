@@ -8,10 +8,6 @@ import type { FixtureTemplate, NetFixtureScript } from '@winsendotai/ovo-contrac
 import { FIRST_PARTY, type CatalogEntry, type DistributionRole } from './catalog.ts';
 import { DISTRIBUTION_DEFAULTS } from './defaults.ts';
 import { legacyEnvBindings } from './env-bindings.ts';
-import { deepgramSttBridge } from './legacy/deepgram-stt.ts';
-import { openAiLlmBridge } from './legacy/openai-llm.ts';
-import { openAiTtsBridge } from './legacy/openai-tts.ts';
-import { twilioCarrierBridge } from './legacy/twilio-carrier.ts';
 import { rows as apiRows } from './profiles/api.ts';
 import { rows as workerRows } from './profiles/worker.ts';
 import { rows as gatewayRows } from './profiles/gateway.ts';
@@ -19,12 +15,6 @@ import { rows as dispatcherRows } from './profiles/dispatcher.ts';
 import type { DeploymentProfile, Environment, ProfileRows } from './profiles/types.ts';
 import { recordingRows } from './profiles/recordings.ts';
 
-const BRIDGES: readonly PluginDefinition[] = [
-  deepgramSttBridge,
-  openAiTtsBridge,
-  openAiLlmBridge,
-  twilioCarrierBridge,
-];
 const PROFILE_ROWS: Record<DistributionRole, ProfileRows> = {
   api: apiRows,
   worker: workerRows,
@@ -42,11 +32,8 @@ export interface LoadDistributionInput {
   role: DistributionRole;
   profile: DeploymentProfile;
   env: Environment;
-  /** Test seam for proving the bridge supersede rule. */
+  /** Test seam for catalog validation. */
   firstParty?: readonly CatalogEntry[];
-  /** Test seam for validating an injected legacy bridge. */
-  legacyBridges?: readonly PluginDefinition[];
-  log?: (line: string) => void;
 }
 
 export interface LoadedDistribution {
@@ -58,7 +45,7 @@ export interface LoadedDistribution {
   unavailable: UnavailablePlugin[];
 }
 
-/** The one loading path for built-ins, transition bridges and installed extensions. */
+/** The one loading path for built-ins and installed extensions. */
 export async function loadDistribution(input: LoadDistributionInput): Promise<LoadedDistribution> {
   const env = legacyEnvBindings(input.env);
   const entries = (input.firstParty ?? FIRST_PARTY).filter((entry) => {
@@ -88,21 +75,6 @@ export async function loadDistribution(input: LoadDistributionInput): Promise<Lo
       entry.package.split('/').length > 2 ? `ovo-catalog-subpath-${modules.size}` : entry.package;
     modules.set(loaderName, module);
   }
-  const ownedIds = new Set(
-    [...modules.values()]
-      .flatMap((module) => module.plugins ?? [])
-      .map((plugin) => plugin.manifest.id),
-  );
-  const bridges = (input.legacyBridges ?? BRIDGES).filter((bridge) => {
-    if (!ownedIds.has(bridge.manifest.id)) return true;
-    (input.log ?? console.info)(
-      `Distribution package supersedes legacy bridge ${bridge.manifest.id}`,
-    );
-    return false;
-  });
-  const bridgePackage = 'ovo-legacy-bridges';
-  if (modules.has(bridgePackage)) throw new Error('Reserved bridge package name in catalog');
-  modules.set(bridgePackage, { plugins: bridges });
   const names = [...modules.keys()];
   const encoded = env.OVO_PLUGIN_MODULES ?? '[]';
   const extensionNames = JSON.parse(encoded) as unknown;

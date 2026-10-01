@@ -17,5 +17,4 @@ export * from './release-variables.ts';
 export * from './retries.ts';
 export * from './service.ts';
 export * from './timezone.ts';
-export * from './twilio-handoff.ts';
 export * from './types.ts';

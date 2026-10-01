@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { beforeAll, afterAll, describe, expect, it, vi } from 'vitest';
-import { twilioCarrierBridge } from '../../../packages/distribution/src/legacy/twilio-carrier.ts';
+import { twilioCarrierPlugin } from '../../../packages/plugin-carrier-twilio/src/index.ts';
 import { PostgresOperationsService } from '../../../packages/plugin-operations/src/index.ts';
 import { PostgresOrchestrationStore } from '../../../packages/plugin-orchestration/src/index.ts';
 import { ApiCarrierHandoffPort } from '../src/carrier-handoff.ts';
@@ -52,7 +52,7 @@ describe.skipIf(!postgresUrl)('carrier handoff durable request fence', () => {
   it('refuses another request ID for the same carrier call and accepts the owned request', async () => {
     const port = new ApiCarrierHandoffPort({
       organizationId,
-      catalog: [twilioCarrierBridge],
+      catalog: [twilioCarrierPlugin],
       ctx: {
         all: () =>
           new Map([

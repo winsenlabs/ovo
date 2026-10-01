@@ -32,7 +32,6 @@ it('loads through production distribution and composes the lazy engine with its 
     role: 'api',
     profile: 'compose',
     env: {},
-    log() {},
   });
   expect(distribution.catalog.some((p) => p.manifest.id === ENGINE_ID)).toBe(true);
   const carrier = createFakeCarrier();

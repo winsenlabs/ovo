@@ -25,12 +25,10 @@
     "fastify": "5.12.5",
     "zod": "4.6.5",
     "@winsendotai/ovo-plugin-tools-http": "workspace:*",
-    "@winsendotai/ovo-plugin-session": "workspace:*",
     "@winsendotai/ovo-plugin-tools": "workspace:*",
     "@winsendotai/ovo-plugin-ledger": "workspace:*",
     "@winsendotai/ovo-plugin-evaluations": "workspace:*",
     "@winsendotai/ovo-plugin-inference": "workspace:*",
-    "@winsendotai/ovo-plugin-providers": "workspace:*",
     "pg": "8.16.3"
   },
   "devDependencies": {

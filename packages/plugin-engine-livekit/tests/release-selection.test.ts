@@ -32,7 +32,6 @@ it('runs the same release config through either real engine selected by release.
     role: 'api',
     profile: 'compose',
     env: {},
-    log() {},
   });
   const registry = new PluginRegistry(distribution.catalog);
   const config = AgentConfig.parse({

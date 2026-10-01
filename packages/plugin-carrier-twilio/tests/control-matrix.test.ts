@@ -40,7 +40,7 @@ const request: DialRequest = {
 let definition: PluginDefinition;
 beforeAll(async () => {
   definition = (
-    await loadDistribution({ role: 'gateway', profile: 'compose', env: {}, log() {} })
+    await loadDistribution({ role: 'gateway', profile: 'compose', env: {} })
   ).catalog.find((plugin) => plugin.manifest.id === binding.pluginId)!;
 });
 

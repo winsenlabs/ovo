@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { twilioCarrierBridge } from '../../../packages/distribution/src/legacy/twilio-carrier.ts';
+import { twilioCarrierPlugin } from '../../../packages/plugin-carrier-twilio/src/index.ts';
 import { ApiCarrierHandoffPort } from '../src/carrier-handoff.ts';
 
 describe('API carrier handoff', () => {
@@ -13,7 +13,7 @@ describe('API carrier handoff', () => {
     }));
     const port = new ApiCarrierHandoffPort({
       organizationId: 'workspace-1',
-      catalog: [twilioCarrierBridge],
+      catalog: [twilioCarrierPlugin],
       ctx: { all: () => new Map([['twilio', factory]]) } as never,
       store: {
         getRelease: async () => ({ agentId: 'agent-1' }),
@@ -38,7 +38,7 @@ describe('API carrier handoff', () => {
       ['workspace-1', 'CA123', 'handoff-1'],
     );
     expect(create).toHaveBeenCalledWith(
-      expect.objectContaining({ bindingId: 'env', pluginId: twilioCarrierBridge.manifest.id }),
+      expect.objectContaining({ bindingId: 'env', pluginId: twilioCarrierPlugin.manifest.id }),
     );
     expect(handoff).toHaveBeenCalledWith(
       'CA123',

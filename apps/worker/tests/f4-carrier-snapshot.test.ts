@@ -1,8 +1,8 @@
 import { AgentConfig } from '@winsendotai/ovo-contracts';
 import {
-  twilioCarrierBridge,
-  TWILIO_CAPABILITIES,
-} from '../../../packages/distribution/src/legacy/twilio-carrier.ts';
+  twilioCarrierPlugin,
+  twilioIngress,
+} from '../../../packages/plugin-carrier-twilio/src/index.ts';
 import { definePlugin, manifestKeys, PluginRegistry } from '@winsendotai/ovo-runtime';
 import { describe, expect, it, vi } from 'vitest';
 import { WorkerCarrierRuntime } from '../src/carrier-runtime.ts';
@@ -11,10 +11,10 @@ describe('immutable outbound carrier selection', () => {
   it('reads the inbound route carrier instead of the release carrier', async () => {
     const alternate = definePlugin(
       {
-        ...manifestKeys(twilioCarrierBridge.manifest).manifest,
+        ...manifestKeys(twilioCarrierPlugin.manifest).manifest,
         id: '@example/alternate-carrier',
         provider: 'alternate',
-        capabilities: { ...TWILIO_CAPABILITIES, carrierId: 'alternate' },
+        capabilities: { ...twilioIngress.capabilities, carrierId: 'alternate' },
       },
       () => undefined,
     );
@@ -25,8 +25,8 @@ describe('immutable outbound carrier selection', () => {
       config: AgentConfig.parse({ name: 'Inbound', mode: 'announcement', message: 'Hello' }),
       selections: {
         carrier: {
-          pluginId: twilioCarrierBridge.manifest.id,
-          version: twilioCarrierBridge.manifest.version,
+          pluginId: twilioCarrierPlugin.manifest.id,
+          version: twilioCarrierPlugin.manifest.version,
           bindingId: 'env',
           config: {},
         },
@@ -36,14 +36,14 @@ describe('immutable outbound carrier selection', () => {
     };
     const create = vi.fn(() => ({ hangup: async () => 'ended' }) as never);
     const runtime = new WorkerCarrierRuntime({
-      registry: new PluginRegistry([twilioCarrierBridge, alternate]),
+      registry: new PluginRegistry([twilioCarrierPlugin, alternate]),
       controls: new Map([
         [
           alternate.manifest.id,
           {
             version: alternate.manifest.version,
             factory: {
-              capabilities: { ...TWILIO_CAPABILITIES, carrierId: 'alternate' },
+              capabilities: { ...twilioIngress.capabilities, carrierId: 'alternate' },
               create,
             },
           },
@@ -57,7 +57,7 @@ describe('immutable outbound carrier selection', () => {
           provider: 'alternate',
           pluginId: alternate.manifest.id,
           credentialId: 'alternate-credential',
-          config: { accountSid: 'AC-alternate' },
+          config: { accountSid: `AC${'1'.repeat(32)}` },
         }),
       } as never,
       secrets: { forAgent: () => ({ resolve: async () => 'secret' }) } as never,
@@ -94,13 +94,13 @@ describe('immutable outbound carrier selection', () => {
       config: AgentConfig.parse({ name: 'Notice', mode: 'announcement', message: 'Hello' }),
       selections: {
         carrier: {
-          pluginId: twilioCarrierBridge.manifest.id,
-          version: twilioCarrierBridge.manifest.version,
+          pluginId: twilioCarrierPlugin.manifest.id,
+          version: twilioCarrierPlugin.manifest.version,
           bindingId,
           binding: {
             provider: 'twilio',
             credentialId: 'credential-1',
-            config: { accountSid: 'AC-frozen' },
+            config: { accountSid: `AC${'2'.repeat(32)}` },
             fingerprint: 'f1',
             updatedAt: '2026-01-01',
           },
@@ -114,9 +114,9 @@ describe('immutable outbound carrier selection', () => {
       id: bindingId,
       workspaceId: 'workspace-1',
       provider: 'twilio',
-      pluginId: twilioCarrierBridge.manifest.id,
+      pluginId: twilioCarrierPlugin.manifest.id,
       credentialId: 'credential-1',
-      config: { accountSid: 'AC-mutated' },
+      config: { accountSid: `AC${'3'.repeat(32)}` },
     }));
     const create = vi.fn(
       () =>
@@ -128,13 +128,13 @@ describe('immutable outbound carrier selection', () => {
         }) as never,
     );
     const runtime = new WorkerCarrierRuntime({
-      registry: new PluginRegistry([twilioCarrierBridge]),
+      registry: new PluginRegistry([twilioCarrierPlugin]),
       controls: new Map([
         [
-          twilioCarrierBridge.manifest.id,
+          twilioCarrierPlugin.manifest.id,
           {
-            version: twilioCarrierBridge.manifest.version,
-            factory: { capabilities: TWILIO_CAPABILITIES, create },
+            version: twilioCarrierPlugin.manifest.version,
+            factory: { capabilities: twilioIngress.capabilities, create },
           },
         ],
       ]),
@@ -154,10 +154,10 @@ describe('immutable outbound carrier selection', () => {
       },
       false,
     );
-    expect(selected.carrier.binding.config).toEqual({ accountSid: 'AC-frozen' });
+    expect(selected.carrier.binding.config).toEqual({ accountSid: `AC${'2'.repeat(32)}` });
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
-        config: { accountSid: 'AC-frozen' },
+        config: { accountSid: `AC${'2'.repeat(32)}` },
       }),
     );
     expect(getProviderBinding).not.toHaveBeenCalled();

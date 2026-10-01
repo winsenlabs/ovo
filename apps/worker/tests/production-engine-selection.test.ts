@@ -1,6 +1,6 @@
 import type { Behavior } from '@winsendotai/ovo-contracts';
 import { AgentConfig } from '@winsendotai/ovo-contracts';
-import { createSessionPluginCatalog } from '@winsendotai/ovo-plugin-session';
+import { createSessionPluginCatalog } from '@winsendotai/ovo-session-host';
 import { LiveRecordingService } from '@winsendotai/ovo-plugin-recordings';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { STREAMING_VOICE_SERVICE_KEYS } from '@winsendotai/ovo-plugin-voice';

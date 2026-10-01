@@ -37,7 +37,6 @@ it('selects all three v2 providers from distribution and calls OpenAI through th
     role: 'gateway',
     profile: 'compose',
     env: {},
-    log: () => undefined,
   });
   const selectedDefinition = loaded.catalog.find(
     (item) => item.manifest.id === openAiInferencePlugin.manifest.id,
