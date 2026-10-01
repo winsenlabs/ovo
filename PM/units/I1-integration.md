@@ -273,6 +273,18 @@ assertions intact. Suppressing the reference detector's transcript interrupt
 fails that test on `completed` versus `interrupted`. Preserve this regression
 and the separate genuine-`yes` ordering scenario in I1.
 
+## BLOCKING E3 conformance timing sweep (2026-10-01)
+
+E3 found the second frozen kit assertion that encoded the reference engine's
+behavior: `engine-scenarios-turns.ts` required carrier audio in the same tick as
+a generated FAQ text receipt. Asynchronous LiveKit synthesis exposed it; the
+checker approved a bounded wait, with a silent-engine timeout negative. M1's
+interrupted-confirmation utterance was the first known instance, passing only
+because of a bug. Sweep `packages/conformance` for other assertions that assume
+synchronous emission or reference-engine ordering, replace each with a bounded
+wait where appropriate, and preserve explicit broken-engine negatives. This is
+blocking I1 acceptance because the kit must verify independent engine authors.
+
 Inherit this M1 release note verbatim:
 
 > The verified M2 built-in 120-case evaluation corpus had eight agent confirmation
