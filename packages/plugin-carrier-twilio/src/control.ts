@@ -68,10 +68,7 @@ function handoffMarkup(target: HandoffTarget): string {
   }
 }
 
-/** Host-built per-call callback; never persisted in a provider binding (I1 contract gap). */
-export type TwilioHandoffTarget = HandoffTarget & { resumeUrl?: string };
-
-function resumeFields(target: TwilioHandoffTarget, bindingId: string) {
+function resumeFields(target: Extract<HandoffTarget, { kind: 'resume' }>, bindingId: string) {
   if (!target.resumeUrl) throw new Error('Twilio resume URL is unavailable');
   const raw = secureUrl(target.resumeUrl, 'https:');
   const url = new URL(raw);
@@ -210,7 +207,7 @@ export class TwilioCarrierControl implements TelephonyControl {
     throw new Error(reason(response));
   }
 
-  async handoff(carrierCallId: string, target: TwilioHandoffTarget, requestId: string) {
+  async handoff(carrierCallId: string, target: HandoffTarget, requestId: string) {
     let fields: Record<string, string>;
     try {
       fields =

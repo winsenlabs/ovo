@@ -57,7 +57,10 @@ export type Reconciliation =
 export type HandoffTarget =
   | { kind: 'phone'; e164: string }
   | { kind: 'queue'; name: string }
-  | { kind: 'resume' }
+  | {
+      kind: 'resume';
+      /** Host-built authenticated callback; never persisted in binding config. */ resumeUrl: string;
+    }
   | { kind: 'end'; message: string };
 
 /** A request id cancels a call before answer on carriers with `cancelBeforeAnswer`. */

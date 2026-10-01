@@ -215,7 +215,7 @@ it.each([
       {},
       async (control) => {
         const target = { kind: 'resume' as const, resumeUrl };
-        expect(await control.handoff('CAfixture', target, 'h1')).toMatchObject({
+        expect(await control.handoff('CAfixture', target as never, 'h1')).toMatchObject({
           kind: 'rejected',
           retryable: false,
         });

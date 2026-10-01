@@ -142,7 +142,9 @@ describe('Twilio v2 control', () => {
   it('fails closed on resume handoff when the binding has no callback URL', async () => {
     const net = createFixtureNet([]);
     expect(
-      await twilioControlFactory(net).create(binding).handoff(callSid, { kind: 'resume' }, 'req-1'),
+      await twilioControlFactory(net)
+        .create(binding)
+        .handoff(callSid, { kind: 'resume' } as never, 'req-1'),
     ).toMatchObject({
       kind: 'rejected',
       retryable: false,

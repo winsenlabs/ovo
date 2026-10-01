@@ -31,6 +31,42 @@ export interface CarrierHostPortsOptions {
   workerFreshSeconds?: number;
 }
 
+function routeSignature(
+  secret: string | Uint8Array,
+  carrierId: string,
+  bindingId: string,
+  purpose: string,
+  requestId?: string,
+): string {
+  return createHmac('sha256', secret)
+    .update(`${carrierId}:${bindingId}:${purpose}${requestId ? `:${requestId}` : ''}`)
+    .digest('hex');
+}
+
+/** Build the same binding-scoped callback from hosts that do not own a media socket. */
+export function carrierCallbackUrl(
+  options: Pick<CarrierHostPortsOptions, 'publicBaseUrl' | 'routeSecret'>,
+  carrierId: string,
+  bindingId: string,
+  purpose: string,
+  requestId?: string,
+): string {
+  const base = new URL(options.publicBaseUrl);
+  if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash)
+    throw new Error('Carrier public base URL must be https without credentials or query');
+  if (Buffer.from(options.routeSecret).byteLength < 32)
+    throw new Error('Carrier route secret must be at least 32 bytes');
+  const url = new URL(base);
+  url.pathname = `/carriers/${encodeURIComponent(carrierId)}/${encodeURIComponent(bindingId)}/${purpose}`;
+  url.search = '';
+  if (requestId) url.searchParams.set('r', requestId);
+  url.searchParams.set(
+    't',
+    routeSignature(options.routeSecret, carrierId, bindingId, purpose, requestId),
+  );
+  return url.href;
+}
+
 /** Host-built carrier URLs and single-use grants. No carrier receives the route secret. */
 export function createCarrierHostPorts(options: CarrierHostPortsOptions): CarrierHostPorts {
   const base = new URL(options.publicBaseUrl);
@@ -40,9 +76,7 @@ export function createCarrierHostPorts(options: CarrierHostPortsOptions): Carrie
     throw new Error('Carrier route secret must be at least 32 bytes');
   const now = () => options.clock?.now() ?? Date.now();
   const sign = (carrierId: string, bindingId: string, purpose: string, requestId?: string) =>
-    createHmac('sha256', options.routeSecret)
-      .update(`${carrierId}:${bindingId}:${purpose}${requestId ? `:${requestId}` : ''}`)
-      .digest('hex');
+    routeSignature(options.routeSecret, carrierId, bindingId, purpose, requestId);
   const equal = (actual: string, expected: string) => {
     const left = Buffer.from(actual, 'utf8');
     const right = Buffer.from(expected, 'utf8');
@@ -50,14 +84,8 @@ export function createCarrierHostPorts(options: CarrierHostPortsOptions): Carrie
   };
   const path = (carrierId: string, bindingId: string, purpose: string) =>
     `/carriers/${encodeURIComponent(carrierId)}/${encodeURIComponent(bindingId)}/${purpose}`;
-  const callbackUrl: CarrierHostPorts['callbackUrl'] = (carrierId, bindingId, purpose, opts) => {
-    const url = new URL(base);
-    url.pathname = path(carrierId, bindingId, purpose);
-    url.search = '';
-    if (opts?.requestId) url.searchParams.set('r', opts.requestId);
-    url.searchParams.set('t', sign(carrierId, bindingId, purpose, opts?.requestId));
-    return url.href;
-  };
+  const callbackUrl: CarrierHostPorts['callbackUrl'] = (carrierId, bindingId, purpose, opts) =>
+    carrierCallbackUrl(options, carrierId, bindingId, purpose, opts?.requestId);
   const mediaUrl: CarrierHostPorts['mediaUrl'] = (carrierId, bindingId, opts) => {
     if (opts?.query && !options.queryOnMediaUrl?.(carrierId))
       throw new Error(`Carrier ${carrierId} does not permit media URL queries`);

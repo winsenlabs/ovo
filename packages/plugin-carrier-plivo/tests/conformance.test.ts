@@ -176,7 +176,14 @@ describe('Plivo fail-closed handoff before a host transfer URL is available', ()
     const { createFixtureNet } = await import('@winsendotai/ovo-plugin-kit');
     const net = createFixtureNet([]);
     const control = plivoForTest(net).control.create(binding);
-    const target = kind === 'phone' ? ({ kind, e164: '+15550123' } as const) : ({ kind } as const);
+    const target =
+      kind === 'phone'
+        ? ({ kind, e164: '+15550123' } as const)
+        : ({
+            kind,
+            resumeUrl:
+              'https://fixture.example.test/carriers/plivo/binding/resume?r=call&t=fixture',
+          } as const);
     expect(await control.handoff('call-1', target, 'request-1')).toMatchObject({
       kind: 'rejected',
       retryable: false,

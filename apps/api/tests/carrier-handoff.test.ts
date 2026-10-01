@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { twilioCarrierPlugin } from '../../../packages/plugin-carrier-twilio/src/index.ts';
 import { ApiCarrierHandoffPort } from '../src/carrier-handoff.ts';
@@ -11,6 +12,9 @@ describe('API carrier handoff', () => {
       rowCount: 1,
       rows: [{ carrier_id: 'twilio', binding_id: null, payload: { releaseId: 'release-1' } }],
     }));
+    const environment: Record<string, string> = {
+      OVO_CARRIER_ENV_BINDINGS: JSON.stringify({ twilio: { authToken: 'test-secret' } }),
+    };
     const port = new ApiCarrierHandoffPort({
       organizationId: 'workspace-1',
       catalog: [twilioCarrierPlugin],
@@ -20,9 +24,7 @@ describe('API carrier handoff', () => {
         getProviderBinding: async () => undefined,
       } as never,
       secrets: { forAgent: () => ({ resolve: async () => 'unused' }) } as never,
-      environment: {
-        OVO_CARRIER_ENV_BINDINGS: JSON.stringify({ twilio: { authToken: 'test-secret' } }),
-      },
+      environment,
     });
     port.attach({ query } as never);
 
@@ -58,5 +60,35 @@ describe('API carrier handoff', () => {
       }),
     ).rejects.toThrow('Carrier control is not installed: missing');
     expect(handoff).toHaveBeenCalledTimes(1);
+
+    await expect(
+      port.fallback({
+        requestId: 'handoff-3',
+        carrierCallId: 'CA123',
+        fallback: { kind: 'resume', message: 'We can continue.' },
+      }),
+    ).rejects.toThrow('host public base URL and route secret');
+    expect(handoff).toHaveBeenCalledTimes(1);
+
+    environment.OVO_MEDIA_PUBLIC_BASE_URL = 'https://voice.example.test:8443';
+    environment.OVO_INBOUND_ROUTE_SECRET = 'a'.repeat(32);
+    await expect(
+      port.fallback({
+        requestId: 'handoff-4',
+        carrierCallId: 'CA123',
+        fallback: { kind: 'resume', message: 'We can continue.' },
+      }),
+    ).resolves.toEqual({ kind: 'confirmed', receiptId: 'receipt-1' });
+    const expectedToken = createHmac('sha256', environment.OVO_INBOUND_ROUTE_SECRET)
+      .update('twilio:env:resume:CA123')
+      .digest('hex');
+    expect(handoff).toHaveBeenLastCalledWith(
+      'CA123',
+      {
+        kind: 'resume',
+        resumeUrl: `https://voice.example.test:8443/carriers/twilio/env/resume?r=CA123&t=${expectedToken}`,
+      },
+      'handoff-4',
+    );
   });
 });

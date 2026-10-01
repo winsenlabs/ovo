@@ -145,7 +145,7 @@ describeCarrier(
             kind: 'resume',
             resumeUrl:
               'https://ovo.example.test/carriers/twilio/b1/resume?r=dial-1&t=fixture-secret',
-          } as import('../src/control.ts').TwilioHandoffTarget,
+          },
         },
         {
           scripts: script('POST', call, response(200, { sid: call }), {

@@ -6,7 +6,10 @@ import { Failures, type KitCheck } from './runner.ts';
 const TARGETS: readonly HandoffTarget[] = [
   { kind: 'phone', e164: '+15550123' },
   { kind: 'queue', name: 'kit-queue' },
-  { kind: 'resume' },
+  {
+    kind: 'resume',
+    resumeUrl: 'https://fixture.example.test/carriers/fixture/binding/resume?r=call&t=fixture',
+  },
   { kind: 'end', message: 'Goodbye.' },
 ];
 

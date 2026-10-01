@@ -13,6 +13,7 @@ import type { SecretManager } from '@winsendotai/ovo-plugin-secrets';
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import {
   CarrierRegistry,
+  carrierCallbackUrl,
   createCarrierBindingResolver,
   type InstalledCarrierControl,
 } from '@winsendotai/ovo-session-host';
@@ -44,18 +45,43 @@ export class ApiCarrierHandoffPort implements HandoffProviderPort {
   }
 
   async request(input: { requestId: string; carrierCallId: string; target: HandoffTarget }) {
-    const control = await this.forCall(input.requestId, input.carrierCallId);
+    const { control } = await this.forCall(input.requestId, input.carrierCallId);
     return control.handoff(input.carrierCallId, target(input.target), input.requestId);
   }
 
   async fallback(input: { requestId: string; carrierCallId: string; fallback: HandoffFallback }) {
-    const control = await this.forCall(input.requestId, input.carrierCallId);
-    return control.handoff(input.carrierCallId, fallback(input.fallback), input.requestId);
+    const { control, carrierId, bindingId } = await this.forCall(
+      input.requestId,
+      input.carrierCallId,
+    );
+    const resumeUrl =
+      input.fallback.kind === 'resume'
+        ? this.resumeUrl(carrierId, bindingId, input.carrierCallId)
+        : undefined;
+    return control.handoff(
+      input.carrierCallId,
+      fallback(input.fallback, resumeUrl),
+      input.requestId,
+    );
   }
 
   async reconcile(_requestId: string): Promise<{ kind: 'pending' }> {
     // No carrier handoff lookup exists by idempotency key. Unknown stays unknown.
     return { kind: 'pending' };
+  }
+
+  private resumeUrl(carrierId: string, bindingId: string, carrierCallId: string): string {
+    const publicBaseUrl = this.input.environment.OVO_MEDIA_PUBLIC_BASE_URL;
+    const routeSecret = this.input.environment.OVO_INBOUND_ROUTE_SECRET;
+    if (!publicBaseUrl || !routeSecret)
+      throw new Error('Carrier resume needs the host public base URL and route secret');
+    return carrierCallbackUrl(
+      { publicBaseUrl, routeSecret },
+      carrierId,
+      bindingId,
+      'resume',
+      carrierCallId,
+    );
   }
 
   private async forCall(requestId: string, carrierCallId: string) {
@@ -113,7 +139,11 @@ export class ApiCarrierHandoffPort implements HandoffProviderPort {
       carrierPluginId: selectedPlugin,
       carrierBindingId: route.binding_id,
     });
-    return selected.control.create(selected.binding);
+    return {
+      control: selected.control.create(selected.binding),
+      carrierId: route.carrier_id,
+      bindingId: selected.binding.bindingId,
+    };
   }
 }
 
@@ -123,8 +153,11 @@ function target(input: HandoffTarget): CarrierTarget {
     : { kind: 'queue', name: input.value };
 }
 
-function fallback(input: HandoffFallback): CarrierTarget {
-  if (input.kind === 'resume') return { kind: 'resume' };
+function fallback(input: HandoffFallback, resumeUrl?: string): CarrierTarget {
+  if (input.kind === 'resume') {
+    if (!resumeUrl) throw new Error('Carrier resume URL is unavailable');
+    return { kind: 'resume', resumeUrl };
+  }
   if (input.kind === 'end') return { kind: 'end', message: input.message };
   return { kind: 'phone', e164: input.target };
 }
