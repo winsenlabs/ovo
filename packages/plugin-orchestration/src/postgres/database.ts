@@ -1,4 +1,5 @@
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import { transaction as sharedTransaction } from '@winsendotai/ovo-plugin-kit/postgres-transaction';
 import type { DurableJob } from '../types.ts';
 
 export interface JobRow extends QueryResultRow {
@@ -34,20 +35,6 @@ export function fromJobRow(row: JobRow): DurableJob {
   };
 }
 
-export async function transaction<T>(
-  pool: Pool,
-  work: (client: PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const result = await work(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+export function transaction<T>(pool: Pool, work: (client: PoolClient) => Promise<T>): Promise<T> {
+  return sharedTransaction<PoolClient, T>(pool, work);
 }

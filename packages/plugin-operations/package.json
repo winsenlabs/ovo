@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*",
     "ajv": "8.20.0",
     "pg": "8.16.3",

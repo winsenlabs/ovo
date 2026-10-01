@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import { transaction as sharedTransaction } from '@winsendotai/ovo-plugin-kit/postgres-transaction';
 
 export type Queryable = Pick<Pool | PoolClient, 'query'>;
 export type Row = QueryResultRow & Record<string, unknown>;
@@ -77,22 +78,8 @@ export async function selectPage<T>(
 export const toIso = (value: unknown) =>
   value instanceof Date ? value.toISOString() : new Date(String(value)).toISOString();
 
-export async function transaction<T>(
-  pool: Pool,
-  work: (client: PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const result = await work(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+export function transaction<T>(pool: Pool, work: (client: PoolClient) => Promise<T>): Promise<T> {
+  return sharedTransaction<PoolClient, T>(pool, work);
 }
 
 export function migrationChecksum(sql: string) {
