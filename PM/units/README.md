@@ -47,16 +47,16 @@ This board is the single source of truth for unit status. The specs in this fold
 
 | Unit                    | Title                                               | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ----------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [I1](I1-integration.md) | Integration, full verification, docs and PM updates | **In progress (2026-10-02).** All unheld build units are verified and merged. I1 removed legacy bridges, defined post-I1 contracts, ran the selected Twilio/Plivo and speech matrix, repaired the restore drill, and updated integration guidance. Node 22 combined bar: 2,006/238 default; fresh PostgreSQL 17.6 serial with all four database gates 2,220/24/0; browser 41/1; lint, format, typecheck, builds and Terraform validation exit 0. Module-size, pending, runtime, architecture, provider-name and conformance baselines are empty; duplication has 13 justified pairs and capability keys have 33 justified file entries. Exotel matrix rows, its skeleton exemption and remaining I1 carry-forwards are open; C3/C5/C6 stay founder-held. |
+| [I1](I1-integration.md) | Integration, full verification, docs and PM updates | **In progress (2026-10-02).** All unheld build units are verified and merged. I1 removed legacy bridges, defined post-I1 contracts, ran the selected Twilio/Plivo and speech matrix, repaired the restore drill, and updated integration guidance. Node 22 combined bar: 2,007/238 default; fresh PostgreSQL 17.6 serial with all four database gates 2,221/24/0; browser 41/1; lint, format, typecheck, builds and Terraform validation exit 0. Module-size, pending, runtime, architecture, provider-name and conformance baselines are empty; duplication has 13 justified pairs and capability keys have 33 justified file entries. Exotel matrix rows, its skeleton exemption and remaining I1 carry-forwards are open; C3/C5/C6 stay founder-held. |
 
 ### I1 checkpoint: 2026-10-02
 
 The current combined tree passes the full Node 22 gate: frozen offline install,
 seven lint gates, format, typecheck, build, Terraform validation and console E2E
-all exit 0. Default Vitest has 2,006 passed + 238 skipped = 2,244. Fresh
+all exit 0. Default Vitest has 2,007 passed + 238 skipped = 2,245. Fresh
 PostgreSQL 17.6 serial with `OVO_TEST_POSTGRES_URL`,
 `RECORDING_TEST_DATABASE_URL`, `LEDGER_TEST_DATABASE_URL` and
-`OVO_BACKUP_DRILL_POSTGRES_URL` has 2,220 passed + 24 skipped = 2,244. Of the
+`OVO_BACKUP_DRILL_POSTGRES_URL` has 2,221 passed + 24 skipped = 2,245. Of the
 238 default skips, 214 are database-gated; three newly added gateway-startup
 cases account for the increase from 211. The 24 remaining skips are macOS
 LiveKit native-binding rows. Console E2E has 41 passed + one viewport skip.
@@ -82,6 +82,8 @@ have separate protocol tests. Changing one of their lists or adding a subset
 to another vendor package fails the gate. This is an I1-reviewed temporary
 exception, not a general permission to narrow a new plugin's kit; checker
 review of the three retained subsets is still open.
+Sarvam STT/TTS now imports plugin-kit's public runtime-neutral base64 decoder;
+its two local copies were removed and its focused 30-test suite passed.
 
 The O1 request to narrow the text of already-shipped orchestration migration
 006 conflicts with the immutable-migration checksum rule. I1 has not edited
@@ -91,7 +93,7 @@ repair decision. C3, C5 and C6 remain founder-held on vendor evidence.
 
 ## Post-I1 roadmap
 
-**Status: not started.** All five items are blocked on I1 unfreezing `packages/contracts` and defining the [decision, human handoff, intent-graph, templated-clip and multilingual-confirmation contracts](I1-integration.md#founder-scope-addition-2026-09-30-define-post-i1-contracts-while-contracts-are-open). **Before any post-I1 feature work, OVO must place its first real call. It has never done so.** That call is a gate, not authorization to place one during this roadmap update. Items 4 and 5 are parallel tracks; neither depends on items 1–3. No implementation in this section has started.
+**Status: not started.** I1 has defined the [decision, human handoff, intent-graph, templated-clip and multilingual-confirmation contracts](I1-integration.md#founder-scope-addition-2026-09-30-define-post-i1-contracts-while-contracts-are-open); the I1 integration gate remains open. **Before any post-I1 feature work, OVO must place its first real call. It has never done so.** That call is a gate, not authorization to place one during this roadmap update. Items 4 and 5 are parallel tracks; neither depends on items 1–3. No implementation in this section has started.
 
 1. **Decision slot — Not started.** Build plugins behind `Cap.decision`: `plugin-decision-jev` first because it is GA and validates the abstraction fastest, then `plugin-decision-laya` for production (self-hosted, approximately 35 ms, Apache-2.0, 100+ languages, no per-token fee, and transcripts remain in the VPC). Reserve room for `plugin-decision-openai`, but do not build it while the Decisions API is limited preview. **Entry criterion before committing to this build:** measure calibrated confidence and per-option probabilities across Hindi, Tamil, Telugu, Kannada, Marathi, Bengali and code-mixed forms, using speech-to-text transcripts with recognition errors. If calibration degrades in any target language, the confidence threshold can route a call into the wrong branch instead of invoking the LLM fallback; resolve that risk before building on the threshold.
 2. **Intent-graph behavior — Not started; depends on item 1.** Add a behavior mode with three routing tiers: regex rules at approximately 0 ms, the decision model, then LLM fallback. Extract slots in the same decision request without another latency step; apply global intents at every node; resume the graph at a named node after fallback. Use the intent-graph contract defined in I1 and OCSO's validated, versioned, browser-editable `RouterStep` (`ASK` / `CLASSIFY` / `KNOWN`) as the schema source.
