@@ -30,6 +30,15 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T \
   -e OVO_EXPECTED_SERVICE_COUNT="$service_count" api node --input-type=module - <<'NODE'
 const apiBase = 'http://127.0.0.1:4000';
 const consoleBase = 'http://console:3000';
+if (process.env.OVO_FIXTURE_TEST_CALLS !== 'true')
+  throw new Error('Fixture test calls must be explicitly enabled in the Compose API');
+if (!process.env.OVO_MEDIA_PUBLIC_BASE_URL?.startsWith('https://'))
+  throw new Error('Compose media public base URL must use HTTPS');
+if (!process.env.OVO_INBOUND_ROUTE_SECRET || process.env.OVO_INBOUND_ROUTE_SECRET.length < 32)
+  throw new Error('Compose inbound route secret is missing or too short');
+const carrierBindings = JSON.parse(process.env.OVO_CARRIER_ENV_BINDINGS ?? '{}');
+if (!carrierBindings || typeof carrierBindings !== 'object' || Array.isArray(carrierBindings))
+  throw new Error('Compose carrier environment bindings must be an object');
 const health = await fetch(`${apiBase}/health`);
 if (!health.ok) throw new Error(`API health returned ${health.status}`);
 const consoleResponse = await fetch(consoleBase);
@@ -58,4 +67,10 @@ if (!Array.isArray(userItems) || !userItems.some((user) => user.email === proces
   throw new Error('Seed administrator is missing from the team directory');
 
 console.log(`Compose verification passed: ${process.env.OVO_EXPECTED_SERVICE_COUNT} services healthy, console proxy and API reachable, seed administrator authenticated.`);
+NODE
+
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T dispatcher \
+  node --input-type=module - <<'NODE'
+if (process.env.OVO_CAPACITY_SIGNAL !== 'log')
+  throw new Error('Compact Compose must log capacity signals without writing ECS desired count');
 NODE

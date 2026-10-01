@@ -5,6 +5,7 @@
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
-    "@winsendotai/ovo-sdk": "workspace:*"
+    "@winsendotai/ovo-sdk": "workspace:*",
+    "zod": "4.6.5"
   }
 }
