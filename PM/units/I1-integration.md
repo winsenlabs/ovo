@@ -140,6 +140,30 @@ CONSTRAINTS:
 
 ## Incoming checker obligations (2026-09-27)
 
+- **BLOCKING M1 MCP tombstone gap (2026-10-01):**
+  `apps/api/src/routes/agents.ts` calls `validateSelections` at release stage
+  without `discoveredMcpTools`, so §4.5's `mcp_tool_removed` issue is never
+  emitted. `createRelease` reads the discovered tool without a `removed_at`
+  predicate and accepts its unchanged schema digest. A removed tool can be
+  snapshotted into a new release instead of producing HTTP 422. Supply the
+  discovered state to compatibility validation and reject tombstones in the
+  release write path; pin both with a production API regression.
+- M1's two-tenant Postgres test pins four secret/MCP write predicates. Extend
+  tenant-isolation coverage to the remaining repository statements: the M1
+  checker found many `WHERE workspace_id` mutants surviving. Its pre-repair
+  systematic scope had 59/77 surviving SQL sites (76.6%) and 284/751 surviving
+  TypeScript sites (37.8%). Rerun the scope with the new
+  `scripts/mutation-sweep.mjs --paths=...` flag after integration work. The
+  injectable AWS secrets client had 12/12 surviving mutations; add fake-client
+  coverage. Also pin a missing `OVO_OPERATORS_JSON` operator token in
+  `apps/api/src/auth-env.ts`.
+- The M1 operation-fingerprint release note also includes the `NaN`/`Infinity`
+  versus `null` collision: canonical JSON serializes non-finite numbers as
+  `null`, so these values cannot serve as distinct operation identities.
+- `apps/dispatcher/src/dispatcher-process.test.ts` has an eight-second
+  wall-clock budget and flakes under parallel load; O1/I1 should replace the
+  timing-sensitive assertion with a deterministic signal.
+
 - **HARD BLOCKING B2, reconfirmed 2026-09-27:** fix `normalizeAgentConfig`
   so it never mutates its input. Then remove all three workaround clones from
   `apps/api/src/release-selections.ts`, `apps/api/src/test-call-runtime.ts`, and

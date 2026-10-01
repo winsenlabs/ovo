@@ -293,6 +293,52 @@ removal/rediscovery case inside the Postgres integration suite in
 Postgres bar. Four skips remain there behind independent database prerequisites.
 No test was disabled.
 
+## Checker re-check response (2026-10-01)
+
+The two-way Postgres rotation test allowed a missing `FOR UPDATE` to survive.
+It now releases eight simultaneous calls at the repository boundary and sorts
+versions numerically. Removing the rotation row lock makes the focused test
+fail **3/3** runs with duplicate key
+`ovo_ctl_secret_versions_pkey`; the restored query passes. The SQLite test's
+version sort also uses a numeric comparator.
+
+A separate Postgres test opens two real workspaces and checks the untouched
+workspace after credential rotation, credential retirement, MCP tool removal
+and MCP connection deletion. Four isolated `WHERE TRUE OR workspace_id` mutants
+each fail the test. The rotation, retirement and tombstone cases fail on the
+other workspace's stored values; the deletion mutant attempts a cross-workspace
+delete and violates an existing approval foreign key in the shared database.
+The four predicates and the broader untested SQL scope are carried to I1.
+
+A future-dated credential now resolves successfully. Changing its expiry guard
+from `&&` to `||` makes that test reject with `Credential expired`. Production
+session-secret validation rejects whitespace padding; reverting to the former
+byte-count-only check makes the 40-spaces case fail. Cancelling an agent with a
+pending confirmation now emits the previously unreachable `expired` outcome
+and clears the confirmation without a write; removing that emission fails on
+the event sequence. `scripts/mutation-sites.mjs` accepts explicit file or
+directory paths while retaining O2's default scope; ignoring `--paths` fails
+its test on `scannedFiles: 62` instead of 1. The three stale duplication pending
+pairs were removed; only the live secrets types / storage models pair remains.
+
+Node 22.23.2 root `pnpm check` exited 0 after the repairs: seven lint gates,
+format, typecheck, three application bundles, console production build, audit
+with no known vulnerabilities, and console E2E (41 passed, 1 viewport skip).
+Default Vitest passed **1,923 + 209 = 2,132** tests. Separately, serial Vitest
+on a disposable Postgres 17.6 bound to `127.0.0.1` passed
+**2,128 + 4 = 2,132** tests, zero failures. The container was removed. The
+default skip increase from 208 to 209 is exactly the new cross-workspace
+Postgres test gated by `OVO_TEST_POSTGRES_URL`; it executes in the serial run.
+No test was disabled.
+
+The checker measured the **pre-repair** M1 mutation scope at 59/77 surviving
+SQL sites (76.6%) and 284/751 surviving TypeScript sites (37.8%). These are
+not post-repair figures. I1 inherits the systematic rerun target, the 12/12
+AWS secrets survivors, the missing operator-token case, and the hard-blocking
+MCP tombstone release gap on the board. The D1 fixture exception date is
+corrected to its 2026-09-30 application under standing rule (c). The #19
+release note names the non-finite-number / null fingerprint collision.
+
 ## WIP implementation notes (2026-09-26)
 
 This checkpoint is not built. The three scope proposals above remain pending. Ordinary tests/typechecking of tools-http and tools-mcp cannot resolve their new kit imports until the manifest and lockfile decision lands. Interim source proof uses a temporary configuration outside the repository that aliases only the existing kit source; it is not the normal verification bar.
@@ -301,7 +347,7 @@ The production removed-tool API test deliberately remains red: existing `mcp.ts`
 
 The secret-value SHA256 pool key is the permitted local adapter for the absent credential-version port. Secrets are resolved on every acquire, changed values evict the previous client, and resolution/revocation failures refuse reuse. Rotating to identical bytes cannot distinguish versions; I1 owns the version port follow-up. Plaintext secrets never appear in pool keys or errors.
 
-Persisted-value compatibility: replacing tool canonical JSON changes operation fingerprints and MCP schema digests for case/non-ASCII key ordering. An existing operation retry may conflict, and MCP approvals can need rediscovery/reapproval. This needs release notes even though ordinary ASCII-keyed values retain their digest.
+Persisted-value compatibility: replacing tool canonical JSON changes operation fingerprints and MCP schema digests for case/non-ASCII key ordering. An existing operation retry may conflict, and MCP approvals can need rediscovery/reapproval. Non-finite numbers serialize as `null`, so otherwise identical operation records with `input: {a: NaN}` and `input: {a: null}` share a fingerprint; `Infinity` collides likewise. This needs release notes even though ordinary ASCII-keyed values retain their digest.
 
 The approved control-migration collision scan covered all 14 local branches (`vorflux/ovo-foundation`, `w2/C1`, `w2/C2`, `w2/C3`, `w2/C4`, `w2/D1`, `w2/E1`, `w2/E2`, `w2/E3`, `w2/M1`, `w2/O1`, `w2/O2`, `w2/S1`, `w2/S2`) on 2026-09-26: no committed control migration 006 claims were found. This checkpoint adds the sole current claim. Recheck immediately before merging after other units resume.
 
