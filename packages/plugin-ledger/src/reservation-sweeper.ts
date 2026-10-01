@@ -18,6 +18,12 @@ interface ExpiredReservation {
   carrier_fx_version: string | null;
 }
 
+class IncompleteCarrierSnapshotError extends Error {
+  constructor(readonly reservationId: string) {
+    super(`Expired reservation ${reservationId} has no carrier price snapshot`);
+  }
+}
+
 export interface ReservationJobPort {
   get(jobId: string): Promise<
     | {
@@ -52,7 +58,19 @@ export class ReservationSweeper {
       );
       for (const row of due.rows) {
         if (signal.aborted) break;
-        await this.resolve(client, row);
+        try {
+          await this.resolve(client, row);
+        } catch (error) {
+          if (!(error instanceof IncompleteCarrierSnapshotError)) throw error;
+          // Keep the reservation and budget fence intact, but let later rows through the
+          // bounded batch while an operator repairs this manually corrupted snapshot.
+          await client.query(
+            `UPDATE ovo_cost_reservations SET expires_at = now() + interval '5 minutes'
+             WHERE id = $1 AND state = 'reserved'`,
+            [error.reservationId],
+          );
+          console.error(error.message);
+        }
       }
       return due.rows.length;
     });
@@ -145,7 +163,7 @@ export class ReservationSweeper {
       !row.carrier_price_card_id ||
       !row.carrier_price_card_version
     )
-      throw new Error(`Expired reservation ${row.id} has no carrier price snapshot`);
+      throw new IncompleteCarrierSnapshotError(row.id);
     const sourceEventId = `carrier-total:${jobId ?? row.session_id}`;
     const existing = await client.query(
       `SELECT 1 FROM ovo_cost_native_usage WHERE workspace_id = $1 AND session_id = $2

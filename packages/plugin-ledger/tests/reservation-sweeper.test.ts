@@ -275,20 +275,80 @@ describe.skipIf(!postgresUrl)('durable reservation expiry on Postgres', () => {
     });
   });
 
-  it('refuses a partial carrier snapshot and leaves the reservation recoverable', async () => {
-    const row = await reservation();
-    jobs.set(row.jobId, { status: 'completed', ownerId: 'worker-A' });
+  it('isolates a partial carrier snapshot while settling the next valid reservation', async () => {
+    const broken = await reservation();
+    const valid = await reservation();
+    jobs.set(broken.jobId, { status: 'completed', ownerId: 'worker-A' });
+    jobs.set(valid.jobId, { status: 'completed', ownerId: 'worker-A' });
     await pool.query('UPDATE ovo_cost_reservations SET carrier_meter_key = NULL WHERE id = $1', [
-      row.sessionId,
+      broken.sessionId,
     ]);
+    await pool.query(
+      "UPDATE ovo_cost_reservations SET expires_at = now() - interval '2 minutes' WHERE id = $1",
+      [broken.sessionId],
+    );
+    await pool.query(
+      "UPDATE ovo_cost_reservations SET expires_at = now() - interval '1 minute' WHERE id = $1",
+      [valid.sessionId],
+    );
     const connected = new Date(Date.now() - 12_000);
+    const terminal = new Date(connected.getTime() + 10_000);
     await pool.query(
       'INSERT INTO ovo_session_routes(session_id,organization_id,connected_at,terminal_at) VALUES($1,$2,$3,$4)',
-      [row.sessionId, row.workspaceId, connected, new Date()],
+      [broken.sessionId, broken.workspaceId, connected, terminal],
     );
+    await pool.query(
+      'INSERT INTO ovo_session_routes(session_id,organization_id,connected_at,terminal_at) VALUES($1,$2,$3,$4)',
+      [valid.sessionId, valid.workspaceId, connected, terminal],
+    );
+    const processed = await new ReservationSweeper(pool, jobPort)
+      .tick(new AbortController().signal)
+      .catch(() => -1);
+    expect(processed).toBe(2);
+    const brokenState = (
+      await pool.query('SELECT state,expires_at FROM ovo_cost_reservations WHERE id = $1', [
+        broken.sessionId,
+      ])
+    ).rows[0];
+    expect(brokenState.state).toBe('reserved');
+    expect(brokenState.expires_at.getTime()).toBeGreaterThan(Date.now());
+    expect(
+      (
+        await pool.query(
+          'SELECT state,actual_paise::text FROM ovo_cost_reservations WHERE id = $1',
+          [valid.sessionId],
+        )
+      ).rows[0],
+    ).toEqual({ state: 'settled', actual_paise: '20' });
+    expect(await ledger.getBudget(broken.budgetId)).toMatchObject({
+      spentPaise: '0',
+      reservedPaise: '100',
+    });
+    expect(await ledger.getBudget(valid.budgetId)).toMatchObject({
+      spentPaise: '20',
+      reservedPaise: '0',
+    });
+    expect(
+      (
+        await pool.query(
+          'SELECT count(*)::int AS n FROM ovo_cost_native_usage WHERE session_id = $1',
+          [broken.sessionId],
+        )
+      ).rows[0]?.n,
+    ).toBe(0);
+    expect(await new ReservationSweeper(pool, jobPort).tick(new AbortController().signal)).toBe(0);
+  });
+
+  it('still rolls back the batch for an unrelated job-store failure', async () => {
+    const row = await reservation();
+    const failingJobs: ReservationJobPort = {
+      get: async () => {
+        throw new Error('job store unavailable');
+      },
+    };
     await expect(
-      new ReservationSweeper(pool, jobPort).tick(new AbortController().signal),
-    ).rejects.toThrow(`Expired reservation ${row.sessionId} has no carrier price snapshot`);
+      new ReservationSweeper(pool, failingJobs).tick(new AbortController().signal),
+    ).rejects.toThrow('job store unavailable');
     expect(
       (await pool.query('SELECT state FROM ovo_cost_reservations WHERE id = $1', [row.sessionId]))
         .rows[0],
