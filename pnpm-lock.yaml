@@ -773,9 +773,6 @@ importers:
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@winsendotai/ovo-plugin-storage':
-        specifier: workspace:*
-        version: link:../plugin-storage
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime

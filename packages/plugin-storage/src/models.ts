@@ -1,4 +1,5 @@
 import type { AgentConfig } from '@winsendotai/ovo-contracts';
+export type { CredentialMetadata, SecretBlob } from '@winsendotai/ovo-contracts';
 
 export type Role = 'viewer' | 'editor' | 'admin';
 export interface Page<T> {
@@ -44,33 +45,6 @@ export interface ReleaseMcpToolSnapshot {
   approval: McpToolApproval;
   connection: McpConnection;
   discoveredTool: McpDiscoveredTool;
-}
-export interface CredentialMetadata {
-  id: string;
-  workspaceId: string;
-  label: string;
-  provider: string;
-  type: string;
-  environment: string;
-  backend: 'local' | 'encrypted-store' | 'aws-secrets-manager';
-  currentVersion: number;
-  status: 'active' | 'retired';
-  permittedAgentIds: string[];
-  expiresAt: string | null;
-  createdBy: string;
-  createdAt: string;
-  rotatedAt: string | null;
-  retiredAt: string | null;
-  fingerprint: string;
-}
-export interface SecretBlob {
-  credentialId: string;
-  version: number;
-  backend: CredentialMetadata['backend'];
-  ciphertext: Uint8Array | null;
-  nonce: Uint8Array | null;
-  authTag: Uint8Array | null;
-  backendRef: string | null;
 }
 export interface ProviderBinding {
   id: string;

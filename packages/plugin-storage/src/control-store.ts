@@ -1,4 +1,4 @@
-import type { AgentConfig, OperationStore } from '@winsendotai/ovo-contracts';
+import type { AgentConfig, CredentialStore, OperationStore } from '@winsendotai/ovo-contracts';
 import type {
   AgentDraft,
   AuditEntry,
@@ -13,12 +13,11 @@ import type {
   ProviderBinding,
   ReleaseRecord,
   ReleaseSelection,
-  SecretBlob,
   StoredCallEvent,
   UsageEntry,
 } from './models.ts';
 
-export interface ControlStore {
+export interface ControlStore extends CredentialStore {
   readonly operationStore: OperationStore;
   ensureWorkspace(id: string, name?: string): Promise<void>;
   createAgent(workspaceId: string, config: AgentConfig, id?: string): Promise<AgentDraft>;
@@ -46,43 +45,16 @@ export interface ControlStore {
     limit?: number,
     cursor?: string,
   ): Promise<Page<ReleaseRecord>>;
-  createCredential(input: {
-    workspaceId: string;
-    label: string;
-    provider: string;
-    type: string;
-    environment: string;
-    backend: CredentialMetadata['backend'];
-    permittedAgentIds: string[];
-    expiresAt?: string | null;
-    createdBy: string;
-    fingerprint: string;
-    secret: Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>;
-    id?: string;
-  }): Promise<CredentialMetadata>;
-  rotateCredential(
-    workspaceId: string,
-    id: string,
-    input: {
-      fingerprint: string;
-      secret:
-        | Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>
-        | ((version: number) => Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>);
-    },
-  ): Promise<CredentialMetadata>;
-  getCredential(workspaceId: string, id: string): Promise<CredentialMetadata | undefined>;
   listCredentials(
     workspaceId: string,
     limit?: number,
     cursor?: string,
   ): Promise<Page<CredentialMetadata>>;
-  getActiveSecretBlob(workspaceId: string, id: string): Promise<SecretBlob | undefined>;
   credentialReferences(
     workspaceId: string,
     id: string,
     maxIds?: number,
   ): Promise<CredentialReferences>;
-  retireCredential(workspaceId: string, id: string): Promise<CredentialMetadata>;
   createProviderBinding(
     input: Omit<ProviderBinding, 'id' | 'createdAt' | 'updatedAt' | 'kind' | 'pluginId'> & {
       id?: string;

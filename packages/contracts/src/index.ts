@@ -1,5 +1,6 @@
 export * from './agent.ts';
 export * from './ports.ts';
+export * from './credentials.ts';
 export * from './manifest.ts';
 export * from './release.ts';
 export * from './selection.ts';
