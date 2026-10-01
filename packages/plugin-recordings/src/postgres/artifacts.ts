@@ -1,4 +1,4 @@
-import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { RecordingUnavailableError } from '../repository.ts';
 import type {
   LiveRecording,
@@ -10,6 +10,8 @@ import type {
   RetentionPage,
 } from '../types.ts';
 import { recording, tombstone } from './rows.ts';
+import { cap, segmentRow, timelineRow } from './artifacts-rows.ts';
+import { pageExpiredArtifacts } from './artifacts-retention.ts';
 
 export class PostgresRecordingArtifacts {
   constructor(private readonly pool: Pool) {}
@@ -157,22 +159,7 @@ export class PostgresRecordingArtifacts {
     cursor: RetentionCursor | undefined,
     limit: number,
   ): Promise<RetentionPage> {
-    const result = await this.pool.query(
-      `SELECT a.* FROM ovo_recording_artifacts a WHERE a.expires_at<=$1 AND a.state!='expired'
-       AND NOT EXISTS(SELECT 1 FROM ovo_recording_tombstones t WHERE t.artifact_id=a.id)
-       AND ($2::timestamptz IS NULL OR (a.expires_at,a.id)>($2::timestamptz,$3::uuid))
-       ORDER BY a.expires_at,a.id LIMIT $4`,
-      [now, cursor?.expiresAt ?? null, cursor?.artifactId ?? null, cap(limit)],
-    );
-    const items = result.rows.map(recording),
-      last = items.at(-1);
-    return {
-      items,
-      nextCursor:
-        items.length === limit && last
-          ? { expiresAt: last.expiresAt, artifactId: last.id }
-          : undefined,
-    };
+    return pageExpiredArtifacts(this.pool, now, cursor, limit);
   }
 
   async tombstone(
@@ -303,34 +290,4 @@ export class PostgresRecordingArtifacts {
       client.release();
     }
   }
-}
-
-function segmentRow(row: QueryResultRow): RecordingSegment {
-  return {
-    artifactId: String(row.artifact_id),
-    track: row.track,
-    sequence: Number(row.sequence),
-    state: row.state,
-    objectKey: row.object_key ?? undefined,
-    sha256: row.sha256 ?? undefined,
-    bytes: Number(row.bytes),
-    startMs: Number(row.start_ms),
-    endMs: Number(row.end_ms),
-    timestampEvidence: row.timestamp_evidence,
-    error: row.error ?? undefined,
-  };
-}
-function timelineRow(row: QueryResultRow): RecordingTimelineEvent {
-  return {
-    artifactId: String(row.artifact_id),
-    sequence: Number(row.sequence),
-    atMs: Number(row.at_ms),
-    type: row.type,
-    evidence: row.evidence,
-    reference: String(row.reference),
-    phase: row.phase ?? undefined,
-  };
-}
-function cap(value: number) {
-  return Math.min(100, Math.max(1, value));
 }

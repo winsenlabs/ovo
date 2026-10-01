@@ -5,12 +5,7 @@
     "apps/api/src/routes/operations.ts": 363,
     "apps/api/src/routes/recording-lifecycle.ts": 335,
     "apps/worker/src/cost-policy.ts": 386,
-    "packages/plugin-evaluations/src/runs.ts": 364,
-    "packages/plugin-ledger/src/postgres/budgets.ts": 306,
-    "packages/plugin-ledger/src/postgres/usage.ts": 334,
-    "packages/plugin-observability/src/postgres-telemetry.ts": 341,
     "packages/plugin-operations/src/handoff.ts": 341,
-    "packages/plugin-operations/src/inbound.ts": 333,
-    "packages/plugin-recordings/src/postgres/artifacts.ts": 338
+    "packages/plugin-operations/src/inbound.ts": 333
   }
 }
