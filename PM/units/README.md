@@ -75,6 +75,14 @@ other engine scenarios were reviewed for causal event ordering; remaining
 non-engine conformance checks and the open carry-forwards below still need
 resolution before I1 handoff.
 
+The conformance lint gate now rejects an unreviewed `only:` subset in vendor
+conformance tests. It has a narrow, exact-list allowance for the pre-existing
+OpenAI inference, AssemblyAI STT and Deepgram STT suites, whose omitted checks
+have separate protocol tests. Changing one of their lists or adding a subset
+to another vendor package fails the gate. This is an I1-reviewed temporary
+exception, not a general permission to narrow a new plugin's kit; checker
+review of the three retained subsets is still open.
+
 The O1 request to narrow the text of already-shipped orchestration migration
 006 conflicts with the immutable-migration checksum rule. I1 has not edited
 that migration: doing so would make existing databases refuse startup. Its
