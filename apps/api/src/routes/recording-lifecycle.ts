@@ -1,8 +1,15 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { Readable } from 'node:stream';
-import { z } from 'zod';
 import {
-  RecordingUnavailableError,
+  CallParams,
+  RecordingParams,
+  TrackParams,
+  SegmentParams,
+  LimitQuery,
+  PageQuery,
+  SweepBody,
+} from './recording-lifecycle-schemas.ts';
+import {
   type LiveRecordingService,
   type RecordingExportService,
   type RecordingRetentionService,
@@ -10,12 +17,18 @@ import {
 } from '@winsendotai/ovo-plugin-recordings';
 import type { ControlStore, Role } from '@winsendotai/ovo-plugin-storage';
 import { publicManifest, publicRecording, transcriptLine } from './recording-lifecycle-data.ts';
-import { RecordingAudioRequestError, recordingWavResponse } from './recording-lifecycle-audio.ts';
+import { recordingWavResponse } from './recording-lifecycle-audio.ts';
+import { audit, configured, notFound, recordingResult } from './recording-lifecycle-support.ts';
 import { registerRecordingExportRoutes } from './recording-lifecycle-exports.ts';
 export { createRecordingExportInputLoader } from './recording-lifecycle-data.ts';
 
-type ApiError = (reply: FastifyReply, status: number, code: string, message: string) => unknown;
-type Principal = { identityId: string; workspaceId: string; role: Role };
+export type ApiError = (
+  reply: FastifyReply,
+  status: number,
+  code: string,
+  message: string,
+) => unknown;
+export type Principal = { identityId: string; workspaceId: string; role: Role };
 
 export interface RecordingLifecycleServices {
   live: LiveRecordingService;
@@ -30,39 +43,6 @@ export interface RecordingLifecycleRouteDependencies {
   requireRole(request: FastifyRequest, role: Role): Principal;
   error: ApiError;
 }
-
-const CallParams = z.object({ callId: z.uuid() }).strict();
-const RecordingParams = z.object({ callId: z.uuid(), recordingId: z.uuid() }).strict();
-const TrackParams = z
-  .object({
-    callId: z.uuid(),
-    recordingId: z.uuid(),
-    track: z.enum(['inbound', 'outbound']),
-  })
-  .strict();
-const SegmentParams = z
-  .object({
-    callId: z.uuid(),
-    recordingId: z.uuid(),
-    track: z.enum(['inbound', 'outbound']),
-    sequence: z.coerce.number().int().min(0).max(9_999),
-  })
-  .strict();
-const LimitQuery = z
-  .object({ limit: z.coerce.number().int().min(1).max(100).default(50) })
-  .strict();
-const PageQuery = z
-  .object({
-    limit: z.coerce.number().int().min(1).max(100).default(50),
-    cursor: z.string().min(1).max(2_000).optional(),
-  })
-  .strict();
-const SweepBody = z
-  .object({
-    limit: z.number().int().min(1).max(100).default(50),
-    cursor: z.object({ expiresAt: z.iso.datetime(), artifactId: z.uuid() }).strict().optional(),
-  })
-  .strict();
 
 export function registerRecordingLifecycleRoutes(
   dependencies: RecordingLifecycleRouteDependencies,
@@ -216,60 +196,5 @@ export function registerRecordingLifecycleRoutes(
       failed: result.failed,
     });
     return reply.send(result);
-  });
-}
-
-function configured(
-  dependencies: RecordingLifecycleRouteDependencies,
-  reply: FastifyReply,
-  error: ApiError,
-) {
-  if (dependencies.recordings) return dependencies.recordings;
-  error(reply, 503, 'recordings_unavailable', 'Production recording lifecycle is not configured');
-  return undefined;
-}
-
-async function recordingResult(
-  reply: FastifyReply,
-  error: ApiError,
-  action: () => Promise<unknown>,
-) {
-  try {
-    return await action();
-  } catch (cause) {
-    if (cause instanceof RecordingAudioRequestError) {
-      if (cause.contentRange) reply.header('content-range', cause.contentRange);
-      return error(reply, cause.statusCode, cause.code, cause.message);
-    }
-    if (cause instanceof RecordingUnavailableError)
-      return error(reply, 404, 'recording_not_found', 'Recording not found');
-    if (cause instanceof Error && cause.message.includes('integrity'))
-      return error(reply, 409, 'recording_integrity_failed', 'Recording integrity check failed');
-    if (cause instanceof Error && cause.message === 'Recording export is unavailable')
-      return error(reply, 409, 'recording_export_unavailable', cause.message);
-    const code = (cause as NodeJS.ErrnoException | undefined)?.code;
-    if (code === 'ENOENT') return error(reply, 404, 'recording_not_found', 'Recording not found');
-    throw cause;
-  }
-}
-
-function notFound(reply: FastifyReply, error: ApiError) {
-  return error(reply, 404, 'not_found', 'Call or recording not found');
-}
-
-async function audit(
-  store: Pick<ControlStore, 'audit'>,
-  principal: Principal,
-  action: string,
-  resourceId: string,
-  payload: Record<string, unknown>,
-) {
-  await store.audit({
-    workspaceId: principal.workspaceId,
-    actorId: principal.identityId,
-    action,
-    resourceType: 'recording',
-    resourceId,
-    payload,
   });
 }

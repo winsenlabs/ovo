@@ -1,11 +1,1 @@
-{
-  "files": {
-    "apps/api/src/routes/cost.ts": 337,
-    "apps/api/src/routes/evaluation-datasets.ts": 365,
-    "apps/api/src/routes/operations.ts": 363,
-    "apps/api/src/routes/recording-lifecycle.ts": 335,
-    "apps/worker/src/cost-policy.ts": 386,
-    "packages/plugin-operations/src/handoff.ts": 341,
-    "packages/plugin-operations/src/inbound.ts": 333
-  }
-}
+{ "files": {} }

@@ -2,42 +2,6 @@
   "pairs": [
     { "files": ["apps/api/src/routes/agents.ts", "apps/api/src/routes/mcp.ts"], "windows": 34 },
     {
-      "files": ["apps/api/src/routes/cost.ts", "apps/api/src/routes/evaluation-datasets.ts"],
-      "windows": 8
-    },
-    {
-      "files": [
-        "apps/api/src/routes/cost.ts",
-        "apps/api/src/routes/evaluation-provider-authorizations.ts"
-      ],
-      "windows": 10
-    },
-    {
-      "files": ["apps/api/src/routes/cost.ts", "apps/api/src/routes/recording-lifecycle.ts"],
-      "windows": 10
-    },
-    {
-      "files": [
-        "apps/api/src/routes/evaluation-datasets.ts",
-        "apps/api/src/routes/evaluation-provider-authorizations.ts"
-      ],
-      "windows": 18
-    },
-    {
-      "files": [
-        "apps/api/src/routes/evaluation-datasets.ts",
-        "apps/api/src/routes/recording-lifecycle.ts"
-      ],
-      "windows": 8
-    },
-    {
-      "files": [
-        "apps/api/src/routes/evaluation-provider-authorizations.ts",
-        "apps/api/src/routes/recording-lifecycle.ts"
-      ],
-      "windows": 10
-    },
-    {
       "files": [
         "apps/api/src/routes/recording-lifecycle-data.ts",
         "apps/worker/src/recording-runtime.ts"
@@ -49,7 +13,7 @@
         "apps/api/src/routes/recording-lifecycle-exports.ts",
         "apps/api/src/routes/recording-lifecycle.ts"
       ],
-      "windows": 157
+      "windows": 37
     },
     {
       "files": [

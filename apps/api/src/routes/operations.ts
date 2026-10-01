@@ -6,12 +6,12 @@ import {
   operationsPage,
   operationsRequestError,
   previewCampaignCsv,
-  validateReleaseVariables,
   type OperationsService,
 } from '@winsendotai/ovo-plugin-operations';
 import type { Principal } from '../types.ts';
 import { resolveCampaignCarrier } from '../operations-plugin.ts';
 import { registerOperationsRealtimeRoutes } from './operations-realtime.ts';
+import { registerOperationsLiveCallRoute } from './operations-live-call.ts';
 
 const schemas = operationsApiSchemas;
 
@@ -68,135 +68,11 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
     return previewCampaignCsv(body.csv, body.mapping);
   });
 
-  app.post('/v1/calls', async (request, reply) => {
-    const principal = requireRole(request, 'admin'),
-      operations = use(reply, principal);
-    if (!operations) return;
-    if (operations.config.liveEnabled !== true)
-      return void reply.code(503).send({
-        error: {
-          code: 'live_calls_disabled',
-          message: 'Live calling is not enabled for this installation',
-        },
-      });
-    const body = schemas.liveCall.parse(request.body);
-    const release = await store.getRelease(principal.workspaceId, body.releaseId);
-    if (!release) return operationsRequestError(404, 'release_not_found', 'Release not found');
-    const fromNumber = normalizePhoneNumber(body.fromNumber);
-    if (!operations.config.permittedFromNumbers.includes(fromNumber))
-      return operationsRequestError(
-        403,
-        'from_number_not_permitted',
-        'Caller number is not permitted',
-      );
-    const variableValidation = validateReleaseVariables(release.config.variables, body.variables);
-    if (!variableValidation.valid)
-      return reply.code(422).send({
-        error: {
-          code: 'invalid_call_variables',
-          message: 'Call variables do not satisfy the release schema',
-          details: variableValidation.errors,
-        },
-      });
-    let carrier;
-    try {
-      carrier = await resolveCampaignCarrier(operations, release, store);
-    } catch (error) {
-      return operationsRequestError(422, 'campaign_carrier_unavailable', (error as Error).message);
-    }
-    let campaign;
-    try {
-      campaign = await operations.campaigns.create(
-        {
-          operationId: body.operationId,
-          name: `Live call ${body.operationId}`,
-          agentReleaseId: release.id,
-          fromNumber,
-          schedule: { localDateTime: '2000-01-01T00:00', timezone: 'UTC' },
-          perNumberAttemptLimit: 1,
-          maxAttemptsTotal: 1,
-          maxAttemptsPerLocalDay: 1,
-          activeCallPolicy: 'continue',
-          maxConcurrency: 1,
-          ...carrier,
-        },
-        [{ sourceRow: 1, phoneNumber: body.to, variables: body.variables }],
-      );
-    } catch (error) {
-      if ((error as Error).message.includes('operationId collision'))
-        return operationsRequestError(
-          409,
-          'operation_id_collision',
-          'Live call operation ID was already used with different input',
-        );
-      throw error;
-    }
-    let call = await store.getCall(principal.workspaceId, body.operationId);
-    if (call && (call.kind !== 'live' || call.releaseId !== release.id))
-      return operationsRequestError(
-        409,
-        'operation_id_collision',
-        'Live call operation ID is already in use',
-      );
-    if (!call) {
-      try {
-        call = await store.createCall({
-          id: body.operationId,
-          workspaceId: principal.workspaceId,
-          releaseId: release.id,
-          kind: 'live',
-          status: 'queued',
-        });
-      } catch (error) {
-        const raced = await store.getCall(principal.workspaceId, body.operationId);
-        if (!raced || raced.kind !== 'live' || raced.releaseId !== release.id) throw error;
-        call = raced;
-      }
-    }
-    const admission = await operations.campaigns.admit(
-      campaign.id,
-      `api-live:${body.operationId}`,
-      300_000,
-      body.operationId,
-    );
-    let contactId: string;
-    if (admission.kind === 'admitted') {
-      contactId = admission.contactId;
-      await store.appendCallEvent(principal.workspaceId, body.operationId, 'live.queued', {
-        campaignId: campaign.id,
-        contactId,
-        jobId: body.operationId,
-      });
-    } else {
-      const queued = await operations.outbox.getByJobId(body.operationId);
-      const queuedContactId = queued?.payload.contactId;
-      if (typeof queuedContactId !== 'string') {
-        await store.finishCall(principal.workspaceId, body.operationId, 'blocked');
-        return reply.code(409).send({
-          error: { code: 'live_call_blocked', message: 'Live call was not admitted' },
-          callId: body.operationId,
-        });
-      }
-      contactId = queuedContactId;
-    }
-    await audit(principal, 'operations.live_call.launch', 'call', body.operationId, {
-      campaignId: campaign.id,
-      contactId,
-      jobId: body.operationId,
-      releaseId: release.id,
-    });
-    return reply.code(202).send({
-      callId: body.operationId,
-      jobId: body.operationId,
-      campaignId: campaign.id,
-      contactId,
-      status: call.status,
-    });
-  });
+  registerOperationsLiveCallRoute({ app, store, requireRole, use, audit });
 
   app.post('/v1/operations/campaigns', async (request, reply) => {
-    const principal = requireRole(request, 'editor'),
-      operations = use(reply, principal);
+    const principal = requireRole(request, 'editor');
+    const operations = use(reply, principal);
     if (!operations) return;
     const body = schemas.campaign.parse(request.body);
     const { contacts, releaseId, ...campaignConfig } = body;
@@ -240,8 +116,8 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
     const principal = requireRole(request, 'viewer');
     const operations = use(reply, principal);
     if (!operations) return;
-    const query = schemas.uuidPage.parse(request.query),
-      items = await operations.campaigns.list(query.limit, query.cursor);
+    const query = schemas.uuidPage.parse(request.query);
+    const items = await operations.campaigns.list(query.limit, query.cursor);
     return operationsPage(items, query.limit);
   });
 

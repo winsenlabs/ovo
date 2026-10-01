@@ -1,28 +1,13 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { PageQuery } from './route-page-schema.ts';
 import { z } from 'zod';
 import type { PostgresEvaluationService } from '@winsendotai/ovo-plugin-evaluations';
-import type { ControlStore, Role } from '@winsendotai/ovo-plugin-storage';
 
-interface Principal {
-  identityId: string;
-  workspaceId: string;
-  role: Role;
-}
+import { audit, type EvaluationDatasetRouteDependencies } from './evaluation-route-support.ts';
 
-interface Dependencies {
-  app: FastifyInstance;
-  evaluations?: PostgresEvaluationService;
-  store: Pick<ControlStore, 'audit'>;
-  requireRole(request: FastifyRequest, role: Role): Principal;
-}
+type Dependencies = EvaluationDatasetRouteDependencies;
 
 const Id = z.string().trim().min(1).max(200);
-const PageQuery = z
-  .object({
-    limit: z.coerce.number().int().min(1).max(100).default(50),
-    cursor: z.string().min(1).max(2_000).optional(),
-  })
-  .strict();
+
 const AuthorizationParams = z.object({ authorizationId: Id }).strict();
 const AuthorizationBody = z
   .object({
@@ -85,20 +70,4 @@ function configuredAuthorizations(
     message: 'Provider evaluations are not enabled for this installation',
   });
   return undefined;
-}
-
-async function audit(
-  store: Pick<ControlStore, 'audit'>,
-  principal: Principal,
-  action: string,
-  resourceId: string,
-) {
-  await store.audit({
-    workspaceId: principal.workspaceId,
-    actorId: principal.identityId,
-    action,
-    resourceType: 'evaluation',
-    resourceId,
-    payload: {},
-  });
 }

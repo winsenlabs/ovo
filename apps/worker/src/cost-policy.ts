@@ -1,20 +1,11 @@
 import type { ProviderUsage } from './cost-policy-types.ts';
-import type { PriceCardVersion, ReservationResult } from '@winsendotai/ovo-plugin-ledger';
+import type { ReservationResult } from '@winsendotai/ovo-plugin-ledger';
+import { WorkerCostPolicyCore } from './cost-policy-core.ts';
+import { normalizeInferenceEvidence, type InferenceUsageEvidence } from './cost-inference.ts';
 import {
-  emptyInferenceEvidenceSummary,
-  normalizeInferenceEvidence,
-  type InferenceUsageEvidence,
-} from './cost-inference.ts';
-import {
-  loadCostCatalog,
   millisecondsToSeconds,
   providerMeterKey,
   providerSourceKind,
-  usageIdentity,
-  validatePolicy,
-  durableReservationFields,
-  accumulateInferenceEvidence,
-  type NormalizedUsage,
 } from './cost-policy-support.ts';
 import type {
   CacheGenerationUsageInput,
@@ -44,46 +35,7 @@ export type {
 } from './cost-policy-types.ts';
 export { providerMeterKey } from './cost-policy-support.ts';
 
-export class WorkerCostPolicyController {
-  private readonly policy: CostPolicy;
-  private readonly maxPending: number;
-  private readonly timers: NonNullable<WorkerCostPolicyOptions['timers']>;
-  private cards = new Map<string, PriceCardVersion>();
-  private readonly missingMeters = new Set<string>();
-  private readonly seenEvents = new Set<string>();
-  private readonly seenInferenceRequests = new Map<string, string>();
-  private readonly inferenceEvidence = emptyInferenceEvidenceSummary();
-  private tail: Promise<void> = Promise.resolve();
-  private admission?: Promise<ReservationResult>;
-  private admitted = false;
-  private started = false;
-  private closing = false;
-  private terminal = false;
-  private pending = 0;
-  private timer?: unknown;
-  private queueFailure?: unknown;
-  private terminationRequested = false;
-
-  constructor(private readonly options: WorkerCostPolicyOptions) {
-    this.policy = structuredClone(options.policy);
-    this.maxPending = options.maxPendingUsage ?? 256;
-    if (!Number.isInteger(this.maxPending) || this.maxPending < 1 || this.maxPending > 10_000)
-      throw new TypeError('maxPendingUsage must be an integer from 1 to 10000');
-    this.timers =
-      options.timers ??
-      ({
-        set: (delayMs, callback) => {
-          const timer = setTimeout(callback, delayMs);
-          timer.unref?.();
-          return timer;
-        },
-        clear: (timer) => clearTimeout(timer as NodeJS.Timeout),
-      } satisfies NonNullable<WorkerCostPolicyOptions['timers']>);
-    validatePolicy(this.policy);
-    if (!Number.isFinite(Date.parse(options.sessionStartedAt)))
-      throw new TypeError('sessionStartedAt must be an ISO timestamp');
-  }
-
+export class WorkerCostPolicyController extends WorkerCostPolicyCore {
   reserveBeforeAdmission(): Promise<ReservationResult> {
     return (this.admission ??= this.reserve());
   }
@@ -245,122 +197,6 @@ export class WorkerCostPolicyController {
     const released = await this.options.ledger.releaseReservation(this.options.sessionId);
     this.terminal = true;
     return released;
-  }
-
-  private async reserve(): Promise<ReservationResult> {
-    const budget = await this.options.ledger.getBudget(this.policy.budgetId);
-    if (!budget || budget.workspaceId !== this.options.workspaceId)
-      throw new Error('Cost budget is unavailable for this workspace');
-    await this.loadCatalog();
-    const result = await this.options.ledger.reserveBudget({
-      budgetId: this.policy.budgetId,
-      reservationId: this.options.sessionId,
-      amountPaise: this.policy.reservationPaise,
-      sourceRef: `session:${this.options.sessionId}`,
-      ...durableReservationFields(this.options, this.policy.maxCallSeconds),
-    });
-    this.admitted = result.admitted;
-    return result;
-  }
-
-  private async loadCatalog(): Promise<void> {
-    this.cards = await loadCostCatalog(
-      this.options.ledger,
-      this.policy,
-      this.options.requiredMeterKeys ?? [],
-    );
-  }
-
-  private enqueueUsage(input: NormalizedUsage): boolean {
-    return this.enqueueUsageSet([input]);
-  }
-
-  private enqueueUsageSet(inputs: readonly NormalizedUsage[]): boolean {
-    if (!this.admitted || this.closing || this.terminal) return false;
-    const missing = inputs.filter((input) => !this.cards.has(input.meterKey));
-    if (missing.length) {
-      for (const input of missing) this.missingMeters.add(input.meterKey);
-      this.requestTermination('cost-meter-unconfigured');
-      return false;
-    }
-    const fresh = inputs.filter(
-      (input) => !this.seenEvents.has(usageIdentity(this.options.sessionId, input)),
-    );
-    if (this.pending + fresh.length > this.maxPending) {
-      this.requestTermination('cost-usage-backpressure');
-      return false;
-    }
-    for (const input of fresh) {
-      this.seenEvents.add(usageIdentity(this.options.sessionId, input));
-      this.pending += 1;
-      const operation = this.tail.then(() => this.writeUsage(input));
-      this.tail = operation
-        .catch((error) => {
-          this.queueFailure ??= error;
-          this.requestTermination('cost-usage-write-failed');
-        })
-        .finally(() => {
-          this.pending -= 1;
-        });
-    }
-    return true;
-  }
-
-  private async writeUsage(input: NormalizedUsage): Promise<void> {
-    const card = this.cards.get(input.meterKey)!;
-    if (card.provider !== input.provider || card.unit !== input.unit)
-      throw new TypeError(`Cost meter does not match provider native units: ${input.meterKey}`);
-    const reference = this.policy.priceCards[input.meterKey]!;
-    await this.options.ledger.recordUsage({
-      idempotencyKey: usageIdentity(this.options.sessionId, input),
-      workspaceId: this.options.workspaceId,
-      sessionId: this.options.sessionId,
-      callId: this.options.callId,
-      attemptId: this.options.attemptId,
-      provider: input.provider,
-      providerRequestId: input.providerRequestId,
-      sourceKind: input.sourceKind,
-      sourceEventType: input.sourceEventType,
-      sourceEventId: `${this.options.sessionId}:${input.sourceEventId}`,
-      activity: input.activity,
-      cacheDisposition: input.cacheDisposition,
-      quantity: input.quantity,
-      unit: input.unit,
-      occurredAt: input.occurredAt,
-      priceCard: { id: reference.id, version: reference.version },
-      fx:
-        reference.fxId && reference.fxVersion
-          ? { id: reference.fxId, version: reference.fxVersion }
-          : undefined,
-    });
-    const summary = await this.options.ledger.getSessionCost(
-      this.options.workspaceId,
-      this.options.sessionId,
-    );
-    if (BigInt(summary.totalPaise) >= BigInt(this.policy.reservationPaise))
-      this.requestTermination('cost-spend-threshold');
-  }
-
-  private requestTermination(reason: CostTerminationReason): void {
-    if (this.terminationRequested) return;
-    this.terminationRequested = true;
-    void Promise.resolve(this.options.requestTermination(reason)).catch(() => undefined);
-  }
-
-  private stopTimer(): void {
-    if (this.timer !== undefined) this.timers.clear(this.timer);
-    this.timer = undefined;
-  }
-
-  private assertAdmitted(): void {
-    if (!this.admitted || this.terminal) throw new Error('Cost reservation is not active');
-  }
-
-  private recordInferenceEvidence(
-    state: 'reported' | 'estimated' | 'unknown',
-    reasons: readonly string[],
-  ): void {
-    accumulateInferenceEvidence(this.inferenceEvidence, state, reasons);
   }
 }
 

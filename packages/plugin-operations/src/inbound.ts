@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { Pool, QueryResultRow } from 'pg';
+import type { Pool } from 'pg';
+import { fromExisting, validateOverflow, type AdmissionRow, type SlotRow } from './inbound-rows.ts';
 import { boundedLimit, transaction } from './database.ts';
 import type {
   InboundAdmission,
@@ -7,23 +8,6 @@ import type {
   InboundOverflowPolicy,
   InboundPolicyRecord,
 } from './types.ts';
-
-interface AdmissionRow extends QueryResultRow {
-  id: string;
-  call_id: string;
-  decision: InboundAdmission['kind'];
-  slot_id: string | null;
-  detail: Record<string, unknown>;
-  released_at: Date | null;
-  created_at: Date;
-}
-
-interface SlotRow extends QueryResultRow {
-  slot_id: string;
-  worker_id: string;
-  generation: string;
-  protected_until: Date;
-}
 
 export class InboundService {
   constructor(
@@ -164,7 +148,7 @@ export class InboundService {
          WHERE organization_id = $1 AND call_id = $2`,
         [this.organizationId, callId],
       );
-      if (existing.rows[0]) return this.fromExisting(existing.rows[0]);
+      if (existing.rows[0]) return fromExisting(existing.rows[0]);
       const slot = await client.query<SlotRow>(
         `SELECT slot_id, worker_id, generation, protected_until FROM ovo_ops_inbound_capacity
          WHERE organization_id = $1 AND ready = true AND reservation_id IS NULL
@@ -212,20 +196,6 @@ export class InboundService {
       );
       return { admissionId, ...overflow } as InboundAdmission;
     });
-  }
-
-  private fromExisting(row: AdmissionRow): InboundAdmission {
-    if (row.decision === 'reserved') {
-      return {
-        kind: 'reserved',
-        admissionId: row.id,
-        slotId: row.slot_id!,
-        workerId: String(row.detail.workerId),
-        generation: Number(row.detail.generation),
-        protectedUntil: new Date(String(row.detail.protectedUntil)),
-      };
-    }
-    return { admissionId: row.id, ...row.detail } as InboundAdmission;
   }
 
   async release(admissionId: string): Promise<boolean> {
@@ -301,23 +271,4 @@ export class InboundService {
       createdAt: row.created_at,
     }));
   }
-}
-
-function validateOverflow(overflow: InboundOverflowPolicy): void {
-  if (overflow.kind === 'busy' && !overflow.reason) throw new Error('Busy reason is required');
-  if (overflow.kind === 'wait') {
-    if (
-      !Number.isInteger(overflow.maxWaitMs) ||
-      overflow.maxWaitMs < 1_000 ||
-      overflow.maxWaitMs > 300_000
-    )
-      throw new Error('Wait duration is out of range');
-    if (!overflow.announcement) throw new Error('Wait announcement is required');
-  }
-  if ((overflow.kind === 'callback' || overflow.kind === 'human') && !overflow.announcement)
-    throw new Error('Overflow announcement is required');
-  if (overflow.kind === 'callback' && !overflow.queue)
-    throw new Error('Callback queue is required');
-  if (overflow.kind === 'human' && !/^\+[1-9]\d{7,14}$/.test(overflow.target))
-    throw new Error('Human target must be E.164');
 }
