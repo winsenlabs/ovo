@@ -69,6 +69,15 @@ export const TURN_SCENARIOS: readonly EngineScenario[] = [
         () => h.receipts().some((r) => /balance is 42/.test(r.receipt.text)),
         'the tool answer',
       );
+      await h.until(
+        () =>
+          h.log.some((entry) => entry.kind === 'progress' && entry.receipt.state === 'completed'),
+        'completed progress speech',
+      );
+      await h.until(
+        () => h.phases(/Please wait/).some((phase) => phase.kind === 'progress'),
+        'progress speech phase',
+      );
       f.expect(h.executes().length === 1, `Execution.execute ran ${h.executes().length} times`);
       f.expect(h.executes()[0]?.request.confirmed === false, 'a read tool was marked confirmed');
       const progress = h.log.find((e) => e.kind === 'progress');

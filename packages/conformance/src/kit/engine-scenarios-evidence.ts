@@ -27,6 +27,10 @@ function evidenceRow(
     async run(h, f) {
       await h.say('what are your opening hours');
       await h.until(() => Boolean(heard(h)), 'the FAQ receipt', h.timeoutMs + 5000);
+      await h.until(
+        () => h.phases(ANSWER).some((phase) => phase.phase === 'completed'),
+        'the completed speech phase',
+      );
       const receipt = heard(h)!;
       f.expect(receipt.state === 'completed', `the receipt state is ${receipt.state}`);
       f.expect(

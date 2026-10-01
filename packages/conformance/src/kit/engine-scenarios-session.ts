@@ -48,6 +48,16 @@ export const SESSION_SCENARIOS: readonly EngineScenario[] = [
       h.carrier.caller.audio(new Uint8Array(160));
       await h.say('what are your opening hours');
       await h.until(() => spoken(h, /nine to five/), 'the FAQ answer');
+      await h.until(
+        () =>
+          h.transcripts.some((event) => event.type === 'user.transcript') &&
+          h.transcripts.some((event) => event.type === 'agent.transcript'),
+        'both transcript observer sides',
+      );
+      await h.until(
+        () => h.events().some((event) => event.type === 'timing'),
+        'spoken turn timing',
+      );
       const stats = h.engine.ingressStats;
       for (const field of STATS)
         f.expect(
