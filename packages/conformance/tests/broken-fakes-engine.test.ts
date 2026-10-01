@@ -230,8 +230,10 @@ describe('checkEngine rejects an engine that ignores the session surface', () =>
       {},
       { only: ['ingress stats, user transcripts'] },
     );
-    expect(messages(failures)).toMatch(/transcripts observer never received an event/);
-    expect(messages(failures)).toMatch(/emitted no timing events for a spoken turn/);
+    expect(messages(failures)).toMatch(/timed out waiting for both transcript observer sides/);
+    expect(messages(failures)).toMatch(
+      /the engine spoke but emitted no timing events for any stage/,
+    );
   }, 60_000);
 });
 
