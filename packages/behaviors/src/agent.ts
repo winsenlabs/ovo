@@ -234,6 +234,7 @@ export class AgentBehavior implements Behavior {
     this.turn += 1;
     this.active?.abort(new DOMException(reason, 'AbortError'));
     this.active = undefined;
+    this.confirmation.expire();
   }
 
   beginTurn(epoch: number): void {

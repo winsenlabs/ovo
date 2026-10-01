@@ -1,33 +1,6 @@
 {
   "duplication": [
     {
-      "files": [
-        "packages/plugin-secrets/src/types.ts",
-        "packages/plugin-storage/src/control-store.ts"
-      ],
-      "windows": 77,
-      "reason": "M1 must remove the secrets-to-storage edge while contracts and storage models remain frozen. This local structural CredentialStore/metadata adapter copies the required store shape; I1 must move the shared credential port and metadata into contracts and delete this duplication.",
-      "removeBy": "I1"
-    },
-    {
-      "files": [
-        "packages/plugin-secrets/src/types.ts",
-        "packages/plugin-storage/src/postgres/secrets-repository.ts"
-      ],
-      "windows": 14,
-      "reason": "M1 must remove the secrets-to-storage edge while contracts and storage models remain frozen. This local structural CredentialStore/metadata adapter copies the required store shape; I1 must move the shared credential port and metadata into contracts and delete this duplication.",
-      "removeBy": "I1"
-    },
-    {
-      "files": [
-        "packages/plugin-secrets/src/types.ts",
-        "packages/plugin-storage/src/sqlite/secrets-repository.ts"
-      ],
-      "windows": 14,
-      "reason": "M1 must remove the secrets-to-storage edge while contracts and storage models remain frozen. This local structural CredentialStore/metadata adapter copies the required store shape; I1 must move the shared credential port and metadata into contracts and delete this duplication.",
-      "removeBy": "I1"
-    },
-    {
       "files": ["packages/plugin-secrets/src/types.ts", "packages/plugin-storage/src/models.ts"],
       "windows": 70,
       "reason": "M1 must remove the secrets-to-storage edge while contracts and storage models remain frozen. This local structural CredentialStore/metadata adapter copies the required store shape; I1 must move the shared credential port and metadata into contracts and delete this duplication.",

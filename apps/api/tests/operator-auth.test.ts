@@ -13,7 +13,7 @@ const environment = {
 
 it('requires a production session secret of at least 32 UTF-8 bytes', () => {
   const identity = bootstrapIdentitiesFromEnv(environment)[0]!;
-  for (const secret of [undefined, '', 'a'.repeat(31)])
+  for (const secret of [undefined, '', 'a'.repeat(31), ' '.repeat(40), ` ${'a'.repeat(31)} `])
     expect(() =>
       sessionSecretFromEnv(identity, { NODE_ENV: 'production', OVO_SESSION_SECRET: secret }),
     ).toThrow('32 bytes');

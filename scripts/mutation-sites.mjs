@@ -12,10 +12,22 @@ function files(directory) {
     });
 }
 
-export const sourceFiles = [
+const defaultPaths = () => [
   ...files('packages/plugin-operations/src'),
   ...files('packages/plugin-ledger/src'),
   ...files('apps/worker/src').filter((file) => /\/cost-[^/]+\.ts$/.test(file)),
+];
+const pathsArg = process.argv.find((arg) => arg.startsWith('--paths='))?.slice('--paths='.length);
+const requestedPaths = pathsArg?.split(',').map((value) => value.trim());
+if (requestedPaths?.some((value) => !value))
+  throw new Error('Use --paths=path[,path...] with nonempty files or directories');
+export const sourceFiles = [
+  ...new Set(
+    (requestedPaths ?? defaultPaths()).flatMap((entry) => {
+      if (!fs.existsSync(entry)) throw new Error(`Mutation path does not exist: ${entry}`);
+      return fs.statSync(entry).isDirectory() ? files(entry) : [entry];
+    }),
+  ),
 ].filter((file) => file.endsWith('.ts'));
 
 function site(file, ast, start, end, replacement, kind, source) {

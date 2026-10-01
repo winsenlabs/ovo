@@ -6,6 +6,27 @@ import { NodeSqliteControlStore, ReferencedResourceError } from '../../plugin-st
 import { LocalAesGcmSecretManager } from '../src/index.ts';
 
 describe('LocalAesGcmSecretManager', () => {
+  it('allows a credential whose expiry is still in the future', async () => {
+    const store = new NodeSqliteControlStore(':memory:');
+    try {
+      await store.ensureWorkspace('workspace');
+      const secrets = new LocalAesGcmSecretManager(store, Buffer.alloc(32, 7));
+      const credential = await secrets.create({
+        workspaceId: 'workspace',
+        label: 'Future expiry',
+        provider: 'fixture',
+        type: 'api-key',
+        environment: 'test',
+        value: 'still-valid',
+        createdBy: 'test',
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      });
+      await expect(secrets.resolve('workspace', credential.id)).resolves.toBe('still-valid');
+    } finally {
+      await store.close();
+    }
+  });
+
   it('keeps concurrent rotation AAD aligned with unique sequential versions', async () => {
     const store = new NodeSqliteControlStore(':memory:');
     try {
@@ -24,7 +45,7 @@ describe('LocalAesGcmSecretManager', () => {
         secrets.rotate('workspace', credential.id, 'rotation-two'),
         secrets.rotate('workspace', credential.id, 'rotation-three'),
       ]);
-      expect(versions.map((item) => item.currentVersion).sort()).toEqual([2, 3]);
+      expect(versions.map((item) => item.currentVersion).sort((a, b) => a - b)).toEqual([2, 3]);
       await expect(secrets.resolve('workspace', credential.id)).resolves.toBe('rotation-three');
     } finally {
       await store.close();

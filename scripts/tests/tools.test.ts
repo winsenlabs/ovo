@@ -65,6 +65,22 @@ describe('lint.mjs', () => {
   );
 });
 
+describe('mutation-sweep scope', () => {
+  it('accepts explicit source paths and refuses a missing path', () => {
+    const scoped = runGate('mutation-sweep.mjs', [
+      '--paths=packages/plugin-secrets/src/policy.ts',
+      '--kind=ts',
+    ]);
+    expect(scoped.status).toBe(0);
+    expect(scoped.output).toContain('"scannedFiles":1');
+    expect(scoped.output).toContain('"filesWithSites":1');
+
+    const missing = runGate('mutation-sweep.mjs', ['--paths=packages/not-present/src']);
+    expect(missing.status).toBe(1);
+    expect(missing.output).toContain('Mutation path does not exist');
+  });
+});
+
 describe('--write-baseline with --only', () => {
   // Every gate builds only the in-scope part of its state under --only, so writing a baseline from
   // that run would silently delete every out-of-scope entry. parseArgs refuses for all of them,

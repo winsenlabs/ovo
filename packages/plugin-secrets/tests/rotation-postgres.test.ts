@@ -4,13 +4,13 @@ import { PostgresControlStore } from '../../plugin-storage/src/index.ts';
 import { LocalAesGcmSecretManager, type CredentialStore } from '../src/index.ts';
 
 it.skipIf(!process.env.OVO_TEST_POSTGRES_URL)(
-  'encrypts both concurrent rotations with the version allocated inside the Postgres lock',
+  'encrypts eight concurrent rotations with versions allocated inside the Postgres lock',
   async () => {
     const store = await PostgresControlStore.open(process.env.OVO_TEST_POSTGRES_URL!);
     try {
       const workspaceId = `rotation-${randomUUID()}`;
       await store.ensureWorkspace(workspaceId);
-      // Both requests reach storage before either takes the real row lock. An encrypted blob
+      // All requests reach storage before any takes the real row lock. An encrypted blob
       // prepared by the manager before this boundary therefore cannot know the allocated version.
       const rotate = store.rotateCredential.bind(store);
       let release!: () => void;
@@ -20,7 +20,7 @@ it.skipIf(!process.env.OVO_TEST_POSTGRES_URL)(
       let requests = 0;
       const rotateCredential: CredentialStore['rotateCredential'] = async (...args) => {
         requests += 1;
-        if (requests === 2) release();
+        if (requests === 8) release();
         await ready;
         return rotate(...args);
       };
@@ -42,13 +42,15 @@ it.skipIf(!process.env.OVO_TEST_POSTGRES_URL)(
         createdBy: 'test',
       });
       const rotations = await Promise.all(
-        ['second', 'third'].map(async (value) => ({
+        Array.from({ length: 8 }, (_, index) => `rotation-${index + 2}`).map(async (value) => ({
           value,
           metadata: await secrets.rotate(workspaceId, credential.id, value),
         })),
       );
-      expect(rotations.map(({ metadata }) => metadata.currentVersion).sort()).toEqual([2, 3]);
-      const final = rotations.find(({ metadata }) => metadata.currentVersion === 3)!;
+      expect(
+        rotations.map(({ metadata }) => metadata.currentVersion).sort((a, b) => a - b),
+      ).toEqual(Array.from({ length: 8 }, (_, index) => index + 2));
+      const final = rotations.find(({ metadata }) => metadata.currentVersion === 9)!;
       await expect(secrets.resolve(workspaceId, credential.id)).resolves.toBe(final.value);
     } finally {
       await store.close();

@@ -76,7 +76,10 @@ export function sessionSecretFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ) {
   const configured = env.OVO_SESSION_SECRET;
-  if (env.NODE_ENV === 'production' && (!configured || Buffer.byteLength(configured, 'utf8') < 32))
+  if (
+    env.NODE_ENV === 'production' &&
+    (!configured?.trim() || Buffer.byteLength(configured.trim(), 'utf8') < 32)
+  )
     throw new Error('Production OVO_SESSION_SECRET requires at least 32 bytes (UTF-8)');
   if (configured) return configured;
   if (!localSessionSecret) {

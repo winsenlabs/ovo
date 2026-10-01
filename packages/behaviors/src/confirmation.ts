@@ -26,6 +26,9 @@ export class ToolConfirmation {
   beginTurn(epoch: number): void {
     this.epoch = epoch;
   }
+  expire(): void {
+    if (this.pending) this.resolve('expired');
+  }
   get waiting(): boolean {
     return !!this.pending;
   }

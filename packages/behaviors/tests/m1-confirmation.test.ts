@@ -126,4 +126,20 @@ describe('M1 production agent confirmations', () => {
     ]);
     expect(events[1]).toMatchObject({ result: 'confirmed' });
   });
+
+  it('expires a pending confirmation on cancellation without executing the write', async () => {
+    const { behavior, effects } = fixture();
+    const events: BehaviorEvent[] = [];
+    behavior.subscribe?.((event) => events.push(event));
+    behavior.beginTurn(0);
+    const prompt = await behavior.respond('pay');
+    expect(behavior.speechKind?.(prompt)).toBe('confirmation');
+    behavior.cancel?.();
+    expect(events).toEqual([
+      expect.objectContaining({ type: 'confirmation.pending' }),
+      expect.objectContaining({ type: 'confirmation.resolved', result: 'expired' }),
+    ]);
+    expect(behavior.speechKind?.(prompt)).toBeUndefined();
+    expect(effects).toHaveLength(0);
+  });
 });
