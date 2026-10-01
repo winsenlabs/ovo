@@ -1,19 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PostgresOrchestrationStore } from '@winsendotai/ovo-plugin-orchestration';
 import { randomUUID } from 'node:crypto';
-import { Cap } from '@winsendotai/ovo-contracts';
+import { Cap, type BackgroundTask } from '@winsendotai/ovo-contracts';
 import { dispatcherIdentity, openDispatcherProcess } from './dispatcher-process.ts';
 import { startDispatcher } from './main.ts';
-
-async function until<T>(read: () => Promise<T>, ready: (value: T) => boolean): Promise<T> {
-  const deadline = Date.now() + 8_000;
-  while (Date.now() < deadline) {
-    const value = await read();
-    if (ready(value)) return value;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error('Dispatcher production task did not complete within 8 seconds');
-}
 
 describe('dispatcher process entry', () => {
   it('uses ECS TaskARN as the replica identity when metadata supplies one', async () => {
@@ -81,13 +71,49 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('dispatcher production profi
     }
   });
 
-  it('starts unhealthy, then publishes a durable signal and runs the installed hint sweeper', async () => {
+  it('serves 503 while the first capacity input is pending', async () => {
     let releaseRead = () => {};
+    let markReading = () => {};
     const readGate = new Promise<void>((resolve) => {
       releaseRead = resolve;
     });
-    let reading = false;
+    const readStarted = new Promise<void>((resolve) => {
+      markReading = resolve;
+    });
     const runtime = await startDispatcher({
+      env: {
+        DATABASE_URL: databaseUrl,
+        OVO_ORGANIZATION_ID: 'dispatcher-health-test',
+        OVO_QUEUE_URL: 'http://127.0.0.1:1/unused-jobs',
+        OVO_DLQ_URL: 'http://127.0.0.1:1/unused-dlq',
+        OVO_SQS_ENDPOINT: 'http://127.0.0.1:1',
+        OVO_DEPLOYMENT_PROFILE: 'compose',
+        OVO_CAPACITY_SIGNAL: 'log',
+        OVO_INBOUND_ENABLED: 'false',
+        AWS_REGION: 'us-east-1',
+        AWS_EC2_METADATA_DISABLED: 'true',
+      },
+      readProvisionedTasks: async () => {
+        markReading();
+        await readGate;
+        return 2;
+      },
+      host: '127.0.0.1',
+      port: 0,
+    });
+    try {
+      await readStarted;
+      const address = runtime.server.address();
+      if (!address || typeof address === 'string') throw new Error('Expected TCP test server');
+      expect((await fetch(`http://127.0.0.1:${address.port}/health`)).status).toBe(503);
+    } finally {
+      releaseRead();
+      await runtime.close();
+    }
+  });
+
+  it('publishes a durable signal and runs the installed hint sweeper', async () => {
+    const runtime = await openDispatcherProcess({
       env: {
         DATABASE_URL: databaseUrl,
         OVO_ORGANIZATION_ID: 'dispatcher-profile-test',
@@ -101,13 +127,7 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('dispatcher production profi
         AWS_REGION: 'us-east-1',
         AWS_EC2_METADATA_DISABLED: 'true',
       },
-      readProvisionedTasks: async () => {
-        reading = true;
-        await readGate;
-        return 2;
-      },
-      host: '127.0.0.1',
-      port: 0,
+      readProvisionedTasks: async () => 2,
     });
     const id = randomUUID();
     const store = runtime.composition.get(Cap.orchestrationStore) as {
@@ -125,11 +145,7 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('dispatcher production profi
         expect(runtime.composition.get(key), `missing ${key}`).toBeDefined();
       }
       expect(runtime.composition.all(Cap.backgroundTask).size).toBeGreaterThanOrEqual(2);
-      const address = runtime.server.address();
-      if (!address || typeof address === 'string') throw new Error('Expected TCP test server');
-      const healthUrl = `http://127.0.0.1:${address.port}/health`;
-      await until(async () => reading, Boolean);
-      expect((await fetch(healthUrl)).status).toBe(503);
+      expect(runtime.loop.health()).toMatchObject({ healthy: false, detail: 'initializing' });
       await store.pool.query(
         `INSERT INTO ovo_jobs (id, workspace_id, idempotency_key, payload, status,
            not_before, hinted_at, hint_count)
@@ -137,12 +153,14 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('dispatcher production profi
            now(), NULL, 0)`,
         [id, id],
       );
-      releaseRead();
-      const response = await until(
-        () => fetch(healthUrl),
-        (value) => value.status === 200,
-      );
-      expect(await response.json()).toMatchObject({
+      const sweeper = runtime.composition
+        .all(Cap.backgroundTask)
+        .get('@winsendotai/ovo-plugin-orchestration/job-hint-sweeper') as
+        BackgroundTask | undefined;
+      expect(sweeper).toBeDefined();
+      await sweeper!.tick(new AbortController().signal);
+      await runtime.loop.capacityTick();
+      expect(runtime.loop.health()).toMatchObject({
         healthy: true,
         lastCapacity: { provisionedTasks: 2 },
       });
@@ -150,21 +168,16 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('dispatcher production profi
         `SELECT signal FROM ovo_capacity_signal_latest WHERE service_key='workers'`,
       );
       expect(saved.rows[0]?.signal).toBeDefined();
-      const swept = await until(
-        async () =>
-          (
-            await store.pool.query(
-              `SELECT j.hint_count, count(o.id)::int AS outbox_count FROM ovo_jobs j
+      const swept = (
+        await store.pool.query(
+          `SELECT j.hint_count, count(o.id)::int AS outbox_count FROM ovo_jobs j
          LEFT JOIN ovo_outbox o ON o.aggregate_id=j.id AND o.topic='job.eligible'
          WHERE j.id=$1 GROUP BY j.id`,
-              [id],
-            )
-          ).rows[0],
-        (value) => Number(value?.hint_count) >= 1 && Number(value?.outbox_count) >= 1,
-      );
+          [id],
+        )
+      ).rows[0];
       expect(swept).toMatchObject({ hint_count: 1, outbox_count: 1 });
     } finally {
-      releaseRead();
       await store.pool.query('DELETE FROM ovo_outbox WHERE aggregate_id=$1', [id]);
       await store.pool.query('DELETE FROM ovo_jobs WHERE id=$1', [id]);
       await runtime.close();

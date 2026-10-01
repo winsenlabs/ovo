@@ -47,7 +47,7 @@ export async function readDispatcherCapacityInput(input: {
       snapshot.counts.draining,
   };
   return {
-    nowMs: input.nowMs?.() ?? Date.now(),
+    nowMs: Math.max(input.nowMs?.() ?? Date.now(), snapshot.observedAtMs),
     observedAtMs: snapshot.observedAtMs,
     maxMetricAgeMs: positiveInteger(input.env, 'OVO_CAPACITY_MAX_AGE_MS', 15_000),
     counts,

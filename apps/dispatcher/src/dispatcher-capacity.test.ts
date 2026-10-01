@@ -24,6 +24,21 @@ function ports() {
 }
 
 describe('dispatcher capacity input', () => {
+  it('accepts a fresh database snapshot when the database clock leads the app clock', async () => {
+    const { store, operations } = ports();
+    const input = await readDispatcherCapacityInput({
+      store: store as never,
+      operations: operations as never,
+      env: {},
+      readProvisionedTasks: async () => 2,
+      nowMs: () => 999_930,
+    });
+    expect(input.nowMs).toBe(1_000_000);
+    expect(computeCapacitySignal(input)).toBeDefined();
+    const stale = { ...input, nowMs: 1_020_000 };
+    expect(computeCapacitySignal(stale)).toBeUndefined();
+  });
+
   it('does not add the warm floor when inbound is disabled, even if the floor is positive', async () => {
     const { store, operations } = ports();
     const base = {
