@@ -52,6 +52,7 @@ export async function validateRelease(
       tool.remoteName !== approval.remoteName ||
       tool.schemaDigest !== approval.schemaDigest ||
       !discovered ||
+      discovered.removedAt ||
       discovered.schemaDigest !== approval.schemaDigest ||
       !toolDefinitionMatchesDiscovery(tool, {
         remoteName: discovered.remoteName,

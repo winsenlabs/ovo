@@ -38,6 +38,9 @@ async function protectLegacyV4(client: import('pg').PoolClient): Promise<void> {
 }
 
 export async function runControlMigrations(pool: Pool): Promise<void> {
+  for (const [index, migration] of migrations.entries())
+    if (migration.version !== index + 1)
+      throw new Error(`Control migration list skips version ${index + 1}`);
   for (const migration of migrations) {
     await transaction(pool, async (client) => {
       await client.query("SELECT pg_advisory_xact_lock(hashtext('ovo-control-migrations-v1'))");
@@ -59,6 +62,14 @@ export async function runControlMigrations(pool: Pool): Promise<void> {
           throw new Error(`Control migration ${migration.version} checksum changed`);
         return;
       }
+      const higher = await client.query<{ version: number | null }>(
+        'SELECT MIN(version) AS version FROM ovo_control_schema_migrations WHERE version>$1',
+        [migration.version],
+      );
+      if (higher.rows[0]?.version != null)
+        throw new Error(
+          `Control migration ${migration.version} is missing before recorded version ${higher.rows[0].version}`,
+        );
       if (migration.version === 4) await protectLegacyV4(client);
       await client.query(migration.sql);
       await client.query(

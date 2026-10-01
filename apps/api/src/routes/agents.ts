@@ -5,6 +5,7 @@ import { validateSelections } from '@winsendotai/ovo-session-host';
 import { PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { CompatIssue } from '@winsendotai/ovo-contracts';
 import { buildReleaseSelections } from '../release-selections.ts';
+import { discoveredAllowedMcpTools } from '../mcp-discovered-state.ts';
 
 const releaseCode = (message: string): CompatIssue['code'] =>
   /binding|credential/i.test(message)
@@ -163,6 +164,7 @@ export function registerAgentsRoutes(dependencies: any) {
           registry,
           defaults: distributionDefaults,
           bindings: Object.fromEntries(bindingRows),
+          discoveredMcpTools: await discoveredAllowedMcpTools(agent, store),
         },
         'release',
       ).filter((issue) => issue.severity === 'error');

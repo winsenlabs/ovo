@@ -128,7 +128,9 @@ export class ReleasesRepository {
         .prepare('SELECT * FROM mcp_connections WHERE workspace_id=? AND id=?')
         .get(input.workspaceId, String(approval.connection_id)) as Row | undefined;
       const discovered = this.db
-        .prepare('SELECT * FROM mcp_discovered_tools WHERE connection_id=? AND remote_name=?')
+        .prepare(
+          'SELECT * FROM mcp_discovered_tools WHERE connection_id=? AND remote_name=? AND removed_at IS NULL',
+        )
         .get(String(approval.connection_id), String(approval.remote_name)) as Row | undefined;
       if (
         !connection ||

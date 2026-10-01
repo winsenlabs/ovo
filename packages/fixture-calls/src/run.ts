@@ -89,7 +89,7 @@ export function runFixtureCall(input: FixtureCallInput): {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId))
     throw new TypeError('Fixture call ID must be a UUID');
   const config = normalizeAgentConfig(
-    structuredClone(source.config),
+    source.config,
     input.registry,
     Object.fromEntries(Object.values(source.providerBindings ?? {}).map((row) => [row.id, row])),
     input.defaults ?? { engine: source.selections?.engine?.pluginId ?? '' },

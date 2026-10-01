@@ -143,6 +143,37 @@ describe('NodeSqliteControlStore', () => {
       plugins: [{ id: 'behavior.context', version: '1.0.0' }],
       createdBy: 'operator',
     });
+    const tombstonedDraft = await store.createAgent(
+      'workspace-a',
+      AgentConfig.parse({ ...agent.config, name: 'Tombstoned MCP draft' }),
+    );
+    await store.upsertMcpApproval({
+      workspaceId: 'workspace-a',
+      agentId: tombstonedDraft.id,
+      toolId: 'lookup',
+      connectionId: connection.id,
+      remoteName: 'lookup',
+      schemaDigest: 'sha256:lookup',
+    });
+    await store.replaceMcpDiscoveredTools('workspace-a', connection.id, []);
+    await expect(
+      store.createRelease({
+        workspaceId: 'workspace-a',
+        agent: tombstonedDraft,
+        plugins: [{ id: 'behavior.context', version: '1.0.0' }],
+        createdBy: 'operator',
+      }),
+    ).rejects.toThrow('not currently approved');
+    expect((await store.listReleases('workspace-a', tombstonedDraft.id, 50)).items).toEqual([]);
+    await store.replaceMcpDiscoveredTools('workspace-a', connection.id, [
+      {
+        remoteName: 'lookup',
+        description: 'Lookup',
+        inputSchema: { type: 'object' },
+        outputSchema: null,
+        schemaDigest: 'sha256:lookup',
+      },
+    ]);
     await store.updateProviderBinding('workspace-a', binding.id, {
       label: binding.label,
       provider: binding.provider,

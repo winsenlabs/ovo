@@ -152,7 +152,8 @@ export class PostgresReleasesRepository {
         ),
         client.query<Row>(
           `SELECT * FROM ovo_ctl_mcp_discovered_tools
-             WHERE workspace_id=$1 AND connection_id=$2 AND remote_name=$3 FOR SHARE`,
+             WHERE workspace_id=$1 AND connection_id=$2 AND remote_name=$3
+               AND removed_at IS NULL FOR SHARE`,
           [input.workspaceId, approval.connection_id, approval.remote_name],
         ),
       ]);

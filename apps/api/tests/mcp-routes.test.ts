@@ -5,6 +5,7 @@ import {
   ConnectorPolicyError,
 } from '../../../packages/plugin-tools/src/index.ts';
 import { createHttpConnector } from '../../../packages/plugin-tools-http/src/index.ts';
+import { selectedSpeechFixture, selectedSpeechVoice } from './selected-speech-fixture.ts';
 
 const definition: ToolDefinition = {
   id: 'write',
@@ -107,10 +108,6 @@ it('presents removed MCP tools and refuses reapproval through the management API
   let dispose: (() => Promise<void>) | undefined;
   try {
     await store.ensureWorkspace('workspace');
-    const agent = await store.createAgent(
-      'workspace',
-      AgentConfig.parse({ name: 'MCP', mode: 'announcement', message: 'Hello' }),
-    );
     const connection = await store.createMcpConnection({
       workspaceId: 'workspace',
       label: 'Remote',
@@ -118,9 +115,31 @@ it('presents removed MCP tools and refuses reapproval through the management API
       auth: 'none',
     });
     const schemaDigest = 'fixture-digest';
+    const config = AgentConfig.parse({
+      name: 'MCP',
+      mode: 'announcement',
+      message: 'Hello',
+      voice: selectedSpeechVoice,
+      tools: [
+        {
+          id: 'lookup',
+          description: 'Lookup',
+          connector: 'mcp',
+          connectionId: connection.id,
+          remoteName: 'lookup',
+          schemaDigest,
+          inputSchema: {},
+          effect: 'read',
+        },
+      ],
+      allowedTools: ['lookup'],
+    });
+    const agent = await store.createAgent('workspace', config);
+    const laterAgent = await store.createAgent('workspace', config);
     await store.replaceMcpDiscoveredTools('workspace', connection.id, [
       { remoteName: 'lookup', description: '', inputSchema: {}, outputSchema: null, schemaDigest },
     ]);
+    await store.setMcpConnectionStatus('workspace', connection.id, 'ready');
     await store.upsertMcpApproval({
       workspaceId: 'workspace',
       agentId: agent.id,
@@ -129,11 +148,19 @@ it('presents removed MCP tools and refuses reapproval through the management API
       remoteName: 'lookup',
       schemaDigest,
     });
-    await store.replaceMcpDiscoveredTools('workspace', connection.id, []);
+    await store.upsertMcpApproval({
+      workspaceId: 'workspace',
+      agentId: laterAgent.id,
+      toolId: 'lookup',
+      connectionId: connection.id,
+      remoteName: 'lookup',
+      schemaDigest,
+    });
     const { app, composition } = await buildManagementApi({
       databaseFile: filename,
       secretsMasterKey: Buffer.alloc(32, 3).toString('base64'),
       sessionSecret: 'fixture-session-key',
+      pluginCatalog: [selectedSpeechFixture],
       identities: [
         {
           id: 'admin',
@@ -146,6 +173,34 @@ it('presents removed MCP tools and refuses reapproval through the management API
     });
     dispose = () => composition.dispose();
     const headers = { authorization: 'Bearer token' };
+    const accepted = await app.inject({
+      method: 'POST',
+      url: `/v1/agents/${agent.id}/releases`,
+      headers,
+      payload: {},
+    });
+    expect(accepted.statusCode, accepted.body).toBe(201);
+    await store.replaceMcpDiscoveredTools('workspace', connection.id, []);
+    const rejected = await app.inject({
+      method: 'POST',
+      url: `/v1/agents/${laterAgent.id}/releases`,
+      headers,
+      payload: {},
+    });
+    expect(rejected.statusCode, rejected.body).toBe(422);
+    expect(rejected.json().blockers).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'mcp_tool_removed' })]),
+    );
+    await expect(
+      store.createRelease({
+        workspaceId: 'workspace',
+        agent: laterAgent,
+        plugins: accepted.json().plugins,
+        selections: accepted.json().selections,
+        createdBy: 'admin',
+      }),
+    ).rejects.toThrow('MCP tool lookup is not currently approved');
+    expect((await store.listReleases('workspace', laterAgent.id, 50)).items).toEqual([]);
     const listed = await app.inject({
       method: 'GET',
       url: `/v1/mcp-connections/${connection.id}/tools`,

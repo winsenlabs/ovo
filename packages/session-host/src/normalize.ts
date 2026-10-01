@@ -32,11 +32,12 @@ export function normalizeAgentConfig(
   bindings: Readonly<Record<string, NormalizationBinding>>,
   defaults: SessionDefaults,
 ): NormalizedAgentConfig {
-  const voice: AgentVoice = { textFilters: [], acknowledgements: [], ...config.voice };
+  const source = structuredClone(config);
+  const voice: AgentVoice = { textFilters: [], acknowledgements: [], ...source.voice };
   const warnings: string[] = [];
   for (const { field, slot, kind } of LEGACY) {
     if (voice[slot]) continue;
-    const bindingId = config.providers[field];
+    const bindingId = source.providers[field];
     if (!bindingId) continue;
     const binding = bindings[bindingId];
     if (!binding) throw new Error(`Legacy ${field} binding is missing: ${bindingId}`);
@@ -62,5 +63,5 @@ export function normalizeAgentConfig(
       if (registry.get(id)) voice.textFilters.push({ plugin: id, config: {} });
       else warnings.push(`Optional text filter is not installed: ${id}`);
     }
-  return { config: { ...config, voice }, warnings };
+  return { config: { ...source, voice }, warnings };
 }

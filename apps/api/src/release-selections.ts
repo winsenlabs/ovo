@@ -41,7 +41,7 @@ export async function buildReleaseSelections(input: {
     input.bindingRows?.set(id, binding);
   }
   const normalized = normalizeAgentConfig(
-    structuredClone(agent.config),
+    agent.config,
     registry,
     Object.fromEntries(bindings),
     input.defaults,

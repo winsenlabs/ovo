@@ -22,11 +22,17 @@ export function metersFor(
     if (!selection) continue;
     const definition = registry.resolvePin(selection.pluginId, selection.version).definition;
     const binding = selection.binding?.config ?? {};
-    for (const meter of manifestKeys(definition.manifest).manifest.meters ?? []) {
-      if (meter.role !== slot) continue;
+    const declared = (manifestKeys(definition.manifest).manifest.meters ?? []).filter(
+      (meter) => meter.role === slot,
+    );
+    let applicable = 0;
+    for (const meter of declared) {
       if (meter.when && !meter.when.in.includes(String(binding[meter.when.field] ?? ''))) continue;
       out.push({ slot, pluginId: definition.manifest.id, meter });
+      applicable++;
     }
+    if (declared.length && !applicable)
+      throw new Error(`No applicable ${slot} meter for selected plugin ${definition.manifest.id}`);
   }
   return out;
 }

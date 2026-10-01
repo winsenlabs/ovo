@@ -149,7 +149,7 @@ export async function fixtureDraft(
   });
   const registry = new PluginRegistry([...(input.catalog ?? []), ...generated]);
   const selections = await buildReleaseSelections({
-    agent: structuredClone(agent),
+    agent,
     store: input.store,
     registry,
     defaults: input.distributionDefaults ?? {

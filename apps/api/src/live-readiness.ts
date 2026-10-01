@@ -4,6 +4,7 @@ import { validateSelections, type SessionDefaults } from '@winsendotai/ovo-sessi
 import { sessionRequiresInput } from '@winsendotai/ovo-session-host/input-policy';
 import { type PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { InfrastructureService } from './infrastructure-types.ts';
+import { discoveredAllowedMcpTools } from './mcp-discovered-state.ts';
 
 /** Advisory snapshot; live admission rechecks the immutable release and worker lease. */
 export async function liveReadiness(
@@ -26,25 +27,7 @@ export async function liveReadiness(
       : sessionRequiresInput(agent.config)
         ? 'provider'
         : undefined;
-  const discoveredMcpTools = await Promise.all(
-    agent.config.tools
-      .filter((tool) => tool.connector === 'mcp' && agent.config.allowedTools.includes(tool.id))
-      .map(async (tool) => {
-        const found =
-          tool.connectionId && tool.remoteName
-            ? await store.getMcpDiscoveredTool(
-                agent.workspaceId,
-                tool.connectionId,
-                tool.remoteName,
-              )
-            : undefined;
-        return {
-          connectionId: tool.connectionId ?? '',
-          remoteName: tool.remoteName ?? '',
-          removedAt: found?.removedAt ?? (!found ? 'missing' : null),
-        };
-      }),
-  );
+  const discoveredMcpTools = await discoveredAllowedMcpTools(agent, store);
   const details: CompatIssue[] = validateSelections(
     {
       config: agent.config,
