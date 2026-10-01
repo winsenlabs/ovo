@@ -62,14 +62,14 @@ import { createFakeCarrier, createScriptedTts, realClock, withEgressSentinel } f
   );
 }, 60000);
 
-it('the image and API build use glibc and preserve native dependencies as externals', async () => {
+it('the image and every engine-reaching app build use glibc and preserve native dependencies as externals', async () => {
   await withEgressSentinel(
     async () => {
       const docker = await readFile(`${root}infra/container/Dockerfile`, 'utf8');
       expect(docker).not.toContain('alpine');
       expect(docker.match(/FROM node:24\.8\.0-bookworm-slim/g)).toHaveLength(6);
       expect(docker).toContain('RUN pnpm --filter @winsendotai/ovo-api build');
-      for (const app of ['worker', 'api', 'media-gateway']) {
+      for (const app of ['worker', 'api', 'media-gateway', 'dispatcher']) {
         const script = JSON.parse(await readFile(`${root}apps/${app}/package.json`, 'utf8')).scripts
           .build;
         for (const external of ['@livekit/*', 'sharp', 'onnxruntime-node'])

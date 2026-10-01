@@ -39,6 +39,7 @@ it('loads through production distribution and composes the lazy engine with its 
   const stt = createScriptedStt();
   const tts = createScriptedTts();
   const receipts: string[] = [];
+  const receivedVariables: Record<string, unknown>[] = [];
   const host = definePlugin(
     {
       id: 'e3-test-host',
@@ -58,8 +59,10 @@ it('loads through production distribution and composes the lazy engine with its 
       ctx.provide(Cap.clock, realClock);
       ctx.provide(Cap.usage, () => {});
       ctx.provide(Cap.behavior, {
-        async respond(text, variables) {
-          expect(variables).toEqual({ name: 'Asha' });
+        async respond(text, variables = {}) {
+          receivedVariables.push(structuredClone(variables));
+          if (receivedVariables.length === 1)
+            (variables.profile as { name: string }).name = 'Mutated by Behavior';
           return `Received ${text}.`;
         },
         onPlayback(receipt) {
@@ -80,7 +83,7 @@ it('loads through production distribution and composes the lazy engine with its 
             mode: 'faq',
             language: 'en-US',
             inputEnabled: true,
-            variables: { name: 'Asha' },
+            variables: { profile: { name: 'Asha' } },
             maxCallSeconds: 60,
             acknowledgements: [],
           },
@@ -96,10 +99,19 @@ it('loads through production distribution and composes the lazy engine with its 
     const progress = speech.speak('Queued before engine start.', { kind: 'progress' });
     await engine.start();
     expect((await progress).state).toBe('completed');
-    (await stt.session()).say('hello fixture');
+    const sttSession = await stt.session();
+    sttSession.say('hello fixture');
     await vi.waitFor(() => expect(receipts).toContain('Received hello fixture.'), {
       timeout: 10000,
     });
+    sttSession.say('again fixture');
+    await vi.waitFor(() => expect(receipts).toContain('Received again fixture.'), {
+      timeout: 10000,
+    });
+    expect(receivedVariables).toEqual([
+      { profile: { name: 'Asha' } },
+      { profile: { name: 'Asha' } },
+    ]);
     expect(carrier.log.some((entry) => entry.type === 'audio')).toBe(true);
     const actual = engine as unknown as {
       session: { tools: unknown[]; llm: unknown; on: (event: string, fn: () => void) => void };
