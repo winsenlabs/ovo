@@ -1,6 +1,7 @@
 export * from './abort.ts';
 export * from './ai-sdk-inference.ts';
 export * from './fixture-net.ts';
+export { decodeBase64 } from './fixture-match.ts';
 export * from './http.ts';
 export * from './legacy-cost-meters.ts';
 export * from './net.ts';

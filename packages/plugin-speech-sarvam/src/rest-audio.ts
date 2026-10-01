@@ -1,4 +1,5 @@
 import type { AudioFormat } from '@winsendotai/ovo-contracts';
+import { decodeBase64 } from '@winsendotai/ovo-plugin-kit';
 
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 
@@ -8,7 +9,7 @@ function fourcc(bytes: Uint8Array, offset: number): string {
 
 /** Sarvam REST may wrap the requested native codec in a RIFF/WAVE envelope. */
 export function decodeRestAudio(encoded: string, requested: AudioFormat): Uint8Array {
-  const audio = Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0));
+  const audio = decodeBase64(encoded);
   if (!audio.byteLength || audio.byteLength > MAX_AUDIO_BYTES)
     throw new Error('Sarvam TTS REST returned an invalid audio size');
   if (fourcc(audio, 0) !== 'RIFF') {

@@ -4,7 +4,7 @@ import type {
   SynthesisInput,
   WebSocketLike,
 } from '@winsendotai/ovo-contracts';
-import { decimal, syntheticRequestId, usageOnce } from '@winsendotai/ovo-plugin-kit';
+import { decimal, decodeBase64, syntheticRequestId, usageOnce } from '@winsendotai/ovo-plugin-kit';
 import { sarvamSpeaker, sarvamTextLimit } from './tts-options.ts';
 import type { SarvamTtsBinding } from './tts.ts';
 
@@ -201,8 +201,4 @@ export class SarvamTtsSession implements IncrementalTts {
     this.cancelPing?.();
     for (const off of this.offs.splice(0)) off();
   }
-}
-
-function decodeBase64(value: string): Uint8Array {
-  return Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
 }
