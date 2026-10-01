@@ -1,4 +1,5 @@
 import {
+  Cap,
   capabilitySpec,
   normalizeManifest,
   parseCapabilityEntry,
@@ -38,10 +39,11 @@ export function manifestKeys(manifest: Manifest): ManifestKeys {
 }
 
 /** A provider of a cardinality-'many' key registers under `${key}:${qualifier}`. */
-export function qualifierOf(manifest: Manifest): string {
+export function qualifierOf(key: string, manifest: Manifest): string {
   if (
-    manifest.contractVersion === 2 &&
-    (manifest.kind === 'text-filter' || manifest.kind === 'audio-filter')
+    key === Cap.backgroundTask ||
+    (manifest.contractVersion === 2 &&
+      (manifest.kind === 'text-filter' || manifest.kind === 'audio-filter'))
   )
     return manifest.id;
   return (manifest.contractVersion === 2 && manifest.provider) || manifest.id;
@@ -79,7 +81,7 @@ export function resolveGraph(
       const provider = { definition, major: entry.major };
       if (isMany(entry.key)) {
         const byQualifier = many.get(entry.key) ?? new Map<string, Provider>();
-        const qualifier = qualifierOf(definition.manifest);
+        const qualifier = qualifierOf(entry.key, definition.manifest);
         if (byQualifier.has(qualifier))
           throw new Error(`Ambiguous service: ${entry.key}:${qualifier}`);
         many.set(entry.key, byQualifier.set(qualifier, provider));

@@ -61,7 +61,7 @@ export function createFacade(ctx: Context, options: FacadeOptions): GuardedConte
     if (!providable.has(key))
       report('provide-undeclared', key, `provide-undeclared: ${manifest.id} provided ${key}`);
   };
-  const serviceName = (key: string) => (isMany(key) ? `${key}:${qualifierOf(manifest)}` : key);
+  const serviceName = (key: string) => (isMany(key) ? `${key}:${qualifierOf(key, manifest)}` : key);
   const lookup = (key: string, strict?: boolean): unknown => {
     if (isMany(key)) throw new Error(`${key} has cardinality many; read it with ctx.all()`);
     // A plugin's own services are not active until its apply returns; read those non-strictly.

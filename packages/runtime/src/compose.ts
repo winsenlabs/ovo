@@ -113,7 +113,7 @@ export async function compose(
       await startHostHalf(scope!.ctx.fiber, plugin, config);
       for (const entry of keys.provides) {
         const name = isMany(entry.key)
-          ? `${entry.key}:${qualifierOf(definition.manifest)}`
+          ? `${entry.key}:${qualifierOf(entry.key, definition.manifest)}`
           : entry.key;
         if (scope!.ctx.get(name) === undefined)
           throw new Error(`Plugin did not provide ${entry.key}`);

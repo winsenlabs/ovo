@@ -38,7 +38,7 @@ describe('cardinality many (§3.4)', () => {
     expect(keys.sort()).toEqual(['markdown', 'url']);
     await composed.dispose();
   });
-  it('lets several providers of a many-key compose, qualified by provider or id', async () => {
+  it('lets background tasks compose with stable plugin IDs', async () => {
     const started: string[] = [];
     let seen: ReadonlyMap<string, unknown> | undefined;
     const runner = v2Plugin(
@@ -60,15 +60,34 @@ describe('cardinality many (§3.4)', () => {
     );
     // A plugin that requires a many-key depends on ALL of its providers.
     expect(started).toEqual(['sweeper-plugin', 'reconciler', 'runner']);
-    expect([...seen!.keys()].sort()).toEqual(['reconciler', 'sweeper']);
-    expect((seen!.get('sweeper') as BackgroundTask).id).toBe('sweeper');
+    expect([...seen!.keys()].sort()).toEqual(['reconciler', 'sweeper-plugin']);
+    expect((seen!.get('sweeper-plugin') as BackgroundTask).id).toBe('sweeper');
     expect(Object.isFrozen(seen)).toBe(true);
     expect(() => (seen as Map<string, unknown>).set('x', 1)).toThrow('read-only');
     expect([...composition.all('ovo.background-task').keys()].sort()).toEqual([
       'reconciler',
-      'sweeper',
+      'sweeper-plugin',
     ]);
-    expect(composition.ctx.get('ovo.background-task:sweeper')).toMatchObject({ id: 'sweeper' });
+    expect(composition.ctx.get('ovo.background-task:sweeper-plugin')).toMatchObject({
+      id: 'sweeper',
+    });
+    await composition.dispose();
+  });
+
+  it('composes two background tasks from the same provider without losing either task', async () => {
+    const first = taskPlugin('first-task', 'same');
+    const second = taskPlugin('second-task', 'same');
+    const composition = await compose(
+      [{ id: first.manifest.id }, { id: second.manifest.id }],
+      [first, second],
+      { scope: 'process' },
+    );
+    expect([...composition.all('ovo.background-task').keys()].sort()).toEqual([
+      'first-task',
+      'second-task',
+    ]);
+    expect(composition.all('ovo.background-task').get('first-task')).toMatchObject({ id: 'same' });
+    expect(composition.all('ovo.background-task').get('second-task')).toMatchObject({ id: 'same' });
     await composition.dispose();
   });
 
@@ -82,11 +101,21 @@ describe('cardinality many (§3.4)', () => {
     await composition.dispose();
   });
 
-  it('rejects two providers with the same qualifier, and keeps Ambiguous for one-keys', () => {
-    const a = taskPlugin('a', 'same');
-    const b = taskPlugin('b', 'same');
+  it('rejects two carriers with the same provider qualifier, and keeps Ambiguous for one-keys', () => {
+    const a = v2Plugin({
+      id: 'a',
+      provider: 'same',
+      scope: 'process',
+      provides: ['ovo.carrier.control'],
+    });
+    const b = v2Plugin({
+      id: 'b',
+      provider: 'same',
+      scope: 'process',
+      provides: ['ovo.carrier.control'],
+    });
     expect(() => resolveGraph([{ id: 'a' }, { id: 'b' }], [a, b])).toThrow(
-      'Ambiguous service: ovo.background-task:same',
+      'Ambiguous service: ovo.carrier.control:same',
     );
     const clockA = v1Plugin('clock-a', ['ovo.clock']);
     const clockB = v1Plugin('clock-b', ['ovo.clock']);
