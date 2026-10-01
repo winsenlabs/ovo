@@ -42,3 +42,19 @@ it('rejects real inference prototypes even though their constructors are named S
     );
   }
 });
+
+it('refuses each LLM and tool-context input independently', async () => {
+  const { inference } = await import('@livekit/agents');
+  const { assertSession } = await import('../src/guards.ts');
+  const check = (llm: unknown, tools: unknown[], contextTools: unknown[]) =>
+    assertSession(
+      { llm, tools } as never,
+      { toolCtx: { tools: contextTools } } as never,
+      inference,
+    );
+
+  expect(() => check(undefined, [], [])).not.toThrow();
+  expect(() => check({}, [], [])).toThrow('refuses an LLM or tool context');
+  expect(() => check(undefined, [{}], [])).toThrow('refuses an LLM or tool context');
+  expect(() => check(undefined, [], [{}])).toThrow('refuses an LLM or tool context');
+});

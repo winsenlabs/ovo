@@ -72,6 +72,7 @@ it('the image and every engine-reaching app build use glibc and preserve native 
       for (const app of ['worker', 'api', 'media-gateway', 'dispatcher']) {
         const script = JSON.parse(await readFile(`${root}apps/${app}/package.json`, 'utf8')).scripts
           .build;
+        expect(script).toContain('--target=node24');
         for (const external of ['@livekit/*', 'sharp', 'onnxruntime-node'])
           expect(script).toContain(`--external:${external}`);
       }
