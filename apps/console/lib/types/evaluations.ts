@@ -24,21 +24,7 @@ export interface EvaluationDatasetVersion {
   createdAt: string;
   createdBy: string;
 }
-export interface ProviderEvaluationAuthorization {
-  id: string;
-  workspaceId: string;
-  releaseId: string;
-  releaseFingerprint: string;
-  bindingVersion: string;
-  provider: string;
-  modelId: string;
-  budgetId: string;
-  maximumReservationPaise: string;
-  createdBy: string;
-  createdAt: string;
-  revokedBy?: string;
-  revokedAt?: string;
-}
+export type { ProviderEvaluationAuthorization } from '@winsendotai/ovo-contracts';
 export interface EvaluationRunRecord {
   id: string;
   datasetId: string;
@@ -71,12 +57,4 @@ export interface EvaluationCaseResult {
   durationMs: number;
   createdAt: string;
 }
-export interface EvaluationComparison {
-  baselineRunId: string;
-  candidateRunId: string;
-  baseline: { passed: number; failed: number; total: number };
-  candidate: { passed: number; failed: number; total: number };
-  regressions: string[];
-  fixes: string[];
-  unchangedFailures: string[];
-}
+export type { EvaluationRunComparison as EvaluationComparison } from '@winsendotai/ovo-contracts';

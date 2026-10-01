@@ -7,6 +7,20 @@ export interface PriceCard {
   minorUnitsPerBlock: string;
   blockQuantity: string;
 }
+export interface PriceCardVersion extends PriceCard {
+  effectiveAt: string;
+  provenance: string;
+}
+export interface FxVersion {
+  id: string;
+  version: string;
+  baseCurrency: string;
+  quoteCurrency: 'INR';
+  rateNumerator: string;
+  rateDenominator: string;
+  effectiveAt: string;
+  provenance: string;
+}
 export interface Usage {
   id: string;
   workspaceId: string;

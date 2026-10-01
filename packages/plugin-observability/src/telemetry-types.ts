@@ -1,3 +1,6 @@
+import type { PerformanceGroupResult, PerformanceResult } from '@winsendotai/ovo-contracts';
+export type { PerformanceGroupResult, PerformanceResult } from '@winsendotai/ovo-contracts';
+
 export const TELEMETRY_SCHEMA_VERSION = 1 as const;
 
 export type TelemetrySource = 'live' | 'simulation' | 'test';
@@ -106,27 +109,6 @@ export interface PerformanceQuery {
   source?: TelemetrySource;
   maxGroups?: number;
   callLimit?: number;
-}
-
-export interface PerformanceGroupResult {
-  cohort: Partial<Record<PerformanceGroup, string | null>>;
-  eventCount: number;
-  sampleCount: number;
-  callCount: number;
-  errors: number;
-  timeouts: number;
-  p50Ms: number | null;
-  p95Ms: number | null;
-  p99Ms: number | null;
-  callIds: string[];
-}
-
-export interface PerformanceResult {
-  from: string;
-  to: string;
-  bucket: 'hour' | 'day';
-  groups: PerformanceGroupResult[];
-  truncated: boolean;
 }
 
 export interface StageProjection {

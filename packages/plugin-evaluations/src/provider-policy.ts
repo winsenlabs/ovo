@@ -1,5 +1,10 @@
 import { createHash } from 'node:crypto';
-import { inferenceMeterKey, type InferenceMeterUnit } from '@winsendotai/ovo-contracts';
+import {
+  inferenceMeterKey,
+  type InferenceMeterUnit,
+  type ProviderEvaluationAuthorization,
+} from '@winsendotai/ovo-contracts';
+export type { ProviderEvaluationAuthorization } from '@winsendotai/ovo-contracts';
 import type { EvaluationCostLedger } from './cost-ledger.ts';
 import type { ReleaseEvaluationSnapshot } from './types.ts';
 
@@ -17,22 +22,6 @@ export interface ProviderEvaluationPolicy {
   modelId: string;
   bindingVersion: string;
   priceCards: ReadonlyMap<string, ProviderEvaluationPriceReference>;
-}
-
-export interface ProviderEvaluationAuthorization {
-  id: string;
-  workspaceId: string;
-  releaseId: string;
-  releaseFingerprint: string;
-  bindingVersion: string;
-  provider: string;
-  modelId: string;
-  budgetId: string;
-  maximumReservationPaise: string;
-  createdBy: string;
-  createdAt: string;
-  revokedBy?: string;
-  revokedAt?: string;
 }
 
 export interface ProviderEvaluationAuthorizationResolver {

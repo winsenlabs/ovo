@@ -120,12 +120,4 @@ export interface Page<T> {
   items: T[];
   nextCursor?: string;
 }
-export interface RunComparison {
-  baselineRunId: string;
-  candidateRunId: string;
-  baseline: { passed: number; failed: number; total: number };
-  candidate: { passed: number; failed: number; total: number };
-  regressions: string[];
-  fixes: string[];
-  unchangedFailures: string[];
-}
+export type { EvaluationRunComparison as RunComparison } from '@winsendotai/ovo-contracts';

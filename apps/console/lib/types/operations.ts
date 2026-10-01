@@ -1,26 +1,6 @@
-export interface PerformanceGroupResult {
-  cohort: Partial<
-    Record<
-      'agent' | 'release' | 'provider' | 'model' | 'language' | 'stage' | 'source' | 'time',
-      string | null
-    >
-  >;
-  eventCount: number;
-  sampleCount: number;
-  callCount: number;
-  errors: number;
-  timeouts: number;
-  p50Ms: number | null;
-  p95Ms: number | null;
-  p99Ms: number | null;
-  callIds: string[];
-}
-export interface PerformanceResult {
-  from: string;
-  to: string;
-  bucket: 'hour' | 'day';
-  groups: PerformanceGroupResult[];
-  truncated: boolean;
+import type { PerformanceResult as BasePerformanceResult } from '@winsendotai/ovo-contracts';
+export type { PerformanceGroupResult } from '@winsendotai/ovo-contracts';
+export interface PerformanceResult extends BasePerformanceResult {
   ingestion: null | {
     accepted: number;
     dropped: number;

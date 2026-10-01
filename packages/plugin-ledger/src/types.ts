@@ -1,3 +1,6 @@
+import type { FxVersion, PriceCardVersion } from '@winsendotai/ovo-contracts';
+export type { FxVersion, PriceCardVersion } from '@winsendotai/ovo-contracts';
+
 export type UsageSourceKind =
   | 'carrier'
   | 'media'
@@ -10,29 +13,6 @@ export type UsageSourceKind =
   | 'shared';
 
 export type UsageActivity = 'normal' | 'failed-attempt' | 'transfer' | 'retry' | 'startup' | 'idle';
-
-export interface PriceCardVersion {
-  id: string;
-  version: string;
-  provider: string;
-  unit: string;
-  currency: string;
-  minorUnitsPerBlock: string;
-  blockQuantity: string;
-  effectiveAt: string;
-  provenance: string;
-}
-
-export interface FxVersion {
-  id: string;
-  version: string;
-  baseCurrency: string;
-  quoteCurrency: 'INR';
-  rateNumerator: string;
-  rateDenominator: string;
-  effectiveAt: string;
-  provenance: string;
-}
 
 export interface RecordUsageInput {
   idempotencyKey: string;
