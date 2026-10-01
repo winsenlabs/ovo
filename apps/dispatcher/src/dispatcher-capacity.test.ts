@@ -24,6 +24,19 @@ function ports() {
 }
 
 describe('dispatcher capacity input', () => {
+  it('counts a provisioned task missing from the worker snapshot as starting', async () => {
+    const { store, operations } = ports();
+    const input = await readDispatcherCapacityInput({
+      store: store as never,
+      operations: operations as never,
+      env: {},
+      readProvisionedTasks: async () => 3,
+      nowMs: () => 1_001_000,
+    });
+    expect(input.counts).toMatchObject({ readyIdle: 2, starting: 1, total: 3 });
+    expect(computeCapacitySignal(input)).toMatchObject({ provisionedTasks: 3 });
+  });
+
   it('accepts a fresh database snapshot when the database clock leads the app clock', async () => {
     const { store, operations } = ports();
     const input = await readDispatcherCapacityInput({
