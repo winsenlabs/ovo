@@ -20,7 +20,7 @@ export type MediaCommand =
   { type: 'audio'; payload: Uint8Array } | { type: 'mark'; name: string } | { type: 'clear' };
 
 export interface UpgradeRequest {
-  /** The full request URL INCLUDING its query (Exotel carries sid/rt/t there). */
+  /** The full request URL including raw query bytes when the carrier sends them. */
   url: URL;
   /** Public origin (+ explicit non-default port) + exact path, NO query. */
   externalUrl: string;
@@ -48,7 +48,7 @@ export interface MediaSerializer {
 export interface MediaCodecSession {
   /** Throws `CarrierProtocolError` on a malformed frame. */
   decode(text: string): CarrierMediaEvent[];
-  /** Owns chunking (Exotel: 320 B multiples, at least 3,200 B, at most 100 KB). */
+  /** Owns carrier-specific chunking and frame-size limits. */
   encode(command: MediaCommand): string[];
   /** Pads and emits the remainder before a mark or close. */
   flush(): string[];

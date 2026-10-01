@@ -12,7 +12,7 @@ export interface CarrierCapabilities {
     clear: boolean;
     clearFlushesMarkers: boolean | 'unknown';
     dtmf: boolean;
-    /** Exotel true (its dynamic URL may carry at most 3 pairs); Twilio and Plivo false. */
+    /** Whether a media URL may carry carrier-specific authenticated query parameters. */
     queryOnMediaUrl: boolean;
   };
   control: {

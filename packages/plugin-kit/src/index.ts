@@ -2,6 +2,7 @@ export * from './abort.ts';
 export * from './ai-sdk-inference.ts';
 export * from './fixture-net.ts';
 export * from './http.ts';
+export * from './legacy-cost-meters.ts';
 export * from './net.ts';
 export * from './provider-socket.ts';
 export * from './speech-shims.ts';

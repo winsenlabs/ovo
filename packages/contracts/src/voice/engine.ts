@@ -1,6 +1,6 @@
 import { Mode } from '../agent.ts';
 import type { AudioFormat } from '../audio.ts';
-import { Acknowledgement } from '../selection.ts';
+import { MODEL_LICENCE_ACKNOWLEDGEMENT_PATTERN, type Acknowledgement } from '../selection.ts';
 import type { CallOutcome, EndReason } from './end-reason.ts';
 import type { SpeechEvidence } from './evidence.ts';
 
@@ -39,7 +39,12 @@ export const SESSION_INPUT_JSON_SCHEMA: Record<string, unknown> = deepFreeze({
     acknowledgements: {
       type: 'array',
       uniqueItems: true,
-      items: { type: 'string', enum: [...Acknowledgement.options] },
+      items: {
+        anyOf: [
+          { const: 'weak-playback-evidence' },
+          { type: 'string', pattern: MODEL_LICENCE_ACKNOWLEDGEMENT_PATTERN },
+        ],
+      },
     },
   },
   additionalProperties: false,

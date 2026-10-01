@@ -16,7 +16,7 @@ export interface MediaDuplex {
   mark(name: string, signal?: AbortSignal): Promise<void>;
   clear(signal?: AbortSignal): Promise<void>;
   onAudio(fn: (bytes: Uint8Array, tsMs: number) => void): () => void;
-  /** Twilio mark, Plivo playedStream, Exotel mark. */
+  /** Notification that a carrier has acknowledged a named playback marker. */
   onPlayed(fn: (name: string) => void): () => void;
   onCleared(fn: () => void): () => void;
   onDtmf(fn: (digit: string) => void): () => void;

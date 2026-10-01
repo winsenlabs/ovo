@@ -13,7 +13,7 @@ export interface SpeechCapabilities {
   inputFormats?: readonly AudioFormat[];
   /** TTS: native formats, in preference order. */
   outputFormats?: readonly AudioFormat[];
-  /** For example AssemblyAI {min: 50, max: 1000, preferred: 100}. */
+  /** For example {min: 50, max: 1000, preferred: 100}. */
   frameMs?: { min: number; max: number; preferred: number };
   /** BCP-47 tags, or '*'. */
   languages: readonly string[];

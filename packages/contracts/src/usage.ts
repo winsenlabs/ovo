@@ -40,8 +40,7 @@ const OPERATION_SEGMENT: Readonly<Record<UsageOperation, string>> = Object.freez
 });
 
 /**
- * `${provider}.${operation segment}.${unit}`. Reproduces 'deepgram.streaming-stt.audio_seconds',
- * 'openai.streaming-tts.characters', 'twilio.carrier.audio_seconds' and 'openai.inference.*_tokens'.
+ * `${provider}.${operation segment}.${unit}`. The provider comes from the selected plugin.
  * `op` overrides the operation segment (for example 'batch-stt').
  */
 export const meterKey = (

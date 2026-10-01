@@ -24,11 +24,10 @@ export const VoiceSelection = z
 export type VoiceSelection = z.infer<typeof VoiceSelection>;
 
 /** Explicit per-release acknowledgements that relax a compatibility rule or accept a model licence. */
-export const Acknowledgement = z.enum([
-  'weak-playback-evidence',
-  'model-licence:livekit-turn-detector',
-  'model-licence:silero',
-  'model-licence:smart-turn',
+export const MODEL_LICENCE_ACKNOWLEDGEMENT_PATTERN = '^model-licence:[a-z0-9][a-z0-9-]*$';
+export const Acknowledgement = z.union([
+  z.literal('weak-playback-evidence'),
+  z.string().regex(new RegExp(MODEL_LICENCE_ACKNOWLEDGEMENT_PATTERN)),
 ]);
 export type Acknowledgement = z.infer<typeof Acknowledgement>;
 

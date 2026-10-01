@@ -11,7 +11,7 @@ import {
 } from '../src/index.ts';
 
 describe('selection model', () => {
-  it('lists the voice slots and acknowledgements exactly', () => {
+  it('lists voice slots and validates plugin-defined model licence acknowledgements', () => {
     expect(Slot.options).toEqual([
       'engine',
       'carrier',
@@ -22,12 +22,12 @@ describe('selection model', () => {
       'turnDetector',
       'audioFilter',
     ]);
-    expect(Acknowledgement.options).toEqual([
-      'weak-playback-evidence',
-      'model-licence:livekit-turn-detector',
-      'model-licence:silero',
-      'model-licence:smart-turn',
-    ]);
+    expect(Acknowledgement.parse('weak-playback-evidence')).toBe('weak-playback-evidence');
+    expect(Acknowledgement.parse('model-licence:future-turn-model')).toBe(
+      'model-licence:future-turn-model',
+    );
+    expect(() => Acknowledgement.parse('model-licence:')).toThrow();
+    expect(() => Acknowledgement.parse('model-licence:../other')).toThrow();
   });
 
   it('fills voice defaults and keeps selections strict', () => {
