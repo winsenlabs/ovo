@@ -1,7 +1,5 @@
-import type { AudioFormat } from '../../contracts/src/audio.ts';
-import type { VoiceMediaTransport } from '../../contracts/src/speech/legacy.ts';
+import type { AudioFormat, VoiceMediaTransport } from '@winsendotai/ovo-contracts';
 
-/** Local contract adapter until I1 adds the recordings manifest dependency. */
 export function supportedRecordingFormat(format: AudioFormat): boolean {
   return (
     format.channels === 1 &&

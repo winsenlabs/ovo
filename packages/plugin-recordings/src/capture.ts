@@ -1,6 +1,6 @@
 import type { LiveRecordingService } from './live-service.ts';
 import type { LiveRecording, RecordingTimelineEvent, RecordingTrack } from './types.ts';
-import { MULAW_8K } from '../../contracts/src/audio.ts';
+import { MULAW_8K } from '@winsendotai/ovo-contracts';
 import {
   recordingBytesPerSecond,
   supportedRecordingFormat,

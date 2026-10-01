@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type { AudioFormat } from '../../contracts/src/audio.ts';
+import type { AudioFormat } from '@winsendotai/ovo-contracts';
 import { supportedRecordingFormat } from './capture-types.ts';
 import type { ObjectBackend } from './backend.ts';
 import type { RecordingRepository } from './repository.ts';

@@ -1,4 +1,4 @@
-import type { AudioFormat } from '../../contracts/src/audio.ts';
+import type { AudioFormat } from '@winsendotai/ovo-contracts';
 import { recordingBytesPerSecond, supportedRecordingFormat } from './capture-types.ts';
 
 /** Header for a mono raw recording track, preserving its captured encoding and rate. */
