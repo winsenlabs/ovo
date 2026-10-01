@@ -13,6 +13,7 @@ import {
 } from '../primitives';
 import { parseFollowUpInputs, simulationRequest, type SimulationMode } from './simulation-request';
 import { SimulationPanel } from './simulation-panel';
+import { loadAgents } from '../../lib/pagination';
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 export function TestAndEvaluationView({
@@ -37,12 +38,12 @@ export function TestAndEvaluationView({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ data: evaluationPayload }, { data: agentPayload }] = await Promise.all([
+      const [{ data: evaluationPayload }, agentPayload] = await Promise.all([
         apiRequest<unknown>('/evaluations'),
-        apiRequest<unknown>('/agents'),
+        loadAgents<Record<string, unknown>>(),
       ]);
       setEvaluations(items(evaluationPayload));
-      const agents = items<Record<string, unknown>>(agentPayload)
+      const agents = agentPayload
         .filter((agent) => agent.config)
         .map((agent) => normalizeDraft(agent));
       const histories = await Promise.all(

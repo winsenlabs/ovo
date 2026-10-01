@@ -15,6 +15,7 @@ import {
   type Release,
 } from '../../lib/api';
 import { describeError } from '../../lib/errors';
+import { loadAgents } from '../../lib/pagination';
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'conflict';
 export function useAgentStudio(extensions: readonly ConsoleExtension[], preferredAgentId?: string) {
   const [agents, setAgents] = useState<AgentDraft[]>([]);
@@ -38,14 +39,14 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[], preferre
     setLoadError(undefined);
     setSelected(undefined);
     try {
-      const [{ data: agentPayload }, bindingResult, preferredResult] = await Promise.all([
-        apiRequest<unknown>('/agents'),
+      const [agentPayload, bindingResult, preferredResult] = await Promise.all([
+        loadAgents<Record<string, unknown>>(),
         apiRequest<unknown>('/provider-bindings').catch(() => ({ data: { items: [] } })),
         preferredAgentId
           ? apiRequest<unknown>(`/agents/${encodeURIComponent(preferredAgentId)}`)
           : Promise.resolve(undefined),
       ]);
-      const summaries = items<Record<string, unknown>>(agentPayload);
+      const summaries = agentPayload;
       const drafts = summaries.filter((item) => item.config).map((item) => normalizeDraft(item));
       const preferred = preferredResult
         ? normalizeDraft(preferredResult.data, preferredResult.etag)

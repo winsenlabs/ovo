@@ -1,4 +1,5 @@
-import { apiRequest, items, type Release } from '../../lib/api';
+import { items, type Release } from '../../lib/api';
+import { allPages, loadAgents } from '../../lib/pagination';
 
 export interface ReleaseOption extends Release {
   agentName: string;
@@ -13,19 +14,22 @@ export function agentChoiceRows(data: unknown): Array<{ id: string; name: string
   }));
 }
 
+export async function loadAgentChoices(): Promise<Array<{ id: string; name: string }>> {
+  return agentChoiceRows(await loadAgents<unknown>());
+}
+
 export async function loadAgentReleaseOptions(): Promise<ReleaseOption[]> {
-  const { data } = await apiRequest<unknown>('/agents');
-  const agents = agentChoiceRows(data);
-  const histories = await Promise.all(
+  const agents = await loadAgentChoices();
+  const histories = await Promise.allSettled(
     agents.map(async (agent) => {
-      const response = await apiRequest<unknown>(
-        `/agents/${encodeURIComponent(agent.id)}/releases`,
-      );
-      return items<Release>(response.data).map((release) => ({
+      const releases = await allPages<Release>(`/agents/${encodeURIComponent(agent.id)}/releases`);
+      return releases.map((release) => ({
         ...release,
         agentName: agent.name,
       }));
     }),
   );
-  return histories.flat();
+  const successful = histories.filter((result) => result.status === 'fulfilled');
+  if (agents.length && !successful.length) throw (histories[0] as PromiseRejectedResult).reason;
+  return successful.flatMap((result) => result.value);
 }

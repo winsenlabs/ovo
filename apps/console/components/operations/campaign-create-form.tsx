@@ -6,7 +6,7 @@ import { useFormAction } from '../forms/use-form-action';
 import { useOperationId } from '../../lib/ids';
 import { EmptyState, Field } from '../primitives';
 import { CampaignContactImport } from './campaign-contact-import';
-import { agentChoiceRows } from './agent-release-options';
+import { loadAgentChoices } from './agent-release-options';
 
 export function CampaignCreateForm({
   onCreated,
@@ -23,9 +23,8 @@ export function CampaignCreateForm({
   const formAction = useFormAction();
   const operationId = useOperationId();
   useEffect(() => {
-    apiRequest<unknown>('/agents')
-      .then(({ data }) => {
-        const rows = agentChoiceRows(data);
+    loadAgentChoices()
+      .then((rows) => {
         setAgents(rows);
         setAgentId(rows[0]?.id ?? '');
       })

@@ -15,6 +15,7 @@ import { LoadingBlock } from './primitives';
 import { CredentialManager } from './integrations/credentials';
 import { BindingManager } from './integrations/bindings';
 import { McpManager } from './integrations/mcp';
+import { loadAgents } from '../lib/pagination';
 const safeMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 export function Integrations({
@@ -38,7 +39,7 @@ export function Integrations({
       apiRequest<unknown>('/credentials'),
       apiRequest<unknown>('/provider-bindings'),
       apiRequest<unknown>('/mcp-connections'),
-      apiRequest<unknown>('/agents'),
+      loadAgents<Record<string, unknown>>(),
     ]);
     const [credentialResult, bindingResult, connectionResult, agentResult] = results;
     if (credentialResult.status === 'fulfilled') setCredentials(items(credentialResult.value.data));
@@ -50,9 +51,7 @@ export function Integrations({
     if (connectionResult.status === 'fulfilled') setConnections(items(connectionResult.value.data));
     if (agentResult.status === 'fulfilled')
       setAgents(
-        items<Record<string, unknown>>(agentResult.value.data)
-          .filter((value) => value.config)
-          .map((value) => normalizeDraft(value)),
+        agentResult.value.filter((value) => value.config).map((value) => normalizeDraft(value)),
       );
     loaded.current = true;
     setLoading(false);

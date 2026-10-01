@@ -9,6 +9,7 @@ import {
 } from '../../lib/api';
 import { Field, Panel, PanelHeader, StatusBadge } from '../primitives';
 import { JsonEditor } from '../forms/json-editor';
+import { loadAgents } from '../../lib/pagination';
 
 type LaunchReceipt = {
   callId: string;
@@ -42,9 +43,8 @@ export function LiveCallForm({
 
   useEffect(() => {
     if (role !== 'admin') return;
-    apiRequest<unknown>('/agents')
-      .then(({ data }) => {
-        const next = items<AgentDraft>(data);
+    loadAgents<AgentDraft>()
+      .then((next) => {
         setAgents(next);
         setAgentId((current) => current || next[0]?.id || '');
       })

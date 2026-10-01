@@ -20,6 +20,7 @@ import {
   type ProviderEvaluationAvailability,
 } from './evaluation-provider-state';
 import { EvaluationRunForm } from './evaluation-run-form';
+import { loadAgents } from '../../lib/pagination';
 
 const newKey = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -64,8 +65,7 @@ export function EvaluationRunsPanel({
 
   useEffect(() => {
     void Promise.all([
-      apiRequest<unknown>('/agents').then(({ data }) => {
-        const next = items<AgentDraft>(data);
+      loadAgents<AgentDraft>().then((next) => {
         setAgents(next);
         setAgentId(next[0]?.id ?? '');
       }),
