@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { compose, type PluginContext } from '../src/index.ts';
 import { v1Plugin, v2Plugin } from './support.ts';
+import { withExpectedViolations } from './expected-violations.ts';
 
 /** The process graph: a process-scope operations service, a net port and a session-only key. */
 async function processGraph() {
@@ -71,20 +72,27 @@ describe('scope and parent composition (§3.5)', () => {
     await parent.dispose();
   });
 
-  it('serves only declared parent keys through the facade', async () => {
-    const { parent } = await processGraph();
-    let read: unknown = 'unset';
-    const snoop = v1Plugin('snoop', [], [], (ctx) => {
-      read = ctx.get('ovo.operations');
-    });
-    const composition = await compose([{ id: 'snoop' }], [snoop], { parent, enforcement: 'warn' });
-    expect(read).toBeUndefined();
-    expect(composition.violations).toMatchObject([
-      { kind: 'read-undeclared', key: 'ovo.operations' },
-    ]);
-    await composition.dispose();
-    await parent.dispose();
-  });
+  it('serves only declared parent keys through the facade', async () =>
+    withExpectedViolations(
+      [{ pluginId: 'snoop', kind: 'read-undeclared', key: 'ovo.operations' }],
+      async () => {
+        const { parent } = await processGraph();
+        let read: unknown = 'unset';
+        const snoop = v1Plugin('snoop', [], [], (ctx) => {
+          read = ctx.get('ovo.operations');
+        });
+        const composition = await compose([{ id: 'snoop' }], [snoop], {
+          parent,
+          enforcement: 'warn',
+        });
+        expect(read).toBeUndefined();
+        expect(composition.violations).toMatchObject([
+          { kind: 'read-undeclared', key: 'ovo.operations' },
+        ]);
+        await composition.dispose();
+        await parent.dispose();
+      },
+    ));
 
   it('rejects a scope mismatch only when a scope is given', async () => {
     const processPlugin = v1Plugin('process-only', ['x'], [], (ctx) => void ctx.provide('x', 1), {
