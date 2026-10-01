@@ -287,7 +287,7 @@ export const HOST_SESSION_SERVICES = [
 ] as const;
 ```
 
-`capabilities/map.ts` is type-only. It maps each key to its interface. For a key with cardinality `many`, `ctx.all(key)` returns a `ReadonlyMap<string, T>` keyed by provider.
+`capabilities/map.ts` is type-only. It maps each key to its interface. For a key with cardinality `many`, `ctx.all(key)` returns a `ReadonlyMap<string, T>` keyed by the capability's qualifier. Carrier control and ingress use the provider; background tasks and text/audio filters use the plugin ID, so independent plugins from one provider remain distinct.
 
 **Engine companions.**
 
@@ -1268,7 +1268,7 @@ The host's own code keeps using the raw `composition.ctx`.
 
 ### 3.4 Cardinality `many`
 
-- The facade registers a provided value under `${key}:${manifest.provider ?? manifest.id}`.
+- The facade registers a provided value under `${key}:${qualifier}`. Carrier control and ingress use `manifest.provider ?? manifest.id`; background tasks and text/audio filters use `manifest.id`.
 - `resolveGraph` allows several providers of a many-key, as long as their qualifiers differ.
 - A plugin that requires a many-key depends on **all** of that key's providers. Zero providers is allowed.
 - `ctx.all(key)` returns a frozen map.

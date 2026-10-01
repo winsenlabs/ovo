@@ -140,6 +140,19 @@ CONSTRAINTS:
 
 ## Incoming checker obligations (2026-09-27)
 
+### I1 checker note: many-capability identity (2026-10-02)
+
+The F3 carry-forward requires two background tasks from the same provider to
+compose, while design §3.4 originally used `manifest.provider ?? manifest.id`
+for every many-key. Background tasks are independent plugin instances, so I1
+keys them by stable plugin ID, as text and audio filters already are. The
+runtime test composes two same-provider task plugins; restoring provider
+qualification fails with `Ambiguous service: ovo.background-task:same`.
+Carrier control and ingress still use provider qualification because their
+public contracts and API/worker lookups use provider keys. Supporting multiple
+carrier plugins for one provider needs a separate contract decision before
+changing those maps or selection lookups.
+
 - **E3 design drafting repair (2026-10-01):** amend §15.2 to name E3's
   `scripts/build.mjs` exception already granted by §15.5, as it names C2/O1's
   distribution profile exceptions. Reconcile §15.2, §15.5 and the F4 owner map
