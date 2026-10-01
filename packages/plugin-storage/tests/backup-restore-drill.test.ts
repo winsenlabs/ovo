@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -31,7 +32,9 @@ suite('executable PostgreSQL backup and restore drill', () => {
   beforeAll(async () => {
     sourceUrl = databaseUrl(sourceName);
     targetUrl = databaseUrl(targetName);
-    scratch = await mkdtemp('/var/tmp/ovo-restore-drill-');
+    // Docker Desktop/Colima can mount the shared repository path but not macOS /var/tmp.
+    await mkdir('.data', { recursive: true });
+    scratch = await mkdtemp(join(process.cwd(), '.data/ovo-restore-drill-'));
     const admin = new Pool({ connectionString: adminUrl });
     await admin.query(`CREATE DATABASE ${sourceName}`);
     await admin.query(`CREATE DATABASE ${targetName}`);
@@ -210,6 +213,8 @@ suite('executable PostgreSQL backup and restore drill', () => {
       connectionString: targetUrl,
       organizationId: workspaceId,
     });
+    // The production host arms admission before requests; this drill exercises restored rows.
+    operations.inboundGateway.setInstalledCarrierPlugins([], 'restore-fixture');
     expect(
       await operations.campaigns.authorizeDial(
         fixture.operationContactId,
@@ -217,9 +222,10 @@ suite('executable PostgreSQL backup and restore drill', () => {
         fixture.staleOperationEpoch,
       ),
     ).toMatchObject({ kind: 'blocked' });
+    // Restored unknown contacts still occupy concurrency until reconciliation.
     expect(
       await operations.campaigns.admit(fixture.operationCampaignId, 'must-not-readmit', 60_000),
-    ).toEqual({ kind: 'empty' });
+    ).toEqual({ kind: 'capacity_exhausted' });
     expect(await operations.outbox.claim('must-not-dispatch-restored', 100)).toEqual([]);
     const contactStates = await operations.pool.query<{ id: string; state: string }>(
       'SELECT id,state FROM ovo_ops_campaign_contacts WHERE id=ANY($1::uuid[]) ORDER BY id',
