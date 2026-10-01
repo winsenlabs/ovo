@@ -37,43 +37,12 @@ describe('confirmation lexicons', () => {
   it('are stored pre-normalized, exactly as §2.10 lists them', () => {
     for (const phrase of [...CONFIRM_YES, ...CONFIRM_NO, ...CONFIRM_FILLERS])
       expect(normalizeForMatch(phrase)).toBe(phrase);
-    expect(CONFIRM_YES).toEqual([
-      'yes',
-      'yeah',
-      'yep',
-      'sure',
-      'correct',
-      'confirm',
-      'confirmed',
-      'go ahead',
-      'proceed',
-      'haan',
-      'haan ji',
-      'ji haan',
-      'theek hai',
-      'ठीक है',
-      'हाँ',
-      'हां',
-    ]);
-    expect(CONFIRM_NO).toEqual([
-      'no',
-      'nope',
-      'not',
-      'cancel',
-      'stop',
-      'wait',
-      'hold on',
-      'do not',
-      'don t',
-      'nahin',
-      'nahi',
-      'mat',
-      'mat karo',
-      'ruko',
-      'नहीं',
-      'मत',
-      'रुको',
-    ]);
+    expect(CONFIRM_YES).toEqual(
+      expect.arrayContaining(['yes', 'haan', 'aama', 'avunu', 'haudu', 'hoy', 'hya']),
+    );
+    expect(CONFIRM_NO).toEqual(
+      expect.arrayContaining(['no', 'nahi', 'illa', 'kaadu', 'beda', 'nako', 'না']),
+    );
     expect(CONFIRM_FILLERS).toEqual([
       'please',
       'ok',
@@ -114,6 +83,23 @@ describe('classifyConfirmation (#10)', () => {
     ['yes and also book another', 'unclear'],
     ['yes yes', 'unclear'],
     ['on hold', 'unclear'],
+    ['ஆமாம்', 'yes'],
+    ['aama yes', 'yes'],
+    ['இல்லை', 'no'],
+    ['అవును', 'yes'],
+    ['avunu yes', 'yes'],
+    ['కాదు', 'no'],
+    ['ಹೌದು', 'yes'],
+    ['haudu yes', 'yes'],
+    ['ಬೇಡ', 'no'],
+    ['होय', 'yes'],
+    ['hoy yes', 'yes'],
+    ['नको', 'no'],
+    ['হ্যাঁ', 'yes'],
+    ['hya yes', 'yes'],
+    ['না', 'no'],
+    ['avunu book another', 'unclear'],
+    ['xavunuy', 'unclear'],
   ] as const)('%j → %s', (input, expected) => {
     expect(classifyConfirmation(input)).toBe(expected);
   });

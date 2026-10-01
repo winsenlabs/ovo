@@ -27,6 +27,21 @@ export function countWords(text: string, language: string): number {
 }
 
 /** Pre-normalized (fixed points of `normalizeForMatch`) and matched on whole token sequences. */
+const MULTILINGUAL_YES = {
+  tamil: ['ஆமாம்', 'ஆம்', 'aama', 'aama yes'],
+  telugu: ['అవును', 'avunu', 'avunu yes'],
+  kannada: ['ಹೌದು', 'haudu', 'haudu yes'],
+  marathi: ['होय', 'hoy', 'hoy yes'],
+  bengali: ['হ্যাঁ', 'hya', 'hya yes'],
+};
+const MULTILINGUAL_NO = {
+  tamil: ['இல்லை', 'வேண்டாம்', 'illa'],
+  telugu: ['వద్దు', 'కాదు', 'kaadu'],
+  kannada: ['ಬೇಡ', 'ಇಲ್ಲ', 'beda'],
+  marathi: ['नको', 'nako'],
+  bengali: ['না', 'নয়', 'na no'],
+};
+
 export const CONFIRM_YES: readonly string[] = Object.freeze([
   'yes',
   'yeah',
@@ -44,6 +59,8 @@ export const CONFIRM_YES: readonly string[] = Object.freeze([
   'ठीक है',
   'हाँ',
   'हां',
+  // Transliterations and mixed English forms support code-mixed ASR.
+  ...Object.values(MULTILINGUAL_YES).flat(),
 ]);
 
 export const CONFIRM_NO: readonly string[] = Object.freeze([
@@ -64,6 +81,7 @@ export const CONFIRM_NO: readonly string[] = Object.freeze([
   'नहीं',
   'मत',
   'रुको',
+  ...Object.values(MULTILINGUAL_NO).flat(),
 ]);
 
 export const CONFIRM_FILLERS: readonly string[] = Object.freeze([
