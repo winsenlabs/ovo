@@ -47,7 +47,39 @@ This board is the single source of truth for unit status. The specs in this fold
 
 | Unit                    | Title                                               | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ----------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [I1](I1-integration.md) | Integration, full verification, docs and PM updates | **In progress (2026-10-02).** All unheld build units are verified and merged. I1 removed legacy bridges, defined post-I1 contracts, ran the selected Twilio/Plivo and speech matrix, repaired the restore drill, and updated integration guidance. Node 22 combined bar: 1,989/235 default; fresh PostgreSQL 17.6 serial with all four database gates 2,200/24/0; browser 41/1; lint, format, typecheck, builds and Terraform validation exit 0. Module-size, pending, runtime, architecture, provider-name and conformance baselines are empty; duplication has 13 justified pairs and capability keys have 33 justified file entries. Exotel matrix rows, its skeleton exemption and remaining I1 carry-forwards are open; C3/C5/C6 stay founder-held. |
+| [I1](I1-integration.md) | Integration, full verification, docs and PM updates | **In progress (2026-10-02).** All unheld build units are verified and merged. I1 removed legacy bridges, defined post-I1 contracts, ran the selected Twilio/Plivo and speech matrix, repaired the restore drill, and updated integration guidance. Node 22 combined bar: 2,006/238 default; fresh PostgreSQL 17.6 serial with all four database gates 2,220/24/0; browser 41/1; lint, format, typecheck, builds and Terraform validation exit 0. Module-size, pending, runtime, architecture, provider-name and conformance baselines are empty; duplication has 13 justified pairs and capability keys have 33 justified file entries. Exotel matrix rows, its skeleton exemption and remaining I1 carry-forwards are open; C3/C5/C6 stay founder-held. |
+
+### I1 checkpoint: 2026-10-02
+
+The current combined tree passes the full Node 22 gate: frozen offline install,
+seven lint gates, format, typecheck, build, Terraform validation and console E2E
+all exit 0. Default Vitest has 2,006 passed + 238 skipped = 2,244. Fresh
+PostgreSQL 17.6 serial with `OVO_TEST_POSTGRES_URL`,
+`RECORDING_TEST_DATABASE_URL`, `LEDGER_TEST_DATABASE_URL` and
+`OVO_BACKUP_DRILL_POSTGRES_URL` has 2,220 passed + 24 skipped = 2,244. Of the
+238 default skips, 214 are database-gated; three newly added gateway-startup
+cases account for the increase from 211. The 24 remaining skips are macOS
+LiveKit native-binding rows. Console E2E has 41 passed + one viewport skip.
+
+I1 discharged the C2 callback-identity, minimum pre-accept budget,
+legacy-frame conversion, recordings public-contract import and synthetic
+absent-capability checks; the multi-carrier environment default; the D1
+fixture-switch and static STT coverage; and O1's dispatcher timing and
+starting-task/Terraform assertions. The dispatcher timing cleanup exposed a
+real PostgreSQL/host clock lead: `readDispatcherCapacityInput` now floors its
+clock at the database observation while stale snapshots still fail closed.
+The E3 engine-kit timing sweep found another immediate observation after an
+interrupted receipt; clear, interrupt and flushed-mark checks now use bounded
+waits, and the no-clear broken engine fails on the timeout path. The kit's
+other engine scenarios were reviewed for causal event ordering; remaining
+non-engine conformance checks and the open carry-forwards below still need
+resolution before I1 handoff.
+
+The O1 request to narrow the text of already-shipped orchestration migration
+006 conflicts with the immutable-migration checksum rule. I1 has not edited
+that migration: doing so would make existing databases refuse startup. Its
+broader `%status%` predicate remains recorded for an explicit forward-only
+repair decision. C3, C5 and C6 remain founder-held on vendor evidence.
 
 ## Post-I1 roadmap
 
