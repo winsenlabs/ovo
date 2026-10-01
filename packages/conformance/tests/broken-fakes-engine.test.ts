@@ -190,7 +190,7 @@ describe('checkEngine rejects broken playback evidence and clear ordering', () =
       {},
       { only: ['barge-in clears media'] },
     );
-    expect(messages(failures)).toMatch(/media was never cleared|the barged-in segment was/);
+    expect(messages(failures)).toMatch(/barge-in media\.clear|the barged-in segment was/);
   }, 60_000);
 });
 

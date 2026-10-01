@@ -39,23 +39,17 @@ export const SPEECH_SCENARIOS: readonly EngineScenario[] = [
         () => h.receipts().some((r) => /public holidays/.test(r.receipt.text)),
         'the interrupted receipt',
       );
+      await h.until(() => h.carrier.log.some((e) => e.type === 'clear'), 'barge-in media.clear');
+      await h.until(() => h.events().some((e) => e.type === 'interrupt'), 'the interrupt event');
+      await h.until(
+        () => h.carrier.log.some((e) => e.type === 'played' && e.flushed),
+        'the flushed pending mark',
+      );
       const receipt = h.receipts().find((r) => /public holidays/.test(r.receipt.text))!.receipt;
       f.expect(receipt.state === 'interrupted', `the barged-in segment was ${receipt.state}`);
       f.expect(
-        h.carrier.log.some((e) => e.type === 'clear'),
-        'media was never cleared',
-      );
-      f.expect(
-        h.events().some((e) => e.type === 'interrupt'),
-        'no interrupt event',
-      );
-      f.expect(
         !h.phases(/public holidays/).some((p) => p.phase === 'completed'),
         'a cleared segment completed',
-      );
-      f.expect(
-        h.carrier.log.some((e) => e.type === 'played' && e.flushed),
-        'the carrier never flushed a pending mark (scenario inconclusive)',
       );
       f.expect(
         receipt.evidence !== 'confirmed',
@@ -100,31 +94,36 @@ export const SPEECH_SCENARIOS: readonly EngineScenario[] = [
       await h.say('hello there');
       const promptDone = () => h.receipts().some((r) => PROMPT.test(r.receipt.text));
       await h.until(
-        () => respondSeq(h, /^yes$/i) !== undefined || promptDone(),
-        "the 'yes' turn or the prompt's end",
+        () => respondSeq(h, /^hello there$/i) !== undefined || promptDone(),
+        "the interruption turn or the prompt's end",
       );
       await sleep(400);
-      const yes = respondSeq(h, /^yes$/i);
-      if (yes === undefined) {
-        // The engine discarded 'yes' over what it saw as ordinary speech: nothing may execute.
+      const interruption = respondSeq(h, /^hello there$/i);
+      if (interruption === undefined) {
+        // The engine discarded the interjection during prompt speech: nothing may execute.
         f.expect(
           h.executes().length === 0,
-          "a write executed although 'yes' never reached the behavior",
+          'a write executed although the interjection never reached the behavior',
         );
         return;
       }
-      const before = h.receipts().filter((r) => r.seq < yes && PROMPT.test(r.receipt.text));
+      const before = h
+        .receipts()
+        .filter((r) => r.seq < interruption && PROMPT.test(r.receipt.text));
       const last = before.at(-1);
-      if (!f.expect(last, "the prompt receipt was not delivered before the 'yes' turn")) return;
+      if (!f.expect(last, 'the prompt receipt was not delivered before the interjection')) return;
       if (last!.receipt.state === 'interrupted') {
         const heardLater = h
           .receipts()
           .find(
-            (r) => r.seq > yes && PROMPT.test(r.receipt.text) && r.receipt.state === 'completed',
+            (r) =>
+              r.seq > interruption &&
+              PROMPT.test(r.receipt.text) &&
+              r.receipt.state === 'completed',
           );
         const executedEarly = h
           .executes()
-          .filter((e) => e.seq > yes && (!heardLater || e.seq < heardLater.seq));
+          .filter((e) => e.seq > interruption && (!heardLater || e.seq < heardLater.seq));
         f.expect(
           executedEarly.length === 0,
           'an interrupted confirmation prompt still executed the write',
