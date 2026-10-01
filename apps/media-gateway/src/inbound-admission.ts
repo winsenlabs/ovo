@@ -111,6 +111,7 @@ export function createInboundAdmission(
       return map(decision, admission, host, routeToken);
     },
     async confirmCallback(admission) {
+      await options.validateBeforeAdmission?.(admission);
       const { host, routeToken, input } = call(admission);
       const decision = await options.operations.inboundGateway.confirmCallback({
         ...input,

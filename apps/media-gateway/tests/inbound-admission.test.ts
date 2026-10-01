@@ -18,7 +18,10 @@ const admission = {
   receivedAt: new Date(0),
 };
 
-function setup(decision: unknown) {
+function setup(
+  decision: unknown,
+  validateBeforeAdmission?: (value: typeof admission) => Promise<void>,
+) {
   const admit = vi.fn(async () => decision);
   const confirmCallback = vi.fn(async () => decision);
   const operations = {
@@ -30,6 +33,7 @@ function setup(decision: unknown) {
     operations,
     routeSecret: 'a'.repeat(32),
     hostFor: () => host,
+    validateBeforeAdmission,
   });
   host = {
     ...state,
@@ -142,5 +146,25 @@ describe('carrier-neutral inbound admission through a carrier route', () => {
       kind: 'busy',
       reason: 'at_capacity',
     });
+  });
+
+  it('validates callback carrier identity before a durable callback decision', async () => {
+    const validateBeforeAdmission = vi.fn(async (value: typeof admission) => {
+      if (value.bindingId !== admission.bindingId) throw new Error('Carrier binding mismatch');
+    });
+    const { host, confirmCallback } = setup(
+      { kind: 'busy', admissionId: 'a', reason: 'at_capacity' },
+      validateBeforeAdmission,
+    );
+    await expect(
+      host.confirmCallback({ ...admission, bindingId: 'other', digits: '1' }),
+    ).rejects.toThrow('Carrier binding mismatch');
+    expect(confirmCallback).not.toHaveBeenCalled();
+    await expect(host.confirmCallback({ ...admission, digits: '1' })).resolves.toEqual({
+      kind: 'busy',
+      reason: 'at_capacity',
+    });
+    expect(validateBeforeAdmission).toHaveBeenCalledTimes(2);
+    expect(confirmCallback).toHaveBeenCalledTimes(1);
   });
 });

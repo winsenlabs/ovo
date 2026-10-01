@@ -1,5 +1,8 @@
 import { bytesPerSecond, type AudioFormat } from '@winsendotai/ovo-contracts';
 
+/** One standard 20 ms MULAW_8K frame is 160 bytes. */
+export const MIN_PRE_ACCEPT_MS = 20;
+
 /** Events retain their arrival order until the owning worker accepts the session. */
 export class PreAcceptBuffer<T> {
   private readonly entries: { event: T; audioBytes: number }[] = [];
@@ -11,8 +14,8 @@ export class PreAcceptBuffer<T> {
     durationMs = 3_000,
     private readonly maximumEvents = 1_024,
   ) {
-    if (!Number.isSafeInteger(durationMs) || durationMs < 1)
-      throw new Error('pre-accept duration must be a positive integer');
+    if (!Number.isSafeInteger(durationMs) || durationMs < MIN_PRE_ACCEPT_MS)
+      throw new Error('pre-accept duration must be at least 20 ms');
     if (!Number.isSafeInteger(maximumEvents) || maximumEvents < 1)
       throw new Error('pre-accept event limit must be a positive integer');
     const rate = bytesPerSecond(format);

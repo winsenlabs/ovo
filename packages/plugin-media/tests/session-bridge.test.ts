@@ -13,6 +13,7 @@ import type {
 } from '../src/ports.ts';
 import { SessionBridge, type SessionBridgeOptions } from '../src/session-bridge.ts';
 import { PreAcceptBuffer } from '../src/pre-accept.ts';
+import { createMediaGatewayPlugin } from '../src/plugin.ts';
 import type { WorkerLink, WorkerLinkEvents } from '../src/worker-dialer.ts';
 
 class CarrierSocket extends EventEmitter {
@@ -47,6 +48,26 @@ it('buffers three full seconds of audio plus DTMF and rejects the next audio fra
   expect(buffer.push({ type: 'dtmf' })).toBe(true);
   expect(buffer.push({ type: 'audio' }, 160)).toBe(false);
   expect(buffer.drain()).toHaveLength(151);
+});
+
+it('refuses a pre-accept budget that cannot hold the first 8 kHz audio frame', () => {
+  expect(() => new PreAcceptBuffer(MULAW_8K, 19)).toThrow('at least 20 ms');
+  const buffer = new PreAcceptBuffer<{ type: string }>(MULAW_8K, 20);
+  expect(buffer.push({ type: 'audio' }, 160)).toBe(true);
+  expect(buffer.push({ type: 'audio' }, 1)).toBe(false);
+  const plugin = createMediaGatewayPlugin(
+    { workerToken: 'synthetic' },
+    {
+      hostFor: () => {
+        throw new Error('unused');
+      },
+    },
+  );
+  const properties = plugin.manifest.configSchema.properties as Record<
+    string,
+    { minimum?: number }
+  >;
+  expect(properties.preAcceptBufferMs?.minimum).toBe(20);
 });
 
 const ingress = fixtureCarrierIngress();

@@ -5,6 +5,7 @@ import type { MediaGatewayConfig } from './gateway-types.ts';
 import type { MediaRouteResolver } from './ports.ts';
 import type { MediaDuplex } from './ports.ts';
 import { MEDIA_SERVICE_KEYS } from './ports.ts';
+import { MIN_PRE_ACCEPT_MS } from './pre-accept.ts';
 
 export const MEDIA_DUPLEX_SERVICE_KEY = 'ovo.media.duplex';
 export const MEDIA_PLUGIN_IDS = Object.freeze({
@@ -74,7 +75,7 @@ export function createMediaGatewayPlugin(
           maxAudioFrameBytes: { type: 'integer', minimum: 160, maximum: 65536 },
           maxBufferedBytes: { type: 'integer', minimum: 1024, maximum: 16777216 },
           maxPendingFrames: { type: 'integer', minimum: 1, maximum: 1000 },
-          preAcceptBufferMs: { type: 'integer', minimum: 1, maximum: 30000 },
+          preAcceptBufferMs: { type: 'integer', minimum: MIN_PRE_ACCEPT_MS, maximum: 30000 },
           handshakeTimeoutMs: { type: 'integer', minimum: 100, maximum: 120000 },
           idleTimeoutMs: { type: 'integer', minimum: 1000, maximum: 3600000 },
           drainTimeoutMs: { type: 'integer', minimum: 100, maximum: 3600000 },
