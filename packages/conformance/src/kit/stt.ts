@@ -8,7 +8,7 @@ import {
   type SpeechToText,
 } from '@winsendotai/ovo-contracts';
 import { msForBytes } from '@winsendotai/ovo-audio';
-import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
+import { createFixtureNet, decodeBase64 } from '@winsendotai/ovo-plugin-kit';
 import { framesOf, speechBytes } from '../drivers/audio-gen.ts';
 import { acceleratedClock } from '../drivers/fake-clock.ts';
 import { Failures, sleep, type KitCheck } from './runner.ts';
@@ -105,9 +105,29 @@ export const STT_CHECKS: readonly KitCheck<SttKitContext>[] = [
       f.add(...run.net.pending().map((step) => `unconsumed ${step.description}`));
       const frameMs = run.stt.capabilities.frameMs;
       if (frameMs) {
-        const sent = run.net.log.filter((e) => e.kind === 'ws-out' && typeof e.data !== 'string');
-        sent.forEach((entry, i) => {
-          const ms = msForBytes(run.format, (entry.data as Uint8Array).byteLength);
+        const sent = run.net.log.flatMap((entry) => {
+          if (entry.kind !== 'ws-out' || entry.data === undefined) return [];
+          if (typeof entry.data !== 'string') return [entry.data.byteLength];
+          let frame: unknown;
+          try {
+            frame = JSON.parse(entry.data);
+          } catch {
+            return [];
+          }
+          if (
+            !frame ||
+            typeof frame !== 'object' ||
+            !('event' in frame) ||
+            frame.event !== 'audio_input' ||
+            !('audio' in frame) ||
+            typeof frame.audio !== 'string'
+          )
+            return [];
+          return [decodeBase64(frame.audio).byteLength];
+        });
+        f.expect(sent.length > 0, 'frameMs is declared but no outbound audio was observed');
+        sent.forEach((bytes, i) => {
+          const ms = msForBytes(run.format, bytes);
           f.expect(ms <= frameMs.max + 0.5, `frame ${i} is ${ms.toFixed(1)} ms, above frameMs.max`);
           if (i < sent.length - 1)
             f.expect(
