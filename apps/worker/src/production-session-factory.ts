@@ -80,13 +80,9 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
         typeof inference?.config.model === 'string' ? inference.config.model : undefined,
     });
     const cleanup = new SessionCleanupStack();
-    let requestedOutcome: 'ended' | 'failed' = 'failed';
     let requestedReason: EndReason = 'error:session_setup_failed';
     cleanup.defer((failure) =>
-      telemetry.close(
-        failure === undefined ? requestedOutcome : 'failed',
-        failure === undefined ? requestedReason : 'error:session_cleanup_failed',
-      ),
+      telemetry.close(failure === undefined ? requestedReason : 'error:session_cleanup_failed'),
     );
     try {
       const recording = await prepareSessionRecording({
@@ -148,7 +144,7 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
         return {
           dispose: async (reason?: string) => {
             const endReason = asEndReason(reason ?? 'behavior_completed');
-            requestedOutcome = recordSessionOutcome(telemetry, endReason);
+            recordSessionOutcome(telemetry, endReason);
             requestedReason = endReason;
             const failure = await cleanup.close();
             if (failure !== undefined) throwFailure(failure);
@@ -172,7 +168,7 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
       return {
         dispose: async (reason?: string) => {
           const endReason = asEndReason(reason ?? 'behavior_completed');
-          requestedOutcome = recordSessionOutcome(telemetry, endReason);
+          recordSessionOutcome(telemetry, endReason);
           requestedReason = endReason;
           const failure = await cleanup.close();
           if (failure !== undefined) throwFailure(failure);

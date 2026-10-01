@@ -71,7 +71,6 @@ export const plivoForTest = (net: NetPort) => ({
   control: plivoControl(net),
   ingress: plivoIngress,
 });
-export const plugins = [];
 /** A documented request_uuid-only dial response for catalog fixture consumers. */
 export const fixtures: Record<string, NetFixtureScript[]> = {
   '@winsendotai/ovo-carrier-plivo': [

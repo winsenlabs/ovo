@@ -198,15 +198,7 @@ export class WorkerSessionTelemetry {
     return this.adapter.startStage(input);
   }
 
-  close(reason: EndReason): Promise<void>;
-  close(legacyOutcome: 'ended' | 'failed', reason: EndReason): Promise<void>;
-  async close(
-    outcomeOrReason: EndReason | 'ended' | 'failed',
-    legacyReason?: EndReason,
-  ): Promise<void> {
-    // The two-argument worker call site is retained for the C2 lifecycle seam.
-    // The typed reason remains the only source of truth for the persisted outcome.
-    const reason = legacyReason ?? (outcomeOrReason as EndReason);
+  async close(reason: EndReason): Promise<void> {
     if (this.closed) return;
     this.closed = true;
     for (const unsubscribe of this.detach) {

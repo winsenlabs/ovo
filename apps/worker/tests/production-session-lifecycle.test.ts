@@ -261,7 +261,7 @@ describe('production session lifecycle from a loaded distribution', () => {
         order.indexOf('engine.dispose'),
       );
       await vi.waitFor(() =>
-        expect(telemetryClose).toHaveBeenCalledWith('ended', 'behavior_completed'),
+        expect(telemetryClose).toHaveBeenCalledWith('behavior_completed'),
       );
       if (recording) {
         expect(captureStart).toHaveBeenCalledOnce();

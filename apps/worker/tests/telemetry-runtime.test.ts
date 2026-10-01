@@ -226,12 +226,12 @@ describe('worker telemetry runtime', () => {
     expect(runtime.stats().callEvents).toMatchObject({ dropped: 0, failed: 0, closed: true });
   });
 
-  it('uses the typed reason for caller-ended outcome even with the legacy close argument', async () => {
+  it('uses the typed reason for caller-ended outcome', async () => {
     const repository = new MemoryTelemetryRepository();
     const control = new MemoryCallEvents();
     const runtime = WorkerTelemetryRuntime.fromRepository(repository, { controlStore: control });
     const session = await runtime.createSession(sessionIdentity());
-    await session.close('failed', 'caller_hangup');
+    await session.close('caller_hangup');
     await runtime.close();
     expect(repository.events.find((event) => event.kind === 'session.ended')).toMatchObject({
       payload: { reason: 'caller_hangup', callOutcome: 'caller_ended' },
