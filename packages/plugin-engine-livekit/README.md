@@ -46,9 +46,10 @@ Transitive license inventory for I1's image/SBOM/release review:
 | `@livekit/rtc-node@0.13.34` and Agents 1.9.0 | Pinned native/runtime packages; keep platform-specific bindings in the deploy artifact.                                                                                          |
 
 Offline `pnpm --offline --filter @winsendotai/ovo-worker deploy --prod --legacy`
-was attempted. It failed with `ERR_PNPM_NO_OFFLINE_META` for the root workspace's
-`prettier@3.9.8`; downloaded count was zero. Native deployment packaging remains
-an I1 verification item. No installation or network fallback was attempted.
+now succeeds with zero downloads. The deployed dependency tree contains Agents,
+rtc-node and the Darwin native binding, and the lockfile names the Linux glibc
+binding. I1 still must inspect the binding in the built Linux image and the
+release SBOM. No vendor network request or model download was used.
 
 ## WIP verification — 2026-09-26
 

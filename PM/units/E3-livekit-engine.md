@@ -230,6 +230,12 @@ configured for .node files` at the pinned LiveKit native binding. Adding only
 - **M1 dependency discharged.** M1's exact `speechKind` and subscription now
   live on foundation. `production-confirmation.test.ts` passes without the kit's
   spy classifier; E3 adds no regex or Behavior bypass.
+- **Offline deployment now resolved locally.** After the frozen offline install,
+  `pnpm --offline --filter @winsendotai/ovo-worker deploy --prod --legacy`
+  succeeded with zero downloads. The deployed package tree contains Agents,
+  rtc-node and the Darwin native binding; the lockfile includes the Linux glibc
+  binding. I1 retains the Linux image/SBOM verification and license notices, not
+  the earlier local metadata failure. The disposable deploy directory was removed.
 - **FAQ timing remains under review.** The generated transcript is emitted
   before the asynchronous TTS carrier writer, as a direct event-time probe
   confirms. The same FAQ then reaches audio with a bounded wait. The unmodified
