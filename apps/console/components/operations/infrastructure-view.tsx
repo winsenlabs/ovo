@@ -155,10 +155,6 @@ export function InfrastructureView() {
                   <dt>Reconciliation</dt>
                   <dd>{value(snapshot.queue.reconciliationDepth)}</dd>
                 </div>
-                <div>
-                  <dt>Unresolved capacity writes</dt>
-                  <dd>{value(snapshot.queue.unresolvedCapacityWrites)}</dd>
-                </div>
               </dl>
             </Panel>
             <Panel labelledBy="process-evidence-title">

@@ -1,12 +1,6 @@
 {
   "duplication": [
     {
-      "files": ["apps/api/src/infrastructure-types.ts", "apps/console/lib/types/infrastructure.ts"],
-      "windows": 139,
-      "reason": "U1 split the existing console operator API types to keep every module at or below 300 lines; the pre-existing infrastructure type overlap moved from the baselined operator-api.ts file. I1 should consolidate the shared contract.",
-      "removeBy": "I1"
-    },
-    {
       "files": [
         "apps/console/lib/types/evaluations.ts",
         "packages/plugin-evaluations/src/provider-policy.ts"
