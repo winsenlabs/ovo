@@ -47,19 +47,19 @@ This board is the single source of truth for unit status. The specs in this fold
 
 | Unit                    | Title                                               | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ----------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [I1](I1-integration.md) | Integration, full verification, docs and PM updates | **In progress (2026-10-02).** All unheld build units are verified and merged. I1 removed legacy bridges, defined post-I1 contracts, ran the selected Twilio/Plivo and speech matrix, repaired the restore drill, and updated integration guidance. Node 22 combined bar: 2,017/239 default; fresh PostgreSQL 17.6 serial with all four database gates 2,232/24/0; browser 41/1; lint, format, typecheck, builds, audit and Terraform validation exit 0. A Linux arm64 worker image loads the native LiveKit glibc binding with networking disabled. Module-size, pending, runtime, architecture, provider-name and conformance baselines are empty; duplication has 13 justified pairs and capability keys have 33 justified file entries. Exotel matrix rows, its skeleton exemption and remaining I1 carry-forwards are open; C3/C5/C6 stay founder-held. |
+| [I1](I1-integration.md) | Integration, full verification, docs and PM updates | **In progress (2026-10-02).** All unheld build units are verified and merged. I1 removed legacy bridges, defined post-I1 contracts, ran the selected Twilio/Plivo and speech matrix, repaired the restore drill, and updated integration guidance. Node 22 combined bar: 2,017/240 default; fresh PostgreSQL 17.6 serial with all four database gates 2,233/24/0; browser 41/1; lint, format, typecheck, builds, audit and Terraform validation exit 0. A Linux arm64 worker image loads the native LiveKit glibc binding with networking disabled. Module-size, pending, runtime, architecture, provider-name and conformance baselines are empty; duplication has 13 justified pairs and capability keys have 33 justified file entries. Exotel matrix rows, its skeleton exemption and remaining I1 carry-forwards are open; C3/C5/C6 stay founder-held. |
 
 ### I1 checkpoint: 2026-10-02
 
 The current combined tree passes the full Node 22 gate: frozen offline install,
 seven lint gates, format, typecheck, build, Terraform validation and console E2E
-all exit 0. Default Vitest has 2,017 passed + 239 skipped = 2,256. Fresh
+all exit 0. Default Vitest has 2,017 passed + 240 skipped = 2,257. Fresh
 PostgreSQL 17.6 serial with `OVO_TEST_POSTGRES_URL`,
 `RECORDING_TEST_DATABASE_URL`, `LEDGER_TEST_DATABASE_URL` and
-`OVO_BACKUP_DRILL_POSTGRES_URL` has 2,232 passed + 24 skipped = 2,256. Of the
-239 default skips, 215 are database-gated: 211 under the main and recording
+`OVO_BACKUP_DRILL_POSTGRES_URL` has 2,233 passed + 24 skipped = 2,257. Of the
+240 default skips, 216 are database-gated: 212 under the main and recording
 URLs, one under the ledger URL, and three under the backup URL. The new
-reservation-sweeper row is PostgreSQL-gated. The 24 remaining skips are macOS
+reservation-sweeper and migration-006-preflight rows are PostgreSQL-gated. The 24 remaining skips are macOS
 LiveKit matrix rows. Console E2E has 41 passed + one viewport skip.
 
 I1 discharged the C2 callback-identity, minimum pre-accept budget,
@@ -99,10 +99,15 @@ glibc FFI module with networking disabled; its tag and I1's database container
 were removed after verification.
 
 The O1 request to narrow the text of already-shipped orchestration migration
-006 conflicts with the immutable-migration checksum rule. I1 has not edited
-that migration: doing so would make existing databases refuse startup. Its
-broader `%status%` predicate remains recorded for an explicit forward-only
-repair decision. C3, C5 and C6 remain founder-held on vendor evidence.
+006 conflicts with the immutable-migration checksum rule. I1 kept its SQL
+unchanged and added a runner preflight: if the legacy status CHECK is not the
+only constraint that migration 006's broad scan would remove, migration stops
+for manual review. With the preflight disabled, the new PostgreSQL test loses
+its extra `ovo_jobs_status_shadow_check` and fails on `expected [] to deeply
+equal ['ovo_jobs_status_shadow_check']`. Databases that already applied 006
+cannot recover any constraint it previously removed; this guard protects
+databases still waiting to apply it. C3, C5 and C6 remain founder-held on
+vendor evidence.
 
 ## Post-I1 roadmap
 
@@ -276,15 +281,15 @@ The named owner must resolve these findings. Items marked **BLOCKING** prevent t
 
 ### O1 re-check carry-forwards (2026-09-29)
 
-| Source     | Obligation                                                                                                                                                                                                                        | Owner |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| O1 checker | Update `docs/runbooks/scale-and-drain.md` and `docs/runbooks/fargate-deployment.md`: they still tell operators to query the dropped `ovo_capacity_writes` table or avoid racing a dispatcher that no longer writes desired count. | I1    |
-| O1 checker | Strengthen `terraform.contract.test.ts` to assert the gateway count without whitespace dependence, tie alarm assertions to the stale-signal resource, and pin the absence of scale-in steps.                                      | I1    |
-| O1 checker | Narrow orchestration migration 006's removal of the status CHECK constraint; its `%status%` match could remove a future unrelated constraint.                                                                                     | I1    |
-| O1 checker | Test starting-task reconciliation with `provisionedTasks` greater than `counts.total`; current `dispatcher-capacity.test.ts` fixtures make the difference zero.                                                                   | I1    |
-| O1 checker | Decide whether an explicit one-replica gateway deployment must be accepted. O1 currently enforces `gateway_desired_count >= 2` for redundant production ingress; this is stricter than merely removing the old `== 1` validation. | I1    |
-| O1 checker | Record the ownership-loss wake-up latency: `deferLostOwnership` deletes the receipt but retains `hinted_at`, so the next hint can wait for the 150-second sweep rather than `deferSeconds`.                                       | O2    |
-| O1 checker | Prune stale capability-key entries for dispatcher index/main, the `plugin-orchestration/src/aws.ts` module-size entry, and the dispatcher-main/worker-environment duplication pair.                                               | I1    |
+| Source     | Obligation                                                                                                                                                                                                                                                                                                                                                                                                                   | Owner |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| O1 checker | Update `docs/runbooks/scale-and-drain.md` and `docs/runbooks/fargate-deployment.md`: they still tell operators to query the dropped `ovo_capacity_writes` table or avoid racing a dispatcher that no longer writes desired count.                                                                                                                                                                                            | I1    |
+| O1 checker | Strengthen `terraform.contract.test.ts` to assert the gateway count without whitespace dependence, tie alarm assertions to the stale-signal resource, and pin the absence of scale-in steps.                                                                                                                                                                                                                                 | I1    |
+| O1 checker | **Discharged by I1 `88bfbb5` for pending migrations:** runner preflight refuses 006 when its broad `%status%` scan would remove any unexpected CHECK. The shipped SQL remains byte-for-byte immutable for checksum compatibility. A new Postgres test preserves an extra shadow CHECK; disabling the guard deletes it. Databases already past 006 require manual recovery if an unrelated constraint was previously removed. | I1    |
+| O1 checker | Test starting-task reconciliation with `provisionedTasks` greater than `counts.total`; current `dispatcher-capacity.test.ts` fixtures make the difference zero.                                                                                                                                                                                                                                                              | I1    |
+| O1 checker | Decide whether an explicit one-replica gateway deployment must be accepted. O1 currently enforces `gateway_desired_count >= 2` for redundant production ingress; this is stricter than merely removing the old `== 1` validation.                                                                                                                                                                                            | I1    |
+| O1 checker | Record the ownership-loss wake-up latency: `deferLostOwnership` deletes the receipt but retains `hinted_at`, so the next hint can wait for the 150-second sweep rather than `deferSeconds`.                                                                                                                                                                                                                                  | O2    |
+| O1 checker | Prune stale capability-key entries for dispatcher index/main, the `plugin-orchestration/src/aws.ts` module-size entry, and the dispatcher-main/worker-environment duplication pair.                                                                                                                                                                                                                                          | I1    |
 
 ## Approved exceptions
 

@@ -153,6 +153,17 @@ public contracts and API/worker lookups use provider keys. Supporting multiple
 carrier plugins for one provider needs a separate contract decision before
 changing those maps or selection lookups.
 
+### I1 checker note: immutable orchestration migration 006 (2026-10-02)
+
+O1 asked I1 to narrow the broad `%status%` constraint removal in migration 006. The SQL is already shipped and changing its bytes would break immutable
+migration checks for databases that applied it. I1 instead added a runner
+preflight before 006: any status-related CHECK beyond the expected legacy
+`ovo_jobs_status_check` stops migration for manual review. A PostgreSQL test
+adds an unrelated shadow CHECK; disabling the preflight makes the old SQL
+delete it and fails on a concrete missing-constraint assertion. This protects
+not-yet-migrated databases; it does not reconstruct constraints already
+removed by a past application of 006.
+
 - **E3 design drafting repair (2026-10-01):** amend §15.2 to name E3's
   `scripts/build.mjs` exception already granted by §15.5, as it names C2/O1's
   distribution profile exceptions. Reconcile §15.2, §15.5 and the F4 owner map
