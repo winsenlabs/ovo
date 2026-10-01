@@ -1,5 +1,9 @@
 # Production provider adapters
 
+## I1 integration update (2026-10-02)
+
+The selected Deepgram, AssemblyAI and Sarvam STT plugins and OpenAI/Sarvam TTS plugins each execute through the real distribution/session graph in the 24 native fixture-matrix rows. All selected STT rows report `sttMode: template`, rather than a generic fallback, and usage is estimated and unpriced. The LiveKit matrix rows are recorded but skip on macOS because the native binding requires glibc. No vendor endpoint was contacted and no provider credential value was read by fixture calls.
+
 ## Implemented profile
 
 - Deepgram `/v1/listen` realtime STT over an authenticated WebSocket.

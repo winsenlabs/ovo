@@ -55,7 +55,7 @@ Use separate ECS services for control API/console, dispatcher/capacity coordinat
 
 ECS Service Auto Scaling uses Application Auto Scaling and CloudWatch metrics to adjust desired task counts; SQS does not directly launch workers. Queue-based signals need a configured policy. Built-in ECS metrics arrive at minute intervals, so scaling must not sit on the conversational response path. See [ECS scaling](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-auto-scaling.html).
 
-Implement one authoritative capacity decision path per service. Recommended first implementation: a leader-fenced capacity controller in the dispatcher publishes an absolute required-capacity metric; a documented scaling integration applies desired capacity. Choose either that controller as the sole desired-count writer or Application Auto Scaling policies as the writer through an ADR. Do not run conflicting custom writers and target-tracking policies. Scheduled prewarming must enter the same decision path.
+Implement one authoritative capacity decision path per service. [ADR 0003](decisions/0003-aas-only-desired-count-writer.md) makes Application Auto Scaling the sole worker desired-count writer. The dispatcher computes and publishes the required-capacity signal; it never calls `UpdateService`. AAS target tracking, fast scale-out and scheduled prewarming use that signal and its target. Do not run a second custom desired-count writer.
 
 Required inputs:
 

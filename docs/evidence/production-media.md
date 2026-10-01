@@ -1,5 +1,9 @@
 # Production media gateway and streaming session evidence
 
+## I1 integration update (2026-10-02)
+
+The carrier-neutral gateway composes the real Twilio and Plivo ingress plugins simultaneously. `packages/distribution/tests/matrix.test.ts` drives both selected serializers through 24 native FAQ/confirmed-write rows with three real STT and two real TTS plugin adapters under a zero-egress fixture sentinel. The gateway does not branch on carrier names. Exotel remains a skeleton and is not covered as a production ingress. This is local protocol evidence, not a public carrier call.
+
 Status: implemented and locally verified protocol/runtime path; carrier and provider capability remain uncertified.
 
 ## Scope and topology

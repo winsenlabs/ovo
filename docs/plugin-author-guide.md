@@ -1,21 +1,24 @@
-# Plugin author guide
+# Plugin author guide: manifest v2
 
-OVO mounts approved, deployed code. Agent configuration cannot install packages or execute scripts.
+OVO loads approved, deployed code. Agent configuration selects installed plugins and provider bindings; it cannot install packages or execute scripts. The binding design and capability contracts are in [plugin-platform.md](architecture/plugin-platform.md).
 
-1. Create a private `@winsendotai/ovo-*` workspace package.
-2. Import `definePlugin` and contracts from `@winsendotai/ovo-sdk` only.
-3. Declare a unique ID, semantic version, contract version, scope, provided and required service keys, JSON configuration schema and secret-field metadata.
-4. Use `ctx.provide` for capabilities and `ctx.effect` for resources. Return awaited cleanup from effects. Never start unowned timers, child processes or tasks.
-5. Resolve provider credentials through the scoped secret service. Never put secret values in manifests, release locks, UI responses or logs.
-6. Put all business checks through the shared execution service. Inference adapters must not install a second tool executor.
-7. Supply UI metadata/forms through the console extension registry. The host must not add a plugin-specific switch.
-8. Add explicit conformance tests for schema admission, startup failure, cancellation, idempotent disposal, workspace isolation and selected release compatibility.
-9. Add the package to the operator-approved catalog. Publish a new immutable release; existing sessions retain their old lock.
+## Define the plugin
 
-`packages/plugin-example` demonstrates a separate package that depends only on the public SDK. Its tests compose two isolated configurations, enforce schema validation and verify disposal. This proves the package boundary locally; it does not certify third-party code or permit runtime downloads.
+`packages/plugin-example` is the small v2 reference. It depends on `@winsendotai/ovo-sdk` and `zod`, declares a session-scoped behavior, validates a strict config, provides its capability and disposes it through `ctx.effect`. A typical entry exports `plugins = [myPlugin]` so the distribution loader can collect it. Register an approved first-party package in `packages/distribution/src/catalog.ts` with its package name, roles and `load()` line; external packages enter through the operator-controlled `OVO_PLUGIN_MODULES` list. Neither path adds a host switch for a provider name.
 
-The DeepSeek-derived host resolves the dependency graph before allocating resources, applies the original profile patch composition algorithm and starts plugins through the adapted child-fiber lifecycle. Applications use the same mechanism; no capability has a privileged registration route.
+Use `definePluginV2` for new plugins. Its `config` and optional `binding` Zod schemas become Draft-07 JSON Schema with `io: 'input'`, so fields with defaults stay optional at admission. The apply callback receives the parsed output. A v2 manifest declares `id`, `version`, `kind`, `scope`, `provides`, `requires`, `optional` as needed, `secretFields`, runtime egress/model-licence metadata, UI metadata, capability claims, conformance suites and usage meters. A process plugin can own shared clients; call state belongs in a session plugin. Release selections pin plugin version, binding identity and a snapshot of non-secret binding config.
 
-## Module size and ownership
+`ctx.net` is the only network port for a vendor plugin. The runtime checks declared hosts and private-address policy. Do not import `node:net`, `node:tls`, `node:http`, `node:https`, `node:dgram`, `ws` or another plugin package from a vendor plugin. `ctx.secret` resolves a declared credential reference for its workspace; never copy a secret into a manifest, release snapshot, fixture, log or UI response. Every timer, socket and subscription needs bounded cleanup through the plugin lifecycle.
 
-Keep one responsibility per first-party module. Prefer fewer than 300 formatted lines. Local CI rejects more than 400 canonical nonblank lines or 24 KiB of source (500 lines for tests). The gate measures Prettier's canonical output, so compressed code cannot evade it. Split routes, repositories, schemas, lifecycle adapters and panels by domain. Imported DeepSeek source/test files retain their original layout and hash checks; they are not reformatted merely to meet an OVO size rule.
+## Prove the contract
+
+1. Add an exported fixture or fixture template containing documented request and response shapes, a source URL and retrieval date. Tests run through `FixtureNet` and the egress sentinel; no test should contact a vendor endpoint.
+2. Run the relevant `@winsendotai/ovo-conformance` kit (`engine@1`, `carrier@1`, `stt@1`, `tts@1`, `llm@1`, or tool) against the real exported plugin. Cover absent and negative forms of every optional field and capability flag, along with valid cases. A test must fail on a value assertion against the broken implementation.
+3. Test schema rejection, startup failure, cancellation, idempotent disposal, workspace isolation and selected-release compatibility. Carrier HTTP and upgrade signatures require independent vendor-oracle vectors when the vendor publishes a validator or signer.
+4. Run `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, focused tests, full tests and build. Architecture and conformance gates must have no new baseline entry. The fixture matrix in `packages/distribution/tests/matrix.test.ts` is the cross-plugin integration check.
+
+Publish a new immutable release after changing a plugin or binding; active calls retain the pinned graph. A conformance pass establishes protocol behavior under fixtures. It does not certify real vendor traffic, public routing or a carrier sandbox. Twilio and Plivo ingress are installed; Exotel, TCN and Alohaa remain held on confirmed vendor contracts.
+
+## Module size
+
+Keep one responsibility per module and prefer fewer than 300 formatted lines. CI rejects more than 400 canonical nonblank source lines or 24 KiB (500 lines for tests). The gate measures Prettier's canonical output. Imported pinned DeepSeek files retain their upstream hash and layout.

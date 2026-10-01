@@ -1,6 +1,13 @@
 # Production operator console E2E handoff
 
-Status: UI source is implemented, but production journeys are **not certified** until main registers the optional services and an authenticated browser run completes against the same PostgreSQL-backed API/worker stack.
+Status: UI source and service routes are integrated. Local Playwright checks cover the console route and accessibility surfaces, and the management API fixture path runs through a real selected Twilio ingress without dialing. Production journeys remain **not certified** until an authenticated browser run completes against the same PostgreSQL-backed API/worker stack and separate carrier/provider gates are authorized.
+
+## I1 integration note (2026-10-02)
+
+- Operational agent pickers now follow `/agents` cursor pages. The shared inbound-route and provider-authorization release picker also follows release pages and retains healthy agents when another agent's release read fails; an all-failed load still surfaces an error.
+- `packages/distribution/tests/matrix.test.ts` runs selected Twilio and Plivo ingresses with Deepgram, AssemblyAI and Sarvam STT plus OpenAI/Sarvam TTS through FixtureNet. Its LiveKit rows remain platform-gated on macOS because the upstream native binding requires glibc.
+- `apps/api/tests/demo-path.test.ts` creates an agent, credential, binding and release, checks compatibility, runs an announcement fixture call through the selected Twilio ingress, and reads evidence. Synthetic fixture credentials are scoped to the test workspace; no vendor endpoint or real credential was used.
+- The existing Playwright suite is part of root `pnpm check`. It tests local browser behavior, not a public carrier or production account.
 
 ## Browser and gateway contract
 

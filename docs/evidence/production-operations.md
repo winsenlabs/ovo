@@ -1,5 +1,9 @@
 # Production operations implementation evidence
 
+## I1 integration update (2026-10-02)
+
+The API fixture demo path now creates an agent and immutable selected release, reports compatibility issues, runs a Twilio/OpenAI announcement through the real distribution under the fixture egress fence and reads durable call evidence. The SQLite profile writes unpriced fixture usage without reading an undeclared cost-ledger capability. Campaign, inbound, spend and ownership integration remains covered by the Postgres serial suite, not by a real call. Unknown carrier outcomes must remain unknown until reconciliation.
+
 Date: 2026-09-20  
 Scope: W16 single-organization campaign, inbound-admission, suppression, quota, outbox and handoff operations.  
 Status: **operations persistence, services, signed inbound protocol handler and injectable management API registrar implemented and verified locally; paid-provider and executable bootstrap registration are not claimed here.**

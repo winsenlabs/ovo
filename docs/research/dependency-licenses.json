@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-09-22",
+  "generatedAt": "2026-10-01",
   "command": "pnpm licenses list --json",
-  "lockfileSha256": "9acf53eb49ae94203bfd4e7279f2dd335f48d14268e92b62ebfe5a6ab48fec07",
+  "lockfileSha256": "f44b8a35e75759449a8db8a4471a7f8706687b6924a5ebcf8da029da3dad4969",
   "dependencies": [
     {
       "name": "@adobe/css-tools",
@@ -219,7 +219,7 @@
       "license": "MIT"
     },
     {
-      "name": "@esbuild/linux-x64",
+      "name": "@esbuild/darwin-arm64",
       "versions": ["0.28.2"],
       "license": "MIT"
     },
@@ -269,24 +269,14 @@
       "license": "MIT"
     },
     {
-      "name": "@img/sharp-libvips-linux-x64",
-      "versions": ["1.3.3"],
-      "license": "LGPL-3.0-or-later"
-    },
-    {
-      "name": "@img/sharp-libvips-linuxmusl-x64",
-      "versions": ["1.3.3"],
-      "license": "LGPL-3.0-or-later"
-    },
-    {
-      "name": "@img/sharp-linux-x64",
+      "name": "@img/sharp-darwin-arm64",
       "versions": ["0.35.4"],
       "license": "Apache-2.0"
     },
     {
-      "name": "@img/sharp-linuxmusl-x64",
-      "versions": ["0.35.4"],
-      "license": "Apache-2.0"
+      "name": "@img/sharp-libvips-darwin-arm64",
+      "versions": ["1.3.3"],
+      "license": "LGPL-3.0-or-later"
     },
     {
       "name": "@jridgewell/sourcemap-codec",
@@ -304,7 +294,7 @@
       "license": "Apache-2.0"
     },
     {
-      "name": "@livekit/av-linux-x64",
+      "name": "@livekit/av-darwin-arm64",
       "versions": ["10.0.0"],
       "license": "LGPL-2.1-or-later"
     },
@@ -314,7 +304,7 @@
       "license": "Apache-2.0 AND LicenseRef-LiveKit-Model"
     },
     {
-      "name": "@livekit/local-inference-linux-x64-gnu",
+      "name": "@livekit/local-inference-darwin-arm64",
       "versions": ["0.2.7"],
       "license": "Apache-2.0"
     },
@@ -334,7 +324,7 @@
       "license": "Apache-2.0"
     },
     {
-      "name": "@livekit/rtc-ffi-bindings-linux-x64-gnu",
+      "name": "@livekit/rtc-ffi-bindings-darwin-arm64",
       "versions": ["0.12.73"],
       "license": "Apache-2.0"
     },
@@ -360,17 +350,12 @@
     },
     {
       "name": "@next/env",
-      "versions": ["16.3.5"],
+      "versions": ["16.3.6"],
       "license": "MIT"
     },
     {
-      "name": "@next/swc-linux-x64-gnu",
-      "versions": ["16.3.5"],
-      "license": "MIT"
-    },
-    {
-      "name": "@next/swc-linux-x64-musl",
-      "versions": ["16.3.5"],
+      "name": "@next/swc-darwin-arm64",
+      "versions": ["16.3.6"],
       "license": "MIT"
     },
     {
@@ -484,12 +469,7 @@
       "license": "Apache-2.0"
     },
     {
-      "name": "@rolldown/binding-linux-x64-gnu",
-      "versions": ["1.2.9"],
-      "license": "MIT"
-    },
-    {
-      "name": "@rolldown/binding-linux-x64-musl",
+      "name": "@rolldown/binding-darwin-arm64",
       "versions": ["1.2.9"],
       "license": "MIT"
     },
@@ -679,11 +659,6 @@
       "license": "MIT"
     },
     {
-      "name": "agent-base",
-      "versions": ["6.0.2"],
-      "license": "MIT"
-    },
-    {
       "name": "ai",
       "versions": ["7.0.107"],
       "license": "Apache-2.0"
@@ -744,11 +719,6 @@
       "license": "MPL-2.0"
     },
     {
-      "name": "axios",
-      "versions": ["1.20.0"],
-      "license": "MIT"
-    },
-    {
       "name": "balanced-match",
       "versions": ["4.0.4"],
       "license": "MIT"
@@ -787,11 +757,6 @@
       "name": "buffer",
       "versions": ["6.0.3"],
       "license": "MIT"
-    },
-    {
-      "name": "buffer-equal-constant-time",
-      "versions": ["1.0.1"],
-      "license": "BSD-3-Clause"
     },
     {
       "name": "bytes",
@@ -904,11 +869,6 @@
       "license": "MIT"
     },
     {
-      "name": "dayjs",
-      "versions": ["1.11.23"],
-      "license": "MIT"
-    },
-    {
       "name": "debug",
       "versions": ["4.4.3"],
       "license": "MIT"
@@ -952,11 +912,6 @@
       "name": "dunder-proto",
       "versions": ["1.0.1"],
       "license": "MIT"
-    },
-    {
-      "name": "ecdsa-sig-formatter",
-      "versions": ["1.0.11"],
-      "license": "Apache-2.0"
     },
     {
       "name": "ee-first",
@@ -1134,11 +1089,6 @@
       "license": "MIT"
     },
     {
-      "name": "follow-redirects",
-      "versions": ["1.16.0"],
-      "license": "MIT"
-    },
-    {
       "name": "form-data",
       "versions": ["4.0.6"],
       "license": "MIT"
@@ -1151,6 +1101,11 @@
     {
       "name": "fresh",
       "versions": ["2.0.0"],
+      "license": "MIT"
+    },
+    {
+      "name": "fsevents",
+      "versions": ["2.3.3"],
       "license": "MIT"
     },
     {
@@ -1216,11 +1171,6 @@
     {
       "name": "http-errors",
       "versions": ["2.0.1"],
-      "license": "MIT"
-    },
-    {
-      "name": "https-proxy-agent",
-      "versions": ["5.0.1"],
       "license": "MIT"
     },
     {
@@ -1319,21 +1269,6 @@
       "license": "ISC"
     },
     {
-      "name": "jsonwebtoken",
-      "versions": ["9.0.3"],
-      "license": "MIT"
-    },
-    {
-      "name": "jwa",
-      "versions": ["2.0.1"],
-      "license": "MIT"
-    },
-    {
-      "name": "jws",
-      "versions": ["4.0.1"],
-      "license": "MIT"
-    },
-    {
       "name": "light-my-request",
       "versions": ["6.6.0"],
       "license": "BSD-3-Clause"
@@ -1344,12 +1279,7 @@
       "license": "MPL-2.0"
     },
     {
-      "name": "lightningcss-linux-x64-gnu",
-      "versions": ["1.33.0"],
-      "license": "MPL-2.0"
-    },
-    {
-      "name": "lightningcss-linux-x64-musl",
+      "name": "lightningcss-darwin-arm64",
       "versions": ["1.33.0"],
       "license": "MPL-2.0"
     },
@@ -1357,41 +1287,6 @@
       "name": "livekit-server-sdk",
       "versions": ["2.19.0"],
       "license": "Apache-2.0"
-    },
-    {
-      "name": "lodash.includes",
-      "versions": ["4.3.0"],
-      "license": "MIT"
-    },
-    {
-      "name": "lodash.isboolean",
-      "versions": ["3.0.3"],
-      "license": "MIT"
-    },
-    {
-      "name": "lodash.isinteger",
-      "versions": ["4.0.4"],
-      "license": "MIT"
-    },
-    {
-      "name": "lodash.isnumber",
-      "versions": ["3.0.3"],
-      "license": "MIT"
-    },
-    {
-      "name": "lodash.isplainobject",
-      "versions": ["4.0.6"],
-      "license": "MIT"
-    },
-    {
-      "name": "lodash.isstring",
-      "versions": ["4.0.1"],
-      "license": "MIT"
-    },
-    {
-      "name": "lodash.once",
-      "versions": ["4.1.1"],
-      "license": "MIT"
     },
     {
       "name": "lru-cache",
@@ -1480,7 +1375,7 @@
     },
     {
       "name": "next",
-      "versions": ["16.3.5"],
+      "versions": ["16.3.6"],
       "license": "MIT"
     },
     {
@@ -1704,11 +1599,6 @@
       "license": "MIT"
     },
     {
-      "name": "proxy-from-env",
-      "versions": ["2.1.0"],
-      "license": "MIT"
-    },
-    {
       "name": "pump",
       "versions": ["3.0.4"],
       "license": "MIT"
@@ -1832,11 +1722,6 @@
       "name": "scheduler",
       "versions": ["0.27.0"],
       "license": "MIT"
-    },
-    {
-      "name": "scmp",
-      "versions": ["2.1.0"],
-      "license": "BSD-3-Clause"
     },
     {
       "name": "secure-json-parse",
@@ -2024,11 +1909,6 @@
       "license": "MIT"
     },
     {
-      "name": "twilio",
-      "versions": ["5.10.4"],
-      "license": "MIT"
-    },
-    {
       "name": "type-is",
       "versions": ["2.1.0"],
       "license": "MIT"
@@ -2117,11 +1997,6 @@
       "name": "xml-name-validator",
       "versions": ["5.0.0"],
       "license": "Apache-2.0"
-    },
-    {
-      "name": "xmlbuilder",
-      "versions": ["13.0.2"],
-      "license": "MIT"
     },
     {
       "name": "xmlchars",

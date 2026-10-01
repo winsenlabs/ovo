@@ -1,5 +1,9 @@
 # Voice and behavior implementation evidence
 
+## I1 integration update (2026-10-02)
+
+Two production engines are selected by release pins: native and the genuine `@livekit/agents@1.9.0` adapter. E3's instrumented upstream prototypes exercised start/say/close for LiveKit only, and a third synthetic engine used the same seam. I1's fixture matrix adds FAQ and one confirmed-write operation across 2 carriers × 3 STT × 2 TTS for native; its LiveKit rows are skipped on this macOS host because glibc is unavailable. The conformance kit now waits within its existing timeout for asynchronous audio, speech phases and observer emissions instead of assuming one engine's same-tick ordering. The confirmed write runs only after the played prompt, with one fixture handler execution and no live side effect.
+
 Date: 2026-09-20 UTC
 
 ## Implemented scope

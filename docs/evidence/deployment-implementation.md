@@ -1,5 +1,9 @@
 # Deployment implementation evidence
 
+## I1 integration update (2026-10-02)
+
+[ADR 0003](../decisions/0003-aas-only-desired-count-writer.md) supersedes the old dispatcher `UpdateService` plan below: Application Auto Scaling is the only worker desired-count writer, and the dispatcher publishes a capacity signal without ECS write permission. Compose keeps two fixed workers and logs the signal. `scripts/verify-compose.sh` now checks the fixture flag, signed callback configuration and log-only capacity setting. The Compose smoke was not run in this I1 pass; Docker availability alone would not certify public carrier or AWS behavior.
+
 Date: 2026-09-20  
 Scope: durable orchestration, dispatcher/worker executables, Twilio adapter, Fargate/Compose configuration, and operations runbooks.  
 Status: **production runtime paths are implemented and locally integrated; live AWS/Twilio deployment and certification remain external gates.**
@@ -52,7 +56,7 @@ The isolated Compose stack used local PostgreSQL and ElasticMQ. These are local 
 ## Explicitly unverified production gates
 
 1. **Storage operations:** the local PostgreSQL backup/restore and restore-fence drill passed, including tombstones, duplicate claims, fenced jobs/outboxes/campaigns and ambiguous provider evaluations. This does not establish a production object-store recovery procedure, production RPO/RTO, or a managed-database point-in-time recovery result.
-2. **AWS environment:** no AWS credentials were used; no `plan` against account data, apply, deployment, IAM authorization, private routing/NAT/endpoints, Secrets Manager injection, ALB WebSocket behavior, Cloud Map convergence, ECS cold start, task-protection renewal, Fargate interruption or one-writer failover was observed. PostgreSQL serializes intent and blocks competing `UpdateService` calls, but AWS exposes no fencing token that can atomically bind an ECS update to the database epoch. If a process crashes with an `inflight` write or an API call has an uncertain outcome, takeover remains deliberately blocked because the old request might still complete. Matching ECS desired-count readback is only diagnostic and cannot release the fence: it may reflect a preexisting count before a late request arrives. Settlement requires a separately recorded authoritative/operator certificate and the documented manual SQL gate. This is fail-closed behavior, not proof of atomic cross-system fencing.
+2. **AWS environment:** no AWS credentials were used; no `plan` against account data, apply, deployment, IAM authorization, private routing/NAT/endpoints, Secrets Manager injection, ALB WebSocket behavior, Cloud Map convergence, ECS cold start, task-protection renewal or Fargate interruption was observed. The Terraform contract checks AAS policies and the dispatcher's lack of `ecs:UpdateService`; a live scale-from-zero and drain drill remains required. PostgreSQL admission and ownership fences protect calls independently of desired-count signals.
 3. **Media/session transport:** actual local sockets and the complete durable authority path passed, but public ALB WebSocket idle/upgrade behavior, carrier edge latency and long-call backpressure have not been certified.
 4. **Twilio:** no number purchase, outbound/inbound call, real webhook delivery, bidirectional Media Stream, transfer or hangup ran against Twilio. Local signed callback/media protocol tests do not certify a carrier account or public proxy reconstruction.
 5. **SQS/AWS semantics:** the actual AWS SDK adapter compiled and is used by entrypoints; ElasticMQ exercised enqueue/delivery/delete/visibility locally, but live IAM/KMS/DLQ behavior remains untested.

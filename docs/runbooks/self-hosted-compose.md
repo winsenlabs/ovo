@@ -45,6 +45,8 @@ Verify container health and the database-backed sign-in without printing credent
 ./scripts/verify-compose.sh
 ```
 
+The verifier also checks the API's explicit fixture-call flag, HTTPS media base URL, inbound route secret, carrier environment-binding shape and the dispatcher's log-only capacity signal. This command has not been run as I1 evidence on this host because the full Compose stack is not running; the exact command above is the operator smoke check once Docker is available. A local health pass does not certify public callbacks or real carrier traffic.
+
 Stop the services without deleting data:
 
 ```sh

@@ -7,9 +7,9 @@
 ## Preconditions
 
 1. Review `infra/terraform/README.md`; verify private-subnet NAT/VPC endpoints, ACM/DNS, PostgreSQL TLS/backups/deletion protection, Secrets Manager fields, regional quotas, and immutable image digests.
-2. Confirm the control API's current storage profile. Its local SQLite adapter is not a production peer of the PostgreSQL orchestration store. Do not call the system production-ready until control and orchestration share a supported backup/restore boundary.
+2. Confirm the control API and orchestration store use the same PostgreSQL deployment and separately versioned migrations. Verify backup/restore and release pins before admission.
 3. Run unit tests and the disposable-PostgreSQL ownership integration. Live carrier, AWS routing, task protection, and load gates are separate.
-4. Set inbound warm floor to zero until media routing and carrier signature gates pass; otherwise set an explicitly cost-approved floor.
+4. Set inbound warm floor to zero until media routing and carrier signature gates pass; otherwise set an explicitly cost-approved floor. Keep founder-gated real calls disabled during this infrastructure check.
 
 ## Procedure
 
@@ -20,13 +20,13 @@ terraform -chdir=infra/terraform validate
 terraform -chdir=infra/terraform plan -out=ovo.tfplan
 ```
 
-Have a second operator inspect the plan for public resources, IAM wildcard actions, secret references, worker maximum, images, and absence of Application Auto Scaling policies. Applying is an authorized human deployment step; this repository implementation did not apply it.
+Have a second operator inspect the plan for public resources, IAM wildcard actions, secret references, worker maximum, images, the AAS target, tracking/step policies and scheduled actions. The dispatcher must have no `ecs:UpdateService` permission. Applying is an authorized human deployment step; this repository implementation did not apply it.
 
-After an authorized apply, run migrations from a one-off task with the same dispatcher image/config before admitting work. Start API/console/dispatcher/gateway, then leave workers at zero for the scale-from-zero drill or prewarm through the dispatcher authority. Never manually race `UpdateService` against the dispatcher.
+After an authorized apply, run migrations from a one-off task with the same dispatcher image/config before admitting work. Start API/console/dispatcher/gateway, then leave workers at zero for the scale-from-zero drill or prewarm through an AAS scheduled action. Never manually race `UpdateService` against the AAS policy.
 
 ## Expected signals
 
-- API and gateway target health are green; dispatcher has a current PostgreSQL capacity-leader epoch.
+- API and gateway target health are green; the dispatcher publishes a fresh capacity signal and AAS owns worker desired count.
 - One scale decision includes fresh mutually exclusive counts and one reason.
 - A synthetic job appears in outbox, SQS, and exactly one owned attempt; no carrier dial is enabled in this check.
 - Worker readiness includes plugin initialization and routing registration; task protection succeeds before any authorized dial.
@@ -37,4 +37,4 @@ Stop new admission first. Roll back task definitions for new sessions while acti
 
 ## Verification record
 
-Retain plan digest, task-definition/image digests, migration IDs, leader epoch, timestamps for zero-to-ready, target health, protection result, duplicate count, and operator names. Mark carrier/Fargate gates unverified unless an authorized live drill produced retained evidence.
+Retain plan digest, task-definition/image digests, migration IDs, capacity signal and AAS alarm timestamps, timestamps for zero-to-ready, target health, protection result, duplicate count, and operator names. Mark carrier/Fargate gates unverified unless an authorized live drill produced retained evidence.

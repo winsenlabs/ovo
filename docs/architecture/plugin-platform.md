@@ -2346,6 +2346,8 @@ The following are read-only for every wave-2 unit:
 - every `package.json` not listed in the unit's own paths;
 - `scripts/postgres-restore-fence.sql` and `PM/**`.
 
+**I1 reconciliation (2026-10-02).** This blanket list governed ordinary wave-2 edits; a specific named grant in §15.5 or an approved, dated exception on the [unit board](../../PM/units/README.md) prevailed. In particular, E3 owned `scripts/build.mjs` and the four app build scripts, C2 owned `packages/distribution/src/profiles/gateway.ts`, and O1 owned the worker termination wiring and distribution worker/dispatcher profiles. Board status updates to `PM/**` were required by the checker protocol and landed in separate documentation commits. The F4 owner map assigned shared app paths where §15.5 was incomplete; the dated table records each approved touchpoint. Future changes should name the file in the owner map before a unit starts rather than relying on a silent blanket exception.
+
 **Contract gaps.** If a frozen contract is insufficient, the unit does **not** edit it. It adds a local structural type or adapter inside its own paths, lists the gap under "Contract gaps" in its final report, and I1 resolves it.
 
 ### 15.3 Pre-registration (F3) so that wave 2 never edits shared files
@@ -2385,9 +2387,10 @@ The following are read-only for every wave-2 unit:
 node scripts/lint.mjs --only <owned prefixes>
 node scripts/typecheck-scope.mjs <owned prefixes>
 pnpm exec vitest run <owned test paths> --reporter=dot
+pnpm exec prettier --check <owned paths>
 ```
 
-- A unit is done when all three pass for its scope.
+- A unit is done when scoped lint, scoped typecheck, focused tests and scoped Prettier pass. Full `pnpm format:check` and the duplication gate also run together on the merge commit, because Prettier can change duplication windows.
 - It must not knowingly break files outside its scope.
 - If an out-of-scope diagnostic comes from the unit's own change, for example to a type another package uses, the unit reverts or adapts that change.
 
