@@ -1,10 +1,13 @@
 import { PageQuery } from './route-page-schema.ts';
 import { z } from 'zod';
 import type { PostgresEvaluationService } from '@winsendotai/ovo-plugin-evaluations';
+import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 
 import { audit, type EvaluationDatasetRouteDependencies } from './evaluation-route-support.ts';
 
-type Dependencies = EvaluationDatasetRouteDependencies;
+type Dependencies = Omit<EvaluationDatasetRouteDependencies, 'store' | 'fixtureBindingVersion'> & {
+  store: Pick<ControlStore, 'audit'>;
+};
 
 const Id = z.string().trim().min(1).max(200);
 
