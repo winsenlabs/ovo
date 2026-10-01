@@ -33,6 +33,8 @@ export interface FixtureCallInput {
   registry: PluginRegistry;
   fixtures: Readonly<Record<string, NetFixtureScript[]>>;
   fixtureTemplates: Readonly<Record<string, FixtureTemplate>>;
+  /** Synthetic, test-only credential IDs; never read the live secret resolver. */
+  fixtureSecrets?: Readonly<Record<string, string>>;
   /** Selected carrier ingress, obtained from the process graph, never a replacement serializer. */
   carrier: {
     pluginId: string;

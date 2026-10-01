@@ -203,7 +203,10 @@ export function createFakeCarrier(options: FakeCarrierOptions = {}): FakeCarrier
     },
     caller: {
       audio(bytes) {
-        if (!closed) deliver({ type: 'audio', seq: ++seq, timestampMs: at(), payload: bytes });
+        // Carrier wire timestamps are integer milliseconds even when playback drains on a
+        // fractional simulated clock tick.
+        if (!closed)
+          deliver({ type: 'audio', seq: ++seq, timestampMs: Math.round(at()), payload: bytes });
       },
       dtmf(digit) {
         if (!closed) deliver({ type: 'dtmf', digit });

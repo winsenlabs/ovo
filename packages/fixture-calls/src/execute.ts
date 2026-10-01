@@ -96,7 +96,9 @@ export async function executeFixtureCall(
     carrierCallId: callId,
     streamId: callId,
     format,
-    routeParams: {},
+    // The fixture codec must receive the same canonical route shape as a real gateway stream.
+    // This token is synthetic and is never submitted to the grant store.
+    routeParams: { sid: callId, rt: 'fixture-route-token' },
   });
   if (!codec.decode(start).some((event) => event.type === 'start'))
     throw new Error('fixture_unavailable: selected carrier did not decode its start frame');
@@ -108,6 +110,8 @@ export async function executeFixtureCall(
   const host = fixtureHostService({
     media,
     clock,
+    workspaceId: input.release.workspaceId,
+    fixtureSecrets: input.fixtureSecrets,
     usage: (meter) => {
       const estimated = { ...meter, state: 'estimated' as const };
       usage.push(estimated);

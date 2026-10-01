@@ -35,6 +35,8 @@ export function fixtureHostService(input: {
   media: MediaDuplex;
   clock: Clock;
   usage: UsageSink;
+  workspaceId: string;
+  fixtureSecrets?: Readonly<Record<string, string>>;
   transcript: (
     event: Extract<EngineEvent, { type: 'user.transcript' | 'agent.transcript' }>,
   ) => void;
@@ -67,8 +69,11 @@ export function fixtureHostService(input: {
     (ctx) => {
       ctx.provide(Cap.operationStore, operationStore);
       ctx.provide(Cap.secrets, {
-        resolve: async () => {
-          throw new Error('fixture_unavailable: live secrets are disabled');
+        resolve: async (workspaceId: string, credentialId: string) => {
+          const secret = input.fixtureSecrets?.[credentialId];
+          if (workspaceId !== input.workspaceId || !secret)
+            throw new Error('fixture_unavailable: live secrets are disabled');
+          return secret;
         },
       });
       ctx.provide(Cap.media, input.media);

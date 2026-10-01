@@ -176,6 +176,31 @@ describe('fake carrier driver', () => {
     expect(audio).toEqual([3]);
     expect(carrier.wire.map((frame) => JSON.parse(frame).event)).toEqual(['media', 'mark']);
   });
+
+  it('quantizes fractional fixture playback time before encoding carrier audio timestamps', () => {
+    const clock = new FakeClock(0.5);
+    const timestamps: number[] = [];
+    const codec = fixtureSerializer.createSession({});
+    codec.decode(
+      fixtureInboundFrame({
+        type: 'start',
+        carrierCallId: 'CA1',
+        streamId: 'MZ1',
+        format: MULAW_8K,
+        routeParams: {},
+      }),
+    );
+    const carrier = createFakeCarrier({
+      clock,
+      codec,
+      inbound: (event) => {
+        if (event.type === 'audio') timestamps.push(event.timestampMs);
+        return fixtureInboundFrame(event, 'MZ1');
+      },
+    });
+    carrier.caller.audio(new Uint8Array([1]));
+    expect(timestamps).toEqual([1]);
+  });
 });
 
 describe('loopback server and raw RFC 6455 client', () => {
