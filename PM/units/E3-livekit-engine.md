@@ -300,4 +300,8 @@ dispatcher build after O1's distribution import failed at esbuild's `No loader
 is configured for .node files`; adding only the three approved native externals
 makes it pass. The selected-engine test uses real distribution and both real
 engines, checks the resolved plugin ID for each release selection, and observes
-actual carrier audio from both.
+actual carrier audio from both. A deliberate selector mutation that always
+chose native failed on a value assertion: expected
+`@winsendotai/ovo-engine-livekit`, received
+`@winsendotai/ovo-plugin-voice-session-engine`. Restoring the selector made
+the test pass again.
