@@ -70,8 +70,14 @@ describe('Fargate scaling contract', () => {
       CAPACITY_METRIC_NAMES.oldestAge,
     ])
       expect(capacity).toContain(name);
-    expect(tf('alarms.tf')).toContain('statistic           = "SampleCount"');
-    expect(tf('alarms.tf')).toContain('treat_missing_data  = "breaching"');
+    const stale = block(
+      tf('alarms.tf'),
+      'resource "aws_cloudwatch_metric_alarm"',
+      'stale_capacity_signal',
+    );
+    expect(stale).toMatch(/metric_name\s*=\s*"RequiredSlots"/);
+    expect(stale).toMatch(/statistic\s*=\s*"SampleCount"/);
+    expect(stale).toMatch(/treat_missing_data\s*=\s*"breaching"/);
     for (const name of [
       'jobs_dlq',
       'oldest_eligible_job',
@@ -103,8 +109,22 @@ describe('Fargate scaling contract', () => {
     ).toContain('to_port                      = 4000');
     expect(tf('network.tf')).toContain('"/carriers/*"');
     expect(tf('network.tf')).toContain('"/twilio/*"');
-    expect(tf('variables.tf')).toContain('default     = 2');
-    expect(tf('variables.tf')).not.toContain('gateway_desired_count == 1');
+    const gatewayService = block(tf('services.tf'), 'resource "aws_ecs_service"', 'gateway');
+    const gatewayVariable = block(tf('variables.tf'), 'variable', 'gateway_desired_count');
+    expect(gatewayService).toMatch(/desired_count\s*=\s*var\.gateway_desired_count/);
+    expect(gatewayVariable).toMatch(/default\s*=\s*2\b/);
+    expect(gatewayVariable).toMatch(/condition\s*=\s*var\.gateway_desired_count\s*>=\s*2/);
+    const step = block(
+      tf('autoscaling.tf'),
+      'resource "aws_appautoscaling_policy"',
+      'worker_step_out',
+    );
+    expect(step).toMatch(/policy_type\s*=\s*"StepScaling"/);
+    const adjustments = [...step.matchAll(/scaling_adjustment\s*=\s*(-?\d+)/g)].map((m) =>
+      Number(m[1]),
+    );
+    expect(adjustments.length).toBeGreaterThan(0);
+    expect(adjustments.every((value) => value > 0)).toBe(true);
     expect(tf('network.tf')).toContain('min(3600, var.max_call_seconds)');
   });
 
