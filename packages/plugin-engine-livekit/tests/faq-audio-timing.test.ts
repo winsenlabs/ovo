@@ -83,5 +83,7 @@ it('the FAQ conformance check rejects an engine whose carrier writer discards ev
     { turnDetector: 'none', timeoutMs: 12000 },
     { only: ['FAQ answers without an LLM'] },
   );
-  expect(failures.map((failure) => failure.message)).toContain('no audio reached the carrier');
+  expect(failures.map((failure) => failure.message)).toContain(
+    'timed out waiting for FAQ carrier audio',
+  );
 }, 30000);

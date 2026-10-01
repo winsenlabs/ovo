@@ -39,10 +39,7 @@ export const TURN_SCENARIOS: readonly EngineScenario[] = [
     async run(h, f) {
       await h.say('what are your opening hours');
       await h.until(() => spoken(h, /nine to five/), 'the FAQ answer');
-      f.expect(
-        h.carrier.log.some((e) => e.type === 'audio'),
-        'no audio reached the carrier',
-      );
+      await h.until(() => h.carrier.log.some((e) => e.type === 'audio'), 'FAQ carrier audio');
     },
   },
   {
