@@ -54,7 +54,7 @@ interface TestCallDependencies {
   telemetry?: BufferedTelemetryWriter;
   catalog?: readonly PluginDefinition[];
   distributionDefaults?: SessionDefaults;
-  options?: { defaultSession?: DefaultSessionOptions };
+  options?: { defaultSession?: DefaultSessionOptions; costLedgerEnabled?: boolean };
 }
 
 export function registerTestCallRoutes(input: TestCallDependencies): void {
@@ -193,6 +193,7 @@ export function registerTestCallRoutes(input: TestCallDependencies): void {
                 callId,
                 store: input.store,
                 ctx: input.ctx,
+                useCostLedger: input.options?.costLedgerEnabled !== false,
                 trace,
               });
             } catch (error) {

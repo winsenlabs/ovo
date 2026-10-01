@@ -161,6 +161,7 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
       const routeDependencies = {
         ctx,
         app,
+        testCallRuntime: options.testCallRuntime,
         store,
         telemetry: options.telemetryEnabled ? ctx.get('ovo.telemetry') : undefined,
         infrastructure: options.infrastructureEnabled

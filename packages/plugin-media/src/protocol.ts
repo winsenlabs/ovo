@@ -1,9 +1,5 @@
 import type { AudioFormat, PlaybackEvidence } from '@winsendotai/ovo-contracts';
-import type {
-  GatewayToWorkerMessage,
-  MediaSessionIdentity,
-  WorkerToGatewayMessage,
-} from './ports.ts';
+import type { GatewayToWorkerMessage, WorkerToGatewayMessage } from './ports.ts';
 
 function record(raw: string): Record<string, unknown> {
   const parsed: unknown = JSON.parse(raw);
@@ -69,8 +65,8 @@ export function parseGatewayMessage(raw: string, maxAudioBytes: number): Gateway
       sessionId: string(message.sessionId, 'sessionId'),
       carrierId: string(message.carrierId, 'carrierId'),
       bindingId: string(message.bindingId, 'bindingId'),
-      carrierCallId: string(message.carrierCallId ?? message.callSid, 'carrierCallId'),
-      streamId: string(message.streamId ?? message.streamSid, 'streamId'),
+      carrierCallId: string(message.carrierCallId, 'carrierCallId'),
+      streamId: string(message.streamId, 'streamId'),
       ownerEpoch: integer(message.ownerEpoch, 'ownerEpoch', 1),
       generation: integer(message.generation, 'generation', 1),
       format: format(message.format),
@@ -113,20 +109,4 @@ export function parseWorkerMessage(raw: string, maxAudioBytes: number): WorkerTo
 
 export function encodeGatewayMessage(message: GatewayToWorkerMessage): string {
   return JSON.stringify(message);
-}
-
-export function encodeWorkerMessage(message: WorkerToGatewayMessage): string {
-  return JSON.stringify(message);
-}
-
-export function sameIdentity(a: MediaSessionIdentity, b: MediaSessionIdentity): boolean {
-  return (
-    a.sessionId === b.sessionId &&
-    a.carrierId === b.carrierId &&
-    a.bindingId === b.bindingId &&
-    a.carrierCallId === b.carrierCallId &&
-    a.streamId === b.streamId &&
-    a.ownerEpoch === b.ownerEpoch &&
-    a.generation === b.generation
-  );
 }

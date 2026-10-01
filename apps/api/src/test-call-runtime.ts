@@ -115,6 +115,14 @@ export async function executeFixtureChildJob(
         registry: new PluginRegistry(distribution.catalog),
         fixtures: distribution.fixtures,
         fixtureTemplates: distribution.fixtureTemplates,
+        // Fixture templates authenticate with a synthetic key. The child has no live
+        // secret port and never reads the credential value stored for this ID.
+        fixtureSecrets: Object.fromEntries(
+          Object.values(job.release.selections ?? {})
+            .map((choice) => choice?.binding?.credentialId)
+            .filter((id): id is string => typeof id === 'string' && id.length > 0)
+            .map((id) => [id, 'fixture-key']),
+        ),
         carrier: { pluginId: selected.pluginId, ingress, inboundFrame },
         callerScript: job.callerScript,
         defaults: distribution.defaults,
@@ -175,6 +183,7 @@ export async function persistFixtureResult(input: {
   callId: string;
   store: ControlStore;
   ctx?: Pick<Context, 'get'>;
+  useCostLedger?: boolean;
   trace?: ReturnType<typeof createFixtureTelemetry>;
 }) {
   const { result, release, workspaceId, callId, store, ctx, trace } = input;
@@ -186,7 +195,10 @@ export async function persistFixtureResult(input: {
         payload: result.recording,
       })
     : undefined;
-  const ledger = ctx?.get(Cap.costLedger) as CostLedgerService | undefined;
+  const ledger =
+    input.useCostLedger === false
+      ? undefined
+      : (ctx?.get(Cap.costLedger) as CostLedgerService | undefined);
   await persistFixtureUsage({
     workspaceId: workspaceId,
     callId,

@@ -26,6 +26,8 @@ export interface ManagementApiOptions {
   usersEnabled?: boolean;
   seedAdmin?: import('./user-plugin.ts').SeedAdminInput;
   sessionSecret: string;
+  /** Test-only executor seam; production constructs its bounded child runtime. */
+  testCallRuntime?: import('@winsendotai/ovo-fixture-calls').TestCallRuntime;
   pluginCatalog?: readonly PluginDefinition[];
   distributionDefaults?: SessionDefaults;
   unavailable?: readonly UnavailablePlugin[];
