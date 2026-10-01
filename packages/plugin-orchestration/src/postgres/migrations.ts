@@ -58,6 +58,20 @@ export async function runMigrations(pool: Pool): Promise<void> {
     }
     const missing = migrations.filter(([version]) => !versions.has(version));
     for (const [version, sql] of missing) {
+      if (version === 6) {
+        // Migration 006 predates named-only dropping and is immutable once deployed.
+        // Refuse an unexpected CHECK rather than letting its broad status scan erase it.
+        const checks = await client.query<{ conname: string }>(
+          `SELECT conname FROM pg_constraint
+           WHERE conrelid=to_regclass(format('%I.%I', current_schema(), 'ovo_jobs'))
+             AND contype='c' AND pg_get_constraintdef(oid) LIKE '%status%'
+           ORDER BY conname`,
+        );
+        if (checks.rows.length !== 1 || checks.rows[0]?.conname !== 'ovo_jobs_status_check')
+          throw new Error(
+            `orchestration migration 006 requires manual review of status constraints: ${checks.rows.map((row) => row.conname).join(', ') || '(none)'}`,
+          );
+      }
       await client.query(sql);
       await client.query('INSERT INTO ovo_orch_schema_migrations (version) VALUES ($1)', [version]);
     }
