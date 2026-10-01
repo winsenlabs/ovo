@@ -10,11 +10,17 @@ import {
   EgressBlockedError,
   FakeClock,
   FIXTURE_PLUGIN_IDS,
+  FIXTURE_SIGNATURE_HEADER,
   connectRawWebSocket,
   createFakeCarrier,
   createFakeCarrierHostPorts,
   fakeTurnDetector,
   fixtureInboundFrame,
+  fixtureCarrierIngress,
+  fixtureSignature,
+  fixtureWebhook,
+  signFixtureRequest,
+  signedPayload,
   fixtureProviderModule,
   fixtureSerializer,
   installEgressSentinel,
@@ -219,6 +225,28 @@ describe('loopback server and raw RFC 6455 client', () => {
 });
 
 describe('jsonl fixtures, host ports, fixture plugins and the fake turn detector', () => {
+  it('signs and verifies the raw query-bearing external URL without reconstructing it', async () => {
+    const host = createFakeCarrierHostPorts();
+    const externalUrl = `${host.callbackUrl('fixture', 'b1', 'status', { requestId: 'dial-1' })}&raw=%2f+%20`;
+    const unsigned = fixtureWebhook({
+      externalUrl,
+      bindingId: 'b1',
+      query: Object.fromEntries(new URL(externalUrl).searchParams),
+      form: { CallSid: 'CA1', CallStatus: 'completed' },
+    });
+    const signed = signFixtureRequest('fixture-secret', unsigned);
+    const expected = fixtureSignature(
+      'fixture-secret',
+      signedPayload(externalUrl, { CallSid: 'CA1', CallStatus: 'completed' }),
+    );
+    expect(signed.headers[FIXTURE_SIGNATURE_HEADER]).toBe(expected);
+    const route = fixtureCarrierIngress().routes.find(
+      (candidate) => candidate.purpose === 'status',
+    )!;
+    expect((await route.handle(signed, host)).status).toBe(204);
+    expect(host.events).toHaveLength(1);
+  });
+
   it('validates the fixture header', () => {
     expect(
       parseJsonlFixture(

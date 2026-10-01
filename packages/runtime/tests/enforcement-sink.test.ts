@@ -25,7 +25,7 @@ describe('violation sink and enforcement modes (§3.7)', () => {
     const sink = (violation: PluginViolation) => void seen.push(violation);
     setViolationSink(sink);
     expect(getViolationSink()).toBe(sink);
-    const composition = await compose([{ id: 'leaky' }], [leaky()]);
+    const composition = await compose([{ id: 'leaky' }], [leaky()], { enforcement: 'warn' });
     expect(seen).toEqual([
       {
         pluginId: 'leaky',
@@ -46,7 +46,7 @@ describe('violation sink and enforcement modes (§3.7)', () => {
       throw new Error('sink down');
     });
     setViolationSink(sink);
-    const composition = await compose([{ id: 'leaky' }], [leaky()]);
+    const composition = await compose([{ id: 'leaky' }], [leaky()], { enforcement: 'warn' });
     expect(sink).toHaveBeenCalledTimes(1);
     await composition.dispose();
     const strict = v2Plugin({ id: 'strict' }, (ctx) => void ctx.provide('leak', 1));
@@ -54,16 +54,16 @@ describe('violation sink and enforcement modes (§3.7)', () => {
     expect(sink).toHaveBeenCalledTimes(2);
   });
 
-  it('defaults v1 to warn, honours OVO_PLUGIN_ENFORCEMENT and the option, and always enforces v2', async () => {
+  it('defaults v1 to enforce, honours OVO_PLUGIN_ENFORCEMENT and the option, and always enforces v2', async () => {
     const v1 = leaky().manifest;
     const v2 = v2Plugin({ id: 'v2' }).manifest;
-    expect(enforcementMode(v1)).toBe('warn');
+    expect(enforcementMode(v1)).toBe('enforce');
     expect(enforcementMode(v2, 'warn')).toBe('enforce');
     vi.stubEnv('OVO_PLUGIN_ENFORCEMENT', 'enforce');
     expect(enforcementMode(v1)).toBe('enforce');
     expect(enforcementMode(v1, 'warn')).toBe('warn');
     await expect(compose([{ id: 'leaky' }], [leaky()])).rejects.toThrow('provide-undeclared');
     vi.stubEnv('OVO_PLUGIN_ENFORCEMENT', 'bogus');
-    expect(enforcementMode(v1)).toBe('warn');
+    expect(enforcementMode(v1)).toBe('enforce');
   });
 });

@@ -96,9 +96,7 @@ async function verified(
 ): Promise<{ params: Record<string, string> } | CarrierHttpReply> {
   const binding = await host.resolveBinding(request.bindingId);
   const params = formParams(request);
-  const query = new URLSearchParams(request.query).toString();
-  const url = query ? `${request.externalUrl}?${query}` : request.externalUrl;
-  const expected = fixtureSignature(binding.secret, signedPayload(url, params));
+  const expected = fixtureSignature(binding.secret, signedPayload(request.externalUrl, params));
   if (!safeEqual(request.headers[FIXTURE_SIGNATURE_HEADER], expected)) return refuse(401);
   const requestId = perCall ? request.query.r : undefined;
   if (perCall && !requestId) return refuse(403);

@@ -200,9 +200,10 @@ export function signFixtureRequest(
   secret: string,
   request: CarrierHttpRequest,
 ): CarrierHttpRequest {
-  const query = new URLSearchParams(request.query).toString();
-  const url = query ? `${request.externalUrl}?${query}` : request.externalUrl;
-  const signature = fixtureSignature(secret, signedPayload(url, formParams(request)));
+  const signature = fixtureSignature(
+    secret,
+    signedPayload(request.externalUrl, formParams(request)),
+  );
   return { ...request, headers: { ...request.headers, [FIXTURE_SIGNATURE_HEADER]: signature } };
 }
 

@@ -47,10 +47,10 @@ function environmentMode(): EnforcementMode | undefined {
   return value === 'enforce' || value === 'warn' ? value : undefined;
 }
 
-/** v2 manifests always enforce. v1 uses the explicit option, then OVO_PLUGIN_ENFORCEMENT, then warn. */
+/** v2 manifests always enforce. v1 uses the explicit option, then OVO_PLUGIN_ENFORCEMENT, then enforce. */
 export function enforcementMode(manifest: Manifest, override?: EnforcementMode): EnforcementMode {
   if (manifest.contractVersion === 2) return 'enforce';
-  return override ?? environmentMode() ?? 'warn';
+  return override ?? environmentMode() ?? 'enforce';
 }
 
 export interface ViolationLog {
