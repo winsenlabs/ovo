@@ -8,6 +8,7 @@ export * from './drivers.ts';
 export * from './kit/checks.ts';
 export * from './kit/carrier.ts';
 export * from './kit/engine.ts';
+export type { EnginePorts } from './kit/engine-ports.ts';
 export * from './kit/inference.ts';
 export * from './kit/runner.ts';
 export * from './kit/stt.ts';

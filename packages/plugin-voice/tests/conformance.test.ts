@@ -1,5 +1,4 @@
-import { describeEngine } from '../../conformance/src/describe.ts';
-import type { EnginePorts } from '../../conformance/src/kit/engine-ports.ts';
+import { describeEngine, type EnginePorts } from '@winsendotai/ovo-conformance';
 import { NATIVE_ENGINE_CAPABILITIES } from '../src/engine/plugin.ts';
 import { NativeVoiceSessionEngine } from '../src/engine/session-engine.ts';
 import { BoundedSpeechScheduler } from '../src/scheduler.ts';

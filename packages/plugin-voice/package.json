@@ -9,5 +9,8 @@
     "@winsendotai/ovo-contracts": "workspace:*",
     "@winsendotai/ovo-plugin-kit": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@winsendotai/ovo-conformance": "workspace:*"
   }
 }
