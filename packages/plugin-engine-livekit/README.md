@@ -30,8 +30,8 @@ pending mark correlation before the carrier can echo flushed marks.
 
 ## Native image and license handoff to I1
 
-All Docker stages use `node:24.8.0-bookworm-slim`. Worker and API builds externalize
-`@livekit/*`, `sharp`, and `onnxruntime-node`; their production dependencies must
+All Docker stages use `node:24.8.0-bookworm-slim`. API, worker, gateway and
+dispatcher builds externalize `@livekit/*`, `sharp`, and `onnxruntime-node`; their production dependencies must
 be shipped by `pnpm deploy` through distribution → this package. The CJS worker
 build flags were exercised with the actual lazy runner and offline carrier audio
 on Node 22 (which supports `require(esm)`), without changing the worker format.

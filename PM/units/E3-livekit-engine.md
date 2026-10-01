@@ -179,9 +179,9 @@ CONSTRAINTS:
 - **Gateway reachability.** The gateway already calls `loadDistribution`, whose
   session catalog reaches the lazy engine module at bundle time. Its unchanged
   build failed with esbuild `No loader is configured for .node files`. The owned
-  gateway `scripts.build` therefore adds the same native externals; the dispatcher
-  currently has no distribution import and remains unchanged. O1 must inherit
-  these externals when its dispatcher entry starts loading distribution.
+  gateway `scripts.build` therefore adds the same native externals. This note
+  described the foundation before O1; see the 2026-10-01 update below for the
+  now engine-reaching dispatcher.
 
 - **Production confirmation dependency on M1.** The current foundation's real
   `AgentBehavior` has no `speechKind` method; the conformance kit supplies a
@@ -204,3 +204,47 @@ CONSTRAINTS:
   on the current foundation produced zero executions for the early yes. The
   unskipped `production-confirmation.test.ts` therefore remains red until M1
   lands; E3 stays WIP, not Built.
+
+## Checker update — 2026-10-01
+
+- **Named build grant.** Design §15.5 explicitly assigns `scripts/build.mjs`
+  and the four app `scripts.build` fields to E3; §15.2 omitted the corresponding
+  named exception. The checker approved only equivalent API build wiring and
+  native `@livekit/*`, `sharp`, `onnxruntime-node` externals where the engine is
+  reached. The dated Approved-exceptions row landed on foundation in `a2edace`
+  before this unit was rebased. Dependencies remain untouched.
+- **Dispatcher reachability changed under O1.** `dispatcher-process.ts` now
+  imports `loadDistribution`. Its unchanged bundle failed with `No loader is
+configured for .node files` at the pinned LiveKit native binding. Adding only
+  the three approved externals to `apps/dispatcher/package.json` made the root
+  build pass; its target, format, loader and output path remain unchanged. The
+  gateway similarly reaches the distribution and already has the externals.
+- **Actual engine choice.** A test composes the production distribution and
+  `selectSessionGraph` twice for the same announcement release, changing only
+  `release.selections.engine` between the real native and LiveKit plugins. Both
+  render `Hello Asha.`, produce carrier audio, and complete without a violation.
+  The existing engine kit exercises initial, speech and DTMF turns; a production
+  distribution test now mutates a nested variable in the first Behavior call
+  and checks the second still receives its original value. Replacing the deep
+  clone with a shallow spread fails on `Mutated by Behavior` versus `Asha`.
+- **M1 dependency discharged.** M1's exact `speechKind` and subscription now
+  live on foundation. `production-confirmation.test.ts` passes without the kit's
+  spy classifier; E3 adds no regex or Behavior bypass.
+- **FAQ timing remains under review.** The generated transcript is emitted
+  before the asynchronous TTS carrier writer, as a direct event-time probe
+  confirms. The same FAQ then reaches audio with a bounded wait. The unmodified
+  frozen kit checks audio immediately after generated text: the parallel
+  default suite fails with `no audio reached the carrier`, while the serial
+  Postgres suite passes. A broken engine whose carrier writer discards every
+  frame still produces that failure message. The narrow bounded-wait kit
+  correction has been sent for checker approval; E3 does not delay or mislabel
+  the generated event to satisfy a timing assumption.
+
+Node 22.23.2 results before the FAQ kit correction: full lint 0 (seven gates),
+format 0, typecheck 0, API/worker/gateway/dispatcher and console builds 0,
+audit 0, console E2E 41 passed / 1 skipped. Default tests: 1,969 passed +
+209 skipped + 1 failed = 2,179. Disposable loopback Postgres 17.6 serial:
+2,175 passed + 4 skipped = 2,179; it exited 0 and its container was removed.
+The 205 skip difference is Postgres-gated; the remaining pass difference is the
+FAQ timing failure in the parallel default run. The root `pnpm check` remains
+red until that frozen-kit correction is authorized and verified.
