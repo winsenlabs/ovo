@@ -140,6 +140,14 @@ CONSTRAINTS:
 
 ## Incoming checker obligations (2026-09-27)
 
+- **E3 design drafting repair (2026-10-01):** amend §15.2 to name E3's
+  `scripts/build.mjs` exception already granted by §15.5, as it names C2/O1's
+  distribution profile exceptions. Reconcile §15.2, §15.5 and the F4 owner map
+  in one pass: the O1 worker-termination shared-file edit and the PM/**
+  board-update protocol are the other recorded contradictions. Preserve the
+  approved scopes and state that a specific named owner grant prevails over
+  the blanket freeze.
+
 - **BLOCKING M1 MCP tombstone gap (2026-10-01):**
   `apps/api/src/routes/agents.ts` calls `validateSelections` at release stage
   without `discoveredMcpTools`, so §4.5's `mcp_tool_removed` issue is never
