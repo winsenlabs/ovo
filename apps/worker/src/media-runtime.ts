@@ -51,10 +51,6 @@ export class WorkerMediaRuntime {
     ) => void | Promise<void>,
   ) {}
 
-  async connect(): Promise<void> {
-    return this.start();
-  }
-
   async start(): Promise<void> {
     if (this.detachServer) return;
     if (!this.config.httpServer || !this.config.token)
