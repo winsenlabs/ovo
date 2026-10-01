@@ -45,9 +45,9 @@ This board is the single source of truth for unit status. The specs in this fold
 
 ## Wave 3
 
-| Unit                    | Title                                               | Status      |
-| ----------------------- | --------------------------------------------------- | ----------- |
-| [I1](I1-integration.md) | Integration, full verification, docs and PM updates | Not started |
+| Unit                    | Title                                               | Status                                                                                                                                                                                                      |
+| ----------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [I1](I1-integration.md) | Integration, full verification, docs and PM updates | **In progress (2026-10-01).** E3 is merged; first action is the combined-tree W2 gate, followed by the recorded blocking integration obligations. C3/C5/C6 remain founder-held on confirmed vendor answers. |
 
 ## Post-I1 roadmap
 
