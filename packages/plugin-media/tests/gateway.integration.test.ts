@@ -110,6 +110,7 @@ async function gateway(
     ingress?: CarrierIngress;
     drainTimeoutMs?: number;
     handshakeTimeoutMs?: number;
+    maxPendingFrames?: number;
   } = {},
 ): Promise<{ gateway: MediaGateway; origin: string }> {
   const media = new MediaGateway(resolver(routes), {
@@ -119,6 +120,7 @@ async function gateway(
     hostFor: () => host(),
     drainTimeoutMs: options.drainTimeoutMs,
     handshakeTimeoutMs: options.handshakeTimeoutMs,
+    maxPendingFrames: options.maxPendingFrames,
   });
   const { port } = await media.listen();
   resources.push(() => media.close());
@@ -212,6 +214,31 @@ it('runs fixture media through the real gateway, worker health port, fragmented 
     { event: 'media', streamSid: 'stream-a', media: { payload: 'AQID' } },
     { event: 'mark', streamSid: 'stream-a', mark: { name: 'reply-played' } },
   ]);
+});
+
+it('converts a legacy one-frame pre-accept limit to 20 ms before buffering audio', async () => {
+  const workerMessages: GatewayToWorkerMessage[] = [];
+  let accept: (() => void) | undefined;
+  const endpoint = await worker((peer, message) => {
+    workerMessages.push(message);
+    if (message.type === 'session.open')
+      accept = () => peer.send(JSON.stringify({ type: 'session.accept' }));
+  });
+  const entry = await gateway([route('a', endpoint)], { maxPendingFrames: 1 });
+  const socket = await carrier(entry.origin);
+  socket.send(start('a'));
+  socket.send(
+    fixtureInboundFrame({
+      type: 'audio',
+      seq: 1,
+      timestampMs: 0,
+      payload: new Uint8Array(160),
+    }),
+  );
+  await vi.waitFor(() => expect(accept).toBeDefined());
+  accept!();
+  await vi.waitFor(() => expect(workerMessages).toHaveLength(2));
+  expect(workerMessages[1]).toMatchObject({ type: 'media.audio', sequenceNumber: 1 });
 });
 
 it('rejects an oversized fragmented carrier message without dialing a worker', async () => {
