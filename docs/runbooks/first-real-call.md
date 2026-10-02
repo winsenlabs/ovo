@@ -13,7 +13,20 @@
 
 ## Authorized one-call window
 
-After Tejas confirms the above evidence and the narrow window, set `OVO_TRANSPORT_CERTIFIED=true`, `OVO_INBOUND_ENABLED=true`, and `OVO_LIVE_DIAL_ENABLED=true` in the appropriate API/gateway/dispatcher/worker deployment configuration and restart/roll out the affected services. Leave `OVO_PROVIDER_EVALUATIONS_ENABLED=false`. Confirm the route is still the single intended route and protected capacity remains positive. Tejas then calls the owned Twilio number once from the predeclared test phone. OVO does **not** initiate an outbound dial for this test. Ask the FAQ question, listen for the full reply, then deliberately speak over a second reply once to test barge-in. Do not execute a write or transfer.
+After Tejas confirms the above evidence and the narrow window, apply the following exact Compose service gates (or their equivalent deployment settings) and roll out only the affected services:
+
+| Setting                            | Required value            | Compose consumers                                                                       |
+| ---------------------------------- | ------------------------- | --------------------------------------------------------------------------------------- |
+| `OVO_LIVE_DIAL_ENABLED`            | `true`                    | API, gateway, both workers                                                              |
+| `OVO_INBOUND_ENABLED`              | `true`                    | Gateway and dispatcher; Compose maps it to each worker's `OVO_INBOUND_CAPACITY_ENABLED` |
+| `OVO_TRANSPORT_CERTIFIED`          | `true`                    | Both workers' readiness gate                                                            |
+| `OVO_MEDIA_PUBLIC_BASE_URL`        | Exact public HTTPS origin | API, gateway, both workers                                                              |
+| `OVO_INBOUND_ROUTE_SECRET`         | Same installation secret  | API, gateway, both workers                                                              |
+| `OVO_MEDIA_WORKER_TOKEN`           | Same private worker token | Gateway and both workers                                                                |
+| `OVO_ALLOW_LOCAL_HTTP`             | `false` for a public API  | API                                                                                     |
+| `OVO_PROVIDER_EVALUATIONS_ENABLED` | Unset or `false`          | Never needed for this call                                                              |
+
+Confirm the route is still the single intended route and protected capacity remains positive. Tejas then calls the owned Twilio number once from the predeclared test phone. OVO does **not** initiate an outbound dial for this test. Ask the FAQ question, listen for the full reply, then deliberately speak over a second reply once to test barge-in. Do not execute a write or transfer.
 
 ## Evidence to retain for that call ID
 
