@@ -39,6 +39,7 @@ export function callerPlayback(input: {
   clock: Clock;
   script: CallerScript;
   reactiveConfirmation: boolean;
+  terminalAgentText?: string;
   say(text: string, turnIndex: number): void;
   dtmf(digit: string): void;
   hangup(): void;
@@ -68,6 +69,17 @@ export function callerPlayback(input: {
       );
     },
     onEvent(event: EngineEvent) {
+      if (
+        input.reactiveConfirmation &&
+        confirmed &&
+        input.terminalAgentText &&
+        event.type === 'agent.transcript' &&
+        event.state === 'played' &&
+        event.text === input.terminalAgentText
+      ) {
+        cancels.push(input.clock.setTimeout(input.hangup, 0));
+        return;
+      }
       if (
         !input.reactiveConfirmation ||
         confirmed ||

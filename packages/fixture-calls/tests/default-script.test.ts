@@ -7,6 +7,56 @@ import { runFixtureCall } from '../src/run.ts';
 import { input } from './support.ts';
 
 describe('default fixture caller', () => {
+  it('ends after the final played response to a confirmed write, not after progress', () => {
+    const clock = new FakeClock();
+    const said: string[] = [];
+    const hangup = vi.fn();
+    const caller = callerPlayback({
+      clock,
+      script: {
+        turns: [
+          { atMs: 0, say: 'Please do that.' },
+          { atMs: 1200, say: 'yes' },
+        ],
+      },
+      reactiveConfirmation: true,
+      terminalAgentText: 'All done.',
+      say: (text) => said.push(text),
+      dtmf: () => undefined,
+      hangup,
+    });
+    try {
+      caller.start();
+      clock.advance(0);
+      expect(said).toEqual(['Please do that.']);
+      caller.onEvent({
+        type: 'agent.transcript',
+        segmentId: 'prompt',
+        state: 'played',
+        text: 'Please confirm: Action. Say yes to proceed or no to cancel.',
+      });
+      clock.advance(0);
+      expect(said).toEqual(['Please do that.', 'yes']);
+      caller.onEvent({
+        type: 'agent.transcript',
+        segmentId: 'progress',
+        state: 'played',
+        text: 'Please wait while I check that.',
+      });
+      clock.advance(0);
+      expect(hangup).not.toHaveBeenCalled();
+      caller.onEvent({
+        type: 'agent.transcript',
+        segmentId: 'answer',
+        state: 'played',
+        text: 'All done.',
+      });
+      clock.advance(0);
+      expect(hangup).toHaveBeenCalledTimes(1);
+    } finally {
+      caller.cancel();
+    }
+  });
   it('waits for delayed confirmation playback before sending the default yes', async () => {
     const clock = new FakeClock();
     const said: string[] = [];

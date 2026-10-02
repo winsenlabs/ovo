@@ -10,7 +10,7 @@ import { createFakeCarrier, speechBytes } from '@winsendotai/ovo-conformance/dri
 import { compose, type ParentView } from '@winsendotai/ovo-runtime';
 import { selectSessionGraph } from '@winsendotai/ovo-session-host';
 import { deferredTtsNet } from './deferred-tts-net.ts';
-import { callerPlayback } from './default-script.ts';
+import { callerPlayback, predictedAgentTexts } from './default-script.ts';
 import { selectFixtureScripts } from './fixture-scripts.ts';
 import { FixtureEffects } from './fixture-effects.ts';
 import { fixtureExtensions, fixtureHostService } from './host-service.ts';
@@ -146,6 +146,7 @@ export async function executeFixtureCall(
   const caller = callerPlayback({
     clock,
     script,
+    terminalAgentText: (input.agentTexts ?? predictedAgentTexts(input.release.config)).at(-1),
     reactiveConfirmation:
       input.release.config.mode === 'agent' &&
       (input.callerScript === undefined || input.callerScript === 'default'),
@@ -161,7 +162,11 @@ export async function executeFixtureCall(
   });
   const off = engine.subscribe((event) => {
     caller.onEvent(event);
-    if (event.type === 'agent.transcript' && event.state === 'generated') net.generated(event.text);
+    if (event.type === 'agent.transcript') {
+      if (event.state === 'generated') net.generated(event.text, event.segmentId);
+      else if (event.state === 'played') net.played(event.segmentId);
+      else if (event.state === 'interrupted') net.interrupted(event.segmentId);
+    }
     const row = { seq: events.length + 1, atMs: clock.now(), event };
     events.push(row);
     effects.run(() => input.telemetry?.onEvent?.(row));

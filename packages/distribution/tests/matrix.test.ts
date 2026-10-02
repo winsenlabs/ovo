@@ -16,13 +16,14 @@ import {
 import { runFixtureCall } from '@winsendotai/ovo-fixture-calls';
 import * as fixtureHost from '../../fixture-calls/src/host-service.ts';
 import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
-import { compose, glibcVersion, PluginRegistry } from '@winsendotai/ovo-runtime';
+import { compose, PluginRegistry } from '@winsendotai/ovo-runtime';
 import { loadDistribution } from '../src/load.ts';
 
 const IDS = {
   native: '@winsendotai/ovo-plugin-voice-session-engine',
   livekit: '@winsendotai/ovo-engine-livekit',
   twilio: '@winsendotai/ovo-carrier-twilio',
+  exotel: '@winsendotai/ovo-carrier-exotel',
   plivo: '@winsendotai/ovo-carrier-plivo',
   deepgram: '@winsendotai/ovo-provider-deepgram-stt',
   assemblyai: '@winsendotai/ovo-stt-assemblyai',
@@ -156,6 +157,7 @@ async function runRow(
     expect(result.status, JSON.stringify(result.outcome)).toBe('completed');
     expect(result.sttMode).toBe('template');
     expect(result.selections.engine?.id).toBe(engineId);
+    expect(result.selections.carrier?.id).toBe(chosen.id);
     expect(result.selections.stt?.id).toBe(stt.id);
     expect(result.selections.tts?.id).toBe(tts.id);
     expect(result.events.some((entry) => entry.event.type === 'user.transcript')).toBe(true);
@@ -281,6 +283,7 @@ async function runAgentRow(
     expect(result.status).toBe('completed');
     expect(result.sttMode).toBe('template');
     expect(result.selections.engine?.id).toBe(engineId);
+    expect(result.selections.carrier?.id).toBe(chosen.id);
     expect(result.selections.stt?.id).toBe(stt.id);
     expect(result.selections.tts?.id).toBe(tts.id);
   } finally {
@@ -293,6 +296,13 @@ describe('real installed plugin fixture matrix', () => {
   afterEach(() => vi.restoreAllMocks());
   beforeAll(async () => {
     loaded = await loadDistribution({ role: 'gateway', profile: 'compose', env: {} });
+  });
+
+  it('holds all Exotel FAQ and confirmed-write rows until its authenticated 16 kHz wire format is confirmed (2026-10-02)', () => {
+    const registry = new PluginRegistry(loaded.catalog);
+    expect(registry.get(IDS.exotel)).toBeUndefined();
+    expect(CARRIERS.map((carrier) => carrier.id)).toEqual([IDS.twilio, IDS.plivo]);
+    expect(ROWS).toHaveLength(12); // Twilio/Plivo each contribute six combinations; Exotel contributes zero.
   });
 
   describe('native engine', () => {
@@ -309,19 +319,16 @@ describe('real installed plugin fixture matrix', () => {
     60_000,
   );
 
-  describe.skipIf(!glibcVersion())(
-    'LiveKit engine with real timers and serial execution (requires native glibc binding)',
-    () => {
-      it.each(ROWS)(
-        '$carrier.name × $stt.name × $tts.name FAQ uses real selections and provider templates',
-        (row) => runRow(loaded, IDS.livekit, row),
-        60_000,
-      );
-      it.each(ROWS)(
-        '$carrier.name × $stt.name × $tts.name executes one confirmed write after playback',
-        (row) => runAgentRow(loaded, IDS.livekit, row),
-        60_000,
-      );
-    },
-  );
+  describe('LiveKit engine with real timers and serial execution', () => {
+    it.each(ROWS)(
+      '$carrier.name × $stt.name × $tts.name FAQ uses real selections and provider templates',
+      (row) => runRow(loaded, IDS.livekit, row),
+      60_000,
+    );
+    it.each(ROWS)(
+      '$carrier.name × $stt.name × $tts.name executes one confirmed write after playback',
+      (row) => runAgentRow(loaded, IDS.livekit, row),
+      60_000,
+    );
+  });
 });

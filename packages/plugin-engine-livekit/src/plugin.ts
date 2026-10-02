@@ -69,7 +69,7 @@ export const enginePlugin = definePlugin(
     },
     secretFields: [],
     capabilities: CAPABILITIES,
-    runtime: { native: 'glibc', egressHosts: [], modelLicences: [] },
+    runtime: { egressHosts: [], modelLicences: [] },
     conformance: ['engine@1'],
   },
   async (ctx, config) => {

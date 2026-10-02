@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { AgentConfig, Cap, type VoiceSessionEngine } from '@winsendotai/ovo-contracts';
-import { compose, definePlugin, PluginRegistry, setGlibcProbe } from '@winsendotai/ovo-runtime';
+import { compose, definePlugin, PluginRegistry } from '@winsendotai/ovo-runtime';
 import {
   createFakeCarrier,
   createScriptedTts,
@@ -16,13 +16,11 @@ import { ENGINE_ID } from '../src/plugin.ts';
 let sentinel: EgressSentinel;
 beforeAll(() => {
   sentinel = installEgressSentinel({ allowLoopback: false });
-  setGlibcProbe(() => 'test-host-native-binding');
 });
 afterAll(() => {
   try {
     expect(sentinel.attempts).toEqual([]);
   } finally {
-    setGlibcProbe(undefined);
     sentinel.restore();
   }
 });

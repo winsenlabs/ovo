@@ -1,6 +1,6 @@
 // Conformance gate (§13.6): every vendor-plugin package has tests/conformance.test.ts that imports
 // @winsendotai/ovo-conformance and calls a describe* kit. `"ovo": {"skeleton": true}` packages are
-// exempt until they are filled (I1 fails the build if any skeleton flag remains).
+// exempt only by a named, dated registry entry; absent held packages are also listed there.
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -31,6 +31,8 @@ const root = rootOf(args);
 const kindsFile =
   args.kinds ?? (args.root ? under(root, 'package-kinds.json') : 'scripts/package-kinds.json');
 const kinds = (await readJson(kindsFile)).kinds;
+const exemptionFile = under(root, 'scripts/skeleton-exemptions.json');
+const registered = existsSync(exemptionFile) ? (await readJson(exemptionFile)).exemptions : [];
 // Existing protocol-specific subsets are paired with dedicated wire tests. A new vendor cannot
 // silently opt out of kit checks, and even these packages cannot widen their lists unnoticed.
 const APPROVED_SUBSETS = new Map([
@@ -159,9 +161,43 @@ const allowed = new Set([
   ...baselines.pending.map((entry) => entry.package),
 ]);
 const errors = [...baselines.errors];
+const hardErrors = [];
+const hardError = (message) => {
+  errors.push(message);
+  hardErrors.push(message);
+};
 const warnings = [];
 const failing = [];
 const exemptions = [];
+const approved = new Map();
+for (const row of registered) {
+  if (
+    !row ||
+    typeof row.package !== 'string' ||
+    !/^packages\/plugin-[a-z0-9-]+$/.test(row.package) ||
+    !['skeleton', 'absent'].includes(row.state) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(row.approvedOn) ||
+    typeof row.missingEvidence !== 'string' ||
+    !row.missingEvidence.trim()
+  ) {
+    hardError(`invalid skeleton exemption: ${JSON.stringify(row)}`);
+    continue;
+  }
+  if (approved.has(row.package)) hardError(`duplicate skeleton exemption: ${row.package}`);
+  approved.set(row.package, row);
+}
+for (const row of approved.values()) {
+  const dir = under(root, row.package);
+  if (!inScope(dir, args.only) && !args.only.some((prefix) => prefix.startsWith(`${dir}/`)))
+    continue;
+  const exists = existsSync(`${dir}/package.json`);
+  if (row.state === 'absent') {
+    if (exists) hardError(`${row.package}: held-absent exemption is stale; package now exists`);
+    else exemptions.push(`${row.package} (absent; ${row.approvedOn}: ${row.missingEvidence})`);
+  } else if (!exists) {
+    hardError(`${row.package}: held-skeleton exemption is stale; package is absent`);
+  }
+}
 let checked = 0;
 for (const [key, kind] of Object.entries(kinds)) {
   const dir = under(root, key);
@@ -172,11 +208,18 @@ for (const [key, kind] of Object.entries(kinds)) {
   const flagged = [];
   if (manifest.ovo?.skeleton === true) {
     if (!(await shipsPlugins(`${dir}/src/index.ts`))) {
-      exemptions.push(dir);
+      const row = approved.get(key);
+      if (row?.state !== 'skeleton')
+        hardError(`${dir}: unapproved ovo.skeleton (no named, dated exemption)`);
+      else exemptions.push(`${key} (skeleton; ${row.approvedOn}: ${row.missingEvidence})`);
       continue;
     }
-    flagged.push('ovo.skeleton is true but src/index.ts exports a non-empty `plugins`');
+    const message = 'ovo.skeleton is true but src/index.ts exports a non-empty `plugins`';
+    hardError(`${dir}: ${message}`);
+    flagged.push(message);
   }
+  if (approved.get(key)?.state === 'skeleton')
+    hardError(`${key}: held-skeleton exemption is stale; ovo.skeleton was removed`);
   checked += 1;
   const test = `${dir}/tests/conformance.test.ts`;
   const problems = [
@@ -199,11 +242,10 @@ if (args.writeBaseline) {
   console.log(`[conformance] wrote ${failing.length} packages to ${baselines.file}`);
 }
 
-// Every exemption is named, so a skeleton flag can never be quietly permanent.
-for (const dir of exemptions) warnings.push(`skeleton exemption taken by ${dir}`);
+for (const entry of exemptions) warnings.push(`named carrier hold: ${entry}`);
 
 finish('conformance', {
-  errors: args.writeBaseline ? baselines.errors : errors,
+  errors: args.writeBaseline ? [...baselines.errors, ...hardErrors] : errors,
   warnings,
-  summary: `checked ${checked} filled vendor-plugin packages; ${exemptions.length} skeleton exemption(s).`,
+  summary: `checked ${checked} filled vendor-plugin packages; ${exemptions.length} named hold(s).`,
 });

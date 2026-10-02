@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, expect, it, vi } from 'vitest';
 import { Cap, type VoiceSessionEngine, type Speech } from '@winsendotai/ovo-contracts';
-import { compose, definePlugin, setGlibcProbe } from '@winsendotai/ovo-runtime';
+import { compose, definePlugin } from '@winsendotai/ovo-runtime';
 import {
   createFakeCarrier,
   createScriptedStt,
@@ -20,20 +20,17 @@ afterAll(() => {
     expect(sentinel.attempts).toEqual([]);
   } finally {
     sentinel.restore();
-    setGlibcProbe(undefined);
   }
 });
 
 it('loads through production distribution and composes the lazy engine with its speech companion', async () => {
-  // The manifest intentionally requires Linux glibc. This probe permits composition on the Mac
-  // developer host; the actual pinned Darwin native binary is still loaded and executed.
-  setGlibcProbe(() => 'test-host-native-binding');
   const distribution = await loadDistribution({
     role: 'api',
     profile: 'compose',
     env: {},
   });
   expect(distribution.catalog.some((p) => p.manifest.id === ENGINE_ID)).toBe(true);
+  expect(distribution.unavailable.map((row) => row.id)).not.toContain(ENGINE_ID);
   const carrier = createFakeCarrier();
   const stt = createScriptedStt();
   const tts = createScriptedTts();
