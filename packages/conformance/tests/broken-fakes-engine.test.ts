@@ -235,6 +235,26 @@ describe('checkEngine rejects an engine that ignores the session surface', () =>
       /the engine spoke but emitted no timing events for any stage/,
     );
   }, 60_000);
+
+  it('waits for the ingress counters themselves and rejects counters that never arrive', async () => {
+    const failures = await checkEngine(
+      (ports) => {
+        const under = withEvents(ports, (event) => event);
+        return {
+          ...under,
+          engine: {
+            ...under.engine,
+            get ingressStats() {
+              return { ...under.engine.ingressStats, acceptedBytes: 0, acceptedFrames: 0 };
+            },
+          },
+        };
+      },
+      {},
+      { only: ['ingress stats, user transcripts'] },
+    );
+    expect(messages(failures)).toMatch(/timed out waiting for caller ingress counters/);
+  }, 60_000);
 });
 
 describe('checkEngine requires declared capabilities, and the runner cancels abandoned work', () => {

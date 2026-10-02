@@ -20,7 +20,6 @@ import {
   fixtureSignature,
   fixtureWebhook,
   signFixtureRequest,
-  signedPayload,
   fixtureProviderModule,
   fixtureSerializer,
   installEgressSentinel,
@@ -260,15 +259,29 @@ describe('jsonl fixtures, host ports, fixture plugins and the fake turn detector
       form: { CallSid: 'CA1', CallStatus: 'completed' },
     });
     const signed = signFixtureRequest('fixture-secret', unsigned);
+    // Literal wire URL is the oracle. Building this expectation with signedPayload would let
+    // the signer and verifier agree on the same doubled-query bug.
     const expected = fixtureSignature(
       'fixture-secret',
-      signedPayload(externalUrl, { CallSid: 'CA1', CallStatus: 'completed' }),
+      `${externalUrl}CallSidCA1CallStatuscompleted`,
     );
     expect(signed.headers[FIXTURE_SIGNATURE_HEADER]).toBe(expected);
     const route = fixtureCarrierIngress().routes.find(
       (candidate) => candidate.purpose === 'status',
     )!;
     expect((await route.handle(signed, host)).status).toBe(204);
+    expect(host.events).toHaveLength(1);
+    const doubled = {
+      ...signed,
+      headers: {
+        ...signed.headers,
+        [FIXTURE_SIGNATURE_HEADER]: fixtureSignature(
+          'fixture-secret',
+          `${externalUrl}?${new URL(externalUrl).searchParams}CallSidCA1CallStatuscompleted`,
+        ),
+      },
+    };
+    expect((await route.handle(doubled, host)).status).toBe(401);
     expect(host.events).toHaveLength(1);
   });
 

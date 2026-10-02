@@ -58,6 +58,11 @@ export const SESSION_SCENARIOS: readonly EngineScenario[] = [
         () => h.events().some((event) => event.type === 'timing'),
         'spoken turn timing',
       );
+      await h.until(
+        () =>
+          h.engine.ingressStats.acceptedBytes >= 160 && h.engine.ingressStats.acceptedFrames >= 1,
+        'caller ingress counters',
+      );
       const stats = h.engine.ingressStats;
       for (const field of STATS)
         f.expect(
