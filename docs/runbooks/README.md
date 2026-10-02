@@ -4,6 +4,7 @@ These are operator procedures, not evidence that a live AWS/carrier environment 
 
 | Incident / change                                  | Runbook                                                     |
 | -------------------------------------------------- | ----------------------------------------------------------- |
+| Founder-approved first phone call                  | [First real call](first-real-call.md)                       |
 | First Fargate install or image release             | [Fargate deployment](fargate-deployment.md)                 |
 | Compact single-host install                        | [Compact EC2 / Compose](compact-ec2.md)                     |
 | Scaling, rollout, protection or drain              | [Scale and drain](scale-and-drain.md)                       |

@@ -25,6 +25,26 @@ Defects fixed: [21]
 
 ## Specification
 
+### Carry-forward disposition (2026-10-02)
+
+The following audit closes the checker's explicit I1 list against the integrated tree. Historical incoming notes below remain as the reason each change was required.
+
+| Obligation                                              | Disposition and evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pure normalization; remove caller clones                | **Done.** `session-host/src/normalize.ts` clones before applying defaults, and `selection-integrity.test.ts` checks unchanged input and nested independence. API release selection and fixture-call callers pass their source config directly; the earlier test-call workaround is gone. The legacy worker caller in `legacy-session-selections.ts` also passes directly and is safe. Binding snapshot clones remain because they protect separately persisted selections.                                                                                                                                                                                                 |
+| Raw-query fixture signature                             | **Done.** The signer and verifier share a raw `externalUrl` payload; `conformance/tests/drivers.test.ts` compares with a literal-wire HMAC and refuses the old doubled-query signature. The dated §14 design note was changed in the same documentation pass, removing its obsolete hard-blocker claim.                                                                                                                                                                                                                                                                                                                                                                    |
+| Conformance timing sweep                                | **Done for the engine authoring kit.** Reviewed all engine scenario and invariant assertions plus the STT/TTS/carrier direct checks. FAQ audio and barge-in clear/interrupt/flushed mark already use bounded waits; the interrupted-confirmation scenario uses a non-confirmation utterance. I1 replaced the unrelated timing-event → ingress-counter immediate read with a bounded counter wait. A broken engine with zero counters fails on `timed out waiting for caller ingress counters`. Remaining immediate checks follow awaited terminal operations, completed receipts, or explicit sequence/order contracts; no other same-tick emission requirement was found. |
+| Conditional meters                                      | **Done.** `metersFor` rejects a selected role whose plugin declares role meters but whose binding matches none. `selection-integrity.test.ts` covers missing binding, missing/unknown model, valid models and a plugin with no role meters.                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| MCP tombstone release gate                              | **Done.** API release validation supplies discovered MCP state and the storage read excludes `removed_at` rows; the management API test expects HTTP 422 with `mcp_tool_removed`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Three legacy packages                                   | **Done.** `plugin-providers`, `plugin-telephony-twilio` and `plugin-session` directories and their imports are gone. The `/twilio/*` operator migration URLs belong to the new carrier ingress and remain intentionally.                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| §15 owner/freeze conflict and scoped verification       | **Done.** §15.2's dated reconciliation names the specific grants and F4 map together. §15.4 includes scoped Prettier, and requires full format plus duplication as a coupled pre-merge check.                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| AWS secrets coverage; E3 guards                         | **Done.** The fake `AwsClient` suite brought the AWS secret adapter from 12/12 surviving mutations to 1/13 (declared-type equivalent); no AWS was contacted. `guards.test.ts` independently refuses an LLM, session tools and tool-context tools; `turn-driver-threshold.test.ts` pins both sides of `minInterruptionWords`.                                                                                                                                                                                                                                                                                                                                               |
+| Top-level baselines                                     | **Done.** Pending, architecture, provider-name, conformance, module-size and runtime-violation baselines are empty. The 13 duplication pairs and 33 capability-key file entries are individually justified in `scripts/baselines/README.md`.                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Real Twilio plus real Plivo integration                 | **Done.** The matrix installs both real ingresses simultaneously and executes releases selecting each through the production session graph, with FixtureNet egress held at zero. This discharges the S2 blocking integration obligation; the first phone call remains separate and founder-gated.                                                                                                                                                                                                                                                                                                                                                                          |
+| O2 SQL mutation target and broad tenant statement sweep | **Open, explicitly deferred from this checklist's code fixes.** The last isolated O2 baseline is 190/360 SQL survivors (52.8%) in its unit suite, 187/360 with repo-related tests; the current source enumerates 363 SQL mutation sites. I1's matrix drives plugin behavior but is not a SQL admission/ledger mutation suite. Do not infer a lower survival rate from its green tests. A fresh isolated-database sweep and further tenant-predicate regressions are needed before claiming the SQL target improved; the same-ID credential/MCP regression pins two critical writes now.                                                                                    |
+
+The first-real-call procedure is [prepared, not executed](../../docs/runbooks/first-real-call.md). C3, C5 and C6 remain founder-held for confirmed vendor evidence. No live call, paid provider operation, vendor request, AWS action or push was performed.
+
 ### Founder decision: vendor-evidence holds do not block I1 (2026-10-02)
 
 The original zero-skeleton acceptance line and Exotel matrix requirement below are superseded for three named units. C3 Exotel is held for its authenticated 16 kHz media wire format; C5 TCN is held for its media, signing and call-control contract; C6 Alohaa is held for callback signing. No implementation, protocol row or compatibility value may be inferred to satisfy I1. The conformance gate must accept only named, dated exemptions for these packages and reject any new silent skeleton. The compatibility matrix must label Exotel's rows absent/held, while the installed Twilio and Plivo rows run normally. These vendor-evidence holds are terminal states for the units and do not delay I1. The founder made this decision so fourteen verified units can be released without waiting for vendor replies. All other I1 acceptance criteria remain in force.
@@ -186,14 +206,11 @@ removed by a past application of 006.
   approved scopes and state that a specific named owner grant prevails over
   the blanket freeze.
 
-- **BLOCKING M1 MCP tombstone gap (2026-10-01):**
-  `apps/api/src/routes/agents.ts` calls `validateSelections` at release stage
-  without `discoveredMcpTools`, so §4.5's `mcp_tool_removed` issue is never
-  emitted. `createRelease` reads the discovered tool without a `removed_at`
-  predicate and accepts its unchanged schema digest. A removed tool can be
-  snapshotted into a new release instead of producing HTTP 422. Supply the
-  discovered state to compatibility validation and reject tombstones in the
-  release write path; pin both with a production API regression.
+- **Closed M1 MCP tombstone gap (2026-10-02; originally blocking 2026-10-01):**
+  The old API called `validateSelections` without `discoveredMcpTools` and the
+  release read omitted `removed_at`, letting a tombstoned tool snapshot. The API
+  now supplies discovered state, the read excludes tombstones, and the production
+  management test requires HTTP 422 with `mcp_tool_removed`.
 - M1's two-tenant Postgres test pins four secret/MCP write predicates. Extend
   tenant-isolation coverage to the remaining repository statements: the M1
   checker found many `WHERE workspace_id` mutants surviving. Its pre-repair
@@ -213,34 +230,24 @@ removed by a past application of 006.
   wall-clock budget and flakes under parallel load; O1/I1 should replace the
   timing-sensitive assertion with a deterministic signal.
 
-- **HARD BLOCKING B2, reconfirmed 2026-09-27:** fix `normalizeAgentConfig`
-  so it never mutates its input. Then remove all three workaround clones from
-  `apps/api/src/release-selections.ts`, `apps/api/src/test-call-runtime.ts`, and
-  `packages/fixture-calls/src/run.ts`. A fourth caller is currently unprotected:
-  `packages/session-host/src/legacy-session-selections.ts` passes
-  `input.release.config` directly and mutates a release record in memory during
-  legacy worker derivation. This is an executed/live mutation path, not a
-  hypothetical risk. Do not add a fourth clone; the file is frozen for wave 2.
-  The current API clone-reversion proof is **nine** HTTP 409 failures (api.test,
-  default-modes, f4-routes x2, real-llm-release x2, script-simulation x3), replacing
-  the historical seven count after D1 added call sites. Regress all four callers
-  and direct input immutability when removing the workarounds.
-- `runControlMigrations` checks each entry of a hardcoded array independently
-  and currently applies missing lower versions after higher recorded versions.
-  Add a contiguity assertion that rejects gaps before applying migration SQL,
-  with an out-of-order true negative. D1 owns control 006, and M1 must renumber
-  its unpublished migration to 007 when it resumes. The second unit must rebase
-  and re-verify the shared Postgres/SQLite runners; checksums of already-applied
-  migrations must remain immutable. This note records future I1 work; I1 has
-  not started.
+- **Closed B2 (2026-10-02; originally hard blocking, reconfirmed 2026-09-27):** fix `normalizeAgentConfig`
+  by cloning at the normalizer boundary. The API release-selection and fixture
+  callers no longer need workaround clones; the legacy worker caller can pass
+  `input.release.config` directly without changing the release object. The
+  original clone-reversion proof was nine HTTP 409 failures, not seven after D1
+  added call sites. Direct and nested immutability is pinned by
+  `selection-integrity.test.ts`.
+- `runControlMigrations` now checks the recorded version sequence before applying
+  migration SQL. The old runner would apply a missing lower version after a
+  higher one; the PostgreSQL gap test pins the rejection. D1's control 006 and
+  M1's 007 retain their immutable checksums.
 
-- **BLOCKING before deleting legacy bridges (S1 cross-unit, 2026-09-27):**
-  `metersFor` must reject a selected slot when its plugin declares role meters
-  but `when` filtering selects none. Cover absent binding snapshots, missing
-  condition fields, unknown values, valid model branches and plugins that declare
-  no meters for that role. The immediate storage fix carries existing binding
-  snapshots into reconstructed legacy selections; it does not repair this frozen
-  host contract. Never compensate with unconditional meters or duplicate billing.
+- **Closed before legacy bridge deletion (S1 cross-unit, 2026-10-02):**
+  `metersFor` now rejects a selected slot when its plugin declares role meters
+  but `when` filtering selects none. The test covers absent snapshots, missing
+  or unknown model values, both valid branches and plugins without role meters.
+  Existing binding snapshots still flow through legacy selection reconstruction;
+  no unconditional fallback meter was added.
 
 - Remove `@winsendotai/ovo-plugin-voice` from
   `packages/plugin-observability/package.json` and its matching lock importer;
@@ -251,15 +258,12 @@ removed by a past application of 006.
 
 ## Incoming C2 checker carry-forwards (2026-09-27)
 
-- **HARD BLOCKING:** repair the frozen fixture HTTP signer and verifier together:
-  `conformance/src/drivers/fixture-carrier.ts` signFixtureRequest and
-  `fixture-carrier-routes.ts` verified both append reconstructed query to an
-  already query-bearing externalUrl. Update all consumers and reference docs
-  consistently, and prove a literal raw-wire signature matches without duplicated
-  or re-encoded query bytes. Their current self-consistent doubled payload is not
-  vendor signature fidelity. The checker resolved sequencing on 2026-09-27:
-  C2 corrects the normative document now and visibly names these known-inconsistent
-  shipped drivers; this HARD I1 helper/consumer correction remains unchanged.
+- **Closed 2026-10-02 (originally hard blocking):** repair the frozen fixture HTTP signer and verifier together:
+  the signer in `conformance/src/drivers/fixture-carrier.ts` and verifier in
+  `fixture-carrier-routes.ts` previously appended a reconstructed query. C2
+  corrected the normative design rule and identified the shipped inconsistency;
+  I1 corrected both helpers, then required a literal raw-wire HMAC and rejection
+  of the former doubled-query signature. The dated design note now records closure.
 - Guard inbound confirmCallback with the same validateBeforeAdmission identity
   validation as admitInbound before adding its first production caller.
 - I1 integrates C1/C3/C4 negative-capability coverage: clearFlushesMarkers false
@@ -281,7 +285,7 @@ removed by a past application of 006.
 
 ## Wave-level S2 checker obligations (2026-09-29)
 
-- **BLOCKING: drive selected plugins through the real session graph.** Follow
+- **Discharged 2026-10-02: drive selected plugins through the real session graph.** Follow
   S1's `production-entry.test.ts` pattern for AssemblyAI STT and Sarvam STT/TTS
   so a production integration test exercises each selected plugin's behavior,
   not just `graph.get(Cap.stt)` existence. The checker made all three S2 entry
@@ -290,10 +294,15 @@ removed by a past application of 006.
   tests, and 85 simultaneous behavioral defects left the 1,952-test repository
   suite green. This is a wave-level test-architecture gap, not an S2-only
   fixture count to patch locally.
-- **BLOCKING: run a production integration case with the real Twilio and Plivo
-  ingresses installed together.** The C2 multi-carrier test clones one ingress
-  and the carrier-neutral gateway test labels Twilio-derived code as Plivo.
-  This has been possible since C4 merged and remains unproved.
+- **Discharged (2026-10-02): run a production integration case with the real
+  Twilio and Plivo ingresses installed together.**
+  `packages/distribution/tests/matrix.test.ts` composes both actual ingress
+  plugins at once, asserts the two `Cap.carrierIngress` keys, then runs each
+  release-selected carrier through `runFixtureCall` and the production
+  `selectSessionGraph` in `packages/fixture-calls/src/execute.ts`. All 48 active
+  engine/carrier/STT/TTS/behavior rows run under FixtureNet. This proves selected
+  plugin behavior and coexistence, not public callbacks, vendor WebSockets or a
+  phone call.
 - Export `decodeBase64` from plugin-kit to remove S2's three local copies;
   repair the stt@1 frame-size kit so JSON-framed Sarvam audio is measured;
   make the tts@1 non-native check independently pin each redundant guard.
@@ -314,7 +323,7 @@ assertions intact. Suppressing the reference detector's transcript interrupt
 fails that test on `completed` versus `interrupted`. Preserve this regression
 and the separate genuine-`yes` ordering scenario in I1.
 
-## BLOCKING E3 conformance timing sweep (2026-10-01)
+## E3 conformance timing sweep, closed 2026-10-02 (originally blocking)
 
 E3 found the second frozen kit assertion that encoded the reference engine's
 behavior: `engine-scenarios-turns.ts` required carrier audio in the same tick as

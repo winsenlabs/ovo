@@ -1721,9 +1721,9 @@ An unknown carrier or purpose returns 404.
 
 **`externalUrl`** uses the `OVO_MEDIA_PUBLIC_BASE_URL` origin, including an explicit non-default port when present. For **HTTPS HTTP callbacks**, it includes the **exact path AND raw query**, preserving parameter order and encoding. For **WSS upgrades**, it includes the **exact path with no query**; `UpgradeRequest.url` separately retains the full query for serializers that need it.
 
-HTTP signature verifiers must consume `CarrierHttpRequest.externalUrl` verbatim, without appending or rebuilding it from the parsed `query` object. The existing `plugin-telephony-twilio/src/media.ts` passes `externalUrl` directly to `twilio.validateRequest`; stripping an HTTP callback's query would reject real Twilio signatures. The previous query-free rule for both schemes was incorrect.
+HTTP signature verifiers must consume `CarrierHttpRequest.externalUrl` verbatim, without appending or rebuilding it from the parsed `query` object. The Twilio carrier validates the raw URL; stripping an HTTP callback's query would reject real Twilio signatures. The previous query-free rule for both schemes was incorrect.
 
-**Known conformance-driver inconsistency — hard I1 blocker:** the shipped `packages/conformance/src/drivers/fixture-carrier-routes.ts` verifier and `packages/conformance/src/drivers/fixture-carrier.ts` signer currently rebuild the signature URL as `${externalUrl}?${query}`. With a query-bearing `externalUrl`, that appends the query twice and is known-inconsistent with the authoritative rule above. I1 must correct both helpers and their consumers together. Until then, their self-consistent fixture signatures do not prove vendor HTTP signature fidelity; carrier authors must follow this rule rather than copy that URL reconstruction.
+**I1 correction (2026-10-02):** the fixture signer in `packages/conformance/src/drivers/fixture-carrier.ts` and verifier in `fixture-carrier-routes.ts` now sign and verify the raw query-bearing `externalUrl` exactly once. An independent literal-wire signature passes; a signature over the former doubled-query payload fails. The normative rule, signer and verifier therefore agree. Carrier authors should use the raw external URL, including its exact query bytes, rather than reconstruct it from parsed fields.
 
 **Per-socket flow**
 
