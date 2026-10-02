@@ -18,6 +18,7 @@ it.skipIf(!process.env.OVO_TEST_POSTGRES_URL)(
       const otherWorkspace = `${workspaceId}-isolation-${randomUUID()}`;
       await store.ensureWorkspace(otherWorkspace);
       const credentialInput = {
+        id: randomUUID(),
         label: 'Scoped credential',
         provider: 'fixture',
         type: 'api-key' as const,
@@ -51,6 +52,7 @@ it.skipIf(!process.env.OVO_TEST_POSTGRES_URL)(
       });
 
       const connectionInput = {
+        id: randomUUID(),
         label: 'Scoped MCP',
         endpoint: 'https://mcp.example.test',
         auth: 'none' as const,
