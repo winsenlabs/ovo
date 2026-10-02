@@ -2272,8 +2272,10 @@ Each gate is a script plus a test in `scripts/tests/*.test.ts` that runs it agai
 
 6. **`check-conformance.mjs`.**
    - Every `vendor-plugin` package must have `tests/conformance.test.ts`, which imports `@winsendotai/ovo-conformance` and calls a `describe*` kit.
-   - A package whose `package.json` has `"ovo": {"skeleton": true}` is exempt, but **I1 fails the build if any skeleton flag remains**.
-   - `plugin-voice` starts in the baseline.
+
+- A package whose `package.json` has `"ovo": {"skeleton": true}` is exempt only by a named, dated entry in the skeleton-exemption registry. The founder's 2026-10-02 decision permits exactly C3 Exotel (authenticated 16 kHz wire format unconfirmed), C5 TCN (media/signing/call-control contract unconfirmed), and C6 Alohaa (callback signing unconfirmed) to remain held without blocking I1. C5 and C6 package paths are absent rather than skeletal. An unlisted skeleton fails the build; an exemption becomes stale when a package ships plugins. The Exotel compatibility rows remain explicitly absent, not inferred.
+- `plugin-voice` starts in the baseline.
+
 7. **`check-terraform.mjs`.** Runs the binary, or else the Docker image. Otherwise it prints `SKIPPED` and exits 0. It runs as `pnpm check:terraform` and is not part of lint.
 8. **The runtime violation ratchet** (§3.7).
 9. **Pending baselines.** `scripts/baselines/pending/<UNIT>.json` holds `{architecture, duplication, moduleSize, providerNames, capabilityKeys, conformance, runtimeViolations}`.

@@ -25,6 +25,12 @@ Defects fixed: [21]
 
 ## Specification
 
+### Founder decision: vendor-evidence holds do not block I1 (2026-10-02)
+
+The original zero-skeleton acceptance line and Exotel matrix requirement below are superseded for three named units. C3 Exotel is held for its authenticated 16 kHz media wire format; C5 TCN is held for its media, signing and call-control contract; C6 Alohaa is held for callback signing. No implementation, protocol row or compatibility value may be inferred to satisfy I1. The conformance gate must accept only named, dated exemptions for these packages and reject any new silent skeleton. The compatibility matrix must label Exotel's rows absent/held, while the installed Twilio and Plivo rows run normally. These vendor-evidence holds are terminal states for the units and do not delay I1. The founder made this decision so fourteen verified units can be released without waiting for vendor replies. All other I1 acceptance criteria remain in force.
+
+Before handoff, I1 must also decide from installed native dependencies and a real macOS fixture run whether E3's `runtime.native: 'glibc'` is necessary. If over-declared, remove the artificial host restriction and run the LiveKit matrix on macOS; if required, name the dependency and keep the platform skips explicit. Report whether the matrix composes each selected plugin through the real session graph and which production behavior remains untested.
+
 GOAL: integrate wave 2, delete the transition scaffolding, prove the founder demo with an automated matrix, and update the docs and PM records. Read docs/architecture/plugin-platform.md (revision 2) in full, especially section 0.2 (the HANDOFF invariants), section 13 (gates), section 15 (coordination) and section 16. HANDOFF says: one branch (vorflux/ovo-foundation), no excessive review, the Test Report stays PARTIAL, and PM/acceptance.json keeps all 75 criteria. You may edit any file for integration, dedupe, cleanup, defects found by the matrix or CI, and the contract definitions explicitly added below. Implementations of those new contracts belong to the post-I1 roadmap, not I1.
 
 0. The W2 gate (FIRST):
