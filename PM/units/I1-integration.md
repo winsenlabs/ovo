@@ -68,13 +68,12 @@ This is a narrow exception to I1's integration-only scope: define and validate t
 
 3. Baselines:
    - scripts/baselines/pending/ is deleted, after its entries are resolved.
-
-- No package.json carries the ovo.skeleton flag except a named, dated vendor-evidence exemption under the 2026-10-02 founder decision above.
-  - architecture.json and provider-names.json are EMPTY. This is the proof that adding a provider, carrier or engine needs no shared-code edits.
-  - Dedupe cross-unit duplication into plugin-kit or audio. For example, C1, C3 and C4 or S1 and S2 may independently repeat httpJson error mapping or emit-once usage logic.
-  - capability-keys.json and duplication.json are empty, or each remaining entry is justified in scripts/baselines/README.md.
-  - module-size.json: split the remaining >300-line source modules mechanically, by responsibility and with no behavior change, until it is empty. If a split is unsafe, leave it and list the file with a reason.
-  - check-conformance's baseline (plugin-voice) is empty.
+   - No package.json carries the ovo.skeleton flag except a named, dated vendor-evidence exemption under the 2026-10-02 founder decision above.
+   - architecture.json and provider-names.json are EMPTY. This is the proof that adding a provider, carrier or engine needs no shared-code edits.
+   - Dedupe cross-unit duplication into plugin-kit or audio. For example, C1, C3 and C4 or S1 and S2 may independently repeat httpJson error mapping or emit-once usage logic.
+   - capability-keys.json and duplication.json are empty, or each remaining entry is justified in scripts/baselines/README.md.
+   - module-size.json: split the remaining >300-line source modules mechanically, by responsibility and with no behavior change, until it is empty. If a split is unsafe, leave it and list the file with a reason.
+   - check-conformance's baseline (plugin-voice) is empty.
 
 4. Demo matrix: packages/distribution/tests/matrix.test.ts, using @winsendotai/ovo-fixture-calls and the real installed plugins with their exported fixtures and fixture templates, under the egress sentinel.
    - One agent release (agent mode with a confirmed write tool, plus an FAQ variant) runs across {native, livekit} × {twilio, exotel, plivo} × {deepgram, assemblyai, sarvam-stt}, with TTS {openai, sarvam-tts}.
