@@ -48,8 +48,17 @@ Transitive license inventory for I1's image/SBOM/release review:
 Offline `pnpm --offline --filter @winsendotai/ovo-worker deploy --prod --legacy`
 now succeeds with zero downloads. The deployed dependency tree contains Agents,
 rtc-node and the Darwin native binding, and the lockfile names the Linux glibc
-binding. I1 still must inspect the binding in the built Linux image and the
-release SBOM. No vendor network request or model download was used.
+binding. I1 loaded the Linux arm64 binding in a built worker image with networking
+disabled. The release SBOM remains a release check. No vendor network request or
+model download was used.
+
+On 2026-10-02, I1 removed `runtime.native: 'glibc'` from this engine manifest.
+The selected no-room path imports genuine `@livekit/agents` and `@livekit/rtc-node`
+on macOS, loads the installed Darwin arm64 binding, and passes the same 24 FAQ and
+confirmed-write fixture cases as native. The Linux image remains glibc-based,
+but no dependency in this selected path requires glibc exclusively. Restoring
+the old manifest field makes `loadDistribution` mark the engine unavailable on
+macOS and fails the new distribution assertion.
 
 ## WIP verification — 2026-09-26
 

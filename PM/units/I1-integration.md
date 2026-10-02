@@ -31,6 +31,14 @@ The original zero-skeleton acceptance line and Exotel matrix requirement below a
 
 Before handoff, I1 must also decide from installed native dependencies and a real macOS fixture run whether E3's `runtime.native: 'glibc'` is necessary. If over-declared, remove the artificial host restriction and run the LiveKit matrix on macOS; if required, name the dependency and keep the platform skips explicit. Report whether the matrix composes each selected plugin through the real session graph and which production behavior remains untested.
 
+### I1 checker note: LiveKit native platform declaration (2026-10-02)
+
+E3's `runtime.native: 'glibc'` was over-declared for the selected no-room engine path. On macOS arm64 with Node 22, the installed genuine `@livekit/agents` and `@livekit/rtc-node` packages load the Darwin native binding and execute the engine; the same 24 FAQ/confirmed-write fixture cases now pass as native's 24. The Linux arm64 worker image separately loaded its glibc binding with networking disabled. I1 removed only the LiveKit engine manifest's glibc-only requirement. A true negative restoring the old field makes the distribution mark LiveKit unavailable on macOS and fails the production catalog assertion. The 24 platform skips were artificial and are now active tests.
+
+The matrix drives release-selected engine, carrier, STT and TTS plugins through `selectSessionGraph` and `compose` in the real fixture-call path. Twilio and Plivo ingresses coexist, and their selected serializers, three STT plugins, two TTS plugins and both engines execute in 48 active rows. FAQ and confirmed-write behavior both run; a write must follow played confirmation and execute once. Fixture inference and the native write handler stand in for paid and external operations. Vendor HTTP callbacks, public WebSocket upgrades, carrier dialing, paid provider use, AWS and a real call remain unverified. Exotel contributes one explicit held-state assertion and zero compatibility executions, as the founder decision requires.
+
+The skeleton exemption gate has executable negative controls: removing the registry rejects the Exotel-shaped fixture with `unapproved ovo.skeleton (no named, dated exemption)` even under `--write-baseline`; creating an absent held package rejects its exemption as stale. An exemption on a package that ships plugins also fails. The matrix's new TTS replay cases require the complete generated prompt, reject a wrong speech prefix, and allow sentence-sized HTTP and concurrent WebSocket synthesis without loosening the vendor fixture's other wire checks.
+
 GOAL: integrate wave 2, delete the transition scaffolding, prove the founder demo with an automated matrix, and update the docs and PM records. Read docs/architecture/plugin-platform.md (revision 2) in full, especially section 0.2 (the HANDOFF invariants), section 13 (gates), section 15 (coordination) and section 16. HANDOFF says: one branch (vorflux/ovo-foundation), no excessive review, the Test Report stays PARTIAL, and PM/acceptance.json keeps all 75 criteria. You may edit any file for integration, dedupe, cleanup, defects found by the matrix or CI, and the contract definitions explicitly added below. Implementations of those new contracts belong to the post-I1 roadmap, not I1.
 
 0. The W2 gate (FIRST):
@@ -60,12 +68,13 @@ This is a narrow exception to I1's integration-only scope: define and validate t
 
 3. Baselines:
    - scripts/baselines/pending/ is deleted, after its entries are resolved.
-   - No package.json carries the ovo.skeleton flag.
-   - architecture.json and provider-names.json are EMPTY. This is the proof that adding a provider, carrier or engine needs no shared-code edits.
-   - Dedupe cross-unit duplication into plugin-kit or audio. For example, C1, C3 and C4 or S1 and S2 may independently repeat httpJson error mapping or emit-once usage logic.
-   - capability-keys.json and duplication.json are empty, or each remaining entry is justified in scripts/baselines/README.md.
-   - module-size.json: split the remaining >300-line source modules mechanically, by responsibility and with no behavior change, until it is empty. If a split is unsafe, leave it and list the file with a reason.
-   - check-conformance's baseline (plugin-voice) is empty.
+
+- No package.json carries the ovo.skeleton flag except a named, dated vendor-evidence exemption under the 2026-10-02 founder decision above.
+  - architecture.json and provider-names.json are EMPTY. This is the proof that adding a provider, carrier or engine needs no shared-code edits.
+  - Dedupe cross-unit duplication into plugin-kit or audio. For example, C1, C3 and C4 or S1 and S2 may independently repeat httpJson error mapping or emit-once usage logic.
+  - capability-keys.json and duplication.json are empty, or each remaining entry is justified in scripts/baselines/README.md.
+  - module-size.json: split the remaining >300-line source modules mechanically, by responsibility and with no behavior change, until it is empty. If a split is unsafe, leave it and list the file with a reason.
+  - check-conformance's baseline (plugin-voice) is empty.
 
 4. Demo matrix: packages/distribution/tests/matrix.test.ts, using @winsendotai/ovo-fixture-calls and the real installed plugins with their exported fixtures and fixture templates, under the egress sentinel.
    - One agent release (agent mode with a confirmed write tool, plus an FAQ variant) runs across {native, livekit} × {twilio, exotel, plivo} × {deepgram, assemblyai, sarvam-stt}, with TTS {openai, sarvam-tts}.
@@ -127,8 +136,8 @@ CONSTRAINTS:
 - The combined tree passed the W2 gate. Every wave-2 contract gap was resolved and its local copies removed.
 - plugin-providers, plugin-telephony-twilio, plugin-session, the distribution legacy bridges and twilio-handoff.ts are deleted, and nothing imports them.
 - Runtime enforcement defaults to enforce for v1 manifests, the listed infra plugins are verified under enforce, and the runtime-violations baseline is empty.
-- scripts/baselines/pending/ is gone and no package carries the skeleton flag. The architecture, provider-names and conformance baselines are empty. module-size, duplication and capability-keys are empty, or each residue is justified in scripts/baselines/README.md.
-- The demo matrix passes across {native, livekit} × {twilio, exotel@8k, plivo} × {deepgram, assemblyai, sarvam}, with invariant assertions including template-based sttMode (LiveKit rows skipped only when the native binding is unavailable). The demo-path API test passes.
+- scripts/baselines/pending/ is gone and only the three named, dated vendor-evidence exemptions may remain in the skeleton registry; an unlisted skeleton or stale exemption fails. The architecture, provider-names and conformance baselines are empty. module-size, duplication and capability-keys are empty, or each residue is justified in scripts/baselines/README.md.
+- The demo matrix passes across {native, livekit} × {twilio, plivo} × {deepgram, assemblyai, sarvam} × {openai, sarvam TTS} × {FAQ, confirmed write}, with invariant assertions including template-based sttMode. Exotel is an explicit absent/held row until confirmed vendor evidence; it is not inferred or skipped as if implemented. The demo-path API test passes.
 - ADR 0003, the plugin author guide v2, the runbooks (including carrier onboarding with the Exotel Voicebot → Hangup requirement), the evidence docs, the licence notices and OPERATOR_E2E_HANDOFF.md are updated.
 - PM/HANDOFF.md keeps the safety constraints verbatim (extended) and the Test Report PARTIAL with the unverifiable items listed. PM/acceptance.json still has 75 criteria.
 - pnpm lint, format:check, typecheck, test and build pass, check-terraform exits 0, and the exact counts are recorded.

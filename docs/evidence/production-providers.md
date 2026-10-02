@@ -2,7 +2,7 @@
 
 ## I1 integration update (2026-10-02)
 
-The selected Deepgram, AssemblyAI and Sarvam STT plugins and OpenAI/Sarvam TTS plugins each execute through the real distribution/session graph in the 24 native fixture-matrix rows. All selected STT rows report `sttMode: template`, rather than a generic fallback, and usage is estimated and unpriced. The LiveKit matrix rows are recorded but skip on macOS because the native binding requires glibc. No vendor endpoint was contacted and no provider credential value was read by fixture calls.
+The selected Deepgram, AssemblyAI and Sarvam STT plugins and OpenAI/Sarvam TTS plugins each execute through the real distribution/session graph in 48 fixture-matrix rows across native and LiveKit engines. All selected STT rows report `sttMode: template`, rather than a generic fallback, and usage is estimated and unpriced. The installed LiveKit Darwin binding runs these rows on macOS; the glibc-only declaration was over-restrictive and has been removed. No vendor endpoint was contacted and no provider credential value was read by fixture calls. Inference uses a fixture plugin, and the confirmed write uses a fixture handler.
 
 ## Implemented profile
 

@@ -2,7 +2,7 @@
 
 ## I1 integration update (2026-10-02)
 
-The carrier-neutral gateway composes the real Twilio and Plivo ingress plugins simultaneously. `packages/distribution/tests/matrix.test.ts` drives both selected serializers through 24 native FAQ/confirmed-write rows with three real STT and two real TTS plugin adapters under a zero-egress fixture sentinel. The gateway does not branch on carrier names. Exotel remains a skeleton and is not covered as a production ingress. This is local protocol evidence, not a public carrier call.
+The carrier-neutral gateway composes the real Twilio and Plivo ingress plugins simultaneously. `packages/distribution/tests/matrix.test.ts` drives both selected serializers through 48 native/LiveKit FAQ and confirmed-write rows with three real STT and two real TTS plugin adapters under a zero-egress fixture sentinel. The selected carrier, engine, STT and TTS flow through the production session graph. Exotel remains a named, dated vendor-evidence hold and contributes no fabricated compatibility row. The matrix does not drive public carrier HTTP callbacks, vendor sockets, dialing or paid provider traffic; it is local protocol evidence, not a public carrier call.
 
 Status: implemented and locally verified protocol/runtime path; carrier and provider capability remain uncertified.
 

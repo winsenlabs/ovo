@@ -1900,11 +1900,11 @@ HTTP signature verifiers must consume `CarrierHttpRequest.externalUrl` verbatim,
 - Doc-faithful jsonl fixtures, each with a header naming the source and marking anything `UNCONFIRMED`.
 - The conservative capability value wherever the docs leave something unconfirmed.
 
-| Carrier | Meter                          | CPS | Evidence            | Stream params          | Hangup                                   | Continuation        |
-| ------- | ------------------------------ | --- | ------------------- | ---------------------- | ---------------------------------------- | ------------------- |
-| Twilio  | `twilio.carrier.audio_seconds` | 1   | `carrier-played`    | at-dial                | rest                                     | markup-after-stream |
-| Exotel  | `exotel.carrier.audio_seconds` | 1   | `carrier-processed` | on-answer (media-url)  | close-stream                             | none                |
-| Plivo   | `plivo.carrier.audio_seconds`  | 2   | `carrier-played`    | on-answer (answer_url) | rest; cancel before answer by request id | markup-after-stream |
+| Carrier | Meter                           | CPS | Evidence         | Stream params          | Hangup                                   | Continuation        |
+| ------- | ------------------------------- | --- | ---------------- | ---------------------- | ---------------------------------------- | ------------------- |
+| Twilio  | `twilio.carrier.audio_seconds`  | 1   | `carrier-played` | at-dial                | rest                                     | markup-after-stream |
+| Exotel  | **HELD — no compatibility row** | —   | —                | —                      | —                                        | —                   |
+| Plivo   | `plivo.carrier.audio_seconds`   | 2   | `carrier-played` | on-answer (answer_url) | rest; cancel before answer by request id | markup-after-stream |
 
 ### 8.1 Twilio
 
@@ -1926,6 +1926,8 @@ HTTP signature verifiers must consume `CarrierHttpRequest.externalUrl` verbatim,
 - **Errors.** 4xx → rejected (retryable only on 429). 408, 5xx or a timeout → unknown.
 
 ### 8.2 Exotel
+
+**2026-10-02 founder decision:** C3 is held until Exotel confirms its authenticated 16 kHz media wire format. The descriptions below are design targets and research notes, not verified shipping compatibility values. The production compatibility matrix has no Exotel execution row; no placeholder is substituted. The separate end-handoff path is also unverified. Confirmed vendor evidence is required before this section can be treated as an implementation contract.
 
 Sources: [Voicebot applet](https://developer.exotel.com/docs/agentstream/stream-voicebot-applet), [connect to flow](https://developer.exotel.com/docs/voice-v1/api-reference/connect-to-flow), [auth](https://developer.exotel.com/docs/references/authentication), [status callback](https://developer.exotel.com/api/statuscallback), [support article](https://support.exotel.com/support/solutions/articles/3000108630).
 
