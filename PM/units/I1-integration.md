@@ -203,6 +203,9 @@ removed by a past application of 006.
   injectable AWS secrets client had 12/12 surviving mutations; add fake-client
   coverage. Also pin a missing `OVO_OPERATORS_JSON` operator token in
   `apps/api/src/auth-env.ts`.
+
+**I1 tenant test progress (2026-10-02):** the existing PostgreSQL regression now creates the same credential ID and MCP connection ID in two workspaces. Its normal path passes. Broadening credential rotation's `UPDATE` to all workspaces changes the other row from version 1 / `sha256:original` to version 2 / `sha256:rotated` and fails a value assertion; broadening MCP deletion removes the other connection and fails `expected undefined to match object`. Both broken queries were restored. This improves two critical cross-tenant writes, while the wider repository-statement sweep and isolated SQL mutation target remain open for I1.
+
 - The M1 operation-fingerprint release note also includes the `NaN`/`Infinity`
   versus `null` collision: canonical JSON serializes non-finite numbers as
   `null`, so these values cannot serve as distinct operation identities.
