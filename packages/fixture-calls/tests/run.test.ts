@@ -249,14 +249,19 @@ describe('runFixtureCall', () => {
 
   it('does not expose a live parent ledger or carrier control to the selected engine', async () => {
     const clock = new FakeClock();
-    const get = vi.fn(() => ({ reserve: vi.fn(), dial: vi.fn() }));
+    const carrierControl = { capabilities: fixtureCarrierIngress().capabilities, create: vi.fn() };
+    const ledger = { reserve: vi.fn() };
+    const get = vi.fn((key: string) =>
+      key === Cap.carrierControl ? carrierControl : key === Cap.costLedger ? ledger : undefined,
+    );
     const call = runFixtureCall({
       ...input(),
       clock,
       parent: {
         keys: new Set([Cap.costLedger, Cap.carrierControl]),
         get,
-        all: () => new Map(),
+        all: (key) =>
+          key === Cap.carrierControl ? new Map([['twilio', carrierControl]]) : new Map(),
       },
     });
     await clock.advanceAsync(0);

@@ -42,7 +42,7 @@ function recordingMedia(
 }
 
 /** Paid and carrier-control ports cannot cross into a fixture session, even from a live parent. */
-function fixtureParent(parent: ParentView | undefined): ParentView | undefined {
+export function fixtureParent(parent: ParentView | undefined): ParentView | undefined {
   if (!parent) return undefined;
   const blocked = new Set<string>([
     Cap.costLedger,
