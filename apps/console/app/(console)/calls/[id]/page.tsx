@@ -1,0 +1,5 @@
+import { CallInspectorFeature } from '../../../../features/call-inspector';
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return <CallInspectorFeature callId={id} />;
+}

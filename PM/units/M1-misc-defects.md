@@ -1,0 +1,371 @@
+# Work unit M1-misc-defects: Behaviors (confirmation with contract lexicon and hooks, scripts, FAQ, segmenter), tools (policy errors, SSRF via kit, MCP pooling), secrets rotation lock and decoupling, production session secret, MCP storage diff-upsert (#6, #10–#14, #18, #19, #24, #25)
+
+Wave: 2
+Depends on: F1-contracts-runtime, F2-kits-gates, F3-host-seams, F4-apps-data-driven
+Defects fixed: [6, 10, 11, 12, 13, 14, 18, 19, 24, 25]
+
+## Owned paths
+
+- packages/behaviors/**
+- packages/plugin-tools/**
+- packages/plugin-tools-http/**
+- packages/plugin-tools-mcp/**
+- packages/plugin-secrets/**
+- apps/api/src/auth-env.ts
+- apps/api/src/routes/mcp.ts
+- apps/api/tests/operator-auth.test.ts
+- apps/api/tests/mcp-routes.test.ts
+- packages/plugin-storage/src/postgres/mcp-*.ts
+- packages/plugin-storage/src/sqlite/mcp-*.ts
+- packages/plugin-storage/src/postgres/migrations/007-mcp-tool-removed.ts
+- packages/plugin-storage/src/postgres/migrations.ts
+- packages/plugin-storage/src/sqlite/migrations.ts
+- packages/plugin-storage/tests/storage.test.ts
+- packages/plugin-storage/tests/postgres.test.ts
+- packages/plugin-recordings/src/memory-repository.ts
+- packages/plugin-recordings/tests/memory-ordering.test.ts
+- scripts/baselines/pending/M1.json
+
+## Shared touchpoints (minimal edits allowed)
+
+- none
+
+### Proposed scope rulings (2026-09-26; awaiting checker approval)
+
+- Rotation: extend `ControlStore.rotateCredential`'s `input.secret` from `Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>` to that value **or** a synchronous `(version: number) => Omit<SecretBlob, 'credentialId' | 'version' | 'backend'>`. The Postgres implementation invokes the callback only after its existing `SELECT ... FOR UPDATE`, using the version it allocates in that same transaction; SQLite invokes it inside its existing transaction. The exact additional files are `packages/plugin-storage/src/control-store.ts`, `packages/plugin-storage/src/postgres/secrets-repository.ts`, and `packages/plugin-storage/src/sqlite/secrets-repository.ts`. Both `store.ts` implementations already bind all repository methods dynamically, so no store-wiring edits are needed. Existing callers passing secret bytes retain their behavior. This seam is necessary because #13 requires AAD inside the lock but M1 owns only the manager, which currently supplies already-encrypted bytes before storage acquires that lock.
+- API extraction: permit one new helper, `apps/api/src/routes/mcp-discovery.ts`, for the test/discover/tools routes extracted from `mcp.ts`, which retains connection CRUD and approval routes. The spec requires splitting this module before changes but owns only the original exact filename.
+- Dependencies: in owned `plugin-tools-http/package.json`, replace `@winsendotai/ovo-plugin-tools` with `@winsendotai/ovo-plugin-kit`; in owned `plugin-tools-mcp/package.json`, remove `@winsendotai/ovo-plugin-tools` and `@winsendotai/ovo-plugin-tools-http`, add `@winsendotai/ovo-plugin-kit`; in owned `plugin-secrets/package.json`, remove `@winsendotai/ovo-plugin-storage`. The frozen root lockfile needs only corresponding importer entries removed/added (kit remains `specifier: workspace:*`, `version: link:../plugin-kit`), with no third-party version changes. This reconciles required plugin-edge removal with §15.2's frozen lockfile. I1 inherits dependency and baseline cleanup after approval.
+
+- Migration test follow-up (found by the full scoped Postgres run): update only the two expected-version arrays in `packages/plugin-storage/tests/f3-postgres.test.ts` from `[1, 2, 3, 4, 5]` to `[1, 2, 3, 4, 5, 6, 7]`. The checker approved correcting these shared fixtures; D1 owns version 6 and M1 now owns version 7. Preserve every other assertion.
+
+## Specification
+
+GOAL: fix the independent correctness and security defects in behaviors, tools, secrets, auth and MCP storage, and remove the tools and secrets plugin→plugin edges. Read docs/architecture/plugin-platform.md (revision 2): section 2.6 (the Behavior speechKind and subscribe hooks and BehaviorEvent), section 2.10 (normalizeForMatch, countWords, CONFIRM_YES, CONFIRM_NO, CONFIRM_FILLERS, classifyConfirmation and canonicalJson, all in contracts), section 4.5 (mcp_tool_removed, whose compat rule F3 already wrote in session-host) and section 14.
+
+Already done and frozen:
+
+- @winsendotai/ovo-plugin-kit has tool-errors.ts (including ConnectorPolicyError) and ssrf.ts (isPublicAddress and assertPublicHost with every #24 range);
+- plugin-tools/src/errors.ts re-exports plugin-kit;
+- plugin-storage models.ts already has McpDiscoveredTool.removedAt.
+
+#10 (packages/behaviors/src/confirmation.ts plus a new args-speaker.ts). Today the confirmation prompt speaks raw JSON, and only the exact words 'yes', 'confirm', 'go ahead' and 'proceed' are accepted.
+
+- ToolConfirmation.request builds the prompt with args-speaker.ts: speakArguments(input, tool.inputSchema, language).
+  - It uses the schema title, or the humanised property names, in schema property order.
+  - It formats numbers, and currency when the schema has a format hint or x-unit (e.g. 'amount: 500 rupees, to: Ravi').
+  - It redacts keys matching password, secret, token, authorization or api key (keep the existing redaction).
+  - It caps at 800 characters; beyond that, the existing error.
+- accept() uses classifyConfirmation from contracts. That is WHOLE-UTTERANCE matching where NO always wins: 'no that is not correct' and 'yes… no, cancel' decline; 'okay' alone is unclear and re-prompts; 'yes please', 'haan ji' and 'ji haan' confirm. Do NOT write your own lexicon matching.
+- heard requires receipt.state 'completed' AND receipt.evidence !== 'estimated', so 'confirmed' and 'simulated' pass. Never revive a variables.confirmed bypass.
+- Hooks (from contracts): every behavior that owns a confirmation implements:
+  - speechKind(text) → 'confirmation' for the pending prompt text;
+  - subscribe(fn), emitting confirmation.pending when the prompt is produced, confirmation.resolved (confirmed | declined | expired) on the outcome, and tool.started and tool.settled around each Execution.execute call.
+    The native and LiveKit engines use these for mute rules and receipt ordering.
+
+#11 (packages/behaviors/src/script.ts):
+
+- Transition matching uses normalizeForMatch on both sides (punctuation-insensitive; Devanagari marks kept).
+- ScriptBehavior forwards beginTurn, onPlayback, cancel, speechKind and subscribe to its inner FAQ behavior, so FAQ write tools can confirm inside scripts.
+
+#18 (packages/behaviors/src/faq.ts:147): the tokenizer uses normalizeForMatch (letters, marks and numbers). The tie-break sort at faq.ts:102 uses code-unit comparison (#19).
+
+Sentence boundaries (packages/behaviors/src/text-segmenter.ts, and a new sentence-boundary.ts if needed):
+
+- Multilingual sentence-ending punctuation: . ! ? plus । ॥, CJK 。！？ and Arabic ؟ ۔.
+- Lookahead: after '.', wait for the next token, so 'Dr. Smith', 'Rs. 500' and '3.5' don't split. Per-language abbreviation lists (Dr, Mr, Mrs, Ms, Rs, No, St, etc.).
+- firstSegmentMaxChars 60: flush early at a comma for faster first audio.
+- Golden tables in English, Hindi and numbers.
+
+#12 (packages/plugin-tools-http/src/connector.ts and network.ts; plugin-tools execution):
+
+- Policy failures detected BEFORE any request is sent (a private DNS result, a blocked address, a missing credential binding, a disallowed method or endpoint) throw ConnectorPolicyError from plugin-kit.
+- Execution records those as 'failed' (never attempted), NOT 'unknown', including for write tools.
+- Only errors after dispatch may become 'unknown' for writes.
+
+#24: tools-http uses plugin-kit's ssrf.ts. Delete the local copy in network.ts, and the plugin-tools-http → plugin-tools import (use plugin-kit tool-errors). The F2 duplication baseline entry goes stale.
+
+#25 (packages/plugin-tools-mcp):
+
+- Pool one MCP client per (connectionId, credential version), with an idle TTL (default 5 min) and a max size.
+- Cache discovery per connection, keyed by the approval schemaDigest. invoke calls callTool only and never re-runs listTools.
+- Revalidate on a tools/list_changed notification or TTL expiry.
+- A schemaDigest mismatch at invoke → a ToolSchemaError (a policy failure, not unknown).
+- Remove the plugin-tools-mcp → plugin-tools-http and plugin-tools imports (use plugin-kit).
+
+#6 (the plugin-storage MCP repositories plus migration 007). replaceMcpDiscoveredTools currently does a DELETE that the agent_mcp_tools ON DELETE RESTRICT FK blocks.
+
+- Split postgres/mcp-repository.ts (370 canonical lines) and sqlite/mcp-repository.ts (330) into mcp-*.ts modules below 300 FIRST.
+- Change the method to a diff-upsert: upsert every discovered tool; tools missing from the new discovery get removed_at = now() and are never deleted; a tool that reappears clears removed_at.
+- Keep the RESTRICT FK and the release snapshot semantics.
+- Migration 007-mcp-tool-removed: a Postgres TS migration registered in postgres/migrations.ts, plus sqlite parity. It adds removed_at TIMESTAMPTZ NULL on the discovered-tools table.
+- Repositories read and write removedAt (the model field exists).
+- apps/api/src/routes/mcp.ts (308 lines; split first) handles and presents removed tools.
+- The session-host compat rule mcp_tool_removed already exists (F3). Do not edit session-host.
+
+#13 (packages/plugin-secrets/src/index.ts, 364 canonical lines; split to ≤300):
+
+- Concurrent rotation computes the AAD version outside the lock. Compute the next version and the AAD INSIDE the row lock: SELECT … FOR UPDATE on the credential row, in the same transaction as the write.
+- Keep the local and encrypted-store backends working.
+- Add a concurrency test: two rotations serialize, and the versions are unique and sequential.
+- Remove the plugin-secrets → plugin-storage edge: declare a local structural interface (CredentialStore, the subset of ControlStore methods and the CredentialMetadata shape actually used) instead of importing @winsendotai/ovo-plugin-storage. Callers still pass the real ControlStore.
+
+#14 (apps/api/src/auth-env.ts:77): when NODE_ENV === 'production', refuse to start unless OVO_SESSION_SECRET is set with ≥32 bytes (UTF-8 length). Outside production, keep the per-process random fallback with a warning. Never reset an admin password on ordinary startup.
+
+#19:
+
+- plugin-tools/src/json.ts uses canonicalJson from contracts (tool idempotency keys); add a regression test showing key order is now code-unit and stable.
+- plugin-recordings/src/memory-repository.ts:50,103 use code-unit comparison, with a new test file packages/plugin-recordings/tests/memory-ordering.test.ts.
+- M2 handles plugin-evaluations/src/validation.ts.
+
+TESTS:
+
+- behaviors:
+  - the confirmation prompt has no JSON braces and reads schema titles;
+  - 'haan', 'ji haan', 'yes.' and 'Yes!' are accepted; 'no that is not correct' and 'yes no cancel' decline; 'okay' re-prompts;
+  - estimated evidence never counts as heard;
+  - speechKind returns 'confirmation' for the prompt;
+  - subscribe emits the pending, resolved and tool events in order;
+  - script transitions with punctuation;
+  - a FAQ write tool confirms inside a script;
+  - FAQ matching with Devanagari;
+  - segmenter golden tables.
+- tools-http: a private DNS address → failed, not unknown; a missing binding → failed; every #24 range rejected via the kit.
+- mcp: two invokes → one listTools; list_changed revalidates; a digest mismatch → ToolSchemaError.
+- storage (sqlite plus the PG-gated pattern): rediscovery with a removed tool succeeds without an FK error and sets removed_at; a reappearing tool clears it.
+- secrets: rotation concurrency.
+- auth-env: production without a secret, or with a short one → throws.
+- json.ts idempotency ordering.
+
+WAVE-2 RULES:
+
+- You own only the paths listed; doc section 15.2 is frozen: plugin-kit, contracts, session-host, plugin-storage models.ts and control-store.ts, and every package.json except those of packages you own.
+- Do NOT run pnpm install.
+- Contract gaps: use a local adapter and list it.
+- Transitional violations go in scripts/baselines/pending/M1.json.
+- Done = scoped lint, typecheck and tests green.
+
+CONSTRAINTS:
+
+- behaviors may import only contracts, runtime, zod, ajv, ajv-formats and node:* (the existing gate).
+- Tool plugins and plugin-secrets may import only contracts, runtime, sdk, plugin-kit and third-party. The existing plugin→plugin edges among the tools packages and from secrets must be gone.
+- Preserve write-confirmation and unknown-outcome protections, restore fences and the admin password rules.
+- Modules ≤300 lines. No git commits.
+
+## Acceptance
+
+- The confirmation prompt speaks humanised arguments (no raw JSON), classifies answers with the contracts classifyConfirmation (whole utterance, NO wins), and never treats estimated evidence as heard (#10).
+- Behaviors that own confirmations implement speechKind and subscribe (confirmation pending and resolved, tool started and settled), and ScriptBehavior forwards beginTurn, onPlayback, cancel, speechKind and subscribe to the inner FAQ (#11). The FAQ tokenizer keeps Devanagari marks (#18).
+- Connector policy errors before dispatch are recorded as failed, not unknown (#12). tools-http uses the plugin-kit SSRF guard (#24), and the tools packages have no plugin→plugin imports.
+- MCP invoke no longer re-discovers tools on each call; clients are pooled and a digest mismatch is a policy error (#25).
+- MCP rediscovery never violates the RESTRICT FK: removed tools get removed_at, and the API presents them (#6).
+- Secret rotation computes the AAD version inside the row lock (#13), and plugin-secrets no longer imports plugin-storage. Production startup requires OVO_SESSION_SECRET ≥32 bytes (#14).
+- canonicalJson and code-unit sorts replace localeCompare at the tools json, FAQ and recordings sites (#19). Scoped lint, typecheck and tests are green.
+
+## Verify commands
+
+- `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/lint.mjs --only packages/behaviors packages/plugin-tools packages/plugin-tools-http packages/plugin-tools-mcp packages/plugin-secrets packages/plugin-storage/src/postgres packages/plugin-storage/src/sqlite packages/plugin-recordings/src/memory-repository.ts apps/api/src/auth-env.ts apps/api/src/routes/mcp.ts`
+- `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/typecheck-scope.mjs packages/behaviors packages/plugin-tools packages/plugin-tools-http packages/plugin-tools-mcp packages/plugin-secrets packages/plugin-storage packages/plugin-recordings/src/memory-repository.ts apps/api/src/auth-env.ts apps/api/src/routes/mcp.ts apps/api/tests/operator-auth.test.ts`
+- `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run packages/behaviors packages/plugin-tools packages/plugin-tools-http packages/plugin-tools-mcp packages/plugin-secrets packages/plugin-storage packages/plugin-recordings/tests/memory-ordering.test.ts apps/api/tests/operator-auth.test.ts --reporter=dot`
+
+## Checker note (2026-09-27): D1 takes control migration 006; M1 takes 007
+
+This supersedes the original 005 requirement and the 2026-09-26 approval of
+006 on the paused M1 branch. Foundation's Postgres control ledger ends at 005.
+D1 is authorized to land 006 for durable fixture snapshots and atomic call
+idempotency. When M1 resumes, rename its unpublished migration to
+`007-mcp-tool-removed.ts`, update the exported SQL constant and registered version,
+and use SQLite version 7 with corrected migration tests. Do not resume or change
+the frozen M1 branch to perform this work before Batch A is verified.
+
+Both units touch `packages/plugin-storage/src/postgres/migrations.ts` and the
+SQLite runner. The unit that lands second must rebase onto the first and rerun
+both-backend migration tests; never resolve the migration array mechanically
+without checking the resulting order. The existing Postgres runner iterates a
+hardcoded array and checks only whether each individual version was applied: it
+would silently apply a newly added 006 after an already-applied 007. Checksums
+then prevent renumbering applied migrations. I1 inherits a required contiguity
+assertion in `runControlMigrations` to reject such gaps before applying SQL.
+
+Checker reminder (2026-09-27): **renumber to 007 as the first act on resumption**.
+Foundation now has verified fixture-snapshots control migration 006. The paused
+M1 branch still has mcp-tool-removed as 006; merging it unchanged would throw
+`Control migration 6 checksum changed` on every already-migrated database. Keep
+the branch paused until authorized, then rename/register 007 before integration.
+
+## Resumption note (2026-09-30): control migrations remain contiguous
+
+The checker verified and merged O2, then authorized M1 to resume. The first M1
+edit renamed its unpublished MCP-removal migration to `007-mcp-tool-removed.ts`,
+changed the registered Postgres version and SQLite marker to 7, and updated the
+new storage test's expected versions. After rebasing on foundation, the runners
+retain D1's fixture-snapshots version 6 before M1's MCP-removal version 7. The
+older 006 allocation and paused-state notes above are historical; 007 governs
+M1. Both backends and the two corrected F3 expected-version arrays passed on
+the disposable loopback Postgres 17.6 database (16/16 focused tests).
+
+The 2026-09-26 checker rule for contract-correct test fixtures also covers
+`packages/plugin-storage/tests/fixture-admission.test.ts`, a D1-owned shared
+touchpoint: its pre-006 upgrade setup now removes M1's `removed_at` column and
+version-7 ledger row before remigration, then expects versions 1–7. This keeps
+the fixture genuinely pre-006 and preserves its published-call and event
+assertions. I1 inherits that shared test.
+
+## Checker note (2026-09-30): tool connector dependency declaration
+
+The checker approved adding only `@winsendotai/ovo-plugin-kit` to
+`packages/plugin-tools-http/package.json` and
+`packages/plugin-tools-mcp/package.json`, with matching `pnpm-lock.yaml`
+importer entries. Both packages already import kit source. This supersedes the
+broader manifest removal proposed above: the stale plugin-tools and
+plugin-tools-http manifest dependencies stay until I1 removes them with the
+legacy bridges. No third-party versions or unrelated importers change. The
+normal frozen offline install succeeds; temporary local links are gone.
+
+## Checker note (2026-09-30): architecture baseline replay test
+
+M1's removal of tool connector plugin edges leaves all seven current architecture
+baseline edges originating from plugin-storage. The shared
+`scripts/tests/tools.test.ts` had assumed there must be edges from more than one
+source, so its assertion failed after the intended decoupling. M1 corrected only
+that assertion: the test writes a baseline and reruns the real architecture scan
+against it, checking a clean exit. The test remains sensitive to a new edge or
+a broken baseline reader. I1 inherits this shared test as it prunes stale edges.
+
+## Checker note (2026-09-30): confirmation cross-unit expectations
+
+M1 does not change `contracts/src/text.ts` or `classifyConfirmation`. The frozen
+kit's interrupted-confirmation scenario says `yes`, which the existing lexicon
+correctly classifies as confirmation. M1's required `confirmation.pending` hook
+activates E1's guard: a direct reference-engine run records the completed,
+confirmed prompt at sequence 22, the `yes` response at 24 and one confirmed
+write at 25. The scenario itself reports no failure; the extra frozen meta-test
+still expects an interruption and zero writes. Replaying the same setup with
+`hello there` produces one interrupt, an interrupted receipt and zero writes.
+The design §2.7 recorded this mismatch before the checker ruled. The
+2026-10-01 note below supersedes the pending correction and assigns I1 only
+the regression-preservation obligation.
+
+Separately, M1 §10 requires humanized tool arguments rather than raw JSON.
+M2's built-in agent confirmation corpus template retains raw JSON for eight
+cases. Their actual outcome and operation counts remain correct; only the
+expected spoken details differ. Replacing the template changes the built-in
+dataset fingerprint, so a previously imported dataset can gain a new version.
+An in-memory replacement of only that template makes all eight cases pass
+through the real fixture executor, including their existing operation checks.
+The board recorded both values before the checker ruled. The 2026-10-01 note
+below supersedes this pending state and assigns I1 the release note.
+
+## Checker note (2026-10-01): confirmed correction and true negative
+
+The checker approved correcting the frozen scenario now because its `yes`
+utterance relied on M1's missing confirmation lifecycle signal. M1 changed
+only that utterance to `hello there`; the existing meta-test still checks the
+interrupted receipt and zero writes. Suppressing the reference turn detector's
+transcript-interrupt emission makes the test fail on a value assertion:
+`expected 'completed' to be 'interrupted'` at
+`packages/conformance/tests/engine-paths.test.ts:49`. The mutation was restored
+immediately, leaving no diff in the reference detector. I1 preserves both this
+case and the separate genuine-`yes` ordering case.
+
+The checker also approved changing only M2's built-in corpus confirmation
+template. All eight `agent-confirm-*` and `agent-decline-*` cases now match
+M1 §10's spoken arguments; no corpus assertion or fixture changed. This is a
+correction to a verified unit's expectation, not a reversal of M2's behavior.
+The dataset fingerprint changes as recorded in the board's release note, which
+I1 must inherit verbatim with the operator action.
+
+## Final builder gate (2026-10-01)
+
+M1 is **Built - awaiting check**. Node 22.23.2 root `pnpm check` exited 0:
+all seven lint gates (including architecture and duplication), format, typecheck,
+the three application bundles and console production build, audit with no known
+vulnerabilities, and console E2E (41 passed, 1 viewport skip). Default Vitest
+passed **1,920 + 208 = 2,128** tests. Separately, serial Vitest on the builder's
+disposable Postgres 17.6 bound to `127.0.0.1` passed
+**2,124 + 4 = 2,128** tests, with zero failures. The container was removed.
+
+Compared with O2's merged foundation, M1 adds 55 tests. The default skip count
+increases from 206 to 208 because two new Postgres-backed cases are gated by
+`OVO_TEST_POSTGRES_URL`: the concurrent credential-rotation lock case in
+`packages/plugin-secrets/tests/rotation-postgres.test.ts`, and the MCP
+removal/rediscovery case inside the Postgres integration suite in
+`packages/plugin-storage/tests/postgres.test.ts`. Both run in the serial
+Postgres bar. Four skips remain there behind independent database prerequisites.
+No test was disabled.
+
+## Checker re-check response (2026-10-01)
+
+The two-way Postgres rotation test allowed a missing `FOR UPDATE` to survive.
+It now releases eight simultaneous calls at the repository boundary and sorts
+versions numerically. Removing the rotation row lock makes the focused test
+fail **3/3** runs with duplicate key
+`ovo_ctl_secret_versions_pkey`; the restored query passes. The SQLite test's
+version sort also uses a numeric comparator.
+
+A separate Postgres test opens two real workspaces and checks the untouched
+workspace after credential rotation, credential retirement, MCP tool removal
+and MCP connection deletion. Four isolated `WHERE TRUE OR workspace_id` mutants
+each fail the test. The rotation, retirement and tombstone cases fail on the
+other workspace's stored values; the deletion mutant attempts a cross-workspace
+delete and violates an existing approval foreign key in the shared database.
+The four predicates and the broader untested SQL scope are carried to I1.
+
+A future-dated credential now resolves successfully. Changing its expiry guard
+from `&&` to `||` makes that test reject with `Credential expired`. Production
+session-secret validation rejects whitespace padding; reverting to the former
+byte-count-only check makes the 40-spaces case fail. Cancelling an agent with a
+pending confirmation now emits the previously unreachable `expired` outcome
+and clears the confirmation without a write; removing that emission fails on
+the event sequence. `scripts/mutation-sites.mjs` accepts explicit file or
+directory paths while retaining O2's default scope; ignoring `--paths` fails
+its test on `scannedFiles: 62` instead of 1. The three stale duplication pending
+pairs were removed; only the live secrets types / storage models pair remains.
+
+Node 22.23.2 root `pnpm check` exited 0 after the repairs: seven lint gates,
+format, typecheck, three application bundles, console production build, audit
+with no known vulnerabilities, and console E2E (41 passed, 1 viewport skip).
+Default Vitest passed **1,923 + 209 = 2,132** tests. Separately, serial Vitest
+on a disposable Postgres 17.6 bound to `127.0.0.1` passed
+**2,128 + 4 = 2,132** tests, zero failures. The container was removed. The
+default skip increase from 208 to 209 is exactly the new cross-workspace
+Postgres test gated by `OVO_TEST_POSTGRES_URL`; it executes in the serial run.
+No test was disabled.
+
+The checker measured the **pre-repair** M1 mutation scope at 59/77 surviving
+SQL sites (76.6%) and 284/751 surviving TypeScript sites (37.8%). These are
+not post-repair figures. I1 inherits the systematic rerun target, the 12/12
+AWS secrets survivors, the missing operator-token case, and the hard-blocking
+MCP tombstone release gap on the board. The D1 fixture exception date is
+corrected to its 2026-09-30 application under standing rule (c). The #19
+release note names the non-finite-number / null fingerprint collision.
+
+## WIP implementation notes (2026-09-26)
+
+This checkpoint is not built. The three scope proposals above remain pending. Ordinary tests/typechecking of tools-http and tools-mcp cannot resolve their new kit imports until the manifest and lockfile decision lands. Interim source proof uses a temporary configuration outside the repository that aliases only the existing kit source; it is not the normal verification bar.
+
+The production removed-tool API test deliberately remains red: existing `mcp.ts` returns HTTP 500 on reapproval because it has no `removedAt` guard. The required split precedes that fix and needs the proposed helper path. Both SQLite/local and Postgres/encrypted-store concurrent-rotation tests deliberately remain red at AES-GCM decryption (`Unsupported state or unable to authenticate data`), even though storage allocates versions 2 and 3; encryption must move inside the approved-by-checker storage lock before this can pass.
+
+The secret-value SHA256 pool key is the permitted local adapter for the absent credential-version port. Secrets are resolved on every acquire, changed values evict the previous client, and resolution/revocation failures refuse reuse. Rotating to identical bytes cannot distinguish versions; I1 owns the version port follow-up. Plaintext secrets never appear in pool keys or errors.
+
+Persisted-value compatibility: replacing tool canonical JSON changes operation fingerprints and MCP schema digests for case/non-ASCII key ordering. An existing operation retry may conflict, and MCP approvals can need rediscovery/reapproval. Non-finite numbers serialize as `null`, so otherwise identical operation records with `input: {a: NaN}` and `input: {a: null}` share a fingerprint; `Infinity` collides likewise. This needs release notes even though ordinary ASCII-keyed values retain their digest.
+
+The approved control-migration collision scan covered all 14 local branches (`vorflux/ovo-foundation`, `w2/C1`, `w2/C2`, `w2/C3`, `w2/C4`, `w2/D1`, `w2/E1`, `w2/E2`, `w2/E3`, `w2/M1`, `w2/O1`, `w2/O2`, `w2/S1`, `w2/S2`) on 2026-09-26: no committed control migration 006 claims were found. This checkpoint adds the sole current claim. Recheck immediately before merging after other units resume.
+
+### Checkpoint measurements
+
+- Final paired rerun after the checkpoint commit: scoped lint **EXIT 0** and full
+  `pnpm format:check` **EXIT 0**. The builder's disposable Postgres container was
+  removed; the branch is preserved without a green-handover claim.
+- Scoped lint (the spec's command plus `apps/api/tests/mcp-routes.test.ts`): exit **0**, all seven gates; paired Prettier check of every changed/new file: exit **0**. Standalone duplication: exit **0**; only the four credential-port/type adapter entries are in `pending/M1.json`. Architecture originates no prohibited edges.
+- Ordinary scoped typecheck: exit **1**, nine missing-kit-import diagnostics and two resulting inferred-parameter diagnostics. Ordinary HTTP/MCP test command: exit **1**, five suites cannot load the undeclared/unlinked kit dependency; the independent dispatcher test passes. No ordinary green bar or build is claimed.
+- Interim source typecheck using `OVO_TYPECHECK_PROJECT=/tmp/ovo-m1-tsconfig.json` (extends the normal project, adds only the exact kit path alias and local Node type root): exit **0**.
+- Interim default source tests: **133 passed / 25 skipped / 2 failed**. The failures are the SQLite AAD and API removed-tool cases above.
+- Interim Postgres serial source tests: **152 passed / 3 skipped / 5 failed**. Additional failures are the Postgres AAD test and the two untouched F3 expected-migration arrays. The three remaining skips need `OVO_BACKUP_DRILL_POSTGRES_URL`; no tests were disabled. Both totals are 160.
+
+The exact interim test command was `pnpm exec vitest run --config /tmp/ovo-m1-vitest.config.mts packages/behaviors packages/plugin-tools packages/plugin-tools-http packages/plugin-tools-mcp packages/plugin-secrets packages/plugin-storage packages/plugin-recordings/tests/memory-ordering.test.ts apps/api/tests/operator-auth.test.ts apps/api/tests/mcp-routes.test.ts --reporter=dot`; the Postgres run adds `--no-file-parallelism` and sets `OVO_TEST_POSTGRES_URL` to the builder's disposable Postgres 17.6 loopback database. The external Vitest config keeps the normal violation sink/global setup and resolves only the exact `@winsendotai/ovo-plugin-kit` import to the already present kit source. It does not change repository configuration or substitute a network implementation.
+
+Source true negatives include: approved MCP rediscovery hit Postgres FK error 23503 before diff-upsert; estimated playback formerly executed the write (`Paid.` instead of the repeated prompt); two MCP invokes formerly produced three `listTools` calls (expected one); schema drift used `ToolInvocationError` instead of `ToolSchemaError`; a pre-dispatch schema refusal and DNS lookup failure settled a write `unknown` instead of `failed`; eight newly tested special-use ranges returned `true` instead of `false`; and a deliberately broken pooled-DNS variant executed `{ok:true}` after public DNS changed to private, instead of rejecting before `callTool`. The restored implementation passes all seven pool cases. Character-differing key order and recordings retention tests distinguish `a/A/z/é` using code-unit ordering.
+
+Independent-review follow-up: an invalid response JSON pointer formerly sent one POST before throwing a policy error (new assertion: `sent` expected 0, received 1). Compilation now rejects invalid query/response pointer syntax before any request. An active MCP client retired by rotation formerly stopped counting toward `maxClients` (a second discovery resolved instead of refusing); the pool now counts all live clients and frees capacity only after closure. The bounded real-protocol test holds the first call open, verifies refusal while it occupies the sole slot, then verifies successful acquisition after release. Focused HTTP/MCP source proof: 31 passed.
+
+The reviewer also reproduced two allocation races while the pool waited for old clients to close: concurrent first acquisitions created two clients instead of one, and a queued acquire opened after disposal instead of refusing. Allocation/credential checks now run through a serialized allocation lane (active tool calls remain concurrent), with a disposal check after waits. Both production-pool lifecycle tests failed on those exact wrong results and pass after the fix. The independent reviewer re-ran all four pointer/cap/allocation/disposal probes successfully.

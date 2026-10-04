@@ -21,6 +21,8 @@ These documents supersede earlier exploratory recommendations that presumed Live
 
 The [DeepSeek source-reuse mandate](11-deepseek-foundation.md) supersedes earlier suggestions to build an independent plugin host. Directly reuse/adapt the upstream foundation; voice-engine selection remains a research task.
 
+For an executable installation, start with the [self-hosted Docker Compose runbook](runbooks/self-hosted-compose.md). It covers secure first bootstrap, the seeded administrator, managed PostgreSQL, local ElasticMQ versus SQS, recordings and safe live-call defaults.
+
 ## Fixed requirements
 
 - First-party npm packages use `@winsendotai/ovo-*`; keep the GitHub repository at its existing owner. Do not rename upstream dependencies or publish anything merely because it has a package name.

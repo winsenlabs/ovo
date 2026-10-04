@@ -1,0 +1,3 @@
+{"source":"https://platform.openai.com/docs/api-reference/audio/createSpeech","retrieved":"2026-09-25","verbatim":["POST /v1/audio/speech","response_format=pcm","stream_format=audio"],"unconfirmed":["Exact response chunk boundaries are chosen locally to test PCM sample alignment"]}
+{"dir":"out","frame":{"model":"tts-1","voice":"alloy","input":"Hello","response_format":"pcm"}}
+{"dir":"in","status":200,"contentType":"audio/pcm","chunksBase64":["AAEC","AwQF"]}

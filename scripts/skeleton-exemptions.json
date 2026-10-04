@@ -1,0 +1,22 @@
+{
+  "exemptions": [
+    {
+      "package": "packages/plugin-carrier-exotel",
+      "state": "skeleton",
+      "approvedOn": "2026-10-02",
+      "missingEvidence": "Confirmed Exotel authenticated 16 kHz media wire format"
+    },
+    {
+      "package": "packages/plugin-carrier-tcn",
+      "state": "absent",
+      "approvedOn": "2026-10-02",
+      "missingEvidence": "Confirmed TCN media, signing and call-control contract"
+    },
+    {
+      "package": "packages/plugin-carrier-alohaa",
+      "state": "absent",
+      "approvedOn": "2026-10-02",
+      "missingEvidence": "Confirmed Alohaa callback signing"
+    }
+  ]
+}

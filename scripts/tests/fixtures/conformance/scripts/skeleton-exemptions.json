@@ -1,0 +1,16 @@
+{
+  "exemptions": [
+    {
+      "package": "packages/plugin-stt-y",
+      "state": "skeleton",
+      "approvedOn": "2026-10-02",
+      "missingEvidence": "Fixture vendor wire contract"
+    },
+    {
+      "package": "packages/plugin-carrier-unconfirmed",
+      "state": "absent",
+      "approvedOn": "2026-10-02",
+      "missingEvidence": "Fixture callback signature"
+    }
+  ]
+}

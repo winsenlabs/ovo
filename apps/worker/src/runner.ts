@@ -1,0 +1,230 @@
+import {
+  ProtectionRenewal,
+  type DurableJobStore,
+  type DurableQueue,
+  type QueueDelivery,
+  type ReadinessProbe,
+  type TaskProtection,
+  type TelephonyControl,
+} from '@winsendotai/ovo-plugin-orchestration';
+import { startDeliveryRenewals } from './renewal.ts';
+import { claimWorkerDelivery } from './claim-delivery.ts';
+import { prepareCampaignDial, recordCampaignAttempt } from './campaign-dial.ts';
+import { dialOwnedJob } from './worker-dial.ts';
+import type { DeliveryOutcome } from './worker-types.ts';
+import { DEFAULT_WORKER_RUNNER_OPTIONS, type WorkerRunnerOptions } from './worker-options.ts';
+
+export class WorkerRunner {
+  private draining = false;
+  private terminationHandler?: (
+    jobId: string,
+    ownerEpoch: number,
+    reason: string,
+  ) => Promise<boolean>;
+
+  constructor(
+    private readonly workerId: string,
+    private readonly store: DurableJobStore,
+    private readonly queue: DurableQueue,
+    private readonly readiness: ReadinessProbe,
+    private readonly protection: TaskProtection,
+    private readonly telephony: TelephonyControl,
+    private readonly options: WorkerRunnerOptions = DEFAULT_WORKER_RUNNER_OPTIONS,
+  ) {}
+
+  beginDrain(): void {
+    this.draining = true;
+  }
+
+  setTerminationHandler(
+    handler: (jobId: string, ownerEpoch: number, reason: string) => Promise<boolean>,
+  ): void {
+    this.terminationHandler = handler;
+  }
+
+  async defer(delivery: QueueDelivery, reason: string): Promise<DeliveryOutcome> {
+    const claim = await this.store.claim(
+      delivery.reference.jobId,
+      this.workerId,
+      this.options.leaseMs,
+    );
+    const notBefore = new Date(Date.now() + this.options.deferSeconds * 1_000);
+    if (claim.kind === 'execute') {
+      await this.store.release(
+        claim.job.id,
+        this.workerId,
+        claim.job.ownerEpoch,
+        reason,
+        notBefore,
+      );
+    } else if (claim.kind === 'reconcile') {
+      await this.store.deferReconciliation(
+        claim.job.id,
+        this.workerId,
+        claim.job.ownerEpoch,
+        reason,
+        notBefore,
+      );
+    }
+    await this.queue.delete(delivery);
+    return { kind: 'deferred', reason };
+  }
+
+  async handle(delivery: QueueDelivery): Promise<DeliveryOutcome> {
+    if (this.draining) {
+      return this.defer(delivery, 'worker-draining');
+    }
+    const claim = await claimWorkerDelivery({
+      workerId: this.workerId,
+      delivery,
+      store: this.store,
+      queue: this.queue,
+      telephony: this.telephony,
+      leaseMs: this.options.leaseMs,
+      deferSeconds: this.options.deferSeconds,
+      carriers: this.options.carriers,
+    });
+    if (claim.kind === 'outcome') return claim.outcome;
+    const { job } = claim;
+    if (this.options.organizationId && job.workspaceId !== this.options.organizationId) {
+      const reason = 'job-organization-does-not-match-single-tenant-runtime';
+      await this.store.markFailed(job.id, this.workerId, job.ownerEpoch, reason);
+      await this.queue.delete(delivery);
+      return { kind: 'failed', reason };
+    }
+    const { lease, visibility } = startDeliveryRenewals({
+      store: this.store,
+      queue: this.queue,
+      delivery,
+      job,
+      workerId: this.workerId,
+      leaseMs: this.options.leaseMs,
+      visibilitySeconds: this.options.visibilitySeconds,
+      onLeaseLost: async () => {
+        this.draining = true;
+        const route = await this.store.getSessionRoute(job.id);
+        if (route && this.options.carriers) {
+          if (!this.terminationHandler)
+            throw new Error('Carrier termination handler is not installed');
+          await this.terminationHandler(job.id, job.ownerEpoch, 'job-lease-lost');
+        }
+      },
+    });
+    const readiness = await this.readiness.check();
+    if (!readiness.ready) {
+      lease.stop();
+      visibility.stop();
+      await this.store.release(
+        job.id,
+        this.workerId,
+        job.ownerEpoch,
+        `readiness:${readiness.reason}`,
+        new Date(Date.now() + this.options.deferSeconds * 1_000),
+      );
+      await this.queue.delete(delivery);
+      return { kind: 'deferred', reason: readiness.reason };
+    }
+
+    let activeCarrierCallId: string | undefined;
+    const renewal = new ProtectionRenewal(
+      this.protection,
+      this.options.protectionRenewMs,
+      async () => {
+        this.draining = true;
+        if (this.options.carriers) {
+          const route = await this.store.getSessionRoute(job.id);
+          if (route) {
+            if (!this.terminationHandler)
+              throw new Error('Carrier termination handler is not installed');
+            await this.terminationHandler(job.id, job.ownerEpoch, 'task-protection-renewal-failed');
+          } else {
+            await this.store.markDialUnknown(
+              job.id,
+              this.workerId,
+              job.ownerEpoch,
+              job.dialRequestId ?? `${job.id}:${job.ownerEpoch}`,
+              'task-protection-renewal-failed',
+            );
+          }
+          return;
+        }
+        if (activeCarrierCallId) {
+          const terminating = await this.store.requestSessionTermination(
+            job.id,
+            this.workerId,
+            job.ownerEpoch,
+            'task-protection-renewal-failed',
+          );
+          if (terminating?.carrierCallId) {
+            await this.telephony.hangup(terminating.carrierCallId).catch(() => undefined);
+          }
+        } else {
+          await this.store.markDialUnknown(
+            job.id,
+            this.workerId,
+            job.ownerEpoch,
+            job.dialRequestId ?? `${job.id}:${job.ownerEpoch}`,
+            'task-protection-renewal-failed',
+          );
+        }
+      },
+    );
+    if (!(await renewal.establish())) {
+      this.draining = true;
+      lease.stop();
+      visibility.stop();
+      await this.store.release(
+        job.id,
+        this.workerId,
+        job.ownerEpoch,
+        'task-protection-establish-failed',
+        new Date(Date.now() + this.options.deferSeconds * 1_000),
+      );
+      await this.queue.delete(delivery);
+      return { kind: 'deferred', reason: 'task-protection-establish-failed' };
+    }
+
+    const campaign = await prepareCampaignDial({
+      job,
+      workerId: this.workerId,
+      store: this.store,
+      queue: this.queue,
+      delivery,
+      lease,
+      visibility,
+      renewal,
+      options: this.options,
+    });
+    if (campaign.kind === 'outcome') return campaign.outcome;
+    const dialPayload = campaign.payload;
+    return dialOwnedJob({
+      job,
+      dialPayload,
+      delivery,
+      lease,
+      visibility,
+      renewal,
+      workerId: this.workerId,
+      store: this.store,
+      queue: this.queue,
+      telephony: this.telephony,
+      options: this.options,
+      recordAttempt: (...args) => this.recordAttempt(...args),
+      onCarrierAccepted: (carrierCallId) => {
+        activeCarrierCallId = carrierCallId;
+      },
+      isDraining: () => this.draining,
+    });
+  }
+
+  private recordAttempt(
+    payload: Record<string, unknown>,
+    eventId: string,
+    status: 'dialing' | 'failed' | 'unknown',
+    reason?: string,
+  ) {
+    return recordCampaignAttempt(this.options.campaigns, payload, eventId, status, reason).catch(
+      () => undefined,
+    );
+  }
+}

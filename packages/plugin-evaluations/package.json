@@ -1,0 +1,13 @@
+{
+  "name": "@winsendotai/ovo-plugin-evaluations",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@types/pg": "8.15.5",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "pg": "8.16.3"
+  }
+}

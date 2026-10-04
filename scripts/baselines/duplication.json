@@ -1,0 +1,86 @@
+{
+  "pairs": [
+    { "files": ["apps/api/src/routes/agents.ts", "apps/api/src/routes/mcp.ts"], "windows": 34 },
+    {
+      "files": [
+        "apps/api/src/routes/recording-lifecycle-data.ts",
+        "apps/worker/src/recording-runtime.ts"
+      ],
+      "windows": 12
+    },
+    {
+      "files": [
+        "apps/api/src/routes/recording-lifecycle-exports.ts",
+        "apps/api/src/routes/recording-lifecycle.ts"
+      ],
+      "windows": 37
+    },
+    {
+      "files": [
+        "apps/console/components/operations/campaigns-view.tsx",
+        "apps/console/components/operations/suppressions-view.tsx"
+      ],
+      "windows": 9
+    },
+    {
+      "files": [
+        "apps/console/components/operations/fx-version-panel.tsx",
+        "apps/console/components/operations/price-card-panel.tsx"
+      ],
+      "windows": 120
+    },
+    {
+      "files": [
+        "apps/console/components/operations/fx-version-panel.tsx",
+        "apps/console/components/operations/reconciliation-panel.tsx"
+      ],
+      "windows": 10
+    },
+    {
+      "files": [
+        "apps/console/components/operations/price-card-panel.tsx",
+        "apps/console/components/operations/reconciliation-panel.tsx"
+      ],
+      "windows": 8
+    },
+    {
+      "files": ["packages/plugin-inference/src/simulated.ts", "packages/plugin-voice/src/async.ts"],
+      "windows": 82
+    },
+    {
+      "files": [
+        "packages/plugin-ledger/src/postgres/catalog.ts",
+        "packages/plugin-ledger/src/postgres/usage-pricing.ts"
+      ],
+      "windows": 8
+    },
+    {
+      "files": [
+        "packages/plugin-recordings/src/background-worker.ts",
+        "packages/plugin-recordings/src/exports.ts"
+      ],
+      "windows": 3
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/inspection-repository.ts",
+        "packages/plugin-storage/src/sqlite/inspection-repository.ts"
+      ],
+      "windows": 119
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/secrets-repository.ts",
+        "packages/plugin-storage/src/sqlite/secrets-repository.ts"
+      ],
+      "windows": 69
+    },
+    {
+      "files": [
+        "packages/plugin-storage/src/postgres/store.ts",
+        "packages/plugin-storage/src/sqlite/store.ts"
+      ],
+      "windows": 7
+    }
+  ]
+}

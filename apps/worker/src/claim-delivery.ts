@@ -1,0 +1,44 @@
+import type {
+  ClaimedJob,
+  DurableJobStore,
+  DurableQueue,
+  QueueDelivery,
+  TelephonyControl,
+} from '@winsendotai/ovo-plugin-orchestration';
+import { reconcileClaimedDial } from './reconciliation.ts';
+import type { DeliveryOutcome } from './worker-types.ts';
+import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
+import { reconcileClaimedCarrierDial } from './reconciliation.ts';
+
+export async function claimWorkerDelivery(input: {
+  workerId: string;
+  delivery: QueueDelivery;
+  store: DurableJobStore;
+  queue: DurableQueue;
+  telephony: TelephonyControl;
+  leaseMs: number;
+  deferSeconds: number;
+  carriers?: WorkerCarrierRuntime;
+}): Promise<{ kind: 'owned'; job: ClaimedJob } | { kind: 'outcome'; outcome: DeliveryOutcome }> {
+  const claim = await input.store.claim(
+    input.delivery.reference.jobId,
+    input.workerId,
+    input.leaseMs,
+  );
+  if (claim.kind === 'defer') {
+    // The database already owns the due time or live lease; the sweeper issues a fresh hint.
+    await input.queue.delete(input.delivery);
+    return { kind: 'outcome', outcome: { kind: 'deferred', reason: claim.reason } };
+  }
+  if (claim.kind === 'missing' || claim.kind === 'settled') {
+    await input.queue.delete(input.delivery);
+    return { kind: 'outcome', outcome: { kind: 'duplicate' } };
+  }
+  if (claim.kind === 'reconcile') {
+    const outcome = input.carriers
+      ? await reconcileClaimedCarrierDial({ ...input, job: claim.job, carriers: input.carriers })
+      : await reconcileClaimedDial({ ...input, job: claim.job });
+    return { kind: 'outcome', outcome };
+  }
+  return { kind: 'owned', job: claim.job };
+}

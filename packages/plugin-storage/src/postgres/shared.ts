@@ -1,0 +1,91 @@
+import { createHash } from 'node:crypto';
+import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import { transaction as sharedTransaction } from '@winsendotai/ovo-plugin-kit/postgres-transaction';
+
+export type Queryable = Pick<Pool | PoolClient, 'query'>;
+export type Row = QueryResultRow & Record<string, unknown>;
+
+export const now = () => new Date().toISOString();
+export const pageLimit = (limit = 50) => Math.max(1, Math.min(100, Math.trunc(limit)));
+
+export interface PageCursor {
+  at: string;
+  id: string;
+}
+
+export function encodeCursor(cursor: PageCursor): string {
+  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+}
+
+export function decodeCursor(cursor?: string): PageCursor | undefined {
+  if (!cursor) return undefined;
+  try {
+    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as unknown;
+    if (
+      !value ||
+      typeof value !== 'object' ||
+      typeof (value as PageCursor).at !== 'string' ||
+      typeof (value as PageCursor).id !== 'string'
+    )
+      throw new Error('invalid');
+    return value as PageCursor;
+  } catch {
+    throw Object.assign(new Error('Invalid pagination cursor'), {
+      statusCode: 400,
+      code: 'invalid_cursor',
+    });
+  }
+}
+
+export function pageFromRows<T>(
+  rows: Row[],
+  limit: number,
+  map: (row: Row) => T,
+  cursor: (row: Row) => PageCursor = (row) => ({
+    at: toIso(row.created_at),
+    id: String(row.id),
+  }),
+) {
+  const more = rows.length > limit;
+  if (more) rows.pop();
+  return {
+    items: rows.map(map),
+    nextCursor: more && rows.length ? encodeCursor(cursor(rows.at(-1)!)) : null,
+  };
+}
+
+/** Execute a workspace-scoped keyset query whose last three parameters are cursor time, id and limit. */
+export async function selectPage<T>(
+  queryable: Queryable,
+  sql: string,
+  prefix: unknown[],
+  limit: number,
+  cursor: string | undefined,
+  map: (row: Row) => T,
+  rowCursor?: (row: Row) => PageCursor,
+) {
+  const size = pageLimit(limit);
+  const after = decodeCursor(cursor);
+  const result = await queryable.query<Row>(sql, [
+    ...prefix,
+    after?.at ?? null,
+    after?.id ?? '',
+    size + 1,
+  ]);
+  return pageFromRows(result.rows, size, map, rowCursor);
+}
+
+export const toIso = (value: unknown) =>
+  value instanceof Date ? value.toISOString() : new Date(String(value)).toISOString();
+
+export function transaction<T>(pool: Pool, work: (client: PoolClient) => Promise<T>): Promise<T> {
+  return sharedTransaction<PoolClient, T>(pool, work);
+}
+
+export function migrationChecksum(sql: string) {
+  return createHash('sha256').update(sql).digest('hex');
+}
+
+export function isUniqueViolation(error: unknown) {
+  return (error as { code?: string } | undefined)?.code === '23505';
+}

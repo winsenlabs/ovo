@@ -1,0 +1,9 @@
+{"source":"https://developers.deepgram.com/reference/speech-to-text/listen-streaming","retrieved":"2026-09-25","verbatim":["Results.is_final","Results.speech_final","Results.from_finalize","Metadata.duration","Metadata.request_id","UtteranceEnd.last_word_end","SpeechStarted.timestamp","Finalize","CloseStream","KeepAlive"],"unconfirmed":["Tamil and Telugu support in nova-3 streaming"]}
+{"dir":"in","frame":{"type":"SpeechStarted","timestamp":0.5}}
+{"dir":"in","frame":{"type":"Results","is_final":false,"speech_final":false,"channel":{"alternatives":[{"transcript":"hello"}]}}}
+{"dir":"in","frame":{"type":"Results","is_final":true,"speech_final":false,"channel":{"alternatives":[{"transcript":"hello"}]}}}
+{"dir":"in","frame":{"type":"Results","is_final":true,"speech_final":true,"channel":{"alternatives":[{"transcript":"there"}]}}}
+{"dir":"in","frame":{"type":"UtteranceEnd","last_word_end":2.5}}
+{"dir":"out","frame":{"type":"Finalize"}}
+{"dir":"out","frame":{"type":"CloseStream"}}
+{"dir":"in","frame":{"type":"Metadata","request_id":"dg-fixture-request","duration":45.5}}

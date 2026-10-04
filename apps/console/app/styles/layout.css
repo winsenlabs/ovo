@@ -1,0 +1,114 @@
+.skip-link {
+  position: fixed;
+  top: -60px;
+  left: 232px;
+  z-index: 100;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+}
+.skip-link:focus {
+  top: 8px;
+}
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 10;
+  display: flex;
+  width: 216px;
+  flex-direction: column;
+  padding: 26px 16px 18px;
+  overflow-y: auto;
+  background: var(--nav);
+  color: var(--nav-text);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 12px;
+  color: #fff;
+}
+.brand strong {
+  font-size: 27px;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+.brand span {
+  padding-left: 11px;
+  border-left: 1px solid #506057;
+  font-size: 12px;
+  letter-spacing: 1.3px;
+  line-height: 1.35;
+}
+.workspace-switcher {
+  margin: 28px 4px 18px;
+  padding: 10px 11px;
+  border: 1px solid #425248;
+  border-radius: 7px;
+  color: #f3f7f3;
+}
+.workspace-switcher span,
+.workspace-switcher small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-switcher small {
+  color: #aebdb2;
+}
+.nav-group > p {
+  margin: 16px 13px 6px;
+  color: #91a296;
+  font-size: 12px;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+}
+.nav-group nav {
+  display: grid;
+  gap: 3px;
+}
+.nav-group a {
+  min-height: 37px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.nav-group a:hover {
+  background: #26372c;
+  color: #fff;
+}
+.nav-group a.active {
+  background: #31503c;
+  color: #fff;
+  font-weight: 650;
+}
+.sidebar-status {
+  display: grid;
+  gap: 8px;
+  margin-top: auto;
+  padding: 24px 9px 2px;
+}
+.sidebar-status small {
+  color: #9faf9f;
+}
+.shell {
+  min-height: 100vh;
+  margin-left: 216px;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@winsendotai/ovo-voice-experiments",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Disposable comparative voice-engine spikes; not production runtime code.",
+  "scripts": {
+    "benchmark": "tsx src/benchmark.ts",
+    "check": "pnpm check:size && pnpm typecheck && pnpm test",
+    "check:size": "node scripts/check-size.mjs",
+    "test": "vitest run --root ../.. experiments/voice/tests/comparison.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@livekit/agents": "1.9.0",
+    "@livekit/rtc-node": "0.13.34",
+    "@winsendotai/ovo-behaviors": "workspace:*",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-inference": "workspace:*",
+    "@winsendotai/ovo-plugin-tools": "workspace:*",
+    "@winsendotai/ovo-plugin-voice": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "ai": "7.0.107",
+    "zod": "4.6.5"
+  }
+}

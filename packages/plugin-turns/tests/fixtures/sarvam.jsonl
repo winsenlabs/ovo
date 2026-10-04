@@ -1,0 +1,8 @@
+{"source":"https://docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/realtime-streaming","retrieved":"2026-09-25","verbatim":["vad.speech_start","vad.speech_end","transcript.partial","transcript.final"],"unconfirmed":[]}
+{"dir":"in","frame":{"event":"vad.speech_start"}}
+{"dir":"in","frame":{"event":"transcript.partial","text":"my number"}}
+{"dir":"in","frame":{"event":"vad.speech_end"}}
+{"dir":"in","frame":{"event":"transcript.final","text":"my number is 98 45"}}
+{"dir":"in","frame":{"event":"vad.speech_start"}}
+{"dir":"in","frame":{"event":"vad.speech_end"}}
+{"dir":"in","frame":{"event":"transcript.final","text":"yes"}}

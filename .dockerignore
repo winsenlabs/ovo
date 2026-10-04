@@ -1,0 +1,9 @@
+.git
+.data
+.generated_artifacts
+.session-history
+**/dist
+**/node_modules
+node_modules
+coverage
+*.log

@@ -1,0 +1,9 @@
+{
+  "kinds": {
+    "packages/plugin-a": "plugin",
+    "packages/plugin-b": "plugin",
+    "packages/kit-x": "kit",
+    "packages/plugin-stt-v": "vendor-plugin",
+    "apps/app1": "app"
+  }
+}

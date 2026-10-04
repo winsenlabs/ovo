@@ -1,0 +1,10 @@
+{"source":"https://fixture.invalid/docs/media","retrieved":"2026-09-22","verbatim":["event names and frame shapes of the fixture carrier (Twilio-shaped)"],"unconfirmed":["the fixture carrier is synthetic; no vendor documents it"]}
+{"dir":"in","frame":{"event":"connected","protocol":"Call","version":"1.0.0"},"events":[{"type":"connected"}]}
+{"dir":"in","frame":{"event":"start","sequenceNumber":"1","streamSid":"MZ1","start":{"streamSid":"MZ1","callSid":"CA1","customParameters":{"sid":"session-1","rt":"route-token-1"},"mediaFormat":{"encoding":"audio/x-mulaw","sampleRate":8000,"channels":1}}},"events":[{"type":"start","carrierCallId":"CA1","streamId":"MZ1","format":{"encoding":"mulaw","sampleRate":8000,"channels":1},"routeParams":{"sid":"session-1","rt":"route-token-1"}}]}
+{"dir":"in","frame":{"event":"media","sequenceNumber":"2","streamSid":"MZ1","media":{"track":"inbound","chunk":"1","timestamp":"5","payload":"//8="}},"events":[{"type":"audio","seq":2,"timestampMs":5,"payloadBase64":"//8="}]}
+{"dir":"out","frame":{"event":"media","streamSid":"MZ1","media":{"payload":"//8="}},"command":{"type":"audio","payloadBase64":"//8="}}
+{"dir":"out","frame":{"event":"mark","streamSid":"MZ1","mark":{"name":"seg-1"}},"command":{"type":"mark","name":"seg-1"},"flush":true}
+{"dir":"in","frame":{"event":"mark","sequenceNumber":"3","streamSid":"MZ1","mark":{"name":"seg-1"}},"events":[{"type":"played","name":"seg-1"}]}
+{"dir":"in","frame":{"event":"dtmf","sequenceNumber":"4","streamSid":"MZ1","dtmf":{"track":"inbound_track","digit":"5"}},"events":[{"type":"dtmf","digit":"5"}]}
+{"dir":"out","frame":{"event":"clear","streamSid":"MZ1"},"command":{"type":"clear"}}
+{"dir":"in","frame":{"event":"stop","sequenceNumber":"5","streamSid":"MZ1","stop":{"accountSid":"AC1","callSid":"CA1"}},"events":[{"type":"stop","reason":"caller-hangup"}]}

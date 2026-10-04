@@ -1,0 +1,4 @@
+{"source":"https://platform.openai.com/docs/api-reference/audio/createSpeech","retrieved":"2026-09-25","verbatim":["POST /v1/audio/speech","response_format=pcm","stream_format=sse","speech.audio.delta.audio","speech.audio.done.usage"],"unconfirmed":[]}
+{"dir":"out","frame":{"model":"gpt-4o-mini-tts","response_format":"pcm","stream_format":"sse"}}
+{"dir":"in","frame":{"type":"speech.audio.delta","audio":"AAECAw=="}}
+{"dir":"in","frame":{"type":"speech.audio.done","usage":{"input_tokens":14,"output_tokens":101,"total_tokens":115}}}

@@ -1,0 +1,149 @@
+{
+  "repository": "https://github.com/deepseek-ai/deepseek-harness",
+  "commit": "ddefc45fbc7f8e46dd73185e68295696d1297887",
+  "files": [
+    {
+      "upstream": "vendor/cordis/src/registry.ts",
+      "local": "vendor/cordis/src/registry.ts",
+      "sha256": "34bbd60ae502b4f85201c204afb52a9acabde6878d9278493478c1b2183debd3",
+      "modifications": "none",
+      "localSha256": "34bbd60ae502b4f85201c204afb52a9acabde6878d9278493478c1b2183debd3"
+    },
+    {
+      "upstream": "vendor/cordis/src/utils.ts",
+      "local": "vendor/cordis/src/utils.ts",
+      "sha256": "8fe273424583d21267ef13f248840e97454d09d836a0ac08323a9482c2069263",
+      "modifications": "none",
+      "localSha256": "8fe273424583d21267ef13f248840e97454d09d836a0ac08323a9482c2069263"
+    },
+    {
+      "upstream": "vendor/cordis/src/context.ts",
+      "local": "vendor/cordis/src/context.ts",
+      "sha256": "96b388162d6013c1898de61e35f28917abb93809de24174980f2a1a348d0b115",
+      "modifications": "none",
+      "localSha256": "96b388162d6013c1898de61e35f28917abb93809de24174980f2a1a348d0b115"
+    },
+    {
+      "upstream": "vendor/cordis/src/fiber.ts",
+      "local": "vendor/cordis/src/fiber.ts",
+      "sha256": "b7661d6c19be76cef6b97d88719a8112c0f8b5abe65bd9e7d5947773fd4b96d4",
+      "modifications": "none",
+      "localSha256": "b7661d6c19be76cef6b97d88719a8112c0f8b5abe65bd9e7d5947773fd4b96d4"
+    },
+    {
+      "upstream": "vendor/cordis/src/logger.ts",
+      "local": "vendor/cordis/src/logger.ts",
+      "sha256": "05cb6be3e4cf8d078185b5d10c87e536c7d2b2b3ad43c270a0dbafaa28f41fef",
+      "modifications": "none",
+      "localSha256": "05cb6be3e4cf8d078185b5d10c87e536c7d2b2b3ad43c270a0dbafaa28f41fef"
+    },
+    {
+      "upstream": "vendor/cordis/src/events.ts",
+      "local": "vendor/cordis/src/events.ts",
+      "sha256": "9aff93dcfcad98aebb692c19c36d3bf034a96f9085bc66900a997cda3f79e6fe",
+      "modifications": "none",
+      "localSha256": "9aff93dcfcad98aebb692c19c36d3bf034a96f9085bc66900a997cda3f79e6fe"
+    },
+    {
+      "upstream": "vendor/cordis/src/service.ts",
+      "local": "vendor/cordis/src/service.ts",
+      "sha256": "614205c6ce7cf1a057b8b352e96aa4fcd734c967a3d2283a126c9c61f268e3be",
+      "modifications": "none",
+      "localSha256": "614205c6ce7cf1a057b8b352e96aa4fcd734c967a3d2283a126c9c61f268e3be"
+    },
+    {
+      "upstream": "vendor/cordis/src/reflect.ts",
+      "local": "vendor/cordis/src/reflect.ts",
+      "sha256": "6847b9781044023d65aebb5896a873b9f0a3d777eaf7fa0dd2a7a408eb6b74a6",
+      "modifications": "none",
+      "localSha256": "6847b9781044023d65aebb5896a873b9f0a3d777eaf7fa0dd2a7a408eb6b74a6"
+    },
+    {
+      "upstream": "vendor/cordis/src/index.ts",
+      "local": "vendor/cordis/src/index.ts",
+      "sha256": "c2232f082c763488225eafcd33530640ad26af0c7d6ea871a4f7e8ebf0eb3704",
+      "modifications": "none",
+      "localSha256": "c2232f082c763488225eafcd33530640ad26af0c7d6ea871a4f7e8ebf0eb3704"
+    },
+    {
+      "upstream": "vendor/cosmokit/src/array.ts",
+      "local": "vendor/cosmokit/src/array.ts",
+      "sha256": "cf4de899ecffd66a90d8cef6f4c7d127d31f77f776d8e173d41c30d2d7632cf7",
+      "modifications": "none",
+      "localSha256": "cf4de899ecffd66a90d8cef6f4c7d127d31f77f776d8e173d41c30d2d7632cf7"
+    },
+    {
+      "upstream": "vendor/cosmokit/src/index.ts",
+      "local": "vendor/cosmokit/src/index.ts",
+      "sha256": "51dd173c70001d7d7891d3aab7e26594da65f7cb6671253f6d457ac889326b3c",
+      "modifications": "none",
+      "localSha256": "51dd173c70001d7d7891d3aab7e26594da65f7cb6671253f6d457ac889326b3c"
+    },
+    {
+      "upstream": "vendor/cosmokit/src/string.ts",
+      "local": "vendor/cosmokit/src/string.ts",
+      "sha256": "5564272b3e15e49235cbe3a8b453f27306baf282d23a893982841670f65d3c04",
+      "modifications": "none",
+      "localSha256": "5564272b3e15e49235cbe3a8b453f27306baf282d23a893982841670f65d3c04"
+    },
+    {
+      "upstream": "vendor/cosmokit/src/misc.ts",
+      "local": "vendor/cosmokit/src/misc.ts",
+      "sha256": "117617943074ea57c15f216905dacd2f6d1c4c2ff16586f97a7a7a87dbf2141f",
+      "modifications": "none",
+      "localSha256": "117617943074ea57c15f216905dacd2f6d1c4c2ff16586f97a7a7a87dbf2141f"
+    },
+    {
+      "upstream": "vendor/cosmokit/src/types.ts",
+      "local": "vendor/cosmokit/src/types.ts",
+      "sha256": "09d72a91052105e88500bfb99a8e8ce0c9ebf6f6e7df569053e114bc77aa019c",
+      "modifications": "none",
+      "localSha256": "09d72a91052105e88500bfb99a8e8ce0c9ebf6f6e7df569053e114bc77aa019c"
+    },
+    {
+      "upstream": "vendor/cosmokit/src/time.ts",
+      "local": "vendor/cosmokit/src/time.ts",
+      "sha256": "49957c4608465a1fbd738186a92c47fffcd1fc4ba59dbf89524f8a773fe16fe2",
+      "modifications": "none",
+      "localSha256": "49957c4608465a1fbd738186a92c47fffcd1fc4ba59dbf89524f8a773fe16fe2"
+    },
+    {
+      "upstream": "packages/core/scope/src/index.ts",
+      "local": "packages/runtime/src/upstream/scope.ts",
+      "upstreamSha256": "074b8f0c3fa2e240effd0a7e65c54be7c14debc1e53bb712334ce20d15affe4a",
+      "modifications": "rename index.ts to scope.ts; adjust store imports",
+      "localSha256": "074b8f0c3fa2e240effd0a7e65c54be7c14debc1e53bb712334ce20d15affe4a"
+    },
+    {
+      "upstream": "packages/core/scope/src/store.ts",
+      "local": "packages/runtime/src/upstream/store.ts",
+      "upstreamSha256": "e2f6c98e271cbae483393ccd1e5212a255def165a8a591d308efbd827af67278",
+      "modifications": "rename index.ts to scope.ts; adjust store imports",
+      "localSha256": "230f3b7301394d744bba39d708134ae03b7418e0b8a80403a01d633e2064dd4a"
+    },
+    {
+      "local": "packages/runtime/src/upstream/composition.ts",
+      "upstream": "packages/boot/app-boot/src/profile.ts + vendor/include/src/index.ts",
+      "localSha256": "078077b11e8e551491a7fc1b11964020229c9449b93dcc1bbcb7cdac598bf5bc",
+      "modifications": "See deepseek-import-map.md"
+    },
+    {
+      "local": "packages/runtime/src/upstream/lifecycle.ts",
+      "upstream": "packages/extensions/cordis-host-runner/src/lifecycle.ts",
+      "localSha256": "b58925fca6140f9aa1446556f19867cfc5547e28eaec6ad6e00ead32b97dd96e",
+      "modifications": "See deepseek-import-map.md"
+    },
+    {
+      "local": "packages/runtime/tests/upstream/scope.spec.ts",
+      "upstream": "packages/core/scope/tests/scope.spec.ts",
+      "localSha256": "73659692a24ee58f8fadc3e25ce7f0ce77fff6bf037a024adf8f29b74f57496b",
+      "modifications": "See deepseek-import-map.md"
+    },
+    {
+      "local": "packages/runtime/tests/upstream/store.spec.ts",
+      "upstream": "packages/core/scope/tests/store.spec.ts",
+      "localSha256": "3a6aba19e44dfe3452e801aedaea6ca5be1ade912a05de13a75771679919af35",
+      "modifications": "See deepseek-import-map.md"
+    }
+  ]
+}

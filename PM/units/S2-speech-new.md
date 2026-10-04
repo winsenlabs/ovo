@@ -1,0 +1,212 @@
+# Work unit S2-speech-new: New speech providers: AssemblyAI Universal Streaming STT, Sarvam realtime STT and Sarvam Bulbul TTS, with fixture templates
+
+Wave: 2
+Depends on: F1-contracts-runtime, F2-kits-gates, F3-host-seams, F4-apps-data-driven
+Defects fixed: [21, 9]
+
+## Owned paths
+
+- packages/plugin-stt-assemblyai/**
+- packages/plugin-speech-sarvam/**
+- scripts/baselines/pending/S2.json
+
+## Shared touchpoints (minimal edits allowed)
+
+- none
+
+## Specification
+
+GOAL: add AssemblyAI Universal Streaming STT, Sarvam realtime STT and Sarvam TTS as selectable plugins, with no shared-code edits. Read docs/architecture/plugin-platform.md (revision 2): sections 2.3–2.4 (native formats only; the host adapts formats and frame sizes) and section 9. Use ctx.net only (no ws or node:https imports), ctx.secret('/credentialRef') for the API key, and the binding config from row config 'binding'. Emit usage exactly once per session, always with a requestId. F3 created the skeletons packages/plugin-stt-assemblyai and packages/plugin-speech-sarvam with catalog entries. Fill them and remove the ovo.skeleton flags.
+
+A. packages/plugin-stt-assemblyai
+Sources: https://www.assemblyai.com/docs/api-reference/streaming-api/streaming-api, https://www.assemblyai.com/docs/streaming/message-sequence, https://www.assemblyai.com/docs/streaming/common-session-errors-and-closures, https://www.assemblyai.com/docs/speech-to-text/universal-streaming.
+
+- v2 plugin: id '@winsendotai/ovo-stt-assemblyai', kind 'stt', provider 'assemblyai', provides ['ovo.stt'].
+- bindingSchema {model (default 'universal-streaming-english'; the enum includes 'universal-3-5-pro' and 'universal-streaming-multilingual'), region: 'default' | 'us' | 'eu', minTurnSilenceMs?, maxTurnSilenceMs?, endOfTurnConfidenceThreshold?, keyterms?}.
+- capabilities:
+  - inputFormats [MULAW_8K, PCM16_16K, PCM16_8K], frameMs {min: 50, max: 1000, preferred: 100};
+  - languages per model (u3.5-pro: English + Hindi + Urdu …; no Tamil or Telugu);
+  - interim true, wordTimestamps true, turnSignals ['speech-start','end-of-turn'], forceEndpoint true, ttfsP99Ms 420.
+- meters [{key: 'assemblyai.streaming-stt.session_seconds', unit: 'session_seconds', role: 'stt'}]; egressHosts ['streaming.assemblyai.com', 'streaming.us.assemblyai.com', 'streaming.eu.assemblyai.com']; conformance ['stt@1'].
+- Behavior:
+  - wss://streaming.assemblyai.com/v3/ws (or the regional host) with header Authorization: <key> (no Bearer);
+  - query: sample_rate, encoding (pcm_mulaw or pcm_s16le), speech_model, format_turns=false, plus the configured turn params;
+  - send binary frames of 50–1000 ms. The host STT adapter already re-frames to 100 ms, but ALSO defensively re-aggregate in the plugin, because frames under 50 ms cause close code 3007.
+  - Begin{id, expires_at, configuration?} → requestId. Check Begin.configuration.model, when present, against the requested model, and fail with a typed error on a mismatch, because unknown params are silently ignored.
+  - Turn{turn_order, transcript, end_of_turn, turn_is_formatted, words[]} → a transcript segment with segmentId = String(turn_order) that replaces the text. It stays interim until end_of_turn:true, which gives final plus end-of-turn. A later formatted duplicate for the same turn_order → a revision of the same segment with formatted:true (no new turn).
+  - SpeechStarted → speech-start.
+  - forceEndpoint → {type: 'ForceEndpoint'}.
+  - finish → {type: 'Terminate'}, then read until Termination{session_duration_seconds} → reconciled usage. Cancel or failure → estimated usage from wall clock.
+  - Close codes 1008 (auth), 3005, 3006, 3007 (frame size), 3008 (expired), 3009 (concurrency) and 1011 → a typed ProviderError with a retryable flag.
+- fixtureTemplates: render each caller 'say' as Begin, partial Turns, then an end_of_turn Turn, closing with Termination.
+- Fixtures: Begin → partial Turns → end-of-turn → formatted duplicate (the format_turns=true variant) → Terminate → Termination. Negatives: close 3007 for a 20 ms frame, 1008 bad key, 3009, 3008, and a model mismatch in Begin.
+
+B. packages/plugin-speech-sarvam, exporting TWO v2 plugins.
+Sources: https://docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/realtime-streaming, https://docs.sarvam.ai/api-reference/text-to-speech/stream.md, https://docs.sarvam.ai/api-reference/text-to-speech/convert.md, https://docs.sarvam.ai/api-reference-docs/api-guides-tutorials/text-to-speech/streaming-api/web-socket.
+
+1. STT: id '@winsendotai/ovo-stt-sarvam', kind 'stt', provider 'sarvam', provides ['ovo.stt'].
+   - bindingSchema {model (default 'saaras:v3-realtime'), mode: 'transcribe' | 'translate' | 'verbatim' | 'translit' | 'codemix', languageCode (e.g. 'hi-IN' or 'auto'), streamType: 'fast' | 'balanced', silenceDurationMs (500), endpointing: 'vad' (default) | 'manual'}.
+   - capabilities:
+     - inputFormats [MULAW_8K, PCM16_8K, PCM16_16K], frameMs {min: 20, max: 1000, preferred: 100};
+     - the 22 Indic languages plus en-IN (hi-IN, ta-IN, te-IN, kn-IN, ml-IN, mr-IN, bn-IN, gu-IN, pa-IN, od-IN, …);
+     - interim true, turnSignals ['speech-start','speech-end','end-of-turn'];
+     - forceEndpoint FALSE: the 'flush' event is documented only for endpointing=manual. When the binding sets endpointing 'manual', forceEndpoint sends {event: 'flush'}. Record this in the fixture header.
+     - ttfsP99Ms 1000.
+   - meters [{key: 'sarvam.streaming-stt.audio_seconds', unit: 'audio_seconds', role: 'stt'}]; egressHosts ['api.sarvam.ai'].
+   - Behavior: wss://api.sarvam.ai/speech-to-text-realtime/ws with header api-subscription-key.
+     - Frames are JSON {event: 'audio_input', audio: '<b64>'} of about 100 ms.
+     - session.begin has no documented session id, so the requestId is synthesized as 'sarvam:<sessionId>:<n>' unless a provider id appears in a message; record this.
+     - vad.speech_start → speech-start; vad.speech_end → speech-end.
+     - transcript.partial → interim; transcript.final → final + end-of-turn (endpointing=vad).
+     - finish → {event: 'end'} → session.end{audio_duration_s} → reconciled usage.
+     - ping and pong keepalive.
+     - error {event: 'error', code, is_fatal, message} and close codes 1003, 1008 and 4000 → typed errors.
+2. TTS: id '@winsendotai/ovo-tts-sarvam', kind 'tts', provider 'sarvam', provides ['ovo.tts-streaming'].
+   - bindingSchema {model (default 'bulbul:v3'), speaker (default 'shubh'), pace?, temperature?, dictId?, restFallback?: boolean}.
+   - capabilities: outputFormats [MULAW_8K, PCM16_8K, PCM16_16K, PCM16_24K] (μ-law 8 kHz is native, so telephony needs no resampling), languages bn/en/gu/hi/kn/ml/mr/od/pa/ta/te-IN, incrementalText true, maxChars 2500.
+   - meters [{key: 'sarvam.streaming-tts.characters', unit: 'characters', role: 'tts'}].
+   - Behavior: WebSocket wss://api.sarvam.ai/text-to-speech/ws?model=…&send_completion_event=true with header Api-Subscription-Key.
+     - Send config (speaker, target language, the output codec and sample rate matching the requested native format, pace), then text, then flush.
+     - Receive audio{audio, content_type, request_id}, then event{event_type: 'final'}.
+     - An error frame → a typed error. Handle the roughly 60 s idle close with ping.
+     - open() implements IncrementalTts (push, flush, audio, close), which enables pipelining in the native engine.
+     - synthesize() uses the WebSocket, with a REST fallback (POST https://api.sarvam.ai/text-to-speech → {request_id, audios: [b64]}) when restFallback is set.
+     - cacheIdentity {provider: 'sarvam', model, voice: speaker, revision: 'sarvam-<codec>-<rate>-v1'}.
+     - The request field name is AMBIGUOUS (language_code vs target_language_code). Decide from the pinned doc page, record it verbatim in the fixture header, and mark the other UNCONFIRMED.
+
+- fixtureTemplates for both plugins: STT renders each 'say' as vad.speech_start → transcript.partial×n → vad.speech_end → transcript.final; TTS renders base64 μ-law audio frames for each text, then final.
+- Fixtures:
+  - STT: session.begin → vad.speech_start → transcript.partial×n → vad.speech_end → transcript.final → end → session.end; plus an error with is_fatal, closes 4000 and 1003, and an idle 1008.
+  - TTS: config → text → flush → audio×n (base64 μ-law 8k) → final; an error frame; canned REST JSON.
+
+TESTS: each package has tests/conformance.test.ts running describeSpeechToText and/or describeTextToSpeech with FixtureNet scripts and templates. src/testing.ts exports fixtures and fixtureTemplates, and index.ts re-exports them. Also test:
+
+- AssemblyAI frame aggregation never sends frames under 50 ms or over 1000 ms;
+- the model-mismatch failure;
+- Sarvam incremental open() streams audio after flush;
+- Sarvam forceEndpoint is absent with VAD endpointing and sends flush with manual endpointing;
+- usage is emitted exactly once on finish, cancel and fatal error;
+- requestId is always present.
+
+WAVE-2 RULES:
+
+- You own only the paths listed; doc section 15.2 is frozen.
+- Do NOT run pnpm install.
+- Contract gaps: use a local adapter and list it.
+- Transitional violations go in scripts/baselines/pending/S2.json.
+- Done = scoped lint, typecheck and tests green.
+
+CONSTRAINTS:
+
+- Import only contracts, runtime, sdk, plugin-kit and audio. No other plugin packages. No ws or node:https.
+- Never contact provider hosts in tests; live flags stay off.
+- Modules ≤300 lines. No git commits.
+
+## Checker notes — 2026-09-26
+
+- The spec says `ctx.secret('/credentialRef')`, but the F3 row stores the reference at the root as `{ binding, credentialRef: { credentialId } }`. The frozen runtime's `ctx.secret(pointer)` requires the value **at** the pointer to contain `credentialRef`. S2 therefore calls `ctx.secret('')` in all three owned plugins. Real `compose` tests first failed with `config /credentialRef holds no {credentialRef}` and now resolve the root reference for each plugin.
+- Sarvam's current realtime endpoint uses `or-IN` for Odia and `linear16` for PCM; `od-IN` belongs to its legacy endpoint. Its WebSocket TTS config uses `language_code` and `speech_sample_rate`, while the REST fallback requires `text`, `language_code`, and `speech_sample_rate`. The owned wire fixtures and URL checks follow the current [realtime STT](https://docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/realtime-streaming), [WebSocket TTS](https://docs.sarvam.ai/api/api-guides-tutorials/text-to-speech/streaming-api/web-socket), and [REST TTS](https://docs.sarvam.ai/api-reference/text-to-speech/convert) references.
+- AssemblyAI's default English model, six-language multilingual model, and 19-language 3.5 Pro model have different language sets. Instance capabilities and direct `start` now enforce that. Host compatibility still reads only static manifest capabilities and compares the full release tag exactly; its static English intersection therefore includes `en-IN`, the `AgentConfig` default, as well as `en`. A test drives the real live compatibility rule and reproduces `language_unsupported` if `en-IN` is removed. Other 3.5 Pro languages await a binding-aware rule. Sarvam fixed-language bindings similarly reject a conflicting release language at `start`.
+- The original `FixtureNet` script language can release all STT turns after the first audio frame, but D1's existing `planSttReplay`/`createSttReplayNet` wrapper tags appended server messages per caller turn and gates delivery on `release(turn)`. The 2026-09-29 continuation removed the owned templates' one-turn refusal and proved two full turns for AssemblyAI and Sarvam through that production replay wrapper; no shared fixture step is needed. [AssemblyAI's current error table](https://www.assemblyai.com/docs/streaming/common-session-errors-and-closures) lists **both** out-of-range 50–1000 ms input chunks and faster-than-real-time transmission under close code 3007. The existing 20 ms aggregation and typed 3007 close tests cover those distinct behaviors without claiming that a 20 ms provider frame was sent.
+- A formatted duplicate after `end_of_turn` can contaminate the frozen `sttAsLegacy` bridge's next turn because it clears finals at the first end-of-turn. S2 always requests `format_turns=false`, so this variant is outside its configured production path. A narrow bridge correction has been requested; until then, the direct v2 test covers parsing but does not claim legacy-bridge correctness for the `format_turns=true` variant.
+
+## Checker note — 2026-09-29: REST output envelope and shared ownership
+
+[Sarvam's REST TTS response](https://docs.sarvam.ai/api-reference/text-to-speech/convert)
+documents base64 WAV audio. The rebased WIP forwarded decoded response bytes
+as native μ-law or PCM16, which would pass a RIFF header into playback. S2 now
+extracts WAV data only when its codec, mono channel count and sample rate match
+the requested native format; raw native responses remain accepted. The test
+drives the public `synthesize()` fallback through FixtureNet and fails against
+the previous path with 1,018 bytes instead of 960. Wrong-rate and wrong-codec
+WAV cases fail closed. No real provider request was made.
+
+The `sttAsLegacy` formatted-duplicate behavior remains an I1 contract gap:
+S2's production URL always sends `format_turns=false`, while the direct v2
+parser supports a revision for the same `turn_order`. I1 owns the frozen kit
+bridge if formatted turns become a selectable mode. The C4 two-real-carrier
+integration test also remains with I1; S2's owned paths are speech plugins and
+do not include the carrier gateway test files.
+
+## Checker note — 2026-09-29: Bulbul v2 model defaults
+
+The spec's single `speaker` default of `shubh` conflicts with the current
+[Sarvam REST reference](https://docs.sarvam.ai/api-reference/text-to-speech/convert):
+`shubh` is the v3 default, while v2 defaults to `anushka` and limits text to
+1,500 characters. The owned binding schema no longer injects a universal
+speaker default; the implementation chooses the model-specific speaker for
+WebSocket, REST and cache identity, and its instance capability and push limit
+use 1,500 for v2. V3 keeps 2,500 and `shubh`. The v2 fixture test checks the
+absent speaker, native audio, exact usage, and over-limit refusal. Restoring
+the pre-fix implementation makes it fail with `expected 'shubh' to be
+'anushka'`, not a module-resolution error. The static manifest still says
+2,500; I1's binding-aware host capability work must include this v2 limit.
+
+## Checker note — 2026-09-29: nonfatal Sarvam errors
+
+The [Sarvam realtime guide](https://docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/realtime-streaming)
+shows a receiver returning only when `error.is_fatal` is true. The first S2
+parser ended the session for both values. It now continues for explicit
+`false` and fails closed for `true` or an absent flag. A FixtureNet test sends
+the nonfatal error, then caller audio and a final transcript, and verifies one
+reconciled usage meter. Replacing the parser with the earlier version makes
+that test fail with `Sarvam STT session is no longer writable`. The fatal and
+absent cases each verify a typed failure and one estimated meter.
+
+## Built handoff — 2026-09-29
+
+At code head `9d89a50`, Node 22.23.2, scoped lint EXIT 0 (seven gates),
+`pnpm format:check` EXIT 0, standalone duplication EXIT 0, typecheck EXIT 0,
+and root `pnpm check` EXIT 0, including build, audit and console E2E (41
+passed / 1 skipped). Default Vitest: 1,802 passed + 153 skipped = 1,955.
+Disposable localhost Postgres 17.6 with `--no-file-parallelism`: 1,951 passed,
+4 skipped, 0 failed (1,955 total), EXIT 0. The 149 additional default skips
+are database-gated. The owned container and Playwright result artifact were
+removed. The two-turn fixture tests fail against the earlier one-turn refusal
+with `multi-turn unsupported`; the REST audio test fails against the earlier
+path with 1,018 instead of 960 bytes. No provider endpoint, credentials,
+paid flag, or non-loopback test socket was used.
+
+## Checker approval conditions — 2026-09-29
+
+The independent checker approved S2 conditional on behavioral coverage and a
+REST spending guard. Owned FixtureNet tests now assert AssemblyAI
+`SpeechStarted` → `speech-start`, Sarvam `vad.speech_start` and
+`vad.speech_end` → their distinct events, and a VAD session with no
+`forceEndpoint` method. They inspect a 20 ms Sarvam JSON audio flush and a
+short AssemblyAI binary flush byte by byte, including the μ-law `0xFF`
+silence tail. AssemblyAI now calls the existing audio package's
+`padWithSilence`, avoiding an incomplete local encoding rule. REST tests
+reject wrong WAV bit depth and an empty data chunk; `SarvamTts.rest()`
+checks the requested native format before `NetPort.fetch`, even if the outer
+`synthesize()` gate is bypassed. Nine targeted source breakages fail on the
+new value assertions or attempted request, with no module-resolution failure.
+Removing only the outer `synthesize()` format gate leaves the public
+unsupported-format test green with zero NetPort calls, proving the REST guard
+independently prevents a billable request.
+
+The checker elevated two items to **blocking I1 integration work**: run
+selected speech plugins through the real session graph, and run the real
+Twilio and Plivo ingresses together. See `PM/units/I1-integration.md` for the
+canary and mutation evidence. The checker also assigned kit and capability
+gaps to F2/I1 on the board. Universal-3.5-Pro Urdu support, Sarvam Odia
+codes across STT/TTS, and the supported Sarvam speaker roster require Tejas's
+vendor confirmation; S2 does not infer answers.
+
+## Acceptance
+
+- The AssemblyAI STT, Sarvam STT and Sarvam TTS plugins load via the distribution catalog without skeleton flags and pass their conformance kits, using doc-faithful FixtureNet scripts, fixture templates and UNCONFIRMED annotations.
+- AssemblyAI never sends frames outside 50–1000 ms, checks the model echoed in Begin, maps turn_order and end_of_turn correctly (a formatted duplicate is a revision), and reconciles session_seconds from Termination.
+- Sarvam STT maps the vad and transcript events to speech-start, speech-end, interim, final and end-of-turn, reconciles audio_duration_s from session.end, synthesizes the requestId, and exposes forceEndpoint only with manual endpointing.
+- Sarvam TTS outputs μ-law 8 kHz natively, supports incremental open(), and meters characters.
+- Usage is emitted exactly once with a requestId on finish, cancel and failure. Scoped lint, typecheck and tests are green.
+
+## Verify commands
+
+- `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/lint.mjs --only packages/plugin-stt-assemblyai packages/plugin-speech-sarvam`
+- `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && node scripts/typecheck-scope.mjs packages/plugin-stt-assemblyai packages/plugin-speech-sarvam`
+- `export PATH=/opt/homebrew/opt/node@22/bin:$PATH && cd /Users/tejassuds/work/ovo && pnpm exec vitest run packages/plugin-stt-assemblyai packages/plugin-speech-sarvam packages/distribution --reporter=dot`
+
+## Builder continuation (2026-09-26)
+
+The two owned package manifests now remove `ovo.skeleton`. Design §15.2 freezes manifests outside the owned paths; these manifests are inside them and no lockfile edit is needed. The scoped architecture gate reports two filled vendor packages and zero skeleton exemptions. The 45 focused tests pass. Three production distribution regressions load each provider from `loadDistribution()` and compose its session graph; replacing the two implementations with foundation `14fef02` skeletons makes all three fail with `<plugin id> must be installed by the production catalog: expected undefined to be defined`. Implementations were restored after the proof. The frozen fixture/compat decisions already recorded above remain pending; this is WIP, not a handover.

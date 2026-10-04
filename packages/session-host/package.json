@@ -1,0 +1,23 @@
+{
+  "name": "@winsendotai/ovo-session-host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "@winsendotai/ovo-sdk": "workspace:*",
+    "@winsendotai/ovo-audio": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-behaviors": "workspace:*",
+    "@winsendotai/ovo-plugin-tools": "workspace:*",
+    "@winsendotai/ovo-plugin-tools-http": "workspace:*",
+    "@winsendotai/ovo-plugin-tools-mcp": "workspace:*",
+    "@winsendotai/ovo-plugin-voice": "workspace:*",
+    "@winsendotai/ovo-plugin-inference": "workspace:*"
+  }
+}

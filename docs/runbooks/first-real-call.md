@@ -1,0 +1,69 @@
+# First real call: founder-gated Twilio inbound test
+
+**State:** prepared on 2026-10-02, corrected on 2026-10-04; **not executed**. Tejas authorizes the window, the owned Twilio number, the one caller number and the spend limit before any live flag changes. This runbook uses **Twilio only**. C1 already supplies a production ingress. Exotel, TCN and Alohaa hold Indian-carrier rollout, not this first call. Fixture and loopback results do not certify a phone line.
+
+## Prepare with live admission still off
+
+1. Use the deployed, backed-up PostgreSQL stack, the two protected Compose workers (or the equivalent ready Fargate capacity), a reachable HTTPS/WSS gateway, and a TLS-terminated API. Verify health, a recent restore drill, queue/DLQ, and `GET /v1/operations/inbound/capacity` reporting at least one ready protected slot. Keep `OVO_LIVE_DIAL_ENABLED=false`, `OVO_INBOUND_ENABLED=false`, `OVO_TRANSPORT_CERTIFIED=false`, and `OVO_PROVIDER_EVALUATIONS_ENABLED=false` during setup. **Verify `OVO_ALLOW_LOCAL_HTTP=false` inside the running public API container**; Compose defaults it to `true`. For Compose, `docker compose -f infra/compose/compose.yaml exec -T api sh -c 'test "$OVO_ALLOW_LOCAL_HTTP" = false'` must exit 0 after rollout.
+2. Set the existing installation secrets and endpoints in the deployment secret store: `OVO_SESSION_SECRET` (at least 32 UTF-8 bytes), `OVO_SECRETS_MASTER_KEY`, `OVO_MEDIA_WORKER_TOKEN`, `OVO_INBOUND_ROUTE_SECRET`, `DATABASE_URL`/the configured control and operations database URLs, and `OVO_QUEUE_URL`. Set `OVO_MEDIA_PUBLIC_BASE_URL` to the exact public HTTPS **origin**, including an explicit port if used; confirm its certificate and WSS route. Keep these values out of shell history and the release config. Compose already sets `OVO_INBOUND_WARM_FLOOR=2` and maps `OVO_INBOUND_ENABLED` to worker capacity admission; do not lower the warm floor to force a green indicator.
+3. Before rendering or starting Compose, unset `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` in the invoking shell **and** remove them from the Compose `.env` or `--env-file`. Compose interpolates both into `OVO_CARRIER_ENV_BINDINGS` for every service; exported real values silently create a second credential-bearing `env` Twilio binding. Run the verdict-only checks below in Bash or zsh from the repository root with the same Compose file and environment used for deployment. They must both succeed; do not print the rendered secret-bearing JSON into logs. Then use authenticated `GET /v1/provider-bindings` and confirm **no selectable `env` Twilio binding exists**. Empty rendered credentials are only a proxy for this actual selection check; stop if an `env` Twilio binding is selectable. In the admin console, create a **Twilio** credential holding only the real account auth token, then a provider binding with `provider: "twilio"`, `pluginId: "@winsendotai/ovo-carrier-twilio"`, the credential ID, and `config: {"accountSid":"<real AC SID>"}`. Use the production environment label and a single owned Twilio phone number. Create separate real Deepgram STT and OpenAI TTS credentials/bindings. Use only the explicit carrier binding and keep secrets out of binding config.
+
+   ```bash
+   if [ -z "${TWILIO_ACCOUNT_SID:-}${TWILIO_AUTH_TOKEN:-}" ]; then
+     echo "inputs clear"
+   else
+     echo "FAIL: Twilio interpolation inputs set"
+     exit 1
+   fi
+
+   set -o pipefail
+   if docker compose -f infra/compose/compose.yaml config --format json |
+     jq -e '
+       [.services[].environment.OVO_CARRIER_ENV_BINDINGS? | select(. != null)] as $bindings
+       | ($bindings | length > 0)
+         and all($bindings[]; (try (fromjson | .twilio | .accountSid == "" and .authToken == "") catch false))
+     ' >/dev/null; then
+     echo "env binding empty"
+   else
+     echo "FAIL: rendered env binding carries credentials or Compose rendering failed"
+     exit 1
+   fi
+   ```
+
+4. Publish one immutable FAQ release selecting the native engine, that Twilio binding, Deepgram STT (`nova-3`) and OpenAI TTS (`gpt-4o-mini-tts` with an approved voice). Give it one harmless test question and response, no write tools or external business connectors. Set `release.config.recording=true` only after confirming the test caller's recording consent and retention policy. Use the existing durable recording backend; if recording is false, verify **no** recording row is created rather than expecting an artifact. Run compatibility and a fixture call on this exact release first.
+5. Install effective price cards for `twilio.carrier.audio_seconds`, `deepgram.streaming-stt.audio_seconds`, `openai.streaming-tts.input_tokens` and `openai.streaming-tts.audio_output_tokens`, plus the FX version and a small approved budget. Verify release readiness fails closed if a required card or binding is absent. A budget reservation is an admission guard, not a hard cap on the later carrier/provider invoice.
+6. Set the inbound overflow policy to a bounded `busy` response (`PUT /v1/operations/inbound/policy` with the current `expectedVersion`; a new policy uses `null`). Create exactly one enabled inbound route at `PUT /v1/operations/inbound/routes/<owned E.164 Twilio number>` with `expectedVersion:null`, the published `releaseId`, `variables:{}`, `carrierPluginId:"@winsendotai/ovo-carrier-twilio"`, and the explicit `carrierBindingId`. Check that its persisted carrier fields and release match. **Before changing the Twilio number**, record its existing Voice URL, Voice HTTP method, status callback URL and status callback method with the access-controlled run evidence; teardown needs all four values. Obtain the **inbound** and **status** URLs from `GET /v1/provider-bindings/<bindingId>/carrier-urls` and paste them verbatim into that Twilio number's Voice and status callback fields, using POST. Never rebuild or append their query strings. Confirm only this owned number points at OVO.
+
+## Authorized one-call window
+
+After Tejas confirms the above evidence and the narrow window, apply the following exact Compose service gates (or their equivalent deployment settings) and roll out only the affected services:
+
+| Setting                            | Required value            | Compose consumers                                                                       |
+| ---------------------------------- | ------------------------- | --------------------------------------------------------------------------------------- |
+| `OVO_LIVE_DIAL_ENABLED`            | `true`                    | API, gateway, both workers                                                              |
+| `OVO_INBOUND_ENABLED`              | `true`                    | Gateway and dispatcher; Compose maps it to each worker's `OVO_INBOUND_CAPACITY_ENABLED` |
+| `OVO_TRANSPORT_CERTIFIED`          | `true`                    | Both workers' readiness gate                                                            |
+| `OVO_MEDIA_PUBLIC_BASE_URL`        | Exact public HTTPS origin | API, gateway, both workers                                                              |
+| `OVO_INBOUND_ROUTE_SECRET`         | Same installation secret  | API, gateway, both workers                                                              |
+| `OVO_MEDIA_WORKER_TOKEN`           | Same private worker token | Gateway and both workers                                                                |
+| `OVO_ALLOW_LOCAL_HTTP`             | `false` for a public API  | API                                                                                     |
+| `OVO_PROVIDER_EVALUATIONS_ENABLED` | Unset or `false`          | Never needed for this call                                                              |
+
+Recheck `OVO_ALLOW_LOCAL_HTTP=false` in the running API container after this rollout; setting it in a file without checking the effective value is insufficient. Compose keeps `OVO_FIXTURE_TEST_CALLS=true` on the API so authenticated synthetic preflight calls remain available; fixture calls use FixtureNet and hide real carrier-control and legacy telephony ports, so that flag cannot enable a real dial.
+
+Confirm the route is still the single intended route and protected capacity remains positive. Tejas then calls the owned Twilio number once from the predeclared test phone. OVO does **not** initiate an outbound dial for this test. Ask the FAQ question, listen for the full reply, then deliberately speak over a second reply once to test barge-in. Do not execute a write or transfer.
+
+## Evidence to retain for that call ID
+
+- Record UTC timestamps for caller speech end, first audible assistant audio and carrier hangup. Compute **end-of-speech → first audio** from the phone/recording trace and compare it with engine `vad_stop_wait`, `stt_finalize`, `tts_ttfb` and `carrier_first_audio` timing events; retain raw timestamps and the calculation, not just a percentile claim.
+- Save the call ID, release/binding IDs, redacted Twilio CallSid/StreamSid and callback statuses; `GET /v1/calls/:id`, `/events` and `/evidence` for transcript, generated/sent/acknowledged/completed or interrupted speech phases, playback receipts, selected plugins, latency and usage. Confirm barge-in clears old audio and no stale chunk is heard afterward. Mark absent events as missing evidence, never as zero latency.
+- Read `GET /v1/calls/:id/cost` and the evidence `cost.lines`; reconcile carrier, STT and TTS native usage and price/FX versions against provider request IDs and the later invoice. Capture reservation and settlement state, including unpriced or unreconciled lines. Compare against the preapproved budget without treating it as an invoice ceiling.
+- If recording was enabled, read `GET /v1/calls/:id/live-recordings` and its manifest; verify inbound and outbound tracks, duration, and access controls. Retain only consented, access-controlled evidence. If recording was disabled, assert no capture and no recording row.
+
+## Abort
+
+Stop immediately if any signature or URL mismatch (401/403), zero protected capacity, caller silence, missing/late first audio, failed barge-in clear, wrong release or number, duplicate dial/write, unexpected external call, missing cost meter, unbounded reservation, failed recording policy, or unowned/unknown carrier outcome appears. Stop after **one** call in all cases. Do not retry an ambiguous call automatically. Record its CallSid and reconcile the carrier outcome first.
+
+## Teardown (ALWAYS, success or failure)
+
+The route exists for one call only. **Run teardown after a successful call too**, and after any abort even if no call connected. Disable the test route using its current `expectedVersion`, set `OVO_INBOUND_ENABLED=false` and `OVO_LIVE_DIAL_ENABLED=false` for new admissions, then restore the Twilio number's saved Voice URL, Voice HTTP method, status callback URL and status callback method. Read all four values back from the Twilio number and compare them with the saved run evidence; do not consider teardown complete until they match. Let an active call drain under the existing ownership fence; do not kill its worker merely to roll back. Return `OVO_TRANSPORT_CERTIFIED=false` if transport certification itself failed. Keep database rows, receipts, recordings and cost reservations for reconciliation; do not delete or bulk-redrive them. Restore the prior immutable app images only if the deployed build changed. Leave the three held carrier units untouched.

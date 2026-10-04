@@ -1,0 +1,5 @@
+{"source":"https://platform.openai.com/docs/api-reference/responses-streaming","retrieved":"2026-09-25","verbatim":["POST /v1/responses","response.created","response.output_item.added","response.function_call_arguments.done","response.output_text.delta","response.completed"],"unconfirmed":[]}
+{"dir":"in","frame":{"type":"response.created","response":{"id":"resp-fixture-1","created_at":0,"model":"gpt-4o-mini"}}}
+{"dir":"in","frame":{"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"fc-1","call_id":"call-1","name":"book_table","arguments":""}}}
+{"dir":"in","frame":{"type":"response.function_call_arguments.done","item_id":"fc-1","output_index":0,"name":"book_table","arguments":"{\"party\":2,\"time\":\"seven\"}"}}
+{"dir":"in","frame":{"type":"response.completed","response":{"usage":{"input_tokens":12,"output_tokens":8}}}}

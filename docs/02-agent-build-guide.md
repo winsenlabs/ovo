@@ -1,5 +1,7 @@
 # Implementation instructions for coding agents
 
+> **Continuing existing work?** Start with [the current handoff](../PM/HANDOFF.md) and [next steps](../PM/NEXT.md). They record implemented features, verified fixes, paused work, and the recoverable setup snapshot. Do not repeat the original bootstrap/research sequence or resume paused work without authorization.
+
 ## 1. Mission and working rules
 
 Build the product described in this documentation pack, not just a telephony demo or a dashboard with invented data. Begin with repository inspection and the research gates. Preserve existing work and repository instructions. The repository was empty when this documentation was prepared; verify current state rather than assuming it is still empty.

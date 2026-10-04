@@ -1,0 +1,256 @@
+import { padWithSilence } from '@winsendotai/ovo-audio';
+import {
+  bytesPerSecond,
+  type Clock,
+  type SpeechToText,
+  type SttSession,
+  type TranscriptSegment,
+  type WebSocketLike,
+} from '@winsendotai/ovo-contracts';
+import { decimal, syntheticRequestId, usageOnce } from '@winsendotai/ovo-plugin-kit';
+import type { AssemblyAiBinding } from './provider.ts';
+import { milliseconds, numeric, record, retryable, wordOf } from './protocol.ts';
+
+type Start = Parameters<SpeechToText['start']>[0];
+
+export class AssemblyAiProviderError extends Error {
+  constructor(
+    message: string,
+    readonly code: number | 'model-mismatch' | 'protocol',
+    readonly retryable: boolean,
+  ) {
+    super(message);
+    this.name = 'AssemblyAiProviderError';
+  }
+}
+
+export class AssemblyAiSession implements SttSession {
+  readonly ready: Promise<void>;
+  private readonly done: Promise<void>;
+  private resolveReady!: () => void;
+  private rejectReady!: (error: Error) => void;
+  private resolveDone!: () => void;
+  private rejectDone!: (error: Error) => void;
+  private readonly once;
+  private readonly offs: Array<() => void> = [];
+  private revision = 0;
+  private readonly completedTurns = new Set<number>();
+  private readonly startedAt: number;
+  private pending = new Uint8Array(0);
+  private byteCount = 0;
+  private providerId?: string;
+  private duration?: number;
+  private ending = false;
+  private ended = false;
+
+  constructor(
+    private readonly socket: WebSocketLike,
+    private readonly input: Start,
+    private readonly binding: Readonly<AssemblyAiBinding>,
+    private readonly clock: Clock,
+  ) {
+    this.startedAt = clock.now();
+    this.once = usageOnce(input.onUsage);
+    this.ready = new Promise<void>((resolve, reject) => {
+      this.resolveReady = resolve;
+      this.rejectReady = reject;
+    });
+    this.done = new Promise<void>((resolve, reject) => {
+      this.resolveDone = resolve;
+      this.rejectDone = reject;
+    });
+    void this.ready.catch(() => undefined);
+    void this.done.catch(() => undefined);
+    this.subscribe();
+  }
+
+  private subscribe(): void {
+    this.offs.push(
+      this.socket.on('message', (raw, binary) => this.message(raw, binary)),
+      this.socket.on('close', (code, reason) => this.close(code, reason)),
+      this.socket.on('error', (error) => this.fail(error)),
+    );
+    const abort = () => this.fail(new DOMException('AssemblyAI session aborted', 'AbortError'));
+    this.input.signal.addEventListener('abort', abort, { once: true });
+    this.offs.push(() => this.input.signal.removeEventListener('abort', abort));
+  }
+
+  async write(frame: Uint8Array, signal?: AbortSignal): Promise<void> {
+    this.writable(signal);
+    if (!frame.byteLength) throw new TypeError('AssemblyAI audio frame is empty');
+    this.byteCount += frame.byteLength;
+    const joined = new Uint8Array(this.pending.byteLength + frame.byteLength);
+    joined.set(this.pending);
+    joined.set(frame, this.pending.byteLength);
+    this.pending = joined;
+    const minimum = Math.ceil(bytesPerSecond(this.input.format) * 0.05);
+    const maximum = Math.floor(bytesPerSecond(this.input.format));
+    while (this.pending.byteLength >= minimum) {
+      const length = Math.min(maximum, this.pending.byteLength);
+      this.socket.send(this.pending.slice(0, length));
+      this.pending = this.pending.slice(length);
+    }
+  }
+
+  async forceEndpoint(): Promise<void> {
+    this.writable();
+    this.flushPending();
+    this.socket.send(JSON.stringify({ type: 'ForceEndpoint' }));
+  }
+
+  async finish(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) throw signal.reason;
+    if (!this.ending && !this.ended) {
+      this.ending = true;
+      this.flushPending();
+      this.socket.send(JSON.stringify({ type: 'Terminate' }));
+    }
+    const abort = () => this.fail(new DOMException('AssemblyAI finish aborted', 'AbortError'));
+    signal?.addEventListener('abort', abort, { once: true });
+    try {
+      await this.done;
+    } finally {
+      signal?.removeEventListener('abort', abort);
+    }
+  }
+
+  async cancel(_reason: string): Promise<void> {
+    if (this.ended) return;
+    this.ended = true;
+    this.usage();
+    this.dispose();
+    this.resolveDone();
+    this.socket.close();
+  }
+
+  private flushPending(): void {
+    if (!this.pending.byteLength) return;
+    const minimum = Math.ceil(bytesPerSecond(this.input.format) * 0.05);
+    const frame = padWithSilence(this.pending, minimum, this.input.format);
+    this.socket.send(frame);
+    this.pending = new Uint8Array(0);
+  }
+
+  private writable(signal?: AbortSignal): void {
+    signal?.throwIfAborted();
+    this.input.signal.throwIfAborted();
+    if (this.ending || this.ended || this.socket.readyState !== 1)
+      throw new Error('AssemblyAI session is no longer writable');
+  }
+
+  private message(raw: string | Uint8Array, binary: boolean): void {
+    if (binary) return this.fail(new AssemblyAiProviderError('binary response', 'protocol', false));
+    let value: Record<string, unknown>;
+    try {
+      value = JSON.parse(String(raw)) as Record<string, unknown>;
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
+    } catch {
+      return this.fail(new AssemblyAiProviderError('malformed response', 'protocol', false));
+    }
+    if (value.type === 'Begin') {
+      const model = record(value.configuration)?.model;
+      if (
+        typeof model === 'string' &&
+        model !== (this.binding.model ?? 'universal-streaming-english')
+      )
+        return this.fail(
+          new AssemblyAiProviderError(
+            `AssemblyAI model mismatch: ${model}`,
+            'model-mismatch',
+            false,
+          ),
+        );
+      if (typeof value.id !== 'string' || !value.id)
+        return this.fail(new AssemblyAiProviderError('Begin has no id', 'protocol', false));
+      this.providerId = value.id;
+      this.resolveReady();
+      return;
+    }
+    if (!this.providerId)
+      return this.fail(new AssemblyAiProviderError('message before Begin', 'protocol', false));
+    if (value.type === 'SpeechStarted') {
+      this.input.onEvent({ type: 'speech-start', atMs: milliseconds(value.timestamp) });
+    } else if (value.type === 'Turn') {
+      this.turn(value);
+    } else if (value.type === 'Termination') {
+      if (
+        typeof value.session_duration_seconds !== 'number' ||
+        !Number.isFinite(value.session_duration_seconds) ||
+        value.session_duration_seconds < 0
+      )
+        return this.fail(
+          new AssemblyAiProviderError('Termination has no duration', 'protocol', false),
+        );
+      this.duration = value.session_duration_seconds;
+      this.ended = true;
+      this.usage();
+      this.dispose();
+      this.resolveDone();
+    } else if (value.type === 'Error') {
+      const code = typeof value.error_code === 'number' ? value.error_code : 1011;
+      this.fail(
+        new AssemblyAiProviderError(
+          String(value.error ?? 'AssemblyAI error'),
+          code,
+          retryable(code),
+        ),
+      );
+    }
+  }
+
+  private turn(value: Record<string, unknown>): void {
+    const order = value.turn_order;
+    if (!Number.isSafeInteger(order) || typeof value.transcript !== 'string')
+      return this.fail(new AssemblyAiProviderError('invalid Turn', 'protocol', false));
+    const index = order as number;
+    const segment: TranscriptSegment = {
+      segmentId: String(index),
+      revision: ++this.revision,
+      text: value.transcript,
+      stability: value.end_of_turn === true ? 'final' : 'interim',
+      formatted: value.turn_is_formatted === true,
+      words: Array.isArray(value.words) ? value.words.flatMap(wordOf) : undefined,
+    };
+    this.input.onEvent({ type: 'transcript', segment });
+    if (value.end_of_turn === true && !this.completedTurns.has(index)) {
+      this.completedTurns.add(index);
+      this.input.onEvent({
+        type: 'end-of-turn',
+        confidence: numeric(value.end_of_turn_confidence),
+      });
+    }
+  }
+
+  private close(code: number, reason: string): void {
+    if (this.ended) return;
+    this.fail(
+      new AssemblyAiProviderError(`AssemblyAI closed (${code}): ${reason}`, code, retryable(code)),
+    );
+  }
+
+  private fail(error: Error): void {
+    if (this.ended) return;
+    this.ended = true;
+    this.usage();
+    this.dispose();
+    this.rejectReady(error);
+    this.rejectDone(error);
+    this.socket.close();
+  }
+
+  private usage(): void {
+    this.once.emit({
+      provider: 'assemblyai',
+      operation: 'stt',
+      unit: 'session_seconds',
+      quantity: decimal(this.duration ?? Math.max(0, this.clock.now() - this.startedAt) / 1000),
+      state: this.duration === undefined ? 'estimated' : 'reconciled',
+      requestId: this.providerId ?? syntheticRequestId('assemblyai', this.input.sessionId, 1),
+      elapsedMs: Math.max(0, this.clock.now() - this.startedAt),
+    });
+  }
+
+  private dispose(): void {
+    for (const off of this.offs.splice(0)) off();
+  }
+}

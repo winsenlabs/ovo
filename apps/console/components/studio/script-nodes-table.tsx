@@ -1,0 +1,147 @@
+'use client';
+import type { AgentConfig } from '../../lib/api';
+import { ResponsiveTable } from '../primitives';
+import { ListTextInput } from '../forms/list-text-input';
+import { ScriptNodeId } from './script-node-id';
+type Script = NonNullable<AgentConfig['script']>;
+type Node = Script['nodes'][number];
+type Transition = Node['transitions'][number];
+export function ScriptNodesTable({
+  script,
+  rowKeys,
+  patchNode,
+  renameNode,
+  removeNode,
+  patchTransition,
+}: {
+  script: Script;
+  rowKeys: { keyAt: (index: number) => string };
+  patchNode: (index: number, patch: Partial<Node>) => void;
+  renameNode: (index: number, id: string) => string | undefined;
+  removeNode: (index: number) => void;
+  patchTransition: (nodeIndex: number, edgeIndex: number, patch: Partial<Transition>) => void;
+}) {
+  return (
+    <ResponsiveTable label="Script nodes and transitions">
+      <thead>
+        <tr>
+          <th>Node</th>
+          <th>Prompt</th>
+          <th>Terminal</th>
+          <th>Transitions</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {script.nodes.map((node, nodeIndex) => (
+          <tr key={rowKeys.keyAt(nodeIndex)}>
+            <td>
+              <ScriptNodeId index={nodeIndex} id={node.id} onCommit={renameNode} />
+            </td>
+            <td>
+              <label className="sr-only" htmlFor={`node-prompt-${nodeIndex}`}>
+                Prompt for {node.id}
+              </label>
+              <textarea
+                id={`node-prompt-${nodeIndex}`}
+                value={node.prompt}
+                onChange={(event) => patchNode(nodeIndex, { prompt: event.target.value })}
+              />
+            </td>
+            <td>
+              <input
+                aria-label={`${node.id} terminal`}
+                type="checkbox"
+                checked={node.terminal}
+                onChange={(event) =>
+                  patchNode(nodeIndex, {
+                    terminal: event.target.checked,
+                    ...(event.target.checked ? { transitions: [] } : {}),
+                  })
+                }
+              />
+            </td>
+            <td>
+              {node.transitions.map((edge, edgeIndex) => (
+                <fieldset className="transition-row" key={edgeIndex}>
+                  <legend>Transition {edgeIndex + 1}</legend>
+                  <select
+                    aria-label="Event"
+                    value={edge.event}
+                    onChange={(event) =>
+                      patchTransition(nodeIndex, edgeIndex, {
+                        event: event.target.value as Transition['event'],
+                      })
+                    }
+                  >
+                    <option value="text">Text</option>
+                    <option value="dtmf">DTMF</option>
+                  </select>
+                  <label className="sr-only" htmlFor={`script-matches-${nodeIndex}-${edgeIndex}`}>
+                    Transition {edgeIndex + 1} matches for {node.id}
+                  </label>
+                  <ListTextInput
+                    id={`script-matches-${nodeIndex}-${edgeIndex}`}
+                    rows={2}
+                    value={edge.matches}
+                    onChange={(matches) => patchTransition(nodeIndex, edgeIndex, { matches })}
+                  />
+                  <select
+                    aria-label="Target node"
+                    value={edge.to}
+                    onChange={(event) =>
+                      patchTransition(nodeIndex, edgeIndex, { to: event.target.value })
+                    }
+                  >
+                    {script.nodes.map((target) => (
+                      <option key={target.id} value={target.id}>
+                        {target.id}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="text-button danger-text"
+                    type="button"
+                    onClick={() =>
+                      patchNode(nodeIndex, {
+                        transitions: node.transitions.filter((_, current) => current !== edgeIndex),
+                      })
+                    }
+                  >
+                    Remove
+                  </button>
+                </fieldset>
+              ))}
+              {!node.terminal && (
+                <button
+                  className="button small"
+                  type="button"
+                  onClick={() =>
+                    patchNode(nodeIndex, {
+                      transitions: [
+                        ...node.transitions,
+                        { event: 'text', matches: ['continue'], to: script.start },
+                      ],
+                    })
+                  }
+                >
+                  Add transition
+                </button>
+              )}
+            </td>
+            <td>
+              <button
+                className="text-button danger-text"
+                type="button"
+                disabled={script.nodes.length === 1}
+                onClick={() => removeNode(nodeIndex)}
+              >
+                Remove
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </ResponsiveTable>
+  );
+}

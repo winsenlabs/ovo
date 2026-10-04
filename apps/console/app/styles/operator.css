@@ -1,0 +1,83 @@
+.import-box,
+.filter-box {
+  padding: 13px;
+  border: 1px dashed #b9c6bc;
+  border-radius: 8px;
+}
+.import-box summary,
+.filter-box summary {
+  margin-bottom: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 700;
+}
+.compact-code {
+  min-height: 98px;
+}
+.compact-json {
+  max-width: 260px;
+  overflow-wrap: anywhere;
+  font:
+    var(--type-xs)/1.4 ui-monospace,
+    monospace;
+}
+.transition-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 0.7fr) minmax(140px, 1fr) minmax(90px, 0.8fr) auto;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.transition-row legend {
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.transition-row input,
+.transition-row select {
+  min-width: 96px;
+}
+.nested-subsection {
+  display: grid;
+  gap: 12px;
+  padding: 13px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+}
+.checkbox-group {
+  display: flex;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.checkbox-group legend {
+  padding: 0 5px;
+  font-size: 12px;
+  font-weight: 750;
+}
+.checkbox-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.checkbox-group input,
+.toggle-row input {
+  width: auto;
+}
+.panel td > small,
+.panel td > .badge,
+.panel td > .json-evidence,
+.panel td > a {
+  display: block;
+  margin-top: 4px;
+}
+@media (max-width: 850px) {
+  .transition-row {
+    grid-template-columns: 1fr;
+  }
+}

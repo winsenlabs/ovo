@@ -1,0 +1,12 @@
+{
+  "name": "@winsendotai/ovo-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@deepseek-ai/cordis": "workspace:*",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "ajv": "8.20.0"
+  }
+}

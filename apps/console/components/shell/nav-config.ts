@@ -1,0 +1,16 @@
+export const navigation = [
+  { href: '/agents', label: 'Agents', group: 'Build' },
+  { href: '/settings/tools', label: 'Tools', group: 'Build' },
+  { href: '/settings/providers', label: 'Providers & secrets', group: 'Build' },
+  { href: '/calls', label: 'Calls', group: 'Operations' },
+  { href: '/campaigns', label: 'Campaigns', group: 'Operations' },
+  { href: '/operations/suppressions', label: 'Suppressions', group: 'Operations' },
+  { href: '/operations/handoffs', label: 'Handoffs', group: 'Operations' },
+  { href: '/operations/inbound', label: 'Inbound', group: 'Operations' },
+  { href: '/evaluations', label: 'Evaluations', group: 'Operations' },
+  { href: '/performance', label: 'Performance', group: 'Operations' },
+  { href: '/costs', label: 'Costs & budgets', group: 'Operations' },
+  { href: '/infrastructure', label: 'Infrastructure', group: 'Operations' },
+  { href: '/account', label: 'Account', group: 'Settings' },
+  { href: '/team', label: 'Team', group: 'Settings', adminOnly: true },
+] as const;
