@@ -4,11 +4,14 @@ import { issue, resolved } from './types.ts';
 import { sessionRequiresInput } from '../input-policy.ts';
 export const meterUncovered: CompatRule = (input, stage) => {
   const entries = resolved(input);
-  const required: readonly ('carrier' | 'stt' | 'tts' | 'llm')[] = [
+  const required: readonly ('carrier' | 'stt' | 'tts' | 'llm' | 'decision')[] = [
     'carrier',
     ...(sessionRequiresInput(input.config) ? ['stt' as const] : []),
     'tts',
     ...(['context', 'agent'].includes(input.config.mode) ? ['llm' as const] : []),
+    // A decision is a METERED_KIND, so its manifest must declare a meter. Without this line that
+    // meter had no price card requirement and the model's cost would go unbilled and unnoticed.
+    ...(input.config.decision?.enabled ? ['decision' as const] : []),
   ];
   const missingRoles = required
     .filter((slot) => !entries.some((entry) => entry.slot === slot))

@@ -1,4 +1,6 @@
 export * from './agent.ts';
+export * from './agent-decision.ts';
+export * from './agent-decision-apply.ts';
 export * from './ports.ts';
 export * from './credentials.ts';
 export * from './infrastructure.ts';
@@ -15,6 +17,9 @@ export * from './inference-evidence.ts';
 export * from './events.ts';
 export * from './script.ts';
 export * from './decision.ts';
+export * from './knowledge.ts';
+export * from './agent-knowledge.ts';
+export * from './agent-knowledge-apply.ts';
 export * from './human-handoff.ts';
 export * from './intent-script.ts';
 export * from './templated-clip.ts';

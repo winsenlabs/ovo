@@ -15,7 +15,7 @@ export const USAGE_UNITS = [
 export const UsageUnit = z.enum(USAGE_UNITS);
 export type UsageUnit = (typeof USAGE_UNITS)[number];
 
-export type UsageOperation = 'carrier' | 'stt' | 'tts' | 'inference';
+export type UsageOperation = 'carrier' | 'stt' | 'tts' | 'inference' | 'decision';
 
 export interface UsageMeter {
   provider: string;
@@ -37,6 +37,7 @@ const OPERATION_SEGMENT: Readonly<Record<UsageOperation, string>> = Object.freez
   stt: 'streaming-stt',
   tts: 'streaming-tts',
   inference: 'inference',
+  decision: 'decision',
 });
 
 /**

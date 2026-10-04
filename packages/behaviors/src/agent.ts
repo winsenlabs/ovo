@@ -1,10 +1,11 @@
 import type { ValidateFunction } from 'ajv';
+import { compileAgentTools, type AgentBehaviorOptions } from './agent-tools.ts';
 import {
-  AgentToolSelectionError,
-  compileAgentTools,
-  type AgentBehaviorOptions,
-  type AgentToolErrorRecord,
-} from './agent-tools.ts';
+  AgentTurnLog,
+  type AgentDecisionRecord,
+  type AgentGroundingRecord,
+} from './agent-turn-log.ts';
+import type { AgentToolErrorRecord } from './agent-tools.ts';
 export {
   AgentToolSelectionError,
   type AgentBehaviorOptions,
@@ -25,12 +26,15 @@ import { PlaybackConversation } from './history.ts';
 import { ToolConfirmation } from './confirmation.ts';
 import { ToolEvents } from './tool-events.ts';
 import { assembleBoundedContext } from './context.ts';
+import { DecisionGate } from './decision-gate.ts';
+import { runPreReplySteps } from './agent-pre-reply.ts';
+import { resumeConfirmation } from './agent-confirmation-step.ts';
+import { Grounding } from './grounding.ts';
 import { streamAgentReply } from './agent-stream.ts';
 
 export class AgentBehavior implements Behavior {
   readonly config: AgentConfig;
   readonly assembledContext: string;
-  readonly toolErrors: AgentToolErrorRecord[] = [];
   private readonly tools: ToolDefinition[];
   private readonly validators: Map<string, ValidateFunction>;
   private readonly operationId: () => string;
@@ -44,6 +48,13 @@ export class AgentBehavior implements Behavior {
     return this.confirmation.speechKind(text);
   }
   private uncertainWrite = false;
+  private readonly gate?: DecisionGate;
+  private readonly grounding?: Grounding;
+  private readonly log = new AgentTurnLog();
+  /** Tool-selection failures and decisions asked, oldest first, bounded. */
+  readonly toolErrors: readonly AgentToolErrorRecord[] = this.log.toolErrors;
+  readonly decisions: readonly AgentDecisionRecord[] = this.log.decisions;
+  readonly groundings: readonly AgentGroundingRecord[] = this.log.groundings;
 
   constructor(
     config: AgentConfig,
@@ -63,19 +74,27 @@ export class AgentBehavior implements Behavior {
     const compiled = compileAgentTools(this.config);
     this.tools = compiled.tools;
     this.validators = compiled.validators;
+    if (this.config.decision)
+      this.gate = new DecisionGate(this.config.decision, this.options.decision);
+    if (this.config.knowledge)
+      this.grounding = new Grounding(this.config.knowledge, this.options.knowledge);
   }
 
-  async respond(input: string, _variables: Record<string, unknown> = {}): Promise<string> {
+  async respond(input: string, variables: Record<string, unknown> = {}): Promise<string> {
     const segments: string[] = [];
-    for await (const segment of this.runResponse(input, false)) segments.push(segment);
+    for await (const segment of this.runResponse(input, false, variables)) segments.push(segment);
     return segments.join(' ');
   }
 
-  respondStream(input: string, _variables: Record<string, unknown> = {}): AsyncIterable<string> {
-    return this.runResponse(input, true);
+  respondStream(input: string, variables: Record<string, unknown> = {}): AsyncIterable<string> {
+    return this.runResponse(input, true, variables);
   }
 
-  private async *runResponse(input: string, streaming: boolean): AsyncIterable<string> {
+  private async *runResponse(
+    input: string,
+    streaming: boolean,
+    variables: Record<string, unknown> = {},
+  ): AsyncIterable<string> {
     this.active?.abort(new DOMException('superseded by a newer turn', 'AbortError'));
     const controller = new AbortController();
     const turn = ++this.turn;
@@ -86,47 +105,50 @@ export class AgentBehavior implements Behavior {
 
     try {
       if (this.confirmation.waiting) {
-        const decision = this.confirmation.accept(input);
-        if (decision.kind === 'declined') {
-          yield this.conversation.generated('Cancelled. No change was made.');
-          return;
-        }
-        if (decision.kind === 'repeat') {
-          yield this.conversation.generated(decision.prompt);
-          return;
-        }
-        const { tool, input: approvedInput, operationId } = decision.selection;
-        if (tool.effect === 'write') this.uncertainWrite = true;
-        const outcome = await this.events.execute(
-          this.execution,
-          {
-            id: operationId,
+        const resumed = await resumeConfirmation({
+          confirmation: this.confirmation,
+          events: this.events,
+          execution: this.execution,
+          input,
+          identity: {
             workspaceId: this.options.workspaceId,
             sessionId: this.options.sessionId,
-            toolId: tool.id,
-            input: approvedInput,
-            confirmed: true,
           },
-          controller.signal,
-        );
-        if (tool.effect === 'write' && ['succeeded', 'failed'].includes(outcome.state))
-          this.uncertainWrite = false;
-        controller.signal.throwIfAborted();
-        results.push(outcome);
-        if (outcome.state !== 'succeeded') {
-          yield this.conversation.generated(
-            tool.processing?.failure ?? this.config.processing.failure,
-          );
+          failure: this.config.processing.failure,
+          signal: controller.signal,
+          setUncertainWrite: (value) => {
+            this.uncertainWrite = value;
+          },
+        });
+        if (resumed.record) results.push(resumed.record);
+        if (resumed.kind === 'speak') {
+          yield this.conversation.generated(resumed.text);
           return;
         }
-        wrote = tool.effect === 'write';
+        wrote = resumed.wrote;
       }
+      const prepared = await runPreReplySteps({
+        config: this.config,
+        grounding: this.grounding,
+        gate: this.gate,
+        briefing: this.assembledContext,
+        turnInput: { input, history, variables },
+        signal: controller.signal,
+        log: this.log,
+        turn,
+        stale: () => turn !== this.turn,
+      });
+      if (prepared.speak !== undefined) {
+        yield this.conversation.generated(prepared.speak);
+        return;
+      }
+      const context = prepared.context;
       for (let step = 0; step < this.config.maxSteps; step += 1) {
         controller.signal.throwIfAborted();
         const request = {
           input,
           history,
-          context: this.assembledContext,
+          context,
           uncertainty: this.config.uncertainty,
           tools: this.tools,
           results,
@@ -158,7 +180,8 @@ export class AgentBehavior implements Behavior {
 
         const tool = this.tools.find((candidate) => candidate.id === reply.toolId);
         if (!tool) {
-          throw this.recordToolError(
+          throw this.log.toolError(
+            this.turn,
             reply.toolId,
             'unknown-or-unapproved',
             `Inference selected unknown or unapproved tool: ${reply.toolId}`,
@@ -169,7 +192,8 @@ export class AgentBehavior implements Behavior {
           const reason = validate.errors
             ?.map((error) => `${error.instancePath || '/'} ${error.message ?? 'is invalid'}`)
             .join('; ');
-          throw this.recordToolError(
+          throw this.log.toolError(
+            this.turn,
             tool.id,
             'invalid-input',
             `Inference supplied invalid input for ${tool.id}: ${reason ?? 'schema mismatch'}`,
@@ -244,16 +268,6 @@ export class AgentBehavior implements Behavior {
   onPlayback(receipt: SpeechReceipt): void {
     this.conversation.played(receipt);
     this.confirmation.played(receipt);
-  }
-
-  private recordToolError(
-    toolId: string,
-    kind: AgentToolErrorRecord['kind'],
-    message: string,
-  ): AgentToolSelectionError {
-    this.toolErrors.push({ turn: this.turn, toolId, kind, message, at: new Date().toISOString() });
-    if (this.toolErrors.length > 100) this.toolErrors.shift();
-    return new AgentToolSelectionError(toolId, message);
   }
 }
 

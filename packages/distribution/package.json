@@ -13,10 +13,12 @@
     "@winsendotai/ovo-plugin-carrier-exotel": "workspace:*",
     "@winsendotai/ovo-plugin-carrier-plivo": "workspace:*",
     "@winsendotai/ovo-plugin-carrier-twilio": "workspace:*",
+    "@winsendotai/ovo-plugin-decision-jev": "workspace:*",
     "@winsendotai/ovo-plugin-engine-livekit": "workspace:*",
     "@winsendotai/ovo-plugin-evaluations": "workspace:*",
     "@winsendotai/ovo-plugin-inference": "workspace:*",
     "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-plugin-knowledge-inline": "workspace:*",
     "@winsendotai/ovo-plugin-ledger": "workspace:*",
     "@winsendotai/ovo-plugin-llm-openai": "workspace:*",
     "@winsendotai/ovo-plugin-media": "workspace:*",
@@ -26,9 +28,10 @@
     "@winsendotai/ovo-plugin-recordings": "workspace:*",
     "@winsendotai/ovo-plugin-secrets": "workspace:*",
     "@winsendotai/ovo-plugin-speech-cache": "workspace:*",
+    "@winsendotai/ovo-plugin-speech-sarvam": "workspace:*",
+    "@winsendotai/ovo-plugin-storage": "workspace:*",
     "@winsendotai/ovo-plugin-stt-assemblyai": "workspace:*",
     "@winsendotai/ovo-plugin-stt-deepgram": "workspace:*",
-    "@winsendotai/ovo-plugin-storage": "workspace:*",
     "@winsendotai/ovo-plugin-tools": "workspace:*",
     "@winsendotai/ovo-plugin-tools-http": "workspace:*",
     "@winsendotai/ovo-plugin-tools-mcp": "workspace:*",
@@ -36,7 +39,6 @@
     "@winsendotai/ovo-plugin-turns": "workspace:*",
     "@winsendotai/ovo-plugin-vad": "workspace:*",
     "@winsendotai/ovo-plugin-voice": "workspace:*",
-    "@winsendotai/ovo-plugin-speech-sarvam": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*"
   }
 }

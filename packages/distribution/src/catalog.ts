@@ -60,6 +60,16 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
     load: () => import('@winsendotai/ovo-plugin-speech-sarvam'),
   },
   {
+    package: '@winsendotai/ovo-plugin-decision-jev',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-decision-jev'),
+  },
+  {
+    package: '@winsendotai/ovo-plugin-knowledge-inline',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-knowledge-inline'),
+  },
+  {
     package: '@winsendotai/ovo-plugin-carrier-twilio',
     roles: ['api', 'worker', 'gateway', 'dispatcher'],
     load: () => import('@winsendotai/ovo-plugin-carrier-twilio'),

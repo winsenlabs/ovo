@@ -31,6 +31,8 @@ export const PLUGIN_KINDS = [
   'stt',
   'tts',
   'llm',
+  'decision',
+  'knowledge',
   'vad',
   'turn-detector',
   'audio-filter',
@@ -50,13 +52,53 @@ export interface LlmCapabilities {
   tools: boolean;
   streaming: boolean;
 }
+/**
+ * What a `decision` plugin can answer. Declared inline here like `LlmCapabilities`, not as a zod
+ * schema: nothing parses it from an untrusted manifest yet. `calibration` identifies the cohort
+ * `DecisionAnswer.calibrationVersion` names, so a reader can tell which numbers were measured.
+ */
+export interface DecisionCapabilities {
+  primitives: readonly ('choice' | 'noul' | 'score')[];
+  /** Largest `criteria` map the model accepts in one choice question. */
+  maxCriteria: number;
+  /** Questions answerable in ONE request. */
+  maxQuestionsPerRequest: number;
+  languages: readonly string[];
+  calibration: { label: string; source: string };
+}
+/**
+ * What a `knowledge` plugin can retrieve. `scoreBasis` is the honest part: a caller applies one
+ * authored threshold to `KnowledgePassage.score`, so it must know whether that number came from
+ * lexical overlap, a vector distance or a vendor's own relevance before trusting a threshold across
+ * backends. `citations` says whether a passage can be traced back to something a human can open.
+ */
+export interface KnowledgeCapabilities {
+  scoreBasis: 'lexical' | 'vector' | 'hybrid' | 'vendor';
+  /** Most passages one search may return. */
+  maxTopK: number;
+  /** Largest `text` a passage may carry. */
+  maxPassageCharacters: number;
+  languages: readonly string[];
+  citations: boolean;
+  /** True when the corpus can change without a new release, so `revision` is the only trace. */
+  mutableCorpus: boolean;
+}
+
 export type ManifestCapabilities =
-  SpeechCapabilities | EngineCapabilities | CarrierCapabilities | VadParams | LlmCapabilities;
+  | SpeechCapabilities
+  | EngineCapabilities
+  | CarrierCapabilities
+  | VadParams
+  | LlmCapabilities
+  | DecisionCapabilities
+  | KnowledgeCapabilities;
 
 export const CONFORMANCE_KITS = [
   'stt@1',
   'tts@1',
   'llm@1',
+  'decision@1',
+  'knowledge@1',
   'carrier@1',
   'engine@1',
   'vad@1',
@@ -74,7 +116,7 @@ export const MeterDeclaration = z
     key: z.string().min(1),
     unit: UsageUnit,
     label: z.string().min(1),
-    role: z.enum(['carrier', 'stt', 'tts', 'llm']),
+    role: z.enum(['carrier', 'stt', 'tts', 'llm', 'decision']),
     /** Applies only when `binding.config[field]` is one of `in`. */
     when: z
       .object({ field: z.string().min(1), in: z.array(z.string()).min(1) })
@@ -111,9 +153,17 @@ const isObject = (value: unknown) =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** Kinds that must declare provider, capabilities, runtime.egressHosts and conformance (§3.1). */
-export const DECLARED_KINDS: readonly PluginKind[] = ['engine', 'carrier', 'stt', 'tts', 'llm'];
+export const DECLARED_KINDS: readonly PluginKind[] = [
+  'engine',
+  'carrier',
+  'stt',
+  'tts',
+  'llm',
+  'decision',
+  'knowledge',
+];
 /** Kinds whose manifest must declare meters. */
-export const METERED_KINDS: readonly PluginKind[] = ['carrier', 'stt', 'tts', 'llm'];
+export const METERED_KINDS: readonly PluginKind[] = ['carrier', 'stt', 'tts', 'llm', 'decision'];
 /** Kinds that must declare a provider. */
 export const PROVIDER_KINDS: readonly PluginKind[] = [...DECLARED_KINDS, 'vad', 'turn-detector'];
 

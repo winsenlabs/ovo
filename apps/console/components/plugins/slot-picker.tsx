@@ -4,6 +4,13 @@ import { apiRequest } from '../../lib/api';
 import type { AgentVoice, CompatIssue, PluginOption, Slot } from './types';
 import { pluginOptionsForSlot } from './types';
 
+const SLOT_LABELS: Partial<Record<Slot, string>> = {
+  turnDetector: 'Turn detector',
+  decision: 'Decision model',
+  knowledge: 'Knowledge',
+  audioFilter: 'Audio filter',
+};
+
 export function SlotPicker({
   slot,
   plugins,
@@ -11,6 +18,8 @@ export function SlotPicker({
   voice,
   mode,
   language,
+  decisionConfigured = false,
+  knowledgeConfigured = false,
   onChange,
 }: {
   slot: Slot;
@@ -19,6 +28,10 @@ export function SlotPicker({
   voice: AgentVoice;
   mode: 'announcement' | 'faq' | 'context' | 'agent';
   language: string;
+  /** True once the agent authors at least one enabled decision question. */
+  decisionConfigured?: boolean;
+  /** True once the agent enables grounding. */
+  knowledgeConfigured?: boolean;
   onChange: (pluginId: string) => void;
 }) {
   const options = useMemo(() => pluginOptionsForSlot(plugins, slot), [plugins, slot]);
@@ -61,9 +74,12 @@ export function SlotPicker({
     };
   }, [options, voiceKey, slot, mode, language]);
   if (slot === 'llm' && (mode === 'announcement' || mode === 'faq')) return null;
+  // Picking a decision model before authoring a question selects a metered plugin nothing asks.
+  if (slot === 'decision' && !decisionConfigured) return null;
+  if (slot === 'knowledge' && !knowledgeConfigured) return null;
   return (
     <fieldset className="slot-picker">
-      <legend>{slot === 'turnDetector' ? 'Turn detector' : slot.toUpperCase()}</legend>
+      <legend>{SLOT_LABELS[slot] ?? slot.toUpperCase()}</legend>
       <div className="slot-cards">
         {options.map((plugin) => {
           const reason = reasons[plugin.id] || (!plugin.available ? plugin.unavailableReason : '');

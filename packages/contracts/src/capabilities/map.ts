@@ -1,6 +1,8 @@
 import type { CarrierControlFactory } from '../carrier/control.ts';
 import type { CarrierIngress } from '../carrier/ingress.ts';
 import type { Clock } from '../clock.ts';
+import type { DecisionPort } from '../decision.ts';
+import type { KnowledgePort } from '../knowledge.ts';
 import type { NetPort } from '../net.ts';
 import type { BackgroundTask } from '../ops/background-task.ts';
 import type { CapacitySignalPublisher } from '../ops/capacity-signal.ts';
@@ -29,6 +31,8 @@ interface TypedCapabilities {
   [Cap.behavior]: Behavior;
   [Cap.execution]: Execution;
   [Cap.inference]: Inference;
+  [Cap.decision]: DecisionPort;
+  [Cap.knowledge]: KnowledgePort;
   [Cap.speech]: Speech;
   [Cap.stt]: SpeechToText;
   [Cap.tts]: TextToSpeech;

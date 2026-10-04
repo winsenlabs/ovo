@@ -1,7 +1,10 @@
 import {
   AgentConfig as AgentConfigSchema,
+  Cap,
   type AgentConfig,
+  type DecisionPort,
   type Execution,
+  type KnowledgePort,
   type Inference,
 } from '@winsendotai/ovo-contracts';
 import { definePlugin } from '@winsendotai/ovo-runtime';
@@ -15,15 +18,25 @@ import { withScript } from './script.ts';
 export * from './agent.ts';
 export * from './announcement.ts';
 export * from './context.ts';
+export * from './agent-confirmation-step.ts';
+export * from './agent-turn-log.ts';
+export * from './agent-decision-step.ts';
+export * from './agent-pre-reply.ts';
+export * from './decision-gate.ts';
+export * from './grounding.ts';
+export * from './grounding-step.ts';
 export * from './faq.ts';
 export * from './faq-execution.ts';
 export * from './script.ts';
 export * from './text-segmenter.ts';
 
+/** The capability keys a behaviour plugin touches. Spelled once, in contracts (§0.3). */
 export const BEHAVIOR_SERVICE_KEYS = Object.freeze({
-  behavior: 'ovo.behavior',
-  inference: 'ovo.inference',
-  execution: 'ovo.execution',
+  behavior: Cap.behavior,
+  inference: Cap.inference,
+  execution: Cap.execution,
+  decision: Cap.decision,
+  knowledge: Cap.knowledge,
 });
 
 export const BEHAVIOR_PLUGIN_IDS = Object.freeze({
@@ -154,9 +167,16 @@ export function createAgentBehaviorPlugin() {
     {
       id: BEHAVIOR_PLUGIN_IDS.agent,
       version: '0.1.0',
-      contractVersion: 1,
+      // v2, alone among the behaviour plugins, because only this one reads an optional capability:
+      // a v1 manifest has no `optional`, and reading an undeclared key is a recorded violation
+      // (`read-undeclared`, runtime/src/facade.ts). `behavior` declares no provider, capabilities,
+      // runtime or conformance, so the migration adds the kind and nothing else.
+      contractVersion: 2,
+      kind: 'behavior',
       scope: 'session',
       requires: [BEHAVIOR_SERVICE_KEYS.inference, BEHAVIOR_SERVICE_KEYS.execution],
+      // Optional so an agent with no decision policy composes exactly as it did before.
+      optional: [BEHAVIOR_SERVICE_KEYS.decision, BEHAVIOR_SERVICE_KEYS.knowledge],
       provides: [BEHAVIOR_SERVICE_KEYS.behavior],
       configSchema: {
         ...behaviorConfigSchema,
@@ -168,10 +188,21 @@ export function createAgentBehaviorPlugin() {
       const config = parsePluginConfig(rawConfig);
       if (!config.workspaceId || !config.sessionId)
         throw new TypeError('Agent plugin requires workspaceId and sessionId');
-      const inference = ctx.get(BEHAVIOR_SERVICE_KEYS.inference) as Inference | undefined;
-      const execution = ctx.get(BEHAVIOR_SERVICE_KEYS.execution) as Execution | undefined;
-      if (!inference) throw new Error(`Missing ${BEHAVIOR_SERVICE_KEYS.inference}`);
-      if (!execution) throw new Error(`Missing ${BEHAVIOR_SERVICE_KEYS.execution}`);
+      // On a v2 manifest `get` throws for a missing required key; `maybe` is the optional read.
+      const inference = ctx.get(BEHAVIOR_SERVICE_KEYS.inference) as Inference;
+      const execution = ctx.get(BEHAVIOR_SERVICE_KEYS.execution) as Execution;
+      const decision = ctx.maybe(BEHAVIOR_SERVICE_KEYS.decision) as DecisionPort | undefined;
+      const knowledge = ctx.maybe(BEHAVIOR_SERVICE_KEYS.knowledge) as KnowledgePort | undefined;
+      // A policy without a plugin is a release-validation error (`decision_plugin_missing`); fail
+      // here too, so a graph assembled by any other path cannot silently run an unjudged call.
+      if (config.agent.decision?.enabled && !decision)
+        throw new Error(
+          `Agent ${config.agent.name} configures a decision policy, but no ${BEHAVIOR_SERVICE_KEYS.decision} plugin is selected`,
+        );
+      if (config.agent.knowledge?.enabled && !knowledge)
+        throw new Error(
+          `Agent ${config.agent.name} configures a knowledge policy, but no ${BEHAVIOR_SERVICE_KEYS.knowledge} plugin is selected`,
+        );
       const behavior = createAgentBehavior(
         requireMode(config.agent, 'agent'),
         inference,
@@ -179,6 +210,8 @@ export function createAgentBehaviorPlugin() {
         {
           workspaceId: config.workspaceId,
           sessionId: config.sessionId,
+          ...(decision ? { decision } : {}),
+          ...(knowledge ? { knowledge } : {}),
         },
       );
       ctx.provide(BEHAVIOR_SERVICE_KEYS.behavior, behavior);

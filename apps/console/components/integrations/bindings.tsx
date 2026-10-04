@@ -64,7 +64,9 @@ export function BindingManager({
     void apiRequest<PluginCatalog>('/plugins')
       .then(({ data }) =>
         setPlugins(
-          data.plugins.filter((plugin) => ['carrier', 'stt', 'tts', 'llm'].includes(plugin.kind)),
+          data.plugins.filter((plugin) =>
+            ['carrier', 'stt', 'tts', 'llm', 'decision'].includes(plugin.kind),
+          ),
         ),
       )
       .catch(() => undefined);

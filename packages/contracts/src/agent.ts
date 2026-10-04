@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { AgentDecisionPolicy } from './agent-decision.ts';
+import { AgentKnowledgePolicy } from './agent-knowledge.ts';
 import { ScriptGraph } from './script.ts';
 import { AgentVoice } from './selection.ts';
 
@@ -74,6 +76,10 @@ export const AgentConfig = z
       .default([]),
     faqThreshold: z.number().min(0).max(1).default(0.65),
     script: ScriptGraph.optional(),
+    /** Per-agent decision questions, answered by the selected `decision` plugin (§P1). */
+    decision: AgentDecisionPolicy.optional(),
+    /** Per-agent grounding, retrieved from the selected `knowledge` plugin. */
+    knowledge: AgentKnowledgePolicy.optional(),
     faqMargin: z.number().min(0).max(1).default(0.15),
     clarification: z.string().default('Please clarify your question.'),
     context: z.string().max(100000).default(''),
@@ -133,4 +139,5 @@ export const AgentConfig = z
     message: 'FAQ IDs must be unique',
     path: ['faq'],
   });
+
 export type AgentConfig = z.infer<typeof AgentConfig>;

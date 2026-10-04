@@ -1,4 +1,5 @@
 import {
+  FixtureDecision,
   FixtureInference,
   FixtureSpeechToText,
   FixtureTextToSpeech,
@@ -6,6 +7,7 @@ import {
   createReferenceTurnDetector,
   createReferenceVad,
   describeCarrier,
+  describeDecision,
   describeEngine,
   describeInference,
   describeSpeechToText,
@@ -15,6 +17,7 @@ import {
   fixtureCarrierControl,
   fixtureCarrierIngress,
   fixtureCarrierKitOptions,
+  fixtureDecisionTemplate,
   fixtureLlmTemplate,
   fixtureSttTemplate,
   fixtureTtsTemplate,
@@ -29,6 +32,11 @@ describeTextToSpeech('fixture TTS', ({ net, clock }) => new FixtureTextToSpeech(
 describeInference('fixture LLM', ({ net, usage }) => new FixtureInference(net, { usage }), {
   template: fixtureLlmTemplate,
 });
+describeDecision(
+  'fixture decision',
+  ({ net, usage, model }) => new FixtureDecision(net, { usage, model }),
+  { template: fixtureDecisionTemplate },
+);
 describeVad('reference energy VAD', () => createReferenceVad());
 describeTurnDetector('reference turn detector', () => createReferenceTurnDetector());
 describeCarrier(

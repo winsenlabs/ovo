@@ -19,7 +19,17 @@ import { useSession } from '../components/shell/session-provider';
 import { PageHeader } from '../components/ui/layout';
 import { Callout } from '../components/ui/feedback';
 
-const slots: Slot[] = ['engine', 'carrier', 'stt', 'tts', 'llm', 'vad', 'turnDetector'];
+const slots: Slot[] = [
+  'engine',
+  'carrier',
+  'stt',
+  'tts',
+  'llm',
+  'decision',
+  'knowledge',
+  'vad',
+  'turnDetector',
+];
 const emptyVoice = (): AgentVoice => ({ textFilters: [], acknowledgements: [] });
 
 export function AgentPluginsFeature({ agentId }: { agentId: string }) {
@@ -171,6 +181,8 @@ export function AgentPluginsFeature({ agentId }: { agentId: string }) {
                   mode={draft.config.mode}
                   language={draft.config.language}
                   value={choice?.plugin}
+                  decisionConfigured={Boolean(draft.config.decision?.enabled)}
+                  knowledgeConfigured={Boolean(draft.config.knowledge?.enabled)}
                   onChange={(pluginId) =>
                     updateVoice({ ...voice, [slot]: { plugin: pluginId, config: {} } })
                   }
