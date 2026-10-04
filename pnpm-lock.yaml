@@ -359,6 +359,9 @@ importers:
       '@winsendotai/ovo-plugin-carrier-twilio':
         specifier: workspace:*
         version: link:../plugin-carrier-twilio
+      '@winsendotai/ovo-plugin-decision-jev':
+        specifier: workspace:*
+        version: link:../plugin-decision-jev
       '@winsendotai/ovo-plugin-engine-livekit':
         specifier: workspace:*
         version: link:../plugin-engine-livekit
@@ -523,6 +526,22 @@ importers:
       '@winsendotai/ovo-sdk':
         specifier: workspace:*
         version: link:../sdk
+    devDependencies:
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
+
+  packages/plugin-decision-jev:
+    dependencies:
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
     devDependencies:
       '@winsendotai/ovo-conformance':
         specifier: workspace:*

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CARRIER_CHECKS, type CarrierFactory, type CarrierKitOptions } from './kit/carrier.ts';
+import { DECISION_CHECKS, type DecisionFactory, type DecisionKitOptions } from './kit/decision.ts';
 import { ENGINE_CHECKS, type EngineKitOptions } from './kit/engine.ts';
 import type { EngineFactory } from './kit/engine-ports.ts';
 import {
@@ -62,6 +63,14 @@ export function describeInference(
   options: InferenceKitOptions & DescribeOptions = {},
 ): void {
   describeKit('llm@1', name, INFERENCE_CHECKS, () => ({ factory, options }), options.only);
+}
+
+export function describeDecision(
+  name: string,
+  factory: DecisionFactory,
+  options: DecisionKitOptions & DescribeOptions = {},
+): void {
+  describeKit('decision@1', name, DECISION_CHECKS, () => ({ factory, options }), options.only);
 }
 
 export function describeCarrier(

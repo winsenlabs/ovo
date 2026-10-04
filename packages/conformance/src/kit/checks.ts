@@ -1,4 +1,5 @@
 import { CARRIER_CHECKS, type CarrierFactory, type CarrierKitOptions } from './carrier.ts';
+import { DECISION_CHECKS, type DecisionFactory, type DecisionKitOptions } from './decision.ts';
 import { ENGINE_CHECKS, type EngineKitOptions } from './engine.ts';
 import type { EngineFactory } from './engine-ports.ts';
 import { INFERENCE_CHECKS, type InferenceFactory, type InferenceKitOptions } from './inference.ts';
@@ -26,6 +27,12 @@ export const checkInference = (
   options: InferenceKitOptions = {},
   run?: KitRunOptions,
 ): Promise<KitFailure[]> => runChecks(INFERENCE_CHECKS, () => ({ factory, options }), run);
+
+export const checkDecision = (
+  factory: DecisionFactory,
+  options: DecisionKitOptions = {},
+  run?: KitRunOptions,
+): Promise<KitFailure[]> => runChecks(DECISION_CHECKS, () => ({ factory, options }), run);
 
 export const checkCarrier = (
   factory: CarrierFactory,

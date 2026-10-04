@@ -20,6 +20,7 @@ const KITS = new Set([
   'describeSpeechToText',
   'describeTextToSpeech',
   'describeInference',
+  'describeDecision',
   'describeCarrier',
   'describeEngine',
   'describeVad',

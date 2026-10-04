@@ -8,6 +8,7 @@ export * from './drivers/egress-sentinel.ts';
 export * from './drivers/fake-carrier.ts';
 export * from './drivers/fake-clock.ts';
 export * from './drivers/fixture-carrier.ts';
+export * from './drivers/fixture-decision.ts';
 export * from './drivers/fixture-llm.ts';
 export * from './drivers/fixture-plugins.ts';
 export * from './drivers/fixture-stt.ts';
