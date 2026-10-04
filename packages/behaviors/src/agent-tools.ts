@@ -1,5 +1,5 @@
 import Ajv, { type ValidateFunction } from 'ajv';
-import type { AgentConfig, DecisionPort } from '@winsendotai/ovo-contracts';
+import type { AgentConfig, DecisionPort, KnowledgePort } from '@winsendotai/ovo-contracts';
 import { addIsoFormats } from './schema-formats.ts';
 
 export class AgentToolSelectionError extends Error {
@@ -18,6 +18,8 @@ export interface AgentBehaviorOptions {
   operationId?: () => string;
   /** The selected `decision` plugin. Required only when the config authors a decision policy. */
   decision?: DecisionPort;
+  /** The selected `knowledge` plugin. Required only when the config authors a knowledge policy. */
+  knowledge?: KnowledgePort;
 }
 
 export interface AgentToolErrorRecord {

@@ -155,7 +155,14 @@ export type AgentDecisionQuestion = z.infer<typeof AgentDecisionQuestion>;
  * explicit rather than "everything available": an operator who adds a question about a document has
  * to also say where that document comes from.
  */
-export const DECISION_STATE_SOURCES = ['last-turn', 'transcript', 'variables', 'context'] as const;
+export const DECISION_STATE_SOURCES = [
+  'last-turn',
+  'transcript',
+  'variables',
+  'context',
+  /** Passages the `knowledge` plugin retrieved for this turn. Empty when nothing cleared the bar. */
+  'knowledge',
+] as const;
 export const DecisionStateSource = z.enum(DECISION_STATE_SOURCES);
 export type DecisionStateSource = z.infer<typeof DecisionStateSource>;
 

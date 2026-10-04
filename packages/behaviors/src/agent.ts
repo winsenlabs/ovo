@@ -1,6 +1,10 @@
 import type { ValidateFunction } from 'ajv';
 import { compileAgentTools, type AgentBehaviorOptions } from './agent-tools.ts';
-import { AgentTurnLog, type AgentDecisionRecord } from './agent-turn-log.ts';
+import {
+  AgentTurnLog,
+  type AgentDecisionRecord,
+  type AgentGroundingRecord,
+} from './agent-turn-log.ts';
 import type { AgentToolErrorRecord } from './agent-tools.ts';
 export {
   AgentToolSelectionError,
@@ -23,8 +27,9 @@ import { ToolConfirmation } from './confirmation.ts';
 import { ToolEvents } from './tool-events.ts';
 import { assembleBoundedContext } from './context.ts';
 import { DecisionGate } from './decision-gate.ts';
-import { runDecisionStep } from './agent-decision-step.ts';
+import { runPreReplySteps } from './agent-pre-reply.ts';
 import { resumeConfirmation } from './agent-confirmation-step.ts';
+import { Grounding } from './grounding.ts';
 import { streamAgentReply } from './agent-stream.ts';
 
 export class AgentBehavior implements Behavior {
@@ -44,10 +49,12 @@ export class AgentBehavior implements Behavior {
   }
   private uncertainWrite = false;
   private readonly gate?: DecisionGate;
+  private readonly grounding?: Grounding;
   private readonly log = new AgentTurnLog();
   /** Tool-selection failures and decisions asked, oldest first, bounded. */
   readonly toolErrors: readonly AgentToolErrorRecord[] = this.log.toolErrors;
   readonly decisions: readonly AgentDecisionRecord[] = this.log.decisions;
+  readonly groundings: readonly AgentGroundingRecord[] = this.log.groundings;
 
   constructor(
     config: AgentConfig,
@@ -69,6 +76,8 @@ export class AgentBehavior implements Behavior {
     this.validators = compiled.validators;
     if (this.config.decision)
       this.gate = new DecisionGate(this.config.decision, this.options.decision);
+    if (this.config.knowledge)
+      this.grounding = new Grounding(this.config.knowledge, this.options.knowledge);
   }
 
   async respond(input: string, variables: Record<string, unknown> = {}): Promise<string> {
@@ -118,25 +127,28 @@ export class AgentBehavior implements Behavior {
         }
         wrote = resumed.wrote;
       }
-      if (this.gate) {
-        const answered = await runDecisionStep(this.gate, {
-          turn: { input, history, variables, context: this.assembledContext },
-          signal: controller.signal,
-          clarification: this.config.clarification,
-          record: (result) => this.log.decision(turn, result),
-          stale: () => turn !== this.turn,
-        });
-        if (answered !== undefined) {
-          yield this.conversation.generated(answered);
-          return;
-        }
+      const prepared = await runPreReplySteps({
+        config: this.config,
+        grounding: this.grounding,
+        gate: this.gate,
+        briefing: this.assembledContext,
+        turnInput: { input, history, variables },
+        signal: controller.signal,
+        log: this.log,
+        turn,
+        stale: () => turn !== this.turn,
+      });
+      if (prepared.speak !== undefined) {
+        yield this.conversation.generated(prepared.speak);
+        return;
       }
+      const context = prepared.context;
       for (let step = 0; step < this.config.maxSteps; step += 1) {
         controller.signal.throwIfAborted();
         const request = {
           input,
           history,
-          context: this.assembledContext,
+          context,
           uncertainty: this.config.uncertainty,
           tools: this.tools,
           results,

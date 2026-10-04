@@ -32,6 +32,7 @@ export const PLUGIN_KINDS = [
   'tts',
   'llm',
   'decision',
+  'knowledge',
   'vad',
   'turn-detector',
   'audio-filter',
@@ -65,19 +66,39 @@ export interface DecisionCapabilities {
   languages: readonly string[];
   calibration: { label: string; source: string };
 }
+/**
+ * What a `knowledge` plugin can retrieve. `scoreBasis` is the honest part: a caller applies one
+ * authored threshold to `KnowledgePassage.score`, so it must know whether that number came from
+ * lexical overlap, a vector distance or a vendor's own relevance before trusting a threshold across
+ * backends. `citations` says whether a passage can be traced back to something a human can open.
+ */
+export interface KnowledgeCapabilities {
+  scoreBasis: 'lexical' | 'vector' | 'hybrid' | 'vendor';
+  /** Most passages one search may return. */
+  maxTopK: number;
+  /** Largest `text` a passage may carry. */
+  maxPassageCharacters: number;
+  languages: readonly string[];
+  citations: boolean;
+  /** True when the corpus can change without a new release, so `revision` is the only trace. */
+  mutableCorpus: boolean;
+}
+
 export type ManifestCapabilities =
   | SpeechCapabilities
   | EngineCapabilities
   | CarrierCapabilities
   | VadParams
   | LlmCapabilities
-  | DecisionCapabilities;
+  | DecisionCapabilities
+  | KnowledgeCapabilities;
 
 export const CONFORMANCE_KITS = [
   'stt@1',
   'tts@1',
   'llm@1',
   'decision@1',
+  'knowledge@1',
   'carrier@1',
   'engine@1',
   'vad@1',
@@ -139,6 +160,7 @@ export const DECLARED_KINDS: readonly PluginKind[] = [
   'tts',
   'llm',
   'decision',
+  'knowledge',
 ];
 /** Kinds whose manifest must declare meters. */
 export const METERED_KINDS: readonly PluginKind[] = ['carrier', 'stt', 'tts', 'llm', 'decision'];

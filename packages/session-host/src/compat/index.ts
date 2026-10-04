@@ -14,6 +14,9 @@ import { modeLlmUnused } from './mode-llm-unused.ts';
 import { decisionPluginMissing } from './decision-plugin-missing.ts';
 import { decisionPluginUnused } from './decision-plugin-unused.ts';
 import { decisionPrimitiveUnsupported } from './decision-primitive-unsupported.ts';
+import { knowledgePluginMissing } from './knowledge-plugin-missing.ts';
+import { knowledgePluginUnused } from './knowledge-plugin-unused.ts';
+import { knowledgeLimits } from './knowledge-limits.ts';
 import { turnSignalMissing } from './turn-signal-missing.ts';
 import { playbackEvidenceInsufficient } from './playback-evidence-insufficient.ts';
 import { engineCapabilityMissing } from './engine-capability-missing.ts';
@@ -40,6 +43,8 @@ const RELEASE_RULES: readonly CompatRule[] = [
   mcpToolRemoved,
   decisionPluginMissing,
   decisionPluginUnused,
+  knowledgePluginMissing,
+  knowledgePluginUnused,
 ];
 const ADMISSION_RULES: readonly CompatRule[] = [
   pluginUnavailable,
@@ -49,6 +54,7 @@ const ADMISSION_RULES: readonly CompatRule[] = [
   modeRequiresLlm,
   modeLlmUnused,
   decisionPrimitiveUnsupported,
+  knowledgeLimits,
   turnSignalMissing,
   playbackEvidenceInsufficient,
   engineCapabilityMissing,

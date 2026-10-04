@@ -18,6 +18,7 @@
     "@winsendotai/ovo-plugin-evaluations": "workspace:*",
     "@winsendotai/ovo-plugin-inference": "workspace:*",
     "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-plugin-knowledge-inline": "workspace:*",
     "@winsendotai/ovo-plugin-ledger": "workspace:*",
     "@winsendotai/ovo-plugin-llm-openai": "workspace:*",
     "@winsendotai/ovo-plugin-media": "workspace:*",

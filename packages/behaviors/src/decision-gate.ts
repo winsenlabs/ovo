@@ -14,6 +14,8 @@ export interface DecisionTurn {
   history: readonly { role: 'user' | 'assistant'; content: string }[];
   variables: Readonly<Record<string, unknown>>;
   context: string;
+  /** Passages retrieved for this turn, already thresholded and trimmed. */
+  retrieved?: string;
 }
 
 export interface DecisionAction {
@@ -119,6 +121,7 @@ export class DecisionGate {
             said: entry.content,
           }));
       else if (source === 'variables') state['variables'] = turn.variables;
+      else if (source === 'knowledge') state['retrieved'] = turn.retrieved ?? '';
       else state['briefing'] = turn.context;
     }
     return state;

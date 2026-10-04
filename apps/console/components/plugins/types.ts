@@ -41,6 +41,7 @@ export const SLOT_KIND: Record<Slot, string> = {
   tts: 'tts',
   llm: 'llm',
   decision: 'decision',
+  knowledge: 'knowledge',
   vad: 'vad',
   turnDetector: 'turn-detector',
   audioFilter: 'audio-filter',

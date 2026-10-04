@@ -11,6 +11,7 @@ const SLOTS = [
   'tts',
   'llm',
   'decision',
+  'knowledge',
   'vad',
   'turnDetector',
   'audioFilter',

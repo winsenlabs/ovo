@@ -374,6 +374,9 @@ importers:
       '@winsendotai/ovo-plugin-kit':
         specifier: workspace:*
         version: link:../plugin-kit
+      '@winsendotai/ovo-plugin-knowledge-inline':
+        specifier: workspace:*
+        version: link:../plugin-knowledge-inline
       '@winsendotai/ovo-plugin-ledger':
         specifier: workspace:*
         version: link:../plugin-ledger
@@ -632,6 +635,22 @@ importers:
       '@types/ws':
         specifier: 8.18.1
         version: 8.18.1
+
+  packages/plugin-knowledge-inline:
+    dependencies:
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
 
   packages/plugin-ledger:
     dependencies:

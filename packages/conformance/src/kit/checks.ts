@@ -3,6 +3,7 @@ import { DECISION_CHECKS, type DecisionFactory, type DecisionKitOptions } from '
 import { ENGINE_CHECKS, type EngineKitOptions } from './engine.ts';
 import type { EngineFactory } from './engine-ports.ts';
 import { INFERENCE_CHECKS, type InferenceFactory, type InferenceKitOptions } from './inference.ts';
+import { KNOWLEDGE_CHECKS, type KnowledgeFactory, type KnowledgeKitOptions } from './knowledge.ts';
 import { runChecks, type KitFailure, type KitRunOptions } from './runner.ts';
 import { STT_CHECKS, type SttFactory, type SttKitOptions } from './stt.ts';
 import { TTS_CHECKS, type TtsFactory, type TtsKitOptions } from './tts.ts';
@@ -33,6 +34,12 @@ export const checkDecision = (
   options: DecisionKitOptions = {},
   run?: KitRunOptions,
 ): Promise<KitFailure[]> => runChecks(DECISION_CHECKS, () => ({ factory, options }), run);
+
+export const checkKnowledge = (
+  factory: KnowledgeFactory,
+  options: KnowledgeKitOptions = {},
+  run?: KitRunOptions,
+): Promise<KitFailure[]> => runChecks(KNOWLEDGE_CHECKS, () => ({ factory, options }), run);
 
 export const checkCarrier = (
   factory: CarrierFactory,

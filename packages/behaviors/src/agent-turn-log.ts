@@ -1,9 +1,16 @@
 import { AgentToolSelectionError, type AgentToolErrorRecord } from './agent-tools.ts';
 import type { DecisionGateResult } from './decision-gate.ts';
+import type { GroundingResult } from './grounding.ts';
 
 export interface AgentDecisionRecord {
   turn: number;
   result: DecisionGateResult;
+  at: string;
+}
+
+export interface AgentGroundingRecord {
+  turn: number;
+  result: GroundingResult;
   at: string;
 }
 
@@ -18,12 +25,20 @@ const LIMIT = 100;
 export class AgentTurnLog {
   readonly toolErrors: AgentToolErrorRecord[] = [];
   readonly decisions: AgentDecisionRecord[] = [];
+  readonly groundings: AgentGroundingRecord[] = [];
 
   /** A disabled policy is not an event; recording it would bury the ones that matter. */
   decision(turn: number, result: DecisionGateResult): void {
     if (result.kind === 'off') return;
     this.decisions.push({ turn, result, at: new Date().toISOString() });
     if (this.decisions.length > LIMIT) this.decisions.shift();
+  }
+
+  /** A disabled policy is not an event, for the same reason a disabled decision is not. */
+  grounding(turn: number, result: GroundingResult): void {
+    if (result.kind === 'off') return;
+    this.groundings.push({ turn, result, at: new Date().toISOString() });
+    if (this.groundings.length > LIMIT) this.groundings.shift();
   }
 
   toolError(

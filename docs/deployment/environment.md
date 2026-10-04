@@ -73,7 +73,7 @@ Secrets belong in the encrypted credential store.
 A TypeSafe binding additionally requires a **`calibrationLabel`**, naming the cohort whose confidence
 numbers the thresholds are set against. It has no default on purpose: a default would hand every
 release a calibration identity nobody chose. No per-language calibration has been measured, so the
-label records which cohort was *claimed*, not one that was verified.
+label records which cohort was _claimed_, not one that was verified.
 
 **One trap.** Compose interpolates `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` into
 `OVO_CARRIER_ENV_BINDINGS` for _every_ service. If either is exported in your shell or present in

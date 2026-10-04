@@ -21,6 +21,7 @@ const KITS = new Set([
   'describeTextToSpeech',
   'describeInference',
   'describeDecision',
+  'describeKnowledge',
   'describeCarrier',
   'describeEngine',
   'describeVad',

@@ -9,12 +9,15 @@ a merge rather than a squash so every `Verified <sha>` reference on the unit boa
 
 Wave 1 (F1–F4) verified earlier. Wave 2: M2, U1, S1, E1, E2, D1, C2, C1, C4, S2, O1, O2, M1, E3, I1.
 
-**Since Wave 2, on `vorflux/ovo-foundation`: the decision slot, P1, is built** — `963f306` (the
-capability, the TypeSafe Jev plugin, the `decision@1` conformance kit) and `ce3321a` (per-agent
-authoring, the console editor, the runtime gate with LLM fallback). See
-`docs/architecture/decision-slot.md`.
+**Since Wave 2, on `vorflux/ovo-foundation`, two new slots are built:**
 
-Bar now: **2,268 passed / 216 database-gated skips (2,484), 0 failures** by default. Seven lint
+- **The decision slot (P1)** — `963f306` (capability, TypeSafe Jev plugin, `decision@1` kit) and
+  `ce3321a` (per-agent authoring, console editor, runtime gate with LLM fallback).
+  See `docs/architecture/decision-slot.md`.
+- **The knowledge slot** — the retrieval capability OVO did not have, with a first plugin that needs
+  no store, no vendor and no migration. See `docs/architecture/knowledge-slot.md`.
+
+Bar now: **2,365 passed / 216 database-gated skips (2,581), 0 failures** by default. Seven lint
 gates, format, typecheck, frozen offline install and console E2E 41/41 all exit 0. The Wave 2
 completion bar was 2,265 / 0 on a PostgreSQL serial run with all four database gates.
 
@@ -34,6 +37,10 @@ completion bar was 2,265 / 0 on a PostgreSQL serial run with all four database g
   `selectSessionGraph` with the real native engine, the real Twilio ingress and real
   Deepgram/OpenAI providers; on the confident path the fixture LLM holds an empty wire script, so an
   inference request fails the call. The LLM is not merely unused, it is unreachable.
+- **An agent can be grounded in a document and refuse rather than answer ungrounded.** Same harness:
+  with `requireGrounding` and a threshold nothing clears, the uncertainty line is spoken and the
+  fixture LLM is again unreachable. Retrieval runs once per turn and the same passages ground both
+  the decision and the reply, so the two cannot disagree about what the corpus says.
 
 ## What is NOT proven
 
@@ -74,23 +81,26 @@ The runbook is prepared and checker-reviewed. It has not been executed.
 | 8   | Three **unspecced** units needed for a collections product                   | not written                              |
 | 9   | C3 Exotel, C5 TCN, C6 Alohaa                                                 | held for vendor evidence                 |
 
-### Grounding: there is no retrieval capability
+### Grounding: a retrieval capability now exists, with one backend
 
-An agent can be grounded in three things today, and none is a queryable knowledge base:
+`faq[]` (token overlap) and `context` (a prompt blob that throws above its budget rather than being
+searched) are both still there and both still what they were. The `knowledge` slot is the answer to
+what they could not do: per-agent policy over which sources an agent may read, how weak a match is
+still acceptable, and how much retrieved text a turn may spend — with a citation per passage and a
+corpus revision recorded against the call.
 
-- **`faq[]`** (≤1000 entries) is matched by **token overlap** with stopword and negation handling
-  (`packages/behaviors/src/faq.ts`). Lexical, not semantic: "how much do I owe" does not match "what
-  is my outstanding" unless the alias is authored.
-- **`context`** (≤100k chars) **throws** above `contextBudget` (12k default) — it is not truncated,
-  chunked or queried, and the whole blob is pasted into every inference request. More knowledge
-  fails publication rather than being retrieved.
-- **A tool** with `connector: 'http' | 'mcp'` is the only real query path, and it works — but the
-  knowledge lives outside OVO: no chunking, no citations, no freshness, no cost accounting on
-  retrieval, and the LLM decides when to call it.
+**What exists:** `packages/plugin-knowledge-inline`. Documents carried on the release, chunked on
+paragraph boundaries, ranked by IDF-weighted query coverage — bounded in [0,1] and comparable across
+queries, which is the one property a single authored `minScore` depends on and BM25 cannot give.
 
-`Cap` has ~70 keys and none is retrieval; there are no embeddings anywhere in the repository. This
-also bounds the decision slot: `DecisionRequest.state` is all a decision model sees, so a decision
-cannot be grounded in anything the runtime cannot retrieve. The two slots are coupled.
+**What it is not:** semantic. "owe" does not find "outstanding", and the corpus cannot change without
+a release. The ceiling is 20 sources × 50 documents × 20,000 characters, because a release is
+snapshotted and shipped.
+
+**What is still missing:** a stored backend behind the same port — Postgres full-text or pgvector —
+plus ingestion and a console upload surface, for a corpus that must change without a release or is
+too large to carry on one. And an HTTP/MCP adapter, so an existing corpus can be used as-is. Both
+are plugins now, not architecture.
 
 ### Item 8, stated plainly
 

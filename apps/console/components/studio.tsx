@@ -14,6 +14,7 @@ import { PluginField, ProviderMap } from './studio/configuration-panels';
 import { FaqEditor } from './studio/faq-editor';
 import { CostPolicyEditor } from './studio/cost-policy-editor';
 import { DecisionEditor } from './studio/decision-editor';
+import { KnowledgeEditor } from './studio/knowledge-editor';
 import { SpeechCacheEditor } from './studio/speech-cache-editor';
 import { AgentDraftIndex, StudioRail } from './studio/release-panels';
 import { ScriptEditor } from './studio/script-editor';
@@ -211,10 +212,13 @@ export function AgentStudio({
           {(selected.config.mode === 'faq' || selected.config.mode === 'agent') && (
             <ToolsEditor config={selected.config} update={applyUpdate} />
           )}
-          {/* Only agent mode runs a decision: the gate lives in the agent behaviour, and the other
-              modes have no LLM to fall back to. */}
+          {/* Only agent mode runs a decision or retrieval: both live in the agent behaviour, and
+              the other modes have no LLM to ground or to fall back to. */}
           {selected.config.mode === 'agent' && (
-            <DecisionEditor config={selected.config} update={applyUpdate} />
+            <>
+              <KnowledgeEditor config={selected.config} update={applyUpdate} />
+              <DecisionEditor config={selected.config} update={applyUpdate} />
+            </>
           )}
           <ProviderMap config={selected.config} bindings={bindings} update={applyUpdate} />
           <SpeechCacheEditor config={selected.config} update={applyUpdate} />

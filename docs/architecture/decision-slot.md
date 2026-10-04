@@ -85,3 +85,10 @@ operator listed: the last caller turn, the recent transcript, the call variables
 capability today — `faq` matching is token overlap, `context` is a prompt blob that fails
 publication above its budget rather than being queried, and an HTTP or MCP tool is the only way to
 reach a corpus. A `knowledge` slot that lands in `state` as one more source is the next unit.
+
+## Grounding landed
+
+The `knowledge` slot now exists, and a decision can list `knowledge` as a state source: the passages
+retrieved for the turn are placed in `DecisionRequest.state.retrieved`. Retrieval runs **once** per
+turn, before the decision, so the decision and the reply that follows it can never disagree about
+what the corpus says. See `docs/architecture/knowledge-slot.md`.

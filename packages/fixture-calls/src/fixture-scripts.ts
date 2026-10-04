@@ -46,7 +46,7 @@ export function selectFixtureScripts(
   // selected decision plugin's scripted exchange is silently dropped and its first POST has no
   // script to match. There is no generic replacement for it: `fixtureUnavailable` refuses the call
   // at validation instead of a fixture call inventing answers a vendor never gave.
-  for (const slot of ['stt', 'tts', 'llm', 'decision'] as const) {
+  for (const slot of ['stt', 'tts', 'llm', 'decision', 'knowledge'] as const) {
     const choice = selections[slot];
     if (!choice) continue;
     const template = input.fixtureTemplates[choice.pluginId];
