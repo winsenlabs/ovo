@@ -9,9 +9,14 @@ a merge rather than a squash so every `Verified <sha>` reference on the unit boa
 
 Wave 1 (F1–F4) verified earlier. Wave 2: M2, U1, S1, E1, E2, D1, C2, C1, C4, S2, O1, O2, M1, E3, I1.
 
-Bar at completion: **2,265 tests, 0 failures** — 2,049 passed / 216 database-gated skips by default;
-2,265 / 0 on a PostgreSQL serial run with all four database gates. Seven lint gates, format,
-typecheck, builds, console E2E 41/1, Terraform validate and frozen offline install all exit 0.
+**Since Wave 2, on `vorflux/ovo-foundation`: the decision slot, P1, is built** — `963f306` (the
+capability, the TypeSafe Jev plugin, the `decision@1` conformance kit) and `ce3321a` (per-agent
+authoring, the console editor, the runtime gate with LLM fallback). See
+`docs/architecture/decision-slot.md`.
+
+Bar now: **2,268 passed / 216 database-gated skips (2,484), 0 failures** by default. Seven lint
+gates, format, typecheck, frozen offline install and console E2E 41/41 all exit 0. The Wave 2
+completion bar was 2,265 / 0 on a PostgreSQL serial run with all four database gates.
 
 ## What is proven
 
@@ -25,8 +30,18 @@ typecheck, builds, console E2E 41/1, Terraform validate and frozen offline insta
   ordering preserved even when the fence fails.
 - **Test strength, measured not counted.** Mutation sweeps with committed tooling
   (`scripts/mutation-sweep.mjs`, `--kind=all|ts|sql --paths=…`).
+- **A decision model can answer a turn without the LLM.** Driven through the real
+  `selectSessionGraph` with the real native engine, the real Twilio ingress and real
+  Deepgram/OpenAI providers; on the confident path the fixture LLM holds an empty wire script, so an
+  inference request fails the call. The LLM is not merely unused, it is unreachable.
 
 ## What is NOT proven
+
+**No decision confidence has been calibrated.** `calibrationVersion` is an identity, not a
+measurement. The `decision@1` kit proves confidence _moves_; nothing proves it is _calibrated_. Every
+threshold an operator sets is a judgement until real calls measure it. No TypeSafe endpoint has been
+contacted, so Jev's `noul` shape is also unconfirmed: the published API documents no confidence on a
+noul answer, and the adapter refuses to invent one.
 
 **OVO has never handled a real phone call.** Call quality, latency, barge-in behaviour and actual
 costs are unknown. Every figure in `docs/07-acceptance.md` is labelled a target to verify, not an
@@ -46,17 +61,36 @@ The runbook is prepared and checker-reviewed. It has not been executed.
 
 ## Open, in dependency order
 
-| #   | Item                                                               | Size                                     |
-| --- | ------------------------------------------------------------------ | ---------------------------------------- |
-| 1   | The first inbound Twilio call                                      | founder-gated                            |
-| 2   | Fix whatever it exposes                                            | **unknowable until it runs**             |
-| 3   | Six live console bugs in the test-call surface (no deps)           | ~1 day — available now                   |
-| 4   | Second call: **outbound, Indian carrier, `ta-IN`**                 | blocked on Exotel vendor evidence        |
-| 5   | Production rollout drills                                          | unverified                               |
-| 6   | Wave 3 — 6 dated obligations                                       | small; only the SQL tenant sweep matters |
-| 7   | Post-I1 roadmap — P1, P2, P3/P4 specced; handoff + correlation not | months                                   |
-| 8   | Three **unspecced** units needed for a collections product         | not written                              |
-| 9   | C3 Exotel, C5 TCN, C6 Alohaa                                       | held for vendor evidence                 |
+| #   | Item                                                                         | Size                                     |
+| --- | ---------------------------------------------------------------------------- | ---------------------------------------- |
+| 1   | The first inbound Twilio call                                                | founder-gated                            |
+| 2   | Fix whatever it exposes                                                      | **unknowable until it runs**             |
+| 3   | Six live console bugs in the test-call surface (no deps)                     | ~1 day — available now                   |
+| 3b  | **A `knowledge` slot** — see below                                           | next unit                                |
+| 4   | Second call: **outbound, Indian carrier, `ta-IN`**                           | blocked on Exotel vendor evidence        |
+| 5   | Production rollout drills                                                    | unverified                               |
+| 6   | Wave 3 — 6 dated obligations                                                 | small; only the SQL tenant sweep matters |
+| 7   | Post-I1 roadmap — **P1 built**; P2, P3/P4 specced; handoff + correlation not | months                                   |
+| 8   | Three **unspecced** units needed for a collections product                   | not written                              |
+| 9   | C3 Exotel, C5 TCN, C6 Alohaa                                                 | held for vendor evidence                 |
+
+### Grounding: there is no retrieval capability
+
+An agent can be grounded in three things today, and none is a queryable knowledge base:
+
+- **`faq[]`** (≤1000 entries) is matched by **token overlap** with stopword and negation handling
+  (`packages/behaviors/src/faq.ts`). Lexical, not semantic: "how much do I owe" does not match "what
+  is my outstanding" unless the alias is authored.
+- **`context`** (≤100k chars) **throws** above `contextBudget` (12k default) — it is not truncated,
+  chunked or queried, and the whole blob is pasted into every inference request. More knowledge
+  fails publication rather than being retrieved.
+- **A tool** with `connector: 'http' | 'mcp'` is the only real query path, and it works — but the
+  knowledge lives outside OVO: no chunking, no citations, no freshness, no cost accounting on
+  retrieval, and the LLM decides when to call it.
+
+`Cap` has ~70 keys and none is retrieval; there are no embeddings anywhere in the repository. This
+also bounds the decision slot: `DecisionRequest.state` is all a decision model sees, so a decision
+cannot be grounded in anything the runtime cannot retrieve. The two slots are coupled.
 
 ### Item 8, stated plainly
 
