@@ -6,15 +6,25 @@
 
 ## Procedure
 
-1. Provision a supported Linux host with Docker/Compose, encrypted persistent storage, host firewall, clock sync, backups and enough reserved CPU/RAM for both workers.
-2. Copy `infra/compose/.env.example` to an ignored `.env`; set local values and immutable image tags. Do not commit it.
+1. Provision a supported Linux host with Docker/Compose, encrypted persistent storage, host firewall,
+   clock sync, backups and enough reserved CPU/RAM for both workers. The Compose limits reserve
+   **7.5 vCPU and 8.25 GB** across the eight services, so a host below 8 vCPU / 16 GB over-commits
+   them.
+2. Run `./scripts/bootstrap-compose.sh --prompt-admin`. It writes a mode-0600 ignored
+   `infra/compose/.env` with generated secrets and never prints them. Do not hand-copy
+   `.env.example`: every value in it is a `replace-with-…` placeholder, and `compose.yaml` names this
+   script in its own `DATABASE_URL` error. Add `--managed-postgres` / `--managed-sqs` for managed
+   backing services (see [self-hosted-compose.md](self-hosted-compose.md)).
 3. Validate configuration without displaying interpolated secrets in an incident transcript:
 
 ```bash
-docker compose --env-file .env -f infra/compose/compose.yaml config --quiet
-docker compose --env-file .env -f infra/compose/compose.yaml up -d
-docker compose --env-file .env -f infra/compose/compose.yaml ps
+docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml config --quiet
+docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml up -d --build --wait
+docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml ps
+./scripts/verify-compose.sh
 ```
+
+`--build` is needed on a first run, because every image tag defaults to a local `:local` build.
 
 4. Verify both workers have distinct IDs and one call slot. Run a synthetic duplicate-delivery check before any authorized carrier test.
 
