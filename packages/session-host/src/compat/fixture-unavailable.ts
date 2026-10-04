@@ -3,7 +3,7 @@ import { issue, selected } from './types.ts';
 export const fixtureUnavailable: CompatRule = (input, stage) =>
   stage === 'test'
     ? selected(input).flatMap(([slot, choice]) =>
-        ['carrier', 'stt', 'tts', 'llm'].includes(slot) &&
+        ['carrier', 'stt', 'tts', 'llm', 'decision'].includes(slot) &&
         !input.fixturePluginIds?.includes(choice.pluginId) &&
         !input.fixtureTemplatePluginIds?.includes(choice.pluginId)
           ? [

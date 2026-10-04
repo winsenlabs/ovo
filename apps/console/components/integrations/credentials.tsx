@@ -33,7 +33,7 @@ export function CredentialManager({
       .then(({ data }) =>
         setPlugins(
           data.plugins.filter((plugin) =>
-            ['carrier', 'stt', 'tts', 'llm', 'tool'].includes(plugin.kind),
+            ['carrier', 'stt', 'tts', 'llm', 'decision', 'tool'].includes(plugin.kind),
           ),
         ),
       )

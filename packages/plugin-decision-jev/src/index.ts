@@ -111,10 +111,9 @@ export const jevDecisionPlugin = definePlugin(
     ],
     runtime: { egressHosts: [JEV_HOST], modelLicences: [] },
     conformance: ['decision@1'],
-    // `ui.slot` is deliberately absent: `Slot` has no 'decision' member yet, and adding one is a
-    // console-visible change outside this package. The label still names the slot for a reader.
     ui: {
-      label: 'TypeSafe Jev Decisions (decision slot)',
+      slot: 'decision',
+      label: 'TypeSafe Jev Decisions',
       description: 'Choice, noul and score decisions over TypeSafe System One.',
       vendor: 'TypeSafe',
       docsUrl: JEV_DOC_SOURCE,

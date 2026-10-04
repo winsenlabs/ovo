@@ -6,7 +6,6 @@ import {
   type CarrierMediaEvent,
   type EngineEvent,
   type ReleaseSelection,
-  type FixtureTemplate,
 } from '@winsendotai/ovo-contracts';
 import {
   FakeClock,
@@ -18,6 +17,7 @@ import * as fixtureHost from '../../fixture-calls/src/host-service.ts';
 import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
 import { compose, PluginRegistry } from '@winsendotai/ovo-runtime';
 import { loadDistribution } from '../src/load.ts';
+import { callerHangupTemplate } from './fixture-support.ts';
 
 const IDS = {
   native: '@winsendotai/ovo-plugin-voice-session-engine',
@@ -31,21 +31,6 @@ const IDS = {
   openaiTts: '@winsendotai/ovo-provider-openai-tts',
   sarvamTts: '@winsendotai/ovo-tts-sarvam',
 } as const;
-
-/** FAQ ends on caller hangup; keep the vendor's opening/transcript script, omit its graceful finish. */
-function callerHangupTemplate(source: FixtureTemplate, terminalType: string): FixtureTemplate {
-  return (input) =>
-    source(input).map((script) => {
-      const at = script.steps.findIndex(
-        (step) =>
-          'expect' in step &&
-          step.expect === 'ws-send' &&
-          (step.where?.type === terminalType || step.where?.event === terminalType),
-      );
-      if (at < 0) throw new Error(`Vendor fixture has no ${terminalType} finish step`);
-      return { ...script, steps: script.steps.slice(0, at) };
-    });
-}
 
 function selection(
   registry: PluginRegistry,

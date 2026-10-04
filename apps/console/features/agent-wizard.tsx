@@ -17,6 +17,8 @@ import { useResource } from '../lib/data/use-resource';
 import { useMutation } from '../lib/data/use-mutation';
 import { resources } from '../lib/data/resources';
 
+// No 'decision': a new agent has no questions yet, so there is nothing for a decision model to
+// answer. It is picked on the plugins page once the studio authors a question.
 const wizardSlots: Slot[] = ['engine', 'carrier', 'stt', 'tts', 'llm', 'vad', 'turnDetector'];
 const modes: { id: AgentConfig['mode']; label: string; description: string }[] = [
   { id: 'announcement', label: 'Announcement', description: 'Approved message with no LLM' },

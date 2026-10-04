@@ -42,7 +42,11 @@ export function selectFixtureScripts(
   const deferTts = (template: FixtureTemplate) => {
     ttsTemplate = (text) => template({ ...templateInput, agentTexts: [text] });
   };
-  for (const slot of ['stt', 'tts', 'llm'] as const) {
+  // 'decision' needs no special handling — no replay, no deferral — but it must be iterated, or a
+  // selected decision plugin's scripted exchange is silently dropped and its first POST has no
+  // script to match. There is no generic replacement for it: `fixtureUnavailable` refuses the call
+  // at validation instead of a fixture call inventing answers a vendor never gave.
+  for (const slot of ['stt', 'tts', 'llm', 'decision'] as const) {
     const choice = selections[slot];
     if (!choice) continue;
     const template = input.fixtureTemplates[choice.pluginId];

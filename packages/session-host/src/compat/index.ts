@@ -11,6 +11,9 @@ import { sttFrameSize } from './stt-frame-size.ts';
 import { languageUnsupported } from './language-unsupported.ts';
 import { modeRequiresLlm } from './mode-requires-llm.ts';
 import { modeLlmUnused } from './mode-llm-unused.ts';
+import { decisionPluginMissing } from './decision-plugin-missing.ts';
+import { decisionPluginUnused } from './decision-plugin-unused.ts';
+import { decisionPrimitiveUnsupported } from './decision-primitive-unsupported.ts';
 import { turnSignalMissing } from './turn-signal-missing.ts';
 import { playbackEvidenceInsufficient } from './playback-evidence-insufficient.ts';
 import { engineCapabilityMissing } from './engine-capability-missing.ts';
@@ -35,6 +38,8 @@ const RELEASE_RULES: readonly CompatRule[] = [
   bindingSchemaInvalid,
   secretInline,
   mcpToolRemoved,
+  decisionPluginMissing,
+  decisionPluginUnused,
 ];
 const ADMISSION_RULES: readonly CompatRule[] = [
   pluginUnavailable,
@@ -43,6 +48,7 @@ const ADMISSION_RULES: readonly CompatRule[] = [
   languageUnsupported,
   modeRequiresLlm,
   modeLlmUnused,
+  decisionPrimitiveUnsupported,
   turnSignalMissing,
   playbackEvidenceInsufficient,
   engineCapabilityMissing,

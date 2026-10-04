@@ -10,6 +10,7 @@ const SLOTS = [
   'stt',
   'tts',
   'llm',
+  'decision',
   'vad',
   'turnDetector',
   'audioFilter',

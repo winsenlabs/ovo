@@ -18,6 +18,7 @@ describe('selection model', () => {
       'stt',
       'tts',
       'llm',
+      'decision',
       'vad',
       'turnDetector',
       'audioFilter',

@@ -1,5 +1,6 @@
 import { definePlugin, type PluginDefinition } from '@winsendotai/ovo-runtime';
 import { Cap, type FixtureTemplate, type NetFixtureScript } from '@winsendotai/ovo-contracts';
+import { FixtureDecision } from './fixture-decision.ts';
 import { FixtureInference, fixtureLlmTemplate } from './fixture-llm.ts';
 import {
   FIXTURE_HOST,
@@ -17,6 +18,7 @@ export const FIXTURE_PLUGIN_IDS = Object.freeze({
   stt: '@winsendotai/ovo-stt-fixture',
   tts: '@winsendotai/ovo-tts-fixture',
   llm: '@winsendotai/ovo-llm-fixture',
+  decision: '@winsendotai/ovo-decision-fixture',
 });
 
 const runtime = { egressHosts: [FIXTURE_HOST], modelLicences: [] };
@@ -79,6 +81,29 @@ export const fixtureLlmPlugin: PluginDefinition = definePlugin(
   },
 );
 
+/**
+ * The decision slot's fixture provider, so a decision-configured agent can be driven through the
+ * real `selectSessionGraph` with no vendor. Kind 'fixture', like its siblings, so it composes only
+ * under `fixtures: true` and reaches nothing but fixture.invalid.
+ */
+export const fixtureDecisionPlugin: PluginDefinition = definePlugin(
+  {
+    id: FIXTURE_PLUGIN_IDS.decision,
+    version: '0.1.0',
+    contractVersion: 2,
+    scope: 'session',
+    kind: 'fixture',
+    provider: 'fixture',
+    provides: [Cap.decision],
+    optional: [Cap.usage],
+    runtime,
+    ui: { label: 'Fixture decisions', description: 'Scripted decisions for fixture calls' },
+  },
+  (ctx) => {
+    ctx.provide(Cap.decision, new FixtureDecision(ctx.net, { usage: ctx.maybe(Cap.usage) }));
+  },
+);
+
 /** Static scripts for a one-utterance call ("hello fixture"), for hosts without templates. */
 export const fixtureScripts: Record<string, NetFixtureScript[]> = {
   [FIXTURE_PLUGIN_IDS.stt]: fixtureSttTemplate({
@@ -97,7 +122,7 @@ export const fixtureTemplates: Record<string, FixtureTemplate> = {
 
 /** The module shape a catalog entry loads (§2.3): plugins, fixtures and fixtureTemplates. */
 export const fixtureProviderModule = Object.freeze({
-  plugins: [fixtureSttPlugin, fixtureTtsPlugin, fixtureLlmPlugin],
+  plugins: [fixtureSttPlugin, fixtureTtsPlugin, fixtureLlmPlugin, fixtureDecisionPlugin],
   fixtures: fixtureScripts,
   fixtureTemplates,
 });

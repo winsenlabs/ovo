@@ -13,7 +13,6 @@
     "apps/worker/src/telemetry-stages.ts": 3,
     "apps/worker/src/worker-environment.ts": 1,
     "apps/worker/src/worker-plugin.ts": 14,
-    "packages/behaviors/src/index.ts": 3,
     "packages/plugin-cache/src/plugin.ts": 1,
     "packages/plugin-evaluations/src/plugin.ts": 1,
     "packages/plugin-example/src/index.ts": 3,
