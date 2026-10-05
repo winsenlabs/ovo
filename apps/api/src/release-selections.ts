@@ -9,6 +9,8 @@ const ROLES = [
   ['stt', 'stt'],
   ['tts', 'tts'],
   ['llm', 'llm'],
+  ['decision', 'decision'],
+  ['knowledge', 'knowledge'],
   ['vad', 'vad'],
   ['turnDetector', 'turn-detector'],
   ['audioFilter', 'audio-filter'],

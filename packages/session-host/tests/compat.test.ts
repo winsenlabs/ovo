@@ -325,6 +325,20 @@ describe('every compatibility rule has a true negative', () => {
       { tts: { secretFields: ['/binding/apiKey'] } },
     );
     expect(codes(good, 'release')).not.toContain('secret_inline');
+    const reference = edit(
+      'tts',
+      {
+        binding: {
+          provider: 'tts',
+          config: { model: 'ok' },
+          credentialId: 'c',
+          fingerprint: 'f',
+          updatedAt: 'now',
+        },
+      },
+      { tts: { secretFields: ['/credentialRef'] } },
+    );
+    expect(codes(reference, 'release')).not.toContain('secret_inline');
   });
   it('validates the exact selected binding schema rather than the newest same-id version', () => {
     const input = fixture();
