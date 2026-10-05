@@ -69,7 +69,7 @@ The default profile publishes only to the loopback interface:
 | PostgreSQL    | `127.0.0.1:54329`       |
 | ElasticMQ     | `127.0.0.1:9324`        |
 
-The local profile sets `OVO_ALLOW_LOCAL_HTTP=true`, which disables the API's TLS-write requirement and `Secure` session-cookie attribute. Its safety boundary is the Compose file's fixed `127.0.0.1` port publishing; the flag is not a request-level client-IP guard. Do not publish these ports on another interface. Any shared or public installation must set the flag to `false` and terminate TLS at a trusted reverse proxy; arbitrary `X-Forwarded-Proto` headers are not trusted.
+The local profile sets `OVO_ALLOW_LOCAL_HTTP=true`, which disables the API's TLS-write requirement and `Secure` session-cookie attribute. Its safety boundary is the Compose file's fixed `127.0.0.1` port publishing; the flag is not a request-level client-IP guard. Do not publish these ports on another interface. Any shared or public installation must set the flag to `false` and terminate TLS at a trusted reverse proxy; arbitrary `X-Forwarded-Proto` headers are not trusted. The API trusts a forwarded protocol only from the console container, which Compose pins to `OVO_CONSOLE_ADDRESS` (default `172.29.240.10`) inside `OVO_COMPOSE_SUBNET` (default `172.29.240.0/24`); override both together if that subnet collides with the host. The reverse proxy must overwrite, not append to, `X-Forwarded-Proto`.
 
 Change host ports in `infra/compose/.env` when another process already uses them. Internal container ports do not change.
 

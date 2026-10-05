@@ -63,6 +63,9 @@ services:
       OVO_ADMIN_LABEL: ${OVO_ADMIN_LABEL:-First administrator}
       OVO_ADMIN_WORKSPACE_ID: ${OVO_ORGANIZATION_ID:?set OVO_ORGANIZATION_ID}
       OVO_ALLOW_LOCAL_HTTP: ${OVO_ALLOW_LOCAL_HTTP:-true}
+      # Forwarded TLS is trusted only from the console, which proxies browser traffic from the
+      # host reverse proxy. Required for sign-in when OVO_ALLOW_LOCAL_HTTP=false.
+      OVO_TRUSTED_PROXY_CIDRS: ${OVO_CONSOLE_ADDRESS:-172.29.240.10}/32
       OVO_MEDIA_PUBLIC_BASE_URL: ${OVO_MEDIA_PUBLIC_BASE_URL:?set OVO_MEDIA_PUBLIC_BASE_URL}
       OVO_INBOUND_ROUTE_SECRET: ${OVO_INBOUND_ROUTE_SECRET:?set OVO_INBOUND_ROUTE_SECRET}
       OVO_SESSION_SECRET: ${OVO_SESSION_SECRET:?run ./scripts/bootstrap-compose.sh first}
@@ -110,6 +113,9 @@ services:
       target: console
     environment:
       OVO_API_URL: http://api:4000
+    networks:
+      default:
+        ipv4_address: ${OVO_CONSOLE_ADDRESS:-172.29.240.10}
     depends_on:
       api: { condition: service_healthy }
     healthcheck:
@@ -267,3 +273,10 @@ services:
 volumes:
   postgres-data:
   recordings-data:
+
+networks:
+  default:
+    ipam:
+      config:
+        # OVO_CONSOLE_ADDRESS must stay inside this subnet; override both together.
+        - subnet: ${OVO_COMPOSE_SUBNET:-172.29.240.0/24}

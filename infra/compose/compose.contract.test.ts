@@ -26,3 +26,20 @@ it.each([
   }
   expect(definition).toContain(`${key}: \${${key}:?set ${key}}`);
 });
+
+it('trusts forwarded TLS only from the pinned console address', () => {
+  expect(service('api')).toContain(
+    'OVO_TRUSTED_PROXY_CIDRS: ${OVO_CONSOLE_ADDRESS:-172.29.240.10}/32',
+  );
+  expect(service('console')).toContain('ipv4_address: ${OVO_CONSOLE_ADDRESS:-172.29.240.10}');
+  expect(source).toContain('- subnet: ${OVO_COMPOSE_SUBNET:-172.29.240.0/24}');
+});
+
+it('verifies sign-in over forwarded TLS when local HTTP is disabled', () => {
+  const verifier = readFileSync(
+    new URL('../../scripts/verify-compose.sh', import.meta.url),
+    'utf8',
+  );
+  expect(verifier).toContain("...(localHttp ? {} : { 'x-forwarded-proto': 'https' })");
+  expect(verifier).toContain('TLS sign-in did not issue a Secure cookie');
+});

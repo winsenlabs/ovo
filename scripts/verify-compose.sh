@@ -30,6 +30,7 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T \
   -e OVO_EXPECTED_SERVICE_COUNT="$service_count" api node --input-type=module - <<'NODE'
 const apiBase = 'http://127.0.0.1:4000';
 const consoleBase = 'http://console:3000';
+const localHttp = process.env.OVO_ALLOW_LOCAL_HTTP === 'true';
 if (process.env.OVO_FIXTURE_TEST_CALLS !== 'true')
   throw new Error('Fixture test calls must be explicitly enabled in the Compose API');
 if (!process.env.OVO_MEDIA_PUBLIC_BASE_URL?.startsWith('https://'))
@@ -46,7 +47,12 @@ if (!consoleResponse.ok) throw new Error(`Console returned ${consoleResponse.sta
 
 const login = await fetch(`${consoleBase}/api/v1/auth/session`, {
   method: 'POST',
-  headers: { 'content-type': 'application/json', origin: consoleBase },
+  headers: {
+    'content-type': 'application/json',
+    origin: consoleBase,
+    // A public installation terminates TLS at the host reverse proxy; the console forwards this.
+    ...(localHttp ? {} : { 'x-forwarded-proto': 'https' }),
+  },
   body: JSON.stringify({
     email: process.env.OVO_SEED_ADMIN_EMAIL,
     password: process.env.OVO_SEED_ADMIN_PASSWORD,
@@ -54,8 +60,10 @@ const login = await fetch(`${consoleBase}/api/v1/auth/session`, {
 });
 if (!login.ok) throw new Error(`Seed administrator sign-in returned ${login.status}`);
 const setCookie = login.headers.get('set-cookie');
-if (process.env.OVO_ALLOW_LOCAL_HTTP === 'true' && /;\s*Secure(?:;|$)/iu.test(setCookie ?? ''))
+if (localHttp && /;\s*Secure(?:;|$)/iu.test(setCookie ?? ''))
   throw new Error('Loopback HTTP sign-in issued a Secure cookie');
+if (!localHttp && !/;\s*Secure(?:;|$)/iu.test(setCookie ?? ''))
+  throw new Error('TLS sign-in did not issue a Secure cookie');
 const cookie = setCookie?.split(';', 1)[0];
 if (!cookie) throw new Error('Seed administrator sign-in did not issue a session cookie');
 const identity = await fetch(`${consoleBase}/api/v1/auth/me`, { headers: { cookie } });
