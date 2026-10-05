@@ -68,10 +68,10 @@ export async function provisionInboundSession(
   await client.query(
     `INSERT INTO ovo_session_routes
        (session_id, job_id, organization_id, worker_id, worker_endpoint, owner_epoch,
-        generation, dial_request_id, carrier_call_id, status, handshake_token_hash,
-        handshake_expires_at, accepted_at, carrier_plugin_id, carrier_binding_id, binding_id,
-        carrier_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, 'accepted', $9,
+        generation, worker_slot_epoch, dial_request_id, carrier_call_id, status,
+        handshake_token_hash, handshake_expires_at, accepted_at, carrier_plugin_id,
+        carrier_binding_id, binding_id, carrier_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $6, $6, $7, $8, 'accepted', $9,
         now() + ($10 * interval '1 millisecond'), now(), $11, $12, $12, $13)`,
     [
       sessionId,

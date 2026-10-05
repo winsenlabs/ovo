@@ -44,9 +44,10 @@ export async function authenticatedMediaRoute(
     handshake_token_hash: string;
     handshake_claimed_at: Date | null;
     worker_slot_epoch: string | null;
+    dial_request_id: string | null;
   }>(
     `SELECT job_id, organization_id, carrier_id, handshake_token_hash,
-            handshake_claimed_at, worker_slot_epoch
+            handshake_claimed_at, worker_slot_epoch, dial_request_id
      FROM ovo_session_routes WHERE session_id = $1`,
     [open.sessionId],
   );
@@ -79,9 +80,10 @@ export async function authenticatedMediaRoute(
     throw new Error('media route does not match the active owner');
   const slot = await store.pool.query<{ ownership_epoch: string }>(
     `SELECT ownership_epoch FROM ovo_worker_slots
-     WHERE worker_id = $1 AND state IN ('reserved', 'active')
-       AND lease_expires_at > now()`,
-    [route.workerId],
+     WHERE worker_id = $1 AND lease_expires_at > now()
+       AND (state IN ('reserved', 'active') OR (state = 'ready_idle' AND $2))`,
+    // Inbound routes are fenced by the inbound capacity reservation (see sessions.ts authenticate).
+    [route.workerId, row.dial_request_id?.startsWith('inbound:') ?? false],
   );
   if (!row.worker_slot_epoch || slot.rows[0]?.ownership_epoch !== row.worker_slot_epoch)
     throw new Error('worker slot lease no longer owns the media route');

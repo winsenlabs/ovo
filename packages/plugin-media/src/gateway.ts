@@ -45,7 +45,12 @@ export class MediaGateway {
           maxBufferedBytes: config.maxBufferedBytes,
           handshakeTimeoutMs: config.handshakeTimeoutMs,
           idleTimeoutMs: config.idleTimeoutMs,
-          onClosed: () => this.sessions.delete(session),
+          onClosed: (reason) => {
+            this.sessions.delete(session);
+            console.log(
+              JSON.stringify({ service: 'media-gateway', event: 'carrier_session_closed', reason }),
+            );
+          },
         });
         this.sessions.add(session);
       },
