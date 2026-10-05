@@ -126,7 +126,9 @@ function baseLanguage(language: string): string {
 
 /**
  * `language_codes` biases the code-switching pro models. Indian callers mix English into Hindi
- * and other Indian languages, so an `-IN` tag also lists English.
+ * and other Indian languages, so an `-IN` tag also lists English. English alone is the models'
+ * default and is not sent, so English bindings keep the handshake they had before this parameter
+ * (its JSON-array encoding is not yet confirmed against a live handshake).
  */
 export function assemblyAiLanguageCodes(
   binding: Pick<AssemblyAiBinding, 'model'>,
@@ -136,7 +138,7 @@ export function assemblyAiLanguageCodes(
   if (!language || (model !== 'universal-3-5-pro' && model !== 'universal-3-6-pro'))
     return undefined;
   const base = baseLanguage(language);
-  if (!assemblyAiLanguages(binding).includes(base)) return undefined;
+  if (base === 'en' || !assemblyAiLanguages(binding).includes(base)) return undefined;
   return base !== 'en' && language.toUpperCase().endsWith('-IN') ? [base, 'en'] : [base];
 }
 

@@ -216,6 +216,7 @@ describe('AssemblyAI documented wire protocol', () => {
     [3008, true],
     [3009, true],
     [1011, true],
+    [1006, true],
   ])('maps close code %i to a typed retryable=%s failure', async (code, retryable) => {
     const refusal = script([open(), { close: { code, reason: 'provider refusal' } }]);
     // A retryable refusal during the handshake is retried once before it reaches the host.

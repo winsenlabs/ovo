@@ -1,19 +1,20 @@
 import { EventEmitter } from 'node:events';
 import { WebSocket } from '@winsendotai/ovo-plugin-media';
-import type { EngineEvent, NetFixtureScript, SessionInput } from '@winsendotai/ovo-contracts';
+import type {
+  EngineEvent,
+  NetFixtureScript,
+  NetPort,
+  SessionInput,
+  WebSocketLike,
+} from '@winsendotai/ovo-contracts';
 import { createFixtureNet, duplexFromLegacy, type FixtureNet } from '@winsendotai/ovo-plugin-kit';
-import {
-  BoundedSpeechScheduler,
-  DEFAULT_PRE_STT_BUFFER_MS,
-  NativeVoiceSessionEngine,
-} from '@winsendotai/ovo-plugin-voice';
+import { BoundedSpeechScheduler, NativeVoiceSessionEngine } from '@winsendotai/ovo-plugin-voice';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FakeClock } from '../../../packages/conformance/src/drivers/fake-clock.ts';
 import {
   AssemblyAiStt,
   type AssemblyAiBinding,
 } from '../../../packages/plugin-stt-assemblyai/src/provider.ts';
-import { PRE_SESSION_AUDIO_MS } from '../src/pre-session-buffer.ts';
 import { WorkerMediaLink } from '../src/worker-media-server.ts';
 import { mediaRuntimeFixture, mediaSessionOpen } from './media-runtime-fixtures.ts';
 
@@ -21,6 +22,7 @@ import { mediaRuntimeFixture, mediaSessionOpen } from './media-runtime-fixtures.
  * The paths that dropped the first live calls (2026-10-05), wired as the worker wires them: the
  * gateway's frames reach a real WorkerMediaLink before the engine exists, the native engine opens
  * AssemblyAI over a scripted socket, and the link replays its buffer once the session opens.
+ * Pre-session buffer limits are in pre-session-buffer.test.ts.
  */
 
 const FRAME_BYTES = 160; // 20 ms of 8 kHz mu-law, as Twilio sends it.
@@ -57,9 +59,48 @@ function assemblyAi(host: string, steps: NetFixtureScript['steps'] = []): NetFix
   };
 }
 
-function call(scripts: NetFixtureScript[], binding: AssemblyAiBinding = {}) {
+/**
+ * `ws` reports CLOSING as soon as a close frame arrives and emits 'close' only once TCP closes,
+ * about a round trip later. The fixture socket does both at once; this holds the event back.
+ */
+function lingeringClose(net: FixtureNet, clock: FakeClock, delayMs: number): NetPort {
+  return {
+    fetch: (url, init) => net.fetch(url, init),
+    websocket(url, opts) {
+      const socket = net.websocket(url, opts);
+      let closing = false;
+      const on = (event: 'open' | 'message' | 'close' | 'error', fn: (...args: never[]) => void) =>
+        event === 'close'
+          ? socket.on('close', (code, reason) => {
+              closing = true;
+              clock.setTimeout(() => {
+                closing = false;
+                (fn as (code: number, reason: string) => void)(code, reason);
+              }, delayMs);
+            })
+          : socket.on(event as 'message', fn as never);
+      return {
+        get readyState() {
+          return closing ? 2 : socket.readyState;
+        },
+        send: (data) => socket.send(data),
+        close: (code, reason) => socket.close(code, reason),
+        on: on as WebSocketLike['on'],
+      };
+    },
+  };
+}
+
+function call(
+  scripts: NetFixtureScript[],
+  binding: AssemblyAiBinding = {},
+  options: { closeEventDelayMs?: number } = {},
+) {
   const clock = new FakeClock();
   const net = createFixtureNet(scripts, { clock });
+  const port = options.closeEventDelayMs
+    ? lingeringClose(net, clock, options.closeEventDelayMs)
+    : net;
   const { route } = mediaRuntimeFixture();
   const gateway = new EventEmitter() as EventEmitter & {
     readyState: number;
@@ -92,7 +133,7 @@ function call(scripts: NetFixtureScript[], binding: AssemblyAiBinding = {}) {
       carrierId: 'twilio',
       clearFlushesMarkers: link.clearFlushesMarkers,
     }),
-    stt: new AssemblyAiStt(net, 'fixture-key', binding, clock),
+    stt: new AssemblyAiStt(port, 'fixture-key', binding, clock),
     session,
     clock,
   });
@@ -138,11 +179,53 @@ function sentBytes(net: FixtureNet, host?: string): number {
     .reduce((total, entry) => total + (entry.data as Uint8Array).byteLength, 0);
 }
 
+function turn(transcript: string, end: boolean) {
+  return {
+    send: JSON.stringify({
+      type: 'Turn',
+      turn_order: 0,
+      transcript,
+      end_of_turn: end,
+      turn_is_formatted: false,
+    }),
+  };
+}
+
 beforeEach(() => void vi.spyOn(console, 'error').mockImplementation(() => undefined));
 afterEach(() => vi.restoreAllMocks());
 
 describe('STT failure paths through the worker media link', () => {
-  it('replays seven seconds of buffered audio when Begin takes seven seconds', async () => {
+  it('survives a 7 s handshake at the schema-max deadline by retrying within the buffer', async () => {
+    // The primary is abandoned at the 4 s cap and the retry begins 3 s later.
+    const live = call(
+      [
+        assemblyAi('streaming.assemblyai.com'),
+        assemblyAi('streaming.assemblyai.com', [
+          { delayMs: 3_000 },
+          begin('aa-retry'),
+          { expect: 'ws-send', match: 'binary', repeat: 'until-next' },
+          { expect: 'ws-send', match: 'json', where: { type: 'Terminate' } },
+          { send: JSON.stringify({ type: 'Termination', session_duration_seconds: 7 }) },
+        ]),
+      ],
+      { connectTimeoutMs: 4_000 },
+    );
+    const starting = live.engine.start();
+    live.speak(7_000);
+    await live.clock.advanceAsync(6_999);
+    expect(live.engine.ingressStats).toMatchObject({ overflows: 0 });
+    await live.clock.advanceAsync(1);
+    await starting;
+    live.link.activate();
+    live.speak(200);
+    await vi.waitFor(() => expect(sentBytes(live.net)).toBeGreaterThan(7_200 * 8 - 400));
+    expect(live.link.isClosed).toBe(false);
+    expect(live.engine.ingressStats).toMatchObject({ overflows: 0 });
+    await live.engine.dispose('behavior_completed');
+    live.net.assertComplete();
+  });
+
+  it('holds seven seconds of audio across one 7 s Begin (buffer capacity only)', async () => {
     const live = call(
       [
         assemblyAi('streaming.assemblyai.com', [
@@ -151,7 +234,8 @@ describe('STT failure paths through the worker media link', () => {
           { expect: 'ws-send', match: 'binary', repeat: 'until-next' },
         ]),
       ],
-      // Above the binding schema's 4 s cap, to hold the whole 7 s in the pre-session buffers.
+      // Above the binding schema's 4 s cap, which a deployment cannot set: this pins only that
+      // the worker and engine buffers hold a 7 s open, not a shippable handshake.
       { connectTimeoutMs: 8_000 },
     );
     const starting = live.engine.start();
@@ -216,6 +300,7 @@ describe('STT failure paths through the worker media link', () => {
     await live.engine.dispose('behavior_completed');
   });
 
+  // A provider that takes 7 s to Begin on every attempt is this case under the shipped 3 s default.
   it('fails the open with a typed connect-timeout when Begin never arrives', async () => {
     const live = call([
       assemblyAi('streaming.assemblyai.com'),
@@ -233,15 +318,6 @@ describe('STT failure paths through the worker media link', () => {
   });
 
   it('reconnects after a 1011 mid-turn and still ends a hang-up as caller_hangup', async () => {
-    const turn = (transcript: string, end: boolean) => ({
-      send: JSON.stringify({
-        type: 'Turn',
-        turn_order: 0,
-        transcript,
-        end_of_turn: end,
-        turn_is_formatted: false,
-      }),
-    });
     const live = call([
       assemblyAi('streaming.assemblyai.com', [
         begin('aa-first'),
@@ -286,6 +362,57 @@ describe('STT failure paths through the worker media link', () => {
     live.net.assertComplete();
   });
 
+  it('reconnects when a write meets the socket closing before its close event', async () => {
+    const live = call(
+      [
+        assemblyAi('streaming.assemblyai.com', [
+          begin('aa-first'),
+          { expect: 'ws-send', match: 'binary' },
+          turn('my loan', false),
+          { close: { code: 1011, reason: 'Internal error' } },
+        ]),
+        assemblyAi('streaming.assemblyai.com', [
+          begin('aa-second'),
+          { expect: 'ws-send', match: 'binary' },
+          turn('my loan amount', true),
+          { expect: 'ws-send', match: 'binary', repeat: 'until-next' },
+        ]),
+      ],
+      {},
+      // About the closing window from the India VM to AssemblyAI US.
+      { closeEventDelayMs: 200 },
+    );
+    await live.engine.start();
+    live.link.activate();
+    live.speak(100);
+    await vi.waitFor(() =>
+      expect(live.net.log.some((entry) => entry.kind === 'ws-close')).toBe(true),
+    );
+    // Regression: these frames met readyState 2 with no close code yet, and the call ended as
+    // error:stt:write-failed without a reconnect.
+    live.speak(100);
+    await vi.waitFor(() =>
+      expect(
+        live.events.some(
+          (event) =>
+            event.type === 'user.transcript' &&
+            event.stability === 'final' &&
+            event.segmentId === '0~r1',
+        ),
+      ).toBe(true),
+    );
+    // The late close event of the dropped socket changes nothing.
+    await live.clock.advanceAsync(200);
+    live.speak(100);
+    expect(live.link.isClosed).toBe(false);
+    live.hangUp();
+    await expect(live.engine.ended).resolves.toEqual({
+      reason: 'caller_hangup',
+      outcome: 'caller_ended',
+    });
+    live.net.assertComplete();
+  });
+
   it('keeps the worker reason when the carrier stream ends while the worker is closing', async () => {
     const live = call([
       assemblyAi('streaming.assemblyai.com', [
@@ -312,30 +439,5 @@ describe('STT failure paths through the worker media link', () => {
       outcome: 'completed',
     });
     expect(reasons).toEqual(['behavior_completed']);
-  });
-});
-
-describe('worker media link pre-session replay', () => {
-  it('buffers the same span the engine holds before STT connects', () => {
-    expect(PRE_SESSION_AUDIO_MS).toBe(DEFAULT_PRE_STT_BUFFER_MS);
-  });
-
-  it('replays buffered frames as ordered 200 ms chunks around other events', () => {
-    const live = call([]);
-    const seen: string[] = [];
-    let bytes = 0;
-    live.link.onAudio((audio, at) => {
-      seen.push(`audio:${audio.byteLength}@${at}`);
-      bytes += audio.byteLength;
-    });
-    live.link.onDtmf((digit) => seen.push(`dtmf:${digit}`));
-    live.speak(300);
-    live.link.receive({ type: 'media.dtmf', digit: '5' });
-    live.speak(100);
-    expect(seen).toEqual([]);
-    live.link.activate();
-    // 15 frames: one 200 ms chunk, the 100 ms remainder, the digit, then the later 100 ms.
-    expect(seen).toEqual(['audio:1600@20', 'audio:800@220', 'dtmf:5', 'audio:800@320']);
-    expect(bytes).toBe(400 * 8);
   });
 });

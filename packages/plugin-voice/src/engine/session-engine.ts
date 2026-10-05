@@ -27,7 +27,7 @@ import { createTurnController } from './turn-controller-host.ts';
 import { TurnDriver } from './turn-driver.ts';
 import { startWatchdog } from './watchdog.ts';
 
-export { DEFAULT_PRE_STT_BUFFER_MS } from './ingress-backlog.ts';
+export { DEFAULT_KEEP_MS, DEFAULT_PRE_STT_BUFFER_MS } from './ingress-backlog.ts';
 
 export interface NativeEnginePorts {
   behavior: Behavior;

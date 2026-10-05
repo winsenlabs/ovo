@@ -1,4 +1,10 @@
-import { MULAW_8K, type NetFixtureScript, type SttEvent } from '@winsendotai/ovo-contracts';
+import {
+  MULAW_8K,
+  type NetFixtureScript,
+  type NetPort,
+  type SttEvent,
+  type WebSocketLike,
+} from '@winsendotai/ovo-contracts';
 import { FakeClock } from '@winsendotai/ovo-conformance';
 import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -40,6 +46,45 @@ function input(language = 'en', usage: unknown[] = []) {
     onEvent: (_event: SttEvent) => undefined,
     onUsage: (meter: unknown) => usage.push(meter),
   };
+}
+
+type Listener = (...args: never[]) => void;
+
+/** A socket whose state a test sets directly, as `ws` moves it ahead of its events. */
+class ScriptedSocket implements WebSocketLike {
+  readyState: 0 | 1 | 2 | 3 = 1;
+  private readonly listeners = new Map<string, Set<Listener>>();
+
+  send(): void {
+    if (this.readyState !== 1) throw new Error('send on a socket that is not open');
+  }
+
+  close(): void {
+    if (this.readyState < 2) this.readyState = 2;
+  }
+
+  on(event: 'open' | 'message' | 'close' | 'error', fn: Listener): () => void {
+    const set = this.listeners.get(event) ?? new Set<Listener>();
+    set.add(fn);
+    this.listeners.set(event, set);
+    return () => void set.delete(fn);
+  }
+
+  emit(event: string, ...args: unknown[]): void {
+    for (const fn of [...(this.listeners.get(event) ?? [])])
+      (fn as (...values: unknown[]) => void)(...args);
+  }
+}
+
+async function scriptedSession() {
+  const socket = new ScriptedSocket();
+  const net: NetPort = {
+    fetch: () => Promise.reject(new Error('no http in this test')),
+    websocket: () => socket,
+  };
+  const starting = new AssemblyAiStt(net, 'fixture-key').start(input());
+  socket.emit('message', begin(), false);
+  return { socket, session: await starting };
 }
 
 beforeEach(() => void vi.spyOn(console, 'error').mockImplementation(() => undefined));
@@ -128,6 +173,33 @@ describe('AssemblyAI handshake deadline and region failover', () => {
     });
     net.assertComplete();
   });
+
+  it('types a write in the closing window before the close event as a retryable drop', async () => {
+    const { socket, session } = await scriptedSession();
+    await session.write(new Uint8Array(400));
+    // The provider's close frame has arrived: `ws` reports CLOSING and emits 'close' with the
+    // code only once TCP closes, a round trip later. Carrier frames keep coming meanwhile.
+    socket.readyState = 2;
+    // Regression: this was a plain "no longer writable" error, which the ingress ends the call on.
+    await expect(session.write(new Uint8Array(160))).rejects.toMatchObject({
+      name: 'AssemblyAiProviderError',
+      code: 1006,
+      retryable: true,
+    });
+    socket.readyState = 3;
+    socket.emit('close', 1011, 'Internal error');
+    await expect(session.forceEndpoint()).rejects.toMatchObject({ code: 1006, retryable: true });
+  });
+
+  it('types a transport error after Begin as a retryable drop', async () => {
+    const { socket, session } = await scriptedSession();
+    socket.emit('error', new Error('read ECONNRESET'));
+    await expect(session.write(new Uint8Array(160))).rejects.toMatchObject({
+      name: 'AssemblyAiProviderError',
+      code: 1006,
+      retryable: true,
+    });
+  });
 });
 
 describe('AssemblyAI binding-aware languages', () => {
@@ -148,7 +220,7 @@ describe('AssemblyAI binding-aware languages', () => {
 
   it('derives language_codes only for the code-switching pro models', () => {
     expect(assemblyAiLanguageCodes({ model: 'universal-3-5-pro' }, 'hi-IN')).toEqual(['hi', 'en']);
-    expect(assemblyAiLanguageCodes({ model: 'universal-3-6-pro' }, 'en-IN')).toEqual(['en']);
+    expect(assemblyAiLanguageCodes({ model: 'universal-3-6-pro' }, 'en-IN')).toBeUndefined();
     expect(assemblyAiLanguageCodes({ model: 'universal-3-6-pro' }, 'es-ES')).toEqual(['es']);
     expect(assemblyAiLanguageCodes({}, 'en-IN')).toBeUndefined();
     expect(new URL(assemblyAiUrl({}, MULAW_8K, 'en-IN')).searchParams.has('language_codes')).toBe(

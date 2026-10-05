@@ -8,6 +8,10 @@ type AudioMessage = Extract<GatewayToWorkerMessage, { type: 'media.audio' }>;
  * DEFAULT_PRE_STT_BUFFER_MS holds the same span; stt-failure-paths.test.ts pins them together.
  */
 export const PRE_SESSION_AUDIO_MS = 10_000;
+/** Newest audio kept when an open outlasts the span; the engine's DEFAULT_KEEP_MS. */
+export const PRE_SESSION_KEEP_MS = 3_000;
+/** Held events of any kind; ten seconds of 20 ms carrier frames is 500. */
+const MAX_HELD_MESSAGES = 1_024;
 /** Buffered carrier frames are replayed as chunks of up to this much audio. */
 const REPLAY_CHUNK_MS = 200;
 
@@ -25,16 +29,36 @@ export class PreSessionBuffer {
     return this.audioBytes;
   }
 
-  /** Holds one event; false once it would exceed the buffered span, which ends the call. */
-  hold(message: HeldMessage): boolean {
-    const size = message.type === 'media.audio' ? base64Length(message.payload) : 0;
+  /**
+   * Holds one event and returns the audio bytes it displaced. An open that outlasts the span drops
+   * the oldest audio down to the newest PRE_SESSION_KEEP_MS, so the caller loses the start of what
+   * they said rather than the call. False only when non-audio events alone fill the buffer.
+   */
+  hold(message: HeldMessage): number | false {
+    if (message.type !== 'media.audio') {
+      if (this.messages.length >= MAX_HELD_MESSAGES) return false;
+      this.messages.push(message);
+      return 0;
+    }
+    this.messages.push(message);
+    this.audioBytes += base64Length(message.payload);
     // Opening the session waits on the STT provider's handshake, which took 2-5s from an Indian
     // host on the first live call; three seconds of buffer dropped every call.
     const limit = Math.min((this.bytesPerSecond * PRE_SESSION_AUDIO_MS) / 1000, 655_360);
-    if (this.audioBytes + size > limit || this.messages.length >= 1_024) return false;
-    this.messages.push(message);
-    this.audioBytes += size;
-    return true;
+    if (this.audioBytes <= limit && this.messages.length <= MAX_HELD_MESSAGES) return 0;
+    const keep = Math.min(limit, (this.bytesPerSecond * PRE_SESSION_KEEP_MS) / 1000);
+    let dropped = 0;
+    let count = this.messages.length;
+    this.messages = this.messages.filter((item) => {
+      if (item.type !== 'media.audio' || (this.audioBytes <= keep && count <= MAX_HELD_MESSAGES))
+        return true;
+      const size = base64Length(item.payload);
+      this.audioBytes -= size;
+      dropped += size;
+      count -= 1;
+      return false;
+    });
+    return dropped;
   }
 
   /**
