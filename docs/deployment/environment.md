@@ -60,7 +60,7 @@ Default `false`. They are not ceremony — each one gates a path that can touch 
 | Flag                               | Default           | What it gates                                                                                                           |
 | ---------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `OVO_LIVE_DIAL_ENABLED`            | `false`           | Outbound dialling.                                                                                                      |
-| `OVO_INBOUND_ENABLED`              | `false`           | Inbound admission; maps to worker capacity.                                                                             |
+| `OVO_INBOUND_ENABLED`              | `false`           | Inbound admission; maps to worker protected-capacity registration. The dispatcher reports readiness without it.         |
 | `OVO_TRANSPORT_CERTIFIED`          | `false`           | Worker readiness gate.                                                                                                  |
 | `OVO_PROVIDER_EVALUATIONS_ENABLED` | `false`           | Paid evaluation runs.                                                                                                   |
 | `OVO_ALLOW_LOCAL_HTTP`             | `true` in Compose | **Must be `false` for a public API**, and verified _inside the running container_ — setting it in a file is not enough. |
@@ -76,13 +76,11 @@ numbers the thresholds are set against. It has no default on purpose: a default 
 release a calibration identity nobody chose. No per-language calibration has been measured, so the
 label records which cohort was _claimed_, not one that was verified.
 
-**One trap.** Compose interpolates `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` into
-`OVO_CARRIER_ENV_BINDINGS` for _every_ service. If either is exported in your shell or present in
-`.env`, a second credential-bearing `env` Twilio binding is created silently alongside your explicit
-one. **Unset both** before rendering Compose, and confirm via authenticated `GET /v1/provider-bindings`
-that no selectable `env` Twilio binding exists. Empty rendered credentials are only a proxy; the
-selection check is the real one. `docs/runbooks/first-real-call.md` step 3 carries verdict-only
-commands that check this without printing secrets.
+Compose sets `OVO_CARRIER_ENV_BINDINGS` to `{}` and does not read `TWILIO_ACCOUNT_SID` or
+`TWILIO_AUTH_TOKEN`. Wherever env bindings are read, an entry whose account or token is blank,
+`not-configured`, `disabled-local-*` or `replace-with-*` is dropped, and each process logs a
+`carrier_env_bindings` line naming the active and ignored carriers (never their values).
+`scripts/verify-compose.sh` fails if any Compose service still carries an env carrier binding.
 
 ## Verifying a deployment without touching a carrier
 
@@ -90,8 +88,15 @@ commands that check this without printing secrets.
 pnpm install --frozen-lockfile --offline   # must exit 0
 pnpm check                                 # lint, format, typecheck, tests, build, audit, console e2e
 GET /v1/readiness                          # per-agent release readiness
-GET /v1/operations/inbound/capacity        # at least one ready protected slot
+GET /v1/operations/inbound/capacity        # after go-live: at least one ready protected slot
+dispatcher GET /health → inbound             # before go-live: ready, with readyWorkers ≥ 1
 ```
+
+Workers register the protected slots that admit inbound calls only while `OVO_INBOUND_ENABLED=true`,
+so `readyProtected` is 0 before go-live by design. The dispatcher's `/health` carries an `inbound`
+report (`admissionEnabled`, `readyWorkers`, `readyProtected`, `warmFloor`, `ready`, `reasons`) and
+logs an `inbound_readiness` line whenever it changes; `verify-compose.sh` prints it. Use it to check
+readiness without enabling admission.
 
 Fixture test calls (`OVO_FIXTURE_TEST_CALLS`) exercise the full session graph — selected engine,
 carrier serializer, STT, TTS and behaviour — through FixtureNet with no network. They are
