@@ -88,7 +88,7 @@ it('buffers original carrier frames until STT connects and decodes only for VAD'
   await ingress.dispose();
 });
 
-it('fails closed on bounded pre-STT overflow', async () => {
+it('drops the oldest pre-STT audio on overflow instead of ending the call', async () => {
   const carrier = createFakeCarrier();
   let refused = 0;
   const ingress = new VoiceIngress(
@@ -100,8 +100,28 @@ it('fails closed on bounded pre-STT overflow', async () => {
   );
   carrier.caller.audio(Uint8Array.of(1));
   carrier.caller.audio(Uint8Array.of(2));
-  expect(refused).toBe(1);
-  expect(ingress.stats).toMatchObject({ acceptedFrames: 1, overflows: 1 });
+  expect(refused).toBe(0);
+  expect(ingress.stats).toMatchObject({
+    acceptedFrames: 2,
+    pendingFrames: 1,
+    overflows: 1,
+    droppedFrames: 1,
+  });
+  await ingress.dispose();
+});
+
+it('fails with ingress_overflow only for a frame larger than the whole buffer', async () => {
+  const carrier = createFakeCarrier();
+  const reasons: string[] = [];
+  const ingress = new VoiceIngress(
+    carrier.duplex,
+    { maxFrames: 4, maxBytes: 4, preSttBufferMs: 5000 },
+    new AbortController().signal,
+    () => undefined,
+    (reason) => reasons.push(reason),
+  );
+  carrier.caller.audio(new Uint8Array(5));
+  expect(reasons).toEqual(['error:ingress_overflow']);
   await ingress.dispose();
 });
 
@@ -143,7 +163,7 @@ it('cancels an STT session that finishes connecting after ingress disposal', asy
   expect(cancels).toBe(1);
 });
 
-it('holds five seconds of standard carrier frames before STT connects by default', async () => {
+it('holds ten seconds of standard carrier frames before STT connects by default', async () => {
   const carrier = createFakeCarrier();
   let connect!: () => void;
   const gate = new Promise<void>((resolve) => (connect = resolve));
@@ -168,10 +188,11 @@ it('holds five seconds of standard carrier frames before STT connects by default
   });
   const starting = engine.start();
   try {
-    for (let frame = 0; frame < 250; frame++) carrier.caller.audio(new Uint8Array(160));
+    for (let frame = 0; frame < 500; frame++) carrier.caller.audio(new Uint8Array(160));
     expect(engine.ingressStats).toMatchObject({
-      acceptedFrames: 250,
-      acceptedBytes: 40_000,
+      acceptedFrames: 500,
+      acceptedBytes: 80_000,
+      pendingFrames: 500,
       overflows: 0,
     });
   } finally {

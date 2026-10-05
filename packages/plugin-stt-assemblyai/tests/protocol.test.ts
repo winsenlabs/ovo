@@ -217,7 +217,9 @@ describe('AssemblyAI documented wire protocol', () => {
     [3009, true],
     [1011, true],
   ])('maps close code %i to a typed retryable=%s failure', async (code, retryable) => {
-    const net = createFixtureNet(script([open(), { close: { code, reason: 'provider refusal' } }]));
+    const refusal = script([open(), { close: { code, reason: 'provider refusal' } }]);
+    // A retryable refusal during the handshake is retried once before it reaches the host.
+    const net = createFixtureNet(retryable ? [...refusal, ...refusal] : refusal);
     const usage: unknown[] = [];
     await expect(
       new AssemblyAiStt(net, 'fixture-key').start(input([], usage)),
@@ -226,7 +228,12 @@ describe('AssemblyAI documented wire protocol', () => {
       code,
       retryable,
     });
-    expect(usage).toMatchObject([{ state: 'estimated', requestId: 'assemblyai:aa-test:1' }]);
+    expect(usage).toMatchObject(
+      [1, ...(retryable ? [2] : [])].map((attempt) => ({
+        state: 'estimated',
+        requestId: `assemblyai:aa-test:${attempt}`,
+      })),
+    );
     net.assertComplete();
   });
 });

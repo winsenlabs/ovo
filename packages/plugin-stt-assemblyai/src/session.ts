@@ -16,7 +16,7 @@ type Start = Parameters<SpeechToText['start']>[0];
 export class AssemblyAiProviderError extends Error {
   constructor(
     message: string,
-    readonly code: number | 'model-mismatch' | 'protocol',
+    readonly code: number | 'model-mismatch' | 'protocol' | 'connect-timeout',
     readonly retryable: boolean,
   ) {
     super(message);
@@ -42,12 +42,15 @@ export class AssemblyAiSession implements SttSession {
   private duration?: number;
   private ending = false;
   private ended = false;
+  private failure?: Error;
 
   constructor(
     private readonly socket: WebSocketLike,
     private readonly input: Start,
     private readonly binding: Readonly<AssemblyAiBinding>,
     private readonly clock: Clock,
+    /** Distinguishes the estimated usage of each connect attempt or reconnect in one call. */
+    private readonly attempt = 1,
   ) {
     this.startedAt = clock.now();
     this.once = usageOnce(input.onUsage);
@@ -123,6 +126,11 @@ export class AssemblyAiSession implements SttSession {
     this.socket.close();
   }
 
+  /** Fails a session whose handshake the provider abandoned, such as a missed Begin deadline. */
+  abandon(error: Error): void {
+    this.fail(error);
+  }
+
   private flushPending(): void {
     if (!this.pending.byteLength) return;
     const minimum = Math.ceil(bytesPerSecond(this.input.format) * 0.05);
@@ -134,6 +142,9 @@ export class AssemblyAiSession implements SttSession {
   private writable(signal?: AbortSignal): void {
     signal?.throwIfAborted();
     this.input.signal.throwIfAborted();
+    // A provider close surfaces on the next write with its code, so the host can tell a
+    // retryable drop from its own ingress limits.
+    if (this.failure) throw this.failure;
     if (this.ending || this.ended || this.socket.readyState !== 1)
       throw new Error('AssemblyAI session is no longer writable');
   }
@@ -231,11 +242,16 @@ export class AssemblyAiSession implements SttSession {
   private fail(error: Error): void {
     if (this.ended) return;
     this.ended = true;
+    this.failure = error;
     this.usage();
     this.dispose();
     this.rejectReady(error);
     this.rejectDone(error);
-    this.socket.close();
+    try {
+      this.socket.close();
+    } catch {
+      // swallow-ok: a socket still connecting may refuse a close; it is discarded either way.
+    }
   }
 
   private usage(): void {
@@ -245,7 +261,8 @@ export class AssemblyAiSession implements SttSession {
       unit: 'session_seconds',
       quantity: decimal(this.duration ?? Math.max(0, this.clock.now() - this.startedAt) / 1000),
       state: this.duration === undefined ? 'estimated' : 'reconciled',
-      requestId: this.providerId ?? syntheticRequestId('assemblyai', this.input.sessionId, 1),
+      requestId:
+        this.providerId ?? syntheticRequestId('assemblyai', this.input.sessionId, this.attempt),
       elapsedMs: Math.max(0, this.clock.now() - this.startedAt),
     });
   }
