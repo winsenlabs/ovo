@@ -1,4 +1,5 @@
 import type { Server } from 'node:http';
+import { createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
 import type { DeliveryOutcome } from './worker-types.ts';
 import { createInboundWorkerRuntime } from './inbound-runtime.ts';
 import { createProductionWorkerMediaRuntime } from './worker-media-bootstrap.ts';
@@ -6,6 +7,7 @@ import { openWorkerProcess } from './worker-process.ts';
 import { recordingRetentionDays } from './recording-runtime.ts';
 import { terminateActiveSession } from './worker-cleanup.ts';
 import { terminateOwnedJobAndFinalize } from './worker-termination.ts';
+import { settleTerminalSession } from './terminal-session.ts';
 import { WorkerReporter } from './worker-reporter.ts';
 import { env } from './worker-environment.ts';
 import { watchWorkerShutdown, type WorkerStatus } from './worker-health.ts';
@@ -55,6 +57,7 @@ export async function runWorkerLoop(input: {
     distribution,
     carriers,
   } = processRuntime;
+  const log = createLogger({ service: 'worker', workerId });
   let mediaRuntime: ReturnType<typeof createProductionWorkerMediaRuntime>;
   const terminateCostedJob = async (jobId: string, ownerEpoch: number, reason: string) => {
     try {
@@ -87,6 +90,7 @@ export async function runWorkerLoop(input: {
       inboundWarmFloor: Number(process.env.OVO_INBOUND_WARM_FLOOR ?? 0),
       telephony,
       costs,
+      logger: log,
       terminateOwned: terminateCostedJob,
       onProtectionLost: (reason) => {
         status.state = 'draining';
@@ -148,6 +152,7 @@ export async function runWorkerLoop(input: {
   await inboundRuntime?.start();
   status.state = 'ready';
   status.detail = 'All required adapters composed; awaiting durable work';
+  log.info('worker_ready', { inbound: inboundRuntime !== undefined });
 
   const reporter = new WorkerReporter({
     store,
@@ -155,6 +160,7 @@ export async function runWorkerLoop(input: {
     ownershipEpoch: workerEpoch,
     state: () => status.state,
     onFailure: (error) => {
+      log.error('worker_reporter_failed', errorFields(error));
       status.state = 'draining';
       status.detail = String(error);
       runner.beginDrain();
@@ -163,28 +169,35 @@ export async function runWorkerLoop(input: {
   await reporter.start();
 
   let shutdownPromise: Promise<void> | undefined;
+  const stepFailed = (step: string, error: unknown) =>
+    log.error('worker_shutdown_step_failed', { step, jobId: active?.jobId, ...errorFields(error) });
   const shutdown = () =>
     (shutdownPromise ??= (async () => {
       status.state = 'draining';
+      log.info('worker_draining', { detail: status.detail });
       runner.beginDrain();
       await reporter.stop();
       await inFlight?.catch((error) => {
+        stepFailed('admission', error);
         status.detail = `shutdown admission failed: ${String(error)}`;
       });
       if (active) {
         try {
           await terminateCostedJob(active.jobId, active.lease.ownerEpoch, 'worker-shutdown');
         } catch (error) {
+          stepFailed('outbound', error);
           status.detail = `outbound shutdown failed: ${String(error)}`;
         }
         active.lease.stop();
         await active.protection.release().catch((error) => {
+          stepFailed('protection', error);
           status.detail = `protection release failed: ${String(error)}`;
         });
       }
       try {
         await inboundRuntime?.close();
       } catch (error) {
+        stepFailed('inbound', error);
         status.detail = `inbound shutdown failed: ${String(error)}`;
       }
       await mediaRuntime.close('worker-shutdown');
@@ -201,30 +214,23 @@ export async function runWorkerLoop(input: {
     if (active) {
       const route = await store.getSessionRoute(active.jobId);
       if (!route) {
+        log.error('active_session_route_missing', { jobId: active.jobId });
         status.state = 'draining';
         status.detail = 'active-session-route-missing';
         runner.beginDrain();
         continue;
       }
       if (route.terminalAt) {
-        active.lease.stop();
-        await active.protection.release();
-        await mediaRuntime.closeSession(route.sessionId, `carrier terminal: ${route.status}`);
-        await costs.finalize(active.jobId);
-        const job = await store.get(active.jobId);
-        if (job) {
-          const callId =
-            typeof job.payload.callId === 'string' && job.payload.callId
-              ? job.payload.callId
-              : job.id;
-          try {
-            await controlStore.finishCall(job.workspaceId, callId, route.status);
-          } catch {
-            await new Promise((resolve) => setTimeout(resolve, 1_000));
-            continue;
-          }
-        }
-        await store.releaseTerminalSession(active.jobId);
+        const settled = await settleTerminalSession({
+          active,
+          route,
+          store,
+          media: mediaRuntime,
+          costs,
+          controlStore,
+          log,
+        });
+        if (!settled) continue;
         active = undefined;
         await inboundRuntime?.resume();
         status.state = 'ready';

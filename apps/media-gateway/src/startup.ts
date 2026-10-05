@@ -5,7 +5,7 @@ import {
   type CatalogEntry,
   type LoadedDistribution,
 } from '@winsendotai/ovo-distribution';
-import { createNodeNet } from '@winsendotai/ovo-plugin-kit';
+import { createLogger, createNodeNet, logFailure } from '@winsendotai/ovo-plugin-kit';
 import {
   createMediaGatewayPlugin,
   createMediaRouteResolverPlugin,
@@ -102,6 +102,7 @@ export async function startGateway(
   } = {},
 ): Promise<GatewayRuntime> {
   const env = input.env ?? process.env;
+  const logger = createLogger({ service: 'media-gateway' });
   const profile = env.OVO_DEPLOYMENT_PROFILE === 'fargate' ? 'fargate' : 'compose';
   const publicBaseUrl = required(env, 'OVO_MEDIA_PUBLIC_BASE_URL');
   const base = new URL(publicBaseUrl);
@@ -156,7 +157,7 @@ export async function startGateway(
       return host.hostFor(carrierId, bindingId);
     };
     const resolverPlugin = createMediaRouteResolverPlugin(resolver);
-    const gatewayPlugin = createMediaGatewayPlugin({ workerToken }, { hostFor });
+    const gatewayPlugin = createMediaGatewayPlugin({ workerToken }, { hostFor, logger });
     const extra = [storagePlugin, secretsPlugin, netPlugin, resolverPlugin, gatewayPlugin];
     const catalog = [
       ...distribution.catalog.filter(
@@ -220,7 +221,7 @@ export async function startGateway(
       },
     };
   } catch (error) {
-    await composition?.dispose().catch(() => undefined);
+    await composition?.dispose().catch(logFailure(logger, 'gateway_startup_cleanup_failed'));
     await operations.close();
     await store.close();
     throw error;

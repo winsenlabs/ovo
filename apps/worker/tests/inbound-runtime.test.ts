@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DurableJob, SessionRoute } from '@winsendotai/ovo-plugin-orchestration';
+import { createLogger } from '@winsendotai/ovo-plugin-kit';
 import { InboundWorkerRuntime } from '../src/inbound-runtime.ts';
 
 function fixture() {
@@ -20,6 +21,7 @@ function fixture() {
   const costs = { reserve: vi.fn() };
   const onProtectionLost = vi.fn();
   const onSessionIdle = vi.fn();
+  const logs: Record<string, unknown>[] = [];
   const runtime = new InboundWorkerRuntime({
     workerId: 'worker-1',
     workerEndpoint: 'worker://worker-1',
@@ -34,8 +36,10 @@ function fixture() {
     costs: costs as never,
     onProtectionLost,
     onSessionIdle,
+    logger: createLogger({}, { sink: (line) => logs.push(JSON.parse(line)) }),
   });
   return {
+    logs,
     runtime,
     protection,
     registerProtectedCapacity,
@@ -176,6 +180,35 @@ describe('InboundWorkerRuntime', () => {
       ),
     );
     expect(subject.onSessionIdle).not.toHaveBeenCalled();
+    // OBS-4: the cause of the failed restore was swallowed by a bare catch.
+    expect(subject.logs).toContainEqual(
+      expect.objectContaining({
+        event: 'inbound_protection_restore_failed',
+        error: 'Unable to establish task protection for inbound capacity',
+      }),
+    );
+  });
+
+  it('logs every cleanup failure while failing closed instead of dropping it', async () => {
+    const subject = fixture();
+    await subject.runtime.start();
+    subject.onProtectionLost.mockImplementation(() => {
+      throw new Error('status observer crashed');
+    });
+    subject.releaseInboundFloorToken.mockRejectedValue(new Error('floor table locked'));
+    subject.registerProtectedCapacity.mockRejectedValue(new Error('operations db down'));
+    await (subject.runtime as unknown as { failClosed(reason: string): Promise<void> }).failClosed(
+      'ownership lost',
+    );
+    const events = subject.logs.map((entry) => [entry.event, entry.error ?? entry.reason]);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        ['inbound_capacity_failed_closed', 'ownership lost'],
+        ['inbound_drain_observer_failed', 'status observer crashed'],
+        ['inbound_floor_release_failed', 'floor table locked'],
+        ['inbound_fail_closed_step_failed', 'operations db down'],
+      ]),
+    );
   });
 
   it('starts admitted inbound cost timing before composition', async () => {
@@ -289,5 +322,13 @@ describe('InboundWorkerRuntime', () => {
       'inbound cost admission blocked: budget exceeded',
     );
     expect(subject.hangup).toHaveBeenCalledWith('CA1');
+    expect(subject.logs).toContainEqual(
+      expect.objectContaining({
+        level: 'warn',
+        event: 'inbound_cost_admission_blocked',
+        jobId: 'job-1',
+        reason: 'inbound cost admission blocked: budget exceeded',
+      }),
+    );
   });
 });

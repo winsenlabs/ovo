@@ -722,6 +722,9 @@ importers:
 
   packages/plugin-media:
     dependencies:
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime

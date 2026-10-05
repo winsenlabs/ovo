@@ -1,6 +1,8 @@
 import { Cap, type NetPort } from '@winsendotai/ovo-contracts';
+import { errorFields } from '@winsendotai/ovo-plugin-kit';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 import { encodeTwilioForm, type TwilioForm } from './form.ts';
+import { twilioLog as log } from './log.ts';
 import { xml } from './markup.ts';
 
 export interface TwilioCreateCallInput {
@@ -155,7 +157,12 @@ export class TwilioTelephonyControl {
       if (['failed', 'canceled', 'busy', 'no-answer'].includes(call.status))
         return { kind: 'rejected', reason: `Twilio call is ${call.status}` };
       return { kind: 'accepted', carrierCallId: call.sid };
-    } catch {
+    } catch (error) {
+      log.warn('twilio_reconcile_pending', {
+        requestId,
+        carrierCallId: sid,
+        ...errorFields(error),
+      });
       return { kind: 'pending' };
     }
   }
