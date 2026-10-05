@@ -7,7 +7,7 @@
 ## Procedure
 
 1. Stop new admission for bindings using the credential. Decide explicitly whether existing streams can continue safely.
-2. Revoke/rotate in the provider console and Secrets Manager through approved access; never paste secret material into chat, logs, tickets or Terraform variables.
+2. Revoke/rotate in the provider console and Secrets Manager through approved access; never paste secret material into chat, logs, tickets or Terraform variables. If the secrets master key itself may be exposed, rotate it as in "Rotating the secrets master key" in `self-hosted-compose.md`, then reissue every provider secret it protected.
 3. Create a new credential version/reference, validate server-side, bind approved releases, and retain the old reference as retiring until bounded in-flight use is understood.
 4. Enumerate impacted agents, releases, calls and provider request IDs from metadata/audit only. Search logs for identifiers, not plaintext.
 5. Re-run plugin readiness and a no-side-effect provider validation. Resume gradually.

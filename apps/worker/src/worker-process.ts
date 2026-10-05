@@ -12,7 +12,6 @@ import {
   RECORDING_SERVICE_KEYS,
   type ProductionRecordingServices,
 } from '@winsendotai/ovo-plugin-recordings/production';
-import { LocalAesGcmSecretManager, decodeMasterKey } from '@winsendotai/ovo-plugin-secrets';
 import { PostgresControlStore } from '@winsendotai/ovo-plugin-storage';
 import {
   compose,
@@ -30,6 +29,7 @@ import { createWorkerCostRuntimePlugin } from './cost-runtime-plugin.ts';
 import { createWorkerRecordingsPlugin } from './recording-runtime.ts';
 import { ecsRuntimeConfig, localProtectionPlugin, readinessPlugin } from './runtime-plugins.ts';
 import { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
+import { workerSecretManager } from './worker-secrets.ts';
 import { createWorkerRunnerPlugin } from './worker-plugin.ts';
 import type { WorkerRunner } from './runner.ts';
 import {
@@ -88,11 +88,7 @@ export async function openWorkerProcess() {
     process.env.OVO_TELEMETRY_DATABASE_URL ?? env('DATABASE_URL'),
     controlStore,
   );
-  const secrets = new LocalAesGcmSecretManager(
-    controlStore,
-    decodeMasterKey(env('OVO_SECRETS_MASTER_KEY')),
-    'encrypted-store',
-  );
+  const secrets = workerSecretManager(controlStore);
   const recordingsDefinition = createWorkerRecordingsPlugin(controlStore, databaseUrl);
   const callRecorderDefinition = createCallRecorderPlugin(controlStore);
   const costDefinition = createWorkerCostRuntimePlugin({
