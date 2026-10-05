@@ -84,6 +84,9 @@ services:
       OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
       OVO_PROVIDER_EVALUATIONS_ENABLED: ${OVO_PROVIDER_EVALUATIONS_ENABLED:-false}
       OVO_FIXTURE_TEST_CALLS: 'true'
+      # Live readiness refuses admission without an installation capacity ceiling; it matches the
+      # dispatcher and the two fixed one-slot workers below.
+      OVO_WORKER_MAX_CAPACITY: '2'
     depends_on:
       postgres: { condition: service_healthy, required: false }
     healthcheck:

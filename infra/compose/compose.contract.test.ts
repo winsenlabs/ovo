@@ -43,3 +43,8 @@ it('verifies sign-in over forwarded TLS when local HTTP is disabled', () => {
   expect(verifier).toContain("...(localHttp ? {} : { 'x-forwarded-proto': 'https' })");
   expect(verifier).toContain('TLS sign-in did not issue a Secure cookie');
 });
+
+it('gives the API the same capacity ceiling as the dispatcher', () => {
+  expect(service('api')).toContain("OVO_WORKER_MAX_CAPACITY: '2'");
+  expect(service('dispatcher')).toContain("OVO_WORKER_MAX_CAPACITY: '2'");
+});
