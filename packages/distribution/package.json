@@ -39,6 +39,7 @@
     "@winsendotai/ovo-plugin-turns": "workspace:*",
     "@winsendotai/ovo-plugin-vad": "workspace:*",
     "@winsendotai/ovo-plugin-voice": "workspace:*",
-    "@winsendotai/ovo-runtime": "workspace:*"
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "@winsendotai/ovo-session-host": "workspace:*"
   }
 }

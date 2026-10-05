@@ -7,7 +7,7 @@ import {
 import type { FixtureTemplate, NetFixtureScript } from '@winsendotai/ovo-contracts';
 import { FIRST_PARTY, type CatalogEntry, type DistributionRole } from './catalog.ts';
 import { DISTRIBUTION_DEFAULTS } from './defaults.ts';
-import { legacyEnvBindings } from './env-bindings.ts';
+import { envCarrierBindings } from './env-bindings.ts';
 import { rows as apiRows } from './profiles/api.ts';
 import { rows as workerRows } from './profiles/worker.ts';
 import { rows as gatewayRows } from './profiles/gateway.ts';
@@ -34,6 +34,8 @@ export interface LoadDistributionInput {
   env: Environment;
   /** Test seam for catalog validation. */
   firstParty?: readonly CatalogEntry[];
+  /** Startup log line sink; defaults to one JSON line on stdout. */
+  log?: (entry: Record<string, unknown>) => void;
 }
 
 export interface LoadedDistribution {
@@ -47,7 +49,20 @@ export interface LoadedDistribution {
 
 /** The one loading path for built-ins and installed extensions. */
 export async function loadDistribution(input: LoadDistributionInput): Promise<LoadedDistribution> {
-  const env = legacyEnvBindings(input.env);
+  const bindings = envCarrierBindings(input.env),
+    env = bindings.env;
+  // Names only, never values: an unexpected env carrier is otherwise invisible until a 403.
+  if (
+    input.env.OVO_CARRIER_ENV_BINDINGS !== undefined ||
+    bindings.ignored.length ||
+    bindings.active.length
+  )
+    (input.log ?? ((entry) => console.log(JSON.stringify(entry))))({
+      event: 'carrier_env_bindings',
+      role: input.role,
+      active: bindings.active,
+      ignoredPlaceholders: bindings.ignored,
+    });
   const entries = (input.firstParty ?? FIRST_PARTY).filter((entry) => {
     if (
       entry.package === '@winsendotai/ovo-plugin-recordings' &&

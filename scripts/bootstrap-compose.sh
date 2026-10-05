@@ -196,8 +196,19 @@ append AWS_ACCESS_KEY_ID "$aws_access_key"
 append AWS_SECRET_ACCESS_KEY "$aws_secret_key"
 append OVO_SQS_ENDPOINT "$queue_endpoint"
 append OVO_QUEUE_URL "$queue_url"
-append TWILIO_ACCOUNT_SID disabled-local-account
-append TWILIO_AUTH_TOKEN disabled-local-token
+# Compose no longer reads these; carrier credentials belong in the console's credential store.
+# Older bootstraps wrote disabled-local-* placeholders here; clear them rather than keep a value
+# that looks like a credential.
+for key in TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN; do
+  case $(value_for "$key") in
+    disabled-local-*|not-configured)
+      sed "s/^$key=.*/$key=/" "$ENV_FILE" >"$ENV_FILE.tmp"
+      chmod 600 "$ENV_FILE.tmp"
+      mv "$ENV_FILE.tmp" "$ENV_FILE"
+      ;;
+  esac
+  append "$key" ''
+done
 
 if grep -Eq '(^|=)replace-with-|change-me|example-secret' "$ENV_FILE"; then
   echo "$ENV_FILE contains placeholder secrets; remove it and rerun bootstrap" >&2

@@ -10,7 +10,9 @@ x-common-environment: &common
   OVO_SQS_ENDPOINT: ${OVO_SQS_ENDPOINT-http://queue:9324}
   OVO_QUEUE_URL: ${OVO_QUEUE_URL:?run ./scripts/bootstrap-compose.sh first}
   OVO_PLUGIN_MODULES: ${OVO_PLUGIN_MODULES:-[]}
-  OVO_CARRIER_ENV_BINDINGS: '{"twilio":{"accountSid":"${TWILIO_ACCOUNT_SID:-}","authToken":"${TWILIO_AUTH_TOKEN:-}"}}'
+  # No env carrier binding: carrier credentials live in the encrypted store and are selected by
+  # provider binding. TWILIO_* are deliberately not interpolated (OPS-2).
+  OVO_CARRIER_ENV_BINDINGS: '{}'
 
 services:
   postgres:
@@ -76,6 +78,7 @@ services:
       OVO_STORAGE_ADAPTER: postgres
       OVO_SECRETS_BACKEND: encrypted-store
       OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?set OVO_SECRETS_MASTER_KEY}
+      OVO_SECRETS_MASTER_KEY_PREVIOUS: ${OVO_SECRETS_MASTER_KEY_PREVIOUS:-}
       OVO_RECORDINGS_BACKEND: filesystem
       OVO_RECORDINGS_DIRECTORY: /var/lib/ovo-recordings
       OVO_RECORDINGS_DURABLE_MOUNTED: 'true'
@@ -148,8 +151,11 @@ services:
       <<: *common
       OVO_MEDIA_PUBLIC_BASE_URL: ${OVO_MEDIA_PUBLIC_BASE_URL:?set OVO_MEDIA_PUBLIC_BASE_URL}
       OVO_MEDIA_PORT: '4001'
+      # Drain live calls on SIGTERM inside stop_grace_period below (OPS-6).
+      OVO_MEDIA_DRAIN_TIMEOUT_MS: '240000'
       OVO_MEDIA_WORKER_TOKEN: ${OVO_MEDIA_WORKER_TOKEN:?set OVO_MEDIA_WORKER_TOKEN}
       OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?set OVO_SECRETS_MASTER_KEY}
+      OVO_SECRETS_MASTER_KEY_PREVIOUS: ${OVO_SECRETS_MASTER_KEY_PREVIOUS:-}
       OVO_INBOUND_ENABLED: ${OVO_INBOUND_ENABLED:-false}
       OVO_INBOUND_ROUTE_SECRET: ${OVO_INBOUND_ROUTE_SECRET:-not-configured}
       OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
@@ -169,6 +175,8 @@ services:
       retries: 20
     ports:
       - '127.0.0.1:${GATEWAY_PORT:-4001}:4001'
+    # Docker's default 10s would SIGKILL calls mid-drain; this covers the 240s drain plus cleanup.
+    stop_grace_period: 300s
     mem_limit: 1g
     cpus: 1.0
     restart: unless-stopped
@@ -220,6 +228,8 @@ services:
       OVO_CALL_SLOTS: '1'
       OVO_PROTECTION_MODE: process-lifecycle
       OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
+      # Registering protected capacity is what admits inbound calls, so it stays tied to the
+      # admission flag; the dispatcher reports readiness without it (OPS-4).
       OVO_INBOUND_CAPACITY_ENABLED: ${OVO_INBOUND_ENABLED:-false}
       OVO_INBOUND_WARM_FLOOR: '2'
       OVO_TRANSPORT_CERTIFIED: ${OVO_TRANSPORT_CERTIFIED:-false}
@@ -229,6 +239,7 @@ services:
       OVO_MEDIA_PUBLIC_BASE_URL: ${OVO_MEDIA_PUBLIC_BASE_URL:?set OVO_MEDIA_PUBLIC_BASE_URL}
       OVO_INBOUND_ROUTE_SECRET: ${OVO_INBOUND_ROUTE_SECRET:?set OVO_INBOUND_ROUTE_SECRET}
       OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?set OVO_SECRETS_MASTER_KEY}
+      OVO_SECRETS_MASTER_KEY_PREVIOUS: ${OVO_SECRETS_MASTER_KEY_PREVIOUS:-}
       OVO_RECORDINGS_BACKEND: filesystem
       OVO_RECORDINGS_DIRECTORY: /var/lib/ovo-recordings
       OVO_RECORDINGS_DURABLE_MOUNTED: 'true'
@@ -252,6 +263,7 @@ services:
       retries: 20
     volumes:
       - recordings-data:/var/lib/ovo-recordings
+    stop_grace_period: 300s
     mem_limit: 2g
     cpus: 1.5
     restart: unless-stopped
@@ -270,9 +282,28 @@ services:
     healthcheck: *worker-health
     volumes:
       - recordings-data:/var/lib/ovo-recordings
+    stop_grace_period: 300s
     mem_limit: 2g
     cpus: 1.5
     restart: unless-stopped
+
+  # One-off master key rewrap after rotating OVO_SECRETS_MASTER_KEY (see the Compose runbook):
+  # docker compose --profile tools run --rm secrets-rewrap [--dry-run]
+  secrets-rewrap:
+    image: ${OVO_TOOLS_IMAGE:-ovo-tools:local}
+    profiles: [tools]
+    build:
+      context: ../..
+      dockerfile: infra/container/Dockerfile
+      target: workspace
+    environment:
+      <<: *common
+      OVO_SECRETS_BACKEND: encrypted-store
+      OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?set OVO_SECRETS_MASTER_KEY}
+      OVO_SECRETS_MASTER_KEY_PREVIOUS: ${OVO_SECRETS_MASTER_KEY_PREVIOUS:-}
+    entrypoint: [pnpm, exec, tsx, apps/api/src/secrets-rewrap.ts]
+    depends_on:
+      postgres: { condition: service_healthy, required: false }
 
 volumes:
   postgres-data:

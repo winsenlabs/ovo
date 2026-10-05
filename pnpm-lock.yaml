@@ -464,6 +464,9 @@ importers:
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
+      '@winsendotai/ovo-session-host':
+        specifier: workspace:*
+        version: link:../session-host
 
   packages/fixture-calls:
     dependencies:

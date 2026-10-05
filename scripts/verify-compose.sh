@@ -26,6 +26,23 @@ if ((${#bad_services[@]})); then
 fi
 ((service_count > 0)) || { echo 'No Compose services are running' >&2; exit 1; }
 
+# Carrier credentials belong in the credential store; an env carrier binding (OPS-2) is either a
+# placeholder that earns silent carrier 403s or a second, unaudited live credential.
+for service in api gateway worker-1 worker-2; do
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T "$service" \
+    node --input-type=module - "$service" <<'NODE'
+const service = process.argv[2];
+const raw = process.env.OVO_CARRIER_ENV_BINDINGS;
+const bindings = raw === undefined ? {} : JSON.parse(raw);
+if (!bindings || typeof bindings !== 'object' || Array.isArray(bindings))
+  throw new Error(`${service}: OVO_CARRIER_ENV_BINDINGS must be a JSON object`);
+if (Object.keys(bindings).length)
+  throw new Error(`${service}: Compose must not configure an env carrier binding (${Object.keys(bindings).join(', ')})`);
+if (process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_AUTH_TOKEN)
+  throw new Error(`${service}: TWILIO_* must not reach the container`);
+NODE
+done
+
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T \
   -e OVO_EXPECTED_SERVICE_COUNT="$service_count" api node --input-type=module - <<'NODE'
 const apiBase = 'http://127.0.0.1:4000';
@@ -37,9 +54,6 @@ if (!process.env.OVO_MEDIA_PUBLIC_BASE_URL?.startsWith('https://'))
   throw new Error('Compose media public base URL must use HTTPS');
 if (!process.env.OVO_INBOUND_ROUTE_SECRET || process.env.OVO_INBOUND_ROUTE_SECRET.length < 32)
   throw new Error('Compose inbound route secret is missing or too short');
-const carrierBindings = JSON.parse(process.env.OVO_CARRIER_ENV_BINDINGS ?? '{}');
-if (!carrierBindings || typeof carrierBindings !== 'object' || Array.isArray(carrierBindings))
-  throw new Error('Compose carrier environment bindings must be an object');
 const health = await fetch(`${apiBase}/health`);
 if (!health.ok) throw new Error(`API health returned ${health.status}`);
 const consoleResponse = await fetch(consoleBase);
@@ -81,4 +95,12 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T dispatcher \
   node --input-type=module - <<'NODE'
 if (process.env.OVO_CAPACITY_SIGNAL !== 'log')
   throw new Error('Compact Compose must log capacity signals without writing ECS desired count');
+// Inbound readiness is reported while admission is still off (OPS-4); it fails only once enabled.
+const { inbound } = await (await fetch('http://127.0.0.1:4002/health')).json();
+if (!inbound) throw new Error('Dispatcher has not reported inbound readiness yet; rerun shortly');
+const summary = `${inbound.readyWorkers} ready worker(s), ${inbound.readyProtected} protected slot(s), warm floor ${inbound.warmFloor}`;
+console.log(`Inbound readiness: ${inbound.ready ? 'ready' : 'NOT ready'}, admission ${inbound.admissionEnabled ? 'enabled' : 'disabled'}; ${summary}.`);
+for (const reason of inbound.reasons) console.log(`  - ${reason}`);
+if (inbound.admissionEnabled && !inbound.ready)
+  throw new Error('Inbound admission is enabled but no protected slot is ready');
 NODE

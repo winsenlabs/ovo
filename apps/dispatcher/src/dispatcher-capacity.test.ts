@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { computeCapacitySignal } from '@winsendotai/ovo-plugin-orchestration';
-import { readDispatcherCapacityInput } from './dispatcher-capacity.ts';
+import {
+  inboundReadiness,
+  readDispatcherCapacityInput,
+  readInboundReadiness,
+} from './dispatcher-capacity.ts';
 
 function ports() {
   const store = {
@@ -165,5 +169,70 @@ describe('dispatcher capacity input', () => {
       defaults.spendPermitted,
     ]).toEqual([100, 100, 100]);
     expect(computeCapacitySignal(defaults)?.requiredSlots).toBe(100);
+  });
+});
+
+describe('inbound readiness', () => {
+  const counts = { readyIdle: 2, reserved: 0, active: 0, starting: 0, draining: 0, total: 2 };
+
+  it('reports ready workers before go-live although no protected slot can exist yet', () => {
+    expect(inboundReadiness({ counts, inboundEnabled: false, inboundWarmFloor: 2 }, 0)).toEqual({
+      admissionEnabled: false,
+      readyWorkers: 2,
+      readyProtected: 0,
+      warmFloor: 2,
+      ready: true,
+      reasons: [
+        'OVO_INBOUND_ENABLED=false: workers register no protected inbound slot, so readyProtected is 0 by design',
+      ],
+    });
+  });
+
+  it('is not ready when no worker reports or the warm floor is zero', () => {
+    const idle = inboundReadiness(
+      { counts: { ...counts, readyIdle: 0, total: 0 }, inboundEnabled: false, inboundWarmFloor: 0 },
+      0,
+    );
+    expect(idle.ready).toBe(false);
+    expect(idle.reasons).toEqual([
+      expect.stringContaining('OVO_INBOUND_ENABLED=false'),
+      expect.stringContaining('no ready idle worker'),
+      expect.stringContaining('OVO_INBOUND_WARM_FLOOR=0'),
+    ]);
+  });
+
+  it('requires a protected slot once admission is enabled', () => {
+    expect(
+      inboundReadiness({ counts, inboundEnabled: true, inboundWarmFloor: 2 }, 0),
+    ).toMatchObject({
+      ready: false,
+      reasons: ['inbound admission is enabled but no protected slot is ready'],
+    });
+    expect(
+      inboundReadiness({ counts, inboundEnabled: true, inboundWarmFloor: 2 }, 1),
+    ).toMatchObject({ ready: true, readyProtected: 1, reasons: [] });
+  });
+
+  it('reads protected capacity from the operations service', async () => {
+    const { store, operations } = ports();
+    const capacity = await readDispatcherCapacityInput({
+      store: store as never,
+      operations: operations as never,
+      env: { OVO_INBOUND_ENABLED: 'true', OVO_INBOUND_WARM_FLOOR: '2' },
+      readProvisionedTasks: async () => 2,
+      nowMs: () => 1_001_000,
+    });
+    const readyProtectedCapacity = vi.fn(async () => 1);
+    await expect(
+      readInboundReadiness({
+        operations: { inbound: { readyProtectedCapacity } } as never,
+        capacity,
+      }),
+    ).resolves.toMatchObject({
+      admissionEnabled: true,
+      readyWorkers: 2,
+      readyProtected: 1,
+      ready: true,
+    });
   });
 });

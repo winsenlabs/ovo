@@ -3,3 +3,4 @@ export * from './crypto.ts';
 export * from './local.ts';
 export * from './aws.ts';
 export * from './plugin.ts';
+export * from './rewrap.ts';
