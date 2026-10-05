@@ -8,6 +8,8 @@
     "start": "node dist/main.cjs"
   },
   "dependencies": {
+    "@livekit/agents": "1.9.0",
+    "@livekit/rtc-node": "0.13.34",
     "@winsendotai/ovo-contracts": "workspace:*",
     "@winsendotai/ovo-distribution": "workspace:*",
     "@winsendotai/ovo-plugin-kit": "workspace:*",

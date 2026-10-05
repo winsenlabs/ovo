@@ -29,6 +29,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@livekit/agents':
+        specifier: 1.9.0
+        version: 1.9.0(@aws-sdk/credential-provider-node@3.972.83)(@livekit/rtc-node@0.13.34)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.3)(@types/node@22.20.0)(typescript@6.0.3)(zod@4.6.5)
+      '@livekit/rtc-node':
+        specifier: 0.13.34
+        version: 0.13.34
       '@winsendotai/ovo-behaviors':
         specifier: workspace:*
         version: link:../../packages/behaviors
@@ -142,6 +148,12 @@ importers:
 
   apps/dispatcher:
     dependencies:
+      '@livekit/agents':
+        specifier: 1.9.0
+        version: 1.9.0(@aws-sdk/credential-provider-node@3.972.83)(@livekit/rtc-node@0.13.34)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.3)(@types/node@22.20.0)(typescript@6.0.3)(zod@4.6.5)
+      '@livekit/rtc-node':
+        specifier: 0.13.34
+        version: 0.13.34
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -169,6 +181,12 @@ importers:
 
   apps/media-gateway:
     dependencies:
+      '@livekit/agents':
+        specifier: 1.9.0
+        version: 1.9.0(@aws-sdk/credential-provider-node@3.972.83)(@livekit/rtc-node@0.13.34)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.3)(@types/node@22.20.0)(typescript@6.0.3)(zod@4.6.5)
+      '@livekit/rtc-node':
+        specifier: 0.13.34
+        version: 0.13.34
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -196,6 +214,12 @@ importers:
 
   apps/worker:
     dependencies:
+      '@livekit/agents':
+        specifier: 1.9.0
+        version: 1.9.0(@aws-sdk/credential-provider-node@3.972.83)(@livekit/rtc-node@0.13.34)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.3)(@types/node@22.20.0)(typescript@6.0.3)(zod@4.6.5)
+      '@livekit/rtc-node':
+        specifier: 0.13.34
+        version: 0.13.34
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
