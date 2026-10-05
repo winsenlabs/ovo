@@ -76,6 +76,7 @@ services:
       OVO_STORAGE_ADAPTER: postgres
       OVO_SECRETS_BACKEND: encrypted-store
       OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?set OVO_SECRETS_MASTER_KEY}
+      OVO_SECRETS_MASTER_KEY_PREVIOUS: ${OVO_SECRETS_MASTER_KEY_PREVIOUS:-}
       OVO_RECORDINGS_BACKEND: filesystem
       OVO_RECORDINGS_DIRECTORY: /var/lib/ovo-recordings
       OVO_RECORDINGS_DURABLE_MOUNTED: 'true'
@@ -150,6 +151,7 @@ services:
       OVO_MEDIA_PORT: '4001'
       OVO_MEDIA_WORKER_TOKEN: ${OVO_MEDIA_WORKER_TOKEN:?set OVO_MEDIA_WORKER_TOKEN}
       OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?set OVO_SECRETS_MASTER_KEY}
+      OVO_SECRETS_MASTER_KEY_PREVIOUS: ${OVO_SECRETS_MASTER_KEY_PREVIOUS:-}
       OVO_INBOUND_ENABLED: ${OVO_INBOUND_ENABLED:-false}
       OVO_INBOUND_ROUTE_SECRET: ${OVO_INBOUND_ROUTE_SECRET:-not-configured}
       OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
@@ -229,6 +231,7 @@ services:
       OVO_MEDIA_PUBLIC_BASE_URL: ${OVO_MEDIA_PUBLIC_BASE_URL:?set OVO_MEDIA_PUBLIC_BASE_URL}
       OVO_INBOUND_ROUTE_SECRET: ${OVO_INBOUND_ROUTE_SECRET:?set OVO_INBOUND_ROUTE_SECRET}
       OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?set OVO_SECRETS_MASTER_KEY}
+      OVO_SECRETS_MASTER_KEY_PREVIOUS: ${OVO_SECRETS_MASTER_KEY_PREVIOUS:-}
       OVO_RECORDINGS_BACKEND: filesystem
       OVO_RECORDINGS_DIRECTORY: /var/lib/ovo-recordings
       OVO_RECORDINGS_DURABLE_MOUNTED: 'true'
@@ -273,6 +276,24 @@ services:
     mem_limit: 2g
     cpus: 1.5
     restart: unless-stopped
+
+  # One-off master key rewrap after rotating OVO_SECRETS_MASTER_KEY (see the Compose runbook):
+  # docker compose --profile tools run --rm secrets-rewrap [--dry-run]
+  secrets-rewrap:
+    image: ${OVO_TOOLS_IMAGE:-ovo-tools:local}
+    profiles: [tools]
+    build:
+      context: ../..
+      dockerfile: infra/container/Dockerfile
+      target: workspace
+    environment:
+      <<: *common
+      OVO_SECRETS_BACKEND: encrypted-store
+      OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?set OVO_SECRETS_MASTER_KEY}
+      OVO_SECRETS_MASTER_KEY_PREVIOUS: ${OVO_SECRETS_MASTER_KEY_PREVIOUS:-}
+    entrypoint: [pnpm, exec, tsx, apps/api/src/secrets-rewrap.ts]
+    depends_on:
+      postgres: { condition: service_healthy, required: false }
 
 volumes:
   postgres-data:

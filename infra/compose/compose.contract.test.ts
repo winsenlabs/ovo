@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 
 const source = readFileSync(new URL('./compose.yaml', import.meta.url), 'utf8');
@@ -47,4 +47,21 @@ it('verifies sign-in over forwarded TLS when local HTTP is disabled', () => {
 it('gives the API the same capacity ceiling as the dispatcher', () => {
   expect(service('api')).toContain("OVO_WORKER_MAX_CAPACITY: '2'");
   expect(service('dispatcher')).toContain("OVO_WORKER_MAX_CAPACITY: '2'");
+});
+
+it('lets every service that decrypts credentials read the previous master key', () => {
+  for (const name of ['api', 'gateway', 'worker-1', 'secrets-rewrap']) {
+    expect(service(name)).toContain('OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?');
+    expect(service(name)).toContain(
+      'OVO_SECRETS_MASTER_KEY_PREVIOUS: ${OVO_SECRETS_MASTER_KEY_PREVIOUS:-}',
+    );
+  }
+});
+
+it('runs the master key rewrap only as an opt-in tool against the shipped command', () => {
+  const tool = service('secrets-rewrap');
+  expect(tool).toContain('profiles: [tools]');
+  expect(tool).toContain('target: workspace');
+  expect(tool).toContain('entrypoint: [pnpm, exec, tsx, apps/api/src/secrets-rewrap.ts]');
+  expect(existsSync(new URL('../../apps/api/src/secrets-rewrap.ts', import.meta.url))).toBe(true);
 });

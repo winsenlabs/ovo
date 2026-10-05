@@ -121,6 +121,27 @@ Do not enable them merely to make a readiness indicator green. Real calls additi
 
 The local stack remains useful for administration, fixtures, deterministic evaluations and persisted evidence while these external integrations are disabled.
 
+## Rotating the secrets master key
+
+`OVO_SECRETS_MASTER_KEY` encrypts every stored provider and carrier credential. Each ciphertext written since key versioning records the id of the key that wrote it (a non-secret hash prefix; older ciphertexts carry none and are matched by trial decryption). Replacing the key therefore never orphans credentials as long as the old key stays configured as `OVO_SECRETS_MASTER_KEY_PREVIOUS` until the rewrap below has succeeded.
+
+1. Generate the new key with `openssl rand -hex 32`. In `infra/compose/.env`, move the current value to `OVO_SECRETS_MASTER_KEY_PREVIOUS` and set `OVO_SECRETS_MASTER_KEY` to the new one. Several retired keys may be listed, comma-separated, newest first.
+2. Keep inbound admission off, wait for active calls to finish, then recreate the services: `docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml up -d`. The API and gateway decrypt with either key from now on.
+3. Prove every credential is readable, then rewrap it under the new key:
+
+   ```sh
+   docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml \
+     --profile tools run --rm secrets-rewrap --dry-run
+   docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml \
+     --profile tools run --rm secrets-rewrap
+   ```
+
+   Each run prints one JSON line per workspace with the key ids and the counts `current`, `pending`, `rewrapped`, `skipped` and `failed`; it never prints a credential value and exits non-zero when anything failed. A rewrap stores the same value as a new credential version, so the credential's fingerprint is unchanged. It refuses to overwrite a credential that is rotated concurrently; rerun it. The tool builds the `workspace` image stage the first time it runs. Pass `--workspace <id>` to target a workspace other than `OVO_ORGANIZATION_ID`.
+
+4. Run the dry run again and confirm every active credential is `current`. Only then remove `OVO_SECRETS_MASTER_KEY_PREVIOUS` and recreate the services.
+
+Workers currently read only `OVO_SECRETS_MASTER_KEY`, so until they also honor the previous key, run steps 2 and 3 back to back while no calls are admitted. Superseded credential versions stay encrypted under the old key and are never read again; if the old key was disclosed, also reissue each provider secret and rotate it with `POST /v1/credentials/:id/rotate`. Keep the old key with any database backup taken before the rotation: restoring that backup needs it.
+
 ## Troubleshooting
 
 Inspect health and bounded logs:

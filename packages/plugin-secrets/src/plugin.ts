@@ -3,7 +3,7 @@ import { definePlugin } from '@winsendotai/ovo-runtime';
 import type { CredentialStore, SecretManager } from './types.ts';
 import { LocalAesGcmSecretManager } from './local.ts';
 import { AwsSecretsManagerSecretManager, type AwsModule } from './aws.ts';
-import { decodeMasterKey } from './crypto.ts';
+import { decodeMasterKey, decodePreviousMasterKeys, masterKeyRing } from './crypto.ts';
 export const secretsPlugin = definePlugin(
   {
     id: '@winsendotai/ovo-plugin-secrets',
@@ -17,13 +17,15 @@ export const secretsPlugin = definePlugin(
       properties: {
         backend: { enum: ['local', 'encrypted-store', 'aws-secrets-manager'] },
         masterKey: { type: 'string' },
+        // Comma-separated retired keys that still decrypt until `secrets:rewrap` has run.
+        previousMasterKeys: { type: 'string' },
         region: { type: 'string' },
         awsPrefix: { type: 'string' },
       },
       required: ['backend'],
       additionalProperties: false,
     },
-    secretFields: ['masterKey'],
+    secretFields: ['masterKey', 'previousMasterKeys'],
   },
   async (ctx, config) => {
     const store = ctx.get(Cap.controlStore) as CredentialStore;
@@ -47,9 +49,13 @@ export const secretsPlugin = definePlugin(
           : process.env.OVO_SECRETS_MASTER_KEY;
       if (!encoded)
         throw new Error('OVO_SECRETS_MASTER_KEY is required for encrypted stored secrets');
+      const previous =
+        typeof config.previousMasterKeys === 'string'
+          ? config.previousMasterKeys
+          : process.env.OVO_SECRETS_MASTER_KEY_PREVIOUS;
       service = new LocalAesGcmSecretManager(
         store,
-        decodeMasterKey(encoded),
+        masterKeyRing(decodeMasterKey(encoded), decodePreviousMasterKeys(previous)),
         config.backend === 'encrypted-store' ? 'encrypted-store' : 'local',
       );
     }

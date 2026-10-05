@@ -21,6 +21,9 @@ export const rows: ProfileRows = (profile, env) => [
             : 'local'),
       ...(env.AWS_REGION ? { region: env.AWS_REGION } : {}),
       ...(env.OVO_SECRETS_MASTER_KEY ? { masterKey: env.OVO_SECRETS_MASTER_KEY } : {}),
+      ...(env.OVO_SECRETS_MASTER_KEY_PREVIOUS
+        ? { previousMasterKeys: env.OVO_SECRETS_MASTER_KEY_PREVIOUS }
+        : {}),
     },
   },
   { id: observabilityPlugin.manifest.id },

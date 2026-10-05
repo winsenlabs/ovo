@@ -39,6 +39,7 @@ Enforced by `required(env, …)` in `packages/distribution/src/profiles/*.ts`:
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `OVO_SESSION_SECRET`                               | **≥32 UTF-8 bytes.** Production throws on start otherwise (M1 #14). Bytes, not characters. |
 | `OVO_SECRETS_MASTER_KEY`                           | 32-byte hex or base64. Encrypts the credential store.                                      |
+| `OVO_SECRETS_MASTER_KEY_PREVIOUS`                  | Optional, comma-separated retired master keys that still decrypt until `secrets-rewrap`.   |
 | `OVO_MEDIA_WORKER_TOKEN`                           | Gateway↔worker bearer. Gateway and both workers must match.                                |
 | `OVO_INBOUND_ROUTE_SECRET`                         | ≥32 chars. API, gateway and both workers must match.                                       |
 | `POSTGRES_PASSWORD`                                | —                                                                                          |
