@@ -5,7 +5,7 @@ import { recordingsPlugin } from '@winsendotai/ovo-plugin-recordings';
 import { LocalAesGcmSecretManager, secretsPlugin } from '@winsendotai/ovo-plugin-secrets';
 import { NodeSqliteControlStore } from '@winsendotai/ovo-plugin-storage';
 import { FIRST_PARTY } from '../src/catalog.ts';
-import { legacyEnvBindings } from '../src/env-bindings.ts';
+import { envCarrierBindings, legacyEnvBindings } from '../src/env-bindings.ts';
 import { loadDistribution } from '../src/load.ts';
 
 describe('distribution inventory', () => {
@@ -327,10 +327,70 @@ describe('environment carrier bindings', () => {
     ['AC123', 'disabled-local-account'],
     ['  ', 'secret'],
     ['AC123', ''],
+    ['disabled-local-account', 'disabled-local-token'],
+    ['AC123', 'replace-with-token'],
   ])('rejects placeholder or incomplete values: %s / %s', (sid, token) => {
     expect(
       legacyEnvBindings({ TWILIO_ACCOUNT_SID: sid, TWILIO_AUTH_TOKEN: token }),
     ).not.toHaveProperty('OVO_CARRIER_ENV_BINDINGS');
+  });
+
+  it.each([
+    // What Compose rendered from bootstrap's placeholders before it stopped interpolating TWILIO_*.
+    ['{"twilio":{"accountSid":"disabled-local-account","authToken":"disabled-local-token"}}'],
+    ['{"twilio":{"accountSid":"","authToken":""}}'],
+    ['{"twilio":{"accountSid":"replace-with-sid","authToken":"replace-with-token"}}'],
+    [''],
+  ])('reduces placeholder explicit bindings to none: %s', (explicit) => {
+    const bindings = envCarrierBindings({ OVO_CARRIER_ENV_BINDINGS: explicit });
+    expect(JSON.parse(bindings.env.OVO_CARRIER_ENV_BINDINGS!)).toEqual({});
+    expect(bindings.active).toEqual([]);
+  });
+
+  it('keeps real explicit entries while dropping placeholder ones', () => {
+    const bindings = envCarrierBindings({
+      OVO_CARRIER_ENV_BINDINGS: JSON.stringify({
+        twilio: { accountSid: 'AC123', authToken: 'disabled-local-token' },
+        plivo: { accountSid: 'MA123', authToken: 'secret' },
+      }),
+    });
+    expect(JSON.parse(bindings.env.OVO_CARRIER_ENV_BINDINGS!)).toEqual({
+      plivo: { accountSid: 'MA123', authToken: 'secret' },
+    });
+    expect(bindings).toMatchObject({ active: ['plivo'], ignored: ['twilio'] });
+    expect(
+      envCarrierBindings({ OVO_CARRIER_ENV_BINDINGS: 'not json' }).env.OVO_CARRIER_ENV_BINDINGS,
+    ).toBe('not json');
+  });
+
+  it('logs the active and ignored env carriers by name at startup, never their values', async () => {
+    const entries: Record<string, unknown>[] = [];
+    await loadDistribution({
+      role: 'gateway',
+      profile: 'compose',
+      env: {
+        OVO_CARRIER_ENV_BINDINGS: JSON.stringify({
+          twilio: { accountSid: 'disabled-local-account', authToken: 'disabled-local-token' },
+        }),
+      },
+      log: (entry) => entries.push(entry),
+    });
+    expect(entries).toEqual([
+      {
+        event: 'carrier_env_bindings',
+        role: 'gateway',
+        active: [],
+        ignoredPlaceholders: ['twilio'],
+      },
+    ]);
+    await loadDistribution({
+      role: 'gateway',
+      profile: 'compose',
+      env: { OVO_CARRIER_ENV_BINDINGS: '{"fixture":{"authToken":"live-secret"}}' },
+      log: (entry) => entries.push(entry),
+    });
+    expect(entries[1]).toMatchObject({ active: ['fixture'], ignoredPlaceholders: [] });
+    expect(JSON.stringify(entries)).not.toContain('live-secret');
   });
 
   it('preserves explicit env bindings verbatim even when legacy values exist', () => {

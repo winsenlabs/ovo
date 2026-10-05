@@ -22,6 +22,29 @@ export interface CarrierBindingResolverOptions {
   env?: Readonly<Record<string, string | undefined>>;
 }
 
+/**
+ * Values that mean "no credential": blank, bootstrap's `disabled-local-*`, the older
+ * `not-configured` and `.env.example`'s `replace-with-*`. Shared by every env-binding check.
+ */
+export function isPlaceholderCredential(value: unknown): boolean {
+  if (typeof value !== 'string') return true;
+  const trimmed = value.trim();
+  return (
+    !trimmed ||
+    trimmed === 'not-configured' ||
+    trimmed.startsWith('disabled-local-') ||
+    trimmed.startsWith('replace-with-')
+  );
+}
+
+/** An env carrier entry whose account or token is a placeholder can only produce carrier 403s. */
+export function isPlaceholderCarrierBinding(config: Record<string, unknown>): boolean {
+  return (
+    ('authToken' in config && isPlaceholderCredential(config.authToken)) ||
+    ('accountSid' in config && isPlaceholderCredential(config.accountSid))
+  );
+}
+
 /** The reserved binding id is resolved only on use; startup never validates placeholder env values. */
 export function createCarrierBindingResolver(options: CarrierBindingResolverOptions) {
   return async (id: string, carrierId?: string): Promise<ResolvedBinding> => {
@@ -45,9 +68,8 @@ export function createCarrierBindingResolver(options: CarrierBindingResolverOpti
       const token = config.authToken;
       if (
         typeof token !== 'string' ||
-        !token ||
-        token === 'not-configured' ||
-        token === 'disabled-local-account'
+        isPlaceholderCredential(token) ||
+        isPlaceholderCarrierBinding(config)
       )
         throw new Error('Environment carrier secret is not configured');
       const { authToken: _secret, ...publicConfig } = config;
