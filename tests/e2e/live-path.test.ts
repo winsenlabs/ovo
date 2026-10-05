@@ -26,11 +26,20 @@ if (!postgresUrl)
     'The live-path test needs OVO_TEST_POSTGRES_URL (a database it may create schemas in)',
   );
 
-// Slower than the 3s pre-session buffer that dropped live call 2 (8d76756), inside the 5s
-// ingress-queue bound that STT-1 tracks.
-const STT_HANDSHAKE_MS = 4_000;
+// The first handshake is slower than the 3s pre-session buffer that dropped live call 2
+// (8d76756) and than the 3s connect timeout (STT-3), so the worker abandons it and retries; the
+// retry answers in 1s. The caller's audio is held for both attempts, over 4s in all.
+const STT_HANDSHAKE_MS = [4_000, 1_000];
 const CALLER = 'Hello, is anyone there?';
 const REPLY = 'Hello, thanks for calling the live path line. How can I help you today?';
+
+interface TurnBreakdown {
+  userText: string | null;
+  agentText: string | null;
+  llmFirstTokenMs: number | null;
+  firstAudioMs: number | null;
+  segments: { ttsFirstByteMs: number | null }[];
+}
 
 describe('live inbound call path: fake Twilio -> gateway -> worker -> fake providers', () => {
   let stack: LiveStack;
@@ -142,6 +151,11 @@ describe('live inbound call path: fake Twilio -> gateway -> worker -> fake provi
       );
       call.fallSilent();
       expect(assemblyAi.sessions[0]?.url).toContain('encoding=pcm_mulaw');
+      expect(
+        assemblyAi.sessions[0]?.begunAt,
+        'the slow handshake was not abandoned',
+      ).toBeUndefined();
+      expect(assemblyAi.sessions[1]?.begunAt).toBeTypeOf('number');
 
       // The reply is synthesised past the SSE [DONE] sentinel (c201818) and played to the caller.
       await vi.waitFor(
@@ -200,16 +214,31 @@ describe('live inbound call path: fake Twilio -> gateway -> worker -> fake provi
         },
         { timeout: 15_000, interval: 250 },
       );
+      // OBS-5: the turns API returns the caller's turn with the stages the live check reads.
+      await vi.waitFor(
+        async () => {
+          const { turns } = await api<{ turns: TurnBreakdown[] }>(
+            'GET',
+            `/v1/calls/${rows[0]?.call_id ?? jobId}/turns`,
+          );
+          const turn = turns.find((item) => item.userText === CALLER);
+          expect(turn, JSON.stringify(turns)).toBeDefined();
+          expect(turn?.llmFirstTokenMs).toBeTypeOf('number');
+          expect(turn?.firstAudioMs).toBeTypeOf('number');
+          expect(turn?.segments[0]?.ttsFirstByteMs).toBeTypeOf('number');
+          expect(turn?.agentText).toContain('How can I help you today?');
+        },
+        { timeout: 15_000, interval: 250 },
+      );
       terminalReason = (await route())?.terminal_reason;
     } finally {
       call.close();
     }
   }, 90_000);
 
-  // TODO(OBS-1): a Twilio `stop` closes the session as `carrier stream-ended`, which maps to
-  // `error:carrier stream-ended`, so every normal caller hang-up is recorded as a failure. Flip
-  // this to `it` when OBS-1 lands.
-  it.fails('records the caller hang-up as a normal end, not an error (OBS-1)', () => {
+  // OBS-1: a Twilio `stop` closes the session as `carrier stream-ended`; the worker now maps it to
+  // `caller_hangup` instead of `error:carrier stream-ended`.
+  it('records the caller hang-up as a normal end, not an error (OBS-1)', () => {
     expect(terminalReason).toBeDefined();
     expect(terminalReason).not.toMatch(/^error:/);
   });

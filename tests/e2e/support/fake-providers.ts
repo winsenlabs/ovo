@@ -79,10 +79,11 @@ export async function startFakeOpenAi(reply: string) {
 
 /**
  * AssemblyAI v3 streaming: Begin only after `beginDelayMs` (the live handshake took 2-5s from
- * asia-south1), then one caller turn once `speechBytes` of audio arrived.
+ * asia-south1), then one caller turn once `speechBytes` of audio arrived. A list gives each
+ * connection its own delay, the last one repeating.
  */
 export async function startFakeAssemblyAi(input: {
-  beginDelayMs: number;
+  beginDelayMs: number | readonly number[];
   speechBytes: number;
   transcript: string;
 }) {
@@ -93,10 +94,13 @@ export async function startFakeAssemblyAi(input: {
       const session: (typeof sessions)[number] = { url: request.url ?? '', audioBytes: 0 };
       sessions.push(session);
       const send = (event: unknown) => socket.send(JSON.stringify(event));
+      const delays =
+        typeof input.beginDelayMs === 'number' ? [input.beginDelayMs] : input.beginDelayMs;
+      const delay = delays[Math.min(sessions.length - 1, delays.length - 1)] ?? 0;
       const begin = setTimeout(() => {
         session.begunAt = Date.now();
         send({ type: 'Begin', id: 'live-path-stt', expires_at: '2099-01-01T00:00:00Z' });
-      }, input.beginDelayMs);
+      }, delay);
       let spoken = false;
       socket.on('message', (data, isBinary) => {
         if (isBinary) {

@@ -96,11 +96,11 @@ export class PostgresInfrastructureService implements InfrastructureService {
       telemetry: string | null;
       control: string | null;
       capacity: string | null;
-    }>(`SELECT to_regclass('public.ovo_worker_slots')::text AS orchestration,
-      to_regclass('public.ovo_recording_artifacts')::text AS recordings,
-      to_regclass('public.ovo_telemetry_events')::text AS telemetry,
-      to_regclass('public.ovo_ctl_calls')::text AS control,
-      to_regclass('public.ovo_capacity_signal_latest')::text AS capacity`);
+    }>(`SELECT to_regclass('ovo_worker_slots')::text AS orchestration,
+      to_regclass('ovo_recording_artifacts')::text AS recordings,
+      to_regclass('ovo_telemetry_events')::text AS telemetry,
+      to_regclass('ovo_ctl_calls')::text AS control,
+      to_regclass('ovo_capacity_signal_latest')::text AS capacity`);
     const row = result.rows[0]!;
     return {
       orchestration: Boolean(row.orchestration),
