@@ -35,6 +35,7 @@ function collector(includeText = true) {
 
 /** A caller turn as the engine and the worker's provider instrumentation report it. */
 function speakTurn(turns: TurnTelemetryCollector) {
+  turns.engine({ type: 'user.turn', phase: 'started', turnId: 'turn-1' });
   turns.stage({ stage: 'stt.endpoint', durationMs: 640, outcome: 'succeeded' });
   turns.engine(timing('vad_stop_wait', 'turn-1', 10_300, 300));
   turns.engine(timing('stt_finalize', 'turn-1', 10_320, 20));
@@ -151,6 +152,37 @@ describe('per-turn telemetry', () => {
       decision: { answers: [{ choice: 'balance', confidence: 0.91 }] },
     });
     expect(JSON.stringify(latest('turn-1'))).not.toContain('balance is ready');
+  });
+
+  it("never credits an earlier utterance's end-of-turn to the next turn", () => {
+    const { turns, latest } = collector();
+    // A muted utterance: the controller starts and resets it, the provider still ends it.
+    turns.engine({ type: 'user.turn', phase: 'started', turnId: 'turn-1' });
+    turns.stage({ stage: 'stt.endpoint', durationMs: 900, outcome: 'succeeded' });
+    // The next turn is stopped by the controller before the provider reports its own end-of-turn.
+    turns.engine({ type: 'user.turn', phase: 'started', turnId: 'turn-2' });
+    turns.engine(timing('vad_stop_wait', 'turn-2', 2_000, 300));
+    turns.engine({
+      type: 'user.turn',
+      phase: 'stopped',
+      turnId: 'turn-2',
+      input: 'speech',
+      text: 'Hello?',
+    });
+    // Its late end-of-turn is not carried into the turn after it.
+    turns.stage({ stage: 'stt.endpoint', durationMs: 450, outcome: 'succeeded' });
+    turns.engine({ type: 'user.turn', phase: 'started', turnId: 'turn-3' });
+    turns.engine(timing('vad_stop_wait', 'turn-3', 4_000, 300));
+    turns.engine({
+      type: 'user.turn',
+      phase: 'stopped',
+      turnId: 'turn-3',
+      input: 'speech',
+      text: 'Anyone there?',
+    });
+    turns.flush();
+    expect(latest('turn-2')?.endpointMs).toBeNull();
+    expect(latest('turn-3')?.endpointMs).toBeNull();
   });
 
   it('never keeps DTMF digits as caller text', () => {

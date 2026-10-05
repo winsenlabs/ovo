@@ -56,7 +56,11 @@ export class TurnTelemetryCollector {
 
   engine(event: EngineEvent): void {
     if (event.type === 'timing' && event.turnId) this.timing(event, event.turnId);
-    else if (event.type === 'user.turn' && event.phase === 'stopped') {
+    else if (event.type === 'user.turn' && event.phase === 'started') {
+      // The provider ends a turn after it starts. An end-of-turn still pending here belonged to an
+      // utterance that never became a turn (muted) or to one the controller already stopped.
+      this.pendingEndpointMs = undefined;
+    } else if (event.type === 'user.turn' && event.phase === 'stopped') {
       const state = this.state(event.turnId);
       state.turn.input = event.input ?? 'speech';
       // DTMF digits can be PINs or card numbers; only spoken input is kept as text.

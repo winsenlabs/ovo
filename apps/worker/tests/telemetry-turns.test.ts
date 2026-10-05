@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { EngineEvent, VoiceSessionEngine } from '@winsendotai/ovo-contracts';
 import type { TelemetryEvent, TelemetryRepository } from '@winsendotai/ovo-plugin-observability';
 import type { StoredCallEvent } from '@winsendotai/ovo-plugin-storage';
@@ -229,6 +229,7 @@ describe('engine telemetry isolation', () => {
       audit: () => true,
     };
     const heard: string[] = [];
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     subscribeEngineTelemetry(engine, failing as never, (event) =>
       heard.push(event.evidence.segmentId),
     );
@@ -248,6 +249,9 @@ describe('engine telemetry isolation', () => {
       } as never,
     });
     expect(heard).toEqual(['speech-1']);
+    // The failure is reported, once per call, rather than dropped.
+    expect(logged.mock.calls).toEqual([['worker telemetry error:', 'telemetry store unavailable']]);
+    logged.mockRestore();
   });
 });
 

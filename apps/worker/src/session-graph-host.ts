@@ -22,11 +22,19 @@ export function subscribeEngineTelemetry(
   telemetry: WorkerSessionTelemetry,
   speech?: (event: Extract<EngineEvent, { type: 'speech' }>) => void,
 ): () => void {
+  let reported = false;
   return engine.subscribe((event) => {
     try {
       recordEngineEvent(telemetry, event);
-    } catch {
+    } catch (error) {
       // Telemetry is never voice business authority: a failing recorder must not end the turn.
+      // It is reported once per call so a broken recorder is visible without flooding the log.
+      if (!reported)
+        console.error(
+          'worker telemetry error:',
+          error instanceof Error ? error.message : String(error),
+        );
+      reported = true;
     }
     if (event.type === 'speech') speech?.(event);
   });
