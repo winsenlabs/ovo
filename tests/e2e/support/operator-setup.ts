@@ -3,7 +3,12 @@ import type { buildManagementApi } from '../../../apps/api/src/bootstrap.ts';
 
 type FastifyInstance = Awaited<ReturnType<typeof buildManagementApi>>['app'];
 
-export const OPERATOR_TOKEN = randomBytes(32).toString('hex');
+/**
+ * The console's address in Compose (OVO_CONSOLE_ADDRESS default). Operator traffic reaches the API
+ * through the console, and the API trusts its forwarded TLS only from OVO_TRUSTED_PROXY_CIDRS.
+ */
+const CONSOLE_ADDRESS = '172.29.240.10';
+const viaConsole = { remoteAddress: CONSOLE_ADDRESS, headers: { 'x-forwarded-proto': 'https' } };
 const TWILIO = '@winsendotai/ovo-carrier-twilio';
 
 export interface InboundAgent {
@@ -15,8 +20,32 @@ export interface InboundAgent {
   number: string;
 }
 
+/** A signed-in console session against the in-process management API. */
+export interface Operator {
+  app: FastifyInstance;
+  cookie: string;
+}
+
+/** Signs in with a password, which the API accepts only over (forwarded) TLS. */
+export async function signIn(
+  app: FastifyInstance,
+  email: string,
+  password: string,
+): Promise<Operator> {
+  const response = await app.inject({
+    ...viaConsole,
+    method: 'POST',
+    url: '/v1/auth/session',
+    payload: { email, password },
+  });
+  if (response.statusCode !== 200)
+    throw new Error(`Sign-in returned ${response.statusCode}: ${response.body}`);
+  const cookie = String(response.headers['set-cookie']).split(';')[0]!;
+  return { app, cookie };
+}
+
 /** Authenticated operator calls against the in-process management API. */
-export function operatorApi(app: FastifyInstance) {
+export function operatorApi({ app, cookie }: Operator) {
   return async <T = Record<string, unknown>>(
     method: 'GET' | 'POST' | 'PUT',
     url: string,
@@ -25,7 +54,8 @@ export function operatorApi(app: FastifyInstance) {
     const response = await app.inject({
       method,
       url,
-      headers: { authorization: `Bearer ${OPERATOR_TOKEN}` },
+      remoteAddress: viaConsole.remoteAddress,
+      headers: { ...viaConsole.headers, cookie },
       ...(payload ? { payload } : {}),
     });
     if (response.statusCode >= 300)
@@ -40,8 +70,8 @@ export function operatorApi(app: FastifyInstance) {
  * Twilio + AssemblyAI + OpenAI TTS + OpenAI inference, a `busy` overflow policy and one inbound
  * route. Provider keys are fakes; the providers are loopback fakes.
  */
-export async function configureInboundAgent(app: FastifyInstance): Promise<InboundAgent> {
-  const call = operatorApi(app);
+export async function configureInboundAgent(operator: Operator): Promise<InboundAgent> {
+  const call = operatorApi(operator);
   const accountSid = `AC${randomBytes(16).toString('hex')}`;
   const authToken = randomBytes(16).toString('hex');
   const bind = async (provider: string, pluginId: string, secret: string, config: object) => {
@@ -173,8 +203,8 @@ export async function configureInboundAgent(app: FastifyInstance): Promise<Inbou
 }
 
 /** The Voice and status URLs the operator pastes into the Twilio number. */
-export async function carrierUrls(app: FastifyInstance, bindingId: string) {
-  const { items } = await operatorApi(app)<{ items: { purpose: string; url: string }[] }>(
+export async function carrierUrls(operator: Operator, bindingId: string) {
+  const { items } = await operatorApi(operator)<{ items: { purpose: string; url: string }[] }>(
     'GET',
     `/v1/provider-bindings/${bindingId}/carrier-urls`,
   );

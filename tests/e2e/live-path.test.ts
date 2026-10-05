@@ -52,7 +52,7 @@ describe('live inbound call path: fake Twilio -> gateway -> worker -> fake provi
     net.routes.set('streaming.assemblyai.com', assemblyAi.server.origin);
     net.routes.set('api.twilio.com', twilioRest.server.origin);
     stack = await startLiveStack(postgresUrl);
-    agent = await configureInboundAgent(stack.app);
+    agent = await configureInboundAgent(stack.operator);
     await vi.waitFor(
       () => {
         if (stack.worker.status.state === 'failed') throw new Error(stack.worker.status.detail);
@@ -68,7 +68,7 @@ describe('live inbound call path: fake Twilio -> gateway -> worker -> fake provi
   });
 
   it('is live-ready with protected inbound capacity before the call', async () => {
-    const api = operatorApi(stack.app);
+    const api = operatorApi(stack.operator);
     await vi.waitFor(
       async () => {
         const capacity = await api<{ readyProtected: number }>(
@@ -88,7 +88,7 @@ describe('live inbound call path: fake Twilio -> gateway -> worker -> fake provi
   });
 
   it('answers a signed Twilio call, speaks the reply, and settles the caller hang-up', async () => {
-    const urls = await carrierUrls(stack.app, agent.twilioBindingId);
+    const urls = await carrierUrls(stack.operator, agent.twilioBindingId);
     const call = new FakeTwilioCall(stack.gateway, agent, {
       from: '+919800000001',
       to: agent.number,
@@ -179,7 +179,7 @@ describe('live inbound call path: fake Twilio -> gateway -> worker -> fake provi
       );
       // The dispatcher finishes the call record and releases the route; the worker is
       // protected inbound capacity again.
-      const api = operatorApi(stack.app);
+      const api = operatorApi(stack.operator);
       const { rows } = await stack.db.query<{ call_id: string | null }>(
         "SELECT payload->>'callId' AS call_id FROM ovo_jobs WHERE id = $1",
         [jobId],
