@@ -1,9 +1,10 @@
 /**
- * Field names, normalised to snake_case, that only ever hold credentials. Anchored on purpose: a
- * substring match rejected ordinary settings such as `maxOutputTokens`, `tokenizer` and `keyterms`.
+ * Field names, normalised to snake_case, whose last segment names a credential (`api_token`,
+ * `webhook_secret`, `xi_api_key`). Anchored to the end on purpose: a substring match rejected
+ * ordinary settings such as `maxOutputTokens`, `tokenizer`, `tokenBudget` and `keyterms`.
  */
 const credentialField =
-  /^(?:x_)?(?:api_?key|auth_token|access_token|refresh_token|id_token|bearer_token|session_token|token|password|passwd|secret|secret_key|client_secret|secret_access_key|authorization|cookie|private_key|credentials?)$/;
+  /(?:^|_)(?:secret|password|passwd|passphrase|credentials?|token|cookie|authorization|(?:api|auth|private|secret|access)_?key)$/;
 
 /** Values shaped like a credential, whichever field holds them. */
 const credentialValue = [

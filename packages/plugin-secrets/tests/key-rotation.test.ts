@@ -71,6 +71,16 @@ describe('master key versioning', () => {
     });
   });
 
+  it('round-trips an empty value, whose ciphertext is the key header alone', async () => {
+    await withStore(async (store) => {
+      const secrets = new LocalAesGcmSecretManager(store, masterKeyRing(newKey, [oldKey]));
+      const credential = await secrets.create(input(''));
+      const blob = await store.getActiveSecretBlob('workspace', credential.id);
+      expect(blob!.ciphertext!.length).toBe(12);
+      await expect(secrets.resolve('workspace', credential.id)).resolves.toBe('');
+    });
+  });
+
   it('keeps unversioned ciphertext readable with the same key and after rotation', async () => {
     await withStore(async (store) => {
       const legacy = await createLegacyCredential(store, oldKey, 'legacy-value');

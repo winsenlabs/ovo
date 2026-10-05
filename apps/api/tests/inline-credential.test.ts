@@ -10,6 +10,7 @@ describe('inline credential detection', () => {
     { accountSid: 'AC0123456789', model: 'nova-3', endpointing: 300 },
     { passwordPolicy: 'none', secretary: 'desk' },
     { voice: 'alloy', baseUrl: 'https://api.example.com/v1' },
+    { credentialId: 'cred_1', secretRef: 'cred_2', cacheKey: 'v1', tokenLimit: 3 },
   ])('accepts ordinary provider settings %j', (config) => {
     expect(findInlineCredential(config)).toBeUndefined();
   });
@@ -26,6 +27,21 @@ describe('inline credential detection', () => {
     [{ credentials: { user: 'a' } }, 'credentials'],
     [{ headers: { Authorization: 'x' } }, 'headers.Authorization'],
     [{ tools: [{ password: 'x' }] }, 'tools.0.password'],
+    // Prefixed credential names a whole-name match let through with a plain 32-hex value.
+    ...[
+      'apiToken',
+      'webhookSecret',
+      'signingSecret',
+      'apiSecret',
+      'botToken',
+      'xi-api-key',
+      'clientCredentials',
+      'authKey',
+      'accessKey',
+      'privateKey',
+      'passphrase',
+      'refresh_token',
+    ].map((key): [object, string] => [{ [key]: '0123456789abcdef0123456789abcdef' }, key]),
   ])('rejects the credential-named field in %j', (config, path) => {
     expect(findInlineCredential(config)).toBe(path);
   });

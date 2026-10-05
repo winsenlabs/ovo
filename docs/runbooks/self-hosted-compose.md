@@ -132,6 +132,8 @@ docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml up -d
 
 It polls each worker's `/health` every 5 seconds and gives up after 600 seconds (pass a different timeout as the second argument). Changing a live flag such as `OVO_INBOUND_ENABLED` recreates containers, so it needs the same drain.
 
+Rolling the images back to a release before secrets master key versioning breaks every credential created, rotated or rewrapped since: older releases cannot read the key-tagged ciphertext. Roll back only to a release that has key versioning, or restore the database backup taken before the upgrade.
+
 ## Inbound readiness before go-live
 
 Workers register the protected slots that admit inbound calls only while `OVO_INBOUND_ENABLED=true`, so `GET /v1/operations/inbound/capacity` reports `readyProtected: 0` until go-live by design. To check readiness without enabling admission, read the dispatcher's report, which `verify-compose.sh` also prints:
@@ -141,7 +143,7 @@ docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml exec 
   node -e "fetch('http://127.0.0.1:4002/health').then(r=>r.json()).then(h=>console.log(h.inbound))"
 ```
 
-Before go-live, expect `ready: true` with `readyWorkers` at least 1; the only reason listed should be that admission is disabled. Workers report nothing while `OVO_LIVE_DIAL_ENABLED=false` because they stay `dial-disabled`. After enabling inbound, `ready` also requires `readyProtected` of at least 1, and `verify-compose.sh` fails without it.
+Before go-live, `ready` means only that the pre-admission prerequisites are met; it cannot prove that protected-slot registration will succeed once admission is enabled. Expect `ready: true` with `readyWorkers` at least 1; the only reason listed should be that admission is disabled. Workers report nothing while `OVO_LIVE_DIAL_ENABLED=false` because they stay `dial-disabled`. After enabling inbound, `ready` also requires `readyProtected` of at least 1, and `verify-compose.sh` fails without it.
 
 ## Rotating the secrets master key
 
@@ -162,7 +164,7 @@ Before go-live, expect `ready: true` with `readyWorkers` at least 1; the only re
 
 4. Run the dry run again and confirm every active credential is `current`. Only then remove `OVO_SECRETS_MASTER_KEY_PREVIOUS` and recreate the services.
 
-Workers currently read only `OVO_SECRETS_MASTER_KEY`, so until they also honor the previous key, run steps 2 and 3 back to back while no calls are admitted. Superseded credential versions stay encrypted under the old key and are never read again; if the old key was disclosed, also reissue each provider secret and rotate it with `POST /v1/credentials/:id/rotate`. Keep the old key with any database backup taken before the rotation: restoring that backup needs it.
+Workers currently read only `OVO_SECRETS_MASTER_KEY`, so until they also honor the previous key, run steps 2 and 3 back to back while no calls are admitted. Superseded credential versions stay encrypted under the old key and are never read again; if the old key was disclosed, also reissue each provider secret and rotate it with `POST /v1/credentials/:id/rotate`. Keep the old key with any database backup taken before the rotation: restoring that backup needs it. A rewrap also rules out rolling the images back below key versioning, since older releases cannot read key-tagged ciphertext (see the redeploy section).
 
 ## Troubleshooting
 

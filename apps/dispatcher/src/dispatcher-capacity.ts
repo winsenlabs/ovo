@@ -76,6 +76,11 @@ export interface InboundReadiness {
   readyWorkers: number;
   readyProtected: number;
   warmFloor: number;
+  /**
+   * Before go-live: pre-admission prerequisites met (a ready idle worker and a warm floor). It
+   * cannot prove that protected-slot registration will succeed once admission is enabled; after
+   * go-live it also requires a ready protected slot.
+   */
   ready: boolean;
   reasons: string[];
 }

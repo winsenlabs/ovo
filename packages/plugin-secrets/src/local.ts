@@ -19,7 +19,7 @@ function keyHeader(id: string) {
 function splitKeyHeader(ciphertext: Uint8Array) {
   const bytes = Buffer.from(ciphertext),
     length = KEY_HEADER.length + KEY_ID_BYTES;
-  if (bytes.length <= length || !bytes.subarray(0, KEY_HEADER.length).equals(KEY_HEADER))
+  if (bytes.length < length || !bytes.subarray(0, KEY_HEADER.length).equals(KEY_HEADER))
     return undefined;
   return {
     id: bytes.subarray(KEY_HEADER.length, length).toString('hex'),
