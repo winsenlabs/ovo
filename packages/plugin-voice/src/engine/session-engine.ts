@@ -19,11 +19,15 @@ import { BoundedSpeechScheduler } from '../scheduler.ts';
 import { realClock } from './clock.ts';
 import { VoiceEventBus } from './events.ts';
 import { VoiceIngress } from './ingress.ts';
+import { ingressLimitsFor } from './ingress-backlog.ts';
 import { TurnLatency } from './latency.ts';
 import { SpeechEventProjector } from './speech-events.ts';
+import { describeError, logVoiceEvent } from './log.ts';
 import { createTurnController } from './turn-controller-host.ts';
 import { TurnDriver } from './turn-driver.ts';
 import { startWatchdog } from './watchdog.ts';
+
+export { DEFAULT_KEEP_MS, DEFAULT_PRE_STT_BUFFER_MS } from './ingress-backlog.ts';
 
 export interface NativeEnginePorts {
   behavior: Behavior;
@@ -112,7 +116,10 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
       }),
       this.turnController.on((decision) => {
         if (decision.type === 'force-endpoint')
-          void this.ingress?.forceEndpoint().catch(() => void this.dispose('error:stt'));
+          void this.ingress?.forceEndpoint().catch((error: unknown) => {
+            this.log('stt_force_endpoint_failed', error);
+            void this.dispose('error:stt');
+          });
         this.driver.decide(decision);
       }),
       ports.scheduler.subscribe((evidence) => this.speechEvents.onSpeech(evidence)),
@@ -167,14 +174,10 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
       if (!stt) throw new Error('Native voice input requires ovo.stt');
       this.ingress = new VoiceIngress(
         media,
-        {
-          maxFrames: this.ports.engine?.maxIngressFrames ?? 250,
-          maxBytes: this.ports.engine?.maxIngressBytes ?? 512 * 1024,
-          preSttBufferMs: this.ports.engine?.preSttBufferMs ?? 5_000,
-        },
+        ingressLimitsFor(this.ports.engine ?? {}, media.format),
         this.controller.signal,
         (event) => this.bus.observe(event),
-        () => void this.dispose('error:ingress_overflow'),
+        (reason) => void this.dispose(reason),
         vad,
       );
       await this.ingress.connect(stt, session.language, this.ports.usage ?? (() => undefined));
@@ -197,7 +200,8 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
       timer.unref?.();
     });
     let endedReason = reason;
-    const failed = () => {
+    const failed = (error?: unknown) => {
+      this.log('engine_disposal_failed', error, { reason });
       endedReason = 'error:native-engine-disposal';
     };
     // Every acquired port gets its cleanup attempt even when another hook throws
@@ -205,8 +209,8 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
     const attempt = (cleanup: () => void | Promise<void>): Promise<void> => {
       try {
         return Promise.resolve(cleanup()).catch(failed);
-      } catch {
-        failed();
+      } catch (error) {
+        failed(error);
         return Promise.resolve();
       }
     };
@@ -230,8 +234,8 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
       // Keep evidence subscribed until scheduler disposal publishes each terminal
       // phase. Unsubscription still shares the overall deadline.
       await Promise.race([Promise.all(cleanup).then(unsubscribe), deadline]);
-    } catch {
-      failed();
+    } catch (error) {
+      failed(error);
     } finally {
       clearTimeout(timer);
       this.controller.abort();
@@ -252,9 +256,15 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
     if (event.type === 'user.transcript' || event.type === 'agent.transcript') {
       try {
         this.ports.transcripts?.(event);
-      } catch {
+      } catch (error) {
         // Inspection is never voice business authority.
+        this.log('transcript_observer_failed', error);
       }
     }
+  }
+
+  private log(event: string, error: unknown, fields: Record<string, unknown> = {}): void {
+    const sessionId = this.ports.media.sessionId;
+    logVoiceEvent('error', event, { sessionId, ...fields, error: describeError(error) });
   }
 }

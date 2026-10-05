@@ -1,9 +1,24 @@
 import { Cap } from '@winsendotai/ovo-contracts';
 import { definePlugin } from '@winsendotai/ovo-runtime';
-import { ASSEMBLYAI_CAPABILITIES, AssemblyAiStt, type AssemblyAiBinding } from './provider.ts';
+import {
+  ASSEMBLYAI_CAPABILITIES,
+  ASSEMBLYAI_MODELS,
+  AssemblyAiStt,
+  type AssemblyAiBinding,
+} from './provider.ts';
 import { fixtures, fixtureTemplates } from './testing.ts';
 
-export { AssemblyAiStt, assemblyAiUrl, ASSEMBLYAI_CAPABILITIES } from './provider.ts';
+export {
+  AssemblyAiStt,
+  assemblyAiCapabilitiesFor,
+  assemblyAiLanguageCodes,
+  assemblyAiLanguages,
+  assemblyAiSupportsLanguage,
+  assemblyAiUrl,
+  ASSEMBLYAI_CAPABILITIES,
+  ASSEMBLYAI_MODELS,
+  DEFAULT_CONNECT_TIMEOUT_MS,
+} from './provider.ts';
 export { AssemblyAiProviderError } from './session.ts';
 export { fixtures, fixtureTemplates };
 
@@ -33,14 +48,15 @@ export const assemblyAiPlugin = definePlugin(
       properties: {
         model: {
           type: 'string',
-          enum: [
-            'universal-streaming-english',
-            'universal-streaming-multilingual',
-            'universal-3-5-pro',
-          ],
+          enum: [...ASSEMBLYAI_MODELS],
           default: 'universal-streaming-english',
         },
-        region: { type: 'string', enum: ['default', 'us', 'eu'], default: 'default' },
+        // The US endpoint answered Begin faster from India (0.72s against 1.16s); EU data
+        // residency selects 'eu' explicitly.
+        region: { type: 'string', enum: ['default', 'us', 'eu'], default: 'us' },
+        fallbackRegion: { type: 'string', enum: ['default', 'us', 'eu'] },
+        // Two attempts at the maximum still fit the worker's ten-second pre-session buffer.
+        connectTimeoutMs: { type: 'integer', minimum: 500, maximum: 4_000, default: 3_000 },
         minTurnSilenceMs: { type: 'integer', minimum: 1 },
         maxTurnSilenceMs: { type: 'integer', minimum: 1 },
         endOfTurnConfidenceThreshold: { type: 'number', minimum: 0, maximum: 1 },
