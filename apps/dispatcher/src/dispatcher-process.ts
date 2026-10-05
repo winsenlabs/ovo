@@ -16,7 +16,11 @@ import {
 } from '@winsendotai/ovo-plugin-operations';
 import { PostgresControlStore, type ControlStore } from '@winsendotai/ovo-plugin-storage';
 import { compose, definePlugin, type Composition } from '@winsendotai/ovo-runtime';
-import { readDispatcherCapacityInput, positiveInteger } from './dispatcher-capacity.ts';
+import {
+  readDispatcherCapacityInput,
+  readInboundReadiness,
+  positiveInteger,
+} from './dispatcher-capacity.ts';
 import { DispatcherLoop, type DispatcherTask } from './dispatcher-loop.ts';
 
 type Environment = Record<string, string | undefined>;
@@ -187,6 +191,7 @@ export async function openDispatcherProcess(input: {
         await publisher.publish(signal);
         await store.recordCapacitySignal(signal);
       },
+      readInboundReadiness: (capacity) => readInboundReadiness({ operations, capacity }),
       log: input.log,
     });
     return {
