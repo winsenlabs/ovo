@@ -4,9 +4,9 @@ import type { TelemetryEvent, TelemetryRepository } from '@winsendotai/ovo-plugi
 import type { StoredCallEvent } from '@winsendotai/ovo-plugin-storage';
 import { subscribeEngineTelemetry } from '../src/session-graph-host.ts';
 import { transcriptTextPolicyFromEnv, withoutTranscriptText } from '../src/telemetry-privacy.ts';
-import { WorkerTelemetryRuntime } from '../src/telemetry-runtime.ts';
+import { WorkerTelemetryRuntime, type TranscriptTextPolicy } from '../src/telemetry-runtime.ts';
 
-async function harness() {
+async function harness(transcriptText?: TranscriptTextPolicy, agentId = 'agent-1') {
   const telemetry: TelemetryEvent[] = [];
   const calls: Pick<StoredCallEvent, 'type' | 'payload'>[] = [];
   const repository = {
@@ -40,11 +40,12 @@ async function harness() {
         };
       },
     },
+    transcriptText,
   });
   const session = await runtime.createSession({
     workspaceId: 'workspace-1',
     callId: 'call-1',
-    agentId: 'agent-1',
+    agentId,
     releaseId: 'release-1',
     language: 'en-IN',
   });
@@ -62,6 +63,66 @@ async function harness() {
     await runtime.close();
   };
   return { telemetry, calls, session, emit: (event: EngineEvent) => emit(event), finish };
+}
+
+/** One caller turn as the engine reports it, with the provider stages the worker times. */
+function callerTurn(h: Awaited<ReturnType<typeof harness>>) {
+  h.emit({ type: 'user.turn', phase: 'started', turnId: 'turn-1' });
+  h.session.recordStage({ stage: 'stt.endpoint', durationMs: 700 });
+  h.emit({ type: 'timing', key: 'stt_finalize', turnId: 'turn-1', atMs: 5_020, ms: 20 });
+  h.emit({
+    type: 'user.turn',
+    phase: 'stopped',
+    turnId: 'turn-1',
+    input: 'speech',
+    text: 'My PIN is 4321',
+  });
+  h.emit({
+    type: 'user.transcript',
+    turnId: 'stt-1',
+    segmentId: 'stt-1',
+    text: 'My PIN is 4321',
+    stability: 'final',
+  });
+  h.emit({ type: 'timing', key: 'turn_decision', turnId: 'turn-1', atMs: 5_030, ms: 10 });
+  h.session.startStage({ stage: 'decision', provider: 'fixture' })('succeeded', {
+    modelId: 'decision-model',
+    answers: [
+      { questionId: 'intent', type: 'choice', choice: 'pin', value: null, confidence: 0.7 },
+    ],
+  });
+  h.session.startStage({ stage: 'llm_first_token' })('succeeded');
+  h.session.startStage({ stage: 'inference' })('succeeded');
+  h.emit({
+    type: 'timing',
+    key: 'text_aggregation',
+    turnId: 'turn-1',
+    segmentId: 'speech-1',
+    atMs: 5_900,
+    ms: 0,
+  });
+  h.emit({
+    type: 'agent.transcript',
+    segmentId: 'speech-1',
+    text: 'Thanks, verifying.',
+    state: 'generated',
+  });
+  h.emit({
+    type: 'timing',
+    key: 'tts_ttfb',
+    turnId: 'turn-1',
+    segmentId: 'speech-1',
+    atMs: 6_400,
+    ms: 500,
+  });
+  h.emit({
+    type: 'timing',
+    key: 'carrier_first_audio',
+    turnId: 'turn-1',
+    segmentId: 'speech-1',
+    atMs: 6_420,
+    ms: 20,
+  });
 }
 
 describe('live per-turn telemetry', () => {
@@ -89,6 +150,66 @@ describe('live per-turn telemetry', () => {
       atMs: 240,
       ms: 40,
     });
+  });
+
+  it('publishes a turn summary and stamps provider stages with the running turn', async () => {
+    const h = await harness();
+    callerTurn(h);
+    await h.finish();
+    const decision = h.telemetry.find(
+      (event) => event.stage === 'decision' && event.kind === 'stage.completed',
+    );
+    expect(decision).toMatchObject({ turnId: 'turn-1', payload: { modelId: 'decision-model' } });
+    expect(h.calls.find((event) => event.type === 'decision.made')?.payload).toMatchObject({
+      turnId: 'turn-1',
+      outcome: 'succeeded',
+      answers: [{ questionId: 'intent', choice: 'pin', confidence: 0.7 }],
+    });
+    const summaries = h.telemetry.filter((event) => event.kind === 'turn.summary');
+    expect(summaries.at(-1)).toMatchObject({
+      turnId: 'turn-1',
+      payload: {
+        summary: {
+          endpointMs: 700,
+          sttFinalizeMs: 20,
+          queueMs: 10,
+          llmCalls: 1,
+          firstAudioMs: 1_420,
+          decision: { modelId: 'decision-model' },
+          segments: [{ segmentId: 'speech-1', ttsFirstByteMs: 500, carrierFirstAudioMs: 20 }],
+          userText: 'My PIN is 4321',
+          agentText: 'Thanks, verifying.',
+          textOmitted: false,
+        },
+      },
+    });
+  });
+
+  it('keeps no caller or agent words anywhere when the transcript switch omits them', async () => {
+    const h = await harness(
+      { default: 'store', agents: { 'agent-private': 'omit' } },
+      'agent-private',
+    );
+    callerTurn(h);
+    h.session.transcript(
+      { revision: 1, text: 'My PIN is 4321', isFinal: true, speechFinal: true },
+      true,
+    );
+    await h.finish();
+    // Random event ids can contain the digits; only the words matter here.
+    const stored = JSON.stringify([h.calls, h.telemetry]).replace(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
+      '<id>',
+    );
+    expect(stored).not.toContain('4321');
+    expect(stored).not.toContain('verifying');
+    expect(h.telemetry.filter((event) => event.kind === 'turn.summary').at(-1)).toMatchObject({
+      payload: { summary: { userText: null, agentText: null, textOmitted: true, endpointMs: 700 } },
+    });
+    const accepted = h.calls.filter((event) => event.type === 'transcript.accepted');
+    expect(accepted.length).toBeGreaterThan(1);
+    for (const event of accepted)
+      expect(event.payload).toMatchObject({ text: null, textOmitted: true });
   });
 });
 

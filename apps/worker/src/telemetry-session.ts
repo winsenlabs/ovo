@@ -8,8 +8,8 @@ import {
   type TranscriptRevision,
 } from '@winsendotai/ovo-contracts';
 import {
+  TurnTelemetryCollector,
   WorkerTelemetryAdapter,
-  type TelemetryOutcome,
 } from '@winsendotai/ovo-plugin-observability';
 import {
   BoundedCallEventWriter,
@@ -17,33 +17,19 @@ import {
   telemetryError,
   voiceUsageUnit,
 } from './telemetry-event-writer.ts';
+import { withoutTranscriptText, type TranscriptText } from './telemetry-privacy.ts';
+import type {
+  InferenceUsageEvidence,
+  ProviderUsageEvidence,
+  WorkerSessionTelemetryInput,
+} from './telemetry-session-types.ts';
+import { startTurnStage, type StageFinish, type StageInput } from './telemetry-turn-stage.ts';
 
-export interface WorkerSessionTelemetryInput {
-  workspaceId: string;
-  callId: string;
-  agentId: string;
-  releaseId: string;
-  language: string;
-  inferenceProvider?: string;
-  inferenceModel?: string;
-}
-
-export interface ProviderUsageEvidence {
-  provider: string;
-  operation: string;
-  requestId?: string;
-  elapsedMs: number;
-  state: 'estimated' | 'reconciled' | 'unavailable';
-  unit: string;
-  quantity?: string;
-  missing?: string;
-}
-
-export interface InferenceUsageEvidence {
-  requestId?: string;
-  modelId?: string;
-  usage: Record<string, number>;
-}
+export type {
+  InferenceUsageEvidence,
+  ProviderUsageEvidence,
+  WorkerSessionTelemetryInput,
+} from './telemetry-session-types.ts';
 
 interface SchedulerEvidenceSource {
   subscribe(listener: (evidence: SpeechEvidence) => void): () => void;
@@ -52,6 +38,8 @@ interface SchedulerEvidenceSource {
 export class WorkerSessionTelemetry {
   readonly workspaceId: string;
   readonly callId: string;
+  /** Per-turn stage breakdowns, published as `turn.summary` telemetry. */
+  readonly turns: TurnTelemetryCollector;
   private readonly detach = new Set<() => void>();
   private closed = false;
 
@@ -62,9 +50,14 @@ export class WorkerSessionTelemetry {
     private readonly maxTextCharacters: number,
     private readonly onClose: () => void,
     private readonly onError: (error: Error) => void,
+    private readonly transcriptText: TranscriptText = 'store',
   ) {
     this.workspaceId = input.workspaceId;
     this.callId = input.callId;
+    this.turns = new TurnTelemetryCollector({
+      includeText: transcriptText === 'store',
+      emit: (turn) => this.adapter.turnSummary(turn),
+    });
   }
 
   withOperationStore(delegate: OperationStore): OperationStore {
@@ -106,6 +99,7 @@ export class WorkerSessionTelemetry {
     if (copy.type === 'speech')
       copy.evidence.text = boundedEvidenceText(copy.evidence.text, this.maxTextCharacters).value;
     this.audit('engine.event', { event: copy, atMs: observedAtMs });
+    this.turns.engine(event);
   }
 
   attachScheduler(scheduler: SchedulerEvidenceSource): () => void {
@@ -187,15 +181,19 @@ export class WorkerSessionTelemetry {
     });
   }
 
-  startStage(input: {
-    stage: string;
-    stageId?: string;
-    provider?: string;
-    model?: string;
-    turnId?: string;
-    responseEpoch?: number;
-  }): (outcome?: Exclude<TelemetryOutcome, 'running'>) => boolean {
-    return this.adapter.startStage(input);
+  startStage(input: StageInput): StageFinish {
+    return startTurnStage(this.adapter, this.turns, input, (stage) => {
+      if (stage.stage !== 'decision') return;
+      const { turnId, durationMs, outcome, payload } = stage;
+      this.audit('decision.made', { turnId: turnId ?? null, durationMs, outcome, ...payload });
+    });
+  }
+
+  recordStage(
+    input: Omit<StageInput, 'stageId'> & { durationMs: number; payload?: Record<string, unknown> },
+  ): boolean {
+    this.turns.stage({ ...input, outcome: 'succeeded' });
+    return this.adapter.recordStage(input);
   }
 
   async close(reason: EndReason): Promise<void> {
@@ -213,6 +211,7 @@ export class WorkerSessionTelemetry {
       }
     }
     this.detach.clear();
+    this.turns.flush();
     this.adapter.sessionEnded(reason);
     const outcome = outcomeFor(reason);
     this.audit(
@@ -265,7 +264,7 @@ export class WorkerSessionTelemetry {
       workspaceId: this.workspaceId,
       callId: this.callId,
       type,
-      payload,
+      payload: this.transcriptText === 'omit' ? withoutTranscriptText(payload) : payload,
       epoch,
     });
   }
