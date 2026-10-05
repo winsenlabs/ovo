@@ -67,7 +67,8 @@ describe('worker media runtime', () => {
         sequenceNumber: 1,
         timestampMs: 0,
       });
-      for (let index = 0; index < 4; index += 1) socket.send(frame);
+      // Eleven 8 KiB frames exceed the ten-second pre-session buffer for 8 kHz audio.
+      for (let index = 0; index < 11; index += 1) socket.send(frame);
       await vi.waitFor(() =>
         expect(onSessionClose).toHaveBeenCalledWith(route, 'error:worker-input-buffer-overflow'),
       );

@@ -12,6 +12,9 @@ import {
   type MediaSessionIdentity,
   type WorkerMediaSession,
 } from '@winsendotai/ovo-plugin-media';
+
+/** Seconds of caller audio buffered while the voice session is still opening. */
+const PRE_SESSION_AUDIO_SECONDS = 10;
 export { attachWorkerMediaServer } from '@winsendotai/ovo-plugin-media';
 
 export class WorkerMediaLink implements WorkerMediaSession {
@@ -125,10 +128,12 @@ export class WorkerMediaLink implements WorkerMediaSession {
     if (!this.activated) {
       const size =
         message.type === 'media.audio' ? Buffer.from(message.payload, 'base64').length : 0;
-      const limit = Math.min(
-        this.format.sampleRate * (this.format.encoding === 'pcm_s16le' ? 6 : 3),
-        196_608,
-      );
+      // Caller audio is held until the voice session opens. Opening it waits on the STT
+      // provider's handshake, which took 2-5s from an Indian host to AssemblyAI on the first live
+      // call; three seconds of buffer dropped every call. Ten seconds covers a slow handshake.
+      const bytesPerSecond =
+        this.format.sampleRate * (this.format.encoding === 'pcm_s16le' ? 2 : 1);
+      const limit = Math.min(bytesPerSecond * PRE_SESSION_AUDIO_SECONDS, 655_360);
       if (this.pendingAudioBytes + size > limit || this.pending.length >= 1_024)
         return this.finish('error:worker-input-buffer-overflow');
       this.pending.push(message);
