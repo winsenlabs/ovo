@@ -16,6 +16,12 @@ import type {
 } from './telemetry-types.ts';
 import { telemetryEventHash } from './telemetry-validation.ts';
 import { mapEvent, mapProjection } from './telemetry-row-mapping.ts';
+import type { TurnTelemetry } from './turn-telemetry.ts';
+import {
+  listTurnProjections,
+  pruneTurnProjections,
+  updateTurnProjection,
+} from './turn-telemetry-store.ts';
 
 const { Pool: PgPool } = pg;
 
@@ -143,6 +149,7 @@ export class PostgresTelemetryStore implements TelemetryRepository {
     await updateStageProjection(client, event);
     await updatePlaybackProjection(client, event);
     await updateOperationProjection(client, event);
+    await updateTurnProjection(client, event);
   }
 
   async listCallEvents(
@@ -192,6 +199,10 @@ export class PostgresTelemetryStore implements TelemetryRepository {
     return mapProjection(call.rows[0], stages.rows, playback.rows, operations.rows);
   }
 
+  listCallTurns(workspaceId: string, callId: string, limit = 500): Promise<TurnTelemetry[]> {
+    return listTurnProjections(this.pool, workspaceId, callId, limit);
+  }
+
   queryPerformance(workspaceId: string, query: PerformanceQuery) {
     return runPerformanceQuery(this.pool, workspaceId, query, this.maxQueryWindowDays);
   }
@@ -232,6 +243,7 @@ export class PostgresTelemetryStore implements TelemetryRepository {
          ) DELETE FROM ovo_telemetry_operations WHERE ctid IN (SELECT ctid FROM doomed)`,
         [before, bounded],
       );
+      await pruneTurnProjections(client, before, bounded);
       await client.query(
         `WITH doomed AS (
            SELECT c.ctid FROM ovo_telemetry_calls c

@@ -64,6 +64,36 @@ function build(
 }
 
 describe('performance and resumable SSE routes', () => {
+  it('returns the per-turn breakdown for a call in the caller workspace', async () => {
+    const requested: string[] = [];
+    const turn = { turnId: 'turn-1', endpointMs: 640, firstAudioMs: 2_130, userText: null };
+    const performance: PerformanceService = {
+      queryPerformance: async () => {
+        throw new Error('not used');
+      },
+      listCallEvents: async () => ({ events: [], nextCursor: 0, gap: null }),
+      listCallTurns: async (workspaceId, id) => {
+        requested.push(`${workspaceId}/${id}`);
+        return [turn as never];
+      },
+    };
+    const { app } = build(performance);
+    const headers = { authorization: 'Bearer viewer' };
+    const found = await app.inject({ method: 'GET', url: `/v1/calls/${callId}/turns`, headers });
+    expect(found.statusCode).toBe(200);
+    expect(found.json()).toEqual({ callId, turns: [turn] });
+    expect(requested).toEqual([`workspace/${callId}`]);
+    const missing = await app.inject({ method: 'GET', url: '/v1/calls/other-call/turns', headers });
+    expect(missing.statusCode).toBe(404);
+    const unavailable = await build().app.inject({
+      method: 'GET',
+      url: `/v1/calls/${callId}/turns`,
+      headers,
+    });
+    expect(unavailable.statusCode).toBe(503);
+    expect(requested).toHaveLength(1);
+  });
+
   it('returns explicit unavailability rather than fabricated performance data', async () => {
     const { app } = build();
     const response = await app.inject({

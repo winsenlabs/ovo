@@ -1,4 +1,5 @@
 import type { PerformanceGroupResult, PerformanceResult } from '@winsendotai/ovo-contracts';
+import type { TurnTelemetry } from './turn-telemetry.ts';
 export type { PerformanceGroupResult, PerformanceResult } from '@winsendotai/ovo-contracts';
 
 export const TELEMETRY_SCHEMA_VERSION = 1 as const;
@@ -30,7 +31,8 @@ export type TelemetryEventKind =
   | 'operation.succeeded'
   | 'operation.failed'
   | 'operation.unknown'
-  | 'provider.usage';
+  | 'provider.usage'
+  | 'turn.summary';
 
 export interface TelemetryEvent {
   schemaVersion: typeof TELEMETRY_SCHEMA_VERSION;
@@ -166,6 +168,8 @@ export interface TelemetryRepository {
     limit?: number,
   ): Promise<CallTelemetryProjection | undefined>;
   queryPerformance(workspaceId: string, query: PerformanceQuery): Promise<PerformanceResult>;
+  /** Per-turn breakdowns in turn order. Optional so lightweight test repositories stay valid. */
+  listCallTurns?(workspaceId: string, callId: string, limit?: number): Promise<TurnTelemetry[]>;
   prune(before: string, limit?: number): Promise<number>;
 }
 
@@ -178,4 +182,10 @@ export interface PerformanceService {
     limit?: number,
   ): Promise<TelemetryStreamPage>;
   ingestionStats?(): TelemetryIngestionStats;
+  /** Resolves undefined when the store keeps no per-turn projection. */
+  listCallTurns?(
+    workspaceId: string,
+    callId: string,
+    limit?: number,
+  ): Promise<TurnTelemetry[] | undefined>;
 }
