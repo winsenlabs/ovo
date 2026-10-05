@@ -17,6 +17,8 @@ import {
 
 export { InferenceProtocolError } from './ai-sdk-support.ts';
 
+type ProviderOptions = NonNullable<Parameters<typeof streamText>[0]['providerOptions']>;
+
 export interface AiSdkInferenceOptions {
   /** Any AI SDK language model. Plugins pass one built with `fetch = ctx.net.fetch`. */
   model: LanguageModel;
@@ -24,6 +26,8 @@ export interface AiSdkInferenceOptions {
   provider?: string;
   instructions?: string;
   maxOutputTokens?: number;
+  /** Per-request provider settings (`{ openai: { reasoningEffort, ... } }`), sent on every step. */
+  providerOptions?: ProviderOptions;
   /** v1 evidence callback, kept for existing callers. */
   onUsage?: (evidence: {
     requestId?: string;
@@ -103,6 +107,7 @@ export class AiSdkInference implements Inference {
         maxRetries: 0,
         stopWhen: isStepCount(1),
         ...(this.options.maxOutputTokens ? { maxOutputTokens: this.options.maxOutputTokens } : {}),
+        ...(this.options.providerOptions ? { providerOptions: this.options.providerOptions } : {}),
       },
     };
   }

@@ -8,7 +8,7 @@
     "./testing": "./src/testing.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai": "4.0.71",
+    "@ai-sdk/openai": "4.0.84",
     "@winsendotai/ovo-audio": "workspace:*",
     "@winsendotai/ovo-contracts": "workspace:*",
     "@winsendotai/ovo-plugin-kit": "workspace:*",
