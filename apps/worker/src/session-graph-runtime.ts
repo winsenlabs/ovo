@@ -14,11 +14,10 @@ import {
 import type { LoadedDistribution } from '@winsendotai/ovo-distribution';
 import { duplexFromLegacy } from '@winsendotai/ovo-plugin-kit';
 import { deriveLegacySelections, type ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
-import { decorateByKind, selectEngine, selectSessionGraph } from '@winsendotai/ovo-session-host';
+import { selectEngine, selectSessionGraph } from '@winsendotai/ovo-session-host';
 import {
   compose,
   createNativeHandlerMarker,
-  manifestKeys,
   PluginRegistry,
   type Composition,
   type InstalledSessionExtensions,
@@ -29,11 +28,7 @@ export { subscribeEngineTelemetry } from './session-graph-host.ts';
 export type { GraphSessionResult } from './session-graph-host.ts';
 import type { GraphSessionResult } from './session-graph-host.ts';
 import { immutableMcpConnections } from './production-session-support.ts';
-import {
-  instrumentInferencePlugin,
-  instrumentSttPlugin,
-  instrumentTtsPlugin,
-} from './telemetry-stages.ts';
+import { instrumentSessionPlugin } from './telemetry-session-plugins.ts';
 import type { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
 import { createV2SpeechCachePlugin } from './speech-cache-v2.ts';
 import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
@@ -230,20 +225,7 @@ export async function composeLiveSessionGraph(input: {
       };
   }
   const catalog = result.catalog.map((definition) =>
-    decorateByKind(definition, {
-      stt: (item) =>
-        instrumentSttPlugin(item, telemetry, {
-          provider: manifestKeys(item.manifest).manifest.provider,
-        }),
-      tts: (item) =>
-        instrumentTtsPlugin(item, telemetry, {
-          provider: manifestKeys(item.manifest).manifest.provider,
-        }),
-      llm: (item) =>
-        instrumentInferencePlugin(item, telemetry, {
-          provider: manifestKeys(item.manifest).manifest.provider,
-        }),
-    }),
+    instrumentSessionPlugin(definition, telemetry),
   );
   const composition = await compose(result.rows, catalog, {
     scope: 'session',

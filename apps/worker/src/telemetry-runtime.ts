@@ -15,10 +15,16 @@ import {
   type CallEventWriterStats,
 } from './telemetry-event-writer.ts';
 import { WorkerSessionTelemetry, type WorkerSessionTelemetryInput } from './telemetry-session.ts';
+import {
+  transcriptTextFor,
+  transcriptTextPolicyFromEnv,
+  type TranscriptTextPolicy,
+} from './telemetry-privacy.ts';
 
 export { BoundedCallEventWriter } from './telemetry-event-writer.ts';
 export type { CallEventWriterStats } from './telemetry-event-writer.ts';
 export { WorkerSessionTelemetry } from './telemetry-session.ts';
+export type { TranscriptText, TranscriptTextPolicy } from './telemetry-privacy.ts';
 export type {
   WorkerSessionTelemetryInput,
   ProviderUsageEvidence,
@@ -34,6 +40,8 @@ export interface WorkerTelemetryRuntimeOptions extends BufferedTelemetryOptions 
   maxCallEvents?: number;
   callEventFlushTimeoutMs?: number;
   maxTextCharacters?: number;
+  /** Defaults to the OVO_TELEMETRY_TRANSCRIPT_TEXT environment policy. */
+  transcriptText?: TranscriptTextPolicy;
   onError?: (error: Error) => void;
 }
 
@@ -54,6 +62,7 @@ export class WorkerTelemetryRuntime {
     private readonly onError: (error: Error) => void,
     writerOptions: BufferedTelemetryOptions,
     callEventOptions: { maxQueuedEvents: number; flushTimeoutMs: number },
+    private readonly transcriptText: TranscriptTextPolicy,
   ) {
     this.writer = new BufferedTelemetryWriter(repository, writerOptions);
     this.callEvents = new BoundedCallEventWriter(
@@ -90,6 +99,7 @@ export class WorkerTelemetryRuntime {
       options.onError ?? (() => undefined),
       options,
       callEventWriterOptions(options),
+      options.transcriptText ?? transcriptTextPolicyFromEnv(),
     );
   }
 
@@ -115,6 +125,7 @@ export class WorkerTelemetryRuntime {
       this.maxTextCharacters,
       () => this.sessions.delete(session),
       this.onError,
+      transcriptTextFor(this.transcriptText, input.agentId, input.transcriptText),
     );
     this.sessions.add(session);
     session.started();

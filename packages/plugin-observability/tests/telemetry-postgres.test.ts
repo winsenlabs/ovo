@@ -169,11 +169,15 @@ integration('Postgres telemetry projections and performance', () => {
       });
       trace.ended('behavior_completed');
       await writer.flush();
+      // The fifth event is the turn's summary, published when the call ends.
       expect(await store.getCallProjection(workspaceId, callId)).toMatchObject({
         source: 'test',
         status: 'ended',
-        eventCount: 5,
+        eventCount: 6,
       });
+      expect(await store.listCallTurns(workspaceId, callId)).toEqual([
+        expect.objectContaining({ turnId: 'turn-1', input: 'agent', textOmitted: false }),
+      ]);
       const groups = await store.queryPerformance(workspaceId, {
         from: new Date(Date.now() - 60_000).toISOString(),
         to: new Date(Date.now() + 60_000).toISOString(),
@@ -224,6 +228,43 @@ integration('Postgres telemetry projections and performance', () => {
     expect(await store.prune('2001-01-01T00:00:00.000Z', 1)).toBe(1);
     expect((await store.listCallEvents(workspaceId, callId, -1)).events).toEqual([]);
     expect(await store.getCallProjection(workspaceId, callId)).toBeUndefined();
+  });
+
+  it('keeps the newest per-turn summary in turn order and prunes it with the rest', async () => {
+    const callId = randomUUID();
+    const summary = (turnId: string, startedAt: string, firstAudioMs: number | null) => ({
+      turnId,
+      input: 'speech',
+      startedAt,
+      firstAudioMs,
+      userText: 'hello',
+      agentText: null,
+      textOmitted: false,
+    });
+    const turn = (sequence: number, turnId: string, value: Record<string, unknown>) =>
+      telemetry(callId, sequence, 'turn.summary', { turnId, payload: { summary: value } });
+    await store.ingest([
+      telemetry(callId, 0, 'session.started'),
+      turn(3, 'turn-2', summary('turn-2', '2026-09-20T12:00:05.000Z', 900)),
+      turn(2, 'turn-1', summary('turn-1', '2026-09-20T12:00:01.000Z', 1_500)),
+      // An older snapshot arriving late never replaces the newer one.
+      turn(1, 'turn-1', summary('turn-1', '2026-09-20T12:00:01.000Z', null)),
+    ]);
+    expect(await store.listCallTurns(workspaceId, callId)).toEqual([
+      expect.objectContaining({ turnId: 'turn-1', firstAudioMs: 1_500, userText: 'hello' }),
+      expect.objectContaining({ turnId: 'turn-2', firstAudioMs: 900 }),
+    ]);
+    const versions = new Pool({ connectionString: databaseUrl });
+    try {
+      const applied = await versions.query<{ version: number }>(
+        'SELECT version FROM ovo_telemetry_schema_migrations ORDER BY version',
+      );
+      expect(applied.rows.map((row) => row.version)).toEqual([1, 2, 3]);
+    } finally {
+      await versions.end();
+    }
+    await store.prune('2026-09-21T00:00:00.000Z', 10);
+    expect(await store.listCallTurns(workspaceId, callId)).toEqual([]);
   });
 
   function telemetry(

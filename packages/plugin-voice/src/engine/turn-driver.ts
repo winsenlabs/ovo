@@ -121,7 +121,8 @@ export class TurnDriver {
           if (!text.trim()) continue;
           if (first) {
             first = false;
-            this.latency.stage(turnId, 'llm_ttfb');
+            // Not llm_ttfb: this interval also holds grounding, the decision and sentence
+            // aggregation. The worker times each of those at its provider port.
             this.latency.stage(turnId, 'behavior_first_segment');
           }
           this.track(

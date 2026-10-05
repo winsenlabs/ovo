@@ -13,6 +13,10 @@ import {
 } from '@winsendotai/ovo-contracts';
 import type { BufferedTelemetryWriter } from './telemetry-ingestion.ts';
 import type { TelemetryEvent, TelemetryOutcome, TelemetrySource } from './telemetry-types.ts';
+import type { TurnTelemetry } from './turn-telemetry.ts';
+
+/** Below the 16 KiB telemetry payload limit, with room for the envelope. */
+const MAX_SUMMARY_BYTES = 15_000;
 
 export interface WorkerTelemetryContext {
   workspaceId: string;
@@ -64,27 +68,58 @@ export class WorkerTelemetryAdapter {
     model?: string;
     turnId?: string;
     responseEpoch?: number;
-  }): (outcome?: Exclude<TelemetryOutcome, 'running'>) => boolean {
+  }): (
+    outcome?: Exclude<TelemetryOutcome, 'running'>,
+    payload?: Record<string, unknown>,
+  ) => boolean {
     const stageId = input.stageId ?? randomUUID();
     const started = performance.now();
     let settled = false;
     this.emit({ ...input, stageId, kind: 'stage.started', outcome: 'running' });
-    return (outcome = 'succeeded') => {
+    return (outcome = 'succeeded', payload) => {
       if (settled) return false;
       settled = true;
       return this.emit({
         ...input,
         stageId,
-        kind:
-          outcome === 'succeeded'
-            ? 'stage.completed'
-            : outcome === 'timeout'
-              ? 'stage.timeout'
-              : 'stage.failed',
+        kind: stageKind(outcome),
         outcome,
         durationMs: Math.max(0, performance.now() - started),
+        ...(payload ? { payload } : {}),
       });
     };
+  }
+
+  /** A stage whose duration was measured elsewhere, such as endpointing from word timings. */
+  recordStage(input: {
+    stage: string;
+    durationMs: number;
+    outcome?: Exclude<TelemetryOutcome, 'running'>;
+    provider?: string;
+    model?: string;
+    turnId?: string;
+    payload?: Record<string, unknown>;
+  }): boolean {
+    const outcome = input.outcome ?? 'succeeded';
+    return this.emit({
+      ...input,
+      stageId: randomUUID(),
+      kind: stageKind(outcome),
+      outcome,
+      durationMs: Math.max(0, input.durationMs),
+    });
+  }
+
+  turnSummary(turn: TurnTelemetry): boolean {
+    let summary = turn;
+    // An oversized payload would fail validation and take its whole ingest batch with it.
+    if (Buffer.byteLength(JSON.stringify(summary)) > MAX_SUMMARY_BYTES)
+      summary = {
+        ...turn,
+        userText: turn.userText?.slice(0, 200) ?? null,
+        agentText: turn.agentText?.slice(0, 200) ?? null,
+      };
+    return this.emit({ kind: 'turn.summary', turnId: turn.turnId, payload: { summary } });
   }
 
   transcript(revision: TranscriptRevision, accepted = false): boolean {
@@ -114,9 +149,10 @@ export class WorkerTelemetryAdapter {
   timing(event: Extract<EngineEvent, { type: 'timing' }>): boolean {
     return this.emit({
       kind: 'stage.completed',
-      stageId: `timing:${event.turnId ?? 'call'}:${event.key}:${event.atMs}`,
+      stageId: `timing:${event.turnId ?? 'call'}:${event.key}:${event.segmentId ?? 'turn'}:${event.atMs}`,
       stage: event.key,
       turnId: event.turnId,
+      segmentId: event.segmentId,
       durationMs: event.ms,
       outcome: 'succeeded',
     });
@@ -232,6 +268,11 @@ type BaseFields = Pick<
   TelemetryEvent,
   'schemaVersion' | 'workspaceId' | 'callId' | 'source' | 'agentId' | 'releaseId' | 'language'
 >;
+
+function stageKind(outcome: Exclude<TelemetryOutcome, 'running'>): TelemetryEvent['kind'] {
+  if (outcome === 'succeeded') return 'stage.completed';
+  return outcome === 'timeout' ? 'stage.timeout' : 'stage.failed';
+}
 
 function operationOutcome(state: OperationRecord['state']): TelemetryOutcome {
   if (state === 'intent' || state === 'running') return 'running';
