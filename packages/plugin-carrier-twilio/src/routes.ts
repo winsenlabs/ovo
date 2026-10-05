@@ -6,6 +6,8 @@ import type {
   InboundAdmission,
   InboundDecision,
 } from '@winsendotai/ovo-contracts';
+import { errorFields } from '@winsendotai/ovo-plugin-kit';
+import { twilioLog as log } from './log.ts';
 import { connectMarkup, hangupMarkup, inboundMarkup } from './markup.ts';
 import { validateTwilioSignature } from './signature.ts';
 import { mapAnsweredBy, mapTwilioStatus } from './status-map.ts';
@@ -21,13 +23,52 @@ class HostPortError extends Error {}
 async function hostPort<T>(run: () => T | Promise<T>): Promise<T> {
   try {
     return await run();
-  } catch {
-    throw new HostPortError('Twilio host port failed');
+  } catch (error) {
+    throw new HostPortError('Twilio host port failed', { cause: error });
   }
 }
 
-const failure = (error: unknown): CarrierHttpReply =>
-  reply(error instanceof HostPortError ? 503 : error instanceof RangeError ? 413 : 400);
+/** The reply status is unchanged; the log keeps the cause the reply cannot carry. */
+function failure(
+  error: unknown,
+  req: CarrierHttpRequest,
+  purpose: CarrierHttpRoute['purpose'],
+): CarrierHttpReply {
+  const status = error instanceof HostPortError ? 503 : error instanceof RangeError ? 413 : 400;
+  log[status === 503 ? 'error' : 'warn']('twilio_callback_failed', {
+    purpose,
+    bindingId: req.bindingId,
+    status,
+    ...errorFields(error),
+  });
+  return reply(status);
+}
+
+/** A 404 or 409 means the callback names no session route this deployment owns. */
+function applied(
+  kind: string,
+  req: CarrierHttpRequest,
+  purpose: CarrierHttpRoute['purpose'],
+  carrierCallId: string,
+): CarrierHttpReply {
+  if (kind !== 'correlation_conflict' && kind !== 'unmatched') return reply(204);
+  log.warn('twilio_callback_unmatched', { purpose, bindingId: req.bindingId, carrierCallId, kind });
+  return reply(kind === 'correlation_conflict' ? 409 : 404);
+}
+
+function unmappedStatus(
+  req: CarrierHttpRequest,
+  purpose: CarrierHttpRoute['purpose'],
+  fields: Record<string, string>,
+): CarrierHttpReply {
+  log.warn('twilio_status_unmapped', {
+    purpose,
+    bindingId: req.bindingId,
+    carrierCallId: fields.CallSid,
+    callStatus: fields.CallStatus,
+  });
+  return reply(400);
+}
 
 function form(raw: Uint8Array): Record<string, string> {
   if (raw.byteLength > 64 * 1024) throw new RangeError('Twilio callback is too large');
@@ -57,6 +98,16 @@ async function signed(
   const signature = Object.entries(req.headers).find(
     ([key]) => key.toLowerCase() === 'x-twilio-signature',
   )?.[1];
+  const rejected = (check: 'signature' | 'url-secret') => {
+    log.warn('twilio_callback_unauthenticated', {
+      purpose,
+      bindingId: req.bindingId,
+      check,
+      carrierCallId: params.CallSid,
+      signaturePresent: signature !== undefined,
+    });
+    return undefined;
+  };
   if (
     !validateTwilioSignature({
       authToken: binding.secret,
@@ -65,12 +116,12 @@ async function signed(
       parameters: params,
     })
   )
-    return undefined;
+    return rejected('signature');
   if (
     purpose !== 'inbound' &&
     !(await hostPort(() => host.verifyUrlSecret(req, { purpose, requestId: req.query.r })))
   )
-    return undefined;
+    return rejected('url-secret');
   return params;
 }
 
@@ -120,7 +171,7 @@ export const twilioRoutes: readonly CarrierHttpRoute[] = [
           inboundMarkup(await withResume(decision, req, host, inbound.carrierCallId)),
         );
       } catch (error) {
-        return failure(error);
+        return failure(error, req, 'inbound');
       }
     },
   },
@@ -134,7 +185,7 @@ export const twilioRoutes: readonly CarrierHttpRoute[] = [
         const carrierCallId = required(fields, 'CallSid');
         const sequence = required(fields, 'SequenceNumber');
         const state = mapTwilioStatus(required(fields, 'CallStatus'));
-        if (!state) return reply(400);
+        if (!state) return unmappedStatus(req, 'status', fields);
         const result = await hostPort(() =>
           host.applyCallEvent({
             carrierId: 'twilio',
@@ -148,11 +199,9 @@ export const twilioRoutes: readonly CarrierHttpRoute[] = [
             payload: { sequenceNumber: sequence },
           }),
         );
-        return reply(
-          result.kind === 'correlation_conflict' ? 409 : result.kind === 'unmatched' ? 404 : 204,
-        );
+        return applied(result.kind, req, 'status', carrierCallId);
       } catch (error) {
-        return failure(error);
+        return failure(error, req, 'status');
       }
     },
   },
@@ -166,7 +215,7 @@ export const twilioRoutes: readonly CarrierHttpRoute[] = [
         const carrierCallId = required(fields, 'CallSid');
         const answer = required(fields, 'AnsweredBy');
         const state = fields.CallStatus ? mapTwilioStatus(fields.CallStatus) : 'in_progress';
-        if (!state) return reply(400);
+        if (!state) return unmappedStatus(req, 'amd', fields);
         const result = await hostPort(() =>
           host.applyCallEvent({
             carrierId: 'twilio',
@@ -180,11 +229,9 @@ export const twilioRoutes: readonly CarrierHttpRoute[] = [
             payload: { answeredBy: answer },
           }),
         );
-        return reply(
-          result.kind === 'correlation_conflict' ? 409 : result.kind === 'unmatched' ? 404 : 204,
-        );
+        return applied(result.kind, req, 'amd', carrierCallId);
       } catch (error) {
-        return failure(error);
+        return failure(error, req, 'amd');
       }
     },
   },
@@ -216,7 +263,7 @@ export const twilioRoutes: readonly CarrierHttpRoute[] = [
           }),
         );
       } catch (error) {
-        return failure(error);
+        return failure(error, req, 'resume');
       }
     },
   },

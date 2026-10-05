@@ -53,7 +53,7 @@ export function createMediaDuplexPlugin(media: MediaDuplex) {
 
 export function createMediaGatewayPlugin(
   secrets: { workerToken: string },
-  dependencies: Pick<MediaGatewayConfig, 'hostFor'>,
+  dependencies: Pick<MediaGatewayConfig, 'hostFor' | 'logger'>,
 ) {
   return definePlugin(
     {
@@ -94,6 +94,7 @@ export function createMediaGatewayPlugin(
         workerToken: secrets.workerToken,
         ingresses,
         hostFor: dependencies.hostFor,
+        logger: dependencies.logger,
         host: typeof config.host === 'string' ? config.host : undefined,
         port: typeof config.port === 'number' ? config.port : undefined,
         maxMessageBytes:

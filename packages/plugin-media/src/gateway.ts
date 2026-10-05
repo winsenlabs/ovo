@@ -1,5 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import type { Logger } from '@winsendotai/ovo-contracts';
+import { createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
 import type { MediaRouteResolver } from './ports.ts';
 import { CarrierRouter } from './router.ts';
 import { SessionBridge } from './session-bridge.ts';
@@ -13,6 +15,7 @@ export class MediaGateway {
   private readonly server: Server;
   private readonly router: CarrierRouter;
   private readonly sessions = new Set<SessionBridge>();
+  private readonly log: Logger;
   private draining = false;
   private closed = false;
 
@@ -20,15 +23,18 @@ export class MediaGateway {
     resolver: MediaRouteResolver,
     private readonly config: MediaGatewayConfig,
   ) {
+    const log = (this.log = config.logger ?? createLogger({ service: 'media-gateway' }));
     const dialer = new WorkerDialer({
       workerToken: config.workerToken,
       handshakeTimeoutMs: config.handshakeTimeoutMs,
       maxMessageBytes: config.maxMessageBytes,
+      logger: log,
     });
     this.router = new CarrierRouter({
       ingresses: config.ingresses,
       publicBaseUrl: config.publicBaseUrl,
       hostFor: config.hostFor,
+      logger: log,
       onConnected: (accepted) => {
         if (this.draining) {
           accepted.socket.close(1012, 'gateway draining');
@@ -45,11 +51,15 @@ export class MediaGateway {
           maxBufferedBytes: config.maxBufferedBytes,
           handshakeTimeoutMs: config.handshakeTimeoutMs,
           idleTimeoutMs: config.idleTimeoutMs,
-          onClosed: (reason) => {
+          logger: log,
+          onClosed: (reason, identity) => {
             this.sessions.delete(session);
-            console.log(
-              JSON.stringify({ service: 'media-gateway', event: 'carrier_session_closed', reason }),
-            );
+            log.info('carrier_session_closed', {
+              carrierId: accepted.ingress.carrierId,
+              bindingId: accepted.bindingId,
+              ...identity,
+              reason,
+            });
           },
         });
         this.sessions.add(session);
@@ -69,7 +79,14 @@ export class MediaGateway {
         (handled) => {
           if (!handled) response.writeHead(404).end();
         },
-        () => response.writeHead(500).end(),
+        (error: unknown) => {
+          log.error('carrier_http_failed', {
+            method: request.method,
+            path: request.url?.split('?', 1)[0],
+            ...errorFields(error),
+          });
+          response.writeHead(500).end();
+        },
       );
     });
     this.server.on('upgrade', (request, socket, head) => {

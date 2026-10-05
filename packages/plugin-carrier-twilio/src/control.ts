@@ -8,9 +8,11 @@ import type {
   ResolvedBinding,
   TelephonyControl,
 } from '@winsendotai/ovo-contracts';
+import { errorFields } from '@winsendotai/ovo-plugin-kit';
 import { twilioCapabilities } from './capabilities.ts';
 import { encodeTwilioForm, type TwilioForm } from './form.ts';
-import { connectMarkup, hangupMarkup, secureUrl, xml } from './markup.ts';
+import { twilioLog as log } from './log.ts';
+import { connectMarkup, handoffMarkup, secureUrl } from './markup.ts';
 import { mapAnsweredBy, mapTwilioStatus } from './status-map.ts';
 
 const restUrl = (sid: string, callSid?: string) =>
@@ -50,22 +52,6 @@ async function json(response: Response): Promise<Record<string, unknown>> {
 
 function reason(response: Response): string {
   return `Twilio HTTP ${response.status}`;
-}
-
-function handoffMarkup(target: HandoffTarget): string {
-  switch (target.kind) {
-    case 'phone':
-      if (!/^\+[1-9][0-9]{5,14}$/.test(target.e164))
-        throw new Error('Invalid handoff E.164 number');
-      return `<Response><Dial><Number>${xml(target.e164)}</Number></Dial></Response>`;
-    case 'queue':
-      if (!/^[\x20-\x7e]{1,200}$/.test(target.name)) throw new Error('Invalid Twilio queue name');
-      return `<Response><Enqueue>${xml(target.name)}</Enqueue></Response>`;
-    case 'end':
-      return hangupMarkup(target.message);
-    case 'resume':
-      throw new Error('resume handoff needs callback URL');
-  }
 }
 
 function resumeFields(target: Extract<HandoffTarget, { kind: 'resume' }>, bindingId: string) {
@@ -162,6 +148,16 @@ export class TwilioCarrierControl implements TelephonyControl {
 
   async reconcile(query: { requestId: string; carrierCallId?: string }): Promise<Reconciliation> {
     if (!query.carrierCallId) return { kind: 'pending' };
+    // Every 'pending' below is retried by the caller; the log says why it is still pending.
+    const pending = (fields: Record<string, unknown>): Reconciliation => {
+      log.warn('twilio_reconcile_pending', {
+        requestId: query.requestId,
+        carrierCallId: query.carrierCallId,
+        bindingId: this.binding.bindingId,
+        ...fields,
+      });
+      return { kind: 'pending' };
+    };
     try {
       const response = await call(
         this.net,
@@ -169,10 +165,10 @@ export class TwilioCarrierControl implements TelephonyControl {
         restUrl(accountSid(this.binding), query.carrierCallId),
         'GET',
       );
-      if (!response.ok) return { kind: 'pending' };
+      if (!response.ok) return pending({ status: response.status });
       const body = await json(response);
       const state = typeof body.status === 'string' ? mapTwilioStatus(body.status) : undefined;
-      if (!state) return { kind: 'pending' };
+      if (!state) return pending({ error: 'unmapped Twilio call status', callStatus: body.status });
       const carrierCallId = typeof body.sid === 'string' ? body.sid : query.carrierCallId;
       if (state === 'queued' || state === 'ringing' || state === 'in_progress')
         return { kind: 'live', state, carrierCallId };
@@ -184,8 +180,8 @@ export class TwilioCarrierControl implements TelephonyControl {
           ? { answeredBy: mapAnsweredBy(body.answered_by) }
           : {}),
       };
-    } catch {
-      return { kind: 'pending' };
+    } catch (error) {
+      return pending(errorFields(error));
     }
   }
 
@@ -202,6 +198,7 @@ export class TwilioCarrierControl implements TelephonyControl {
     );
     if (response.ok) return 'ended';
     if (response.status === 404) return 'already_ended';
+    // swallow-ok: the error body is optional; the HTTP status below decides the outcome.
     const body: Record<string, unknown> = await json(response).catch(() => ({}));
     if (body.code === 20404) return 'already_ended';
     throw new Error(reason(response));

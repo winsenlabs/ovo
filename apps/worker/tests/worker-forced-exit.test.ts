@@ -26,7 +26,9 @@ describe('runWorkerLoop forced exit cost settlement', () => {
     vi.stubEnv('OVO_MEDIA_WORKER_TOKEN', 'test-token');
     const events: string[] = [];
     const status: WorkerStatus = { state: 'starting', detail: '' };
-    const route = {
+    // Mutable so a test can end the call: endCall() marks it terminal.
+    type RouteFixture = Record<string, unknown> & { jobId: string; sessionId: string };
+    const route: RouteFixture = {
       sessionId: '00000000-0000-4000-8000-000000000002',
       jobId: '00000000-0000-4000-8000-000000000001',
       workerId: 'worker-1',
@@ -34,6 +36,9 @@ describe('runWorkerLoop forced exit cost settlement', () => {
       carrierCallId: 'CA1',
       status: 'accepted',
     };
+    const finishCall = vi
+      .fn(async () => undefined)
+      .mockRejectedValueOnce(new Error('control database unavailable'));
     let shutdown!: () => void;
     let terminate!: (jobId: string, epoch: number, reason: string) => Promise<boolean>;
     let releaseQueue!: (messages: unknown[]) => void;
@@ -76,6 +81,7 @@ describe('runWorkerLoop forced exit cost settlement', () => {
       },
       get: async () => ({ id: route.jobId, workspaceId: 'ws-1', payload: {} }),
       getSessionRoute: async () => route,
+      releaseTerminalSession: async () => undefined,
       requestSessionTermination: async () => {
         events.push('fence');
         return { carrierCallId: 'CA1' };
@@ -143,7 +149,7 @@ describe('runWorkerLoop forced exit cost settlement', () => {
         reserve: async () => ({ admitted: true, beginActiveCall: vi.fn() }),
       },
       recordings: { live: {} },
-      controlStore: { close: async () => undefined },
+      controlStore: { finishCall, close: async () => undefined },
       costLedger: { close: async () => undefined },
       telemetry: { close: async () => undefined },
       secrets: {},
@@ -186,6 +192,8 @@ describe('runWorkerLoop forced exit cost settlement', () => {
       running,
       status,
       events,
+      finishCall,
+      endCall: () => Object.assign(route, { status: 'completed', terminalAt: new Date() }),
       finalize,
       reports,
       stopLease,
@@ -202,7 +210,7 @@ describe('runWorkerLoop forced exit cost settlement', () => {
             ownerId: 'worker-1',
             ownerEpoch: 1,
           } satisfies DurableJob,
-          route as SessionRoute,
+          route as unknown as SessionRoute,
         ),
       terminate: (jobId: string, epoch: number, reason: string) => terminate(jobId, epoch, reason),
       shutdown: () => shutdown(),
@@ -305,6 +313,42 @@ describe('runWorkerLoop forced exit cost settlement', () => {
       if (terminationFails) expect(subject.status.detail).toContain('selected carrier unavailable');
     },
   );
+
+  // OBS-4: a failed finishCall was retried every second with no log, so a stuck call was silent.
+  it('logs a failed finishCall with its IDs before retrying it', async () => {
+    const stderr = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const subject = fixture(true);
+    await vi.waitFor(() => expect(subject.status.state).toBe('active'));
+    subject.endCall();
+    await vi.waitFor(() => expect(subject.status.detail).toBe('terminal session released'), {
+      timeout: 5_000,
+    });
+    const lines = [...stderr.mock.calls, ...stdout.mock.calls].map(([line]) =>
+      JSON.parse(String(line)),
+    );
+    expect(subject.finishCall).toHaveBeenCalledTimes(2);
+    expect(lines).toContainEqual(
+      expect.objectContaining({
+        level: 'warn',
+        event: 'call_finish_failed',
+        service: 'worker',
+        workerId: 'worker-1',
+        jobId: '00000000-0000-4000-8000-000000000001',
+        callId: '00000000-0000-4000-8000-000000000001',
+        status: 'completed',
+        error: 'control database unavailable',
+      }),
+    );
+    expect(lines).toContainEqual(
+      expect.objectContaining({ event: 'session_released', status: 'completed' }),
+    );
+    subject.shutdown();
+    subject.releaseQueue();
+    await subject.running;
+    stderr.mockRestore();
+    stdout.mockRestore();
+  });
 
   it('keeps periodic reports reserved throughout a blocked outbound dial', async () => {
     vi.useFakeTimers();

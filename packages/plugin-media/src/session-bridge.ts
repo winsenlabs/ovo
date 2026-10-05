@@ -1,4 +1,5 @@
-import type { CarrierMediaEvent, MediaCommand } from '@winsendotai/ovo-contracts';
+import type { CarrierMediaEvent, Logger, MediaCommand } from '@winsendotai/ovo-contracts';
+import { createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
 import WebSocket from 'ws';
 import { PreAcceptBuffer } from './pre-accept.ts';
 import type {
@@ -28,8 +29,10 @@ export interface SessionBridgeOptions {
   maxBufferedBytes?: number;
   handshakeTimeoutMs?: number;
   idleTimeoutMs?: number;
+  logger?: Logger;
   onStarted?(identity: MediaSessionIdentity): void;
-  onClosed?(reason: string): void;
+  /** Call/stream IDs from carrier start, so a failed route names its call; all IDs once routed. */
+  onClosed?(reason: string, identity: Partial<MediaSessionIdentity>): void;
 }
 
 /** A carrier socket and one worker link; ownership is checked before any audio is forwarded. */
@@ -48,6 +51,8 @@ export class SessionBridge {
   >;
   private buffer?: PreAcceptBuffer<MediaMessage>;
   private link?: WorkerLink;
+  private identity: Partial<MediaSessionIdentity> = {};
+  private log: Logger;
   private started = false;
   private accepted = false;
   private closed = false;
@@ -57,6 +62,10 @@ export class SessionBridge {
 
   constructor(private readonly options: SessionBridgeOptions) {
     this.socket = options.accepted.socket;
+    this.log = (options.logger ?? createLogger({ service: 'media-gateway' })).child({
+      carrierId: options.accepted.ingress.carrierId,
+      bindingId: options.accepted.bindingId,
+    });
     this.limits = {
       preAcceptBufferMs: options.preAcceptBufferMs ?? 3_000,
       maxPendingEvents: options.maxPendingEvents ?? 1_024,
@@ -72,13 +81,16 @@ export class SessionBridge {
         for (const event of options.accepted.codec.decode(data.toString()))
           this.carrierEvent(event);
       } catch (error) {
-        this.close(error instanceof Error ? error.message : 'carrier media protocol failed');
+        this.fail('carrier_frame_rejected', error, 'carrier media protocol failed');
       }
     });
     // A lost transport may be followed by a carrier continuation at generation + 1.
     // Closing the worker link starts its resume window; session.close would end the call.
     this.socket.on('close', () => this.close('carrier socket closed', false));
-    this.socket.on('error', () => this.close('carrier socket failed', false));
+    this.socket.on('error', (error) => {
+      if (!this.closed) this.log.warn('carrier_socket_error', errorFields(error));
+      this.close('carrier socket failed', false);
+    });
     this.timer = setTimeout(
       () => this.close('carrier start timeout'),
       this.limits.handshakeTimeoutMs,
@@ -107,8 +119,10 @@ export class SessionBridge {
         this.limits.preAcceptBufferMs,
         this.limits.maxPendingEvents,
       );
+      this.identity = { carrierCallId: event.carrierCallId, streamId: event.streamId };
+      this.log = this.log.child(this.identity);
       void this.open(event).catch((error: unknown) =>
-        this.close(error instanceof Error ? error.message : 'carrier route failed'),
+        this.fail('worker_route_failed', error, 'carrier route failed'),
       );
       return;
     }
@@ -164,6 +178,8 @@ export class SessionBridge {
       ownerEpoch: route.ownerEpoch,
       generation: route.generation,
     };
+    this.identity = identity;
+    this.log = this.log.child({ sessionId, generation: route.generation });
     const events: WorkerLinkEvents = {
       onMessage: (message) => this.workerMessage(message),
       onClose: (reason) => this.close(reason),
@@ -217,7 +233,7 @@ export class SessionBridge {
             : { type: 'clear' };
       this.sendCarrierFrames(this.options.accepted.codec.encode(command));
     } catch (error) {
-      this.close(error instanceof Error ? error.message : 'carrier serializer failed');
+      this.fail('carrier_serializer_failed', error, 'carrier serializer failed');
     }
   }
 
@@ -230,6 +246,12 @@ export class SessionBridge {
     }
   }
 
+  private fail(event: string, error: unknown, fallback: string): void {
+    if (this.closed) return;
+    this.log.warn(event, errorFields(error));
+    this.close(error instanceof Error ? error.message : fallback);
+  }
+
   /** Called by the gateway at a drain deadline, never when SIGTERM first arrives. */
   close(reason = 'gateway closing', notifyWorker = true): void {
     if (this.closed) return;
@@ -239,14 +261,15 @@ export class SessionBridge {
     if (notifyWorker && this.link) {
       try {
         this.link.send({ type: 'session.close', reason });
-      } catch {
+      } catch (error) {
         // The worker may already have disconnected; the carrier must still close.
+        this.log.warn('worker_close_notify_failed', { reason, ...errorFields(error) });
       }
     }
     this.link?.close(reason);
     if (this.socket.readyState === WebSocket.OPEN)
       this.socket.close(1000, Buffer.from(reason).subarray(0, 120).toString());
     else if (this.socket.readyState === WebSocket.CONNECTING) this.socket.terminate();
-    this.options.onClosed?.(reason);
+    this.options.onClosed?.(reason, this.identity);
   }
 }

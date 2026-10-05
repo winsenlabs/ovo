@@ -1,4 +1,4 @@
-import type { CarrierHostPorts, CarrierIngress } from '@winsendotai/ovo-contracts';
+import type { CarrierHostPorts, CarrierIngress, Logger } from '@winsendotai/ovo-contracts';
 
 export interface MediaGatewayConfig {
   publicBaseUrl: string;
@@ -15,4 +15,6 @@ export interface MediaGatewayConfig {
   handshakeTimeoutMs?: number;
   idleTimeoutMs?: number;
   drainTimeoutMs?: number;
+  /** Defaults to a JSON-lines logger at OVO_LOG_LEVEL. */
+  logger?: Logger;
 }

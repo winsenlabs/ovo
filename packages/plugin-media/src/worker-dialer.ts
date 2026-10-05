@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
-import type { CarrierIngress, CarrierMediaEvent } from '@winsendotai/ovo-contracts';
+import type { CarrierIngress, CarrierMediaEvent, Logger } from '@winsendotai/ovo-contracts';
+import { createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
 import type {
   DurableMediaRoute,
   GatewayToWorkerMessage,
@@ -25,6 +26,7 @@ export interface WorkerDialerOptions {
   workerToken: string;
   handshakeTimeoutMs?: number;
   maxMessageBytes?: number;
+  logger?: Logger;
 }
 
 /** Resolve and correlate the durable route before opening a worker socket. */
@@ -114,9 +116,11 @@ export async function resolveWorkerRoute(input: {
 export class WorkerDialer {
   private readonly handshakeTimeoutMs: number;
   private readonly maxMessageBytes: number;
+  private readonly log: Logger;
 
   constructor(private readonly options: WorkerDialerOptions) {
     if (!options.workerToken) throw new TypeError('workerToken is required');
+    this.log = options.logger ?? createLogger({ service: 'media-gateway' });
     this.handshakeTimeoutMs = options.handshakeTimeoutMs ?? 5_000;
     this.maxMessageBytes = options.maxMessageBytes ?? 1024 * 1024;
   }
@@ -205,7 +209,17 @@ export class WorkerDialer {
       peer.on('close', (code, reason) =>
         settledClose(`worker media link closed (${code}): ${reason.toString()}`),
       );
-      peer.on('error', () => settledClose('worker media link failed'));
+      peer.on('error', (error) => {
+        // The close reason stays generic; the cause (refused, DNS, TLS, 401) is logged here.
+        if (state !== 'closed')
+          this.log.warn('worker_link_error', {
+            sessionId: open.sessionId,
+            workerOrigin: endpoint.origin,
+            phase: state,
+            ...errorFields(error),
+          });
+        settledClose('worker media link failed');
+      });
     });
   }
 }

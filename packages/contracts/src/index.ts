@@ -48,3 +48,4 @@ export * from './carrier/ingress.ts';
 export * from './ops/background-task.ts';
 export * from './ops/capacity-signal.ts';
 export * from './ops/recording-tap.ts';
+export * from './logger.ts';
