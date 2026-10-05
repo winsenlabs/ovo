@@ -23,7 +23,8 @@
     "lint:scope": "node scripts/lint.mjs --only",
     "typecheck:scope": "node scripts/typecheck-scope.mjs",
     "check:terraform": "node scripts/check-terraform.mjs",
-    "test:console:e2e": "pnpm --filter @winsendotai/ovo-console --if-present run e2e"
+    "test:console:e2e": "pnpm --filter @winsendotai/ovo-console --if-present run e2e",
+    "test:live-path": "vitest run --config tests/e2e/vitest.config.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.0",
