@@ -32,7 +32,9 @@ export const openAiTtsTemplate: FixtureTemplate = (input): NetFixtureScript[] =>
             body:
               delta(audio.slice(0, half)) +
               delta(audio.slice(half)) +
-              `data: ${JSON.stringify({ type: 'speech.audio.done', usage: { input_tokens: 12, output_tokens: 24, total_tokens: 36 } })}\n\n`,
+              `data: ${JSON.stringify({ type: 'speech.audio.done', usage: { input_tokens: 12, output_tokens: 24, total_tokens: 36 } })}\n\n` +
+              // Observed on the first live call: the API terminates SSE with this sentinel.
+              'data: [DONE]\n\n',
           },
         },
       ],

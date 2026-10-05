@@ -134,6 +134,8 @@ export class OpenAiTts implements TextToSpeech {
       if (mini) {
         for await (const event of sseReader(cancelOnEarlyExit(response.body))) {
           input.signal.throwIfAborted();
+          // The live API ends the stream with a non-JSON `data: [DONE]` sentinel.
+          if (event.data.trim() === '[DONE]') break;
           const data = JSON.parse(event.data) as Record<string, unknown>;
           if (data.type === 'speech.audio.delta') {
             if (typeof data.audio !== 'string') throw new Error('OpenAI speech delta has no audio');
