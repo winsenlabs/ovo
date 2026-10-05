@@ -17,7 +17,6 @@ import {
   type Behavior,
   type Execution,
   type Inference,
-  type InferenceReply,
   type OperationRecord,
   type ToolDefinition,
   type SpeechReceipt,
@@ -30,7 +29,7 @@ import { DecisionGate } from './decision-gate.ts';
 import { runPreReplySteps } from './agent-pre-reply.ts';
 import { resumeConfirmation } from './agent-confirmation-step.ts';
 import { Grounding } from './grounding.ts';
-import { streamAgentReply } from './agent-stream.ts';
+import { runInferenceSteps } from './agent-inference-step.ts';
 
 export class AgentBehavior implements Behavior {
   readonly config: AgentConfig;
@@ -142,113 +141,29 @@ export class AgentBehavior implements Behavior {
         yield this.conversation.generated(prepared.speak);
         return;
       }
-      const context = prepared.context;
-      for (let step = 0; step < this.config.maxSteps; step += 1) {
-        controller.signal.throwIfAborted();
-        const request = {
-          input,
-          history,
-          context,
-          uncertainty: this.config.uncertainty,
-          tools: this.tools,
-          results,
-          signal: controller.signal,
-        };
-        let reply: InferenceReply;
-        if (streaming && this.inference.stream) {
-          const streamed = yield* streamAgentReply(
-            this.inference.stream(request),
-            this.config.locale,
-            () => {
-              controller.signal.throwIfAborted();
-              if (turn !== this.turn) throw new DOMException('stale agent turn', 'AbortError');
-            },
-            (text) => this.conversation.generated(text),
-          );
-          if (!streamed) return;
-          reply = streamed;
-        } else {
-          reply = await this.inference.generate(request);
-        }
-        controller.signal.throwIfAborted();
-        if (turn !== this.turn) throw new DOMException('stale agent turn', 'AbortError');
-
-        if (reply.kind === 'text') {
-          yield this.conversation.generated(reply.text.trim() || this.config.uncertainty);
-          return;
-        }
-
-        const tool = this.tools.find((candidate) => candidate.id === reply.toolId);
-        if (!tool) {
-          throw this.log.toolError(
-            this.turn,
-            reply.toolId,
-            'unknown-or-unapproved',
-            `Inference selected unknown or unapproved tool: ${reply.toolId}`,
-          );
-        }
-        const validate = this.validators.get(tool.id)!;
-        if (!validate(reply.input)) {
-          const reason = validate.errors
-            ?.map((error) => `${error.instancePath || '/'} ${error.message ?? 'is invalid'}`)
-            .join('; ');
-          throw this.log.toolError(
-            this.turn,
-            tool.id,
-            'invalid-input',
-            `Inference supplied invalid input for ${tool.id}: ${reason ?? 'schema mismatch'}`,
-          );
-        }
-
-        if (tool.effect === 'write' && this.uncertainWrite) {
-          yield this.conversation.generated(
-            'A previous change has an unconfirmed outcome. An operator must reconcile it before another change.',
-          );
-          return;
-        }
-        if (tool.effect === 'write' && wrote) {
-          yield this.conversation.generated(
-            'The confirmed action is complete. Please make a separate request for another change.',
-          );
-          return;
-        }
-        const operationId = this.operationId();
-        if (tool.effect === 'write' || tool.confirmation) {
-          yield this.conversation.generated(
-            this.confirmation.request(
-              { tool, input: reply.input, operationId },
-              this.config.locale,
-            ),
-          );
-          return;
-        }
-
-        // Execution is the sole policy, durable-intent, acknowledgement, and connector boundary.
-        const result = await this.events.execute(
-          this.execution,
-          {
-            id: operationId,
-            workspaceId: this.options.workspaceId,
-            sessionId: this.options.sessionId,
-            toolId: tool.id,
-            input: reply.input,
-            confirmed: false,
-          },
-          controller.signal,
-        );
-        controller.signal.throwIfAborted();
-        if (turn !== this.turn) throw new DOMException('stale agent turn', 'AbortError');
-        results.push(result);
-        // A fresh model-selected ID must never turn an uncertain effect into an
-        // automatic retry. Surface failure and require explicit reconciliation.
-        if (result.state !== 'succeeded') {
-          yield this.conversation.generated(
-            tool.processing?.failure ?? this.config.processing.failure,
-          );
-          return;
-        }
-      }
-      yield this.conversation.generated(this.config.uncertainty);
+      yield* runInferenceSteps({
+        config: this.config,
+        inference: this.inference,
+        execution: this.execution,
+        identity: { workspaceId: this.options.workspaceId, sessionId: this.options.sessionId },
+        tools: this.tools,
+        validators: this.validators,
+        log: this.log,
+        confirmation: this.confirmation,
+        events: this.events,
+        conversation: this.conversation,
+        operationId: this.operationId,
+        turn,
+        current: () => turn === this.turn,
+        input,
+        history,
+        context: prepared.context,
+        results,
+        streaming,
+        signal: controller.signal,
+        uncertainWrite: () => this.uncertainWrite,
+        wrote,
+      });
     } finally {
       if (this.active === controller) this.active = undefined;
     }
