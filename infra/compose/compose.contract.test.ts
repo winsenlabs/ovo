@@ -55,6 +55,23 @@ it('verifies sign-in over forwarded TLS when local HTTP is disabled', () => {
   expect(verifier).toContain('TLS sign-in did not issue a Secure cookie');
 });
 
+it('passes OVO_LOG_LEVEL to every service and the transcript-text policy to the workers', () => {
+  const common = source.slice(
+    source.indexOf('x-common-environment'),
+    source.indexOf('\nservices:'),
+  );
+  expect(common).toContain('OVO_LOG_LEVEL: ${OVO_LOG_LEVEL:-info}');
+  for (const name of ['api', 'gateway', 'dispatcher', 'worker-1', 'secrets-rewrap'])
+    expect(service(name)).toContain('<<: *common');
+  expect(service('worker-1')).toContain(
+    'OVO_TELEMETRY_TRANSCRIPT_TEXT: ${OVO_TELEMETRY_TRANSCRIPT_TEXT:-store}',
+  );
+  expect(service('worker-1')).toContain(
+    'OVO_TELEMETRY_TRANSCRIPT_TEXT_AGENTS: ${OVO_TELEMETRY_TRANSCRIPT_TEXT_AGENTS:-}',
+  );
+  expect(service('worker-2')).toContain('<<: *worker');
+});
+
 it('gives the API the same capacity ceiling as the dispatcher', () => {
   expect(service('api')).toContain("OVO_WORKER_MAX_CAPACITY: '2'");
   expect(service('dispatcher')).toContain("OVO_WORKER_MAX_CAPACITY: '2'");

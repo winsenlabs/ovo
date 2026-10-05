@@ -63,8 +63,17 @@ export function redactLogValue(value: unknown): unknown {
   return redactValue(value, 0);
 }
 
-/** The reason, class and cause of a failure, as log fields. Never the stack or request objects. */
-export function errorFields(error: unknown): { error: string; errorName?: string; cause?: string } {
+/**
+ * The reason, class, code and cause of a failure, as log fields. Never the stack or request
+ * objects. Node's dual-stack connect failure is an AggregateError with an empty message, so its
+ * inner reasons stand in for it.
+ */
+export function errorFields(error: unknown): {
+  error: string;
+  errorName?: string;
+  code?: string | number;
+  cause?: string;
+} {
   if (!(error instanceof Error)) return { error: String(error) };
   const cause =
     error.cause === undefined
@@ -72,7 +81,18 @@ export function errorFields(error: unknown): { error: string; errorName?: string
       : error.cause instanceof Error
         ? error.cause.message
         : String(error.cause);
-  return { error: error.message, errorName: error.name, ...(cause ? { cause } : {}) };
+  const code = (error as { code?: unknown }).code;
+  const message =
+    error.message ||
+    (error instanceof AggregateError
+      ? error.errors.map((item) => (item instanceof Error ? item.message : String(item))).join('; ')
+      : '');
+  return {
+    error: message,
+    errorName: error.name,
+    ...(typeof code === 'string' || typeof code === 'number' ? { code } : {}),
+    ...(cause ? { cause } : {}),
+  };
 }
 
 /** A rejection handler that logs `event` at warn with the failure's reason, for best-effort steps. */

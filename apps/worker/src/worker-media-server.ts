@@ -1,5 +1,5 @@
 import { WebSocket } from '@winsendotai/ovo-plugin-media';
-import { asEndReason } from '@winsendotai/ovo-plugin-kit';
+import { asEndReason, createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
 import {
   MULAW_8K,
   PCM16_8K,
@@ -17,6 +17,8 @@ import {
 import { PreSessionBuffer } from './pre-session-buffer.ts';
 
 export { attachWorkerMediaServer } from '@winsendotai/ovo-plugin-media';
+
+const logger = createLogger({ service: 'worker' });
 
 export class WorkerMediaLink implements WorkerMediaSession {
   readonly identity: MediaSessionIdentity;
@@ -137,17 +139,12 @@ export class WorkerMediaLink implements WorkerMediaSession {
     const dropped = this.pending.hold(message);
     if (dropped === false) return this.finish('error:worker-input-buffer-overflow');
     if (dropped)
-      console.error(
-        JSON.stringify({
-          service: 'worker',
-          event: 'pre_session_audio_dropped',
-          level: 'warn',
-          sessionId: this.identity.sessionId,
-          generation: this.identity.generation,
-          droppedBytes: dropped,
-          keptBytes: this.pending.bytes,
-        }),
-      );
+      logger.warn('pre_session_audio_dropped', {
+        sessionId: this.identity.sessionId,
+        generation: this.identity.generation,
+        droppedBytes: dropped,
+        keptBytes: this.pending.bytes,
+      });
   }
 
   private dispatch(message: Exclude<GatewayToWorkerMessage, { type: 'session.open' }>): void {
@@ -256,15 +253,10 @@ export class WorkerMediaLink implements WorkerMediaSession {
   }
 
   private log(event: string, error: unknown): void {
-    console.error(
-      JSON.stringify({
-        service: 'worker',
-        event,
-        level: 'error',
-        sessionId: this.identity.sessionId,
-        generation: this.identity.generation,
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    );
+    logger.error(event, {
+      sessionId: this.identity.sessionId,
+      generation: this.identity.generation,
+      ...errorFields(error),
+    });
   }
 }

@@ -153,7 +153,9 @@ it('reconnects after a retryable mid-call drop and replays the unfinalized audio
     { segmentId: '0~r1', revision: 2, text: 'again' },
   ]);
   expect(reasons).toEqual([]);
-  expect(logged.some((line) => line.includes('"event":"stt_reconnected"'))).toBe(true);
+  expect(
+    logged.some((line) => /^\{"ts":"[^"]+","level":"warn","event":"stt_reconnected"/.test(line)),
+  ).toBe(true);
   await ingress.dispose();
 });
 

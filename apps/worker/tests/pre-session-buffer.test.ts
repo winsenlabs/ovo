@@ -62,7 +62,7 @@ describe('worker media link pre-session replay', () => {
     expect(bytes).toBe(249 * FRAME_BYTES);
     expect(first).toBe(352 * 20);
     expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining('"event":"pre_session_audio_dropped"'),
+      expect.stringMatching(/^\{"ts":"[^"]+","level":"warn","event":"pre_session_audio_dropped"/),
     );
   });
 

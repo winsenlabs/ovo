@@ -117,6 +117,26 @@ describe('JSON-lines logger', () => {
     });
   });
 
+  it('keeps the error code and the reasons inside an empty AggregateError', () => {
+    const v4 = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:1'), {
+      code: 'ECONNREFUSED',
+    });
+    expect(errorFields(v4)).toEqual({
+      error: 'connect ECONNREFUSED 127.0.0.1:1',
+      errorName: 'Error',
+      code: 'ECONNREFUSED',
+    });
+    // What ws reports when happy-eyeballs fails every address: no message of its own.
+    const both = Object.assign(new AggregateError([v4, new Error('connect ECONNREFUSED ::1:1')]), {
+      code: 'ECONNREFUSED',
+    });
+    expect(errorFields(both)).toEqual({
+      error: 'connect ECONNREFUSED 127.0.0.1:1; connect ECONNREFUSED ::1:1',
+      errorName: 'AggregateError',
+      code: 'ECONNREFUSED',
+    });
+  });
+
   it('never throws from a broken sink or unserializable fields', () => {
     const broken = createLogger(
       {},

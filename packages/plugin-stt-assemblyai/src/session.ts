@@ -60,8 +60,8 @@ export class AssemblyAiSession implements SttSession {
       this.resolveDone = resolve;
       this.rejectDone = reject;
     });
-    void this.ready.catch(() => undefined);
-    void this.done.catch(() => undefined);
+    // swallow-ok: whoever awaits ready/done gets the rejection; this only avoids an unhandled one.
+    for (const settled of [this.ready, this.done]) void settled.catch(() => undefined);
     this.subscribe();
   }
 
@@ -165,6 +165,7 @@ export class AssemblyAiSession implements SttSession {
       value = JSON.parse(String(raw)) as Record<string, unknown>;
       if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
     } catch {
+      // swallow-ok: a malformed frame becomes the session's typed protocol failure.
       return this.fail(new AssemblyAiProviderError('malformed response', 'protocol', false));
     }
     if (value.type === 'Begin') {

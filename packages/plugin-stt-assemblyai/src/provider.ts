@@ -7,8 +7,10 @@ import {
   type NetPort,
   type SpeechToText,
 } from '@winsendotai/ovo-contracts';
-import { systemClock } from '@winsendotai/ovo-plugin-kit';
+import { createLogger, errorFields, systemClock } from '@winsendotai/ovo-plugin-kit';
 import { AssemblyAiProviderError, AssemblyAiSession } from './session.ts';
+
+const logger = createLogger({ service: 'stt-assemblyai' });
 
 export const ASSEMBLYAI_MODELS = [
   'universal-streaming-english',
@@ -205,18 +207,12 @@ export class AssemblyAiStt implements SpeechToText {
         return await this.connect(input, region);
       } catch (error) {
         if (attempt === regions.length - 1 || !retryableConnect(error, input.signal)) throw error;
-        console.error(
-          JSON.stringify({
-            service: 'stt-assemblyai',
-            event: 'stt_connect_retry',
-            level: 'warn',
-            sessionId: input.sessionId,
-            region,
-            nextRegion: regions[attempt + 1],
-            code: error instanceof AssemblyAiProviderError ? error.code : undefined,
-            error: error instanceof Error ? error.message : String(error),
-          }),
-        );
+        logger.warn('stt_connect_retry', {
+          sessionId: input.sessionId,
+          region,
+          nextRegion: regions[attempt + 1],
+          ...errorFields(error),
+        });
       }
     }
     throw new Error('unreachable');

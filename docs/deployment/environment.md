@@ -65,6 +65,14 @@ Default `false`. They are not ceremony — each one gates a path that can touch 
 | `OVO_PROVIDER_EVALUATIONS_ENABLED` | `false`           | Paid evaluation runs.                                                                                                   |
 | `OVO_ALLOW_LOCAL_HTTP`             | `true` in Compose | **Must be `false` for a public API**, and verified _inside the running container_ — setting it in a file is not enough. |
 
+## Logging and transcript telemetry
+
+| Variable                               | Default | Effect                                                                                                                      |
+| -------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `OVO_LOG_LEVEL`                        | `info`  | `debug`, `info`, `warn` or `error` for every service's JSON-lines log and the API request log. Unknown values mean `info`.  |
+| `OVO_TELEMETRY_TRANSCRIPT_TEXT`        | `store` | Workers only. `omit` blanks caller and agent words in call events and `GET /v1/calls/:id/turns`. Other values refuse start. |
+| `OVO_TELEMETRY_TRANSCRIPT_TEXT_AGENTS` | empty   | Workers only. Per-agent overrides, `agent-id=omit,other-id=store`.                                                          |
+
 ## Carrier and provider credentials are NOT environment variables
 
 Create them in the **admin console**: a credential holding the secret, then a provider binding

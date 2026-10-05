@@ -1,6 +1,7 @@
 import type { UserDirectory } from './user-directory.ts';
 import { type OperationStore } from '@winsendotai/ovo-contracts';
 import { Cap } from '@winsendotai/ovo-contracts';
+import { parseLogLevel } from '@winsendotai/ovo-plugin-kit';
 import { priceUsage, summarizeUsage } from '@winsendotai/ovo-plugin-observability';
 import { type SecretManager } from '@winsendotai/ovo-plugin-secrets';
 import {
@@ -116,6 +117,7 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
       const app = Fastify({
         logger: options.logger
           ? {
+              level: parseLogLevel(process.env.OVO_LOG_LEVEL),
               redact: {
                 paths: [
                   'req.headers.authorization',

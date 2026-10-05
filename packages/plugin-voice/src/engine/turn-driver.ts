@@ -89,6 +89,7 @@ export class TurnDriver {
       this.end('error:turn');
       return;
     }
+    // swallow-ok: the earlier turn's own task.catch below ends the call; this only orders turns.
     const task = this.serial.catch(() => undefined).then(() => this.run(input, extra, turnId));
     this.serial = task;
     this.tasks.add(task);
@@ -154,6 +155,7 @@ export class TurnDriver {
     } finally {
       void Promise.resolve()
         .then(() => iterator?.return?.())
+        // swallow-ok: closing an abandoned behavior iterator is best-effort cleanup.
         .catch(() => undefined);
       if (epoch !== undefined) {
         this.latency.total(turnId);

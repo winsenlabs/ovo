@@ -10,6 +10,7 @@ x-common-environment: &common
   OVO_SQS_ENDPOINT: ${OVO_SQS_ENDPOINT-http://queue:9324}
   OVO_QUEUE_URL: ${OVO_QUEUE_URL:?run ./scripts/bootstrap-compose.sh first}
   OVO_PLUGIN_MODULES: ${OVO_PLUGIN_MODULES:-[]}
+  OVO_LOG_LEVEL: ${OVO_LOG_LEVEL:-info}
   # No env carrier binding: carrier credentials live in the encrypted store and are selected by
   # provider binding. TWILIO_* are deliberately not interpolated (OPS-2).
   OVO_CARRIER_ENV_BINDINGS: '{}'
@@ -226,6 +227,8 @@ services:
       <<: *common
       OVO_WORKER_ID: compact-worker-1
       OVO_CALL_SLOTS: '1'
+      OVO_TELEMETRY_TRANSCRIPT_TEXT: ${OVO_TELEMETRY_TRANSCRIPT_TEXT:-store}
+      OVO_TELEMETRY_TRANSCRIPT_TEXT_AGENTS: ${OVO_TELEMETRY_TRANSCRIPT_TEXT_AGENTS:-}
       OVO_PROTECTION_MODE: process-lifecycle
       OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
       # Registering protected capacity is what admits inbound calls, so it stays tied to the

@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 // OBS-4: on the live call path an error may be swallowed only where a `// swallow-ok: <why>`
 // comment says why (same line, line above, or first line of the block). Everything else logs.
-// worker-media-server.ts and plugin-voice's session-engine.ts join this list with the STT lane.
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const LIVE_PATH = [
   'packages/plugin-media/src',
@@ -16,6 +15,10 @@ const LIVE_PATH = [
   'apps/worker/src/worker-loop.ts',
   'apps/worker/src/terminal-session.ts',
   'apps/worker/src/worker-process.ts',
+  'apps/worker/src/worker-media-server.ts',
+  'apps/worker/src/pre-session-buffer.ts',
+  'packages/plugin-voice/src/engine',
+  'packages/plugin-stt-assemblyai/src',
 ];
 
 const SILENT = [

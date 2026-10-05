@@ -1,3 +1,4 @@
+import { createLogger } from '@winsendotai/ovo-plugin-kit';
 import { createWorkerHealthServer } from './worker-health.ts';
 import { runWorkerLoop, type WorkerStatus } from './worker-loop.ts';
 
@@ -7,6 +8,6 @@ const server = createWorkerHealthServer(Number(process.env.PORT ?? 4100), () => 
 runWorkerLoop({ status, server }).catch((error: unknown) => {
   status.state = 'failed';
   status.detail = error instanceof Error ? error.message : String(error);
-  console.error('worker startup failed:', status.detail);
+  createLogger({ service: 'worker' }).error('worker_startup_failed', { detail: status.detail });
   process.exitCode = 1;
 });
