@@ -1,19 +1,29 @@
-import type { FlowDocument } from '../../packages/plugin-evaluations/src/jev-eval-flow.ts';
-import { convertTemplate } from './import-poc-flow.ts';
+import { routeTargets } from '../../packages/plugin-evaluations/src/jev-eval-flow.ts';
+import { convertTemplate, IDLE_END_NODE, type ImportedFlowConfig } from './import-poc-flow.ts';
 
 /**
- * Cross-checks an imported flow against the POC's `docs/conversation-map.md`, the generated map the
- * founder reviews. The map is derived from the same `lib/flow.js`, so any difference means the map
- * is stale or the import lost something: every node with its markers, every intent edge, and every
- * clip's text. Returns the differences, one line each; empty means they agree.
+ * Cross-checks an import against the POC's `docs/conversation-map.md`, the generated map the
+ * founder reviews. The map is derived from the same `lib/flow.js`, so a difference means the map is
+ * stale or the import lost something: a node or its END marker, an intent edge, or the text of a
+ * line the flow speaks. The idle ending is not a flow node (it became `idle`), and the clips and
+ * SMS markers the import drops are listed by its notes instead. Empty means they agree.
  */
 export function diffConversationMap(
-  flow: FlowDocument,
+  imported: ImportedFlowConfig,
   markdown: string,
   constants: Record<string, string> = {},
 ): string[] {
+  const { flow } = imported;
   const map = parseConversationMap(markdown);
-  const expected = flowGraph(flow);
+  map.nodes.delete(`${IDLE_END_NODE} END`);
+  const nodes = new Set(flow.nodes.map((node) => marker(node.id, node.end)));
+  const edges = new Set<string>();
+  for (const node of flow.nodes) {
+    const listen = flow.listens.find((candidate) => candidate.id === node.listen);
+    for (const intent of listen?.intents ?? [])
+      for (const target of routeTargets(intent.next))
+        edges.add(`${node.id} -${intent.key}-> ${target}`);
+  }
   const differences: string[] = [];
   const compare = (kind: string, ours: Set<string>, theirs: Set<string>) => {
     for (const item of ours)
@@ -21,38 +31,18 @@ export function diffConversationMap(
     for (const item of theirs)
       if (!ours.has(item)) differences.push(`${kind} not imported: ${item}`);
   };
-  compare('node', expected.nodes, map.nodes);
-  compare('edge', expected.edges, map.edges);
-  for (const [id, text] of map.clips) {
-    const line = flow.lines[id];
-    if (line === undefined) differences.push(`clip not imported: ${id}`);
-    else if (line !== convertTemplate(text, constants))
+  compare('node', nodes, map.nodes);
+  compare('edge', edges, map.edges);
+  for (const [id, line] of Object.entries(flow.lines)) {
+    const clip = map.clips.get(id);
+    if (clip === undefined) differences.push(`clip missing from map: ${id}`);
+    else if (convertTemplate(clip, constants) !== line)
       differences.push(`clip text differs: ${id}`);
   }
-  for (const id of Object.keys(flow.lines))
-    if (!map.clips.has(id)) differences.push(`clip missing from map: ${id}`);
   return differences;
 }
 
-/** Nodes as `id END? SMS:kind?` and edges as `from -intent-> to`, the way the map draws them. */
-function flowGraph(flow: FlowDocument) {
-  const nodes = new Set<string>();
-  const edges = new Set<string>();
-  for (const [id, node] of Object.entries(flow.nodes)) {
-    const sms = node.actions?.find((action) => action.startsWith('send_sms:'));
-    nodes.add(marker(id, sms?.slice('send_sms:'.length), node.end === true));
-    if (!node.listen) continue;
-    for (const [intent, { next }] of Object.entries(flow.listens[node.listen]!.intents)) {
-      const targets =
-        typeof next === 'string' ? [next] : [...Object.values(next.cases), next.otherwise];
-      for (const target of new Set(targets)) edges.add(`${id} -${intent}-> ${target}`);
-    }
-  }
-  return { nodes, edges };
-}
-
-const marker = (id: string, sms: string | undefined, end: boolean) =>
-  [id, end ? 'END' : '', sms ? `SMS:${sms}` : ''].filter(Boolean).join(' ');
+const marker = (id: string, end: boolean) => (end ? `${id} END` : id);
 
 export function parseConversationMap(markdown: string) {
   const nodes = new Set<string>();
@@ -62,8 +52,7 @@ export function parseConversationMap(markdown: string) {
     const line = raw.trim();
     const node = /^(\w+)\["\w+<br\/><small>([^<]*)<\/small>"\]$/.exec(line);
     if (node) {
-      const extras = node[2]!.split(' · ').slice(1).join(' ');
-      nodes.add(marker(node[1]!, /SMS:(\w+)/.exec(extras)?.[1], /\bEND\b/.test(extras)));
+      nodes.add(marker(node[1]!, /\bEND\b/.test(node[2]!)));
       continue;
     }
     const edge = /^(\w+) -- "(\w+)" --> (\w+)$/.exec(line);

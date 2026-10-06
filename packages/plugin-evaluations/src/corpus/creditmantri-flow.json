@@ -1,183 +1,289 @@
 {
-  "version": 1,
-  "name": "CreditMantri EMI collections",
-  "context": "A CreditMantri collections agent is on a phone call about a missed loan EMI. The caller may reply in English, Hindi, Tamil, or a mix (Hinglish, Tanglish). `caller_reply` is a speech-to-text transcript and may contain recognition errors.",
-  "start": "greet",
-  "variables": [
-    "full_name",
-    "loan_type",
-    "last4_spoken",
-    "emi_words",
-    "due_date_words",
-    "reason",
-    "charge_sentence",
-    "first_name",
-    "total_words",
-    "date_today",
-    "date_tomorrow",
-    "date_3days",
-    "date_week"
-  ],
-  "lines": {
-    "intro": "Hello, I'm calling from CreditMantri. My name is Ananya.",
-    "ask_identity": "Am I speaking with {{full_name}}?",
-    "reassure": "I'm calling from CreditMantri about an account-related matter. For privacy, I can only discuss it with {{full_name}}. Is that you?",
-    "recording": "Thank you. Please note that this call is recorded for quality purposes.",
-    "emi_status": "I'm calling about your {{loan_type}} ending {{last4_spoken}}. Your EMI of {{emi_words}}, due on {{due_date_words}}, could not be collected because {{reason}}.",
-    "charges": "{{charge_sentence}}",
-    "ask_when": "When would you be able to make this payment?",
-    "pay_now_1": "Perfect. I'm sending a secure payment link to your registered mobile number right now.",
-    "pay_now_2": "It should arrive in a few seconds. Could you let me know once you've received it?",
-    "resend": "I've sent it again. The message comes from CreditMantri. You can also pay in the CreditMantri app, under Pay EMI.",
-    "pay_close": "Thank you, {{first_name}}. Once you pay {{total_words}}, it will reflect in your account within two hours.",
-    "ptp_today": "Thank you. I've noted that you'll make the payment today, {{date_today}}.",
-    "ptp_tomorrow": "Thank you. I've noted that you'll make the payment tomorrow, {{date_tomorrow}}.",
-    "ptp_3days": "Thank you. I've noted that you'll make the payment by {{date_3days}}.",
-    "ptp_week": "Thank you. I've noted that you'll make the payment by {{date_week}}.",
-    "ptp_later": "I understand. To avoid further charges, the latest date I can note is {{date_week}}. Would that work for you?",
-    "ptp_unspecified": "Could you tell me a specific date by which you'll be able to pay?",
-    "ptp_sms": "I'll also send you the payment link by SMS, so it's handy when you're ready.",
-    "already_paid_1": "Thank you for letting me know. Payments can take up to forty-eight hours to reflect. Could you tell me the date you paid?",
-    "already_paid_2": "Thank you. I've raised a verification request. Once it's confirmed, you can ignore any reminders.",
-    "hardship": "I understand, and I'm sorry to hear that. I can send you a link to pay part of the amount now, or I can arrange a call from our customer relief team to discuss a revised plan. Which would you prefer?",
-    "partial_link": "Sure. I'm sending the link now. You can enter any amount you're comfortable with, and it will be adjusted against your EMI.",
-    "relief": "Done. Our customer relief team will call you within twenty-four hours, and you won't receive reminder calls until then.",
-    "dispute": "I'm sorry for the trouble. I've raised a review request for this payment. Our team will contact you within forty-eight hours.",
-    "waiver": "I'm not able to waive the charge on this call, but I've flagged your request to our team. If it's approved, it will be adjusted in your next statement.",
-    "mandate_fix": "I'm sending you a link to set up auto-debit on your active bank account. It takes about two minutes, and your future EMIs will go through automatically.",
-    "busy": "No problem. When would be a good time to call you back?",
-    "cb_evening": "Sure, I'll call you back this evening. Thank you, and have a good day.",
-    "cb_tomorrow_morning": "Sure, I'll call you back tomorrow morning. Thank you, and have a good day.",
-    "cb_tomorrow_evening": "Sure, I'll call you back tomorrow evening. Thank you, and have a good day.",
-    "cb_generic": "Sure, I'll call you back at a better time. Thank you, and have a good day.",
-    "wrong_person": "I'm sorry for the trouble. Do you happen to know {{full_name}}?",
-    "wp_knows": "Could you please ask them to call CreditMantri on 1800 123 4567? Thank you, and sorry for the disturbance.",
-    "wp_unknown": "My apologies for the disturbance. We'll update our records. Have a good day.",
-    "third_party": "No problem. Could you please ask {{first_name}} to call CreditMantri back on 1800 123 4567? Thank you, and have a good day.",
-    "anything_else": "Is there anything else I can help you with?",
-    "goodbye": "Thank you for your time. Have a good day!",
-    "human": "Sure, I'm transferring you to a CreditMantri representative. Please hold.",
-    "stop_calling": "Understood. I've noted your request. You can reach us anytime on 1800 123 4567. Goodbye.",
-    "abusive": "I understand you're upset. I'll end the call here. You can reach us on 1800 123 4567. Goodbye.",
-    "repeat_prefix": "Sure, let me repeat that.",
-    "no_input": "Hello? Can you hear me?",
-    "no_input_end": "I'm unable to hear you, so I'll call back later. Goodbye.",
-    "didnt_catch": "Sorry, I didn't quite catch that. Could you say that again?",
-    "filler_1": "Okay, one moment.",
-    "filler_2": "Sure, let me check that.",
-    "filler_3": "Right, give me a second."
-  },
-  "nodes": {
-    "greet": { "say": ["intro", "ask_identity"], "listen": "identity" },
-    "reassure": { "say": ["reassure"], "listen": "identity" },
-    "disclose": {
-      "say": ["recording", "emi_status", "charges", "ask_when"],
-      "listen": "payment",
-      "verified": true
+  "flow": {
+    "version": 1,
+    "start": "greet",
+    "context": "A CreditMantri collections agent is on a phone call about a missed loan EMI. The caller may reply in English, Hindi, Tamil, or a mix (Hinglish, Tanglish). `caller_reply` is a speech-to-text transcript and may contain recognition errors.",
+    "lines": {
+      "intro": "Hello, I'm calling from CreditMantri. My name is Ananya.",
+      "ask_identity": "Am I speaking with {{full_name}}?",
+      "reassure": "I'm calling from CreditMantri about an account-related matter. For privacy, I can only discuss it with {{full_name}}. Is that you?",
+      "recording": "Thank you. Please note that this call is recorded for quality purposes.",
+      "emi_status": "I'm calling about your {{loan_type}} ending {{last4_spoken}}. Your EMI of {{emi_words}}, due on {{due_date_words}}, could not be collected because {{reason}}.",
+      "charges": "{{charge_sentence}}",
+      "ask_when": "When would you be able to make this payment?",
+      "pay_now_1": "Perfect. I'm sending a secure payment link to your registered mobile number right now.",
+      "pay_now_2": "It should arrive in a few seconds. Could you let me know once you've received it?",
+      "resend": "I've sent it again. The message comes from CreditMantri. You can also pay in the CreditMantri app, under Pay EMI.",
+      "pay_close": "Thank you, {{first_name}}. Once you pay {{total_words}}, it will reflect in your account within two hours.",
+      "ptp_today": "Thank you. I've noted that you'll make the payment today, {{date_today}}.",
+      "ptp_tomorrow": "Thank you. I've noted that you'll make the payment tomorrow, {{date_tomorrow}}.",
+      "ptp_3days": "Thank you. I've noted that you'll make the payment by {{date_3days}}.",
+      "ptp_week": "Thank you. I've noted that you'll make the payment by {{date_week}}.",
+      "ptp_later": "I understand. To avoid further charges, the latest date I can note is {{date_week}}. Would that work for you?",
+      "ptp_unspecified": "Could you tell me a specific date by which you'll be able to pay?",
+      "ptp_sms": "I'll also send you the payment link by SMS, so it's handy when you're ready.",
+      "already_paid_1": "Thank you for letting me know. Payments can take up to forty-eight hours to reflect. Could you tell me the date you paid?",
+      "already_paid_2": "Thank you. I've raised a verification request. Once it's confirmed, you can ignore any reminders.",
+      "hardship": "I understand, and I'm sorry to hear that. I can send you a link to pay part of the amount now, or I can arrange a call from our customer relief team to discuss a revised plan. Which would you prefer?",
+      "partial_link": "Sure. I'm sending the link now. You can enter any amount you're comfortable with, and it will be adjusted against your EMI.",
+      "relief": "Done. Our customer relief team will call you within twenty-four hours, and you won't receive reminder calls until then.",
+      "dispute": "I'm sorry for the trouble. I've raised a review request for this payment. Our team will contact you within forty-eight hours.",
+      "waiver": "I'm not able to waive the charge on this call, but I've flagged your request to our team. If it's approved, it will be adjusted in your next statement.",
+      "mandate_fix": "I'm sending you a link to set up auto-debit on your active bank account. It takes about two minutes, and your future EMIs will go through automatically.",
+      "busy": "No problem. When would be a good time to call you back?",
+      "cb_evening": "Sure, I'll call you back this evening. Thank you, and have a good day.",
+      "cb_tomorrow_morning": "Sure, I'll call you back tomorrow morning. Thank you, and have a good day.",
+      "cb_tomorrow_evening": "Sure, I'll call you back tomorrow evening. Thank you, and have a good day.",
+      "cb_generic": "Sure, I'll call you back at a better time. Thank you, and have a good day.",
+      "wrong_person": "I'm sorry for the trouble. Do you happen to know {{full_name}}?",
+      "wp_knows": "Could you please ask them to call CreditMantri on 1800 123 4567? Thank you, and sorry for the disturbance.",
+      "wp_unknown": "My apologies for the disturbance. We'll update our records. Have a good day.",
+      "third_party": "No problem. Could you please ask {{first_name}} to call CreditMantri back on 1800 123 4567? Thank you, and have a good day.",
+      "anything_else": "Is there anything else I can help you with?",
+      "goodbye": "Thank you for your time. Have a good day!",
+      "human": "Sure, I'm transferring you to a CreditMantri representative. Please hold.",
+      "stop_calling": "Understood. I've noted your request. You can reach us anytime on 1800 123 4567. Goodbye.",
+      "abusive": "I understand you're upset. I'll end the call here. You can reach us on 1800 123 4567. Goodbye.",
+      "repeat_prefix": "Sure, let me repeat that.",
+      "didnt_catch": "Sorry, I didn't quite catch that. Could you say that again?"
     },
-    "pay_now": {
-      "say": ["pay_now_1", "pay_now_2"],
-      "listen": "link_check",
-      "actions": ["send_sms:full"]
-    },
-    "resend": { "say": ["resend"], "listen": "link_check", "actions": ["send_sms:full"] },
-    "pay_close": { "say": ["pay_close", "anything_else"], "listen": "wrapup" },
-    "ptp_today": {
-      "say": ["ptp_today", "ptp_sms", "anything_else"],
-      "listen": "wrapup",
-      "disposition": "promise_to_pay:today",
-      "actions": ["send_sms:full"]
-    },
-    "ptp_tomorrow": {
-      "say": ["ptp_tomorrow", "ptp_sms", "anything_else"],
-      "listen": "wrapup",
-      "disposition": "promise_to_pay:tomorrow",
-      "actions": ["send_sms:full"]
-    },
-    "ptp_3days": {
-      "say": ["ptp_3days", "ptp_sms", "anything_else"],
-      "listen": "wrapup",
-      "disposition": "promise_to_pay:3_days",
-      "actions": ["send_sms:full"]
-    },
-    "ptp_week": {
-      "say": ["ptp_week", "ptp_sms", "anything_else"],
-      "listen": "wrapup",
-      "disposition": "promise_to_pay:7_days",
-      "actions": ["send_sms:full"]
-    },
-    "ptp_later": { "say": ["ptp_later"], "listen": "confirm_week" },
-    "ptp_ask": { "say": ["ptp_unspecified"], "listen": "payment" },
-    "already_paid": { "say": ["already_paid_1"], "listen": "paid_date" },
-    "ap_done": {
-      "say": ["already_paid_2", "anything_else"],
-      "listen": "wrapup",
-      "disposition": "payment_verification_requested"
-    },
-    "hardship": { "say": ["hardship"], "listen": "hardship_choice" },
-    "partial": {
-      "say": ["partial_link", "anything_else"],
-      "listen": "wrapup",
-      "actions": ["send_sms:partial"]
-    },
-    "relief": {
-      "say": ["relief", "anything_else"],
-      "listen": "wrapup",
-      "disposition": "relief_team_callback"
-    },
-    "dispute": {
-      "say": ["dispute", "anything_else"],
-      "listen": "wrapup",
-      "disposition": "dispute_raised"
-    },
-    "waiver": {
-      "say": ["waiver", "ask_when"],
-      "listen": "payment",
-      "disposition": "waiver_requested"
-    },
-    "mandate_fix": {
-      "say": ["mandate_fix", "ask_when"],
-      "listen": "payment",
-      "actions": ["send_sms:mandate"]
-    },
-    "busy": { "say": ["busy"], "listen": "callback" },
-    "cb_evening": { "say": ["cb_evening"], "end": true, "disposition": "callback:this_evening" },
-    "cb_tomorrow_morning": {
-      "say": ["cb_tomorrow_morning"],
-      "end": true,
-      "disposition": "callback:tomorrow_morning"
-    },
-    "cb_tomorrow_evening": {
-      "say": ["cb_tomorrow_evening"],
-      "end": true,
-      "disposition": "callback:tomorrow_evening"
-    },
-    "cb_generic": { "say": ["cb_generic"], "end": true, "disposition": "callback:unspecified" },
-    "wrong_person": { "say": ["wrong_person"], "listen": "knows" },
-    "wp_knows": { "say": ["wp_knows"], "end": true, "disposition": "wrong_party:knows_customer" },
-    "wp_unknown": { "say": ["wp_unknown"], "end": true, "disposition": "wrong_number" },
-    "third_party": {
-      "say": ["third_party"],
-      "end": true,
-      "disposition": "third_party_message_left"
-    },
-    "goodbye": { "say": ["goodbye"], "end": true },
-    "human": { "say": ["human"], "end": true, "disposition": "transfer_to_human" },
-    "stop_calling": {
-      "say": ["stop_calling"],
-      "end": true,
-      "disposition": "do_not_call_requested"
-    },
-    "abusive": { "say": ["abusive"], "end": true, "disposition": "abusive_caller" },
-    "no_input_end": { "say": ["no_input_end"], "end": true, "disposition": "no_response" }
-  },
-  "listens": {
-    "identity": {
-      "question": "The agent asked to confirm the identity of the person who picked up the phone. How did they respond in `caller_reply`?",
-      "intents": {
-        "confirmed": {
-          "description": "They confirm they are the named person (yes, speaking, haan)",
-          "rules": {
+    "nodes": [
+      {
+        "id": "greet",
+        "say": ["intro", "ask_identity"],
+        "listen": "identity",
+        "end": false,
+        "verified": false
+      },
+      {
+        "id": "reassure",
+        "say": ["reassure"],
+        "listen": "identity",
+        "end": false,
+        "verified": false
+      },
+      {
+        "id": "disclose",
+        "say": ["recording", "emi_status", "charges", "ask_when"],
+        "listen": "payment",
+        "end": false,
+        "verified": true
+      },
+      {
+        "id": "pay_now",
+        "say": ["pay_now_1", "pay_now_2"],
+        "listen": "link_check",
+        "end": false,
+        "verified": false
+      },
+      {
+        "id": "resend",
+        "say": ["resend"],
+        "listen": "link_check",
+        "end": false,
+        "verified": false
+      },
+      {
+        "id": "pay_close",
+        "say": ["pay_close", "anything_else"],
+        "listen": "wrapup",
+        "end": false,
+        "verified": false
+      },
+      {
+        "id": "ptp_today",
+        "say": ["ptp_today", "ptp_sms", "anything_else"],
+        "listen": "wrapup",
+        "end": false,
+        "disposition": "promise_to_pay:today",
+        "verified": false
+      },
+      {
+        "id": "ptp_tomorrow",
+        "say": ["ptp_tomorrow", "ptp_sms", "anything_else"],
+        "listen": "wrapup",
+        "end": false,
+        "disposition": "promise_to_pay:tomorrow",
+        "verified": false
+      },
+      {
+        "id": "ptp_3days",
+        "say": ["ptp_3days", "ptp_sms", "anything_else"],
+        "listen": "wrapup",
+        "end": false,
+        "disposition": "promise_to_pay:3_days",
+        "verified": false
+      },
+      {
+        "id": "ptp_week",
+        "say": ["ptp_week", "ptp_sms", "anything_else"],
+        "listen": "wrapup",
+        "end": false,
+        "disposition": "promise_to_pay:7_days",
+        "verified": false
+      },
+      {
+        "id": "ptp_later",
+        "say": ["ptp_later"],
+        "listen": "confirm_week",
+        "end": false,
+        "verified": false
+      },
+      {
+        "id": "ptp_ask",
+        "say": ["ptp_unspecified"],
+        "listen": "payment",
+        "end": false,
+        "verified": false
+      },
+      {
+        "id": "already_paid",
+        "say": ["already_paid_1"],
+        "listen": "paid_date",
+        "end": false,
+        "verified": false
+      },
+      {
+        "id": "ap_done",
+        "say": ["already_paid_2", "anything_else"],
+        "listen": "wrapup",
+        "end": false,
+        "disposition": "payment_verification_requested",
+        "verified": false
+      },
+      {
+        "id": "hardship",
+        "say": ["hardship"],
+        "listen": "hardship_choice",
+        "end": false,
+        "verified": false
+      },
+      {
+        "id": "partial",
+        "say": ["partial_link", "anything_else"],
+        "listen": "wrapup",
+        "end": false,
+        "verified": false
+      },
+      {
+        "id": "relief",
+        "say": ["relief", "anything_else"],
+        "listen": "wrapup",
+        "end": false,
+        "disposition": "relief_team_callback",
+        "verified": false
+      },
+      {
+        "id": "dispute",
+        "say": ["dispute", "anything_else"],
+        "listen": "wrapup",
+        "end": false,
+        "disposition": "dispute_raised",
+        "verified": false
+      },
+      {
+        "id": "waiver",
+        "say": ["waiver", "ask_when"],
+        "listen": "payment",
+        "end": false,
+        "disposition": "waiver_requested",
+        "verified": false
+      },
+      {
+        "id": "mandate_fix",
+        "say": ["mandate_fix", "ask_when"],
+        "listen": "payment",
+        "end": false,
+        "verified": false
+      },
+      { "id": "busy", "say": ["busy"], "listen": "callback", "end": false, "verified": false },
+      {
+        "id": "cb_evening",
+        "say": ["cb_evening"],
+        "end": true,
+        "disposition": "callback:this_evening",
+        "verified": false
+      },
+      {
+        "id": "cb_tomorrow_morning",
+        "say": ["cb_tomorrow_morning"],
+        "end": true,
+        "disposition": "callback:tomorrow_morning",
+        "verified": false
+      },
+      {
+        "id": "cb_tomorrow_evening",
+        "say": ["cb_tomorrow_evening"],
+        "end": true,
+        "disposition": "callback:tomorrow_evening",
+        "verified": false
+      },
+      {
+        "id": "cb_generic",
+        "say": ["cb_generic"],
+        "end": true,
+        "disposition": "callback:unspecified",
+        "verified": false
+      },
+      {
+        "id": "wrong_person",
+        "say": ["wrong_person"],
+        "listen": "knows",
+        "end": false,
+        "verified": false
+      },
+      {
+        "id": "wp_knows",
+        "say": ["wp_knows"],
+        "end": true,
+        "disposition": "wrong_party:knows_customer",
+        "verified": false
+      },
+      {
+        "id": "wp_unknown",
+        "say": ["wp_unknown"],
+        "end": true,
+        "disposition": "wrong_number",
+        "verified": false
+      },
+      {
+        "id": "third_party",
+        "say": ["third_party"],
+        "end": true,
+        "disposition": "third_party_message_left",
+        "verified": false
+      },
+      { "id": "goodbye", "say": ["goodbye"], "end": true, "verified": false },
+      {
+        "id": "human",
+        "say": ["human"],
+        "end": true,
+        "disposition": "transfer_to_human",
+        "verified": false
+      },
+      {
+        "id": "stop_calling",
+        "say": ["stop_calling"],
+        "end": true,
+        "disposition": "do_not_call_requested",
+        "verified": false
+      },
+      {
+        "id": "abusive",
+        "say": ["abusive"],
+        "end": true,
+        "disposition": "abusive_caller",
+        "verified": false
+      }
+    ],
+    "listens": [
+      {
+        "id": "identity",
+        "question": "The agent asked to confirm the identity of the person who picked up the phone. How did they respond in `caller_reply`?",
+        "intents": [
+          {
+            "key": "confirmed",
+            "description": "They confirm they are the named person (yes, speaking, haan)",
             "phrases": [
               "yes",
               "yes ji",
@@ -512,7 +618,9 @@
               "he speaking",
               "she speaking",
               "thats me",
+              "that s me",
               "its me",
+              "it s me",
               "bol raha hoon",
               "bol rahi hoon",
               "naan dhaan",
@@ -531,7 +639,9 @@
               "yes he speaking",
               "yes she speaking",
               "yes thats me",
+              "yes that s me",
               "yes its me",
+              "yes it s me",
               "yes bol raha hoon",
               "yes bol rahi hoon",
               "yes naan dhaan",
@@ -550,7 +660,9 @@
               "haan he speaking",
               "haan she speaking",
               "haan thats me",
+              "haan that s me",
               "haan its me",
+              "haan it s me",
               "haan bol raha hoon",
               "haan bol rahi hoon",
               "haan naan dhaan",
@@ -569,7 +681,9 @@
               "haan ji he speaking",
               "haan ji she speaking",
               "haan ji thats me",
+              "haan ji that s me",
               "haan ji its me",
+              "haan ji it s me",
               "haan ji bol raha hoon",
               "haan ji bol rahi hoon",
               "haan ji naan dhaan",
@@ -588,7 +702,9 @@
               "ji he speaking",
               "ji she speaking",
               "ji thats me",
+              "ji that s me",
               "ji its me",
+              "ji it s me",
               "ji bol raha hoon",
               "ji bol rahi hoon",
               "ji naan dhaan",
@@ -599,100 +715,139 @@
               "ji நான்தான்",
               "ji பேசுறேன்",
               "ji நான் தான் பேசுறேன்"
-            ]
+            ],
+            "next": "disclose"
           },
-          "next": "disclose"
-        },
-        "wrong_person": {
-          "description": "They say it is a wrong number or that they are not the person and do not know them",
-          "rules": {
+          {
+            "key": "wrong_person",
+            "description": "They say it is a wrong number or that they are not the person and do not know them",
             "phrases": [
               "wrong number",
               "you have the wrong number",
               "no wrong number",
               "no you have the wrong number"
-            ]
+            ],
+            "next": "wrong_person"
           },
-          "next": "wrong_person"
-        },
-        "third_party": {
-          "description": "Someone else who knows the named person answered (family, colleague); the person is not available",
-          "next": "third_party"
-        },
-        "busy": {
-          "description": "They are the named person but are busy and ask to talk later",
-          "next": "busy"
-        },
-        "asks_purpose": {
-          "description": "They ask who is calling or why before confirming who they are",
-          "next": "reassure"
-        }
-      }
-    },
-    "payment": {
-      "question": "The agent told the customer their EMI payment failed and asked when they can pay. What does `caller_reply` express?",
-      "intents": {
-        "pay_now": {
-          "description": "They want to pay right now or today on this call, or ask for the payment link now",
-          "next": "pay_now"
-        },
-        "promise_to_pay": {
-          "description": "They commit to paying later, with or without a specific date or day",
-          "next": {
-            "slot": "ptp_when",
-            "cases": {
-              "today": "ptp_today",
-              "tomorrow": "ptp_tomorrow",
-              "within_3_days": "ptp_3days",
-              "within_week": "ptp_week",
-              "later": "ptp_later",
-              "unspecified": "ptp_ask"
-            },
-            "otherwise": "ptp_ask"
+          {
+            "key": "third_party",
+            "description": "Someone else who knows the named person answered (family, colleague); the person is not available",
+            "phrases": [],
+            "next": "third_party"
+          },
+          {
+            "key": "busy",
+            "description": "They are the named person but are busy and ask to talk later",
+            "phrases": [],
+            "next": "busy"
+          },
+          {
+            "key": "asks_purpose",
+            "description": "They ask who is calling or why before confirming who they are",
+            "phrases": [],
+            "next": "reassure"
           }
-        },
-        "already_paid": {
-          "description": "They say they have already paid this EMI",
-          "next": "already_paid"
-        },
-        "cannot_pay": {
-          "description": "They say they cannot pay because of money problems, job loss, medical or other hardship",
-          "next": "hardship"
-        },
-        "dispute": {
-          "description": "They dispute the amount or the bounce, or say it is the bank's or lender's mistake",
-          "next": "dispute"
-        },
-        "waiver_request": {
-          "description": "They ask for the bounce charge or late fee to be removed or waived",
-          "next": "waiver"
-        },
-        "mandate_help": {
-          "description": "They say their bank account or auto-debit changed and ask how to update or fix the auto-debit mandate",
-          "next": "mandate_fix"
-        },
-        "busy": { "description": "They are busy and ask to talk later", "next": "busy" }
+        ],
+        "slots": []
       },
-      "slots": {
-        "ptp_when": {
-          "question": "If the caller in `caller_reply` commits to paying, by when do they say they will pay? Today is given in `today`.",
-          "options": {
-            "today": "Today, later today, tonight, or right after this call",
-            "tomorrow": "Tomorrow",
-            "within_3_days": "Within the next two or three days, or by a date up to three days away",
-            "within_week": "Within a week: this week, by the weekend, or a date four to seven days away",
-            "later": "More than a week away: next month, after salary, or a date over seven days away",
-            "unspecified": "No time given, or it is unclear when"
+      {
+        "id": "payment",
+        "question": "The agent told the customer their EMI payment failed and asked when they can pay. What does `caller_reply` express?",
+        "intents": [
+          {
+            "key": "pay_now",
+            "description": "They want to pay right now or today on this call, or ask for the payment link now",
+            "phrases": [],
+            "next": "pay_now"
+          },
+          {
+            "key": "promise_to_pay",
+            "description": "They commit to paying later, with or without a specific date or day",
+            "phrases": [],
+            "next": {
+              "slot": "ptp_when",
+              "cases": {
+                "today": "ptp_today",
+                "tomorrow": "ptp_tomorrow",
+                "within_3_days": "ptp_3days",
+                "within_week": "ptp_week",
+                "later": "ptp_later",
+                "unspecified": "ptp_ask"
+              },
+              "otherwise": "ptp_ask"
+            }
+          },
+          {
+            "key": "already_paid",
+            "description": "They say they have already paid this EMI",
+            "phrases": [],
+            "next": "already_paid"
+          },
+          {
+            "key": "cannot_pay",
+            "description": "They say they cannot pay because of money problems, job loss, medical or other hardship",
+            "phrases": [],
+            "next": "hardship"
+          },
+          {
+            "key": "dispute",
+            "description": "They dispute the amount or the bounce, or say it is the bank's or lender's mistake",
+            "phrases": [],
+            "next": "dispute"
+          },
+          {
+            "key": "waiver_request",
+            "description": "They ask for the bounce charge or late fee to be removed or waived",
+            "phrases": [],
+            "next": "waiver"
+          },
+          {
+            "key": "mandate_help",
+            "description": "They say their bank account or auto-debit changed and ask how to update or fix the auto-debit mandate",
+            "phrases": [],
+            "next": "mandate_fix"
+          },
+          {
+            "key": "busy",
+            "description": "They are busy and ask to talk later",
+            "phrases": [],
+            "next": "busy"
           }
-        }
-      }
-    },
-    "link_check": {
-      "question": "The agent sent a payment link by SMS and asked the customer to confirm when it arrives. What does `caller_reply` say?",
-      "intents": {
-        "received": {
-          "description": "They received the link, or have already paid through it",
-          "rules": {
+        ],
+        "slots": [
+          {
+            "id": "ptp_when",
+            "question": "If the caller in `caller_reply` commits to paying, by when do they say they will pay? Today is given in `today`.",
+            "options": [
+              {
+                "key": "today",
+                "description": "Today, later today, tonight, or right after this call"
+              },
+              { "key": "tomorrow", "description": "Tomorrow" },
+              {
+                "key": "within_3_days",
+                "description": "Within the next two or three days, or by a date up to three days away"
+              },
+              {
+                "key": "within_week",
+                "description": "Within a week: this week, by the weekend, or a date four to seven days away"
+              },
+              {
+                "key": "later",
+                "description": "More than a week away: next month, after salary, or a date over seven days away"
+              },
+              { "key": "unspecified", "description": "No time given, or it is unclear when" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "link_check",
+        "question": "The agent sent a payment link by SMS and asked the customer to confirm when it arrives. What does `caller_reply` say?",
+        "intents": [
+          {
+            "key": "received",
+            "description": "They received the link, or have already paid through it",
             "phrases": [
               "yes",
               "yes ji",
@@ -1026,13 +1181,12 @@
               "i got it",
               "mil gaya",
               "haan mil gaya"
-            ]
+            ],
+            "next": "pay_close"
           },
-          "next": "pay_close"
-        },
-        "not_received": {
-          "description": "They have not received the link yet",
-          "rules": {
+          {
+            "key": "not_received",
+            "description": "They have not received the link yet",
             "phrases": [
               "no",
               "nope",
@@ -1044,9 +1198,13 @@
               "nothing",
               "nothing else",
               "thats all",
+              "that s all",
               "thats it",
+              "that s it",
               "no thats all",
+              "no that s all",
               "no thats it",
+              "no that s it",
               "nahi ji",
               "no ji",
               "नहीं",
@@ -1070,21 +1228,24 @@
               "not yet",
               "not received",
               "didnt get it",
+              "didn t get it",
               "havent received",
+              "haven t received",
               "nahi aaya",
               "abhi nahi"
-            ]
-          },
-          "next": "resend"
-        }
-      }
-    },
-    "wrapup": {
-      "question": "The agent asked if there is anything else it can help with. What does `caller_reply` say?",
-      "intents": {
-        "no_more": {
-          "description": "Nothing else; they are done, say thanks or bye",
-          "rules": {
+            ],
+            "next": "resend"
+          }
+        ],
+        "slots": []
+      },
+      {
+        "id": "wrapup",
+        "question": "The agent asked if there is anything else it can help with. What does `caller_reply` say?",
+        "intents": [
+          {
+            "key": "no_more",
+            "description": "Nothing else; they are done, say thanks or bye",
             "phrases": [
               "no",
               "nope",
@@ -1096,9 +1257,13 @@
               "nothing",
               "nothing else",
               "thats all",
+              "that s all",
               "thats it",
+              "that s it",
               "no thats all",
+              "no that s all",
               "no thats it",
+              "no that s it",
               "nahi ji",
               "no ji",
               "नहीं",
@@ -1128,18 +1293,19 @@
               "no bye",
               "dhanyavaad",
               "shukriya"
-            ]
-          },
-          "next": "goodbye"
-        }
-      }
-    },
-    "confirm_week": {
-      "question": "The agent offered the latest payment date it can note and asked if that works. What does `caller_reply` say?",
-      "intents": {
-        "yes": {
-          "description": "They agree to pay by that date",
-          "rules": {
+            ],
+            "next": "goodbye"
+          }
+        ],
+        "slots": []
+      },
+      {
+        "id": "confirm_week",
+        "question": "The agent offered the latest payment date it can note and asked if that works. What does `caller_reply` say?",
+        "intents": [
+          {
+            "key": "yes",
+            "description": "They agree to pay by that date",
             "phrases": [
               "yes",
               "yes ji",
@@ -1465,13 +1631,12 @@
               "சரிங்க ங்க",
               "சரிங்க sir",
               "சரிங்க madam"
-            ]
+            ],
+            "next": "ptp_week"
           },
-          "next": "ptp_week"
-        },
-        "no": {
-          "description": "They cannot pay by that date",
-          "rules": {
+          {
+            "key": "no",
+            "description": "They cannot pay by that date",
             "phrases": [
               "no",
               "nope",
@@ -1483,9 +1648,13 @@
               "nothing",
               "nothing else",
               "thats all",
+              "that s all",
               "thats it",
+              "that s it",
               "no thats all",
+              "no that s all",
               "no thats it",
+              "no that s it",
               "nahi ji",
               "no ji",
               "नहीं",
@@ -1506,53 +1675,88 @@
               "வேணாம்",
               "போதும்",
               "நன்றி"
-            ]
+            ],
+            "next": "hardship"
+          }
+        ],
+        "slots": []
+      },
+      {
+        "id": "paid_date",
+        "question": "The customer said they already paid, and the agent asked for the date of payment. What does `caller_reply` say?",
+        "intents": [
+          {
+            "key": "gave_date",
+            "description": "They give a date or day when they paid",
+            "phrases": [],
+            "next": "ap_done"
           },
-          "next": "hardship"
-        }
-      }
-    },
-    "paid_date": {
-      "question": "The customer said they already paid, and the agent asked for the date of payment. What does `caller_reply` say?",
-      "intents": {
-        "gave_date": { "description": "They give a date or day when they paid", "next": "ap_done" },
-        "doesnt_remember": {
-          "description": "They do not remember the date or will check later",
-          "next": "ap_done"
-        }
-      }
-    },
-    "hardship_choice": {
-      "question": "The agent offered two options: a link to pay part of the amount now, or a call from the customer relief team. Which does `caller_reply` choose?",
-      "intents": {
-        "partial": {
-          "description": "They want to pay part of the amount now / the partial payment link",
-          "next": "partial"
-        },
-        "relief": {
-          "description": "They want the call from the customer relief team or a revised plan",
-          "next": "relief"
-        }
-      }
-    },
-    "callback": {
-      "question": "The agent asked when would be a good time to call back. When does `caller_reply` want the callback?",
-      "intents": {
-        "this_evening": { "description": "Later today or this evening", "next": "cb_evening" },
-        "tomorrow_morning": { "description": "Tomorrow morning", "next": "cb_tomorrow_morning" },
-        "tomorrow_evening": {
-          "description": "Tomorrow afternoon or evening",
-          "next": "cb_tomorrow_evening"
-        },
-        "other_time": { "description": "Some other specific or vague time", "next": "cb_generic" }
-      }
-    },
-    "knows": {
-      "question": "The person who answered is not the customer. The agent asked if they know the customer. What does `caller_reply` say?",
-      "intents": {
-        "yes": {
-          "description": "Yes, they know the person",
-          "rules": {
+          {
+            "key": "doesnt_remember",
+            "description": "They do not remember the date or will check later",
+            "phrases": [],
+            "next": "ap_done"
+          }
+        ],
+        "slots": []
+      },
+      {
+        "id": "hardship_choice",
+        "question": "The agent offered two options: a link to pay part of the amount now, or a call from the customer relief team. Which does `caller_reply` choose?",
+        "intents": [
+          {
+            "key": "partial",
+            "description": "They want to pay part of the amount now / the partial payment link",
+            "phrases": [],
+            "next": "partial"
+          },
+          {
+            "key": "relief",
+            "description": "They want the call from the customer relief team or a revised plan",
+            "phrases": [],
+            "next": "relief"
+          }
+        ],
+        "slots": []
+      },
+      {
+        "id": "callback",
+        "question": "The agent asked when would be a good time to call back. When does `caller_reply` want the callback?",
+        "intents": [
+          {
+            "key": "this_evening",
+            "description": "Later today or this evening",
+            "phrases": [],
+            "next": "cb_evening"
+          },
+          {
+            "key": "tomorrow_morning",
+            "description": "Tomorrow morning",
+            "phrases": [],
+            "next": "cb_tomorrow_morning"
+          },
+          {
+            "key": "tomorrow_evening",
+            "description": "Tomorrow afternoon or evening",
+            "phrases": [],
+            "next": "cb_tomorrow_evening"
+          },
+          {
+            "key": "other_time",
+            "description": "Some other specific or vague time",
+            "phrases": [],
+            "next": "cb_generic"
+          }
+        ],
+        "slots": []
+      },
+      {
+        "id": "knows",
+        "question": "The person who answered is not the customer. The agent asked if they know the customer. What does `caller_reply` say?",
+        "intents": [
+          {
+            "key": "yes",
+            "description": "Yes, they know the person",
             "phrases": [
               "yes",
               "yes ji",
@@ -1878,13 +2082,12 @@
               "சரிங்க ங்க",
               "சரிங்க sir",
               "சரிங்க madam"
-            ]
+            ],
+            "next": "wp_knows"
           },
-          "next": "wp_knows"
-        },
-        "no": {
-          "description": "No, they do not know the person",
-          "rules": {
+          {
+            "key": "no",
+            "description": "No, they do not know the person",
             "phrases": [
               "no",
               "nope",
@@ -1896,9 +2099,13 @@
               "nothing",
               "nothing else",
               "thats all",
+              "that s all",
               "thats it",
+              "that s it",
               "no thats all",
+              "no that s all",
               "no thats it",
+              "no that s it",
               "nahi ji",
               "no ji",
               "नहीं",
@@ -1919,17 +2126,17 @@
               "வேணாம்",
               "போதும்",
               "நன்றி"
-            ]
-          },
-          "next": "wp_unknown"
-        }
+            ],
+            "next": "wp_unknown"
+          }
+        ],
+        "slots": []
       }
-    }
-  },
-  "globalIntents": {
-    "repeat": {
-      "description": "They did not hear or understand and want the agent to repeat what it just said",
-      "rules": {
+    ],
+    "globalIntents": [
+      {
+        "key": "repeat",
+        "description": "They did not hear or understand and want the agent to repeat what it just said",
         "phrases": [
           "sorry",
           "pardon",
@@ -1943,35 +2150,69 @@
           "kya",
           "sorry what",
           "excuse me"
-        ]
+        ],
+        "repeat": true
       },
-      "repeat": true
-    },
-    "human_agent": {
-      "description": "They ask to speak to a human, a manager, or a real person",
-      "next": "human"
-    },
-    "stop_calling": {
-      "description": "They ask CreditMantri to stop calling them or to not call again",
-      "next": "stop_calling"
-    },
-    "abusive": {
-      "description": "They are abusive, threatening, or using profanity at the agent",
-      "next": "abusive"
-    }
+      {
+        "key": "human_agent",
+        "description": "They ask to speak to a human, a manager, or a real person",
+        "phrases": [],
+        "next": "human"
+      },
+      {
+        "key": "stop_calling",
+        "description": "They ask CreditMantri to stop calling them or to not call again",
+        "phrases": [],
+        "next": "stop_calling"
+      },
+      {
+        "key": "abusive",
+        "description": "They are abusive, threatening, or using profanity at the agent",
+        "phrases": [],
+        "next": "abusive"
+      }
+    ],
+    "threshold": 0.55,
+    "fallback": "llm",
+    "clarify": "didnt_catch",
+    "repeatPrefix": "repeat_prefix"
   },
-  "other": {
-    "description": "None of the above fits: a question, a new topic, or anything the listed options do not cover"
+  "idle": {
+    "prompts": ["Hello? Can you hear me?"],
+    "finalLine": "I'm unable to hear you, so I'll call back later. Goodbye."
   },
-  "idle": { "prompts": ["no_input"], "end": "no_input_end" },
-  "recovery": {
-    "repeatPrefix": "repeat_prefix",
-    "didntCatch": "didnt_catch",
-    "fillers": ["filler_1", "filler_2", "filler_3"]
-  },
-  "source": {
-    "importer": "scripts/flow-import",
-    "from": "credit3-collections-poc lib/flow.js (2026-09-30)",
-    "sha256": "a2aaf4dc15227f64e2367ab13395cb106a06657bbdb0e86f94327b0c8fb1330a"
+  "variables": {
+    "type": "object",
+    "required": [
+      "full_name",
+      "loan_type",
+      "last4_spoken",
+      "emi_words",
+      "due_date_words",
+      "reason",
+      "charge_sentence",
+      "first_name",
+      "total_words",
+      "date_today",
+      "date_tomorrow",
+      "date_3days",
+      "date_week"
+    ],
+    "properties": {
+      "full_name": { "type": "string" },
+      "loan_type": { "type": "string" },
+      "last4_spoken": { "type": "string" },
+      "emi_words": { "type": "string" },
+      "due_date_words": { "type": "string" },
+      "reason": { "type": "string" },
+      "charge_sentence": { "type": "string" },
+      "first_name": { "type": "string" },
+      "total_words": { "type": "string" },
+      "date_today": { "type": "string" },
+      "date_tomorrow": { "type": "string" },
+      "date_3days": { "type": "string" },
+      "date_week": { "type": "string" }
+    },
+    "additionalProperties": false
   }
 }
