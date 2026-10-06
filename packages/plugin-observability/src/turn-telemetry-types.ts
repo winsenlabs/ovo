@@ -15,6 +15,8 @@ export interface TurnDecisionTelemetry {
   outcome: string;
   modelId: string | null;
   answers: TurnDecisionAnswer[];
+  /** The flow state the decision was asked in; null for a flat policy. */
+  flow: { node: string | null; listen: string } | null;
 }
 
 export interface TurnSegmentTelemetry {

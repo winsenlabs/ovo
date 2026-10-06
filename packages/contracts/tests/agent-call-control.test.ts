@@ -3,6 +3,7 @@ import {
   AgentConfig,
   AgentDecisionPolicy,
   DECISION_STATE_SOURCES,
+  AgentFlow,
   effectiveVoicemailPolicy,
   SESSION_INPUT_JSON_SCHEMA,
 } from '../src/index.ts';
@@ -63,6 +64,21 @@ describe('agent opening, voicemail and ending', () => {
     expect(effectiveVoicemailPolicy({})).toBeUndefined();
     const off = agent({ opening, voicemail: { detect: false } }).data!;
     expect(effectiveVoicemailPolicy(off)).toBeUndefined();
+  });
+
+  it('treats a flow that greets with its start node as speaking first', () => {
+    const flow = AgentFlow.parse({
+      start: 'greet',
+      lines: { hello: 'Hello.' },
+      nodes: [{ id: 'greet', say: ['hello'], end: true }],
+    });
+    expect(effectiveVoicemailPolicy({ decision: { enabled: true, flow } })).toMatchObject({
+      detect: true,
+      action: 'hangup',
+    });
+    expect(effectiveVoicemailPolicy({ decision: { enabled: false, flow } })).toBeUndefined();
+    const silent = { ...flow, nodes: [{ ...flow.nodes[0]!, say: [] }] };
+    expect(effectiveVoicemailPolicy({ decision: { enabled: true, flow: silent } })).toBeUndefined();
   });
 
   it('lets a decision outcome end the call, and state show the last line and today', () => {

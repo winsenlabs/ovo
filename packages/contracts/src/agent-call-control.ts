@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { AgentFlow } from './agent-flow.ts';
+import { flowSpeaksFirst } from './agent-flow-compile.ts';
 
 /**
  * How an agent starts and ends a call: the opening it speaks before the caller says anything, what
@@ -58,13 +60,17 @@ export const AgentVoicemail = z
   });
 export type AgentVoicemail = z.infer<typeof AgentVoicemail>;
 
-/** The voicemail policy that applies when an outbound agent configures none. */
+/**
+ * The voicemail policy that applies when an outbound agent configures none. A flow whose start
+ * node has lines greets first exactly as an opening does, so it gets the same default.
+ */
 export function effectiveVoicemailPolicy(config: {
   voicemail?: AgentVoicemail;
   opening?: AgentOpening;
+  decision?: { enabled: boolean; flow?: AgentFlow };
 }): AgentVoicemail | undefined {
   if (config.voicemail) return config.voicemail.detect ? config.voicemail : undefined;
-  return config.opening
+  return config.opening || flowSpeaksFirst(config.decision)
     ? { detect: true, timeoutMs: DEFAULT_VOICEMAIL_TIMEOUT_MS, action: 'hangup' }
     : undefined;
 }

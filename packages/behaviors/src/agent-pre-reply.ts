@@ -33,6 +33,8 @@ export interface PreReplyInput {
 export interface PreReply {
   /** Set when the turn is already answered and the LLM must not be asked. */
   speak?: string;
+  /** `speak` as separate lines, when a flow node says several. */
+  lines?: string[];
   /** The briefing the LLM should see, with the call facts and any retrieved passages appended. */
   context: string;
   /** A trusted decision ends the call once this turn's reply has played. */

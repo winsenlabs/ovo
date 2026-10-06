@@ -57,6 +57,8 @@ export interface InferenceStepInput {
   wrote: boolean;
   /** The session's flow, when the agent routes by one: the LLM may hand the call back to it. */
   flow?: FlowSession;
+  /** The reply guardrail from the pre-reply step: the text to speak, or undefined to drop it. */
+  guard?: (segment: string) => string | undefined;
 }
 
 /** How the flow is offered to the LLM for one turn, and what the LLM did with it. */
@@ -93,6 +95,7 @@ async function* inferenceSteps(
   rejoin?: Rejoin,
 ): AsyncGenerator<string, void> {
   const { config, publish, signal } = step;
+  const checked = (text: string) => (step.guard ? step.guard(text) : text);
   const assertCurrent = () => {
     signal.throwIfAborted();
     if (!step.current()) throw new DOMException('stale agent turn', 'AbortError');
@@ -128,6 +131,7 @@ async function* inferenceSteps(
           if (accepted) step.endCall(endReason(input));
           return accepted;
         },
+        step.guard,
       );
       if (!streamed) return;
       reply = streamed;
@@ -137,7 +141,8 @@ async function* inferenceSteps(
     assertCurrent();
 
     if (reply.kind === 'text') {
-      yield publish(reply.text.trim() || config.uncertainty);
+      const text = checked(reply.text.trim() || config.uncertainty);
+      if (text !== undefined) yield publish(text);
       return;
     }
 
@@ -151,7 +156,8 @@ async function* inferenceSteps(
           `Inference supplied invalid input for ${FLOW_RESUME_TOOL_ID}`,
         );
       rejoin.resume(resume);
-      yield publish(resume.reply);
+      const spoken = checked(resume.reply);
+      if (spoken !== undefined) yield publish(spoken);
       return;
     }
 
@@ -178,7 +184,8 @@ async function* inferenceSteps(
     }
     if (tool.id === END_CALL_TOOL_ID) {
       step.endCall(endReason(reply.input));
-      yield publish((reply.input as { goodbye: string }).goodbye.trim());
+      const goodbye = checked((reply.input as { goodbye: string }).goodbye.trim());
+      if (goodbye !== undefined) yield publish(goodbye);
       return;
     }
 

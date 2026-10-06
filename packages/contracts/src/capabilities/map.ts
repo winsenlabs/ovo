@@ -8,6 +8,7 @@ import type { BackgroundTask } from '../ops/background-task.ts';
 import type { CapacitySignalPublisher } from '../ops/capacity-signal.ts';
 import type {
   Behavior,
+  EventSink,
   Execution,
   Inference,
   OperationStore,
@@ -48,6 +49,7 @@ interface TypedCapabilities {
   [Cap.secrets]: SecretResolver;
   [Cap.usage]: UsageSink;
   [Cap.transcripts]: TranscriptObserver;
+  [Cap.events]: EventSink;
   [Cap.clock]: Clock;
   [Cap.net]: NetPort;
   [Cap.carrierControl]: CarrierControlFactory;

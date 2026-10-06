@@ -28,6 +28,8 @@ import { ToolConfirmation } from './confirmation.ts';
 import { ToolEvents } from './tool-events.ts';
 import { assembleBoundedContext } from './context.ts';
 import { ruledDecisionGate, type RuledDecisionGate } from './rules-gate.ts';
+import type { FlowSession } from './decision-gate.ts';
+import { flowBriefing, flowFacts } from './agent-decision-step.ts';
 import { ScriptedLines } from './reprompt-lines.ts';
 import { runPreReplySteps } from './agent-pre-reply.ts';
 import { resumeConfirmation } from './agent-confirmation-step.ts';
@@ -35,6 +37,8 @@ import { Grounding } from './grounding.ts';
 import { runInferenceSteps } from './agent-inference-step.ts';
 import { CallEnding } from './agent-ending.ts';
 import { AgentVariables } from './agent-variables.ts';
+import { AgentReplyGuard } from './agent-guardrail.ts';
+import { CallOutcomeEvents } from './outcome-events.ts';
 
 export class AgentBehavior implements Behavior {
   readonly config: AgentConfig;
@@ -53,6 +57,8 @@ export class AgentBehavior implements Behavior {
   }
   private uncertainWrite = false;
   private readonly gate?: RuledDecisionGate;
+  /** The authored flow this call follows, when its decision policy has one and is enabled. */
+  readonly flow?: FlowSession;
   /** Opening, idle and recovery lines. */
   private readonly lines: ScriptedLines;
   private readonly grounding?: Grounding;
@@ -64,6 +70,12 @@ export class AgentBehavior implements Behavior {
   readonly decisions: readonly AgentDecisionRecord[] = this.log.decisions;
   readonly groundings: readonly AgentGroundingRecord[] = this.log.groundings;
   readonly skippedLines: readonly AgentSkippedLineRecord[] = this.log.skippedLines;
+  private readonly guard: AgentReplyGuard;
+  private readonly outcomes: CallOutcomeEvents;
+  /** Sentences the reply guardrail checked, flagged, blocked and dropped, and what it cost. */
+  get guardrailMetrics() {
+    return this.guard.metrics;
+  }
 
   constructor(
     config: AgentConfig,
@@ -81,6 +93,7 @@ export class AgentBehavior implements Behavior {
     this.operationId = options.operationId ?? (() => crypto.randomUUID());
     // Validates every authored line against the declared variables before the first call.
     this.variables = new AgentVariables(this.config, options.now);
+    this.guard = new AgentReplyGuard(this.config, options);
     this.lines = new ScriptedLines(this.config, this.variables, {
       ending: this.ending,
       skipped: (field) => this.log.skippedLine(this.turn, field),
@@ -91,6 +104,9 @@ export class AgentBehavior implements Behavior {
     this.tools = compiled.tools;
     this.validators = compiled.validators;
     this.gate = ruledDecisionGate(this.config, this.options.decision);
+    this.flow = this.gate?.flow;
+    this.outcomes = new CallOutcomeEvents(options.events, this.log);
+    this.outcomes.follow(this.flow, () => this.turn);
     if (this.config.knowledge)
       this.grounding = new Grounding(this.config.knowledge, this.options.knowledge);
   }
@@ -112,7 +128,7 @@ export class AgentBehavior implements Behavior {
   ): AsyncIterable<string> {
     this.ending.startTurn();
     this.lines.startTurn();
-    if (variables.inputEvent === 'opening') return yield* this.lines.opening(variables);
+    if (variables.inputEvent === 'opening') return yield* this.lines.opening(variables, this.flow);
     if (variables.inputEvent === 'idle') return yield* this.lines.silence(variables);
     this.lines.heard();
     this.active?.abort(new DOMException('superseded by a newer turn', 'AbortError'));
@@ -158,21 +174,27 @@ export class AgentBehavior implements Behavior {
             config: this.config,
             grounding: this.grounding,
             gate: this.gate,
-            briefing: this.variables.renderBriefing(this.assembledContext, variables),
-            facts: this.variables.facts(variables),
+            // AGT-5: until a flow confirms identity, neither carries this call's variable values.
+            briefing: flowBriefing(this.flow, this.assembledContext, (text) =>
+              this.variables.renderBriefing(text, variables),
+            ),
+            facts: flowFacts(this.flow, this.variables.facts(variables)),
             turnInput: { input, history, variables, today: this.variables.today() },
             signal: controller.signal,
             log: this.log,
             turn,
             stale: () => turn !== this.turn,
             render: (line) => this.variables.render(line, variables),
+            ...this.guard.input(results),
           }),
       });
+      this.outcomes.routed(turn, route);
       if (route.kind === 'recover') return yield* this.lines.speak(route.plan, variables);
       const { prepared } = route;
       if (route.end !== undefined) this.ending.arm(`decision:${route.end}`);
       if (route.say !== undefined) {
-        yield this.say(route.say, turn);
+        // A flow node's lines are separate segments, so each one is cached and played on its own.
+        for (const line of prepared.lines ?? [route.say]) yield this.say(line, turn);
         this.ending.seal();
         return;
       }
@@ -200,6 +222,8 @@ export class AgentBehavior implements Behavior {
         signal: controller.signal,
         uncertainWrite: () => this.uncertainWrite,
         wrote,
+        ...(this.flow ? { flow: this.flow } : {}),
+        guard: prepared.guard,
       });
       this.ending.seal();
     } finally {

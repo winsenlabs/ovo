@@ -195,29 +195,27 @@ describe('checkFlow', () => {
   const wrapup = (f: AgentFlow) => flowListen(f, 'wrapup')!.intents;
 
   it('refuses missing targets, duplicate intents, undeclared variables and unreachable nodes', () => {
-    expect(broken((f) => (wrapup(f)[0]!.next = 'nowhere'))).toThrow(
-      'listen wrapup intent no_more: node nowhere does not exist',
-    );
+    expect(broken((f) => (wrapup(f)[0]!.next = 'nowhere'))).toThrow('Node nowhere does not exist');
     expect(
       broken((f) =>
         wrapup(f).push({ key: 'abusive', description: 'x', phrases: [], next: 'goodbye' }),
       ),
-    ).toThrow('listen wrapup intent abusive is used twice');
+    ).toThrow('Intent abusive is also a global intent');
     expect(broken((f) => (f.lines.goodbye = 'Bye {{nickname}}'))).toThrow(
       'line goodbye: undeclared variable nickname',
     );
     expect(
       broken((f) => f.nodes.push({ id: 'orphan', say: ['goodbye'], end: true, verified: false })),
-    ).toThrow('node orphan: unreachable');
+    ).toThrow('Node orphan cannot be reached');
     expect(broken((f) => (flowNode(f, 'goodbye')!.listen = 'wrapup'))).toThrow(
-      'node goodbye: needs one of listen and end',
+      'A node that ends the call does not listen',
     );
     expect(broken((f) => wrapup(f).push({ ...wrapup(f)[0]!, key: 'other' }))).toThrow(
-      'listen wrapup intent other: other is automatic and reserved',
+      'Intent other is added automatically and is reserved',
     );
     expect(
       broken((f) => wrapup(f).push({ ...wrapup(f)[0]!, key: 'done', phrases: ['bye'] })),
-    ).toThrow('listen wrapup intent done: phrase "bye" also means no_more');
+    ).toThrow('Phrase "bye" means both no_more and done');
   });
 
   it('refuses a code-valued next that reads two slots and a global intent with nowhere to go', () => {

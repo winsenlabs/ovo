@@ -4,6 +4,7 @@ import {
   type AudioFormat,
   type PlaybackEvidence,
   type EndReason,
+  type EventSink,
   type MediaDuplex,
   type OperationStore,
   type SecretResolver,
@@ -34,11 +35,14 @@ import { createV2SpeechCachePlugin } from './speech-cache-v2.ts';
 import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
 import { adaptV1Engine } from './v1-engine-adapter.ts';
 import { holdOpeningForAnsweringMachine } from './answering-machine.ts';
+import type { CallOutcomeStore } from '@winsendotai/ovo-plugin-storage/outcomes';
 
 export interface LiveGraphOptions {
   distribution: LoadedDistribution;
   parent: Composition;
   carriers?: WorkerCarrierRuntime;
+  /** Where each call's outcome events are stored (AGT-8); closed with the worker. */
+  outcomes?: Pick<CallOutcomeStore, 'append' | 'close'>;
 }
 
 export interface LiveCarrierMedia {
@@ -67,6 +71,8 @@ export async function composeLiveSessionGraph(input: {
   amd?: { timeoutMs: number };
   /** The carrier's verdict, from the media link or the durable callback. */
   answeredBy?: NonNullable<MediaDuplex['onAnsweredBy']>;
+  /** The call's outcome event sink, offered to the behaviour as `ovo.event-sink`. */
+  events?: EventSink;
 }): Promise<GraphSessionResult> {
   const { release, graph, telemetry } = input;
   const registry = new PluginRegistry([
@@ -115,6 +121,7 @@ export async function composeLiveSessionGraph(input: {
       if (event.type === 'agent.transcript')
         telemetry.audit('transcript.agent', { text: event.text, state: event.state });
     },
+    ...(input.events ? { events: input.events } : {}),
   });
   const mcpTools = release.config.tools.filter(
     (tool) => tool.connector === 'mcp' && release.config.allowedTools.includes(tool.id),

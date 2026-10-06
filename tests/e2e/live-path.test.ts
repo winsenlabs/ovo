@@ -162,10 +162,11 @@ describe('live inbound call path: fake Twilio -> gateway -> worker -> fake provi
         () => {
           expect(openAi.speech.join(' ')).toContain('How can I help you today?');
           expect(call.received.some((message) => message.event === 'mark')).toBe(true);
+          // The first mark can follow the short first clause ("Hello,") before the rest arrives.
+          expect(call.agentAudioBytes).toBeGreaterThan(1_000);
         },
         { timeout: 20_000, interval: 100 },
       );
-      expect(call.agentAudioBytes).toBeGreaterThan(1_000);
       await new Promise((resolve) => setTimeout(resolve, 1_000));
       expect(call.connected, 'the agent hung up on the caller').toBe(true);
       expect(twilioRest.requests).toEqual([]);

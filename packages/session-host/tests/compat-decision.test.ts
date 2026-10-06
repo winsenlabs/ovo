@@ -74,6 +74,25 @@ describe('a decision policy without a plugin', () => {
     expect(reported.message).toContain('1 decision question');
   });
 
+  it('names a flow rather than counting its questions', () => {
+    const input = withConfig(fixture(), {
+      mode: 'agent',
+      decision: {
+        enabled: true,
+        flow: {
+          start: 'bye',
+          lines: { bye: 'Goodbye.' },
+          nodes: [{ id: 'bye', say: ['bye'], end: true }],
+        },
+      },
+    });
+    expect(
+      validateSelections(input, 'release').find(
+        (entry) => entry.code === 'decision_plugin_missing',
+      )!.message,
+    ).toContain('configures a decision flow');
+  });
+
   it('says nothing when the policy is present but disabled', () => {
     const input = withConfig(fixture(), {
       mode: 'agent',

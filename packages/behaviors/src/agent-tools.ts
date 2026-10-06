@@ -3,6 +3,7 @@ import {
   END_CALL_TOOL_ID,
   type AgentConfig,
   type DecisionPort,
+  type EventSink,
   type KnowledgePort,
   type ToolDefinition,
 } from '@winsendotai/ovo-contracts';
@@ -28,6 +29,8 @@ export interface AgentBehaviorOptions {
   knowledge?: KnowledgePort;
   /** The clock behind the date built-ins (`today`, `date_tomorrow`, `date_week`). */
   now?: () => Date;
+  /** Where routing verdicts and guardrail verdicts are recorded for the call (AGT-8). */
+  events?: EventSink;
 }
 
 export interface AgentToolErrorRecord {

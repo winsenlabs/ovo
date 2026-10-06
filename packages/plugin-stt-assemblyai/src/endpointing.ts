@@ -17,6 +17,12 @@ const PRESETS: Readonly<Record<EndpointingPreset, TurnDetection>> = Object.freez
   patient: { endOfTurnConfidenceThreshold: 0.7, minTurnSilenceMs: 800, maxTurnSilenceMs: 3600 },
 });
 
+/**
+ * A binding that configures no turn detection at all connects with 'fast' (Wave 2 request 1): the
+ * caller's turn ends 160-400 ms after they stop, instead of the provider's slower default.
+ */
+export const DEFAULT_ENDPOINTING: EndpointingPreset = 'fast';
+
 /** The turn-detection values a binding sends: its preset's, with explicit fields on top. */
 export function assemblyAiTurnDetection(
   binding: Pick<AssemblyAiBinding, 'endpointing' | keyof TurnDetection>,
@@ -27,6 +33,22 @@ export function assemblyAiTurnDetection(
     maxTurnSilenceMs: binding.maxTurnSilenceMs,
   });
   return { ...(binding.endpointing ? PRESETS[binding.endpointing] : {}), ...explicit };
+}
+
+/**
+ * The turn-detection values sent at connect. The default preset applies only when the binding sets
+ * no preset and no turn field: one that tuned a field (say a 800 ms minimum) keeps the provider's
+ * defaults for the rest, exactly as it was published.
+ */
+export function connectTurnDetection(
+  binding: Pick<AssemblyAiBinding, 'endpointing' | keyof TurnDetection>,
+): Partial<TurnDetection> {
+  const configured =
+    binding.endpointing !== undefined ||
+    binding.endOfTurnConfidenceThreshold !== undefined ||
+    binding.minTurnSilenceMs !== undefined ||
+    binding.maxTurnSilenceMs !== undefined;
+  return assemblyAiTurnDetection(configured ? binding : { endpointing: DEFAULT_ENDPOINTING });
 }
 
 function defined<T extends Record<string, unknown>>(value: T): Partial<T> {

@@ -13,6 +13,7 @@ import {
   type ProductionRecordingServices,
 } from '@winsendotai/ovo-plugin-recordings/production';
 import { PostgresControlStore } from '@winsendotai/ovo-plugin-storage';
+import { PostgresCallOutcomeStore } from '@winsendotai/ovo-plugin-storage/outcomes';
 import {
   compose,
   definePlugin,
@@ -30,6 +31,7 @@ import { createWorkerCostRuntimePlugin } from './cost-runtime-plugin.ts';
 import { createWorkerRecordingsPlugin } from './recording-runtime.ts';
 import { ecsRuntimeConfig, localProtectionPlugin, readinessPlugin } from './runtime-plugins.ts';
 import { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
+import type { LiveGraphOptions } from './session-graph-runtime.ts';
 import { workerSecretManager } from './worker-secrets.ts';
 import { prewarmJobProviders } from './provider-prewarm.ts';
 import { createWorkerRunnerPlugin } from './worker-plugin.ts';
@@ -92,6 +94,10 @@ export async function openWorkerProcess() {
   await costLedger.migrate();
   const extensions = await loadInstalledSessionExtensions(process.env.OVO_PLUGIN_MODULES ?? '[]');
   const speechCache = await WorkerSpeechCacheRuntime.fromEnvironment(process.env, databaseUrl);
+  const outcomes = await PostgresCallOutcomeStore.open({
+    connectionString: databaseUrl,
+    maxConnections: 2,
+  });
   const telemetry = await openWorkerTelemetry(
     process.env.OVO_TELEMETRY_DATABASE_URL ?? env('DATABASE_URL'),
     controlStore,
@@ -225,6 +231,7 @@ export async function openWorkerProcess() {
     telemetry,
     secrets,
     speechCache,
+    graph: { distribution, parent: composition, carriers, outcomes } satisfies LiveGraphOptions,
     prewarm,
   };
 }

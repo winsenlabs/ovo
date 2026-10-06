@@ -8,7 +8,7 @@ import {
   type SpeechToText,
 } from '@winsendotai/ovo-contracts';
 import { createLogger, errorFields, systemClock } from '@winsendotai/ovo-plugin-kit';
-import { assemblyAiTurnDetection, type EndpointingPreset } from './endpointing.ts';
+import { connectTurnDetection, type EndpointingPreset } from './endpointing.ts';
 import {
   MODEL_LANGUAGES,
   assemblyAiLanguageCodes,
@@ -93,7 +93,7 @@ export function assemblyAiUrl(
   url.searchParams.set('sample_rate', String(format.sampleRate));
   url.searchParams.set('encoding', format.encoding === 'mulaw' ? 'pcm_mulaw' : 'pcm_s16le');
   url.searchParams.set('format_turns', 'false');
-  const turns = assemblyAiTurnDetection(binding);
+  const turns = connectTurnDetection(binding);
   if (turns.minTurnSilenceMs !== undefined)
     url.searchParams.set('min_turn_silence', String(turns.minTurnSilenceMs));
   if (turns.maxTurnSilenceMs !== undefined)

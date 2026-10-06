@@ -57,15 +57,33 @@ describe('AssemblyAI endpointing presets (STT-4)', () => {
     });
   });
 
-  it('lets explicit fields override the preset, and sends nothing without either', () => {
+  it('lets explicit fields override the preset', () => {
     expect(assemblyAiTurnDetection({ endpointing: 'fast', maxTurnSilenceMs: 700 })).toEqual({
       endOfTurnConfidenceThreshold: 0.4,
       minTurnSilenceMs: 160,
       maxTurnSilenceMs: 700,
     });
-    const plain = params({});
-    for (const name of ['min_turn_silence', 'max_turn_silence', 'end_of_turn_confidence_threshold'])
-      expect(plain).not.toHaveProperty(name);
+  });
+
+  it("connects with the 'fast' preset when the binding configures no turn detection", () => {
+    expect(params({})).toMatchObject({
+      end_of_turn_confidence_threshold: '0.4',
+      min_turn_silence: '160',
+      max_turn_silence: '400',
+    });
+  });
+
+  it('sends only the fields a binding without a preset set, as it was published', () => {
+    // Regression: the 'fast' default used to sit under explicit fields, so a published 800 ms
+    // minimum connected with a 400 ms maximum below it.
+    const turnFields = ['min_turn_silence', 'max_turn_silence', 'end_of_turn_confidence_threshold'];
+    const tuned = (binding: Parameters<typeof params>[0]) =>
+      Object.fromEntries(Object.entries(params(binding)).filter(([k]) => turnFields.includes(k)));
+    expect(tuned({ minTurnSilenceMs: 800 })).toEqual({ min_turn_silence: '800' });
+    expect(tuned({ maxTurnSilenceMs: 2000 })).toEqual({ max_turn_silence: '2000' });
+    expect(tuned({ endOfTurnConfidenceThreshold: 0.6 })).toEqual({
+      end_of_turn_confidence_threshold: '0.6',
+    });
   });
 
   it('sends vad_threshold and inactivity_timeout, and the prompt only to the pro models', () => {

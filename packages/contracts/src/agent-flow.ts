@@ -38,6 +38,8 @@ export const FLOW_RESUME_TOOL_ID = 'resume_flow';
 /** A `resume_at` that ends the call after the LLM's reply. */
 export const FLOW_RESUME_END = 'end';
 export const DEFAULT_FLOW_THRESHOLD = 0.55;
+/** Most phrases one intent may carry. */
+export const FLOW_MAX_PHRASES = 500;
 
 /**
  * Release-blocking codes the flow raises. `contracts/src/blockers.ts` spreads these into
@@ -83,9 +85,10 @@ export const FlowIntent = z
     /**
      * Whole replies that mean this intent with no decision call at all ("yes", "haan ji"). Matched
      * after normalisation (case, punctuation and spacing), never as a pattern, so a phrase cannot
-     * take the call down with a pathological expression.
+     * take the call down with a pathological expression. 500 holds an imported POC rule: the POC's
+     * yes-rule alone expands to 324 phrases.
      */
-    phrases: z.array(Phrase).max(100).default([]),
+    phrases: z.array(Phrase).max(FLOW_MAX_PHRASES).default([]),
     /** Where the conversation goes. Exactly one of `next` and `repeat` is set. */
     next: FlowRoute.optional(),
     /** Say the agent's last lines again instead of moving ("sorry, what?"). */

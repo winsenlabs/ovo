@@ -1,4 +1,5 @@
 import {
+  matchFlowPhrase,
   resolveDecision,
   ruleDecisionTarget,
   type AgentConfig,
@@ -11,6 +12,7 @@ import {
 import {
   action,
   DecisionGate,
+  type DecisionClock,
   type DecisionGateResult,
   type DecisionTurn,
 } from './decision-gate.ts';
@@ -40,9 +42,14 @@ export class RuledDecisionGate extends DecisionGate {
     private readonly authored: AgentDecisionPolicy,
     port: DecisionPort | undefined,
     private readonly rules?: RuleMatcher,
-    clock?: { timeout(ms: number): AbortSignal },
+    clock?: DecisionClock,
   ) {
-    super(authored, port, clock);
+    // With a flow, the authored phrases still win; the rules tier then tries the listen set's own
+    // rules and the global ones before the decision model is asked.
+    super(authored, port, clock, {
+      rules: (reply, listen, flow) =>
+        matchFlowPhrase(flow, listen, reply) ?? rules?.match(reply, listen)?.intent,
+    });
   }
 
   override async evaluate(turn: DecisionTurn, signal: AbortSignal): Promise<DecisionGateResult> {

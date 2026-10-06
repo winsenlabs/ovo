@@ -130,6 +130,17 @@ export class RecoveryState {
     const authored = this.config.recovery !== undefined;
     if (!turn.input.trim() && (authored || !turn.llm)) return { reason: 'empty' };
     const verdict = turn.verdict;
+    // A flow that could not place the reply: unavailable, or a clarify fallback re-asking its listen.
+    if (verdict?.kind === 'flow' && verdict.step.kind === 'fallback') {
+      const listen = verdict.step.transition.from.listen;
+      const key = listen === undefined ? {} : { key: listen };
+      if (verdict.step.unavailable)
+        return authored || this.config.decisionUnavailable || !turn.llm
+          ? { reason: 'unavailable', ...key }
+          : undefined;
+      if (authored && verdict.step.action === 'clarify') return { reason: 'clarify', ...key };
+      if (verdict.step.action === 'llm' && !turn.llm) return { reason: 'no-llm', ...key };
+    }
     if (verdict?.kind === 'unavailable')
       return authored || this.config.decisionUnavailable || !turn.llm
         ? { reason: 'unavailable' }

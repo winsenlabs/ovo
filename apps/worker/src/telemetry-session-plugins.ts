@@ -2,6 +2,7 @@ import {
   Cap,
   type DecisionPort,
   type DecisionResponse,
+  type DecisionTrace,
   type KnowledgePort,
 } from '@winsendotai/ovo-contracts';
 import { manifestKeys, type PluginDefinition } from '@winsendotai/ovo-runtime';
@@ -50,12 +51,13 @@ export function instrumentDecision(
   const decide = port.decide.bind(port);
   port.decide = async (request, options) => {
     const finish = beginStage(telemetry, { stage: 'decision', ...identity });
+    const where = flowPayload(options.trace);
     try {
       const response = await decide(request, options);
-      finish('succeeded', decisionPayload(response));
+      finish('succeeded', { ...decisionPayload(response), ...where });
       return response;
     } catch (error) {
-      finish(stageOutcome(error));
+      finish(stageOutcome(error), where);
       throw error;
     }
   };
@@ -78,6 +80,14 @@ export function instrumentKnowledge(
       throw error;
     }
   };
+}
+
+/** The flow state a decision was asked in (AGT-1): node and listen ids only. */
+function flowPayload(trace: DecisionTrace | undefined): Record<string, unknown> {
+  const flow = trace?.flow;
+  return flow
+    ? { flow: { node: flow.node?.slice(0, 80) ?? null, listen: flow.listen.slice(0, 80) } }
+    : {};
 }
 
 /** Only identifiers, choices and confidences: never the state the question was asked about. */

@@ -1,5 +1,5 @@
 import type { AgentConfig } from './agent.ts';
-import type { AgentDecisionQuestion, DecisionOutcome } from './agent-decision.ts';
+import type { AgentDecisionQuestion, AgentFlow, DecisionOutcome } from './agent-decision.ts';
 import { DEFAULT_DIDNT_CATCH, DEFAULT_GIVE_UP } from './agent-recovery.ts';
 
 /**
@@ -16,6 +16,9 @@ export function agentLlmPaths(config: AgentConfig): string[] {
   if (config.mode !== 'agent') return [];
   // With no policy every caller turn is answered by the LLM.
   if (!config.decision?.enabled) return ['decision'];
+  const flow = config.decision.flow;
+  // A flow handles an unavailable decision through its own fallback, listed when it is `llm`.
+  if (flow) return [...flowLlmPaths(flow), ...commonPaths(config)];
   const paths: string[] = [];
   config.decision.questions.forEach((question, index) => {
     const at = `decision.questions.${index}`;
@@ -25,9 +28,23 @@ export function agentLlmPaths(config: AgentConfig): string[] {
   });
   // An unavailable verdict falls through to the LLM unless something else is configured to speak.
   if (!config.decisionUnavailable && !config.recovery) paths.push('decisionUnavailable');
+  return [...paths, ...commonPaths(config)];
+}
+
+function commonPaths(config: AgentConfig): string[] {
+  const paths: string[] = [];
   if (config.recovery?.exhausted.action === 'llm') paths.push('recovery.exhausted.action');
   // Only the LLM selects tools.
   if (config.allowedTools.length) paths.push('allowedTools');
+  return paths;
+}
+
+/** A flow reaches the LLM through an `llm` fallback, and wherever a state has no lines to say. */
+function flowLlmPaths(flow: AgentFlow): string[] {
+  const paths = flow.fallback === 'llm' ? ['decision.flow.fallback'] : [];
+  flow.nodes.forEach((node, index) => {
+    if (!node.say.length) paths.push(`decision.flow.nodes.${index}.say`);
+  });
   return paths;
 }
 

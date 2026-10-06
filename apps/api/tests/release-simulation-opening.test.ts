@@ -115,7 +115,10 @@ async function simulate(
     const outputs = events.items
       .filter((event) => event.type === 'simulation.output')
       .map((event) => [event.payload.epoch, event.payload.text]);
-    return { output: simulation.json().output as string, outputs, requests: llm.requests };
+    const inputs = events.items
+      .filter((event) => event.type === 'simulation.input')
+      .map((event) => event.payload.input);
+    return { output: simulation.json().output as string, outputs, inputs, requests: llm.requests };
   } finally {
     await composition.dispose();
   }
@@ -179,4 +182,11 @@ it('ends the simulation once every line of a multi-line goodbye has played', asy
   });
   expect(result.outputs).toEqual([[0, 'Thank you for your time, Ravi. Have a good day.']]);
   expect(result.requests).toHaveLength(1);
+});
+
+it('logs each caller input once when the agent greets first', async () => {
+  const result = await simulate({ opening: { lines: ['Hello, this is Asha.'] } }, 'yes speaking', {
+    followUpInputs: ['ok'],
+  });
+  expect(result.inputs).toEqual(['yes speaking', 'ok']);
 });

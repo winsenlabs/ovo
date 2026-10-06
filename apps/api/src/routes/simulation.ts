@@ -88,6 +88,9 @@ export function registerSimulationRoutes(dependencies: any) {
         if (!definition || definition.manifest.version !== locked.version)
           throw new Error(`Pinned plugin is not installed: ${locked.id}@${locked.version}`);
       }
+      // The first caller input is logged above, before the release runs; a greet-first opening
+      // turn has no input, so the first non-opening turn is the one already logged.
+      let inputLogged = true;
       const output = await runRelease(
         release,
         available,
@@ -97,13 +100,19 @@ export function registerSimulationRoutes(dependencies: any) {
         call.id,
         {
           followUpInputs: body.followUpInputs,
-          onTurn: async (turn: { input: string; output: string; epoch: number }) => {
-            if (turn.epoch > 0)
+          onTurn: async (turn: {
+            input: string;
+            output: string;
+            epoch: number;
+            opening: boolean;
+          }) => {
+            if (!turn.opening && !inputLogged)
               await store.appendCallEvent(principal.workspaceId, call.id, 'simulation.input', {
                 input: turn.input,
                 speaker: 'customer',
                 epoch: turn.epoch,
               });
+            if (!turn.opening) inputLogged = false;
             await store.appendCallEvent(principal.workspaceId, call.id, 'simulation.output', {
               text: turn.output,
               speaker: 'agent',

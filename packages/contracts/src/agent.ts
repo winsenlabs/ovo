@@ -6,6 +6,7 @@ import {
   END_CALL_TOOL_ID,
 } from './agent-call-control.ts';
 import { AgentDecisionPolicy } from './agent-decision.ts';
+import { AgentGuardrailPolicy } from './agent-guardrail.ts';
 import { AgentKnowledgePolicy } from './agent-knowledge.ts';
 import { AgentDecisionUnavailable, AgentIdle, AgentRecovery } from './agent-recovery.ts';
 import { AgentRules } from './agent-rules.ts';
@@ -108,6 +109,8 @@ export const AgentConfig = z
     recovery: AgentRecovery.optional(),
     /** Agent mode only: what the caller hears when the decision model is unavailable (AGT-4). */
     decisionUnavailable: AgentDecisionUnavailable.optional(),
+    /** Agent mode only: amounts, dates and offers the LLM may not invent (AGT-8 critic item). */
+    guardrail: AgentGuardrailPolicy.optional(),
     faqMargin: z.number().min(0).max(1).default(0.15),
     clarification: z.string().default('Please clarify your question.'),
     context: z.string().max(100000).default(''),
@@ -180,6 +183,10 @@ export const AgentConfig = z
   .refine((config) => config.mode === 'agent' || !config.ending, {
     message: 'An ending policy requires agent mode',
     path: ['ending'],
+  })
+  .refine((config) => config.mode === 'agent' || !config.guardrail, {
+    message: 'A reply guardrail requires agent mode',
+    path: ['guardrail'],
   })
   .refine(
     (config) =>

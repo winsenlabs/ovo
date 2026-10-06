@@ -6,6 +6,7 @@ import {
   turnRouteEvent,
 } from '../src/outcome-events.ts';
 import type { DecisionGateResult } from '../src/decision-gate.ts';
+import { RULES_MODEL_ID } from '../src/rules-gate.ts';
 
 const answer = (choice: string, confidence: number) => ({
   type: 'choice' as const,
@@ -43,6 +44,11 @@ const decided = (
 });
 
 describe('turn.route from a decision (AGT-8)', () => {
+  it('credits the instant rules tier when the rules answered the turn (AGT-6)', () => {
+    const ruled = { ...decided({ say: 'Thanks.' }), modelId: RULES_MODEL_ID } as DecisionGateResult;
+    expect(routeEventFromDecision(1, ruled)).toMatchObject({ tier: 'rule', modelId: 'ovo.rules' });
+  });
+
   it('records the tier that answered, the intent, confidence and the top three', () => {
     const route = routeEventFromDecision(2, decided({ say: 'Thanks.' }));
     expect(route).toEqual({

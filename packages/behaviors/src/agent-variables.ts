@@ -1,5 +1,6 @@
 import {
   AGENT_BUILTIN_VARIABLES,
+  agentRecoveryLines,
   type AgentBuiltinVariable,
   type AgentConfig,
   type JsonSchema,
@@ -120,7 +121,10 @@ export function templateSchema(config: AgentConfig): JsonSchema {
   return { ...config.variables, properties: { ...BUILTIN_SCHEMA, ...declaredProperties(config) } };
 }
 
-/** Every template an agent authors: opening, voicemail message, decision lines and the briefing. */
+/**
+ * Every template an agent authors: opening, voicemail message, decision lines, idle and recovery
+ * lines, and the briefing.
+ */
 export function agentTemplates(config: AgentConfig): AgentTemplate[] {
   if (config.mode !== 'agent') return [];
   const found: AgentTemplate[] = [];
@@ -143,6 +147,7 @@ export function agentTemplates(config: AgentConfig): AgentTemplate[] {
         spoken(`${at}.bands.${bandIndex}.outcome.say`, band.outcome.say),
       );
   });
+  for (const line of agentRecoveryLines(config)) spoken(line.field, line.text);
   if (config.context) found.push({ field: 'context', template: config.context, spoken: false });
   return found;
 }

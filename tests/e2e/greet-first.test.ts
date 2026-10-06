@@ -268,6 +268,22 @@ describe('greet-first agent call: opening before STT, call facts, and the agent 
         },
         { timeout: 15_000, interval: 250 },
       );
+      // AGT-8: the worker recorded the LLM-answered turn and how the call ended.
+      await vi.waitFor(
+        async () => {
+          const outcome = await operatorApi(stack.operator)<{
+            summary: { outcome: string; endReason: string; tiers: Record<string, number> } | null;
+            events: { type: string }[];
+          }>('GET', `/v1/calls/${rows[0]?.call_id ?? (await route())!.job_id}/outcome`);
+          expect(outcome.summary).toMatchObject({
+            outcome: 'completed',
+            endReason: 'behavior_completed',
+            tiers: { llm: 1 },
+          });
+          expect(outcome.events.map((event) => event.type)).toEqual(['turn.route', 'call.outcome']);
+        },
+        { timeout: 15_000, interval: 250 },
+      );
     } finally {
       call.close();
     }

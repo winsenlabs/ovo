@@ -2,6 +2,7 @@ import {
   Cap,
   type Clock,
   type EngineEvent,
+  type EventSink,
   type MediaDuplex,
   type OperationStore,
   type SecretResolver,
@@ -81,6 +82,8 @@ export function sessionHostServices(input: {
   transcripts: (
     event: Extract<EngineEvent, { type: 'user.transcript' | 'agent.transcript' }>,
   ) => void;
+  /** The call's outcome event sink (AGT-8); without one, behaviours record nothing. */
+  events?: EventSink;
 }): PluginDefinition {
   const clock: Clock = {
     now: () => Date.now(),
@@ -97,7 +100,15 @@ export function sessionHostServices(input: {
       scope: 'session',
       kind: 'host',
       requires: [],
-      provides: [Cap.operationStore, Cap.secrets, Cap.media, Cap.usage, Cap.transcripts, Cap.clock],
+      provides: [
+        Cap.operationStore,
+        Cap.secrets,
+        Cap.media,
+        Cap.usage,
+        Cap.transcripts,
+        Cap.clock,
+        ...(input.events ? [Cap.events] : []),
+      ],
       configSchema: { type: 'object', additionalProperties: false },
       secretFields: [],
     },
@@ -108,6 +119,7 @@ export function sessionHostServices(input: {
       ctx.provide(Cap.usage, input.usage);
       ctx.provide(Cap.transcripts, input.transcripts);
       ctx.provide(Cap.clock, clock);
+      if (input.events) ctx.provide(Cap.events, input.events);
     },
   );
 }

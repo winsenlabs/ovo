@@ -162,7 +162,7 @@ export function workerLoopFixture(
         events.push('composition-close');
       },
     },
-    distribution: {},
+    graph: { outcomes: { close: async () => undefined } },
     carriers: {
       forJob: async () => {
         if (options.terminationFails) throw new Error('selected carrier unavailable');

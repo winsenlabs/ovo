@@ -129,6 +129,61 @@ describe('static speech inventory (TTS-5)', () => {
     });
   });
 
+  it('includes every line of an enabled flow, one clip per line', () => {
+    const flowAgent = AgentConfig.parse({
+      name: 'Flow',
+      mode: 'agent',
+      variables: { type: 'object', properties: { name: { type: 'string' } } },
+      decision: {
+        enabled: true,
+        flow: {
+          start: 'greet',
+          lines: { hello: 'Hello.', ask: 'Is this {{name}}?', bye: 'Goodbye.' },
+          nodes: [
+            { id: 'greet', say: ['hello', 'ask'], listen: 'identity' },
+            { id: 'bye', say: ['bye'], end: true },
+          ],
+          listens: [
+            {
+              id: 'identity',
+              question: 'Who is it?',
+              intents: [{ key: 'yes', description: 'Them', next: 'bye' }],
+            },
+          ],
+        },
+      },
+    });
+    const inventory = staticSpeechInventory({ config: flowAgent });
+    expect(inventory.static.filter((line) => line.source === 'flow')).toEqual([
+      { text: 'Hello.', source: 'flow' },
+      { text: 'Goodbye.', source: 'flow' },
+    ]);
+    expect(inventory.perCall).toContainEqual({ text: 'Is this {{name}}?', source: 'flow' });
+    const off = AgentConfig.parse({
+      ...flowAgent,
+      decision: { ...flowAgent.decision!, enabled: false },
+    });
+    expect(staticSpeechInventory({ config: off }).static.map((line) => line.source)).not.toContain(
+      'flow',
+    );
+  });
+
+  it('includes the guardrail safe line only when the guardrail can block', () => {
+    const agent = (mode: 'flag' | 'block') =>
+      AgentConfig.parse({
+        name: 'Guarded',
+        mode: 'agent',
+        guardrail: { mode, safeLine: 'Let me confirm that with my team.' },
+      });
+    expect(staticSpeechInventory({ config: agent('block') }).static).toContainEqual({
+      text: 'Let me confirm that with my team.',
+      source: 'guardrail',
+    });
+    expect(
+      staticSpeechInventory({ config: agent('flag') }).static.map((line) => line.source),
+    ).not.toContain('guardrail');
+  });
+
   it('uses the default idle prompt for a selected turn detector and skips disabled decisions', () => {
     const off = AgentConfig.parse({ ...config, decision: { ...config.decision!, enabled: false } });
     const inventory = staticSpeechInventory({

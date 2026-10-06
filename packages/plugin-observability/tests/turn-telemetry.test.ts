@@ -85,6 +85,19 @@ function speakTurn(turns: TurnTelemetryCollector) {
 }
 
 describe('per-turn telemetry', () => {
+  it('reports the flow state a decision was asked in (AGT-1)', () => {
+    const { turns, latest } = collector();
+    turns.engine(timing('turn_decision', 'turn-1', 1_000, 0));
+    turns.stage({
+      stage: 'decision',
+      durationMs: 300,
+      outcome: 'succeeded',
+      payload: { modelId: 'jev', answers: [], flow: { node: 'greet', listen: 'identity' } },
+    });
+    turns.flush();
+    expect(latest('turn-1')?.decision?.flow).toEqual({ node: 'greet', listen: 'identity' });
+  });
+
   it('attributes each stage to its own interval instead of deltas between stages', () => {
     const { turns, latest } = collector();
     speakTurn(turns);
@@ -110,6 +123,7 @@ describe('per-turn telemetry', () => {
             confidence: 0.91,
           },
         ],
+        flow: null,
       },
       llmFirstTokenMs: 450,
       llmTotalMs: 1_400,

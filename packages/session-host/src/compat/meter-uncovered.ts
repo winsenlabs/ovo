@@ -1,3 +1,4 @@
+import { agentLlmPaths } from '@winsendotai/ovo-contracts';
 import { manifestKeys } from '@winsendotai/ovo-runtime';
 import type { CompatRule } from './types.ts';
 import { issue, resolved } from './types.ts';
@@ -8,7 +9,8 @@ export const meterUncovered: CompatRule = (input, stage) => {
     'carrier',
     ...(sessionRequiresInput(input.config) ? ['stt' as const] : []),
     'tts',
-    ...(['context', 'agent'].includes(input.config.mode) ? ['llm' as const] : []),
+    // Only an agent some path can route to the LLM must price it; a Jev-only agent has none.
+    ...(agentLlmPaths(input.config).length ? ['llm' as const] : []),
     // A decision is a METERED_KIND, so its manifest must declare a meter. Without this line that
     // meter had no price card requirement and the model's cost would go unbilled and unnoticed.
     ...(input.config.decision?.enabled ? ['decision' as const] : []),

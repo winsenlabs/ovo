@@ -21,6 +21,8 @@ export const Cap = {
   secrets: 'ovo.secret-resolver',
   usage: 'ovo.usage-sink',
   transcripts: 'ovo.transcript-observer',
+  /** Per-call outcome events (AGT-8); optional, so a session without a sink records nothing. */
+  events: 'ovo.event-sink',
   clock: 'ovo.clock',
   net: 'ovo.net',
   carrierControl: 'ovo.carrier.control',
@@ -117,6 +119,7 @@ export const CAPABILITY_SPECS = {
   [Cap.secrets]: EITHER,
   [Cap.usage]: SESSION,
   [Cap.transcripts]: SESSION,
+  [Cap.events]: SESSION,
   [Cap.clock]: EITHER,
   [Cap.net]: EITHER,
   [Cap.carrierControl]: MANY_PROCESS,

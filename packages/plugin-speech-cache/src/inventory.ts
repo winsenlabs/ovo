@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import {
+  agentRecoveryLines,
   canonicalJson,
+  flowLineTemplates,
   TurnConfigSchema,
   type AgentConfig,
   type DecisionOutcome,
@@ -16,8 +18,11 @@ export type FixedLineSource =
   | 'uncertainty'
   | 'faq'
   | 'decision'
+  | 'flow'
   | 'script'
-  | 'idle-prompt';
+  | 'idle-prompt'
+  | 'recovery'
+  | 'guardrail';
 
 export interface FixedLine {
   text: string;
@@ -69,10 +74,17 @@ export function staticSpeechInventory(release: SpeechInventoryRelease): SpeechIn
   }
   add(config.clarification, 'clarification');
   add(config.uncertainty, 'uncertainty');
+  if (config.guardrail?.mode === 'block') add(config.guardrail.safeLine, 'guardrail');
   for (const entry of config.faq) add(entry.answer, 'faq');
   if (config.decision?.enabled)
     for (const outcome of decisionOutcomes(config.decision.questions)) add(outcome.say, 'decision');
+  // A flow speaks each line as its own segment, so each line is its own clip (AGT-1).
+  if (config.decision?.enabled && config.decision.flow)
+    for (const line of flowLineTemplates(config.decision.flow)) add(line.template, 'flow');
   for (const node of config.script?.nodes ?? []) add(node.prompt, 'script');
+  // Agent idle prompts and recovery lines (AGT-4, AGT-11, AGT-12): fixed lines are pre-rendered.
+  for (const line of agentRecoveryLines(config))
+    add(line.text, line.field.startsWith('idle.') ? 'idle-prompt' : 'recovery');
   const turns = release.selections?.turnDetector;
   const parsed = turns ? TurnConfigSchema.safeParse(turns.config) : undefined;
   for (const prompt of parsed?.success ? (parsed.data.idle?.prompts ?? []) : [])

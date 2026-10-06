@@ -1,11 +1,13 @@
 import {
   effectiveVoicemailPolicy,
+  flowSpeaksFirst,
   type AgentConfig,
   type SpeechKindV2,
 } from '@winsendotai/ovo-contracts';
 import type { CallEnding } from './agent-ending.ts';
 import type { PreReply } from './agent-pre-reply.ts';
-import type { DecisionGateResult } from './decision-gate.ts';
+import { openFlow } from './agent-decision-step.ts';
+import type { DecisionGateResult, FlowSession } from './decision-gate.ts';
 import type { AgentVariables } from './agent-variables.ts';
 import { IdleLines } from './idle.ts';
 import { RecoveryState, renderLines, type AuthoredLine, type RecoveryPlan } from './reprompt.ts';
@@ -87,20 +89,31 @@ export class ScriptedLines {
     this.idle?.reset();
   }
 
-  /** True when the agent speaks before the caller does. */
+  /** True when the agent speaks before the caller does: an opening, or a flow's start node. */
   speaksFirst(): boolean {
-    return this.config.opening !== undefined;
+    return this.config.opening !== undefined || flowSpeaksFirst(this.config.decision);
   }
 
-  /** The opening, once per call: no decision, LLM or caller words are involved. */
-  *opening(variables: Record<string, unknown>): Generator<string> {
+  /**
+   * The opening, once per call: the `opening` lines, then a flow's start node. No decision, LLM or
+   * caller words are involved.
+   */
+  *opening(variables: Record<string, unknown>, flow?: FlowSession): Generator<string> {
     if (this.opened || !this.speaksFirst()) return;
     this.opened = true;
     const lines = (this.config.opening?.lines ?? []).map((text, index) => ({
       field: `opening.lines.${index}`,
       text,
     }));
-    for (const line of this.render(lines, variables)) yield this.host.say(line, true);
+    const rendered = this.render(lines, variables);
+    const started = openFlow(flow, {
+      render: (line) => this.variables.render(line, variables),
+      clarification: this.config.clarification,
+    });
+    rendered.push(...(started?.lines ?? []));
+    if (started?.end !== undefined) this.host.ending.arm(`decision:${started.end}`);
+    for (const line of rendered) yield this.host.say(line, true);
+    this.host.ending.seal();
   }
 
   /** A caller silence: the next idle line, ending the call after the final one. */

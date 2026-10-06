@@ -129,6 +129,12 @@ export interface Behavior {
    * the verdict, and a held opening plays.
    */
   voicemail?(variables: Record<string, unknown>): string | undefined;
+  /**
+   * The caller-silence timeout when the behaviour handles silence itself (AGT-11). The engine then
+   * times silence and runs `respond('', { inputEvent: 'idle' })`, ignoring the turn detector's own
+   * idle prompts; an idle turn that completes the behaviour ends the call as `caller_idle`.
+   */
+  idleTimeoutMs?(): number | undefined;
   /** 'confirmation' for the pending confirmation prompt. */
   speechKind?(text: string): SpeechKindV2 | undefined;
   subscribe?(fn: (event: BehaviorEvent) => void): () => void;

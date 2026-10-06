@@ -173,6 +173,23 @@ describe('per-turn provider stages', () => {
     expect(JSON.stringify(finished)).not.toContain('4111');
   });
 
+  it('stamps the flow state a decision was asked in, ids only', async () => {
+    const { telemetry, events } = recorder();
+    const port: DecisionPort = {
+      async decide() {
+        return { modelId: 'jev', answers: {} } as never;
+      },
+    };
+    instrumentDecision(port, telemetry, { provider: 'fixture' });
+    await port.decide({ state: 'x', questions: {} } as never, {
+      signal: new AbortController().signal,
+      trace: { flow: { node: 'greet', listen: 'identity' } },
+    });
+    expect(events.find((event) => event.phase === 'finished')).toMatchObject({
+      payload: { flow: { node: 'greet', listen: 'identity' } },
+    });
+  });
+
   it('reports a decision deadline as a timeout and rethrows it', async () => {
     const { telemetry, events } = recorder();
     const timeout = new DOMException('deadline', 'TimeoutError');

@@ -104,6 +104,7 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
       },
       ports.engine?.maxConcurrentTurns ?? 4,
       ports.media,
+      this.clock,
     );
     this.answered = new AnsweredByGate(this.clock, ports.session.amd?.timeoutMs, this.driver);
     this.speechEvents = new SpeechEventProjector(

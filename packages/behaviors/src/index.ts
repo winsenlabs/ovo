@@ -1,8 +1,7 @@
 import {
-  AgentConfig as AgentConfigSchema,
   Cap,
-  type AgentConfig,
   type DecisionPort,
+  type EventSink,
   type Execution,
   type KnowledgePort,
   type Inference,
@@ -14,6 +13,9 @@ import { createContextBehavior } from './context.ts';
 import { createFaqBehavior } from './faq.ts';
 import { ExecutingFaqBehavior } from './faq-execution.ts';
 import { withScript } from './script.ts';
+import { behaviorConfigSchema, parsePluginConfig, requireMode } from './plugin-config.ts';
+
+export type { BehaviorPluginConfig } from './plugin-config.ts';
 
 export * from './agent.ts';
 export * from './announcement.ts';
@@ -31,6 +33,8 @@ export * from './faq.ts';
 export * from './faq-execution.ts';
 export * from './script.ts';
 export * from './text-segmenter.ts';
+export * from './guardrail.ts';
+export * from './outcome-events.ts';
 
 /** The capability keys a behaviour plugin touches. Spelled once, in contracts (§0.3). */
 export const BEHAVIOR_SERVICE_KEYS = Object.freeze({
@@ -39,6 +43,7 @@ export const BEHAVIOR_SERVICE_KEYS = Object.freeze({
   execution: Cap.execution,
   decision: Cap.decision,
   knowledge: Cap.knowledge,
+  events: Cap.events,
 });
 
 export const BEHAVIOR_PLUGIN_IDS = Object.freeze({
@@ -49,21 +54,15 @@ export const BEHAVIOR_PLUGIN_IDS = Object.freeze({
   agent: '@winsendotai/ovo-behavior-agent',
 });
 
-export interface BehaviorPluginConfig {
-  agent: AgentConfig;
-  workspaceId?: string;
-  sessionId?: string;
-}
-
-const behaviorConfigSchema = {
-  type: 'object',
-  required: ['agent'],
-  properties: {
-    agent: { type: 'object' },
-    workspaceId: { type: 'string', minLength: 1 },
-    sessionId: { type: 'string', minLength: 1 },
-  },
-  additionalProperties: false,
+/**
+ * A script (announcement or FAQ mode) may ask the selected decision plugin to match replies to its
+ * transitions (AGT-14). Reading an optional capability needs a v2 manifest, whose migration adds
+ * the kind and nothing else, exactly as the agent plugin's did.
+ */
+const scriptDecision = {
+  contractVersion: 2,
+  kind: 'behavior',
+  optional: [BEHAVIOR_SERVICE_KEYS.decision],
 } as const;
 
 export function createAnnouncementBehaviorPlugin() {
@@ -71,7 +70,7 @@ export function createAnnouncementBehaviorPlugin() {
     {
       id: BEHAVIOR_PLUGIN_IDS.announcement,
       version: '0.1.0',
-      contractVersion: 1,
+      ...scriptDecision,
       scope: 'session',
       requires: [],
       provides: [BEHAVIOR_SERVICE_KEYS.behavior],
@@ -85,6 +84,7 @@ export function createAnnouncementBehaviorPlugin() {
         withScript(
           config.agent,
           createAnnouncementBehavior(requireMode(config.agent, 'announcement')),
+          ctx.maybe(BEHAVIOR_SERVICE_KEYS.decision) as DecisionPort | undefined,
         ),
       );
     },
@@ -96,7 +96,7 @@ export function createFaqBehaviorPlugin() {
     {
       id: BEHAVIOR_PLUGIN_IDS.faq,
       version: '0.1.0',
-      contractVersion: 1,
+      ...scriptDecision,
       scope: 'session',
       requires: [],
       provides: [BEHAVIOR_SERVICE_KEYS.behavior],
@@ -107,7 +107,11 @@ export function createFaqBehaviorPlugin() {
       const config = parsePluginConfig(rawConfig);
       ctx.provide(
         BEHAVIOR_SERVICE_KEYS.behavior,
-        withScript(config.agent, createFaqBehavior(requireMode(config.agent, 'faq'))),
+        withScript(
+          config.agent,
+          createFaqBehavior(requireMode(config.agent, 'faq')),
+          ctx.maybe(BEHAVIOR_SERVICE_KEYS.decision) as DecisionPort | undefined,
+        ),
       );
     },
   );
@@ -118,7 +122,7 @@ export function createFaqExecutionBehaviorPlugin() {
     {
       id: BEHAVIOR_PLUGIN_IDS.faqTools,
       version: '0.1.0',
-      contractVersion: 1,
+      ...scriptDecision,
       scope: 'session',
       requires: [BEHAVIOR_SERVICE_KEYS.execution],
       provides: [BEHAVIOR_SERVICE_KEYS.behavior],
@@ -135,7 +139,14 @@ export function createFaqExecutionBehaviorPlugin() {
         workspaceId: config.workspaceId,
         sessionId: config.sessionId,
       });
-      ctx.provide(BEHAVIOR_SERVICE_KEYS.behavior, withScript(config.agent, behavior));
+      ctx.provide(
+        BEHAVIOR_SERVICE_KEYS.behavior,
+        withScript(
+          config.agent,
+          behavior,
+          ctx.maybe(BEHAVIOR_SERVICE_KEYS.decision) as DecisionPort | undefined,
+        ),
+      );
       ctx.effect(() => () => behavior.cancel());
     },
   );
@@ -176,9 +187,15 @@ export function createAgentBehaviorPlugin() {
       contractVersion: 2,
       kind: 'behavior',
       scope: 'session',
-      requires: [BEHAVIOR_SERVICE_KEYS.inference, BEHAVIOR_SERVICE_KEYS.execution],
-      // Optional so an agent with no decision policy composes exactly as it did before.
-      optional: [BEHAVIOR_SERVICE_KEYS.decision, BEHAVIOR_SERVICE_KEYS.knowledge],
+      requires: [BEHAVIOR_SERVICE_KEYS.execution],
+      // Optional so an agent with no decision policy composes as before, and a Jev-only agent
+      // (AGT-4) with no LLM at all: it answers a turn that would need one with its re-ask line.
+      optional: [
+        BEHAVIOR_SERVICE_KEYS.inference,
+        BEHAVIOR_SERVICE_KEYS.decision,
+        BEHAVIOR_SERVICE_KEYS.knowledge,
+        BEHAVIOR_SERVICE_KEYS.events,
+      ],
       provides: [BEHAVIOR_SERVICE_KEYS.behavior],
       configSchema: {
         ...behaviorConfigSchema,
@@ -191,10 +208,11 @@ export function createAgentBehaviorPlugin() {
       if (!config.workspaceId || !config.sessionId)
         throw new TypeError('Agent plugin requires workspaceId and sessionId');
       // On a v2 manifest `get` throws for a missing required key; `maybe` is the optional read.
-      const inference = ctx.get(BEHAVIOR_SERVICE_KEYS.inference) as Inference;
+      const inference = ctx.maybe(BEHAVIOR_SERVICE_KEYS.inference) as Inference | undefined;
       const execution = ctx.get(BEHAVIOR_SERVICE_KEYS.execution) as Execution;
       const decision = ctx.maybe(BEHAVIOR_SERVICE_KEYS.decision) as DecisionPort | undefined;
       const knowledge = ctx.maybe(BEHAVIOR_SERVICE_KEYS.knowledge) as KnowledgePort | undefined;
+      const events = ctx.maybe(BEHAVIOR_SERVICE_KEYS.events) as EventSink | undefined;
       // A policy without a plugin is a release-validation error (`decision_plugin_missing`); fail
       // here too, so a graph assembled by any other path cannot silently run an unjudged call.
       if (config.agent.decision?.enabled && !decision)
@@ -214,6 +232,7 @@ export function createAgentBehaviorPlugin() {
           sessionId: config.sessionId,
           ...(decision ? { decision } : {}),
           ...(knowledge ? { knowledge } : {}),
+          ...(events ? { events } : {}),
         },
       );
       ctx.provide(BEHAVIOR_SERVICE_KEYS.behavior, behavior);
@@ -231,31 +250,4 @@ export function createBehaviorPluginCatalog() {
     createContextBehaviorPlugin(),
     createAgentBehaviorPlugin(),
   ] as const;
-}
-
-function parsePluginConfig(config: Record<string, unknown>): BehaviorPluginConfig {
-  const unknown = Object.keys(config).find(
-    (key) => !['agent', 'workspaceId', 'sessionId'].includes(key),
-  );
-  if (unknown) throw new TypeError(`Unknown behavior plugin config field: ${unknown}`);
-  if (typeof config.agent !== 'object' || config.agent === null)
-    throw new TypeError('Behavior plugin requires agent config');
-  return {
-    agent: AgentConfigSchema.parse(config.agent),
-    workspaceId: optionalString(config.workspaceId, 'workspaceId'),
-    sessionId: optionalString(config.sessionId, 'sessionId'),
-  };
-}
-
-function requireMode(config: AgentConfig, mode: AgentConfig['mode']): AgentConfig {
-  if (config.mode !== mode)
-    throw new TypeError(`Plugin requires ${mode} mode, received ${config.mode}`);
-  return config;
-}
-
-function optionalString(value: unknown, name: string): string | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== 'string' || !value)
-    throw new TypeError(`${name} must be a non-empty string`);
-  return value;
 }

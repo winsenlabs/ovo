@@ -27,6 +27,7 @@ import {
 } from './session-graph-runtime.ts';
 import { composeLegacySessionGraph } from './legacy-session-compat.ts';
 import { attachRecordingEvidence } from './recording-evidence.ts';
+import { auditGuardrail, closeSessionEvents, openSessionEvents } from './session-outcomes.ts';
 import {
   answeringMachineFor,
   AnsweredByVerdicts,
@@ -119,6 +120,13 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
           )
         )
           throw new Error('Selected carrier does not support negotiated worker media format');
+        const events = openSessionEvents(
+          this.graph.outcomes,
+          { workspaceId: job.workspaceId, callId },
+          telemetry,
+        );
+        // Deferred first, so it runs last: after the engine, and every event it records, is gone.
+        if (events) cleanup.defer(() => closeSessionEvents(events, requestedReason));
         const amd = answeringMachineFor(release.config, job.payload, carrier.carrier.capabilities);
         const verdicts = amd ? new AnsweredByVerdicts() : undefined;
         if (amd && verdicts) {
@@ -159,8 +167,10 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
           ...(amd && verdicts
             ? { amd, answeredBy: (listener) => verdicts.subscribe(listener) }
             : {}),
+          ...(events ? { events } : {}),
         });
         cleanup.defer(() => graph.composition.dispose());
+        cleanup.defer(() => auditGuardrail(graph.composition, telemetry));
         const unsubscribe = subscribeEngineTelemetry(graph.engine, telemetry);
         cleanup.defer(() => unsubscribe());
         if (capture) cleanup.defer(attachRecordingEvidence(capture, graph.engine));

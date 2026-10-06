@@ -55,7 +55,7 @@ export async function runWorkerLoop(input: {
     speechCache,
     extensions,
     composition,
-    distribution,
+    graph,
     carriers,
     prewarm,
   } = processRuntime;
@@ -145,7 +145,7 @@ export async function runWorkerLoop(input: {
     telephony,
     carriers,
     inbound: inboundRuntime,
-    graph: { distribution, parent: composition, carriers },
+    graph,
   });
   runner.setTerminationHandler(terminateCostedJob);
   costs.setTerminationHandler(async (job, reason) => {
@@ -195,7 +195,7 @@ export async function runWorkerLoop(input: {
       });
       await mediaRuntime.close('worker-shutdown');
       await telemetry.close();
-      await speechCache.close();
+      await Promise.all([speechCache.close(), graph.outcomes?.close()]);
       await costLedger.close();
       await controlStore.close();
       await composition.dispose();

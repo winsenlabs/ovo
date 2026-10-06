@@ -241,7 +241,15 @@ function decisionOf(sample: TurnStageSample): TurnDecisionTelemetry {
     outcome: sample.outcome,
     modelId: typeof payload.modelId === 'string' ? payload.modelId : null,
     answers: answers as TurnDecisionAnswer[],
+    flow: flowOf(payload.flow),
   };
+}
+
+function flowOf(raw: unknown): TurnDecisionTelemetry['flow'] {
+  if (!raw || typeof raw !== 'object') return null;
+  const { node, listen } = raw as Record<string, unknown>;
+  if (typeof listen !== 'string') return null;
+  return { node: typeof node === 'string' ? node : null, listen };
 }
 
 function interval(from: number | undefined, to: number | undefined): number | null {

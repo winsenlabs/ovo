@@ -4,6 +4,7 @@ import {
   AgentDecisionPolicy,
   AgentFlow,
   FLOW_COMPAT_CODES,
+  FLOW_MAX_PHRASES,
   FlowCompileError,
   compileFlow,
   flowReachesLlm,
@@ -75,6 +76,17 @@ describe('the flow contract (AGT-1)', () => {
     expect(() =>
       AgentDecisionPolicy.parse({ enabled: true, questions: [question], flow: collectionsFlow() }),
     ).toThrow(/replaces the decision questions/);
+  });
+
+  it('holds an imported POC rule of up to FLOW_MAX_PHRASES phrases per intent', () => {
+    const withPhrases = (count: number) => {
+      const flow = collectionsFlow();
+      flow.listens[0]!.intents[0]!.phrases = Array.from({ length: count }, (_, i) => `yes ${i}`);
+      return AgentFlow.safeParse(flow).success;
+    };
+    expect(FLOW_MAX_PHRASES).toBe(500);
+    expect(withPhrases(FLOW_MAX_PHRASES)).toBe(true);
+    expect(withPhrases(FLOW_MAX_PHRASES + 1)).toBe(false);
   });
 
   it('keeps graph rules out of the schema so a half-wired draft still saves', () => {
