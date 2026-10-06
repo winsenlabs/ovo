@@ -6,7 +6,7 @@ import {
   QueuedSessionEventSink,
   runCallOutcomeMigrations,
 } from '../src/outcomes/index.ts';
-import { COLLECTIONS_CALL, expectCollectionsOutcome } from './outcomes-fixture.ts';
+import { COLLECTIONS_CALL, event, expectCollectionsOutcome } from './outcomes-fixture.ts';
 
 const databaseUrl = process.env.OVO_TEST_POSTGRES_URL;
 const integration = databaseUrl ? describe : describe.skip;
@@ -49,6 +49,19 @@ integration('PostgreSQL call outcomes (AGT-8)', () => {
     expect(await store.get(workspaceId, 'call')).toMatchObject({
       events: 20,
       tiers: { rule: 10, jev: 10 },
+    });
+  });
+
+  it('stores an event whose captured words hold a NUL, without losing the batch', async () => {
+    const workspaceId = `ws-${randomUUID()}`;
+    const written = await store.append(workspaceId, 'nul-call', [
+      event('variables.captured', { turn: 1, variables: { 'na\0me': 'Ra\0vi', note: ['a\0b'] } }),
+      event('call.outcome', { outcome: 'completed', reason: 'hangup' }),
+    ]);
+    expect(written).toBe(2);
+    expect(await store.get(workspaceId, 'nul-call')).toMatchObject({
+      outcome: 'completed',
+      variables: { name: 'Ravi', note: ['ab'] },
     });
   });
 

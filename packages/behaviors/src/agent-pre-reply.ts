@@ -90,6 +90,11 @@ export async function runPreReplySteps({
           [briefing, facts, retrieved, ...authoredGuardrailTexts(config)],
           turnInput.variables,
           turn,
+          // The caller's own amounts and dates may be read back ("so ₹2,000 on the 20th").
+          [
+            turnInput.input,
+            ...turnInput.history.flatMap((entry) => (entry.role === 'user' ? [entry.content] : [])),
+          ],
         )
       : undefined;
   const checked = guard ? { guard: (segment: string) => guard.check(segment) } : {};

@@ -7,7 +7,7 @@ import {
   type GuardrailPayload,
   type InferenceStreamEvent,
 } from '@winsendotai/ovo-contracts';
-import { findClaims } from '../src/guardrail-detect.ts';
+import { findClaims, textKeys } from '../src/guardrail-detect.ts';
 import {
   agentGuardrailInput,
   GuardrailMetrics,
@@ -67,6 +67,34 @@ describe('guardrail detection', () => {
       ['offer', 'Settlement', 'offer:settlement'],
       ['offer', 'reduce your penalty', 'offer:reduction'],
     ]);
+  });
+
+  it('reads a negator only within its own clause, and reassurance as no refusal', () => {
+    expect(claims("No problem, we'll give you a discount on this month.")).toEqual([
+      ['offer', 'discount', 'offer:discount'],
+    ]);
+    expect(claims("Don't worry, I can waive the late fee for you.")).toEqual([
+      ['offer', 'waive', 'offer:waiver'],
+    ]);
+    expect(claims("Don't worry I can waive the late fee for you.")).toEqual([
+      ['offer', 'waive', 'offer:waiver'],
+    ]);
+    expect(claims('No worries, I will waive the penalty if you pay today.')).toEqual([
+      ['offer', 'waive', 'offer:waiver'],
+    ]);
+    expect(claims("We can't give a discount, but we can waive the fee.")).toEqual([
+      ['offer', 'waive', 'offer:waiver'],
+    ]);
+    expect(claims('No, we do not offer any discount.')).toEqual([]);
+  });
+
+  it('never reads an offer as declared by prose, which names offers to forbid them', () => {
+    const keys = new Set<string>();
+    textKeys('Discounts, waivers and settlements are not available.', keys);
+    textKeys('If the borrower asks for a waiver, explain that waivers are not possible.', keys);
+    expect([...keys].filter((key) => key.startsWith('offer:'))).toEqual([]);
+    textKeys('A one-time settlement is available.', keys, 'all');
+    expect([...keys].filter((key) => key.startsWith('offer:'))).toEqual(['offer:settlement']);
   });
 });
 
@@ -148,6 +176,43 @@ describe('ReplyGuardrail', () => {
     );
   });
 
+  it('blocks an offer the briefing names only to forbid it', () => {
+    const { input } = guardrail({ mode: 'block', safeLine: 'SAFE' });
+    const briefing =
+      'You collect EMI dues of {{amount}}. Waivers and settlements are not available; if asked for a discount, say it is not possible.';
+    const check = (text: string) => new ReplyGuardrail(input, [briefing], variables, 1).check(text);
+    expect(check('I can waive the late fee for you.')).toBe('SAFE');
+    expect(check('We can offer a settlement today.')).toBe('SAFE');
+    expect(check('I can give you a discount.')).toBe('SAFE');
+    // The policy's allow list and the call's variables still declare an offer.
+    const allowed = guardrail({ mode: 'block', safeLine: 'SAFE', allow: ['settlement'] });
+    expect(
+      new ReplyGuardrail(allowed.input, [briefing], variables, 1).check(
+        'We can offer a settlement.',
+      ),
+    ).toBe('We can offer a settlement.');
+    expect(
+      new ReplyGuardrail(input, [briefing], { offer: 'late fee waiver' }, 1).check(
+        'I can waive the late fee.',
+      ),
+    ).toBe('I can waive the late fee.');
+  });
+
+  it('lets the caller hear their own amounts and dates back, but not a percentage or offer', () => {
+    const { input, events } = guardrail({ mode: 'block', safeLine: 'SAFE' });
+    const heard = ['Can I pay 2000 rupees on 20th October with a 10% discount?'];
+    const guard = () => new ReplyGuardrail(input, [facts], variables, 1, heard);
+    expect(guard().check('Great, so you will pay ₹2,000 on 20th October.')).toBe(
+      'Great, so you will pay ₹2,000 on 20th October.',
+    );
+    expect(guard().check('I can give you 10% off.')).toBe('SAFE');
+    expect(guard().check('I can give you a discount.')).toBe('SAFE');
+    expect(events.map((event) => event.findings)).toEqual([
+      [{ kind: 'percent', text: '10' }],
+      [{ kind: 'offer', text: 'discount' }],
+    ]);
+  });
+
   it('allows the policy list, only the checks it names, and values that arrive mid-turn', () => {
     const results: unknown[] = [];
     const { input, events } = guardrail(
@@ -167,6 +232,7 @@ describe('ReplyGuardrail', () => {
   it('lets an agent state built-in dates and tool results, and records verdicts on its sink', () => {
     const appended: [string, Record<string, unknown>][] = [];
     const results: { result: unknown }[] = [];
+    const earlier = [{ result: { balance: 7777, offer: 'late fee waiver' } }];
     const input = agentGuardrailInput(
       AgentGuardrailPolicy.parse({ mode: 'flag' }),
       {
@@ -174,12 +240,20 @@ describe('ReplyGuardrail', () => {
         now: () => new Date('2026-10-06T06:00:00Z'),
         events: { append: async (type, payload) => void appended.push([type, payload]) },
       },
-      results as never,
+      [earlier, results] as never,
       new GuardrailMetrics(),
     );
     const guard = new ReplyGuardrail(input, [], {}, 2);
     expect(guard.check('Can you pay by 7 October or 13 October?')).toBeDefined();
+    // A balance a tool fetched on an earlier turn may be repeated on this one.
+    expect(guard.check('Your balance is still ₹7,777.')).toBeDefined();
     expect(appended).toEqual([]);
+    // A tool result's prose never declares an offer.
+    guard.check('I can waive the late fee.');
+    expect(appended).toEqual([
+      ['guardrail', expect.objectContaining({ findings: [{ kind: 'offer', text: 'waive' }] })],
+    ]);
+    appended.length = 0;
     guard.check('Your balance is ₹9,999.');
     results.push({ result: { balance: 9999 } });
     guard.check('Your balance is ₹9,999.');
@@ -266,5 +340,37 @@ describe('guardrail on the streamed reply', () => {
     // The briefing forbids a waiver, so naming one is not declared by it.
     expect(prepared.guard!('I will waive the late fee.')).toBe(config.uncertainty);
     expect(events[0]).toMatchObject({ turn: 4, findings: [{ kind: 'offer', text: 'waive' }] });
+  });
+
+  it('reads back what the caller said in block mode, from this turn or an earlier one', async () => {
+    const { input, events } = guardrail({ mode: 'block', safeLine: 'SAFE LINE' });
+    const prepared = await runPreReplySteps({
+      config,
+      briefing: config.context,
+      facts,
+      turnInput: {
+        input: 'on 20th October',
+        history: [
+          { role: 'user', content: 'I can pay 2000 rupees' },
+          { role: 'assistant', content: 'When can you pay ₹500?' },
+          { role: 'user', content: 'on 20th October' },
+        ],
+        variables,
+        today: 'today',
+      },
+      signal: new AbortController().signal,
+      log: new AgentTurnLog(),
+      turn: 5,
+      stale: () => false,
+      render: (line: string) => line,
+      guardrail: input,
+    });
+    expect(prepared.guard!('Great, so you will pay ₹2,000 on 20th October.')).toBe(
+      'Great, so you will pay ₹2,000 on 20th October.',
+    );
+    expect(prepared.guard!('Thank you.')).toBe('Thank you.');
+    // Only the caller's turns count: an amount the agent said is not theirs to confirm.
+    expect(prepared.guard!('So ₹500 then.')).toBe('SAFE LINE');
+    expect(events).toHaveLength(1);
   });
 });

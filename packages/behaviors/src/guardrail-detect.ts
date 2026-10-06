@@ -93,6 +93,10 @@ const OFFERS: readonly [RegExp, string][] = [
 /** "We cannot offer a discount" is a refusal, not an offer. */
 const NEGATION =
   /\b(?:no|not|cannot|can't|can not|unable|don't|do not|won't|never|isn't|aren't|neither|nor)\b(?:\s+\S+){0,5}\s*$/i;
+/** A negator only refuses within its own clause: "No problem, I can waive it" is an offer. */
+const CLAUSE = /[,;:.!?\u2013\u2014]|\bbut\b/i;
+/** "No problem", "don't worry": reassurance, not refusal. */
+const REASSURANCE = /\b(?:no|not|don't|do not)\s+(?:a\s+)?(?:problem|worr(?:y|ies))\b/gi;
 
 /** Every value `text` states, of the kinds in `checks`. `minimum` drops small bare numbers. */
 export function findClaims(
@@ -129,35 +133,58 @@ export function findClaims(
   if (checks.has('offer'))
     for (const [pattern, key] of OFFERS)
       for (const match of text.matchAll(pattern))
-        if (!NEGATION.test(text.slice(Math.max(0, match.index - 40), match.index)))
+        if (!refused(text.slice(Math.max(0, match.index - 40), match.index)))
           claims.push({ kind: 'offer', text: match[0], keys: [`offer:${key}`] });
   return claims;
 }
 
+/**
+ * What text may declare. Offers come only from the call's variables and the policy's allow list:
+ * prose names an offer to forbid it ("waivers are not available") as often as to grant it. The
+ * caller's own words declare only what can be read back (amounts, numbers, dates), never a
+ * percentage or an offer they asked for.
+ */
+export type Declares = 'all' | 'values' | 'heard';
+const DECLARES: Record<Declares, ReadonlySet<GuardrailCheck>> = {
+  all: new Set(['amount', 'percent', 'number', 'date', 'offer']),
+  values: new Set(['amount', 'percent', 'number', 'date']),
+  heard: new Set(['amount', 'number', 'date']),
+};
+
 /** The keys a value declares: numbers as amounts and percentages, strings by what they state. */
-export function valueKeys(value: unknown, into: Set<string>, depth = 0): void {
+export function valueKeys(
+  value: unknown,
+  into: Set<string>,
+  declares: Declares = 'values',
+  depth = 0,
+): void {
   if (depth > 4 || into.size > 5_000) return;
   if (typeof value === 'number' && Number.isFinite(value)) {
     into.add(`num:${normal(value)}`).add(`pct:${normal(value)}`);
   } else if (typeof value === 'string') {
     const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
     if (iso) into.add(`num:${+iso[1]!}`);
-    if (/^\s*-?\d+(?:\.\d+)?\s*$/.test(value)) valueKeys(Number(value), into, depth + 1);
-    textKeys(value, into);
+    if (/^\s*-?\d+(?:\.\d+)?\s*$/.test(value)) valueKeys(Number(value), into, declares, depth + 1);
+    textKeys(value, into, declares);
   } else if (Array.isArray(value)) {
-    for (const item of value.slice(0, 200)) valueKeys(item, into, depth + 1);
+    for (const item of value.slice(0, 200)) valueKeys(item, into, declares, depth + 1);
   } else if (value && typeof value === 'object') {
-    for (const item of Object.values(value).slice(0, 200)) valueKeys(item, into, depth + 1);
+    for (const item of Object.values(value).slice(0, 200))
+      valueKeys(item, into, declares, depth + 1);
   }
 }
 
-/** Every key authored text declares, small numbers included, with the year of each date. */
-export function textKeys(text: string, into: Set<string>): void {
-  for (const claim of findClaims(text, ALL, 0)) for (const key of claim.keys) into.add(key);
+/** Every key text declares, small numbers included, with the year of each date. */
+export function textKeys(text: string, into: Set<string>, declares: Declares = 'values'): void {
+  for (const claim of findClaims(text, DECLARES[declares], 0))
+    for (const key of claim.keys) into.add(key);
   for (const year of text.matchAll(/\b(19|20)\d{2}\b/g)) into.add(`num:${+year[0]}`);
 }
 
-const ALL: ReadonlySet<GuardrailCheck> = new Set(['amount', 'percent', 'number', 'date', 'offer']);
+function refused(before: string): boolean {
+  const clause = before.split(CLAUSE).at(-1)!;
+  return NEGATION.test(clause.replace(REASSURANCE, ' '));
+}
 
 function kindOf(before: string, after: string, scale: number): GuardrailCheck {
   if (PERCENT_AFTER.test(after)) return 'percent';

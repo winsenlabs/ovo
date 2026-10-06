@@ -58,7 +58,7 @@ export class PostgresCallOutcomeStore implements CallOutcomeStore {
     // Validated before the transaction: one bad event refuses the batch without touching the call.
     const events = inputs.map((input) => ({
       input,
-      event: readSessionEvent(input.type, input.payload),
+      event: readSessionEvent(input.type, withoutNul(input.payload)),
     }));
     if (!events.length) return 0;
     return transaction(this.pool, async (client) => {
@@ -185,6 +185,20 @@ async function upsertOutcome(
       summary.updatedAt,
     ],
   );
+}
+
+/**
+ * PostgreSQL text and jsonb cannot hold U+0000. One stray NUL in a caller's captured words must not
+ * refuse the batch, and with it the call's outcome, so it is removed before the write.
+ */
+function withoutNul(value: unknown): unknown {
+  if (typeof value === 'string') return value.replaceAll('\0', '');
+  if (Array.isArray(value)) return value.map(withoutNul);
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key.replaceAll('\0', ''), withoutNul(item)]),
+    );
+  return value;
 }
 
 function mapOutcome(row: Row): CallOutcomeSummary {

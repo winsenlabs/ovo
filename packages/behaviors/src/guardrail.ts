@@ -54,7 +54,8 @@ export interface ReplyGuardrailInput {
   fallback: string;
   /**
    * Values the LLM may state beyond the call's variables and the agent's own text: the built-in
-   * dates and this turn's tool results. Read at each check, since tools settle during the turn.
+   * dates and the call's tool results. Read at each check, since tools settle during the turn.
+   * They declare amounts, numbers and dates, never an offer.
    */
   values?: () => readonly unknown[];
   record?: (event: GuardrailPayload) => void;
@@ -62,9 +63,9 @@ export interface ReplyGuardrailInput {
 }
 
 /**
- * The guardrail input for one agent turn: the built-in dates and the turn's tool results may be
- * stated too (tools settle during the turn, so `results` is read at each check), and every verdict
- * is recorded on the call's event sink.
+ * The guardrail input for one agent turn: the built-in dates and every tool result of the call so
+ * far may be stated too (`turns` holds each turn's results, the current one still filling, so it
+ * is read at each check), and every verdict is recorded on the call's event sink.
  */
 export function agentGuardrailInput(
   policy: AgentGuardrailPolicy,
@@ -73,7 +74,7 @@ export function agentGuardrailInput(
     now?: () => Date;
     events?: EventSink;
   },
-  results: readonly OperationRecord[],
+  turns: readonly (readonly OperationRecord[])[],
   metrics: GuardrailMetrics,
 ): ReplyGuardrailInput {
   const now = agent.now ?? (() => new Date());
@@ -82,7 +83,11 @@ export function agentGuardrailInput(
     fallback: agent.config.uncertainty,
     values: () => [
       builtinVariables(now(), agent.config.timezone),
-      ...results.map((record) => record.result),
+      // The latest results win the bound on how many values are read.
+      ...turns
+        .flat()
+        .slice(-RESULTS_MAX)
+        .map((record) => record.result),
     ],
     record: (event) => recordSessionEvent(agent.events, 'guardrail', event),
     metrics,
@@ -102,20 +107,27 @@ export function authoredGuardrailTexts(config: AgentConfig): string[] {
   ].filter(Boolean);
 }
 
+const RESULTS_MAX = 100;
 const STATIC_KEYS = new Map<string, ReadonlySet<string>>();
 const STATIC_KEYS_MAX = 32;
 
 /**
  * The declared keys for the agent's text plus this call's facts. The text is the same on every
  * turn of a call, so it is parsed once and shared; per-turn work is then only the reply itself.
+ * Only the call's variables and the policy's allow list declare offers.
  */
-function staticKeys(texts: readonly string[], variables: Readonly<Record<string, unknown>>) {
-  const cacheKey = `${texts.join('\u0000')}\u0001${JSON.stringify(variables)}`;
+function staticKeys(
+  texts: readonly string[],
+  allow: readonly string[],
+  variables: Readonly<Record<string, unknown>>,
+) {
+  const cacheKey = `${texts.join('\u0000')}\u0001${allow.join('\u0000')}\u0001${JSON.stringify(variables)}`;
   const cached = STATIC_KEYS.get(cacheKey);
   if (cached) return cached;
   const keys = new Set<string>();
   for (const text of texts) textKeys(text, keys);
-  valueKeys(variables, keys);
+  for (const text of allow) textKeys(text, keys, 'all');
+  valueKeys(variables, keys, 'all');
   if (STATIC_KEYS.size >= STATIC_KEYS_MAX) STATIC_KEYS.delete(STATIC_KEYS.keys().next().value!);
   STATIC_KEYS.set(cacheKey, keys);
   return keys;
@@ -134,14 +146,19 @@ export class ReplyGuardrail {
   private dynamicCount = -1;
   private blocked = false;
 
+  /**
+   * `heard` is what the caller said in this call: an amount or date they stated may be read back
+   * to them, so it is parsed only when a sentence states something the call did not declare.
+   */
   constructor(
     private readonly input: ReplyGuardrailInput,
     texts: readonly string[],
     variables: Readonly<Record<string, unknown>>,
     private readonly turn: number,
+    private readonly heard: readonly string[] = [],
   ) {
     this.checks = new Set(input.policy.checks);
-    this.declared = staticKeys([...texts, ...input.policy.allow], variables);
+    this.declared = staticKeys(texts, input.policy.allow, variables);
   }
 
   /** The text to speak for this sentence, or undefined to drop it. */
@@ -154,7 +171,8 @@ export class ReplyGuardrail {
     let findings = findClaims(segment, this.checks).filter(
       (claim) => !claim.keys.some((key) => this.declared.has(key)),
     );
-    // Values that arrive during the turn are read only when the call's own keys did not suffice.
+    // The caller's words and values that arrive during the turn are read only when the call's
+    // own keys did not suffice.
     if (findings.length) {
       const dynamic = this.dynamicKeys();
       findings = findings.filter((claim) => !claim.keys.some((key) => dynamic.has(key)));
@@ -184,6 +202,7 @@ export class ReplyGuardrail {
     const values = this.input.values?.() ?? [];
     if (values.length !== this.dynamicCount) {
       this.dynamic = new Set();
+      for (const text of this.heard) textKeys(text, this.dynamic, 'heard');
       valueKeys(values, this.dynamic);
       this.dynamicCount = values.length;
     }
