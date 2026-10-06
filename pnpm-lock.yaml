@@ -71,6 +71,9 @@ importers:
       '@winsendotai/ovo-plugin-secrets':
         specifier: workspace:*
         version: link:../../packages/plugin-secrets
+      '@winsendotai/ovo-plugin-speech-cache':
+        specifier: workspace:*
+        version: link:../../packages/plugin-speech-cache
       '@winsendotai/ovo-plugin-storage':
         specifier: workspace:*
         version: link:../../packages/plugin-storage
@@ -865,6 +868,13 @@ importers:
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
+      pg:
+        specifier: 8.16.3
+        version: 8.16.3
+    devDependencies:
+      '@types/pg':
+        specifier: 8.15.5
+        version: 8.15.5
 
   packages/plugin-speech-sarvam:
     dependencies:

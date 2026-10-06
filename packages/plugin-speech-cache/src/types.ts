@@ -37,7 +37,11 @@ export interface SpeechSynthesisBinding {
 
 export interface ApprovedSpeechPhrase {
   text: string;
-  purpose: 'static-phrase' | 'announcement';
+  /**
+   * `scripted` is a fixed line from the release's static inventory: cacheable whatever speech kind
+   * the engine labels it with (a decision `say`, an idle prompt, an FAQ answer...).
+   */
+  purpose: 'static-phrase' | 'announcement' | 'scripted';
 }
 
 export interface SpeechCacheOutputConfig extends SpeechSynthesisBinding {

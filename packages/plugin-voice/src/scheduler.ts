@@ -9,6 +9,7 @@ import { errorMessage, isAbortError, raceAbort } from './async.ts';
 import { resolveSpeechSchedulerConfig, SpeechQueueBudget } from './budgets.ts';
 import { SpeechEvidenceHistory } from './history.ts';
 import { SpeechSettlement, type QueueEntry } from './scheduler-settlement.ts';
+import { filterSpeechText, orderTextFilters } from './speech/text-filters.ts';
 import type { SpeechTimingSink } from './speech/timing.ts';
 import {
   SpeechEpochError,
@@ -92,7 +93,7 @@ export class BoundedSpeechScheduler implements Speech {
   }
 
   configureFilters(filters: readonly TextFilter[], language: string): void {
-    this.filters = [...filters].sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+    this.filters = orderTextFilters(filters);
     this.language = language;
   }
 
@@ -106,7 +107,7 @@ export class BoundedSpeechScheduler implements Speech {
   ): Promise<SpeechReceipt> {
     if (this.disposed) return Promise.reject(new SpeechSchedulerDisposedError());
     const requestedAt = this.now();
-    for (const filter of this.filters) text = filter.apply(text, { language: this.language });
+    text = filterSpeechText(this.filters, text, this.language);
     if (!text.trim()) return Promise.reject(new TypeError('Speech text must not be empty'));
 
     const epoch = options.epoch ?? this._epoch;
