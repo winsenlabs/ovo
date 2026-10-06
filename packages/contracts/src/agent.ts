@@ -7,6 +7,7 @@ import {
 } from './agent-call-control.ts';
 import { AgentDecisionPolicy } from './agent-decision.ts';
 import { AgentGuardrailPolicy } from './agent-guardrail.ts';
+import { AgentHandoff, handoffIssues } from './human-handoff.ts';
 import { AgentKnowledgePolicy } from './agent-knowledge.ts';
 import { AgentDecisionUnavailable, AgentIdle, AgentRecovery } from './agent-recovery.ts';
 import { AgentRules } from './agent-rules.ts';
@@ -67,6 +68,17 @@ export const ToolDefinition = z.object({
     .optional(),
 });
 export type ToolDefinition = z.infer<typeof ToolDefinition>;
+
+/**
+ * LAT-9 per agent. The first segment of a streamed reply is cut at its first clause once it holds
+ * `minFirstWords` words; absent, the segmenter's default (3) applies. 0 cuts at any comma, which
+ * starts audio soonest but can play a lone "Okay," followed by a gap.
+ */
+export const AgentReplyPacing = z
+  .object({ minFirstWords: z.number().int().min(0).max(12).optional() })
+  .strict();
+export type AgentReplyPacing = z.infer<typeof AgentReplyPacing>;
+
 export const AgentConfig = z
   .object({
     name: z.string().min(1).max(120),
@@ -111,6 +123,10 @@ export const AgentConfig = z
     decisionUnavailable: AgentDecisionUnavailable.optional(),
     /** Agent mode only: amounts, dates and offers the LLM may not invent (AGT-8 critic item). */
     guardrail: AgentGuardrailPolicy.optional(),
+    /** Agent mode only: transfer to a person and promised callbacks (AGT-15). */
+    handoff: AgentHandoff.optional(),
+    /** Agent mode only: how a streamed LLM reply is cut into spoken segments (LAT-9). */
+    reply: AgentReplyPacing.optional(),
     faqMargin: z.number().min(0).max(1).default(0.15),
     clarification: z.string().default('Please clarify your question.'),
     context: z.string().max(100000).default(''),
@@ -194,9 +210,18 @@ export const AgentConfig = z
     { message: `Tool id ${END_CALL_TOOL_ID} is reserved for ending the call`, path: ['tools'] },
   )
   .superRefine((config, ctx) => {
-    for (const field of ['rules', 'idle', 'recovery', 'decisionUnavailable'] as const)
+    for (const field of [
+      'rules',
+      'idle',
+      'recovery',
+      'decisionUnavailable',
+      'handoff',
+      'reply',
+    ] as const)
       if (config[field] && config.mode !== 'agent')
         ctx.addIssue({ code: 'custom', message: `${field} requires agent mode`, path: [field] });
+    for (const found of handoffIssues(config))
+      ctx.addIssue({ code: 'custom', message: found.message, path: found.path });
     checkRoutingTargets(config, ctx);
   });
 

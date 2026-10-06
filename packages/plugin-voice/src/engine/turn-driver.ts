@@ -18,10 +18,12 @@ import { ReplyAudibility } from './turn-audibility.ts';
 import { callerTurn, engineTurn, TurnBook, type Turn } from './turn-book.ts';
 import { TurnFiller } from './turn-filler.ts';
 import { speakReply } from './turn-reply.ts';
+import { withCallVariables } from './turn-call-variables.ts';
+import { completionEnd, type DriverEndReason } from './turn-completion.ts';
 import { SpeculationHooks } from './turn-speculation.ts';
 import { leaveVoicemail } from './turn-voicemail.ts';
 
-export type DriverEndReason = 'behavior_completed' | 'caller_idle' | 'voicemail' | 'error:turn';
+export type { DriverEndReason } from './turn-completion.ts';
 
 /** Coordinates behavior, speech epochs, and receipts across initial, STT and DTMF turns. */
 export class TurnDriver {
@@ -65,8 +67,9 @@ export class TurnDriver {
       quiet: () => !this.stopped && !this.closing && !this.tasks.size,
       run: (turnId) => this.queue(engineTurn(turnId, '', { inputEvent: 'idle' })),
     });
-    this.hooks = new SpeculationHooks(behavior, (hook, error) =>
-      this.log('speculation_hook_failed', error, { hook }, 'warn'),
+    // The call's variables ride on each partial, as its turn will get them.
+    this.hooks = new SpeculationHooks(withCallVariables(behavior, session), (hook, e) =>
+      this.log('speculation_hook_failed', e, { hook }, 'warn'),
     );
     this.turns = new TurnBook(this.audibility, this.hooks, latency, { speech, behavior });
     this.filler = new TurnFiller(
@@ -248,10 +251,7 @@ export class TurnDriver {
       await this.receipts.deliver();
       await this.interrupting;
       if (!this.stopped && epoch === this.speech.epoch && this.behavior.isComplete?.())
-        this.end(
-          extra.inputEvent === 'idle' ? 'caller_idle' : 'behavior_completed',
-          this.behavior.completionReason?.(),
-        );
+        this.end(...completionEnd(this.behavior, extra));
     } catch (error) {
       if (!abort.signal.aborted) throw error;
     } finally {

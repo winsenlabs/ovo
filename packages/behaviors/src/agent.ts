@@ -4,6 +4,7 @@ import { resumeConfirmation } from './agent-confirmation-step.ts';
 import { firstInferenceRequest, runInferenceSteps } from './agent-inference-step.ts';
 import { AgentSession } from './agent-session.ts';
 import type { AgentBehaviorOptions } from './agent-tools.ts';
+import { AgentHandoffs } from './handoff.ts';
 import type { AgentSpeculationOptions } from './speculation.ts';
 import type {
   AgentConfig,
@@ -18,10 +19,43 @@ export {
 } from './agent-tools.ts';
 export { AgentSession } from './agent-session.ts';
 export * from './speculation.ts';
+export * from './handoff.ts';
 export type { LlmSpeculationMetrics } from './speculation-llm.ts';
 export type { PartialWords } from './speculation-turn.ts';
 
 export class AgentBehavior extends AgentSession {
+  /** Transfer and callback turns (AGT-15); inert without a `handoff` block. */
+  private readonly handoffs: AgentHandoffs;
+  /** Execution with the built-in handoff tools answered in the behaviour. */
+  private readonly toolExecution: Execution;
+
+  constructor(
+    config: AgentConfig,
+    inference: Inference | undefined,
+    execution: Execution,
+    options: AgentBehaviorOptions & AgentSpeculationOptions,
+  ) {
+    super(config, inference, execution, options);
+    this.handoffs = new AgentHandoffs(
+      this.config,
+      {
+        ...(options.events ? { events: options.events } : {}),
+        now: options.now ?? (() => new Date()),
+        turn: () => this.turn,
+        arm: (reason) => this.ending.arm(reason),
+      },
+      this.variables.schema,
+    );
+    this.handoffs.offer(this.tools, this.validators);
+    this.handoffs.follow(this.flow);
+    this.toolExecution = this.handoffs.execution(execution);
+  }
+
+  /** A flow node that transfers completes with a `transfer:` reason, ending as `transferred`. */
+  override completionReason(): string | undefined {
+    return this.handoffs.completionReason(super.completionReason());
+  }
+
   async respond(input: string, variables: Record<string, unknown> = {}): Promise<string> {
     const segments: string[] = [];
     for await (const segment of this.runResponse(input, false, variables)) segments.push(segment);
@@ -113,6 +147,8 @@ export class AgentBehavior extends AgentSession {
           }),
       });
       this.outcomes.routed(turn, route);
+      const diverted = this.handoffs.divert(route, this.gate?.last);
+      if (diverted) return yield* this.lines.speak(diverted, variables);
       if (route.kind === 'recover') return yield* this.lines.speak(route.plan, variables);
       const { prepared } = route;
       if (route.end !== undefined) this.ending.arm(`decision:${route.end}`);
@@ -126,7 +162,7 @@ export class AgentBehavior extends AgentSession {
       yield* runInferenceSteps({
         config: this.config,
         inference: early?.inference() ?? this.inference,
-        execution: this.execution,
+        execution: this.toolExecution,
         identity: { workspaceId: this.options.workspaceId, sessionId: this.options.sessionId },
         tools: this.tools,
         validators: this.validators,
