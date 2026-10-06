@@ -1,14 +1,17 @@
 import type {
   Behavior,
+  Clock,
   MediaDuplex,
   SessionInput,
-  SpeechReceipt,
   TurnDecision,
 } from '@winsendotai/ovo-contracts';
 import { raceAbort } from '../async.ts';
 import { BoundedSpeechScheduler } from '../scheduler.ts';
 import type { AnsweredBy } from './answered-by-gate.ts';
+import { realClock } from './clock.ts';
 import { VoiceEventBus } from './events.ts';
+import { IdleWatch } from './idle-watch.ts';
+import { SpeechReceipts } from './speech-receipts.ts';
 import { TurnLatency } from './latency.ts';
 import { describeError, logVoiceEvent } from './log.ts';
 
@@ -16,7 +19,7 @@ export type DriverEndReason = 'behavior_completed' | 'caller_idle' | 'voicemail'
 
 /** Coordinates behavior, speech epochs, and receipts across initial, STT and DTMF turns. */
 export class TurnDriver {
-  private readonly receipts = new Set<Promise<void>>();
+  private readonly receipts: SpeechReceipts;
   private readonly tasks = new Set<Promise<void>>();
   private interrupting: Promise<void> = Promise.resolve();
   private serial: Promise<void> = Promise.resolve();
@@ -26,6 +29,8 @@ export class TurnDriver {
   private nextTurn = 0;
   private activeTurn?: AbortController;
   private readonly epochTurns = new Map<number, string>();
+  /** Set when the behaviour handles silence; the turn detector's idle prompts are then ignored. */
+  private readonly idle?: IdleWatch;
 
   turnIdForEpoch(epoch: number): string | undefined {
     return this.epochTurns.get(epoch);
@@ -40,11 +45,26 @@ export class TurnDriver {
     private readonly end: (reason: DriverEndReason, detail?: string) => void,
     private readonly maxConcurrentTurns: number,
     private readonly media: MediaDuplex,
-  ) {}
+    clock: Pick<Clock, 'setTimeout'> = realClock,
+  ) {
+    this.receipts = new SpeechReceipts(behavior, media, session, (error) => {
+      this.log('speech_receipt_failed', error);
+      this.stopped = true;
+      this.activeTurn?.abort(new DOMException('speech receipt failed', 'AbortError'));
+      this.end('error:turn');
+    });
+    this.idle = IdleWatch.for(behavior, clock, events, {
+      quiet: () => !this.stopped && !this.closing && !this.tasks.size,
+      run: (turnId) => this.queue('', { inputEvent: 'idle' }, turnId),
+    });
+  }
 
   decide(decision: TurnDecision): void {
     if (this.stopped || this.closing) return;
     if (decision.type === 'force-endpoint') return;
+    // The caller is taking a turn, or a false start ended with nothing to answer.
+    if (decision.type === 'turn.reset') this.idle?.arm();
+    else if (decision.type !== 'idle') this.idle?.cancel();
     if (decision.type === 'interrupt') {
       this.events.emit({ type: 'interrupt', reason: decision.reason });
       this.activeTurn?.abort(new DOMException('turn interrupted', 'AbortError'));
@@ -71,11 +91,11 @@ export class TurnDriver {
       });
       this.queue(input.kind === 'speech' ? input.text : input.digits, variables, decision.turnId);
     }
-    if (decision.type === 'idle') {
+    if (decision.type === 'idle' && !this.idle) {
       this.events.emit({ type: 'user.turn', phase: 'idle', turnId: 'idle-' + decision.retry });
       if (decision.final) this.end('caller_idle');
       else if (decision.prompt)
-        this.track(this.speech.speak(decision.prompt, { kind: 'idle-prompt' }));
+        this.receipts.track(this.speech.speak(decision.prompt, { kind: 'idle-prompt' }));
     }
   }
 
@@ -136,9 +156,10 @@ export class TurnDriver {
 
   async dispose(): Promise<void> {
     this.stopped = true;
+    this.idle?.dispose();
     this.activeTurn?.abort(new DOMException('engine disposed', 'AbortError'));
     this.behavior.cancel?.();
-    await Promise.allSettled([...this.tasks, ...this.receipts]);
+    await Promise.allSettled([...this.tasks, ...this.receipts.inFlight()]);
   }
 
   private queue(input: string, extra: Record<string, unknown>, turnId: string): void {
@@ -156,7 +177,11 @@ export class TurnDriver {
         this.log('turn_failed', error, { turnId });
         this.end('error:turn');
       })
-      .finally(() => this.tasks.delete(task));
+      .finally(() => {
+        this.tasks.delete(task);
+        // Every line has played and nothing else is queued: the caller's silence starts now.
+        this.idle?.arm();
+      });
   }
 
   private async run(input: string, extra: Record<string, unknown>, turnId: string): Promise<void> {
@@ -166,7 +191,7 @@ export class TurnDriver {
     let iterator: AsyncIterator<string> | undefined;
     try {
       await this.interrupting;
-      await this.deliverReceipts();
+      await this.receipts.deliver();
       if (this.stopped || this.closing || turn.signal.aborted) return;
       epoch = await this.speech.beginEpoch();
       if (this.stopped || this.closing || turn.signal.aborted) return;
@@ -199,10 +224,13 @@ export class TurnDriver {
         }
       }
       if (turn.signal.aborted) return;
-      await this.deliverReceipts();
+      await this.receipts.deliver();
       await this.interrupting;
       if (!this.stopped && epoch === this.speech.epoch && this.behavior.isComplete?.())
-        this.end('behavior_completed', this.behavior.completionReason?.());
+        this.end(
+          extra.inputEvent === 'idle' ? 'caller_idle' : 'behavior_completed',
+          this.behavior.completionReason?.(),
+        );
     } catch (error) {
       if (!turn.signal.aborted) throw error;
     } finally {
@@ -221,39 +249,7 @@ export class TurnDriver {
 
   private say(text: string, epoch: number): void {
     const kind = this.behavior.speechKind?.(text) ?? 'response';
-    this.track(this.speech.speak(text, { epoch, kind }), text);
-  }
-
-  /** `said`: the behaviour's own line. The receipt carries the filtered text, which it can't match. */
-  private track(receipt: Promise<SpeechReceipt>, said?: string): void {
-    let delivery!: Promise<void>;
-    delivery = receipt
-      .then((value) =>
-        this.behavior.onPlayback?.({
-          ...value,
-          ...(said === undefined ? {} : { text: said }),
-          ...(value.evidence === 'confirmed' &&
-          this.media.playbackEvidence === 'carrier-processed' &&
-          this.session.acknowledgements.includes('weak-playback-evidence')
-            ? { evidenceSource: 'carrier-processed' as const }
-            : {}),
-        }),
-      )
-      .then(() => undefined)
-      .catch((error: unknown) => {
-        // Receipt failures can arrive while respondStream is still awaiting its
-        // next item. Observe them immediately, before removing the pending entry.
-        this.log('speech_receipt_failed', error);
-        this.stopped = true;
-        this.activeTurn?.abort(new DOMException('speech receipt failed', 'AbortError'));
-        this.end('error:turn');
-      })
-      .finally(() => this.receipts.delete(delivery));
-    this.receipts.add(delivery);
-  }
-
-  private async deliverReceipts(): Promise<void> {
-    while (this.receipts.size) await Promise.all([...this.receipts]);
+    this.receipts.track(this.speech.speak(text, { epoch, kind }), text);
   }
 
   private log(event: string, error: unknown, fields: Record<string, unknown> = {}): void {
