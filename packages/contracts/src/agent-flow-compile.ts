@@ -38,6 +38,12 @@ export interface CompiledFlow {
    * LLM fallback may only resume at one of these, so it can never talk its way past verification.
    */
   preVerificationListens: ReadonlySet<string>;
+  /**
+   * Per listen set, each normalised phrase of its own intents and the global ones, to the intent
+   * key it means, so the instant tier normalises the reply once and looks it up (`matchFlowPhrase`)
+   * instead of normalising every phrase of every intent on every turn.
+   */
+  phrases: ReadonlyMap<string, ReadonlyMap<string, string>>;
 }
 
 export class FlowCompileError extends Error {
@@ -147,7 +153,27 @@ export function compileFlow(flow: AgentFlow): CompiledFlow {
           })
         : listens.keys(),
     ),
+    phrases: new Map(
+      flow.listens.map((listen) => [
+        listen.id,
+        phraseIntents([...listen.intents, ...flow.globalIntents]),
+      ]),
+    ),
   };
+}
+
+/**
+ * The listen set's intents come first, so the first owner of a phrase keeps it, as the linear scan
+ * this replaces did; `checkPhrases` already refuses a phrase that means two intents.
+ */
+function phraseIntents(intents: readonly FlowIntent[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const intent of intents)
+    for (const phrase of intent.phrases) {
+      const normalized = normalizeForMatch(phrase);
+      if (normalized && !map.has(normalized)) map.set(normalized, intent.key);
+    }
+  return map;
 }
 
 function firstById<T extends { id: string }>(

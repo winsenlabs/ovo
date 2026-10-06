@@ -41,17 +41,20 @@ export function findFlowIntent(
   return flowIntents(compiled, listenId).find((intent) => intent.key === key);
 }
 
-/** The instant tier: the whole reply is one of an intent's phrases. Zero network. */
+/**
+ * The instant tier: the whole reply is one of an intent's phrases. Zero network, and one lookup in
+ * the map `compileFlow` built: the cost grows with the reply's length, not with how many phrases
+ * the flow authors (up to 64 local and 16 global intents of 500 phrases each).
+ */
 export function matchFlowPhrase(
   compiled: CompiledFlow,
   listenId: string,
   reply: string,
 ): string | undefined {
+  listenOf(compiled, listenId);
   const normalized = normalizeForMatch(reply);
   if (!normalized) return undefined;
-  return flowIntents(compiled, listenId).find((intent) =>
-    intent.phrases.some((phrase) => normalizeForMatch(phrase) === normalized),
-  )?.key;
+  return compiled.phrases.get(listenId)?.get(normalized);
 }
 
 /** One round trip: the intent among this state's options, plus every slot of the listen set. */
