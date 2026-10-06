@@ -1,6 +1,7 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { apiRequest } from '../../lib/api';
+import { useEffect, useId, useState } from 'react';
+import { apiRequest, items } from '../../lib/api';
+import type { CampaignRecord, InboundRouteRecord } from '../../lib/operator-api';
 import { Panel, PanelHeader, StatusBadge } from '../primitives';
 
 /** `GET /v1/agents/:agentId/releases/:releaseId/speech-clips`. */
@@ -58,12 +59,16 @@ export function SpeechClipStatusPanel({
   releaseId,
   load = loadStatus,
   pollMs = 5_000,
+  caption,
 }: {
   agentId: string;
   releaseId: string;
   load?: Load;
   pollMs?: number;
+  /** Which release this is and why it is shown, e.g. what routes to it. */
+  caption?: string;
 }) {
+  const titleId = useId();
   const [status, setStatus] = useState<SpeechClipStatus>();
   const [error, setError] = useState<string>();
   useEffect(() => {
@@ -89,14 +94,16 @@ export function SpeechClipStatusPanel({
     };
   }, [agentId, releaseId, load, pollMs]);
   return (
-    <Panel labelledBy="speech-clip-status-title">
+    <Panel labelledBy={titleId}>
       <PanelHeader
-        id="speech-clip-status-title"
+        id={titleId}
         title="Pre-rendered speech"
         badge={
           status ? <StatusBadge tone={tone(status)}>{LABELS[status.state]}</StatusBadge> : null
         }
-      />
+      >
+        {caption && <small className="muted">{caption}</small>}
+      </PanelHeader>
       <div className="panel-body stack">
         {error && <div className="notice danger">{error}</div>}
         {!status && !error && <div className="muted">Checking pre-rendered speech…</div>}
@@ -122,5 +129,83 @@ export function SpeechClipStatusPanel({
         )}
       </div>
     </Panel>
+  );
+}
+
+/** Release id → what routes calls to it right now: enabled inbound numbers and live campaigns. */
+export type RoutedReleases = Map<string, string[]>;
+
+type LoadRouted = () => Promise<RoutedReleases>;
+
+/** Each source is read on its own: an operator without one of them still sees the other. */
+const loadRouted: LoadRouted = async () => {
+  const routed: RoutedReleases = new Map();
+  const add = (releaseId: string, via: string) =>
+    routed.set(releaseId, [...(routed.get(releaseId) ?? []), via]);
+  const [routes, campaigns] = await Promise.allSettled([
+    apiRequest<unknown>('/operations/inbound/routes?limit=100'),
+    apiRequest<unknown>('/operations/campaigns?limit=100'),
+  ]);
+  if (routes.status === 'fulfilled')
+    for (const route of items<InboundRouteRecord>(routes.value.data))
+      if (route.enabled) add(route.releaseId, route.phoneNumber);
+  if (campaigns.status === 'fulfilled')
+    for (const campaign of items<CampaignRecord>(campaigns.value.data))
+      if (campaign.status === 'scheduled' || campaign.status === 'running')
+        add(campaign.agentReleaseId, `campaign ${campaign.name}`);
+  return routed;
+};
+
+/**
+ * Clip readiness for the releases calls actually reach: every one of this agent's releases an
+ * enabled inbound number or a live campaign points at, newest first. With nothing routed, the
+ * newest release is shown, labelled as such. `releases` is oldest first, as the API lists them.
+ */
+export function RoutedSpeechClipStatus({
+  agentId,
+  releases,
+  load,
+  routedReleases = loadRouted,
+}: {
+  agentId: string;
+  releases: readonly { id: string }[];
+  load?: Load;
+  routedReleases?: LoadRouted;
+}) {
+  const [routed, setRouted] = useState<RoutedReleases>();
+  useEffect(() => {
+    let alive = true;
+    routedReleases().then(
+      (found) => alive && setRouted(found),
+      () => alive && setRouted(new Map()),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [routedReleases]);
+  const newestFirst = [...releases].reverse();
+  const shown = newestFirst.filter((release) => routed?.has(release.id));
+  if (!routed || !newestFirst.length) return null;
+  if (!shown.length)
+    return (
+      <SpeechClipStatusPanel
+        agentId={agentId}
+        releaseId={newestFirst[0]!.id}
+        load={load}
+        caption={`Newest release ${newestFirst[0]!.id}; no number or campaign routes to it yet.`}
+      />
+    );
+  return (
+    <>
+      {shown.map((release) => (
+        <SpeechClipStatusPanel
+          key={release.id}
+          agentId={agentId}
+          releaseId={release.id}
+          load={load}
+          caption={`Release ${release.id}, routed from ${routed.get(release.id)!.join(', ')}.`}
+        />
+      ))}
+    </>
   );
 }

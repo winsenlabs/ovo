@@ -1,6 +1,10 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SpeechClipStatusPanel, type SpeechClipStatus } from './speech-clip-status';
+import {
+  RoutedSpeechClipStatus,
+  SpeechClipStatusPanel,
+  type SpeechClipStatus,
+} from './speech-clip-status';
 
 afterEach(() => cleanup());
 
@@ -57,5 +61,60 @@ describe('SpeechClipStatusPanel', () => {
       />,
     );
     expect(await screen.findByText('Release not found')).toBeTruthy();
+  });
+});
+
+describe('RoutedSpeechClipStatus', () => {
+  const releases = [{ id: 'release-old' }, { id: 'release-mid' }, { id: 'release-new' }];
+
+  it('shows the releases calls are routed to, not just the newest', async () => {
+    // Wave 2 minor: a number still routed to an older release showed the newest one's clips.
+    const load = vi.fn(async () => status({}));
+    const routed = async () =>
+      new Map([
+        ['release-old', ['+918000000001']],
+        ['release-mid', ['campaign June EMI']],
+      ]);
+    render(
+      <RoutedSpeechClipStatus
+        agentId="agent-1"
+        releases={releases}
+        load={load}
+        routedReleases={routed}
+      />,
+    );
+    expect(
+      await screen.findByText('Release release-mid, routed from campaign June EMI.'),
+    ).toBeTruthy();
+    expect(screen.getByText('Release release-old, routed from +918000000001.')).toBeTruthy();
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(load).toHaveBeenCalledWith('agent-1', 'release-old');
+    expect(load).toHaveBeenCalledWith('agent-1', 'release-mid');
+    expect(load).not.toHaveBeenCalledWith('agent-1', 'release-new');
+    // Newest routed release first.
+    const captions = screen.getAllByText(/^Release release-/).map((node) => node.textContent);
+    expect(captions[0]).toContain('release-mid');
+  });
+
+  it('falls back to the newest release, labelled, when nothing routes or routes cannot load', async () => {
+    const load = vi.fn(async () => status({}));
+    const failing = async () => {
+      throw new Error('forbidden');
+    };
+    render(
+      <RoutedSpeechClipStatus
+        agentId="agent-1"
+        releases={releases}
+        load={load}
+        routedReleases={failing}
+      />,
+    );
+    expect(
+      await screen.findByText(
+        'Newest release release-new; no number or campaign routes to it yet.',
+      ),
+    ).toBeTruthy();
+    await waitFor(() => expect(load).toHaveBeenCalledWith('agent-1', 'release-new'));
+    expect(load).toHaveBeenCalledTimes(1);
   });
 });
