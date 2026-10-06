@@ -151,9 +151,14 @@ export class ReplyGuardrail {
       return undefined;
     }
     const started = performance.now();
-    const findings = findClaims(segment, this.checks).filter(
-      (claim) => !claim.keys.some((key) => this.allowed(key)),
+    let findings = findClaims(segment, this.checks).filter(
+      (claim) => !claim.keys.some((key) => this.declared.has(key)),
     );
+    // Values that arrive during the turn are read only when the call's own keys did not suffice.
+    if (findings.length) {
+      const dynamic = this.dynamicKeys();
+      findings = findings.filter((claim) => !claim.keys.some((key) => dynamic.has(key)));
+    }
     const checkUs = Math.round((performance.now() - started) * 1_000);
     const action = !findings.length
       ? 'pass'
@@ -175,14 +180,13 @@ export class ReplyGuardrail {
     return this.input.policy.safeLine ?? this.input.fallback;
   }
 
-  private allowed(key: string): boolean {
-    if (this.declared.has(key)) return true;
+  private dynamicKeys(): ReadonlySet<string> {
     const values = this.input.values?.() ?? [];
     if (values.length !== this.dynamicCount) {
       this.dynamic = new Set();
       valueKeys(values, this.dynamic);
       this.dynamicCount = values.length;
     }
-    return this.dynamic.has(key);
+    return this.dynamic;
   }
 }
