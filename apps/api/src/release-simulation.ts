@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { Cap, type Behavior } from '@winsendotai/ovo-contracts';
+import {
+  Cap,
+  type Behavior,
+  type ReleaseSelections,
+  type SpeechOutput,
+} from '@winsendotai/ovo-contracts';
 import { compose, definePlugin, type PluginDefinition } from '@winsendotai/ovo-runtime';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { exactDefinitions, validatePermittedGraph } from './release-graph.ts';
@@ -20,6 +25,45 @@ const simulationUsage = definePlugin(
     ctx.provide(Cap.usage, () => undefined);
   },
 );
+/** Completes every segment at once. It claims no audio: receipts carry `simulated` evidence. */
+const simulationOutput = definePlugin(
+  {
+    id: '@winsendotai/ovo-api/simulation-speech-output',
+    version: '0.1.0',
+    contractVersion: 1,
+    scope: 'session',
+    provides: [Cap.output],
+    requires: [],
+    configSchema: { type: 'object', additionalProperties: false },
+    secretFields: [],
+  },
+  (ctx) => {
+    ctx.provide(Cap.output, {
+      play: async () => ({ state: 'completed', evidence: 'simulated' }),
+      interrupt: async () => undefined,
+    } satisfies SpeechOutput);
+  },
+);
+const OUTPUT_COMPANION = `companion:${Cap.output}` as const;
+
+/**
+ * A voice release speaks through its engine's companions, the last of which plays into the call's
+ * media. A simulation has no call: the engine is never composed, and the media output is replaced
+ * by `simulationOutput`. Without this an agent whose tools narrate through `ovo.speech` (every
+ * agent-mode release) could not be simulated at all.
+ */
+function simulationSelections(selections: ReleaseSelections | undefined) {
+  if (!selections?.[OUTPUT_COMPANION]) return selections;
+  const { engine: _engine, ...rest } = selections;
+  return {
+    ...rest,
+    [OUTPUT_COMPANION]: {
+      pluginId: simulationOutput.manifest.id,
+      version: simulationOutput.manifest.version,
+      config: {},
+    },
+  } satisfies ReleaseSelections;
+}
 
 export async function runRelease(
   release: ReleaseRecord,
@@ -30,7 +74,13 @@ export async function runRelease(
   sessionId: string,
   options: {
     followUpInputs?: string[];
-    onTurn?: (turn: { input: string; output: string; epoch: number }) => void | Promise<void>;
+    /** `opening` marks the greet-first turn, which has no caller input. */
+    onTurn?: (turn: {
+      input: string;
+      output: string;
+      epoch: number;
+      opening: boolean;
+    }) => void | Promise<void>;
   } = {},
 ) {
   if (release.config.mode === 'context' || release.config.mode === 'agent')
@@ -44,6 +94,8 @@ export async function runRelease(
     if (!release.mcpTools[tool.id])
       throw new Error(`Release is missing immutable MCP snapshot for ${tool.id}`);
   const selected = exactDefinitions(release.plugins, catalog);
+  const selections = simulationSelections(release.selections);
+  if (selections !== release.selections) catalog = [...catalog, simulationOutput];
   const behaviorGraph = validatePermittedGraph(
     {
       id: release.agentId,
@@ -55,11 +107,11 @@ export async function runRelease(
     },
     selected,
     services,
-    release.selections,
+    selections,
     catalog,
   );
   const selectedByRelease = new Map(
-    Object.values(release.selections ?? {})
+    Object.values(selections ?? {})
       .filter((selection) => selection !== undefined)
       .map((selection) => [selection.pluginId, selection.version]),
   );
@@ -71,9 +123,7 @@ export async function runRelease(
   });
   const definitions = new Map(simulationPlugins.map((item) => [item.manifest.id, item]));
   const selectionConfig = (pluginId: string): Record<string, unknown> => {
-    const selection = Object.values(release.selections ?? {}).find(
-      (item) => item?.pluginId === pluginId,
-    );
+    const selection = Object.values(selections ?? {}).find((item) => item?.pluginId === pluginId);
     const binding =
       selection?.binding ??
       Object.values(release.providerBindings ?? {}).find((row) => row.id === selection?.bindingId);
@@ -119,18 +169,40 @@ export async function runRelease(
       | undefined;
     if (!behavior) throw new Error(`Release composition does not provide ${BEHAVIOR_SERVICE}`);
     let output = '';
-    const inputs = [input, ...(options.followUpInputs ?? [])];
-    for (const [epoch, turnInput] of inputs.entries()) {
+    let epoch = 0;
+    // One turn, played the way the voice engine plays it: each spoken segment gets its own
+    // receipt. A behaviour remembers a line only when a receipt matches it exactly, and ends the
+    // call only once every line of the goodbye has one, so a single receipt for the joined text
+    // would drop a multi-line reply from history and leave a multi-line goodbye unfinished.
+    const speak = async (turnInput: string, turnVariables: Record<string, unknown>) => {
       behavior.beginTurn?.(epoch);
-      output = await behavior.respond(turnInput, variables);
-      behavior.onPlayback?.({
-        id: randomUUID(),
-        text: output,
-        epoch,
-        state: 'completed',
-        evidence: 'simulated',
-      });
-      await options.onTurn?.({ input: turnInput, output, epoch });
+      const segments: string[] = [];
+      if (behavior.respondStream)
+        for await (const segment of behavior.respondStream(turnInput, turnVariables))
+          segments.push(segment);
+      else segments.push(await behavior.respond(turnInput, turnVariables));
+      for (const text of segments)
+        behavior.onPlayback?.({
+          id: randomUUID(),
+          text,
+          epoch,
+          state: 'completed',
+          evidence: 'simulated',
+        });
+      output = segments.join(' ');
+      return epoch++;
+    };
+    // A greet-first agent speaks before the caller, exactly as the voice engine runs it: one
+    // `inputEvent: 'opening'` turn with no caller words. Without it a simulated agent would answer
+    // the first input with the opening still unsaid, and its flow would start one state behind.
+    if (behavior.speaksFirst?.()) {
+      const opened = await speak('', { ...variables, inputEvent: 'opening' });
+      await options.onTurn?.({ input: '', output, epoch: opened, opening: true });
+      if (behavior.isComplete?.()) return output;
+    }
+    for (const turnInput of [input, ...(options.followUpInputs ?? [])]) {
+      const played = await speak(turnInput, variables);
+      await options.onTurn?.({ input: turnInput, output, epoch: played, opening: false });
       if (behavior.isComplete?.()) break;
     }
     return output;
