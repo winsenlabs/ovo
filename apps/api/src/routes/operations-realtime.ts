@@ -10,7 +10,6 @@ import {
   type OperationsService,
 } from '@winsendotai/ovo-plugin-operations';
 import type { Principal } from '../types.ts';
-import type { InboundReadinessReport } from '../inbound-readiness.ts';
 import { registerOperationsInboundRouteManagement } from './operations-inbound-routes.ts';
 
 export interface RealtimeRouteDependencies {
@@ -25,7 +24,6 @@ export interface RealtimeRouteDependencies {
     resourceId: string,
     payload?: Record<string, unknown>,
   ) => Promise<unknown>;
-  inboundReadiness?: () => Promise<InboundReadinessReport | null>;
 }
 
 export function registerOperationsRealtimeRoutes(input: RealtimeRouteDependencies): void {

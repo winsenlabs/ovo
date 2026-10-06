@@ -13,15 +13,18 @@ export class ActiveCallDrain {
   constructor(
     private readonly input: {
       log: Logger;
-      sessionActive: () => boolean;
-      describe: () => Record<string, unknown>;
-      inbound?: { beginDrain(): Promise<void> };
+      /** The active outbound call's job, if any. */
+      jobId: () => string | undefined;
+      inbound?: { beginDrain(): Promise<void>; readonly hasActiveSession: boolean };
       timeoutMs?: number;
       pollMs?: number;
     },
   ) {}
 
-  /** True while a SIGTERM drain is waiting: the delivery loop keeps settling the active call. */
+  /**
+   * True while a SIGTERM drain is waiting: the delivery loop keeps settling the active outbound
+   * call, and the worker row stays leased as draining (the reporter stops only afterwards).
+   */
   get waiting(): boolean {
     return this.active;
   }
@@ -32,7 +35,8 @@ export class ActiveCallDrain {
   }
 
   async wait(): Promise<void> {
-    const { log, sessionActive } = this.input;
+    const { log, jobId, inbound } = this.input;
+    const sessionActive = () => jobId() !== undefined || inbound?.hasActiveSession === true;
     const timeoutMs =
       this.input.timeoutMs ??
       optionalInteger('OVO_WORKER_DRAIN_TIMEOUT_MS', 0, 3_600_000) ??
@@ -42,7 +46,11 @@ export class ActiveCallDrain {
       await this.input.inbound?.beginDrain();
       if (!sessionActive()) return;
       const startedAt = Date.now();
-      log.info('worker_drain_waiting', { ...this.input.describe(), timeoutMs });
+      log.info('worker_drain_waiting', {
+        jobId: jobId(),
+        inbound: inbound?.hasActiveSession ?? false,
+        timeoutMs,
+      });
       while (this.active && sessionActive() && Date.now() - startedAt < timeoutMs)
         await new Promise((resolve) => setTimeout(resolve, this.input.pollMs ?? 200));
       log[sessionActive() ? 'warn' : 'info']('worker_drain_finished', {
@@ -52,5 +60,39 @@ export class ActiveCallDrain {
     } finally {
       this.active = false;
     }
+  }
+}
+
+/**
+ * The shutdown steps for whatever the drain left running: the active outbound call is terminated
+ * and its protection released, then inbound capacity closes. A failed step is reported and the
+ * rest still run.
+ */
+export async function endRemainingWork(input: {
+  active?: {
+    jobId: string;
+    lease: { ownerEpoch: number; stop(): void };
+    protection: { release(): Promise<unknown> };
+  };
+  terminate: (jobId: string, ownerEpoch: number, reason: string) => Promise<unknown>;
+  inbound?: { close(): Promise<void> };
+  failed: (step: string, detail: string, error: unknown) => void;
+}): Promise<void> {
+  const { active, failed } = input;
+  if (active) {
+    try {
+      await input.terminate(active.jobId, active.lease.ownerEpoch, 'worker-shutdown');
+    } catch (error) {
+      failed('outbound', 'outbound shutdown failed', error);
+    }
+    active.lease.stop();
+    await active.protection
+      .release()
+      .catch((error) => failed('protection', 'protection release failed', error));
+  }
+  try {
+    await input.inbound?.close();
+  } catch (error) {
+    failed('inbound', 'inbound shutdown failed', error);
   }
 }

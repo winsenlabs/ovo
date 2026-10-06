@@ -12,6 +12,7 @@ import type { Principal } from '../types.ts';
 import { resolveCampaignCarrier } from '../operations-plugin.ts';
 import type { InfrastructureService } from '../infrastructure-types.ts';
 import { registerOperationsRealtimeRoutes } from './operations-realtime.ts';
+import type { InboundRouteDependencies } from './operations-inbound-routes.ts';
 import { registerOperationsLiveCallRoute } from './operations-live-call.ts';
 
 const schemas = operationsApiSchemas;
@@ -167,12 +168,14 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
     });
   }
 
-  registerOperationsRealtimeRoutes({
+  // The realtime routes hand their input to the inbound routes, capacity readiness included.
+  const realtime: InboundRouteDependencies = {
     app,
     store,
     requireRole,
     use,
     audit,
     inboundReadiness: input.infrastructure?.inboundReadiness?.bind(input.infrastructure),
-  });
+  };
+  registerOperationsRealtimeRoutes(realtime);
 }

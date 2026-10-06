@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { createLogger } from '@winsendotai/ovo-plugin-kit';
 import type { CapacitySignalInput } from '@winsendotai/ovo-plugin-orchestration';
 import { DispatcherLoop } from './dispatcher-loop.ts';
-import { dispatcherIdentity, releaseTerminalCalls } from './dispatcher-process.ts';
+import { dispatcherIdentity } from './dispatcher-process.ts';
+import { releaseTerminalCalls } from './terminal-calls.ts';
 import { INBOUND_READINESS_KEY, publishInboundReadiness } from './inbound-readiness-store.ts';
 
 function capture() {

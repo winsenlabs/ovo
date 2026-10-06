@@ -10,7 +10,7 @@ import { terminateOwnedJobAndFinalize } from './worker-termination.ts';
 import { settleTerminalSession } from './terminal-session.ts';
 import { WorkerReporter } from './worker-reporter.ts';
 import { env } from './worker-environment.ts';
-import { ActiveCallDrain } from './worker-drain.ts';
+import { ActiveCallDrain, endRemainingWork } from './worker-drain.ts';
 import { watchWorkerShutdown, type WorkerStatus } from './worker-health.ts';
 
 export type { WorkerStatus } from './worker-health.ts';
@@ -171,47 +171,27 @@ export async function runWorkerLoop(input: {
   });
   await reporter.start();
 
-  const drain = new ActiveCallDrain({
-    log,
-    inbound: inboundRuntime,
-    sessionActive: () => active !== undefined || inboundRuntime?.hasActiveSession === true,
-    describe: () => ({ jobId: active?.jobId, inbound: inboundRuntime?.hasActiveSession ?? false }),
-  });
+  const drain = new ActiveCallDrain({ log, inbound: inboundRuntime, jobId: () => active?.jobId });
   let shutdownPromise: Promise<void> | undefined;
-  const stepFailed = (step: string, error: unknown) =>
+  const failed = (step: string, detail: string, error: unknown) => {
     log.error('worker_shutdown_step_failed', { step, jobId: active?.jobId, ...errorFields(error) });
+    status.detail = `${detail}: ${String(error)}`;
+  };
   /** `graceful` (SIGTERM) waits for the active call; an internal drain ends it at once. */
   const shutdown = (graceful = false) =>
     (shutdownPromise ??= (async () => {
       status.state = 'draining';
       log.info('worker_draining', { detail: status.detail, graceful });
       runner.beginDrain();
-      await inFlight?.catch((error) => {
-        stepFailed('admission', error);
-        status.detail = `shutdown admission failed: ${String(error)}`;
-      });
-      // The reporter keeps the worker row leased (state draining) while the call finishes.
+      await inFlight?.catch((error) => failed('admission', 'shutdown admission failed', error));
       if (graceful) await drain.wait();
       await reporter.stop();
-      if (active) {
-        try {
-          await terminateCostedJob(active.jobId, active.lease.ownerEpoch, 'worker-shutdown');
-        } catch (error) {
-          stepFailed('outbound', error);
-          status.detail = `outbound shutdown failed: ${String(error)}`;
-        }
-        active.lease.stop();
-        await active.protection.release().catch((error) => {
-          stepFailed('protection', error);
-          status.detail = `protection release failed: ${String(error)}`;
-        });
-      }
-      try {
-        await inboundRuntime?.close();
-      } catch (error) {
-        stepFailed('inbound', error);
-        status.detail = `inbound shutdown failed: ${String(error)}`;
-      }
+      await endRemainingWork({
+        active,
+        terminate: terminateCostedJob,
+        inbound: inboundRuntime,
+        failed,
+      });
       await mediaRuntime.close('worker-shutdown');
       await telemetry.close();
       speechCache.close();
@@ -222,7 +202,6 @@ export async function runWorkerLoop(input: {
     })());
   watchWorkerShutdown(input, () => shutdown(true));
 
-  // While a SIGTERM drain waits, the loop keeps settling the active outbound call.
   while (!draining() || (drain.waiting && active)) {
     if (active) {
       const route = await store.getSessionRoute(active.jobId);

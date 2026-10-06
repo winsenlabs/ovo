@@ -8,8 +8,14 @@ import {
 } from '@winsendotai/ovo-plugin-operations';
 import type { RealtimeRouteDependencies } from './operations-realtime.ts';
 import { validateInboundCarrier } from '../operations-plugin.ts';
+import type { InboundReadinessReport } from '../inbound-readiness.ts';
 
-export function registerOperationsInboundRouteManagement(input: RealtimeRouteDependencies): void {
+export interface InboundRouteDependencies extends RealtimeRouteDependencies {
+  /** The dispatcher's latest inbound readiness for the capacity route (OPS-4). */
+  inboundReadiness?: () => Promise<InboundReadinessReport | null>;
+}
+
+export function registerOperationsInboundRouteManagement(input: InboundRouteDependencies): void {
   const { app, store, requireRole, use, audit } = input;
 
   app.get('/v1/operations/inbound/policy', async (request, reply) => {

@@ -1,6 +1,6 @@
 /**
- * Credential redaction shared by the logger and anything else that persists free text. The same
- * credential corpus pins plugin-observability's boundary redaction (scripts/tests).
+ * Credential redaction shared by the logger and plugin-observability's boundary redaction, which
+ * imports these rules; scripts/tests/credential-redaction.test.ts pins both with one corpus.
  */
 
 // Keys whose values are credentials whatever they hold. `rt`/`t` are the carrier route-token and
