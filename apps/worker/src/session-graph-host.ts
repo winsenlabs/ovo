@@ -44,25 +44,10 @@ export function subscribeEngineTelemetry(
 function recordEngineEvent(telemetry: WorkerSessionTelemetry, event: EngineEvent): void {
   telemetry.engineEvent?.(event);
   if (event.type === 'speech') telemetry.adapter.speech(event.evidence);
-  else if (event.type === 'timing') {
-    telemetry.adapter.timing(event);
-    telemetry.audit('session.timing', {
-      key: event.key,
-      turnId: event.turnId ?? null,
-      segmentId: event.segmentId ?? null,
-      atMs: event.atMs,
-      ms: event.ms,
-    });
-  } else if (event.type === 'user.transcript' && event.stability === 'final') {
-    telemetry.audit('transcript.accepted', { text: event.text, turnId: event.turnId });
-  } else if (event.type === 'agent.transcript') {
-    telemetry.audit('transcript.agent', {
-      segmentId: event.segmentId,
-      text: event.text,
-      state: event.state,
-      spokenPrefix: event.spokenPrefix,
-    });
-  } else if (event.type === 'interrupt') {
+  // OBS-10: timings and transcripts are already in the engine.event row above (and the transcripts
+  // port records accepted and agent lines once); writing them again doubled every call's rows.
+  else if (event.type === 'timing') telemetry.adapter.timing(event);
+  else if (event.type === 'interrupt') {
     telemetry.audit('session.interrupt', { reason: event.reason });
   } else if (event.type === 'voicemail') {
     telemetry.audit('session.voicemail', { result: event.result });

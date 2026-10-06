@@ -1,4 +1,5 @@
-import { createServer, type Server } from 'node:http';
+import { timingSafeEqual } from 'node:crypto';
+import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Logger } from '@winsendotai/ovo-contracts';
 import { createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
@@ -52,23 +53,34 @@ export class MediaGateway {
           handshakeTimeoutMs: config.handshakeTimeoutMs,
           idleTimeoutMs: config.idleTimeoutMs,
           logger: log,
-          onClosed: (reason, identity) => {
+          onClosed: (reason, identity, timings) => {
             this.sessions.delete(session);
             log.info('carrier_session_closed', {
               carrierId: accepted.ingress.carrierId,
               bindingId: accepted.bindingId,
               ...identity,
               reason,
+              ...timings,
             });
+            config.health?.sessionClosed?.(reason);
           },
         });
         this.sessions.add(session);
       },
     });
     this.server = createServer((request, response) => {
-      if (request.url === '/health') {
-        response.writeHead(this.draining ? 503 : 200, { 'content-type': 'application/json' });
-        response.end(JSON.stringify({ ready: !this.draining, sessions: this.sessions.size }));
+      const [path, query = ''] = (request.url ?? '').split('?', 2);
+      if (path === '/health') {
+        void this.health(request, new URLSearchParams(query).get('verbose') === '1').then(
+          ({ status, body }) => {
+            response.writeHead(status, { 'content-type': 'application/json' });
+            response.end(JSON.stringify(body));
+          },
+          (error: unknown) => {
+            log.error('gateway_health_failed', errorFields(error));
+            response.writeHead(500).end();
+          },
+        );
         return;
       }
       if (this.draining) {
@@ -96,6 +108,27 @@ export class MediaGateway {
       }
       void this.router.handleUpgrade(request, socket, head);
     });
+  }
+
+  /** `/health` is unchanged; `?verbose=1` adds the host's live-path state behind its token. */
+  private async health(request: IncomingMessage, verbose: boolean) {
+    const basic = { ready: !this.draining, sessions: this.sessions.size };
+    if (!verbose) return { status: this.draining ? 503 : 200, body: basic };
+    const token = this.config.health?.token;
+    const header = request.headers.authorization;
+    const presented = Buffer.from(
+      typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : '',
+    );
+    const expected = Buffer.from(token ?? '');
+    if (!token || presented.length !== expected.length || !timingSafeEqual(presented, expected))
+      return {
+        status: token ? 401 : 403,
+        body: { error: token ? 'unauthorized' : 'verbose_disabled' },
+      };
+    return {
+      status: this.draining ? 503 : 200,
+      body: { ...basic, live: await this.config.health!.verbose() },
+    };
   }
 
   async listen(): Promise<{ host: string; port: number }> {

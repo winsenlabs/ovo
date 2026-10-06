@@ -158,6 +158,15 @@ export interface ControlStore extends CredentialStore {
     payload: Record<string, unknown>,
     epoch?: number,
   ): Promise<StoredCallEvent>;
+  /**
+   * OBS-10: several events of one call in one transaction, in order, with consecutive sequences.
+   * Optional: a store without it gets one appendCallEvent per event.
+   */
+  appendCallEvents?(
+    workspaceId: string,
+    callId: string,
+    events: readonly { type: string; payload: Record<string, unknown>; epoch?: number }[],
+  ): Promise<StoredCallEvent[]>;
   listCallEvents(
     workspaceId: string,
     callId: string,

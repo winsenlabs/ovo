@@ -55,6 +55,13 @@ export function createProductionWorkerMediaRuntime(input: {
         media: closingFromEngine
           ? { terminate: async () => undefined, closeSession: async () => undefined }
           : runtime,
+        // OBS-11: no terminal status callback (an inbound number with no status URL) must not
+        // leave the route terminating and its inbound capacity reserved.
+        reconcile: {
+          onTerminal: async ({ carrierCallId }) => {
+            await input.inbound?.releaseCarrierCall(carrierCallId);
+          },
+        },
       });
       return;
     }

@@ -81,9 +81,9 @@ export async function authenticatedMediaRoute(
   const slot = await store.pool.query<{ ownership_epoch: string }>(
     `SELECT ownership_epoch FROM ovo_worker_slots
      WHERE worker_id = $1 AND lease_expires_at > now()
-       AND (state IN ('reserved', 'active') OR (state = 'ready_idle' AND $2))`,
-    // Inbound routes are fenced by the inbound capacity reservation (see sessions.ts authenticate).
-    [route.workerId, row.dial_request_id?.startsWith('inbound:') ?? false],
+       AND state IN ('reserved', 'active')`,
+    // OBS-8: inbound admission reserves the slot itself, so inbound needs no ready_idle exception.
+    [route.workerId],
   );
   if (!row.worker_slot_epoch || slot.rows[0]?.ownership_epoch !== row.worker_slot_epoch)
     throw new Error('worker slot lease no longer owns the media route');

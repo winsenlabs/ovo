@@ -10,6 +10,7 @@ import {
   type SessionOpenStage,
 } from './session-open-failure.ts';
 import { attachWorkerMediaServer, WorkerMediaLink } from './worker-media-server.ts';
+import { workerHealth } from './worker-health.ts';
 import {
   authenticatedMediaRoute,
   activelyOwnedMediaJob,
@@ -153,9 +154,11 @@ export class WorkerMediaRuntime {
     // Acceptance is written before the factory awaits STT, TTS or graph composition.
     socket.send(JSON.stringify({ type: 'session.accept' }));
     const progress: { stage: SessionOpenStage } = { stage: 'route' };
+    const openStartedAt = Date.now();
     try {
       await this.open(link, route, progress);
       if (!link.isClosed) link.activate();
+      workerHealth.handshake(Date.now() - openStartedAt);
     } catch (error) {
       // accept was already sent, so the gateway never sees a session.reject: this line and the
       // terminal reason are the only record of why the call went silent. A caller who hung up
@@ -167,7 +170,13 @@ export class WorkerMediaRuntime {
         mediaClosedReason: link.closedReason,
         ...errorFields(error),
       });
-      link.finish(sessionOpenFailure(progress.stage, error));
+      const reason = sessionOpenFailure(progress.stage, error);
+      workerHealth.sessionOpenFailed({
+        stage: progress.stage,
+        reason,
+        sessionId: route.sessionId,
+      });
+      link.finish(reason);
       await this.finalizing.get(route.sessionId);
       throw error;
     }
@@ -215,6 +224,7 @@ export class WorkerMediaRuntime {
     if (this.links.get(sessionId) !== link) return Promise.resolve();
     const prior = this.finalizing.get(sessionId);
     if (prior) return prior;
+    workerHealth.sessionEnded(reason);
     const work = (async () => {
       this.links.delete(sessionId);
       const engine = this.engines.get(sessionId);

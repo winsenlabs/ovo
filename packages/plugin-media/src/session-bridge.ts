@@ -1,6 +1,12 @@
 import type { CarrierMediaEvent, Logger, MediaCommand } from '@winsendotai/ovo-contracts';
 import { createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
 import WebSocket from 'ws';
+import {
+  CallStartClock,
+  carrierMediaMessage,
+  MEDIA_IDLE_TIMEOUT,
+  type SessionBridgeTimings,
+} from './call-start-clock.ts';
 import { PreAcceptBuffer } from './pre-accept.ts';
 import type {
   GatewayToWorkerMessage,
@@ -32,7 +38,7 @@ export interface SessionBridgeOptions {
   logger?: Logger;
   onStarted?(identity: MediaSessionIdentity): void;
   /** Call/stream IDs from carrier start, so a failed route names its call; all IDs once routed. */
-  onClosed?(reason: string, identity: Partial<MediaSessionIdentity>): void;
+  onClosed?(reason: string, ids: Partial<MediaSessionIdentity>, at: SessionBridgeTimings): void;
 }
 
 /** A carrier socket and one worker link; ownership is checked before any audio is forwarded. */
@@ -59,6 +65,7 @@ export class SessionBridge {
   private lastSequence = -1;
   private timer?: ReturnType<typeof setTimeout>;
   private readonly connectAbort = new AbortController();
+  readonly clock = new CallStartClock();
 
   constructor(private readonly options: SessionBridgeOptions) {
     this.socket = options.accepted.socket;
@@ -92,7 +99,7 @@ export class SessionBridge {
       this.close('carrier socket failed', false);
     });
     this.timer = setTimeout(
-      () => this.close('carrier start timeout'),
+      () => this.close(this.clock.deadlineReason()),
       this.limits.handshakeTimeoutMs,
     );
     this.timer.unref?.();
@@ -105,7 +112,7 @@ export class SessionBridge {
   private touch(): void {
     if (this.closed) return;
     if (this.timer) clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.close('media idle timeout'), this.limits.idleTimeoutMs);
+    this.timer = setTimeout(() => this.close(MEDIA_IDLE_TIMEOUT), this.limits.idleTimeoutMs);
     this.timer.unref?.();
   }
 
@@ -114,6 +121,7 @@ export class SessionBridge {
     if (event.type === 'start') {
       if (this.started) throw new Error('duplicate carrier start');
       this.started = true;
+      this.clock.mark('route_resolve');
       this.buffer = new PreAcceptBuffer(
         event.format,
         this.limits.preAcceptBufferMs,
@@ -128,29 +136,12 @@ export class SessionBridge {
     }
     if (!this.started) throw new Error('media received before carrier start');
     if (event.type === 'stop') return this.close('caller_hangup'); // OBS-1: the far end hung up
-    let message: MediaMessage;
-    let audioBytes = 0;
-    if (event.type === 'audio') {
-      audioBytes = event.payload.length;
-      if (!audioBytes || audioBytes > this.limits.maxAudioFrameBytes)
-        throw new Error('carrier audio frame exceeds limit');
-      if (!Number.isSafeInteger(event.seq) || event.seq <= this.lastSequence)
-        throw new Error('carrier sequence is duplicate or out of order');
-      this.lastSequence = event.seq;
-      message = {
-        type: 'media.audio',
-        payload: Buffer.from(event.payload).toString('base64'),
-        sequenceNumber: event.seq,
-        timestampMs: event.timestampMs,
-      };
-    } else if (event.type === 'dtmf') message = { type: 'media.dtmf', digit: event.digit };
-    else if (event.type === 'played')
-      message = {
-        type: 'media.played',
-        name: event.name,
-        evidence: this.options.accepted.ingress.capabilities.media.playbackEvidence,
-      };
-    else message = { type: 'media.cleared' };
+    const { message, audioBytes } = carrierMediaMessage(event, {
+      lastSequence: this.lastSequence,
+      maxAudioFrameBytes: this.limits.maxAudioFrameBytes,
+      playbackEvidence: this.options.accepted.ingress.capabilities.media.playbackEvidence,
+    });
+    if (event.type === 'audio') this.lastSequence = event.seq;
     if (!this.accepted) {
       if (!this.buffer?.push(message, audioBytes))
         throw new Error('pre-accept media budget exceeded');
@@ -168,6 +159,7 @@ export class SessionBridge {
       isClosed: () => this.closed,
     });
     if (!selected) return;
+    this.clock.mark('worker_dial');
     const { route, sessionId, token } = selected;
     const identity: MediaSessionIdentity = {
       sessionId,
@@ -200,6 +192,7 @@ export class SessionBridge {
     );
     if (this.closed) return link.close('carrier closed before worker accepted');
     this.link = link;
+    this.clock.mark('accepted');
     for (const message of this.buffer?.drain() ?? []) this.sendWorker(message);
     this.accepted = true;
     this.touch();
@@ -270,6 +263,6 @@ export class SessionBridge {
     if (this.socket.readyState === WebSocket.OPEN)
       this.socket.close(1000, Buffer.from(reason).subarray(0, 120).toString());
     else if (this.socket.readyState === WebSocket.CONNECTING) this.socket.terminate();
-    this.options.onClosed?.(reason, this.identity);
+    this.options.onClosed?.(reason, this.identity, this.clock.timings());
   }
 }

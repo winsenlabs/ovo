@@ -246,10 +246,11 @@ it('logs a carrier socket error and hands the known IDs to onClosed', () => {
     carrierCallId: 'call-a',
     error: 'read ECONNRESET',
   });
-  expect(closed).toHaveBeenCalledWith('carrier socket failed', {
-    carrierCallId: 'call-a',
-    streamId: 'stream-a',
-  });
+  expect(closed).toHaveBeenCalledWith(
+    'carrier socket failed',
+    { carrierCallId: 'call-a', streamId: 'stream-a' },
+    expect.objectContaining({ phase: expect.any(String) }),
+  );
 });
 
 it('logs why the worker refused a session even when the socket is already gone', async () => {

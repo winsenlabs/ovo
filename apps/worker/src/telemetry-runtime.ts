@@ -15,6 +15,7 @@ import {
   type CallEventWriterStats,
 } from './telemetry-event-writer.ts';
 import { WorkerSessionTelemetry, type WorkerSessionTelemetryInput } from './telemetry-session.ts';
+import { workerHealth } from './worker-health.ts';
 import {
   transcriptTextFor,
   transcriptTextPolicyFromEnv,
@@ -71,6 +72,8 @@ export class WorkerTelemetryRuntime {
       callEventOptions.flushTimeoutMs,
       onError,
     );
+    // OBS-12: the writer's counters on verbose health and in the worker's slot report.
+    workerHealth.source('callEvents', () => this.callEvents.stats());
   }
 
   static async open(options: WorkerTelemetryRuntimeOptions): Promise<WorkerTelemetryRuntime> {

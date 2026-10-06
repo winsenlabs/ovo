@@ -221,6 +221,7 @@ export class WorkerSessionTelemetry {
         outcome,
       },
     );
+    this.events.finishCall(this.workspaceId, this.callId);
     this.onClose();
   }
 

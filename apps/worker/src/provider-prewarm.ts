@@ -5,6 +5,7 @@ import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import type { PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { SessionDefaults } from '@winsendotai/ovo-session-host';
 import { selectedReleaseSelections } from './cost-policy-support.ts';
+import { workerHealth } from './worker-health.ts';
 
 /** Exact egress hosts of every selected plugin, as https origins. Wildcard hosts are skipped. */
 export function selectionOrigins(
@@ -53,6 +54,23 @@ export async function prewarmJobProviders(input: {
     const origins = selections ? selectionOrigins(selections, input.registry) : [];
     if (!origins.length) return;
     const results = await net.prewarm(origins, { timeoutMs: input.timeoutMs ?? 3_000 });
+    // OBS-12: cached reachability per origin, named by the release slots that use it.
+    workerHealth.prewarm(
+      results.map(({ origin, ok, status, elapsedMs, error }) => ({
+        origin,
+        slots: Object.entries(selections ?? {})
+          .filter(([slot, selection]) =>
+            selection
+              ? selectionOrigins({ [slot]: selection }, input.registry).includes(origin)
+              : false,
+          )
+          .map(([slot]) => slot),
+        ok,
+        elapsedMs,
+        ...(status === undefined ? {} : { status }),
+        ...(error ? { error } : {}),
+      })),
+    );
     log.info('provider_prewarm', {
       jobId: input.jobId,
       origins: results.map(({ origin, ok, status, elapsedMs, error }) => ({

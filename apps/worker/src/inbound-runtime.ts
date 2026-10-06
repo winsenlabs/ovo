@@ -146,6 +146,11 @@ export class InboundWorkerRuntime {
     throw new Error(reason);
   }
 
+  /** OBS-11: reconciled terminal status releases the inbound capacity. */
+  releaseCarrierCall = async (id: string) =>
+    (await this.input.operations.inbound.releaseByCarrierCallId(id)) &&
+    this.input.operations.calls.markTerminalByCarrierCallId(id);
+
   completeSession(jobId: string): void {
     if (this.activeSession?.jobId !== jobId) return;
     this.activeSession = undefined;

@@ -3,7 +3,9 @@ import { createWorkerHealthServer } from './worker-health.ts';
 import { runWorkerLoop, type WorkerStatus } from './worker-loop.ts';
 
 const status: WorkerStatus = { state: 'starting', detail: 'initializing' };
-const server = createWorkerHealthServer(Number(process.env.PORT ?? 4100), () => status);
+const server = createWorkerHealthServer(Number(process.env.PORT ?? 4100), () => status, {
+  token: process.env.OVO_HEALTH_TOKEN || undefined,
+});
 
 runWorkerLoop({ status, server }).catch((error: unknown) => {
   status.state = 'failed';

@@ -152,7 +152,18 @@ export async function startGateway(
       return host.hostFor(carrierId, bindingId);
     };
     const resolverPlugin = createMediaRouteResolverPlugin(resolver);
-    const gatewayPlugin = createMediaGatewayPlugin({ workerToken }, { hostFor, logger });
+    const gatewayPlugin = createMediaGatewayPlugin(
+      { workerToken },
+      {
+        hostFor,
+        logger,
+        health: {
+          token: env.OVO_HEALTH_TOKEN || undefined,
+          verbose: () => health.snapshot(),
+          sessionClosed: (reason) => health.sessionClosed(reason),
+        },
+      },
+    );
     const extra = [storagePlugin, secretsPlugin, netPlugin, resolverPlugin, gatewayPlugin];
     const catalog = [
       ...distribution.catalog.filter(

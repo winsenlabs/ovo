@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { definePlugin, type PluginDefinition } from '@winsendotai/ovo-runtime';
 import { PostgresInfrastructureService } from './infrastructure-service.ts';
+import { readWorkerLiveState } from './inbound-readiness.ts';
 import type { InfrastructureService } from './infrastructure-types.ts';
 
 export const INFRASTRUCTURE_SERVICE_KEY = 'ovo.infrastructure';
@@ -39,7 +40,10 @@ export async function createInfrastructureRuntime(
     await pool.end();
     throw error;
   }
-  const service = new PostgresInfrastructureService(pool, validated);
+  // OBS-12: each fresh worker's published live-path state, for /v1/diagnostics/live-path.
+  const service = Object.assign(new PostgresInfrastructureService(pool, validated), {
+    workerLiveState: () => readWorkerLiveState(pool, validated.heartbeatMaxAgeMs ?? 15_000),
+  });
   let closePromise: Promise<void> | undefined;
   const close = () => (closePromise ??= pool.end());
   const plugin = definePlugin(

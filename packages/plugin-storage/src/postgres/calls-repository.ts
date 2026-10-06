@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PostgresReleasesRepository } from './releases-repository.ts';
+import { appendCallEventBatch, type CallEventDraft } from './call-event-batch.ts';
 import { mapCall } from '../call-mapping.ts';
 import type { Pool } from 'pg';
 import type { ControlStore, CallListFilters } from '../control-store.ts';
@@ -220,6 +221,14 @@ export class PostgresCallsRepository {
       );
       return event;
     });
+  }
+
+  appendCallEvents(
+    workspaceId: string,
+    callId: string,
+    events: readonly CallEventDraft[],
+  ): Promise<StoredCallEvent[]> {
+    return appendCallEventBatch(this.pool, workspaceId, callId, events);
   }
 
   async listCallEvents(workspaceId: string, callId: string, limit = 50, cursor?: string) {
