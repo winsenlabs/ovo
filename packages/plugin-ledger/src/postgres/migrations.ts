@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import migration001 from '../../migrations/001_cost_ledger.sql?raw';
 import migration002 from '../../migrations/002_reservation_expiry.sql?raw';
+import migration003 from '../../migrations/003_price_card_model.sql?raw';
 import { transaction } from './database.ts';
 
 export async function runCostMigrations(pool: Pool): Promise<void> {
@@ -20,6 +21,13 @@ export async function runCostMigrations(pool: Pool): Promise<void> {
     if (!secondApplied.rowCount) {
       await client.query(migration002);
       await client.query('INSERT INTO ovo_cost_schema_migrations(version) VALUES (2)');
+    }
+    const thirdApplied = await client.query(
+      'SELECT 1 FROM ovo_cost_schema_migrations WHERE version = 3',
+    );
+    if (!thirdApplied.rowCount) {
+      await client.query(migration003);
+      await client.query('INSERT INTO ovo_cost_schema_migrations(version) VALUES (3)');
     }
   });
 }

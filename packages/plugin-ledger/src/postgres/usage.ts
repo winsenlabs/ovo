@@ -205,6 +205,16 @@ export class UsageRepository {
               COALESCE(SUM(amount),0)::text AS total FROM effective`,
       [workspaceId, sessionId],
     );
+    // OPS-13: a total priced even partly from a placeholder card is not an honest cost.
+    const provisional = await this.pool.query<{ id: string; version: string }>(
+      `SELECT DISTINCT p.id,p.version
+       FROM ovo_cost_native_usage u
+       JOIN ovo_cost_charges c ON c.usage_id=u.id
+       JOIN ovo_cost_price_cards p ON p.id=c.price_card_id AND p.version=c.price_card_version
+       WHERE u.workspace_id=$1 AND u.session_id=$2 AND p.provisional
+       ORDER BY p.id,p.version`,
+      [workspaceId, sessionId],
+    );
     return {
       workspaceId,
       sessionId,
@@ -212,6 +222,8 @@ export class UsageRepository {
       estimatedPaise: result.rows[0]!.estimated,
       reconciledPaise: result.rows[0]!.reconciled,
       totalPaise: result.rows[0]!.total,
+      provisional: provisional.rows.length > 0,
+      provisionalPriceCards: provisional.rows.map(({ id, version }) => ({ id, version })),
     };
   }
 

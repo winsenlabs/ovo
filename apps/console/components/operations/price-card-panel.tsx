@@ -63,6 +63,10 @@ export function PriceCardPanel({ role }: { role: SessionIdentity['role'] }) {
           blockQuantity: values.get('blockQuantity'),
           effectiveAt: new Date(String(values.get('effectiveAt'))).toISOString(),
           provenance: values.get('provenance'),
+          ...(String(values.get('model') ?? '').trim()
+            ? { model: String(values.get('model')).trim() }
+            : {}),
+          ...(values.get('provisional') ? { provisional: true } : {}),
         }),
       });
       form.reset();
@@ -152,6 +156,20 @@ export function PriceCardPanel({ role }: { role: SessionIdentity['role'] }) {
                 <input id="card-effective" name="effectiveAt" type="datetime-local" required />
               </Field>
               <Field
+                label="Model"
+                htmlFor="card-model"
+                help="The model or SKU this price applies to. Leave empty for a price that covers every model."
+              >
+                <input id="card-model" name="model" placeholder="e.g. gpt-6-luna" />
+              </Field>
+              <Field
+                label="Provisional price"
+                htmlFor="card-provisional"
+                help="A placeholder or unverified rate. Call costs priced with it are labelled provisional."
+              >
+                <input id="card-provisional" name="provisional" type="checkbox" />
+              </Field>
+              <Field
                 label="Provenance"
                 htmlFor="card-provenance"
                 help="Invoice, contract, or operator evidence for this rate."
@@ -174,6 +192,7 @@ export function PriceCardPanel({ role }: { role: SessionIdentity['role'] }) {
               <tr>
                 <th>Card</th>
                 <th>Provider/unit</th>
+                <th>Model</th>
                 <th>Price</th>
                 <th>Effective</th>
                 <th>Provenance</th>
@@ -190,8 +209,10 @@ export function PriceCardPanel({ role }: { role: SessionIdentity['role'] }) {
                     {card.provider}
                     <small>{card.unit}</small>
                   </td>
+                  <td>{card.model ?? 'Any model'}</td>
                   <td>
                     {card.minorUnitsPerBlock} {card.currency} minor / {card.blockQuantity}
+                    {card.provisional && <StatusBadge tone="warning">Provisional</StatusBadge>}
                   </td>
                   <td>{new Date(card.effectiveAt).toLocaleString()}</td>
                   <td>{card.provenance}</td>

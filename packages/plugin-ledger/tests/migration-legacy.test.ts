@@ -19,7 +19,7 @@ describe.skipIf(!postgresUrl)('legacy cost-ledger migration recovery', () => {
       await new PostgresCostLedger(pool).migrate();
       expect(
         (await pool.query('SELECT version FROM ovo_cost_schema_migrations ORDER BY version')).rows,
-      ).toEqual([{ version: 1 }, { version: 2 }]);
+      ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
       expect(
         (
           await pool.query(
