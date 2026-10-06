@@ -6,20 +6,30 @@ import {
   AssemblyAiStt,
   type AssemblyAiBinding,
 } from './provider.ts';
+import { ENDPOINTING_PRESETS } from './endpointing.ts';
 import { fixtures, fixtureTemplates } from './testing.ts';
 
 export {
   AssemblyAiStt,
   assemblyAiCapabilitiesFor,
-  assemblyAiLanguageCodes,
-  assemblyAiLanguages,
-  assemblyAiSupportsLanguage,
   assemblyAiUrl,
   ASSEMBLYAI_CAPABILITIES,
   ASSEMBLYAI_MODELS,
   DEFAULT_CONNECT_TIMEOUT_MS,
 } from './provider.ts';
-export { AssemblyAiProviderError } from './session.ts';
+export {
+  assemblyAiLanguageCodes,
+  assemblyAiLanguages,
+  assemblyAiSupportsLanguage,
+} from './languages.ts';
+export {
+  assemblyAiTurnDetection,
+  ENDPOINTING_PRESETS,
+  updateConfigurationMessage,
+  type AssemblyAiConfigurationUpdate,
+  type EndpointingPreset,
+} from './endpointing.ts';
+export { AssemblyAiProviderError, AssemblyAiSession } from './session.ts';
 export { fixtures, fixtureTemplates };
 
 export const assemblyAiPlugin = definePlugin(
@@ -55,12 +65,20 @@ export const assemblyAiPlugin = definePlugin(
         // residency selects 'eu' explicitly.
         region: { type: 'string', enum: ['default', 'us', 'eu'], default: 'us' },
         fallbackRegion: { type: 'string', enum: ['default', 'us', 'eu'] },
-        // Two attempts at the maximum still fit the worker's ten-second pre-session buffer.
-        connectTimeoutMs: { type: 'integer', minimum: 500, maximum: 4_000, default: 3_000 },
-        minTurnSilenceMs: { type: 'integer', minimum: 1 },
+        // The handshake took 2-5s from asia-south1. Two attempts at the default fit the worker's
+        // fifteen-second pre-session buffer; a longer deadline survives a slower handshake but
+        // drops the oldest buffered caller audio.
+        connectTimeoutMs: { type: 'integer', minimum: 500, maximum: 15_000, default: 6_000 },
+        // Provider presets; the explicit turn fields below override them.
+        endpointing: { type: 'string', enum: [...ENDPOINTING_PRESETS] },
+        minTurnSilenceMs: { type: 'integer', minimum: 50, maximum: 10_000 },
         maxTurnSilenceMs: { type: 'integer', minimum: 1 },
         endOfTurnConfidenceThreshold: { type: 'number', minimum: 0, maximum: 1 },
-        keyterms: { type: 'array', items: { type: 'string' } },
+        vadThreshold: { type: 'number', minimum: 0, maximum: 1 },
+        keyterms: { type: 'array', maxItems: 100, items: { type: 'string' } },
+        // Sent to the pro models only.
+        prompt: { type: 'string', minLength: 1, maxLength: 1_750 },
+        inactivityTimeoutSec: { type: 'integer', minimum: 5, maximum: 3_600 },
       },
       additionalProperties: false,
     },

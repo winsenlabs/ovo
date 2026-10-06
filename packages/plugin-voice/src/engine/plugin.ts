@@ -31,7 +31,7 @@ const engineSchema = {
     maxIngressFrames: { type: 'integer', minimum: 1, maximum: 1000 },
     maxIngressBytes: { type: 'integer', minimum: 1, maximum: 8_388_608 },
     maxConcurrentTurns: { type: 'integer', minimum: 1, maximum: 16 },
-    preSttBufferMs: { type: 'integer', minimum: 1, maximum: 30_000, default: 10_000 },
+    preSttBufferMs: { type: 'integer', minimum: 1, maximum: 30_000, default: 15_000 },
   },
   additionalProperties: false,
 } as const;
