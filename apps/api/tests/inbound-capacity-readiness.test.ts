@@ -46,13 +46,13 @@ describe('GET /v1/operations/inbound/capacity', () => {
     expect(response.json()).toEqual({ readyProtected: 0, readiness: report });
   });
 
-  it('returns readiness null when no dispatcher has published one', async () => {
+  it('returns readiness null before a dispatcher publishes, and omits it with no source', async () => {
     expect(
       (await build(async () => null).inject('/v1/operations/inbound/capacity')).json(),
     ).toEqual({ readyProtected: 0, readiness: null });
+    // Without an infrastructure store the response keeps its Wave 1 shape.
     expect((await build().inject('/v1/operations/inbound/capacity')).json()).toEqual({
       readyProtected: 0,
-      readiness: null,
     });
   });
 });

@@ -47,16 +47,17 @@ export function registerOperationsInboundRouteManagement(input: InboundRouteDepe
   });
 
   // OPS-4: `readiness` says why readyProtected is what it is (admission off, no ready worker,
-  // no warm floor) as the dispatcher last saw it; null before any dispatcher published it.
+  // no warm floor) as the dispatcher last saw it; null before any dispatcher published it, and
+  // absent when this API has no infrastructure store to read it from.
   app.get('/v1/operations/inbound/capacity', async (request, reply) => {
     const principal = requireRole(request, 'viewer');
     const operations = use(reply, principal);
     if (!operations) return;
     const [readyProtected, readiness] = await Promise.all([
       operations.inbound.readyProtectedCapacity(),
-      input.inboundReadiness?.() ?? Promise.resolve(null),
+      input.inboundReadiness?.(),
     ]);
-    return { readyProtected, readiness };
+    return { readyProtected, ...(input.inboundReadiness ? { readiness } : {}) };
   });
 
   app.get('/v1/operations/inbound/decisions', async (request, reply) => {

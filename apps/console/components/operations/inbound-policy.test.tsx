@@ -56,3 +56,11 @@ it('warns when the readiness report is stale or no dispatcher has published one'
   render(<InboundPolicy role="viewer" />);
   expect(await screen.findByText(/No dispatcher has reported inbound readiness yet/)).toBeTruthy();
 });
+
+it('shows no readiness block when the API cannot read readiness', async () => {
+  serve({ readyProtected: 2 });
+  render(<InboundPolicy role="viewer" />);
+  expect(await screen.findByText('2 protected ready')).toBeTruthy();
+  expect(screen.queryByLabelText('Inbound readiness')).toBeNull();
+  expect(screen.queryByText(/No dispatcher has reported/)).toBeNull();
+});

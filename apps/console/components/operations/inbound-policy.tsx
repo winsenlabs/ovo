@@ -48,7 +48,8 @@ export function InboundPolicy({ role }: { role: SessionIdentity['role'] }) {
       const next = policy.data.policy ?? undefined;
       setRecord(next);
       setCapacity(ready.data.readyProtected);
-      setReadiness(ready.data.readiness ?? null);
+      // Absent: this API cannot read readiness at all, so nothing is shown.
+      setReadiness(ready.data.readiness);
       setError(undefined);
       if (next) {
         setKind(next.policy.kind);
