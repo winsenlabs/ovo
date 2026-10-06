@@ -28,6 +28,8 @@ export class DispatcherLoop {
       readCapacityInput(): Promise<CapacitySignalInput>;
       publish(signal: Signal): Promise<void>;
       readInboundReadiness?(capacity: CapacitySignalInput): Promise<InboundReadiness>;
+      /** Persists each readiness read for the API (OPS-4); a failure is logged, never fatal. */
+      publishInboundReadiness?(readiness: InboundReadiness): Promise<void>;
       log?: (entry: Record<string, unknown>) => void;
       random?: () => number;
     },
@@ -53,6 +55,13 @@ export class DispatcherLoop {
     } catch (error) {
       this.inbound = undefined;
       this.input.log?.({ event: 'inbound_readiness_failed', error: String(error) });
+      return;
+    }
+    try {
+      // Published every tick, not only on change: its age tells the API the dispatcher is alive.
+      await this.input.publishInboundReadiness?.(this.inbound);
+    } catch (error) {
+      this.input.log?.({ event: 'inbound_readiness_publish_failed', error: String(error) });
     }
   }
 

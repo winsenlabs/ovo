@@ -10,6 +10,7 @@ import {
 } from '@winsendotai/ovo-plugin-operations';
 import type { Principal } from '../types.ts';
 import { resolveCampaignCarrier } from '../operations-plugin.ts';
+import type { InfrastructureService } from '../infrastructure-types.ts';
 import { registerOperationsRealtimeRoutes } from './operations-realtime.ts';
 import { registerOperationsLiveCallRoute } from './operations-live-call.ts';
 
@@ -39,6 +40,8 @@ export interface OperationsRouteDependencies {
   operations?: OperationsService;
   store: ControlStore;
   requireRole: (request: FastifyRequest, role: Role) => Principal;
+  /** Source of the dispatcher's inbound readiness for the capacity route (OPS-4). */
+  infrastructure?: Pick<InfrastructureService, 'inboundReadiness'>;
 }
 
 export function registerOperationsRoutes(input: OperationsRouteDependencies): void {
@@ -164,5 +167,12 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
     });
   }
 
-  registerOperationsRealtimeRoutes({ app, store, requireRole, use, audit });
+  registerOperationsRealtimeRoutes({
+    app,
+    store,
+    requireRole,
+    use,
+    audit,
+    inboundReadiness: input.infrastructure?.inboundReadiness?.bind(input.infrastructure),
+  });
 }

@@ -42,6 +42,7 @@ export function registerApiRoutes(deps: any): void {
     app,
     store,
     requireRole,
+    infrastructure: deps.infrastructure,
     operations: options.operationsEnabled
       ? (ctx.get(Cap.operations) as OperationsService)
       : undefined,
