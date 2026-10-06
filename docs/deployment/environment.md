@@ -2,8 +2,8 @@
 
 For whoever hosts OVO. Written 2026-10-04, against `vorflux/ovo-foundation` at Wave 2 complete.
 
-OVO has **never handled a real phone call**. Every latency, barge-in and cost figure in this
-repository is measured against fixtures and loopback only. Treat published targets as targets.
+Every variable, its default and how Compose supplies it: [env-reference.md](../env-reference.md).
+Go-live order: [runbooks/go-live.md](../runbooks/go-live.md).
 
 ## Shape
 
@@ -76,7 +76,7 @@ Default `false`. They are not ceremony — each one gates a path that can touch 
 ## Carrier and provider credentials are NOT environment variables
 
 Create them in the **admin console**: a credential holding the secret, then a provider binding
-referencing it. Twilio, Deepgram, OpenAI, Sarvam and TypeSafe (the decision slot) all work this way.
+referencing it. Twilio, ElevenLabs, AssemblyAI, OpenAI, Sarvam and the decision provider all work this way.
 Secrets belong in the encrypted credential store.
 
 A TypeSafe binding additionally requires a **`calibrationLabel`**, naming the cohort whose confidence

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploy drain step (OPS-6): wait until no Compose worker holds a call before recreating the
-# gateway or workers. A worker's SIGTERM ends its active call, so stop_grace_period alone cannot
-# keep a caller connected across a redeploy.
+# gateway or workers. A worker's SIGTERM drains its call for up to OVO_WORKER_DRAIN_TIMEOUT_MS;
+# waiting first avoids the cap.
 set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
