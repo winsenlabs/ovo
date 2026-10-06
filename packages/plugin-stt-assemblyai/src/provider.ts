@@ -8,6 +8,15 @@ import {
   type SpeechToText,
 } from '@winsendotai/ovo-contracts';
 import { createLogger, errorFields, systemClock } from '@winsendotai/ovo-plugin-kit';
+import { assemblyAiTurnDetection, type EndpointingPreset } from './endpointing.ts';
+import {
+  MODEL_LANGUAGES,
+  assemblyAiLanguageCodes,
+  assemblyAiLanguages,
+  assemblyAiSupportsLanguage,
+  modelOf,
+  proModel,
+} from './languages.ts';
 import { AssemblyAiProviderError, AssemblyAiSession } from './session.ts';
 
 const logger = createLogger({ service: 'stt-assemblyai' });
@@ -28,63 +37,26 @@ export interface AssemblyAiBinding {
   fallbackRegion?: AssemblyAiRegion;
   /** Deadline for the socket open and Begin; defaults to {@link DEFAULT_CONNECT_TIMEOUT_MS}. */
   connectTimeoutMs?: number;
+  /** A provider turn-detection preset; the explicit fields below override its values. */
+  endpointing?: EndpointingPreset;
   minTurnSilenceMs?: number;
   maxTurnSilenceMs?: number;
   endOfTurnConfidenceThreshold?: number;
+  /** Speech/non-speech threshold of the provider's own VAD (0 to 1). */
+  vadThreshold?: number;
   keyterms?: readonly string[];
+  /** Transcription instructions; sent to the pro models only. */
+  prompt?: string;
+  /** Seconds without audio after which the provider ends the session (5 to 3600). */
+  inactivityTimeoutSec?: number;
 }
 
 /**
- * Two attempts at this deadline stay inside the worker's ten-second pre-session audio buffer, so
- * a slow handshake costs a retry rather than the call.
+ * The live AssemblyAI handshake took 2-5s from asia-south1, so the deadline sits above it. Two
+ * attempts fit the worker's fifteen-second pre-session audio buffer, so a slow handshake costs a
+ * retry rather than the call.
  */
-export const DEFAULT_CONNECT_TIMEOUT_MS = 3_000;
-
-const MULTILINGUAL_LANGUAGES = ['en', 'es', 'de', 'fr', 'pt', 'it'];
-const PRO_3_5_LANGUAGES = [
-  'ar',
-  'ca',
-  'da',
-  'nl',
-  'en',
-  'fi',
-  'fr',
-  'de',
-  'he',
-  'hi',
-  'it',
-  'ja',
-  'zh',
-  'no',
-  'pt',
-  'es',
-  'sv',
-  'tr',
-  'vi',
-];
-// https://www.assemblyai.com/docs/streaming/multilingual-transcription (retrieved 2026-10-06).
-const PRO_3_6_LANGUAGES = [
-  ...PRO_3_5_LANGUAGES,
-  'af',
-  'yue',
-  'et',
-  'gl',
-  'ko',
-  'mr',
-  'nn',
-  'fa',
-  'ro',
-  'ru',
-  'ur',
-  'xh',
-  'zu',
-];
-const MODEL_LANGUAGES: Readonly<Record<AssemblyAiModel, readonly string[]>> = Object.freeze({
-  'universal-streaming-english': ['en'],
-  'universal-streaming-multilingual': MULTILINGUAL_LANGUAGES,
-  'universal-3-5-pro': PRO_3_5_LANGUAGES,
-  'universal-3-6-pro': PRO_3_6_LANGUAGES,
-});
+export const DEFAULT_CONNECT_TIMEOUT_MS = 6_000;
 
 export const ASSEMBLYAI_CAPABILITIES = Object.freeze({
   inputFormats: [MULAW_8K, PCM16_16K, PCM16_8K],
@@ -100,48 +72,9 @@ export const ASSEMBLYAI_CAPABILITIES = Object.freeze({
   ttfsP99Ms: 420,
 });
 
-function modelOf(binding: Pick<AssemblyAiBinding, 'model'>): AssemblyAiModel {
-  return binding.model ?? 'universal-streaming-english';
-}
-
-/** Base language codes the binding's model transcribes. */
-export function assemblyAiLanguages(binding: Pick<AssemblyAiBinding, 'model'>): readonly string[] {
-  return MODEL_LANGUAGES[modelOf(binding)] ?? ['en'];
-}
-
-/** Whether the binding's model transcribes a BCP-47 tag such as `hi-IN`. */
-export function assemblyAiSupportsLanguage(
-  binding: Pick<AssemblyAiBinding, 'model'>,
-  language: string,
-): boolean {
-  return assemblyAiLanguages(binding).includes(baseLanguage(language));
-}
-
 /** The binding-aware capability set; the manifest's languages are the default model's. */
 export function assemblyAiCapabilitiesFor(binding: Pick<AssemblyAiBinding, 'model'>) {
   return { ...ASSEMBLYAI_CAPABILITIES, languages: assemblyAiLanguages(binding) };
-}
-
-function baseLanguage(language: string): string {
-  return language.split('-')[0]!.toLowerCase();
-}
-
-/**
- * `language_codes` biases the code-switching pro models. Indian callers mix English into Hindi
- * and other Indian languages, so an `-IN` tag also lists English. English alone is the models'
- * default and is not sent, so English bindings keep the handshake they had before this parameter
- * (its JSON-array encoding is not yet confirmed against a live handshake).
- */
-export function assemblyAiLanguageCodes(
-  binding: Pick<AssemblyAiBinding, 'model'>,
-  language: string | undefined,
-): string[] | undefined {
-  const model = modelOf(binding);
-  if (!language || (model !== 'universal-3-5-pro' && model !== 'universal-3-6-pro'))
-    return undefined;
-  const base = baseLanguage(language);
-  if (base === 'en' || !assemblyAiLanguages(binding).includes(base)) return undefined;
-  return base !== 'en' && language.toUpperCase().endsWith('-IN') ? [base, 'en'] : [base];
 }
 
 export function assemblyAiUrl(
@@ -160,15 +93,21 @@ export function assemblyAiUrl(
   url.searchParams.set('sample_rate', String(format.sampleRate));
   url.searchParams.set('encoding', format.encoding === 'mulaw' ? 'pcm_mulaw' : 'pcm_s16le');
   url.searchParams.set('format_turns', 'false');
-  if (binding.minTurnSilenceMs !== undefined)
-    url.searchParams.set('min_turn_silence', String(binding.minTurnSilenceMs));
-  if (binding.maxTurnSilenceMs !== undefined)
-    url.searchParams.set('max_turn_silence', String(binding.maxTurnSilenceMs));
-  if (binding.endOfTurnConfidenceThreshold !== undefined)
+  const turns = assemblyAiTurnDetection(binding);
+  if (turns.minTurnSilenceMs !== undefined)
+    url.searchParams.set('min_turn_silence', String(turns.minTurnSilenceMs));
+  if (turns.maxTurnSilenceMs !== undefined)
+    url.searchParams.set('max_turn_silence', String(turns.maxTurnSilenceMs));
+  if (turns.endOfTurnConfidenceThreshold !== undefined)
     url.searchParams.set(
       'end_of_turn_confidence_threshold',
-      String(binding.endOfTurnConfidenceThreshold),
+      String(turns.endOfTurnConfidenceThreshold),
     );
+  if (binding.vadThreshold !== undefined)
+    url.searchParams.set('vad_threshold', String(binding.vadThreshold));
+  if (binding.inactivityTimeoutSec !== undefined)
+    url.searchParams.set('inactivity_timeout', String(binding.inactivityTimeoutSec));
+  if (binding.prompt && proModel(binding)) url.searchParams.set('prompt', binding.prompt);
   if (binding.keyterms?.length)
     url.searchParams.set('keyterms_prompt', JSON.stringify(binding.keyterms));
   const languageCodes = assemblyAiLanguageCodes(binding, language);

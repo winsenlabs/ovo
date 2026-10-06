@@ -96,9 +96,10 @@ export class IngressBacklog {
 
 /**
  * Caller audio held while STT connects. The worker buffers the same span before the engine
- * exists, so a provider handshake (two attempts at its connect deadline) never drops the call.
+ * exists, so a provider handshake (two attempts at the 6 s default connect deadline) loses none
+ * of what the caller said; a longer configured deadline drops the oldest audio, not the call.
  */
-export const DEFAULT_PRE_STT_BUFFER_MS = 10_000;
+export const DEFAULT_PRE_STT_BUFFER_MS = 15_000;
 /** Carrier frames are at least this long; ingress frame capacity follows the pre-STT span. */
 const MIN_CARRIER_FRAME_MS = 10;
 

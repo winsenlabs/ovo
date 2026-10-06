@@ -11,7 +11,7 @@ import {
 export function speechCanInterrupt(
   text: string,
   language: string,
-  config: TurnConfig,
+  config: Pick<TurnConfig, 'minWordsWhileBotSpeaking' | 'backchannels'>,
   confirmationPending: boolean,
 ): boolean {
   if (!text.trim()) return false;

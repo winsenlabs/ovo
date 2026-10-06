@@ -1,5 +1,4 @@
 import {
-  TurnConfigSchema,
   classifyConfirmation,
   defaultMuteRules,
   type Clock,
@@ -11,14 +10,16 @@ import {
   type TurnDecision,
 } from '@winsendotai/ovo-contracts';
 import { TurnAggregator } from './aggregator.ts';
+import { DetectorConfigSchema, type DetectorConfig } from './config.ts';
 import { DtmfCollector } from './dtmf.ts';
 import { IdleTimer } from './idle.ts';
 import { canInterrupt, confirmationPrompt, speechMuted, type MuteView } from './mute.ts';
 import { containsConfirmationPhrase, speechCanInterrupt } from './start-min-words.ts';
 import { transcriptStartsTurn } from './start-transcript.ts';
 import { isProviderEnd } from './stop-provider.ts';
+import { CommitTimers } from './stop-commit.ts';
 import { SpeechStopTimers } from './stop-speech-timeout.ts';
-import { stopStrategy } from './strategies.ts';
+import { stopStrategy, type StopStrategy } from './strategies.ts';
 
 export interface ControllerInput {
   clock: Clock;
@@ -31,13 +32,14 @@ export interface ControllerInput {
 
 export abstract class TurnControllerState {
   protected listeners = new Set<(decision: TurnDecision) => void>();
-  protected readonly config: TurnConfig;
+  protected readonly config: DetectorConfig;
   protected readonly rules: MuteRule[];
-  protected readonly strategy: 'provider' | 'vad-timeout';
+  protected readonly strategy: StopStrategy;
   protected readonly aggregate = new TurnAggregator();
   protected readonly dtmf: DtmfCollector;
   protected readonly idle: IdleTimer;
   protected readonly stopTimers: SpeechStopTimers;
+  protected readonly commitTimers: CommitTimers;
   protected cancelSafety?: () => void;
   protected turnId?: string;
   protected sequence = 0;
@@ -52,6 +54,8 @@ export abstract class TurnControllerState {
   protected vadStopPending = false;
   protected vadStopReady = false;
   protected forceSent = false;
+  /** 'commit' decided the utterance is over; a VAD held open by noise no longer blocks the stop. */
+  protected committed = false;
   protected finalSeen = false;
   protected deferredStop = false;
   protected awaitingConfirmationFinal = false;
@@ -61,8 +65,8 @@ export abstract class TurnControllerState {
     rowConfig: unknown,
     protected readonly input: ControllerInput,
   ) {
-    this.config = TurnConfigSchema.parse({
-      ...TurnConfigSchema.parse(rowConfig),
+    this.config = DetectorConfigSchema.parse({
+      ...DetectorConfigSchema.parse(rowConfig),
       ...input.overrides,
     });
     this.rules = this.config.mute.length ? this.config.mute : defaultMuteRules(input.mode);
@@ -83,6 +87,10 @@ export abstract class TurnControllerState {
         this.tryStop();
       },
     );
+    this.commitTimers = new CommitTimers(input.clock, this.config, {
+      due: () => this.commitDue(),
+      ceiling: () => this.commitCeiling(),
+    });
   }
 
   on(fn: (decision: TurnDecision) => void): () => void {
@@ -128,6 +136,9 @@ export abstract class TurnControllerState {
     this.cancelSafety?.();
     this.cancelSafety = undefined;
     this.stopTimers.cancel();
+    this.commitTimers.cancel();
+    // The endpoint is forced once per utterance; a VAD held open across turns must not carry it.
+    this.forceSent = this.committed = false;
   }
 
   protected stop(): void {
@@ -147,7 +158,7 @@ export abstract class TurnControllerState {
     }
     if (
       !this.turnId ||
-      this.speaking() ||
+      (this.committed ? this.providerSpeaking : this.speaking()) ||
       this.vadStopPending ||
       this.awaitingConfirmationFinal ||
       confirmationPrompt(this.view(), this.rules)
@@ -183,7 +194,7 @@ export abstract class TurnControllerState {
 
   protected onTranscript(event: Extract<SttEvent, { type: 'transcript' }>): void {
     const segment = event.segment;
-    if (!segment.text.trim()) return;
+    if (!segment.text.trim() || this.aggregate.isClosed(segment.segmentId)) return;
     this.idle.cancel();
     const view = this.view();
     if (speechMuted(view, this.rules)) {
@@ -195,6 +206,8 @@ export abstract class TurnControllerState {
     if (!prompt && !this.bot && !transcriptStartsTurn(segment.text, this.input.language)) return;
     this.start();
     this.aggregate.observe(segment);
+    if (this.strategy === 'commit' && segment.stability === 'interim')
+      this.commitTimers.interim(this.aggregate.view);
     if (
       this.bot &&
       !prompt &&
@@ -221,6 +234,7 @@ export abstract class TurnControllerState {
         this.deferredStop = true;
       }
       this.stopTimers.final();
+      if (this.strategy === 'commit') this.commitFinal();
     }
     this.safety();
     if (this.vadStopReady || this.deferredStop) this.tryStop();
@@ -254,6 +268,9 @@ export abstract class TurnControllerState {
   }
 
   protected abstract onDigits(digits: string): void;
+  protected abstract commitDue(): void;
+  protected abstract commitCeiling(): void;
+  protected abstract commitFinal(): void;
 
   dispose(): void {
     this.disposed = true;

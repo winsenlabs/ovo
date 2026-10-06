@@ -19,7 +19,9 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         this.vadStopPending = false;
         this.vadStopReady = false;
         this.forceSent = false;
+        this.committed = false;
         this.stopTimers.cancel();
+        this.commitTimers.speechStarted();
         this.idle.cancel();
         if (vadStartsTurn(!!this.bot, speechMuted(this.view(), this.rules), this.config)) {
           this.start();
@@ -52,6 +54,11 @@ export class TurnController extends TurnControllerState implements UserTurnContr
             ),
             this.finalSeen,
           );
+          this.safety();
+        } else if (this.strategy === 'commit') {
+          this.vadStopPending = true;
+          this.vadStopReady = false;
+          this.commitTimers.speechStopped(Boolean(this.aggregate.view));
           this.safety();
         } else if (this.deferredStop) this.tryStop();
         break;
@@ -96,6 +103,38 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         this.confirmationPending = false;
         break;
     }
+  }
+
+  /** Local silence or a stalled interim: force the endpoint, or end the turn on a final in hand. */
+  protected commitDue(): void {
+    if (this.finalSeen && this.aggregate.view === this.aggregate.text) return this.commitReady();
+    if (!this.forceSent) {
+      this.forceSent = true;
+      this.emit({ type: 'force-endpoint' });
+    }
+    this.committed = true;
+    this.commitTimers.committed();
+  }
+
+  /** A final ends the turn once it answers the commit, or arrives after the VAD went quiet. */
+  protected commitFinal(): void {
+    if (!this.committed && !(this.vadStopPending && !this.vadSpeaking)) return;
+    // The caller's onTranscript stops the turn once the flags are set.
+    if (this.aggregate.view === this.aggregate.text) this.commitReady(false);
+  }
+
+  /** No final within userSpeechTimeoutMs of the commit: end on the interim text. */
+  protected commitCeiling(): void {
+    if (!this.turnId || !this.aggregate.view) return;
+    this.aggregate.closeOpenSegments();
+    this.commitReady();
+  }
+
+  private commitReady(stop = true): void {
+    this.vadStopPending = false;
+    this.vadStopReady = true;
+    this.committed = true;
+    if (stop) this.tryStop();
   }
 
   protected onDigits(digits: string): void {

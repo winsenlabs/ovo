@@ -951,6 +951,28 @@ importers:
         specifier: workspace:*
         version: link:../conformance
 
+  packages/plugin-stt-elevenlabs:
+    dependencies:
+      '@winsendotai/ovo-audio':
+        specifier: workspace:*
+        version: link:../audio
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@winsendotai/ovo-sdk':
+        specifier: workspace:*
+        version: link:../sdk
+    devDependencies:
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
+
   packages/plugin-tools:
     dependencies:
       '@winsendotai/ovo-contracts':
@@ -1069,6 +1091,9 @@ importers:
       '@winsendotai/ovo-sdk':
         specifier: workspace:*
         version: link:../sdk
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       '@winsendotai/ovo-conformance':
         specifier: workspace:*

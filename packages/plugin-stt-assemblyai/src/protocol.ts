@@ -25,6 +25,41 @@ export function milliseconds(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
+/** Begin's session id, or the failure that rejects the handshake. */
+export function beginId(
+  value: Record<string, unknown>,
+  model: string,
+): string | AssemblyAiProviderError {
+  const actual = record(value.configuration)?.model;
+  if (typeof actual === 'string' && actual !== model)
+    return new AssemblyAiProviderError(
+      `AssemblyAI model mismatch: ${actual}`,
+      'model-mismatch',
+      false,
+    );
+  if (typeof value.id !== 'string' || !value.id)
+    return new AssemblyAiProviderError('Begin has no id', 'protocol', false);
+  return value.id;
+}
+
+/** Termination's billed session length; undefined when it is missing or invalid. */
+export function sessionDuration(value: Record<string, unknown>): number | undefined {
+  const seconds = value.session_duration_seconds;
+  return typeof seconds === 'number' && Number.isFinite(seconds) && seconds >= 0
+    ? seconds
+    : undefined;
+}
+
+/** An Error message as a typed failure; a missing code is treated as an internal error. */
+export function providerError(value: Record<string, unknown>): AssemblyAiProviderError {
+  const code = typeof value.error_code === 'number' ? value.error_code : 1011;
+  return new AssemblyAiProviderError(
+    String(value.error ?? 'AssemblyAI error'),
+    code,
+    retryable(code),
+  );
+}
+
 /** A Turn message as a transcript segment at `revision`; undefined when it is malformed. */
 export function turnSegment(
   value: Record<string, unknown>,

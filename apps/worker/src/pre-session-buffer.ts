@@ -7,10 +7,10 @@ type AudioMessage = Extract<GatewayToWorkerMessage, { type: 'media.audio' }>;
  * Caller audio buffered while the voice session is still opening. The native engine's
  * DEFAULT_PRE_STT_BUFFER_MS holds the same span; stt-failure-paths.test.ts pins them together.
  */
-export const PRE_SESSION_AUDIO_MS = 10_000;
+export const PRE_SESSION_AUDIO_MS = 15_000;
 /** Newest audio kept when an open outlasts the span; the engine's DEFAULT_KEEP_MS. */
 export const PRE_SESSION_KEEP_MS = 3_000;
-/** Held events of any kind; ten seconds of 20 ms carrier frames is 500. */
+/** Held events of any kind; fifteen seconds of 20 ms carrier frames is 750. */
 const MAX_HELD_MESSAGES = 1_024;
 /** Buffered carrier frames are replayed as chunks of up to this much audio. */
 const REPLAY_CHUNK_MS = 200;
@@ -43,7 +43,8 @@ export class PreSessionBuffer {
     this.messages.push(message);
     this.audioBytes += base64Length(message.payload);
     // Opening the session waits on the STT provider's handshake, which took 2-5s from an Indian
-    // host on the first live call; three seconds of buffer dropped every call.
+    // host on the first live call; three seconds of buffer dropped every call. Two attempts at
+    // the 6 s default connect deadline fit in fifteen.
     const limit = Math.min((this.bytesPerSecond * PRE_SESSION_AUDIO_MS) / 1000, 655_360);
     if (this.audioBytes <= limit && this.messages.length <= MAX_HELD_MESSAGES) return 0;
     const keep = Math.min(limit, (this.bytesPerSecond * PRE_SESSION_KEEP_MS) / 1000);
@@ -62,9 +63,9 @@ export class PreSessionBuffer {
   }
 
   /**
-   * Empties the buffer. Up to ten seconds arrive at once, so consecutive 20 ms carrier frames are
-   * coalesced into larger chunks that stay within the engine's ingress frame limit; byte order
-   * and the order of audio against other events are unchanged.
+   * Empties the buffer. Up to fifteen seconds arrive at once, so consecutive 20 ms carrier frames
+   * are coalesced into larger chunks that stay within the engine's ingress frame limit; byte
+   * order and the order of audio against other events are unchanged.
    */
   release(): HeldMessage[] {
     const held = this.messages;

@@ -53,14 +53,14 @@ describe('worker media link pre-session replay', () => {
       bytes += audio.byteLength;
       first ??= at;
     });
-    // Regression: past ten seconds the link ended the call as worker-input-buffer-overflow.
-    live.speak(12_000);
+    // Regression: past the span the link ended the call as worker-input-buffer-overflow.
+    live.speak(17_000);
     expect(live.link.isClosed).toBe(false);
     live.link.activate();
-    // Frame 501 overflowed the 10 s span, which trimmed to the newest 3 s (frames 352-501); 99
+    // Frame 751 overflowed the 15 s span, which trimmed to the newest 3 s (frames 602-751); 99
     // more frames followed.
     expect(bytes).toBe(249 * FRAME_BYTES);
-    expect(first).toBe(352 * 20);
+    expect(first).toBe(602 * 20);
     expect(console.error).toHaveBeenCalledWith(
       expect.stringMatching(/^\{"ts":"[^"]+","level":"warn","event":"pre_session_audio_dropped"/),
     );

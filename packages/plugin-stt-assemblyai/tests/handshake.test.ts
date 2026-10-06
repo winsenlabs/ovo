@@ -9,12 +9,8 @@ import { FakeClock } from '@winsendotai/ovo-conformance';
 import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { assemblyAiPlugin } from '../src/index.ts';
-import {
-  AssemblyAiStt,
-  assemblyAiCapabilitiesFor,
-  assemblyAiLanguageCodes,
-  assemblyAiUrl,
-} from '../src/provider.ts';
+import { assemblyAiLanguageCodes } from '../src/languages.ts';
+import { AssemblyAiStt, assemblyAiCapabilitiesFor, assemblyAiUrl } from '../src/provider.ts';
 
 const source = 'https://www.assemblyai.com/docs/streaming/message-sequence';
 
@@ -138,7 +134,8 @@ describe('AssemblyAI handshake deadline and region failover', () => {
       code: 'connect-timeout',
       retryable: true,
     });
-    await clock.advanceAsync(6_000);
+    // Two attempts at the 6 s default.
+    await clock.advanceAsync(12_000);
     await rejected;
     net.assertComplete();
   });

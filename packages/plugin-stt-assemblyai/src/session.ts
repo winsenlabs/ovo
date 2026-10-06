@@ -7,14 +7,17 @@ import {
   type WebSocketLike,
 } from '@winsendotai/ovo-contracts';
 import { decimal, syntheticRequestId, usageOnce } from '@winsendotai/ovo-plugin-kit';
+import { updateConfigurationMessage, type AssemblyAiConfigurationUpdate } from './endpointing.ts';
 import type { AssemblyAiBinding } from './provider.ts';
 import {
   AssemblyAiProviderError,
+  beginId,
   connectionDrop,
   milliseconds,
   numeric,
-  record,
+  providerError,
   retryable,
+  sessionDuration,
   turnSegment,
 } from './protocol.ts';
 
@@ -97,6 +100,12 @@ export class AssemblyAiSession implements SttSession {
     }
   }
 
+  /** Tightens or relaxes endpointing mid-call, for example after a yes/no question. */
+  async updateConfiguration(update: AssemblyAiConfigurationUpdate): Promise<void> {
+    this.writable();
+    this.socket.send(updateConfigurationMessage(update));
+  }
+
   async forceEndpoint(): Promise<void> {
     this.writable();
     this.flushPending();
@@ -169,21 +178,9 @@ export class AssemblyAiSession implements SttSession {
       return this.fail(new AssemblyAiProviderError('malformed response', 'protocol', false));
     }
     if (value.type === 'Begin') {
-      const model = record(value.configuration)?.model;
-      if (
-        typeof model === 'string' &&
-        model !== (this.binding.model ?? 'universal-streaming-english')
-      )
-        return this.fail(
-          new AssemblyAiProviderError(
-            `AssemblyAI model mismatch: ${model}`,
-            'model-mismatch',
-            false,
-          ),
-        );
-      if (typeof value.id !== 'string' || !value.id)
-        return this.fail(new AssemblyAiProviderError('Begin has no id', 'protocol', false));
-      this.providerId = value.id;
+      const id = beginId(value, this.binding.model ?? 'universal-streaming-english');
+      if (typeof id !== 'string') return this.fail(id);
+      this.providerId = id;
       this.resolveReady();
       return;
     }
@@ -194,28 +191,18 @@ export class AssemblyAiSession implements SttSession {
     } else if (value.type === 'Turn') {
       this.turn(value);
     } else if (value.type === 'Termination') {
-      if (
-        typeof value.session_duration_seconds !== 'number' ||
-        !Number.isFinite(value.session_duration_seconds) ||
-        value.session_duration_seconds < 0
-      )
+      const duration = sessionDuration(value);
+      if (duration === undefined)
         return this.fail(
           new AssemblyAiProviderError('Termination has no duration', 'protocol', false),
         );
-      this.duration = value.session_duration_seconds;
+      this.duration = duration;
       this.ended = true;
       this.usage();
       this.dispose();
       this.resolveDone();
     } else if (value.type === 'Error') {
-      const code = typeof value.error_code === 'number' ? value.error_code : 1011;
-      this.fail(
-        new AssemblyAiProviderError(
-          String(value.error ?? 'AssemblyAI error'),
-          code,
-          retryable(code),
-        ),
-      );
+      this.fail(providerError(value));
     }
   }
 

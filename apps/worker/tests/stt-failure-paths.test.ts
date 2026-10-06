@@ -195,8 +195,8 @@ beforeEach(() => void vi.spyOn(console, 'error').mockImplementation(() => undefi
 afterEach(() => vi.restoreAllMocks());
 
 describe('STT failure paths through the worker media link', () => {
-  it('survives a 7 s handshake at the schema-max deadline by retrying within the buffer', async () => {
-    // The primary is abandoned at the 4 s cap and the retry begins 3 s later.
+  it('survives a 7 s handshake at a 4 s deadline by retrying within the buffer', async () => {
+    // The primary is abandoned at 4 s and the retry begins 3 s later.
     const live = call(
       [
         assemblyAi('streaming.assemblyai.com'),
@@ -234,8 +234,7 @@ describe('STT failure paths through the worker media link', () => {
           { expect: 'ws-send', match: 'binary', repeat: 'until-next' },
         ]),
       ],
-      // Above the binding schema's 4 s cap, which a deployment cannot set: this pins only that
-      // the worker and engine buffers hold a 7 s open, not a shippable handshake.
+      // A single 8 s attempt: this pins that the worker and engine buffers hold a 7 s open.
       { connectTimeoutMs: 8_000 },
     );
     const starting = live.engine.start();
@@ -256,7 +255,7 @@ describe('STT failure paths through the worker media link', () => {
   });
 
   it('survives a primary region that never sends Begin by failing over within the buffer', async () => {
-    // Default 3 s deadline: the primary is abandoned at 3 s and the fallback begins at 5.5 s.
+    // Default 6 s deadline: the primary is abandoned at 6 s and the fallback begins at 8.5 s.
     const live = call(
       [
         assemblyAi('streaming.us.assemblyai.com'),
@@ -269,12 +268,12 @@ describe('STT failure paths through the worker media link', () => {
       { region: 'us', fallbackRegion: 'eu' },
     );
     const starting = live.engine.start();
-    live.speak(5_500);
-    await live.clock.advanceAsync(5_500);
+    live.speak(8_500);
+    await live.clock.advanceAsync(8_500);
     await starting;
     live.link.activate();
     await vi.waitFor(() =>
-      expect(sentBytes(live.net, 'streaming.eu.assemblyai.com')).toBeGreaterThan(5_500 * 8 - 400),
+      expect(sentBytes(live.net, 'streaming.eu.assemblyai.com')).toBeGreaterThan(8_500 * 8 - 400),
     );
     expect(live.link.isClosed).toBe(false);
     await live.engine.dispose('behavior_completed');
@@ -300,7 +299,7 @@ describe('STT failure paths through the worker media link', () => {
     await live.engine.dispose('behavior_completed');
   });
 
-  // A provider that takes 7 s to Begin on every attempt is this case under the shipped 3 s default.
+  // A provider that takes 7 s to Begin on every attempt is this case under the shipped 6 s default.
   it('fails the open with a typed connect-timeout when Begin never arrives', async () => {
     const live = call([
       assemblyAi('streaming.assemblyai.com'),
@@ -308,8 +307,8 @@ describe('STT failure paths through the worker media link', () => {
     ]);
     const starting = live.engine.start();
     const rejected = expect(starting).rejects.toMatchObject({ code: 'connect-timeout' });
-    live.speak(6_000);
-    await live.clock.advanceAsync(6_000);
+    live.speak(12_000);
+    await live.clock.advanceAsync(12_000);
     await rejected;
     // Both attempts fit the pre-session buffer, so the call ends on the STT cause, not overflow.
     expect(live.link.isClosed).toBe(false);
