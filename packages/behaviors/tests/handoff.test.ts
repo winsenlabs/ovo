@@ -92,7 +92,12 @@ function flowAgent(handoff: Record<string, unknown>, script: Scripted[] = [], ev
 }
 
 /** Plays every line of a turn so a completion the turn armed settles. */
-async function turn(behavior: AgentBehavior, epoch: number, input: string, vars = flowCall) {
+async function turn(
+  behavior: AgentBehavior,
+  epoch: number,
+  input: string,
+  vars: Record<string, unknown> = flowCall,
+) {
   behavior.beginTurn(epoch);
   const said = await collect(behavior.respondStream(input, vars));
   for (const line of said) behavior.onPlayback(receipt(line, epoch));

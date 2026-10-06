@@ -3,6 +3,7 @@ import { Cap, type CarrierIngress } from '@winsendotai/ovo-contracts';
 import { createCarrierHostPorts } from '@winsendotai/ovo-session-host';
 import { manifestKeys, PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { PluginDefinition } from '@winsendotai/ovo-runtime';
+import { registerProviderBindingPreview } from './provider-binding-preview.ts';
 
 function selectedBindingPlugin(
   body: { provider: string; pluginId?: string | null; config: Record<string, unknown> },
@@ -181,6 +182,8 @@ export function registerCredentialsRoutes(dependencies: any) {
       return reply.code(204).send();
     },
   );
+
+  registerProviderBindingPreview({ app, store, secrets, catalog, requireRole, error });
 
   app.get(
     '/v1/provider-bindings/:id/carrier-urls',
