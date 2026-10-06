@@ -26,6 +26,11 @@ export const FINISH_TIMEOUT_MS = 3_000;
  * One Scribe v2 realtime session; ScribeSegments maps its transcripts to segments. The provider
  * sends no termination frame, so a graceful finish commits the trailing audio, waits for its
  * transcript and closes the socket itself.
+ *
+ * It has no `updateConfiguration` (STT-4): the only client message is `input_audio_chunk`, and
+ * VAD and commit settings are fixed by the connect query
+ * (https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime,
+ * retrieved 2026-10-06). The engine reports such a provider as not reconfigurable.
  */
 export class ScribeSession implements SttSession {
   private readonly started = deferred();
