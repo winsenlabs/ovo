@@ -31,7 +31,7 @@ export {
   toDecisionResponse,
   toJevBody,
 } from './wire.ts';
-export { fixtures, jevScript, jevTemplate } from './testing.ts';
+export { fixtures, jevChoiceBody, jevScript, jevTemplate } from './testing.ts';
 
 /**
  * Declared from the published document only. `maxCriteria` is the contract's own ceiling for a

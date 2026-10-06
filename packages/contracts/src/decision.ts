@@ -125,6 +125,17 @@ export function validateDecisionExchange(
   return { request, response };
 }
 
+/**
+ * Where in the conversation a decision was asked, for telemetry only. A port must not send it to
+ * the model or let it change the answer: the request alone is what the model judges.
+ */
+export interface DecisionTrace {
+  flow?: { node?: string; listen: string };
+}
+
 export interface DecisionPort {
-  decide(request: DecisionRequest, options: { signal: AbortSignal }): Promise<DecisionResponse>;
+  decide(
+    request: DecisionRequest,
+    options: { signal: AbortSignal; trace?: DecisionTrace },
+  ): Promise<DecisionResponse>;
 }

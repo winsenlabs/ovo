@@ -1,5 +1,8 @@
 import { AnnouncementValidationError } from './announcement.ts';
 import type { DecisionGate, DecisionGateResult, DecisionTurn } from './decision-gate.ts';
+import { applyFlowStep } from './flow-step.ts';
+
+export * from './flow-step.ts';
 
 export interface DecisionStepOptions {
   turn: DecisionTurn;
@@ -16,7 +19,9 @@ export interface DecisionStepOptions {
 export interface DecisionStepResult {
   /** Spoken instead of asking the LLM. */
   speak?: string;
-  /** The call ends once this turn's reply has played; `<question>=<answer>`. */
+  /** `speak` as separate lines, when a flow node says several; each is its own segment. */
+  lines?: string[];
+  /** The call ends once this turn's reply has played; `<question>=<answer>` or `flow:<node>`. */
   end?: string;
 }
 
@@ -26,6 +31,7 @@ export interface DecisionStepResult {
  * An 'unavailable' verdict returns `undefined` on purpose. A decision model that is slow, down or
  * answering incoherently must never drop a live call: the turn then proceeds exactly as an agent
  * with no policy would, and the failure is recorded for review rather than heard by the caller.
+ * A flow handles that inside its own fallback, which is where its author said what should happen.
  */
 export async function runDecisionStep(
   gate: DecisionGate,
@@ -35,6 +41,9 @@ export async function runDecisionStep(
   signal.throwIfAborted();
   if (stale()) throw new DOMException('stale agent turn', 'AbortError');
   record(verdict);
+  // Committed only here, after the staleness check: a superseded turn never moves the call.
+  if (verdict.kind === 'flow')
+    return applyFlowStep(gate.flow!, verdict.step, { render, clarification });
   if (verdict.kind !== 'decided') return {};
   const end = verdict.action.end === undefined ? {} : { end: verdict.action.end };
   // A trusted scripted line answers the turn outright; no LLM round trip happens at all.

@@ -1,6 +1,7 @@
 import type { ValidateFunction } from 'ajv';
 import {
   END_CALL_TOOL_ID,
+  FLOW_RESUME_TOOL_ID,
   type AgentConfig,
   type Execution,
   type Inference,
@@ -12,7 +13,18 @@ import {
 import { streamAgentReply } from './agent-stream.ts';
 import type { AgentTurnLog } from './agent-turn-log.ts';
 import type { ToolConfirmation } from './confirmation.ts';
+import {
+  applyFlowResume,
+  flowGuide,
+  flowResumeTool,
+  interceptLateResume,
+  readFlowResume,
+  type FlowResume,
+} from './flow-rejoin.ts';
+import type { FlowSession } from './flow-session.ts';
 import type { ToolEvents } from './tool-events.ts';
+
+export * from './flow-rejoin.ts';
 
 export interface InferenceStepInput {
   config: AgentConfig;
@@ -43,6 +55,15 @@ export interface InferenceStepInput {
   uncertainWrite: () => boolean;
   /** This turn already executed a confirmed write. */
   wrote: boolean;
+  /** The session's flow, when the agent routes by one: the LLM may hand the call back to it. */
+  flow?: FlowSession;
+}
+
+/** How the flow is offered to the LLM for one turn, and what the LLM did with it. */
+interface Rejoin {
+  tool: ToolDefinition;
+  guide: string;
+  resume(input: Pick<FlowResume, 'resumeAt' | 'action'>): void;
 }
 
 /**
@@ -50,6 +71,27 @@ export interface InferenceStepInput {
  * or a confirmation-gated tool is never executed here, only proposed for the caller to confirm.
  */
 export async function* runInferenceSteps(step: InferenceStepInput): AsyncGenerator<string, void> {
+  const flow = step.flow;
+  const endAllowed = Boolean(step.config.ending?.llmTool);
+  const tool = flow ? flowResumeTool(flow, endAllowed) : undefined;
+  if (!flow || !tool) return yield* inferenceSteps(step);
+  let rejoined = false;
+  yield* inferenceSteps(step, {
+    tool,
+    guide: flowGuide(flow, endAllowed),
+    resume: (resume) => {
+      rejoined = true;
+      if (applyFlowResume(flow, resume, endAllowed)) step.endCall('llm:resume_flow:end');
+    },
+  });
+  // Answered in plain text: the flow stays where it was, and the path records that the LLM spoke.
+  if (!rejoined) flow.rejoin(undefined, endAllowed);
+}
+
+async function* inferenceSteps(
+  step: InferenceStepInput,
+  rejoin?: Rejoin,
+): AsyncGenerator<string, void> {
   const { config, publish, signal } = step;
   const assertCurrent = () => {
     signal.throwIfAborted();
@@ -60,16 +102,24 @@ export async function* runInferenceSteps(step: InferenceStepInput): AsyncGenerat
     const request = {
       input: step.input,
       history: step.history,
-      context: step.context,
+      context: rejoin ? [step.context, rejoin.guide].filter(Boolean).join('\n\n') : step.context,
       uncertainty: config.uncertainty,
-      tools: step.tools,
+      tools: rejoin ? [...step.tools, rejoin.tool] : step.tools,
       results: step.results,
       signal,
     };
     let reply: InferenceReply;
     if (step.streaming && step.inference.stream) {
+      const events = step.inference.stream(request);
       const streamed = yield* streamAgentReply(
-        step.inference.stream(request),
+        rejoin
+          ? interceptLateResume(events, (input) => {
+              // A superseded turn must not move the flow or arm the next turn's ending.
+              assertCurrent();
+              const resume = readFlowResume(input, true);
+              if (resume) rejoin.resume(resume);
+            })
+          : events,
         config.locale,
         assertCurrent,
         publish,
@@ -88,6 +138,20 @@ export async function* runInferenceSteps(step: InferenceStepInput): AsyncGenerat
 
     if (reply.kind === 'text') {
       yield publish(reply.text.trim() || config.uncertainty);
+      return;
+    }
+
+    if (rejoin && reply.toolId === FLOW_RESUME_TOOL_ID) {
+      const resume = readFlowResume(reply.input);
+      if (!resume)
+        throw step.log.toolError(
+          step.turn,
+          FLOW_RESUME_TOOL_ID,
+          'invalid-input',
+          `Inference supplied invalid input for ${FLOW_RESUME_TOOL_ID}`,
+        );
+      rejoin.resume(resume);
+      yield publish(resume.reply);
       return;
     }
 

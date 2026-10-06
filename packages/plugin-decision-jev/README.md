@@ -97,3 +97,15 @@ for those tokens either way.
 It never thresholds, never caches on `state`, never falls back, never renormalizes a probability
 vector, and never returns a substitute answer on failure. On any failure it reports and the caller
 decides.
+
+## Flow requests (AGT-1)
+
+A state-aware flow sends one ordinary request per caller turn: an `intent` choice over the current
+listen set's intents, the global intents and the automatic `other`, plus one choice per slot of that
+listen set. Nothing about the wire changes. The optional `trace` on `decide()` (the flow node and
+listen set the question was asked in) is for host telemetry only and is never sent: the body is
+still exactly `{model, state, questions}` (`tests/flow-request.test.ts`).
+
+`jevChoiceBody(request, picks)` in `src/testing.ts` builds a documented choice reply for any such
+request, so flow and golden-conversation tests can script Jev without hand-normalising
+probabilities.

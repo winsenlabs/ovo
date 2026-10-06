@@ -1,4 +1,4 @@
-import type { NetFixtureScript, NetFixtureStep } from '@winsendotai/ovo-contracts';
+import type { DecisionRequest, NetFixtureScript, NetFixtureStep } from '@winsendotai/ovo-contracts';
 import { JEV_DOC_RETRIEVED, JEV_DOC_SOURCE, JEV_HOST, JEV_ENDPOINT } from './wire.ts';
 
 const ID = '@winsendotai/ovo-decision-jev';
@@ -86,3 +86,31 @@ export const fixtures: Record<string, NetFixtureScript[]> = {
 
 /** A one-exchange script for the choice reply above, for any caller that wants the default. */
 export const jevTemplate = (): NetFixtureScript[] => fixtures[ID]!;
+
+/**
+ * A documented choice reply answering every question of `request`, for flow and golden tests: the
+ * picked option gets `confidence` and 0.9 of the probability, the rest share 0.1, so the shared
+ * exchange validator accepts it. A question without a pick answers its last option, which for a
+ * flow's intent question is the automatic `other`.
+ */
+export function jevChoiceBody(
+  request: DecisionRequest,
+  picks: Record<string, string>,
+  confidence = 0.9,
+): typeof CHOICE_BODY {
+  const answers: Record<string, unknown> = {};
+  for (const [id, question] of Object.entries(request.questions)) {
+    if (question.type !== 'choice') throw new Error(`jevChoiceBody answers choices only: ${id}`);
+    const keys = Object.keys(question.criteria);
+    const pick = picks[id] ?? keys.at(-1)!;
+    if (!keys.includes(pick)) throw new Error(`${pick} is not an option of ${id}`);
+    const rest = keys.length > 1 ? 0.1 / (keys.length - 1) : 0;
+    answers[id] = {
+      type: 'choice',
+      choice: pick,
+      confidence,
+      probabilities: Object.fromEntries(keys.map((key) => [key, key === pick ? 0.9 : rest])),
+    };
+  }
+  return { ...CHOICE_BODY, answers } as typeof CHOICE_BODY;
+}
