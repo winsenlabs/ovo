@@ -84,7 +84,7 @@ describe('turn detection', () => {
       stopTimeoutMs: 5000,
       waitForTranscript: true,
       minWordsWhileBotSpeaking: 2,
-      backchannels: [
+      backchannels: expect.arrayContaining([
         'uh huh',
         'mm hmm',
         'yeah',
@@ -95,11 +95,18 @@ describe('turn detection', () => {
         'haan',
         'achha',
         'hmm',
-      ],
+        // AGT-9: Hindi and Hinglish acknowledgements.
+        'haan ji',
+        'theek hai',
+        'हाँ',
+        'ठीक है',
+      ]),
+      backchannelsEnabled: true,
       mute: [],
       allowDtmfWhileMuted: true,
       idle: { timeoutMs: 10000, maxRetries: 1, prompts: ['Are you still there?'] },
       dtmf: { interDigitMs: 2000, terminator: '#', maxDigits: 32, interruptOnFirstDigit: true },
+      filler: null,
     });
     expect(TurnConfigSchema.parse({ idle: null }).idle).toBeNull();
     const first = TurnConfigSchema.parse({});

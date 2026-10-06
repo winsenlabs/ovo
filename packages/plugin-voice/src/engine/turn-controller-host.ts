@@ -21,6 +21,6 @@ export function createTurnController(input: {
       vad: input.vad,
       language: input.session.language,
       mode: input.session.mode,
-    }) ?? new FallbackTurns(input.session.mode)
+    }) ?? new FallbackTurns(input.session.mode, input.session.language)
   );
 }

@@ -10,13 +10,13 @@ import {
   type TurnDecision,
 } from '@winsendotai/ovo-contracts';
 import { TurnAggregator } from './aggregator.ts';
+import { TurnAnnouncer } from './announce.ts';
 import { DetectorConfigSchema, type DetectorConfig } from './config.ts';
 import { DtmfCollector } from './dtmf.ts';
 import { IdleTimer } from './idle.ts';
 import { canInterrupt, confirmationPrompt, speechMuted, type MuteView } from './mute.ts';
 import { containsConfirmationPhrase, speechCanInterrupt } from './start-min-words.ts';
 import { transcriptStartsTurn } from './start-transcript.ts';
-import { isProviderEnd } from './stop-provider.ts';
 import { CommitTimers } from './stop-commit.ts';
 import { SpeechStopTimers } from './stop-speech-timeout.ts';
 import { stopStrategy, type StopStrategy } from './strategies.ts';
@@ -43,7 +43,7 @@ export abstract class TurnControllerState {
   protected cancelSafety?: () => void;
   protected turnId?: string;
   protected sequence = 0;
-  protected bot?: { epoch: number; kind?: MuteView['kind'] };
+  protected bot?: { epoch: number; kind?: MuteView['kind']; question?: boolean };
   protected interruptedEpoch?: number;
   protected firstSpeechComplete = false;
   protected tools = 0;
@@ -60,6 +60,7 @@ export abstract class TurnControllerState {
   protected deferredStop = false;
   protected awaitingConfirmationFinal = false;
   protected disposed = false;
+  private readonly announcer: TurnAnnouncer;
 
   constructor(
     rowConfig: unknown,
@@ -70,6 +71,7 @@ export abstract class TurnControllerState {
       ...input.overrides,
     });
     this.rules = this.config.mute.length ? this.config.mute : defaultMuteRules(input.mode);
+    this.announcer = new TurnAnnouncer(this.config.filler, (decision) => this.emit(decision));
     this.strategy = stopStrategy(this.config, input.vad, input.stt);
     this.idle = new IdleTimer(input.clock, this.config.idle, (decision) => this.emit(decision));
     this.dtmf = new DtmfCollector(input.clock, this.config.dtmf, (digits) => this.onDigits(digits));
@@ -139,6 +141,7 @@ export abstract class TurnControllerState {
     this.commitTimers.cancel();
     // The endpoint is forced once per utterance; a VAD held open across turns must not carry it.
     this.forceSent = this.committed = false;
+    this.announcer.clear();
   }
 
   protected stop(): void {
@@ -148,7 +151,13 @@ export abstract class TurnControllerState {
     const id = this.turnId;
     const segments = Math.max(1, this.aggregate.segments);
     this.clear();
-    this.emit({ type: 'turn.stopped', turnId: id, input: { kind: 'speech', text, segments } });
+    const filler = this.announcer.nextFiller();
+    this.emit({
+      type: 'turn.stopped',
+      turnId: id,
+      input: { kind: 'speech', text, segments },
+      ...(filler ? { filler } : {}),
+    });
   }
 
   protected tryStop(): void {
@@ -172,7 +181,10 @@ export abstract class TurnControllerState {
         return;
       }
       if (!speechCanInterrupt(text, this.input.language, this.config, false)) {
-        this.reset('backchannel');
+        // AGT-9: a short reply over a question answers it once the agent stops; otherwise it only
+        // acknowledges the agent and is no turn at all.
+        if (this.bot.question) this.deferredStop = true;
+        else this.reset('backchannel');
         return;
       }
     }
@@ -223,6 +235,9 @@ export abstract class TurnControllerState {
       this.interruptedEpoch = this.bot.epoch;
       this.emit({ type: 'interrupt', reason: 'transcript' });
     }
+    // LAT-4: the utterance so far, once it is speech the agent will answer rather than ignore.
+    if (!this.bot || this.interruptedEpoch === this.bot.epoch)
+      this.announcer.partial(this.turnId!, this.aggregate.view, this.aggregate.text);
     if (segment.stability === 'final') {
       this.finalSeen = true;
       if (this.awaitingConfirmationFinal) {
@@ -238,33 +253,6 @@ export abstract class TurnControllerState {
     }
     this.safety();
     if (this.vadStopReady || this.deferredStop) this.tryStop();
-  }
-
-  protected onStt(event: SttEvent): void {
-    if (event.type === 'speech-start') {
-      // A declared speech-end contract makes speech-start a latching signal. Without capabilities,
-      // the provider may use end-of-turn as its only release signal (the conformance driver does).
-      this.providerSpeaking = !!this.input.stt?.turnSignals.includes('speech-end');
-      this.providerEndPending = false;
-      this.idle.cancel();
-      if (!this.vadStopPending) this.stopTimers.cancel();
-      return;
-    }
-    if (event.type === 'speech-end') {
-      this.providerSpeaking = false;
-      if (this.providerEndPending || this.vadStopReady || this.deferredStop) this.tryStop();
-      else this.safety();
-      return;
-    }
-    if (event.type === 'transcript') {
-      this.onTranscript(event);
-      return;
-    }
-    if (isProviderEnd(event)) {
-      if (event.type === 'end-of-turn' && event.eager) return;
-      this.providerEndPending = true;
-      if (this.strategy === 'provider' || !this.vadSpeaking) this.tryStop();
-    }
   }
 
   protected abstract onDigits(digits: string): void;

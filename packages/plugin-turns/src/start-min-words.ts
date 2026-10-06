@@ -2,7 +2,7 @@ import {
   CONFIRM_NO,
   CONFIRM_YES,
   classifyConfirmation,
-  countWords,
+  isBackchannel,
   normalizeForMatch,
   type TurnConfig,
 } from '@winsendotai/ovo-contracts';
@@ -11,7 +11,7 @@ import {
 export function speechCanInterrupt(
   text: string,
   language: string,
-  config: Pick<TurnConfig, 'minWordsWhileBotSpeaking' | 'backchannels'>,
+  config: Pick<TurnConfig, 'minWordsWhileBotSpeaking' | 'backchannels' | 'backchannelsEnabled'>,
   confirmationPending: boolean,
 ): boolean {
   if (!text.trim()) return false;
@@ -20,8 +20,7 @@ export function speechCanInterrupt(
     (classifyConfirmation(text) !== 'unclear' || containsConfirmationPhrase(text))
   )
     return false;
-  if (countWords(text, language) < config.minWordsWhileBotSpeaking) return false;
-  return !config.backchannels.some((word) => normalizeForMatch(word) === normalizeForMatch(text));
+  return !isBackchannel(text, language, config);
 }
 
 export function containsConfirmationPhrase(text: string): boolean {
