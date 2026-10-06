@@ -70,14 +70,22 @@ describe.skipIf(!wired)('an agent wired to its flow', () => {
   });
 
   it('withholds the call facts from the LLM until identity is confirmed', async () => {
-    const { behavior, model } = agent([{ intent: 'other' }, { intent: 'other' }]);
+    const briefing = 'You are calling {{full_name}} about an EMI of {{emi}}.';
+    const { behavior, model } = agent([{ intent: 'other' }, { intent: 'other' }], {
+      context: briefing,
+    });
     await collect(behavior.respondStream('', { ...call, inputEvent: 'opening' }));
     await behavior.respond('what is this about?', call);
     expect(model.requests[0]!.context).toContain(UNVERIFIED_FACTS_NOTICE);
-    expect(model.requests[0]!.context).not.toContain('four thousand rupees');
+    expect(model.requests[0]!.context).toContain(briefing);
+    // Not through the facts, the briefing, the history or anywhere else in the request.
+    expect(JSON.stringify(model.requests[0])).not.toContain('four thousand rupees');
     await behavior.respond('yes', call);
     await behavior.respond('can I pay half?', call);
     expect(model.requests[1]!.context).toContain('- emi: four thousand rupees');
+    expect(model.requests[1]!.context).toContain(
+      'You are calling Ravi Kumar about an EMI of four thousand rupees.',
+    );
   });
 
   it('lets the LLM hand the call back to the flow', async () => {

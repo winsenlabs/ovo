@@ -5,7 +5,7 @@ import {
   type FlowIntent,
   type FlowListen,
 } from './agent-flow.ts';
-import type { CompiledFlow } from './agent-flow-compile.ts';
+import { flowListenInstructions, type CompiledFlow } from './agent-flow-compile.ts';
 import {
   validateDecisionExchange,
   type DecisionQuestion,
@@ -63,11 +63,10 @@ export function flowDecisionRequest(
   const criteria: Record<string, string> = {};
   for (const intent of flowIntents(compiled, listenId)) criteria[intent.key] = intent.description;
   criteria[FLOW_OTHER_INTENT] = FLOW_OTHER_DESCRIPTION;
-  const context = compiled.flow.context;
   const questions: Record<string, DecisionQuestion> = {
     [FLOW_INTENT_QUESTION]: {
       type: 'choice',
-      instructions: context ? `${context}\n\n${listen.question}` : listen.question,
+      instructions: flowListenInstructions(compiled.flow, listen),
       criteria,
     },
   };

@@ -57,8 +57,11 @@ function withDecision(capabilities: Record<string, unknown> = {}) {
   return input;
 }
 
-const found = (input: ReturnType<typeof fixture>, code: string, stage: 'release' | 'live') =>
-  validateSelections(input, stage).filter((entry) => entry.code === code);
+const found = (
+  input: ReturnType<typeof fixture>,
+  code: string,
+  stage: 'release' | 'live' | 'test',
+) => validateSelections(input, stage).filter((entry) => entry.code === code);
 
 describe('a flow at release (AGT-1)', () => {
   it('releases a sound flow with no flow issue at all', () => {
@@ -204,6 +207,37 @@ describe('decisions in each mode (AGT-14)', () => {
       mode({ mode: 'faq', script, decision: { enabled: true, flow: collectionsFlow() } }),
     ).toEqual([expect.objectContaining({ field: 'decision.flow' })]);
     expect(mode({ mode: 'context', decision: { enabled: true } })).toHaveLength(1);
+  });
+
+  it('still admits a release published before flows with questions outside agent mode', () => {
+    const before = [
+      { mode: 'faq', decision: { enabled: true, questions: [question] } },
+      { mode: 'announcement', script, decision: { enabled: true, questions: [question] } },
+    ];
+    for (const config of before) {
+      // Two options fit the questions; a script's two transitions plus `other` would not.
+      const input = withConfig(withDecision({ maxCriteria: 2 }), config);
+      for (const stage of ['live', 'test'] as const) {
+        const errors = validateSelections(input, stage).filter(
+          (entry) => entry.severity === 'error',
+        );
+        expect(errors, `${config.mode} at ${stage}`).toEqual([]);
+        expect(found(input, 'decision_mode_unsupported', stage)).toEqual([
+          expect.objectContaining({ severity: 'warning' }),
+        ]);
+      }
+    }
+  });
+
+  it('blocks at every stage what no earlier release could carry', () => {
+    const input = withConfig(withDecision(), {
+      mode: 'faq',
+      script,
+      decision: { enabled: true, flow: collectionsFlow() },
+    });
+    expect(found(input, 'decision_mode_unsupported', 'live')).toEqual([
+      expect.objectContaining({ severity: 'error', field: 'decision.flow' }),
+    ]);
   });
 
   it('refuses an agent policy that has neither questions nor a flow', () => {

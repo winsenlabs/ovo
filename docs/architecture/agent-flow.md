@@ -117,32 +117,39 @@ vendor (`plugin-decision-jev/tests/flow-request.test.ts`).
 When the flow hands a reply to the LLM, the LLM is offered a `resume_flow` tool:
 `{reply, resume_at, action}`. `resume_at` is an enum of the listen sets the flow offers now (and
 `end` when `ending.llmTool` is on); `action` is `none` or `end_call`. The prompt lists each resume
-point with its question. The reply is spoken, and the next turn is judged in the chosen listen set,
+point with its question and tells the model to say its answer as plain text first and then call the
+tool with only `resume_at` and `action`, so the answer streams to TTS like any other reply. The reply
+is spoken, and the next turn is judged in the chosen listen set,
 back on the cheap decision path. A resume point the flow does not offer leaves the call where it was
-(`reason: invalid-resume`), and so does a plain text answer. A model that streams its reply as text
-and then calls the tool is handled too: the text is kept and only the resume point is applied.
+(`reason: invalid-resume`), and so does a plain text answer with no tool call. A late tool call from a
+turn that has already been superseded is dropped, so it never moves the next turn's flow.
 
-Known limit: the reply inside the tool is not streamed to TTS as partial JSON, because the inference
-port has no structured-output stream. A model that answers in text first keeps streaming.
+Known limit: a model that ignores the instruction and puts its whole answer in the tool's `reply`
+is still served, but that reply is spoken only once the tool call is complete, because the inference
+port has no structured-output stream.
 
 ## Identity gate (AGT-5 follow-up)
 
 If any state is `verified`, the LLM's "Call facts" are replaced by a notice that identity is not
-confirmed until such a state is entered, and the LLM may only resume at listen sets reachable before
-it. It cannot talk its way past verification.
+confirmed until such a state is entered, and the briefing is shown as authored, with its
+`{{placeholders}}` unfilled (`flowBriefing`), so no variable value reaches the LLM through either.
+The LLM may only resume at listen sets reachable before verification, so it cannot talk its way past
+it.
 
 ## Scripts mode versus agent mode (AGT-14)
 
 - **Agent mode** routes by flat questions or by a flow, and the LLM composes what neither covers.
 - **Scripts** (announcement or FAQ mode with `script`) move only along transitions the author wrote.
-  With `decision: {enabled: true}` and a decision plugin selected, a reply that matches no transition
+  With `decision: {enabled: true}` (no `questions`) and a decision plugin selected, a reply that matches no transition
   exactly is classified among the current node's text transitions (one option per target, described
   by the replies written for it, plus `other`). Only an answer at 0.7 confidence or more moves the
   script; anything else falls through to the FAQ detour or the clarification line, as before. DTMF
   never goes to the model.
 - A policy a mode would silently ignore is refused at release (`decision_mode_unsupported`): questions
   or a flow outside agent mode, any policy on a mode with no script, and an agent policy with neither
-  questions nor a flow.
+  questions nor a flow. Releases published before flows could carry questions outside agent mode, and
+  ran by ignoring them; they still do. For them the issue is a warning when a call is admitted, not a
+  blocker, and a script whose policy has questions never asks the decision model.
 
 ## Not done here
 

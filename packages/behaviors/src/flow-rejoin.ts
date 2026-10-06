@@ -13,7 +13,9 @@ import type { FlowSession } from './flow-session.ts';
  *
  * The tool is the structured `{reply, resume_at, action}` result. Its `resume_at` is an enum of the
  * resume points the flow offers right now, and it is checked again on the way back: anything else
- * leaves the call where it was.
+ * leaves the call where it was. The model is told to say its answer as plain text first and call
+ * the tool after it with only `resume_at` and `action`, so the answer streams to TTS like any other
+ * reply; `reply` serves a model that puts its answer in the tool anyway.
  */
 
 export interface FlowResume {
@@ -28,13 +30,13 @@ export function flowResumeTool(flow: FlowSession, endAllowed: boolean): ToolDefi
   return {
     id: FLOW_RESUME_TOOL_ID,
     description:
-      'Reply to the caller and hand the call back to the scripted conversation. Call this instead ' +
-      'of replying in plain text: put what you say in `reply`, ending with the question that the ' +
-      '`resume_at` point expects.',
+      'Hand the call back to the scripted conversation. First say your answer to the caller as ' +
+      'plain text, ending with the question that the `resume_at` point expects, then call this ' +
+      'with `resume_at` and `action`. Leave `reply` out unless you said nothing as text.',
     connector: 'native',
     inputSchema: {
       type: 'object',
-      required: ['reply', 'resume_at', 'action'],
+      required: ['resume_at', 'action'],
       properties: {
         reply: { type: 'string', minLength: 1, maxLength: 1_000 },
         resume_at: { type: 'string', enum: options },
@@ -62,7 +64,8 @@ export function flowGuide(flow: FlowSession, endAllowed: boolean): string {
   return [
     'Conversation flow: the caller said something the scripted conversation could not place.',
     current ? `The agent was waiting for: ${forPrompt(current.question)}` : '',
-    `Answer briefly, then continue from one of these points with \`${FLOW_RESUME_TOOL_ID}\`:`,
+    `Say a brief answer as plain text, then call \`${FLOW_RESUME_TOOL_ID}\` with the point the ` +
+      'conversation continues from:',
     ...points,
   ]
     .filter(Boolean)

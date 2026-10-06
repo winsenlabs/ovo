@@ -113,6 +113,24 @@ describe('flow validation', () => {
     );
   });
 
+  it('refuses a context and question too long to ask the decision model together', () => {
+    const issues = (question: number) => {
+      const flow = collectionsFlow();
+      flow.context = 'c'.repeat(1_500);
+      flow.listens[0]!.question = 'q'.repeat(question);
+      return inspectFlow(AgentFlow.parse(flow)).filter((issue) => issue.severity === 'error');
+    };
+    expect(issues(498)).toEqual([]);
+    expect(issues(600)).toEqual([
+      {
+        severity: 'error',
+        path: 'listens.0.question',
+        message:
+          'The context and this question together are 2102 characters; the decision model reads at most 2000',
+      },
+    ]);
+  });
+
   it('reports a node nothing can reach', () => {
     expect(
       edit((flow) => {

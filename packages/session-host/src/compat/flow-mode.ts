@@ -7,6 +7,11 @@ import type { CompatRule } from './types.ts';
  * Agent mode runs flat questions or a flow. A script (announcement or FAQ mode with `script`) uses
  * the decision model only to match replies to its own transitions, so its policy carries neither.
  * Any other mode never asks the decision model at all.
+ *
+ * A policy with questions outside agent mode is a shape releases published before flows could
+ * carry, and they ran by ignoring it. Those still load and run: the issue blocks a new release and
+ * is only a warning when an existing one is admitted to a call. A flow, or an empty question list,
+ * could not be published before, so those block at every stage.
  */
 export const flowMode: CompatRule = (input, stage) => {
   const { config } = input;
@@ -14,6 +19,14 @@ export const flowMode: CompatRule = (input, stage) => {
   if (!policy?.enabled) return [];
   const refuse = (message: string, field = 'decision') =>
     flowIssue('decision_mode_unsupported', stage, message, { field });
+  const ignored = (message: string, field: string) =>
+    flowIssue(
+      'decision_mode_unsupported',
+      stage,
+      message,
+      { field },
+      stage === 'release' ? 'error' : 'warning',
+    );
   if (config.mode === 'agent')
     return policy.flow || policy.questions.length
       ? []
@@ -25,15 +38,13 @@ export const flowMode: CompatRule = (input, stage) => {
         'decision.flow',
       ),
     ];
-  if (!config.script)
-    return [
-      refuse(
-        `${config.mode} mode never asks the decision model; only agent mode and scripts use it`,
-      ),
-    ];
+  if (!config.script) {
+    const message = `${config.mode} mode never asks the decision model; only agent mode and scripts use it`;
+    return [policy.questions.length ? ignored(message, 'decision') : refuse(message)];
+  }
   if (policy.questions.length)
     return [
-      refuse(
+      ignored(
         "In a script the decision model only matches replies to the script's transitions; its questions would be ignored",
         'decision.questions',
       ),

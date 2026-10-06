@@ -73,7 +73,26 @@ function step(
     wrote: false,
     ...(options.flow ? { flow: options.flow } : {}),
   };
-  return { run: () => collect(runInferenceSteps(input)), model, ended };
+  return { run: () => collect(runInferenceSteps(input)), model, ended, input };
+}
+
+/** Speaks two sentences, waits for `held`, runs `before`, then calls the tool for the resume point. */
+function heldStream(
+  held: Promise<void>,
+  before: () => void,
+  action = 'none',
+): InferenceStepInput['inference'] {
+  return {
+    generate: () => Promise.reject(new Error('this model only streams')),
+    async *stream() {
+      yield { kind: 'text-delta', delta: 'You can pay part now. ' };
+      yield { kind: 'text-delta', delta: 'Anything else?' };
+      await held;
+      before();
+      yield { kind: 'tool', toolId: 'resume_flow', input: { resume_at: 'wrapup', action } };
+      yield { kind: 'finish' };
+    },
+  };
 }
 
 describe('the LLM fallback rejoins the flow (AGT-7)', () => {
@@ -82,8 +101,10 @@ describe('the LLM fallback rejoins the flow (AGT-7)', () => {
     await turn.run();
     const request = turn.model.requests[0]!;
     const tool = request.tools.find((candidate) => candidate.id === 'resume_flow')!;
+    // The answer goes out as text, which streams; the tool carries only where to resume.
+    expect(tool.description).toContain('First say your answer to the caller as plain text');
     expect(tool.inputSchema).toMatchObject({
-      required: ['reply', 'resume_at', 'action'],
+      required: ['resume_at', 'action'],
       properties: {
         resume_at: { enum: ['identity', 'payment', 'wrapup'] },
         action: { enum: ['none'] },
@@ -95,7 +116,7 @@ describe('the LLM fallback rejoins the flow (AGT-7)', () => {
         '',
         'Conversation flow: the caller said something the scripted conversation could not place.',
         'The agent was waiting for: The agent asked when they can pay. What does the reply express?',
-        'Answer briefly, then continue from one of these points with `resume_flow`:',
+        'Say a brief answer as plain text, then call `resume_flow` with the point the conversation continues from:',
         '- identity: The agent asked who picked up. How did they respond in the reply?',
         '- payment: The agent asked when they can pay. What does the reply express?',
         '- wrapup: The agent asked if there is anything else. What does the reply say?',
@@ -161,6 +182,34 @@ describe('the LLM fallback rejoins the flow (AGT-7)', () => {
     );
     expect((await turn.run()).join(' ')).toBe('I understand. Is there anything else?');
     expect(flow.state.listen).toBe('wrapup');
+  });
+
+  it('streams a text-first answer to TTS before the resume call arrives', async () => {
+    const flow = flowAt();
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const turn = step([], { flow, streaming: true });
+    turn.input.inference = heldStream(held, () => undefined);
+    const replies = runInferenceSteps(turn.input);
+    const blocked = new Promise<'blocked'>((resolve) => setTimeout(() => resolve('blocked'), 500));
+    expect(await Promise.race([replies.next().then((next) => next.value), blocked])).toBe(
+      'You can pay part now.',
+    );
+    expect(flow.state.listen).toBe('payment');
+    release();
+    for await (const _ of replies);
+    expect(flow.state.listen).toBe('wrapup');
+  });
+
+  it('never applies a late resume from a turn that was superseded mid-stream', async () => {
+    const flow = flowAt();
+    let stale = false;
+    const turn = step([], { flow, streaming: true, endTool: true });
+    turn.input.current = () => !stale;
+    turn.input.inference = heldStream(Promise.resolve(), () => (stale = true), 'end_call');
+    await expect(turn.run()).rejects.toThrow(/stale/);
+    expect(flow.state.listen).toBe('payment');
+    expect(turn.ended).toEqual([]);
   });
 
   it('records a plain text answer as an LLM turn that kept the state', async () => {

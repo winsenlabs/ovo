@@ -6,6 +6,7 @@ import {
   FlowSession,
   UNVERIFIED_FACTS_NOTICE,
   applyFlowStep,
+  flowBriefing,
   flowFacts,
   openFlow,
   runDecisionStep,
@@ -101,6 +102,36 @@ describe('opening a flow and gating facts', () => {
     expect(flowFacts(undefined, '- emi: 1')).toBe('- emi: 1');
     expect(flowFacts(flow, '- emi: 1')).toBe(UNVERIFIED_FACTS_NOTICE);
     expect(flowFacts(flow, '')).toBe('');
+  });
+});
+
+describe('gating the briefing on identity (AGT-5)', () => {
+  const briefing = 'You are calling {{full_name}} about an EMI of {{emi}}.';
+  const render = (text: string) =>
+    text.replace('{{full_name}}', 'Ravi').replace('{{emi}}', 'four thousand rupees');
+
+  it('shows the briefing unrendered until a verified node is entered, then rendered', () => {
+    const flow = new FlowSession(AgentFlow.parse(collectionsFlow()), { timeoutMs: 800 });
+    flow.commit(flow.begin()!);
+    expect(flowBriefing(flow, briefing, render)).toBe(briefing);
+    flow.commit({
+      kind: 'enter',
+      node: 'disclose',
+      lines: [],
+      end: false,
+      transition: { at: '', from: {}, to: {}, tier: 'rule' },
+    });
+    expect(flowBriefing(flow, briefing, render)).toBe(
+      'You are calling Ravi about an EMI of four thousand rupees.',
+    );
+  });
+
+  it('renders it without a flow, or with a flow that gates nothing', () => {
+    expect(flowBriefing(undefined, briefing, render)).toContain('four thousand rupees');
+    const flow = collectionsFlow();
+    for (const node of flow.nodes) delete (node as { verified?: boolean }).verified;
+    const open = new FlowSession(AgentFlow.parse(flow), { timeoutMs: 800 });
+    expect(flowBriefing(open, briefing, render)).toContain('four thousand rupees');
   });
 });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AgentFlow,
+  DecisionRequest,
   compileFlow,
   findFlowIntent,
   flowDecisionRequest,
@@ -57,6 +58,17 @@ describe('one decision request per state', () => {
       instructions: 'By when do they say they will pay?',
       criteria: { today: 'Today', tomorrow: 'Tomorrow', unspecified: 'No time given' },
     });
+  });
+
+  it('stays wire-valid at the longest context and question a flow can release with', () => {
+    const flow = collectionsFlow();
+    flow.context = 'c'.repeat(1_500);
+    flow.listens[0]!.question = 'q'.repeat(498);
+    const request = flowDecisionRequest(compileFlow(AgentFlow.parse(flow)), 'identity', {
+      caller_reply: 'yes',
+    });
+    expect(request.questions.intent!.instructions).toHaveLength(2_000);
+    expect(DecisionRequest.safeParse(request).success).toBe(true);
   });
 
   it('never shows the model where an answer leads or what is said there', () => {

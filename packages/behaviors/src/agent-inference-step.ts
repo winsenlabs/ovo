@@ -114,6 +114,8 @@ async function* inferenceSteps(
       const streamed = yield* streamAgentReply(
         rejoin
           ? interceptLateResume(events, (input) => {
+              // A superseded turn must not move the flow or arm the next turn's ending.
+              assertCurrent();
               const resume = readFlowResume(input, true);
               if (resume) rejoin.resume(resume);
             })

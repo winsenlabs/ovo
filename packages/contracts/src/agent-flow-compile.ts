@@ -76,6 +76,14 @@ export function flowSpeaksFirst(policy: { enabled: boolean; flow?: AgentFlow } |
   return Boolean(flow?.nodes.find((node) => node.id === flow.start)?.say.length);
 }
 
+/** The wire limit on a decision question's instructions (`decision.ts`). */
+const INSTRUCTIONS_LIMIT = 2_000;
+
+/** What the decision model is asked for a listen set: the flow's context, then the question. */
+export function flowListenInstructions(flow: AgentFlow, listen: FlowListen): string {
+  return flow.context ? `${flow.context}\n\n${listen.question}` : listen.question;
+}
+
 export function inspectFlow(flow: AgentFlow): FlowIssue[] {
   const issues: FlowIssue[] = [];
   const error = (path: string, message: string) =>
@@ -114,6 +122,13 @@ export function inspectFlow(flow: AgentFlow): FlowIssue[] {
   checkIntents(flow.globalIntents, 'globalIntents', undefined, nodes, error);
   flow.listens.forEach((listen, index) => {
     const at = `listens.${index}`;
+    const instructions = flowListenInstructions(flow, listen).length;
+    if (instructions > INSTRUCTIONS_LIMIT)
+      error(
+        `${at}.question`,
+        `The context and this question together are ${instructions} characters; the decision ` +
+          `model reads at most ${INSTRUCTIONS_LIMIT}`,
+      );
     const slotIds = new Set<string>();
     listen.slots.forEach((slot, slotIndex) => {
       if (slot.id === FLOW_INTENT_QUESTION)

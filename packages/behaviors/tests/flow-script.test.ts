@@ -54,7 +54,11 @@ async function asked(
   return behavior.respond(reply, variables);
 }
 
-function scripted(answers: (Scripted | Error)[], decision = { enabled: true }, faq?: Behavior) {
+function scripted(
+  answers: (Scripted | Error)[],
+  decision: Record<string, unknown> = { enabled: true },
+  faq?: Behavior,
+) {
   const jev = scriptedJev(answers);
   return { behavior: new ScriptBehavior(config(decision), faq, jev.port as DecisionPort), jev };
 }
@@ -127,6 +131,26 @@ describe('decisions in scripts mode (AGT-14)', () => {
     expect(disabled.jev.requests).toHaveLength(0);
     const unplugged = withScript(config({ enabled: true }), { respond: async () => '' });
     expect(await asked(unplugged, 'haan')).toBe('Please say yes or no.');
+  });
+
+  it('runs a release whose policy has questions exactly as before script decisions', async () => {
+    const question = {
+      type: 'choice',
+      id: 'intent',
+      instructions: 'What?',
+      threshold: 0.8,
+      fallback: 'llm',
+      options: [
+        { key: 'a', description: 'A', outcome: {} },
+        { key: 'b', description: 'B', outcome: {} },
+      ],
+    };
+    const { behavior, jev } = scripted([{ intent: 'option_1' }], {
+      enabled: true,
+      questions: [question],
+    });
+    expect(await asked(behavior, 'haan')).toBe('Please say yes or no.');
+    expect(jev.requests).toHaveLength(0);
   });
 
   it('abandons the decision when the turn is cancelled', async () => {

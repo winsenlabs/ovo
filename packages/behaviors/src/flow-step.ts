@@ -70,3 +70,16 @@ export function openFlow(
 export function flowFacts(flow: FlowSession | undefined, facts: string): string {
   return flow ? flow.gateFacts(facts) : facts;
 }
+
+/**
+ * AGT-5, the briefing too: until identity is confirmed it is shown as authored, placeholders and
+ * all, so a briefing such as "You are calling {{full_name}} about an EMI of {{emi}}" cannot hand
+ * the call's data to the LLM before a verified node is entered. `render` runs only once it may.
+ */
+export function flowBriefing(
+  flow: FlowSession | undefined,
+  briefing: string,
+  render: (briefing: string) => string,
+): string {
+  return !flow || flow.verified ? render(briefing) : briefing;
+}

@@ -68,7 +68,8 @@ function requests(config: AgentConfig): Asked[] {
       ],
     }));
   }
-  if (config.mode === 'agent' || !config.script) return [];
+  // A script with questions does not ask the model (`flow-mode.ts`), as before script decisions.
+  if (config.mode === 'agent' || !config.script || policy.questions.length) return [];
   return config.script.nodes.flatMap((node, index) => {
     const targets = new Set(
       node.transitions.filter((edge) => edge.event === 'text').map((edge) => edge.to),

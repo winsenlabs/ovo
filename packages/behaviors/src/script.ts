@@ -18,7 +18,8 @@ export * from './flow-script.ts';
  *
  * Scripts mode versus agent mode (AGT-14): a script (announcement or FAQ mode) is a fixed graph the
  * author wrote, and it only ever moves along a transition the author wrote. With a decision policy
- * enabled and a decision plugin selected, a reply that matches no transition exactly is classified
+ * enabled (and no questions of its own) and a decision plugin selected, a reply that matches no
+ * transition exactly is classified
  * among the current node's text transitions (see `flow-script.ts`); a clear answer takes that
  * transition, anything else falls through as before. Agent mode is where a conversation is routed
  * by an authored flow or composed by the LLM.
@@ -64,8 +65,10 @@ export class ScriptBehavior implements Behavior {
     );
     if (transition) return this.prepare(transition.to, variables);
     // Only a script with a decision policy and plugin waits on anything here; without one the
-    // reply goes straight to the detour or the clarification, exactly as before.
-    if (event === 'text' && this.config.decision?.enabled && this.decision) {
+    // reply goes straight to the detour or the clarification, exactly as before. A policy with
+    // questions predates script decisions: releases published with one ignored it, and still do.
+    const policy = this.config.decision;
+    if (event === 'text' && policy?.enabled && !policy.questions.length && this.decision) {
       const decided = await this.decide(input, node, variables);
       if (generation !== this.generation)
         throw new DOMException('Stale script response', 'AbortError');
