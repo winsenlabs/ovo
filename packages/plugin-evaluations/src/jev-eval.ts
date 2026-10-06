@@ -10,10 +10,11 @@ import {
   flowIntents,
   flowListen,
   matchFlowPhrase,
-  renderFlowLine,
   routeFlowIntent,
   type AgentFlow,
 } from './jev-eval-flow.ts';
+import { flowDecisionState, flowToday, type SpokenEntry } from './jev-eval-state.ts';
+import type { GoldenPath } from './jev-eval-conversation.ts';
 
 /**
  * The Jev routing eval (critic item): labelled caller replies per listen set, routed the way a call
@@ -53,7 +54,10 @@ export interface JevEvalSet {
   flow: AgentFlow;
   /** Sample call variables, so `agent_last_said` is the line a caller actually heard. */
   variables: Record<string, string>;
-  today: string;
+  /** When the sample call happens, and the agent's locale and timezone that format its today. */
+  clock: { now: string; locale: string; timezone: string };
+  /** How a call reaches each node (`goldenPaths`): the spoken history a case is answered in. */
+  paths: Record<string, GoldenPath>;
   cases: JevEvalCase[];
   gate: JevEvalGate;
 }
@@ -78,25 +82,42 @@ export interface JevEvalOutcome {
   error?: string;
 }
 
-/**
- * The request a call in this state sends for this reply. The state mirrors the flow runtime's
- * (`flowDecisionState` on wave3/flow): the reply, the node's lines as the agent's last words, those
- * lines as the recent turns (the caller's first reply in the state), and today as an ISO date.
- */
-export function jevEvalRequest(set: JevEvalSet, evalCase: JevEvalCase): DecisionRequest {
+/** The node a case answers: its own, or the first node that listens with its listen set. */
+export function jevEvalNode(set: JevEvalSet, evalCase: JevEvalCase): string {
   if (!flowListen(set.flow, evalCase.listen))
     throw new Error(`Case ${evalCase.id}: unknown listen set ${evalCase.listen}`);
   const nodeId =
     evalCase.node ?? set.flow.nodes.find((node) => node.listen === evalCase.listen)?.id;
   const node = set.flow.nodes.find((candidate) => candidate.id === nodeId);
-  if (!node) throw new Error(`Case ${evalCase.id}: no node listens with ${evalCase.listen}`);
-  const said = node.say.map((line) => renderFlowLine(set.flow, line, set.variables));
-  return flowDecisionRequest(set.flow, evalCase.listen, {
-    caller_reply: evalCase.text,
-    agent_last_said: said.join(' '),
-    recent_turns: said.map((line) => `agent: ${line}`),
-    today: set.today,
-  });
+  if (node?.listen !== evalCase.listen)
+    throw new Error(`Case ${evalCase.id}: no node ${nodeId ?? ''} listens with ${evalCase.listen}`);
+  return node.id;
+}
+
+/** The spoken history of a call that has just reached the case's node on a golden route. */
+export function jevEvalHistory(set: JevEvalSet, evalCase: JevEvalCase): SpokenEntry[] {
+  const node = jevEvalNode(set, evalCase);
+  const path = set.paths[node];
+  if (!path) throw new Error(`Case ${evalCase.id}: no golden conversation reaches ${node}`);
+  return path.history;
+}
+
+/**
+ * The request a call in this state sends for this reply, built the way the flow runtime builds it
+ * (`flowDecisionState` on wave3/flow): the reply, the spoken history of a call that has just
+ * reached the node, and today in the agent's locale and timezone. `history` replaces the golden
+ * route's, for a call that got there another way.
+ */
+export function jevEvalRequest(
+  set: JevEvalSet,
+  evalCase: JevEvalCase,
+  history: readonly SpokenEntry[] = jevEvalHistory(set, evalCase),
+): DecisionRequest {
+  return flowDecisionRequest(
+    set.flow,
+    evalCase.listen,
+    flowDecisionState(evalCase.text, history, flowToday(set.clock)),
+  );
 }
 
 /** Labels that cannot be scored, or one reply labelled twice in one state, are a broken corpus. */

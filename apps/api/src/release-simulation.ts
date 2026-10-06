@@ -170,9 +170,17 @@ export async function runRelease(
     if (!behavior) throw new Error(`Release composition does not provide ${BEHAVIOR_SERVICE}`);
     let output = '';
     let epoch = 0;
-    // Each spoken segment gets its own receipt, as the voice engine sends them; a behaviour only
-    // remembers a line whose receipt matches it exactly.
-    const play = async (segments: string[]) => {
+    // One turn, played the way the voice engine plays it: each spoken segment gets its own
+    // receipt. A behaviour remembers a line only when a receipt matches it exactly, and ends the
+    // call only once every line of the goodbye has one, so a single receipt for the joined text
+    // would drop a multi-line reply from history and leave a multi-line goodbye unfinished.
+    const speak = async (turnInput: string, turnVariables: Record<string, unknown>) => {
+      behavior.beginTurn?.(epoch);
+      const segments: string[] = [];
+      if (behavior.respondStream)
+        for await (const segment of behavior.respondStream(turnInput, turnVariables))
+          segments.push(segment);
+      else segments.push(await behavior.respond(turnInput, turnVariables));
       for (const text of segments)
         behavior.onPlayback?.({
           id: randomUUID(),
@@ -188,19 +196,12 @@ export async function runRelease(
     // `inputEvent: 'opening'` turn with no caller words. Without it a simulated agent would answer
     // the first input with the opening still unsaid, and its flow would start one state behind.
     if (behavior.speaksFirst?.()) {
-      behavior.beginTurn?.(epoch);
-      const opening = { ...variables, inputEvent: 'opening' };
-      const segments: string[] = [];
-      if (behavior.respondStream)
-        for await (const segment of behavior.respondStream('', opening)) segments.push(segment);
-      else segments.push(await behavior.respond('', opening));
-      const opened = await play(segments);
+      const opened = await speak('', { ...variables, inputEvent: 'opening' });
       await options.onTurn?.({ input: '', output, epoch: opened, opening: true });
       if (behavior.isComplete?.()) return output;
     }
     for (const turnInput of [input, ...(options.followUpInputs ?? [])]) {
-      behavior.beginTurn?.(epoch);
-      const played = await play([await behavior.respond(turnInput, variables)]);
+      const played = await speak(turnInput, variables);
       await options.onTurn?.({ input: turnInput, output, epoch: played, opening: false });
       if (behavior.isComplete?.()) break;
     }

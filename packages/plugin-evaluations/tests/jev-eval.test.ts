@@ -101,6 +101,39 @@ describe('CreditMantri Jev eval corpus', () => {
   });
 });
 
+describe('the decision state a case is asked in', () => {
+  it('is the state of a call that has just reached the node, as the runtime builds it', () => {
+    const state = jevEvalRequest(set, caseOf('payment-04')).state as Record<string, unknown>;
+    const disclose = [
+      'Thank you. Please note that this call is recorded for quality purposes.',
+      "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+      'A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.',
+      'When would you be able to make this payment?',
+    ];
+    expect(state).toEqual({
+      caller_reply: "I'll pay tomorrow.",
+      agent_last_said: disclose.join(' '),
+      // The last six spoken turns: the greeting's end, the caller's reply, the node's lines.
+      recent_turns: [
+        'agent: Am I speaking with Rahul Sharma?',
+        'caller: yes speaking',
+        ...disclose.map((line) => `agent: ${line}`),
+      ],
+      // `AgentVariables.today()` for en-IN in Asia/Kolkata, not an ISO date.
+      today: 'Wednesday, 7 October 2026',
+    });
+  });
+
+  it('refuses a case no golden conversation reaches', () => {
+    expect(() => validateJevEvalSet({ ...set, paths: {} })).toThrow(
+      'Case identity-01: no golden conversation reaches greet',
+    );
+    expect(() =>
+      validateJevEvalSet({ ...set, cases: [{ ...caseOf('payment-04'), node: 'greet' }] }),
+    ).toThrow('Case payment-04: no node greet listens with payment');
+  });
+});
+
 describe('the CI gate (recorded answers, no network)', () => {
   it('passes, and reports the rule tier misroute the labels expose', async () => {
     const report = summarizeJevEval(await runJevEval(set, replayDecision(recording)), set.gate);

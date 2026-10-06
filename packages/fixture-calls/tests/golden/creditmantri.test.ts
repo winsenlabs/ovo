@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AgentConfig,
   type DecisionPort,
+  type DecisionRequest,
   type Execution,
   type InferenceReply,
 } from '@winsendotai/ovo-contracts';
@@ -10,10 +11,18 @@ import { AgentBehavior } from '../../../behaviors/src/index.ts';
 import { collect, llm, receipt } from '../../../behaviors/tests/agent-call-control-fixture.ts';
 import { CREDITMANTRI_JEV_EVAL } from '../../../plugin-evaluations/src/corpus/jev-eval-creditmantri.ts';
 import { CREDITMANTRI_GOLDEN } from '../../../plugin-evaluations/src/corpus/golden-creditmantri.ts';
+import { matchFlowPhrase } from '../../../plugin-evaluations/src/jev-eval-flow.ts';
+import { flowToday, type SpokenEntry } from '../../../plugin-evaluations/src/jev-eval-state.ts';
+import {
+  jevEvalHistory,
+  jevEvalNode,
+  jevEvalRequest,
+} from '../../../plugin-evaluations/src/jev-eval.ts';
 import {
   ReferenceConversation,
   scriptedAnswer,
   type GoldenConversation,
+  type GoldenStep,
   type GoldenTurn,
 } from '../../../plugin-evaluations/src/jev-eval-conversation.ts';
 
@@ -29,7 +38,8 @@ const imported = JSON.parse(
     'utf8',
   ),
 );
-const { variables, today, flow } = CREDITMANTRI_JEV_EVAL;
+const { variables, clock, flow } = CREDITMANTRI_JEV_EVAL;
+const today = flowToday(clock);
 const GREET = [
   "Hello, I'm calling from CreditMantri. My name is Ananya.",
   'Am I speaking with Rahul Sharma?',
@@ -97,11 +107,18 @@ describe('CreditMantri golden conversations, reference walk', () => {
 const agentConfig = {
   name: 'CreditMantri collections',
   mode: 'agent',
+  locale: clock.locale,
+  timezone: clock.timezone,
   variables: imported.variables,
   decision: imported.decision,
+  idle: imported.idle,
 };
-const flowRuntime = AgentConfig.safeParse(agentConfig).success;
-const NOW = new Date('2026-10-07T06:30:00Z');
+const parsed = AgentConfig.safeParse(agentConfig);
+const flowRuntime = parsed.success;
+// A caller silence is an `inputEvent: 'idle'` turn once the agent takes an idle policy (AGT-11,
+// wave3/jevonly). Before that the key is dropped on parse, and silence conversations stay todo.
+const idleRuntime = flowRuntime && 'idle' in parsed.data;
+const NOW = new Date(clock.now);
 const execution: Execution = { execute: async () => ({ state: 'succeeded' }) as never };
 
 function dispositionsOf(behavior: AgentBehavior): string[] {
@@ -111,64 +128,115 @@ function dispositionsOf(behavior: AgentBehavior): string[] {
   });
 }
 
+/**
+ * An agent on the imported flow that answers `steps`' scripted decisions and LLM replies in order,
+ * then hands any further decision to `after`. Every segment it says is played on its own receipt.
+ */
+function runtimeCall(id: string, steps: readonly GoldenStep[], after?: DecisionPort['decide']) {
+  const script = steps.flatMap((step) => (step.decision ? [step.decision] : []));
+  const port: DecisionPort = {
+    decide: async (request, options) => {
+      const next = script.shift();
+      if (next) return scriptedAnswer(request, next);
+      if (after) return after(request, options);
+      throw new Error('decision script exhausted');
+    },
+  };
+  const model = llm(
+    steps.flatMap((step): InferenceReply[] =>
+      step.llm
+        ? [
+            {
+              kind: 'tool',
+              toolId: 'resume_flow',
+              input: { reply: step.llm.reply, resume_at: step.llm.resumeAt, action: 'none' },
+            },
+          ]
+        : [],
+    ),
+  );
+  const behavior = new AgentBehavior(AgentConfig.parse(agentConfig), model.port, execution, {
+    workspaceId: 'w-golden',
+    sessionId: `s-${id}`,
+    decision: port,
+    now: () => NOW,
+  });
+  let epoch = 0;
+  // What was said, as one text: how a node's lines are split into speech segments is the
+  // engine's and the clip cache's business, not the conversation's.
+  const turn = async (text: string, extra: Record<string, unknown> = {}) => {
+    behavior.beginTurn(epoch);
+    const said = await collect(behavior.respondStream(text, { ...variables, ...extra }));
+    for (const segment of said) behavior.onPlayback(receipt(segment, epoch));
+    epoch += 1;
+    return said.join(' ');
+  };
+  // Greet-first when the agent speaks first, as the engine runs it; otherwise the flow enters its
+  // start node on the caller's first words, whatever they are.
+  const greetsFirst = behavior.speaksFirst();
+  const open = () => (greetsFirst ? turn('', { inputEvent: 'opening' }) : turn(OPENING_HELLO));
+  return { behavior, script, turn, open, greetsFirst };
+}
+const OPENING_HELLO = 'Hello?';
+
 describe.skipIf(!flowRuntime)('CreditMantri golden conversations, agent runtime', () => {
   for (const conversation of CREDITMANTRI_GOLDEN) {
-    if (conversation.steps.some((step) => step.caller === null)) {
-      it.todo(`${conversation.id}: idle runs in the turn driver, not a behaviour turn`);
+    const silent = conversation.steps.some((step) => step.caller === null);
+    if (silent && !idleRuntime) {
+      it.todo(`${conversation.id}: needs the agent idle policy (AGT-11, wave3/jevonly)`);
       continue;
     }
     it(conversation.id, async () => {
       const expected = walk(conversation).turns;
-      const script = conversation.steps.flatMap((step) => (step.decision ? [step.decision] : []));
-      const port: DecisionPort = {
-        decide: async (request) => {
-          const next = script.shift();
-          if (!next) throw new Error('decision script exhausted');
-          return scriptedAnswer(request, next);
-        },
-      };
-      const model = llm(
-        conversation.steps.flatMap((step): InferenceReply[] =>
-          step.llm
-            ? [
-                {
-                  kind: 'tool',
-                  toolId: 'resume_flow',
-                  input: { reply: step.llm.reply, resume_at: step.llm.resumeAt, action: 'none' },
-                },
-              ]
-            : [],
-        ),
-      );
-      const behavior = new AgentBehavior(AgentConfig.parse(agentConfig), model.port, execution, {
-        workspaceId: 'w-golden',
-        sessionId: `s-${conversation.id}`,
-        decision: port,
-        now: () => NOW,
-      });
-      let epoch = 0;
-      // What was said, compared as one text: how a node's lines are split into speech segments
-      // is the engine's and the clip cache's business, not the conversation's.
-      const turn = async (text: string) => {
-        behavior.beginTurn(epoch);
-        const said = await collect(behavior.respondStream(text, variables));
-        for (const segment of said) behavior.onPlayback(receipt(segment, epoch));
-        epoch += 1;
-        return said.join(' ');
-      };
+      const { behavior, script, turn, open } = runtimeCall(conversation.id, conversation.steps);
       const text = (index: number) => expected[index]!.says.join(' ');
-      // A flow enters its start node on the first turn, whatever the caller said.
-      expect(await turn('Hello?')).toBe(text(0));
+      expect(await open()).toBe(text(0));
+      // The engine times a silence; the behaviour only says what it means.
       for (const [index, step] of conversation.steps.entries())
-        expect(await turn(step.caller!), `step ${index + 1}`).toBe(text(index + 1));
+        expect(
+          await (step.caller === null ? turn('', { inputEvent: 'idle' }) : turn(step.caller)),
+          `step ${index + 1}`,
+        ).toBe(text(index + 1));
       expect(script).toEqual([]);
       expect(dispositionsOf(behavior)).toEqual(conversation.outcome.dispositions);
       expect(behavior.isComplete()).toBe(conversation.outcome.ended);
       // The reason names the ending node; the agent prefixes the source (`decision:flow:<node>`).
+      // Silence ends the call as no input instead (the engine's `caller_idle`).
       if (conversation.outcome.ended)
         expect(behavior.completionReason()).toMatch(
-          new RegExp(`(^|:)flow:${conversation.outcome.node}$`),
+          conversation.steps.at(-1)!.caller === null
+            ? /^idle:no-input$/
+            : new RegExp(`(^|:)flow:${conversation.outcome.node}$`),
         );
     });
   }
+
+  // The Jev eval scores the request it builds itself (`jevEvalRequest`). This drives the agent down
+  // each decided case's golden route and checks the runtime asks exactly that, state included.
+  it('asks every decided Jev eval case with the request the eval scores', async () => {
+    const set = CREDITMANTRI_JEV_EVAL;
+    for (const evalCase of set.cases) {
+      if (matchFlowPhrase(flow, evalCase.listen, evalCase.text)) continue;
+      const path = set.paths[jevEvalNode(set, evalCase)]!;
+      const steps = CREDITMANTRI_GOLDEN.find(
+        (conversation) => conversation.id === path.conversation,
+      )!.steps.slice(0, path.steps);
+      const asked: DecisionRequest[] = [];
+      const call = runtimeCall(`eval-${evalCase.id}`, steps, async (request) => {
+        asked.push(request);
+        return scriptedAnswer(request, {
+          intent: evalCase.expected,
+          ...(evalCase.slots ? { slots: evalCase.slots } : {}),
+        });
+      });
+      await call.open();
+      for (const step of steps) await call.turn(step.caller!);
+      await call.turn(evalCase.text);
+      const history: SpokenEntry[] = [
+        ...(call.greetsFirst ? [] : [{ role: 'caller' as const, text: OPENING_HELLO }]),
+        ...jevEvalHistory(set, evalCase),
+      ];
+      expect(asked, evalCase.id).toEqual([jevEvalRequest(set, evalCase, history)]);
+    }
+  });
 });

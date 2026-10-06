@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs';
+import { goldenPaths } from '../jev-eval-conversation.ts';
 import type { AgentFlow } from '../jev-eval-flow.ts';
+import { flowToday } from '../jev-eval-state.ts';
 import type { JevEvalCase, JevEvalLanguage, JevEvalSet } from '../jev-eval.ts';
+import { CREDITMANTRI_GOLDEN } from './golden-creditmantri.ts';
 
 /**
  * Labelled caller replies for the CreditMantri collections flow, per listen set, in English, Indian
@@ -182,27 +185,38 @@ const imported = JSON.parse(
   readFileSync(new URL('./creditmantri-flow.json', import.meta.url), 'utf8'),
 );
 
+const flow = imported.decision.flow as AgentFlow;
+// One of the POC's cases (lib/cases.js, NACH bounce) as the dialer would render it on 7 Oct 2026,
+// called at noon in Chennai by an agent with the default locale and timezone.
+const clock = { now: '2026-10-07T06:30:00Z', locale: 'en-IN', timezone: 'Asia/Kolkata' };
+const variables = {
+  full_name: 'Rahul Sharma',
+  first_name: 'Rahul',
+  loan_type: 'two-wheeler loan',
+  last4_spoken: 'eight two one three',
+  emi_words: 'four thousand eight hundred and fifty rupees',
+  due_date_words: 'the 25th of September',
+  reason: 'the auto-debit from your bank account bounced due to insufficient balance',
+  charge_sentence:
+    'A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.',
+  total_words: 'five thousand four hundred and forty rupees',
+  date_today: 'Wednesday, the 7th of October',
+  date_tomorrow: 'Thursday, the 8th of October',
+  date_3days: 'Saturday, the 10th of October',
+  date_week: 'Wednesday, the 14th of October',
+};
+
 export const CREDITMANTRI_JEV_EVAL: JevEvalSet = {
   name: 'CreditMantri collections',
-  flow: imported.decision.flow as AgentFlow,
-  // One of the POC's cases (lib/cases.js, NACH bounce) as the dialer would render it on 7 Oct 2026.
-  variables: {
-    full_name: 'Rahul Sharma',
-    first_name: 'Rahul',
-    loan_type: 'two-wheeler loan',
-    last4_spoken: 'eight two one three',
-    emi_words: 'four thousand eight hundred and fifty rupees',
-    due_date_words: 'the 25th of September',
-    reason: 'the auto-debit from your bank account bounced due to insufficient balance',
-    charge_sentence:
-      'A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.',
-    total_words: 'five thousand four hundred and forty rupees',
-    date_today: 'Wednesday, the 7th of October',
-    date_tomorrow: 'Thursday, the 8th of October',
-    date_3days: 'Saturday, the 10th of October',
-    date_week: 'Wednesday, the 14th of October',
-  },
-  today: '2026-10-07',
+  flow,
+  variables,
+  clock,
+  // Each case is asked as the caller answers its node on the shortest golden route there.
+  paths: goldenPaths(flow, CREDITMANTRI_GOLDEN, {
+    variables,
+    today: flowToday(clock),
+    idle: imported.idle,
+  }),
   cases: [
     ...identity,
     ...payment,

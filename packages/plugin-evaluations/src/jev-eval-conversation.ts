@@ -13,6 +13,7 @@ import {
   routeFlowIntent,
   type AgentFlow,
 } from './jev-eval-flow.ts';
+import { flowDecisionState, type SpokenEntry } from './jev-eval-state.ts';
 
 /**
  * The reference walk of a flow, turn by turn, with scripted decision and LLM answers: what the
@@ -87,18 +88,23 @@ export class ReferenceConversation {
   listen?: string;
   /** The entered node's lines, which a repeat replays. */
   private last: string[] = [];
-  /** What the agent said since the caller last spoke, for the decision state. */
-  private spoken: string[] = [];
+  /** Every line played and every caller reply so far, which the decision state is built from. */
+  private readonly spoken: SpokenEntry[] = [];
   private silences = 0;
 
   constructor(
     private readonly flow: AgentFlow,
     private readonly options: {
       variables: Record<string, string>;
+      /** As the agent formats it (`flowToday`). */
       today: string;
       idle: { prompts: string[]; finalLine: string };
     },
   ) {}
+
+  get history(): SpokenEntry[] {
+    return this.spoken.map((entry) => ({ ...entry }));
+  }
 
   start(): GoldenTurn {
     return this.enter(this.flow.start, 'start');
@@ -112,15 +118,12 @@ export class ReferenceConversation {
     if (this.ended || !this.listen) throw new Error('The conversation has ended');
     this.silences = 0;
     const listen = this.listen;
+    const state = flowDecisionState(text, this.spoken, this.options.today);
+    this.spoken.push({ role: 'caller', text });
     const ruled = matchFlowPhrase(this.flow, listen, text);
     if (ruled) return this.follow(listen, ruled, {}, 'rule');
     if (!scripted.decision) throw new Error(`"${text}" needs a scripted decision`);
-    const request = flowDecisionRequest(this.flow, listen, {
-      caller_reply: text,
-      agent_last_said: this.spoken.join(' '),
-      recent_turns: this.spoken.map((line) => `agent: ${line}`),
-      today: this.options.today,
-    });
+    const request = flowDecisionRequest(this.flow, listen, state);
     const answer = scriptedAnswer(request, scripted.decision).answers;
     const intent = answer[FLOW_INTENT_QUESTION]!;
     if (intent.type !== 'choice') throw new Error('unreachable');
@@ -179,11 +182,54 @@ export class ReferenceConversation {
   }
 
   private said(turn: GoldenTurn): GoldenTurn {
-    this.spoken = turn.says;
+    for (const text of turn.says) this.spoken.push({ role: 'agent', text });
     return turn;
   }
 
   private render(line: string): string {
     return renderFlowLine(this.flow, line, this.options.variables);
   }
+}
+
+/** How a golden conversation first reaches a node: its steps up to there and what was said. */
+export interface GoldenPath {
+  conversation: string;
+  /** Caller steps taken from the start; 0 for the start node. */
+  steps: number;
+  /** The spoken history once the node's lines have played. */
+  history: SpokenEntry[];
+}
+
+/**
+ * The shortest golden route to each node it reaches, so an eval case is asked in the state a real
+ * call is in when the caller answers that node: the same recent turns and the same last words. A
+ * walk stops at its first silence, since idle prompts are the engine's and not in the history.
+ */
+export function goldenPaths(
+  flow: AgentFlow,
+  conversations: readonly GoldenConversation[],
+  options: ConstructorParameters<typeof ReferenceConversation>[1],
+): Record<string, GoldenPath> {
+  const paths: Record<string, GoldenPath> = {};
+  const reach = (node: string | undefined, path: GoldenPath) => {
+    if (node !== undefined && (paths[node]?.steps ?? Infinity) > path.steps) paths[node] = path;
+  };
+  for (const conversation of conversations) {
+    const reference = new ReferenceConversation(flow, options);
+    const at = (steps: number) => ({
+      conversation: conversation.id,
+      steps,
+      history: reference.history,
+    });
+    reach(reference.start().node, at(0));
+    for (const [index, step] of conversation.steps.entries()) {
+      if (step.caller === null || reference.ended) break;
+      const turn = reference.reply(step.caller, {
+        ...(step.decision ? { decision: step.decision } : {}),
+        ...(step.llm ? { llm: step.llm } : {}),
+      });
+      reach(turn.node, at(index + 1));
+    }
+  }
+  return paths;
 }
