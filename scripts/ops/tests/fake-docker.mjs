@@ -41,6 +41,16 @@ if (args[0] === 'compose') {
     const service = args[execAt + 2];
     const command = args.slice(execAt + 3);
     if (command[0] === 'node' && command[1] === '--input-type=module') runNode(command.slice(3));
+    if (service === 'postgres' && state.pgUrl && ['pg_dump', 'psql'].includes(command[0])) {
+      // The bundled postgres container: run the host client against the test database instead.
+      const rest = command
+        .slice(1)
+        .filter((arg, i, all) => !['-U', '-d'].includes(arg) && !['-U', '-d'].includes(all[i - 1]));
+      const result = spawnSync(command[0], [`--dbname=${state.pgUrl}`, ...rest], {
+        stdio: 'inherit',
+      });
+      process.exit(result.status ?? 1);
+    }
     if (command[0] === 'node' && command[1] === '-e') {
       const states = state.workers?.[service];
       const current = Array.isArray(states)

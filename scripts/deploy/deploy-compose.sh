@@ -128,9 +128,12 @@ if [[ -n $IMAGES ]]; then
     set_env_value "$ENV_FILE" "${line%%=*}" "${line#*=}"
   done <"$IMAGES"
   run compose pull "${APP_SERVICES[@]}"
-else
+elif [[ $BUILD == true ]]; then
   say 'building on this host; prefer scripts/deploy/build-images.sh on the build machine'
   run compose build "${APP_SERVICES[@]}"
+else
+  say 'keeping the image pins already in the Compose environment'
+  run compose pull "${APP_SERVICES[@]}"
 fi
 
 step 'backing services'

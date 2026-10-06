@@ -129,6 +129,20 @@ describe('deploy-compose.sh (OPS-8)', () => {
     expect(polls).toHaveLength(3);
   });
 
+  it('redeploys the pins already in the environment without building', async () => {
+    const { box, deploy, ups } = fixture();
+    expect((await deploy('--images', pins(box.dir), '--skip-verify')).code).toBe(0);
+    const before = box.dockerLog().length;
+    const again = await deploy('--skip-verify');
+    expect(again.code).toBe(0);
+    const log = box.dockerLog().slice(before);
+    expect(log.some((line) => line.includes(' build '))).toBe(false);
+    expect(
+      log.some((line) => line.endsWith('pull api console gateway dispatcher worker-1 worker-2')),
+    ).toBe(true);
+    expect(ups()).toHaveLength(16);
+  });
+
   it('refuses to build on the call host unless asked', async () => {
     const { deploy, box } = fixture();
     const run = await deploy('--skip-verify');

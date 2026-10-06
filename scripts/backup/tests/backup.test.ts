@@ -234,6 +234,27 @@ describe.skipIf(!POSTGRES || !hasClient)(
       expect(live.stderr).toContain('refusing to restore over the live DATABASE_URL');
     });
 
+    it('dumps through the bundled postgres container when its profile is on', async () => {
+      const { env, files, envFile, box } = tools();
+      writeFileSync(envFile, 'COMPOSE_PROFILES=local-postgres,local-queue\n', { mode: 0o600 });
+      writeFileSync(env.FAKE_DOCKER_STATE, JSON.stringify({ pgUrl: urlFor(names.source) }));
+      const run = await runScript('scripts/backup/ovo-backup.sh', [...files, '--skip-upload'], env);
+      expect(run.code).toBe(0);
+      expect(
+        box
+          .dockerLog()
+          .some((line) => line.includes('exec -T postgres pg_dump -U ovo -d ovo --format=custom')),
+      ).toBe(true);
+      const extracted = join(box.dir, 'extracted');
+      const archive = JSON.parse(run.stdout.trim().split('\n').at(-1)!).archive as string;
+      await runScript(
+        'scripts/backup/ovo-restore.sh',
+        ['--archive', archive, '--identity', '/dev/null', '--extract-to', extracted],
+        env,
+      );
+      expect(readFileSync(join(extracted, 'counts.tsv'), 'utf8')).toContain('ovo_ctl_things\t25\n');
+    });
+
     it('drills the newest offsite archive into a scratch database and drops it', async () => {
       const { env, files } = tools();
       await runScript('scripts/backup/ovo-backup.sh', [...files, '--skip-recordings'], {
