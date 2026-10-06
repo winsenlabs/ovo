@@ -12,6 +12,7 @@ import {
   composeReleaseTextFilters,
   normalizeSpeechInventory,
   normalizeSpeechText,
+  openingLineTemplates,
   staticSpeechInventory,
 } from '../src/index.ts';
 
@@ -129,6 +130,22 @@ describe('static speech inventory (TTS-5)', () => {
     });
   });
 
+  it('never pre-renders a voicemail message the hang-up action will not leave', () => {
+    // Wave 2 minor: a release that hangs up on machines rendered (and paid for) its message.
+    const hangup = {
+      ...config,
+      voicemail: {
+        detect: true,
+        timeoutMs: 4000,
+        action: 'hangup' as const,
+        message: 'Please call us back.',
+      },
+    };
+    const inventory = staticSpeechInventory({ config: hangup });
+    expect(inventory.static.map((line) => line.source)).not.toContain('voicemail');
+    expect(inventory.static.map((line) => line.text)).not.toContain('Please call us back.');
+  });
+
   it('includes every line of an enabled flow, one clip per line', () => {
     const flowAgent = AgentConfig.parse({
       name: 'Flow',
@@ -159,6 +176,13 @@ describe('static speech inventory (TTS-5)', () => {
       { text: 'Goodbye.', source: 'flow' },
     ]);
     expect(inventory.perCall).toContainEqual({ text: 'Is this {{name}}?', source: 'flow' });
+    // What the agent says before the caller does: the start node's lines (TTS-10).
+    expect(openingLineTemplates(flowAgent)).toEqual(['Hello.', 'Is this {{name}}?']);
+    expect(
+      openingLineTemplates(
+        AgentConfig.parse({ ...flowAgent, opening: { lines: ['Hi {{name}}.'] } }),
+      ),
+    ).toEqual(['Hi {{name}}.', 'Hello.', 'Is this {{name}}?']);
     const off = AgentConfig.parse({
       ...flowAgent,
       decision: { ...flowAgent.decision!, enabled: false },
@@ -166,6 +190,7 @@ describe('static speech inventory (TTS-5)', () => {
     expect(staticSpeechInventory({ config: off }).static.map((line) => line.source)).not.toContain(
       'flow',
     );
+    expect(openingLineTemplates(off)).toEqual([]);
   });
 
   it('includes the guardrail safe line only when the guardrail can block', () => {

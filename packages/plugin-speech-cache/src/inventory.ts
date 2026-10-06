@@ -35,7 +35,7 @@ export interface FixedLine {
  */
 type CallControlLines = {
   opening?: { lines?: readonly string[] };
-  voicemail?: { message?: string };
+  voicemail?: { action?: string; message?: string };
 };
 
 /** The release fields the inventory reads; ReleaseRecord satisfies it structurally. */
@@ -66,7 +66,8 @@ export function staticSpeechInventory(release: SpeechInventoryRelease): SpeechIn
   add(config.message, 'greeting');
   const callControl = config as AgentConfig & CallControlLines;
   for (const line of callControl.opening?.lines ?? []) add(line, 'opening');
-  add(callControl.voicemail?.message, 'voicemail');
+  // A message is only ever left when the action says so; a hang-up policy never speaks it.
+  if (callControl.voicemail?.action === 'message') add(callControl.voicemail.message, 'voicemail');
   for (const processing of [config.processing, ...config.tools.map((tool) => tool.processing)]) {
     add(processing?.initial, 'processing');
     add(processing?.progress, 'processing');
@@ -90,6 +91,23 @@ export function staticSpeechInventory(release: SpeechInventoryRelease): SpeechIn
   for (const prompt of parsed?.success ? (parsed.data.idle?.prompts ?? []) : [])
     add(prompt, 'idle-prompt');
   return inventory;
+}
+
+/**
+ * The templates an agent speaks first, before the caller says anything: its opening lines, then an
+ * enabled flow's start-node lines (AGT-2, AGT-1). Their per-call renders are the ones worth having
+ * ready before the call is answered (TTS-10).
+ */
+export function openingLineTemplates(config: AgentConfig): string[] {
+  const callControl = config as AgentConfig & CallControlLines;
+  const lines = [...(callControl.opening?.lines ?? [])];
+  const flow = config.decision?.enabled ? config.decision.flow : undefined;
+  const start = flow?.nodes.find((node) => node.id === flow.start);
+  for (const id of start?.say ?? []) {
+    const line = flow?.lines[id];
+    if (line !== undefined) lines.push(line);
+  }
+  return lines;
 }
 
 function decisionOutcomes(
