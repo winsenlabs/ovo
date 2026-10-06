@@ -1,5 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis';
-import { capabilitySpec } from '@winsendotai/ovo-contracts';
+import { capabilitySpec, type Logger } from '@winsendotai/ovo-contracts';
 import type { PluginDefinition } from './define.ts';
 
 export type CompositionScope = 'process' | 'session';
@@ -10,6 +10,8 @@ export interface ParentView {
   readonly keys: ReadonlySet<string>;
   get(key: string): unknown;
   all(key: string): ReadonlyMap<string, unknown>;
+  /** The parent's host logger; a child composition without its own inherits it. */
+  readonly logger?: Logger;
 }
 
 /** Keys a child may read from `parent`: provided there, with spec scope 'process' or 'either'. */

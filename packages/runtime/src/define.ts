@@ -3,6 +3,7 @@ import {
   Manifest,
   type CapabilityMap,
   type CapKey,
+  type Logger,
   type ManifestInput,
   type ManifestV2Input,
   type NetPort,
@@ -34,6 +35,11 @@ export interface PluginContext<R extends string = string, P extends string = str
   secret(pointer: string): Promise<string>;
   /** The host `ovo.net`, filtered by `manifest.runtime.egressHosts` (https and wss only). */
   readonly net: NetPort;
+  /**
+   * The host's structured logger with `plugin: <manifest id>` on every line (and the host's own
+   * ids, such as sessionId, when it composed the graph with them). Silent when the host gave none.
+   */
+  readonly logger: Logger;
   effect: Context['effect'];
   on: Context['on'];
   fiber: Context['fiber'];

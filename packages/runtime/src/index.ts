@@ -13,3 +13,4 @@ export * from './net-guard.ts';
 export * from './validate-graph.ts';
 export * from './registry.ts';
 export * from './installed.ts';
+export * from './plugin-failure.ts';
