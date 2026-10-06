@@ -3,9 +3,14 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Role } from '@winsendotai/ovo-plugin-storage';
 import type { BootstrapIdentity, ManagementApiOptions, Principal } from './types.ts';
+import { sessionTtlSecondsFromEnv } from './auth-env.ts';
+/** A principal signed in with a password it must change before doing anything else (OPS-15). */
+type SessionPrincipal = Principal & { passwordChangeRequired?: true };
 interface AuthRequest extends FastifyRequest {
-  principal?: Principal;
+  principal?: SessionPrincipal;
 }
+/** What a password-change session may still reach: who it is, the change itself, sign-out. */
+const PASSWORD_CHANGE_PATHS = new Set(['/v1/auth/me', '/v1/auth/password', '/v1/auth/session']);
 const rank: Record<Role, number> = { viewer: 1, editor: 2, admin: 3 };
 const hash = (value: string) => createHash('sha256').update(value).digest();
 const safeEqual = (a: Buffer, b: Buffer) => a.length === b.length && timingSafeEqual(a, b);
@@ -18,7 +23,10 @@ function cookie(header: string | undefined, name: string) {
 }
 export class Authenticator {
   private readonly byId = new Map<string, BootstrapIdentity>();
+  /** Seconds a session lasts: the option, else `OVO_SESSION_TTL_SECONDS`, else 8 hours. */
+  readonly sessionTtlSeconds: number;
   constructor(private readonly options: ManagementApiOptions) {
+    this.sessionTtlSeconds = options.sessionTtlSeconds ?? sessionTtlSecondsFromEnv();
     const tokens = new Set<string>();
     for (const identity of options.identities) {
       const tokenHash = hash(identity.token).toString('hex');
@@ -37,7 +45,11 @@ export class Authenticator {
       (identity) => !identity.authenticationDisabled && safeEqual(digest, hash(identity.token)),
     );
   }
-  createSession(identity: BootstrapIdentity, workspaceId: string) {
+  createSession(
+    identity: BootstrapIdentity,
+    workspaceId: string,
+    session: { passwordChangeRequired?: boolean; ttlSeconds?: number } = {},
+  ) {
     if (!Object.hasOwn(identity.workspaces, workspaceId))
       throw new Error('Workspace is not authorized');
     const payload = Buffer.from(
@@ -45,12 +57,13 @@ export class Authenticator {
         identityId: identity.id,
         tokenVersion: this.tokenVersion(identity),
         workspaceId,
-        exp: Math.floor(Date.now() / 1000) + (this.options.sessionTtlSeconds ?? 28_800),
+        exp: Math.floor(Date.now() / 1000) + (session.ttlSeconds ?? this.sessionTtlSeconds),
+        ...(session.passwordChangeRequired ? { pcr: true } : {}),
       }),
     ).toString('base64url');
     return `${payload}.${createHmac('sha256', this.options.sessionSecret).update(payload).digest('base64url')}`;
   }
-  fromSession(value: string): Principal | undefined {
+  fromSession(value: string): SessionPrincipal | undefined {
     try {
       return this.decodeSession(value);
     } catch {
@@ -74,11 +87,12 @@ export class Authenticator {
       workspaceId: string;
       exp: number;
       tokenVersion: string;
+      pcr?: boolean;
     };
     if (!decoded || !Number.isFinite(decoded.exp) || decoded.exp <= Date.now() / 1000) return;
     return decoded;
   }
-  private decodeSession(value: string): Principal | undefined {
+  private decodeSession(value: string): SessionPrincipal | undefined {
     const decoded = this.parseSession(value);
     if (!decoded) return;
     const identity = this.byId.get(decoded.identityId),
@@ -88,13 +102,19 @@ export class Authenticator {
           : undefined;
     if (!identity || decoded.tokenVersion !== this.tokenVersion(identity)) return;
     return identity && role
-      ? { identityId: identity.id, label: identity.label, workspaceId: decoded.workspaceId, role }
+      ? {
+          identityId: identity.id,
+          label: identity.label,
+          workspaceId: decoded.workspaceId,
+          role,
+          ...(decoded.pcr === true ? { passwordChangeRequired: true as const } : {}),
+        }
       : undefined;
   }
   async authenticateWithUsers(
     request: FastifyRequest,
     users?: UserDirectory,
-  ): Promise<Principal | undefined> {
+  ): Promise<SessionPrincipal | undefined> {
     const existing = this.authenticate(request);
     if (existing || !users) return existing;
     const value = cookie(request.headers.cookie, 'ovo_session');
@@ -118,6 +138,7 @@ export class Authenticator {
       label: identity.label,
       workspaceId: decoded.workspaceId,
       role: identity.workspaces[decoded.workspaceId]!,
+      ...(decoded.pcr === true ? { passwordChangeRequired: true as const } : {}),
     };
   }
   authenticate(request: FastifyRequest) {
@@ -142,15 +163,24 @@ export function requireRole(request: FastifyRequest, role: Role) {
       statusCode: 401,
       code: 'unauthorized',
     });
+  if (
+    principal.passwordChangeRequired &&
+    !PASSWORD_CHANGE_PATHS.has((request.url ?? '').split('?')[0]!)
+  )
+    throw Object.assign(new Error('Change your password before continuing'), {
+      statusCode: 403,
+      code: 'password_change_required',
+    });
   if (!Object.hasOwn(rank, principal.role) || rank[principal.role] < rank[role])
     throw Object.assign(new Error('Insufficient role'), { statusCode: 403, code: 'forbidden' });
   return principal;
 }
-export const publicIdentity = (principal: Principal) => ({
+export const publicIdentity = (principal: SessionPrincipal) => ({
   id: principal.identityId,
   label: principal.label,
   workspaceId: principal.workspaceId,
   role: principal.role,
+  ...(principal.passwordChangeRequired ? { passwordChangeRequired: true } : {}),
 });
 export const error = (
   reply: FastifyReply,

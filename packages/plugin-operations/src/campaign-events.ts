@@ -112,6 +112,7 @@ export class CampaignEventService {
         'superseded',
         'suppressed',
         'exhausted',
+        'invalid',
       ].map((state) => [state, 0]),
     ) as CampaignCounters['contacts'];
     const attemptCounts = Object.fromEntries(

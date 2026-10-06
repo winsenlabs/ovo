@@ -2,6 +2,7 @@ import type { AgentConfig, UsageMeter } from '@winsendotai/ovo-contracts';
 import type {
   CostLedgerService,
   CostSummary,
+  PriceCardVersion,
   RecordUsageInput,
   ReservationResult,
 } from '@winsendotai/ovo-plugin-ledger';
@@ -88,6 +89,8 @@ export interface WorkerCostPolicyOptions {
   attemptId?: string;
   sessionStartedAt: string;
   requiredMeterKeys?: readonly string[];
+  /** Price cards admission already read, by meter key, so each card is read once per call. */
+  prefetchedPriceCards?: ReadonlyMap<string, PriceCardVersion | undefined>;
   inference?: InferenceCostBinding;
   maxPendingUsage?: number;
   requestTermination(reason: CostTerminationReason): void | Promise<void>;

@@ -8,7 +8,9 @@ import {
   type CampaignRow,
   type ContactRow,
 } from './campaign-model.ts';
+import { callingWindowState } from './calling-window.ts';
 import { transaction } from './database.ts';
+import { nextValidContact, requeueOutsideWindow } from './campaign-admission-checks.ts';
 import type {
   CampaignDialJob,
   ContactAdmission,
@@ -65,16 +67,12 @@ export class CampaignAdmissionService {
       return { kind: 'capacity_exhausted' };
     const quota = await campaignQuotaState(client, campaign);
     if (quota) return { kind: 'quota_exhausted', quota };
-    const selected = await client.query<ContactRow>(
-      `SELECT c.* FROM ovo_ops_campaign_contacts c
-         WHERE c.campaign_id = $1 AND c.state = 'queued' AND c.not_before <= now()
-           AND NOT EXISTS (SELECT 1 FROM ovo_ops_suppressions s
-             WHERE s.organization_id = $2 AND s.phone_number = c.phone_number)
-           AND (SELECT count(*) FROM ovo_ops_attempts a WHERE a.contact_id = c.id) < $3
-         ORDER BY c.source_row, c.id FOR UPDATE SKIP LOCKED LIMIT 1`,
-      [campaignId, this.organizationId, campaign.per_number_attempt_limit],
-    );
-    const contact = selected.rows[0];
+    const window = campaign.calling_window
+      ? callingWindowState(campaign.calling_window)
+      : undefined;
+    if (window && !window.open)
+      return { kind: 'outside_calling_hours', nextOpenAt: window.nextOpenAt };
+    const contact = await nextValidContact(client, campaign, this.organizationId);
     if (!contact) return { kind: 'empty' };
     const claimed = await client.query<ContactRow>(
       `UPDATE ovo_ops_campaign_contacts SET state = 'admitted', owner_id = $2,
@@ -181,6 +179,8 @@ export class CampaignAdmissionService {
         );
         return { kind: 'blocked', reason: 'suppressed' };
       }
+      if (current.state === 'admitted' && (await requeueOutsideWindow(client, campaign, contactId)))
+        return { kind: 'blocked', reason: 'outside_calling_hours' };
       const requestId = `${campaign.id}:${contactId}:${ownerEpoch}`;
       const existing = await client.query<{ id: string }>(
         'SELECT id FROM ovo_ops_attempts WHERE request_id = $1',
@@ -215,17 +215,7 @@ export class CampaignAdmissionService {
   ): Promise<DialAuthorization> {
     const attemptId = randomUUID();
     const requestId = `${campaign.id}:${contact.id}:${contact.owner_epoch}`;
-    const authorization: DialAuthorization = {
-      kind: 'authorized',
-      attemptId,
-      requestId,
-      campaignId: campaign.id,
-      contactId: contact.id,
-      to: contact.phone_number,
-      from: campaign.from_number,
-      agentReleaseId: campaign.agent_release_id,
-      variables: contact.variables,
-    };
+    const authorization = this.authorizationFrom(attemptId, requestId, campaign, contact);
     await client.query(
       `INSERT INTO ovo_ops_attempts (id, campaign_id, contact_id, request_id, sequence, status)
        VALUES ($1,$2,$3,$4,$5,'authorized')`,

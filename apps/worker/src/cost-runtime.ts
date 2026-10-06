@@ -22,6 +22,7 @@ import {
   createWorkerCostPolicyAttachment,
   type WorkerCostPolicyAttachment,
 } from './cost-policy.ts';
+import { checkMeterModels, requiredMeterModels } from './cost-runtime-models.ts';
 
 export interface CostAdmission {
   admitted: boolean;
@@ -115,6 +116,18 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
         admitted: false,
         reason: `cost-meter-unconfigured:${missingMeters.join(',')}`,
       };
+    const priced = await checkMeterModels(
+      this.ledger,
+      policy,
+      requiredMeterModels(
+        release,
+        requiredMeterKeys,
+        this.registry && selections
+          ? { meters: selectedMeters, selections, registry: this.registry }
+          : undefined,
+      ),
+    );
+    if (priced.refusal) return { ...noCostAdmission(), admitted: false, reason: priced.refusal };
     const inferenceRecord = release.providerBindings.inference;
     const inferenceModel = inferenceRecord?.config.model;
     const carrier = selectedMeters.find((row) => row.slot === 'carrier');
@@ -148,6 +161,7 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
       attemptId: text(payload.attemptId),
       sessionStartedAt: new Date().toISOString(),
       requiredMeterKeys,
+      prefetchedPriceCards: priced.cards,
       inference:
         inferenceRecord && typeof inferenceModel === 'string'
           ? { provider: inferenceRecord.provider, modelId: inferenceModel }
