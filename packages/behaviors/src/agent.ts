@@ -14,7 +14,6 @@ export {
 } from './agent-tools.ts';
 import {
   AgentConfig as AgentConfigSchema,
-  effectiveVoicemailPolicy,
   type AgentConfig,
   type Behavior,
   type Execution,
@@ -22,19 +21,20 @@ import {
   type OperationRecord,
   type ToolDefinition,
   type SpeechReceipt,
+  type SpeechKindV2,
 } from '@winsendotai/ovo-contracts';
 import { PlaybackConversation } from './history.ts';
 import { ToolConfirmation } from './confirmation.ts';
 import { ToolEvents } from './tool-events.ts';
 import { assembleBoundedContext } from './context.ts';
-import { DecisionGate } from './decision-gate.ts';
+import { ruledDecisionGate, type RuledDecisionGate } from './rules-gate.ts';
+import { ScriptedLines } from './reprompt-lines.ts';
 import { runPreReplySteps } from './agent-pre-reply.ts';
 import { resumeConfirmation } from './agent-confirmation-step.ts';
 import { Grounding } from './grounding.ts';
 import { runInferenceSteps } from './agent-inference-step.ts';
 import { CallEnding } from './agent-ending.ts';
 import { AgentVariables } from './agent-variables.ts';
-import { AnnouncementValidationError } from './announcement.ts';
 
 export class AgentBehavior implements Behavior {
   readonly config: AgentConfig;
@@ -48,16 +48,17 @@ export class AgentBehavior implements Behavior {
   private readonly events = new ToolEvents();
   private readonly confirmation = new ToolConfirmation(this.events.emit);
   readonly subscribe = this.events.subscribe;
-  speechKind(text: string) {
-    return this.confirmation.speechKind(text);
+  speechKind(text: string): SpeechKindV2 | undefined {
+    return this.lines.speechKind(text) ?? this.confirmation.speechKind(text);
   }
   private uncertainWrite = false;
-  private readonly gate?: DecisionGate;
+  private readonly gate?: RuledDecisionGate;
+  /** Opening, idle and recovery lines. */
+  private readonly lines: ScriptedLines;
   private readonly grounding?: Grounding;
   private readonly log = new AgentTurnLog();
   private readonly ending = new CallEnding();
   private readonly variables: AgentVariables;
-  private opened = false;
   /** Tool-selection failures and decisions asked, oldest first, bounded. */
   readonly toolErrors: readonly AgentToolErrorRecord[] = this.log.toolErrors;
   readonly decisions: readonly AgentDecisionRecord[] = this.log.decisions;
@@ -66,26 +67,30 @@ export class AgentBehavior implements Behavior {
 
   constructor(
     config: AgentConfig,
-    private readonly inference: Inference,
+    /** Absent for a Jev-only agent (AGT-4): a turn that would reach it is recovered instead. */
+    private readonly inference: Inference | undefined,
     private readonly execution: Execution,
     private readonly options: AgentBehaviorOptions,
   ) {
     this.config = AgentConfigSchema.parse(config);
-    if (this.config.mode !== 'agent') {
+    if (this.config.mode !== 'agent')
       throw new TypeError(`Agent behavior requires agent mode, received ${this.config.mode}`);
-    }
     if (!options.workspaceId || !options.sessionId)
       throw new TypeError('Agent behavior requires workspaceId and sessionId');
     this.assembledContext = assembleBoundedContext(this.config.context, this.config.contextBudget);
     this.operationId = options.operationId ?? (() => crypto.randomUUID());
     // Validates every authored line against the declared variables before the first call.
     this.variables = new AgentVariables(this.config, options.now);
+    this.lines = new ScriptedLines(this.config, this.variables, {
+      ending: this.ending,
+      skipped: (field) => this.log.skippedLine(this.turn, field),
+      say: (text, conversational) => this.say(text, conversational ? this.turn : undefined),
+    });
 
     const compiled = compileAgentTools(this.config);
     this.tools = compiled.tools;
     this.validators = compiled.validators;
-    if (this.config.decision)
-      this.gate = new DecisionGate(this.config.decision, this.options.decision);
+    this.gate = ruledDecisionGate(this.config, this.options.decision);
     if (this.config.knowledge)
       this.grounding = new Grounding(this.config.knowledge, this.options.knowledge);
   }
@@ -106,10 +111,10 @@ export class AgentBehavior implements Behavior {
     variables: Record<string, unknown> = {},
   ): AsyncIterable<string> {
     this.ending.startTurn();
-    if (variables.inputEvent === 'opening') {
-      yield* this.opening(variables);
-      return;
-    }
+    this.lines.startTurn();
+    if (variables.inputEvent === 'opening') return yield* this.lines.opening(variables);
+    if (variables.inputEvent === 'idle') return yield* this.lines.silence(variables);
+    this.lines.heard();
     this.active?.abort(new DOMException('superseded by a newer turn', 'AbortError'));
     const controller = new AbortController();
     const turn = ++this.turn;
@@ -142,25 +147,36 @@ export class AgentBehavior implements Behavior {
         }
         wrote = resumed.wrote;
       }
-      const prepared = await runPreReplySteps({
-        config: this.config,
-        grounding: this.grounding,
-        gate: this.gate,
-        briefing: this.variables.renderBriefing(this.assembledContext, variables),
-        facts: this.variables.facts(variables),
-        turnInput: { input, history, variables, today: this.variables.today() },
-        signal: controller.signal,
-        log: this.log,
-        turn,
-        stale: () => turn !== this.turn,
-        render: (line) => this.variables.render(line, variables),
+      // A turn that never asks the gate (a knowledge refusal) must not be judged by the last verdict.
+      if (this.gate) this.gate.last = undefined;
+      const route = await this.lines.route({
+        input,
+        llm: this.inference !== undefined,
+        verdict: () => this.gate?.last,
+        prepare: () =>
+          runPreReplySteps({
+            config: this.config,
+            grounding: this.grounding,
+            gate: this.gate,
+            briefing: this.variables.renderBriefing(this.assembledContext, variables),
+            facts: this.variables.facts(variables),
+            turnInput: { input, history, variables, today: this.variables.today() },
+            signal: controller.signal,
+            log: this.log,
+            turn,
+            stale: () => turn !== this.turn,
+            render: (line) => this.variables.render(line, variables),
+          }),
       });
-      if (prepared.end !== undefined) this.ending.arm(`decision:${prepared.end}`);
-      if (prepared.speak !== undefined) {
-        yield this.say(prepared.speak);
+      if (route.kind === 'recover') return yield* this.lines.speak(route.plan, variables);
+      const { prepared } = route;
+      if (route.end !== undefined) this.ending.arm(`decision:${route.end}`);
+      if (route.say !== undefined) {
+        yield this.say(route.say, turn);
         this.ending.seal();
         return;
       }
+      if (!this.inference) return;
       yield* runInferenceSteps({
         config: this.config,
         inference: this.inference,
@@ -171,7 +187,7 @@ export class AgentBehavior implements Behavior {
         log: this.log,
         confirmation: this.confirmation,
         events: this.events,
-        publish: (text) => this.say(text),
+        publish: (text) => this.say(text, turn),
         endCall: (reason) => this.ending.arm(reason),
         operationId: this.operationId,
         turn,
@@ -191,44 +207,18 @@ export class AgentBehavior implements Behavior {
     }
   }
 
-  /**
-   * The opening lines, rendered for this call. No decision, LLM or caller words are involved. A line
-   * this call's data cannot fill (a missing variable, a malformed date) is skipped and recorded by
-   * field only, never with the value: bad row data must not hang up on someone who just answered.
-   */
-  private *opening(variables: Record<string, unknown>): Generator<string> {
-    if (this.opened || !this.config.opening) return;
-    this.opened = true;
-    const lines: string[] = [];
-    this.config.opening.lines.forEach((line, index) => {
-      try {
-        lines.push(this.variables.render(line, variables));
-      } catch (error) {
-        // swallow-ok: recorded below; the caller or the LLM leads where the line would have been.
-        if (!(error instanceof AnnouncementValidationError)) throw error;
-        this.log.skippedLine(this.turn, `opening.lines.${index}`);
-      }
-    });
-    for (const line of lines) yield this.say(line);
-  }
-
-  private say(text: string): string {
+  /** `turn` marks a conversational line, which a later repeat replays. */
+  private say(text: string, turn?: number): string {
+    if (turn !== undefined) this.lines.recovery.remember(turn, text);
     this.ending.said();
     return this.conversation.generated(text);
   }
 
-  speaksFirst(): boolean {
-    return this.config.opening !== undefined;
-  }
-
+  /** The caller-silence timeout, when this agent handles silence itself (AGT-11). */
+  idleTimeoutMs = (): number | undefined => this.lines.idleTimeoutMs;
+  speaksFirst = (): boolean => this.lines.speaksFirst();
   /** Undefined without a detecting policy: a machine verdict alone never ends this agent's call. */
-  voicemail(variables: Record<string, unknown>): string | undefined {
-    const policy = effectiveVoicemailPolicy(this.config);
-    if (!policy) return undefined;
-    return policy.action === 'message' && policy.message
-      ? this.variables.render(policy.message, variables)
-      : '';
-  }
+  voicemail = (variables: Record<string, unknown>) => this.lines.voicemail(variables);
 
   isComplete(): boolean {
     return this.ending.complete;
@@ -260,7 +250,7 @@ export class AgentBehavior implements Behavior {
 
 export function createAgentBehavior(
   config: AgentConfig,
-  inference: Inference,
+  inference: Inference | undefined,
   execution: Execution,
   options: AgentBehaviorOptions,
 ): AgentBehavior {

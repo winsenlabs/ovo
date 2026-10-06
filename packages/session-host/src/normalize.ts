@@ -1,5 +1,11 @@
-import type { AgentConfig, AgentVoice, Slot, VoiceSelection } from '@winsendotai/ovo-contracts';
-import { PluginRegistry } from '@winsendotai/ovo-runtime';
+import type {
+  AgentConfig,
+  AgentVoice,
+  Slot,
+  SpeechCapabilities,
+  VoiceSelection,
+} from '@winsendotai/ovo-contracts';
+import { manifestKeys, PluginRegistry } from '@winsendotai/ovo-runtime';
 
 export interface NormalizationBinding {
   id: string;
@@ -10,6 +16,11 @@ export interface NormalizationBinding {
 export interface SessionDefaults {
   engine: string;
   turnDetector?: string;
+  /**
+   * Selected only for an STT that finalises on a host commit (forceEndpoint without an end-of-turn
+   * signal): its local silence is what lets the 'commit' turn strategy end a turn.
+   */
+  vad?: string;
   textFilters?: readonly string[];
 }
 
@@ -58,10 +69,28 @@ export function normalizeAgentConfig(
       voice.turnDetector = { plugin: defaults.turnDetector, config: {} };
     else warnings.push(`Optional turn detector is not installed: ${defaults.turnDetector}`);
   }
+  if (!voice.vad && defaults.vad && voice.stt && finalisesOnCommit(registry, voice.stt.plugin)) {
+    if (registry.get(defaults.vad)) voice.vad = { plugin: defaults.vad, config: {} };
+    else warnings.push(`Optional VAD is not installed: ${defaults.vad}`);
+  }
   if (!voice.textFilters.length)
     for (const id of defaults.textFilters ?? []) {
       if (registry.get(id)) voice.textFilters.push({ plugin: id, config: {} });
       else warnings.push(`Optional text filter is not installed: ${id}`);
     }
   return { config: { ...source, voice }, warnings };
+}
+
+/** The STT's declared turn signals, as the `turn_signal_missing` release check reads them. */
+function finalisesOnCommit(registry: PluginRegistry, pluginId: string): boolean {
+  const definition = registry.get(pluginId);
+  if (!definition) return false;
+  const capabilities = manifestKeys(definition.manifest).manifest.capabilities as
+    Partial<SpeechCapabilities> | undefined;
+  const signals = capabilities?.turnSignals ?? [];
+  return (
+    capabilities?.forceEndpoint === true &&
+    !signals.includes('end-of-turn') &&
+    !signals.includes('utterance-end')
+  );
 }

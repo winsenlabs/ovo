@@ -7,8 +7,16 @@ import {
 } from './agent-call-control.ts';
 import { AgentDecisionPolicy } from './agent-decision.ts';
 import { AgentKnowledgePolicy } from './agent-knowledge.ts';
+import { AgentDecisionUnavailable, AgentIdle, AgentRecovery } from './agent-recovery.ts';
+import { AgentRules } from './agent-rules.ts';
+import { checkRoutingTargets } from './agent-rule-targets.ts';
 import { ScriptGraph } from './script.ts';
 import { AgentVoice } from './selection.ts';
+
+// Wave 3 agent blocks live in their own modules and are re-exported here, beside the config.
+export * from './agent-recovery.ts';
+export * from './agent-rules.ts';
+export * from './agent-jev-only.ts';
 
 export const JsonSchema = z.record(z.string(), z.unknown());
 export type JsonSchema = z.infer<typeof JsonSchema>;
@@ -92,6 +100,14 @@ export const AgentConfig = z
     voicemail: AgentVoicemail.optional(),
     /** Agent mode only: how the agent may end the call itself. */
     ending: AgentEnding.optional(),
+    /** Agent mode only: the instant rules tier, matched before the decision model (AGT-6). */
+    rules: AgentRules.optional(),
+    /** Agent mode only: escalating lines when the caller goes silent, then a closing line (AGT-11). */
+    idle: AgentIdle.optional(),
+    /** Agent mode only: repeat, didn't-catch and re-ask lines, bounded (AGT-12). */
+    recovery: AgentRecovery.optional(),
+    /** Agent mode only: what the caller hears when the decision model is unavailable (AGT-4). */
+    decisionUnavailable: AgentDecisionUnavailable.optional(),
     faqMargin: z.number().min(0).max(1).default(0.15),
     clarification: z.string().default('Please clarify your question.'),
     context: z.string().max(100000).default(''),
@@ -169,6 +185,12 @@ export const AgentConfig = z
     (config) =>
       !config.ending?.llmTool || !config.tools.some((tool) => tool.id === END_CALL_TOOL_ID),
     { message: `Tool id ${END_CALL_TOOL_ID} is reserved for ending the call`, path: ['tools'] },
-  );
+  )
+  .superRefine((config, ctx) => {
+    for (const field of ['rules', 'idle', 'recovery', 'decisionUnavailable'] as const)
+      if (config[field] && config.mode !== 'agent')
+        ctx.addIssue({ code: 'custom', message: `${field} requires agent mode`, path: [field] });
+    checkRoutingTargets(config, ctx);
+  });
 
 export type AgentConfig = z.infer<typeof AgentConfig>;
