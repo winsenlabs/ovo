@@ -52,7 +52,8 @@ export class RuledDecisionGate extends DecisionGate {
   private async decide(turn: DecisionTurn, signal: AbortSignal): Promise<DecisionGateResult> {
     const ruled = this.authored.enabled ? this.ruled(turn.input) : new Map();
     const questions = this.authored.questions;
-    if (ruled.size === questions.length) {
+    // Never with no questions: a policy without them (a flow, since Wave 3) routes another way.
+    if (ruled.size && ruled.size === questions.length) {
       const resolutions = questions.map((question) => ruled.get(question.id)!);
       return { kind: 'decided', modelId: RULES_MODEL_ID, resolutions, action: action(resolutions) };
     }

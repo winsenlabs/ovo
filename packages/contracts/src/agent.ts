@@ -199,6 +199,8 @@ export const AgentConfig = z
           message: `${field} needs an enabled decision policy`,
           path: [field],
         });
+    // A policy with no questions routes by a flow, whose listen sets and intents these name instead.
+    if (questions && !questions.length) return;
     for (const key of Object.keys(config.recovery?.reprompts ?? {}))
       if (!questions?.some((question) => question.id === key))
         ctx.addIssue({
