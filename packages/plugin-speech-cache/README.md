@@ -26,6 +26,13 @@ Lookup order in the worker: pinned (memory, for the release's lifetime, no TTL) 
 → durable (PostgreSQL `ovo_speech_clips`) → live render. A live render of a fixed line is detached
 from the caller: a barge-in stops playback, not the render, and the clip is kept for the next call.
 
+A release's pins last while a route or campaign points at it (re-read every minute), plus 30
+minutes after its last call or warm, so two releases of one agent can both stay pinned. Over the
+pinned budget, the least recently active unrouted release is let go first; routed releases are
+never evicted. A live call waits at most 200 ms on the durable tier before rendering live, and the
+clip pools fail fast (2 s connect, 10 s statement timeout); render locks use their own pool, so
+pre-render can never starve a live read.
+
 The durable tier stores audio bytes only (never text), keyed by the full cache identity digest:
 workspace, provider, model, voice, locale, codec, sample rate, provider revision and a hash of every
 audio-affecting binding field (TTS-13). A release whose TTS binding is not pinned is never stored.

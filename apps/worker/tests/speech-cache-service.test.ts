@@ -13,7 +13,12 @@ import { WorkerSpeechClipCache } from '../src/speech-cache-tiers.ts';
 import { fixtureRelease, RecordingTts } from './speech-cache-harness.ts';
 
 const silent = createLogger({}, { sink: () => undefined });
-const options = { ...DEFAULT_SPEECH_CACHE_OPTIONS.prerender, pollMs: 5, backoffMs: 0 };
+const options = {
+  ...DEFAULT_SPEECH_CACHE_OPTIONS.prerender,
+  pollMs: 5,
+  backoffMs: 0,
+  routedRefreshMs: 5,
+};
 
 function job(release: ReleaseRecord): PrerenderJob {
   return {
@@ -76,6 +81,36 @@ describe('speech prerender service', () => {
     await vi.waitFor(() => expect(tts.calls.length).toBeGreaterThan(0));
     await service.idle();
     expect(cache.pinned.stats.entries).toBe(tts.calls.length);
+    await service.close();
+  });
+
+  it('keeps a routed release pinned while a newer release of its agent is published (TTS-7)', async () => {
+    const live = fixtureRelease(
+      { speechCache: { enabled: true }, clarification: 'Sorry, once more?' },
+      { id: 'release-live' },
+    );
+    const published = fixtureRelease(
+      { speechCache: { enabled: true }, clarification: 'Pardon?' },
+      { id: 'release-new' },
+    );
+    const routed = [live];
+    const queued: PrerenderJob[] = [];
+    const releases = [live, published];
+    const { service, cache, opened, finished } = harness(releases, queued, routed);
+    service.start();
+    await vi.waitFor(() => expect(opened).toEqual(['release-live']));
+    await service.idle();
+    const pinnedLive = cache.pinned.stats.entries;
+    queued.push(job(published));
+    await vi.waitFor(() => expect(finished).toHaveLength(1));
+    cache.sessionStarted(published);
+    expect(cache.pinned.ownersOf().sort()).toEqual(['release-live', 'release-new']);
+    expect(cache.pinned.stats.entries).toBeGreaterThan(pinnedLive);
+    // A route added later is picked up by the periodic refresh and warmed without a call.
+    const later = fixtureRelease({ speechCache: { enabled: true } }, { id: 'release-later' });
+    releases.push(later);
+    routed.push(later);
+    await vi.waitFor(() => expect(opened).toContain('release-later'));
     await service.close();
   });
 

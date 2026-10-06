@@ -9,6 +9,8 @@ export async function runSpeechClipMigrations(pool: Pool): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Racing workers wait here for the first one; the pool's statement timeout must not fail them.
+    await client.query('SET LOCAL statement_timeout = 0');
     await client.query("SELECT pg_advisory_xact_lock(hashtext('ovo-speech-clip-migrations'))");
     await client.query(
       'CREATE TABLE IF NOT EXISTS ovo_speech_schema_migrations ' +

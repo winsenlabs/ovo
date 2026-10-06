@@ -11,6 +11,7 @@ import type { SpeechPrerenderOptions } from './speech-cache-env.ts';
 import { createPrerenderMeter } from './speech-cache-meter.ts';
 import { warmReleaseClips, type WarmResult } from './speech-cache-prerender.ts';
 import { PrerenderSkipError, type ReleaseSpeech } from './speech-cache-release-tts.ts';
+import { releaseKey, ROUTED_REFRESH_MS, syncRoutedReleases } from './speech-cache-routed.ts';
 import type { SpeechClipStore, WorkerSpeechClipCache } from './speech-cache-tiers.ts';
 
 type Queue = Pick<PostgresSpeechPrerenderQueue, 'claim' | 'finish' | 'routedReleases'>;
@@ -28,8 +29,6 @@ export interface PrerenderServiceInput {
 }
 
 const GC_INTERVAL_MS = 6 * 60 * 60 * 1000;
-const releaseKey = (release: { workspaceId: string; id: string }) =>
-  `${release.workspaceId}:${release.id}`;
 
 /**
  * Keeps this worker's speech clips warm (TTS-9): routed releases at start, a release's first call
@@ -46,6 +45,7 @@ export class SpeechPrerenderService {
   private running?: Promise<void>;
   private unsubscribe?: () => void;
   private lastGc = 0;
+  private lastRouted = 0;
   private busy = false;
 
   constructor(private readonly input: PrerenderServiceInput) {
@@ -104,6 +104,7 @@ export class SpeechPrerenderService {
           await this.runJob(job);
           continue;
         }
+        await this.refreshRouted();
         await this.collectGarbage();
       } finally {
         this.busy = false;
@@ -114,14 +115,21 @@ export class SpeechPrerenderService {
 
   private async queueRoutedReleases(): Promise<void> {
     if (!this.input.queue) return;
-    try {
-      for (const routed of await this.input.queue.routedReleases()) {
-        const release = await this.input.releases.getRelease(routed.workspaceId, routed.releaseId);
-        if (release) this.requestWarm(release, 'worker-start');
-      }
-    } catch (error) {
-      this.log.warn('speech_prerender_routed_lookup_failed', errorFields(error));
-    }
+    this.lastRouted = Date.now();
+    await syncRoutedReleases({
+      queue: this.input.queue,
+      cache: this.input.cache,
+      releases: this.input.releases,
+      warmed: this.warmed,
+      requestWarm: (release) => this.requestWarm(release, 'worker-start'),
+    }).catch((error: unknown) =>
+      this.log.warn('speech_prerender_routed_lookup_failed', errorFields(error)),
+    );
+  }
+
+  private async refreshRouted(): Promise<void> {
+    const every = this.input.options.routedRefreshMs ?? ROUTED_REFRESH_MS;
+    if (Date.now() - this.lastRouted >= every) await this.queueRoutedReleases();
   }
 
   private async claim(): Promise<PrerenderJob | undefined> {

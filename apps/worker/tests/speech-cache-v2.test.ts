@@ -130,6 +130,29 @@ describe('worker speech cache output', () => {
     await restarted.close();
   });
 
+  it('renders live when the durable tier does not answer within its budget', async () => {
+    const tts = new RecordingTts();
+    const runtime = new WorkerSpeechCacheRuntime();
+    const hanging = memoryStore();
+    runtime.cache.attachDurable({
+      ...hanging.store,
+      get: () => new Promise<undefined>(() => undefined),
+    });
+    const release = fixtureRelease({ speechCache: { enabled: true }, clarification: 'Sorry?' });
+    const session = await composeCacheOutput({ release, cache: runtime.cache, tts });
+    const started = Date.now();
+    const played = await Promise.race([
+      session.play('Sorry?'),
+      new Promise<'stalled'>((resolve) => setTimeout(() => resolve('stalled'), 2_000)),
+    ]);
+    expect(played).not.toBe('stalled');
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(session.audio.length).toBeGreaterThan(0);
+    expect(tts.calls).toHaveLength(1);
+    await session.dispose();
+    await runtime.close();
+  });
+
   it('never persists or pins model output, templated lines or an unpinned identity (TTS-8)', async () => {
     const tts = new RecordingTts();
     const runtime = new WorkerSpeechCacheRuntime();

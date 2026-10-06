@@ -34,9 +34,14 @@ export class PostgresSpeechClipStore {
   readonly maxClipBytes: number;
   readonly maxWorkspaceBytes: number;
 
+  /**
+   * `lockPool` holds a client for each whole render under `withRenderLock`; keeping those apart
+   * from `pool` means renders in flight can never starve a live call's clip read.
+   */
   constructor(
     private readonly pool: Pool,
     limits: SpeechClipLimits = {},
+    private readonly lockPool: Pool = pool,
   ) {
     this.maxClipBytes = limits.maxClipBytes ?? 2 * 1024 * 1024;
     this.maxWorkspaceBytes = limits.maxWorkspaceBytes ?? 512 * 1024 * 1024;
@@ -129,7 +134,7 @@ export class PostgresSpeechClipStore {
     run: () => Promise<T>,
   ): Promise<{ locked: true; value: T } | { locked: false }> {
     const lock = `ovo-speech-render:${workspaceId}:${key}`;
-    const client = await this.pool.connect();
+    const client = await this.lockPool.connect();
     try {
       const acquired = await client.query<{ locked: boolean }>(
         'SELECT pg_try_advisory_lock(hashtext($1)) AS locked',

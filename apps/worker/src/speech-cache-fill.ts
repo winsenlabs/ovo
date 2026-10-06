@@ -5,6 +5,11 @@ import type { WorkerSpeechClipCache } from './speech-cache-tiers.ts';
 
 /** A detached render still ends: a provider that never finishes cannot hold a slot forever. */
 export const DETACHED_RENDER_TIMEOUT_MS = 30_000;
+/**
+ * The longest a live line waits on the durable tier before it renders instead: a slow or saturated
+ * database must cost a caller this much at most, never the database's own timeouts.
+ */
+export const DURABLE_READ_BUDGET_MS = 200;
 
 export interface FixedLineLoad {
   tiers?: WorkerSpeechClipCache;
@@ -18,6 +23,8 @@ export interface FixedLineLoad {
   codec: string;
   sampleRate: number;
   maxBytes: number;
+  /** Defaults to `DURABLE_READ_BUDGET_MS`. */
+  durableBudgetMs?: number;
   fromDurable(): void;
   render(signal: AbortSignal): AsyncIterable<Uint8Array>;
 }
@@ -44,8 +51,14 @@ export async function loadFixedLine(input: FixedLineLoad): Promise<Uint8Array> {
     }
   };
   if (input.durable && tiers) {
-    const stored = await tiers.fromDurable(key, release.workspaceId);
-    if (stored) {
+    const read = tiers.fromDurable(key, release.workspaceId);
+    const stored = await within(read, input.durableBudgetMs ?? DURABLE_READ_BUDGET_MS);
+    // A read that arrives after the budget still pins its clip for the next caller.
+    if (stored === TIMED_OUT)
+      void read.then((late) => {
+        if (late) tiers.pin(release, key, late);
+      });
+    else if (stored) {
       input.fromDurable();
       tiers.pin(release, key, stored);
       await forward(stored);
@@ -69,4 +82,20 @@ export async function loadFixedLine(input: FixedLineLoad): Promise<Uint8Array> {
     });
   }
   return audio;
+}
+
+const TIMED_OUT = Symbol('timed out');
+
+async function within<T>(promise: Promise<T>, ms: number): Promise<T | typeof TIMED_OUT> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<typeof TIMED_OUT>((resolve) => {
+        timer = setTimeout(() => resolve(TIMED_OUT), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }

@@ -124,6 +124,35 @@ integration('PostgreSQL speech clips (TTS-8)', () => {
       value: 'third',
     });
   });
+
+  it('serves clip reads while every render lock connection is held', async () => {
+    const ws = workspace();
+    const small = await openSpeechClipDatabase({
+      connectionString: databaseUrl!,
+      maxConnections: 1,
+      lockConnections: 1,
+    });
+    try {
+      const clip = { key: key('busy'), codec: 'mulaw', sampleRate: 8000, audio: Uint8Array.of(7) };
+      await small.clips.put({ ...clip, workspaceId: ws });
+      let release!: () => void;
+      const holding = small.clips.withRenderLock(
+        ws,
+        key('render'),
+        () => new Promise<void>((resolve) => (release = resolve)),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const read = await Promise.race([
+        small.clips.get(ws, clip.key),
+        new Promise<'starved'>((resolve) => setTimeout(() => resolve('starved'), 1_500)),
+      ]);
+      release();
+      await holding;
+      expect(read).toEqual(Uint8Array.of(7));
+    } finally {
+      await small.close();
+    }
+  });
 });
 
 integration('PostgreSQL speech prerender queue (TTS-9)', () => {

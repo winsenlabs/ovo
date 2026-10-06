@@ -44,7 +44,11 @@ export class WorkerSpeechCacheRuntime {
     const runtime = new WorkerSpeechCacheRuntime({}, options);
     if (databaseUrl) {
       runtime.database = await openSpeechClipDatabase(
-        { connectionString: databaseUrl, maxConnections: options.prerender.concurrency + 2 },
+        {
+          connectionString: databaseUrl,
+          maxConnections: 4,
+          lockConnections: options.prerender.concurrency,
+        },
         { maxClipBytes: options.clipMaxBytes, maxWorkspaceBytes: options.workspaceMaxBytes },
       );
       runtime.cache.attachDurable(runtime.database.clips);

@@ -15,6 +15,8 @@ export interface SpeechPrerenderOptions {
   attempts: number;
   /** Clips and refs nobody used or refreshed for this long are collected. */
   retentionDays: number;
+  /** How often routes and campaigns are re-read; defaults to `ROUTED_REFRESH_MS`. */
+  routedRefreshMs?: number;
 }
 
 export interface WorkerSpeechCacheOptions {
