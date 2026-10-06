@@ -101,4 +101,10 @@ describe('an agent routed by a flow', () => {
       FlowCompileError,
     );
   });
+
+  it('never compiles a disabled flow, so a broken one cannot fail the call', async () => {
+    const broken = { ...collectionsFlow(), start: 'nowhere' };
+    const { behavior } = agent([], { enabled: false, flow: broken });
+    expect(await behavior.respond('hello?', call)).toBe('A composed LLM answer.');
+  });
 });

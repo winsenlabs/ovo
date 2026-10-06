@@ -78,7 +78,8 @@ export class DecisionGate {
     private readonly clock: DecisionClock = SYSTEM_DECISION_CLOCK,
     flowOptions: Pick<FlowSessionOptions, 'rules' | 'now'> = {},
   ) {
-    if (policy.flow)
+    // A disabled flow is never compiled: it routes nothing, so it must not be able to fail a call.
+    if (policy.enabled && policy.flow)
       this.flow = new FlowSession(policy.flow, {
         ...flowOptions,
         ...(port ? { port } : {}),
