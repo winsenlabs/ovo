@@ -66,7 +66,10 @@ function recordEngineEvent(telemetry: WorkerSessionTelemetry, event: EngineEvent
   } else if (event.type === 'voicemail') {
     telemetry.audit('session.voicemail', { result: event.result });
   } else if (event.type === 'end') {
-    telemetry.audit('session.engine-ended', { reason: event.reason });
+    telemetry.audit('session.engine-ended', {
+      reason: event.reason,
+      ...(event.detail ? { detail: event.detail } : {}),
+    });
   }
 }
 
