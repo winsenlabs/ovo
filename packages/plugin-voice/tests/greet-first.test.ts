@@ -8,7 +8,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { createFakeCarrier } from '../../conformance/src/drivers/fake-carrier.ts';
 import { FakeClock, flushMicrotasks } from '../../conformance/src/drivers/fake-clock.ts';
-import { NativeVoiceSessionEngine } from '../src/engine/session-engine.ts';
+import { NativeVoiceSessionEngine, type NativeEnginePorts } from '../src/engine/session-engine.ts';
 import { BoundedSpeechScheduler } from '../src/scheduler.ts';
 
 /** An STT whose handshake completes only when the test says so, like a slow provider Begin. */
@@ -32,7 +32,11 @@ function slowStt() {
   return { stt, connect };
 }
 
-function harness(behavior: Behavior, session: Partial<SessionInput> = {}) {
+function harness(
+  behavior: Behavior,
+  session: Partial<SessionInput> = {},
+  textFilters: NativeEnginePorts['textFilters'] = [],
+) {
   const clock = new FakeClock();
   const carrier = createFakeCarrier({ clock });
   const spoken: string[] = [];
@@ -49,6 +53,7 @@ function harness(behavior: Behavior, session: Partial<SessionInput> = {}) {
       async interrupt() {},
     }),
     stt,
+    textFilters,
     session: {
       mode: 'agent',
       language: 'en-IN',
@@ -235,5 +240,33 @@ describe('a behaviour that ends the call (AGT-3)', () => {
       reason: 'behavior_completed',
       detail: 'decision:intent=bye',
     });
+  });
+
+  it('hands the behaviour its own line on the receipt, not the filtered text', async () => {
+    const played: string[] = [];
+    let done = false;
+    const behavior: Behavior = {
+      respond: async () => '',
+      async *respondStream(_input, variables = {}) {
+        if (variables.inputEvent === 'opening') yield 'You owe ₹500. Goodbye.';
+      },
+      speaksFirst: () => true,
+      onPlayback: (receipt) => {
+        played.push(receipt.text);
+        done = receipt.text === 'You owe ₹500. Goodbye.';
+      },
+      isComplete: () => done,
+    };
+    const rupees = {
+      id: 'test-rupees',
+      order: 30,
+      apply: (text: string) => text.replace('₹500', 'five hundred rupees'),
+    };
+    const { connect, started, engine, spoken } = harness(behavior, {}, [rupees]);
+    connect();
+    await started;
+    expect(await engine.ended).toEqual({ reason: 'behavior_completed', outcome: 'completed' });
+    expect(spoken).toEqual(['You owe five hundred rupees. Goodbye.']);
+    expect(played).toEqual(['You owe ₹500. Goodbye.']);
   });
 });

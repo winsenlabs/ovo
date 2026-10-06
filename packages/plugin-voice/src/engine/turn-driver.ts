@@ -222,20 +222,23 @@ export class TurnDriver {
 
   private say(text: string, epoch: number): void {
     const kind = this.behavior.speechKind?.(text) ?? 'response';
-    this.track(this.speech.speak(text, { epoch, kind }));
+    this.track(this.speech.speak(text, { epoch, kind }), text);
   }
 
-  private track(receipt: Promise<SpeechReceipt>): void {
+  /** `said`: the behaviour's own line. The receipt carries the filtered text, which it can't match. */
+  private track(receipt: Promise<SpeechReceipt>, said?: string): void {
     let delivery!: Promise<void>;
     delivery = receipt
       .then((value) =>
-        this.behavior.onPlayback?.(
-          value.evidence === 'confirmed' &&
-            this.media.playbackEvidence === 'carrier-processed' &&
-            this.session.acknowledgements.includes('weak-playback-evidence')
-            ? { ...value, evidenceSource: 'carrier-processed' }
-            : value,
-        ),
+        this.behavior.onPlayback?.({
+          ...value,
+          ...(said === undefined ? {} : { text: said }),
+          ...(value.evidence === 'confirmed' &&
+          this.media.playbackEvidence === 'carrier-processed' &&
+          this.session.acknowledgements.includes('weak-playback-evidence')
+            ? { evidenceSource: 'carrier-processed' as const }
+            : {}),
+        }),
       )
       .then(() => undefined)
       .catch(() => {
