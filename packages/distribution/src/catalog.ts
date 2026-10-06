@@ -65,6 +65,11 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
     load: () => import('@winsendotai/ovo-plugin-stt-elevenlabs'),
   },
   {
+    package: '@winsendotai/ovo-plugin-stt-openai-realtime',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-stt-openai-realtime'),
+  },
+  {
     package: '@winsendotai/ovo-plugin-speech-sarvam',
     roles: ['session'],
     load: () => import('@winsendotai/ovo-plugin-speech-sarvam'),

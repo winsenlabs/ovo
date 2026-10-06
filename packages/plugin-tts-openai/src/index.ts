@@ -4,8 +4,6 @@ import { OPENAI_TTS_CAPABILITIES, OpenAiTts, type OpenAiTtsConfig } from './tts.
 import { fixtures, fixtureTemplates } from './testing.ts';
 
 export { OPENAI_TTS_CAPABILITIES, OpenAiTts, type OpenAiTtsConfig } from './tts.ts';
-export { OpenAiBatchTranscriber, type OpenAiBatchSttBinding } from './batch.ts';
-export { createMonoWav } from './batch-wav.ts';
 export { fixtures, fixtureTemplates };
 
 export const openAiTtsPlugin = definePlugin(
@@ -40,6 +38,7 @@ export const openAiTtsPlugin = definePlugin(
         voice: { type: 'string', minLength: 1 },
         instructions: { type: 'string' },
         speed: { type: 'number', minimum: 0.25, maximum: 4 },
+        warmUp: { type: 'boolean' },
       },
       additionalProperties: false,
     },
