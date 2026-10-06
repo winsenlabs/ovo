@@ -15,6 +15,7 @@ export * from './inbound-routes.ts';
 export * from './migrations.ts';
 export * from './outbox.ts';
 export * from './plugin.ts';
+export * from './release-compliance.ts';
 export * from './release-variables.ts';
 export * from './retries.ts';
 export * from './service.ts';
