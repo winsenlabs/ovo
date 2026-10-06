@@ -227,4 +227,45 @@ describe.skipIf(!postgresUrl)('callbacks in PostgreSQL (AGT-15)', () => {
     expect((await post(randomUUID(), 'cancel')).statusCode).toBe(404);
     expect((await list('?status=pending')).items).toEqual([]);
   });
+
+  it('frees a callback an API left dialing: re-dialled after the lease, or closed', async () => {
+    const stuck = randomUUID();
+    await pool.query(
+      `INSERT INTO ovo_jobs (id, workspace_id, idempotency_key, payload, status)
+       VALUES ($1,$2,$3,$4::jsonb,'completed')`,
+      [
+        stuck,
+        workspaceId,
+        stuck,
+        JSON.stringify({ releaseId, to: '+919800000003', from: '+918040000000' }),
+      ],
+    );
+    await outcomes.append(workspaceId, stuck, [callback('e1', '2026-10-07T05:00:00.000Z')]);
+    await list();
+    const operationId = randomUUID();
+    // The claim an API took before it stopped: `dialing`, with its operation id, never moved on.
+    const leave = (age: string) =>
+      pool.query(
+        `UPDATE ovo_callbacks SET status = 'dialing', dial_operation_id = $3::uuid,
+           updated_at = now() - $4::interval WHERE workspace_id = $1 AND call_id = $2`,
+        [workspaceId, stuck, operationId, age],
+      );
+    expect((await list('?status=dialing')).items).toEqual([]);
+    await leave('0 seconds');
+    const { items } = await list('?status=dialing');
+    expect(items.map((item: { callId: string }) => item.callId)).toEqual([stuck]);
+    const id = items[0].id;
+    const post = (action: string) =>
+      app.inject({ method: 'POST', url: `/v1/callbacks/${id}/${action}` });
+    // A dial still inside its lease is left alone.
+    expect((await post('dial')).statusCode).toBe(409);
+    await leave('10 minutes');
+    const before = placed.length;
+    const redialed = await post('dial');
+    expect(redialed.statusCode, redialed.body).toBe(202);
+    expect(placed.slice(before)).toEqual([expect.objectContaining({ operationId })]);
+    expect(redialed.json()).toMatchObject({ status: 'dialed', dialedCallId: operationId });
+    await leave('0 seconds');
+    expect((await post('cancel')).json()).toMatchObject({ status: 'cancelled' });
+  });
 });

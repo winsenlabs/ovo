@@ -113,8 +113,9 @@ export function registerCallbackRoutes(dependencies: CallbackRouteDependencies):
         return moved;
       },
     );
-  close('cancel', ['pending'], 'cancelled');
-  close('complete', ['pending', 'dialed'], 'completed');
+  // A callback left `dialing` (an API that stopped mid-dial) can still be closed by an operator.
+  close('cancel', ['pending', 'dialing'], 'cancelled');
+  close('complete', ['pending', 'dialing', 'dialed'], 'completed');
 
   app.post('/v1/callbacks/:id/dial', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'admin');
@@ -124,7 +125,12 @@ export function registerCallbackRoutes(dependencies: CallbackRouteDependencies):
     const dial = await store.claimDial(principal.workspaceId, id);
     if (!dial) return error(reply, 404, 'not_found', 'Callback not found');
     if (dial === 'conflict')
-      return error(reply, 409, 'callback_state_conflict', 'Callback is not pending');
+      return error(
+        reply,
+        409,
+        'callback_state_conflict',
+        'Callback is not pending or is being dialled',
+      );
     if (dial === 'unreachable')
       return error(reply, 422, 'callback_unreachable', 'The original call has no number to dial');
     const { operationId, ...body } = dial;
@@ -145,7 +151,10 @@ export function registerCallbackRoutes(dependencies: CallbackRouteDependencies):
     const callId = (placed.json() as { callId: string }).callId;
     const dialed = await store.transition(principal.workspaceId, id, ['dialing'], 'dialed', callId);
     await audit(principal, 'callback.dial', id, { callId });
-    return reply.code(202).send(dialed);
+    // Closed by an operator while the call was being placed: the call stands, the close is kept.
+    return reply
+      .code(202)
+      .send(dialed === 'conflict' ? await store.get(principal.workspaceId, id) : dialed);
   });
 }
 

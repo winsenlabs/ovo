@@ -13,6 +13,12 @@ export const CALLBACK_STATUSES = [
 ] as const;
 export type CallbackStatus = (typeof CALLBACK_STATUSES)[number];
 
+/**
+ * How long a dial may hold a callback in `dialing`. Placing a live call is only its durable
+ * admission, so a claim older than this was left by an API that stopped mid-dial and may be retaken.
+ */
+export const DIAL_LEASE_SECONDS = 120;
+
 export interface CallbackRecord {
   id: string;
   callId: string;
@@ -156,8 +162,9 @@ export class PostgresCallbackStore {
   }
 
   /**
-   * Claims a pending callback for dialling and returns what to dial it with. The operation id is
-   * kept, so a dial retried after a failure is the same live call, never a second one.
+   * Claims a pending callback, or one whose dial lease ran out, for dialling and returns what to
+   * dial it with. The operation id is kept, so a dial retried after a failure (or after an API that
+   * stopped mid-dial) is the same live call, never a second one.
    */
   async claimDial(
     workspaceId: string,
@@ -166,9 +173,10 @@ export class PostgresCallbackStore {
     const claimed = await this.pool.query<{ dial_operation_id: string; call_id: string }>(
       `UPDATE ovo_callbacks SET status = 'dialing', updated_at = now(),
          dial_operation_id = COALESCE(dial_operation_id, $3::uuid)
-       WHERE workspace_id = $1 AND id = $2 AND status = 'pending'
+       WHERE workspace_id = $1 AND id = $2 AND (status = 'pending'
+         OR (status = 'dialing' AND updated_at < now() - make_interval(secs => $4)))
        RETURNING dial_operation_id, call_id`,
-      [workspaceId, id, randomUUID()],
+      [workspaceId, id, randomUUID(), DIAL_LEASE_SECONDS],
     );
     const row = claimed.rows[0];
     if (!row) return (await this.get(workspaceId, id)) ? 'conflict' : undefined;

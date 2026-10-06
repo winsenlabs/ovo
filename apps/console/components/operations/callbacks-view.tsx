@@ -23,7 +23,7 @@ interface CallbackPage {
   nextCursor: string | null;
 }
 
-const STATUSES = ['pending', 'dialed', 'completed', 'cancelled', 'all'] as const;
+const STATUSES = ['pending', 'dialing', 'dialed', 'completed', 'cancelled', 'all'] as const;
 type Filter = (typeof STATUSES)[number];
 
 /** The due time in the agent's own timezone, which is the caller's. */
@@ -159,7 +159,7 @@ export function CallbacksView({
                     </td>
                     <td>
                       <div className="button-row">
-                        {record.status === 'pending' && (
+                        {(record.status === 'pending' || record.status === 'dialing') && (
                           <button
                             className="button small primary"
                             type="button"
@@ -169,7 +169,7 @@ export function CallbacksView({
                             {busy === record.id ? 'Dialling…' : 'Call back now'}
                           </button>
                         )}
-                        {(record.status === 'pending' || record.status === 'dialed') && (
+                        {record.status !== 'completed' && record.status !== 'cancelled' && (
                           <button
                             className="button small"
                             type="button"
@@ -179,7 +179,7 @@ export function CallbacksView({
                             Mark done
                           </button>
                         )}
-                        {record.status === 'pending' && (
+                        {(record.status === 'pending' || record.status === 'dialing') && (
                           <button
                             className="button small danger"
                             type="button"

@@ -16,7 +16,9 @@ export class RealtimeSegments {
   constructor(private readonly onEvent: (event: SttEvent) => void) {}
 
   committed(itemId: string): void {
-    if (!this.order.includes(itemId)) this.order.push(itemId);
+    // A completion can beat its own commit; that item is already locked and never waits again.
+    if (this.held.has(itemId) || this.order.includes(itemId)) return;
+    this.order.push(itemId);
   }
 
   delta(itemId: string, delta: string): void {

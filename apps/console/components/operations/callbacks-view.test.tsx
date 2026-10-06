@@ -69,6 +69,17 @@ describe('the callbacks list (AGT-15)', () => {
     await waitFor(() => expect(request).toHaveBeenCalledWith('/callbacks'));
   });
 
+  it('filters to callbacks left dialing, which can still be re-dialled or closed', async () => {
+    request.mockResolvedValue({
+      data: { available: true, items: [callback({ status: 'dialing' })], nextCursor: null },
+    });
+    render(<CallbacksView role="admin" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Dialing' }));
+    await waitFor(() => expect(request).toHaveBeenCalledWith('/callbacks?status=dialing'));
+    for (const name of ['Call back now', 'Mark done', 'Cancel'])
+      expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it('explains an installation without durable callbacks, and shows an API error', async () => {
     request.mockResolvedValueOnce({ data: { available: false, items: [], nextCursor: null } });
     render(<CallbacksView role="admin" />);
