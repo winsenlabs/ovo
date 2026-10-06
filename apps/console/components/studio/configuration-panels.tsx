@@ -83,6 +83,30 @@ export function PluginField({
   );
 }
 
+/** The plugin kind a legacy provider slot binds (Wave 2 #6). */
+const SLOT_KINDS: Readonly<Record<string, string>> = {
+  stt: 'stt',
+  tts: 'tts',
+  inference: 'llm',
+  telephony: 'carrier',
+};
+
+/**
+ * The bindings a slot offers: those whose plugin is of the slot's kind. A binding created before
+ * bindings recorded their kind is offered everywhere, and the slot's current choice always stays
+ * listed so an existing draft never loses its value.
+ */
+export function bindingsForSlot(
+  bindings: readonly ProviderBinding[],
+  slot: string,
+  selected?: string,
+): ProviderBinding[] {
+  const kind = SLOT_KINDS[slot];
+  return bindings.filter(
+    (binding) => !binding.kind || !kind || binding.kind === kind || binding.id === selected,
+  );
+}
+
 export function ProviderMap({
   config,
   bindings,
@@ -126,7 +150,7 @@ export function ProviderMap({
               }
             >
               <option value="">Not bound</option>
-              {bindings.map((binding) => (
+              {bindingsForSlot(bindings, slot, config.providers[slot]).map((binding) => (
                 <option key={binding.id} value={binding.id}>
                   {binding.label} · {binding.environment}
                 </option>

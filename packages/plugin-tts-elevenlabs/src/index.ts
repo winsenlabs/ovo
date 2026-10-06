@@ -131,8 +131,7 @@ export const elevenLabsTtsPlugin = definePlugin(
         seed: { advanced: true },
         pronunciationDictionaries: {
           label: 'Pronunciation dictionaries',
-          help: 'Up to three {"id", "versionId"} locators, for lender and product names.',
-          advanced: true,
+          help: 'Up to three dictionaries, by ID and version, for lender and product names.',
         },
         autoMode: { advanced: true },
         chunkLengthSchedule: { advanced: true },

@@ -1,5 +1,6 @@
 import type { ProviderBinding, SessionIdentity } from '../../lib/api';
 import { EmptyState, JsonEvidence, ResponsiveTable } from '../primitives';
+import { VoicePreviewButton } from './voice-preview-button';
 export function BindingsTable({
   bindings,
   role,
@@ -61,6 +62,9 @@ export function BindingsTable({
                     >
                       Delete
                     </button>
+                    {binding.kind === 'tts' && (
+                      <VoicePreviewButton bindingId={binding.id} disabled={role !== 'admin'} />
+                    )}
                   </div>
                 </td>
               </tr>
