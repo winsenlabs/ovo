@@ -161,8 +161,11 @@ describe.skipIf(!flowRuntime)('CreditMantri golden conversations, agent runtime'
       expect(script).toEqual([]);
       expect(dispositionsOf(behavior)).toEqual(conversation.outcome.dispositions);
       expect(behavior.isComplete()).toBe(conversation.outcome.ended);
+      // The reason names the ending node; the agent prefixes the source (`decision:flow:<node>`).
       if (conversation.outcome.ended)
-        expect(behavior.completionReason()).toBe(`flow:${conversation.outcome.node}`);
+        expect(behavior.completionReason()).toMatch(
+          new RegExp(`(^|:)flow:${conversation.outcome.node}$`),
+        );
     });
   }
 });
