@@ -1,5 +1,6 @@
 import {
   Cap,
+  sameFormat,
   type MediaDuplex,
   type SpeechSegment,
   type TextFilter,
@@ -12,7 +13,11 @@ import {
   type ByteCache,
 } from '@winsendotai/ovo-plugin-cache';
 import { legacyFromDuplex } from '@winsendotai/ovo-plugin-kit';
-import { createSpeechCacheKey, ApprovedSpeechPolicy } from '@winsendotai/ovo-plugin-speech-cache';
+import {
+  createSpeechCacheKey,
+  ApprovedSpeechPolicy,
+  normalizeSpeechText,
+} from '@winsendotai/ovo-plugin-speech-cache';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 import { CachedMediaAudioPlayer, observeFirstByte } from './cached-media-player.ts';
@@ -24,7 +29,9 @@ import {
 import { SessionSpeechOutput, prefetchSpeech } from './session-graph-speech-output.ts';
 import { segmentAudio } from './speech-cache-audio.ts';
 import { loadFixedLine } from './speech-cache-fill.ts';
+import { DEFAULT_SPEECH_CACHE_OPTIONS, type PerCallClipOptions } from './speech-cache-env.ts';
 import { speechCacheIdentity, selectedVoice } from './speech-cache-identity.ts';
+import { callClipAudio, type CallClips } from './speech-cache-percall.ts';
 import { HYBRID_SPEECH_CACHE_PLUGIN_ID, sessionSpeechApprovals } from './speech-cache-runtime.ts';
 import {
   SpeechCacheTelemetry,
@@ -38,6 +45,8 @@ export function createV2SpeechCachePlugin(
   release: ReleaseRecord,
   cache: ByteCache,
   observer?: SpeechCacheObserver,
+  /** This call's templated lines (TTS-10); checked before any shared tier and never stored there. */
+  perCall?: { clips: CallClips; options?: PerCallClipOptions },
 ) {
   const policy = release.config.speechCache;
   if (!policy?.enabled) return undefined;
@@ -101,7 +110,53 @@ export function createV2SpeechCachePlugin(
           'bypass',
           prefetchSpeech(synthesize(segment, signal), signal, maxPrefetchBytes),
         );
+      // A set rendered for another format (an early render, a different carrier) is not playable.
+      const clips =
+        perCall && sameFormat(perCall.clips.format, media.format) ? perCall.clips : undefined;
+      const perCallOptions = perCall?.options ?? DEFAULT_SPEECH_CACHE_OPTIONS.perCall;
+      /** The speaker's text for each templated line → the line as the behaviour renders it. */
+      const callLines = new Map(
+        (clips?.lines ?? []).map((line) => [
+          normalizeSpeechText(filters, line.text, release.config.language),
+          line.text,
+        ]),
+      );
+      if (clips) {
+        const lines = clips.reserve(
+          (line) => perCallOptions.scope === 'all' || line.opening || line.source === 'voicemail',
+        );
+        void clips.render(
+          {
+            tts,
+            filters,
+            language: release.config.language,
+            voice,
+            sessionId: media.sessionId,
+            onUsage: usage,
+          },
+          lines,
+        );
+      }
+      const fromCall = (segment: SpeechSegment, signal: AbortSignal) => {
+        const line = callLines.get(segment.text);
+        const clip = line === undefined ? undefined : clips?.get(line);
+        if (!clip || clip.failed) return undefined;
+        const state: { source: SpeechCacheSource } = { source: 'template' };
+        const audio = callClipAudio(
+          clip,
+          signal,
+          perCallOptions.firstByteBudgetMs,
+          () => synthesize(segment, signal),
+          () => (state.source = 'bypass'),
+        );
+        return telemetry.track(segment, () => state.source, {
+          ...prefetchSpeech(audio, signal, maxPrefetchBytes),
+          suffix: 'cache',
+        });
+      };
       const createAudio = (segment: SpeechSegment, signal: AbortSignal) => {
+        const personal = fromCall(segment, signal);
+        if (personal) return personal;
         if (!allowed.permits(segment.text, segment.kind)) return live(segment, signal);
         const key = createSpeechCacheKey(identity.binding, segment.text);
         const hit = tiers?.lookup(key, workspaceId) ?? l1Hit(cache, key, workspaceId);
@@ -167,6 +222,8 @@ export function createV2SpeechCachePlugin(
       );
       ctx.provide(Cap.output, output);
       ctx.effect(() => () => {
+        // The call's own audio goes with the call (TTS-10): nothing of it outlives the session.
+        clips?.discard();
         output.dispose();
         telemetry.summary();
       });

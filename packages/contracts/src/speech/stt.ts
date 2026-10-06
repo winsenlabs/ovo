@@ -39,9 +39,25 @@ export interface SpeechToText {
   }): Promise<SttSession>;
 }
 
+/**
+ * A mid-call change of how the provider ends turns or what it listens for (STT-4), for example a
+ * tighter endpoint after a yes/no question. A delta: omitted fields keep their current values.
+ */
+export interface SttConfigurationUpdate {
+  endpointing?: 'fast' | 'balanced' | 'patient';
+  minTurnSilenceMs?: number;
+  maxTurnSilenceMs?: number;
+  endOfTurnConfidenceThreshold?: number;
+  vadThreshold?: number;
+  keyterms?: readonly string[];
+  prompt?: string;
+}
+
 export interface SttSession {
   write(frame: Uint8Array, signal?: AbortSignal): Promise<void>;
   forceEndpoint?(): Promise<void>;
+  /** Absent when the provider fixes its configuration at connect. */
+  updateConfiguration?(update: SttConfigurationUpdate): Promise<void>;
   /** Graceful; reconciled usage when available. */
   finish(signal?: AbortSignal): Promise<void>;
   /** Immediate. Usage is emitted EXACTLY once across finish, cancel and failure. */

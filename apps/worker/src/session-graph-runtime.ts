@@ -32,6 +32,9 @@ import { immutableMcpConnections } from './production-session-support.ts';
 import { instrumentSessionPlugin } from './telemetry-session-plugins.ts';
 import type { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
 import { createV2SpeechCachePlugin } from './speech-cache-v2.ts';
+import type { CallClips } from './speech-cache-percall.ts';
+import { adoptPreconnectedStt, type SttPreconnect } from './session-stt-preconnect.ts';
+import { stampBindingIdentity } from './session-graph-bindings.ts';
 import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
 import { adaptV1Engine } from './v1-engine-adapter.ts';
 import { holdOpeningForAnsweringMachine } from './answering-machine.ts';
@@ -65,6 +68,10 @@ export async function composeLiveSessionGraph(input: {
   extensions: InstalledSessionExtensions;
   usage?: UsageSink;
   speechCache?: WorkerSpeechCacheRuntime;
+  /** This call's templated lines, prepared while it rang or at admission (TTS-10). */
+  callClips?: CallClips;
+  /** The release's STT, already connecting since the media stream opened (STT-6). */
+  sttPreconnect?: SttPreconnect;
   carrierMedia: LiveCarrierMedia;
   beforeMediaClose?: (reason: EndReason) => Promise<void>;
   /** Set on an outbound leg dialled with answering-machine detection. */
@@ -140,7 +147,14 @@ export async function composeLiveSessionGraph(input: {
     input.variables,
   );
   const cachedOutput = input.speechCache
-    ? createV2SpeechCachePlugin(release, input.speechCache.cache, telemetry)
+    ? createV2SpeechCachePlugin(
+        release,
+        input.speechCache.cache,
+        telemetry,
+        input.callClips
+          ? { clips: input.callClips, options: input.speechCache.options.perCall }
+          : undefined,
+      )
     : undefined;
   const graphRelease: ReleaseRecord =
     !release.selections?.engine && selected.definition.manifest.contractVersion === 1
@@ -212,36 +226,16 @@ export async function composeLiveSessionGraph(input: {
     result.rows.push({ id: selected.definition.manifest.id, config: selected.rowConfig });
     result.catalog.push(selected.definition);
   }
-  // Legacy bridges need the immutable binding identity as well as the copied config.
-  for (const [slot, selection] of Object.entries(release.selections ?? {})) {
-    if (!selection?.binding) continue;
-    const row = result.rows.find((item) => item.id === selection.pluginId);
-    if (row)
-      row.config = {
-        ...row.config,
-        workspaceId: release.workspaceId,
-        bindingId: selection.bindingId,
-        updatedAt: selection.binding.updatedAt,
-      };
-  }
-  for (const binding of Object.values(release.providerBindings)) {
-    const row = result.rows.find(
-      (item) =>
-        item.config?.credentialRef &&
-        (item.config.credentialRef as { credentialId?: string }).credentialId ===
-          binding.credentialId,
-    );
-    if (row)
-      row.config = {
-        ...row.config,
-        workspaceId: release.workspaceId,
-        bindingId: binding.id,
-        updatedAt: binding.updatedAt,
-      };
-  }
+  stampBindingIdentity(result.rows, release);
   if (input.amd) holdOpeningForAnsweringMachine(result.rows, selected.definition, input.amd);
+  const sttPlugin = release.selections?.stt?.pluginId;
   const catalog = result.catalog.map((definition) =>
-    instrumentSessionPlugin(definition, telemetry),
+    instrumentSessionPlugin(
+      input.sttPreconnect && definition.manifest.id === sttPlugin
+        ? adoptPreconnectedStt(definition, input.sttPreconnect)
+        : definition,
+      telemetry,
+    ),
   );
   const composition = await compose(result.rows, catalog, {
     scope: 'session',

@@ -8,6 +8,7 @@ import {
   type MediaDuplex,
   type SessionInput,
   type SpeechToText,
+  type SttConfigurationUpdate,
   type TranscriptObserver,
   type TextFilter,
   type TurnDetectorFactory,
@@ -20,7 +21,9 @@ import { AnsweredByGate } from './answered-by-gate.ts';
 import { realClock } from './clock.ts';
 import {
   configureScheduler,
+  disposalDeadline,
   emptyIngressStats,
+  observeBehavior,
   observeTranscript,
   projectBusEvents,
 } from './engine-wiring.ts';
@@ -124,9 +127,7 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
         this.driver.decide(decision);
       }),
       ports.scheduler.subscribe((evidence) => this.speechEvents.onSpeech(evidence)),
-      ports.behavior.subscribe?.((event) =>
-        this.bus.observe({ type: event.type, atMs: this.clock.now() }),
-      ) ?? (() => undefined),
+      observeBehavior(ports.behavior, this.bus, this.clock, this),
     );
   }
 
@@ -138,11 +139,15 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
     return this.bus.onEngine(listener);
   }
 
+  /** STT-4: endpointing for the rest of the call; false without input or a provider that can. */
+  configureStt(update: SttConfigurationUpdate): boolean {
+    return this.ingress?.updateConfiguration(update) ?? false;
+  }
+
   async start(): Promise<void> {
     if (this.started) throw new Error('native voice engine already started');
     this.started = true;
-    const { media, session, stt, vad } = this.ports;
-    const { engine, textFilters } = this.ports;
+    const { media, session, stt, vad, engine, textFilters } = this.ports;
     configureScheduler(this.ports.scheduler, session, engine, textFilters, this.speechEvents);
     this.unsubs.push(
       media.onClose((reason) => void this.dispose(reason)),
@@ -188,11 +193,7 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
   }
 
   private async stop(reason: EndReason, deadlineMs: number): Promise<EngineOutcome> {
-    let timer!: ReturnType<typeof setTimeout>;
-    const deadline = new Promise<void>((_, reject) => {
-      timer = setTimeout(() => reject(new Error('engine disposal timeout')), deadlineMs);
-      timer.unref?.();
-    });
+    const deadline = disposalDeadline(deadlineMs);
     let endedReason = reason;
     const failed = (error?: unknown) => {
       this.log('engine_disposal_failed', error, { reason });
@@ -227,11 +228,11 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
     try {
       // Keep evidence subscribed until scheduler disposal publishes each terminal
       // phase. Unsubscription still shares the overall deadline.
-      await Promise.race([Promise.all(cleanup).then(unsubscribe), deadline]);
+      await Promise.race([Promise.all(cleanup).then(unsubscribe), deadline.expired]);
     } catch (error) {
       failed(error);
     } finally {
-      clearTimeout(timer);
+      deadline.clear();
       this.controller.abort();
       void unsubscribe();
     }

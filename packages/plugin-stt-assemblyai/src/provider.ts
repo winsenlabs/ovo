@@ -47,7 +47,13 @@ export interface AssemblyAiBinding {
   keyterms?: readonly string[];
   /** Transcription instructions; sent to the pro models only. */
   prompt?: string;
-  /** Seconds without audio after which the provider ends the session (5 to 3600). */
+  /**
+   * Seconds without audio after which the provider ends the session (5 to 3600). Unset, there is
+   * no inactivity timeout and the session is billed by its duration, which is why the worker does
+   * not open one while an outbound call rings (STT-7;
+   * https://www.assemblyai.com/docs/api-reference/streaming-api/streaming-api, retrieved
+   * 2026-10-06).
+   */
   inactivityTimeoutSec?: number;
 }
 
