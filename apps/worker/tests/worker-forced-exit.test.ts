@@ -17,6 +17,8 @@ describe('runWorkerLoop forced exit cost settlement', () => {
       finalizeFails?: boolean;
       blockedDial?: boolean;
       unknownDial?: boolean;
+      /** OPS-6 SIGTERM grace; 0 keeps these tests on the terminate-at-once path. */
+      drainTimeoutMs?: number;
     } = {},
   ) {
     vi.stubEnv('OVO_INBOUND_CAPACITY_ENABLED', String(options.inbound ?? false));
@@ -24,6 +26,7 @@ describe('runWorkerLoop forced exit cost settlement', () => {
     vi.stubEnv('OVO_INBOUND_WARM_FLOOR', '1');
     vi.stubEnv('OVO_MEDIA_GATEWAY_WS_URL', 'ws://gateway.test/worker');
     vi.stubEnv('OVO_MEDIA_WORKER_TOKEN', 'test-token');
+    vi.stubEnv('OVO_WORKER_DRAIN_TIMEOUT_MS', String(options.drainTimeoutMs ?? 0));
     const events: string[] = [];
     const status: WorkerStatus = { state: 'starting', detail: '' };
     // Mutable so a test can end the call: endCall() marks it terminal.
@@ -214,6 +217,7 @@ describe('runWorkerLoop forced exit cost settlement', () => {
         ),
       terminate: (jobId: string, epoch: number, reason: string) => terminate(jobId, epoch, reason),
       shutdown: () => shutdown(),
+      completeInbound: () => inbound.completeSession(route.jobId),
       releaseQueue: () => releaseQueue?.([]),
     };
   }
@@ -392,4 +396,55 @@ describe('runWorkerLoop forced exit cost settlement', () => {
       expect(subject.reports).not.toContain('active');
     },
   );
+
+  // OPS-6: SIGTERM used to end the active call at once, so every redeploy hung up on a caller.
+  describe('SIGTERM drain', () => {
+    it('lets an active outbound call finish, then shuts down without hanging it up', async () => {
+      const subject = fixture(true, { drainTimeoutMs: 10_000 });
+      await vi.waitFor(() => expect(subject.status.state).toBe('active'));
+      subject.shutdown();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(subject.status.state).toBe('draining');
+      expect(subject.events).toEqual([]);
+      subject.endCall();
+      await subject.running;
+      expect(subject.events).not.toContain('fence');
+      expect(subject.events).not.toContain('hangup');
+      expect(subject.events).toEqual(
+        expect.arrayContaining(['close-session', 'finalize', 'media-close', 'composition-close']),
+      );
+      // The fixture's first finishCall fails, so settlement (and finalize) runs a second time.
+      expect(subject.finalize).toHaveBeenCalled();
+      expect(subject.status.state).toBe('draining');
+    }, 15_000);
+
+    it('lets an active inbound call finish and never advertises the worker ready again', async () => {
+      const subject = fixture(false, { inbound: true, drainTimeoutMs: 10_000 });
+      await vi.waitFor(() => expect(subject.status.state).toBe('ready'));
+      await subject.admit();
+      subject.events.length = 0;
+      subject.shutdown();
+      subject.releaseQueue();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(subject.events).toEqual([]);
+      subject.completeInbound();
+      await subject.running;
+      expect(subject.events).not.toContain('fence');
+      expect(subject.events).toEqual(['protection-release', 'media-close', 'composition-close']);
+      expect(subject.status.state).toBe('draining');
+    }, 15_000);
+
+    it('terminates a call still running when the drain grace runs out', async () => {
+      const subject = fixture(false, { inbound: true, drainTimeoutMs: 400 });
+      await vi.waitFor(() => expect(subject.status.state).toBe('ready'));
+      await subject.admit();
+      subject.events.length = 0;
+      const startedAt = Date.now();
+      subject.shutdown();
+      subject.releaseQueue();
+      await subject.running;
+      expect(Date.now() - startedAt).toBeGreaterThanOrEqual(400);
+      expect(subject.events.slice(0, 2)).toEqual(['fence', 'hangup']);
+    }, 15_000);
+  });
 });

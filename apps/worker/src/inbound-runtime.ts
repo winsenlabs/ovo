@@ -26,6 +26,7 @@ export class InboundWorkerRuntime {
   private protectionRenewal?: ProtectionRenewal;
   private suspended = false;
   private stopped = false;
+  private draining = false;
   private failed = false;
   private renewing = false;
   private readonly floorLease: InboundFloorLease;
@@ -56,8 +57,25 @@ export class InboundWorkerRuntime {
     this.timer.unref();
   }
 
+  /** True while an admitted inbound call is still running on this worker. */
+  get hasActiveSession(): boolean {
+    return this.activeSession !== undefined;
+  }
+
+  /**
+   * OPS-6: SIGTERM stops advertising inbound capacity, so no new call is routed here, but keeps
+   * the active call's job lease and task protection renewing until it ends or `close()` runs.
+   */
+  async beginDrain(): Promise<void> {
+    if (this.stopped || this.failed || this.draining) return;
+    this.draining = true;
+    this.suspended = true;
+    await this.register(false).catch(logFailure(this.log, 'inbound_deregister_failed'));
+    await this.floorLease.release().catch(logFailure(this.log, 'inbound_floor_release_failed'));
+  }
+
   async suspendForOutbound(): Promise<boolean> {
-    if (this.stopped || this.failed || this.suspended) return false;
+    if (this.stopped || this.failed || this.draining || this.suspended) return false;
     if (this.floorLease.isHeld) {
       const suspended = await this.input.operations.inbound.suspendProtectedCapacity({
         slotId: this.slotId,
@@ -74,7 +92,7 @@ export class InboundWorkerRuntime {
   }
 
   async resume(): Promise<void> {
-    if (this.stopped || this.failed || !this.suspended) return;
+    if (this.stopped || this.failed || this.draining || !this.suspended) return;
     this.suspended = false;
     if (await this.floorLease.claim()) {
       try {
@@ -137,7 +155,7 @@ export class InboundWorkerRuntime {
     this.activeSession = undefined;
     void this.resume()
       .then(() => {
-        if (!this.failed && !this.stopped) this.input.onSessionIdle?.(jobId);
+        if (!this.failed && !this.stopped && !this.draining) this.input.onSessionIdle?.(jobId);
       })
       .catch((error) =>
         this.failClosed(`inbound idle protection restore failed: ${String(error)}`),

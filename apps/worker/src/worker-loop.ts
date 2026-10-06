@@ -10,6 +10,7 @@ import { terminateOwnedJobAndFinalize } from './worker-termination.ts';
 import { settleTerminalSession } from './terminal-session.ts';
 import { WorkerReporter } from './worker-reporter.ts';
 import { env } from './worker-environment.ts';
+import { ActiveCallDrain } from './worker-drain.ts';
 import { watchWorkerShutdown, type WorkerStatus } from './worker-health.ts';
 
 export type { WorkerStatus } from './worker-health.ts';
@@ -56,6 +57,7 @@ export async function runWorkerLoop(input: {
     composition,
     distribution,
     carriers,
+    prewarm,
   } = processRuntime;
   const log = createLogger({ service: 'worker', workerId });
   let mediaRuntime: ReturnType<typeof createProductionWorkerMediaRuntime>;
@@ -100,6 +102,7 @@ export async function runWorkerLoop(input: {
       onSessionActive: (jobId) => {
         status.state = 'active';
         status.detail = `Active inbound job ${jobId}`;
+        void prewarm?.(jobId);
       },
       onSessionIdle: () => {
         status.state = 'ready';
@@ -168,19 +171,28 @@ export async function runWorkerLoop(input: {
   });
   await reporter.start();
 
+  const drain = new ActiveCallDrain({
+    log,
+    inbound: inboundRuntime,
+    sessionActive: () => active !== undefined || inboundRuntime?.hasActiveSession === true,
+    describe: () => ({ jobId: active?.jobId, inbound: inboundRuntime?.hasActiveSession ?? false }),
+  });
   let shutdownPromise: Promise<void> | undefined;
   const stepFailed = (step: string, error: unknown) =>
     log.error('worker_shutdown_step_failed', { step, jobId: active?.jobId, ...errorFields(error) });
-  const shutdown = () =>
+  /** `graceful` (SIGTERM) waits for the active call; an internal drain ends it at once. */
+  const shutdown = (graceful = false) =>
     (shutdownPromise ??= (async () => {
       status.state = 'draining';
-      log.info('worker_draining', { detail: status.detail });
+      log.info('worker_draining', { detail: status.detail, graceful });
       runner.beginDrain();
-      await reporter.stop();
       await inFlight?.catch((error) => {
         stepFailed('admission', error);
         status.detail = `shutdown admission failed: ${String(error)}`;
       });
+      // The reporter keeps the worker row leased (state draining) while the call finishes.
+      if (graceful) await drain.wait();
+      await reporter.stop();
       if (active) {
         try {
           await terminateCostedJob(active.jobId, active.lease.ownerEpoch, 'worker-shutdown');
@@ -208,9 +220,10 @@ export async function runWorkerLoop(input: {
       await composition.dispose();
       server.close();
     })());
-  watchWorkerShutdown(input, shutdown);
+  watchWorkerShutdown(input, () => shutdown(true));
 
-  while (status.state !== 'draining') {
+  // While a SIGTERM drain waits, the loop keeps settling the active outbound call.
+  while (!draining() || (drain.waiting && active)) {
     if (active) {
       const route = await store.getSessionRoute(active.jobId);
       if (!route) {
@@ -218,6 +231,7 @@ export async function runWorkerLoop(input: {
         status.state = 'draining';
         status.detail = 'active-session-route-missing';
         runner.beginDrain();
+        drain.abandon();
         continue;
       }
       if (route.terminalAt) {
@@ -232,6 +246,7 @@ export async function runWorkerLoop(input: {
         });
         if (!settled) continue;
         active = undefined;
+        if (draining()) continue;
         await inboundRuntime?.resume();
         status.state = 'ready';
         status.detail = 'terminal session released';
@@ -241,6 +256,7 @@ export async function runWorkerLoop(input: {
       await new Promise((resolve) => setTimeout(resolve, 1_000));
       continue;
     }
+    if (draining()) break;
     const deliveries = await queue.receive({
       maxMessages: 1,
       waitSeconds: 20,
@@ -259,7 +275,11 @@ export async function runWorkerLoop(input: {
       inFlight = (async () => {
         await reporter.reportReserved();
         const outcome = await runner.handle(delivery);
-        if (outcome.kind === 'accepted') active = outcome;
+        if (outcome.kind === 'accepted') {
+          active = outcome;
+          // While the callee's phone rings: the first turn then skips DNS+TCP+TLS (LAT-8).
+          void prewarm?.(outcome.jobId);
+        }
         return outcome;
       })();
       const outcome = await inFlight;
