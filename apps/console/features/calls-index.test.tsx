@@ -18,7 +18,11 @@ vi.mock('../lib/data/use-cursor-list', () => ({
         id: 'call-recorded',
         kind: 'live',
         status: 'completed',
-        outcome: { disposition: 'promise_to_pay', finalNode: 'goodbye' },
+        outcome: {
+          disposition: 'promise_to_pay',
+          finalNode: 'goodbye',
+          endReason: 'error:timeout:route_resolve',
+        },
       },
       { id: 'call-silent', kind: 'live', status: 'active', outcome: null },
     ],
@@ -35,6 +39,12 @@ describe('calls index (AGT-8)', () => {
     expect(within(recorded).getByText('promise_to_pay')).toBeTruthy();
     expect(within(recorded).getByText('goodbye')).toBeTruthy();
     const silent = screen.getByRole('link', { name: 'call-silent' }).closest('tr')!;
-    expect(within(silent).getAllByText('—')).toHaveLength(2);
+    expect(within(silent).getAllByText('—')).toHaveLength(3);
+  });
+
+  it('names the stage a call timed out in (OBS-9)', () => {
+    render(<CallsIndexFeature />);
+    const recorded = screen.getByRole('link', { name: 'call-recorded' }).closest('tr')!;
+    expect(within(recorded).getByText('timeout: route_resolve')).toBeTruthy();
   });
 });
