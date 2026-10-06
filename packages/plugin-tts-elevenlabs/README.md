@@ -62,6 +62,13 @@ kit's `identityVariants` check proves each audio field re-keys the clip.
 - **Socket usage:** each context emits one meter, at `isFinal`, close or failure, with
   `state: 'estimated'`. The characters counted are the ones the plugin sent. The socket reports no
   billed count.
+- **One meter per `synthesize()`:** when a dropped socket is retried over HTTP, only the HTTP
+  attempt's meter is emitted. A socket that drops mid-context on the `open()` path is not retried:
+  that utterance errors, and the next `open()` reconnects or falls back.
+- **Incremental pushes (for LAT-5):** each `push()` is sent as is, with no trailing space added,
+  and `autoMode` defaults to `true`. That suits one push per segment. A caller that streams token
+  deltas should push whole words ending in a space, or bind `autoMode: false` with a
+  `chunkLengthSchedule`.
 - **HTTP usage:** the meter uses the `request-id` header as its request id and `character-cost`
   as a `reconciled` quantity, but only when those headers are present. `x-character-count`, the
   name some SDK guides use, is read when `character-cost` is absent. `request-id` and `character-cost` come from the

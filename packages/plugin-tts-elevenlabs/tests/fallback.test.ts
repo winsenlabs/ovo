@@ -139,10 +139,8 @@ describe('ElevenLabs HTTP stream fallback', () => {
     expect(await drain(tts.synthesize({ ...ttsInput(usage), text: 'Your EMI is due.' }))).toEqual([
       8, 9,
     ]);
-    expect(usage.map((meter) => meter.requestId)).toEqual([
-      'elevenlabs:call-1:1',
-      'elevenlabs:call-1:2',
-    ]);
+    // One synthesis, one meter: the dropped socket's estimate is replaced by the retry's.
+    expect(usage.map((meter) => meter.requestId)).toEqual(['elevenlabs:call-1:2']);
     net.assertComplete();
   });
 

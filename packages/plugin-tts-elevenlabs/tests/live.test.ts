@@ -25,7 +25,11 @@ async function speak(tts: ElevenLabsTts, text: string, usage: UsageMeter[]): Pro
 describe.skipIf(!key)('ElevenLabs live smoke (OVO_LIVE_ELEVENLABS_API_KEY)', () => {
   it('streams μ-law for two utterances over one socket, and over HTTP', async () => {
     const net = createNodeNet();
-    const socket = new ElevenLabsTts(net, key!, voiceId ? { voiceId } : {});
+    // No HTTP fallback on the socket instance, so a broken socket path fails instead of passing over HTTP.
+    const socket = new ElevenLabsTts(net, key!, {
+      httpFallback: false,
+      ...(voiceId ? { voiceId } : {}),
+    });
     const http = new ElevenLabsTts(net, key!, {
       transport: 'http',
       ...(voiceId ? { voiceId } : {}),

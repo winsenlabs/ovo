@@ -242,6 +242,38 @@ describe('ElevenLabs multi-stream-input wire format', () => {
     net.assertComplete();
   });
 
+  it('re-cuts PCM frames into whole samples and rejects a half sample left at isFinal', async () => {
+    const net = createFixtureNet([
+      wsScript([
+        socketOpen(PCM16_16K),
+        ...utterance('ovo-1', 'Hi.', [
+          audioFrame('ovo-1', [1, 2, 3]),
+          audioFrame('ovo-1', [4]),
+          finalFrame('ovo-1'),
+        ]),
+        ...utterance('ovo-2', 'Odd.', [audioFrame('ovo-2', [5, 6, 7]), finalFrame('ovo-2')]),
+      ]),
+    ]);
+    const tts = new ElevenLabsTts(net, 'fixture-key');
+    const whole = await tts.open(ttsInput([], { format: PCM16_16K }));
+    whole.push('Hi.');
+    whole.flush();
+    expect(await drain(whole.audio)).toEqual([1, 2, 3, 4]);
+    await whole.close();
+    const chunks: number[] = [];
+    const odd = await tts.open(ttsInput([], { format: PCM16_16K }));
+    odd.push('Odd.');
+    odd.flush();
+    await expect(
+      (async () => {
+        for await (const chunk of odd.audio) chunks.push(...chunk);
+      })(),
+    ).rejects.toThrow('ElevenLabs TTS returned an incomplete PCM sample');
+    expect(chunks).toEqual([5, 6]);
+    await odd.close();
+    net.assertComplete();
+  });
+
   it(`holds a sixth concurrent context until one of the ${MAX_CONTEXTS} slots frees`, async () => {
     const steps = [socketOpen(MULAW_8K)];
     for (let n = 1; n <= MAX_CONTEXTS; n += 1) steps.push(sent(`ovo-${n}`, { text: `Line ${n}.` }));

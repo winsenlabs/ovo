@@ -93,6 +93,11 @@ export class ElevenLabsContext implements IncrementalTts, ContextSink {
 
   onFinal(): void {
     if (this.settled) return;
+    // Same rule as the HTTP path: a stream that ends mid-sample is a provider fault, not silence.
+    if (this.aligner.pending)
+      return this.onError(
+        new ElevenLabsTtsError('ElevenLabs TTS returned an incomplete PCM sample', false),
+      );
     this.settle();
     this.wake?.();
   }

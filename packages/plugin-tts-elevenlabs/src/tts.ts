@@ -10,6 +10,7 @@ import {
   type NetPort,
   type SynthesisInput,
   type TextToSpeech,
+  type UsageMeter,
 } from '@winsendotai/ovo-contracts';
 import { abortError, syntheticRequestId, systemClock } from '@winsendotai/ovo-plugin-kit';
 import {
@@ -136,8 +137,12 @@ export class ElevenLabsTts implements TextToSpeech {
     input.signal.throwIfAborted();
     let received = false;
     let overSocket = true;
+    let retry = false;
+    // The first attempt's meter is held until we know whether HTTP retries it, so one synthesis
+    // emits exactly one meter: a dropped socket's estimate is replaced by the retry's.
+    const held: UsageMeter[] = [];
     try {
-      const context = await this.open(input);
+      const context = await this.open({ ...input, onUsage: (meter) => held.push(meter) });
       overSocket = context instanceof ElevenLabsContext;
       try {
         context.push(input.text);
@@ -152,7 +157,7 @@ export class ElevenLabsTts implements TextToSpeech {
     } catch (error) {
       // A socket that dropped before any audio is retried once over HTTP; anything after the
       // first byte, a cancel, a refusal (bad key, quota) or an HTTP failure is the caller's.
-      const retry =
+      retry =
         overSocket &&
         !received &&
         !input.signal.aborted &&
@@ -160,8 +165,10 @@ export class ElevenLabsTts implements TextToSpeech {
         error instanceof ElevenLabsTtsError &&
         error.retryable;
       if (!retry) throw error;
-      yield* streamHttp(this.httpPort(), input, ++this.requestNumber);
+    } finally {
+      if (!retry) for (const meter of held) input.onUsage(meter);
     }
+    if (retry) yield* streamHttp(this.httpPort(), input, ++this.requestNumber);
   }
 
   /** Closes every pooled socket (session end). */
