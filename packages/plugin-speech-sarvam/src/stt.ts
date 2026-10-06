@@ -76,6 +76,8 @@ export function sarvamSttUrl(
 export class SarvamStt implements SpeechToText {
   readonly capabilities;
   readonly binding: Readonly<SarvamSttBinding>;
+  /** Numbers this call's sessions (a reconnect is a second one), so each meters on its own. */
+  private sessions = 0;
 
   constructor(
     private readonly net: NetPort,
@@ -111,7 +113,13 @@ export class SarvamStt implements SpeechToText {
     const socket = this.net.websocket(sarvamSttUrl(this.binding, input), {
       headers: { 'api-subscription-key': this.key },
     });
-    const session = createSarvamSttSession(socket, input, this.binding, this.clock);
+    const session = createSarvamSttSession(
+      socket,
+      input,
+      this.binding,
+      this.clock,
+      ++this.sessions,
+    );
     await session.ready;
     return session;
   }

@@ -10,6 +10,21 @@ import type { SarvamTtsBinding } from './tts.ts';
 
 type Input = Omit<SynthesisInput, 'text'>;
 
+/**
+ * The usage requestId of a call's `utterance`th synthesis. The worker dedupes usage on it, so it
+ * must differ per utterance (Wave 2 request 4): the provider's id gets the utterance number
+ * appended, as ElevenLabs' context ids do, because nothing documents that it is unique per socket.
+ */
+export function utteranceRequestId(
+  providerId: string | undefined,
+  sessionId: string,
+  utterance: number,
+): string {
+  return providerId
+    ? `${providerId}/${utterance}`
+    : syntheticRequestId('sarvam', sessionId, utterance);
+}
+
 export class SarvamTtsError extends Error {
   constructor(
     message: string,
@@ -41,6 +56,8 @@ export class SarvamTtsSession implements IncrementalTts {
     private readonly input: Input,
     private readonly binding: Readonly<SarvamTtsBinding>,
     private readonly clock: Clock,
+    /** This call's synthesis number, from 1; it keeps each utterance's meter distinct. */
+    private readonly utterance = 1,
   ) {
     this.startedAt = clock.now();
     this.once = usageOnce(input.onUsage);
@@ -179,7 +196,7 @@ export class SarvamTtsSession implements IncrementalTts {
       unit: 'characters',
       quantity: decimal(this.characters),
       state,
-      requestId: this.requestId ?? syntheticRequestId('sarvam', this.input.sessionId, 1),
+      requestId: utteranceRequestId(this.requestId, this.input.sessionId, this.utterance),
       elapsedMs: Math.max(0, this.clock.now() - this.startedAt),
     });
   }

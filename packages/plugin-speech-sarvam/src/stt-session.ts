@@ -29,6 +29,8 @@ export function createSarvamSttSession(
   input: Input,
   binding: Readonly<SarvamSttBinding>,
   clock: Clock,
+  /** This call's session number, from 1; a reconnect must not reuse the first one's requestId. */
+  attempt = 1,
 ): SttSession & { ready: Promise<void> } {
   const startedAt = clock.now();
   const usage = usageOnce(input.onUsage);
@@ -53,7 +55,7 @@ export function createSarvamSttSession(
       unit: 'audio_seconds',
       quantity: decimal(billedDuration ?? bytes / bytesPerSecond(input.format)),
       state: billedDuration === undefined ? 'estimated' : 'reconciled',
-      requestId: requestId ?? syntheticRequestId('sarvam', input.sessionId, 1),
+      requestId: requestId ?? syntheticRequestId('sarvam', input.sessionId, attempt),
       elapsedMs: Math.max(0, clock.now() - startedAt),
     });
   const dispose = () => {
