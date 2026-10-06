@@ -55,11 +55,16 @@ export class ScriptedLines {
     this.idle?.reset();
   }
 
+  /** True when the agent speaks before the caller does. */
+  speaksFirst(): boolean {
+    return this.config.opening !== undefined;
+  }
+
   /** The opening, once per call: no decision, LLM or caller words are involved. */
   *opening(variables: Record<string, unknown>): Generator<string> {
-    if (this.opened || !this.config.opening) return;
+    if (this.opened || !this.speaksFirst()) return;
     this.opened = true;
-    const lines = this.config.opening.lines.map((text, index) => ({
+    const lines = (this.config.opening?.lines ?? []).map((text, index) => ({
       field: `opening.lines.${index}`,
       text,
     }));

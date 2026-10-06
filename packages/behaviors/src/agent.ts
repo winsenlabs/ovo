@@ -73,9 +73,8 @@ export class AgentBehavior implements Behavior {
     private readonly options: AgentBehaviorOptions,
   ) {
     this.config = AgentConfigSchema.parse(config);
-    if (this.config.mode !== 'agent') {
+    if (this.config.mode !== 'agent')
       throw new TypeError(`Agent behavior requires agent mode, received ${this.config.mode}`);
-    }
     if (!options.workspaceId || !options.sessionId)
       throw new TypeError('Agent behavior requires workspaceId and sessionId');
     this.assembledContext = assembleBoundedContext(this.config.context, this.config.contextBudget);
@@ -113,12 +112,8 @@ export class AgentBehavior implements Behavior {
   ): AsyncIterable<string> {
     this.ending.startTurn();
     this.lines.startTurn();
-    if (variables.inputEvent === 'opening' || variables.inputEvent === 'idle') {
-      yield* variables.inputEvent === 'opening'
-        ? this.lines.opening(variables)
-        : this.lines.silence(variables);
-      return;
-    }
+    if (variables.inputEvent === 'opening') return yield* this.lines.opening(variables);
+    if (variables.inputEvent === 'idle') return yield* this.lines.silence(variables);
     this.lines.heard();
     this.active?.abort(new DOMException('superseded by a newer turn', 'AbortError'));
     const controller = new AbortController();
@@ -230,18 +225,10 @@ export class AgentBehavior implements Behavior {
   }
 
   /** The caller-silence timeout, when this agent handles silence itself (AGT-11). */
-  idleTimeoutMs(): number | undefined {
-    return this.lines.idleTimeoutMs;
-  }
-
-  speaksFirst(): boolean {
-    return this.config.opening !== undefined;
-  }
-
+  idleTimeoutMs = (): number | undefined => this.lines.idleTimeoutMs;
+  speaksFirst = (): boolean => this.lines.speaksFirst();
   /** Undefined without a detecting policy: a machine verdict alone never ends this agent's call. */
-  voicemail(variables: Record<string, unknown>): string | undefined {
-    return this.lines.voicemail(variables);
-  }
+  voicemail = (variables: Record<string, unknown>) => this.lines.voicemail(variables);
 
   isComplete(): boolean {
     return this.ending.complete;
