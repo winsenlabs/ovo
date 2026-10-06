@@ -1,0 +1,36 @@
+{
+  "provider": "sarvam",
+  "model": "saaras:v3-realtime",
+  "utteranceId": "en-identity",
+  "language": "en-IN",
+  "audioEndMs": 1800,
+  "events": [
+    {
+      "atMs": 610,
+      "kind": "partial",
+      "segmentId": "0",
+      "text": "Yes this"
+    },
+    {
+      "atMs": 1080,
+      "kind": "partial",
+      "segmentId": "0",
+      "text": "Yes this is"
+    },
+    {
+      "atMs": 2440,
+      "kind": "final",
+      "segmentId": "0",
+      "text": "Yes this is Ravi Kumar speaking"
+    }
+  ],
+  "usage": [
+    {
+      "unit": "audio_seconds",
+      "quantity": "2.690",
+      "state": "reconciled"
+    }
+  ],
+  "recordedAt": "2026-10-06T00:00:00.000Z",
+  "synthetic": true
+}
