@@ -124,6 +124,7 @@ export function matchesText(expected: string | RegExp, actual: string): boolean 
   try {
     return new URL(expected).href === new URL(actual).href;
   } catch {
+    // swallow-ok: text that is not a URL is simply not the same URL.
     return false;
   }
 }
@@ -143,6 +144,7 @@ export function parseJson(text: string): { ok: true; value: unknown } | { ok: fa
   try {
     return { ok: true, value: JSON.parse(text) };
   } catch {
+    // swallow-ok: the caller receives `{ ok: false }` and reports the mismatch.
     return { ok: false };
   }
 }

@@ -23,8 +23,14 @@ export const PriceCardBody = z
     blockQuantity: Decimal.refine((value) => value !== '0'),
     effectiveAt: Timestamp,
     provenance: Provenance,
+    /** OPS-13: the model the price applies to; omitted, the card prices any model. */
+    model: Identifier.optional(),
+    /** A placeholder or unverified price; call costs priced with it are labelled provisional. */
+    provisional: z.boolean().optional(),
   })
   .strict();
+
+export const CatalogImportBody = z.object({ ids: z.array(Identifier).min(1).max(50) }).strict();
 
 export const FxVersionBody = z
   .object({

@@ -3,7 +3,12 @@ import { WebSocket } from '@winsendotai/ovo-plugin-media';
 import type { DurableJob, SessionRoute } from '@winsendotai/ovo-plugin-orchestration';
 import type { GatewayToWorkerMessage, WorkerMediaSession } from '@winsendotai/ovo-plugin-media';
 import type { EndReason, Logger } from '@winsendotai/ovo-contracts';
-import { asEndReason, createLogger, errorFields, redactLogText } from '@winsendotai/ovo-plugin-kit';
+import { asEndReason, createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
+import {
+  sessionOpenFailure,
+  sessionOpenSource,
+  type SessionOpenStage,
+} from './session-open-failure.ts';
 import { attachWorkerMediaServer, WorkerMediaLink } from './worker-media-server.ts';
 import {
   authenticatedMediaRoute,
@@ -26,20 +31,11 @@ export interface VoiceSessionFactory {
 
 type Open = Extract<GatewayToWorkerMessage, { type: 'session.open' }>;
 
-/**
- * Where a session open failed: the durable route check, the owned job, admission (cost or
- * inbound capacity), engine composition (STT, TTS, graph), or the durable opened record.
- */
-export type SessionOpenStage = 'route' | 'job' | 'admission' | 'compose' | 'record';
-
-/** `error:session-open-failed:<stage>:<message>`, scrubbed of credentials and kept short. */
-export function sessionOpenFailure(stage: SessionOpenStage, error: unknown): EndReason {
-  const message = redactLogText(error instanceof Error ? error.message : String(error))
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 160);
-  return `error:session-open-failed:${stage}:${message}`;
-}
+export {
+  sessionOpenFailure,
+  sessionOpenSource,
+  type SessionOpenStage,
+} from './session-open-failure.ts';
 
 const routeIds = (route: SessionRoute) => ({
   sessionId: route.sessionId,
@@ -167,6 +163,7 @@ export class WorkerMediaRuntime {
       this.log[link.isClosed ? 'warn' : 'error']('session_open_failed', {
         ...routeIds(route),
         stage: progress.stage,
+        ...sessionOpenSource(error),
         mediaClosedReason: link.closedReason,
         ...errorFields(error),
       });

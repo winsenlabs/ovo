@@ -2,8 +2,15 @@ import { Cap } from '@winsendotai/ovo-contracts';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 import { openAiInference, type OpenAiInferenceConfig } from './inference.ts';
 import { fixtures, fixtureTemplates } from './testing.ts';
+import { REASONING_EFFORTS, SERVICE_TIERS, TEXT_VERBOSITIES } from './voice-tuning.ts';
 
 export { openAiInference, type OpenAiInferenceConfig } from './inference.ts';
+export {
+  defaultTextVerbosity,
+  lowestReasoningEffort,
+  resolveVoiceTuning,
+  type VoiceTuning,
+} from './voice-tuning.ts';
 export { fixtures, fixtureTemplates };
 
 const INFERENCE_METER_LABELS = {
@@ -52,6 +59,11 @@ export const openAiInferencePlugin = definePlugin(
         api: { enum: ['responses'] },
         temperature: { type: 'number', minimum: 0, maximum: 2 },
         maxOutputTokens: { type: 'integer', minimum: 1 },
+        reasoningEffort: { enum: [...REASONING_EFFORTS] },
+        textVerbosity: { enum: [...TEXT_VERBOSITIES] },
+        serviceTier: { enum: [...SERVICE_TIERS] },
+        promptCacheKey: { type: 'string', minLength: 1, maxLength: 64 },
+        store: { type: 'boolean' },
       },
       additionalProperties: false,
     },
@@ -70,7 +82,13 @@ export const openAiInferencePlugin = definePlugin(
     const apiKey = await ctx.secret(
       ref && typeof ref === 'object' && 'credentialRef' in ref ? '/credentialRef' : '',
     );
-    ctx.provide(Cap.inference, openAiInference(ctx.net, apiKey, binding, ctx.maybe(Cap.usage)));
+    ctx.provide(
+      Cap.inference,
+      openAiInference(ctx.net, apiKey, binding, ctx.maybe(Cap.usage), undefined, {
+        env: process.env,
+        bindingId: typeof row.bindingId === 'string' ? row.bindingId : undefined,
+      }),
+    );
   },
 );
 export const plugins = [openAiInferencePlugin];

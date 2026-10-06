@@ -1,0 +1,244 @@
+{
+  "$comment": "OPS-14 vendor list prices. Each entry is the public price on source.retrievedAt, in the vendor currency (non-INR cards need an FX version). A changed price is a new entry version, never an edit. Re-check every source monthly.",
+  "entries": [
+    {
+      "card": {
+        "id": "openai-gpt-6-luna-uncached-input",
+        "version": "2026-10-06",
+        "provider": "openai",
+        "unit": "uncached_input_tokens",
+        "model": "gpt-6-luna",
+        "currency": "USD",
+        "minorUnitsPerBlock": "10",
+        "blockQuantity": "1000000",
+        "effectiveAt": "2026-10-06T00:00:00.000Z",
+        "provisional": true
+      },
+      "meterKeys": ["openai.inference.uncached_input_tokens"],
+      "source": {
+        "url": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "retrievedAt": "2026-10-06",
+        "note": "PROVISIONAL: founder decision (ovo-build-plan) treats the gpt-6-luna price as unknown until an OpenAI invoice confirms it. Standard tier; Flex/Batch are 50%, priority and regional processing cost more.",
+        "quote": "Input $0.1 / 1M tokens"
+      }
+    },
+    {
+      "card": {
+        "id": "openai-gpt-6-luna-input",
+        "version": "2026-10-06",
+        "provider": "openai",
+        "unit": "input_tokens",
+        "model": "gpt-6-luna",
+        "currency": "USD",
+        "minorUnitsPerBlock": "10",
+        "blockQuantity": "1000000",
+        "effectiveAt": "2026-10-06T00:00:00.000Z",
+        "provisional": true
+      },
+      "meterKeys": ["openai.inference.input_tokens"],
+      "source": {
+        "url": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "retrievedAt": "2026-10-06",
+        "note": "PROVISIONAL: founder decision (ovo-build-plan) treats the gpt-6-luna price as unknown until an OpenAI invoice confirms it. Standard tier; Flex/Batch are 50%, priority and regional processing cost more. The aggregate input meter is used only when the cache meters are not priced; charging it at the uncached rate is an upper bound.",
+        "quote": "Input $0.1 / 1M tokens"
+      }
+    },
+    {
+      "card": {
+        "id": "openai-gpt-6-luna-cached-input",
+        "version": "2026-10-06",
+        "provider": "openai",
+        "unit": "cache_read_input_tokens",
+        "model": "gpt-6-luna",
+        "currency": "USD",
+        "minorUnitsPerBlock": "1",
+        "blockQuantity": "1000000",
+        "effectiveAt": "2026-10-06T00:00:00.000Z",
+        "provisional": true
+      },
+      "meterKeys": ["openai.inference.cache_read_input_tokens"],
+      "source": {
+        "url": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "retrievedAt": "2026-10-06",
+        "note": "PROVISIONAL: founder decision (ovo-build-plan) treats the gpt-6-luna price as unknown until an OpenAI invoice confirms it. Standard tier; Flex/Batch are 50%, priority and regional processing cost more.",
+        "quote": "Cached input $0.01 / 1M tokens"
+      }
+    },
+    {
+      "card": {
+        "id": "openai-gpt-6-luna-cache-write",
+        "version": "2026-10-06",
+        "provider": "openai",
+        "unit": "cache_write_input_tokens",
+        "model": "gpt-6-luna",
+        "currency": "USD",
+        "minorUnitsPerBlock": "12.5",
+        "blockQuantity": "1000000",
+        "effectiveAt": "2026-10-06T00:00:00.000Z",
+        "provisional": true
+      },
+      "meterKeys": ["openai.inference.cache_write_input_tokens"],
+      "source": {
+        "url": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "retrievedAt": "2026-10-06",
+        "note": "PROVISIONAL: founder decision (ovo-build-plan) treats the gpt-6-luna price as unknown until an OpenAI invoice confirms it. Standard tier; Flex/Batch are 50%, priority and regional processing cost more.",
+        "quote": "Cache writes $0.125 / 1M tokens"
+      }
+    },
+    {
+      "card": {
+        "id": "openai-gpt-6-luna-output",
+        "version": "2026-10-06",
+        "provider": "openai",
+        "unit": "output_tokens",
+        "model": "gpt-6-luna",
+        "currency": "USD",
+        "minorUnitsPerBlock": "50",
+        "blockQuantity": "1000000",
+        "effectiveAt": "2026-10-06T00:00:00.000Z",
+        "provisional": true
+      },
+      "meterKeys": ["openai.inference.output_tokens"],
+      "source": {
+        "url": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "retrievedAt": "2026-10-06",
+        "note": "PROVISIONAL: founder decision (ovo-build-plan) treats the gpt-6-luna price as unknown until an OpenAI invoice confirms it. Standard tier; Flex/Batch are 50%, priority and regional processing cost more.",
+        "quote": "Output $0.5 / 1M tokens"
+      }
+    },
+    {
+      "card": {
+        "id": "elevenlabs-tts-flash-v2-5",
+        "version": "2026-10-06",
+        "provider": "elevenlabs",
+        "unit": "characters",
+        "model": "eleven_flash_v2_5",
+        "currency": "USD",
+        "minorUnitsPerBlock": "4",
+        "blockQuantity": "1000",
+        "effectiveAt": "2026-10-06T00:00:00.000Z"
+      },
+      "meterKeys": ["elevenlabs.streaming-tts.characters"],
+      "source": {
+        "url": "https://elevenlabs.io/pricing/api",
+        "retrievedAt": "2026-10-06",
+        "quote": "Text to Speech (Flash/Turbo) $0.04 per 1K characters, every plan",
+        "note": "Overage/pay-as-you-go rate; characters inside a plan allowance are prepaid."
+      }
+    },
+    {
+      "card": {
+        "id": "elevenlabs-tts-multilingual-v2",
+        "version": "2026-10-06",
+        "provider": "elevenlabs",
+        "unit": "characters",
+        "model": "eleven_multilingual_v2",
+        "currency": "USD",
+        "minorUnitsPerBlock": "8",
+        "blockQuantity": "1000",
+        "effectiveAt": "2026-10-06T00:00:00.000Z"
+      },
+      "meterKeys": ["elevenlabs.streaming-tts.characters"],
+      "source": {
+        "url": "https://elevenlabs.io/pricing/api",
+        "retrievedAt": "2026-10-06",
+        "quote": "Text to Speech (v2 Multilingual) $0.08 per 1K characters"
+      }
+    },
+    {
+      "card": {
+        "id": "elevenlabs-stt-scribe-v2-realtime",
+        "version": "2026-10-06",
+        "provider": "elevenlabs",
+        "unit": "audio_seconds",
+        "model": "scribe_v2_realtime",
+        "currency": "USD",
+        "minorUnitsPerBlock": "39",
+        "blockQuantity": "3600",
+        "effectiveAt": "2026-10-06T00:00:00.000Z"
+      },
+      "meterKeys": ["elevenlabs.streaming-stt.audio_seconds"],
+      "source": {
+        "url": "https://elevenlabs.io/pricing/api",
+        "retrievedAt": "2026-10-06",
+        "quote": "Speech to Text (Scribe v2 Realtime) $0.39 per hour"
+      }
+    },
+    {
+      "card": {
+        "id": "assemblyai-universal-streaming",
+        "version": "2026-10-06",
+        "provider": "assemblyai",
+        "unit": "session_seconds",
+        "currency": "USD",
+        "minorUnitsPerBlock": "15",
+        "blockQuantity": "3600",
+        "effectiveAt": "2026-10-06T00:00:00.000Z"
+      },
+      "meterKeys": ["assemblyai.streaming-stt.session_seconds"],
+      "source": {
+        "url": "https://www.assemblyai.com/pricing",
+        "retrievedAt": "2026-10-06",
+        "quote": "Universal-Streaming (English and Multilingual) $0.15/hr, billed on session duration",
+        "note": "Billed while the WebSocket is open, idle time included. Covers every streaming model."
+      }
+    },
+    {
+      "card": {
+        "id": "twilio-voice-in-outbound-mobile-streams",
+        "version": "2026-10-06",
+        "provider": "twilio",
+        "unit": "audio_seconds",
+        "currency": "USD",
+        "minorUnitsPerBlock": "5.4",
+        "blockQuantity": "60",
+        "effectiveAt": "2026-10-06T00:00:00.000Z"
+      },
+      "meterKeys": ["twilio.carrier.audio_seconds"],
+      "source": {
+        "url": "https://www.twilio.com/en-us/voice/pricing/in",
+        "retrievedAt": "2026-10-06",
+        "quote": "Make calls: Mobile $0.0496/min; Media Streams $0.0044/min",
+        "note": "Assumes outbound calls to Indian mobiles (landlines $0.0699/min) with a Media Stream. Inbound and number rental are not listed for India on this page. Twilio bills per started minute; this card prices per second, so short calls are understated."
+      }
+    },
+    {
+      "card": {
+        "id": "openai-gpt-4o-mini-tts-input",
+        "version": "2026-10-06",
+        "provider": "openai",
+        "unit": "input_tokens",
+        "model": "gpt-4o-mini-tts",
+        "currency": "USD",
+        "minorUnitsPerBlock": "60",
+        "blockQuantity": "1000000",
+        "effectiveAt": "2026-10-06T00:00:00.000Z"
+      },
+      "meterKeys": ["openai.streaming-tts.input_tokens"],
+      "source": {
+        "url": "https://developers.openai.com/api/docs/models/gpt-4o-mini-tts",
+        "retrievedAt": "2026-10-06",
+        "quote": "Text input $0.6 / 1M tokens"
+      }
+    },
+    {
+      "card": {
+        "id": "openai-gpt-4o-mini-tts-audio-output",
+        "version": "2026-10-06",
+        "provider": "openai",
+        "unit": "audio_output_tokens",
+        "model": "gpt-4o-mini-tts",
+        "currency": "USD",
+        "minorUnitsPerBlock": "1200",
+        "blockQuantity": "1000000",
+        "effectiveAt": "2026-10-06T00:00:00.000Z"
+      },
+      "meterKeys": ["openai.streaming-tts.audio_output_tokens"],
+      "source": {
+        "url": "https://developers.openai.com/api/docs/models/gpt-4o-mini-tts",
+        "retrievedAt": "2026-10-06",
+        "quote": "Audio output $12 / 1M tokens"
+      }
+    }
+  ]
+}

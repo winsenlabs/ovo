@@ -5,8 +5,10 @@ import { WebSocket } from '@winsendotai/ovo-plugin-media';
 import type { DurableJobStore, SessionRoute } from '@winsendotai/ovo-plugin-orchestration';
 import { createLogger } from '@winsendotai/ovo-plugin-kit';
 import { describe, expect, it, vi } from 'vitest';
+import { compose, definePlugin } from '@winsendotai/ovo-runtime';
 import {
   sessionOpenFailure,
+  sessionOpenSource,
   WorkerMediaRuntime,
   type VoiceSessionFactory,
 } from '../src/media-runtime.ts';
@@ -239,5 +241,59 @@ describe('worker media runtime over its authenticated loopback socket', () => {
     expect(sessionOpenFailure('job', 'not an error')).toBe(
       'error:session-open-failed:job:not an error',
     );
+  });
+
+  // OBS-2 remainder: the session_open_failed line named the stage but not which provider failed.
+  it('names the provider whose plugin failed to start, in the log line and the reason', async () => {
+    const logs: Record<string, unknown>[] = [];
+    const failing = definePlugin(
+      {
+        id: 'acme-stt-host',
+        version: '1.0.0',
+        contractVersion: 2,
+        scope: 'session',
+        kind: 'infra',
+        provider: 'acme',
+        provides: [],
+        requires: [],
+      },
+      () => {
+        throw new Error('stt handshake timed out');
+      },
+    );
+    const create = vi.fn(async () => {
+      await compose([{ id: 'acme-stt-host' }], [failing]);
+      return { dispose: vi.fn(async () => undefined) };
+    });
+    await withConnectedSocket(
+      { create },
+      async ({ route, onSessionClose }) => {
+        await vi.waitFor(() =>
+          expect(onSessionClose).toHaveBeenCalledWith(
+            route,
+            'error:session-open-failed:compose:infra/acme: stt handshake timed out',
+          ),
+        );
+        expect(logs.find((entry) => entry.event === 'session_open_failed')).toMatchObject({
+          stage: 'compose',
+          provider: 'acme',
+          providerKind: 'infra',
+          pluginId: 'acme-stt-host',
+        });
+      },
+      { logs },
+    );
+  });
+
+  it('takes the provider from an error that names it anywhere in its cause chain', () => {
+    const vendor = Object.assign(new Error('connect timeout'), { provider: 'acme', kind: 'stt' });
+    expect(sessionOpenSource(new Error('engine start failed', { cause: vendor }))).toEqual({
+      provider: 'acme',
+      providerKind: 'stt',
+    });
+    expect(sessionOpenFailure('compose', vendor)).toBe(
+      'error:session-open-failed:compose:stt/acme: connect timeout',
+    );
+    expect(sessionOpenSource(new Error('no provider here'))).toEqual({});
   });
 });

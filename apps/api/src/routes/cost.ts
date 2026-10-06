@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   BudgetBody,
   CallParams,
+  CatalogImportBody,
   FxVersionBody,
   PageQuery,
   PriceCardBody,
@@ -10,7 +11,10 @@ import {
 } from './cost-schemas.ts';
 import {
   calculateInrScenario,
+  diffVendorCatalog,
   LedgerConflictError,
+  VENDOR_PRICE_CATALOG,
+  vendorPriceCard,
   type CostLedgerService,
   type FxVersion,
   type InrScenarioInput,
@@ -58,6 +62,43 @@ export function registerCostRoutes(dependencies: CostRouteDependencies): void {
     return safely(reply, async () =>
       reply.send(await ledger.listPriceCards(query.limit, query.cursor)),
     );
+  });
+
+  // OPS-14: the dated vendor price catalog, each entry's state in this ledger (the monthly diff),
+  // and a one-click import that stores entries as immutable price cards.
+  app.get('/v1/cost/price-catalog', async (request, reply) => {
+    requireRole(request, 'viewer');
+    const ledger = configuredLedger(dependencies, reply);
+    if (!ledger) return;
+    return safely(reply, async () =>
+      reply.send({ items: diffVendorCatalog(await allPriceCards(ledger)) }),
+    );
+  });
+
+  app.post('/v1/cost/price-catalog/import', async (request, reply) => {
+    const principal = requireRole(request, 'admin');
+    const ledger = configuredLedger(dependencies, reply);
+    if (!ledger) return;
+    const { ids } = CatalogImportBody.parse(request.body);
+    const unique = [...new Set(ids)];
+    const entries = unique.map((id) => VENDOR_PRICE_CATALOG.find((entry) => entry.card.id === id));
+    const unknown = unique.filter((_id, index) => !entries[index]);
+    if (unknown.length)
+      return failure(
+        reply,
+        400,
+        'validation_error',
+        `Not in the price catalog: ${unknown.join(', ')}`,
+      );
+    return safely(reply, async () => {
+      const imported = [];
+      for (const entry of entries) {
+        const card = await ledger.putPriceCard(vendorPriceCard(entry!));
+        await auditMutation(audit, principal, 'cost.price-card.import', 'price-card', card);
+        imported.push(card);
+      }
+      return reply.code(201).send({ items: imported });
+    });
   });
 
   app.post('/v1/cost/fx-versions', async (request, reply) => {
@@ -155,6 +196,19 @@ export function registerCostRoutes(dependencies: CostRouteDependencies): void {
       return reply.code(201).send(result);
     });
   });
+}
+
+/** Every stored price card; the catalog diff compares against all versions, not one page. */
+async function allPriceCards(ledger: CostLedgerService): Promise<PriceCardVersion[]> {
+  const cards: PriceCardVersion[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 100; page += 1) {
+    const result = await ledger.listPriceCards(100, cursor);
+    cards.push(...result.items);
+    cursor = result.nextCursor;
+    if (!cursor) break;
+  }
+  return cards;
 }
 
 function configuredLedger(

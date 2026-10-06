@@ -127,7 +127,7 @@ export class SessionBridge {
       return;
     }
     if (!this.started) throw new Error('media received before carrier start');
-    if (event.type === 'stop') return this.close(`carrier ${event.reason}`);
+    if (event.type === 'stop') return this.close('caller_hangup'); // OBS-1: the far end hung up
     let message: MediaMessage;
     let audioBytes = 0;
     if (event.type === 'audio') {

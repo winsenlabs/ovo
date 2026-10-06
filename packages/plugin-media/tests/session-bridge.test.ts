@@ -346,5 +346,37 @@ it('still finalizes the worker session when the carrier explicitly stops', async
   h.start();
   await vi.waitFor(() => expect(h.dialer.connect).toHaveBeenCalledOnce());
   h.socket.receive(fixtureInboundFrame({ type: 'stop', reason: 'caller-hangup' }));
-  expect(h.sent).toContainEqual({ type: 'session.close', reason: 'carrier caller-hangup' });
+  expect(h.sent).toContainEqual({ type: 'session.close', reason: 'caller_hangup' });
+});
+
+// OBS-1: the bridge sent `carrier stream-ended`, which only a legacy mapping table kept from
+// becoming `error:carrier stream-ended`. Every carrier stop reason now reaches the worker typed.
+it.each(['stream-ended', 'caller-hangup', 'unknown'] as const)(
+  'closes the worker session with the typed caller_hangup for a carrier %s stop',
+  async (reason) => {
+    const closed: string[] = [];
+    const h = harness({ accept: true });
+    h.bridge.close = new Proxy(h.bridge.close, {
+      apply: (target, self, args: [string?, boolean?]) => {
+        closed.push(args[0] ?? '');
+        return Reflect.apply(target, self, args);
+      },
+    });
+    h.start();
+    await vi.waitFor(() => expect(h.dialer.connect).toHaveBeenCalledOnce());
+    h.socket.receive(fixtureInboundFrame({ type: 'stop', reason }));
+    expect(h.sent.filter((message) => message.type === 'session.close')).toEqual([
+      { type: 'session.close', reason: 'caller_hangup' },
+    ]);
+    expect(closed[0]).toBe('caller_hangup');
+  },
+);
+
+it('keeps the worker’s own end reason when the worker ended the call before the carrier stop', async () => {
+  const h = harness({ accept: true });
+  h.start();
+  await vi.waitFor(() => expect(h.dialer.connect).toHaveBeenCalledOnce());
+  h.worker({ type: 'session.end', reason: 'behavior_completed' });
+  h.socket.receive(fixtureInboundFrame({ type: 'stop', reason: 'stream-ended' }));
+  expect(h.sent).not.toContainEqual(expect.objectContaining({ type: 'session.close' }));
 });

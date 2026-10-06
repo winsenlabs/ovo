@@ -6,6 +6,7 @@ import { Field, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../prim
 import { BudgetPanel } from './budget-panel';
 import { FxVersionPanel } from './fx-version-panel';
 import { PriceCardPanel } from './price-card-panel';
+import { PriceCatalogPanel } from './price-catalog-panel';
 import { ReconciliationPanel } from './reconciliation-panel';
 
 const categories = ['telephony', 'tax', 'speech-generation', 'carrier-media', 'idle'] as const;
@@ -35,6 +36,8 @@ export function CostView({ role }: { role: SessionIdentity['role'] }) {
   const [result, setResult] = useState<ScenarioResult>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  // Bumped by a catalog import so the price-card list reloads with the new cards.
+  const [cardsRevision, setCardsRevision] = useState(0);
   async function calculate(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -229,7 +232,8 @@ export function CostView({ role }: { role: SessionIdentity['role'] }) {
           )}
         </form>
       </Panel>
-      <PriceCardPanel role={role} />
+      <PriceCatalogPanel role={role} onImported={() => setCardsRevision((value) => value + 1)} />
+      <PriceCardPanel key={cardsRevision} role={role} />
       <FxVersionPanel role={role} />
       <ReconciliationPanel role={role} />
       <BudgetPanel role={role} />

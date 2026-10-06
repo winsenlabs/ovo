@@ -207,7 +207,9 @@ describe('duplex shims', () => {
     expect(asEndReason('task-protection-renewal-failed')).toBe('ownership_lost');
     expect(asEndReason('media-gateway-disconnected')).toBe('ownership_lost');
     expect(asEndReason('gateway disconnected')).toBe('ownership_lost');
-    expect(asEndReason('carrier terminal: completed')).toBe('error:carrier-terminal:completed');
+    // A completed status callback is a normal hang-up (carrier-status-reconcile.test.ts).
+    expect(asEndReason('carrier terminal: completed')).toBe('caller_hangup');
+    expect(asEndReason('carrier terminal: failed')).toBe('error:carrier-terminal:failed');
     expect(asEndReason('cost-spend-threshold')).toBe('error:cost-spend-threshold');
     expect(asEndReason('cost-meter-unconfigured:openai.inference.input_tokens')).toBe(
       'error:cost-meter-unconfigured',

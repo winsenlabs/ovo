@@ -1,6 +1,7 @@
 'use client';
 import type { AgentConfig } from '../../lib/api';
 import { EmptyState, Field, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
+import { RequiredMeters } from './required-meters';
 
 type CostPolicy = NonNullable<AgentConfig['costPolicy']>;
 type PriceReference = CostPolicy['priceCards'][string];
@@ -14,9 +15,12 @@ const emptyPolicy = (): CostPolicy => ({
 export function CostPolicyEditor({
   config,
   update,
+  agentId,
 }: {
   config: AgentConfig;
   update: (next: AgentConfig) => void;
+  /** Shows the saved draft's required-meter checklist (OPS-14). */
+  agentId?: string;
 }) {
   const policy = config.costPolicy;
   const setPolicy = (next: CostPolicy | undefined) => update({ ...config, costPolicy: next });
@@ -84,6 +88,20 @@ export function CostPolicyEditor({
                 />
               </Field>
             </div>
+            {agentId && (
+              <RequiredMeters
+                agentId={agentId}
+                onUse={(key, reference) =>
+                  setPolicy({
+                    ...policy,
+                    priceCards: {
+                      ...policy.priceCards,
+                      [key]: { ...policy.priceCards[key], ...reference },
+                    },
+                  })
+                }
+              />
+            )}
             <div className="muted">
               Each provider usage key needs an immutable price-card version. Non-INR cards also
               require an immutable FX version.

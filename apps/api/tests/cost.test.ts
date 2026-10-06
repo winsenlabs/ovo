@@ -126,6 +126,8 @@ describe('cost API routes', () => {
       estimatedPaise: '0',
       reconciledPaise: '573',
       totalPaise: '573',
+      provisional: false,
+      provisionalPriceCards: [],
     }));
     const app = buildApp();
     registerCostRoutes({

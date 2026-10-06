@@ -1,5 +1,5 @@
 import { Context } from '@deepseek-ai/cordis';
-import { Cap, type NetPort, type SecretResolver } from '@winsendotai/ovo-contracts';
+import { Cap, type Logger, type NetPort, type SecretResolver } from '@winsendotai/ovo-contracts';
 import { isCredentialReference, readPointer } from './config-guard.ts';
 import type { PluginContext, PluginDefinition } from './define.ts';
 import type { EnforcementMode, ViolationKind, ViolationLog } from './enforcement.ts';
@@ -17,8 +17,17 @@ export interface FacadeOptions {
   /** Keys this plugin may read from the parent (declared, provided there, not session-scoped). */
   parentReadable: ReadonlySet<string>;
   net?: NetPort;
+  logger?: Logger;
   workspaceId?: string;
 }
+
+const SILENT: Logger = Object.freeze({
+  debug: () => undefined,
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+  child: () => SILENT,
+});
 
 export type GuardedContext = Context & PluginContext;
 
@@ -83,6 +92,7 @@ export function createFacade(ctx: Context, options: FacadeOptions): GuardedConte
     return ctx.provide(serviceName(key), value);
   };
   let net: NetPort | undefined;
+  let logger: Logger | undefined;
   const hostNet = () =>
     options.net ??
     ((parent?.keys.has(Cap.net) ? parent.get(Cap.net) : undefined) as NetPort | undefined) ??
@@ -146,6 +156,8 @@ export function createFacade(ctx: Context, options: FacadeOptions): GuardedConte
   return new Proxy(Object.create(null) as GuardedContext, {
     get(_target, prop) {
       if (prop === 'net') return (net ??= filteredNet(hostNet, manifest, report));
+      if (prop === 'logger')
+        return (logger ??= (options.logger ?? SILENT).child({ plugin: manifest.id }));
       if (typeof prop === 'string' && Object.hasOwn(overrides, prop)) return overrides[prop];
       if (prop === 'fiber') return narrowedFiber;
       // Symbols are Cordis's own bookkeeping on the context it handed us, never a plugin surface.
@@ -155,7 +167,7 @@ export function createFacade(ctx: Context, options: FacadeOptions): GuardedConte
       return typeof value === 'function' && CONTEXT_METHODS.has(prop) ? value.bind(ctx) : value;
     },
     has(_target, prop) {
-      if (prop === 'net' || prop === 'fiber') return true;
+      if (prop === 'net' || prop === 'fiber' || prop === 'logger') return true;
       if (typeof prop === 'string' && prop in overrides) return true;
       return typeof prop === 'symbol' ? prop in ctx : PASSTHROUGH.has(prop);
     },

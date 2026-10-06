@@ -1,5 +1,5 @@
 import { Context, type Plugin } from '@deepseek-ai/cordis';
-import type { NetPort } from '@winsendotai/ovo-contracts';
+import type { Logger, NetPort } from '@winsendotai/ovo-contracts';
 import { composeEntries } from './upstream/composition.ts';
 import { startHostHalf } from './upstream/lifecycle.ts';
 import { createScope, type Scope } from './upstream/scope.ts';
@@ -20,6 +20,23 @@ import {
   type ParentView,
 } from './scope.ts';
 import { validateGraph } from './validate-graph.ts';
+import { recordPluginFailure } from './plugin-failure.ts';
+
+/** Runs a plugin's apply, remembering (not wrapping) whatever it throws as that plugin's failure. */
+function attributed(definition: PluginDefinition, apply: () => void | Promise<void>) {
+  try {
+    const result = apply();
+    return result instanceof Promise
+      ? result.catch((error: unknown) => {
+          recordPluginFailure(error, definition.manifest);
+          throw error;
+        })
+      : result;
+  } catch (error) {
+    recordPluginFailure(error, definition.manifest);
+    throw error;
+  }
+}
 
 export interface ComposeOptions {
   /** Rejects any definition whose manifest scope differs. */
@@ -34,6 +51,8 @@ export interface ComposeOptions {
   net?: NetPort;
   /** Fixture-kind plugins compose only when true. */
   fixtures?: boolean;
+  /** The logger behind every `ctx.logger` (else the parent's); plugins get a per-plugin child. */
+  logger?: Logger;
 }
 
 export interface Composition extends ParentView {
@@ -64,6 +83,7 @@ export async function compose(
     config: entry.config as Record<string, unknown>,
   }));
   const { parent } = opts;
+  const logger = opts.logger ?? parent?.logger;
   const parentReadable = parentReadableKeys(parent);
   const { ordered, issues } = validateGraph(snapshot, catalog, {
     scope: opts.scope,
@@ -96,18 +116,21 @@ export async function compose(
           .map((entry) => entry.key)
           .filter((key) => !optional.has(key) && !isMany(key) && local.has(key)),
         apply: (fiberCtx: Context, fiberConfig: Record<string, unknown>) =>
-          definition.apply(
-            createFacade(fiberCtx, {
-              definition,
-              config: fiberConfig,
-              mode: enforcementMode(definition.manifest, opts.enforcement),
-              log,
-              parent,
-              parentReadable: new Set(declared.filter((key) => parentReadable.has(key))),
-              net: opts.net,
-              workspaceId: opts.workspaceId,
-            }),
-            fiberConfig,
+          attributed(definition, () =>
+            definition.apply(
+              createFacade(fiberCtx, {
+                definition,
+                config: fiberConfig,
+                mode: enforcementMode(definition.manifest, opts.enforcement),
+                log,
+                parent,
+                parentReadable: new Set(declared.filter((key) => parentReadable.has(key))),
+                net: opts.net,
+                logger,
+                workspaceId: opts.workspaceId,
+              }),
+              fiberConfig,
+            ),
           ),
       };
       await startHostHalf(scope!.ctx.fiber, plugin, config);
@@ -129,6 +152,7 @@ export async function compose(
         ordered.map((p) => Object.freeze({ id: p.manifest.id, version: p.manifest.version })),
       ),
       scope: opts.scope,
+      logger,
       keys,
       violations: log.violations,
       get,

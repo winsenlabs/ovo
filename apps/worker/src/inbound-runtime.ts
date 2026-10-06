@@ -7,6 +7,10 @@ import {
   type SessionRoute,
 } from '@winsendotai/ovo-plugin-orchestration';
 import type { InboundWorkerRuntimeInput } from './inbound-runtime-input.ts';
+import {
+  terminateInboundSession,
+  type ActiveInboundSession,
+} from './inbound-session-termination.ts';
 import { InboundFloorLease } from './worker-reporter.ts';
 
 const RENEW_INTERVAL_MS = 45_000;
@@ -26,16 +30,12 @@ export class InboundWorkerRuntime {
   private protectionRenewal?: ProtectionRenewal;
   private suspended = false;
   private stopped = false;
+  private draining = false;
   private failed = false;
   private renewing = false;
   private readonly floorLease: InboundFloorLease;
   private readonly log: Logger;
-  private activeSession?: {
-    jobId: string;
-    workerId: string;
-    ownerEpoch: number;
-    carrierCallId?: string;
-  };
+  private activeSession?: ActiveInboundSession;
 
   constructor(private readonly input: InboundWorkerRuntimeInput) {
     this.slotId = `${input.workerId}:inbound`;
@@ -56,8 +56,22 @@ export class InboundWorkerRuntime {
     this.timer.unref();
   }
 
+  /** True while an admitted inbound call is still running on this worker. */
+  get hasActiveSession(): boolean {
+    return this.activeSession !== undefined;
+  }
+
+  /** OPS-6 SIGTERM: advertise no capacity, but keep renewing the active call until it ends. */
+  async beginDrain(): Promise<void> {
+    if (this.stopped || this.failed || this.draining) return;
+    this.draining = true;
+    this.suspended = true;
+    await this.register(false).catch(logFailure(this.log, 'inbound_deregister_failed'));
+    await this.floorLease.release().catch(logFailure(this.log, 'inbound_floor_release_failed'));
+  }
+
   async suspendForOutbound(): Promise<boolean> {
-    if (this.stopped || this.failed || this.suspended) return false;
+    if (this.stopped || this.failed || this.draining || this.suspended) return false;
     if (this.floorLease.isHeld) {
       const suspended = await this.input.operations.inbound.suspendProtectedCapacity({
         slotId: this.slotId,
@@ -74,7 +88,7 @@ export class InboundWorkerRuntime {
   }
 
   async resume(): Promise<void> {
-    if (this.stopped || this.failed || !this.suspended) return;
+    if (this.stopped || this.failed || this.draining || !this.suspended) return;
     this.suspended = false;
     if (await this.floorLease.claim()) {
       try {
@@ -137,7 +151,7 @@ export class InboundWorkerRuntime {
     this.activeSession = undefined;
     void this.resume()
       .then(() => {
-        if (!this.failed && !this.stopped) this.input.onSessionIdle?.(jobId);
+        if (!this.failed && !this.stopped && !this.draining) this.input.onSessionIdle?.(jobId);
       })
       .catch((error) =>
         this.failClosed(`inbound idle protection restore failed: ${String(error)}`),
@@ -152,7 +166,7 @@ export class InboundWorkerRuntime {
     this.activeSession = undefined;
     await this.register(false).catch(logFailure(this.log, 'inbound_deregister_failed'));
     try {
-      if (active) await this.terminateSession(active, 'worker-shutdown');
+      if (active) await terminateInboundSession(this.input, active, 'worker-shutdown');
     } finally {
       try {
         await this.floorLease.release();
@@ -161,23 +175,6 @@ export class InboundWorkerRuntime {
         this.protectionRenewal = undefined;
       }
     }
-  }
-
-  private async terminateSession(
-    active: NonNullable<InboundWorkerRuntime['activeSession']>,
-    reason: string,
-  ): Promise<void> {
-    if (this.input.terminateOwned) {
-      await this.input.terminateOwned(active.jobId, active.ownerEpoch, reason);
-      return;
-    }
-    const fenced = await this.input.store.requestSessionTermination(
-      active.jobId,
-      active.workerId,
-      active.ownerEpoch,
-      reason,
-    );
-    if (fenced && active.carrierCallId) await this.input.telephony.hangup(active.carrierCallId);
   }
 
   private async activateIdleCapacity(): Promise<void> {
@@ -274,7 +271,7 @@ export class InboundWorkerRuntime {
     await this.floorLease.release().catch(logFailure(this.log, 'inbound_floor_release_failed'));
     const settled = await Promise.allSettled([
       this.register(false),
-      ...(active ? [this.terminateSession(active, reason)] : []),
+      ...(active ? [terminateInboundSession(this.input, active, reason)] : []),
     ]);
     for (const failure of settled)
       if (failure.status === 'rejected')

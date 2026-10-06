@@ -2,12 +2,20 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai';
 import type { NetPort, UsageSink } from '@winsendotai/ovo-contracts';
 import { AiSdkInference, type AiSdkInferenceOptions } from '@winsendotai/ovo-plugin-kit';
+import { resolveVoiceTuning, type VoiceTuning } from './voice-tuning.ts';
 
-export interface OpenAiInferenceConfig {
+export interface OpenAiInferenceConfig extends VoiceTuning {
   model: string;
   temperature?: number;
   maxOutputTokens?: number;
   instructions?: string;
+}
+
+export interface OpenAiInferenceSettings {
+  /** OVO_LLM_* overrides for fields the binding leaves out; the plugin passes process.env. */
+  env?: Readonly<Record<string, string | undefined>>;
+  /** Scopes the default prompt cache key, so one binding's turns share a cache. */
+  bindingId?: string;
 }
 
 export function openAiInference(
@@ -16,6 +24,7 @@ export function openAiInference(
   binding: OpenAiInferenceConfig,
   usage?: UsageSink,
   onUsage?: AiSdkInferenceOptions['onUsage'],
+  settings: OpenAiInferenceSettings = {},
 ): AiSdkInference {
   const provider = createOpenAI({
     apiKey,
@@ -40,6 +49,9 @@ export function openAiInference(
           }),
     provider: 'openai',
     maxOutputTokens: binding.maxOutputTokens,
+    providerOptions: {
+      openai: resolveVoiceTuning(binding.model, binding, settings.env, settings.bindingId),
+    },
     instructions: binding.instructions,
     usage,
     onUsage,
