@@ -1,4 +1,5 @@
 import { LOG_LEVELS, type LogFields, type LogLevel, type Logger } from '@winsendotai/ovo-contracts';
+import { isSecretField, scrubCredentials } from './redaction.ts';
 
 /** Receives one finished JSON line. The default writes warn/error to stderr, the rest to stdout. */
 export type LogSink = (line: string, level: LogLevel) => void;
@@ -15,11 +16,6 @@ const consoleSink: LogSink = (line, level) => {
   else console.log(line);
 };
 
-// Keys whose values are credentials whatever they hold. `rt`/`t` are the carrier route-token and
-// URL-secret query names; count fields such as `inputTokens` deliberately do not match.
-const SECRET_KEY =
-  /(?:authorization|cookie|password|passphrase|secret|signature|credential|token|api[_-]?key|master[_-]?key|private[_-]?key)$/i;
-const SECRET_SHORT_KEYS = new Set(['rt', 't', 'sig']);
 const MAX_STRING = 1_000;
 
 export function parseLogLevel(value: string | undefined): LogLevel {
@@ -27,16 +23,9 @@ export function parseLogLevel(value: string | undefined): LogLevel {
   return (LOG_LEVELS as readonly string[]).includes(normalized) ? (normalized as LogLevel) : 'info';
 }
 
-/** Scrubs bearer/basic credentials, URL userinfo, secret query parameters and phone numbers. */
+/** Scrubs credentials (see `scrubCredentials`) and phone numbers, and caps the length. */
 export function redactLogText(text: string): string {
-  const scrubbed = text
-    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, '$1 [redacted]')
-    .replace(/(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi, '$1[redacted]@')
-    .replace(
-      /([?&](?:t|rt|sig|token|routeToken|signature|access_token|api_key|key)=)[^&#\s"']*/gi,
-      '$1[redacted]',
-    )
-    .replace(/\+\d{8,15}\b/g, '[number]');
+  const scrubbed = scrubCredentials(text).replace(/\+\d{8,15}\b/g, '[number]');
   return scrubbed.length > MAX_STRING ? `${scrubbed.slice(0, MAX_STRING)}…` : scrubbed;
 }
 
@@ -51,9 +40,7 @@ function redactValue(value: unknown, depth: number): unknown {
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [
       key,
-      SECRET_KEY.test(key) || SECRET_SHORT_KEYS.has(key)
-        ? '[redacted]'
-        : redactValue(item, depth + 1),
+      isSecretField(key) ? '[redacted]' : redactValue(item, depth + 1),
     ]),
   );
 }

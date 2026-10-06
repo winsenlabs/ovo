@@ -7,6 +7,7 @@ export * from './legacy-cost-meters.ts';
 export * from './logger.ts';
 export * from './net.ts';
 export * from './provider-socket.ts';
+export * from './redaction.ts';
 export * from './speech-shims.ts';
 export * from './sse.ts';
 export * from './ssrf.ts';
