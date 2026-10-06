@@ -61,6 +61,7 @@ export class GatewayHealth {
     try {
       this.options.assertArmed();
     } catch {
+      // swallow-ok: not armed is the answer this health field reports, not a failure.
       armed = false;
     }
     return {
