@@ -27,6 +27,8 @@ export type JsonShape = {
   const?: unknown;
   minimum?: number;
   maximum?: number;
+  maxItems?: number;
+  items?: JsonShape;
   default?: unknown;
   description?: string;
 };

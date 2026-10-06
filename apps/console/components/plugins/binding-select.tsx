@@ -6,6 +6,7 @@ import { FormField } from '../ui/form-field';
 import { SchemaForm } from './schema-form';
 import { schemaDefaults } from './schema-defaults';
 import { CarrierOperatorUrls } from './carrier-operator-urls';
+import { VoicePreviewButton } from '../integrations/voice-preview-button';
 import type { PluginOption } from './types';
 export { carrierOperatorUrls } from './carrier-operator-urls';
 export function BindingSelect({
@@ -135,6 +136,7 @@ export function BindingSelect({
         <button className="button" type="button" onClick={() => setOpen(true)}>
           Create binding
         </button>
+        {plugin.kind === 'tts' && value && <VoicePreviewButton bindingId={value} />}
       </div>
       {error && <p role="alert">{error}</p>}
       {plugin.kind === 'carrier' && value && <CarrierOperatorUrls bindingId={value} />}

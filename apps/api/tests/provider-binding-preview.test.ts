@@ -35,7 +35,7 @@ function build(net: NetPort, bindings: ProviderBinding[]) {
   const app = Fastify({ logger: false });
   // The management API answers a validation error with 400; so does this bare app.
   app.setErrorHandler((caught, _request, reply) =>
-    reply.code(caught instanceof z.ZodError ? 400 : 500).send({ error: caught.message }),
+    reply.code(caught instanceof z.ZodError ? 400 : 500).send({ error: (caught as Error).message }),
   );
   const audits: Record<string, unknown>[] = [];
   const resolved: string[] = [];
@@ -60,7 +60,7 @@ function build(net: NetPort, bindings: ProviderBinding[]) {
 }
 
 describe('POST /v1/provider-bindings/:id/preview (TTS-3)', () => {
-  it('renders the line through the binding as 8 kHz mu-law WAV and audits it', async () => {
+  it('renders the line through the binding as 8 kHz PCM WAV and audits it', async () => {
     const net = createFixtureNet(
       openAiTtsTemplate({
         format: { encoding: 'pcm_s16le', sampleRate: 24000, channels: 1 },
@@ -81,9 +81,10 @@ describe('POST /v1/provider-bindings/:id/preview (TTS-3)', () => {
     expect(response.headers['x-ovo-preview-characters']).toBe('22');
     const wav = response.rawPayload;
     expect(wav.toString('ascii', 0, 4)).toBe('RIFF');
-    expect(wav.readUInt16LE(20)).toBe(7); // WAVE_FORMAT_MULAW: what the caller hears
-    expect(wav.readUInt32LE(24)).toBe(8000);
-    expect(wav.byteLength).toBeGreaterThan(58 + 100);
+    expect(wav.readUInt16LE(20)).toBe(1); // PCM, which every browser plays
+    expect(wav.readUInt32LE(24)).toBe(8000); // the telephone band a caller hears
+    expect(wav.readUInt16LE(34)).toBe(16);
+    expect(wav.byteLength).toBeGreaterThan(44 + 100);
     expect(resolved).toEqual(['cred-1']);
     expect(audits).toEqual([
       {

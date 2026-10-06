@@ -1,38 +1,8 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { Cap, type CarrierIngress } from '@winsendotai/ovo-contracts';
 import { createCarrierHostPorts } from '@winsendotai/ovo-session-host';
-import { manifestKeys, PluginRegistry } from '@winsendotai/ovo-runtime';
-import type { PluginDefinition } from '@winsendotai/ovo-runtime';
+import { selectedBindingPlugin } from './provider-binding-plugin.ts';
 import { registerProviderBindingPreview } from './provider-binding-preview.ts';
-
-function selectedBindingPlugin(
-  body: { provider: string; pluginId?: string | null; config: Record<string, unknown> },
-  catalog: readonly PluginDefinition[],
-) {
-  const registry = new PluginRegistry(catalog);
-  const matches = registry.list().filter((definition) => {
-    const manifest = manifestKeys(definition.manifest).manifest;
-    return manifest.kind !== 'infra' && manifest.provider === body.provider;
-  });
-  const ids = [...new Set(matches.map((definition) => definition.manifest.id))];
-  const pluginId = body.pluginId ?? (ids.length === 1 ? ids[0] : null);
-  if (pluginId) {
-    const definition = registry.get(pluginId);
-    if (!definition || manifestKeys(definition.manifest).manifest.provider !== body.provider)
-      throw Object.assign(
-        new Error(`Plugin ${pluginId} does not match provider ${body.provider}`),
-        { statusCode: 400, code: 'binding_plugin_mismatch' },
-      );
-    const validation = registry.validateBinding(pluginId, body.config);
-    if (!validation.ok)
-      throw Object.assign(new Error(`Invalid binding for ${pluginId}: ${validation.errors}`), {
-        statusCode: 400,
-        code: 'binding_schema_invalid',
-      });
-    return { pluginId, kind: manifestKeys(definition.manifest).manifest.kind };
-  }
-  return { pluginId: null, kind: null };
-}
 
 export function registerCredentialsRoutes(dependencies: any) {
   const {
@@ -183,7 +153,7 @@ export function registerCredentialsRoutes(dependencies: any) {
     },
   );
 
-  registerProviderBindingPreview({ app, store, secrets, catalog, requireRole, error });
+  registerProviderBindingPreview(dependencies);
 
   app.get(
     '/v1/provider-bindings/:id/carrier-urls',

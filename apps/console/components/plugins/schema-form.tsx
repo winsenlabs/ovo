@@ -4,6 +4,7 @@ import type { JsonShape, PluginOption } from './types';
 import type { CredentialMetadata } from '../../lib/api';
 import { FormField } from '../ui/form-field';
 import { JsonEditor } from '../forms/json-editor';
+import { LocatorListField } from './locator-list-field';
 
 function fieldValue(value: Record<string, unknown>, key: string): string {
   return value[key] == null ? '' : String(value[key]);
@@ -143,6 +144,15 @@ export function SchemaForm({
               </FormField>
             );
           }
+          if (shape.type === 'array' && shape.items?.properties?.id)
+            return (
+              <LocatorListField
+                key={key}
+                field={{ id, label, help, max: shape.maxItems ?? 3 }}
+                value={value[key]}
+                onChange={(next) => patch(key, next)}
+              />
+            );
           if (shape.const === true)
             return (
               <FormField key={key} id={id} label={label} help={help} required>

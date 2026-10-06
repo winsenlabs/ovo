@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   Cap,
-  MULAW_8K,
+  PCM16_8K,
   type NetPort,
   type SecretResolver,
   type TextToSpeech,
@@ -24,7 +24,7 @@ export const DEFAULT_PREVIEW_TEXT =
   'Hello, this is a preview of the voice your callers will hear on this line.';
 /** Longest a preview may synthesise before it is cut off, and the most audio it may return. */
 export const PREVIEW_TIMEOUT_MS = 15_000;
-const MAX_PREVIEW_BYTES = 8_000 * 30;
+const MAX_PREVIEW_BYTES = 16_000 * 30;
 
 const PreviewBody = z
   .object({
@@ -54,8 +54,8 @@ export interface PreviewDependencies {
 
 /**
  * `POST /v1/provider-bindings/:id/preview` (TTS-3): renders a short line with a TTS binding and
- * returns it as WAV in the carrier's own format (8 kHz mu-law), so the operator hears what a caller
- * would. Admin only: every preview is a billed provider request, and it is audited with the
+ * returns it as 8 kHz 16-bit PCM WAV, the telephone band a caller hears, in a format every browser
+ * plays. Admin only: every preview is a billed provider request, and it is audited with the
  * characters it spent. It runs the binding's installed plugin in a throwaway graph, exactly as a
  * call would, so a preview that works proves the binding and its credential.
  */
@@ -110,7 +110,7 @@ export function registerProviderBindingPreview(dependencies: PreviewDependencies
         .header('cache-control', 'no-store')
         .header('x-ovo-preview-characters', String([...text].length))
         .header('x-ovo-preview-meters', String(usage.length))
-        .send(Buffer.from(encodeRecordingWav(MULAW_8K, audio)));
+        .send(Buffer.from(encodeRecordingWav(PCM16_8K, audio)));
     },
   );
 }
@@ -186,7 +186,7 @@ async function synthesizePreview(input: {
     for await (const chunk of adaptTextToSpeech(native).synthesize({
       sessionId: `preview:${input.binding.id}`,
       text: input.text,
-      format: MULAW_8K,
+      format: PCM16_8K,
       language: 'en',
       ...(input.voice ? { voice: input.voice } : {}),
       kind: 'response',

@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import pg, { type Pool } from 'pg';
-import { runCallOutcomeMigrations } from '@winsendotai/ovo-plugin-storage/outcomes';
+import { runCallbackMigrations } from './callback-migrations.ts';
+
+export { runCallbackMigrations } from './callback-migrations.ts';
 
 export const CALLBACK_STATUSES = [
   'pending',
@@ -38,72 +40,9 @@ export interface CallbackDial {
   variables: Record<string, string>;
 }
 
-/**
- * v1 (AGT-15). A callback is promised during a call as a `disposition` session event carrying a
- * `callback` field; this table adds what happens to it afterwards. The partial index keeps the sync
- * from scanning every session event: only callback dispositions enter it.
- */
-export const callbacksV1 = `
-CREATE TABLE IF NOT EXISTS ovo_callbacks (
-  id uuid PRIMARY KEY,
-  workspace_id text NOT NULL CHECK (length(workspace_id) > 0),
-  call_id text NOT NULL CHECK (length(call_id) BETWEEN 1 AND 200),
-  event_id text NOT NULL CHECK (length(event_id) BETWEEN 1 AND 100),
-  due_at timestamptz NOT NULL,
-  timezone text NOT NULL,
-  source text NOT NULL CHECK (source IN ('flow', 'llm')),
-  node text,
-  disposition text,
-  reason text,
-  status text NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('pending', 'dialing', 'dialed', 'completed', 'cancelled')),
-  dial_operation_id uuid,
-  dialed_call_id text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (workspace_id, call_id, event_id)
-);
-CREATE INDEX IF NOT EXISTS ovo_callbacks_due ON ovo_callbacks (workspace_id, status, due_at, id);
-CREATE INDEX IF NOT EXISTS ovo_session_events_callbacks ON ovo_session_events (workspace_id)
-  WHERE type = 'disposition' AND payload ? 'callback';
-`;
-
-const MIGRATIONS: readonly string[] = [callbacksV1];
-
 const UUID = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 const ISO_INSTANT =
   '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2}([.][0-9]+)?)?(Z|[+-][0-9]{2}:[0-9]{2})$';
-
-/** Idempotent and safe to race, like the outcome migrations it builds on. */
-export async function runCallbackMigrations(pool: Pool): Promise<void> {
-  await runCallOutcomeMigrations(pool);
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(
-      "SET LOCAL statement_timeout = 0; SELECT pg_advisory_xact_lock(hashtext('ovo-callback-migrations'));" +
-        ' CREATE TABLE IF NOT EXISTS ovo_callback_schema_migrations' +
-        ' (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())',
-    );
-    const applied = await client.query<{ version: number }>(
-      'SELECT version FROM ovo_callback_schema_migrations',
-    );
-    const done = new Set(applied.rows.map((row) => Number(row.version)));
-    for (let version = 1; version <= MIGRATIONS.length; version += 1) {
-      if (done.has(version)) continue;
-      await client.query(MIGRATIONS[version - 1]!);
-      await client.query('INSERT INTO ovo_callback_schema_migrations (version) VALUES ($1)', [
-        version,
-      ]);
-    }
-    await client.query('COMMIT');
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw error;
-  } finally {
-    client.release();
-  }
-}
 
 interface Row {
   id: string;
