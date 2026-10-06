@@ -2,6 +2,7 @@ import type {
   EndReason,
   MediaDuplex,
   SpeechToText,
+  SttConfigurationUpdate,
   SttEvent,
   SttSession,
   UsageSink,
@@ -9,6 +10,7 @@ import type {
   VoiceEvent,
 } from '@winsendotai/ovo-contracts';
 import { DEFAULT_KEEP_MS, IngressBacklog, type IngressLimits } from './ingress-backlog.ts';
+import { LiveSttConfiguration } from './ingress-config.ts';
 import { IngressVad } from './ingress-vad.ts';
 import { describeError, logVoiceEvent } from './log.ts';
 import { MAX_STT_RECOVERIES, SttRecovery, sttFailure } from './stt-recovery.ts';
@@ -30,6 +32,9 @@ export class VoiceIngress {
   private acceptedBytes = 0;
   private provider?: { stt: SpeechToText; language: string; usage: UsageSink };
   private readonly recovery: SttRecovery;
+  private readonly configuration = new LiveSttConfiguration((error) =>
+    this.log('stt_update_configuration_failed', { error: describeError(error) }),
+  );
 
   constructor(
     private readonly media: MediaDuplex,
@@ -73,7 +78,14 @@ export class VoiceIngress {
       throw this.signal.reason ?? new DOMException('engine disposed', 'AbortError');
     }
     this.stt = session;
+    this.configuration.adopted(session);
     this.drain();
+  }
+
+  /** STT-4: false when the connected provider fixes its configuration at connect. */
+  updateConfiguration(update: SttConfigurationUpdate): boolean {
+    if (this.disposed || this.signal.aborted) return false;
+    return this.configuration.update(update, this.stt);
   }
 
   async dispose(graceful = false): Promise<void> {
