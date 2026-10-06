@@ -8,7 +8,12 @@ import {
   type InferenceStreamEvent,
 } from '@winsendotai/ovo-contracts';
 import { findClaims } from '../src/guardrail-detect.ts';
-import { GuardrailMetrics, ReplyGuardrail, type ReplyGuardrailInput } from '../src/guardrail.ts';
+import {
+  agentGuardrailInput,
+  GuardrailMetrics,
+  ReplyGuardrail,
+  type ReplyGuardrailInput,
+} from '../src/guardrail.ts';
 import { streamAgentReply } from '../src/agent-stream.ts';
 import { runPreReplySteps } from '../src/agent-pre-reply.ts';
 import { AgentTurnLog } from '../src/agent-turn-log.ts';
@@ -157,6 +162,37 @@ describe('ReplyGuardrail', () => {
     results.push({ balance: { amount: 12345, currency: 'INR' } });
     guard.check('Your balance is ₹12,345.');
     expect(events).toHaveLength(1);
+  });
+
+  it('lets an agent state built-in dates and tool results, and records verdicts on its sink', () => {
+    const appended: [string, Record<string, unknown>][] = [];
+    const results: { result: unknown }[] = [];
+    const input = agentGuardrailInput(
+      AgentGuardrailPolicy.parse({ mode: 'flag' }),
+      {
+        config,
+        now: () => new Date('2026-10-06T06:00:00Z'),
+        events: { append: async (type, payload) => void appended.push([type, payload]) },
+      },
+      results as never,
+      new GuardrailMetrics(),
+    );
+    const guard = new ReplyGuardrail(input, [], {}, 2);
+    expect(guard.check('Can you pay by 7 October or 13 October?')).toBeDefined();
+    expect(appended).toEqual([]);
+    guard.check('Your balance is ₹9,999.');
+    results.push({ result: { balance: 9999 } });
+    guard.check('Your balance is ₹9,999.');
+    expect(appended).toEqual([
+      [
+        'guardrail',
+        expect.objectContaining({
+          turn: 2,
+          action: 'flagged',
+          findings: [{ kind: 'amount', text: '9,999' }],
+        }),
+      ],
+    ]);
   });
 
   it('checks a sentence in well under a millisecond once the call text is parsed', () => {

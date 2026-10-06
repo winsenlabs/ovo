@@ -5,6 +5,21 @@ import type {
   TurnRoutePayload,
 } from '@winsendotai/ovo-contracts';
 import type { DecisionGateResult } from './decision-gate.ts';
+import type { AgentDecisionRecord } from './agent-turn-log.ts';
+
+/**
+ * The `turn.route` event for an agent turn: its decision verdict when one was recorded for this
+ * turn, otherwise `none` for a turn answered before the LLM (a knowledge refusal) or `llm`.
+ */
+export function turnRouteEvent(
+  turn: number,
+  decisions: readonly AgentDecisionRecord[],
+  answered: boolean,
+): TurnRoutePayload | null {
+  const decision = decisions.at(-1);
+  if (decision?.turn === turn) return routeEventFromDecision(turn, decision.result);
+  return { turn, tier: answered ? 'none' : 'llm' };
+}
 
 /**
  * The `turn.route` event (AGT-8) for one decision verdict. The tier is the one that produced the

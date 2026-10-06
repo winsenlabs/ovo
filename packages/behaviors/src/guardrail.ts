@@ -1,11 +1,14 @@
 import type {
   AgentConfig,
   AgentGuardrailPolicy,
+  EventSink,
   GuardrailCheck,
   GuardrailPayload,
+  OperationRecord,
 } from '@winsendotai/ovo-contracts';
 import { findClaims, textKeys, valueKeys, type GuardrailClaim } from './guardrail-detect.ts';
-import { agentTemplates } from './agent-variables.ts';
+import { agentTemplates, builtinVariables } from './agent-variables.ts';
+import { recordSessionEvent } from './outcome-events.ts';
 
 /** Per-session counters for the guardrail, read by the worker when the call ends. */
 export class GuardrailMetrics {
@@ -56,6 +59,34 @@ export interface ReplyGuardrailInput {
   values?: () => readonly unknown[];
   record?: (event: GuardrailPayload) => void;
   metrics?: GuardrailMetrics;
+}
+
+/**
+ * The guardrail input for one agent turn: the built-in dates and the turn's tool results may be
+ * stated too (tools settle during the turn, so `results` is read at each check), and every verdict
+ * is recorded on the call's event sink.
+ */
+export function agentGuardrailInput(
+  policy: AgentGuardrailPolicy,
+  agent: {
+    config: Pick<AgentConfig, 'uncertainty' | 'timezone'>;
+    now?: () => Date;
+    events?: EventSink;
+  },
+  results: readonly OperationRecord[],
+  metrics: GuardrailMetrics,
+): ReplyGuardrailInput {
+  const now = agent.now ?? (() => new Date());
+  return {
+    policy,
+    fallback: agent.config.uncertainty,
+    values: () => [
+      builtinVariables(now(), agent.config.timezone),
+      ...results.map((record) => record.result),
+    ],
+    record: (event) => recordSessionEvent(agent.events, 'guardrail', event),
+    metrics,
+  };
 }
 
 /** Everything an agent authored that the LLM may repeat. Templates count by their literal text. */

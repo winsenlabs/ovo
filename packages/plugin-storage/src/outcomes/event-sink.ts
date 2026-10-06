@@ -102,9 +102,8 @@ export class QueuedSessionEventSink implements EventSink {
     const attempts = Math.max(1, this.options.attempts ?? 3);
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       try {
-        return await this.store
-          .append(this.identity.workspaceId, this.identity.callId, batch)
-          .then(() => undefined);
+        await this.store.append(this.identity.workspaceId, this.identity.callId, batch);
+        return;
       } catch (error) {
         this.stat.failedWrites += 1;
         if (attempt === attempts) throw error;

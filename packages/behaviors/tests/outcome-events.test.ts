@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readSessionEvent, type EventSink } from '@winsendotai/ovo-contracts';
-import { recordSessionEvent, routeEventFromDecision } from '../src/outcome-events.ts';
+import {
+  recordSessionEvent,
+  routeEventFromDecision,
+  turnRouteEvent,
+} from '../src/outcome-events.ts';
 import type { DecisionGateResult } from '../src/decision-gate.ts';
 
 const answer = (choice: string, confidence: number) => ({
@@ -67,6 +71,14 @@ describe('turn.route from a decision (AGT-8)', () => {
       routeEventFromDecision(5, { kind: 'unavailable', reason: 'timeout', message: 'slow' }),
     ).toEqual({ turn: 5, tier: 'llm', fallbackReason: 'timeout' });
     expect(routeEventFromDecision(6, { kind: 'off' })).toBeNull();
+  });
+
+  it('routes a turn by its own decision only, else by whether the LLM was asked', () => {
+    const decisions = [{ turn: 3, result: decided({ say: 'Thanks.' }), at: '' }];
+    expect(turnRouteEvent(3, decisions, true)).toMatchObject({ turn: 3, tier: 'jev' });
+    expect(turnRouteEvent(4, decisions, false)).toEqual({ turn: 4, tier: 'llm' });
+    expect(turnRouteEvent(4, decisions, true)).toEqual({ turn: 4, tier: 'none' });
+    expect(turnRouteEvent(1, [], false)).toEqual({ turn: 1, tier: 'llm' });
   });
 
   it('never waits on the sink and skips a missing sink or event', () => {
