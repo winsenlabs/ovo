@@ -6,8 +6,7 @@ import { z } from 'zod';
 import { requireRole } from '../auth-service.ts';
 import { mergeCatalog, validateRelease } from '../release-runtime.ts';
 import type { ManagementApiOptions } from '../types.ts';
-import type { InfrastructureService } from '../infrastructure-types.ts';
-import { liveReadiness } from '../live-readiness.ts';
+import { liveDiagnostics, liveReadiness, type LivePathInfrastructure } from '../live-readiness.ts';
 import { PluginRegistry } from '@winsendotai/ovo-runtime';
 import { buildReleaseSelections } from '../release-selections.ts';
 import type { ProviderBinding } from '@winsendotai/ovo-plugin-storage';
@@ -18,9 +17,18 @@ export function registerReadinessRoutes(input: {
   options: ManagementApiOptions;
   catalog: readonly PluginDefinition[];
   services: PluginDefinition;
-  infrastructure?: InfrastructureService;
+  infrastructure?: LivePathInfrastructure;
   distributionDefaults?: import('@winsendotai/ovo-session-host').SessionDefaults;
 }) {
+  /**
+   * OBS-12: can a call go live right now, and if not, which stage is the blocker. Admin only: it
+   * names providers, workers and failure reasons. Reads cached state; it never calls a provider.
+   */
+  input.app.get('/v1/diagnostics/live-path', async (request, reply) => {
+    const principal = requireRole(request, 'admin');
+    const result = await liveDiagnostics(input.infrastructure, principal.workspaceId);
+    return reply.code(result.ready ? 200 : 503).send(result);
+  });
   input.app.get('/v1/agents/:agentId/readiness', async (request) => {
     const principal = requireRole(request, 'viewer');
     const { agentId } = z.object({ agentId: z.string().min(1).max(100) }).parse(request.params);

@@ -23,6 +23,8 @@ import {
   type PluginDefinition,
 } from '@winsendotai/ovo-runtime';
 import { createGatewayHost, type GatewayHostOptions } from './gateway-host.ts';
+import { gatewayMediaConfig } from './gateway-config.ts';
+import { GatewayHealth } from './gateway-health.ts';
 import { installInboundCarriers } from './inbound-carrier-installation.ts';
 
 const GATEWAY_NET_PLUGIN_ID = 'ovo.gateway.node-net';
@@ -74,23 +76,11 @@ function required(env: Readonly<Record<string, string | undefined>>, name: strin
   return value;
 }
 
-function integer(value: string | undefined, fallback: number): number {
-  const parsed = value === undefined ? fallback : Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0)
-    throw new Error('invalid positive integer environment value');
-  return parsed;
-}
-
-function drainTimeoutMs(env: Readonly<Record<string, string | undefined>>): number {
-  if (env.OVO_MEDIA_DRAIN_TIMEOUT_MS !== undefined)
-    return integer(env.OVO_MEDIA_DRAIN_TIMEOUT_MS, 1);
-  const deregistrationSeconds = integer(env.OVO_MEDIA_DEREGISTRATION_DELAY_SECONDS, 300);
-  return Math.max(100, deregistrationSeconds * 1_000 - 30_000);
-}
-
 export interface GatewayRuntime {
   composition: Composition;
   gateway: MediaGateway;
+  /** Live-path state for verbose health (OBS-12). */
+  health: GatewayHealth;
   close(): Promise<void>;
 }
 
@@ -133,6 +123,10 @@ export async function startGateway(
     await operations.migrate();
     const environmentCarrierId = installInboundCarriers(operations, distribution, env);
     operations.inboundGateway.assertArmed();
+    const health = new GatewayHealth({
+      pool: operations.pool,
+      assertArmed: () => operations.inboundGateway.assertArmed(),
+    });
     const resolver: MediaRouteResolver = {
       authenticateSessionRoute: store.authenticateSessionRoute.bind(store),
       resolveSessionRoute: store.resolveSessionRoute.bind(store),
@@ -153,6 +147,7 @@ export async function startGateway(
         ingresses: [...composition.all(Cap.carrierIngress).values()] as CarrierIngress[],
         environmentCarrierId,
         env,
+        health,
       });
       return host.hostFor(carrierId, bindingId);
     };
@@ -187,22 +182,7 @@ export async function startGateway(
           id: MEDIA_PLUGIN_IDS.gateway,
           config: {
             publicBaseUrl,
-            host: env.OVO_MEDIA_HOST ?? '0.0.0.0',
-            port: integer(env.OVO_MEDIA_PORT, 8080),
-            maxMessageBytes: integer(env.OVO_MEDIA_MAX_MESSAGE_BYTES, 65_536),
-            maxAudioFrameBytes: integer(env.OVO_MEDIA_MAX_AUDIO_FRAME_BYTES, 8_192),
-            maxBufferedBytes: integer(env.OVO_MEDIA_MAX_BUFFERED_BYTES, 262_144),
-            preAcceptBufferMs:
-              env.OVO_MEDIA_PRE_ACCEPT_MS === undefined
-                ? undefined
-                : integer(env.OVO_MEDIA_PRE_ACCEPT_MS, 3_000),
-            maxPendingFrames:
-              env.OVO_MEDIA_MAX_PENDING_FRAMES === undefined
-                ? undefined
-                : integer(env.OVO_MEDIA_MAX_PENDING_FRAMES, 25),
-            handshakeTimeoutMs: integer(env.OVO_MEDIA_HANDSHAKE_TIMEOUT_MS, 5_000),
-            idleTimeoutMs: integer(env.OVO_MEDIA_IDLE_TIMEOUT_MS, 30_000),
-            drainTimeoutMs: drainTimeoutMs(env),
+            ...gatewayMediaConfig(env),
           },
         },
       ],
@@ -214,6 +194,7 @@ export async function startGateway(
     return {
       composition: active,
       gateway,
+      health,
       async close() {
         await active.dispose();
         await operations.close();

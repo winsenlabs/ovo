@@ -17,6 +17,7 @@ import {
   validateSelections,
   type CarrierBindingRow,
 } from '@winsendotai/ovo-session-host';
+import type { GatewayHealth } from './gateway-health.ts';
 import { createInboundAdmission } from './inbound-admission.ts';
 import { projectInboundTerminalStatus } from './inbound-status.ts';
 
@@ -82,6 +83,7 @@ export interface GatewayHostOptions {
   ingresses: readonly CarrierIngress[];
   environmentCarrierId?: string;
   env: Readonly<Record<string, string | undefined>>;
+  health?: GatewayHealth;
 }
 
 /** Session-host owns URL signing and grants; this adapter supplies durable host ports. */
@@ -194,7 +196,10 @@ export function createGatewayHost(options: GatewayHostOptions) {
               ...(event.answeredBy ? { answeredBy: event.answeredBy } : {}),
             },
           });
-          if (result.kind === 'unmatched' || result.kind === 'correlation_conflict') return result;
+          if (result.kind === 'unmatched' || result.kind === 'correlation_conflict') {
+            options.health?.rejection(`status callback ${result.kind}`, event.carrierCallId);
+            return result;
+          }
           const job = await options.store.get(result.route.jobId);
           if (job?.payload.kind === 'inbound_call')
             await projectInboundTerminalStatus(options.operations, {
@@ -249,6 +254,7 @@ export function createGatewayHost(options: GatewayHostOptions) {
     routeSecret: options.routeSecret,
     hostFor,
     validateBeforeAdmission,
+    health: options.health,
   });
   return { hostFor };
 }
