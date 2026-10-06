@@ -2,7 +2,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createFakeCarrierHostPorts } from '@winsendotai/ovo-conformance';
 import type { CarrierHostPorts, CarrierHttpRoute } from '@winsendotai/ovo-contracts';
 import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
-import { twilioControlFactory, twilioIngress, twilioSignature } from '../src/index.ts';
+import {
+  TwilioTelephonyControl,
+  twilioControlFactory,
+  twilioIngress,
+  twilioSignature,
+} from '../src/index.ts';
 
 // OBS-4: every refusal below used to be a bare status code with no log line naming its cause.
 
@@ -154,4 +159,29 @@ it('logs why reconcile is still pending instead of returning pending silently', 
     status: 401,
   });
   expect(JSON.stringify(lines)).not.toContain('fixture-auth-token');
+});
+
+// The legacy v1 adapter's own pending path had no test, so its log line could vanish unnoticed.
+it('logs why the legacy adapter’s reconcile is still pending', async () => {
+  const control = new TwilioTelephonyControl(
+    { accountSid: sid, authToken: 'legacy-auth-token' },
+    {
+      findCarrierCallId: async () => callSid,
+    },
+    {
+      createCall: async () => ({ sid: callSid }),
+      updateCall: async () => undefined,
+      fetchCall: async () => {
+        throw Object.assign(new Error('Twilio REST 503'), { status: 503 });
+      },
+    },
+  );
+  expect(await control.reconcile('r-legacy')).toEqual({ kind: 'pending' });
+  expect(logged('twilio_reconcile_pending')).toMatchObject({
+    level: 'warn',
+    requestId: 'r-legacy',
+    carrierCallId: callSid,
+    error: 'Twilio REST 503',
+  });
+  expect(JSON.stringify(lines)).not.toContain('legacy-auth-token');
 });
