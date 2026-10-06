@@ -209,7 +209,7 @@ describe('authoring rules', () => {
       questions: [choice],
       state: { sources: ['last-turn'] },
     });
-    expect(parsed.timeoutMs).toBe(1500);
+    expect(parsed.timeoutMs).toBe(800);
     expect(() =>
       AgentDecisionPolicy.parse({
         enabled: true,

@@ -192,9 +192,11 @@ export const AgentDecisionPolicy = z
       ),
     /**
      * Milliseconds the decision may take before the turn gives up and runs the fallback. A decision
-     * sits in front of the reply, so its latency is audible.
+     * sits in front of the reply, so its latency is audible. Jev answers in ~300ms on a warm
+     * connection; 800ms relies on LAT-8's keep-alive and session pre-warm so a cold TLS handshake
+     * from Mumbai does not turn into an `unavailable` verdict.
      */
-    timeoutMs: z.number().int().min(50).max(10_000).default(1_500),
+    timeoutMs: z.number().int().min(50).max(10_000).default(800),
   })
   .strict()
   .refine(
