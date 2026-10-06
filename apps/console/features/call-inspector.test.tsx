@@ -60,6 +60,8 @@ function respond(outcomeResponse: unknown) {
   request.mockImplementation(async (path: string) => {
     if (path === '/calls/call-1/evidence') return { data: evidence };
     if (path === '/calls/call-1/outcome?limit=500') return { data: outcomeResponse };
+    if (path === '/calls/call-1/turns') return { data: { callId: 'call-1', turns: [] } };
+    if (path === '/calls/call-1/cost') throw new Error('ledger not configured');
     throw new Error(`unexpected ${path}`);
   });
 }

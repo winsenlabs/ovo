@@ -13,6 +13,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { getProductionRecordingServices } from '../recording-runtime.ts';
 import { publicRecording } from './recording-lifecycle-data.ts';
 import { registerCallOutcomes } from './call-outcomes.ts';
+import { callDiagnosis, costByCurrency, evidenceSelections } from './call-diagnosis.ts';
 export function registerInspectionRoutes(dependencies: any) {
   const {
     app,
@@ -114,25 +115,7 @@ export function registerInspectionRoutes(dependencies: any) {
           .filter((key): key is string => typeof key === 'string'),
       ),
     ];
-    const resolved = evidenceRecord(result?.selections) ? result.selections : undefined;
-    const selections = resolved
-      ? Object.fromEntries(
-          Object.entries(resolved).flatMap(([slot, value]) => {
-            if (
-              !evidenceRecord(value) ||
-              typeof value.id !== 'string' ||
-              typeof value.version !== 'string'
-            )
-              return [];
-            return [
-              [
-                slot,
-                { pluginId: value.id, version: value.version, resolvedVersion: value.version },
-              ],
-            ];
-          }),
-        )
-      : (release?.selections ?? {});
+    const selections = evidenceSelections(result?.selections, release?.selections);
     return {
       call: {
         ...call,
@@ -150,7 +133,9 @@ export function registerInspectionRoutes(dependencies: any) {
         reconciledPaise: reconciled.length ? evidencePaise(reconciled) : null,
         unpriced,
         lines: usage,
+        currencies: costByCurrency(usage),
       },
+      diagnosis: callDiagnosis(events),
       ...(result?.recording
         ? { recording: result.recording }
         : recordings.length
