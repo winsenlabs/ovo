@@ -1,7 +1,8 @@
 /**
  * The caller's words in progress, as the turn driver hands them to a behaviour that works ahead of
- * them (LAT-4). Structurally the contracts' `PartialUtterance` (`voice/turn.ts`, turns lane), read
- * from the behaviour without a cast: `AgentBehavior.prepare` and `discard` are its hooks.
+ * them (LAT-4). Structurally the contracts' `PartialUtterance` (`voice/turn-speculation.ts`, turns
+ * lane) plus optional `variables`, read from the behaviour without a cast: `AgentBehavior.prepare`
+ * and `discard` are its `TurnSpeculation` hooks.
  */
 export interface PartialWords {
   turnId: string;
