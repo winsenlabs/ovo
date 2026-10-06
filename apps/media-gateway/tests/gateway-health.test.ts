@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { OperationsService } from '@winsendotai/ovo-plugin-operations';
 import { GatewayHealth, healthTokenMatches } from '../src/gateway-health.ts';
 import { createInboundAdmission } from '../src/inbound-admission.ts';
-import { gatewayMediaConfig } from '../src/startup.ts';
+import { gatewayMediaConfig } from '../src/gateway-config.ts';
 
 function pool(signal?: Record<string, unknown>, ageMs = 1_000) {
   return {
