@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AgentConfig, type DecisionResponse } from '@winsendotai/ovo-contracts';
+import { AgentConfig, type DecisionPort, type DecisionResponse } from '@winsendotai/ovo-contracts';
 import { AgentBehavior } from '../src/index.ts';
 import { peekHistory } from '../src/speculation-history.ts';
 import { PlaybackConversation } from '../src/history.ts';
@@ -11,6 +11,7 @@ import {
   firstSegment,
   flowAgent,
   settleMs,
+  sleep,
   slowJev,
 } from './speculation-fixture.ts';
 
@@ -18,6 +19,8 @@ const TOMORROW = "Thank you. I've noted that you'll pay tomorrow.";
 const promise = { 'kal kar dunga': { intent: 'promise_to_pay', slots: { ptp_when: 'tomorrow' } } };
 
 const advance = (ms: number) => vi.advanceTimersByTimeAsync(ms);
+/** The decision policy's default `timeoutMs`: a failing model fails at its deadline. */
+const DEADLINE_MS = 800;
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -179,7 +182,7 @@ describe('a decision on the caller’s partial transcript (LAT-4)', () => {
     );
   });
 
-  it('decides again when the partial’s decision failed, with the turn’s own deadline', async () => {
+  it('decides again when the partial’s decision had failed, with the turn’s own deadline', async () => {
     const jev = slowJev({ 'kal kar dunga': new Error('jev unavailable') });
     const agent = flowAgent(jev.port);
     await atPayment(agent);
@@ -188,6 +191,38 @@ describe('a decision on the caller’s partial transcript (LAT-4)', () => {
     await firstSegment(agent, 'kal kar dunga', advance);
     expect(jev.requests).toHaveLength(2);
     expect(agent.speculationMetrics.decision).toMatchObject({ reused: 0, discarded: 1 });
+  });
+
+  it('takes a failure it waited on as its own, never adding a second deadline', async () => {
+    // Regression: the turn waited out the partial's failing call, then asked again with a full
+    // deadline, so a Jev outage nearly doubled the wait and billed two calls.
+    const failing = () => {
+      const requests: unknown[] = [];
+      const port: DecisionPort = {
+        decide: async (request, options) => {
+          requests.push(request);
+          await sleep(DEADLINE_MS, options.signal);
+          throw new Error('jev timed out');
+        },
+      };
+      return { port, requests };
+    };
+    const plainJev = failing();
+    const plain = flowAgent(plainJev.port, { partials: false });
+    await atPayment(plain);
+    const before = await firstSegment(plain, 'kal kar dunga', advance);
+    expect(before.ms).toBe(DEADLINE_MS);
+    expect(plainJev.requests).toHaveLength(1);
+
+    const jev = failing();
+    const agent = flowAgent(jev.port);
+    await atPayment(agent);
+    agent.prepare({ turnId: 't-3', text: 'kal kar dunga', stable: true });
+    await vi.advanceTimersByTimeAsync(100);
+    const after = await firstSegment(agent, 'kal kar dunga', advance);
+    expect(after).toEqual({ ms: DEADLINE_MS - 100, segment: before.segment });
+    expect(jev.requests).toHaveLength(1);
+    expect(agent.speculationMetrics.decision).toMatchObject({ reused: 1, discarded: 0 });
   });
 
   it('drops what was prepared for an utterance the driver discards', async () => {

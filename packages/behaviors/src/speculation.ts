@@ -10,9 +10,12 @@ export interface DecisionSpeculationMetrics {
   started: number;
   /** Of those, round trips to the decision model: each one is billed whether it is used or not. */
   modelCalls: number;
-  /** Verdicts that answered the final transcript, so the turn waited for no decision at all. */
+  /**
+   * Verdicts the final transcript took as its own, so the turn asked no decision of its own: a
+   * failure it was already waiting on included.
+   */
   reused: number;
-  /** Verdicts thrown away: the final words or the call's state differed, or the model failed. */
+  /** Verdicts thrown away: the final words or the call's state differed, or the model had failed. */
   discarded: number;
   /** Decisions cancelled before they settled: barge-in, a superseded turn, or the call ending. */
   cancelled: number;
@@ -101,21 +104,25 @@ export class DecisionSpeculation {
       this.drop(entry, 'superseded by the final transcript');
       return undefined;
     }
-    if (!entry.settled) waiting?.();
-    return this.reuse(entry, signal);
+    const inFlight = !entry.settled;
+    if (inFlight) waiting?.();
+    return this.reuse(entry, signal, inFlight);
   }
 
   private async reuse(
     entry: Speculated,
     signal: AbortSignal,
+    inFlight: boolean,
   ): Promise<DecisionGateResult | undefined> {
     // The turn owns the decision now: cancelling the turn cancels it.
     const cancel = () => entry.controller.abort(signal.reason);
     signal.addEventListener('abort', cancel, { once: true });
     try {
       const verdict = await entry.verdict;
-      // A failed speculative call is no reason to fail the turn: it gets its own full deadline.
-      if (unavailable(verdict)) {
+      // A speculative call that had already failed is no reason to fail the turn: it gets its own
+      // full deadline. One the turn waited on is its own: that call started before the turn ended
+      // with the same deadline, so asking again would only add a second deadline to the wait.
+      if (!inFlight && unavailable(verdict)) {
         this.metrics.discarded += 1;
         return undefined;
       }
