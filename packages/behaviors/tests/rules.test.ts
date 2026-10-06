@@ -94,4 +94,17 @@ describe('rule matcher', () => {
     expect(rules.match('x'.repeat(121))).toBeUndefined();
     expect(rules.match('x'.repeat(120))?.intent).toBe('a');
   });
+
+  it('runs the costliest accepted patterns on a worst-case reply in milliseconds', () => {
+    // Each pattern is at most RULE_PATTERN_MAX_COST and fails only at its last character, after
+    // trying every split of a 120-character reply. One turn may try four of them.
+    const worst = ['.*.*' + '.?'.repeat(4) + 'x', '.{0,20}'.repeat(4) + 'x', '.?'.repeat(17) + 'x'];
+    const reply = 'a'.repeat(60) + ' ' + 'b'.repeat(59);
+    for (const pattern of worst) {
+      const rules = matcher({ global: Array(4).fill({ intent: 'a', patterns: [pattern] }) });
+      const started = performance.now();
+      expect(rules.matches(reply)).toEqual([]);
+      expect(performance.now() - started, pattern).toBeLessThan(50);
+    }
+  });
 });

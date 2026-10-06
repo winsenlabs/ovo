@@ -69,9 +69,11 @@ set's intents; they run after the flow's own `phrases` and before the decision m
   today" is not a yes.
 - `keywords`: whole words anywhere in a reply of at most `maxWords` words (4 by default).
 - `patterns`: regular expressions, anchored to the whole normalised reply. A pattern that can
-  backtrack catastrophically is refused when the config is saved: backreferences, lookbehind, a
-  repeated group that itself repeats or alternates, and more than 3 unbounded repeats. Replies longer
-  than 120 normalised characters skip the rules tier.
+  backtrack far is refused when the config is saved: backreferences, lookbehind, a repeated group
+  that itself repeats or alternates, and a pattern with more match paths than two unbounded repeats
+  and four optional parts (`.{0,20}` counts like `.*`; alternatives and `?` count too). The patterns
+  one turn tries (its listen set plus global) may together cost at most four such patterns. Replies
+  longer than 120 normalised characters skip the rules tier.
 
 ## Caller silence (AGT-11)
 
@@ -136,5 +138,6 @@ lines. Templated lines are validated against the declared variables like every a
 - A new release whose STT finalises only on a host commit (`forceEndpoint` with no end-of-turn
   signal, such as Scribe with manual commit) gets that VAD preselected.
 - The turn detector's `auto` strategy already resolves to `commit` for such an STT.
-- AssemblyAI bindings that name no endpointing preset connect with `fast`. This lives in the
-  integration patch, because that plugin belongs to no lane.
+- AssemblyAI bindings that configure no turn detection at all (no preset and no turn field)
+  connect with `fast`; a binding that tuned any field keeps sending only what it set. This lives in
+  the integration patch, because that plugin belongs to no lane.

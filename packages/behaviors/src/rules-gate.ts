@@ -30,7 +30,10 @@ const RULES_CALIBRATION = 'ovo.rules@1';
  * model or a clarification apart from an answer when choosing what to say instead (AGT-4, AGT-12).
  */
 export class RuledDecisionGate extends DecisionGate {
-  /** The verdict of the most recent `evaluate`, cleared when the next one starts. */
+  /**
+   * The verdict of the most recent `evaluate`, cleared when the next one starts. The agent clears
+   * it at the start of every caller turn too, since some turns never ask the gate.
+   */
   last?: DecisionGateResult;
 
   constructor(

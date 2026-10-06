@@ -147,6 +147,8 @@ export class AgentBehavior implements Behavior {
         }
         wrote = resumed.wrote;
       }
+      // A turn that never asks the gate (a knowledge refusal) must not be judged by the last verdict.
+      if (this.gate) this.gate.last = undefined;
       const route = await this.lines.route({
         input,
         llm: this.inference !== undefined,

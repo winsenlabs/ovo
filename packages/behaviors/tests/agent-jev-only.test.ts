@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_DIDNT_CATCH, DEFAULT_GIVE_UP } from '@winsendotai/ovo-contracts';
-import { call, collect, llm, receipt } from './agent-call-control-fixture.ts';
+import { AgentConfig, DEFAULT_DIDNT_CATCH, DEFAULT_GIVE_UP } from '@winsendotai/ovo-contracts';
+import { AgentBehavior } from '../src/index.ts';
+import {
+  call,
+  collect,
+  execution,
+  llm,
+  NOW,
+  receipt,
+  variables,
+} from './agent-call-control-fixture.ts';
 import { jev, jevOnly, policy } from './jev-only-fixture.ts';
 
 describe('Jev-only agents: no LLM bound (AGT-4)', () => {
@@ -64,6 +73,52 @@ describe('decision unavailable (AGT-4)', () => {
     );
     expect(await failed.respond('I will pay', call)).toBe('One moment, Ravi.');
     expect(model.requests).toHaveLength(0);
+  });
+
+  it("judges a turn that never asks the decision model by its own outcome, not the last turn's", async () => {
+    // Regression: a knowledge refusal skips the decision step, and used to be read as the previous
+    // turn's unavailable verdict: the caller heard the unavailable line, and it counted as a miss.
+    let indexUp = true;
+    const agent = (recovery?: Record<string, unknown>) =>
+      new AgentBehavior(
+        AgentConfig.parse({
+          name: 'Collections',
+          mode: 'agent',
+          variables,
+          decision: policy(),
+          decisionUnavailable: { line: 'One moment please.' },
+          knowledge: { enabled: true, minScore: 0.4, topK: 3, requireGrounding: true },
+          ...(recovery ? { recovery } : {}),
+        }),
+        llm().port,
+        execution,
+        {
+          workspaceId: 'w-1',
+          sessionId: 's-1',
+          now: () => NOW,
+          decision: jev(new Error('jev down'), new Error('jev down')).port,
+          knowledge: {
+            search: async () => {
+              if (!indexUp) throw new Error('index unavailable');
+              return {
+                revision: 'inline-1',
+                passages: [{ id: 'p#1', sourceId: 'p', text: 'Pay by the 5th.', score: 0.9 }],
+              };
+            },
+          },
+        },
+      );
+    const plain = agent();
+    expect(await plain.respond('I will pay', call)).toBe('One moment please.');
+    indexUp = false;
+    expect(await plain.respond('what is the fee', call)).toBe('I do not have that information.');
+
+    indexUp = true;
+    const bounded = agent({ maxAttempts: 1 });
+    expect(await bounded.respond('I will pay', call)).toBe('One moment please.');
+    indexUp = false;
+    expect(await bounded.respond('what is the fee', call)).toBe('I do not have that information.');
+    expect(bounded.isComplete()).toBe(false);
   });
 
   it('ends the call once the line has played when the action is end', async () => {

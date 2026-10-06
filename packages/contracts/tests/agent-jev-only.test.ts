@@ -5,6 +5,9 @@ import {
   agentRecoveryLines,
   DEFAULT_DIDNT_CATCH,
   DEFAULT_GIVE_UP,
+  AgentRules,
+  RULE_PATTERN_MAX_COST,
+  rulePatternCost,
   unsafeRulePattern,
 } from '../src/index.ts';
 
@@ -175,6 +178,9 @@ describe('rule patterns that cannot backtrack catastrophically (AGT-6)', () => {
     '.*\\bbye\\b.*',
     'call (me )?after [0-9]{1,2}',
     '[(+*]+ok',
+    '(yes|no)?( sir)?',
+    '\\p{L}{2}\\u{41}',
+    '.{0,20}.{0,20}.{0,20}.{0,20}x',
   ])('accepts %s', (pattern) => expect(unsafeRulePattern(pattern)).toBeUndefined());
 
   it.each([
@@ -184,9 +190,37 @@ describe('rule patterns that cannot backtrack catastrophically (AGT-6)', () => {
     ['(a{2,})+', 'repeats a group that itself repeats or alternates'],
     ['(\\w)\\1', 'uses a backreference'],
     ['(?<=yes)no', 'uses a lookbehind'],
-    ['a*b*c*d*', 'uses more than 3 unbounded repeats'],
+    ['(a?)+', 'repeats a group that itself repeats or alternates'],
+    ['(yes|no){2}', 'repeats a group that itself repeats or alternates'],
+    ['a*b*c*d*', 'has too many repeats, optional parts or alternatives'],
+    // Bounded repeats, optional parts and alternatives multiply paths just as `*` does.
+    ['.{0,20}'.repeat(7) + 'x', 'has too many repeats, optional parts or alternatives'],
+    ['.?'.repeat(20) + 'x', 'has too many repeats, optional parts or alternatives'],
+    ['(?:.|a)'.repeat(20) + 'x', 'has too many repeats, optional parts or alternatives'],
     ['(', 'is not a valid regular expression'],
   ])('refuses %s', (pattern, reason) => expect(unsafeRulePattern(pattern)).toBe(reason));
+
+  it('bounds the match paths: sequences multiply, alternatives add, `?` doubles', () => {
+    expect(rulePatternCost('not yet|not received')).toBe(2);
+    expect(rulePatternCost('pay (it )?(today|tomorrow)')).toBe(4);
+    expect(rulePatternCost('.*\\bbye\\b.*')).toBe(121 ** 2);
+    expect(rulePatternCost('[0-9]{1,2}a{3}')).toBe(2);
+    expect(rulePatternCost('.*.*' + '.?'.repeat(4))).toBe(RULE_PATTERN_MAX_COST);
+  });
+
+  it('refuses rules whose patterns are too costly to try together on one turn', () => {
+    const costly = { intent: 'intent=pay', patterns: ['.*.*' + '.?'.repeat(4)] };
+    expect(AgentRules.safeParse({ global: Array(4).fill(costly) }).success).toBe(true);
+    const tooMany = AgentRules.safeParse({ global: Array(5).fill(costly) });
+    expect(tooMany.error?.issues.map((issue) => issue.message)).toEqual([
+      'Rule patterns tried on one turn are too costly together; simplify or remove some',
+    ]);
+    const split = AgentRules.safeParse({
+      global: Array(3).fill(costly),
+      listens: { identity: Array(1).fill(costly), payment: Array(2).fill(costly) },
+    });
+    expect(split.error?.issues.map((issue) => issue.path)).toEqual([['listens', 'payment']]);
+  });
 
   it('reports an unsafe pattern as a config error', () => {
     expect(
