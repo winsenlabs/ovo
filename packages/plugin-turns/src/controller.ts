@@ -1,8 +1,10 @@
 import {
   classifyConfirmation,
+  type SttEvent,
   type UserTurnController,
   type VoiceEvent,
 } from '@winsendotai/ovo-contracts';
+import { isProviderEnd } from './stop-provider.ts';
 import { canInterrupt, confirmationPrompt, speechMuted } from './mute.ts';
 import { vadStartsTurn } from './start-vad.ts';
 import { TurnControllerState } from './controller-state.ts';
@@ -70,7 +72,12 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         break;
       case 'bot.started':
         this.idle.cancel();
-        this.bot = { epoch: event.epoch, kind: event.kind };
+        this.bot = {
+          epoch: event.epoch,
+          kind: event.kind,
+          question: event.question,
+          filler: event.filler,
+        };
         if (speechMuted(this.view(), this.rules)) this.reset('muted');
         break;
       case 'bot.stopped':
@@ -102,6 +109,33 @@ export class TurnController extends TurnControllerState implements UserTurnContr
       case 'confirmation.resolved':
         this.confirmationPending = false;
         break;
+    }
+  }
+
+  private onStt(event: SttEvent): void {
+    if (event.type === 'speech-start') {
+      // A declared speech-end contract makes speech-start a latching signal. Without capabilities,
+      // the provider may use end-of-turn as its only release signal (the conformance driver does).
+      this.providerSpeaking = !!this.input.stt?.turnSignals.includes('speech-end');
+      this.providerEndPending = false;
+      this.idle.cancel();
+      if (!this.vadStopPending) this.stopTimers.cancel();
+      return;
+    }
+    if (event.type === 'speech-end') {
+      this.providerSpeaking = false;
+      if (this.providerEndPending || this.vadStopReady || this.deferredStop) this.tryStop();
+      else this.safety();
+      return;
+    }
+    if (event.type === 'transcript') {
+      this.onTranscript(event);
+      return;
+    }
+    if (isProviderEnd(event)) {
+      if (event.type === 'end-of-turn' && event.eager) return;
+      this.providerEndPending = true;
+      if (this.strategy === 'provider' || !this.vadSpeaking) this.tryStop();
     }
   }
 
