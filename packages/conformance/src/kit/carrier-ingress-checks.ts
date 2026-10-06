@@ -104,4 +104,29 @@ export const CARRIER_INGRESS_CHECKS: readonly KitCheck<CarrierKitContext>[] = [
       return f.messages;
     },
   },
+  {
+    /**
+     * Inbound routes are keyed by E.164 and matched exactly, so a carrier whose callbacks carry
+     * another number form (Plivo's bare digits) must normalise before admission, or a bought DID
+     * never reaches its route. Runs when `requests.inbound` is supplied; give it the carrier's own
+     * callback number form.
+     */
+    name: 'the inbound route admits E.164 numbers',
+    async run(context) {
+      const { ingress } = await carrier(context);
+      const route = routeOf(ingress, 'inbound');
+      const request = context.options.requests?.inbound;
+      if (!route || !request) return [];
+      const host = hostFor(context);
+      await route.handle(request, host);
+      const admission = host.calls.find((c) => c.method === 'admitInbound')?.args as
+        { from?: string; to?: string } | undefined;
+      if (!admission) return ['the inbound callback never reached host.admitInbound'];
+      const e164 = /^\+[1-9]\d{6,14}$/;
+      return [
+        ...(e164.test(admission.to ?? '') ? [] : [`admitted to ${admission.to}, not E.164`]),
+        ...(e164.test(admission.from ?? '') ? [] : [`admitted from ${admission.from}, not E.164`]),
+      ];
+    },
+  },
 ];
