@@ -360,6 +360,36 @@ describe('per-call clips in a live session (TTS-10)', () => {
     expect(clips?.discarded).toBe(true);
   });
 
+  it('runs the dial hand-off pre-warm and the per-call render side by side', async () => {
+    const runtime = runtimeWith(new RecordingTts());
+    const release = greetFirstRelease();
+    const warmed: string[] = [];
+    const metered: string[] = [];
+    const onDial = runtime.onDial(
+      async (jobId) => void warmed.push(jobId),
+      {
+        get: async () => ({
+          workspaceId: 'workspace-a',
+          payload: { releaseId: release.id, variables: VARIABLES },
+        }),
+      },
+      { getRelease: async () => release },
+      { usageForJob: (jobId) => () => void metered.push(jobId) },
+    );
+    await onDial('job-11');
+    expect(warmed).toEqual(['job-11']);
+    await vi.waitFor(() => expect(runtime.perCall.claim('job-11')?.get(SPOKEN)?.ready).toBe(true));
+    expect(metered).toContain('job-11');
+    // Provider pre-warm switched off: the clips still render.
+    await runtime.onDial(
+      undefined,
+      { get: async () => undefined },
+      { getRelease: async () => undefined },
+      { usageForJob: () => undefined },
+    )('job-12');
+    await runtime.close();
+  });
+
   it('reads its limits from the environment and rejects invalid values', () => {
     expect(speechCacheOptionsFromEnv({}).perCall).toEqual(DEFAULT_SPEECH_CACHE_OPTIONS.perCall);
     expect(

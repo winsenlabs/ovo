@@ -115,6 +115,23 @@ export class WorkerSpeechCacheRuntime {
     return runtime;
   }
 
+  /**
+   * The dial hand-off hook (outbound: the phone is ringing; inbound: admission): the provider
+   * pre-warm, and beside it this call's personal opening rendering into memory (TTS-10), metered
+   * to the job. Neither ever throws or delays the call.
+   */
+  onDial(
+    prewarm: ((jobId: string) => Promise<void>) | undefined,
+    jobs: Parameters<WorkerSpeechCacheRuntime['prepareJob']>[1]['jobs'],
+    releases: Parameters<WorkerSpeechCacheRuntime['prepareJob']>[1]['releases'],
+    costs: { usageForJob(jobId: string): UsageSink | undefined },
+  ): (jobId: string) => Promise<void> {
+    return async (jobId) => {
+      const usage = (id: string) => costs.usageForJob(id);
+      await Promise.all([prewarm?.(jobId), this.prepareJob(jobId, { jobs, releases, usage })]);
+    };
+  }
+
   /** Starts warming: routed releases now, publishes as they are queued, first calls as they come. */
   startPrerender(
     input: Pick<PrerenderServiceInput, 'workerId' | 'releases' | 'ledger' | 'log'> &

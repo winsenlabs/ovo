@@ -1,5 +1,6 @@
 import type {
   Behavior,
+  BehaviorEvent,
   Clock,
   EngineEvent,
   SessionInput,
@@ -104,8 +105,10 @@ export function observeBehavior(
   return (
     behavior.subscribe?.((event) => {
       const update = sttConfigurationOf(event);
-      if (update) engine.configureStt(update);
-      else bus.observe({ type: event.type, atMs: clock.now() });
+      if (update) return void engine.configureStt(update);
+      // Compiles before and after BehaviorEvent lists `stt.configure` (handled just above).
+      const type = event.type as Exclude<BehaviorEvent['type'], 'stt.configure'>;
+      bus.observe({ type, atMs: clock.now() });
     }) ?? (() => undefined)
   );
 }
