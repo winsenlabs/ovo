@@ -108,9 +108,33 @@ export function createGuardedConnector(
   };
 }
 
+/**
+ * How long an idle pooled connection is kept. undici's default (4s) is shorter than the gap
+ * between two caller turns, so the decision, LLM and TTS requests re-did TCP+TLS on most turns
+ * (LAT-8). A server `Keep-Alive: timeout=` hint still wins, capped at `keepAliveMaxTimeoutMs`.
+ */
+export interface KeepAliveOptions {
+  keepAliveTimeoutMs?: number;
+  keepAliveMaxTimeoutMs?: number;
+}
+
+export const DEFAULT_KEEP_ALIVE: Required<KeepAliveOptions> = Object.freeze({
+  keepAliveTimeoutMs: 60_000,
+  keepAliveMaxTimeoutMs: 300_000,
+});
+
 /** A dispatcher for `fetch` whose every connection passes `createGuardedConnector`. */
-export function createPinnedAgent(policy: AddressPolicy, tls: TlsTrustOptions = {}): Agent {
-  return new Agent({ connect: createGuardedConnector(policy, tls) });
+export function createPinnedAgent(
+  policy: AddressPolicy,
+  tls: TlsTrustOptions = {},
+  keepAlive: KeepAliveOptions = {},
+): Agent {
+  return new Agent({
+    connect: createGuardedConnector(policy, tls),
+    keepAliveTimeout: keepAlive.keepAliveTimeoutMs ?? DEFAULT_KEEP_ALIVE.keepAliveTimeoutMs,
+    keepAliveMaxTimeout:
+      keepAlive.keepAliveMaxTimeoutMs ?? DEFAULT_KEEP_ALIVE.keepAliveMaxTimeoutMs,
+  });
 }
 
 /** Keeps one guarded dispatcher per host and pin, so keep-alive survives without losing the pin. */
@@ -120,18 +144,22 @@ export class PinnedAgents {
   constructor(
     private readonly tls: TlsTrustOptions = {},
     private readonly limit = 64,
+    private readonly keepAlive: KeepAliveOptions = {},
   ) {}
 
   for(hostname: string, policy: AddressPolicy): Agent {
-    const key = `${hostname}|${policy.addresses.map(({ address }) => address).join(',')}`;
+    // Sorted: a DNS answer that only rotates its order must keep the pooled connections.
+    const pins = policy.addresses.map(({ address }) => address).sort();
+    const key = `${hostname}|${pins.join(',')}`;
     const existing = this.agents.get(key);
     if (existing) return existing;
     for (const [oldest, agent] of this.agents) {
       if (this.agents.size < this.limit) break;
       this.agents.delete(oldest);
+      // swallow-ok: an evicted pool only holds idle sockets; closing it is best effort.
       void agent.close().catch(() => undefined);
     }
-    const agent = createPinnedAgent(policy, this.tls);
+    const agent = createPinnedAgent(policy, this.tls, this.keepAlive);
     this.agents.set(key, agent);
     return agent;
   }
@@ -139,6 +167,7 @@ export class PinnedAgents {
   async close(): Promise<void> {
     const agents = [...this.agents.values()];
     this.agents.clear();
+    // swallow-ok: shutdown releases idle sockets; one failed close must not keep the others open.
     await Promise.all(agents.map((agent) => agent.close().catch(() => undefined)));
   }
 }
