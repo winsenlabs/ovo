@@ -33,10 +33,9 @@ const log = createLogger({ service: 'worker', component: 'stt-preconnect' });
  * STT-7 stops here on purpose. On the worker, an inbound call is admitted at session.open, so
  * this is already the earliest point; an earlier start needs the API to notify the worker when it
  * admits the carrier webhook. For outbound, a socket opened while the phone rings sits idle for
- * up to the ring timeout: AssemblyAI meters it by session duration (no inactivity timeout unless
- * one is set: https://www.assemblyai.com/docs/api-reference/streaming-api/streaming-api,
- * retrieved 2026-10-06) and Scribe realtime documents no idle limit at all (unverified), so most
- * of that spend lands on calls nobody answers. A pool of warm sockets per slot costs the same
+ * up to the ring timeout: one shipped provider meters session duration with no default inactivity
+ * timeout and the other documents no idle limit (each plugin's session notes cite the source), so
+ * most of that spend lands on calls nobody answers. A pool of warm sockets per slot costs the same
  * per hour whatever the traffic and needs the founder's cost decision; neither is built.
  */
 export class SttPreconnect {

@@ -31,6 +31,9 @@ export const FINISH_TIMEOUT_MS = 3_000;
  * VAD and commit settings are fixed by the connect query
  * (https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime,
  * retrieved 2026-10-06). The engine reports such a provider as not reconfigurable.
+ *
+ * The same reference documents no idle limit for a session that receives no audio (unverified
+ * against a live socket), so the worker does not open one while an outbound call rings (STT-7).
  */
 export class ScribeSession implements SttSession {
   private readonly started = deferred();
