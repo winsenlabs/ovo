@@ -1,30 +1,13 @@
-import { z } from 'zod';
+import type { z } from 'zod';
+import { AgentCallingHours } from '@winsendotai/ovo-contracts';
 import { resolveScheduledInstant, ScheduleTimeError } from './timezone.ts';
 
-const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'must be HH:MM, 00:00 to 23:59');
-
 /**
- * When outbound calls may be placed, in local time (collections compliance). `days` are ISO
- * weekdays, 1 = Monday to 7 = Sunday; absent means every day. `end` is exclusive and must follow
- * `start` on the same day. `timezone` is optional on input: the campaign's or the agent's applies.
+ * When outbound calls may be placed, in local time (collections compliance): the agent contract's
+ * `compliance.callingHours`, which a campaign may also set for itself. `timezone` is optional on
+ * input: the campaign's or the agent's applies.
  */
-export const callingWindowSchema = z
-  .object({
-    start: clock,
-    end: clock,
-    days: z
-      .array(z.number().int().min(1).max(7))
-      .min(1)
-      .max(7)
-      .refine((days) => new Set(days).size === days.length, 'days must be unique')
-      .optional(),
-    timezone: z.string().trim().min(1).max(100).optional(),
-  })
-  .strict()
-  .refine((window) => window.start < window.end, {
-    message: 'end must be after start on the same day',
-    path: ['end'],
-  });
+export const callingWindowSchema = AgentCallingHours;
 export type CallingWindowInput = z.infer<typeof callingWindowSchema>;
 
 /** A window with its timezone fixed, as a campaign stores it. */

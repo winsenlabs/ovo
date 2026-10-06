@@ -11,6 +11,7 @@ import type { DecisionGateResult, FlowSession } from './decision-gate.ts';
 import type { AgentVariables } from './agent-variables.ts';
 import { IdleLines } from './idle.ts';
 import { RecoveryState, renderLines, type AuthoredLine, type RecoveryPlan } from './reprompt.ts';
+import { disclosureLine, withDisclosure } from './disclosure.ts';
 
 /** Where a caller turn goes: recovery lines, or the decision step's answer (no `say`: the LLM). */
 export type CallerTurn =
@@ -91,7 +92,11 @@ export class ScriptedLines {
 
   /** True when the agent speaks before the caller does: an opening, or a flow's start node. */
   speaksFirst(): boolean {
-    return this.config.opening !== undefined || flowSpeaksFirst(this.config.decision);
+    return (
+      this.config.opening !== undefined ||
+      flowSpeaksFirst(this.config.decision) ||
+      disclosureLine(this.config) !== undefined
+    );
   }
 
   /**
@@ -101,10 +106,14 @@ export class ScriptedLines {
   *opening(variables: Record<string, unknown>, flow?: FlowSession): Generator<string> {
     if (this.opened || !this.speaksFirst()) return;
     this.opened = true;
-    const lines = (this.config.opening?.lines ?? []).map((text, index) => ({
-      field: `opening.lines.${index}`,
-      text,
-    }));
+    // The recording disclosure comes before anything else the call says.
+    const lines = withDisclosure(
+      this.config,
+      (this.config.opening?.lines ?? []).map((text, index) => ({
+        field: `opening.lines.${index}`,
+        text,
+      })),
+    );
     const rendered = this.render(lines, variables);
     const started = openFlow(flow, {
       render: (line) => this.variables.render(line, variables),

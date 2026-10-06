@@ -5,6 +5,7 @@ import {
   AgentVoicemail,
   END_CALL_TOOL_ID,
 } from './agent-call-control.ts';
+import { AgentCompliance } from './agent-compliance.ts';
 import { AgentDecisionPolicy } from './agent-decision.ts';
 import { AgentGuardrailPolicy } from './agent-guardrail.ts';
 import { AgentHandoff, handoffIssues } from './human-handoff.ts';
@@ -19,6 +20,7 @@ import { AgentVoice } from './selection.ts';
 export * from './agent-recovery.ts';
 export * from './agent-rules.ts';
 export * from './agent-jev-only.ts';
+export * from './agent-compliance.ts';
 
 export const JsonSchema = z.record(z.string(), z.unknown());
 export type JsonSchema = z.infer<typeof JsonSchema>;
@@ -127,6 +129,8 @@ export const AgentConfig = z
     handoff: AgentHandoff.optional(),
     /** Agent mode only: how a streamed LLM reply is cut into spoken segments (LAT-9). */
     reply: AgentReplyPacing.optional(),
+    /** Outbound collections compliance: calling hours, recording disclosure, caller opt-out. */
+    compliance: AgentCompliance.optional(),
     faqMargin: z.number().min(0).max(1).default(0.15),
     clarification: z.string().default('Please clarify your question.'),
     context: z.string().max(100000).default(''),
@@ -204,6 +208,15 @@ export const AgentConfig = z
     message: 'A reply guardrail requires agent mode',
     path: ['guardrail'],
   })
+  // Calling hours gate any dial; the disclosure and the opt-out are spoken by the agent behaviour.
+  .refine(
+    (config) =>
+      config.mode === 'agent' || (!config.compliance?.disclosure && !config.compliance?.optOut),
+    {
+      message: 'A disclosure line and the opt-out intent require agent mode',
+      path: ['compliance'],
+    },
+  )
   .refine(
     (config) =>
       !config.ending?.llmTool || !config.tools.some((tool) => tool.id === END_CALL_TOOL_ID),

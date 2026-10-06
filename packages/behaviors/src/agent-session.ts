@@ -36,6 +36,8 @@ import { peekHistory } from './speculation-history.ts';
 import type { PartialWords } from './speculation-turn.ts';
 import { AgentSpeculation } from './speculation-agent.ts';
 import type { AgentSpeculationOptions } from './speculation.ts';
+import { CallOptOut } from './opt-out.ts';
+import { disclosureSpeechKind } from './disclosure.ts';
 
 /**
  * One agent call's state and the hooks the engine calls between turns: playback, cancellation,
@@ -54,7 +56,11 @@ export abstract class AgentSession implements Behavior {
   protected readonly confirmation = new ToolConfirmation(this.events.emit);
   readonly subscribe = this.events.subscribe;
   speechKind(text: string): SpeechKindV2 | undefined {
-    return this.lines.speechKind(text) ?? this.confirmation.speechKind(text);
+    return (
+      disclosureSpeechKind(this.config, text) ??
+      this.lines.speechKind(text) ??
+      this.confirmation.speechKind(text)
+    );
   }
   protected uncertainWrite = false;
   protected readonly gate?: RuledDecisionGate;
@@ -73,6 +79,12 @@ export abstract class AgentSession implements Behavior {
   readonly skippedLines: readonly AgentSkippedLineRecord[] = this.log.skippedLines;
   protected readonly guard: AgentReplyGuard;
   protected readonly outcomes: CallOutcomeEvents;
+  /** The caller's "stop calling me" (collections compliance). */
+  protected readonly optOut: CallOptOut;
+  /** True once the caller asked not to be called again; the host lists the number. */
+  get optedOut(): boolean {
+    return this.optOut.optedOut;
+  }
   /** Sentences the reply guardrail checked, flagged, blocked and dropped, and what it cost. */
   get guardrailMetrics() {
     return this.guard.metrics;
@@ -121,6 +133,7 @@ export abstract class AgentSession implements Behavior {
     );
     this.flow = this.gate?.flow;
     this.outcomes = new CallOutcomeEvents(options.events, this.log);
+    this.optOut = new CallOptOut(this.config, options.events);
     this.outcomes.follow(this.flow, () => this.turn);
     // Wave 4 request 5: each state's endpointing reaches the STT as an `stt.configure` event.
     if (this.flow)

@@ -19,7 +19,7 @@ import { JevOnlyPanel } from './studio/jev-only-panel';
 import { RecoveryEditor } from './studio/recovery-editor';
 import { RulesEditor } from './studio/rules-editor';
 import { KnowledgeEditor } from './studio/knowledge-editor';
-import { SpeechCacheEditor } from './studio/speech-cache-editor';
+import { CallPolicyPanels } from './studio/call-policy-panels';
 import { AgentDraftIndex, StudioRail } from './studio/release-panels';
 import { ScriptEditor } from './studio/script-editor';
 import { ToolsEditor } from './studio/tools-editor';
@@ -232,7 +232,7 @@ export function AgentStudio({
             <DecisionEditor config={selected.config} update={applyUpdate} />
           )}
           <ProviderMap config={selected.config} bindings={bindings} update={applyUpdate} />
-          <SpeechCacheEditor config={selected.config} update={applyUpdate} />
+          <CallPolicyPanels config={selected.config} update={applyUpdate} />
           <CostPolicyEditor config={selected.config} update={applyUpdate} agentId={selected.id} />
           <RecordingPolicyPanel
             config={selected.config}

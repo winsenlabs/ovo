@@ -29,6 +29,7 @@ import {
 import { composeLegacySessionGraph } from './legacy-session-compat.ts';
 import { attachRecordingEvidence } from './recording-evidence.ts';
 import { auditGuardrail, closeSessionEvents, openSessionEvents } from './session-outcomes.ts';
+import { optOutRecorder } from './opt-out-dnc.ts';
 import {
   answeringMachineFor,
   AnsweredByVerdicts,
@@ -198,6 +199,7 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
         cleanup.defer(() => graph.composition.dispose());
         if (callClips) cleanup.defer(() => this.speechCache?.perCall.release(job.id));
         cleanup.defer(() => auditGuardrail(graph.composition, telemetry));
+        cleanup.defer(optOutRecorder(this.graph, graph, job, telemetry));
         const unsubscribe = subscribeEngineTelemetry(graph.engine, telemetry);
         cleanup.defer(() => unsubscribe());
         if (capture) cleanup.defer(attachRecordingEvidence(capture, graph.engine));

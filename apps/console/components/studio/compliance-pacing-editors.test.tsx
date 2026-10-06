@@ -119,9 +119,10 @@ describe('turn pacing editor (Wave 4 knobs)', () => {
     const read = harness(TurnPacingEditor, voiced());
     const input = screen.getByLabelText('Words before the first clause break');
     fireEvent.change(input, { target: { value: '5' } });
-    expect((read() as AgentConfig & { minFirstWords?: number }).minFirstWords).toBe(5);
+    expect(read().reply).toEqual({ minFirstWords: 5 });
+    expect(() => AgentConfigSchema.parse(read())).not.toThrow();
     fireEvent.change(input, { target: { value: '' } });
-    expect('minFirstWords' in read()).toBe(false);
+    expect(read().reply).toBeUndefined();
   });
 
   it('explains where the detector knobs live when the agent has no plugin selection', () => {

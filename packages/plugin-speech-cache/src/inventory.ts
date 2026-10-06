@@ -23,7 +23,9 @@ export type FixedLineSource =
   | 'idle-prompt'
   | 'recovery'
   | 'guardrail'
-  | 'filler';
+  | 'filler'
+  | 'disclosure'
+  | 'opt-out';
 
 export interface FixedLine {
   text: string;
@@ -65,6 +67,10 @@ export function staticSpeechInventory(release: SpeechInventoryRelease): SpeechIn
     (TEMPLATE.test(text) ? inventory.perCall : inventory.static).push({ text, source });
   };
   add(config.message, 'greeting');
+  // Collections compliance: the recording disclosure opens every call and the opt-out closing line
+  // ends it; both are fixed lines, so both are clips before the first call.
+  if (config.compliance?.disclosure) add(config.compliance.disclosure.text, 'disclosure');
+  if (config.compliance?.optOut?.enabled) add(config.compliance.optOut.closingLine, 'opt-out');
   const callControl = config as AgentConfig & CallControlLines;
   for (const line of callControl.opening?.lines ?? []) add(line, 'opening');
   // A message is only ever left when the action says so; a hang-up policy never speaks it.

@@ -11,8 +11,6 @@ const DEFAULT_FILLER = () => ({ lines: ['Hmm, one moment.'], afterMs: 600 });
 
 type Filler = { lines: string[]; afterMs: number };
 type Speculation = NonNullable<NonNullable<AgentConfig['decision']>['speculation']>;
-/** `minFirstWords` (LAT-9) is a per-agent contract field requested from the extras lane. */
-type WithPacing = AgentConfig & { minFirstWords?: number };
 
 /**
  * Wave 4's per-agent turn knobs: backchannels (AGT-9), the slow-reply filler (LAT-6), how far the
@@ -55,7 +53,7 @@ export function TurnPacingEditor({
     });
   };
   const filler = row.filler ?? null;
-  const minFirstWords = (config as WithPacing).minFirstWords;
+  const minFirstWords = config.reply?.minFirstWords;
   return (
     <Panel labelledBy="turn-pacing-title">
       <PanelHeader
@@ -201,15 +199,10 @@ export function TurnPacingEditor({
             value={minFirstWords ?? ''}
             onChange={(event) => {
               const raw = event.target.value;
-              const { minFirstWords: _previous, ...rest } = config as WithPacing;
-              update(
-                (raw === ''
-                  ? rest
-                  : {
-                      ...rest,
-                      minFirstWords: Math.min(12, Math.max(0, Math.round(Number(raw)))),
-                    }) as AgentConfig,
-              );
+              const { minFirstWords: _previous, ...reply } = config.reply ?? {};
+              if (raw !== '')
+                reply.minFirstWords = Math.min(12, Math.max(0, Math.round(Number(raw))));
+              update({ ...config, reply: Object.keys(reply).length ? reply : undefined });
             }}
           />
         </Field>

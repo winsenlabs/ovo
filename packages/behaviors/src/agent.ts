@@ -3,6 +3,7 @@ import { runPreReplySteps } from './agent-pre-reply.ts';
 import { resumeConfirmation } from './agent-confirmation-step.ts';
 import { firstInferenceRequest, runInferenceSteps } from './agent-inference-step.ts';
 import { AgentSession } from './agent-session.ts';
+import { OPT_OUT_COMPLETION } from './opt-out.ts';
 import type { AgentBehaviorOptions } from './agent-tools.ts';
 import { AgentHandoffs } from './handoff.ts';
 import type { AgentSpeculationOptions } from './speculation.ts';
@@ -79,6 +80,16 @@ export class AgentBehavior extends AgentSession {
     this.lines.heard();
     this.gate?.closePrepared();
     this.active?.abort(new DOMException('superseded by a newer turn', 'AbortError'));
+    // The caller withdrew consent: no decision, LLM or pending confirmation answers this turn.
+    if (this.optOut.heard(input, this.turn + 1)) {
+      this.turn += 1;
+      this.confirmation.expire();
+      this.conversation.user(input);
+      this.ending.arm(OPT_OUT_COMPLETION);
+      yield this.say(this.optOut.closingLine);
+      this.ending.seal();
+      return;
+    }
     const controller = new AbortController();
     const turn = ++this.turn;
     this.active = controller;
