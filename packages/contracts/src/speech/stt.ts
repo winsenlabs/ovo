@@ -33,6 +33,11 @@ export interface SpeechToText {
     sessionId: string;
     format: AudioFormat;
     language: string;
+    /**
+     * The call's variables (STT-11), from which a plugin may take per-call keyterms such as the
+     * customer's name. Optional: a host that has none omits it, and a plugin may ignore it.
+     */
+    variables?: Readonly<Record<string, unknown>>;
     signal: AbortSignal;
     onEvent(event: SttEvent): void;
     onUsage: UsageSink;

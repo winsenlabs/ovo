@@ -31,6 +31,7 @@ import { CallEnding } from './agent-ending.ts';
 import { AgentVariables } from './agent-variables.ts';
 import { AgentReplyGuard } from './agent-guardrail.ts';
 import { CallOutcomeEvents } from './outcome-events.ts';
+import { followFlowEndpointing } from './flow-endpointing.ts';
 import { peekHistory } from './speculation-history.ts';
 import type { PartialWords } from './speculation-turn.ts';
 import { AgentSpeculation } from './speculation-agent.ts';
@@ -121,6 +122,11 @@ export abstract class AgentSession implements Behavior {
     this.flow = this.gate?.flow;
     this.outcomes = new CallOutcomeEvents(options.events, this.log);
     this.outcomes.follow(this.flow, () => this.turn);
+    // Wave 4 request 5: each state's endpointing reaches the STT as an `stt.configure` event.
+    if (this.flow)
+      followFlowEndpointing(this.flow, (update) =>
+        this.events.emit({ type: 'stt.configure', update }),
+      );
     if (this.config.knowledge)
       this.grounding = new Grounding(this.config.knowledge, this.options.knowledge);
   }

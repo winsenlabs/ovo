@@ -71,6 +71,8 @@ export function startEarlyCallWork(input: {
             sessionId: input.media.sessionId,
             format,
             language: release.config.language,
+            // STT-11: the early session connects with this call's keyterms too.
+            variables,
           },
           input.usage,
         )

@@ -26,6 +26,8 @@
     "test:console:e2e": "pnpm --filter @winsendotai/ovo-console --if-present run e2e",
     "test:live-path": "vitest run --config tests/e2e/vitest.config.ts",
     "test:golden": "vitest run packages/fixture-calls/tests/golden packages/plugin-evaluations/tests/jev-eval.test.ts",
+    "test:load": "vitest run --config tests/load/vitest.config.ts",
+    "stt:bakeoff": "tsx scripts/stt-bakeoff/cli.ts",
     "flow:import": "tsx scripts/flow-import/cli.ts",
     "eval:jev": "tsx scripts/jev-eval.ts",
     "deploy:images": "bash scripts/deploy/build-images.sh",

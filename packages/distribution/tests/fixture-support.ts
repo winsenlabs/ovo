@@ -4,6 +4,8 @@ import type { FixtureTemplate } from '@winsendotai/ovo-contracts';
 export function callerHangupTemplate(
   source: FixtureTemplate,
   terminalType: string,
+  /** Steps of the finish a hang-up still runs: AssemblyAI's Terminate and Termination (OPS-18). */
+  kept = 0,
 ): FixtureTemplate {
   return (input) =>
     source(input).map((script) => {
@@ -14,6 +16,6 @@ export function callerHangupTemplate(
           (step.where?.type === terminalType || step.where?.event === terminalType),
       );
       if (at < 0) throw new Error(`Vendor fixture has no ${terminalType} finish step`);
-      return { ...script, steps: script.steps.slice(0, at) };
+      return { ...script, steps: script.steps.slice(0, at + kept) };
     });
 }

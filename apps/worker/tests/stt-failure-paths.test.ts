@@ -15,6 +15,7 @@ import {
   AssemblyAiStt,
   type AssemblyAiBinding,
 } from '../../../packages/plugin-stt-assemblyai/src/provider.ts';
+import { terminationSteps } from '../../../packages/plugin-stt-assemblyai/src/testing.ts';
 import { WorkerMediaLink } from '../src/worker-media-server.ts';
 import { mediaRuntimeFixture, mediaSessionOpen } from './media-runtime-fixtures.ts';
 
@@ -204,8 +205,7 @@ describe('STT failure paths through the worker media link', () => {
           { delayMs: 3_000 },
           begin('aa-retry'),
           { expect: 'ws-send', match: 'binary', repeat: 'until-next' },
-          { expect: 'ws-send', match: 'json', where: { type: 'Terminate' } },
-          { send: JSON.stringify({ type: 'Termination', session_duration_seconds: 7 }) },
+          ...terminationSteps(7),
         ]),
       ],
       { connectTimeoutMs: 4_000 },
@@ -232,6 +232,8 @@ describe('STT failure paths through the worker media link', () => {
           { delayMs: 7_000 },
           begin('aa-slow'),
           { expect: 'ws-send', match: 'binary', repeat: 'until-next' },
+          // OPS-18: the hang-up asks for the billed duration before the socket closes.
+          ...terminationSteps(1),
         ]),
       ],
       // A single 8 s attempt: this pins that the worker and engine buffers hold a 7 s open.
@@ -329,6 +331,7 @@ describe('STT failure paths through the worker media link', () => {
         { expect: 'ws-send', match: 'binary' },
         turn('my loan amount', true),
         { expect: 'ws-send', match: 'binary', repeat: 'until-next' },
+        ...terminationSteps(1),
       ]),
     ]);
     await live.engine.start();
@@ -375,6 +378,7 @@ describe('STT failure paths through the worker media link', () => {
           { expect: 'ws-send', match: 'binary' },
           turn('my loan amount', true),
           { expect: 'ws-send', match: 'binary', repeat: 'until-next' },
+          ...terminationSteps(1),
         ]),
       ],
       {},
@@ -414,11 +418,7 @@ describe('STT failure paths through the worker media link', () => {
 
   it('keeps the worker reason when the carrier stream ends while the worker is closing', async () => {
     const live = call([
-      assemblyAi('streaming.assemblyai.com', [
-        begin('aa-close'),
-        { expect: 'ws-send', match: 'json', where: { type: 'Terminate' } },
-        { send: JSON.stringify({ type: 'Termination', session_duration_seconds: 1 }) },
-      ]),
+      assemblyAi('streaming.assemblyai.com', [begin('aa-close'), ...terminationSteps(1)]),
     ]);
     await live.engine.start();
     live.link.activate();

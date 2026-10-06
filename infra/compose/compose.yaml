@@ -28,6 +28,9 @@ services:
   postgres:
     image: postgres:17.6-alpine
     profiles: [local-postgres]
+    # Each worker container holds about 15 connections on a call (tests/load/README.md); the
+    # default 100 caps the stack near 6 concurrent calls.
+    command: ['postgres', '-c', 'max_connections=300']
     environment:
       POSTGRES_USER: ovo
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}

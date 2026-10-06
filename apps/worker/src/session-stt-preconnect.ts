@@ -52,7 +52,7 @@ export class SttPreconnect {
 
   constructor(
     open: () => Promise<Early | undefined>,
-    readonly input: { sessionId: string; format: AudioFormat; language: string },
+    readonly input: Pick<StartInput, 'sessionId' | 'format' | 'language' | 'variables'>,
     private readonly usage: UsageSink,
     private readonly now: () => number = Date.now,
   ) {
@@ -150,6 +150,34 @@ export function openReleaseStt(
     }
     return { stt, close: () => composition.dispose() };
   };
+}
+
+/** The session's STT plugin as its engine uses it: with the call's variables, adopting any preconnect. */
+export function sessionSttPlugin(
+  definition: PluginDefinition,
+  variables: Readonly<Record<string, unknown>>,
+  preconnect?: SttPreconnect,
+): PluginDefinition {
+  return sttWithCallVariables(
+    preconnect ? adoptPreconnectedStt(definition, preconnect) : definition,
+    variables,
+  );
+}
+
+/**
+ * STT-11: every `start()` of the session's STT carries the call's variables, from which the plugin
+ * takes per-call keyterms (a customer's name). Reconnects carry them too.
+ */
+export function sttWithCallVariables(
+  definition: PluginDefinition,
+  variables: Readonly<Record<string, unknown>>,
+): PluginDefinition {
+  return instrumentPlugin(definition, Cap.stt, (service) => {
+    const stt = service as SpeechToText | undefined;
+    if (!stt) return;
+    const start = stt.start.bind(stt);
+    stt.start = (input) => start({ ...input, variables });
+  });
 }
 
 /**

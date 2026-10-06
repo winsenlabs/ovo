@@ -33,7 +33,7 @@ import { instrumentSessionPlugin } from './telemetry-session-plugins.ts';
 import type { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
 import { createV2SpeechCachePlugin } from './speech-cache-v2.ts';
 import type { CallClips } from './speech-cache-percall.ts';
-import { adoptPreconnectedStt, type SttPreconnect } from './session-stt-preconnect.ts';
+import { sessionSttPlugin, type SttPreconnect } from './session-stt-preconnect.ts';
 import { stampBindingIdentity } from './session-graph-bindings.ts';
 import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
 import { adaptV1Engine } from './v1-engine-adapter.ts';
@@ -231,8 +231,8 @@ export async function composeLiveSessionGraph(input: {
   const sttPlugin = release.selections?.stt?.pluginId;
   const catalog = result.catalog.map((definition) =>
     instrumentSessionPlugin(
-      input.sttPreconnect && definition.manifest.id === sttPlugin
-        ? adoptPreconnectedStt(definition, input.sttPreconnect)
+      definition.manifest.id === sttPlugin
+        ? sessionSttPlugin(definition, input.variables, input.sttPreconnect)
         : definition,
       telemetry,
     ),

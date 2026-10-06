@@ -65,6 +65,8 @@ const STT = [
     name: 'assemblyai',
     id: IDS.assemblyai,
     finish: 'Terminate',
+    // OPS-18: a hang-up still sends Terminate and waits for the billed Termination.
+    hangupKeeps: 2,
     binding: { model: 'universal-streaming-english' },
   },
   { name: 'sarvam', id: IDS.sarvamStt, finish: 'end', binding: { model: 'saaras:v3-realtime' } },
@@ -108,7 +110,11 @@ async function runRow(
       fixtures: loaded.fixtures,
       fixtureTemplates: {
         ...loaded.fixtureTemplates,
-        [stt.id]: callerHangupTemplate(loaded.fixtureTemplates[stt.id]!, stt.finish),
+        [stt.id]: callerHangupTemplate(
+          loaded.fixtureTemplates[stt.id]!,
+          stt.finish,
+          'hangupKeeps' in stt ? stt.hangupKeeps : 0,
+        ),
       },
       fixtureSecrets: { 'matrix-fixture-credential': 'fixture-key' },
       carrier: {
