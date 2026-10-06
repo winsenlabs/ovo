@@ -10,8 +10,12 @@ import {
 } from '@winsendotai/ovo-plugin-operations';
 import type { Principal } from '../types.ts';
 import { resolveCampaignCarrier } from '../operations-plugin.ts';
+import type { InfrastructureService } from '../infrastructure-types.ts';
 import { registerOperationsRealtimeRoutes } from './operations-realtime.ts';
+import type { InboundRouteDependencies } from './operations-inbound-routes.ts';
 import { registerOperationsLiveCallRoute } from './operations-live-call.ts';
+import { registerOperationsComplianceRoutes } from './operations-compliance.ts';
+import { campaignCallingWindow, contactVariableErrors } from '../outbound-compliance.ts';
 
 const schemas = operationsApiSchemas;
 
@@ -39,6 +43,8 @@ export interface OperationsRouteDependencies {
   operations?: OperationsService;
   store: ControlStore;
   requireRole: (request: FastifyRequest, role: Role) => Principal;
+  /** Source of the dispatcher's inbound readiness for the capacity route (OPS-4). */
+  infrastructure?: Pick<InfrastructureService, 'inboundReadiness'>;
 }
 
 export function registerOperationsRoutes(input: OperationsRouteDependencies): void {
@@ -63,19 +69,45 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
 
   app.post('/v1/operations/campaigns/preview', async (request, reply) => {
     const principal = requireRole(request, 'editor');
-    if (!use(reply, principal)) return;
+    const operations = use(reply, principal);
+    if (!operations) return;
     const body = schemas.preview.parse(request.body);
-    return previewCampaignCsv(body.csv, body.mapping);
+    const preview = previewCampaignCsv(body.csv, body.mapping);
+    const release = body.releaseId
+      ? await store.getRelease(principal.workspaceId, body.releaseId)
+      : undefined;
+    if (body.releaseId && !release)
+      return operationsRequestError(404, 'release_not_found', 'Release not found');
+    const variableErrors = release ? contactVariableErrors(release, preview.rows) : [];
+    const listed = await operations.campaigns.doNotCall.listed(
+      preview.rows.map((row) => row.phoneNumber),
+    );
+    return {
+      ...preview,
+      errors: [
+        ...preview.errors,
+        ...variableErrors.map(({ row, errors }) => ({
+          row,
+          field: 'variables',
+          message: errors.join('; '),
+        })),
+      ],
+      // Listed rows import, but admission never dials them.
+      doNotCall: preview.rows
+        .filter((row) => listed.has(row.phoneNumber))
+        .map((row) => row.sourceRow),
+    };
   });
 
   registerOperationsLiveCallRoute({ app, store, requireRole, use, audit });
+  registerOperationsComplianceRoutes({ app, store, requireRole, use, audit });
 
   app.post('/v1/operations/campaigns', async (request, reply) => {
     const principal = requireRole(request, 'editor');
     const operations = use(reply, principal);
     if (!operations) return;
     const body = schemas.campaign.parse(request.body);
-    const { contacts, releaseId, ...campaignConfig } = body;
+    const { contacts, releaseId, callingWindow, ...campaignConfig } = body;
     const release = await store.getRelease(principal.workspaceId, releaseId);
     if (!release) return operationsRequestError(404, 'release_not_found', 'Release not found');
     const fromNumber = normalizePhoneNumber(body.fromNumber);
@@ -85,6 +117,20 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
         'from_number_not_permitted',
         'Caller number is not permitted',
       );
+    const invalid = contactVariableErrors(release, contacts);
+    if (invalid.length)
+      return reply.code(422).send({
+        error: {
+          code: 'invalid_contact_variables',
+          message: `${invalid.length} contact${invalid.length === 1 ? '' : 's'} do not satisfy the release variable schema`,
+          details: invalid,
+        },
+      });
+    const window = campaignCallingWindow(release, callingWindow, body.schedule.timezone);
+    if (!window.ok)
+      return reply
+        .code(window.status)
+        .send({ error: { code: window.code, message: window.message } });
     let carrier;
     try {
       carrier = await resolveCampaignCarrier(operations, release, store);
@@ -94,7 +140,14 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
     let campaign;
     try {
       campaign = await operations.campaigns.create(
-        { ...campaignConfig, ...carrier, fromNumber, agentReleaseId: release.id },
+        {
+          ...campaignConfig,
+          ...carrier,
+          fromNumber,
+          agentReleaseId: release.id,
+          callingWindow: window.value,
+          variablesSchema: release.config.variables,
+        },
         contacts,
       );
     } catch (error) {
@@ -164,5 +217,14 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
     });
   }
 
-  registerOperationsRealtimeRoutes({ app, store, requireRole, use, audit });
+  // The realtime routes hand their input to the inbound routes, capacity readiness included.
+  const realtime: InboundRouteDependencies = {
+    app,
+    store,
+    requireRole,
+    use,
+    audit,
+    inboundReadiness: input.infrastructure?.inboundReadiness?.bind(input.infrastructure),
+  };
+  registerOperationsRealtimeRoutes(realtime);
 }

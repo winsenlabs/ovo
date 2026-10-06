@@ -3,8 +3,15 @@ import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { WebSocket } from '@winsendotai/ovo-plugin-media';
 import type { DurableJobStore, SessionRoute } from '@winsendotai/ovo-plugin-orchestration';
+import { createLogger } from '@winsendotai/ovo-plugin-kit';
 import { describe, expect, it, vi } from 'vitest';
-import { WorkerMediaRuntime, type VoiceSessionFactory } from '../src/media-runtime.ts';
+import { compose, definePlugin } from '@winsendotai/ovo-runtime';
+import {
+  sessionOpenFailure,
+  sessionOpenSource,
+  WorkerMediaRuntime,
+  type VoiceSessionFactory,
+} from '../src/media-runtime.ts';
 import { mediaRuntimeFixture, mediaSessionOpen } from './media-runtime-fixtures.ts';
 
 async function withConnectedSocket(
@@ -16,6 +23,7 @@ async function withConnectedSocket(
     onSessionClose: ReturnType<typeof vi.fn>;
     beforeSessionOpen: ReturnType<typeof vi.fn>;
   }) => Promise<void>,
+  options: { beforeSessionOpen?: () => Promise<void>; logs?: Record<string, unknown>[] } = {},
 ): Promise<void> {
   const { route, job } = mediaRuntimeFixture();
   const server = createServer((_request, response) => response.writeHead(404).end());
@@ -42,9 +50,10 @@ async function withConnectedSocket(
     throw new Error(`Unexpected media route query: ${sql}`);
   });
   const onSessionClose = vi.fn(async () => undefined);
-  const beforeSessionOpen = vi.fn(async () => undefined);
+  const beforeSessionOpen = vi.fn(options.beforeSessionOpen ?? (async () => undefined));
+  const logger = createLogger({}, { sink: (line) => options.logs?.push(JSON.parse(line)) });
   const runtime = new WorkerMediaRuntime(
-    { workerId: route.workerId, token: 'test', httpServer: server },
+    { workerId: route.workerId, token: 'test', httpServer: server, logger },
     {
       pool: { query },
       resolveSessionRoute: vi.fn(async () => route),
@@ -159,8 +168,132 @@ describe('worker media runtime over its authenticated loopback socket', () => {
         route,
       );
       await vi.waitFor(() =>
-        expect(onSessionClose).toHaveBeenCalledWith(route, 'error:session-open-failed'),
+        expect(onSessionClose).toHaveBeenCalledWith(
+          route,
+          'error:session-open-failed:compose:composition failed',
+        ),
       );
     });
+  });
+
+  // OBS-2: accept is sent before open(), so a failed open used to leave only a bare
+  // 'error:session-open-failed' and no log line naming the stage or the cause.
+  it('logs and persists the stage and cause of a failed session open', async () => {
+    const logs: Record<string, unknown>[] = [];
+    const create = vi.fn(async () =>
+      Promise.reject(new Error('stt handshake failed: Bearer sk-live-123 rejected (401)')),
+    );
+    await withConnectedSocket(
+      { create },
+      async ({ route, onSessionClose }) => {
+        const reason =
+          'error:session-open-failed:compose:stt handshake failed: Bearer [redacted] rejected (401)';
+        await vi.waitFor(() => expect(onSessionClose).toHaveBeenCalledWith(route, reason));
+        const failed = logs.find((entry) => entry.event === 'session_open_failed');
+        expect(failed).toMatchObject({
+          level: 'error',
+          workerId: route.workerId,
+          sessionId: route.sessionId,
+          jobId: route.jobId,
+          stage: 'compose',
+          error: 'stt handshake failed: Bearer [redacted] rejected (401)',
+        });
+        expect(JSON.stringify(logs)).not.toContain('sk-live-123');
+      },
+      { logs },
+    );
+  });
+
+  it('names admission as the stage when the cost gate refuses the session', async () => {
+    const logs: Record<string, unknown>[] = [];
+    const create = vi.fn(async () => ({ dispose: vi.fn(async () => undefined) }));
+    await withConnectedSocket(
+      { create },
+      async ({ route, onSessionClose }) => {
+        await vi.waitFor(() =>
+          expect(onSessionClose).toHaveBeenCalledWith(
+            route,
+            'error:session-open-failed:admission:inbound cost admission blocked: budget',
+          ),
+        );
+        expect(create).not.toHaveBeenCalled();
+        expect(logs.find((entry) => entry.event === 'session_open_failed')).toMatchObject({
+          stage: 'admission',
+          sessionId: route.sessionId,
+        });
+      },
+      {
+        logs,
+        beforeSessionOpen: async () => {
+          throw new Error('inbound cost admission blocked: budget');
+        },
+      },
+    );
+  });
+
+  it('keeps the persisted failure reason on one short line', () => {
+    const reason = sessionOpenFailure(
+      'record',
+      new Error(`line one\n  line two ${'x'.repeat(400)}`),
+    );
+    expect(reason.startsWith('error:session-open-failed:record:line one line two x')).toBe(true);
+    expect(reason.length).toBe('error:session-open-failed:record:'.length + 160);
+    expect(sessionOpenFailure('job', 'not an error')).toBe(
+      'error:session-open-failed:job:not an error',
+    );
+  });
+
+  // OBS-2 remainder: the session_open_failed line named the stage but not which provider failed.
+  it('names the provider whose plugin failed to start, in the log line and the reason', async () => {
+    const logs: Record<string, unknown>[] = [];
+    const failing = definePlugin(
+      {
+        id: 'acme-stt-host',
+        version: '1.0.0',
+        contractVersion: 2,
+        scope: 'session',
+        kind: 'infra',
+        provider: 'acme',
+        provides: [],
+        requires: [],
+      },
+      () => {
+        throw new Error('stt handshake timed out');
+      },
+    );
+    const create = vi.fn(async () => {
+      await compose([{ id: 'acme-stt-host' }], [failing]);
+      return { dispose: vi.fn(async () => undefined) };
+    });
+    await withConnectedSocket(
+      { create },
+      async ({ route, onSessionClose }) => {
+        await vi.waitFor(() =>
+          expect(onSessionClose).toHaveBeenCalledWith(
+            route,
+            'error:session-open-failed:compose:infra/acme: stt handshake timed out',
+          ),
+        );
+        expect(logs.find((entry) => entry.event === 'session_open_failed')).toMatchObject({
+          stage: 'compose',
+          provider: 'acme',
+          providerKind: 'infra',
+          pluginId: 'acme-stt-host',
+        });
+      },
+      { logs },
+    );
+  });
+
+  it('takes the provider from an error that names it anywhere in its cause chain', () => {
+    const vendor = Object.assign(new Error('connect timeout'), { provider: 'acme', kind: 'stt' });
+    expect(sessionOpenSource(new Error('engine start failed', { cause: vendor }))).toEqual({
+      provider: 'acme',
+      providerKind: 'stt',
+    });
+    expect(sessionOpenFailure('compose', vendor)).toBe(
+      'error:session-open-failed:compose:stt/acme: connect timeout',
+    );
+    expect(sessionOpenSource(new Error('no provider here'))).toEqual({});
   });
 });

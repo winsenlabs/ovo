@@ -135,11 +135,7 @@ export class SessionRepository {
            WHERE s.worker_id = ovo_session_routes.worker_id
              AND s.ownership_epoch = ovo_session_routes.worker_slot_epoch
              AND s.lease_expires_at > now()
-             AND (s.state IN ('reserved', 'active')
-               -- An inbound worker is fenced by its inbound capacity reservation; its slot stays
-               -- ready_idle until the session opens.
-               OR (s.state = 'ready_idle'
-                 AND ovo_session_routes.dial_request_id LIKE 'inbound:%')))
+             AND s.state IN ('reserved', 'active'))
        RETURNING ${sessionRouteColumns}`,
         [sessionId, tokenHash(token)],
       );

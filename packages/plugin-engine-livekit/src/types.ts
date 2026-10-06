@@ -4,6 +4,7 @@ import type {
   MediaDuplex,
   SessionInput,
   SpeechToText,
+  TextFilter,
   TextToSpeech,
   TranscriptObserver,
   UsageSink,
@@ -18,6 +19,8 @@ export interface LiveKitPorts {
   clock: Clock;
   usage: UsageSink;
   transcripts?: TranscriptObserver;
+  /** The session's `ovo.text-filter`s (the Indian verbalisation), applied to every line. */
+  textFilters?: readonly TextFilter[];
   voice?: string;
 }
 export interface LiveKitOptions {

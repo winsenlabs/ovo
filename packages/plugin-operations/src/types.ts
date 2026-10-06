@@ -1,19 +1,14 @@
 import type { Pool, PoolClient } from 'pg';
+import type { CallingWindow } from './calling-window.ts';
+import type { ContactState } from './contact-state.ts';
+export type { ContactState } from './contact-state.ts';
+export type {
+  CampaignContactRecord,
+  DoNotCallSource,
+  SuppressionRecord,
+} from './compliance-types.ts';
 
 export type CampaignStatus = 'scheduled' | 'running' | 'paused' | 'cancelled' | 'completed';
-export type ContactState =
-  | 'queued'
-  | 'admitted'
-  | 'dialing'
-  | 'active'
-  | 'succeeded'
-  | 'failed'
-  | 'cancelled'
-  | 'unknown'
-  | 'superseded'
-  | 'suppressed'
-  | 'exhausted';
-
 export interface CampaignSchedule {
   localDateTime: string;
   timezone: string;
@@ -34,6 +29,10 @@ export interface CampaignConfig {
   carrierId?: string;
   carrierBindingId?: string | null;
   bindingCps?: number | null;
+  /** Calls are placed only inside this local window; absent places them at any hour. */
+  callingWindow?: CallingWindow | null;
+  /** The release's declared variables schema; each contact is checked against it at admission. */
+  variablesSchema?: Record<string, unknown> | null;
 }
 
 export interface CampaignContactInput {
@@ -43,7 +42,7 @@ export interface CampaignContactInput {
   variables: Record<string, string>;
 }
 
-export interface CampaignRecord extends Omit<CampaignConfig, 'schedule'> {
+export interface CampaignRecord extends Omit<CampaignConfig, 'schedule' | 'variablesSchema'> {
   id: string;
   status: CampaignStatus;
   scheduleAt: Date;
@@ -61,6 +60,7 @@ export type ContactAdmission =
   | { kind: 'scheduled'; scheduleAt: Date }
   | { kind: 'quota_exhausted'; quota: 'total' | 'daily' }
   | { kind: 'capacity_exhausted' }
+  | { kind: 'outside_calling_hours'; nextOpenAt: Date }
   | { kind: 'empty' };
 
 export interface DialAuthorization {
@@ -94,7 +94,8 @@ export type DialAuthorizationResult =
         | 'suppressed'
         | 'attempt_limit'
         | 'total_quota'
-        | 'daily_quota';
+        | 'daily_quota'
+        | 'outside_calling_hours';
     };
 
 export interface CampaignCounters {
@@ -110,12 +111,6 @@ export interface CampaignCounters {
     | 'superseded',
     number
   >;
-}
-
-export interface SuppressionRecord {
-  phoneNumber: string;
-  reason: string;
-  createdAt: Date;
 }
 
 export interface OperationsServiceConfig {

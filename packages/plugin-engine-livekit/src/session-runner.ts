@@ -5,6 +5,7 @@ import {
   type EngineOutcome,
   type VoiceSessionEngine,
 } from '@winsendotai/ovo-contracts';
+import { LiveKitCallControl } from './call-control.ts';
 import { CarrierAudioInput } from './carrier-input.ts';
 import { CarrierAudioOutput } from './carrier-output.ts';
 import { Evidence } from './evidence.ts';
@@ -39,6 +40,7 @@ export class LiveKitEngine implements VoiceSessionEngine {
   private readonly input: CarrierAudioInput;
   private readonly output: CarrierAudioOutput;
   private readonly driver: TurnDriver;
+  private readonly control: LiveKitCallControl;
   readonly session: AgentSession;
   private readonly stt?: OvoStt;
   private readonly cleanup: (() => void)[] = [];
@@ -90,6 +92,7 @@ export class LiveKitEngine implements VoiceSessionEngine {
       },
       gate,
     );
+    this.control = new LiveKitCallControl(ports, this.driver);
     this.session.input.audio = this.input;
     this.session.output.audio = this.output;
     this.session.input.setAudioEnabled(ports.session.inputEnabled);
@@ -135,9 +138,11 @@ export class LiveKitEngine implements VoiceSessionEngine {
         }
       }),
       () => cancelDigits?.(),
-      this.ports.media.onAnsweredBy?.((result) =>
-        this.evidence.emit({ type: 'voicemail', result }),
-      ) ?? (() => {}),
+      this.ports.media.onAnsweredBy?.((result) => {
+        this.evidence.emit({ type: 'voicemail', result });
+        this.control.verdict(result);
+      }) ?? (() => {}),
+      () => this.control.stop(),
       this.ports.clock.setTimeout(() => {
         void this.dispose('max_duration');
       }, this.ports.session.maxCallSeconds * 1000),
@@ -146,8 +151,7 @@ export class LiveKitEngine implements VoiceSessionEngine {
       await this.session.start({ agent });
       assertSession(this.session, agent, inference);
       this.speech.attach(this.driver);
-      if (this.ports.session.initialInput !== undefined || !this.ports.session.inputEnabled)
-        this.driver.enqueue(this.ports.session.initialInput ?? '');
+      this.control.start();
     } catch (error) {
       await this.dispose('error:livekit-start');
       throw error;

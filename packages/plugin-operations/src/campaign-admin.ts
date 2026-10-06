@@ -15,8 +15,8 @@ import type {
   CampaignConfig,
   CampaignContactInput,
   CampaignRecord,
+  CampaignContactRecord,
   CampaignStatus,
-  SuppressionRecord,
 } from './types.ts';
 
 export class CampaignAdminService {
@@ -39,15 +39,16 @@ export class CampaignAdminService {
     if (new Set(normalized.map((contact) => contact.phoneNumber)).size !== normalized.length)
       throw new Error('Campaign contains duplicate phone numbers');
     const id = randomUUID();
-    const digest = inputDigest({ config, contacts: normalized });
+    const digest = inputDigest({ config: digestConfig(config), contacts: normalized });
     return transaction(this.pool, async (client) => {
       const status: CampaignStatus = scheduleAt.getTime() <= Date.now() ? 'running' : 'scheduled';
       const inserted = await client.query<CampaignRow>(
         `INSERT INTO ovo_ops_campaigns (
           id, organization_id, operation_id, input_digest, name, agent_release_id, from_number, status, schedule_at, timezone,
           per_number_attempt_limit, max_attempts_total, max_attempts_per_local_day, active_call_policy,
-          max_concurrency, carrier_plugin_id, carrier_id, carrier_binding_id, binding_cps
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+          max_concurrency, carrier_plugin_id, carrier_id, carrier_binding_id, binding_cps,
+          calling_window, variables_schema
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
         ON CONFLICT (organization_id, operation_id) DO NOTHING RETURNING ${campaignColumns}`,
         [
           id,
@@ -69,6 +70,8 @@ export class CampaignAdminService {
           config.carrierId ?? null,
           config.carrierBindingId ?? null,
           config.bindingCps ?? null,
+          config.callingWindow ? JSON.stringify(config.callingWindow) : null,
+          config.variablesSchema ? JSON.stringify(config.variablesSchema) : null,
         ],
       );
       if (!inserted.rows[0]) {
@@ -207,52 +210,43 @@ export class CampaignAdminService {
     });
   }
 
-  async suppress(phoneNumber: string, reason: string): Promise<void> {
-    if (!reason.trim()) throw new Error('Suppression reason is required');
-    const normalized = normalizePhoneNumber(phoneNumber);
-    await transaction(this.pool, async (client) => {
-      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-        `ovo-ops-suppression:${this.organizationId}:${normalized}`,
-      ]);
-      await client.query(
-        `INSERT INTO ovo_ops_suppressions (organization_id, phone_number, reason) VALUES ($1,$2,$3)
-         ON CONFLICT (organization_id, phone_number) DO UPDATE SET reason = EXCLUDED.reason`,
-        [this.organizationId, normalized, reason.trim()],
-      );
-    });
-  }
-
-  async unsuppress(phoneNumber: string): Promise<boolean> {
-    const normalized = normalizePhoneNumber(phoneNumber);
-    return transaction(this.pool, async (client) => {
-      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-        `ovo-ops-suppression:${this.organizationId}:${normalized}`,
-      ]);
-      const result = await client.query(
-        'DELETE FROM ovo_ops_suppressions WHERE organization_id = $1 AND phone_number = $2',
-        [this.organizationId, normalized],
-      );
-      return result.rowCount === 1;
-    });
-  }
-
-  async listSuppressions(limit = 25, afterPhone?: string): Promise<SuppressionRecord[]> {
+  async listContacts(
+    campaignId: string,
+    limit = 25,
+    afterSourceRow?: number,
+  ): Promise<CampaignContactRecord[]> {
+    await this.get(campaignId);
     const result = await this.pool.query<{
+      id: string;
+      source_row: number;
       phone_number: string;
-      reason: string;
-      created_at: Date;
+      external_id: string | null;
+      variables: Record<string, string>;
+      state: CampaignContactRecord['state'];
     }>(
-      `SELECT phone_number, reason, created_at FROM ovo_ops_suppressions
-       WHERE organization_id = $1 AND ($2::text IS NULL OR phone_number > $2)
-       ORDER BY phone_number LIMIT $3`,
-      [this.organizationId, afterPhone ?? null, boundedLimit(limit)],
+      `SELECT id, source_row, phone_number, external_id, variables, state
+       FROM ovo_ops_campaign_contacts WHERE campaign_id = $1 AND ($2::integer IS NULL OR source_row > $2)
+       ORDER BY source_row, id LIMIT $3`,
+      [campaignId, afterSourceRow ?? null, boundedLimit(limit)],
     );
     return result.rows.map((row) => ({
+      id: row.id,
+      sourceRow: row.source_row,
       phoneNumber: row.phone_number,
-      reason: row.reason,
-      createdAt: row.created_at,
+      ...(row.external_id ? { externalId: row.external_id } : {}),
+      variables: row.variables,
+      state: row.state,
     }));
   }
+}
+
+/**
+ * The idempotency digest. The variables schema follows from the release id, and a campaign with no
+ * calling window digests exactly as it did before windows existed, so retries keep matching.
+ */
+function digestConfig(config: CampaignConfig) {
+  const { variablesSchema: _variablesSchema, callingWindow, ...rest } = config;
+  return callingWindow ? { ...rest, callingWindow } : rest;
 }
 
 function matchesLegacyDigest(
@@ -266,7 +260,8 @@ function matchesLegacyDigest(
     config.carrierPluginId != null ||
     config.carrierId != null ||
     config.carrierBindingId != null ||
-    config.bindingCps != null
+    config.bindingCps != null ||
+    config.callingWindow
   )
     return false;
   const {
@@ -276,6 +271,6 @@ function matchesLegacyDigest(
     carrierBindingId: _carrierBindingId,
     bindingCps: _bindingCps,
     ...legacyConfig
-  } = config;
+  } = digestConfig(config);
   return row.input_digest === inputDigest({ config: legacyConfig, contacts });
 }

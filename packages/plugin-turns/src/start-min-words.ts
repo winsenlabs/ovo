@@ -2,7 +2,7 @@ import {
   CONFIRM_NO,
   CONFIRM_YES,
   classifyConfirmation,
-  countWords,
+  isBackchannel,
   normalizeForMatch,
   type TurnConfig,
 } from '@winsendotai/ovo-contracts';
@@ -11,7 +11,7 @@ import {
 export function speechCanInterrupt(
   text: string,
   language: string,
-  config: TurnConfig,
+  config: Pick<TurnConfig, 'minWordsWhileBotSpeaking' | 'backchannels' | 'backchannelsEnabled'>,
   confirmationPending: boolean,
 ): boolean {
   if (!text.trim()) return false;
@@ -20,8 +20,22 @@ export function speechCanInterrupt(
     (classifyConfirmation(text) !== 'unclear' || containsConfirmationPhrase(text))
   )
     return false;
-  if (countWords(text, language) < config.minWordsWhileBotSpeaking) return false;
-  return !config.backchannels.some((word) => normalizeForMatch(word) === normalizeForMatch(text));
+  return !isBackchannel(text, language, config);
+}
+
+/**
+ * True when `text`, said over the agent, only acknowledges it (AGT-9). A LAT-6 filler answers
+ * nothing, so only a listed backchannel ("ok", "haan") acknowledges one: any other words, however
+ * few, continue the caller's turn, as in silence.
+ */
+export function acknowledges(
+  text: string,
+  language: string,
+  config: Pick<TurnConfig, 'minWordsWhileBotSpeaking' | 'backchannels' | 'backchannelsEnabled'>,
+  filler = false,
+): boolean {
+  if (speechCanInterrupt(text, language, config, false)) return false;
+  return !filler || isBackchannel(text, language, { ...config, minWordsWhileBotSpeaking: 0 });
 }
 
 export function containsConfirmationPhrase(text: string): boolean {

@@ -1,4 +1,5 @@
 import { WebSocket } from '@winsendotai/ovo-plugin-media';
+import { asEndReason, createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
 import {
   MULAW_8K,
   PCM16_8K,
@@ -13,9 +14,11 @@ import {
   type WorkerMediaSession,
 } from '@winsendotai/ovo-plugin-media';
 
-/** Seconds of caller audio buffered while the voice session is still opening. */
-const PRE_SESSION_AUDIO_SECONDS = 10;
+import { PreSessionBuffer } from './pre-session-buffer.ts';
+
 export { attachWorkerMediaServer } from '@winsendotai/ovo-plugin-media';
+
+const logger = createLogger({ service: 'worker' });
 
 export class WorkerMediaLink implements WorkerMediaSession {
   readonly identity: MediaSessionIdentity;
@@ -28,14 +31,16 @@ export class WorkerMediaLink implements WorkerMediaSession {
   private activated = false;
   private closed = false;
   private endedWith?: string;
-  private readonly pending: GatewayToWorkerMessage[] = [];
-  private pendingAudioBytes = 0;
+  /** Set once the worker itself starts ending the call; a racing carrier close keeps it. */
+  private ending?: string;
+  private readonly pending: PreSessionBuffer;
   private disconnectTimer?: NodeJS.Timeout;
   private readonly audio = new Set<(bytes: Uint8Array, at: number) => void>();
   private readonly played = new Set<(name: string) => void>();
   private readonly cleared = new Set<() => void>();
   private readonly dtmf = new Set<(digit: string) => void>();
   private readonly answeredBy = new Set<(value: 'human' | 'machine' | 'unknown') => void>();
+  private answered?: 'human' | 'machine' | 'unknown';
   private readonly closeListeners = new Set<(reason: string) => void>();
 
   constructor(
@@ -56,6 +61,7 @@ export class WorkerMediaLink implements WorkerMediaSession {
       generation: open.generation,
     };
     this.format = open.format;
+    this.pending = new PreSessionBuffer(open.format);
     this.playbackEvidence = open.playbackEvidence;
     this.clearFlushesMarkers = open.clearFlushesMarkers;
     this.codec = open.format.encoding === 'pcm_s16le' ? 'audio/pcm' : 'audio/x-mulaw';
@@ -67,7 +73,7 @@ export class WorkerMediaLink implements WorkerMediaSession {
     return this.identity.sessionId;
   }
   get bufferedBytes(): number {
-    return (this.socket?.bufferedAmount ?? 0) + this.pendingAudioBytes;
+    return (this.socket?.bufferedAmount ?? 0) + this.pending.bytes;
   }
   get isClosed(): boolean {
     return this.closed;
@@ -99,12 +105,15 @@ export class WorkerMediaLink implements WorkerMediaSession {
       if (binary) return this.finish('error:binary-media-frame');
       try {
         this.receive(parseGatewayMessage(data.toString(), 65_536));
-      } catch {
+      } catch (error) {
+        this.log('invalid_media_frame', error);
         this.finish('error:invalid-media-frame');
       }
     });
-    socket.on('error', () => {
-      if (this.socket === socket && !this.closed) this.finish('error:media-transport');
+    socket.on('error', (error) => {
+      if (this.socket !== socket || this.closed) return;
+      this.log('media_transport_error', error);
+      this.finish('error:media-transport');
     });
     socket.once('close', () => {
       if (this.socket !== socket || this.closed) return;
@@ -116,31 +125,29 @@ export class WorkerMediaLink implements WorkerMediaSession {
 
   activate(): void {
     this.activated = true;
-    for (const event of this.pending.splice(0))
-      if (event.type !== 'session.open') this.dispatch(event);
-    this.pendingAudioBytes = 0;
+    for (const event of this.pending.release()) {
+      if (this.closed) return;
+      this.dispatch(event);
+    }
   }
 
   receive(message: GatewayToWorkerMessage): void {
     if (this.closed) return;
     if (message.type === 'session.open') throw new Error('duplicate session.open');
-    if (message.type === 'session.close') return this.finish(message.reason);
-    if (!this.activated) {
-      const size =
-        message.type === 'media.audio' ? Buffer.from(message.payload, 'base64').length : 0;
-      // Caller audio is held until the voice session opens. Opening it waits on the STT
-      // provider's handshake, which took 2-5s from an Indian host to AssemblyAI on the first live
-      // call; three seconds of buffer dropped every call. Ten seconds covers a slow handshake.
-      const bytesPerSecond =
-        this.format.sampleRate * (this.format.encoding === 'pcm_s16le' ? 2 : 1);
-      const limit = Math.min(bytesPerSecond * PRE_SESSION_AUDIO_SECONDS, 655_360);
-      if (this.pendingAudioBytes + size > limit || this.pending.length >= 1_024)
-        return this.finish('error:worker-input-buffer-overflow');
-      this.pending.push(message);
-      this.pendingAudioBytes += size;
-      return;
-    }
-    this.dispatch(message);
+    if (message.type === 'session.close') return this.gatewayClosed(message.reason);
+    // Only caller input is held until the voice session opens. The verdict gates the opening, which
+    // plays before activation, and marks and clears answer that opening's output.
+    if (this.activated || (message.type !== 'media.audio' && message.type !== 'media.dtmf'))
+      return this.dispatch(message);
+    const dropped = this.pending.hold(message);
+    if (dropped === false) return this.finish('error:worker-input-buffer-overflow');
+    if (dropped)
+      logger.warn('pre_session_audio_dropped', {
+        sessionId: this.identity.sessionId,
+        generation: this.identity.generation,
+        droppedBytes: dropped,
+        keptBytes: this.pending.bytes,
+      });
   }
 
   private dispatch(message: Exclude<GatewayToWorkerMessage, { type: 'session.open' }>): void {
@@ -154,8 +161,17 @@ export class WorkerMediaLink implements WorkerMediaSession {
     } else if (message.type === 'media.dtmf') {
       for (const listener of this.dtmf) listener(message.digit);
     } else if (message.type === 'call.answered-by') {
-      for (const listener of this.answeredBy) listener(message.value);
-    } else if (message.type === 'session.close') this.finish(message.reason);
+      this.answer(message.value);
+    } else if (message.type === 'session.close') this.gatewayClosed(message.reason);
+  }
+
+  /**
+   * The gateway forwards the carrier's stop reason, `carrier stream-ended` on a hang-up, which
+   * finalization must see as caller_hangup rather than an error. A call the worker was already
+   * ending keeps the worker's own reason.
+   */
+  private gatewayClosed(reason: string): void {
+    this.finish(this.ending ?? asEndReason(reason));
   }
 
   async sendAudio(bytes: Uint8Array, signal?: AbortSignal): Promise<void> {
@@ -174,6 +190,7 @@ export class WorkerMediaLink implements WorkerMediaSession {
   }
   async close(reason: string): Promise<void> {
     if (this.closed) return;
+    this.ending ??= reason;
     try {
       await this.send({ type: 'session.end', reason });
     } finally {
@@ -182,6 +199,7 @@ export class WorkerMediaLink implements WorkerMediaSession {
   }
   async terminate(reason: EndReason): Promise<void> {
     if (this.closed) return;
+    this.ending ??= reason;
     try {
       await this.send({ type: 'session.end', reason: 'terminate' });
     } finally {
@@ -217,8 +235,16 @@ export class WorkerMediaLink implements WorkerMediaSession {
   onDtmf(fn: (digit: string) => void): () => void {
     return this.subscribe(this.dtmf, fn);
   }
+  /** The carrier's answering-machine verdict, once; a subscriber that arrives later still hears it. */
   onAnsweredBy(fn: (value: 'human' | 'machine' | 'unknown') => void): () => void {
+    const known = this.answered;
+    if (known) queueMicrotask(() => this.answeredBy.has(fn) && fn(known));
     return this.subscribe(this.answeredBy, fn);
+  }
+  private answer(value: 'human' | 'machine' | 'unknown'): void {
+    if (this.answered) return;
+    this.answered = value;
+    for (const listener of this.answeredBy) listener(value);
   }
   onClose(fn: (reason: string) => void): () => void {
     return this.subscribe(this.closeListeners, fn);
@@ -235,5 +261,13 @@ export class WorkerMediaLink implements WorkerMediaSession {
       this.socket = undefined;
       for (const listener of this.closeListeners) listener(reason);
     }
+  }
+
+  private log(event: string, error: unknown): void {
+    logger.error(event, {
+      sessionId: this.identity.sessionId,
+      generation: this.identity.generation,
+      ...errorFields(error),
+    });
   }
 }

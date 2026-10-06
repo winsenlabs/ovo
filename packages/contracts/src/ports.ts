@@ -1,6 +1,7 @@
 import type { ToolDefinition } from './agent.ts';
 import type { SpeechKindV2 } from './voice/evidence.ts';
 import type { PlaybackEvidence } from './voice/media.ts';
+import type { SttConfigurationUpdate } from './speech/stt.ts';
 
 export interface CallEvent {
   id: string;
@@ -98,6 +99,8 @@ export interface Execution {
 /** Tool and confirmation lifecycle, for turn-detector mute rules (§2.6). Optional for engines. */
 export type BehaviorEvent =
   | { type: 'tool.started' | 'tool.settled'; toolId: string; operationId: string }
+  /** STT-4: the provider's endpointing for what the caller says next (e.g. per flow state). */
+  | { type: 'stt.configure'; update: SttConfigurationUpdate }
   | { type: 'confirmation.pending'; toolId: string; operationId: string }
   | {
       type: 'confirmation.resolved';
@@ -113,13 +116,45 @@ export interface Behavior {
   onPlayback?(receipt: SpeechReceipt): void | Promise<void>;
   beginTurn?(epoch: number): void;
   isComplete?(): boolean;
+  /**
+   * Why the behaviour completed, read once `isComplete()` is true, for the call record (for example
+   * `decision:intent=goodbye` or `llm:end_call`). The outcome is still `completed`.
+   */
+  completionReason?(): string | undefined;
+  /**
+   * True when the behaviour speaks before the caller does. The engine then runs one opening turn,
+   * `respond('', { inputEvent: 'opening' })`, without waiting for speech recognition.
+   */
+  speaksFirst?(): boolean;
+  /**
+   * The carrier reported an answering machine. Returns the message to leave, or '' to end the call
+   * without one. `undefined`, or no such method, leaves the call as it is: the engine only records
+   * the verdict, and a held opening plays.
+   */
+  voicemail?(variables: Record<string, unknown>): string | undefined;
+  /**
+   * The caller-silence timeout when the behaviour handles silence itself (AGT-11). The engine then
+   * times silence and runs `respond('', { inputEvent: 'idle' })`, ignoring the turn detector's own
+   * idle prompts; an idle turn that completes the behaviour ends the call as `caller_idle`.
+   */
+  idleTimeoutMs?(): number | undefined;
   /** 'confirmation' for the pending confirmation prompt. */
   speechKind?(text: string): SpeechKindV2 | undefined;
   subscribe?(fn: (event: BehaviorEvent) => void): () => void;
 }
 
+/**
+ * Where a session records what it decided (AGT-8): `turn.route`, `flow.state`, `disposition`,
+ * `variables.captured`, `guardrail` and `call.outcome`, validated by `readSessionEvent`.
+ *
+ * `append` is called on the live turn path, so an implementation must never wait on storage or
+ * throw into the call: it validates, queues and returns. A malformed event is reported by the sink
+ * and dropped. Optional for behaviours; a session without a sink records nothing and runs the same.
+ */
 export interface EventSink {
   append(type: string, payload: Record<string, unknown>): Promise<void>;
+  /** Writes what is queued, bounded by the sink's own deadline. Called once the call has ended. */
+  flush?(): Promise<void>;
 }
 
 export interface SecretResolver {

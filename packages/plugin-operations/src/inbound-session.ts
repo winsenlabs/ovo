@@ -89,6 +89,15 @@ export async function provisionInboundSession(
       route.carrier_id,
     ],
   );
+  // OBS-8: the worker's slot is reserved with its route, in this transaction. Waiting for the
+  // worker's next report (up to 5 s) left it ready_idle: a dropped stream could not resume, and
+  // outbound admission counted the slot as idle. The report keeps it reserved while the route lives.
+  await client.query(
+    `UPDATE ovo_worker_slots SET state = 'reserved'
+     WHERE worker_id = $1 AND ownership_epoch = $2 AND state = 'ready_idle'
+       AND lease_expires_at > now()`,
+    [capacity.worker_id, epoch],
+  );
   const detail = {
     kind: 'reserved',
     releaseId: route.release_id,

@@ -1,4 +1,5 @@
 import type { Server } from 'node:http';
+import { createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
 import type { DeliveryOutcome } from './worker-types.ts';
 import { createInboundWorkerRuntime } from './inbound-runtime.ts';
 import { createProductionWorkerMediaRuntime } from './worker-media-bootstrap.ts';
@@ -6,8 +7,10 @@ import { openWorkerProcess } from './worker-process.ts';
 import { recordingRetentionDays } from './recording-runtime.ts';
 import { terminateActiveSession } from './worker-cleanup.ts';
 import { terminateOwnedJobAndFinalize } from './worker-termination.ts';
+import { settleTerminalSession } from './terminal-session.ts';
 import { WorkerReporter } from './worker-reporter.ts';
 import { env } from './worker-environment.ts';
+import { ActiveCallDrain, endRemainingWork } from './worker-drain.ts';
 import { watchWorkerShutdown, type WorkerStatus } from './worker-health.ts';
 
 export type { WorkerStatus } from './worker-health.ts';
@@ -52,9 +55,11 @@ export async function runWorkerLoop(input: {
     speechCache,
     extensions,
     composition,
-    distribution,
+    graph,
     carriers,
+    prewarm,
   } = processRuntime;
+  const log = createLogger({ service: 'worker', workerId });
   let mediaRuntime: ReturnType<typeof createProductionWorkerMediaRuntime>;
   const terminateCostedJob = async (jobId: string, ownerEpoch: number, reason: string) => {
     try {
@@ -87,6 +92,7 @@ export async function runWorkerLoop(input: {
       inboundWarmFloor: Number(process.env.OVO_INBOUND_WARM_FLOOR ?? 0),
       telephony,
       costs,
+      logger: log,
       terminateOwned: terminateCostedJob,
       onProtectionLost: (reason) => {
         status.state = 'draining';
@@ -96,6 +102,7 @@ export async function runWorkerLoop(input: {
       onSessionActive: (jobId) => {
         status.state = 'active';
         status.detail = `Active inbound job ${jobId}`;
+        void prewarm?.(jobId);
       },
       onSessionIdle: () => {
         status.state = 'ready';
@@ -138,7 +145,7 @@ export async function runWorkerLoop(input: {
     telephony,
     carriers,
     inbound: inboundRuntime,
-    graph: { distribution, parent: composition, carriers },
+    graph,
   });
   runner.setTerminationHandler(terminateCostedJob);
   costs.setTerminationHandler(async (job, reason) => {
@@ -148,6 +155,7 @@ export async function runWorkerLoop(input: {
   await inboundRuntime?.start();
   status.state = 'ready';
   status.detail = 'All required adapters composed; awaiting durable work';
+  log.info('worker_ready', { inbound: inboundRuntime !== undefined });
 
   const reporter = new WorkerReporter({
     store,
@@ -155,6 +163,7 @@ export async function runWorkerLoop(input: {
     ownershipEpoch: workerEpoch,
     state: () => status.state,
     onFailure: (error) => {
+      log.error('worker_reporter_failed', errorFields(error));
       status.state = 'draining';
       status.detail = String(error);
       runner.beginDrain();
@@ -162,70 +171,62 @@ export async function runWorkerLoop(input: {
   });
   await reporter.start();
 
+  const drain = new ActiveCallDrain({ log, inbound: inboundRuntime, jobId: () => active?.jobId });
   let shutdownPromise: Promise<void> | undefined;
-  const shutdown = () =>
+  const failed = (step: string, detail: string, error: unknown) => {
+    log.error('worker_shutdown_step_failed', { step, jobId: active?.jobId, ...errorFields(error) });
+    status.detail = `${detail}: ${String(error)}`;
+  };
+  /** `graceful` (SIGTERM) waits for the active call; an internal drain ends it at once. */
+  const shutdown = (graceful = false) =>
     (shutdownPromise ??= (async () => {
       status.state = 'draining';
+      if (graceful) drain.request(); // before awaiting admission: see ActiveCallDrain.request
+      log.info('worker_draining', { detail: status.detail, graceful });
       runner.beginDrain();
+      await inFlight?.catch((error) => failed('admission', 'shutdown admission failed', error));
+      if (graceful) await drain.wait();
       await reporter.stop();
-      await inFlight?.catch((error) => {
-        status.detail = `shutdown admission failed: ${String(error)}`;
+      await endRemainingWork({
+        active,
+        terminate: terminateCostedJob,
+        inbound: inboundRuntime,
+        failed,
       });
-      if (active) {
-        try {
-          await terminateCostedJob(active.jobId, active.lease.ownerEpoch, 'worker-shutdown');
-        } catch (error) {
-          status.detail = `outbound shutdown failed: ${String(error)}`;
-        }
-        active.lease.stop();
-        await active.protection.release().catch((error) => {
-          status.detail = `protection release failed: ${String(error)}`;
-        });
-      }
-      try {
-        await inboundRuntime?.close();
-      } catch (error) {
-        status.detail = `inbound shutdown failed: ${String(error)}`;
-      }
       await mediaRuntime.close('worker-shutdown');
       await telemetry.close();
-      speechCache.close();
+      await Promise.all([speechCache.close(), graph.outcomes?.close()]);
       await costLedger.close();
       await controlStore.close();
       await composition.dispose();
       server.close();
     })());
-  watchWorkerShutdown(input, shutdown);
+  watchWorkerShutdown(input, () => shutdown(true));
 
-  while (status.state !== 'draining') {
+  while (!draining() || (drain.waiting && active)) {
     if (active) {
       const route = await store.getSessionRoute(active.jobId);
       if (!route) {
+        log.error('active_session_route_missing', { jobId: active.jobId });
         status.state = 'draining';
         status.detail = 'active-session-route-missing';
         runner.beginDrain();
+        drain.abandon();
         continue;
       }
       if (route.terminalAt) {
-        active.lease.stop();
-        await active.protection.release();
-        await mediaRuntime.closeSession(route.sessionId, `carrier terminal: ${route.status}`);
-        await costs.finalize(active.jobId);
-        const job = await store.get(active.jobId);
-        if (job) {
-          const callId =
-            typeof job.payload.callId === 'string' && job.payload.callId
-              ? job.payload.callId
-              : job.id;
-          try {
-            await controlStore.finishCall(job.workspaceId, callId, route.status);
-          } catch {
-            await new Promise((resolve) => setTimeout(resolve, 1_000));
-            continue;
-          }
-        }
-        await store.releaseTerminalSession(active.jobId);
+        const settled = await settleTerminalSession({
+          active,
+          route,
+          store,
+          media: mediaRuntime,
+          costs,
+          controlStore,
+          log,
+        });
+        if (!settled) continue;
         active = undefined;
+        if (draining()) continue;
         await inboundRuntime?.resume();
         status.state = 'ready';
         status.detail = 'terminal session released';
@@ -235,6 +236,7 @@ export async function runWorkerLoop(input: {
       await new Promise((resolve) => setTimeout(resolve, 1_000));
       continue;
     }
+    if (draining()) break;
     const deliveries = await queue.receive({
       maxMessages: 1,
       waitSeconds: 20,
@@ -253,7 +255,11 @@ export async function runWorkerLoop(input: {
       inFlight = (async () => {
         await reporter.reportReserved();
         const outcome = await runner.handle(delivery);
-        if (outcome.kind === 'accepted') active = outcome;
+        if (outcome.kind === 'accepted') {
+          active = outcome;
+          // While the callee's phone rings: the first turn then skips DNS+TCP+TLS (LAT-8).
+          void prewarm?.(outcome.jobId);
+        }
         return outcome;
       })();
       const outcome = await inFlight;

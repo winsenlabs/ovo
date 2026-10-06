@@ -8,6 +8,8 @@ import {
   type TextToSpeech,
 } from '@winsendotai/ovo-contracts';
 import { Failures, type KitCheck } from './runner.ts';
+import { TTS_INCREMENTAL_CHECKS } from './tts-incremental.ts';
+import { TTS_REPLY_CHECKS } from './tts-reply.ts';
 import {
   CANDIDATES,
   formatFailures,
@@ -30,6 +32,22 @@ export interface TtsKitOptions {
   text?: string;
   voice?: string;
   language?: string;
+  /**
+   * Pieces the incremental checks push one text in. Leave at 1 only for a template that matches a
+   * single text frame; a pooled-socket template should accept 2 (TTS-12).
+   */
+  incrementalPushes?: number;
+  /** Scripts in which the provider fails after `open`, for the close-after-error check. */
+  incrementalFailure?: (format: AudioFormat) => NetFixtureScript[];
+  /**
+   * Require a distinct usage requestId per incremental utterance; the worker dedupes usage on it,
+   * so a repeated id under-bills. Off by default only because some fixtures replay one id.
+   */
+  distinctRequestIds?: boolean;
+  /** Scripts for one `openReply` speaking `texts` as its segments, in order (LAT-5). */
+  replyScripts?: (texts: readonly string[], format: AudioFormat) => NetFixtureScript[];
+  /** The same plugin with one audio-affecting binding field changed each (TTS-13). */
+  identityVariants?: readonly { name: string; factory: TtsFactory }[];
 }
 
 export interface TtsKitContext {
@@ -38,6 +56,8 @@ export interface TtsKitContext {
 }
 
 export { formatFailures, identityFailures, synthesize } from './tts-support.ts';
+export { TTS_INCREMENTAL_CHECKS, splitText } from './tts-incremental.ts';
+export { TTS_REPLY_CHECKS } from './tts-reply.ts';
 
 export const TTS_CHECKS: readonly KitCheck<TtsKitContext>[] = [
   {
@@ -115,4 +135,6 @@ export const TTS_CHECKS: readonly KitCheck<TtsKitContext>[] = [
       return f.messages;
     },
   },
+  ...TTS_INCREMENTAL_CHECKS,
+  ...TTS_REPLY_CHECKS,
 ];

@@ -8,8 +8,14 @@ import {
 } from '@winsendotai/ovo-plugin-operations';
 import type { RealtimeRouteDependencies } from './operations-realtime.ts';
 import { validateInboundCarrier } from '../operations-plugin.ts';
+import type { InboundReadinessReport } from '../inbound-readiness.ts';
 
-export function registerOperationsInboundRouteManagement(input: RealtimeRouteDependencies): void {
+export interface InboundRouteDependencies extends RealtimeRouteDependencies {
+  /** The dispatcher's latest inbound readiness for the capacity route (OPS-4). */
+  inboundReadiness?: () => Promise<InboundReadinessReport | null>;
+}
+
+export function registerOperationsInboundRouteManagement(input: InboundRouteDependencies): void {
   const { app, store, requireRole, use, audit } = input;
 
   app.get('/v1/operations/inbound/policy', async (request, reply) => {
@@ -40,11 +46,18 @@ export function registerOperationsInboundRouteManagement(input: RealtimeRouteDep
     return policy;
   });
 
+  // OPS-4: `readiness` says why readyProtected is what it is (admission off, no ready worker,
+  // no warm floor) as the dispatcher last saw it; null before any dispatcher published it, and
+  // absent when this API has no infrastructure store to read it from.
   app.get('/v1/operations/inbound/capacity', async (request, reply) => {
     const principal = requireRole(request, 'viewer');
     const operations = use(reply, principal);
     if (!operations) return;
-    return { readyProtected: await operations.inbound.readyProtectedCapacity() };
+    const [readyProtected, readiness] = await Promise.all([
+      operations.inbound.readyProtectedCapacity(),
+      input.inboundReadiness?.(),
+    ]);
+    return { readyProtected, ...(input.inboundReadiness ? { readiness } : {}) };
   });
 
   app.get('/v1/operations/inbound/decisions', async (request, reply) => {

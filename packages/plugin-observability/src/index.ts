@@ -15,6 +15,7 @@ export * from './call-stream-events.ts';
 export * from './fixture-telemetry.ts';
 export * from './call-evidence.ts';
 export * from './telemetry-plugin.ts';
+export * from './turn-telemetry.ts';
 
 export const observabilityPlugin = definePlugin(
   {

@@ -1,4 +1,4 @@
-import type { AgentConfig, ToolConnection } from '@winsendotai/ovo-contracts';
+import { agentLlmPaths, type AgentConfig, type ToolConnection } from '@winsendotai/ovo-contracts';
 import {
   createNativeHandlerMarker,
   nativeHandlerMarkerService,
@@ -54,7 +54,8 @@ export function createSessionPluginCatalog(input: SessionPluginInput): PluginDef
   const needsExecution =
     config.mode === 'agent' || behavior.manifest.id === BEHAVIOR_PLUGIN_IDS.faqTools;
   let missingLiveInference = false;
-  if (config.mode === 'context' || config.mode === 'agent') {
+  // A Jev-only agent (AGT-4) never reaches an LLM, so none is required to compose its graph.
+  if (agentLlmPaths(config).length) {
     const binding = input.bindings.inference;
     // Legacy release snapshots are scoped by their release and omit workspaceId.
     // Reject an explicit conflicting workspace here; require a selected provider below.

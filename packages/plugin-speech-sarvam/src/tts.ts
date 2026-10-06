@@ -12,10 +12,10 @@ import {
   type TextToSpeech,
   type UsageMeter,
 } from '@winsendotai/ovo-contracts';
-import { decimal, syntheticRequestId, systemClock, usageOnce } from '@winsendotai/ovo-plugin-kit';
+import { decimal, systemClock, usageOnce } from '@winsendotai/ovo-plugin-kit';
 import { decodeRestAudio } from './rest-audio.ts';
 import { sarvamSpeaker, sarvamTextLimit } from './tts-options.ts';
-import { SarvamTtsSession } from './tts-session.ts';
+import { SarvamTtsSession, utteranceRequestId } from './tts-session.ts';
 
 export interface SarvamTtsBinding {
   model?: 'bulbul:v3' | 'bulbul:v2';
@@ -59,6 +59,8 @@ export function sarvamTtsUrl(binding: SarvamTtsBinding): string {
 export class SarvamTts implements TextToSpeech {
   readonly capabilities: Omit<typeof SARVAM_TTS_CAPABILITIES, 'maxChars'> & { maxChars: number };
   readonly binding: Readonly<SarvamTtsBinding>;
+  /** Numbers this call's utterances, so each meters under its own requestId (OPS-18). */
+  private utterances = 0;
 
   constructor(
     private readonly net: NetPort,
@@ -82,14 +84,21 @@ export class SarvamTts implements TextToSpeech {
     };
   }
 
-  async open(input: Omit<SynthesisInput, 'text'>): Promise<IncrementalTts> {
+  open(input: Omit<SynthesisInput, 'text'>): Promise<IncrementalTts> {
+    return this.connect(input, ++this.utterances);
+  }
+
+  private async connect(
+    input: Omit<SynthesisInput, 'text'>,
+    utterance: number,
+  ): Promise<SarvamTtsSession> {
     if (!this.capabilities.outputFormats.some((format) => sameFormat(format, input.format)))
       throw new TypeError('Sarvam TTS requires a native mu-law or PCM16 format');
     input.signal.throwIfAborted();
     const socket = this.net.websocket(sarvamTtsUrl(this.binding), {
       headers: { 'Api-Subscription-Key': this.key },
     });
-    const session = new SarvamTtsSession(socket, input, this.binding, this.clock);
+    const session = new SarvamTtsSession(socket, input, this.binding, this.clock, utterance);
     await session.ready;
     return session;
   }
@@ -101,6 +110,7 @@ export class SarvamTts implements TextToSpeech {
       throw new TypeError(
         `Sarvam TTS text must contain 1–${sarvamTextLimit(this.binding)} characters`,
       );
+    const utterance = ++this.utterances;
     const once = usageOnce(input.onUsage);
     const meters: UsageMeter[] = [];
     const startedAt = this.clock.now();
@@ -108,7 +118,10 @@ export class SarvamTts implements TextToSpeech {
     let restRequestId: string | undefined;
     let restSucceeded = false;
     try {
-      const session = await this.open({ ...input, onUsage: (meter) => meters.push(meter) });
+      const session = await this.connect(
+        { ...input, onUsage: (meter) => meters.push(meter) },
+        utterance,
+      );
       try {
         session.push(input.text);
         session.flush();
@@ -135,7 +148,7 @@ export class SarvamTts implements TextToSpeech {
               unit: 'characters',
               quantity: decimal([...input.text].length),
               state: 'reconciled',
-              requestId: restRequestId ?? syntheticRequestId('sarvam', input.sessionId, 2),
+              requestId: utteranceRequestId(restRequestId, input.sessionId, utterance),
               elapsedMs: Math.max(0, this.clock.now() - startedAt),
             }
           : (meters[0] ?? {
@@ -144,7 +157,7 @@ export class SarvamTts implements TextToSpeech {
               unit: 'characters',
               quantity: decimal([...input.text].length),
               state: 'estimated',
-              requestId: syntheticRequestId('sarvam', input.sessionId, 1),
+              requestId: utteranceRequestId(undefined, input.sessionId, utterance),
               elapsedMs: Math.max(0, this.clock.now() - startedAt),
             }),
       );

@@ -23,7 +23,19 @@
     "lint:scope": "node scripts/lint.mjs --only",
     "typecheck:scope": "node scripts/typecheck-scope.mjs",
     "check:terraform": "node scripts/check-terraform.mjs",
-    "test:console:e2e": "pnpm --filter @winsendotai/ovo-console --if-present run e2e"
+    "test:console:e2e": "pnpm --filter @winsendotai/ovo-console --if-present run e2e",
+    "test:live-path": "vitest run --config tests/e2e/vitest.config.ts",
+    "test:golden": "vitest run packages/fixture-calls/tests/golden packages/plugin-evaluations/tests/jev-eval.test.ts",
+    "test:load": "vitest run --config tests/load/vitest.config.ts",
+    "stt:bakeoff": "tsx scripts/stt-bakeoff/cli.ts",
+    "flow:import": "tsx scripts/flow-import/cli.ts",
+    "eval:jev": "tsx scripts/jev-eval.ts",
+    "deploy:images": "bash scripts/deploy/build-images.sh",
+    "deploy:compose": "bash scripts/deploy/deploy-compose.sh",
+    "live": "bash scripts/deploy/ovo-live.sh",
+    "verify:live": "bash scripts/ops/verify-live.sh",
+    "backup": "bash scripts/backup/ovo-backup.sh",
+    "backup:drill": "bash scripts/backup/restore-drill.sh"
   },
   "devDependencies": {
     "@types/node": "22.20.0",

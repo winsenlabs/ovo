@@ -2,6 +2,7 @@ import {
   Cap,
   type Clock,
   type EngineEvent,
+  type EventSink,
   type MediaDuplex,
   type OperationStore,
   type SecretResolver,
@@ -22,30 +23,40 @@ export function subscribeEngineTelemetry(
   telemetry: WorkerSessionTelemetry,
   speech?: (event: Extract<EngineEvent, { type: 'speech' }>) => void,
 ): () => void {
+  let reported = false;
   return engine.subscribe((event) => {
-    telemetry.engineEvent?.(event);
-    if (event.type === 'speech') {
-      telemetry.adapter.speech(event.evidence);
-      speech?.(event);
-    } else if (event.type === 'timing') {
-      telemetry.audit('session.timing', { key: event.key, atMs: event.atMs, ms: event.ms });
-    } else if (event.type === 'user.transcript' && event.stability === 'final') {
-      telemetry.audit('transcript.accepted', { text: event.text, turnId: event.turnId });
-    } else if (event.type === 'agent.transcript') {
-      telemetry.audit('transcript.agent', {
-        segmentId: event.segmentId,
-        text: event.text,
-        state: event.state,
-        spokenPrefix: event.spokenPrefix,
-      });
-    } else if (event.type === 'interrupt') {
-      telemetry.audit('session.interrupt', { reason: event.reason });
-    } else if (event.type === 'voicemail') {
-      telemetry.audit('session.voicemail', { result: event.result });
-    } else if (event.type === 'end') {
-      telemetry.audit('session.engine-ended', { reason: event.reason });
+    try {
+      recordEngineEvent(telemetry, event);
+    } catch (error) {
+      // Telemetry is never voice business authority: a failing recorder must not end the turn.
+      // It is reported once per call so a broken recorder is visible without flooding the log.
+      if (!reported)
+        console.error(
+          'worker telemetry error:',
+          error instanceof Error ? error.message : String(error),
+        );
+      reported = true;
     }
+    if (event.type === 'speech') speech?.(event);
   });
+}
+
+function recordEngineEvent(telemetry: WorkerSessionTelemetry, event: EngineEvent): void {
+  telemetry.engineEvent?.(event);
+  if (event.type === 'speech') telemetry.adapter.speech(event.evidence);
+  // OBS-10: timings and transcripts are already in the engine.event row above (and the transcripts
+  // port records accepted and agent lines once); writing them again doubled every call's rows.
+  else if (event.type === 'timing') telemetry.adapter.timing(event);
+  else if (event.type === 'interrupt') {
+    telemetry.audit('session.interrupt', { reason: event.reason });
+  } else if (event.type === 'voicemail') {
+    telemetry.audit('session.voicemail', { result: event.result });
+  } else if (event.type === 'end') {
+    telemetry.audit('session.engine-ended', {
+      reason: event.reason,
+      ...(event.detail ? { detail: event.detail } : {}),
+    });
+  }
 }
 
 export function sessionHostServices(input: {
@@ -56,6 +67,8 @@ export function sessionHostServices(input: {
   transcripts: (
     event: Extract<EngineEvent, { type: 'user.transcript' | 'agent.transcript' }>,
   ) => void;
+  /** The call's outcome event sink (AGT-8); without one, behaviours record nothing. */
+  events?: EventSink;
 }): PluginDefinition {
   const clock: Clock = {
     now: () => Date.now(),
@@ -72,7 +85,15 @@ export function sessionHostServices(input: {
       scope: 'session',
       kind: 'host',
       requires: [],
-      provides: [Cap.operationStore, Cap.secrets, Cap.media, Cap.usage, Cap.transcripts, Cap.clock],
+      provides: [
+        Cap.operationStore,
+        Cap.secrets,
+        Cap.media,
+        Cap.usage,
+        Cap.transcripts,
+        Cap.clock,
+        ...(input.events ? [Cap.events] : []),
+      ],
       configSchema: { type: 'object', additionalProperties: false },
       secretFields: [],
     },
@@ -83,6 +104,7 @@ export function sessionHostServices(input: {
       ctx.provide(Cap.usage, input.usage);
       ctx.provide(Cap.transcripts, input.transcripts);
       ctx.provide(Cap.clock, clock);
+      if (input.events) ctx.provide(Cap.events, input.events);
     },
   );
 }

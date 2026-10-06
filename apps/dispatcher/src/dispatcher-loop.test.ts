@@ -113,4 +113,45 @@ describe('dispatcher loop', () => {
     expect(first).toHaveBeenCalledTimes(2);
     expect(second).toHaveBeenCalledTimes(2);
   });
+
+  it('reports inbound readiness on health, logs only changes, and keeps signalling when it fails', async () => {
+    const publish = vi.fn(async () => undefined);
+    const log = vi.fn();
+    const readiness = {
+      admissionEnabled: false,
+      readyWorkers: 2,
+      readyProtected: 0,
+      warmFloor: 2,
+      ready: true,
+      reasons: ['OVO_INBOUND_ENABLED=false'],
+    };
+    const readInboundReadiness = vi
+      .fn()
+      .mockResolvedValueOnce(readiness)
+      .mockResolvedValueOnce(readiness)
+      .mockRejectedValueOnce(new Error('operations unavailable'));
+    const loop = new DispatcherLoop({
+      tasks: [],
+      readCapacityInput: async () => capacity(),
+      publish,
+      readInboundReadiness,
+      log,
+    });
+    await loop.capacityTick();
+    await loop.capacityTick();
+    expect(readInboundReadiness).toHaveBeenCalledWith(
+      expect.objectContaining({ inboundWarmFloor: 2 }),
+    );
+    expect(loop.health()).toMatchObject({ healthy: true, inbound: readiness });
+    expect(log.mock.calls.filter(([entry]) => entry.event === 'inbound_readiness')).toEqual([
+      [{ event: 'inbound_readiness', ...readiness }],
+    ]);
+    await loop.capacityTick();
+    expect(publish).toHaveBeenCalledTimes(3);
+    expect(loop.health()).toMatchObject({ healthy: true, inbound: undefined });
+    expect(log).toHaveBeenCalledWith({
+      event: 'inbound_readiness_failed',
+      error: 'Error: operations unavailable',
+    });
+  });
 });

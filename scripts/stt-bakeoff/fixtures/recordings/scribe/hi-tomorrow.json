@@ -1,0 +1,36 @@
+{
+  "provider": "scribe",
+  "model": "scribe_v2_realtime",
+  "utteranceId": "hi-tomorrow",
+  "language": "hi-IN",
+  "audioEndMs": 2200,
+  "events": [
+    {
+      "atMs": 320,
+      "kind": "partial",
+      "segmentId": "0",
+      "text": "हाँ मैं"
+    },
+    {
+      "atMs": 1320,
+      "kind": "partial",
+      "segmentId": "0",
+      "text": "हाँ मैं कल तक"
+    },
+    {
+      "atMs": 2470,
+      "kind": "final",
+      "segmentId": "0",
+      "text": "हाँ मैं कल तक payment कर दूंगा"
+    }
+  ],
+  "usage": [
+    {
+      "unit": "audio_seconds",
+      "quantity": "2.720",
+      "state": "reconciled"
+    }
+  ],
+  "recordedAt": "2026-10-06T00:00:00.000Z",
+  "synthetic": true
+}

@@ -1,4 +1,8 @@
+import { FLOW_COMPAT_CODES } from './agent-flow.ts';
 import type { Slot } from './selection.ts';
+
+/** Codes an agent's own configuration raises, whatever plugins it selects. */
+const AGENT_CONFIG_CODES = ['template_variable_undeclared', ...FLOW_COMPAT_CODES] as const;
 
 /** Compatibility rule codes (§4.5). One rule per file lives in `session-host/src/compat`. */
 export const COMPAT_CODES = [
@@ -31,6 +35,7 @@ export const COMPAT_CODES = [
   'mcp_tool_removed',
   'termination_unsupported',
   'legacy_release_unpinned',
+  ...AGENT_CONFIG_CODES,
 ] as const;
 export type CompatCode = (typeof COMPAT_CODES)[number];
 

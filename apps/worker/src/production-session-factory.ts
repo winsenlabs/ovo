@@ -8,13 +8,14 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { asEndReason } from '@winsendotai/ovo-plugin-kit';
 import type { ProviderUsage } from './cost-policy-types.ts';
-import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
+import type { ControlStore, ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import type { DurableJob, SessionRoute } from '@winsendotai/ovo-plugin-orchestration';
 import type { SecretManager } from '@winsendotai/ovo-plugin-secrets';
 import type { LiveRecordingService } from '@winsendotai/ovo-plugin-recordings';
 import type { InstalledSessionExtensions } from '@winsendotai/ovo-runtime';
 import type { VoiceSessionFactory } from './media-runtime.ts';
 import type { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
+import { startEarlyCallWork, type EarlyCallWork } from './session-early-start.ts';
 import type { WorkerTelemetryRuntime } from './telemetry-runtime.ts';
 import type { WorkerSessionTelemetry } from './telemetry-runtime.ts';
 import { SessionCleanupStack, throwFailure } from './session-lifecycle.ts';
@@ -27,6 +28,14 @@ import {
 } from './session-graph-runtime.ts';
 import { composeLegacySessionGraph } from './legacy-session-compat.ts';
 import { attachRecordingEvidence } from './recording-evidence.ts';
+import { auditGuardrail, closeSessionEvents, openSessionEvents } from './session-outcomes.ts';
+import { optOutRecorder } from './opt-out-dnc.ts';
+import {
+  answeringMachineFor,
+  AnsweredByVerdicts,
+  watchAnsweredBy,
+  type AnsweredByWatch,
+} from './answering-machine.ts';
 
 export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
   constructor(
@@ -49,13 +58,34 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
       route: SessionRoute,
       reason: EndReason,
     ) => Promise<void>,
+    /** Where the carrier's answering-machine callback is recorded, read for outbound calls. */
+    private readonly answeredBy?: Pick<AnsweredByWatch, 'pool'>,
   ) {}
 
-  async create({ job, route, media }: Parameters<VoiceSessionFactory['create']>[0]) {
+  async create(input: Parameters<VoiceSessionFactory['create']>[0]) {
+    const { job, media } = input;
     const releaseId = requiredPayloadString(job.payload, 'releaseId');
-    const callId = optionalPayloadString(job.payload, 'callId') ?? job.id;
     const release = await this.store.getRelease(job.workspaceId, releaseId);
     if (!release) throw new Error('immutable release not found');
+    const early = startEarlyCallWork({
+      ...{ job, media, release, graph: this.graph, speechCache: this.speechCache },
+      ...{ extensions: this.extensions, secrets: this.secrets },
+      usage: (meter) => this.costUsageForJob?.(job.id)?.(meter),
+    });
+    try {
+      return await this.createSession(input, early);
+    } catch (error) {
+      await early.abandon();
+      throw error;
+    }
+  }
+
+  private async createSession(
+    { job, route, media }: Parameters<VoiceSessionFactory['create']>[0],
+    early: EarlyCallWork,
+  ) {
+    const { release, variables, format, callClips, sttPreconnect } = early;
+    const callId = optionalPayloadString(job.payload, 'callId') ?? job.id;
     const existingCall = await this.store.getCall(job.workspaceId, callId);
     const call =
       existingCall ??
@@ -84,6 +114,11 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
     cleanup.defer((failure) =>
       telemetry.close(failure === undefined ? requestedReason : 'error:session_cleanup_failed'),
     );
+    if (sttPreconnect)
+      cleanup.defer(async () => {
+        await sttPreconnect.dispose();
+        telemetry.audit('stt.preconnect', sttPreconnect.summary());
+      });
     try {
       const recording = await prepareSessionRecording({
         enabled: release.config.recording,
@@ -102,7 +137,6 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
         const carrier = await this.graph.carriers.forJob(job, false);
         if (route.carrierId && route.carrierId !== carrier.carrier.carrierId)
           throw new Error('Session route carrier differs from selected carrier');
-        const format: AudioFormat = 'format' in media ? (media.format as AudioFormat) : MULAW_8K;
         if (!format || typeof format !== 'object')
           throw new Error('Worker media format is missing');
         if (
@@ -111,11 +145,34 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
           )
         )
           throw new Error('Selected carrier does not support negotiated worker media format');
+        const events = openSessionEvents(
+          this.graph.outcomes,
+          { workspaceId: job.workspaceId, callId },
+          telemetry,
+        );
+        // Deferred first, so it runs last: after the engine, and every event it records, is gone.
+        if (events) cleanup.defer(() => closeSessionEvents(events, requestedReason));
+        const amd = answeringMachineFor(release.config, job.payload, carrier.carrier.capabilities);
+        const verdicts = amd ? new AnsweredByVerdicts() : undefined;
+        if (amd && verdicts) {
+          const unsubscribe =
+            media.onAnsweredBy?.((value) => verdicts.deliver(value)) ?? (() => undefined);
+          cleanup.defer(() => unsubscribe());
+          if (this.answeredBy) {
+            const stop = watchAnsweredBy({
+              pool: this.answeredBy.pool,
+              route,
+              deliver: (value) => verdicts.deliver(value),
+              fastForMs: amd.timeoutMs,
+            });
+            cleanup.defer(() => stop());
+          }
+        }
         const graph = await composeLiveSessionGraph({
           graph: this.graph,
           release,
           routeSessionId: route.sessionId,
-          variables: isPayloadRecord(job.payload.variables) ? job.payload.variables : {},
+          variables,
           media: recording.media,
           operationStore: telemetry.withOperationStore(this.store.operationStore),
           secrets: this.secrets.forAgent(release.agentId),
@@ -123,6 +180,8 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
           extensions: this.extensions,
           usage: (meter) => this.costUsageForJob?.(job.id)?.(meter),
           speechCache: this.speechCache,
+          callClips,
+          sttPreconnect,
           carrierMedia: {
             carrierId: carrier.carrier.carrierId,
             format,
@@ -132,8 +191,15 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
           beforeMediaClose: this.beforeEngineMediaClose
             ? (reason) => this.beforeEngineMediaClose!(job, route, reason)
             : undefined,
+          ...(amd && verdicts
+            ? { amd, answeredBy: (listener) => verdicts.subscribe(listener) }
+            : {}),
+          ...(events ? { events } : {}),
         });
         cleanup.defer(() => graph.composition.dispose());
+        if (callClips) cleanup.defer(() => this.speechCache?.perCall.release(job.id));
+        cleanup.defer(() => auditGuardrail(graph.composition, telemetry));
+        cleanup.defer(optOutRecorder(this.graph, graph, job, telemetry));
         const unsubscribe = subscribeEngineTelemetry(graph.engine, telemetry);
         cleanup.defer(() => unsubscribe());
         if (capture) cleanup.defer(attachRecordingEvidence(capture, graph.engine));
@@ -188,8 +254,4 @@ export function recordSessionOutcome(
   const outcome = outcomeFor(reason);
   telemetry.audit('session.outcome', { outcome, reason });
   return outcome === 'failed' || outcome === 'canceled' ? 'failed' : 'ended';
-}
-
-function isPayloadRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }

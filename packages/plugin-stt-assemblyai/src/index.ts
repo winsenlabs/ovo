@@ -1,10 +1,37 @@
 import { Cap } from '@winsendotai/ovo-contracts';
 import { definePlugin } from '@winsendotai/ovo-runtime';
-import { ASSEMBLYAI_CAPABILITIES, AssemblyAiStt, type AssemblyAiBinding } from './provider.ts';
+import {
+  ASSEMBLYAI_CAPABILITIES,
+  ASSEMBLYAI_MODELS,
+  AssemblyAiStt,
+  type AssemblyAiBinding,
+} from './provider.ts';
+import { ENDPOINTING_PRESETS } from './endpointing.ts';
+import { MAX_KEYTERMS } from './keyterms.ts';
 import { fixtures, fixtureTemplates } from './testing.ts';
 
-export { AssemblyAiStt, assemblyAiUrl, ASSEMBLYAI_CAPABILITIES } from './provider.ts';
-export { AssemblyAiProviderError } from './session.ts';
+export {
+  AssemblyAiStt,
+  assemblyAiCapabilitiesFor,
+  assemblyAiUrl,
+  ASSEMBLYAI_CAPABILITIES,
+  ASSEMBLYAI_MODELS,
+  DEFAULT_CONNECT_TIMEOUT_MS,
+} from './provider.ts';
+export {
+  assemblyAiLanguageCodes,
+  assemblyAiLanguages,
+  assemblyAiSupportsLanguage,
+} from './languages.ts';
+export {
+  assemblyAiTurnDetection,
+  ENDPOINTING_PRESETS,
+  updateConfigurationMessage,
+  type AssemblyAiConfigurationUpdate,
+  type EndpointingPreset,
+} from './endpointing.ts';
+export { AssemblyAiProviderError, AssemblyAiSession } from './session.ts';
+export { callKeyterms, type AssemblyAiCallKeyterms } from './keyterms.ts';
 export { fixtures, fixtureTemplates };
 
 export const assemblyAiPlugin = definePlugin(
@@ -25,6 +52,10 @@ export const assemblyAiPlugin = definePlugin(
         workspaceId: { type: 'string' },
         bindingId: { type: 'string' },
         updatedAt: { type: 'string' },
+        // STT-11, from the agent's `voice.stt.config`: terms every call favours, and the call
+        // variables (paths such as `full_name`) whose values that call favours.
+        keyterms: { type: 'array', maxItems: MAX_KEYTERMS, items: { type: 'string' } },
+        keytermVariables: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1 } },
       },
       additionalProperties: false,
     },
@@ -33,18 +64,27 @@ export const assemblyAiPlugin = definePlugin(
       properties: {
         model: {
           type: 'string',
-          enum: [
-            'universal-streaming-english',
-            'universal-streaming-multilingual',
-            'universal-3-5-pro',
-          ],
+          enum: [...ASSEMBLYAI_MODELS],
           default: 'universal-streaming-english',
         },
-        region: { type: 'string', enum: ['default', 'us', 'eu'], default: 'default' },
-        minTurnSilenceMs: { type: 'integer', minimum: 1 },
+        // The US endpoint answered Begin faster from India (0.72s against 1.16s); EU data
+        // residency selects 'eu' explicitly.
+        region: { type: 'string', enum: ['default', 'us', 'eu'], default: 'us' },
+        fallbackRegion: { type: 'string', enum: ['default', 'us', 'eu'] },
+        // The handshake took 2-5s from asia-south1. Two attempts at the default fit the worker's
+        // fifteen-second pre-session buffer; a longer deadline survives a slower handshake but
+        // drops the oldest buffered caller audio.
+        connectTimeoutMs: { type: 'integer', minimum: 500, maximum: 15_000, default: 6_000 },
+        // Provider presets; the explicit turn fields below override them.
+        endpointing: { type: 'string', enum: [...ENDPOINTING_PRESETS] },
+        minTurnSilenceMs: { type: 'integer', minimum: 50, maximum: 10_000 },
         maxTurnSilenceMs: { type: 'integer', minimum: 1 },
         endOfTurnConfidenceThreshold: { type: 'number', minimum: 0, maximum: 1 },
-        keyterms: { type: 'array', items: { type: 'string' } },
+        vadThreshold: { type: 'number', minimum: 0, maximum: 1 },
+        keyterms: { type: 'array', maxItems: MAX_KEYTERMS, items: { type: 'string' } },
+        // Sent to the pro models only.
+        prompt: { type: 'string', minLength: 1, maxLength: 1_750 },
+        inactivityTimeoutSec: { type: 'integer', minimum: 5, maximum: 3_600 },
       },
       additionalProperties: false,
     },
@@ -71,7 +111,13 @@ export const assemblyAiPlugin = definePlugin(
   },
   async (ctx, row) => {
     const key = await ctx.secret('');
-    ctx.provide(Cap.stt, new AssemblyAiStt(ctx.net, key, (row.binding ?? {}) as AssemblyAiBinding));
+    ctx.provide(
+      Cap.stt,
+      new AssemblyAiStt(ctx.net, key, (row.binding ?? {}) as AssemblyAiBinding, undefined, {
+        keyterms: row.keyterms as string[] | undefined,
+        keytermVariables: row.keytermVariables as string[] | undefined,
+      }),
+    );
   },
 );
 

@@ -2,9 +2,15 @@ import type { Server } from 'node:http';
 import { WebSocket } from '@winsendotai/ovo-plugin-media';
 import type { DurableJob, SessionRoute } from '@winsendotai/ovo-plugin-orchestration';
 import type { GatewayToWorkerMessage, WorkerMediaSession } from '@winsendotai/ovo-plugin-media';
-import type { EndReason } from '@winsendotai/ovo-contracts';
-import { asEndReason } from '@winsendotai/ovo-plugin-kit';
+import type { EndReason, Logger } from '@winsendotai/ovo-contracts';
+import { asEndReason, createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
+import {
+  sessionOpenFailure,
+  sessionOpenSource,
+  type SessionOpenStage,
+} from './session-open-failure.ts';
 import { attachWorkerMediaServer, WorkerMediaLink } from './worker-media-server.ts';
+import { workerHealth } from './worker-health.ts';
 import {
   authenticatedMediaRoute,
   activelyOwnedMediaJob,
@@ -26,11 +32,25 @@ export interface VoiceSessionFactory {
 
 type Open = Extract<GatewayToWorkerMessage, { type: 'session.open' }>;
 
+export {
+  sessionOpenFailure,
+  sessionOpenSource,
+  type SessionOpenStage,
+} from './session-open-failure.ts';
+
+const routeIds = (route: SessionRoute) => ({
+  sessionId: route.sessionId,
+  jobId: route.jobId,
+  carrierCallId: route.carrierCallId,
+  generation: route.generation,
+});
+
 export class WorkerMediaRuntime {
   private readonly engines = new Map<string, ManagedVoiceSession>();
   private readonly links = new Map<string, WorkerMediaLink>();
   private readonly finalizing = new Map<string, Promise<void>>();
   private detachServer?: () => Promise<void>;
+  private readonly log: Logger;
 
   constructor(
     private readonly config: {
@@ -38,6 +58,7 @@ export class WorkerMediaRuntime {
       token?: string;
       httpServer?: Server;
       url?: string;
+      logger?: Logger;
     },
     private readonly store: RouteTokenStore,
     private readonly factory: VoiceSessionFactory,
@@ -49,7 +70,11 @@ export class WorkerMediaRuntime {
       job: DurableJob,
       route: SessionRoute,
     ) => void | Promise<void>,
-  ) {}
+  ) {
+    this.log = (config.logger ?? createLogger({ service: 'worker' })).child({
+      workerId: config.workerId,
+    });
+  }
 
   async start(): Promise<void> {
     if (this.detachServer) return;
@@ -58,6 +83,7 @@ export class WorkerMediaRuntime {
     this.detachServer = attachWorkerMediaServer({
       httpServer: this.config.httpServer,
       token: this.config.token,
+      logger: this.log,
       onOpen: (open, socket, handoff) => this.accept(open, socket, handoff),
     });
   }
@@ -110,30 +136,58 @@ export class WorkerMediaRuntime {
     // Register before factory.create: input overflow or a broken graph must finalize the route.
     link.onClose((reason) => {
       void this.finalizeSession(route, link, reason).catch((error: unknown) => {
-        console.error('Worker media finalization failed', error);
+        this.log.error('session_finalize_failed', {
+          ...routeIds(route),
+          reason,
+          ...errorFields(error),
+        });
       });
     });
     try {
       handoff();
     } catch (error) {
+      this.log.warn('session_handoff_failed', { ...routeIds(route), ...errorFields(error) });
       link.finish('error:media-handshake-closed');
       await this.finalizing.get(route.sessionId);
       throw error;
     }
     // Acceptance is written before the factory awaits STT, TTS or graph composition.
     socket.send(JSON.stringify({ type: 'session.accept' }));
+    const progress: { stage: SessionOpenStage } = { stage: 'route' };
+    const openStartedAt = Date.now();
     try {
-      await this.open(link, route);
+      await this.open(link, route, progress);
       if (!link.isClosed) link.activate();
+      workerHealth.handshake(Date.now() - openStartedAt);
     } catch (error) {
-      link.finish('error:session-open-failed');
+      // accept was already sent, so the gateway never sees a session.reject: this line and the
+      // terminal reason are the only record of why the call went silent. A caller who hung up
+      // mid-open already closed the link; that is logged at warn and keeps its own reason.
+      this.log[link.isClosed ? 'warn' : 'error']('session_open_failed', {
+        ...routeIds(route),
+        stage: progress.stage,
+        ...sessionOpenSource(error),
+        mediaClosedReason: link.closedReason,
+        ...errorFields(error),
+      });
+      const reason = sessionOpenFailure(progress.stage, error);
+      workerHealth.sessionOpenFailed({
+        stage: progress.stage,
+        reason,
+        sessionId: route.sessionId,
+      });
+      link.finish(reason);
       await this.finalizing.get(route.sessionId);
       throw error;
     }
   }
 
   /** The route is selected by a scoped durable authentication before factory work begins. */
-  private async open(media: WorkerMediaLink, route: SessionRoute): Promise<void> {
+  private async open(
+    media: WorkerMediaLink,
+    route: SessionRoute,
+    progress: { stage: SessionOpenStage } = { stage: 'route' },
+  ): Promise<void> {
     if (!(media instanceof WorkerMediaLink))
       throw new Error('worker media requires an authenticated socket link');
     if (
@@ -144,14 +198,18 @@ export class WorkerMediaRuntime {
     )
       throw new Error('gateway session does not match durable route identity');
     if (route.terminalAt || route.releasedAt) throw new Error('durable session route is terminal');
+    progress.stage = 'job';
     const job = await activelyOwnedMediaJob(this.store, route);
+    progress.stage = 'admission';
     await this.beforeSessionOpen?.(job, route);
+    progress.stage = 'compose';
     const engine = await this.factory.create({ job, route, media });
     if (media.isClosed) {
       await engine.dispose(asEndReason(media.closedReason ?? 'ownership_lost'), false);
       return;
     }
     this.engines.set(route.sessionId, engine);
+    progress.stage = 'record';
     if (!this.store.pool || media.isClosed) throw new Error('media session closed before opening');
     await recordSessionOpened(this.store.pool, route);
     if (media.isClosed) throw new Error('media session opening was not durably recorded');
@@ -166,6 +224,7 @@ export class WorkerMediaRuntime {
     if (this.links.get(sessionId) !== link) return Promise.resolve();
     const prior = this.finalizing.get(sessionId);
     if (prior) return prior;
+    workerHealth.sessionEnded(reason);
     const work = (async () => {
       this.links.delete(sessionId);
       const engine = this.engines.get(sessionId);
@@ -181,6 +240,7 @@ export class WorkerMediaRuntime {
       .finally(() => {
         if (this.finalizing.get(sessionId) === work) this.finalizing.delete(sessionId);
       })
+      // swallow-ok: every caller awaits `work` itself; the onClose path logs its failure.
       .catch(() => undefined);
     return work;
   }

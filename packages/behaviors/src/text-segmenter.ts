@@ -2,6 +2,8 @@ import { sentenceBoundary } from './sentence-boundary.ts';
 
 const DEFAULT_MAX_SEGMENT_CHARACTERS = 240;
 const DEFAULT_MAX_TOTAL_CHARACTERS = 32_000;
+/** A clause mark ends the first segment only after this many words (LAT-9). */
+export const DEFAULT_MIN_FIRST_WORDS = 3;
 
 /** Deterministically turns provider deltas into bounded, speakable text segments. */
 export class StreamingTextSegmenter {
@@ -12,7 +14,11 @@ export class StreamingTextSegmenter {
   constructor(
     private readonly maxSegmentCharacters = DEFAULT_MAX_SEGMENT_CHARACTERS,
     private readonly maxTotalCharacters = DEFAULT_MAX_TOTAL_CHARACTERS,
-    private readonly options: { language?: string; firstSegmentMaxChars?: number } = {},
+    private readonly options: {
+      language?: string;
+      firstSegmentMaxChars?: number;
+      minFirstWords?: number;
+    } = {},
   ) {
     if (!Number.isInteger(maxSegmentCharacters) || maxSegmentCharacters < 32)
       throw new TypeError('maxSegmentCharacters must be an integer of at least 32');
@@ -23,6 +29,9 @@ export class StreamingTextSegmenter {
       (options.firstSegmentMaxChars ?? 60) < 1
     )
       throw new TypeError('firstSegmentMaxChars must be a positive integer');
+    const minFirstWords = options.minFirstWords ?? DEFAULT_MIN_FIRST_WORDS;
+    if (!Number.isInteger(minFirstWords) || minFirstWords < 0)
+      throw new TypeError('minFirstWords must be a non-negative integer');
   }
 
   push(delta: string): string[] {
@@ -50,6 +59,7 @@ export class StreamingTextSegmenter {
         this.options.language ?? 'en',
         flush,
         this.first,
+        this.options.minFirstWords ?? DEFAULT_MIN_FIRST_WORDS,
       );
       if (boundary === undefined && !flush && this.buffer.length <= maximum) break;
       const end = boundary ?? boundedBoundary(this.buffer, maximum);

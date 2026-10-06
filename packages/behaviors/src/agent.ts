@@ -1,83 +1,60 @@
-import type { ValidateFunction } from 'ajv';
-import { compileAgentTools, type AgentBehaviorOptions } from './agent-tools.ts';
-import {
-  AgentTurnLog,
-  type AgentDecisionRecord,
-  type AgentGroundingRecord,
-} from './agent-turn-log.ts';
-import type { AgentToolErrorRecord } from './agent-tools.ts';
+import { flowFacts } from './agent-decision-step.ts';
+import { runPreReplySteps } from './agent-pre-reply.ts';
+import { resumeConfirmation } from './agent-confirmation-step.ts';
+import { firstInferenceRequest, runInferenceSteps } from './agent-inference-step.ts';
+import { AgentSession } from './agent-session.ts';
+import { OPT_OUT_COMPLETION } from './opt-out.ts';
+import type { AgentBehaviorOptions } from './agent-tools.ts';
+import { AgentHandoffs } from './handoff.ts';
+import type { AgentSpeculationOptions } from './speculation.ts';
+import type {
+  AgentConfig,
+  Execution,
+  Inference,
+  OperationRecord,
+} from '@winsendotai/ovo-contracts';
 export {
   AgentToolSelectionError,
   type AgentBehaviorOptions,
   type AgentToolErrorRecord,
 } from './agent-tools.ts';
-import {
-  AgentConfig as AgentConfigSchema,
-  type AgentConfig,
-  type Behavior,
-  type Execution,
-  type Inference,
-  type InferenceReply,
-  type OperationRecord,
-  type ToolDefinition,
-  type SpeechReceipt,
-} from '@winsendotai/ovo-contracts';
-import { PlaybackConversation } from './history.ts';
-import { ToolConfirmation } from './confirmation.ts';
-import { ToolEvents } from './tool-events.ts';
-import { assembleBoundedContext } from './context.ts';
-import { DecisionGate } from './decision-gate.ts';
-import { runPreReplySteps } from './agent-pre-reply.ts';
-import { resumeConfirmation } from './agent-confirmation-step.ts';
-import { Grounding } from './grounding.ts';
-import { streamAgentReply } from './agent-stream.ts';
+export { AgentSession } from './agent-session.ts';
+export * from './speculation.ts';
+export * from './handoff.ts';
+export type { LlmSpeculationMetrics } from './speculation-llm.ts';
+export type { PartialWords } from './speculation-turn.ts';
 
-export class AgentBehavior implements Behavior {
-  readonly config: AgentConfig;
-  readonly assembledContext: string;
-  private readonly tools: ToolDefinition[];
-  private readonly validators: Map<string, ValidateFunction>;
-  private readonly operationId: () => string;
-  private active?: AbortController;
-  private turn = 0;
-  private readonly conversation = new PlaybackConversation();
-  private readonly events = new ToolEvents();
-  private readonly confirmation = new ToolConfirmation(this.events.emit);
-  readonly subscribe = this.events.subscribe;
-  speechKind(text: string) {
-    return this.confirmation.speechKind(text);
-  }
-  private uncertainWrite = false;
-  private readonly gate?: DecisionGate;
-  private readonly grounding?: Grounding;
-  private readonly log = new AgentTurnLog();
-  /** Tool-selection failures and decisions asked, oldest first, bounded. */
-  readonly toolErrors: readonly AgentToolErrorRecord[] = this.log.toolErrors;
-  readonly decisions: readonly AgentDecisionRecord[] = this.log.decisions;
-  readonly groundings: readonly AgentGroundingRecord[] = this.log.groundings;
+export class AgentBehavior extends AgentSession {
+  /** Transfer and callback turns (AGT-15); inert without a `handoff` block. */
+  private readonly handoffs: AgentHandoffs;
+  /** Execution with the built-in handoff tools answered in the behaviour. */
+  private readonly toolExecution: Execution;
 
   constructor(
     config: AgentConfig,
-    private readonly inference: Inference,
-    private readonly execution: Execution,
-    private readonly options: AgentBehaviorOptions,
+    inference: Inference | undefined,
+    execution: Execution,
+    options: AgentBehaviorOptions & AgentSpeculationOptions,
   ) {
-    this.config = AgentConfigSchema.parse(config);
-    if (this.config.mode !== 'agent') {
-      throw new TypeError(`Agent behavior requires agent mode, received ${this.config.mode}`);
-    }
-    if (!options.workspaceId || !options.sessionId)
-      throw new TypeError('Agent behavior requires workspaceId and sessionId');
-    this.assembledContext = assembleBoundedContext(this.config.context, this.config.contextBudget);
-    this.operationId = options.operationId ?? (() => crypto.randomUUID());
+    super(config, inference, execution, options);
+    this.handoffs = new AgentHandoffs(
+      this.config,
+      {
+        ...(options.events ? { events: options.events } : {}),
+        now: options.now ?? (() => new Date()),
+        turn: () => this.turn,
+        arm: (reason) => this.ending.arm(reason),
+      },
+      this.variables.schema,
+    );
+    this.handoffs.offer(this.tools, this.validators);
+    this.handoffs.follow(this.flow);
+    this.toolExecution = this.handoffs.execution(execution);
+  }
 
-    const compiled = compileAgentTools(this.config);
-    this.tools = compiled.tools;
-    this.validators = compiled.validators;
-    if (this.config.decision)
-      this.gate = new DecisionGate(this.config.decision, this.options.decision);
-    if (this.config.knowledge)
-      this.grounding = new Grounding(this.config.knowledge, this.options.knowledge);
+  /** A flow node that transfers completes with a `transfer:` reason, ending as `transferred`. */
+  override completionReason(): string | undefined {
+    return this.handoffs.completionReason(super.completionReason());
   }
 
   async respond(input: string, variables: Record<string, unknown> = {}): Promise<string> {
@@ -95,13 +72,42 @@ export class AgentBehavior implements Behavior {
     streaming: boolean,
     variables: Record<string, unknown> = {},
   ): AsyncIterable<string> {
+    this.ending.startTurn();
+    this.lines.startTurn();
+    this.ahead.heardTurn(variables);
+    if (variables.inputEvent === 'opening') return yield* this.lines.opening(variables, this.flow);
+    if (variables.inputEvent === 'idle') return yield* this.lines.silence(variables);
+    this.lines.heard();
+    this.gate?.closePrepared();
     this.active?.abort(new DOMException('superseded by a newer turn', 'AbortError'));
+    // The caller withdrew consent: no decision, LLM or pending confirmation answers this turn.
+    if (this.optOut.heard(input, this.turn + 1)) {
+      this.turn += 1;
+      this.confirmation.expire();
+      this.conversation.user(input);
+      this.ending.arm(OPT_OUT_COMPLETION);
+      yield this.say(this.optOut.closingLine);
+      this.ending.seal();
+      return;
+    }
     const controller = new AbortController();
     const turn = ++this.turn;
     this.active = controller;
     const results: OperationRecord[] = [];
     const history = this.conversation.user(input);
     let wrote = false;
+    // LAT-3: the LLM's first step, asked alongside the decision when the agent speculates.
+    const early = this.ahead.llmTurn(this.inference, streaming, controller.signal, (context) =>
+      firstInferenceRequest({
+        config: this.config,
+        input,
+        history,
+        context,
+        tools: this.tools,
+        results,
+        ...(this.flow ? { flow: this.flow } : {}),
+      }),
+    );
 
     try {
       if (this.confirmation.waiting) {
@@ -122,160 +128,87 @@ export class AgentBehavior implements Behavior {
         });
         if (resumed.record) results.push(resumed.record);
         if (resumed.kind === 'speak') {
-          yield this.conversation.generated(resumed.text);
+          yield this.say(resumed.text);
           return;
         }
         wrote = resumed.wrote;
       }
-      const prepared = await runPreReplySteps({
-        config: this.config,
-        grounding: this.grounding,
-        gate: this.gate,
-        briefing: this.assembledContext,
-        turnInput: { input, history, variables },
-        signal: controller.signal,
-        log: this.log,
-        turn,
-        stale: () => turn !== this.turn,
+      // A turn that never asks the gate (a knowledge refusal) must not be judged by the last verdict.
+      if (this.gate) this.gate.last = undefined;
+      const route = await this.lines.route({
+        input,
+        llm: this.inference !== undefined,
+        verdict: () => this.gate?.last,
+        prepare: () =>
+          runPreReplySteps({
+            config: this.config,
+            grounding: this.grounding,
+            gate: this.gate,
+            // AGT-5: until a flow confirms identity, neither carries this call's variable values.
+            briefing: this.briefing(variables),
+            facts: flowFacts(this.flow, this.variables.facts(variables)),
+            turnInput: { input, history, variables, today: this.variables.today() },
+            signal: controller.signal,
+            log: this.log,
+            turn,
+            stale: () => turn !== this.turn,
+            render: (line) => this.variables.render(line, variables),
+            ...this.guard.input(results),
+            ...(early ? { speculateLlm: early.start } : {}),
+          }),
       });
-      if (prepared.speak !== undefined) {
-        yield this.conversation.generated(prepared.speak);
+      this.outcomes.routed(turn, route);
+      const diverted = this.handoffs.divert(route, this.gate?.last);
+      if (diverted) return yield* this.lines.speak(diverted, variables);
+      if (route.kind === 'recover') return yield* this.lines.speak(route.plan, variables);
+      const { prepared } = route;
+      if (route.end !== undefined) this.ending.arm(`decision:${route.end}`);
+      if (route.say !== undefined) {
+        // A flow node's lines are separate segments, so each one is cached and played on its own.
+        for (const line of prepared.lines ?? [route.say]) yield this.say(line, turn);
+        this.ending.seal();
         return;
       }
-      const context = prepared.context;
-      for (let step = 0; step < this.config.maxSteps; step += 1) {
-        controller.signal.throwIfAborted();
-        const request = {
-          input,
-          history,
-          context,
-          uncertainty: this.config.uncertainty,
-          tools: this.tools,
-          results,
-          signal: controller.signal,
-        };
-        let reply: InferenceReply;
-        if (streaming && this.inference.stream) {
-          const streamed = yield* streamAgentReply(
-            this.inference.stream(request),
-            this.config.locale,
-            () => {
-              controller.signal.throwIfAborted();
-              if (turn !== this.turn) throw new DOMException('stale agent turn', 'AbortError');
-            },
-            (text) => this.conversation.generated(text),
-          );
-          if (!streamed) return;
-          reply = streamed;
-        } else {
-          reply = await this.inference.generate(request);
-        }
-        controller.signal.throwIfAborted();
-        if (turn !== this.turn) throw new DOMException('stale agent turn', 'AbortError');
-
-        if (reply.kind === 'text') {
-          yield this.conversation.generated(reply.text.trim() || this.config.uncertainty);
-          return;
-        }
-
-        const tool = this.tools.find((candidate) => candidate.id === reply.toolId);
-        if (!tool) {
-          throw this.log.toolError(
-            this.turn,
-            reply.toolId,
-            'unknown-or-unapproved',
-            `Inference selected unknown or unapproved tool: ${reply.toolId}`,
-          );
-        }
-        const validate = this.validators.get(tool.id)!;
-        if (!validate(reply.input)) {
-          const reason = validate.errors
-            ?.map((error) => `${error.instancePath || '/'} ${error.message ?? 'is invalid'}`)
-            .join('; ');
-          throw this.log.toolError(
-            this.turn,
-            tool.id,
-            'invalid-input',
-            `Inference supplied invalid input for ${tool.id}: ${reason ?? 'schema mismatch'}`,
-          );
-        }
-
-        if (tool.effect === 'write' && this.uncertainWrite) {
-          yield this.conversation.generated(
-            'A previous change has an unconfirmed outcome. An operator must reconcile it before another change.',
-          );
-          return;
-        }
-        if (tool.effect === 'write' && wrote) {
-          yield this.conversation.generated(
-            'The confirmed action is complete. Please make a separate request for another change.',
-          );
-          return;
-        }
-        const operationId = this.operationId();
-        if (tool.effect === 'write' || tool.confirmation) {
-          yield this.conversation.generated(
-            this.confirmation.request(
-              { tool, input: reply.input, operationId },
-              this.config.locale,
-            ),
-          );
-          return;
-        }
-
-        // Execution is the sole policy, durable-intent, acknowledgement, and connector boundary.
-        const result = await this.events.execute(
-          this.execution,
-          {
-            id: operationId,
-            workspaceId: this.options.workspaceId,
-            sessionId: this.options.sessionId,
-            toolId: tool.id,
-            input: reply.input,
-            confirmed: false,
-          },
-          controller.signal,
-        );
-        controller.signal.throwIfAborted();
-        if (turn !== this.turn) throw new DOMException('stale agent turn', 'AbortError');
-        results.push(result);
-        // A fresh model-selected ID must never turn an uncertain effect into an
-        // automatic retry. Surface failure and require explicit reconciliation.
-        if (result.state !== 'succeeded') {
-          yield this.conversation.generated(
-            tool.processing?.failure ?? this.config.processing.failure,
-          );
-          return;
-        }
-      }
-      yield this.conversation.generated(this.config.uncertainty);
+      if (!this.inference) return;
+      yield* runInferenceSteps({
+        config: this.config,
+        inference: early?.inference() ?? this.inference,
+        execution: this.toolExecution,
+        identity: { workspaceId: this.options.workspaceId, sessionId: this.options.sessionId },
+        tools: this.tools,
+        validators: this.validators,
+        log: this.log,
+        confirmation: this.confirmation,
+        events: this.events,
+        publish: (text) => this.say(text, turn),
+        endCall: (reason) => this.ending.arm(reason),
+        operationId: this.operationId,
+        turn,
+        current: () => turn === this.turn,
+        input,
+        history,
+        context: prepared.context,
+        results,
+        streaming,
+        signal: controller.signal,
+        uncertainWrite: () => this.uncertainWrite,
+        wrote,
+        ...(this.flow ? { flow: this.flow } : {}),
+        guard: prepared.guard,
+      });
+      this.ending.seal();
     } finally {
+      early?.finish();
       if (this.active === controller) this.active = undefined;
     }
-  }
-
-  cancel(reason = 'agent turn cancelled'): void {
-    this.turn += 1;
-    this.active?.abort(new DOMException(reason, 'AbortError'));
-    this.active = undefined;
-    this.confirmation.expire();
-  }
-
-  beginTurn(epoch: number): void {
-    this.conversation.beginTurn(epoch);
-    this.confirmation.beginTurn(epoch);
-  }
-  onPlayback(receipt: SpeechReceipt): void {
-    this.conversation.played(receipt);
-    this.confirmation.played(receipt);
   }
 }
 
 export function createAgentBehavior(
   config: AgentConfig,
-  inference: Inference,
+  inference: Inference | undefined,
   execution: Execution,
-  options: AgentBehaviorOptions,
+  options: AgentBehaviorOptions & AgentSpeculationOptions,
 ): AgentBehavior {
   return new AgentBehavior(config, inference, execution, options);
 }

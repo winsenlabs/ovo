@@ -65,7 +65,7 @@ describe('authoring a decision from the console', () => {
   it('removing the last question removes the policy, not just its contents', () => {
     const latest = harness(base(policy()));
     fireEvent.click(screen.getByRole('button', { name: 'Remove question' }));
-    // An empty questions array fails the contract (min 1), so the policy itself must go.
+    // An agent policy with neither questions nor a flow is refused at release, so it must go.
     expect(latest().decision).toBeUndefined();
     expect(() => AgentConfigSchema.parse(latest())).not.toThrow();
   });

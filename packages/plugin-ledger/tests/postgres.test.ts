@@ -7,6 +7,7 @@ import {
   type PriceCardVersion,
   type RecordUsageInput,
 } from '../src/index.ts';
+import { fingerprint } from '../src/postgres/fingerprint.ts';
 
 const postgresUrl = process.env.OVO_TEST_POSTGRES_URL;
 
@@ -68,7 +69,7 @@ describe.skipIf(!postgresUrl)('PostgreSQL production cost ledger', () => {
 
   it('runs a versioned migration with only ovo_cost_ ledger tables', async () => {
     const version = await pool.query('SELECT version FROM ovo_cost_schema_migrations');
-    expect(version.rows).toEqual([{ version: 1 }, { version: 2 }]);
+    expect(version.rows).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
   });
 
   it('keeps price card versions immutable and idempotent', async () => {
@@ -90,6 +91,58 @@ describe.skipIf(!postgresUrl)('PostgreSQL production cost ledger', () => {
     await expect(ledger.putFxVersion({ ...fx, rateNumerator: '8400' })).rejects.toBeInstanceOf(
       LedgerConflictError,
     );
+  });
+
+  // OPS-13: a card names the model it prices and whether the price is a placeholder.
+  it('stores a price card’s model and provisional flag, leaving wildcard cards unchanged', async () => {
+    const luna = {
+      ...card,
+      id: 'luna-output',
+      provider: 'openai',
+      unit: 'output_tokens',
+      model: 'gpt-6-luna',
+      provisional: true,
+    };
+    await expect(ledger.putPriceCard(luna)).resolves.toEqual(luna);
+    await expect(ledger.getPriceCard(luna.id, luna.version)).resolves.toEqual(luna);
+    await expect(ledger.putPriceCard(luna)).resolves.toEqual(luna);
+    await expect(ledger.putPriceCard({ ...luna, model: 'gpt-6-sol' })).rejects.toBeInstanceOf(
+      LedgerConflictError,
+    );
+    await expect(ledger.putPriceCard({ ...luna, provisional: false })).rejects.toBeInstanceOf(
+      LedgerConflictError,
+    );
+    // A card stored before the model column existed keeps its fingerprint, so re-putting it
+    // (as seed scripts do) stays idempotent; `provisional: false` is the same card.
+    const stored = await pool.query('SELECT fingerprint FROM ovo_cost_price_cards WHERE id=$1', [
+      card.id,
+    ]);
+    expect(stored.rows[0].fingerprint).toBe(fingerprint(card));
+    await expect(ledger.putPriceCard({ ...card, provisional: false })).resolves.toEqual(card);
+    await expect(ledger.getPriceCard(card.id, card.version)).resolves.toEqual(card);
+    await expect(ledger.putPriceCard({ ...luna, id: 'blank', model: ' ' })).rejects.toThrow(
+      'model is required',
+    );
+  });
+
+  it('labels a session cost provisional when any charge used a provisional card', async () => {
+    await ledger.recordUsage(usage());
+    expect(await ledger.getSessionCost('single-org-compat', 'session-1')).toMatchObject({
+      provisional: false,
+      provisionalPriceCards: [],
+    });
+    const placeholder = { ...card, id: 'tts-placeholder', provisional: true };
+    await ledger.putPriceCard(placeholder);
+    await ledger.recordUsage(
+      usage({ priceCard: { id: placeholder.id, version: placeholder.version } }),
+    );
+    expect(await ledger.getSessionCost('single-org-compat', 'session-1')).toMatchObject({
+      provisional: true,
+      provisionalPriceCards: [{ id: 'tts-placeholder', version: 'v1' }],
+    });
+    expect(await ledger.getSessionCost('single-org-compat', 'session-2')).toMatchObject({
+      provisional: false,
+    });
   });
 
   it('appends native usage idempotently by key and source provenance', async () => {

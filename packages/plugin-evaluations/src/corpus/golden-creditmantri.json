@@ -1,0 +1,784 @@
+[
+  {
+    "id": "ptp-goodbye",
+    "title": "Promise to pay tomorrow, then goodbye: disposition recorded, call completed",
+    "steps": [
+      {
+        "caller": "yes speaking",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "I'll pay tomorrow.",
+        "decision": { "intent": "promise_to_pay", "slots": { "ptp_when": "tomorrow" } },
+        "expect": {
+          "tier": "decision",
+          "intent": "promise_to_pay",
+          "node": "ptp_tomorrow",
+          "says": [
+            "Thank you. I've noted that you'll make the payment tomorrow, Thursday, the 8th of October.",
+            "I'll also send you the payment link by SMS, so it's handy when you're ready.",
+            "Is there anything else I can help you with?"
+          ]
+        }
+      },
+      {
+        "caller": "no thanks",
+        "expect": {
+          "tier": "rule",
+          "intent": "no_more",
+          "node": "goodbye",
+          "says": ["Thank you for your time. Have a good day!"],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["promise_to_pay:tomorrow"],
+      "verified": true,
+      "node": "goodbye"
+    }
+  },
+  {
+    "id": "wrong-number",
+    "title": "Wrong number, does not know the customer: nothing about the loan is said",
+    "steps": [
+      {
+        "caller": "wrong number",
+        "expect": {
+          "tier": "rule",
+          "intent": "wrong_person",
+          "node": "wrong_person",
+          "says": ["I'm sorry for the trouble. Do you happen to know Rahul Sharma?"]
+        }
+      },
+      {
+        "caller": "no",
+        "expect": {
+          "tier": "rule",
+          "intent": "no",
+          "node": "wp_unknown",
+          "says": ["My apologies for the disturbance. We'll update our records. Have a good day."],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["wrong_number"],
+      "verified": false,
+      "node": "wp_unknown"
+    }
+  },
+  {
+    "id": "wrong-number-knows",
+    "title": "Wrong number, knows the customer: the helpline is left",
+    "steps": [
+      {
+        "caller": "wrong number",
+        "expect": { "tier": "rule", "intent": "wrong_person", "node": "wrong_person" }
+      },
+      {
+        "caller": "Yes, he's my neighbour.",
+        "decision": { "intent": "yes" },
+        "expect": {
+          "tier": "decision",
+          "intent": "yes",
+          "node": "wp_knows",
+          "says": [
+            "Could you please ask them to call CreditMantri on 1800 123 4567? Thank you, and sorry for the disturbance."
+          ],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["wrong_party:knows_customer"],
+      "verified": false,
+      "node": "wp_knows"
+    }
+  },
+  {
+    "id": "repeat",
+    "title": "Repeat replays the last lines after the prefix, without moving; Hinglish after it",
+    "steps": [
+      {
+        "caller": "Sorry?",
+        "expect": {
+          "tier": "rule",
+          "intent": "repeat",
+          "says": [
+            "Sure, let me repeat that.",
+            "Hello, I'm calling from CreditMantri. My name is Ananya.",
+            "Am I speaking with Rahul Sharma?"
+          ]
+        }
+      },
+      {
+        "caller": "haan ji",
+        "expect": { "tier": "rule", "intent": "confirmed", "node": "disclose" }
+      },
+      {
+        "caller": "Kal tak kar dunga.",
+        "decision": { "intent": "promise_to_pay", "slots": { "ptp_when": "tomorrow" } },
+        "expect": { "tier": "decision", "intent": "promise_to_pay", "node": "ptp_tomorrow" }
+      },
+      {
+        "caller": "Bas itna hi, thank you.",
+        "decision": { "intent": "no_more" },
+        "expect": {
+          "tier": "decision",
+          "intent": "no_more",
+          "node": "goodbye",
+          "says": ["Thank you for your time. Have a good day!"],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["promise_to_pay:tomorrow"],
+      "verified": true,
+      "node": "goodbye"
+    }
+  },
+  {
+    "id": "idle-twice",
+    "title": "Two silences: one prompt, then the closing line ends the call (POC no_input_end)",
+    "steps": [
+      { "caller": null, "expect": { "tier": "idle", "says": ["Hello? Can you hear me?"] } },
+      {
+        "caller": null,
+        "expect": {
+          "tier": "idle",
+          "says": ["I'm unable to hear you, so I'll call back later. Goodbye."],
+          "end": true
+        }
+      }
+    ],
+    "outcome": { "ended": true, "dispositions": [], "verified": false, "node": "greet" }
+  },
+  {
+    "id": "other-llm-resume",
+    "title": "'Other' goes to the LLM, which resumes the flow; the next replies take the cheap path again",
+    "steps": [
+      {
+        "caller": "Is this about my loan?",
+        "decision": { "intent": "other" },
+        "llm": {
+          "reply": "I'm calling from CreditMantri about an account-related matter, and I can only discuss it with Rahul Sharma. Is that you?",
+          "resumeAt": "identity"
+        },
+        "expect": {
+          "tier": "llm",
+          "says": [
+            "I'm calling from CreditMantri about an account-related matter, and I can only discuss it with Rahul Sharma. Is that you?"
+          ]
+        }
+      },
+      {
+        "caller": "yes",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "What is my total outstanding?",
+        "decision": { "intent": "other" },
+        "llm": {
+          "reply": "Your total due is five thousand four hundred and forty rupees. When would you be able to pay it?",
+          "resumeAt": "payment"
+        },
+        "expect": {
+          "tier": "llm",
+          "says": [
+            "Your total due is five thousand four hundred and forty rupees. When would you be able to pay it?"
+          ]
+        }
+      },
+      {
+        "caller": "I can pay by Friday.",
+        "decision": { "intent": "promise_to_pay", "slots": { "ptp_when": "within_3_days" } },
+        "expect": { "tier": "decision", "intent": "promise_to_pay", "node": "ptp_3days" }
+      },
+      {
+        "caller": "no",
+        "expect": {
+          "tier": "rule",
+          "intent": "no_more",
+          "node": "goodbye",
+          "says": ["Thank you for your time. Have a good day!"],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["promise_to_pay:3_days"],
+      "verified": true,
+      "node": "goodbye"
+    }
+  },
+  {
+    "id": "low-confidence-llm",
+    "title": "A confident-looking answer below the threshold is not trusted; the LLM re-asks",
+    "steps": [
+      {
+        "caller": "Yeah that's me, tell me.",
+        "decision": { "intent": "confirmed", "confidence": 0.4 },
+        "llm": {
+          "reply": "Just to confirm, am I speaking with Rahul Sharma?",
+          "resumeAt": "identity"
+        },
+        "expect": { "tier": "llm", "says": ["Just to confirm, am I speaking with Rahul Sharma?"] }
+      },
+      {
+        "caller": "speaking",
+        "expect": { "tier": "rule", "intent": "confirmed", "node": "disclose" }
+      }
+    ],
+    "outcome": { "ended": false, "dispositions": [], "verified": true, "node": "disclose" }
+  },
+  {
+    "id": "asks-purpose",
+    "title": "Asks who is calling before confirming: reassured without account details",
+    "steps": [
+      {
+        "caller": "Who is this?",
+        "decision": { "intent": "asks_purpose" },
+        "expect": {
+          "tier": "decision",
+          "intent": "asks_purpose",
+          "node": "reassure",
+          "says": [
+            "I'm calling from CreditMantri about an account-related matter. For privacy, I can only discuss it with Rahul Sharma. Is that you?"
+          ]
+        }
+      },
+      {
+        "caller": "yes",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      }
+    ],
+    "outcome": { "ended": false, "dispositions": [], "verified": true, "node": "disclose" }
+  },
+  {
+    "id": "busy-callback",
+    "title": "Busy (Hinglish), callback tomorrow morning",
+    "steps": [
+      {
+        "caller": "Abhi busy hoon, baad mein call karo.",
+        "decision": { "intent": "busy" },
+        "expect": { "tier": "decision", "intent": "busy", "node": "busy" }
+      },
+      {
+        "caller": "Kal subah.",
+        "decision": { "intent": "tomorrow_morning" },
+        "expect": {
+          "tier": "decision",
+          "intent": "tomorrow_morning",
+          "node": "cb_tomorrow_morning",
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["callback:tomorrow_morning"],
+      "verified": false,
+      "node": "cb_tomorrow_morning"
+    }
+  },
+  {
+    "id": "stop-calling",
+    "title": "A global intent ends the call from the payment state",
+    "steps": [
+      {
+        "caller": "yes",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "Stop calling me every day.",
+        "decision": { "intent": "stop_calling" },
+        "expect": {
+          "tier": "decision",
+          "intent": "stop_calling",
+          "node": "stop_calling",
+          "says": [
+            "Understood. I've noted your request. You can reach us anytime on 1800 123 4567. Goodbye."
+          ],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["do_not_call_requested"],
+      "verified": true,
+      "node": "stop_calling"
+    }
+  },
+  {
+    "id": "third-party",
+    "title": "Family member answers: message left with the first name and helpline",
+    "steps": [
+      {
+        "caller": "He is not at home, I am his wife.",
+        "decision": { "intent": "third_party" },
+        "expect": {
+          "tier": "decision",
+          "intent": "third_party",
+          "node": "third_party",
+          "says": [
+            "No problem. Could you please ask Rahul to call CreditMantri back on 1800 123 4567? Thank you, and have a good day."
+          ],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["third_party_message_left"],
+      "verified": false,
+      "node": "third_party"
+    }
+  },
+  {
+    "id": "pay-now-link",
+    "title": "Pays now: link not received, resent, received, closing line with the total",
+    "steps": [
+      {
+        "caller": "yes",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "I'll pay right now, send me the link.",
+        "decision": { "intent": "pay_now" },
+        "expect": { "tier": "decision", "intent": "pay_now", "node": "pay_now" }
+      },
+      {
+        "caller": "not yet",
+        "expect": { "tier": "rule", "intent": "not_received", "node": "resend" }
+      },
+      {
+        "caller": "got it",
+        "expect": {
+          "tier": "rule",
+          "intent": "received",
+          "node": "pay_close",
+          "says": [
+            "Thank you, Rahul. Once you pay five thousand four hundred and forty rupees, it will reflect in your account within two hours.",
+            "Is there anything else I can help you with?"
+          ]
+        }
+      },
+      {
+        "caller": "no",
+        "expect": {
+          "tier": "rule",
+          "intent": "no_more",
+          "node": "goodbye",
+          "says": ["Thank you for your time. Have a good day!"],
+          "end": true
+        }
+      }
+    ],
+    "outcome": { "ended": true, "dispositions": [], "verified": true, "node": "goodbye" }
+  },
+  {
+    "id": "hardship-partial",
+    "title": "Cannot pay, chooses a partial payment link",
+    "steps": [
+      {
+        "caller": "yes",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "I lost my job, I can't pay right now.",
+        "decision": { "intent": "cannot_pay" },
+        "expect": { "tier": "decision", "intent": "cannot_pay", "node": "hardship" }
+      },
+      {
+        "caller": "I can pay part of it.",
+        "decision": { "intent": "partial" },
+        "expect": { "tier": "decision", "intent": "partial", "node": "partial" }
+      },
+      {
+        "caller": "no thanks",
+        "expect": {
+          "tier": "rule",
+          "intent": "no_more",
+          "node": "goodbye",
+          "says": ["Thank you for your time. Have a good day!"],
+          "end": true
+        }
+      }
+    ],
+    "outcome": { "ended": true, "dispositions": [], "verified": true, "node": "goodbye" }
+  },
+  {
+    "id": "ptp-later-relief",
+    "title": "More than a week away: offered the latest date, declines, relief team",
+    "steps": [
+      {
+        "caller": "yes",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "Salary comes on the first, I will pay after that.",
+        "decision": { "intent": "promise_to_pay", "slots": { "ptp_when": "later" } },
+        "expect": { "tier": "decision", "intent": "promise_to_pay", "node": "ptp_later" }
+      },
+      { "caller": "no", "expect": { "tier": "rule", "intent": "no", "node": "hardship" } },
+      {
+        "caller": "I need a revised plan.",
+        "decision": { "intent": "relief" },
+        "expect": { "tier": "decision", "intent": "relief", "node": "relief" }
+      },
+      {
+        "caller": "nothing else",
+        "expect": {
+          "tier": "rule",
+          "intent": "no_more",
+          "node": "goodbye",
+          "says": ["Thank you for your time. Have a good day!"],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["relief_team_callback"],
+      "verified": true,
+      "node": "goodbye"
+    }
+  },
+  {
+    "id": "already-paid",
+    "title": "Already paid: date taken, verification raised",
+    "steps": [
+      {
+        "caller": "yes",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "I already paid it yesterday.",
+        "decision": { "intent": "already_paid" },
+        "expect": { "tier": "decision", "intent": "already_paid", "node": "already_paid" }
+      },
+      {
+        "caller": "On the second of October.",
+        "decision": { "intent": "gave_date" },
+        "expect": { "tier": "decision", "intent": "gave_date", "node": "ap_done" }
+      },
+      {
+        "caller": "no thanks",
+        "expect": {
+          "tier": "rule",
+          "intent": "no_more",
+          "node": "goodbye",
+          "says": ["Thank you for your time. Have a good day!"],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["payment_verification_requested"],
+      "verified": true,
+      "node": "goodbye"
+    }
+  },
+  {
+    "id": "ptp-unspecified",
+    "title": "A promise with no date asks for one; the slot then routes to today",
+    "steps": [
+      {
+        "caller": "yes",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "I will pay, just give me some time.",
+        "decision": { "intent": "promise_to_pay" },
+        "expect": { "tier": "decision", "intent": "promise_to_pay", "node": "ptp_ask" }
+      },
+      {
+        "caller": "I'll pay tonight after I get home.",
+        "decision": { "intent": "promise_to_pay", "slots": { "ptp_when": "today" } },
+        "expect": { "tier": "decision", "intent": "promise_to_pay", "node": "ptp_today" }
+      },
+      {
+        "caller": "no thanks",
+        "expect": {
+          "tier": "rule",
+          "intent": "no_more",
+          "node": "goodbye",
+          "says": ["Thank you for your time. Have a good day!"],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["promise_to_pay:today"],
+      "verified": true,
+      "node": "goodbye"
+    }
+  },
+  {
+    "id": "waiver-then-ptp",
+    "title": "Waiver flagged, then a promise within the week",
+    "steps": [
+      {
+        "caller": "yes",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "Please remove the bounce charge.",
+        "decision": { "intent": "waiver_request" },
+        "expect": { "tier": "decision", "intent": "waiver_request", "node": "waiver" }
+      },
+      {
+        "caller": "I will pay within this week.",
+        "decision": { "intent": "promise_to_pay", "slots": { "ptp_when": "within_week" } },
+        "expect": { "tier": "decision", "intent": "promise_to_pay", "node": "ptp_week" }
+      },
+      {
+        "caller": "no",
+        "expect": {
+          "tier": "rule",
+          "intent": "no_more",
+          "node": "goodbye",
+          "says": ["Thank you for your time. Have a good day!"],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["waiver_requested", "promise_to_pay:7_days"],
+      "verified": true,
+      "node": "goodbye"
+    }
+  },
+  {
+    "id": "dispute",
+    "title": "Disputes the amount: review raised",
+    "steps": [
+      {
+        "caller": "yes",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "The amount is wrong, my EMI is not this much.",
+        "decision": { "intent": "dispute" },
+        "expect": { "tier": "decision", "intent": "dispute", "node": "dispute" }
+      },
+      {
+        "caller": "no thanks",
+        "expect": {
+          "tier": "rule",
+          "intent": "no_more",
+          "node": "goodbye",
+          "says": ["Thank you for your time. Have a good day!"],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["dispute_raised"],
+      "verified": true,
+      "node": "goodbye"
+    }
+  },
+  {
+    "id": "mandate-fix",
+    "title": "Bank account changed: mandate link, then a promise for tomorrow",
+    "steps": [
+      {
+        "caller": "yes",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "I changed my bank account, how do I update the auto debit?",
+        "decision": { "intent": "mandate_help" },
+        "expect": { "tier": "decision", "intent": "mandate_help", "node": "mandate_fix" }
+      },
+      {
+        "caller": "Kal tak kar dunga.",
+        "decision": { "intent": "promise_to_pay", "slots": { "ptp_when": "tomorrow" } },
+        "expect": { "tier": "decision", "intent": "promise_to_pay", "node": "ptp_tomorrow" }
+      },
+      {
+        "caller": "no thanks",
+        "expect": {
+          "tier": "rule",
+          "intent": "no_more",
+          "node": "goodbye",
+          "says": ["Thank you for your time. Have a good day!"],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["promise_to_pay:tomorrow"],
+      "verified": true,
+      "node": "goodbye"
+    }
+  },
+  {
+    "id": "abusive",
+    "title": "Abuse ends the call politely",
+    "steps": [
+      {
+        "caller": "Shut up, you idiot.",
+        "decision": { "intent": "abusive" },
+        "expect": { "tier": "decision", "intent": "abusive", "node": "abusive", "end": true }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["abusive_caller"],
+      "verified": false,
+      "node": "abusive"
+    }
+  },
+  {
+    "id": "human",
+    "title": "Asks for a person: transfer line, then the call ends (transfer itself is AGT-15)",
+    "steps": [
+      {
+        "caller": "I want to talk to a real person.",
+        "decision": { "intent": "human_agent" },
+        "expect": { "tier": "decision", "intent": "human_agent", "node": "human", "end": true }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["transfer_to_human"],
+      "verified": false,
+      "node": "human"
+    }
+  }
+]

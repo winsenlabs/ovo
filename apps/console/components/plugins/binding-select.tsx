@@ -4,7 +4,9 @@ import { apiRequest, type CredentialMetadata, type ProviderBinding } from '../..
 import { Drawer } from '../ui/drawer';
 import { FormField } from '../ui/form-field';
 import { SchemaForm } from './schema-form';
+import { schemaDefaults } from './schema-defaults';
 import { CarrierOperatorUrls } from './carrier-operator-urls';
+import { VoicePreviewButton } from '../integrations/voice-preview-button';
 import type { PluginOption } from './types';
 export { carrierOperatorUrls } from './carrier-operator-urls';
 export function BindingSelect({
@@ -30,7 +32,7 @@ export function BindingSelect({
   const [createdCredential, setCreatedCredential] = useState<CredentialMetadata>();
   const [credentialBusy, setCredentialBusy] = useState(false);
   const credentialValue = useRef<HTMLInputElement>(null);
-  const [config, setConfig] = useState<Record<string, unknown>>({});
+  const [config, setConfig] = useState<Record<string, unknown>>(() => schemaDefaults(plugin));
   const [error, setError] = useState<string>();
   const filtered = bindings.filter((binding) => binding.pluginId === plugin.id);
   const credentialOptions = [
@@ -44,7 +46,7 @@ export function BindingSelect({
   useEffect(() => {
     setCredentialId('');
     setCreatedCredential(undefined);
-    setConfig({});
+    setConfig(schemaDefaults(plugin));
     setError(undefined);
     if (credentialValue.current) credentialValue.current.value = '';
   }, [plugin.id]);
@@ -105,7 +107,7 @@ export function BindingSelect({
       onCreated?.(data);
       onChange(data.id);
       setOpen(false);
-      setConfig({});
+      setConfig(schemaDefaults(plugin));
       setLabel('');
       setCredentialId('');
     } catch (failure) {
@@ -134,6 +136,7 @@ export function BindingSelect({
         <button className="button" type="button" onClick={() => setOpen(true)}>
           Create binding
         </button>
+        {plugin.kind === 'tts' && value && <VoicePreviewButton bindingId={value} />}
       </div>
       {error && <p role="alert">{error}</p>}
       {plugin.kind === 'carrier' && value && <CarrierOperatorUrls bindingId={value} />}

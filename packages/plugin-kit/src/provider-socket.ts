@@ -58,7 +58,7 @@ export function openProviderSocket(
         try {
           socket.close(1000, 'connect aborted');
         } catch {
-          // A socket that never opened may refuse a close code; it is discarded either way.
+          // swallow-ok: a socket that never opened may refuse a close code; it is discarded.
         }
         reject(reason);
       });
@@ -95,6 +95,7 @@ export function keepalive(socket: WebSocketLike, options: KeepaliveOptions): () 
       try {
         socket.send(options.message());
       } catch {
+        // swallow-ok: a socket that refuses a keepalive is closing; its close event reports it.
         stop();
         return;
       }

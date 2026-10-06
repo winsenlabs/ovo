@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import { AgentFlow } from './agent-flow.ts';
+
+// The flow is authored inside the decision policy, so it is exported alongside it.
+export * from './agent-flow.ts';
 
 /**
  * Per-agent decision authoring. `decision.ts` holds the provider-neutral wire contract; this holds
@@ -28,22 +32,19 @@ export const DecisionOutcome = z
      * means this branch records its answer and lets the LLM compose the reply.
      */
     say: z.string().trim().min(1).max(2_000).optional(),
+    /**
+     * End the call once this turn's reply has played: `say` when set, otherwise the LLM's reply.
+     * The call ends `completed`; a caller who barges in on the goodbye keeps it open.
+     */
+    end: z.boolean().optional(),
   })
   .strict();
 
 /*
- * A business disposition (`promise_to_pay:tomorrow`) and a script jump are the two other outcomes
- * this shape obviously wants, and neither is here, because neither can act today:
- *
- *   - `EventSink` and `HumanHandoffPort` are declared in `contracts/src/ports.ts` and
- *     `human-handoff.ts` with no implementation and no caller anywhere in this repository, and
- *     `TranscriptObserver` accepts only `user.transcript` and `agent.transcript`. There is no
- *     durable sink a behaviour can write a disposition to.
- *   - A script jump needs a router. `AgentConfig` already refuses a script outside announcement and
- *     FAQ mode, so an agent-mode decision has no graph to jump in.
- *
- * Both are named open items (`PM/CURRENT-STATE.md` item 8, and P2 for the intent graph). An outcome
- * field that validates and then does nothing is worse than its absence, so they wait for those.
+ * A business disposition (`promise_to_pay:tomorrow`) and a jump to another state are deliberately
+ * not flat outcomes. Both need conversation state, and the flat policy has none: it asks the same
+ * questions on every turn. They live on the flow (`agent-flow.ts`), whose nodes carry a
+ * `disposition` and whose intents name the `next` node. A flat outcome stays a single reply.
  */
 export type DecisionOutcome = z.infer<typeof DecisionOutcome>;
 
@@ -51,9 +52,8 @@ export type DecisionOutcome = z.infer<typeof DecisionOutcome>;
  * What happens when confidence falls below the authored threshold. `llm` is the documented Jev
  * posture — the decision model answers what it is confident about and defers the rest.
  *
- * `handoff` is deliberately absent. `HumanHandoffPort` is a contract with no implementation and no
- * caller anywhere in this repository, so a `handoff` fallback would be a configuration that reads
- * as a safety net and does nothing. It arrives with that port, not before.
+ * `handoff` is deliberately not a fallback here: a transfer is the agent's `handoff` block (AGT-15),
+ * triggered by flow nodes, an unavailable decision, exhausted re-asks or the LLM tool.
  */
 export const DecisionFallback = z.enum(['llm', 'clarify']);
 export type DecisionFallback = z.infer<typeof DecisionFallback>;
@@ -162,6 +162,10 @@ export const DECISION_STATE_SOURCES = [
   'context',
   /** Passages the `knowledge` plugin retrieved for this turn. Empty when nothing cleared the bar. */
   'knowledge',
+  /** The agent's last played line: what the caller is most likely answering. */
+  'agent-last-said',
+  /** Today's date in the agent's timezone, so a relative date ("tomorrow") can be resolved. */
+  'today',
 ] as const;
 export const DecisionStateSource = z.enum(DECISION_STATE_SOURCES);
 export type DecisionStateSource = z.infer<typeof DecisionStateSource>;
@@ -169,8 +173,18 @@ export type DecisionStateSource = z.infer<typeof DecisionStateSource>;
 export const AgentDecisionPolicy = z
   .object({
     enabled: z.boolean().default(false),
-    /** Asked together in one round trip. Separate questions do not cost separate calls. */
-    questions: z.array(AgentDecisionQuestion).min(1).max(32),
+    /**
+     * Asked together in one round trip. Separate questions do not cost separate calls. Empty when
+     * a `flow` routes the agent, or when a script uses the decision model only to match replies to
+     * its transitions; the release check requires one of the two in agent mode.
+     */
+    questions: z.array(AgentDecisionQuestion).max(32).default([]),
+    /** The state-aware flow (AGT-1). It replaces `questions`: one listen set is asked per turn. */
+    flow: AgentFlow.optional(),
+    /**
+     * What the model is shown. A flow always sends the caller's reply, the agent's last line, the
+     * recent turns and today; `variables`, `context` and `knowledge` add to that when listed.
+     */
     state: z
       .object({
         sources: z.array(DecisionStateSource).min(1),
@@ -180,17 +194,40 @@ export const AgentDecisionPolicy = z
       .refine(
         (state) => new Set(state.sources).size === state.sources.length,
         'State sources must be unique',
-      ),
+      )
+      .default({ sources: ['last-turn'], transcriptTurns: 6 }),
     /**
      * Milliseconds the decision may take before the turn gives up and runs the fallback. A decision
-     * sits in front of the reply, so its latency is audible.
+     * sits in front of the reply, so its latency is audible. Jev answers in ~300ms on a warm
+     * connection; 800ms relies on LAT-8's keep-alive and session pre-warm so a cold TLS handshake
+     * from Mumbai does not turn into an `unavailable` verdict.
      */
-    timeoutMs: z.number().int().min(50).max(10_000).default(1_500),
+    timeoutMs: z.number().int().min(50).max(10_000).default(800),
+    /**
+     * How far the agent works ahead of the caller (LAT-3, LAT-4). An absent field keeps the
+     * behaviour's default (`DEFAULT_SPECULATION`): decisions on partial transcripts on, after a
+     * 150ms debounce and on exactly the same words; the LLM asked alongside the decision off, since
+     * the calls it aborts are still billed.
+     */
+    speculation: z
+      .object({
+        partials: z.boolean().optional(),
+        debounceMs: z.number().int().min(0).max(2_000).optional(),
+        match: z.enum(['exact', 'prefix']).optional(),
+        llm: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .refine(
     (policy) =>
       new Set(policy.questions.map((question) => question.id)).size === policy.questions.length,
     { message: 'Decision question ids must be unique', path: ['questions'] },
-  );
+  )
+  // Asking both would leave two answers to one turn and no rule for which one speaks.
+  .refine((policy) => !(policy.flow && policy.questions.length), {
+    message: 'A flow replaces the decision questions; configure one or the other',
+    path: ['flow'],
+  });
 export type AgentDecisionPolicy = z.infer<typeof AgentDecisionPolicy>;

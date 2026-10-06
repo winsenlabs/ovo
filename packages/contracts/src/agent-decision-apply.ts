@@ -6,6 +6,10 @@ import type {
 } from './agent-decision.ts';
 import type { DecisionAnswer, DecisionQuestion, DecisionRequest } from './decision.ts';
 
+// Compiling and applying a flow cross the same authoring/wire line, so they are exported here.
+export * from './agent-flow-compile.ts';
+export * from './agent-flow-apply.ts';
+
 /**
  * Turning an authored policy into a request, and an answer back into an outcome. Separate from the
  * schemas in `agent-decision.ts` because this is the only code that crosses the authoring/wire line,

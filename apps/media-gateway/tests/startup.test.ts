@@ -122,7 +122,9 @@ describe.skipIf(!postgresUrl)('gateway production startup', () => {
   });
 
   it.each([
-    [{}, { duration: undefined, legacyFrames: undefined }],
+    // OBS-9: the pre-accept buffer spans the handshake deadline unless an operator set either knob.
+    [{}, { duration: 5_000, legacyFrames: undefined }],
+    [{ OVO_MEDIA_HANDSHAKE_TIMEOUT_MS: '8000' }, { duration: 8_000, legacyFrames: undefined }],
     [{ OVO_MEDIA_PRE_ACCEPT_MS: '200' }, { duration: 200, legacyFrames: undefined }],
     [{ OVO_MEDIA_MAX_PENDING_FRAMES: '9' }, { duration: undefined, legacyFrames: 9 }],
   ] as const)(

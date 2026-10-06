@@ -19,6 +19,15 @@ const END_REASONS: ReadonlySet<string> = new Set([
 ]);
 const LEGACY_END_REASONS: Readonly<Record<string, EndReason>> = Object.freeze({
   'carrier stopped': 'caller_hangup',
+  // The media gateway closes a session with `carrier <stop reason>` when the carrier ends the
+  // stream. Twilio and Plivo report every hang-up as stream-ended; none of these is a failure.
+  'carrier stream-ended': 'caller_hangup',
+  'carrier caller-hangup': 'caller_hangup',
+  'carrier unknown': 'caller_hangup',
+  // The carrier's status callback said the answered call completed before the stream stop
+  // reached the worker: the worker then closes with the route's terminal status. A completed
+  // call ended normally; busy, no-answer, failed and cancelled stay errors (OBS-1 reconcile).
+  'carrier terminal: completed': 'caller_hangup',
   hangup: 'caller_hangup',
   stop: 'caller_hangup',
   'media idle deadline exceeded': 'caller_idle',

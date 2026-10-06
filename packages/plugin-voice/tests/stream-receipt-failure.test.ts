@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { type EngineOutcome } from '@winsendotai/ovo-contracts';
 import { createFakeCarrier } from '../../conformance/src/drivers/fake-carrier.ts';
 import { NativeVoiceSessionEngine } from '../src/engine/session-engine.ts';
@@ -13,6 +13,7 @@ it.each(['playback', 'receipt-hook'] as const)(
     });
     let ended: EngineOutcome | undefined;
     let cancelled = false;
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const carrier = createFakeCarrier();
     const scheduler = new BoundedSpeechScheduler({
       async play() {
@@ -58,7 +59,10 @@ it.each(['playback', 'receipt-hook'] as const)(
       expect(ended?.outcome).toBe('failed');
       expect(cancelled).toBe(true);
       expect(carrier.closed).toBe(true);
+      // The call ends on the failure, and the log says why.
+      expect(errors.mock.calls.flat().join('\n')).toContain('"event":"speech_receipt_failed"');
     } finally {
+      errors.mockRestore();
       release();
       await engine.dispose('drain');
     }

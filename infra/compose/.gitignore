@@ -1,0 +1,3 @@
+# Written on the host by bootstrap-compose.sh --public-host and deploy-compose.sh.
+/Caddyfile
+/.deploy/

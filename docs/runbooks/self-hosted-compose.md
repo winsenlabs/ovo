@@ -45,7 +45,7 @@ Verify container health and the database-backed sign-in without printing credent
 ./scripts/verify-compose.sh
 ```
 
-The verifier also checks the API's explicit fixture-call flag, HTTPS media base URL, inbound route secret, carrier environment-binding shape and the dispatcher's log-only capacity signal. This command has not been run as I1 evidence on this host because the full Compose stack is not running; the exact command above is the operator smoke check once Docker is available. A local health pass does not certify public callbacks or real carrier traffic.
+The verifier also checks the API's explicit fixture-call flag, HTTPS media base URL, inbound route secret, that no service carries an env carrier binding, and the dispatcher's log-only capacity signal, and it prints the dispatcher's inbound readiness. This command has not been run as I1 evidence on this host because the full Compose stack is not running; the exact command above is the operator smoke check once Docker is available. A local health pass does not certify public callbacks or real carrier traffic.
 
 Stop the services without deleting data:
 
@@ -121,6 +121,53 @@ Do not enable them merely to make a readiness indicator green. Real calls additi
 
 The local stack remains useful for administration, fixtures, deterministic evaluations and persisted evidence while these external integrations are disabled.
 
+## Redeploying without cutting calls
+
+Docker stops a container with SIGTERM and kills it after its stop grace period. Compose gives the gateway and both workers `stop_grace_period: 300s`; the gateway drains live media for up to `OVO_MEDIA_DRAIN_TIMEOUT_MS=240000` before exiting. A worker's SIGTERM stops new work and waits up to `OVO_WORKER_DRAIN_TIMEOUT_MS` (default 240000 here; 90000 under ECS protection, whose task stopTimeout is 120s) for its active call to end, then ends whatever is still running. Waiting for idle first is still the safest order:
+
+```sh
+./scripts/wait-compose-idle.sh            # exits 0 once no worker is active or reserved
+docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml up -d
+```
+
+It polls each worker's `/health` every 5 seconds and gives up after 600 seconds (pass a different timeout as the second argument). Changing a live flag such as `OVO_INBOUND_ENABLED` recreates containers, so it needs the same drain.
+
+`scripts/deploy/deploy-compose.sh` does all of this in one command: it checks out a revision, pulls digest-pinned images (or builds), starts the API first so migrations run, then recreates each worker and the gateway one at a time after its call ends, verifies, and records the deploy for `--rollback`. `scripts/deploy/ovo-live.sh on|off` switches the live flags and the carrier number. See [deploy-ovo-dev.md](deploy-ovo-dev.md).
+
+Rolling the images back to a release before secrets master key versioning breaks every credential created, rotated or rewrapped since: older releases cannot read the key-tagged ciphertext. Roll back only to a release that has key versioning, or restore the database backup taken before the upgrade.
+
+## Inbound readiness before go-live
+
+Workers register the protected slots that admit inbound calls only while `OVO_INBOUND_ENABLED=true`, so `GET /v1/operations/inbound/capacity` reports `readyProtected: 0` until go-live by design. To check readiness without enabling admission, read the dispatcher's report, which `verify-compose.sh` also prints:
+
+```sh
+docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml exec -T dispatcher \
+  node -e "fetch('http://127.0.0.1:4002/health').then(r=>r.json()).then(h=>console.log(h.inbound))"
+```
+
+Before go-live, `ready` means only that the pre-admission prerequisites are met; it cannot prove that protected-slot registration will succeed once admission is enabled. Expect `ready: true` with `readyWorkers` at least 1; the only reason listed should be that admission is disabled. Workers report nothing while `OVO_LIVE_DIAL_ENABLED=false` because they stay `dial-disabled`. After enabling inbound, `ready` also requires `readyProtected` of at least 1, and `verify-compose.sh` fails without it.
+
+## Rotating the secrets master key
+
+`OVO_SECRETS_MASTER_KEY` encrypts every stored provider and carrier credential. Each ciphertext written since key versioning records the id of the key that wrote it (a non-secret hash prefix; older ciphertexts carry none and are matched by trial decryption). Replacing the key therefore never orphans credentials as long as the old key stays configured as `OVO_SECRETS_MASTER_KEY_PREVIOUS` until the rewrap below has succeeded.
+
+1. Generate the new key with `openssl rand -hex 32`. In `infra/compose/.env`, move the current value to `OVO_SECRETS_MASTER_KEY_PREVIOUS` and set `OVO_SECRETS_MASTER_KEY` to the new one. Several retired keys may be listed, comma-separated, newest first.
+2. Keep inbound admission off, wait for active calls to finish (`./scripts/wait-compose-idle.sh`), then recreate the services: `docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml up -d`. The API, gateway and workers decrypt with either key from now on.
+3. Prove every credential is readable, then rewrap it under the new key:
+
+   ```sh
+   docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml \
+     --profile tools run --rm secrets-rewrap --dry-run
+   docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml \
+     --profile tools run --rm secrets-rewrap
+   ```
+
+   Each run prints one JSON line per workspace with the key ids and the counts `current`, `pending`, `rewrapped`, `skipped` and `failed`; it never prints a credential value and exits non-zero when anything failed. A rewrap stores the same value as a new credential version, so the credential's fingerprint is unchanged. It refuses to overwrite a credential that is rotated concurrently; rerun it. The tool builds the `workspace` image stage the first time it runs. Pass `--workspace <id>` to target a workspace other than `OVO_ORGANIZATION_ID`.
+
+4. Run the dry run again and confirm every active credential is `current`. Only then remove `OVO_SECRETS_MASTER_KEY_PREVIOUS` and recreate the services.
+
+Superseded credential versions stay encrypted under the old key and are never read again; if the old key was disclosed, also reissue each provider secret and rotate it with `POST /v1/credentials/:id/rotate`. Keep the old key with any database backup taken before the rotation: restoring that backup needs it. A rewrap also rules out rolling the images back below key versioning, since older releases cannot read key-tagged ciphertext (see the redeploy section).
+
 ## Troubleshooting
 
 Inspect health and bounded logs:
@@ -133,4 +180,7 @@ docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml logs 
 - `tls_required` on localhost means `OVO_ALLOW_LOCAL_HTTP=true` was not applied to the API container. The setting is safe only with the Compose file's loopback-only published ports.
 - `recordings_unavailable` usually means the API recording volume/configuration is missing.
 - A worker in `dial-disabled` is healthy when live dialing is false.
+- A `carrier_env_bindings` log line with a non-empty `active` list means a service still has an env carrier binding; remove `OVO_CARRIER_ENV_BINDINGS` overrides and use a console provider binding.
 - A managed database connection failure should be fixed in `DATABASE_URL`/TLS configuration; OVO does not silently fall back to local PostgreSQL.
+
+Container logs are rotated by Docker (Compose `x-logging`: json-file, 5 files of 20 MiB per container, compressed), so `logs` shows at most the last ~100 MiB per service. To debug one service, recreate only it at `debug`: `OVO_LOG_LEVEL=debug docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml up -d --no-deps <service>`. Every variable is described in the [environment reference](../env-reference.md).

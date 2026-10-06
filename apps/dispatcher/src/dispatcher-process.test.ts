@@ -163,11 +163,23 @@ describe.skipIf(!process.env.OVO_TEST_POSTGRES_URL)('dispatcher production profi
       expect(runtime.loop.health()).toMatchObject({
         healthy: true,
         lastCapacity: { provisionedTasks: 2 },
+        // Inbound is off, so its readiness is reported while protected capacity stays 0.
+        inbound: { admissionEnabled: false, readyProtected: 0, warmFloor: 2 },
       });
       const saved = await store.pool.query(
         `SELECT signal FROM ovo_capacity_signal_latest WHERE service_key='workers'`,
       );
       expect(saved.rows[0]?.signal).toBeDefined();
+      // OPS-4: the API reads the same readiness the dispatcher reports on /health.
+      const readiness = await store.pool.query(
+        `SELECT signal FROM ovo_capacity_signal_latest WHERE service_key='inbound-readiness'`,
+      );
+      expect(readiness.rows[0]?.signal).toMatchObject({
+        admissionEnabled: false,
+        readyProtected: 0,
+        warmFloor: 2,
+        reasons: expect.arrayContaining([expect.stringContaining('OVO_INBOUND_ENABLED=false')]),
+      });
       const swept = (
         await store.pool.query(
           `SELECT j.hint_count, count(o.id)::int AS outbox_count FROM ovo_jobs j

@@ -1,6 +1,6 @@
 import type { PostgresOrchestrationStore } from '@winsendotai/ovo-plugin-orchestration';
 import { WorkerInfrastructureMetrics } from './infrastructure-metrics.ts';
-import type { WorkerStatus } from './worker-health.ts';
+import { workerHealth, type WorkerStatus } from './worker-health.ts';
 
 /** Advisory-locked slot claim; the worker report keeps its live token row leased. */
 export class InboundFloorLease {
@@ -92,6 +92,11 @@ export class WorkerReporter {
   }
 
   private metadata() {
-    return { liveDial: true, infrastructure: this.metrics.snapshot() };
+    // OBS-12: the API's live-path diagnostic reads `live` from every fresh worker's slot.
+    return {
+      liveDial: true,
+      infrastructure: this.metrics.snapshot(),
+      live: workerHealth.snapshot(),
+    };
   }
 }

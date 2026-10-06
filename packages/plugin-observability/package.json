@@ -7,6 +7,7 @@
   "dependencies": {
     "@winsendotai/ovo-runtime": "workspace:*",
     "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
     "pg": "8.16.3"
   },
   "devDependencies": {

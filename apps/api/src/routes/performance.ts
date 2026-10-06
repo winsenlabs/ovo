@@ -31,6 +31,7 @@ export interface PerformanceRouteOptions {
 }
 
 const idParams = z.object({ callId: z.uuid() });
+const turnParams = z.object({ callId: z.string().min(1).max(200) });
 const performanceQuery = z.object({
   from: z.iso.datetime(),
   to: z.iso.datetime(),
@@ -80,6 +81,20 @@ export function registerPerformanceRoutes(options: PerformanceRouteOptions) {
       ingestion: options.performance.ingestionStats?.() ?? null,
     };
   });
+
+  /** Per-turn stage breakdown: endpointing, decision, LLM, TTS and first carrier audio. */
+  options.app.get(
+    '/v1/calls/:callId/turns',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const principal = options.requireRole(request, 'viewer');
+      const { callId } = turnParams.parse(request.params);
+      if (!(await options.store.getCall(principal.workspaceId, callId)))
+        return reply.code(404).send({ error: { code: 'not_found', message: 'Call not found' } });
+      const turns = await options.performance?.listCallTurns?.(principal.workspaceId, callId);
+      if (!turns) return unavailable(reply);
+      return { callId, turns };
+    },
+  );
 
   options.app.get(
     '/v1/calls/:callId/stream',

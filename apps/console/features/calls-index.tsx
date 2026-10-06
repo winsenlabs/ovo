@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { useCursorList } from '../lib/data/use-cursor-list';
+import { timeoutOf, type CallOutcomeSummary } from '@winsendotai/ovo-contracts';
 import type { CallSummary } from '../lib/api';
 import { useSession } from '../components/shell/session-provider';
 import { LiveCallForm } from '../components/operations/live-call-form';
@@ -11,8 +12,11 @@ import { DataTable } from '../components/ui/data-table';
 import { Pagination } from '../components/ui/pagination';
 import { PageHeader } from '../components/ui/layout';
 import { Time } from '../components/ui/button';
+import { StatusBadge } from '../components/ui/feedback';
 
 const filters = ['agentId', 'engine', 'carrier', 'kind', 'status'] as const;
+/** The API attaches each call's recorded outcome (AGT-8), or null when none was recorded. */
+type CallRow = CallSummary & { outcome?: CallOutcomeSummary | null };
 export function CallsIndexFeature() {
   const identity = useSession();
   const search = useSearchParams();
@@ -25,7 +29,7 @@ export function CallsIndexFeature() {
     if (value) query.set(filter, value);
   }
   query.set('order', 'desc');
-  const page = useCursorList<CallSummary>(`/calls?${query}`, 50);
+  const page = useCursorList<CallRow>(`/calls?${query}`, 50);
   const setFilter = (key: string, value: string) => {
     const next = new URLSearchParams(search.toString());
     if (value) next.set(key, value);
@@ -79,6 +83,23 @@ export function CallsIndexFeature() {
           { id: 'kind', header: 'Kind', cell: (call) => call.kind ?? 'Unknown' },
           { id: 'status', header: 'Status', cell: (call) => call.status ?? 'Unknown' },
           {
+            id: 'disposition',
+            header: 'Disposition',
+            cell: (call) => call.outcome?.disposition ?? '—',
+          },
+          {
+            id: 'final-node',
+            header: 'Final node',
+            priority: 'low',
+            cell: (call) => call.outcome?.finalNode ?? '—',
+          },
+          {
+            id: 'ended',
+            header: 'Ended',
+            priority: 'low',
+            cell: (call) => <EndReason reason={call.outcome?.endReason} />,
+          },
+          {
             id: 'when',
             header: 'Started',
             priority: 'low',
@@ -105,5 +126,18 @@ export function CallsIndexFeature() {
         </Drawer>
       )}
     </div>
+  );
+}
+
+/** OBS-9: a call that timed out says which stage did, not just that it failed. */
+function EndReason({ reason }: { reason?: string | null }) {
+  if (!reason) return <>—</>;
+  const timeout = timeoutOf(reason);
+  if (!timeout) return <span className="mono">{reason.split(':', 2).join(':')}</span>;
+  return (
+    <StatusBadge tone="danger">
+      timeout: {timeout.stage}
+      {timeout.provider ? ` (${timeout.provider})` : ''}
+    </StatusBadge>
   );
 }

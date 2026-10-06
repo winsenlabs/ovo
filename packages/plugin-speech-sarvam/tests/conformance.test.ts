@@ -12,5 +12,7 @@ describeSpeechToText(
 describeTextToSpeech(
   'Sarvam Bulbul streaming',
   ({ net, clock }) => new SarvamTts(net, 'fixture-key', {}, clock),
-  { template: sarvamTtsTemplate, language: 'hi-IN' },
+  // Each utterance meters under its own requestId (Wave 2 request 4), though the fixture replays
+  // one provider id.
+  { template: sarvamTtsTemplate, language: 'hi-IN', distinctRequestIds: true },
 );

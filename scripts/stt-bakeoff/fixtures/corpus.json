@@ -1,0 +1,31 @@
+{
+  "synthetic": true,
+  "description": "Made-up references and provider transcripts that exercise the harness offline. They measure nothing: record a real corpus with --live (see ../README.md).",
+  "utterances": [
+    {
+      "id": "en-identity",
+      "language": "en-IN",
+      "style": "indian-english",
+      "reference": "Yes this is Ravi Kumar speaking"
+    },
+    {
+      "id": "en-amount",
+      "language": "en-IN",
+      "style": "indian-english",
+      "reference": "I will pay the EMI of 4,210 rupees by Friday"
+    },
+    {
+      "id": "hi-tomorrow",
+      "language": "hi-IN",
+      "style": "hinglish",
+      "reference": "haan main kal tak payment kar dunga",
+      "accept": ["हाँ मैं कल तक payment कर दूंगा"]
+    },
+    {
+      "id": "hi-salary",
+      "language": "hi-IN",
+      "style": "hinglish",
+      "reference": "abhi salary nahi aayi hai next week karunga"
+    }
+  ]
+}

@@ -5,8 +5,10 @@ import type {
   CarrierHostPorts,
   CarrierIngress,
   CarrierHttpRequest,
+  Logger,
   MediaCodecSession,
 } from '@winsendotai/ovo-contracts';
+import { createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
 
 export interface UpgradeMatch {
   ingress: CarrierIngress;
@@ -24,6 +26,7 @@ export interface CarrierUpgradeOptions {
   match(pathname: string): UpgradeMatch | undefined;
   hostFor(carrierId: string, bindingId: string): CarrierHostPorts;
   onConnected(accepted: AcceptedCarrierUpgrade): void | Promise<void>;
+  logger?: Logger;
 }
 
 /** The public URL uses the configured origin and the exact request path, never proxy headers. */
@@ -74,14 +77,28 @@ export class CarrierUpgradeRouter {
     perMessageDeflate: false,
   });
 
-  constructor(private readonly options: CarrierUpgradeOptions) {}
+  private readonly log: Logger;
+
+  constructor(private readonly options: CarrierUpgradeOptions) {
+    this.log = options.logger ?? createLogger({ service: 'media-gateway' });
+  }
 
   async handle(request: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
+    // Only the path is logged: the query carries the route token and URL secret.
+    const path = (request.url ?? '/').split('?', 1)[0];
+    let log = this.log.child({ path });
     try {
-      if (request.method !== 'GET') return rejectCarrierUpgrade(socket, 404);
+      if (request.method !== 'GET') {
+        log.debug('carrier_upgrade_unmatched', { method: request.method });
+        return rejectCarrierUpgrade(socket, 404);
+      }
       const publicUrl = publicRequestUrl(this.options.publicBaseUrl, request.url ?? '/', 'wss');
       const match = this.options.match(publicUrl.pathname);
-      if (!match) return rejectCarrierUpgrade(socket, 404);
+      if (!match) {
+        log.debug('carrier_upgrade_unmatched', { method: request.method });
+        return rejectCarrierUpgrade(socket, 404);
+      }
+      log = log.child({ carrierId: match.ingress.carrierId, bindingId: match.bindingId });
       const host = this.options.hostFor(match.ingress.carrierId, match.bindingId);
       const headers = requestHeaders(request);
       const remoteAddress = request.socket.remoteAddress;
@@ -121,8 +138,15 @@ export class CarrierUpgradeRouter {
           },
         },
       );
-      if (!verified.ok) return rejectCarrierUpgrade(socket, verified.status);
+      if (!verified.ok) {
+        log.warn('carrier_upgrade_rejected', { status: verified.status });
+        return rejectCarrierUpgrade(socket, verified.status);
+      }
       this.server.handleUpgrade(request, socket, head, (peer) => {
+        const setupFailed = (error: unknown) => {
+          log.warn('carrier_session_setup_failed', errorFields(error));
+          peer.close(1011, 'carrier session setup failed');
+        };
         try {
           const codec = match.ingress.serializer.createSession(verified.params);
           void Promise.resolve()
@@ -135,12 +159,13 @@ export class CarrierUpgradeRouter {
                 codec,
               }),
             )
-            .catch(() => peer.close(1011, 'carrier session setup failed'));
-        } catch {
-          peer.close(1011, 'carrier session setup failed');
+            .catch(setupFailed);
+        } catch (error) {
+          setupFailed(error);
         }
       });
-    } catch {
+    } catch (error) {
+      log.warn('carrier_upgrade_failed', { status: 400, ...errorFields(error) });
       rejectCarrierUpgrade(socket, 400);
     }
   }

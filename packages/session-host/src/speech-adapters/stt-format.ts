@@ -51,6 +51,14 @@ export function adaptSpeechToText(stt: SpeechToText): SpeechToText {
           if (last?.length) await session.write(last);
           await session.forceEndpoint?.();
         },
+        ...(session.updateConfiguration
+          ? {
+              async updateConfiguration(update) {
+                if (closed) throw new Error('STT session is closed');
+                await session.updateConfiguration!(update);
+              },
+            }
+          : {}),
         async finish(signal) {
           if (closed) return;
           closed = true;

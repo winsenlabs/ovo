@@ -78,6 +78,11 @@ export class BufferedTelemetryWriter {
     return this.repository.listCallEvents(workspaceId, callId, afterSequence, limit);
   }
 
+  /** Undefined when the repository keeps no per-turn projection. */
+  async listCallTurns(workspaceId: string, callId: string, limit?: number) {
+    return await this.repository.listCallTurns?.(workspaceId, callId, limit);
+  }
+
   async flush(timeoutMs = this.flushTimeoutMs): Promise<void> {
     this.schedule();
     const work = this.draining ?? Promise.resolve();

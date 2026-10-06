@@ -8,6 +8,7 @@ import { getProductionRecordingServices } from '../recording-runtime.ts';
 import { EVALUATION_FIXTURE_BINDING_VERSION } from '../evaluation-runtime.ts';
 import { registerAgentsRoutes } from './agents.ts';
 import { registerAuthRoutes } from './auth.ts';
+import { registerCallbacks } from './callbacks.ts';
 import { registerCostRoutes } from './cost.ts';
 import { registerCredentialsRoutes } from './credentials.ts';
 import { registerEvaluationDatasetRoutes } from './evaluation-datasets.ts';
@@ -17,6 +18,7 @@ import { registerMcpRoutes } from './mcp.ts';
 import { registerOperationsRoutes } from './operations.ts';
 import { registerPerformanceRoutes } from './performance.ts';
 import { registerReadinessRoutes } from './readiness.ts';
+import { registerRequiredMeterRoutes } from './required-meters.ts';
 import { registerRecordingLifecycleRoutes } from './recording-lifecycle.ts';
 import { registerRecordingRoutes } from './recordings.ts';
 import { registerSimulationRoutes } from './simulation.ts';
@@ -31,6 +33,10 @@ export function registerApiRoutes(deps: any): void {
   registerUserRoutes({ app, users, store, requireTls: options.requireTlsForSecrets ?? false });
   registerAgentsRoutes(deps);
   registerReadinessRoutes(deps);
+  registerRequiredMeterRoutes({
+    ...deps,
+    ledger: options.costLedgerEnabled ? (ctx.get(Cap.costLedger) as CostLedgerService) : undefined,
+  });
   registerPluginRoutes(deps);
   registerInfrastructureRoutes({
     app,
@@ -42,6 +48,7 @@ export function registerApiRoutes(deps: any): void {
     app,
     store,
     requireRole,
+    infrastructure: deps.infrastructure,
     operations: options.operationsEnabled
       ? (ctx.get(Cap.operations) as OperationsService)
       : undefined,
@@ -74,6 +81,7 @@ export function registerApiRoutes(deps: any): void {
   registerMcpRoutes(deps);
   registerSimulationRoutes(deps);
   registerInspectionRoutes(deps);
+  registerCallbacks({ app, requireRole, error, store, options });
   registerTestCallRoutes(deps);
   registerRecordingRoutes({
     app,

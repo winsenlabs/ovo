@@ -1,7 +1,8 @@
 import { hostname } from 'node:os';
 import { Cap, type BackgroundTask, type CapacitySignalPublisher } from '@winsendotai/ovo-contracts';
 import { FIRST_PARTY, loadDistribution } from '@winsendotai/ovo-distribution';
-import { createNodeNet } from '@winsendotai/ovo-plugin-kit';
+import { createLogger, createNodeNet, errorFields } from '@winsendotai/ovo-plugin-kit';
+import type { Logger } from '@winsendotai/ovo-contracts';
 import { createCostLedgerPlugin } from '@winsendotai/ovo-plugin-ledger';
 import {
   EcsServiceReader,
@@ -16,8 +17,14 @@ import {
 } from '@winsendotai/ovo-plugin-operations';
 import { PostgresControlStore, type ControlStore } from '@winsendotai/ovo-plugin-storage';
 import { compose, definePlugin, type Composition } from '@winsendotai/ovo-runtime';
-import { readDispatcherCapacityInput, positiveInteger } from './dispatcher-capacity.ts';
+import {
+  readDispatcherCapacityInput,
+  readInboundReadiness,
+  positiveInteger,
+} from './dispatcher-capacity.ts';
 import { DispatcherLoop, type DispatcherTask } from './dispatcher-loop.ts';
+import { publishInboundReadiness } from './inbound-readiness-store.ts';
+import { releaseTerminalCalls } from './terminal-calls.ts';
 
 type Environment = Record<string, string | undefined>;
 
@@ -49,8 +56,10 @@ function required(env: Environment, name: string): string {
 export async function dispatcherIdentity(
   env: Environment,
   fetcher: typeof fetch = fetch,
+  log: Logger = createLogger({ service: 'dispatcher' }),
 ): Promise<string> {
   const uri = env.ECS_CONTAINER_METADATA_URI_V4;
+  const fallback = `${hostname()}:${process.pid}`;
   if (uri) {
     try {
       const response = await fetcher(`${uri}/task`, { signal: AbortSignal.timeout(2_000) });
@@ -58,11 +67,13 @@ export async function dispatcherIdentity(
         const metadata = (await response.json()) as { TaskARN?: unknown };
         if (typeof metadata.TaskARN === 'string' && metadata.TaskARN) return metadata.TaskARN;
       }
-    } catch {
-      /* Local identity is the documented fallback. */
+      log.warn('dispatcher_identity_fallback', { status: response.status, identity: fallback });
+    } catch (error) {
+      // Local identity is the documented fallback; the line says why replicas look local.
+      log.warn('dispatcher_identity_fallback', { identity: fallback, ...errorFields(error) });
     }
   }
-  return `${hostname()}:${process.pid}`;
+  return fallback;
 }
 
 export async function openDispatcherProcess(input: {
@@ -110,7 +121,8 @@ export async function openDispatcherProcess(input: {
   const rows = distribution.processRows.filter(
     (row) => !signalRows.includes(row) || row.id === signalId,
   );
-  const composition = await compose(rows, distribution.catalog, { scope: 'process' });
+  const logger = createLogger({ service: 'dispatcher', dispatcherId: identity });
+  const composition = await compose(rows, distribution.catalog, { scope: 'process', logger });
   let controlStore: ControlStore | undefined;
   try {
     const store = composition.get(Cap.orchestrationStore) as PostgresOrchestrationStore;
@@ -158,7 +170,7 @@ export async function openDispatcherProcess(input: {
           await Promise.all([
             outbox.flush(),
             campaignOutbox.flush(),
-            releaseTerminalCalls(store, control),
+            releaseTerminalCalls(store, control, logger),
           ]);
         },
       },
@@ -187,6 +199,8 @@ export async function openDispatcherProcess(input: {
         await publisher.publish(signal);
         await store.recordCapacitySignal(signal);
       },
+      readInboundReadiness: (capacity) => readInboundReadiness({ operations, capacity }),
+      publishInboundReadiness: (readiness) => publishInboundReadiness(store.pool, readiness),
       log: input.log,
     });
     return {
@@ -202,18 +216,5 @@ export async function openDispatcherProcess(input: {
     await controlStore?.close();
     await composition.dispose();
     throw error;
-  }
-}
-
-async function releaseTerminalCalls(store: PostgresOrchestrationStore, controlStore: ControlStore) {
-  for (const route of await store.listTerminalSessions()) {
-    const job = await store.get(route.jobId);
-    if (job) {
-      const callId =
-        typeof job.payload.callId === 'string' && job.payload.callId ? job.payload.callId : job.id;
-      if (await controlStore.getCall(job.workspaceId, callId))
-        await controlStore.finishCall(job.workspaceId, callId, route.status);
-    }
-    await store.releaseTerminalSession(route.jobId);
   }
 }

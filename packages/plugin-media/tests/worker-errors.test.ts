@@ -9,6 +9,11 @@ it('survives an oversized worker frame before session admission', async () => {
     ['--import', 'tsx', fileURLToPath(new URL('./worker-error-child.ts', import.meta.url))],
     { timeout: 5_000 },
   );
-  expect(JSON.parse(result.stdout)).toEqual({ opened: 0, code: 1009 });
+  // The transport error is logged, not thrown: stderr stays empty and the cause is kept.
+  expect(JSON.parse(result.stdout)).toEqual({
+    opened: 0,
+    code: 1009,
+    events: ['worker_media_transport_error'],
+  });
   expect(result.stderr).toBe('');
 });

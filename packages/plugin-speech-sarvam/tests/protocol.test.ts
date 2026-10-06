@@ -236,7 +236,7 @@ describe('Sarvam documented wire behavior', () => {
     await session.close();
     expect(chunks.map((chunk) => chunk.byteLength)).toEqual([960, 960]);
     expect(usage).toMatchObject([
-      { requestId: 'sarvam-tts-fixture', quantity: '6', state: 'reconciled' },
+      { requestId: 'sarvam-tts-fixture/1', quantity: '6', state: 'reconciled' },
     ]);
     net.assertComplete();
   });
@@ -296,7 +296,9 @@ describe('Sarvam documented wire behavior', () => {
     for await (const chunk of session.audio) chunks.push(chunk);
     await session.close();
     expect(chunks).toEqual([Uint8Array.of(0x7f)]);
-    expect(usage).toMatchObject([{ requestId: 'v2-request', quantity: '2', state: 'reconciled' }]);
+    expect(usage).toMatchObject([
+      { requestId: 'v2-request/1', quantity: '2', state: 'reconciled' },
+    ]);
     net.assertComplete();
   });
 
@@ -366,7 +368,7 @@ describe('Sarvam documented wire behavior', () => {
       chunks.push(chunk);
     expect(chunks.map((chunk) => chunk.byteLength)).toEqual([960]);
     expect(chunks[0]).toEqual(samples);
-    expect(usage).toMatchObject([{ requestId: 'rest-1', quantity: '6', state: 'reconciled' }]);
+    expect(usage).toMatchObject([{ requestId: 'rest-1/1', quantity: '6', state: 'reconciled' }]);
     net.assertComplete();
   });
 

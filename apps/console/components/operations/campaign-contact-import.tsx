@@ -4,12 +4,18 @@ import { apiRequest } from '../../lib/api';
 import type { CampaignPreview } from '../../lib/operator-api';
 import { Field, ResponsiveTable, StatusBadge } from '../primitives';
 
+/** The server's preview, with the rows already on the do-not-call list (never dialed). */
+export type CompliancePreview = CampaignPreview & { doNotCall?: number[] };
+
 export function CampaignContactImport({
   preview,
   onPreview,
+  releaseId,
 }: {
-  preview?: CampaignPreview;
-  onPreview: (preview: CampaignPreview | undefined) => void;
+  preview?: CompliancePreview;
+  onPreview: (preview: CompliancePreview | undefined) => void;
+  /** When set, each row's variables are checked against this release's declared schema. */
+  releaseId?: string;
 }) {
   const [csv, setCsv] = useState('');
   const [phoneColumn, setPhoneColumn] = useState('');
@@ -39,9 +45,9 @@ export function CampaignContactImport({
     setError(undefined);
     onPreview(undefined);
     try {
-      const { data } = await apiRequest<CampaignPreview>('/operations/campaigns/preview', {
+      const { data } = await apiRequest<CompliancePreview>('/operations/campaigns/preview', {
         method: 'POST',
-        body: JSON.stringify({ csv, mapping: mapping() }),
+        body: JSON.stringify({ csv, mapping: mapping(), ...(releaseId ? { releaseId } : {}) }),
       });
       onPreview(data);
     } catch (failure) {
@@ -130,6 +136,13 @@ export function CampaignContactImport({
               {preview.rows.length} valid rows
             </StatusBadge>
             {preview.truncated && <StatusBadge tone="warning">Preview truncated</StatusBadge>}
+            {Boolean(preview.doNotCall?.length) && (
+              <StatusBadge tone="warning">
+                {preview.doNotCall!.length} on the do-not-call list (rows{' '}
+                {preview.doNotCall!.slice(0, 10).join(', ')}
+                {preview.doNotCall!.length > 10 ? '…' : ''}); they import but are never dialed
+              </StatusBadge>
+            )}
           </div>
           {preview.errors.length ? (
             <div className="field-error" role="alert">

@@ -8,7 +8,7 @@ import { WorkerMediaRuntime, type ManagedVoiceSession } from '../src/media-runti
 import { mediaRuntimeFixture, mediaSessionOpen } from './media-runtime-fixtures.ts';
 
 describe('worker media runtime', () => {
-  it('finalizes a route if pre-accept audio overflows while engine creation is pending', async () => {
+  it('finalizes a route if pre-accept events overflow while engine creation is pending', async () => {
     const { route, job } = mediaRuntimeFixture();
     route.carrierId = 'twilio';
     route.bindingId = 'env';
@@ -61,14 +61,10 @@ describe('worker media runtime', () => {
       const [decision] = await once(socket, 'message');
       expect(JSON.parse(decision.toString())).toEqual({ type: 'session.accept' });
       await vi.waitFor(() => expect(releaseFactory).toBeTypeOf('function'));
-      const frame = JSON.stringify({
-        type: 'media.audio',
-        payload: Buffer.alloc(8_192).toString('base64'),
-        sequenceNumber: 1,
-        timestampMs: 0,
-      });
-      // Eleven 8 KiB frames exceed the ten-second pre-session buffer for 8 kHz audio.
-      for (let index = 0; index < 11; index += 1) socket.send(frame);
+      // Audio past the ten-second span only drops its oldest part; the buffer still bounds the
+      // number of held events, and 1,025 digits exceed it.
+      const frame = JSON.stringify({ type: 'media.dtmf', digit: '5' });
+      for (let index = 0; index < 1_025; index += 1) socket.send(frame);
       await vi.waitFor(() =>
         expect(onSessionClose).toHaveBeenCalledWith(route, 'error:worker-input-buffer-overflow'),
       );

@@ -12,6 +12,8 @@ import type { StoredCallEvent, UsageEntry } from '@winsendotai/ovo-plugin-storag
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { getProductionRecordingServices } from '../recording-runtime.ts';
 import { publicRecording } from './recording-lifecycle-data.ts';
+import { registerCallOutcomes } from './call-outcomes.ts';
+import { callDiagnosis, costByCurrency, evidenceSelections } from './call-diagnosis.ts';
 export function registerInspectionRoutes(dependencies: any) {
   const {
     app,
@@ -25,6 +27,7 @@ export function registerInspectionRoutes(dependencies: any) {
     priceUsage,
     summarizeUsage,
   } = dependencies;
+  const outcomes = registerCallOutcomes(dependencies);
   app.get('/v1/calls', async (request: FastifyRequest) => {
     const principal = requireRole(request, 'viewer'),
       page = queryPage(request);
@@ -38,7 +41,8 @@ export function registerInspectionRoutes(dependencies: any) {
         status: z.string().min(1).max(100).optional(),
       })
       .parse(request.query);
-    return await store.listCalls(principal.workspaceId, page.limit, page.cursor, filters);
+    const calls = await store.listCalls(principal.workspaceId, page.limit, page.cursor, filters);
+    return await outcomes.attach(principal.workspaceId, calls, request.log);
   });
   app.get('/v1/calls/:callId', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'viewer'),
@@ -111,25 +115,7 @@ export function registerInspectionRoutes(dependencies: any) {
           .filter((key): key is string => typeof key === 'string'),
       ),
     ];
-    const resolved = evidenceRecord(result?.selections) ? result.selections : undefined;
-    const selections = resolved
-      ? Object.fromEntries(
-          Object.entries(resolved).flatMap(([slot, value]) => {
-            if (
-              !evidenceRecord(value) ||
-              typeof value.id !== 'string' ||
-              typeof value.version !== 'string'
-            )
-              return [];
-            return [
-              [
-                slot,
-                { pluginId: value.id, version: value.version, resolvedVersion: value.version },
-              ],
-            ];
-          }),
-        )
-      : (release?.selections ?? {});
+    const selections = evidenceSelections(result?.selections, release?.selections);
     return {
       call: {
         ...call,
@@ -147,7 +133,9 @@ export function registerInspectionRoutes(dependencies: any) {
         reconciledPaise: reconciled.length ? evidencePaise(reconciled) : null,
         unpriced,
         lines: usage,
+        currencies: costByCurrency(usage),
       },
+      diagnosis: callDiagnosis(events),
       ...(result?.recording
         ? { recording: result.recording }
         : recordings.length

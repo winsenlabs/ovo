@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { callingWindowSchema } from './calling-window.ts';
+import { MAX_DO_NOT_CALL_IMPORT } from './do-not-call.ts';
 
 const uuid = z.uuid();
 const id = z.string().min(1).max(200);
@@ -87,7 +89,14 @@ export const operationsApiSchemas = {
       cursor: phone.optional(),
     })
     .strict(),
-  preview: z.object({ csv: z.string().min(1).max(2_097_152), mapping }).strict(),
+  preview: z
+    .object({
+      csv: z.string().min(1).max(2_097_152),
+      mapping,
+      /** When given, each row's variables are checked against this release's schema. */
+      releaseId: uuid.optional(),
+    })
+    .strict(),
   campaign: z
     .object({
       operationId: uuid,
@@ -105,6 +114,8 @@ export const operationsApiSchemas = {
       maxAttemptsPerLocalDay: z.number().int().min(1).max(10_000_000),
       maxConcurrency: z.number().int().min(1).max(1_000).default(1),
       activeCallPolicy: z.enum(['continue', 'request_end']),
+      /** Overrides the release's calling hours; judged in the schedule timezone unless it names one. */
+      callingWindow: callingWindowSchema.optional(),
       contacts: z.array(contact).min(1).max(100),
     })
     .strict(),
@@ -117,6 +128,8 @@ export const operationsApiSchemas = {
       variables: z
         .record(z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/), z.string().max(2_000))
         .default({}),
+      /** Runs every check a launch runs (variables, do-not-call, calling hours, carrier), dials nothing. */
+      dryRun: z.boolean().default(false),
     })
     .strict()
     .refine(
@@ -137,6 +150,27 @@ export const operationsApiSchemas = {
     .object({ phoneNumber: phone, reason: z.string().trim().min(1).max(1_000) })
     .strict(),
   suppressionParams: z.object({ phoneNumber: phone }).strict(),
+  doNotCallImport: z
+    .object({
+      entries: z
+        .array(
+          z
+            .object({
+              phoneNumber: z.string().min(1).max(40),
+              reason: z.string().trim().min(1).max(1_000),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(MAX_DO_NOT_CALL_IMPORT),
+    })
+    .strict(),
+  contactPage: z
+    .object({
+      limit: z.coerce.number().int().min(1).max(100).default(25),
+      cursor: z.coerce.number().int().min(1).max(10_000_000).optional(),
+    })
+    .strict(),
   inboundPolicy: z
     .object({ expectedVersion: z.number().int().min(1).nullable(), policy: overflowPolicy })
     .strict(),

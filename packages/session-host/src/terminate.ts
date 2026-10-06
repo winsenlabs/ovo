@@ -1,9 +1,11 @@
 import type {
   CarrierCapabilities,
   EndReason,
+  HandoffTarget,
   TelephonyControl,
   VoiceSessionEngine,
 } from '@winsendotai/ovo-contracts';
+import { transferCarrierLeg } from './carrier-human-handoff.ts';
 
 export interface TerminatingRoute {
   sessionId: string;
@@ -27,6 +29,8 @@ export interface CarrierTerminationOptions {
   media: { terminate(sessionId: string, reason: EndReason): Promise<void> };
   engine: Pick<VoiceSessionEngine, 'dispose'>;
   reason: EndReason;
+  /** AGT-15: where a call the agent ended `transferred` goes, instead of being hung up. */
+  transfer?: { target: HandoffTarget; workspaceId: string };
 }
 
 /** Fence the route before any purposeful carrier/media closure, then dispose the engine last. */
@@ -43,6 +47,21 @@ export async function terminateCarrierLeg(options: CarrierTerminationOptions): P
         ? { carrierRequestId: fenced.carrierRequestId ?? route.carrierRequestId! }
         : {}),
     };
+    // A transfer the carrier took (or may have taken) leaves the leg alone; a refused one hangs up.
+    if (
+      reason === 'transferred' &&
+      options.transfer &&
+      query.carrierCallId &&
+      (await transferCarrierLeg({
+        control,
+        capabilities: options.capabilities,
+        carrierCallId: query.carrierCallId,
+        target: options.transfer.target,
+        workspaceId: options.transfer.workspaceId,
+        sessionId: route.sessionId,
+      }))
+    )
+      return;
     if (options.capabilities.control.hangup === 'close-stream') {
       try {
         await control.hangup(query);

@@ -1,5 +1,16 @@
-import type { FxVersion, PriceCardVersion } from '@winsendotai/ovo-contracts';
-export type { FxVersion, PriceCardVersion } from '@winsendotai/ovo-contracts';
+import type {
+  FxVersion,
+  PriceCardVersion as ContractPriceCardVersion,
+} from '@winsendotai/ovo-contracts';
+export type { FxVersion } from '@winsendotai/ovo-contracts';
+
+/** A stored price card (OPS-13): the contract card plus the model it prices and its confidence. */
+export interface PriceCardVersion extends ContractPriceCardVersion {
+  /** The model or SKU the vendor price applies to; absent means any model (wildcard). */
+  model?: string;
+  /** True for a placeholder or unverified price; costs priced with it are labelled provisional. */
+  provisional?: boolean;
+}
 
 export type UsageSourceKind =
   | 'carrier'
@@ -138,6 +149,9 @@ export interface CostSummary {
   estimatedPaise: string;
   reconciledPaise: string;
   totalPaise: string;
+  /** True when any charge was priced with a provisional (placeholder) price card. */
+  provisional: boolean;
+  provisionalPriceCards: { id: string; version: string }[];
 }
 
 export interface LedgerPage<T> {

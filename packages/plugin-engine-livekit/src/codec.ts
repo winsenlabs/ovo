@@ -10,12 +10,27 @@ export function assertFormat(format: AudioFormat): void {
   )
     throw new Error('LiveKit requires host-adapted mono 8 kHz mulaw or PCM16');
 }
+/**
+ * The carrier bytes for a frame. A frame decoded from mu-law provider audio carries the provider's
+ * own bytes (TTS-14), which go out untouched instead of being encoded again from the PCM LiveKit
+ * needed for its timing.
+ */
 export function encode(frame: AudioFrame, format: AudioFormat): Uint8Array {
   assertFormat(format);
   if (frame.sampleRate !== 8000 || frame.channels !== 1)
     throw new Error('Unexpected LiveKit audio format');
+  const carrier = frame.userdata[CARRIER_BYTES];
+  if (
+    format.encoding === 'mulaw' &&
+    carrier instanceof Uint8Array &&
+    carrier.byteLength === frame.data.length
+  )
+    return carrier;
   return format.encoding === 'mulaw' ? pcm16ToMulaw(frame.data) : pcm16ToBytes(frame.data);
 }
+
+/** The frame userdata key holding the mu-law bytes a frame was decoded from. */
+export const CARRIER_BYTES = 'ovoCarrierBytes';
 /** Reframes only the LiveKit boundary; preserves partial PCM samples between carrier chunks. */
 export class FrameDecoder {
   private pending = new Uint8Array();
@@ -43,7 +58,18 @@ export class FrameDecoder {
     return [frame];
   }
   private frame(bytes: Uint8Array, segmentId?: string): AudioFrame {
-    const pcm = this.format.encoding === 'mulaw' ? mulawToPcm16(bytes) : bytesToPcm16(bytes);
-    return new AudioFrame(pcm, 8000, 1, pcm.length, segmentId ? { segmentId } : undefined);
+    const mulaw = this.format.encoding === 'mulaw';
+    const pcm = mulaw ? mulawToPcm16(bytes) : bytesToPcm16(bytes);
+    const userdata = {
+      ...(segmentId ? { segmentId } : {}),
+      ...(mulaw ? { [CARRIER_BYTES]: bytes } : {}),
+    };
+    return new AudioFrame(
+      pcm,
+      8000,
+      1,
+      pcm.length,
+      Object.keys(userdata).length ? userdata : undefined,
+    );
   }
 }

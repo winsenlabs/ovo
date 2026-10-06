@@ -45,6 +45,11 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
     load: () => import('@winsendotai/ovo-plugin-tts-openai'),
   },
   {
+    package: '@winsendotai/ovo-plugin-tts-elevenlabs',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-tts-elevenlabs'),
+  },
+  {
     package: '@winsendotai/ovo-plugin-llm-openai',
     roles: ['session'],
     load: () => import('@winsendotai/ovo-plugin-llm-openai'),
@@ -53,6 +58,16 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
     package: '@winsendotai/ovo-plugin-stt-assemblyai',
     roles: ['session'],
     load: () => import('@winsendotai/ovo-plugin-stt-assemblyai'),
+  },
+  {
+    package: '@winsendotai/ovo-plugin-stt-elevenlabs',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-stt-elevenlabs'),
+  },
+  {
+    package: '@winsendotai/ovo-plugin-stt-openai-realtime',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-stt-openai-realtime'),
   },
   {
     package: '@winsendotai/ovo-plugin-speech-sarvam',

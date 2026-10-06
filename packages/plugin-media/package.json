@@ -5,6 +5,7 @@
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*",
     "ws": "8.21.3"
   },

@@ -57,8 +57,10 @@ boundary, and "the answer matches the question asked" is not an invariant the ho
 
 ## What a decision cannot do yet, and why
 
-An outcome can only **say** something. It cannot record a business disposition
-(`promise_to_pay:tomorrow`), jump to a script node, hand off to a human or hang up.
+An outcome can **say** something and, since Wave 2, **end** the call (`end: true`: the call ends
+`completed` once that turn's reply has played; see `docs/architecture/agent-call-control.md`). It
+cannot record a business disposition (`promise_to_pay:tomorrow`), jump to a script node or hand off
+to a human.
 
 This is a deliberate absence, not an oversight. `EventSink` and `HumanHandoffPort` are declared in
 contracts with no implementation and no caller anywhere in this repository, and `TranscriptObserver`
@@ -80,7 +82,11 @@ trustworthy threshold. The threshold an operator picks is a judgement until real
 ## Grounding
 
 `DecisionRequest.state` is the only input the model gets, and it carries exactly the sources the
-operator listed: the last caller turn, the recent transcript, the call variables, the briefing text.
+operator listed: the last caller turn, the recent transcript, the call variables, the briefing text,
+and (AGT-13) `agent-last-said` (the agent's last played line, usually what the caller is answering)
+and `today` (in the agent's timezone, so "tomorrow" resolves). The transcript and last line are what
+was said: the playback-evidence and interruption notes kept for the LLM are stripped. The default
+deadline is 800ms, which relies on LAT-8's keep-alive and pre-warm.
 **A decision cannot be grounded in anything the runtime cannot retrieve.** OVO has no retrieval
 capability today — `faq` matching is token overlap, `context` is a prompt blob that fails
 publication above its budget rather than being queried, and an HTTP or MCP tool is the only way to

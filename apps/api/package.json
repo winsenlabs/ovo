@@ -21,6 +21,7 @@
     "@winsendotai/ovo-plugin-operations": "workspace:*",
     "@winsendotai/ovo-plugin-recordings": "workspace:*",
     "@winsendotai/ovo-plugin-secrets": "workspace:*",
+    "@winsendotai/ovo-plugin-speech-cache": "workspace:*",
     "@winsendotai/ovo-plugin-storage": "workspace:*",
     "@winsendotai/ovo-plugin-tools-mcp": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*",

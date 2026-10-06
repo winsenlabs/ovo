@@ -6,22 +6,21 @@ import type {
   StreamingSttSession,
   StreamingTts,
 } from '@winsendotai/ovo-contracts';
-import type { Context, PluginDefinition } from '@winsendotai/ovo-runtime';
+import type { PluginDefinition } from '@winsendotai/ovo-runtime';
+import { EndpointClock, timeFirstToken } from './telemetry-stage-clocks.ts';
+import {
+  beginStage,
+  instrumentPlugin,
+  recordStage,
+  stageOutcome,
+  timedIterable,
+  timedPromise,
+  type StageIdentity,
+  type StageOutcome,
+  type StageTelemetry,
+} from './telemetry-stage-core.ts';
 
-type StageOutcome = 'succeeded' | 'failed' | 'timeout' | 'unknown';
-
-export interface StageTelemetry {
-  startStage(input: {
-    stage: string;
-    provider?: string;
-    model?: string;
-  }): (outcome?: StageOutcome) => boolean;
-}
-
-export interface StageIdentity {
-  provider?: string;
-  model?: string;
-}
+export type { StageIdentity, StageTelemetry } from './telemetry-stage-core.ts';
 
 export function instrumentInferencePlugin(
   definition: PluginDefinition,
@@ -57,6 +56,7 @@ export function instrumentSpeechToText(
       finishProcessing?.(outcome);
       finishProcessing = undefined;
     };
+    const endpoint = new EndpointClock(input.format);
     try {
       const session = await start({
         ...input,
@@ -67,13 +67,17 @@ export function instrumentSpeechToText(
               (event.type === 'transcript' && Boolean(event.segment.text.trim())))
           )
             finishProcessing = beginStage(telemetry, { stage: 'stt', ...identity });
+          // Recorded before the engine sees end-of-turn, which may accept the turn synchronously.
+          endpoint.observe(event, (durationMs, payload) =>
+            recordStage(telemetry, { stage: 'stt.endpoint', durationMs, payload, ...identity }),
+          );
           input.onEvent(event);
           if (event.type === 'end-of-turn' && !event.eager) settleProcessing('succeeded');
           if (event.type === 'utterance-end') settleProcessing('succeeded');
         },
       });
       finishReady('succeeded');
-      return instrumentV2SttSession(session, settleProcessing);
+      return instrumentV2SttSession(session, settleProcessing, endpoint);
     } catch (error) {
       finishReady(stageOutcome(error));
       settleProcessing(stageOutcome(error));
@@ -85,9 +89,11 @@ export function instrumentSpeechToText(
 function instrumentV2SttSession(
   session: SttSession,
   settleProcessing: (outcome: StageOutcome) => void,
+  endpoint: EndpointClock,
 ): SttSession {
   return {
     write: async (frame, signal) => {
+      endpoint.wrote(frame.byteLength);
       try {
         await session.write(frame, signal);
       } catch (error) {
@@ -96,6 +102,9 @@ function instrumentV2SttSession(
       }
     },
     ...(session.forceEndpoint ? { forceEndpoint: () => session.forceEndpoint!() } : {}),
+    ...(session.updateConfiguration
+      ? { updateConfiguration: (update) => session.updateConfiguration!(update) }
+      : {}),
     finish: async (signal) => {
       try {
         await session.finish(signal);
@@ -136,7 +145,14 @@ export function instrumentInference(
   if (!inference.stream) return;
   const stream = inference.stream.bind(inference);
   inference.stream = (request) =>
-    timedIterable(() => stream(request), telemetry, { stage: 'inference', ...identity });
+    timedIterable(
+      () =>
+        timeFirstToken(stream(request), () =>
+          beginStage(telemetry, { stage: 'llm_first_token', ...identity }),
+        ),
+      telemetry,
+      { stage: 'inference', ...identity },
+    );
 }
 
 export function instrumentStreamingTts(
@@ -212,73 +228,4 @@ function instrumentSttSession(
       }
     },
   };
-}
-
-function instrumentPlugin(
-  definition: PluginDefinition,
-  serviceKey: string,
-  instrument: (service: unknown) => void,
-): PluginDefinition {
-  return {
-    manifest: definition.manifest,
-    apply: async (ctx: Context, config) => {
-      await definition.apply(ctx, config);
-      instrument(ctx.reflect.get(serviceKey, false));
-    },
-  };
-}
-
-async function timedPromise<T>(
-  operation: () => Promise<T>,
-  telemetry: StageTelemetry,
-  input: { stage: string } & StageIdentity,
-): Promise<T> {
-  const finish = beginStage(telemetry, input);
-  try {
-    const value = await operation();
-    finish('succeeded');
-    return value;
-  } catch (error) {
-    finish(stageOutcome(error));
-    throw error;
-  }
-}
-
-async function* timedIterable<T>(
-  operation: () => AsyncIterable<T>,
-  telemetry: StageTelemetry,
-  input: { stage: string } & StageIdentity,
-): AsyncIterable<T> {
-  const finish = beginStage(telemetry, input);
-  try {
-    yield* operation();
-    finish('succeeded');
-  } catch (error) {
-    finish(stageOutcome(error));
-    throw error;
-  }
-}
-
-function beginStage(
-  telemetry: StageTelemetry,
-  input: { stage: string } & StageIdentity,
-): (outcome: StageOutcome) => boolean {
-  try {
-    const finish = telemetry.startStage(input);
-    return (outcome) => {
-      try {
-        return finish(outcome);
-      } catch {
-        return false;
-      }
-    };
-  } catch {
-    return () => false;
-  }
-}
-
-function stageOutcome(error: unknown): StageOutcome {
-  if (error instanceof DOMException && error.name === 'TimeoutError') return 'timeout';
-  if (error instanceof DOMException && error.name === 'AbortError') return 'unknown';
-  return 'failed';
 }

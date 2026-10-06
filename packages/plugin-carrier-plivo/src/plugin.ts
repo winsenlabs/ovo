@@ -78,7 +78,8 @@ export const plivoPlugin = definePlugin(
       required: ['authId'],
       additionalProperties: false,
       properties: {
-        authId: { type: 'string', minLength: 1 },
+        // The dial and reconcile paths already refuse anything else (control.ts).
+        authId: { type: 'string', minLength: 1, pattern: '^[A-Za-z0-9]+$' },
         fromNumbers: { type: 'array', items: { type: 'string' } },
         contentType: {
           type: 'string',
@@ -103,8 +104,30 @@ export const plivoPlugin = definePlugin(
     conformance: ['carrier@1'],
     ui: {
       label: 'Plivo Voice',
+      description:
+        'Plivo numbers, including Indian DIDs, streamed bidirectionally. See docs/runbooks/indian-did.md.',
       vendor: 'Plivo',
       docsUrl: 'https://www.plivo.com/docs/voice/xml/audio-streaming',
+      slot: 'carrier',
+      fields: {
+        authId: {
+          label: 'Auth ID',
+          help: 'The account or subaccount Auth ID from the Plivo console (MA… or SA…). The Auth Token is the binding credential.',
+          order: 1,
+        },
+        contentType: {
+          label: 'Stream audio format',
+          help: 'Keep 8 kHz mu-law: Scribe, AssemblyAI and ElevenLabs ulaw_8000 take it with no transcode, and the per-call clips are rendered in it. L16 is for providers that need linear PCM.',
+          widget: 'select',
+          order: 2,
+        },
+        fromNumbers: {
+          label: 'Outbound caller IDs',
+          help: 'E.164 numbers this binding may dial from, such as +918069450000.',
+          order: 3,
+        },
+        cps: { label: 'Calls per second', help: 'The account dialing limit.', advanced: true },
+      },
     },
   },
   (ctx) => {

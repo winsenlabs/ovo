@@ -94,7 +94,7 @@ export function renderAnnouncementTemplate(
       throw new AnnouncementValidationError(`Missing announcement variable: ${path}`);
     }
     const valueSchema = schemaAtPath(schema, path);
-    return formatValue(value, valueSchema, options);
+    return formatTemplateValue(value, valueSchema, options);
   });
   if (rendered.includes('{{') || rendered.includes('}}')) {
     throw new AnnouncementValidationError(
@@ -156,7 +156,8 @@ function schemaAtPath(root: JsonSchema, path: string): JsonSchema | undefined {
   return typeof schema === 'object' && schema !== null ? (schema as JsonSchema) : undefined;
 }
 
-function formatValue(
+/** One variable as a template renders it: currency, dates and times in the agent's locale. */
+export function formatTemplateValue(
   value: unknown,
   schema: JsonSchema | undefined,
   options: { locale: string; timezone: string },

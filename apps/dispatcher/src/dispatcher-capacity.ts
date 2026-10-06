@@ -66,6 +66,62 @@ export async function readDispatcherCapacityInput(input: {
   };
 }
 
+/**
+ * Inbound go-live readiness, observable while admission is still off. Workers register the
+ * protected slots that admit calls only when OVO_INBOUND_ENABLED=true, so `readyProtected` is 0
+ * before go-live by design; `readyWorkers` and `reasons` say whether enabling it would work.
+ */
+export interface InboundReadiness {
+  admissionEnabled: boolean;
+  readyWorkers: number;
+  readyProtected: number;
+  warmFloor: number;
+  /**
+   * Before go-live: pre-admission prerequisites met (a ready idle worker and a warm floor). It
+   * cannot prove that protected-slot registration will succeed once admission is enabled; after
+   * go-live it also requires a ready protected slot.
+   */
+  ready: boolean;
+  reasons: string[];
+}
+
+export function inboundReadiness(
+  capacity: Pick<CapacitySignalInput, 'counts' | 'inboundEnabled' | 'inboundWarmFloor'>,
+  readyProtected: number,
+): InboundReadiness {
+  const readyWorkers = capacity.counts.readyIdle,
+    warmFloor = capacity.inboundWarmFloor,
+    admissionEnabled = capacity.inboundEnabled,
+    reasons: string[] = [];
+  if (!admissionEnabled)
+    reasons.push(
+      'OVO_INBOUND_ENABLED=false: workers register no protected inbound slot, so readyProtected is 0 by design',
+    );
+  if (readyWorkers < 1)
+    reasons.push(
+      'no ready idle worker is reporting; workers stay dial-disabled while OVO_LIVE_DIAL_ENABLED=false',
+    );
+  if (warmFloor < 1)
+    reasons.push('OVO_INBOUND_WARM_FLOOR=0: no worker claims an inbound floor token');
+  if (admissionEnabled && readyProtected < 1)
+    reasons.push('inbound admission is enabled but no protected slot is ready');
+  return {
+    admissionEnabled,
+    readyWorkers,
+    readyProtected,
+    warmFloor,
+    ready: readyWorkers >= 1 && warmFloor >= 1 && (!admissionEnabled || readyProtected >= 1),
+    reasons,
+  };
+}
+
+export async function readInboundReadiness(input: {
+  operations: Pick<PostgresOperationsService, 'inbound'>;
+  capacity: CapacitySignalInput;
+}): Promise<InboundReadiness> {
+  return inboundReadiness(input.capacity, await input.operations.inbound.readyProtectedCapacity());
+}
+
 async function readCampaignCapacity(
   operations: PostgresOperationsService,
 ): Promise<CampaignCapacityDemand[]> {

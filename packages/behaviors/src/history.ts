@@ -2,6 +2,20 @@ import type { InferenceRequest, SpeechReceipt } from '@winsendotai/ovo-contracts
 
 type Message = NonNullable<InferenceRequest['history']>[number];
 
+const INTERRUPTED_NOTE =
+  '[The response was interrupted. Do not assume any unconfirmed words were heard.]';
+const EVIDENCE_NOTE = /^\[Playback evidence: [a-z-]+\.\] /;
+
+/**
+ * The words actually exchanged, without the notes this history adds for the LLM: the playback
+ * evidence prefix is dropped and an interruption note, which was never said, is left out.
+ */
+export function spokenHistory(history: readonly Message[]): Message[] {
+  return history
+    .filter((entry) => entry.content !== INTERRUPTED_NOTE)
+    .map((entry) => ({ ...entry, content: entry.content.replace(EVIDENCE_NOTE, '') }));
+}
+
 /** Bounded conversational evidence. Unplayed generated answers never enter memory. */
 export class PlaybackConversation {
   private entries: Message[] = [];
@@ -26,6 +40,19 @@ export class PlaybackConversation {
     const previous = this.entries.map((entry) => ({ ...entry }));
     this.add({ role: 'user', content: text });
     return previous;
+  }
+
+  /**
+   * AGT-10: the caller spoke again before hearing any answer to `text`, and the engine merged both
+   * into the next turn. The superseded words leave the history (the merged turn records them again)
+   * and its unplayed lines leave no interruption note: the caller never heard them start.
+   */
+  withdraw(text: string): void {
+    const index = this.entries.findLastIndex(
+      (entry) => entry.role === 'user' && entry.content === text,
+    );
+    if (index >= 0) this.entries.splice(index, 1);
+    this.pending = [];
   }
 
   generated(text: string): string {
@@ -53,10 +80,7 @@ export class PlaybackConversation {
     this.interruptedEpochs.add(epoch);
     if (this.interruptedEpochs.size > 20)
       this.interruptedEpochs.delete(this.interruptedEpochs.values().next().value!);
-    this.add({
-      role: 'assistant',
-      content: '[The response was interrupted. Do not assume any unconfirmed words were heard.]',
-    });
+    this.add({ role: 'assistant', content: INTERRUPTED_NOTE });
   }
 
   private add(entry: Message): void {

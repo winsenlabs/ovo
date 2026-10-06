@@ -32,7 +32,7 @@ export const secretInline: CompatRule = (input, stage) =>
     };
     return manifestKeys(definition.manifest).manifest.secretFields.flatMap((path) => {
       const secret = pointer(value, path);
-      // A pointer may name the reference itself (`/credentialRef`, as the Twilio carrier does) or a
+      // A pointer may name the reference itself (`/credentialRef`, as a carrier plugin may) or a
       // field that holds one (`/binding/apiKey: {credentialRef}`); both are references, not secrets.
       return secret === undefined ||
         (secret &&

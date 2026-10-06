@@ -71,6 +71,9 @@ importers:
       '@winsendotai/ovo-plugin-secrets':
         specifier: workspace:*
         version: link:../../packages/plugin-secrets
+      '@winsendotai/ovo-plugin-speech-cache':
+        specifier: workspace:*
+        version: link:../../packages/plugin-speech-cache
       '@winsendotai/ovo-plugin-storage':
         specifier: workspace:*
         version: link:../../packages/plugin-storage
@@ -220,6 +223,9 @@ importers:
       '@livekit/rtc-node':
         specifier: 0.13.34
         version: 0.13.34
+      '@winsendotai/ovo-behaviors':
+        specifier: workspace:*
+        version: link:../../packages/behaviors
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -440,6 +446,12 @@ importers:
       '@winsendotai/ovo-plugin-stt-deepgram':
         specifier: workspace:*
         version: link:../plugin-stt-deepgram
+      '@winsendotai/ovo-plugin-stt-elevenlabs':
+        specifier: workspace:*
+        version: link:../plugin-stt-elevenlabs
+      '@winsendotai/ovo-plugin-stt-openai-realtime':
+        specifier: workspace:*
+        version: link:../plugin-stt-openai-realtime
       '@winsendotai/ovo-plugin-tools':
         specifier: workspace:*
         version: link:../plugin-tools
@@ -449,6 +461,9 @@ importers:
       '@winsendotai/ovo-plugin-tools-mcp':
         specifier: workspace:*
         version: link:../plugin-tools-mcp
+      '@winsendotai/ovo-plugin-tts-elevenlabs':
+        specifier: workspace:*
+        version: link:../plugin-tts-elevenlabs
       '@winsendotai/ovo-plugin-tts-openai':
         specifier: workspace:*
         version: link:../plugin-tts-openai
@@ -464,6 +479,9 @@ importers:
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
+      '@winsendotai/ovo-session-host':
+        specifier: workspace:*
+        version: link:../session-host
 
   packages/fixture-calls:
     dependencies:
@@ -695,8 +713,8 @@ importers:
   packages/plugin-llm-openai:
     dependencies:
       '@ai-sdk/openai':
-        specifier: 4.0.71
-        version: 4.0.71(zod@4.6.5)
+        specifier: 4.0.84
+        version: 4.0.84(zod@4.6.5)
       '@winsendotai/ovo-audio':
         specifier: workspace:*
         version: link:../audio
@@ -722,6 +740,9 @@ importers:
 
   packages/plugin-media:
     dependencies:
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
@@ -744,6 +765,9 @@ importers:
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
@@ -856,6 +880,13 @@ importers:
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
+      pg:
+        specifier: 8.16.3
+        version: 8.16.3
+    devDependencies:
+      '@types/pg':
+        specifier: 8.15.5
+        version: 8.15.5
 
   packages/plugin-speech-sarvam:
     dependencies:
@@ -942,6 +973,50 @@ importers:
         specifier: workspace:*
         version: link:../conformance
 
+  packages/plugin-stt-elevenlabs:
+    dependencies:
+      '@winsendotai/ovo-audio':
+        specifier: workspace:*
+        version: link:../audio
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@winsendotai/ovo-sdk':
+        specifier: workspace:*
+        version: link:../sdk
+    devDependencies:
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
+
+  packages/plugin-stt-openai-realtime:
+    dependencies:
+      '@winsendotai/ovo-audio':
+        specifier: workspace:*
+        version: link:../audio
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@winsendotai/ovo-sdk':
+        specifier: workspace:*
+        version: link:../sdk
+    devDependencies:
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
+
   packages/plugin-tools:
     dependencies:
       '@winsendotai/ovo-contracts':
@@ -1002,6 +1077,25 @@ importers:
         specifier: 4.6.5
         version: 4.6.5
 
+  packages/plugin-tts-elevenlabs:
+    dependencies:
+      '@winsendotai/ovo-audio':
+        specifier: workspace:*
+        version: link:../audio
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+    devDependencies:
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
+
   packages/plugin-tts-openai:
     dependencies:
       '@winsendotai/ovo-audio':
@@ -1041,6 +1135,9 @@ importers:
       '@winsendotai/ovo-sdk':
         specifier: workspace:*
         version: link:../sdk
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       '@winsendotai/ovo-conformance':
         specifier: workspace:*
@@ -1178,8 +1275,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/openai@4.0.71':
-    resolution: {integrity: sha512-w8FuHr1bD/bP/8SIgcaJKUyePE4ke9s7+Ew2ed/9i5mDoFXEfyVUyFX8R0wQ3YfcdMKmTs8ct/f6XJsXsnPVsQ==}
+  '@ai-sdk/openai@4.0.84':
+    resolution: {integrity: sha512-RsHz+jqstQ+wnMex1BLzIlwseDRzJAruT7ZW1X1azCEI9cVkSQVn17JS6qVntdi+DKkAMPg4rP1APixDEZFKiw==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -1190,8 +1287,18 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
+  '@ai-sdk/provider-utils@5.0.54':
+    resolution: {integrity: sha512-amqDxFnw9+dpVrDACRDGmExUUNOH9C1D2bhg/DqWJnamEOieDTXBBXLHujSby/0MqHdAFksnpE8Pzfqx6ABMBw==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
   '@ai-sdk/provider@4.0.17':
     resolution: {integrity: sha512-VYMBxIQdcHqbIf1j+YZlI9Ati6LZ4wJe0GGd4z4a5H/KxTggjeOiyaVYTnfF7LHZK5jMQ+rofmzz4QPqf++NUw==}
+    engines: {node: '>=22'}
+
+  '@ai-sdk/provider@4.0.22':
+    resolution: {integrity: sha512-1Jtmn36VNMOBo9CMUQrPqsR744qtqRloEiXpWCYS8ffPlhS2CrSNmoho5lPjp3R7EnkzBsGI6p51TA7fQJQZdA==}
     engines: {node: '>=22'}
 
   '@asamuzakjp/css-color@7.0.1':
@@ -3615,10 +3722,10 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 4.6.5
 
-  '@ai-sdk/openai@4.0.71(zod@4.6.5)':
+  '@ai-sdk/openai@4.0.84(zod@4.6.5)':
     dependencies:
-      '@ai-sdk/provider': 4.0.17
-      '@ai-sdk/provider-utils': 5.0.45(zod@4.6.5)
+      '@ai-sdk/provider': 4.0.22
+      '@ai-sdk/provider-utils': 5.0.54(zod@4.6.5)
       zod: 4.6.5
 
   '@ai-sdk/provider-utils@5.0.45(zod@4.6.5)':
@@ -3630,7 +3737,20 @@ snapshots:
       undici: 7.29.1
       zod: 4.6.5
 
+  '@ai-sdk/provider-utils@5.0.54(zod@4.6.5)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.22
+      '@standard-schema/spec': 1.1.0
+      '@workflow/serde': 4.1.0
+      eventsource-parser: 3.1.1
+      undici: 7.29.1
+      zod: 4.6.5
+
   '@ai-sdk/provider@4.0.17':
+    dependencies:
+      json-schema: 0.4.0
+
+  '@ai-sdk/provider@4.0.22':
     dependencies:
       json-schema: 0.4.0
 

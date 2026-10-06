@@ -93,12 +93,16 @@ export async function loadCostCatalog(
   ledger: CostLedgerService,
   policy: CostPolicy,
   requiredMeterKeys: readonly string[],
+  /** Cards admission already read for this policy, by meter key; the rest are read here. */
+  prefetched?: ReadonlyMap<string, PriceCardVersion | undefined>,
 ): Promise<Map<string, PriceCardVersion>> {
   const cards = new Map<string, PriceCardVersion>();
   for (const meterKey of new Set(requiredMeterKeys))
     if (!policy.priceCards[meterKey]) throw new Error(`Cost meter is not configured: ${meterKey}`);
   for (const [meterKey, reference] of Object.entries(policy.priceCards)) {
-    const card = await ledger.getPriceCard(reference.id, reference.version);
+    const card = prefetched?.has(meterKey)
+      ? prefetched.get(meterKey)
+      : await ledger.getPriceCard(reference.id, reference.version);
     if (!card) throw new Error(`Cost price version is unavailable: ${meterKey}`);
     const hasFxId = reference.fxId !== undefined;
     const hasFxVersion = reference.fxVersion !== undefined;

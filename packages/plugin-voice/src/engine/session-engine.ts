@@ -8,6 +8,7 @@ import {
   type MediaDuplex,
   type SessionInput,
   type SpeechToText,
+  type SttConfigurationUpdate,
   type TranscriptObserver,
   type TextFilter,
   type TurnDetectorFactory,
@@ -16,14 +17,27 @@ import {
   type VoiceSessionEngine,
 } from '@winsendotai/ovo-contracts';
 import { BoundedSpeechScheduler } from '../scheduler.ts';
+import { AnsweredByGate } from './answered-by-gate.ts';
 import { realClock } from './clock.ts';
+import {
+  configureScheduler,
+  disposalDeadline,
+  emptyIngressStats,
+  observeBehavior,
+  observeTranscript,
+  projectBusEvents,
+} from './engine-wiring.ts';
 import { VoiceEventBus } from './events.ts';
 import { VoiceIngress } from './ingress.ts';
+import { ingressLimitsFor } from './ingress-backlog.ts';
 import { TurnLatency } from './latency.ts';
 import { SpeechEventProjector } from './speech-events.ts';
+import { describeError, logVoiceEvent } from './log.ts';
 import { createTurnController } from './turn-controller-host.ts';
 import { TurnDriver } from './turn-driver.ts';
 import { startWatchdog } from './watchdog.ts';
+
+export { DEFAULT_KEEP_MS, DEFAULT_PRE_STT_BUFFER_MS } from './ingress-backlog.ts';
 
 export interface NativeEnginePorts {
   behavior: Behavior;
@@ -64,6 +78,9 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
   private stopping?: Promise<EngineOutcome>;
   private started = false;
   private cancelWatchdog?: () => void;
+  private readonly answered: AnsweredByGate;
+  /** Why a behaviour or an answering machine ended the call, for the `end` event. */
+  private endDetail?: { reason: EndReason; detail: string };
 
   constructor(private readonly ports: NativeEnginePorts) {
     this.clock = ports.clock ?? realClock;
@@ -84,103 +101,89 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
       ports.session,
       this.bus,
       this.latency,
-      (reason) => void this.dispose(reason),
+      (reason, detail) => {
+        if (!this.stopping && detail) this.endDetail = { reason, detail };
+        void this.dispose(reason);
+      },
       ports.engine?.maxConcurrentTurns ?? 4,
       ports.media,
+      this.clock,
     );
+    this.answered = new AnsweredByGate(this.clock, ports.session.amd?.timeoutMs, this.driver);
     this.speechEvents = new SpeechEventProjector(
       this.bus,
       this.latency,
       (epoch) => this.driver.turnIdForEpoch(epoch),
       (event) => this.emit(event),
+      (id) => this.driver.isFiller(id), // LAT-6: speech over a filler is a turn (AGT-9).
     );
     this.unsubs.push(
-      this.bus.onEvent((event) => {
-        if (event.type === 'vad.stop') this.latency.noteVadStop();
-        if (event.type === 'stt' && event.event.type === 'transcript') {
-          const segment = event.event.segment;
-          if (segment.stability === 'final') this.latency.noteFinalStt();
-          this.emit({
-            type: 'user.transcript',
-            turnId: segment.segmentId,
-            segmentId: segment.segmentId,
-            text: segment.text,
-            stability: segment.stability,
-          });
-        }
-        this.turnController.observe(event);
-      }),
+      projectBusEvents(this.bus, this.latency, this.turnController, (event) => this.emit(event)),
       this.turnController.on((decision) => {
         if (decision.type === 'force-endpoint')
-          void this.ingress?.forceEndpoint().catch(() => void this.dispose('error:stt'));
+          void this.ingress?.forceEndpoint().catch((error: unknown) => {
+            this.log('stt_force_endpoint_failed', error);
+            void this.dispose('error:stt');
+          });
         this.driver.decide(decision);
       }),
       ports.scheduler.subscribe((evidence) => this.speechEvents.onSpeech(evidence)),
-    );
-    this.unsubs.push(
-      ports.behavior.subscribe?.((event) =>
-        this.bus.observe({ type: event.type, atMs: this.clock.now() }),
-      ) ?? (() => undefined),
+      observeBehavior(ports.behavior, this.bus, this.clock, this),
     );
   }
 
   get ingressStats() {
-    return (
-      this.ingress?.stats ?? {
-        acceptedFrames: 0,
-        acceptedBytes: 0,
-        pendingFrames: 0,
-        pendingBytes: 0,
-        overflows: 0,
-      }
-    );
+    return this.ingress?.stats ?? emptyIngressStats();
   }
 
   subscribe(listener: (event: EngineEvent) => void): () => void {
     return this.bus.onEngine(listener);
   }
 
+  /** STT-4: endpointing for the rest of the call; false without input or a provider that can. */
+  configureStt(update: SttConfigurationUpdate): boolean {
+    return this.ingress?.updateConfiguration(update) ?? false;
+  }
+
   async start(): Promise<void> {
     if (this.started) throw new Error('native voice engine already started');
     this.started = true;
-    const { media, session, stt, vad } = this.ports;
-    this.ports.scheduler.configurePipeline(this.ports.engine?.prefetchSegments ?? 2);
-    this.ports.scheduler.configureSession(session);
-    this.ports.scheduler.configureOutput({
-      maxPrefetchBytes: this.ports.engine?.maxPrefetchBytes,
-      markTimeoutMs: this.ports.engine?.markTimeoutMs,
-    });
-    this.ports.scheduler.configureTiming((phase, segment, elapsedMs) =>
-      this.speechEvents.onTiming(phase, segment, elapsedMs),
-    );
-    this.ports.scheduler.configureFilters(this.ports.textFilters ?? [], session.language);
+    const { media, session, stt, vad, engine, textFilters } = this.ports;
+    configureScheduler(this.ports.scheduler, session, engine, textFilters, this.speechEvents);
     this.unsubs.push(
       media.onClose((reason) => void this.dispose(reason)),
       media.onDtmf((digit) => this.bus.observe({ type: 'dtmf', digit, atMs: this.clock.now() })),
-      media.onAnsweredBy?.((result) => this.emit({ type: 'voicemail', result })) ??
-        (() => undefined),
+      this.answered.listen(media, (result) => this.emit({ type: 'voicemail', result })),
     );
     this.cancelWatchdog = startWatchdog(this.clock, session.maxCallSeconds, () => {
       void this.dispose('max_duration');
     });
+    let connecting: Promise<void> | undefined;
     if (session.inputEnabled) {
       if (!stt) throw new Error('Native voice input requires ovo.stt');
+      // Registered first: caller audio is buffered from here until STT is ready (LAT-2).
       this.ingress = new VoiceIngress(
         media,
-        {
-          maxFrames: this.ports.engine?.maxIngressFrames ?? 250,
-          maxBytes: this.ports.engine?.maxIngressBytes ?? 512 * 1024,
-          preSttBufferMs: this.ports.engine?.preSttBufferMs ?? 5_000,
-        },
+        ingressLimitsFor(this.ports.engine ?? {}, media.format),
         this.controller.signal,
         (event) => this.bus.observe(event),
-        () => void this.dispose('error:ingress_overflow'),
+        (reason) => void this.dispose(reason),
         vad,
       );
-      await this.ingress.connect(stt, session.language, this.ports.usage ?? (() => undefined));
+      const usage = this.ports.usage ?? (() => undefined);
+      connecting = this.ingress.connect(stt, session.language, usage);
     }
+    // The first words never wait for the seconds-long STT handshake; caller audio is buffered.
     if (session.initialInput !== undefined || session.mode === 'announcement')
       this.driver.initial(session.initialInput ?? '');
+    else if (this.ports.behavior.speaksFirst?.()) this.answered.speakFirst();
+    try {
+      await connecting;
+    } catch (error) {
+      // An opening can finish the call (a voicemail box) before STT is even needed.
+      if (this.endDetail?.reason === 'voicemail') return;
+      throw error;
+    }
   }
 
   dispose(reason: EndReason, opts: { deadlineMs?: number } = {}): Promise<EngineOutcome> {
@@ -191,13 +194,10 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
   }
 
   private async stop(reason: EndReason, deadlineMs: number): Promise<EngineOutcome> {
-    let timer!: ReturnType<typeof setTimeout>;
-    const deadline = new Promise<void>((_, reject) => {
-      timer = setTimeout(() => reject(new Error('engine disposal timeout')), deadlineMs);
-      timer.unref?.();
-    });
+    const deadline = disposalDeadline(deadlineMs);
     let endedReason = reason;
-    const failed = () => {
+    const failed = (error?: unknown) => {
+      this.log('engine_disposal_failed', error, { reason });
       endedReason = 'error:native-engine-disposal';
     };
     // Every acquired port gets its cleanup attempt even when another hook throws
@@ -205,8 +205,8 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
     const attempt = (cleanup: () => void | Promise<void>): Promise<void> => {
       try {
         return Promise.resolve(cleanup()).catch(failed);
-      } catch {
-        failed();
+      } catch (error) {
+        failed(error);
         return Promise.resolve();
       }
     };
@@ -229,17 +229,21 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
     try {
       // Keep evidence subscribed until scheduler disposal publishes each terminal
       // phase. Unsubscription still shares the overall deadline.
-      await Promise.race([Promise.all(cleanup).then(unsubscribe), deadline]);
-    } catch {
-      failed();
+      await Promise.race([Promise.all(cleanup).then(unsubscribe), deadline.expired]);
+    } catch (error) {
+      failed(error);
     } finally {
-      clearTimeout(timer);
+      deadline.clear();
       this.controller.abort();
       void unsubscribe();
     }
     const outcome = { reason: endedReason, outcome: outcomeFor(endedReason) };
     try {
-      this.emit({ type: 'end', reason: endedReason });
+      this.emit({
+        type: 'end',
+        reason: endedReason,
+        ...(this.endDetail?.reason === endedReason ? { detail: this.endDetail.detail } : {}),
+      });
     } finally {
       this.resolveEnded(outcome);
       this.bus.clear();
@@ -249,12 +253,13 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
 
   private emit(event: EngineEvent): void {
     this.bus.emit(event);
-    if (event.type === 'user.transcript' || event.type === 'agent.transcript') {
-      try {
-        this.ports.transcripts?.(event);
-      } catch {
-        // Inspection is never voice business authority.
-      }
-    }
+    observeTranscript(this.ports.transcripts, event, (error) =>
+      this.log('transcript_observer_failed', error),
+    );
+  }
+
+  private log(event: string, error: unknown, fields: Record<string, unknown> = {}): void {
+    const sessionId = this.ports.media.sessionId;
+    logVoiceEvent('error', event, { sessionId, ...fields, error: describeError(error) });
   }
 }

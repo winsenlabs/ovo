@@ -11,12 +11,15 @@ export class CostCatalogRepository {
 
   async putPriceCard(card: PriceCardVersion): Promise<PriceCardVersion> {
     validatePriceCard(card);
-    const normalized = { ...card, effectiveAt: isoDate(card.effectiveAt, 'effectiveAt') };
+    const normalized = normalizePriceCard(card);
+    // A wildcard, verified card carries neither field, so cards stored before OPS-13 keep their
+    // fingerprint and stay idempotent.
     const digest = fingerprint(normalized);
     const inserted = await this.pool.query(
       `INSERT INTO ovo_cost_price_cards
-       (id,version,fingerprint,provider,unit,currency,minor_units_per_block,block_quantity,effective_at,provenance)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       (id,version,fingerprint,provider,unit,currency,minor_units_per_block,block_quantity,effective_at,
+        provenance,model,provisional)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        ON CONFLICT(id,version) DO NOTHING RETURNING id`,
       [
         normalized.id,
@@ -29,6 +32,8 @@ export class CostCatalogRepository {
         normalized.blockQuantity,
         normalized.effectiveAt,
         normalized.provenance,
+        normalized.model ?? null,
+        normalized.provisional ?? false,
       ],
     );
     if (!inserted.rowCount)
@@ -39,7 +44,8 @@ export class CostCatalogRepository {
   async getPriceCard(id: string, version: string): Promise<PriceCardVersion | undefined> {
     const result = await this.pool.query(
       `SELECT id,version,provider,unit,currency,minor_units_per_block,block_quantity,
-              effective_at::text,provenance FROM ovo_cost_price_cards WHERE id=$1 AND version=$2`,
+              effective_at::text,provenance,model,provisional
+       FROM ovo_cost_price_cards WHERE id=$1 AND version=$2`,
       [id, version],
     );
     return result.rows[0] ? mapPriceCard(result.rows[0]) : undefined;
@@ -54,7 +60,7 @@ export class CostCatalogRepository {
     if (cursor && !cursor.version) throw new TypeError('Price-card cursor is invalid');
     const result = await this.pool.query(
       `SELECT id,version,provider,unit,currency,minor_units_per_block,block_quantity,
-              effective_at::text,provenance,created_at::text
+              effective_at::text,provenance,model,provisional,created_at::text
        FROM ovo_cost_price_cards
        ${cursor ? 'WHERE (created_at,id,version) < ($1::timestamptz,$2,$3)' : ''}
        ORDER BY created_at DESC,id DESC,version DESC
@@ -147,7 +153,7 @@ export class CostCatalogRepository {
   }
 }
 
-function mapPriceCard(row: any): PriceCardVersion {
+export function mapPriceCard(row: any): PriceCardVersion {
   return {
     id: row.id,
     version: row.version,
@@ -158,6 +164,19 @@ function mapPriceCard(row: any): PriceCardVersion {
     blockQuantity: row.block_quantity,
     effectiveAt: new Date(row.effective_at).toISOString(),
     provenance: row.provenance,
+    ...(row.model ? { model: row.model } : {}),
+    ...(row.provisional ? { provisional: true } : {}),
+  };
+}
+
+/** Drops an absent model and a false `provisional`, so the stored shape (and fingerprint) is one. */
+function normalizePriceCard(card: PriceCardVersion): PriceCardVersion {
+  const { model, provisional, ...rest } = card;
+  return {
+    ...rest,
+    effectiveAt: isoDate(card.effectiveAt, 'effectiveAt'),
+    ...(model ? { model } : {}),
+    ...(provisional ? { provisional: true } : {}),
   };
 }
 
@@ -183,6 +202,10 @@ function validatePriceCard(card: PriceCardVersion): void {
     provenance: card.provenance,
   }))
     requiredText(value, name);
+  if (card.model !== undefined && requiredText(card.model, 'model').length > 200)
+    throw new TypeError('Price model is too long');
+  if (card.provisional !== undefined && typeof card.provisional !== 'boolean')
+    throw new TypeError('Price provisional flag must be a boolean');
   if (!/^[A-Z]{3}$/.test(card.currency)) throw new TypeError('Price currency must be ISO 4217');
   parseDecimal(card.minorUnitsPerBlock);
   if (parseDecimal(card.blockQuantity).numerator <= 0n)

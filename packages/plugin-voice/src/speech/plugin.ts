@@ -6,7 +6,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 import { STREAMING_VOICE_PLUGIN_IDS } from '../production-plugins.ts';
-import { NativeStreamingSpeechOutput } from './media-output-v2.ts';
+import { NativeStreamingSpeechOutput, warmSessionTts } from './media-output-v2.ts';
 
 export function createNativeStreamingMediaOutputPlugin() {
   return definePlugin(
@@ -32,13 +32,22 @@ export function createNativeStreamingMediaOutputPlugin() {
       secretFields: [],
     },
     (ctx, config) => {
+      const tts = ctx.get(Cap.tts) as TextToSpeech;
+      const media = ctx.get(Cap.media) as MediaDuplex;
+      const settings = config as {
+        voice?: string;
+        markTimeoutMs?: number;
+        maxPrefetchBytes?: number;
+      };
       const output = new NativeStreamingSpeechOutput(
-        ctx.get(Cap.tts) as TextToSpeech,
-        ctx.get(Cap.media) as MediaDuplex,
+        tts,
+        media,
         undefined,
         (ctx.maybe(Cap.usage) as UsageSink | undefined) ?? (() => undefined),
-        config as { voice?: string; markTimeoutMs?: number; maxPrefetchBytes?: number },
+        settings,
       );
+      // Session start: the first reply finds the provider's connection already open.
+      warmSessionTts(tts, media.format, settings.voice);
       ctx.provide(Cap.output, output);
       ctx.effect(() => () => output.dispose());
     },

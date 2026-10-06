@@ -1,4 +1,4 @@
-import type { InboundDecision, StreamGrant } from '@winsendotai/ovo-contracts';
+import type { HandoffTarget, InboundDecision, StreamGrant } from '@winsendotai/ovo-contracts';
 
 export function xml(value: string): string {
   if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(value))
@@ -32,7 +32,10 @@ export function connectMarkup(grant: Omit<StreamGrant, 'kind'>): string {
       return `<Parameter name="${xml(name)}" value="${xml(value)}"/>`;
     })
     .join('');
-  return `<Response><Connect><Stream url="${xml(media)}">${parameters}</Stream></Connect><Redirect method="POST">${xml(resume)}</Redirect></Response>`;
+  const status = grant.statusUrl
+    ? ` statusCallback="${xml(secureUrl(grant.statusUrl, 'https:'))}" statusCallbackMethod="POST"`
+    : '';
+  return `<Response><Connect><Stream url="${xml(media)}"${status}>${parameters}</Stream></Connect><Redirect method="POST">${xml(resume)}</Redirect></Response>`;
 }
 
 export function hangupMarkup(message?: string): string {
@@ -67,5 +70,21 @@ export function inboundMarkup(decision: InboundDecision): string {
       return '<Response><Reject/></Response>';
     case 'hangup':
       return hangupMarkup(decision.message);
+  }
+}
+
+export function handoffMarkup(target: HandoffTarget): string {
+  switch (target.kind) {
+    case 'phone':
+      if (!/^\+[1-9][0-9]{5,14}$/.test(target.e164))
+        throw new Error('Invalid handoff E.164 number');
+      return `<Response><Dial><Number>${xml(target.e164)}</Number></Dial></Response>`;
+    case 'queue':
+      if (!/^[\x20-\x7e]{1,200}$/.test(target.name)) throw new Error('Invalid Twilio queue name');
+      return `<Response><Enqueue>${xml(target.name)}</Enqueue></Response>`;
+    case 'end':
+      return hangupMarkup(target.message);
+    case 'resume':
+      throw new Error('resume handoff needs callback URL');
   }
 }

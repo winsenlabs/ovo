@@ -15,6 +15,11 @@ export interface SessionInput {
   /** Watchdog (#26); the carrier TimeLimit is this + 30. */
   maxCallSeconds: number;
   acknowledgements: readonly Acknowledgement[];
+  /**
+   * The carrier was asked to detect an answering machine on this (outbound) leg. A speak-first
+   * opening waits for its verdict, or `timeoutMs`, before it plays.
+   */
+  amd?: { timeoutMs: number };
 }
 
 function deepFreeze<T>(value: T): T {
@@ -36,6 +41,12 @@ export const SESSION_INPUT_JSON_SCHEMA: Record<string, unknown> = deepFreeze({
     initialInput: { type: 'string' },
     variables: { type: 'object' },
     maxCallSeconds: { type: 'integer', minimum: 1, maximum: 14400 },
+    amd: {
+      type: 'object',
+      required: ['timeoutMs'],
+      properties: { timeoutMs: { type: 'integer', minimum: 1, maximum: 60000 } },
+      additionalProperties: false,
+    },
     acknowledgements: {
       type: 'array',
       uniqueItems: true,
@@ -118,7 +129,8 @@ export type EngineEvent =
     }
   | { type: 'interrupt'; reason: 'vad' | 'transcript' | 'dtmf' }
   | { type: 'voicemail'; result: 'human' | 'machine' | 'unknown' }
-  | { type: 'end'; reason: EndReason };
+  /** `detail` says why a behaviour or answering machine ended the call, when one did. */
+  | { type: 'end'; reason: EndReason; detail?: string };
 
 /** Receives user and agent transcript events (capability `ovo.transcript-observer`). */
 export type TranscriptObserver = (

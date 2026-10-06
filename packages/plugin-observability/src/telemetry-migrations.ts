@@ -124,6 +124,25 @@ ALTER TABLE ovo_telemetry_stages
     CHECK (source IN ('live', 'simulation', 'test'));
 `;
 
+/** Per-turn breakdowns. The summary is the latest snapshot the worker published for the turn. */
+const turnMigration = `
+CREATE TABLE IF NOT EXISTS ovo_telemetry_turns (
+  workspace_id text NOT NULL,
+  call_id text NOT NULL,
+  turn_id text NOT NULL,
+  source text NOT NULL CHECK (source IN ('live', 'simulation', 'test')),
+  agent_id text,
+  release_id text,
+  started_at timestamptz,
+  updated_at timestamptz NOT NULL,
+  updated_sequence bigint NOT NULL,
+  summary jsonb NOT NULL,
+  PRIMARY KEY (workspace_id, call_id, turn_id)
+);
+CREATE INDEX IF NOT EXISTS ovo_telemetry_turns_retention_idx
+  ON ovo_telemetry_turns (updated_at);
+`;
+
 export async function migrateTelemetry(client: PoolClient): Promise<void> {
   await client.query('SELECT pg_advisory_xact_lock($1)', [1_513_504_015]);
   await client.query(`CREATE TABLE IF NOT EXISTS ovo_telemetry_schema_migrations (
@@ -150,10 +169,23 @@ export async function migrateTelemetry(client: PoolClient): Promise<void> {
   );
   if (fixtureCurrent.rows[0] && fixtureCurrent.rows[0].checksum !== fixtureChecksum)
     throw new Error('Telemetry fixture-source migration checksum mismatch');
-  if (fixtureCurrent.rows[0]) return;
-  await client.query(fixtureSourceMigration);
+  if (!fixtureCurrent.rows[0]) {
+    await client.query(fixtureSourceMigration);
+    await client.query(
+      'INSERT INTO ovo_telemetry_schema_migrations(version, checksum) VALUES (2, $1)',
+      [fixtureChecksum],
+    );
+  }
+  const turnChecksum = createHash('sha256').update(turnMigration).digest('hex');
+  const turnCurrent = await client.query<{ checksum: string }>(
+    'SELECT checksum FROM ovo_telemetry_schema_migrations WHERE version=3',
+  );
+  if (turnCurrent.rows[0] && turnCurrent.rows[0].checksum !== turnChecksum)
+    throw new Error('Telemetry turn migration checksum mismatch');
+  if (turnCurrent.rows[0]) return;
+  await client.query(turnMigration);
   await client.query(
-    'INSERT INTO ovo_telemetry_schema_migrations(version, checksum) VALUES (2, $1)',
-    [fixtureChecksum],
+    'INSERT INTO ovo_telemetry_schema_migrations(version, checksum) VALUES (3, $1)',
+    [turnChecksum],
   );
 }

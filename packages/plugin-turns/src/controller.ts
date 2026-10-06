@@ -1,8 +1,10 @@
 import {
   classifyConfirmation,
+  type SttEvent,
   type UserTurnController,
   type VoiceEvent,
 } from '@winsendotai/ovo-contracts';
+import { isProviderEnd } from './stop-provider.ts';
 import { canInterrupt, confirmationPrompt, speechMuted } from './mute.ts';
 import { vadStartsTurn } from './start-vad.ts';
 import { TurnControllerState } from './controller-state.ts';
@@ -19,7 +21,9 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         this.vadStopPending = false;
         this.vadStopReady = false;
         this.forceSent = false;
+        this.committed = false;
         this.stopTimers.cancel();
+        this.commitTimers.speechStarted();
         this.idle.cancel();
         if (vadStartsTurn(!!this.bot, speechMuted(this.view(), this.rules), this.config)) {
           this.start();
@@ -53,6 +57,11 @@ export class TurnController extends TurnControllerState implements UserTurnContr
             this.finalSeen,
           );
           this.safety();
+        } else if (this.strategy === 'commit') {
+          this.vadStopPending = true;
+          this.vadStopReady = false;
+          this.commitTimers.speechStopped(Boolean(this.aggregate.view));
+          this.safety();
         } else if (this.deferredStop) this.tryStop();
         break;
       case 'dtmf':
@@ -63,7 +72,12 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         break;
       case 'bot.started':
         this.idle.cancel();
-        this.bot = { epoch: event.epoch, kind: event.kind };
+        this.bot = {
+          epoch: event.epoch,
+          kind: event.kind,
+          question: event.question,
+          filler: event.filler,
+        };
         if (speechMuted(this.view(), this.rules)) this.reset('muted');
         break;
       case 'bot.stopped':
@@ -96,6 +110,65 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         this.confirmationPending = false;
         break;
     }
+  }
+
+  private onStt(event: SttEvent): void {
+    if (event.type === 'speech-start') {
+      // A declared speech-end contract makes speech-start a latching signal. Without capabilities,
+      // the provider may use end-of-turn as its only release signal (the conformance driver does).
+      this.providerSpeaking = !!this.input.stt?.turnSignals.includes('speech-end');
+      this.providerEndPending = false;
+      this.idle.cancel();
+      if (!this.vadStopPending) this.stopTimers.cancel();
+      return;
+    }
+    if (event.type === 'speech-end') {
+      this.providerSpeaking = false;
+      if (this.providerEndPending || this.vadStopReady || this.deferredStop) this.tryStop();
+      else this.safety();
+      return;
+    }
+    if (event.type === 'transcript') {
+      this.onTranscript(event);
+      return;
+    }
+    if (isProviderEnd(event)) {
+      if (event.type === 'end-of-turn' && event.eager) return;
+      this.providerEndPending = true;
+      if (this.strategy === 'provider' || !this.vadSpeaking) this.tryStop();
+    }
+  }
+
+  /** Local silence or a stalled interim: force the endpoint, or end the turn on a final in hand. */
+  protected commitDue(): void {
+    if (this.finalSeen && this.aggregate.view === this.aggregate.text) return this.commitReady();
+    if (!this.forceSent) {
+      this.forceSent = true;
+      this.emit({ type: 'force-endpoint' });
+    }
+    this.committed = true;
+    this.commitTimers.committed();
+  }
+
+  /** A final ends the turn once it answers the commit, or arrives after the VAD went quiet. */
+  protected commitFinal(): void {
+    if (!this.committed && !(this.vadStopPending && !this.vadSpeaking)) return;
+    // The caller's onTranscript stops the turn once the flags are set.
+    if (this.aggregate.view === this.aggregate.text) this.commitReady(false);
+  }
+
+  /** No final within userSpeechTimeoutMs of the commit: end on the interim text. */
+  protected commitCeiling(): void {
+    if (!this.turnId || !this.aggregate.view) return;
+    this.aggregate.closeOpenSegments();
+    this.commitReady();
+  }
+
+  private commitReady(stop = true): void {
+    this.vadStopPending = false;
+    this.vadStopReady = true;
+    this.committed = true;
+    if (stop) this.tryStop();
   }
 
   protected onDigits(digits: string): void {

@@ -1,4 +1,5 @@
 export * from './agent.ts';
+export * from './agent-call-control.ts';
 export * from './agent-decision.ts';
 export * from './agent-decision-apply.ts';
 export * from './ports.ts';
@@ -48,3 +49,4 @@ export * from './carrier/ingress.ts';
 export * from './ops/background-task.ts';
 export * from './ops/capacity-signal.ts';
 export * from './ops/recording-tap.ts';
+export * from './logger.ts';

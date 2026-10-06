@@ -1,15 +1,20 @@
 import type {
+  Clock,
   MediaDuplex,
   SessionInput,
   SpeechOutput,
   SpeechOutputResult,
   SpeechSegment,
+  SynthesisInput,
   TextToSpeech,
   UsageSink,
 } from '@winsendotai/ovo-contracts';
 import { bytesPerSecond } from '@winsendotai/ovo-contracts';
 import { PrefetchBuffer } from './prefetch.ts';
+import { ReplyStreams } from './reply-streams.ts';
 import type { SpeechTimingSink } from './timing.ts';
+
+export { REPLY_IDLE_MS, ReplyStreams, warmSessionTts } from './reply-streams.ts';
 
 type Reporter = (phase: 'sent' | 'acknowledged', evidence: 'estimated' | 'confirmed') => void;
 type Pending = {
@@ -27,6 +32,8 @@ export class NativeStreamingSpeechOutput implements SpeechOutput {
   private sendTail: Promise<void> = Promise.resolve();
   private timing?: SpeechTimingSink;
   private readonly unsubs: (() => void)[];
+  /** LAT-5: one provider context per response epoch, when the TTS offers `openReply`. */
+  private readonly replies?: ReplyStreams;
 
   constructor(
     private readonly tts: TextToSpeech,
@@ -38,7 +45,11 @@ export class NativeStreamingSpeechOutput implements SpeechOutput {
       markTimeoutMs?: number;
       maxPrefetchBytes?: number;
     } = {},
+    clock?: Pick<Clock, 'setTimeout'>,
   ) {
+    this.replies = ReplyStreams.for(tts, (segment, input) => this.segmentAudio(segment, input), {
+      ...(clock ? { clock } : {}),
+    });
     this.unsubs = [
       media.onPlayed((name) => this.acknowledge(name)),
       media.onClose(() => this.cancelAll()),
@@ -98,21 +109,10 @@ export class NativeStreamingSpeechOutput implements SpeechOutput {
           signal: controller.signal,
           onUsage: this.usage,
         };
-        let stream: AsyncIterable<Uint8Array>;
-        if (this.tts.capabilities.incrementalText && this.tts.open) {
-          const incremental = await this.tts.open(input);
-          try {
-            incremental.push(segment.text);
-            incremental.flush();
-            stream = incremental.audio;
-            for await (const chunk of stream) await queueChunk(chunk);
-          } finally {
-            await incremental.close();
-          }
-        } else {
-          stream = this.tts.synthesize({ ...input, text: segment.text });
-          for await (const chunk of stream) await queueChunk(chunk);
-        }
+        const stream = this.replies
+          ? this.replies.audio(segment, input)
+          : this.segmentAudio(segment, input);
+        for await (const chunk of stream) await queueChunk(chunk);
         buffer.end();
       } catch (error) {
         buffer.end(error);
@@ -167,6 +167,8 @@ export class NativeStreamingSpeechOutput implements SpeechOutput {
   }
 
   async interrupt(epoch: number): Promise<void> {
+    // Barge-in closes this reply's provider context only; the session's socket stays up.
+    this.replies?.close(epoch);
     // A carrier may echo a flushed mark synchronously from clear().
     for (const [name, pending] of this.pending) if (pending.epoch === epoch) this.cancelMark(name);
     // Old synthesis may ignore abort and never release its send slot. A new epoch
@@ -178,10 +180,30 @@ export class NativeStreamingSpeechOutput implements SpeechOutput {
   }
 
   dispose(): void {
+    this.replies?.dispose();
     this.cancelAll();
     for (const prepared of this.prepared.values()) prepared.cancel();
     this.prepared.clear();
     for (const unsub of this.unsubs) unsub();
+  }
+
+  /** One segment on its own: an incremental context per segment, else one synthesis. */
+  private async *segmentAudio(
+    segment: SpeechSegment,
+    input: Omit<SynthesisInput, 'text'>,
+  ): AsyncIterable<Uint8Array> {
+    if (!this.tts.capabilities.incrementalText || !this.tts.open) {
+      yield* this.tts.synthesize({ ...input, text: segment.text });
+      return;
+    }
+    const incremental = await this.tts.open(input);
+    try {
+      incremental.push(segment.text);
+      incremental.flush();
+      yield* incremental.audio;
+    } finally {
+      await incremental.close();
+    }
   }
 
   private waitForMark(name: string, epoch: number, report?: Reporter): Promise<SpeechOutputResult> {

@@ -6,6 +6,7 @@ import { PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { CompatIssue } from '@winsendotai/ovo-contracts';
 import { buildReleaseSelections } from '../release-selections.ts';
 import { discoveredAllowedMcpTools } from '../mcp-discovered-state.ts';
+import { createApiSpeechPrerender } from '../speech-prerender.ts';
 
 const releaseCode = (message: string): CompatIssue['code'] =>
   /binding|credential/i.test(message)
@@ -39,6 +40,8 @@ export function registerAgentsRoutes(dependencies: any) {
     error,
     distributionDefaults,
   } = dependencies;
+  const speechPrerender = createApiSpeechPrerender(options, catalog, distributionDefaults);
+  app.addHook('onClose', () => speechPrerender.close());
   app.get('/v1/agents', async (request: FastifyRequest) => {
     const principal = requireRole(request, 'viewer');
     return await store.listAgents(
@@ -193,8 +196,25 @@ export function registerAgentsRoutes(dependencies: any) {
       resourceId: release.id,
       payload: { agentId, draftVersion: agent.draftVersion, plugins },
     });
+    // Queueing the pre-render (TTS-9) is logged when it fails; it never fails the publish.
+    await speechPrerender
+      .enqueue(release)
+      .catch((cause: unknown) =>
+        request.log.warn({ err: cause }, 'speech prerender enqueue failed'),
+      );
     return reply.code(201).send(release);
   });
+  app.get(
+    '/v1/agents/:agentId/releases/:releaseId/speech-clips',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const principal = requireRole(request, 'viewer'),
+        { agentId, releaseId } = z.object({ agentId: Id, releaseId: Id }).parse(request.params),
+        release = await store.getRelease(principal.workspaceId, releaseId);
+      if (!release || release.agentId !== agentId)
+        return error(reply, 404, 'not_found', 'Release not found');
+      return await speechPrerender.status(release);
+    },
+  );
   app.get('/v1/releases/:releaseId', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'viewer'),
       { releaseId } = z.object({ releaseId: Id }).parse(request.params),

@@ -4,6 +4,7 @@ import { buildManagementApi, bootstrapIdentitiesFromEnv, sessionSecretFromEnv } 
 import { loadInstalledSessionExtensions } from '@winsendotai/ovo-session-host';
 import { productionRecordingsFromEnv } from '@winsendotai/ovo-plugin-recordings';
 import { loadDistribution } from '@winsendotai/ovo-distribution';
+import { createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
 import { executeFixtureChildJob, runFixtureCallChild } from './test-call-runtime.ts';
 
 if (process.argv.includes('--ovo-fixture-call-child')) {
@@ -86,8 +87,8 @@ if (process.argv.includes('--ovo-fixture-call-child')) {
       () => {
         clearTimeout(timeout);
       },
-      () => {
-        console.error('Management API shutdown failed');
+      (error: unknown) => {
+        createLogger({ service: 'api' }).error('api_shutdown_failed', errorFields(error));
         process.exitCode = 1;
       },
     );

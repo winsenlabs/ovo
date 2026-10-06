@@ -1,6 +1,7 @@
 import type { UserDirectory } from './user-directory.ts';
 import { type OperationStore } from '@winsendotai/ovo-contracts';
 import { Cap } from '@winsendotai/ovo-contracts';
+import { parseLogLevel } from '@winsendotai/ovo-plugin-kit';
 import { priceUsage, summarizeUsage } from '@winsendotai/ovo-plugin-observability';
 import { type SecretManager } from '@winsendotai/ovo-plugin-secrets';
 import {
@@ -36,6 +37,7 @@ import {
   SimulationBody,
   UsageBody,
 } from './schemas.ts';
+import { findInlineCredential } from './provider-config.ts';
 import { createDefaultReleaseFactory } from './session-factory.ts';
 import type { ManagementApiOptions, ManagementApiService, Principal } from './types.ts';
 export type {
@@ -61,15 +63,12 @@ const queryPage = (request: FastifyRequest) => {
 };
 const isTls = (request: FastifyRequest) => request.protocol === 'https';
 function rejectEmbeddedSecrets(value: unknown) {
-  if (!value || typeof value !== 'object') return;
-  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    if (/secret|token|password|authorization|api.?key|credential/i.test(key))
-      throw Object.assign(new Error('Embedded secrets are not allowed'), {
-        statusCode: 400,
-        code: 'embedded_secret',
-      });
-    rejectEmbeddedSecrets(child);
-  }
+  const path = findInlineCredential(value);
+  if (path)
+    throw Object.assign(new Error(`Embedded secrets are not allowed (${path})`), {
+      statusCode: 400,
+      code: 'embedded_secret',
+    });
 }
 
 export function createManagementApiPlugin(options: ManagementApiOptions): PluginDefinition {
@@ -118,6 +117,7 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
       const app = Fastify({
         logger: options.logger
           ? {
+              level: parseLogLevel(process.env.OVO_LOG_LEVEL),
               redact: {
                 paths: [
                   'req.headers.authorization',

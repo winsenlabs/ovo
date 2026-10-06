@@ -101,7 +101,9 @@ it('attributes VAD stop and final STT wait to the accepted speech turn', async (
   }
 });
 
-it('reports streaming behavior first byte as llm_ttfb', async () => {
+// The engine cannot see grounding, the decision or the LLM inside a behavior, so it must not
+// label that wait as LLM time: before OBS-5 the whole pre-reply wait was reported as llm_ttfb.
+it('reports the streaming behavior first segment without claiming it as llm_ttfb', async () => {
   const carrier = createFakeCarrier();
   let heard = false;
   const speech = new BoundedSpeechScheduler({
@@ -133,7 +135,10 @@ it('reports streaming behavior first byte as llm_ttfb', async () => {
   try {
     await engine.start();
     expect((await engine.ended).reason).toBe('behavior_completed');
-    expect(timing.map((event) => event.key)).toContain('llm_ttfb');
+    const keys = timing.map((event) => event.key);
+    expect(keys).not.toContain('llm_ttfb');
+    const first = timing.find((event) => event.key === 'behavior_first_segment')!;
+    expect(first.ms).toBeGreaterThanOrEqual(4);
   } finally {
     await engine.dispose('drain');
   }

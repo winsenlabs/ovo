@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import type { InfrastructureService, InfrastructureSnapshot } from './infrastructure-types.ts';
 import { aggregateWorkerMetrics, readWorkerSamples } from './infrastructure-worker-samples.ts';
+import { readInboundReadiness, type InboundReadinessReport } from './inbound-readiness.ts';
 
 interface InfrastructureServiceOptions {
   organizationId: string;
@@ -25,6 +26,10 @@ export class PostgresInfrastructureService implements InfrastructureService {
     this.heartbeatMaxAgeMs = bounded(options.heartbeatMaxAgeMs ?? 15_000, 1_000, 60_000);
     this.capacitySignalMaxAgeMs = bounded(options.capacitySignalMaxAgeMs ?? 30_000, 1_000, 300_000);
     this.maxWorkerSamples = bounded(options.maxWorkerSamples ?? 100, 1, 100);
+  }
+
+  inboundReadiness(): Promise<InboundReadinessReport | null> {
+    return readInboundReadiness(this.pool, this.capacitySignalMaxAgeMs);
   }
 
   async snapshot(workspaceId: string, releaseId?: string): Promise<InfrastructureSnapshot> {
@@ -96,11 +101,11 @@ export class PostgresInfrastructureService implements InfrastructureService {
       telemetry: string | null;
       control: string | null;
       capacity: string | null;
-    }>(`SELECT to_regclass('public.ovo_worker_slots')::text AS orchestration,
-      to_regclass('public.ovo_recording_artifacts')::text AS recordings,
-      to_regclass('public.ovo_telemetry_events')::text AS telemetry,
-      to_regclass('public.ovo_ctl_calls')::text AS control,
-      to_regclass('public.ovo_capacity_signal_latest')::text AS capacity`);
+    }>(`SELECT to_regclass('ovo_worker_slots')::text AS orchestration,
+      to_regclass('ovo_recording_artifacts')::text AS recordings,
+      to_regclass('ovo_telemetry_events')::text AS telemetry,
+      to_regclass('ovo_ctl_calls')::text AS control,
+      to_regclass('ovo_capacity_signal_latest')::text AS capacity`);
     const row = result.rows[0]!;
     return {
       orchestration: Boolean(row.orchestration),

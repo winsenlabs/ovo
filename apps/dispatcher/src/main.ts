@@ -1,4 +1,5 @@
 import { createServer, type Server } from 'node:http';
+import { createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
 import { openDispatcherProcess } from './dispatcher-process.ts';
 
 type Environment = Record<string, string | undefined>;
@@ -56,11 +57,14 @@ export async function startDispatcher(input: {
 
 // The bundled CJS file and the local tsx script both execute this module directly.
 if (process.argv[1] && /(?:^|\/)main\.(?:cjs|ts)$/.test(process.argv[1])) {
+  const logger = createLogger({ service: 'dispatcher' });
   void startDispatcher({
     env: process.env,
-    log: (entry) => console.error(JSON.stringify(entry)),
+    // The loop reports only failures (capacity signal, background task) through this hook.
+    log: ({ event, ...fields }) =>
+      logger.warn(typeof event === 'string' ? event : 'dispatcher_event', fields),
   }).catch((error) => {
-    console.error(error);
+    logger.error('dispatcher_startup_failed', errorFields(error));
     process.exitCode = 1;
   });
 }

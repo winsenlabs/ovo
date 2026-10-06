@@ -5,6 +5,7 @@ import {
   validateReleaseVariables,
 } from '@winsendotai/ovo-plugin-operations';
 import { resolveCampaignCarrier } from '../operations-plugin.ts';
+import { manualDialCompliance } from '../outbound-compliance.ts';
 import type { RealtimeRouteDependencies } from './operations-realtime.ts';
 
 export function registerOperationsLiveCallRoute(input: RealtimeRouteDependencies): void {
@@ -39,12 +40,36 @@ export function registerOperationsLiveCallRoute(input: RealtimeRouteDependencies
           details: variableValidation.errors,
         },
       });
+    // A retry of a launch already accepted replays its receipt, even if the window closed since.
+    const accepted = await store.getCall(principal.workspaceId, body.operationId);
+    const compliance =
+      accepted && !body.dryRun
+        ? ({ ok: true, value: null } as const)
+        : await manualDialCompliance(operations, release, body.to);
+    if (!compliance.ok)
+      return reply.code(compliance.status).send({
+        error: {
+          code: compliance.code,
+          message: compliance.message,
+          ...(compliance.details ? { details: compliance.details } : {}),
+        },
+      });
     let carrier;
     try {
       carrier = await resolveCampaignCarrier(operations, release, store);
     } catch (error) {
       return operationsRequestError(422, 'campaign_carrier_unavailable', (error as Error).message);
     }
+    if (body.dryRun)
+      return reply.code(200).send({
+        dryRun: true,
+        releaseId: release.id,
+        to: normalizePhoneNumber(body.to),
+        fromNumber,
+        variables: Object.keys(body.variables).sort(),
+        callingWindow: compliance.value,
+        carrierId: carrier.carrierId,
+      });
     let campaign;
     try {
       campaign = await operations.campaigns.create(
@@ -60,6 +85,10 @@ export function registerOperationsLiveCallRoute(input: RealtimeRouteDependencies
           activeCallPolicy: 'continue',
           maxConcurrency: 1,
           ...carrier,
+          // Checked above, at request time. Snapshotting it would requeue a call accepted just
+          // before the window closed and dial it unasked when the window next opens.
+          callingWindow: null,
+          variablesSchema: release.config.variables,
         },
         [{ sourceRow: 1, phoneNumber: body.to, variables: body.variables }],
       );

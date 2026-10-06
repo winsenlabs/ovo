@@ -1,5 +1,10 @@
 import { BEHAVIOR_PLUGIN_IDS } from '@winsendotai/ovo-behaviors';
-import { Cap, HOST_SESSION_SERVICES, type ReleaseSelections } from '@winsendotai/ovo-contracts';
+import {
+  agentLlmPaths,
+  Cap,
+  HOST_SESSION_SERVICES,
+  type ReleaseSelections,
+} from '@winsendotai/ovo-contracts';
 import { manifestKeys, type PluginDefinition } from '@winsendotai/ovo-runtime';
 import type { AgentDraft } from '@winsendotai/ovo-plugin-storage';
 
@@ -42,8 +47,9 @@ export function validatePermittedGraph(
     throw new Error(
       `Behavior ${behavior.manifest.id} is incompatible with mode ${agent.config.mode}`,
     );
+  // A Jev-only agent (AGT-4) reaches no LLM, so it needs no inference binding.
   if (
-    (agent.config.mode === 'context' || agent.config.mode === 'agent') &&
+    agentLlmPaths(agent.config).length &&
     Object.keys(agent.config.providers).length === 0 &&
     !selections?.llm?.bindingId
   )
@@ -111,6 +117,13 @@ export function validatePermittedGraph(
         !HOST_SESSION_SERVICES.includes(service as (typeof HOST_SESSION_SERVICES)[number])
       )
         throw new Error(`Release requires exactly one selected provider for ${service}`);
+    }
+    // An optional service (the agent's LLM, since AGT-4) is in the graph when a plugin provides it.
+    for (const { key } of manifestKeys(definition.manifest).optional) {
+      const providers = dependencies.filter((item) =>
+        manifestKeys(item.manifest).provides.some((entry) => entry.key === key),
+      );
+      if (providers.length === 1) visit(providers[0]!);
     }
   };
   visit(behavior);

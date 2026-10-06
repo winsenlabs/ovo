@@ -1,22 +1,21 @@
-import type { OperationsService } from '@winsendotai/ovo-plugin-operations';
+import type { Logger } from '@winsendotai/ovo-contracts';
+import { createLogger, errorFields, logFailure } from '@winsendotai/ovo-plugin-kit';
 import {
   ProtectionRenewal,
-  type TaskProtection,
   type ClaimedJob,
   type DurableJob,
-  type DurableJobStore,
-  type PostgresOrchestrationStore,
   type SessionRoute,
-  type TelephonyControl,
 } from '@winsendotai/ovo-plugin-orchestration';
-import type { ProductionWorkerCostRuntime } from './cost-runtime.ts';
+import type { InboundWorkerRuntimeInput } from './inbound-runtime-input.ts';
+import {
+  terminateInboundSession,
+  type ActiveInboundSession,
+} from './inbound-session-termination.ts';
 import { InboundFloorLease } from './worker-reporter.ts';
 
 const RENEW_INTERVAL_MS = 45_000;
 const PROTECTION_RENEW_INTERVAL_MS = 120_000;
 const JOB_LEASE_MS = 120_000;
-
-type InboundWorkerRuntimeInput = ConstructorParameters<typeof InboundWorkerRuntime>[0];
 
 export function createInboundWorkerRuntime(
   enabled: boolean,
@@ -31,39 +30,16 @@ export class InboundWorkerRuntime {
   private protectionRenewal?: ProtectionRenewal;
   private suspended = false;
   private stopped = false;
+  private draining = false;
   private failed = false;
   private renewing = false;
   private readonly floorLease: InboundFloorLease;
-  private activeSession?: {
-    jobId: string;
-    workerId: string;
-    ownerEpoch: number;
-    carrierCallId?: string;
-  };
+  private readonly log: Logger;
+  private activeSession?: ActiveInboundSession;
 
-  constructor(
-    private readonly input: {
-      workerId: string;
-      workerEndpoint: string;
-      generation: number;
-      protection: TaskProtection;
-      operations: OperationsService;
-      store: DurableJobStore;
-      floor: Pick<
-        PostgresOrchestrationStore,
-        'claimInboundFloorToken' | 'releaseInboundFloorToken'
-      >;
-      organizationId: string;
-      inboundWarmFloor: number;
-      telephony: TelephonyControl;
-      costs: ProductionWorkerCostRuntime;
-      terminateOwned?: (jobId: string, ownerEpoch: number, reason: string) => Promise<boolean>;
-      onProtectionLost: (reason: string) => void;
-      onSessionActive?: (jobId: string) => void;
-      onSessionIdle?: (jobId: string) => void;
-    },
-  ) {
+  constructor(private readonly input: InboundWorkerRuntimeInput) {
     this.slotId = `${input.workerId}:inbound`;
+    this.log = input.logger ?? createLogger({ service: 'worker', workerId: input.workerId });
     this.floorLease = new InboundFloorLease(
       input.floor,
       input.workerId,
@@ -80,8 +56,22 @@ export class InboundWorkerRuntime {
     this.timer.unref();
   }
 
+  /** True while an admitted inbound call is still running on this worker. */
+  get hasActiveSession(): boolean {
+    return this.activeSession !== undefined;
+  }
+
+  /** OPS-6 SIGTERM: advertise no capacity, but keep renewing the active call until it ends. */
+  async beginDrain(): Promise<void> {
+    if (this.stopped || this.failed || this.draining) return;
+    this.draining = true;
+    this.suspended = true;
+    await this.register(false).catch(logFailure(this.log, 'inbound_deregister_failed'));
+    await this.floorLease.release().catch(logFailure(this.log, 'inbound_floor_release_failed'));
+  }
+
   async suspendForOutbound(): Promise<boolean> {
-    if (this.stopped || this.failed || this.suspended) return false;
+    if (this.stopped || this.failed || this.draining || this.suspended) return false;
     if (this.floorLease.isHeld) {
       const suspended = await this.input.operations.inbound.suspendProtectedCapacity({
         slotId: this.slotId,
@@ -98,12 +88,13 @@ export class InboundWorkerRuntime {
   }
 
   async resume(): Promise<void> {
-    if (this.stopped || this.failed || !this.suspended) return;
+    if (this.stopped || this.failed || this.draining || !this.suspended) return;
     this.suspended = false;
     if (await this.floorLease.claim()) {
       try {
         await this.activateIdleCapacity();
-      } catch {
+      } catch (error) {
+        this.log.error('inbound_protection_restore_failed', errorFields(error));
         await this.failClosed('failed to re-establish inbound task protection');
       }
     } else {
@@ -140,6 +131,7 @@ export class InboundWorkerRuntime {
       return;
     }
     const reason = `inbound cost admission blocked: ${admission.reason}`;
+    this.log.warn('inbound_cost_admission_blocked', { jobId: job.id, reason });
     if (this.input.terminateOwned) {
       await this.input.terminateOwned(job.id, route.ownerEpoch, reason);
       throw new Error(reason);
@@ -154,12 +146,17 @@ export class InboundWorkerRuntime {
     throw new Error(reason);
   }
 
+  /** OBS-11: reconciled terminal status releases the inbound capacity. */
+  releaseCarrierCall = async (id: string) =>
+    (await this.input.operations.inbound.releaseByCarrierCallId(id)) &&
+    this.input.operations.calls.markTerminalByCarrierCallId(id);
+
   completeSession(jobId: string): void {
     if (this.activeSession?.jobId !== jobId) return;
     this.activeSession = undefined;
     void this.resume()
       .then(() => {
-        if (!this.failed && !this.stopped) this.input.onSessionIdle?.(jobId);
+        if (!this.failed && !this.stopped && !this.draining) this.input.onSessionIdle?.(jobId);
       })
       .catch((error) =>
         this.failClosed(`inbound idle protection restore failed: ${String(error)}`),
@@ -172,9 +169,9 @@ export class InboundWorkerRuntime {
     if (this.timer) clearInterval(this.timer);
     const active = this.activeSession;
     this.activeSession = undefined;
-    await this.register(false).catch(() => undefined);
+    await this.register(false).catch(logFailure(this.log, 'inbound_deregister_failed'));
     try {
-      if (active) await this.terminateSession(active, 'worker-shutdown');
+      if (active) await terminateInboundSession(this.input, active, 'worker-shutdown');
     } finally {
       try {
         await this.floorLease.release();
@@ -183,23 +180,6 @@ export class InboundWorkerRuntime {
         this.protectionRenewal = undefined;
       }
     }
-  }
-
-  private async terminateSession(
-    active: NonNullable<InboundWorkerRuntime['activeSession']>,
-    reason: string,
-  ): Promise<void> {
-    if (this.input.terminateOwned) {
-      await this.input.terminateOwned(active.jobId, active.ownerEpoch, reason);
-      return;
-    }
-    const fenced = await this.input.store.requestSessionTermination(
-      active.jobId,
-      active.workerId,
-      active.ownerEpoch,
-      reason,
-    );
-    if (fenced && active.carrierCallId) await this.input.telephony.hangup(active.carrierCallId);
   }
 
   private async activateIdleCapacity(): Promise<void> {
@@ -284,17 +264,22 @@ export class InboundWorkerRuntime {
     this.failed = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
+    const active = this.activeSession;
+    this.log.error('inbound_capacity_failed_closed', { reason, jobId: active?.jobId });
     try {
       this.input.onProtectionLost(reason);
-    } catch {
+    } catch (error) {
       // Carrier termination must continue even when the drain observer fails.
+      this.log.error('inbound_drain_observer_failed', errorFields(error));
     }
-    const active = this.activeSession;
     this.activeSession = undefined;
-    await this.floorLease.release().catch(() => undefined);
-    await Promise.allSettled([
+    await this.floorLease.release().catch(logFailure(this.log, 'inbound_floor_release_failed'));
+    const settled = await Promise.allSettled([
       this.register(false),
-      ...(active ? [this.terminateSession(active, reason)] : []),
+      ...(active ? [terminateInboundSession(this.input, active, reason)] : []),
     ]);
+    for (const failure of settled)
+      if (failure.status === 'rejected')
+        this.log.error('inbound_fail_closed_step_failed', errorFields(failure.reason));
   }
 }

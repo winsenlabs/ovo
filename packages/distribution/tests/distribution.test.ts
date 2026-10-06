@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { Cap } from '@winsendotai/ovo-contracts';
 import { compose, configError, definePlugin } from '@winsendotai/ovo-runtime';
 import { recordingsPlugin } from '@winsendotai/ovo-plugin-recordings';
-import { secretsPlugin } from '@winsendotai/ovo-plugin-secrets';
+import { LocalAesGcmSecretManager, secretsPlugin } from '@winsendotai/ovo-plugin-secrets';
+import { NodeSqliteControlStore } from '@winsendotai/ovo-plugin-storage';
 import { FIRST_PARTY } from '../src/catalog.ts';
-import { legacyEnvBindings } from '../src/env-bindings.ts';
+import { envCarrierBindings, legacyEnvBindings } from '../src/env-bindings.ts';
 import { loadDistribution } from '../src/load.ts';
 
 describe('distribution inventory', () => {
@@ -85,6 +86,7 @@ describe('distribution inventory', () => {
       'plugin-carrier-plivo',
       'plugin-stt-deepgram',
       'plugin-tts-openai',
+      'plugin-tts-elevenlabs',
       'plugin-llm-openai',
       'plugin-stt-assemblyai',
       'plugin-speech-sarvam',
@@ -206,6 +208,61 @@ describe('distribution inventory', () => {
     await composed.dispose();
   });
 
+  it('passes the previous master key so credentials survive a master key rotation', async () => {
+    const previous = Buffer.alloc(32, 6),
+      control = new NodeSqliteControlStore(':memory:');
+    try {
+      await control.ensureWorkspace('workspace');
+      const credential = await new LocalAesGcmSecretManager(control, previous).create({
+        workspaceId: 'workspace',
+        label: 'Before rotation',
+        provider: 'fixture',
+        type: 'api-key',
+        environment: 'test',
+        value: 'stored-before-rotation',
+        createdBy: 'test',
+      });
+      const worker = await loadDistribution({
+        role: 'worker',
+        profile: 'compose',
+        env: { ...workerEnv, OVO_SECRETS_MASTER_KEY_PREVIOUS: previous.toString('hex') },
+      });
+      const secrets = worker.processRows.find((row) => row.id === secretsPlugin.manifest.id)!;
+      expect(secrets.config).toMatchObject({ previousMasterKeys: previous.toString('hex') });
+      const store = definePlugin(
+        {
+          id: 'fixture-control-store',
+          version: '0.1.0',
+          contractVersion: 1,
+          scope: 'process',
+          requires: [],
+          provides: [Cap.controlStore],
+          configSchema: { type: 'object' },
+          secretFields: [],
+        },
+        (ctx) => void ctx.provide(Cap.controlStore, control),
+      );
+      const composed = await compose(
+        [
+          { id: store.manifest.id },
+          { ...secrets, config: { ...secrets.config, backend: 'local' } },
+        ],
+        [store, secretsPlugin],
+        { scope: 'process' },
+      );
+      try {
+        const manager = composed.get(Cap.secretManager) as LocalAesGcmSecretManager;
+        await expect(manager.resolve('workspace', credential.id)).resolves.toBe(
+          'stored-before-rotation',
+        );
+      } finally {
+        await composed.dispose();
+      }
+    } finally {
+      await control.close();
+    }
+  });
+
   it('fails early when worker infrastructure variables are missing', async () => {
     await expect(loadDistribution({ role: 'worker', profile: 'compose', env: {} })).rejects.toThrow(
       'Missing required environment variable DATABASE_URL',
@@ -271,10 +328,70 @@ describe('environment carrier bindings', () => {
     ['AC123', 'disabled-local-account'],
     ['  ', 'secret'],
     ['AC123', ''],
+    ['disabled-local-account', 'disabled-local-token'],
+    ['AC123', 'replace-with-token'],
   ])('rejects placeholder or incomplete values: %s / %s', (sid, token) => {
     expect(
       legacyEnvBindings({ TWILIO_ACCOUNT_SID: sid, TWILIO_AUTH_TOKEN: token }),
     ).not.toHaveProperty('OVO_CARRIER_ENV_BINDINGS');
+  });
+
+  it.each([
+    // What Compose rendered from bootstrap's placeholders before it stopped interpolating TWILIO_*.
+    ['{"twilio":{"accountSid":"disabled-local-account","authToken":"disabled-local-token"}}'],
+    ['{"twilio":{"accountSid":"","authToken":""}}'],
+    ['{"twilio":{"accountSid":"replace-with-sid","authToken":"replace-with-token"}}'],
+    [''],
+  ])('reduces placeholder explicit bindings to none: %s', (explicit) => {
+    const bindings = envCarrierBindings({ OVO_CARRIER_ENV_BINDINGS: explicit });
+    expect(JSON.parse(bindings.env.OVO_CARRIER_ENV_BINDINGS!)).toEqual({});
+    expect(bindings.active).toEqual([]);
+  });
+
+  it('keeps real explicit entries while dropping placeholder ones', () => {
+    const bindings = envCarrierBindings({
+      OVO_CARRIER_ENV_BINDINGS: JSON.stringify({
+        twilio: { accountSid: 'AC123', authToken: 'disabled-local-token' },
+        plivo: { accountSid: 'MA123', authToken: 'secret' },
+      }),
+    });
+    expect(JSON.parse(bindings.env.OVO_CARRIER_ENV_BINDINGS!)).toEqual({
+      plivo: { accountSid: 'MA123', authToken: 'secret' },
+    });
+    expect(bindings).toMatchObject({ active: ['plivo'], ignored: ['twilio'] });
+    expect(
+      envCarrierBindings({ OVO_CARRIER_ENV_BINDINGS: 'not json' }).env.OVO_CARRIER_ENV_BINDINGS,
+    ).toBe('not json');
+  });
+
+  it('logs the active and ignored env carriers by name at startup, never their values', async () => {
+    const entries: Record<string, unknown>[] = [];
+    await loadDistribution({
+      role: 'gateway',
+      profile: 'compose',
+      env: {
+        OVO_CARRIER_ENV_BINDINGS: JSON.stringify({
+          twilio: { accountSid: 'disabled-local-account', authToken: 'disabled-local-token' },
+        }),
+      },
+      log: (entry) => entries.push(entry),
+    });
+    expect(entries).toEqual([
+      {
+        event: 'carrier_env_bindings',
+        role: 'gateway',
+        active: [],
+        ignoredPlaceholders: ['twilio'],
+      },
+    ]);
+    await loadDistribution({
+      role: 'gateway',
+      profile: 'compose',
+      env: { OVO_CARRIER_ENV_BINDINGS: '{"fixture":{"authToken":"live-secret"}}' },
+      log: (entry) => entries.push(entry),
+    });
+    expect(entries[1]).toMatchObject({ active: ['fixture'], ignoredPlaceholders: [] });
+    expect(JSON.stringify(entries)).not.toContain('live-secret');
   });
 
   it('preserves explicit env bindings verbatim even when legacy values exist', () => {

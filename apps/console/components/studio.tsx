@@ -14,8 +14,12 @@ import { PluginField, ProviderMap } from './studio/configuration-panels';
 import { FaqEditor } from './studio/faq-editor';
 import { CostPolicyEditor } from './studio/cost-policy-editor';
 import { DecisionEditor } from './studio/decision-editor';
+import { IdleEditor } from './studio/idle-editor';
+import { JevOnlyPanel } from './studio/jev-only-panel';
+import { RecoveryEditor } from './studio/recovery-editor';
+import { RulesEditor } from './studio/rules-editor';
 import { KnowledgeEditor } from './studio/knowledge-editor';
-import { SpeechCacheEditor } from './studio/speech-cache-editor';
+import { CallPolicyPanels } from './studio/call-policy-panels';
 import { AgentDraftIndex, StudioRail } from './studio/release-panels';
 import { ScriptEditor } from './studio/script-editor';
 import { ToolsEditor } from './studio/tools-editor';
@@ -212,17 +216,24 @@ export function AgentStudio({
           {(selected.config.mode === 'faq' || selected.config.mode === 'agent') && (
             <ToolsEditor config={selected.config} update={applyUpdate} />
           )}
-          {/* Only agent mode runs a decision or retrieval: both live in the agent behaviour, and
-              the other modes have no LLM to ground or to fall back to. */}
+          {/* Only agent mode runs retrieval or a decision flow: both live in the agent behaviour.
+              A script may still ask the decision model to match replies to its transitions. */}
           {selected.config.mode === 'agent' && (
             <>
               <KnowledgeEditor config={selected.config} update={applyUpdate} />
               <DecisionEditor config={selected.config} update={applyUpdate} />
+              <RulesEditor config={selected.config} update={applyUpdate} />
+              <RecoveryEditor config={selected.config} update={applyUpdate} />
+              <IdleEditor config={selected.config} update={applyUpdate} />
+              <JevOnlyPanel config={selected.config} update={applyUpdate} />
             </>
           )}
+          {selected.config.mode !== 'agent' && selected.config.script && (
+            <DecisionEditor config={selected.config} update={applyUpdate} />
+          )}
           <ProviderMap config={selected.config} bindings={bindings} update={applyUpdate} />
-          <SpeechCacheEditor config={selected.config} update={applyUpdate} />
-          <CostPolicyEditor config={selected.config} update={applyUpdate} />
+          <CallPolicyPanels config={selected.config} update={applyUpdate} />
+          <CostPolicyEditor config={selected.config} update={applyUpdate} agentId={selected.id} />
           <RecordingPolicyPanel
             config={selected.config}
             role={identity.role}

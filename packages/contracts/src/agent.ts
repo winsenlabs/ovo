@@ -1,8 +1,26 @@
 import { z } from 'zod';
+import {
+  AgentEnding,
+  AgentOpening,
+  AgentVoicemail,
+  END_CALL_TOOL_ID,
+} from './agent-call-control.ts';
+import { AgentCompliance } from './agent-compliance.ts';
 import { AgentDecisionPolicy } from './agent-decision.ts';
+import { AgentGuardrailPolicy } from './agent-guardrail.ts';
+import { AgentHandoff, handoffIssues } from './human-handoff.ts';
 import { AgentKnowledgePolicy } from './agent-knowledge.ts';
+import { AgentDecisionUnavailable, AgentIdle, AgentRecovery } from './agent-recovery.ts';
+import { AgentRules } from './agent-rules.ts';
+import { checkRoutingTargets } from './agent-rule-targets.ts';
 import { ScriptGraph } from './script.ts';
 import { AgentVoice } from './selection.ts';
+
+// Wave 3 agent blocks live in their own modules and are re-exported here, beside the config.
+export * from './agent-recovery.ts';
+export * from './agent-rules.ts';
+export * from './agent-jev-only.ts';
+export * from './agent-compliance.ts';
 
 export const JsonSchema = z.record(z.string(), z.unknown());
 export type JsonSchema = z.infer<typeof JsonSchema>;
@@ -52,6 +70,17 @@ export const ToolDefinition = z.object({
     .optional(),
 });
 export type ToolDefinition = z.infer<typeof ToolDefinition>;
+
+/**
+ * LAT-9 per agent. The first segment of a streamed reply is cut at its first clause once it holds
+ * `minFirstWords` words; absent, the segmenter's default (3) applies. 0 cuts at any comma, which
+ * starts audio soonest but can play a lone "Okay," followed by a gap.
+ */
+export const AgentReplyPacing = z
+  .object({ minFirstWords: z.number().int().min(0).max(12).optional() })
+  .strict();
+export type AgentReplyPacing = z.infer<typeof AgentReplyPacing>;
+
 export const AgentConfig = z
   .object({
     name: z.string().min(1).max(120),
@@ -80,6 +109,28 @@ export const AgentConfig = z
     decision: AgentDecisionPolicy.optional(),
     /** Per-agent grounding, retrieved from the selected `knowledge` plugin. */
     knowledge: AgentKnowledgePolicy.optional(),
+    /** Agent mode only: spoken first, before the caller says anything (greet-first). */
+    opening: AgentOpening.optional(),
+    /** Agent mode only: answering-machine handling on outbound calls. */
+    voicemail: AgentVoicemail.optional(),
+    /** Agent mode only: how the agent may end the call itself. */
+    ending: AgentEnding.optional(),
+    /** Agent mode only: the instant rules tier, matched before the decision model (AGT-6). */
+    rules: AgentRules.optional(),
+    /** Agent mode only: escalating lines when the caller goes silent, then a closing line (AGT-11). */
+    idle: AgentIdle.optional(),
+    /** Agent mode only: repeat, didn't-catch and re-ask lines, bounded (AGT-12). */
+    recovery: AgentRecovery.optional(),
+    /** Agent mode only: what the caller hears when the decision model is unavailable (AGT-4). */
+    decisionUnavailable: AgentDecisionUnavailable.optional(),
+    /** Agent mode only: amounts, dates and offers the LLM may not invent (AGT-8 critic item). */
+    guardrail: AgentGuardrailPolicy.optional(),
+    /** Agent mode only: transfer to a person and promised callbacks (AGT-15). */
+    handoff: AgentHandoff.optional(),
+    /** Agent mode only: how a streamed LLM reply is cut into spoken segments (LAT-9). */
+    reply: AgentReplyPacing.optional(),
+    /** Outbound collections compliance: calling hours, recording disclosure, caller opt-out. */
+    compliance: AgentCompliance.optional(),
     faqMargin: z.number().min(0).max(1).default(0.15),
     clarification: z.string().default('Please clarify your question.'),
     context: z.string().max(100000).default(''),
@@ -138,6 +189,53 @@ export const AgentConfig = z
   .refine((config) => new Set(config.faq.map((entry) => entry.id)).size === config.faq.length, {
     message: 'FAQ IDs must be unique',
     path: ['faq'],
+  })
+  // Only the agent behaviour speaks an opening, leaves a voicemail or ends the call; on any other
+  // mode these would validate and then do nothing.
+  .refine((config) => config.mode === 'agent' || !config.opening, {
+    message: 'An opening requires agent mode',
+    path: ['opening'],
+  })
+  .refine((config) => config.mode === 'agent' || !config.voicemail, {
+    message: 'A voicemail policy requires agent mode',
+    path: ['voicemail'],
+  })
+  .refine((config) => config.mode === 'agent' || !config.ending, {
+    message: 'An ending policy requires agent mode',
+    path: ['ending'],
+  })
+  .refine((config) => config.mode === 'agent' || !config.guardrail, {
+    message: 'A reply guardrail requires agent mode',
+    path: ['guardrail'],
+  })
+  // Calling hours gate any dial; the disclosure and the opt-out are spoken by the agent behaviour.
+  .refine(
+    (config) =>
+      config.mode === 'agent' || (!config.compliance?.disclosure && !config.compliance?.optOut),
+    {
+      message: 'A disclosure line and the opt-out intent require agent mode',
+      path: ['compliance'],
+    },
+  )
+  .refine(
+    (config) =>
+      !config.ending?.llmTool || !config.tools.some((tool) => tool.id === END_CALL_TOOL_ID),
+    { message: `Tool id ${END_CALL_TOOL_ID} is reserved for ending the call`, path: ['tools'] },
+  )
+  .superRefine((config, ctx) => {
+    for (const field of [
+      'rules',
+      'idle',
+      'recovery',
+      'decisionUnavailable',
+      'handoff',
+      'reply',
+    ] as const)
+      if (config[field] && config.mode !== 'agent')
+        ctx.addIssue({ code: 'custom', message: `${field} requires agent mode`, path: [field] });
+    for (const found of handoffIssues(config))
+      ctx.addIssue({ code: 'custom', message: found.message, path: found.path });
+    checkRoutingTargets(config, ctx);
   });
 
 export type AgentConfig = z.infer<typeof AgentConfig>;

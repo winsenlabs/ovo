@@ -1,6 +1,7 @@
 import {
   PCM16_24K,
   sameFormat,
+  type AudioFormat,
   type Clock,
   type NetPort,
   type SynthesisInput,
@@ -23,7 +24,12 @@ export interface OpenAiTtsConfig {
   voice: string;
   instructions?: string;
   speed?: number;
+  /** Open the speech host connection at session start (`warm`). Off unless set. */
+  warmUp?: boolean;
 }
+
+/** A warm-up that takes longer than this is abandoned; the call never waits on it. */
+export const WARM_TIMEOUT_MS = 3_000;
 
 export const OPENAI_TTS_CAPABILITIES = Object.freeze({
   outputFormats: [PCM16_24K],
@@ -60,6 +66,32 @@ export class OpenAiTts implements TextToSpeech {
           ? 'openai-tts-mulaw-8000-v1'
           : `openai-tts-${format.encoding}-${format.sampleRate}-v1`,
     };
+  }
+
+  /**
+   * Opens the pooled HTTPS connection to the speech host at session start, so the first utterance
+   * skips DNS, TCP and TLS (Wave 4 LAT-9 follow-up). A model lookup, `GET /v1/models/{model}`
+   * (https://developers.openai.com/api/reference/resources/models, retrieved 2026-10-06), costs
+   * nothing and proves the key. Best effort: it never rejects, and a failure leaves the first
+   * synthesis to connect as it always has. Opt-in per binding (`warmUp`): the worker's provider
+   * pre-warm already opens this host at start-up, so it only refreshes an idle connection.
+   */
+  async warm(_input: { format: AudioFormat; voice?: string }): Promise<void> {
+    if (!this.binding.warmUp) return;
+    try {
+      const response = await this.net.fetch(
+        `https://api.openai.com/v1/models/${encodeURIComponent(this.binding.model)}`,
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${this.apiKey}` },
+          signal: AbortSignal.timeout(WARM_TIMEOUT_MS),
+        },
+      );
+      // The body is drained so the connection goes back to the pool for the first synthesis.
+      await response.arrayBuffer();
+    } catch {
+      // swallow-ok: warming is an optimisation; the first synthesize() connects as it always did.
+    }
   }
 
   async *synthesize(input: SynthesisInput): AsyncIterable<Uint8Array> {

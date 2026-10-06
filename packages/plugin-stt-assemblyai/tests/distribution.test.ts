@@ -6,6 +6,7 @@ import { loadDistribution } from '../../distribution/src/load.ts';
 
 it.each([
   ['@winsendotai/ovo-stt-assemblyai', Cap.stt],
+  ['@winsendotai/ovo-stt-elevenlabs', Cap.stt],
   ['@winsendotai/ovo-stt-sarvam', Cap.stt],
   ['@winsendotai/ovo-tts-sarvam', Cap.tts],
 ] as const)('loads and composes %s from the production distribution', async (id, capability) => {

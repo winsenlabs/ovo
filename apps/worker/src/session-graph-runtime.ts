@@ -4,6 +4,7 @@ import {
   type AudioFormat,
   type PlaybackEvidence,
   type EndReason,
+  type EventSink,
   type MediaDuplex,
   type OperationStore,
   type SecretResolver,
@@ -14,11 +15,10 @@ import {
 import type { LoadedDistribution } from '@winsendotai/ovo-distribution';
 import { duplexFromLegacy } from '@winsendotai/ovo-plugin-kit';
 import { deriveLegacySelections, type ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
-import { decorateByKind, selectEngine, selectSessionGraph } from '@winsendotai/ovo-session-host';
+import { selectEngine, selectSessionGraph } from '@winsendotai/ovo-session-host';
 import {
   compose,
   createNativeHandlerMarker,
-  manifestKeys,
   PluginRegistry,
   type Composition,
   type InstalledSessionExtensions,
@@ -29,20 +29,23 @@ export { subscribeEngineTelemetry } from './session-graph-host.ts';
 export type { GraphSessionResult } from './session-graph-host.ts';
 import type { GraphSessionResult } from './session-graph-host.ts';
 import { immutableMcpConnections } from './production-session-support.ts';
-import {
-  instrumentInferencePlugin,
-  instrumentSttPlugin,
-  instrumentTtsPlugin,
-} from './telemetry-stages.ts';
+import { instrumentSessionPlugin } from './telemetry-session-plugins.ts';
 import type { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
 import { createV2SpeechCachePlugin } from './speech-cache-v2.ts';
+import type { CallClips } from './speech-cache-percall.ts';
+import { sessionSttPlugin, type SttPreconnect } from './session-stt-preconnect.ts';
+import { stampBindingIdentity } from './session-graph-bindings.ts';
 import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
 import { adaptV1Engine } from './v1-engine-adapter.ts';
+import { holdOpeningForAnsweringMachine } from './answering-machine.ts';
+import type { CallOutcomeStore } from '@winsendotai/ovo-plugin-storage/outcomes';
 
 export interface LiveGraphOptions {
   distribution: LoadedDistribution;
   parent: Composition;
   carriers?: WorkerCarrierRuntime;
+  /** Where each call's outcome events are stored (AGT-8); closed with the worker. */
+  outcomes?: Pick<CallOutcomeStore, 'append' | 'close'>;
 }
 
 export interface LiveCarrierMedia {
@@ -65,8 +68,18 @@ export async function composeLiveSessionGraph(input: {
   extensions: InstalledSessionExtensions;
   usage?: UsageSink;
   speechCache?: WorkerSpeechCacheRuntime;
+  /** This call's templated lines, prepared while it rang or at admission (TTS-10). */
+  callClips?: CallClips;
+  /** The release's STT, already connecting since the media stream opened (STT-6). */
+  sttPreconnect?: SttPreconnect;
   carrierMedia: LiveCarrierMedia;
   beforeMediaClose?: (reason: EndReason) => Promise<void>;
+  /** Set on an outbound leg dialled with answering-machine detection. */
+  amd?: { timeoutMs: number };
+  /** The carrier's verdict, from the media link or the durable callback. */
+  answeredBy?: NonNullable<MediaDuplex['onAnsweredBy']>;
+  /** The call's outcome event sink, offered to the behaviour as `ovo.event-sink`. */
+  events?: EventSink;
 }): Promise<GraphSessionResult> {
   const { release, graph, telemetry } = input;
   const registry = new PluginRegistry([
@@ -84,17 +97,20 @@ export async function composeLiveSessionGraph(input: {
     },
   );
   let closing: Promise<void> | undefined;
-  const media: MediaDuplex = input.beforeMediaClose
-    ? Object.assign(Object.create(legacyMedia) as MediaDuplex, {
-        close: async (reason: EndReason) => {
-          closing ??= input.beforeMediaClose!(reason);
-          try {
-            await closing;
-          } finally {
-            await legacyMedia.close(reason);
-          }
-        },
-      })
+  const overrides: Partial<Pick<MediaDuplex, 'close' | 'onAnsweredBy'>> = {};
+  if (input.beforeMediaClose)
+    overrides.close = async (reason: EndReason) => {
+      closing ??= input.beforeMediaClose!(reason);
+      try {
+        await closing;
+      } finally {
+        await legacyMedia.close(reason);
+      }
+    };
+  // The legacy transport shim has no answering-machine channel; the engine reads it from here.
+  if (input.answeredBy) overrides.onAnsweredBy = input.answeredBy;
+  const media: MediaDuplex = Object.keys(overrides).length
+    ? Object.assign(Object.create(legacyMedia) as MediaDuplex, overrides)
     : legacyMedia;
   const usage: UsageSink = (event) => {
     input.usage?.(event);
@@ -112,6 +128,7 @@ export async function composeLiveSessionGraph(input: {
       if (event.type === 'agent.transcript')
         telemetry.audit('transcript.agent', { text: event.text, state: event.state });
     },
+    ...(input.events ? { events: input.events } : {}),
   });
   const mcpTools = release.config.tools.filter(
     (tool) => tool.connector === 'mcp' && release.config.allowedTools.includes(tool.id),
@@ -130,7 +147,14 @@ export async function composeLiveSessionGraph(input: {
     input.variables,
   );
   const cachedOutput = input.speechCache
-    ? createV2SpeechCachePlugin(release, input.speechCache.cache)
+    ? createV2SpeechCachePlugin(
+        release,
+        input.speechCache.cache,
+        telemetry,
+        input.callClips
+          ? { clips: input.callClips, options: input.speechCache.options.perCall }
+          : undefined,
+      )
     : undefined;
   const graphRelease: ReleaseRecord =
     !release.selections?.engine && selected.definition.manifest.contractVersion === 1
@@ -202,48 +226,16 @@ export async function composeLiveSessionGraph(input: {
     result.rows.push({ id: selected.definition.manifest.id, config: selected.rowConfig });
     result.catalog.push(selected.definition);
   }
-  // Legacy bridges need the immutable binding identity as well as the copied config.
-  for (const [slot, selection] of Object.entries(release.selections ?? {})) {
-    if (!selection?.binding) continue;
-    const row = result.rows.find((item) => item.id === selection.pluginId);
-    if (row)
-      row.config = {
-        ...row.config,
-        workspaceId: release.workspaceId,
-        bindingId: selection.bindingId,
-        updatedAt: selection.binding.updatedAt,
-      };
-  }
-  for (const binding of Object.values(release.providerBindings)) {
-    const row = result.rows.find(
-      (item) =>
-        item.config?.credentialRef &&
-        (item.config.credentialRef as { credentialId?: string }).credentialId ===
-          binding.credentialId,
-    );
-    if (row)
-      row.config = {
-        ...row.config,
-        workspaceId: release.workspaceId,
-        bindingId: binding.id,
-        updatedAt: binding.updatedAt,
-      };
-  }
+  stampBindingIdentity(result.rows, release);
+  if (input.amd) holdOpeningForAnsweringMachine(result.rows, selected.definition, input.amd);
+  const sttPlugin = release.selections?.stt?.pluginId;
   const catalog = result.catalog.map((definition) =>
-    decorateByKind(definition, {
-      stt: (item) =>
-        instrumentSttPlugin(item, telemetry, {
-          provider: manifestKeys(item.manifest).manifest.provider,
-        }),
-      tts: (item) =>
-        instrumentTtsPlugin(item, telemetry, {
-          provider: manifestKeys(item.manifest).manifest.provider,
-        }),
-      llm: (item) =>
-        instrumentInferencePlugin(item, telemetry, {
-          provider: manifestKeys(item.manifest).manifest.provider,
-        }),
-    }),
+    instrumentSessionPlugin(
+      definition.manifest.id === sttPlugin
+        ? sessionSttPlugin(definition, input.variables, input.sttPreconnect)
+        : definition,
+      telemetry,
+    ),
   );
   const composition = await compose(result.rows, catalog, {
     scope: 'session',

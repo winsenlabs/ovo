@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireRole } from '../auth-service.ts';
 import { UserDirectory, userError } from '../user-directory.ts';
 import { EmailInput, PasswordInput } from '../user-plugin.ts';
+import { assertPasswordPolicy } from '../auth-password-policy.ts';
 
 const NewUser = z
   .object({
@@ -18,6 +19,9 @@ const PatchUser = NewUser.omit({ email: true })
   .extend({ disabled: z.boolean().optional() })
   .strict()
   .refine((value) => Object.keys(value).length > 0, 'At least one field is required');
+
+/** OPS-15: a new password may never be the bootstrap one still in the server environment. */
+const seedPassword = () => process.env.OVO_SEED_ADMIN_PASSWORD;
 
 export function registerUserRoutes(input: {
   app: FastifyInstance;
@@ -42,6 +46,7 @@ export function registerUserRoutes(input: {
     const { users, principal } = directory(request);
     tls(request);
     const body = NewUser.parse(request.body);
+    assertPasswordPolicy(body.password, { email: body.email, seedPassword: seedPassword() });
     const user = (await users.create(body))!;
     await input.store.audit({
       workspaceId: principal.workspaceId,
@@ -58,6 +63,8 @@ export function registerUserRoutes(input: {
     tls(request);
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const patch = PatchUser.parse(request.body);
+    if (patch.password !== undefined)
+      assertPasswordPolicy(patch.password, { seedPassword: seedPassword() });
     const user = await users.update(id, patch);
     await input.store.audit({
       workspaceId: principal.workspaceId,
@@ -80,6 +87,7 @@ export function registerUserRoutes(input: {
       .object({ currentPassword: z.string().min(1).max(128), newPassword: PasswordInput })
       .strict()
       .parse(request.body);
+    assertPasswordPolicy(body.newPassword, { seedPassword: seedPassword() });
     await users.update(principal.identityId, { password: body.newPassword }, body.currentPassword);
     await input.store.audit({
       workspaceId: principal.workspaceId,

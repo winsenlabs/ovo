@@ -25,6 +25,7 @@ export function dialRequestFromJob(
 }
 
 import type { DialRequest } from '@winsendotai/ovo-contracts';
+import { answeringMachineFor } from './answering-machine.ts';
 import type { CarrierJob, SelectedJobCarrier } from './carrier-runtime.ts';
 
 /** Dial URLs are minted by the host for this request and binding. */
@@ -70,5 +71,10 @@ export function dialRequestV2(input: {
     },
     ringTimeoutSec,
     maxDurationSec: (selected.release.config.costPolicy?.maxCallSeconds ?? 1800) + 30,
+    // The session holds a speak-first opening for this verdict, so it is asked for exactly when
+    // `answeringMachineFor` says the session will wait on it.
+    ...(answeringMachineFor(selected.release.config, payload, capabilities)
+      ? { amd: { mode: 'detect' as const } }
+      : {}),
   };
 }

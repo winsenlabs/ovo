@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+// The logger's credential rules, so the two redactors cannot drift apart (one corpus pins both:
+// scripts/tests/credential-redaction.test.ts).
+import { isSecretField, scrubCredentials } from '@winsendotai/ovo-plugin-kit';
 const sensitive =
   /^(authorization|cookie|password|secret|token|credential|api.?key|phone|email|transcript|audio|input|result|context|text|utterance)(?:$|[_-])/i;
 /** Conservative boundary redaction. Raw transcript/artifacts belong in separately authorized stores. */
@@ -7,7 +10,7 @@ export function redact(value: unknown, depth = 0): unknown {
   if (typeof value === 'string')
     return value.length > 500
       ? '[long-value]'
-      : value
+      : scrubCredentials(value)
           .replace(/Bearer\s+\S+/gi, 'Bearer [redacted]')
           .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email]')
           .replace(/\+?\d[\d ().-]{8,}\d/g, '[number]');
@@ -16,7 +19,10 @@ export function redact(value: unknown, depth = 0): unknown {
     return Object.fromEntries(
       Object.entries(value)
         .slice(0, 100)
-        .map(([key, val]) => [key, sensitive.test(key) ? '[redacted]' : redact(val, depth + 1)]),
+        .map(([key, val]) => [
+          key,
+          sensitive.test(key) || isSecretField(key) ? '[redacted]' : redact(val, depth + 1),
+        ]),
     );
   return value;
 }

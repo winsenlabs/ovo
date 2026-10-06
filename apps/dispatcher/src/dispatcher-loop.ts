@@ -2,6 +2,7 @@ import {
   computeCapacitySignal,
   type CapacitySignalInput,
 } from '@winsendotai/ovo-plugin-orchestration';
+import type { InboundReadiness } from './dispatcher-capacity.ts';
 
 export interface DispatcherTask {
   id: string;
@@ -19,19 +20,49 @@ export class DispatcherLoop {
   private started = false;
   private status = { healthy: false, detail: 'initializing' };
   private lastSignal?: Signal;
+  private inbound?: InboundReadiness;
 
   constructor(
     private readonly input: {
       tasks: readonly DispatcherTask[];
       readCapacityInput(): Promise<CapacitySignalInput>;
       publish(signal: Signal): Promise<void>;
+      readInboundReadiness?(capacity: CapacitySignalInput): Promise<InboundReadiness>;
+      /** Persists each readiness read for the API (OPS-4); a failure is logged, never fatal. */
+      publishInboundReadiness?(readiness: InboundReadiness): Promise<void>;
       log?: (entry: Record<string, unknown>) => void;
       random?: () => number;
     },
   ) {}
 
-  health(): { healthy: boolean; detail: string; lastCapacity?: Signal } {
-    return { ...this.status, lastCapacity: this.lastSignal };
+  health(): {
+    healthy: boolean;
+    detail: string;
+    lastCapacity?: Signal;
+    inbound?: InboundReadiness;
+  } {
+    return { ...this.status, lastCapacity: this.lastSignal, inbound: this.inbound };
+  }
+
+  /** Readiness is reported, never enforced here; a failure must not stop capacity signals. */
+  private async refreshInbound(capacity: CapacitySignalInput): Promise<void> {
+    if (!this.input.readInboundReadiness) return;
+    try {
+      const next = await this.input.readInboundReadiness(capacity);
+      if (JSON.stringify(next) !== JSON.stringify(this.inbound))
+        this.input.log?.({ event: 'inbound_readiness', ...next });
+      this.inbound = next;
+    } catch (error) {
+      this.inbound = undefined;
+      this.input.log?.({ event: 'inbound_readiness_failed', error: String(error) });
+      return;
+    }
+    try {
+      // Published every tick, not only on change: its age tells the API the dispatcher is alive.
+      await this.input.publishInboundReadiness?.(this.inbound);
+    } catch (error) {
+      this.input.log?.({ event: 'inbound_readiness_publish_failed', error: String(error) });
+    }
   }
 
   async capacityTick(): Promise<void> {
@@ -39,6 +70,7 @@ export class DispatcherLoop {
     try {
       const input = await this.input.readCapacityInput();
       if (this.abort.signal.aborted) return;
+      await this.refreshInbound(input);
       const signal = computeCapacitySignal(input);
       if (!signal) {
         this.status = { healthy: false, detail: 'capacity input stale or inconsistent' };

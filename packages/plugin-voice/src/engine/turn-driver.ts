@@ -1,49 +1,102 @@
 import type {
   Behavior,
+  Clock,
   MediaDuplex,
   SessionInput,
-  SpeechReceipt,
   TurnDecision,
+  TurnSpeculation,
 } from '@winsendotai/ovo-contracts';
-import { raceAbort } from '../async.ts';
 import { BoundedSpeechScheduler } from '../scheduler.ts';
+import type { AnsweredBy } from './answered-by-gate.ts';
+import { realClock } from './clock.ts';
 import { VoiceEventBus } from './events.ts';
+import { IdleWatch } from './idle-watch.ts';
+import { SpeechReceipts } from './speech-receipts.ts';
 import { TurnLatency } from './latency.ts';
+import { describeError, logVoiceEvent } from './log.ts';
+import { ReplyAudibility } from './turn-audibility.ts';
+import { callerTurn, engineTurn, TurnBook, type Turn } from './turn-book.ts';
+import { TurnFiller } from './turn-filler.ts';
+import { speakReply } from './turn-reply.ts';
+import { withCallVariables } from './turn-call-variables.ts';
+import { completionEnd, type DriverEndReason } from './turn-completion.ts';
+import { SpeculationHooks } from './turn-speculation.ts';
+import { leaveVoicemail } from './turn-voicemail.ts';
+
+export type { DriverEndReason } from './turn-completion.ts';
 
 /** Coordinates behavior, speech epochs, and receipts across initial, STT and DTMF turns. */
 export class TurnDriver {
-  private readonly receipts = new Set<Promise<void>>();
+  private readonly receipts: SpeechReceipts;
   private readonly tasks = new Set<Promise<void>>();
-  private interrupting: Promise<void> = Promise.resolve();
+  private interrupting: Promise<unknown> = Promise.resolve();
   private serial: Promise<void> = Promise.resolve();
   private stopped = false;
+  /** Set once the call is being ended for an answering machine; no new turn starts. */
+  private closing = false;
   private nextTurn = 0;
-  private activeTurn?: AbortController;
-  private readonly epochTurns = new Map<number, string>();
+  private readonly turns: TurnBook;
+  private readonly filler: TurnFiller;
+  /** Set when the behaviour handles silence; the turn detector's idle prompts are then ignored. */
+  private readonly idle?: IdleWatch;
+  private readonly audibility = new ReplyAudibility();
+  private readonly hooks: SpeculationHooks;
 
-  turnIdForEpoch(epoch: number): string | undefined {
-    return this.epochTurns.get(epoch);
-  }
+  turnIdForEpoch = (epoch: number): string | undefined => this.turns.idForEpoch(epoch);
+  /** For SpeechEventProjector: a LAT-6 filler line opens no answer the caller must wait out. */
+  isFiller = (segmentId: string): boolean => this.audibility.isFiller(segmentId);
 
   constructor(
-    private readonly behavior: Behavior,
+    private readonly behavior: Behavior & TurnSpeculation,
     private readonly speech: BoundedSpeechScheduler,
     private readonly session: SessionInput,
     private readonly events: VoiceEventBus,
     private readonly latency: TurnLatency,
-    private readonly end: (reason: 'behavior_completed' | 'caller_idle' | 'error:turn') => void,
+    private readonly end: (reason: DriverEndReason, detail?: string) => void,
     private readonly maxConcurrentTurns: number,
     private readonly media: MediaDuplex,
-  ) {}
+    clock: Pick<Clock, 'setTimeout'> = realClock,
+  ) {
+    this.receipts = new SpeechReceipts(behavior, media, session, (error) => {
+      this.log('speech_receipt_failed', error);
+      this.stopped = true;
+      this.turns.abortRunning('speech receipt failed');
+      this.end('error:turn');
+    });
+    this.idle = IdleWatch.for(behavior, clock, events, {
+      quiet: () => !this.stopped && !this.closing && !this.tasks.size,
+      run: (turnId) => this.queue(engineTurn(turnId, '', { inputEvent: 'idle' })),
+    });
+    // The call's variables ride on each partial, as its turn will get them.
+    this.hooks = new SpeculationHooks(withCallVariables(behavior, session), (hook, e) =>
+      this.log('speculation_hook_failed', e, { hook }, 'warn'),
+    );
+    this.turns = new TurnBook(this.audibility, this.hooks, latency, { speech, behavior });
+    this.filler = new TurnFiller(
+      clock,
+      speech,
+      this.audibility,
+      () => !this.stopped && !this.closing,
+      (turnId, error) => this.log('filler_failed', error, { turnId }, 'warn'),
+    );
+  }
 
   decide(decision: TurnDecision): void {
-    if (this.stopped) return;
+    if (this.stopped || this.closing) return;
     if (decision.type === 'force-endpoint') return;
+    if (decision.type === 'turn.partial') return this.hooks.prepare(decision);
+    // The caller is taking a turn, or a false start ended with nothing to answer.
+    if (decision.type === 'turn.reset') {
+      this.idle?.arm();
+      const carry = this.turns.reset(decision.turnId);
+      if (carry) this.queue(carry);
+    } else if (decision.type !== 'idle') this.idle?.cancel();
     if (decision.type === 'interrupt') {
       this.events.emit({ type: 'interrupt', reason: decision.reason });
-      this.activeTurn?.abort(new DOMException('turn interrupted', 'AbortError'));
+      this.turns.interrupted();
+      this.turns.abortRunning('turn interrupted');
       this.behavior.cancel?.();
-      const turnId = this.epochTurns.get(this.speech.epoch) ?? 'interruption';
+      const turnId = this.turns.idForEpoch(this.speech.epoch) ?? 'interruption';
       this.latency.start(turnId);
       this.interrupting = this.speech.beginEpoch().then(() => {
         this.latency.stage(turnId, 'bargein_latency');
@@ -55,7 +108,6 @@ export class TurnDriver {
     if (decision.type === 'turn.stopped') {
       const input = decision.input;
       this.latency.accept(decision.turnId, input.kind === 'speech');
-      const variables = input.kind === 'dtmf' ? { inputEvent: 'dtmf', digits: input.digits } : {};
       this.events.emit({
         type: 'user.turn',
         phase: 'stopped',
@@ -63,131 +115,166 @@ export class TurnDriver {
         input: input.kind,
         text: input.kind === 'speech' ? input.text : input.digits,
       });
-      this.queue(input.kind === 'speech' ? input.text : input.digits, variables, decision.turnId);
+      if (input.kind === 'speech') this.caller(decision.turnId, input.text, decision.filler);
+      else {
+        this.turns.takeCarry();
+        const extra = { inputEvent: 'dtmf', digits: input.digits };
+        this.queue(engineTurn(decision.turnId, input.digits, extra));
+      }
     }
-    if (decision.type === 'idle') {
+    if (decision.type === 'idle' && !this.idle) {
       this.events.emit({ type: 'user.turn', phase: 'idle', turnId: 'idle-' + decision.retry });
       if (decision.final) this.end('caller_idle');
       else if (decision.prompt)
-        this.track(this.speech.speak(decision.prompt, { kind: 'idle-prompt' }));
+        this.receipts.track(this.speech.speak(decision.prompt, { kind: 'idle-prompt' }));
     }
   }
 
   initial(input: string): void {
-    this.queue(input, {}, 'initial-' + ++this.nextTurn);
+    this.queue(engineTurn('initial-' + ++this.nextTurn, input, {}));
+  }
+
+  /** The speak-first opening turn: `respond('', { inputEvent: 'opening' })`, before any caller turn. */
+  opening(answeredBy?: AnsweredBy): void {
+    const extra = { inputEvent: 'opening', ...(answeredBy ? { answeredBy } : {}) };
+    this.queue(engineTurn('opening-' + ++this.nextTurn, '', extra));
+  }
+
+  /** An answering machine picked up (see `leaveVoicemail`); false when the behaviour ignores it. */
+  voicemail(): boolean {
+    if (this.stopped || this.closing) return false;
+    const task = leaveVoicemail({
+      behavior: this.behavior,
+      session: this.session,
+      speech: this.speech,
+      cutOff: () => {
+        this.closing = true;
+        this.turns.abortRunning('answering machine');
+        this.behavior.cancel?.();
+      },
+      settled: () => this.interrupting,
+      stopped: () => this.stopped,
+      end: (detail) => this.end('voicemail', detail),
+      failed: (error) => this.log('voicemail_message_failed', error),
+    });
+    if (!task) return false;
+    this.tasks.add(task);
+    void task.finally(() => this.tasks.delete(task));
+    return true;
   }
 
   async dispose(): Promise<void> {
     this.stopped = true;
-    this.activeTurn?.abort(new DOMException('engine disposed', 'AbortError'));
+    this.idle?.dispose();
+    this.turns.dispose();
+    this.turns.abortRunning('engine disposed');
     this.behavior.cancel?.();
-    await Promise.allSettled([...this.tasks, ...this.receipts]);
+    await Promise.allSettled([...this.tasks, ...this.receipts.inFlight()]);
   }
 
-  private queue(input: string, extra: Record<string, unknown>, turnId: string): void {
+  /**
+   * AGT-10: the caller spoke again before hearing any answer to their last words. The reply still
+   * waiting or being composed for them is abandoned (its decision, LLM and TTS work cancelled, its
+   * speech never played) and one reply answers both, newest words last.
+   */
+  private caller(id: string, text: string, filler: Turn['filler']): void {
+    const { queue, supersede } = this.turns.caller(callerTurn(id, text, filler));
+    if (supersede) {
+      supersede.controller?.abort(new DOMException('turn superseded', 'AbortError'));
+      this.behavior.cancel?.();
+      // Flushes the stale reply's queued lines and its synthesis before any audio reaches the caller.
+      if (supersede.epoch !== undefined) this.interrupting = this.speech.beginEpoch();
+    }
+    if (queue) this.queue(queue);
+  }
+
+  private queue(turn: Turn): void {
     if (this.tasks.size >= this.maxConcurrentTurns) {
       this.end('error:turn');
       return;
     }
-    const task = this.serial.catch(() => undefined).then(() => this.run(input, extra, turnId));
+    this.turns.enqueue(turn);
+    // swallow-ok: the earlier turn's own task.catch below ends the call; this only orders turns.
+    const previous = this.serial.catch(() => undefined);
+    const task = previous.then(() => {
+      this.turns.start(turn);
+      return this.run(turn);
+    });
     this.serial = task;
     this.tasks.add(task);
-    void task.catch(() => this.end('error:turn')).finally(() => this.tasks.delete(task));
+    void task
+      .catch((error: unknown) => {
+        // Without this line a failed turn leaves only `error:turn` behind.
+        this.log('turn_failed', error, { turnId: turn.id });
+        this.end('error:turn');
+      })
+      .finally(() => {
+        this.tasks.delete(task);
+        // Every line has played and nothing else is queued: the caller's silence starts now.
+        this.idle?.arm();
+      });
   }
 
-  private async run(input: string, extra: Record<string, unknown>, turnId: string): Promise<void> {
-    const turn = new AbortController();
-    this.activeTurn = turn;
+  private async run(turn: Turn): Promise<void> {
+    const abort = new AbortController();
+    turn.controller = abort;
+    const { id: turnId, extra } = turn;
     let epoch: number | undefined;
-    let iterator: AsyncIterator<string> | undefined;
+    let cancelFiller: (() => void) | undefined;
     try {
       await this.interrupting;
-      await this.deliverReceipts();
-      if (this.stopped || turn.signal.aborted) return;
+      await this.receipts.deliver();
+      if (this.stopped || this.closing || abort.signal.aborted) return;
       epoch = await this.speech.beginEpoch();
-      if (this.stopped || turn.signal.aborted) return;
-      this.epochTurns.set(epoch, turnId);
+      if (this.stopped || this.closing || abort.signal.aborted) return;
+      this.turns.began(turn, epoch);
       this.behavior.beginTurn?.(epoch);
-      this.latency.start(turnId);
-      this.latency.stage(turnId, 'turn_decision');
       const variables = { ...structuredClone(this.session.variables), ...extra };
-      if (this.behavior.respondStream) {
-        iterator = this.behavior.respondStream(input, variables)[Symbol.asyncIterator]();
-        let first = true;
-        while (!turn.signal.aborted) {
-          const next = await raceAbort(iterator.next(), turn.signal);
-          if (next.done || this.stopped || epoch !== this.speech.epoch) break;
-          const text = next.value;
-          if (!text.trim()) continue;
-          if (first) {
-            first = false;
-            this.latency.stage(turnId, 'llm_ttfb');
-            this.latency.stage(turnId, 'behavior_first_segment');
-          }
-          this.track(
-            this.speech.speak(text, {
-              epoch,
-              kind: this.behavior.speechKind?.(text) ?? 'response',
-            }),
-          );
-        }
-      } else {
-        const text = await raceAbort(this.behavior.respond(input, variables), turn.signal);
-        if (!this.stopped && epoch === this.speech.epoch && text.trim()) {
+      cancelFiller = this.filler.arm(turn, epoch);
+      if (turn.speech) this.hooks.finalize({ turnId, text: turn.input, merged: turn.merged });
+      await speakReply({
+        behavior: this.behavior,
+        text: turn.input,
+        variables,
+        signal: abort.signal,
+        current: () => !this.stopped && epoch === this.speech.epoch,
+        first: () => {
+          cancelFiller?.();
+          // Not llm_ttfb: this interval also holds grounding, the decision and sentence
+          // aggregation. The worker times each of those at its provider port.
           this.latency.stage(turnId, 'behavior_first_segment');
-          this.track(
-            this.speech.speak(text, {
-              epoch,
-              kind: this.behavior.speechKind?.(text) ?? 'response',
-            }),
-          );
-        }
-      }
-      if (turn.signal.aborted) return;
-      await this.deliverReceipts();
+        },
+        say: (text) => this.say(text, epoch!),
+      });
+      cancelFiller?.();
+      if (abort.signal.aborted) return;
+      await this.receipts.deliver();
       await this.interrupting;
       if (!this.stopped && epoch === this.speech.epoch && this.behavior.isComplete?.())
-        this.end('behavior_completed');
+        this.end(...completionEnd(this.behavior, extra));
     } catch (error) {
-      if (!turn.signal.aborted) throw error;
+      if (!abort.signal.aborted) throw error;
     } finally {
-      void Promise.resolve()
-        .then(() => iterator?.return?.())
-        .catch(() => undefined);
-      if (epoch !== undefined) {
-        this.latency.total(turnId);
-        this.latency.clear(turnId);
-        this.epochTurns.delete(epoch);
-      }
-      if (this.activeTurn === turn) this.activeTurn = undefined;
+      cancelFiller?.();
+      this.turns.finish(turn);
     }
   }
 
-  private track(receipt: Promise<SpeechReceipt>): void {
-    let delivery!: Promise<void>;
-    delivery = receipt
-      .then((value) =>
-        this.behavior.onPlayback?.(
-          value.evidence === 'confirmed' &&
-            this.media.playbackEvidence === 'carrier-processed' &&
-            this.session.acknowledgements.includes('weak-playback-evidence')
-            ? { ...value, evidenceSource: 'carrier-processed' }
-            : value,
-        ),
-      )
-      .then(() => undefined)
-      .catch(() => {
-        // Receipt failures can arrive while respondStream is still awaiting its
-        // next item. Observe them immediately, before removing the pending entry.
-        this.stopped = true;
-        this.activeTurn?.abort(new DOMException('speech receipt failed', 'AbortError'));
-        this.end('error:turn');
-      })
-      .finally(() => this.receipts.delete(delivery));
-    this.receipts.add(delivery);
+  private say(text: string, epoch: number): void {
+    const kind = this.behavior.speechKind?.(text) ?? 'response';
+    this.receipts.track(this.speech.speak(text, { epoch, kind }), text);
   }
 
-  private async deliverReceipts(): Promise<void> {
-    while (this.receipts.size) await Promise.all([...this.receipts]);
+  private log(
+    event: string,
+    error: unknown,
+    fields: Record<string, unknown> = {},
+    level: 'warn' | 'error' = 'error',
+  ): void {
+    logVoiceEvent(level, event, {
+      sessionId: this.media.sessionId,
+      ...fields,
+      error: describeError(error),
+    });
   }
 }

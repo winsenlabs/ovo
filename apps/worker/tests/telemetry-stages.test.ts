@@ -130,6 +130,8 @@ describe('worker timed stages', () => {
       started('inference', 'openai', 'gpt-test'),
       finished('inference', 'succeeded', 'openai', 'gpt-test'),
       started('inference', 'openai', 'gpt-test'),
+      started('llm_first_token', 'openai', 'gpt-test'),
+      finished('llm_first_token', 'succeeded', 'openai', 'gpt-test'),
       finished('inference', 'succeeded', 'openai', 'gpt-test'),
       started('tts', 'openai', 'tts-test'),
       finished('tts', 'succeeded', 'openai', 'tts-test'),

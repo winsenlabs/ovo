@@ -90,11 +90,15 @@ export function streamCachedAudio(
     workspaceId: string;
     signal: AbortSignal;
     maxPrefetchBytes: number;
+    onSource?(source: 'hit' | 'miss' | 'coalesced'): void;
     load(signal: AbortSignal, push: (chunk: Uint8Array) => Promise<void>): Promise<Uint8Array>;
   },
 ): { audio: AsyncIterable<Uint8Array>; cancel(): void } {
   const hit = cache.get(request.key, request.workspaceId);
-  if (hit) return { audio: storedAudio(hit, request.maxPrefetchBytes), cancel: () => undefined };
+  if (hit) {
+    request.onSource?.('hit');
+    return { audio: storedAudio(hit, request.maxPrefetchBytes), cancel: () => undefined };
+  }
   const buffer = new BoundedAudioPrefetch(request.maxPrefetchBytes);
   let producing = false;
   void cache
@@ -102,6 +106,7 @@ export function streamCachedAudio(
       key: request.key,
       workspaceId: request.workspaceId,
       signal: request.signal,
+      onSource: request.onSource,
       load: (signal) => {
         producing = true;
         return request.load(signal, (chunk) => buffer.push(chunk, signal));

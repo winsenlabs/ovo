@@ -17,6 +17,8 @@ import {
 
 export { InferenceProtocolError } from './ai-sdk-support.ts';
 
+type ProviderOptions = NonNullable<Parameters<typeof streamText>[0]['providerOptions']>;
+
 export interface AiSdkInferenceOptions {
   /** Any AI SDK language model. Plugins pass one built with `fetch = ctx.net.fetch`. */
   model: LanguageModel;
@@ -24,6 +26,8 @@ export interface AiSdkInferenceOptions {
   provider?: string;
   instructions?: string;
   maxOutputTokens?: number;
+  /** Per-request provider settings (`{ openai: { reasoningEffort, ... } }`), sent on every step. */
+  providerOptions?: ProviderOptions;
   /** v1 evidence callback, kept for existing callers. */
   onUsage?: (evidence: {
     requestId?: string;
@@ -103,6 +107,7 @@ export class AiSdkInference implements Inference {
         maxRetries: 0,
         stopWhen: isStepCount(1),
         ...(this.options.maxOutputTokens ? { maxOutputTokens: this.options.maxOutputTokens } : {}),
+        ...(this.options.providerOptions ? { providerOptions: this.options.providerOptions } : {}),
       },
     };
   }
@@ -147,7 +152,6 @@ export class AiSdkInference implements Inference {
     const { tools: declaredTools, input } = this.stepInput(request);
     const result = streamText(input);
     let call: { kind: 'tool'; toolId: string; input: unknown } | undefined;
-    let emittedText = false;
     let finished = false;
     let requestId: string | undefined;
     let modelId: string | undefined;
@@ -157,11 +161,11 @@ export class AiSdkInference implements Inference {
       if (part.type === 'text-delta' && part.text) {
         if (call)
           throw new InferenceProtocolError('Inference mixed a tool call with response text');
-        emittedText = true;
         yield { kind: 'text-delta', delta: part.text };
       } else if (part.type === 'tool-call') {
-        if (emittedText)
-          throw new InferenceProtocolError('Inference mixed response text with a tool call');
+        // Text then one tool call is a valid step: the agent says its answer and then calls
+        // `resume_flow` or `end_call` (AGT-7, AGT-3). The behaviour decides which tool may follow
+        // text; a tool call followed by text is still refused below.
         if (call)
           throw new InferenceProtocolError(
             'Inference returned multiple tool calls in a single OVO step',

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { apiRequest, items, type Release } from '../lib/api';
 import { PageHeader } from '../components/ui/layout';
 import { EmptyState } from '../components/ui/feedback';
+import { RoutedSpeechClipStatus } from '../components/studio/speech-clip-status';
 export function AgentReleasesFeature({ agentId }: { agentId: string }) {
   const [releases, setReleases] = useState<Release[]>([]);
   const [error, setError] = useState<string>();
@@ -23,14 +24,18 @@ export function AgentReleasesFeature({ agentId }: { agentId: string }) {
       {!releases.length ? (
         <EmptyState title="No releases yet" />
       ) : (
-        <ol>
-          {releases.map((release) => (
-            <li className="panel panel-body" key={release.id}>
-              <strong>{release.id}</strong>
-              <pre className="mono">{JSON.stringify(release.selections, null, 2)}</pre>
-            </li>
-          ))}
-        </ol>
+        <>
+          {/* Clip readiness of the releases calls are routed to (the newest when none is). */}
+          <RoutedSpeechClipStatus agentId={agentId} releases={releases} />
+          <ol>
+            {releases.map((release) => (
+              <li className="panel panel-body" key={release.id}>
+                <strong>{release.id}</strong>
+                <pre className="mono">{JSON.stringify(release.selections, null, 2)}</pre>
+              </li>
+            ))}
+          </ol>
+        </>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
-import { Cap } from '@winsendotai/ovo-contracts';
+import { Cap, type NetPort } from '@winsendotai/ovo-contracts';
 import { loadDistribution } from '@winsendotai/ovo-distribution';
-import { createNodeNet } from '@winsendotai/ovo-plugin-kit';
+import { createLogger, createNodeNet } from '@winsendotai/ovo-plugin-kit';
 import { PostgresCostLedger } from '@winsendotai/ovo-plugin-ledger';
 import { createOperationsPlugin } from '@winsendotai/ovo-plugin-operations';
 import type {
@@ -12,13 +12,14 @@ import {
   RECORDING_SERVICE_KEYS,
   type ProductionRecordingServices,
 } from '@winsendotai/ovo-plugin-recordings/production';
-import { LocalAesGcmSecretManager, decodeMasterKey } from '@winsendotai/ovo-plugin-secrets';
 import { PostgresControlStore } from '@winsendotai/ovo-plugin-storage';
+import { PostgresCallOutcomeStore } from '@winsendotai/ovo-plugin-storage/outcomes';
 import {
   compose,
   definePlugin,
   loadInstalledSessionExtensions,
   manifestKeys,
+  PluginRegistry,
   type Composition,
   type PluginDefinition,
 } from '@winsendotai/ovo-runtime';
@@ -30,6 +31,9 @@ import { createWorkerCostRuntimePlugin } from './cost-runtime-plugin.ts';
 import { createWorkerRecordingsPlugin } from './recording-runtime.ts';
 import { ecsRuntimeConfig, localProtectionPlugin, readinessPlugin } from './runtime-plugins.ts';
 import { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
+import type { LiveGraphOptions } from './session-graph-runtime.ts';
+import { workerSecretManager } from './worker-secrets.ts';
+import { prewarmJobProviders } from './provider-prewarm.ts';
 import { createWorkerRunnerPlugin } from './worker-plugin.ts';
 import type { WorkerRunner } from './runner.ts';
 import {
@@ -52,7 +56,13 @@ const netManifest = {
   configSchema: { type: 'object', additionalProperties: false },
 } as const;
 const netPlugin = definePlugin(netManifest, (ctx) => {
-  const port = createNodeNet();
+  // LAT-8: pooled provider connections outlive the gap between caller turns.
+  const port = createNodeNet({
+    keepAlive: {
+      keepAliveTimeoutMs: optionalInteger('OVO_NET_KEEP_ALIVE_MS', 1_000, 600_000),
+      keepAliveMaxTimeoutMs: optionalInteger('OVO_NET_KEEP_ALIVE_MAX_MS', 1_000, 3_600_000),
+    },
+  });
   ctx.effect(() => () => port.close());
   ctx.provide(Cap.net, port);
 });
@@ -83,16 +93,16 @@ export async function openWorkerProcess() {
   const costLedger = new PostgresCostLedger({ connectionString: databaseUrl });
   await costLedger.migrate();
   const extensions = await loadInstalledSessionExtensions(process.env.OVO_PLUGIN_MODULES ?? '[]');
-  const speechCache = new WorkerSpeechCacheRuntime();
+  const speechCache = await WorkerSpeechCacheRuntime.fromEnvironment(process.env, databaseUrl);
+  const outcomes = await PostgresCallOutcomeStore.open({
+    connectionString: databaseUrl,
+    maxConnections: 2,
+  });
   const telemetry = await openWorkerTelemetry(
     process.env.OVO_TELEMETRY_DATABASE_URL ?? env('DATABASE_URL'),
     controlStore,
   );
-  const secrets = new LocalAesGcmSecretManager(
-    controlStore,
-    decodeMasterKey(env('OVO_SECRETS_MASTER_KEY')),
-    'encrypted-store',
-  );
+  const secrets = workerSecretManager(controlStore);
   const recordingsDefinition = createWorkerRecordingsPlugin(controlStore, databaseUrl);
   const callRecorderDefinition = createCallRecorderPlugin(controlStore);
   const costDefinition = createWorkerCostRuntimePlugin({
@@ -160,6 +170,8 @@ export async function openWorkerProcess() {
       },
     ],
     catalog,
+    // Plugins log through ctx.logger; session graphs inherit it (runtime ComposeOptions.logger).
+    { logger: createLogger({ service: 'worker', workerId }) },
   );
   const store = composition.ctx.get(Cap.orchestrationStore) as PostgresOrchestrationStore;
   const queue = composition.ctx.get(Cap.orchestrationQueue) as DurableQueue;
@@ -171,6 +183,33 @@ export async function openWorkerProcess() {
   const recordings = composition.ctx.get(
     RECORDING_SERVICE_KEYS.production,
   ) as ProductionRecordingServices;
+  speechCache.startPrerender({
+    workerId,
+    releases: controlStore,
+    ledger: costLedger,
+    speech: {
+      catalog: distribution.catalog,
+      parent: composition,
+      secrets,
+      defaults: distribution.defaults,
+    },
+  });
+  const registry = new PluginRegistry(catalog);
+  const prewarmLog = createLogger({ service: 'worker', workerId });
+  const warm =
+    process.env.OVO_PROVIDER_PREWARM === 'false'
+      ? undefined
+      : (jobId: string) =>
+          prewarmJobProviders({
+            jobId,
+            net: composition.ctx.get(Cap.net) as NetPort | undefined,
+            store,
+            control: controlStore,
+            registry,
+            defaults: distribution.defaults,
+            log: prewarmLog,
+          });
+  const prewarm = speechCache.onDial(warm, store, controlStore, costs);
   return {
     kind: 'live' as const,
     composition,
@@ -193,6 +232,8 @@ export async function openWorkerProcess() {
     telemetry,
     secrets,
     speechCache,
+    graph: { distribution, parent: composition, carriers, outcomes } satisfies LiveGraphOptions,
+    prewarm,
   };
 }
 

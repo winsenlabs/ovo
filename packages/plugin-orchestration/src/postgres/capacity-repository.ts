@@ -121,7 +121,17 @@ export class CapacityRepository {
       `INSERT INTO ovo_worker_slots (worker_id, state, ownership_epoch, observed_at, lease_expires_at, metadata)
        VALUES ($1, $2, $3, now(), now() + ($4 * interval '1 millisecond'), $5::jsonb)
        ON CONFLICT (worker_id) DO UPDATE SET
-         state = EXCLUDED.state, ownership_epoch = EXCLUDED.ownership_epoch,
+         -- OBS-8: an idle report does not undo the reservation inbound admission made for a route
+         -- the worker has not opened yet, or one it is resuming (handshake still open or claimed).
+         state = CASE WHEN EXCLUDED.state = 'ready_idle' AND EXISTS (
+             SELECT 1 FROM ovo_session_routes r
+             WHERE r.worker_id = EXCLUDED.worker_id
+               AND r.worker_slot_epoch = EXCLUDED.ownership_epoch
+               AND r.dial_request_id LIKE 'inbound:%'
+               AND r.terminal_at IS NULL AND r.released_at IS NULL AND r.status <> 'terminating'
+               AND (r.handshake_claimed_at IS NOT NULL OR r.handshake_expires_at > now()))
+           THEN 'reserved' ELSE EXCLUDED.state END,
+         ownership_epoch = EXCLUDED.ownership_epoch,
          observed_at = EXCLUDED.observed_at, lease_expires_at = EXCLUDED.lease_expires_at,
          metadata = EXCLUDED.metadata || CASE
            WHEN ovo_worker_slots.ownership_epoch = EXCLUDED.ownership_epoch

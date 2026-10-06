@@ -12,6 +12,22 @@ interface PolicyRecord {
   version: number;
   policy: Policy;
 }
+/** What the dispatcher last reported about inbound go-live (OPS-4); null before it published. */
+interface InboundReadiness {
+  admissionEnabled: boolean;
+  readyWorkers: number;
+  readyProtected: number;
+  warmFloor: number;
+  ready: boolean;
+  reasons: string[];
+  observedAt: string;
+  ageMs: number;
+  stale: boolean;
+}
+interface Capacity {
+  readyProtected: number;
+  readiness?: InboundReadiness | null;
+}
 
 export function InboundPolicy({ role }: { role: SessionIdentity['role'] }) {
   const [record, setRecord] = useState<PolicyRecord>();
@@ -20,17 +36,20 @@ export function InboundPolicy({ role }: { role: SessionIdentity['role'] }) {
   const [target, setTarget] = useState('');
   const [maxWaitMs, setMaxWaitMs] = useState('30000');
   const [capacity, setCapacity] = useState<number>();
+  const [readiness, setReadiness] = useState<InboundReadiness | null>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     try {
       const [policy, ready] = await Promise.all([
         apiRequest<{ policy: PolicyRecord | null }>('/operations/inbound/policy'),
-        apiRequest<{ readyProtected: number }>('/operations/inbound/capacity'),
+        apiRequest<Capacity>('/operations/inbound/capacity'),
       ]);
       const next = policy.data.policy ?? undefined;
       setRecord(next);
       setCapacity(ready.data.readyProtected);
+      // Absent: this API cannot read readiness at all, so nothing is shown.
+      setReadiness(ready.data.readiness);
       setError(undefined);
       if (next) {
         setKind(next.policy.kind);
@@ -105,6 +124,7 @@ export function InboundPolicy({ role }: { role: SessionIdentity['role'] }) {
           enters the normal suppression, quota and outbox path; it fails closed unless live outbound
           calling is enabled for the called number.
         </div>
+        <ReadinessSummary readiness={readiness} />
         <div className="form-grid">
           <Field label="Overflow action" htmlFor="inbound-kind">
             <select
@@ -168,5 +188,49 @@ export function InboundPolicy({ role }: { role: SessionIdentity['role'] }) {
         )}
       </form>
     </Panel>
+  );
+}
+
+/** Why `readyProtected` is what it is, so readiness can be checked before go-live (OPS-4). */
+function ReadinessSummary({ readiness }: { readiness: InboundReadiness | null | undefined }) {
+  if (readiness === undefined) return null;
+  if (readiness === null)
+    return (
+      <div className="muted" role="status">
+        No dispatcher has reported inbound readiness yet. Check that the dispatcher is running.
+      </div>
+    );
+  const tone = readiness.stale ? 'warning' : readiness.ready ? 'good' : 'warning';
+  return (
+    <section aria-label="Inbound readiness" className="stack">
+      <div className="button-row">
+        <StatusBadge tone={tone}>
+          {readiness.stale
+            ? 'Readiness report is stale'
+            : readiness.ready
+              ? readiness.admissionEnabled
+                ? 'Ready for inbound calls'
+                : 'Ready to enable inbound admission'
+              : 'Not ready for inbound calls'}
+        </StatusBadge>
+        <span className="muted">
+          Admission {readiness.admissionEnabled ? 'enabled' : 'disabled'} · {readiness.readyWorkers}{' '}
+          ready {readiness.readyWorkers === 1 ? 'worker' : 'workers'} · warm floor{' '}
+          {readiness.warmFloor} · reported {Math.round(readiness.ageMs / 1000)}s ago
+        </span>
+      </div>
+      {readiness.stale && (
+        <div className="muted">
+          The dispatcher has not published readiness recently; it may be stopped.
+        </div>
+      )}
+      {readiness.reasons.length > 0 && (
+        <ul aria-label="Readiness reasons">
+          {readiness.reasons.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

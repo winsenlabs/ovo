@@ -5,6 +5,7 @@ import {
   PinnedAgents,
   createGuardedConnector,
   type AddressPolicy,
+  type KeepAliveOptions,
   type TlsTrustOptions,
 } from './net-pinning.ts';
 import {
@@ -14,7 +15,7 @@ import {
   type ResolvedAddress,
 } from './ssrf.ts';
 
-export type { TlsTrustOptions } from './net-pinning.ts';
+export type { KeepAliveOptions, TlsTrustOptions } from './net-pinning.ts';
 
 export interface NodeNetOptions {
   /**
@@ -41,11 +42,27 @@ export interface NodeNetOptions {
    * has to write the addresses out, which no production composition does.
    */
   allowedPrivateAddresses?: readonly string[];
+  /** Idle pooled-connection lifetime for the pinned fetch; see `DEFAULT_KEEP_ALIVE`. */
+  keepAlive?: KeepAliveOptions;
+}
+
+export interface PrewarmResult {
+  origin: string;
+  ok: boolean;
+  /** The warm-up reply status; any status still leaves a pooled connection behind. */
+  status?: number;
+  elapsedMs: number;
+  error?: string;
 }
 
 /** `createNodeNet`'s port. `close()` releases the pooled connections it opened. */
 export interface NodeNet extends NetPort {
   close(): Promise<void>;
+  /**
+   * Opens a pooled TLS connection to each https origin now, with one GET of `/`, so the next
+   * provider request skips DNS, TCP and TLS. Never throws: a failed warm-up costs nothing later.
+   */
+  prewarm(origins: readonly string[], options?: { timeoutMs?: number }): Promise<PrewarmResult[]>;
 }
 
 export class NetProtocolError extends TypeError {
@@ -60,6 +77,7 @@ function secureUrl(raw: string, protocol: 'https:' | 'wss:'): URL {
   try {
     url = new URL(raw);
   } catch {
+    // swallow-ok: rethrown as a typed protocol error.
     throw new NetProtocolError('NetPort requires an absolute URL');
   }
   if (url.protocol !== protocol)
@@ -149,7 +167,7 @@ export function createNodeNet(options: NodeNetOptions = {}): NodeNet {
     rejectUnauthorized:
       options.tls?.rejectUnauthorized ?? options.websocketOptions?.rejectUnauthorized,
   };
-  const agents = new PinnedAgents(tls);
+  const agents = new PinnedAgents(tls, undefined, options.keepAlive);
   const policy = (addresses: readonly ResolvedAddress[]): AddressPolicy => ({
     ...guard,
     addresses,
@@ -177,21 +195,50 @@ export function createNodeNet(options: NodeNetOptions = {}): NodeNet {
       return undefined;
     };
 
-  return {
-    async fetch(url, init = {}) {
-      const host = hostOf(secureUrl(url, 'https:'));
-      init.signal?.throwIfAborted();
-      const addresses = await assertPublicHost(host, options.lookup, guard);
-      const request: RequestInit = {
-        ...init,
-        redirect: init.redirect === 'manual' ? 'manual' : 'error',
+  const fetch: NetPort['fetch'] = async (url, init = {}) => {
+    const host = hostOf(secureUrl(url, 'https:'));
+    init.signal?.throwIfAborted();
+    const addresses = await assertPublicHost(host, options.lookup, guard);
+    const request: RequestInit = {
+      ...init,
+      redirect: init.redirect === 'manual' ? 'manual' : 'error',
+    };
+    if (!pinnable) return fetchImpl(url, request);
+    return fetchImpl(url, {
+      ...request,
+      dispatcher: agents.for(host, policy(addresses)),
+    } as RequestInit);
+  };
+
+  const prewarmOne = async (origin: string, timeoutMs: number): Promise<PrewarmResult> => {
+    const startedAt = Date.now();
+    try {
+      const url = new URL('/', secureUrl(origin, 'https:')).href;
+      // GET, not HEAD: undici closes the socket after every HEAD response, and a body left
+      // unread (or cancelled) would also destroy it. Vendor API roots answer with a tiny body.
+      const response = await fetch(url, {
+        method: 'GET',
+        redirect: 'manual',
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      await response.arrayBuffer();
+      return { origin, ok: true, status: response.status, elapsedMs: Date.now() - startedAt };
+    } catch (error) {
+      return {
+        origin,
+        ok: false,
+        elapsedMs: Date.now() - startedAt,
+        error: error instanceof Error ? error.message || error.name : String(error),
       };
-      if (!pinnable) return fetchImpl(url, request);
-      return fetchImpl(url, {
-        ...request,
-        dispatcher: agents.for(host, policy(addresses)),
-      } as RequestInit);
-    },
+    }
+  };
+
+  return {
+    fetch,
+    prewarm: (origins, opts = {}) =>
+      Promise.all(
+        [...new Set(origins)].map((origin) => prewarmOne(origin, opts.timeoutMs ?? 3_000)),
+      ),
     websocket(url, opts = {}) {
       const host = hostOf(secureUrl(url, 'wss:'));
       const socket = new WebSocket(url, opts.protocols ?? [], {

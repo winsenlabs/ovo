@@ -1,13 +1,21 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../lib/api';
-import { formatPaise } from '../lib/format';
 import { PageHeader } from '../components/ui/layout';
 import { EmptyState, StatusBadge } from '../components/ui/feedback';
 import {
   ProductionTrackPlayer,
   type RecordingTrackSegment,
 } from '../components/operations/production-track-player';
+import { CallOutcomePanel } from './call-outcome-panel';
+import {
+  CallDiagnosisPanel,
+  type CallDiagnosis,
+} from '../components/inspector/call-diagnosis-panel';
+import { CostPanel, type CostEvidence } from '../components/inspector/cost-panel';
+import { TurnWaterfall } from '../components/inspector/turn-waterfall';
+
+const EVENT_PAGE = 100;
 
 type Evidence = {
   call: {
@@ -20,8 +28,14 @@ type Evidence = {
   };
   selections?: Record<string, { pluginId: string; version: string; resolvedVersion?: string }>;
   transcript?: { id?: string; speaker?: string; phase?: string; text: string; atMs?: number }[];
-  latency?: { stage?: string; name?: string; durationMs: number }[];
-  cost?: { estimatedPaise?: string | null; reconciledPaise?: string | null; unpriced?: string[] };
+  latency?: {
+    stage?: string;
+    name?: string;
+    durationMs: number;
+    parts?: { key: string; ms: number }[];
+  }[];
+  cost?: CostEvidence & { estimatedPaise?: string | null; reconciledPaise?: string | null };
+  diagnosis?: CallDiagnosis;
   recording?: { id?: string; state?: string; source?: string; segments?: RecordingTrackSegment[] };
   events?: { id?: string; kind?: string; type?: string; at?: string }[];
   sttMode?: string;
@@ -29,6 +43,8 @@ type Evidence = {
 export function CallInspectorFeature({ callId }: { callId: string }) {
   const [evidence, setEvidence] = useState<Evidence>();
   const [error, setError] = useState<string>();
+  const [events, setEvents] = useState(EVENT_PAGE);
+  const [raw, setRaw] = useState(false);
   useEffect(() => {
     void apiRequest<Evidence>(`/calls/${encodeURIComponent(callId)}/evidence`)
       .then(({ data }) => setEvidence(data))
@@ -69,6 +85,18 @@ export function CallInspectorFeature({ callId }: { callId: string }) {
           </span>
         ))}
       </div>
+      <section className="panel panel-body">
+        <h2>Outcome</h2>
+        <CallOutcomePanel callId={callId} />
+      </section>
+      <section className="panel panel-body">
+        <h2>End reason and errors</h2>
+        <CallDiagnosisPanel diagnosis={evidence.diagnosis} />
+      </section>
+      <section className="panel panel-body">
+        <h2>Turns</h2>
+        <TurnWaterfall callId={callId} />
+      </section>
       <div className="inspector-grid">
         <div className="ui-stack">
           <section className="panel panel-body">
@@ -101,57 +129,59 @@ export function CallInspectorFeature({ callId }: { callId: string }) {
         </div>
         <div className="ui-stack">
           <section className="panel panel-body">
-            <h2>Latency waterfall</h2>
+            <h2>Cost</h2>
+            <CostPanel callId={callId} cost={evidence.cost} />
+          </section>
+          <details className="panel panel-body">
+            <summary>Engine latency breakdown</summary>
             <table>
               <thead>
                 <tr>
-                  <th>Stage</th>
-                  <th>Duration</th>
-                  <th>Relative time</th>
+                  <th>Turn</th>
+                  <th>Total</th>
+                  <th>Parts</th>
                 </tr>
               </thead>
               <tbody>
                 {evidence.latency?.map((part, index) => (
                   <tr key={index}>
                     <td>{part.stage ?? part.name ?? 'Stage'}</td>
-                    <td>{part.durationMs} ms</td>
                     <td>
+                      {part.durationMs} ms
                       <div
                         className="latency-bar"
                         style={{ width: `${Math.max(2, (100 * part.durationMs) / maxLatency)}%` }}
                       />
                     </td>
+                    <td className="mono">
+                      {part.parts?.map((item) => `${item.key} ${item.ms} ms`).join(' · ') || '—'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </section>
-          <section className="panel panel-body">
-            <h2>Cost ledger</h2>
-            <dl>
-              <dt>Estimated</dt>
-              <dd>{formatPaise(evidence.cost?.estimatedPaise)}</dd>
-              <dt>Reconciled</dt>
-              <dd>{formatPaise(evidence.cost?.reconciledPaise)}</dd>
-              <dt>Unpriced meters</dt>
-              <dd>{evidence.cost?.unpriced?.join(', ') || 'None reported'}</dd>
-            </dl>
-          </section>
+          </details>
           <section className="panel panel-body">
             <h2>Event timeline</h2>
             <ol>
-              {evidence.events?.map((event, index) => (
+              {evidence.events?.slice(0, events).map((event, index) => (
                 <li key={event.id ?? index}>
                   {event.kind ?? event.type ?? 'Event'} · {event.at ?? 'time unavailable'}
                 </li>
               ))}
             </ol>
+            {(evidence.events?.length ?? 0) > events && (
+              <button className="button small" onClick={() => setEvents(events + EVENT_PAGE)}>
+                Show more of {evidence.events!.length - events} events
+              </button>
+            )}
           </section>
         </div>
       </div>
-      <details>
+      <details onToggle={(event) => setRaw(event.currentTarget.open)}>
         <summary>Raw evidence</summary>
-        <pre className="mono">{JSON.stringify(evidence, null, 2)}</pre>
+        {/* Serialised only when opened: on a long call this is megabytes of JSON. */}
+        {raw && <pre className="mono">{JSON.stringify(evidence, null, 2)}</pre>}
       </details>
     </div>
   );

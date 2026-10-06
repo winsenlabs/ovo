@@ -58,6 +58,12 @@ const inbound = await signed('inbound', {
   From: '+15550101',
   To: '+15550102',
 });
+// An Indian DID as Plivo callbacks have shown it, without the `+` [UNCONFIRMED].
+const indianInbound = await signed('inbound', {
+  CallUUID: 'call-in-india',
+  From: '919812345678',
+  To: '918069450000',
+});
 const upgradeUrl = host().mediaUrl('plivo', 'b1');
 const upgradeNonce = 'upgrade-nonce';
 const upgrade: UpgradeRequest = {
@@ -162,7 +168,7 @@ describeCarrier('Plivo', ({ net }) => plivoForTest(net), {
     ],
   },
   statusMap: { map: plivoStatus, expected: PLIVO_STATUS_MAP },
-  requests: { answer, status, amd, resume },
+  requests: { answer, status, amd, resume, inbound: indianInbound },
   outboundPayload: (frame) => {
     const parsed = JSON.parse(frame) as { event: string; media?: { payload: string } };
     return parsed.event === 'playAudio' && parsed.media

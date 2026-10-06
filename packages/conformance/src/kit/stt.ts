@@ -18,11 +18,13 @@ export type SttFactory = (env: {
   clock: Clock;
 }) => SpeechToText | Promise<SpeechToText>;
 
+type SttKitScripts = Partial<Record<'utterance' | 'failure' | 'cancel', NetFixtureScript[]>>;
+
 export interface SttKitOptions {
   /** The plugin's fixture template; the kit renders a scripted utterance through it. */
   template?: FixtureTemplate;
-  /** Explicit scripts when there is no template (`failure` defaults to a truncated utterance). */
-  scripts?: { utterance?: NetFixtureScript[]; failure?: NetFixtureScript[] };
+  /** Explicit scripts when there is no template; `cancel` replaces the default cancel script. */
+  scripts?: SttKitScripts;
   format?: AudioFormat;
   language?: string;
   utterance?: string;
@@ -152,7 +154,7 @@ export const STT_CHECKS: readonly KitCheck<SttKitContext>[] = [
       if (!format) return ['capabilities.inputFormats is empty'];
       const base = utteranceScripts(context, format, language, utterance);
       if (!base) return ['no fixture template or utterance scripts were supplied'];
-      const scripts = cancelScripts(base) ?? base;
+      const scripts = context.options.scripts?.cancel ?? cancelScripts(base) ?? base;
       let elapsed = 0;
       let lateWriteRejected = false;
       const run = await session(context, scripts, async (r, s) => {

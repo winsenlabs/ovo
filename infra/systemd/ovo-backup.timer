@@ -1,0 +1,11 @@
+# OPS-12: nightly at 03:15 India time, outside calling hours and after the 02:30 IST disk snapshot.
+[Unit]
+Description=Nightly OVO offsite backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 Asia/Kolkata
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

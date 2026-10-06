@@ -17,6 +17,7 @@ import {
   StatusBadge,
 } from '../primitives';
 import type { PluginCatalog } from '../plugins/types';
+import { schemaDefaults } from '../plugins/schema-defaults';
 import { BindingsTable } from './bindings-table';
 
 interface BindingDraft {
@@ -176,7 +177,15 @@ export function BindingManager({
                 value={draft.pluginId}
                 onChange={(event) => {
                   const plugin = plugins.find((item) => item.id === event.target.value);
-                  patch({ pluginId: plugin?.id ?? '', provider: plugin?.provider ?? '' });
+                  const defaults = plugin ? schemaDefaults(plugin) : {};
+                  patch({
+                    pluginId: plugin?.id ?? '',
+                    provider: plugin?.provider ?? '',
+                    // A new binding starts from the plugin's recommended values; an edit keeps its own.
+                    ...(!draft.id && Object.keys(defaults).length
+                      ? { configText: JSON.stringify(defaults, null, 2) }
+                      : {}),
+                  });
                 }}
               >
                 <option value="">Select installed plugin</option>

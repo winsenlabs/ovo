@@ -2,8 +2,8 @@
 
 For whoever hosts OVO. Written 2026-10-04, against `vorflux/ovo-foundation` at Wave 2 complete.
 
-OVO has **never handled a real phone call**. Every latency, barge-in and cost figure in this
-repository is measured against fixtures and loopback only. Treat published targets as targets.
+Every variable, its default and how Compose supplies it: [env-reference.md](../env-reference.md).
+Go-live order: [runbooks/go-live.md](../runbooks/go-live.md).
 
 ## Shape
 
@@ -39,6 +39,7 @@ Enforced by `required(env, …)` in `packages/distribution/src/profiles/*.ts`:
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `OVO_SESSION_SECRET`                               | **≥32 UTF-8 bytes.** Production throws on start otherwise (M1 #14). Bytes, not characters. |
 | `OVO_SECRETS_MASTER_KEY`                           | 32-byte hex or base64. Encrypts the credential store.                                      |
+| `OVO_SECRETS_MASTER_KEY_PREVIOUS`                  | Optional, comma-separated retired master keys that still decrypt until `secrets-rewrap`.   |
 | `OVO_MEDIA_WORKER_TOKEN`                           | Gateway↔worker bearer. Gateway and both workers must match.                                |
 | `OVO_INBOUND_ROUTE_SECRET`                         | ≥32 chars. API, gateway and both workers must match.                                       |
 | `POSTGRES_PASSWORD`                                | —                                                                                          |
@@ -59,15 +60,23 @@ Default `false`. They are not ceremony — each one gates a path that can touch 
 | Flag                               | Default           | What it gates                                                                                                           |
 | ---------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `OVO_LIVE_DIAL_ENABLED`            | `false`           | Outbound dialling.                                                                                                      |
-| `OVO_INBOUND_ENABLED`              | `false`           | Inbound admission; maps to worker capacity.                                                                             |
+| `OVO_INBOUND_ENABLED`              | `false`           | Inbound admission; maps to worker protected-capacity registration. The dispatcher reports readiness without it.         |
 | `OVO_TRANSPORT_CERTIFIED`          | `false`           | Worker readiness gate.                                                                                                  |
 | `OVO_PROVIDER_EVALUATIONS_ENABLED` | `false`           | Paid evaluation runs.                                                                                                   |
 | `OVO_ALLOW_LOCAL_HTTP`             | `true` in Compose | **Must be `false` for a public API**, and verified _inside the running container_ — setting it in a file is not enough. |
 
+## Logging and transcript telemetry
+
+| Variable                               | Default | Effect                                                                                                                      |
+| -------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `OVO_LOG_LEVEL`                        | `info`  | `debug`, `info`, `warn` or `error` for every service's JSON-lines log and the API request log. Unknown values mean `info`.  |
+| `OVO_TELEMETRY_TRANSCRIPT_TEXT`        | `store` | Workers only. `omit` blanks caller and agent words in call events and `GET /v1/calls/:id/turns`. Other values refuse start. |
+| `OVO_TELEMETRY_TRANSCRIPT_TEXT_AGENTS` | empty   | Workers only. Per-agent overrides, `agent-id=omit,other-id=store`.                                                          |
+
 ## Carrier and provider credentials are NOT environment variables
 
 Create them in the **admin console**: a credential holding the secret, then a provider binding
-referencing it. Twilio, Deepgram, OpenAI, Sarvam and TypeSafe (the decision slot) all work this way.
+referencing it. Twilio, ElevenLabs, AssemblyAI, OpenAI, Sarvam and the decision provider all work this way.
 Secrets belong in the encrypted credential store.
 
 A TypeSafe binding additionally requires a **`calibrationLabel`**, naming the cohort whose confidence
@@ -75,13 +84,11 @@ numbers the thresholds are set against. It has no default on purpose: a default 
 release a calibration identity nobody chose. No per-language calibration has been measured, so the
 label records which cohort was _claimed_, not one that was verified.
 
-**One trap.** Compose interpolates `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` into
-`OVO_CARRIER_ENV_BINDINGS` for _every_ service. If either is exported in your shell or present in
-`.env`, a second credential-bearing `env` Twilio binding is created silently alongside your explicit
-one. **Unset both** before rendering Compose, and confirm via authenticated `GET /v1/provider-bindings`
-that no selectable `env` Twilio binding exists. Empty rendered credentials are only a proxy; the
-selection check is the real one. `docs/runbooks/first-real-call.md` step 3 carries verdict-only
-commands that check this without printing secrets.
+Compose sets `OVO_CARRIER_ENV_BINDINGS` to `{}` and does not read `TWILIO_ACCOUNT_SID` or
+`TWILIO_AUTH_TOKEN`. Wherever env bindings are read, an entry whose account or token is blank,
+`not-configured`, `disabled-local-*` or `replace-with-*` is dropped, and each process logs a
+`carrier_env_bindings` line naming the active and ignored carriers (never their values).
+`scripts/verify-compose.sh` fails if any Compose service still carries an env carrier binding.
 
 ## Verifying a deployment without touching a carrier
 
@@ -89,8 +96,15 @@ commands that check this without printing secrets.
 pnpm install --frozen-lockfile --offline   # must exit 0
 pnpm check                                 # lint, format, typecheck, tests, build, audit, console e2e
 GET /v1/readiness                          # per-agent release readiness
-GET /v1/operations/inbound/capacity        # at least one ready protected slot
+GET /v1/operations/inbound/capacity        # after go-live: at least one ready protected slot
+dispatcher GET /health → inbound             # before go-live: ready, with readyWorkers ≥ 1
 ```
+
+Workers register the protected slots that admit inbound calls only while `OVO_INBOUND_ENABLED=true`,
+so `readyProtected` is 0 before go-live by design. The dispatcher's `/health` carries an `inbound`
+report (`admissionEnabled`, `readyWorkers`, `readyProtected`, `warmFloor`, `ready`, `reasons`) and
+logs an `inbound_readiness` line whenever it changes; `verify-compose.sh` prints it. Use it to check
+readiness without enabling admission.
 
 Fixture test calls (`OVO_FIXTURE_TEST_CALLS`) exercise the full session graph — selected engine,
 carrier serializer, STT, TTS and behaviour — through FixtureNet with no network. They are

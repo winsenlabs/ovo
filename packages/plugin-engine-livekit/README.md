@@ -108,3 +108,26 @@ The lifecycle regression file ran red 4/4, then green 4/4. The pinned no-room
 spike, lazy import fence, real distribution composition, carrier receipt tests,
 and CJS native/audio smoke all execute under the egress sentinel. No vendor,
 LiveKit room, paid model, network fallback, or model download was used.
+
+## Wave 2-4 features on the LiveKit path (TTS-14, Wave 5)
+
+The native `ovo-plugin-voice` engine stays the default. The LiveKit engine now carries what a
+call needs to sound and end the same way, and declares the rest so the host warns at release.
+
+| Feature                                                                                      | LiveKit                                                                                                                                          |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Streaming TTS (`OvoTts.stream()`)                                                            | Yes. One provider session per line through `TextToSpeech.open` (the ElevenLabs socket) when the provider has one, else one `synthesize` per line |
+| Mu-law passthrough                                                                           | Yes. Frames decoded from mu-law keep the provider's bytes, which go to the carrier untouched (no decode and re-encode)                           |
+| Text filters (Indian verbalisation)                                                          | Yes, applied to every line, lowest `order` first                                                                                                 |
+| Greet-first opening (AGT-2)                                                                  | Yes, `respond('', { inputEvent: 'opening' })` before any caller input                                                                            |
+| Answering-machine hold and voicemail message                                                 | Yes. The opening waits for the verdict up to `session.amd.timeoutMs`; a machine gets the voicemail message, then `voicemail`                     |
+| Behaviour idle turns (AGT-11)                                                                | Yes. An idle turn after `idleTimeoutMs` of silence; a final one ends `caller_idle`                                                               |
+| Transfer (AGT-15)                                                                            | Yes. A `transfer:` completion ends `transferred`, so the host hands the leg on                                                                   |
+| Speech cache, pre-rendered and per-call clips (TTS-4..11)                                    | No: every line is synthesised live. `speechCache.enabled` raises an `engine_capability_missing` warning                                          |
+| Filler on a slow reply (LAT-6)                                                               | No. `voice.turnDetector.config.filler` raises the same warning                                                                                   |
+| One provider context per reply (LAT-5 `openReply`)                                           | No. Each line is its own provider session; no warning, it costs latency only                                                                     |
+| Decisions on partial transcripts (LAT-4/LAT-3), backchannels and merged turns (AGT-9/AGT-10) | No. LiveKit passes only final user turns and interrupts after `minInterruptionWords`; no warning, they are latency features                      |
+| Mid-call STT reconfiguration (`stt.configure`, STT-4)                                        | No; no warning                                                                                                                                   |
+
+The warnings come from the manifest's `capabilities.unsupportedAgentFeatures`, read by the host's
+`engineFeatureUnsupported` compat rule (registered in `session-host/src/compat/index.ts`).
