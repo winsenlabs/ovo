@@ -4,6 +4,7 @@ import {
   AgentTurnLog,
   type AgentDecisionRecord,
   type AgentGroundingRecord,
+  type AgentSkippedLineRecord,
 } from './agent-turn-log.ts';
 import type { AgentToolErrorRecord } from './agent-tools.ts';
 export {
@@ -33,6 +34,7 @@ import { Grounding } from './grounding.ts';
 import { runInferenceSteps } from './agent-inference-step.ts';
 import { CallEnding } from './agent-ending.ts';
 import { AgentVariables } from './agent-variables.ts';
+import { AnnouncementValidationError } from './announcement.ts';
 
 export class AgentBehavior implements Behavior {
   readonly config: AgentConfig;
@@ -60,6 +62,7 @@ export class AgentBehavior implements Behavior {
   readonly toolErrors: readonly AgentToolErrorRecord[] = this.log.toolErrors;
   readonly decisions: readonly AgentDecisionRecord[] = this.log.decisions;
   readonly groundings: readonly AgentGroundingRecord[] = this.log.groundings;
+  readonly skippedLines: readonly AgentSkippedLineRecord[] = this.log.skippedLines;
 
   constructor(
     config: AgentConfig,
@@ -188,11 +191,24 @@ export class AgentBehavior implements Behavior {
     }
   }
 
-  /** The opening lines, rendered for this call. No decision, LLM or caller words are involved. */
+  /**
+   * The opening lines, rendered for this call. No decision, LLM or caller words are involved. A line
+   * this call's data cannot fill (a missing variable, a malformed date) is skipped and recorded by
+   * field only, never with the value: bad row data must not hang up on someone who just answered.
+   */
   private *opening(variables: Record<string, unknown>): Generator<string> {
     if (this.opened || !this.config.opening) return;
     this.opened = true;
-    const lines = this.config.opening.lines.map((line) => this.variables.render(line, variables));
+    const lines: string[] = [];
+    this.config.opening.lines.forEach((line, index) => {
+      try {
+        lines.push(this.variables.render(line, variables));
+      } catch (error) {
+        // swallow-ok: recorded below; the caller or the LLM leads where the line would have been.
+        if (!(error instanceof AnnouncementValidationError)) throw error;
+        this.log.skippedLine(this.turn, `opening.lines.${index}`);
+      }
+    });
     for (const line of lines) yield this.say(line);
   }
 

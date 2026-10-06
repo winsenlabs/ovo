@@ -14,6 +14,13 @@ export interface AgentGroundingRecord {
   at: string;
 }
 
+/** A spoken line this call's variables could not fill. The field path only: values are call data. */
+export interface AgentSkippedLineRecord {
+  turn: number;
+  field: string;
+  at: string;
+}
+
 /** Each list is capped, so a long call cannot grow memory through a repeating failure. */
 const LIMIT = 100;
 
@@ -26,6 +33,7 @@ export class AgentTurnLog {
   readonly toolErrors: AgentToolErrorRecord[] = [];
   readonly decisions: AgentDecisionRecord[] = [];
   readonly groundings: AgentGroundingRecord[] = [];
+  readonly skippedLines: AgentSkippedLineRecord[] = [];
 
   /** A disabled policy is not an event; recording it would bury the ones that matter. */
   decision(turn: number, result: DecisionGateResult): void {
@@ -39,6 +47,11 @@ export class AgentTurnLog {
     if (result.kind === 'off') return;
     this.groundings.push({ turn, result, at: new Date().toISOString() });
     if (this.groundings.length > LIMIT) this.groundings.shift();
+  }
+
+  skippedLine(turn: number, field: string): void {
+    this.skippedLines.push({ turn, field, at: new Date().toISOString() });
+    if (this.skippedLines.length > LIMIT) this.skippedLines.shift();
   }
 
   toolError(

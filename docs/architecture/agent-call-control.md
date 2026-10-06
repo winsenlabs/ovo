@@ -39,9 +39,12 @@ built-ins `today`, `date_tomorrow` and `date_week` are always available; a decla
 them. Where each template is rendered:
 
 - **Spoken lines** (opening, voicemail message, decision `say`) render strictly. A path that is not
-  declared blocks the release (`template_variable_undeclared`, error). A declared variable the call
-  does not carry fails the opening turn rather than reading `{{name}}` aloud; a decision line in
-  that state falls back to the LLM. Mark variables a spoken line needs as `required`.
+  declared blocks the release (`template_variable_undeclared`, error). A line the call's data cannot
+  fill (a declared variable the call does not carry, or a value that does not fit its format, such
+  as a non-ISO date or a CSV string for a currency) is never read aloud half-filled and never ends
+  the call: an opening line is skipped and recorded on `skippedLines` by field path only (no
+  values), and a decision line falls back to the LLM. Campaign rows are not validated against the
+  variable schema at admission, so this is the only guard on that path.
 - **The briefing** (`context`) renders leniently: an unknown path is left as written (warning).
 - **The LLM** also gets a "Call facts" section listing only the declared variables this call
   carries, formatted as they would be spoken, plus today's date. Undeclared call data never reaches

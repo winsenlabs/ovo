@@ -152,8 +152,7 @@ export class TurnDriver {
     this.tasks.add(task);
     void task
       .catch((error: unknown) => {
-        // Without this line a failed turn (an opening whose variables did not render, say) leaves
-        // only `error:turn` behind.
+        // Without this line a failed turn leaves only `error:turn` behind.
         this.log('turn_failed', error, { turnId });
         this.end('error:turn');
       })
