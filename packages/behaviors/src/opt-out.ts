@@ -16,52 +16,24 @@ const DEFAULT_CLOSING_LINE = "Understood. We won't call this number again. Thank
  * phrase must say "again", "ever", name the list or address the caller ("mujhe").
  */
 const BUILT_IN_PHRASES = [
-  'stop calling',
-  'stop these calls',
-  'stop phoning me',
-  'dont call me again',
-  'do not call me again',
-  'dont call me anymore',
-  'do not call me anymore',
-  'dont call me ever',
-  'dont ever call me',
-  'never call me',
-  'dont call this number',
-  'do not call this number',
-  'remove my number',
-  'take my number off',
-  'take me off your list',
-  'remove me from your list',
-  'do not call list',
-  'unsubscribe me',
-  'mujhe call mat karo',
-  'mujhe call mat karna',
-  'mujhe call mat kijiye',
-  'mujhe phone mat karo',
-  'mujhe phone mat karna',
-  'dobara call mat',
-  'dubara call mat',
-  'phir se call mat',
-  'dobara phone mat',
-  'call karna band karo',
-  'call karna band kar do',
-  'phone karna band karo',
-  'mera number hata do',
-  'मुझे कॉल मत करो',
-  'मुझे कॉल मत करना',
-  'मुझे फोन मत करो',
-  'मुझे फ़ोन मत करो',
-  'दोबारा कॉल मत',
-  'दोबारा फोन मत',
-  'फिर से कॉल मत',
-  'कॉल करना बंद करो',
-  'फोन करना बंद करो',
-  'मेरा नंबर हटा दो',
-  'inimel call pannadheenga',
-  'thirumba call pannadheenga',
-  'இனிமேல் கால் பண்ணாதீங்க',
+  // English.
+  'stop calling|stop these calls|stop phoning me|never call me|unsubscribe me|do not call list',
+  'dont call me again|do not call me again|dont call me anymore|do not call me anymore',
+  'dont call me ever|dont ever call me|dont call this number|do not call this number',
+  'remove my number|take my number off|take me off your list|remove me from your list',
+  // Hinglish.
+  'mujhe call mat karo|mujhe call mat karna|mujhe call mat kijiye|mujhe phone mat karo',
+  'mujhe phone mat karna|dobara call mat|dubara call mat|phir se call mat|dobara phone mat',
+  'call karna band karo|call karna band kar do|phone karna band karo|mera number hata do',
+  // Hindi.
+  'मुझे कॉल मत करो|मुझे कॉल मत करना|मुझे फोन मत करो|मुझे फ़ोन मत करो|दोबारा कॉल मत',
+  'दोबारा फोन मत|फिर से कॉल मत|कॉल करना बंद करो|फोन करना बंद करो|मेरा नंबर हटा दो',
+  // Tamil.
+  'inimel call pannadheenga|thirumba call pannadheenga|இனிமேல் கால் பண்ணாதீங்க',
   'திரும்ப கால் பண்ணாதீங்க',
-].map(normalizeUtterance);
+]
+  .flatMap((group) => group.split('|'))
+  .map(normalizeUtterance);
 
 /** `AgentConfig.compliance.optOut` as the contract parses it; read structurally. */
 export interface OptOutPolicy {

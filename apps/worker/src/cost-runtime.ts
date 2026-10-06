@@ -7,7 +7,7 @@ import type {
   TelephonyControl,
 } from '@winsendotai/ovo-plugin-orchestration';
 import type { ProviderUsageSink } from './cost-policy-types.ts';
-import type { CostLedgerService, PriceCardVersion } from '@winsendotai/ovo-plugin-ledger';
+import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
 import { type ControlStore, type ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { manifestKeys, PluginRegistry } from '@winsendotai/ovo-runtime';
 import { metersFor, type SessionDefaults } from '@winsendotai/ovo-session-host';
@@ -22,7 +22,7 @@ import {
   createWorkerCostPolicyAttachment,
   type WorkerCostPolicyAttachment,
 } from './cost-policy.ts';
-import { meterKeysPricedForAnotherModel, requiredMeterModels } from './cost-runtime-models.ts';
+import { checkMeterModels, requiredMeterModels } from './cost-runtime-models.ts';
 
 export interface CostAdmission {
   admitted: boolean;
@@ -116,8 +116,7 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
         admitted: false,
         reason: `cost-meter-unconfigured:${missingMeters.join(',')}`,
       };
-    const prefetchedPriceCards = new Map<string, PriceCardVersion | undefined>();
-    const repriced = await meterKeysPricedForAnotherModel(
+    const priced = await checkMeterModels(
       this.ledger,
       policy,
       requiredMeterModels(
@@ -127,14 +126,8 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
           ? { meters: selectedMeters, selections, registry: this.registry }
           : undefined,
       ),
-      prefetchedPriceCards,
     );
-    if (repriced.length)
-      return {
-        ...noCostAdmission(),
-        admitted: false,
-        reason: `price_unknown_for_model:${repriced.join(',')}`,
-      };
+    if (priced.refusal) return { ...noCostAdmission(), admitted: false, reason: priced.refusal };
     const inferenceRecord = release.providerBindings.inference;
     const inferenceModel = inferenceRecord?.config.model;
     const carrier = selectedMeters.find((row) => row.slot === 'carrier');
@@ -168,7 +161,7 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
       attemptId: text(payload.attemptId),
       sessionStartedAt: new Date().toISOString(),
       requiredMeterKeys,
-      prefetchedPriceCards,
+      prefetchedPriceCards: priced.cards,
       inference:
         inferenceRecord && typeof inferenceModel === 'string'
           ? { provider: inferenceRecord.provider, modelId: inferenceModel }

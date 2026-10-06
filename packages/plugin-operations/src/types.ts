@@ -1,22 +1,14 @@
 import type { Pool, PoolClient } from 'pg';
 import type { CallingWindow } from './calling-window.ts';
+import type { ContactState } from './contact-state.ts';
+export type { ContactState } from './contact-state.ts';
+export type {
+  CampaignContactRecord,
+  DoNotCallSource,
+  SuppressionRecord,
+} from './compliance-types.ts';
 
 export type CampaignStatus = 'scheduled' | 'running' | 'paused' | 'cancelled' | 'completed';
-export type ContactState =
-  | 'queued'
-  | 'admitted'
-  | 'dialing'
-  | 'active'
-  | 'succeeded'
-  | 'failed'
-  | 'cancelled'
-  | 'unknown'
-  | 'superseded'
-  | 'suppressed'
-  | 'exhausted'
-  /** Its variables failed the release's declared schema at admission; it is never dialed. */
-  | 'invalid';
-
 export interface CampaignSchedule {
   localDateTime: string;
   timezone: string;
@@ -119,28 +111,6 @@ export interface CampaignCounters {
     | 'superseded',
     number
   >;
-}
-
-export type DoNotCallSource = 'manual' | 'import' | 'opt_out';
-
-export interface SuppressionRecord {
-  phoneNumber: string;
-  reason: string;
-  /** Who listed it: an operator, a bulk import, or the caller asking not to be called (opt-out). */
-  source: DoNotCallSource;
-  /** The call in which the caller opted out. */
-  callId?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface CampaignContactRecord {
-  id: string;
-  sourceRow: number;
-  phoneNumber: string;
-  externalId?: string;
-  variables: Record<string, string>;
-  state: ContactState;
 }
 
 export interface OperationsServiceConfig {

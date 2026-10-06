@@ -10,16 +10,13 @@ import {
 } from './campaign-model.ts';
 import { callingWindowState } from './calling-window.ts';
 import { transaction } from './database.ts';
-import { validateReleaseVariables } from './release-variables.ts';
+import { nextValidContact, requeueOutsideWindow } from './campaign-admission-checks.ts';
 import type {
   CampaignDialJob,
   ContactAdmission,
   DialAuthorization,
   DialAuthorizationResult,
 } from './types.ts';
-
-/** Invalid contacts one admission marks before it gives up until the next tick. */
-const MAX_INVALID_SKIPS = 100;
 
 export class CampaignAdmissionService {
   constructor(
@@ -75,7 +72,7 @@ export class CampaignAdmissionService {
       : undefined;
     if (window && !window.open)
       return { kind: 'outside_calling_hours', nextOpenAt: window.nextOpenAt };
-    const contact = await this.nextValidContact(client, campaign);
+    const contact = await nextValidContact(client, campaign, this.organizationId);
     if (!contact) return { kind: 'empty' };
     const claimed = await client.query<ContactRow>(
       `UPDATE ovo_ops_campaign_contacts SET state = 'admitted', owner_id = $2,
@@ -106,36 +103,6 @@ export class CampaignAdmissionService {
       ownerEpoch: Number(row.owner_epoch),
       leaseExpiresAt: row.lease_expires_at!,
     };
-  }
-
-  /**
-   * The next dialable contact. One whose variables fail the release schema snapshotted at create is
-   * marked `invalid` and skipped: it could only reach the agent with fields its lines cannot fill.
-   */
-  private async nextValidContact(
-    client: PoolClient,
-    campaign: CampaignRow,
-  ): Promise<ContactRow | undefined> {
-    for (let skipped = 0; skipped <= MAX_INVALID_SKIPS; skipped += 1) {
-      const selected = await client.query<ContactRow>(
-        `SELECT c.* FROM ovo_ops_campaign_contacts c
-           WHERE c.campaign_id = $1 AND c.state = 'queued' AND c.not_before <= now()
-             AND NOT EXISTS (SELECT 1 FROM ovo_ops_suppressions s
-               WHERE s.organization_id = $2 AND s.phone_number = c.phone_number)
-             AND (SELECT count(*) FROM ovo_ops_attempts a WHERE a.contact_id = c.id) < $3
-           ORDER BY c.source_row, c.id FOR UPDATE SKIP LOCKED LIMIT 1`,
-        [campaign.id, this.organizationId, campaign.per_number_attempt_limit],
-      );
-      const contact = selected.rows[0];
-      if (!contact || !campaign.variables_schema) return contact;
-      if (validateReleaseVariables(campaign.variables_schema, contact.variables).valid)
-        return contact;
-      await client.query(
-        `UPDATE ovo_ops_campaign_contacts SET state = 'invalid', updated_at = now() WHERE id = $1`,
-        [contact.id],
-      );
-    }
-    return undefined;
   }
 
   async reclassifyContacts(client: PoolClient, campaign: CampaignRow): Promise<void> {
@@ -212,19 +179,8 @@ export class CampaignAdmissionService {
         );
         return { kind: 'blocked', reason: 'suppressed' };
       }
-      // Admitted inside the window but authorized after it closed: back in the queue until it opens.
-      const window = campaign.calling_window
-        ? callingWindowState(campaign.calling_window)
-        : undefined;
-      if (window && !window.open && current.state === 'admitted') {
-        await client.query(
-          `UPDATE ovo_ops_campaign_contacts SET state = 'queued', owner_id = NULL,
-           admission_campaign_version = NULL, lease_expires_at = NULL, not_before = $2,
-           updated_at = now() WHERE id = $1`,
-          [contactId, window.nextOpenAt],
-        );
+      if (current.state === 'admitted' && (await requeueOutsideWindow(client, campaign, contactId)))
         return { kind: 'blocked', reason: 'outside_calling_hours' };
-      }
       const requestId = `${campaign.id}:${contactId}:${ownerEpoch}`;
       const existing = await client.query<{ id: string }>(
         'SELECT id FROM ovo_ops_attempts WHERE request_id = $1',

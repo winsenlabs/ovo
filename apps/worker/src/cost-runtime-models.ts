@@ -74,3 +74,16 @@ export async function meterKeysPricedForAnotherModel(
   }
   return mismatched.sort();
 }
+
+/** The model check as an admission verdict, with the cards it read for the catalog load. */
+export async function checkMeterModels(
+  ledger: Pick<CostLedgerService, 'getPriceCard'>,
+  policy: CostPolicy,
+  models: ReadonlyMap<string, string>,
+): Promise<{ refusal?: string; cards: Map<string, PriceCardVersion | undefined> }> {
+  const cards = new Map<string, PriceCardVersion | undefined>();
+  const repriced = await meterKeysPricedForAnotherModel(ledger, policy, models, cards);
+  return repriced.length
+    ? { refusal: `price_unknown_for_model:${repriced.join(',')}`, cards }
+    : { cards };
+}
