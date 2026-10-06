@@ -1,6 +1,7 @@
 import { pcm16ToBytes, pcm16ToMulaw } from '@winsendotai/ovo-audio';
 import {
   MULAW_8K,
+  bytesPerSecond,
   type AudioFormat,
   type FixtureTemplate,
   type NetFixtureScript,
@@ -26,6 +27,25 @@ export const GUIDE =
   'https://elevenlabs.io/docs/developers/guides/cookbooks/multi-context-web-socket';
 export const LIVEKIT =
   'https://github.com/livekit/agents/blob/main/livekit-plugins/livekit-plugins-elevenlabs/livekit/plugins/elevenlabs/tts.py';
+/**
+ * LAT-5 reply contexts, retrieved 2026-10-06:
+ * - a context is initialised with `{text: " ", context_id, voice_settings…}`; text frames "should
+ *   end with a single space"; `flush: true` "forces the generation of audio" without closing
+ *   (WS_SOURCE and https://elevenlabs.io/docs/api-reference/text-to-speech/v-1-text-to-speech-voice-id-stream-input);
+ * - `auto_mode` "reduces latency by disabling chunk schedule and buffers. Recommended for full
+ *   sentences/phrases" (https://elevenlabs.io/docs/api-reference/websockets), which is why a reply
+ *   pushes whole segments, never token deltas;
+ * - audio frames carry `alignment: {chars, charStartTimesMs, charDurationsMs}` with times relative
+ *   to the frame, without `sync_alignment`: PIPECAT reads it that way and accumulates the offsets.
+ * UNCONFIRMED until a live call (`live.test.ts` checks both):
+ * - that every multi-context audio frame carries `alignment` (the reference marks it optional;
+ *   without it a segment ends after a quiet gap instead);
+ * - whether an `isFinal` follows every flush. ElevenLabs' guides only show it ending a context; a
+ *   compatible API calls its per-flush final the "ElevenLabs is_final equivalent"
+ *   (https://docs.kugelaudio.com/api-reference/tts/multi-context). The reply handles both.
+ */
+export const PIPECAT =
+  'https://github.com/pipecat-ai/pipecat/blob/main/src/pipecat/services/elevenlabs/tts.py';
 /** Body fields and `output_format` values. Response headers are not documented there. */
 export const HTTP_SOURCE = 'https://elevenlabs.io/docs/api-reference/text-to-speech/stream';
 /** The `request-id` and `character-cost` response headers. */
@@ -68,6 +88,59 @@ export function contextSteps(
     { expect: 'ws-send', match: 'json', where: { context_id: contextId, close_context: true } },
     { send: JSON.stringify({ audio: base64(audio.subarray(0, half)), contextId }) },
     { send: JSON.stringify({ audio: base64(audio.subarray(half)), contextId }) },
+    { send: JSON.stringify({ isFinal: true, contextId }) },
+  ];
+}
+
+/**
+ * Audio frames for `text` with its character alignment spread evenly over the audio, split in two
+ * frames; times are relative to each frame, as the provider sends them.
+ */
+export function alignedFrames(
+  contextId: string,
+  text: string,
+  audio: Uint8Array,
+  format: AudioFormat,
+): string[] {
+  const chars = [...`${text} `];
+  const width = format.encoding === 'pcm_s16le' ? 2 : 1;
+  const msPerChar = (audio.byteLength * 1000) / bytesPerSecond(format) / chars.length;
+  const half = Math.floor(chars.length / 2);
+  const cut = Math.floor((audio.byteLength * half) / chars.length / width) * width;
+  const frame = (from: number, to: number, bytes: Uint8Array) => {
+    const slice = chars.slice(from, to);
+    return JSON.stringify({
+      audio: base64(bytes),
+      contextId,
+      alignment: {
+        chars: slice,
+        charStartTimesMs: slice.map((_, index) => Math.floor(msPerChar * index)),
+        charDurationsMs: slice.map(() => Math.max(1, Math.floor(msPerChar))),
+      },
+    });
+  };
+  return [frame(0, half, audio.subarray(0, cut)), frame(half, chars.length, audio.subarray(cut))];
+}
+
+/** One reply context: the initialising space, one flushed frame per text, aligned audio, close. */
+export function replySteps(
+  contextId: string,
+  texts: readonly string[],
+  format: AudioFormat,
+): NetFixtureStep[] {
+  return [
+    { expect: 'ws-send', match: 'json', where: { context_id: contextId, text: ' ' } },
+    ...texts.map((text): NetFixtureStep => ({
+      expect: 'ws-send',
+      match: 'json',
+      where: { context_id: contextId, text: `${text} `, flush: true },
+    })),
+    ...texts.flatMap((text, index) =>
+      alignedFrames(contextId, text, fixtureAudio(format, text, index + 1), format).map((send) => ({
+        send,
+      })),
+    ),
+    { expect: 'ws-send', match: 'json', where: { context_id: contextId, close_context: true } },
     { send: JSON.stringify({ isFinal: true, contextId }) },
   ];
 }
@@ -129,6 +202,16 @@ export const elevenLabsHttpTemplate: FixtureTemplate = (input): NetFixtureScript
       ],
     };
   });
+
+/** Every agent text as one reply (`openReply`), on context `ovo-1` of a fresh instance. */
+export const elevenLabsReplyTemplate: FixtureTemplate = (input): NetFixtureScript[] => [
+  {
+    host: HOST,
+    source: WS_SOURCE,
+    retrieved: RETRIEVED,
+    steps: [socketOpen(input.format), ...replySteps('ovo-1', input.agentTexts ?? [], input.format)],
+  },
+];
 
 export const fixtures: Record<string, NetFixtureScript[]> = {
   [ID]: elevenLabsTtsTemplate({
