@@ -6,6 +6,9 @@ import {
   type TtsReply,
 } from '@winsendotai/ovo-contracts';
 
+/** For the worker's speech-cache output, which may not import the voice plugin itself. */
+export { ReplyStreams, warmSessionTts } from '@winsendotai/ovo-plugin-voice';
+
 type NativeFor = (tts: TextToSpeech, requested: AudioFormat) => AudioFormat;
 
 /**
