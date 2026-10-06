@@ -44,9 +44,9 @@ const RETRYABLE_ERRORS = new Set([
 ]);
 
 /**
- * Reported without ending the session. A throttled commit only loses that commit, and the turn
- * detector's ceiling still ends the turn. [unconfirmed: the reference lists these types but not
- * whether the server closes the socket after them.]
+ * Reported without ending the session; the session finalises a throttled commit's partial itself.
+ * [unconfirmed: the reference lists these types but not whether the server closes the socket
+ * after them.]
  */
 const NOTICES = new Set(['warning', 'commit_throttled', 'insufficient_audio_activity']);
 

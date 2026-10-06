@@ -143,6 +143,32 @@ describe("'commit' turn strategy", () => {
     expect(f.stopped()).toEqual(['mujhe time chahiye', 'haan']);
   });
 
+  it('forces the endpoint again in a second stalled turn while the VAD stays open', () => {
+    // Regression: the endpoint flag outlived the turn, so only the first stall told the STT.
+    const f = fixture();
+    f.send({ type: 'vad.start' });
+    f.transcript('main payment', 'interim');
+    f.clock.advance(1_500);
+    f.transcript('main payment kar dunga', 'final');
+    f.transcript('kab tak', 'interim', '1');
+    f.clock.advance(1_500);
+    expect(f.forced()).toBe(2);
+    f.transcript('kab tak hoga', 'final', '1');
+    expect(f.stopped()).toEqual(['main payment kar dunga', 'kab tak hoga']);
+  });
+
+  it('forces the endpoint on every stalled turn without a VAD', () => {
+    const f = fixture({}, { vad: false });
+    f.transcript('hello', 'interim');
+    f.clock.advance(1_500);
+    f.transcript('hello there', 'final');
+    f.transcript('second', 'interim', '1');
+    f.clock.advance(1_500);
+    expect(f.forced()).toBe(2);
+    f.transcript('second one', 'final', '1');
+    expect(f.stopped()).toEqual(['hello there', 'second one']);
+  });
+
   it("runs without a VAD under 'auto' instead of refusing a manual-commit STT", () => {
     const f = fixture({}, { vad: false });
     f.transcript('hello', 'interim');

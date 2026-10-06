@@ -9,6 +9,7 @@ import {
 import { createLogger, decimal, syntheticRequestId, usageOnce } from '@winsendotai/ovo-plugin-kit';
 import { deferred, onAbort } from './lifecycle.ts';
 import { ElevenLabsSttError, audioChunk, parseMessage, retryableClose } from './protocol.ts';
+import { ScribeSegments } from './segments.ts';
 
 const logger = createLogger({ service: 'stt-elevenlabs' });
 
@@ -22,10 +23,9 @@ const COMMIT_PAD_MS = 20;
 export const FINISH_TIMEOUT_MS = 3_000;
 
 /**
- * One Scribe v2 realtime session. Partials of the open segment are interim revisions; a
- * committed transcript finalises the segment and ends the turn, and the next partial opens a new
- * segment. The provider sends no termination frame, so a graceful finish commits the trailing
- * audio, waits for its transcript and closes the socket itself.
+ * One Scribe v2 realtime session; ScribeSegments maps its transcripts to segments. The provider
+ * sends no termination frame, so a graceful finish commits the trailing audio, waits for its
+ * transcript and closes the socket itself.
  */
 export class ScribeSession implements SttSession {
   private readonly started = deferred();
@@ -34,14 +34,12 @@ export class ScribeSession implements SttSession {
   private readonly once;
   private readonly detach: Array<() => void>;
   private readonly frames: FrameAggregator;
+  private readonly segments: ScribeSegments;
   private readonly startedAt: number;
   private state: 'connecting' | 'active' | 'finishing' | 'ended' = 'connecting';
   private failure?: Error;
   private providerId?: string;
   private bytes = 0;
-  private segment = 0;
-  private revision = 0;
-  private partial = '';
   /** Audio written since the last commit, so a commit without new audio is never sent. */
   private uncommitted = false;
   private pendingCommits = 0;
@@ -57,6 +55,7 @@ export class ScribeSession implements SttSession {
     this.startedAt = clock.now();
     this.once = usageOnce(input.onUsage);
     this.frames = new FrameAggregator(input.format, CHUNK_MS);
+    this.segments = new ScribeSegments(input.onEvent);
     this.detach = [
       socket.on('message', (raw, binary) => this.message(raw, binary)),
       socket.on('close', (code, reason) => this.onClose(code, reason)),
@@ -164,42 +163,28 @@ export class ScribeSession implements SttSession {
         new ElevenLabsSttError('ElevenLabs STT message before session_started', 'protocol', false),
       );
     if (message.kind === 'notice') this.notice(message.type, message.detail);
-    else if (message.kind === 'partial') this.onPartial(message.text);
+    else if (message.kind === 'partial') this.segments.onPartial(message.text);
     else if (message.kind === 'committed') this.onCommitted(message.text);
-  }
-
-  private onPartial(text: string): void {
-    // Repeated partials carry nothing new, and the turn detector's stall fallback relies on
-    // seeing only changes.
-    if (!text || text === this.partial) return;
-    this.partial = text;
-    this.transcript(text, 'interim');
   }
 
   private notice(type: string, detail: string): void {
     logger.warn('stt_provider_notice', { sessionId: this.input.sessionId, type, detail });
-    // A refused commit gets no transcript, so a finish must not wait out its deadline for one.
-    if (type === 'commit_throttled') this.answered();
+    if (type !== 'commit_throttled') return;
+    // The refused audio is still uncommitted. It gets no transcript, so a finish must not wait
+    // out its deadline for one.
+    this.uncommitted = true;
+    this.segments.onThrottled();
+    this.answered();
   }
 
   private onCommitted(text: string): void {
-    if (text.trim()) this.transcript(text, 'final');
-    this.input.onEvent({ type: 'end-of-turn' });
-    this.segment++;
-    this.partial = '';
+    this.segments.onCommitted(text);
     this.answered();
   }
 
   private answered(): void {
     this.pendingCommits = Math.max(0, this.pendingCommits - 1);
     if (this.state === 'finishing' && !this.pendingCommits) this.end();
-  }
-
-  private transcript(text: string, stability: 'interim' | 'final'): void {
-    this.input.onEvent({
-      type: 'transcript',
-      segment: { segmentId: String(this.segment), revision: ++this.revision, text, stability },
-    });
   }
 
   private onClose(code: number, reason: string): void {

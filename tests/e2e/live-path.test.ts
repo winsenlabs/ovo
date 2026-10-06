@@ -27,9 +27,9 @@ if (!postgresUrl)
   );
 
 // The first handshake is slower than the 3s pre-session buffer that dropped live call 2
-// (8d76756) and than the 6s connect timeout (STT-3), so the worker abandons it and retries; the
-// retry answers in 1s. The caller's audio is held for both attempts, over 7s in all.
-const STT_HANDSHAKE_MS = [7_000, 1_000];
+// (8d76756) and than the 3s connect timeout (STT-3), so the worker abandons it and retries; the
+// retry answers in 1s. The caller's audio is held for both attempts, over 4s in all.
+const STT_HANDSHAKE_MS = [4_000, 1_000];
 const CALLER = 'Hello, is anyone there?';
 const REPLY = 'Hello, thanks for calling the live path line. How can I help you today?';
 

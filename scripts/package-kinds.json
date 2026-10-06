@@ -25,7 +25,6 @@
     "packages/plugin-llm-openai": "vendor-plugin",
     "packages/plugin-stt-assemblyai": "vendor-plugin",
     "packages/plugin-speech-sarvam": "vendor-plugin",
-    "packages/plugin-stt-elevenlabs": "vendor-plugin",
     "packages/plugin-decision-jev": "vendor-plugin",
     "packages/plugin-knowledge-inline": "vendor-plugin",
     "packages/behaviors": "plugin",

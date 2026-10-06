@@ -137,7 +137,8 @@ export abstract class TurnControllerState {
     this.cancelSafety = undefined;
     this.stopTimers.cancel();
     this.commitTimers.cancel();
-    this.committed = false;
+    // The endpoint is forced once per utterance; a VAD held open across turns must not carry it.
+    this.forceSent = this.committed = false;
   }
 
   protected stop(): void {

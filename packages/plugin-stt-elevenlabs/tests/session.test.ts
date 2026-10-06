@@ -135,6 +135,68 @@ describe('Scribe manual commit', () => {
     await session.cancel('done');
   });
 
+  it('finalises a throttled commit itself so the next utterance opens a new segment', async () => {
+    // Regression: the throttled segment stayed open, the turn detector's ceiling closed it, and
+    // every later transcript arrived under that closed id and was dropped.
+    const throttled = JSON.stringify({ message_type: 'commit_throttled', error: 'too many' });
+    const { events, session } = await open([
+      { send: sessionStarted() },
+      AUDIO,
+      { send: partial('main payment') },
+      COMMIT,
+      { send: throttled },
+      AUDIO,
+      // The provider still holds the refused audio, so its next transcripts repeat that text.
+      { send: partial('main payment') },
+      { send: partial('main payment kab tak') },
+      COMMIT,
+      { send: committed('main payment kab tak hoga') },
+      AUDIO,
+      { send: partial('aur kuch') },
+    ]);
+    await session.write(frame(1, 400));
+    await session.forceEndpoint!();
+    await session.write(frame(2, 400));
+    await session.forceEndpoint!();
+    await session.write(frame(3, 400));
+    expect(transcripts(events)).toEqual([
+      '0:interim:main payment',
+      '0:final:main payment',
+      'end-of-turn',
+      '1:interim:kab tak',
+      '1:final:kab tak hoga',
+      'end-of-turn',
+      '2:interim:aur kuch',
+    ]);
+    await session.cancel('done');
+  });
+
+  it('keeps a later transcript whole when it does not repeat the throttled text', async () => {
+    const throttled = JSON.stringify({ message_type: 'commit_throttled', error: 'too many' });
+    const { events, session } = await open([
+      { send: sessionStarted() },
+      AUDIO,
+      { send: partial('haan') },
+      COMMIT,
+      { send: throttled },
+      AUDIO,
+      COMMIT,
+      { send: committed('Haan ji') },
+    ]);
+    await session.write(frame(1, 400));
+    await session.forceEndpoint!();
+    await session.write(frame(2, 400));
+    await session.forceEndpoint!();
+    expect(transcripts(events)).toEqual([
+      '0:interim:haan',
+      '0:final:haan',
+      'end-of-turn',
+      '1:final:Haan ji',
+      'end-of-turn',
+    ]);
+    await session.cancel('done');
+  });
+
   it('sends 16 kHz PCM with its sample rate', async () => {
     const { net, session } = await open([{ send: sessionStarted() }, AUDIO], PCM16_16K);
     await session.write(new Uint8Array(1_600));
