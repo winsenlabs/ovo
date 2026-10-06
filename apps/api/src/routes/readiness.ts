@@ -1,23 +1,37 @@
+import type { FastifyInstance } from 'fastify';
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import type { PluginDefinition } from '@winsendotai/ovo-runtime';
 import { behaviorPluginId, validateSelections } from '@winsendotai/ovo-session-host';
+import { z } from 'zod';
 import { requireRole } from '../auth-service.ts';
-import { validateRelease } from '../release-runtime.ts';
-import { draftSelections, requestedDraft, type DraftRouteInput } from '../draft-selections.ts';
+import { mergeCatalog, validateRelease } from '../release-runtime.ts';
+import type { ManagementApiOptions } from '../types.ts';
 import type { InfrastructureService } from '../infrastructure-types.ts';
 import { liveReadiness } from '../live-readiness.ts';
+import { PluginRegistry } from '@winsendotai/ovo-runtime';
+import { buildReleaseSelections } from '../release-selections.ts';
+import type { ProviderBinding } from '@winsendotai/ovo-plugin-storage';
 
-export function registerReadinessRoutes(
-  input: DraftRouteInput & { services: PluginDefinition; infrastructure?: InfrastructureService },
-) {
+export function registerReadinessRoutes(input: {
+  app: FastifyInstance;
+  store: ControlStore;
+  options: ManagementApiOptions;
+  catalog: readonly PluginDefinition[];
+  services: PluginDefinition;
+  infrastructure?: InfrastructureService;
+  distributionDefaults?: import('@winsendotai/ovo-session-host').SessionDefaults;
+}) {
   input.app.get('/v1/agents/:agentId/readiness', async (request) => {
     const principal = requireRole(request, 'viewer');
-    const agent = await requestedDraft(request, input.store);
+    const { agentId } = z.object({ agentId: z.string().min(1).max(100) }).parse(request.params);
+    const agent = await input.store.getAgent(principal.workspaceId, agentId);
+    if (!agent)
+      throw Object.assign(new Error('Agent not found'), { statusCode: 404, code: 'not_found' });
     try {
-      const { generated, catalog, registry, bindingRows, selections } = await draftSelections({
-        ...input,
-        agent,
-      });
+      const generated =
+        (await input.options.createReleasePlugins?.({ agent, sessionId: crypto.randomUUID() })) ??
+        [];
+      const catalog = mergeCatalog(input.catalog, generated);
       const requiredPluginIds = [
         ...new Set([
           behaviorPluginId(agent.config),
@@ -28,6 +42,17 @@ export function registerReadinessRoutes(
         const definition = catalog.find((plugin) => plugin.manifest.id === id);
         if (!definition) throw new Error(`Required plugin is not installed: ${id}`);
         return { id, version: definition.manifest.version };
+      });
+      const registry = new PluginRegistry(catalog);
+      const bindingRows = new Map<string, ProviderBinding>();
+      const selections = await buildReleaseSelections({
+        agent,
+        store: input.store,
+        registry,
+        defaults: input.distributionDefaults ?? {
+          engine: '@winsendotai/ovo-plugin-voice-session-engine',
+        },
+        bindingRows,
       });
       await validateRelease(agent, selected, input.store, catalog, input.services, selections, {
         plugins: [],

@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { OperationsService } from '@winsendotai/ovo-plugin-operations';
 import { readInboundReadiness } from '../src/inbound-readiness.ts';
-import { registerOperationsRoutes } from '../src/routes/operations.ts';
+import { registerOperationsInboundRouteManagement } from '../src/routes/operations-inbound-routes.ts';
 
 // OPS-4: readiness lived only on the dispatcher's /health, so the API (and the console's inbound
 // page) showed `readyProtected: 0` with no reason while OVO_INBOUND_ENABLED was still false.
@@ -23,18 +23,21 @@ const report = {
   stale: false,
 };
 
+// The route itself: registerOperationsRoutes passes `inboundReadiness` once the API wiring lands.
 function build(inboundReadiness?: () => Promise<typeof report | null>) {
   const app = Fastify({ logger: false });
   apps.push(app);
-  registerOperationsRoutes({
+  const operations = {
+    organizationId: 'org',
+    inbound: { readyProtectedCapacity: async () => 0 },
+  } as unknown as OperationsService;
+  registerOperationsInboundRouteManagement({
     app,
     store: {} as never,
     requireRole: () => ({ workspaceId: 'org', identityId: 'viewer', role: 'viewer' }) as never,
-    operations: {
-      organizationId: 'org',
-      inbound: { readyProtectedCapacity: async () => 0 },
-    } as unknown as OperationsService,
-    infrastructure: inboundReadiness ? { inboundReadiness } : undefined,
+    use: () => operations,
+    audit: async () => undefined,
+    inboundReadiness,
   });
   return app;
 }

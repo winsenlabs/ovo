@@ -181,6 +181,7 @@ export async function runWorkerLoop(input: {
   const shutdown = (graceful = false) =>
     (shutdownPromise ??= (async () => {
       status.state = 'draining';
+      if (graceful) drain.request(); // before awaiting admission: see ActiveCallDrain.request
       log.info('worker_draining', { detail: status.detail, graceful });
       runner.beginDrain();
       await inFlight?.catch((error) => failed('admission', 'shutdown admission failed', error));

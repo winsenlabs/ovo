@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { apiRequest, items, type SessionIdentity } from '../../lib/api';
-import type { PriceCatalogItem } from '../../lib/operator-api';
+import type { PriceCatalogItem } from '../../lib/types/price-catalog';
 import { EmptyState, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
 
 const STATUS: Record<PriceCatalogItem['status'], { label: string; tone: 'good' | 'warning' }> = {

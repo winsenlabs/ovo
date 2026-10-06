@@ -2,13 +2,23 @@ import type { Logger } from '@winsendotai/ovo-contracts';
 import { optionalInteger } from './worker-environment.ts';
 
 /**
+ * The SIGTERM grace when OVO_WORKER_DRAIN_TIMEOUT_MS is unset. It must end before the platform's
+ * SIGKILL, or the call is cut with no carrier hangup and no cost finalize: compose gives 300s
+ * (stop_grace_period), while the ECS worker task's stopTimeout is 120s.
+ */
+export function defaultDrainTimeoutMs(protectionMode = process.env.OVO_PROTECTION_MODE ?? 'ecs') {
+  return protectionMode === 'ecs' ? 90_000 : 240_000;
+}
+
+/**
  * OPS-6: on SIGTERM a worker used to end its active call at once, so every redeploy cut a caller
  * off. The drain stops new work (the caller already did), deregisters inbound capacity, then waits
- * up to OVO_WORKER_DRAIN_TIMEOUT_MS (default 240s, inside compose's 300s stop_grace_period) for
- * the active call to end by itself. Whatever is still running afterwards is terminated as before.
+ * up to OVO_WORKER_DRAIN_TIMEOUT_MS (default: defaultDrainTimeoutMs) for the active call to end by
+ * itself. Whatever is still running afterwards is terminated as before.
  */
 export class ActiveCallDrain {
   private active = false;
+  private abandoned = false;
 
   constructor(
     private readonly input: {
@@ -29,8 +39,17 @@ export class ActiveCallDrain {
     return this.active;
   }
 
+  /**
+   * Marks the drain as waiting before shutdown awaits an in-flight admission, so the loop keeps
+   * supervising a call that admission accepts (it resumes before wait() starts). Synchronous.
+   */
+  request(): void {
+    if (!this.abandoned) this.active = true;
+  }
+
   /** Called by the loop when the active call can no longer be supervised (route missing). */
   abandon(): void {
+    this.abandoned = true;
     this.active = false;
   }
 
@@ -40,8 +59,8 @@ export class ActiveCallDrain {
     const timeoutMs =
       this.input.timeoutMs ??
       optionalInteger('OVO_WORKER_DRAIN_TIMEOUT_MS', 0, 3_600_000) ??
-      240_000;
-    this.active = true;
+      defaultDrainTimeoutMs();
+    this.request();
     try {
       await this.input.inbound?.beginDrain();
       if (!sessionActive()) return;

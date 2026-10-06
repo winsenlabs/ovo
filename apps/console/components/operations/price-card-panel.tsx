@@ -1,12 +1,12 @@
 'use client';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, items, type SessionIdentity } from '../../lib/api';
-import type { PriceCardVersion } from '../../lib/operator-api';
+import type { ModelPriceCard } from '../../lib/types/price-catalog';
 import type { PluginCatalog } from '../plugins/types';
 import { EmptyState, Field, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
 
 export function PriceCardPanel({ role }: { role: SessionIdentity['role'] }) {
-  const [cards, setCards] = useState<PriceCardVersion[]>([]);
+  const [cards, setCards] = useState<ModelPriceCard[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [meters, setMeters] = useState<
@@ -16,7 +16,7 @@ export function PriceCardPanel({ role }: { role: SessionIdentity['role'] }) {
   const load = useCallback(async () => {
     try {
       setCards(
-        items<PriceCardVersion>((await apiRequest<unknown>('/cost/price-cards?limit=100')).data),
+        items<ModelPriceCard>((await apiRequest<unknown>('/cost/price-cards?limit=100')).data),
       );
       setError(undefined);
     } catch (failure) {
