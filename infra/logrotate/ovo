@@ -1,0 +1,15 @@
+# OPS-17: host-side OVO logs that are written to files rather than the journal (for example a
+# cron-driven uptime probe redirecting to /var/log/ovo/uptime-probe.log). Container logs rotate in
+# Docker (compose x-logging, infra/docker/daemon.json); unit logs live in the bounded journal.
+# Install as /etc/logrotate.d/ovo.
+/var/log/ovo/*.log {
+	daily
+	rotate 14
+	maxsize 50M
+	compress
+	delaycompress
+	missingok
+	notifempty
+	create 0640 root adm
+	su root adm
+}

@@ -1,0 +1,13 @@
+# OPS-11: the second-opinion uptime probe, for a host OTHER than the call VM. Put
+# OVO_OPS_ALERT_WEBHOOK_URL in /etc/ovo/uptime-probe.env (mode 0600) and set the URL below.
+[Unit]
+Description=OVO external uptime probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/ovo/uptime-probe.env
+ExecStart=__OVO_REPO__/scripts/ops/uptime-probe.sh --url https://__OVO_PUBLIC_HOST__/ovo-gateway-health --state-file /var/lib/ovo-uptime-probe.state
+# A failed probe is the expected way to report DOWN; it must not mark the unit as broken.
+SuccessExitStatus=1

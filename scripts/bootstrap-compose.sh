@@ -6,6 +6,8 @@ ENV_FILE="$ROOT_DIR/infra/compose/.env"
 PROMPT_ADMIN=false
 MANAGED_POSTGRES=false
 MANAGED_SQS=false
+PUBLIC_HOST=
+CADDYFILE="$ROOT_DIR/infra/compose/Caddyfile"
 
 usage() {
   cat <<'EOF'
@@ -18,6 +20,10 @@ Options:
   --prompt-admin        Prompt for the first administrator email/password.
   --managed-postgres    Use OVO_BOOTSTRAP_DATABASE_URL instead of local PostgreSQL.
   --managed-sqs         Use OVO_BOOTSTRAP_QUEUE_URL instead of local ElasticMQ.
+  --public-host HOST    Serve a public host name: set OVO_MEDIA_PUBLIC_BASE_URL=https://HOST and
+                        OVO_ALLOW_LOCAL_HTTP=false (replacing earlier values), and render the
+                        reverse proxy config from infra/caddy/Caddyfile.template.
+  --caddyfile PATH      Where --public-host writes the Caddyfile (default infra/compose/Caddyfile).
   -h, --help            Show this help.
 
 Managed service inputs are read from environment variables so credentials do not
@@ -44,6 +50,16 @@ while (($#)); do
       MANAGED_SQS=true
       shift
       ;;
+    --public-host)
+      [[ $# -ge 2 ]] || { echo '--public-host requires a host name' >&2; exit 2; }
+      PUBLIC_HOST=$2
+      shift 2
+      ;;
+    --caddyfile)
+      [[ $# -ge 2 ]] || { echo '--caddyfile requires a path' >&2; exit 2; }
+      CADDYFILE=$2
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -61,6 +77,11 @@ command -v openssl >/dev/null || {
   exit 1
 }
 
+if [[ -n $PUBLIC_HOST ]] &&
+  ! [[ $PUBLIC_HOST =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]]; then
+  echo '--public-host must be a lower-case DNS name such as voice.example.in (no scheme or port)' >&2
+  exit 2
+fi
 if $MANAGED_POSTGRES && [[ -z ${OVO_BOOTSTRAP_DATABASE_URL:-} ]]; then
   echo 'OVO_BOOTSTRAP_DATABASE_URL is required with --managed-postgres' >&2
   exit 2
@@ -93,6 +114,15 @@ value_for() {
 append() {
   local key=$1 value=$2
   has_key "$key" || printf '%s=%s\n' "$key" "$value" >>"$ENV_FILE"
+}
+
+# Replaces every KEY= line, for settings an explicit option owns (--public-host).
+replace() {
+  local key=$1 value=$2
+  { grep -v "^$key=" "$ENV_FILE" || true; } >"$ENV_FILE.tmp"
+  printf '%s=%s\n' "$key" "$value" >>"$ENV_FILE.tmp"
+  chmod 600 "$ENV_FILE.tmp"
+  mv "$ENV_FILE.tmp" "$ENV_FILE"
 }
 
 random_hex() {
@@ -209,6 +239,19 @@ for key in TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN; do
   esac
   append "$key" ''
 done
+
+if [[ -n $PUBLIC_HOST ]]; then
+  replace OVO_MEDIA_PUBLIC_BASE_URL "https://$PUBLIC_HOST"
+  replace OVO_ALLOW_LOCAL_HTTP false
+  mkdir -p "$(dirname "$CADDYFILE")"
+  sed -e "s/__OVO_PUBLIC_HOST__/$PUBLIC_HOST/g" \
+    -e "s/__OVO_GATEWAY_PORT__/$(value_for GATEWAY_PORT)/g" \
+    -e "s/__OVO_CONSOLE_PORT__/$(value_for CONSOLE_PORT)/g" \
+    "$ROOT_DIR/infra/caddy/Caddyfile.template" >"$CADDYFILE"
+  chmod 644 "$CADDYFILE"
+  echo "Public host https://$PUBLIC_HOST: reverse proxy config written to $CADDYFILE."
+  echo "Install it: sudo install -m 644 $CADDYFILE /etc/caddy/Caddyfile && sudo systemctl reload caddy"
+fi
 
 if grep -Eq '(^|=)replace-with-|change-me|example-secret' "$ENV_FILE"; then
   echo "$ENV_FILE contains placeholder secrets; remove it and rerun bootstrap" >&2

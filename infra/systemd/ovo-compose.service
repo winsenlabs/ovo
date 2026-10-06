@@ -1,0 +1,22 @@
+# OPS-11: bring the Compose stack up at boot and stop it with the full call drain at shutdown.
+# Containers also carry `restart: unless-stopped`, which restarts a crashed service; this unit
+# covers boot after `compose stop` and orders the drain before Docker itself stops.
+# Installed by scripts/ops/install-host-units.sh, which replaces __OVO_REPO__.
+[Unit]
+Description=OVO voice stack (Docker Compose)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=__OVO_REPO__
+ExecStart=/usr/bin/docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml up -d --no-build --wait
+# Each service gets its stop_grace_period (300 s for the gateway and workers, which drain calls).
+ExecStop=/usr/bin/docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml stop
+TimeoutStartSec=900
+TimeoutStopSec=360
+
+[Install]
+WantedBy=multi-user.target
