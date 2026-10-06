@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildManagementApi } from '../src/bootstrap.ts';
 import { UserDirectory } from '../src/user-directory.ts';
-import { passwordIssues } from '../src/auth-password-policy.ts';
+import { assertPasswordPolicy, passwordIssues } from '../src/auth-password-policy.ts';
 import { LoginLockout } from '../src/auth-login-limiter.ts';
 import { sessionTtlSecondsFromEnv } from '../src/auth-env.ts';
 
@@ -19,6 +19,14 @@ describe('console password policy (OPS-15)', () => {
     ['Tejas@Ovo2026', ['contains_email']],
   ])('%s -> %j', (password, issues) => {
     expect(passwordIssues(password, { email: 'tejas@example.test' })).toEqual(issues);
+  });
+
+  it('refuses a weak new password with every broken rule, as a 422', () => {
+    expect(() => assertPasswordPolicy('Tr4in-Kettle-Lamp')).not.toThrow();
+    expect(() => assertPasswordPolicy('password')).toThrow(
+      expect.objectContaining({ statusCode: 422, code: 'weak_password' }),
+    );
+    expect(() => assertPasswordPolicy('password')).toThrow(/12 characters.*common passwords/);
   });
 
   it('flags the bootstrap password from the server environment', () => {

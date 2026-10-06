@@ -5,6 +5,7 @@ import { AgentConfig as AgentConfigSchema, TurnConfigSchema } from '@winsendotai
 import { emptyAgentConfig, type AgentConfig } from '../../lib/api';
 import { ComplianceEditor, DEFAULT_DISCLOSURE, type AgentCompliance } from './compliance-editor';
 import { DEFAULT_TURN_DETECTOR, TurnPacingEditor } from './turn-pacing-editor';
+import { CallPolicyPanels } from './call-policy-panels';
 
 afterEach(() => cleanup());
 
@@ -50,6 +51,7 @@ describe('outbound compliance editor', () => {
     });
     fireEvent.change(screen.getByLabelText('Until (exclusive)'), { target: { value: '07:00' } });
     expect(screen.getByText('End must be after start.')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Until (exclusive)'), { target: { value: '19:00' } });
     fireEvent.click(screen.getByLabelText(/Recording disclosure/));
     expect(compliance(read())?.disclosure).toEqual({ text: DEFAULT_DISCLOSURE });
     fireEvent.click(screen.getByLabelText(/stop calling me/));
@@ -130,5 +132,17 @@ describe('turn pacing editor (Wave 4 knobs)', () => {
       screen.getByText(/Speculation applies once the agent has a decision policy/),
     ).toBeTruthy();
     expect(read().voice).toBeUndefined();
+  });
+});
+
+describe('call policy panels', () => {
+  it('shows turn pacing only in agent mode, and compliance and the speech cache always', () => {
+    render(<CallPolicyPanels config={agent({ mode: 'faq' })} update={() => undefined} />);
+    expect(screen.queryByText('Turn pacing')).toBeNull();
+    expect(screen.getByText('Outbound compliance')).toBeTruthy();
+    expect(screen.getByText('Approved speech cache policy')).toBeTruthy();
+    cleanup();
+    render(<CallPolicyPanels config={agent()} update={() => undefined} />);
+    expect(screen.getByText('Turn pacing')).toBeTruthy();
   });
 });

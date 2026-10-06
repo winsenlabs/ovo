@@ -66,3 +66,16 @@ export const PASSWORD_ISSUE_TEXT: Record<PasswordIssue, string> = {
   common: 'Avoid common passwords and repeated patterns.',
   seed_password: 'Replace the bootstrap password from the server environment.',
 };
+
+/** Refuses a new password that fails the policy (422 `weak_password`), naming every rule it breaks. */
+export function assertPasswordPolicy(
+  password: string,
+  context: { email?: string; seedPassword?: string } = {},
+): void {
+  const issues = passwordIssues(password, context);
+  if (issues.length)
+    throw Object.assign(new Error(issues.map((code) => PASSWORD_ISSUE_TEXT[code]).join(' ')), {
+      statusCode: 422,
+      code: 'weak_password',
+    });
+}

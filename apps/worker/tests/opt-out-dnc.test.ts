@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Cap } from '@winsendotai/ovo-contracts';
 import type { Composition } from '@winsendotai/ovo-runtime';
-import { recordOptOut } from '../src/opt-out-dnc.ts';
+import { optOutRecorder, recordOptOut } from '../src/opt-out-dnc.ts';
+import { OPERATIONS_SERVICE_KEY } from '@winsendotai/ovo-plugin-operations';
 
 function composition(behavior: unknown): Pick<Composition, 'ctx'> {
   return {
@@ -76,6 +77,43 @@ describe('opt-out to the do-not-call list', () => {
       callId: 'call-4',
       telemetry: { audit },
     });
+    expect(audit).toHaveBeenLastCalledWith('compliance.opt-out.unrecorded', {
+      reason: 'do-not-call-unavailable',
+    });
+  });
+
+  it('finds the list in the worker composition when the call ends', async () => {
+    const add = vi.fn(async () => undefined);
+    const parent = {
+      ctx: {
+        get: (key: string) =>
+          key === OPERATIONS_SERVICE_KEY ? { campaigns: { doNotCall: { add } } } : undefined,
+      },
+    } as unknown as Pick<Composition, 'ctx'>;
+    const audit = vi.fn();
+    await optOutRecorder(
+      { parent },
+      { composition: composition({ optedOut: true }) },
+      { id: 'job-5', payload: { to: '+919800000005', callId: 'call-5' } },
+      { audit },
+    )();
+    expect(add).toHaveBeenCalledWith('+919800000005', expect.any(String), {
+      source: 'opt_out',
+      callId: 'call-5',
+    });
+    const missing = {
+      ctx: {
+        get: () => {
+          throw new Error('Missing capability');
+        },
+      },
+    } as unknown as Pick<Composition, 'ctx'>;
+    await optOutRecorder(
+      { parent: missing },
+      { composition: composition({ optedOut: true }) },
+      { id: 'job-6', payload: { to: '+919800000006' } },
+      { audit },
+    )();
     expect(audit).toHaveBeenLastCalledWith('compliance.opt-out.unrecorded', {
       reason: 'do-not-call-unavailable',
     });

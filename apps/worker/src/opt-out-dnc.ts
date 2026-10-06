@@ -1,5 +1,10 @@
 import { Cap } from '@winsendotai/ovo-contracts';
-import type { DoNotCallService } from '@winsendotai/ovo-plugin-operations';
+import {
+  OPERATIONS_SERVICE_KEY,
+  type DoNotCallService,
+  type OperationsService,
+} from '@winsendotai/ovo-plugin-operations';
+import type { DurableJob } from '@winsendotai/ovo-plugin-orchestration';
 import type { Composition } from '@winsendotai/ovo-runtime';
 import type { WorkerSessionTelemetry } from './telemetry-runtime.ts';
 
@@ -42,4 +47,30 @@ export async function recordOptOut(input: {
 function callerNumber(payload: Readonly<Record<string, unknown>>): string | undefined {
   const value = payload.kind === 'inbound_call' ? payload.from : payload.to;
   return typeof value === 'string' && value ? value : undefined;
+}
+
+/**
+ * The session cleanup step for a live call: lists the caller when the agent heard an opt-out. The
+ * do-not-call list comes from the worker's process composition (its operations service), read
+ * when the call ends; a worker without operations audits the opt-out as unrecorded.
+ */
+export function optOutRecorder(
+  host: { parent: Pick<Composition, 'ctx'> },
+  session: { composition: Pick<Composition, 'ctx'> },
+  job: Pick<DurableJob, 'id' | 'payload'>,
+  telemetry: Pick<WorkerSessionTelemetry, 'audit'>,
+): () => Promise<void> {
+  return () => {
+    let doNotCall: Pick<DoNotCallService, 'add'> | undefined;
+    try {
+      doNotCall = (host.parent.ctx.get(OPERATIONS_SERVICE_KEY) as OperationsService | undefined)
+        ?.campaigns.doNotCall;
+    } catch {
+      doNotCall = undefined;
+    }
+    const callId =
+      typeof job.payload.callId === 'string' && job.payload.callId ? job.payload.callId : job.id;
+    const { composition } = session;
+    return recordOptOut({ composition, doNotCall, payload: job.payload, callId, telemetry });
+  };
 }
