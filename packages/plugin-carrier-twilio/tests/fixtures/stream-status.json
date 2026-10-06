@@ -1,0 +1,21 @@
+{
+  "source": "https://www.twilio.com/docs/voice/twiml/stream",
+  "statusSource": "https://www.twilio.com/docs/voice/api/call-resource",
+  "retrieved": "2026-10-06",
+  "streamStatus": {
+    "AccountSid": "AC00000000000000000000000000000000",
+    "CallSid": "CA00000000000000000000000000000000",
+    "StreamSid": "MZ00000000000000000000000000000000",
+    "StreamName": "MZ00000000000000000000000000000000",
+    "StreamEvent": "stream-error",
+    "StreamError": "Stream - WebSocket - Connection Refused",
+    "Timestamp": "2026-10-06T10:00:00.000Z"
+  },
+  "callStatusWithoutSequence": {
+    "CallSid": "CA00000000000000000000000000000000",
+    "CallStatus": "completed",
+    "Timestamp": "Tue, 06 Oct 2026 10:00:05 +0000",
+    "CallbackSource": "call-progress-events"
+  },
+  "note": "Field names and the StreamEvent values are from the docs; the StreamError text is illustrative, not a published example. X-Twilio-Signature on stream status callbacks is inferred from the general webhook security page and is UNCONFIRMED for this callback type."
+}

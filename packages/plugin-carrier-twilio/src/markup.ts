@@ -32,7 +32,10 @@ export function connectMarkup(grant: Omit<StreamGrant, 'kind'>): string {
       return `<Parameter name="${xml(name)}" value="${xml(value)}"/>`;
     })
     .join('');
-  return `<Response><Connect><Stream url="${xml(media)}">${parameters}</Stream></Connect><Redirect method="POST">${xml(resume)}</Redirect></Response>`;
+  const status = grant.statusUrl
+    ? ` statusCallback="${xml(secureUrl(grant.statusUrl, 'https:'))}" statusCallbackMethod="POST"`
+    : '';
+  return `<Response><Connect><Stream url="${xml(media)}"${status}>${parameters}</Stream></Connect><Redirect method="POST">${xml(resume)}</Redirect></Response>`;
 }
 
 export function hangupMarkup(message?: string): string {
