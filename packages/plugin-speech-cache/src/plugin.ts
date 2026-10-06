@@ -73,7 +73,7 @@ const speechCacheConfigSchema = {
         required: ['text', 'purpose'],
         properties: {
           text: { type: 'string', minLength: 1, maxLength: 20_000 },
-          purpose: { enum: ['static-phrase', 'announcement'] },
+          purpose: { enum: ['static-phrase', 'announcement', 'scripted'] },
         },
         additionalProperties: false,
       },
