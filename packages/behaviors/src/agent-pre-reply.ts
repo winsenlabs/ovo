@@ -5,6 +5,7 @@ import type { DecisionGate } from './decision-gate.ts';
 import type { Grounding } from './grounding.ts';
 import { runGroundingStep } from './grounding-step.ts';
 import { authoredGuardrailTexts, ReplyGuardrail, type ReplyGuardrailInput } from './guardrail.ts';
+import type { SpeculativeLlm } from './speculation-llm.ts';
 
 export interface PreReplyInput {
   config: AgentConfig;
@@ -28,6 +29,11 @@ export interface PreReplyInput {
   stale: () => boolean;
   /** Checks the LLM's reply for values nobody declared; absent or `off` checks nothing. */
   guardrail?: ReplyGuardrailInput;
+  /**
+   * LAT-3: asks the LLM with this turn's context while the decision is still deciding; undefined
+   * when the agent does not speculate.
+   */
+  speculateLlm?: (context: string) => SpeculativeLlm | undefined;
 }
 
 export interface PreReply {
@@ -66,6 +72,7 @@ export async function runPreReplySteps({
   stale,
   render,
   guardrail,
+  speculateLlm,
 }: PreReplyInput): Promise<PreReply> {
   let retrieved = '';
   if (grounding) {
@@ -101,14 +108,27 @@ export async function runPreReplySteps({
       : undefined;
   const checked = guard ? { guard: (segment: string) => guard.check(segment) } : {};
   if (gate) {
-    const answered = await runDecisionStep(gate, {
-      turn: { ...turnInput, context: briefing, retrieved },
-      signal,
-      clarification: config.clarification,
-      record: (result) => log.decision(turn, result),
-      stale,
-      render,
-    });
+    // LAT-3: the LLM is asked only once the turn has to wait for the decision model, never for a
+    // turn the rules tier or a decision prepared on the partial transcript already answers.
+    let llm: SpeculativeLlm | undefined;
+    const waiting = speculateLlm && (() => (llm ??= speculateLlm(context)));
+    let answered;
+    try {
+      answered = await runDecisionStep(gate, {
+        turn: { ...turnInput, context: briefing, retrieved },
+        signal,
+        clarification: config.clarification,
+        record: (result) => log.decision(turn, result),
+        stale,
+        render,
+        ...(waiting ? { waiting } : {}),
+      });
+    } catch (error) {
+      llm?.abort('the turn ended before its decision');
+      throw error;
+    }
+    // A scripted line or the clarification answers the turn: the LLM's answer is not needed.
+    if (answered.speak !== undefined) llm?.abort();
     return { ...answered, context, ...checked };
   }
   return { context, ...checked };

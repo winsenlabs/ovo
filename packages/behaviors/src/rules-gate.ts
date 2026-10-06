@@ -17,6 +17,7 @@ import {
   type DecisionTurn,
 } from './decision-gate.ts';
 import { RuleMatcher } from './rules.ts';
+import { DecisionSpeculation, type SpeculationPolicy } from './speculation.ts';
 
 /** The `modelId` of a verdict the rules tier settled with no decision-model call. */
 export const RULES_MODEL_ID = 'ovo.rules';
@@ -37,26 +38,116 @@ export class RuledDecisionGate extends DecisionGate {
    * it at the start of every caller turn too, since some turns never ask the gate.
    */
   last?: DecisionGateResult;
+  /** LAT-4: the verdict on the caller's partial transcript, when the policy speculates. */
+  private readonly speculation?: DecisionSpeculation;
+  /** Set while the decision model is asked, so a speculative call can be counted as one. */
+  private readonly probe: { asked: boolean };
 
   constructor(
     private readonly authored: AgentDecisionPolicy,
     port: DecisionPort | undefined,
     private readonly rules?: RuleMatcher,
     clock?: DecisionClock,
+    speculation?: Pick<SpeculationPolicy, 'partials' | 'debounceMs' | 'match'>,
   ) {
+    const probe = { asked: false };
     // With a flow, the authored phrases still win; the rules tier then tries the listen set's own
     // rules and the global ones before the decision model is asked.
-    super(authored, port, clock, {
-      rules: (reply, listen, flow) =>
-        matchFlowPhrase(flow, listen, reply) ?? rules?.match(reply, listen)?.intent,
-    });
+    super(
+      authored,
+      port && {
+        decide: (request, options) => {
+          probe.asked = true;
+          return port.decide(request, options);
+        },
+      },
+      clock,
+      {
+        rules: (reply, listen, flow) =>
+          matchFlowPhrase(flow, listen, reply) ?? rules?.match(reply, listen)?.intent,
+      },
+    );
+    this.probe = probe;
+    if (speculation?.partials && authored.enabled && (this.flow || authored.questions.length))
+      this.speculation = new DecisionSpeculation(speculation, (turn, signal) =>
+        this.ask(turn, signal),
+      );
   }
 
-  override async evaluate(turn: DecisionTurn, signal: AbortSignal): Promise<DecisionGateResult> {
+  /** What speculation on partial transcripts did; undefined when this gate does not speculate. */
+  get speculationMetrics() {
+    return this.speculation?.metrics;
+  }
+
+  /** LAT-4: decide on utterance `turnId`'s partial transcript before the caller's turn ends. */
+  prepare(turnId: string, turn: DecisionTurn, stable: boolean): void {
+    const state = this.speculationState(turn);
+    if (state) this.speculation?.offer(turnId, turn, state, stable);
+  }
+
+  /** A turn started or was cancelled: a partial still waiting out its debounce is not decided. */
+  closePrepared(): void {
+    this.speculation?.closeOffers();
+  }
+
+  /** Utterance `turnId` will not be answered as heard: what was decided for it is dropped. */
+  discardPrepared(turnId: string): void {
+    this.speculation?.discard(turnId);
+  }
+
+  override async evaluate(
+    turn: DecisionTurn,
+    signal: AbortSignal,
+    waiting?: () => void,
+  ): Promise<DecisionGateResult> {
     this.last = undefined;
-    const verdict = await this.decide(turn, signal);
+    // Without a decision prepared for these words, the model is asked on this tick, as before.
+    const pending = this.speculation?.take(
+      turn,
+      this.speculationState(turn) ?? '',
+      signal,
+      waiting,
+    );
+    const prepared = pending && (await pending);
+    if (pending) signal.throwIfAborted();
+    let verdict = prepared && this.restamp(prepared);
+    if (!verdict) {
+      const asked = this.ask(turn, signal);
+      if (asked.asked) waiting?.();
+      verdict = await asked.verdict;
+    }
     this.last = verdict;
     return verdict;
+  }
+
+  /** `decide`, and whether it asked the model: that happens on this tick, before any await. */
+  private ask(turn: DecisionTurn, signal: AbortSignal) {
+    this.probe.asked = false;
+    const verdict = this.decide(turn, signal);
+    const asked = this.probe.asked;
+    this.probe.asked = false;
+    return { verdict, asked };
+  }
+
+  /**
+   * Everything but the words that the verdict depends on. Retrieved passages are left out: an agent
+   * whose policy reads them does not speculate (`AgentBehavior`).
+   */
+  private speculationState(turn: DecisionTurn): string | undefined {
+    const { history, variables, context, today } = turn;
+    try {
+      return JSON.stringify([this.flow?.state ?? null, history, variables, context, today ?? null]);
+    } catch {
+      // swallow-ok: variables JSON cannot carry (a BigInt) only mean this turn is not speculated.
+      return undefined;
+    }
+  }
+
+  /** A reused flow step is dated when the turn takes it, not when the partial was decided. */
+  private restamp(verdict: DecisionGateResult): DecisionGateResult {
+    if (verdict.kind !== 'flow') return verdict;
+    const transition = { ...verdict.step.transition, at: new Date().toISOString() };
+    return { kind: 'flow', step: { ...verdict.step, transition } };
   }
 
   private async decide(turn: DecisionTurn, signal: AbortSignal): Promise<DecisionGateResult> {
@@ -93,12 +184,15 @@ export class RuledDecisionGate extends DecisionGate {
 export function ruledDecisionGate(
   config: AgentConfig,
   port: DecisionPort | undefined,
+  speculation?: Pick<SpeculationPolicy, 'partials' | 'debounceMs' | 'match'>,
 ): RuledDecisionGate | undefined {
   if (!config.decision) return undefined;
   return new RuledDecisionGate(
     config.decision,
     port,
     config.rules && new RuleMatcher(config.rules),
+    undefined,
+    speculation,
   );
 }
 

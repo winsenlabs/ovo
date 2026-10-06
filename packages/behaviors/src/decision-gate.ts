@@ -90,7 +90,15 @@ export class DecisionGate {
       });
   }
 
-  async evaluate(turn: DecisionTurn, signal: AbortSignal): Promise<DecisionGateResult> {
+  /**
+   * `waiting` is called when the turn is about to wait on the decision model, for work that should
+   * overlap with it (LAT-3); a gate that cannot tell (this one) never calls it.
+   */
+  async evaluate(
+    turn: DecisionTurn,
+    signal: AbortSignal,
+    _waiting?: () => void,
+  ): Promise<DecisionGateResult> {
     if (!this.policy.enabled) return { kind: 'off' };
     if (this.flow) return { kind: 'flow', step: await this.flow.next(turn, signal) };
     // No questions is a script's policy: it only widens transition matching (`script.ts`).
