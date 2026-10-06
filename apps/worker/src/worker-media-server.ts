@@ -40,6 +40,7 @@ export class WorkerMediaLink implements WorkerMediaSession {
   private readonly cleared = new Set<() => void>();
   private readonly dtmf = new Set<(digit: string) => void>();
   private readonly answeredBy = new Set<(value: 'human' | 'machine' | 'unknown') => void>();
+  private answered?: 'human' | 'machine' | 'unknown';
   private readonly closeListeners = new Set<(reason: string) => void>();
 
   constructor(
@@ -134,6 +135,8 @@ export class WorkerMediaLink implements WorkerMediaSession {
     if (this.closed) return;
     if (message.type === 'session.open') throw new Error('duplicate session.open');
     if (message.type === 'session.close') return this.gatewayClosed(message.reason);
+    // Not held with caller audio: the verdict gates the opening, which plays before activation.
+    if (message.type === 'call.answered-by') return this.answer(message.value);
     if (this.activated) return this.dispatch(message);
     // Caller audio is held until the voice session opens.
     const dropped = this.pending.hold(message);
@@ -158,7 +161,7 @@ export class WorkerMediaLink implements WorkerMediaSession {
     } else if (message.type === 'media.dtmf') {
       for (const listener of this.dtmf) listener(message.digit);
     } else if (message.type === 'call.answered-by') {
-      for (const listener of this.answeredBy) listener(message.value);
+      this.answer(message.value);
     } else if (message.type === 'session.close') this.gatewayClosed(message.reason);
   }
 
@@ -232,8 +235,16 @@ export class WorkerMediaLink implements WorkerMediaSession {
   onDtmf(fn: (digit: string) => void): () => void {
     return this.subscribe(this.dtmf, fn);
   }
+  /** The carrier's answering-machine verdict, once; a subscriber that arrives later still hears it. */
   onAnsweredBy(fn: (value: 'human' | 'machine' | 'unknown') => void): () => void {
+    const known = this.answered;
+    if (known) queueMicrotask(() => this.answeredBy.has(fn) && fn(known));
     return this.subscribe(this.answeredBy, fn);
+  }
+  private answer(value: 'human' | 'machine' | 'unknown'): void {
+    if (this.answered) return;
+    this.answered = value;
+    for (const listener of this.answeredBy) listener(value);
   }
   onClose(fn: (reason: string) => void): () => void {
     return this.subscribe(this.closeListeners, fn);

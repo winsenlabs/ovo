@@ -7,8 +7,12 @@ import type {
 } from '@winsendotai/ovo-contracts';
 import { raceAbort } from '../async.ts';
 import { BoundedSpeechScheduler } from '../scheduler.ts';
+import type { AnsweredBy } from './answered-by-gate.ts';
 import { VoiceEventBus } from './events.ts';
 import { TurnLatency } from './latency.ts';
+import { describeError, logVoiceEvent } from './log.ts';
+
+export type DriverEndReason = 'behavior_completed' | 'caller_idle' | 'voicemail' | 'error:turn';
 
 /** Coordinates behavior, speech epochs, and receipts across initial, STT and DTMF turns. */
 export class TurnDriver {
@@ -17,6 +21,8 @@ export class TurnDriver {
   private interrupting: Promise<void> = Promise.resolve();
   private serial: Promise<void> = Promise.resolve();
   private stopped = false;
+  /** Set once the call is being ended for an answering machine; no new turn starts. */
+  private closing = false;
   private nextTurn = 0;
   private activeTurn?: AbortController;
   private readonly epochTurns = new Map<number, string>();
@@ -31,13 +37,13 @@ export class TurnDriver {
     private readonly session: SessionInput,
     private readonly events: VoiceEventBus,
     private readonly latency: TurnLatency,
-    private readonly end: (reason: 'behavior_completed' | 'caller_idle' | 'error:turn') => void,
+    private readonly end: (reason: DriverEndReason, detail?: string) => void,
     private readonly maxConcurrentTurns: number,
     private readonly media: MediaDuplex,
   ) {}
 
   decide(decision: TurnDecision): void {
-    if (this.stopped) return;
+    if (this.stopped || this.closing) return;
     if (decision.type === 'force-endpoint') return;
     if (decision.type === 'interrupt') {
       this.events.emit({ type: 'interrupt', reason: decision.reason });
@@ -77,6 +83,57 @@ export class TurnDriver {
     this.queue(input, {}, 'initial-' + ++this.nextTurn);
   }
 
+  /** The speak-first opening turn: `respond('', { inputEvent: 'opening' })`, before any caller turn. */
+  opening(answeredBy?: AnsweredBy): void {
+    this.queue(
+      '',
+      { inputEvent: 'opening', ...(answeredBy ? { answeredBy } : {}) },
+      'opening-' + ++this.nextTurn,
+    );
+  }
+
+  /**
+   * An answering machine picked up. Whatever is playing or being composed is cut off, the
+   * behaviour's message (if it has one) is left on the machine, and the call ends as `voicemail`.
+   * A behaviour that does not handle voicemail keeps the call exactly as before; returns false then.
+   */
+  voicemail(): boolean {
+    if (this.stopped || this.closing) return false;
+    let message: string | undefined;
+    let failed = false;
+    try {
+      message = this.behavior.voicemail?.(structuredClone(this.session.variables))?.trim();
+    } catch (error) {
+      // A message that cannot render is not left, but the machine still gets no conversation.
+      this.log('voicemail_message_failed', error);
+      message = '';
+      failed = true;
+    }
+    if (message === undefined) return false;
+    this.closing = true;
+    this.activeTurn?.abort(new DOMException('answering machine', 'AbortError'));
+    this.behavior.cancel?.();
+    const text = message;
+    const task = (async () => {
+      await this.interrupting;
+      const epoch = await this.speech.beginEpoch();
+      if (this.stopped || !text) return;
+      await this.speech.speak(text, { epoch, kind: 'response' });
+    })();
+    this.tasks.add(task);
+    const detail = `voicemail:${failed ? 'message-failed' : text ? 'message' : 'hangup'}`;
+    void task
+      .then(
+        () => this.end('voicemail', detail),
+        (error: unknown) => {
+          this.log('voicemail_message_failed', error);
+          this.end('voicemail', 'voicemail:message-failed');
+        },
+      )
+      .finally(() => this.tasks.delete(task));
+    return true;
+  }
+
   async dispose(): Promise<void> {
     this.stopped = true;
     this.activeTurn?.abort(new DOMException('engine disposed', 'AbortError'));
@@ -93,7 +150,13 @@ export class TurnDriver {
     const task = this.serial.catch(() => undefined).then(() => this.run(input, extra, turnId));
     this.serial = task;
     this.tasks.add(task);
-    void task.catch(() => this.end('error:turn')).finally(() => this.tasks.delete(task));
+    void task
+      .catch((error: unknown) => {
+        // Without this line a failed turn leaves only `error:turn` behind.
+        this.log('turn_failed', error, { turnId });
+        this.end('error:turn');
+      })
+      .finally(() => this.tasks.delete(task));
   }
 
   private async run(input: string, extra: Record<string, unknown>, turnId: string): Promise<void> {
@@ -104,9 +167,9 @@ export class TurnDriver {
     try {
       await this.interrupting;
       await this.deliverReceipts();
-      if (this.stopped || turn.signal.aborted) return;
+      if (this.stopped || this.closing || turn.signal.aborted) return;
       epoch = await this.speech.beginEpoch();
-      if (this.stopped || turn.signal.aborted) return;
+      if (this.stopped || this.closing || turn.signal.aborted) return;
       this.epochTurns.set(epoch, turnId);
       this.behavior.beginTurn?.(epoch);
       this.latency.start(turnId);
@@ -126,30 +189,20 @@ export class TurnDriver {
             // aggregation. The worker times each of those at its provider port.
             this.latency.stage(turnId, 'behavior_first_segment');
           }
-          this.track(
-            this.speech.speak(text, {
-              epoch,
-              kind: this.behavior.speechKind?.(text) ?? 'response',
-            }),
-          );
+          this.say(text, epoch);
         }
       } else {
         const text = await raceAbort(this.behavior.respond(input, variables), turn.signal);
         if (!this.stopped && epoch === this.speech.epoch && text.trim()) {
           this.latency.stage(turnId, 'behavior_first_segment');
-          this.track(
-            this.speech.speak(text, {
-              epoch,
-              kind: this.behavior.speechKind?.(text) ?? 'response',
-            }),
-          );
+          this.say(text, epoch);
         }
       }
       if (turn.signal.aborted) return;
       await this.deliverReceipts();
       await this.interrupting;
       if (!this.stopped && epoch === this.speech.epoch && this.behavior.isComplete?.())
-        this.end('behavior_completed');
+        this.end('behavior_completed', this.behavior.completionReason?.());
     } catch (error) {
       if (!turn.signal.aborted) throw error;
     } finally {
@@ -166,17 +219,25 @@ export class TurnDriver {
     }
   }
 
-  private track(receipt: Promise<SpeechReceipt>): void {
+  private say(text: string, epoch: number): void {
+    const kind = this.behavior.speechKind?.(text) ?? 'response';
+    this.track(this.speech.speak(text, { epoch, kind }), text);
+  }
+
+  /** `said`: the behaviour's own line. The receipt carries the filtered text, which it can't match. */
+  private track(receipt: Promise<SpeechReceipt>, said?: string): void {
     let delivery!: Promise<void>;
     delivery = receipt
       .then((value) =>
-        this.behavior.onPlayback?.(
-          value.evidence === 'confirmed' &&
-            this.media.playbackEvidence === 'carrier-processed' &&
-            this.session.acknowledgements.includes('weak-playback-evidence')
-            ? { ...value, evidenceSource: 'carrier-processed' }
-            : value,
-        ),
+        this.behavior.onPlayback?.({
+          ...value,
+          ...(said === undefined ? {} : { text: said }),
+          ...(value.evidence === 'confirmed' &&
+          this.media.playbackEvidence === 'carrier-processed' &&
+          this.session.acknowledgements.includes('weak-playback-evidence')
+            ? { evidenceSource: 'carrier-processed' as const }
+            : {}),
+        }),
       )
       .then(() => undefined)
       .catch(() => {
@@ -192,5 +253,13 @@ export class TurnDriver {
 
   private async deliverReceipts(): Promise<void> {
     while (this.receipts.size) await Promise.all([...this.receipts]);
+  }
+
+  private log(event: string, error: unknown, fields: Record<string, unknown> = {}): void {
+    logVoiceEvent('error', event, {
+      sessionId: this.media.sessionId,
+      ...fields,
+      error: describeError(error),
+    });
   }
 }

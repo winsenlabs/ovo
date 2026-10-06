@@ -85,6 +85,7 @@ export function createProductionWorkerMediaRuntime(input: {
       input.speechCache,
       input.graph,
       async (_job, route, reason) => terminate(route, reason, true),
+      { pool: input.store.pool },
     ),
     async (route, reason) => {
       await input.costs.finalize(route.jobId);

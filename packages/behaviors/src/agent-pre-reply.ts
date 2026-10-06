@@ -11,11 +11,16 @@ export interface PreReplyInput {
   gate?: DecisionGate;
   /** The agent's own briefing text, before anything retrieved is added to it. */
   briefing: string;
+  /** This call's facts for the LLM. The decision model reads variables through its own source. */
+  facts: string;
   turnInput: {
     input: string;
     history: readonly { role: 'user' | 'assistant'; content: string }[];
     variables: Readonly<Record<string, unknown>>;
+    today: string;
   };
+  /** Renders an authored line with this call's variables. */
+  render: (line: string) => string;
   signal: AbortSignal;
   log: AgentTurnLog;
   turn: number;
@@ -25,8 +30,10 @@ export interface PreReplyInput {
 export interface PreReply {
   /** Set when the turn is already answered and the LLM must not be asked. */
   speak?: string;
-  /** The briefing the LLM should see, with any retrieved passages appended. */
+  /** The briefing the LLM should see, with the call facts and any retrieved passages appended. */
   context: string;
+  /** A trusted decision ends the call once this turn's reply has played. */
+  end?: string;
 }
 
 /**
@@ -41,11 +48,13 @@ export async function runPreReplySteps({
   grounding,
   gate,
   briefing,
+  facts,
   turnInput,
   signal,
   log,
   turn,
   stale,
+  render,
 }: PreReplyInput): Promise<PreReply> {
   let retrieved = '';
   if (grounding) {
@@ -60,7 +69,10 @@ export async function runPreReplySteps({
     if (step.refuse !== undefined) return { speak: step.refuse, context: briefing };
     if (step.result.kind === 'grounded') retrieved = step.result.rendered;
   }
-  const context = retrieved ? `${briefing}\n\n${retrieved}`.trim() : briefing;
+  const context =
+    facts || retrieved
+      ? [briefing, facts, retrieved].filter(Boolean).join('\n\n').trim()
+      : briefing;
   if (gate) {
     const answered = await runDecisionStep(gate, {
       turn: { ...turnInput, context: briefing, retrieved },
@@ -68,8 +80,9 @@ export async function runPreReplySteps({
       clarification: config.clarification,
       record: (result) => log.decision(turn, result),
       stale,
+      render,
     });
-    if (answered !== undefined) return { speak: answered, context };
+    return { ...answered, context };
   }
   return { context };
 }

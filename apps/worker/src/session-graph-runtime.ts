@@ -33,6 +33,7 @@ import type { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
 import { createV2SpeechCachePlugin } from './speech-cache-v2.ts';
 import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
 import { adaptV1Engine } from './v1-engine-adapter.ts';
+import { holdOpeningForAnsweringMachine } from './answering-machine.ts';
 
 export interface LiveGraphOptions {
   distribution: LoadedDistribution;
@@ -62,6 +63,10 @@ export async function composeLiveSessionGraph(input: {
   speechCache?: WorkerSpeechCacheRuntime;
   carrierMedia: LiveCarrierMedia;
   beforeMediaClose?: (reason: EndReason) => Promise<void>;
+  /** Set on an outbound leg dialled with answering-machine detection. */
+  amd?: { timeoutMs: number };
+  /** The carrier's verdict, from the media link or the durable callback. */
+  answeredBy?: NonNullable<MediaDuplex['onAnsweredBy']>;
 }): Promise<GraphSessionResult> {
   const { release, graph, telemetry } = input;
   const registry = new PluginRegistry([
@@ -79,17 +84,20 @@ export async function composeLiveSessionGraph(input: {
     },
   );
   let closing: Promise<void> | undefined;
-  const media: MediaDuplex = input.beforeMediaClose
-    ? Object.assign(Object.create(legacyMedia) as MediaDuplex, {
-        close: async (reason: EndReason) => {
-          closing ??= input.beforeMediaClose!(reason);
-          try {
-            await closing;
-          } finally {
-            await legacyMedia.close(reason);
-          }
-        },
-      })
+  const overrides: Partial<Pick<MediaDuplex, 'close' | 'onAnsweredBy'>> = {};
+  if (input.beforeMediaClose)
+    overrides.close = async (reason: EndReason) => {
+      closing ??= input.beforeMediaClose!(reason);
+      try {
+        await closing;
+      } finally {
+        await legacyMedia.close(reason);
+      }
+    };
+  // The legacy transport shim has no answering-machine channel; the engine reads it from here.
+  if (input.answeredBy) overrides.onAnsweredBy = input.answeredBy;
+  const media: MediaDuplex = Object.keys(overrides).length
+    ? Object.assign(Object.create(legacyMedia) as MediaDuplex, overrides)
     : legacyMedia;
   const usage: UsageSink = (event) => {
     input.usage?.(event);
@@ -224,6 +232,7 @@ export async function composeLiveSessionGraph(input: {
         updatedAt: binding.updatedAt,
       };
   }
+  if (input.amd) holdOpeningForAnsweringMachine(result.rows, selected.definition, input.amd);
   const catalog = result.catalog.map((definition) =>
     instrumentSessionPlugin(definition, telemetry),
   );

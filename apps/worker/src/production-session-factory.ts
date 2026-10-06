@@ -27,6 +27,12 @@ import {
 } from './session-graph-runtime.ts';
 import { composeLegacySessionGraph } from './legacy-session-compat.ts';
 import { attachRecordingEvidence } from './recording-evidence.ts';
+import {
+  answeringMachineFor,
+  AnsweredByVerdicts,
+  watchAnsweredBy,
+  type AnsweredByWatch,
+} from './answering-machine.ts';
 
 export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
   constructor(
@@ -49,6 +55,8 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
       route: SessionRoute,
       reason: EndReason,
     ) => Promise<void>,
+    /** Where the carrier's answering-machine callback is recorded, read for outbound calls. */
+    private readonly answeredBy?: Pick<AnsweredByWatch, 'pool'>,
   ) {}
 
   async create({ job, route, media }: Parameters<VoiceSessionFactory['create']>[0]) {
@@ -111,6 +119,22 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
           )
         )
           throw new Error('Selected carrier does not support negotiated worker media format');
+        const amd = answeringMachineFor(release.config, job.payload, carrier.carrier.capabilities);
+        const verdicts = amd ? new AnsweredByVerdicts() : undefined;
+        if (amd && verdicts) {
+          const unsubscribe =
+            media.onAnsweredBy?.((value) => verdicts.deliver(value)) ?? (() => undefined);
+          cleanup.defer(() => unsubscribe());
+          if (this.answeredBy) {
+            const stop = watchAnsweredBy({
+              pool: this.answeredBy.pool,
+              route,
+              deliver: (value) => verdicts.deliver(value),
+              fastForMs: amd.timeoutMs,
+            });
+            cleanup.defer(() => stop());
+          }
+        }
         const graph = await composeLiveSessionGraph({
           graph: this.graph,
           release,
@@ -132,6 +156,9 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
           beforeMediaClose: this.beforeEngineMediaClose
             ? (reason) => this.beforeEngineMediaClose!(job, route, reason)
             : undefined,
+          ...(amd && verdicts
+            ? { amd, answeredBy: (listener) => verdicts.subscribe(listener) }
+            : {}),
         });
         cleanup.defer(() => graph.composition.dispose());
         const unsubscribe = subscribeEngineTelemetry(graph.engine, telemetry);

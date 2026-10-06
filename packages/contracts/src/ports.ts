@@ -113,6 +113,22 @@ export interface Behavior {
   onPlayback?(receipt: SpeechReceipt): void | Promise<void>;
   beginTurn?(epoch: number): void;
   isComplete?(): boolean;
+  /**
+   * Why the behaviour completed, read once `isComplete()` is true, for the call record (for example
+   * `decision:intent=goodbye` or `llm:end_call`). The outcome is still `completed`.
+   */
+  completionReason?(): string | undefined;
+  /**
+   * True when the behaviour speaks before the caller does. The engine then runs one opening turn,
+   * `respond('', { inputEvent: 'opening' })`, without waiting for speech recognition.
+   */
+  speaksFirst?(): boolean;
+  /**
+   * The carrier reported an answering machine. Returns the message to leave, or '' to end the call
+   * without one. `undefined`, or no such method, leaves the call as it is: the engine only records
+   * the verdict, and a held opening plays.
+   */
+  voicemail?(variables: Record<string, unknown>): string | undefined;
   /** 'confirmation' for the pending confirmation prompt. */
   speechKind?(text: string): SpeechKindV2 | undefined;
   subscribe?(fn: (event: BehaviorEvent) => void): () => void;
