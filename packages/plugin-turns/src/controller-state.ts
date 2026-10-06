@@ -8,6 +8,7 @@ import {
   type SttEvent,
   type TurnConfig,
   type TurnDecision,
+  type VoiceEvent,
 } from '@winsendotai/ovo-contracts';
 import { TurnAggregator } from './aggregator.ts';
 import { TurnAnnouncer } from './announce.ts';
@@ -15,7 +16,7 @@ import { DetectorConfigSchema, type DetectorConfig } from './config.ts';
 import { DtmfCollector } from './dtmf.ts';
 import { IdleTimer } from './idle.ts';
 import { canInterrupt, confirmationPrompt, speechMuted, type MuteView } from './mute.ts';
-import { containsConfirmationPhrase, speechCanInterrupt } from './start-min-words.ts';
+import { acknowledges, containsConfirmationPhrase, speechCanInterrupt } from './start-min-words.ts';
 import { transcriptStartsTurn } from './start-transcript.ts';
 import { CommitTimers } from './stop-commit.ts';
 import { SpeechStopTimers } from './stop-speech-timeout.ts';
@@ -43,7 +44,7 @@ export abstract class TurnControllerState {
   protected cancelSafety?: () => void;
   protected turnId?: string;
   protected sequence = 0;
-  protected bot?: { epoch: number; kind?: MuteView['kind']; question?: boolean };
+  protected bot?: Omit<Extract<VoiceEvent, { epoch: number }>, 'type' | 'atMs'>;
   protected interruptedEpoch?: number;
   protected firstSpeechComplete = false;
   protected tools = 0;
@@ -180,7 +181,7 @@ export abstract class TurnControllerState {
         this.deferredStop = true;
         return;
       }
-      if (!speechCanInterrupt(text, this.input.language, this.config, false)) {
+      if (acknowledges(text, this.input.language, this.config, this.bot.filler)) {
         // AGT-9: a short reply over a question answers it once the agent stops; otherwise it only
         // acknowledges the agent and is no turn at all.
         if (this.bot.question) this.deferredStop = true;
@@ -236,7 +237,7 @@ export abstract class TurnControllerState {
       this.emit({ type: 'interrupt', reason: 'transcript' });
     }
     // LAT-4: the utterance so far, once it is speech the agent will answer rather than ignore.
-    if (!this.bot || this.interruptedEpoch === this.bot.epoch)
+    if (!this.bot || this.bot.filler || this.interruptedEpoch === this.bot.epoch)
       this.announcer.partial(this.turnId!, this.aggregate.view, this.aggregate.text);
     if (segment.stability === 'final') {
       this.finalSeen = true;

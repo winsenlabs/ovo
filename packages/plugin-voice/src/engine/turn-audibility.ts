@@ -38,6 +38,11 @@ export class ReplyAudibility {
     return epoch !== undefined && this.heard.has(epoch);
   }
 
+  /** True while the line is a filler that has not finished. */
+  isFiller(segmentId: string): boolean {
+    return this.fillers.has(segmentId);
+  }
+
   /** Runs `speak`, marking the line it schedules (synchronously) as a filler. */
   filler<T>(speak: () => T): T {
     this.capturing = true;

@@ -72,7 +72,12 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         break;
       case 'bot.started':
         this.idle.cancel();
-        this.bot = { epoch: event.epoch, kind: event.kind, question: event.question };
+        this.bot = {
+          epoch: event.epoch,
+          kind: event.kind,
+          question: event.question,
+          filler: event.filler,
+        };
         if (speechMuted(this.view(), this.rules)) this.reset('muted');
         break;
       case 'bot.stopped':

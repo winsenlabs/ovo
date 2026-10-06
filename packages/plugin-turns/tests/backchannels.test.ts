@@ -170,6 +170,38 @@ describe('filler offers (LAT-6)', () => {
   });
 });
 
+describe('speech over a filler line (LAT-6 with AGT-9)', () => {
+  const filler = () =>
+    ({ type: 'bot.started', epoch: 1, kind: 'acknowledgment', filler: true }) as const;
+
+  it('takes a one-word continuation as a turn, as in silence', () => {
+    const f = fixture();
+    f.send(filler());
+    f.say('Tejas');
+    expect(f.of('turn.reset')).toEqual([]);
+    expect(f.turns()).toEqual(['Tejas']);
+    expect(f.of('turn.partial').map((d) => d.text)).toEqual(['Tejas']);
+  });
+
+  it('still drops a backchannel that acknowledges the filler', () => {
+    const f = fixture();
+    f.send(filler());
+    f.say('ok');
+    f.say('haan ji');
+    expect(f.turns()).toEqual([]);
+    expect(f.of('turn.reset').map((d) => d.reason)).toEqual(['backchannel', 'backchannel']);
+  });
+
+  it('goes back to backchannel rules once the reply itself is audible', () => {
+    const f = fixture();
+    f.send(filler());
+    f.send({ type: 'bot.started', epoch: 1, kind: 'response' });
+    f.say('Tejas');
+    expect(f.turns()).toEqual([]);
+    expect(f.of('turn.reset').map((d) => d.reason)).toEqual(['backchannel']);
+  });
+});
+
 describe('turnDetectorLines', () => {
   it('reads idle prompts and filler lines past detector-specific fields', () => {
     expect(

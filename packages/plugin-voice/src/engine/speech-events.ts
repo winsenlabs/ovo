@@ -12,6 +12,7 @@ interface Line {
   epoch: number;
   kind: SpeechKindV2;
   question: boolean;
+  filler: boolean;
 }
 
 /** These protect caller input from the moment they are scheduled, before any audio. */
@@ -26,7 +27,7 @@ export class SpeechEventProjector {
   private readonly syntheticTurns = new Set<string>();
   private readonly activeByEpoch = new Map<
     number,
-    { segments: Set<string>; kind: SpeechKindV2; question: boolean }
+    { segments: Set<string>; kind: SpeechKindV2; question: boolean; filler: boolean }
   >();
   /** Lines scheduled while the agent is silent, still waiting for their first audio. */
   private readonly waiting = new Map<string, Line>();
@@ -41,6 +42,8 @@ export class SpeechEventProjector {
     private readonly latency: TurnLatency,
     private readonly turnForEpoch: (epoch: number) => string | undefined,
     private readonly emit: (event: EngineEvent) => void,
+    /** True for a LAT-6 filler line, which holds the floor but answers nothing. */
+    private readonly isFiller: (segmentId: string) => boolean = () => false,
   ) {}
 
   onTiming(phase: SpeechTimingPhase, segment: SpeechSegment, elapsedMs = 0): void {
@@ -97,6 +100,7 @@ export class SpeechEventProjector {
         epoch: evidence.epoch,
         kind: evidence.kind as SpeechKindV2,
         question: QUESTION.test(evidence.text),
+        filler: this.isFiller(evidence.segmentId),
       };
       // AGT-9: the agent starts speaking when its audio reaches the carrier, not while the first
       // line is still being synthesised; a caller who talks during that wait is taking a turn. A
@@ -159,13 +163,22 @@ export class SpeechEventProjector {
     // Overlapping playback shares one speaking interval. A response must never
     // unmute a confirmation/disclosure whose receipt is still outstanding.
     const protectedKind = active?.kind === 'confirmation' || active?.kind === 'disclosure';
+    // The reply's own line joins an interval that only a filler had opened.
+    const answers = !!active?.filler && !line.filler;
     const promote =
       !active ||
+      answers ||
       (!protectedKind && kind === 'confirmation') ||
       (active.kind !== 'disclosure' && kind === 'disclosure');
-    const group = active ?? { segments: new Set<string>(), kind, question: false };
+    const group = active ?? {
+      segments: new Set<string>(),
+      kind,
+      question: false,
+      filler: line.filler,
+    };
     group.segments.add(segmentId);
     if (promote) group.kind = kind;
+    if (answers) group.filler = false;
     const asks = line.question && !group.question;
     group.question ||= line.question;
     this.activeByEpoch.set(epoch, group);
@@ -176,6 +189,7 @@ export class SpeechEventProjector {
         atMs,
         kind: group.kind,
         ...(group.question ? { question: true } : {}),
+        ...(group.filler ? { filler: true } : {}),
       });
   }
 }

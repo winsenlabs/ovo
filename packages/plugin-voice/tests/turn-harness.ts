@@ -127,5 +127,5 @@ export function driverHarness(
     audio.length = 0;
     return clock.now();
   };
-  return { driver, audio, ended, caller, greet, scheduler };
+  return { driver, audio, ended, caller, greet, scheduler, bus };
 }

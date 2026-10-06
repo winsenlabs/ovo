@@ -24,6 +24,13 @@ export type VoiceEvent =
        * line turns the interval into a question.
        */
       question?: boolean;
+      /**
+       * bot.started only: every line of the interval so far is a LAT-6 filler, which answers
+       * nothing. The caller's words over it count as in silence: only a listed backchannel ("ok",
+       * "haan") acknowledges it, and a short continuation ("Tejas", "tomorrow") is a turn. The
+       * engine announces bot.started again, without it, when the reply's own line joins.
+       */
+      filler?: boolean;
     }
   | { type: 'tool.started' | 'tool.settled'; atMs: number }
   | { type: 'confirmation.pending' | 'confirmation.resolved'; atMs: number };

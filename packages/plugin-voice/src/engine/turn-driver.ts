@@ -39,9 +39,10 @@ export class TurnDriver {
   private readonly idle?: IdleWatch;
   private readonly audibility = new ReplyAudibility();
   private readonly hooks: SpeculationHooks;
-  private readonly unsubscribe: () => void;
 
   turnIdForEpoch = (epoch: number): string | undefined => this.turns.idForEpoch(epoch);
+  /** For SpeechEventProjector: a LAT-6 filler line opens no answer the caller must wait out. */
+  isFiller = (segmentId: string): boolean => this.audibility.isFiller(segmentId);
 
   constructor(
     private readonly behavior: Behavior & TurnSpeculation,
@@ -67,8 +68,7 @@ export class TurnDriver {
     this.hooks = new SpeculationHooks(behavior, (hook, error) =>
       this.log('speculation_hook_failed', error, { hook }, 'warn'),
     );
-    this.unsubscribe = speech.subscribe((evidence) => this.audibility.observe(evidence));
-    this.turns = new TurnBook(this.audibility, this.hooks, latency);
+    this.turns = new TurnBook(this.audibility, this.hooks, latency, { speech, behavior });
     this.filler = new TurnFiller(
       clock,
       speech,
@@ -163,7 +163,7 @@ export class TurnDriver {
   async dispose(): Promise<void> {
     this.stopped = true;
     this.idle?.dispose();
-    this.unsubscribe();
+    this.turns.dispose();
     this.turns.abortRunning('engine disposed');
     this.behavior.cancel?.();
     await Promise.allSettled([...this.tasks, ...this.receipts.inFlight()]);

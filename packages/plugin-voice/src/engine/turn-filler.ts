@@ -7,7 +7,9 @@ import type { Turn } from './turn-book.ts';
  * LAT-6: a caller turn whose reply has made no sound `afterMs` into the turn plays its filler line
  * (a fixed line, so a pre-rendered clip), at most once for the caller's words. A fast reply (the
  * rules tier, a quick decision) produces its first line first, and the caller cancels the timer.
- * The filler is never handed to the behaviour: it is not part of the conversation it records.
+ * The filler is never handed to the behaviour: it is not part of the conversation it records. Its
+ * speaking interval is announced as a filler (`bot.started.filler`), so the caller's words over it
+ * are taken as in silence rather than as backchannels (AGT-9).
  */
 export class TurnFiller {
   constructor(

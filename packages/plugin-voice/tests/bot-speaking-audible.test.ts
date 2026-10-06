@@ -6,7 +6,7 @@ import { TurnLatency } from '../src/engine/latency.ts';
 import { SpeechEventProjector } from '../src/engine/speech-events.ts';
 
 /** AGT-9: the agent is speaking once its audio reaches the carrier, not while TTS still works. */
-function projector() {
+function projector(fillers: string[] = []) {
   const bus = new VoiceEventBus();
   const bot: Extract<VoiceEvent, { type: 'bot.started' | 'bot.stopped' }>[] = [];
   bus.onEvent((event) => {
@@ -17,6 +17,7 @@ function projector() {
     new TurnLatency(new FakeClock(), () => undefined),
     () => undefined,
     () => undefined,
+    (segmentId) => fillers.includes(segmentId),
   );
   let sequence = 0;
   const evidence = (
@@ -95,6 +96,19 @@ describe('bot speaking state', () => {
     expect(p.bot).toEqual([
       { type: 'bot.started', epoch: 1, atMs: 1, kind: 'response' },
       { type: 'bot.started', epoch: 1, atMs: 3, kind: 'response', question: true },
+    ]);
+  });
+
+  it('flags an interval only a filler has opened, until the reply itself is audible', () => {
+    const p = projector(['filler']);
+    p.evidence('filler', 'started', { kind: 'acknowledgment' });
+    p.evidence('reply', 'started');
+    p.evidence('reply', 'completed');
+    p.evidence('filler', 'completed', { kind: 'acknowledgment' });
+    expect(p.bot).toEqual([
+      { type: 'bot.started', epoch: 1, atMs: 1, kind: 'acknowledgment', filler: true },
+      { type: 'bot.started', epoch: 1, atMs: 2, kind: 'response' },
+      { type: 'bot.stopped', epoch: 1, atMs: 4, kind: 'response' },
     ]);
   });
 
