@@ -4,9 +4,16 @@ import {
   type SpeechKindV2,
 } from '@winsendotai/ovo-contracts';
 import type { CallEnding } from './agent-ending.ts';
+import type { PreReply } from './agent-pre-reply.ts';
+import type { DecisionGateResult } from './decision-gate.ts';
 import type { AgentVariables } from './agent-variables.ts';
 import { IdleLines } from './idle.ts';
 import { RecoveryState, renderLines, type AuthoredLine, type RecoveryPlan } from './reprompt.ts';
+
+/** Where a caller turn goes: recovery lines, or the decision step's answer (no `say`: the LLM). */
+export type CallerTurn =
+  | { kind: 'recover'; plan: RecoveryPlan }
+  | { kind: 'answer'; prepared: PreReply; say?: string; end?: string };
 
 export interface ScriptedLinesHost {
   ending: CallEnding;
@@ -48,6 +55,31 @@ export class ScriptedLines {
 
   startTurn(): void {
     this.idlePrompts = new Set();
+  }
+
+  /**
+   * Route a caller turn: a request to hear the last turn again is replayed, an empty reply is
+   * recovered without a decision, and otherwise `prepare` runs the decision step and the recovery
+   * state judges its verdict (`verdict`, read after `prepare`).
+   */
+  async route(turn: {
+    input: string;
+    llm: boolean;
+    prepare: () => Promise<PreReply>;
+    verdict: () => DecisionGateResult | undefined;
+  }): Promise<CallerTurn> {
+    const replay = this.recovery.replay(turn.input);
+    if (replay) return { kind: 'recover', plan: replay };
+    const skip = this.recovery.skipsDecision(turn.input, turn.llm);
+    const prepared: PreReply = skip ? { context: '' } : await turn.prepare();
+    const route = this.recovery.route({
+      input: turn.input,
+      answered: prepared.speak,
+      end: prepared.end,
+      verdict: skip ? undefined : turn.verdict(),
+      llm: turn.llm,
+    });
+    return route.kind === 'recover' ? route : { ...route, prepared };
   }
 
   /** The caller said something: the idle escalation starts over. */

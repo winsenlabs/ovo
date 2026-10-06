@@ -147,16 +147,12 @@ export class AgentBehavior implements Behavior {
         }
         wrote = resumed.wrote;
       }
-      const replay = this.lines.recovery.replay(input);
-      if (replay) {
-        yield* this.lines.speak(replay, variables);
-        return;
-      }
-      const llm = this.inference !== undefined;
-      const skip = this.lines.recovery.skipsDecision(input, llm);
-      const prepared = skip
-        ? { context: '' }
-        : await runPreReplySteps({
+      const route = await this.lines.route({
+        input,
+        llm: this.inference !== undefined,
+        verdict: () => this.gate?.last,
+        prepare: () =>
+          runPreReplySteps({
             config: this.config,
             grounding: this.grounding,
             gate: this.gate,
@@ -168,18 +164,10 @@ export class AgentBehavior implements Behavior {
             turn,
             stale: () => turn !== this.turn,
             render: (line) => this.variables.render(line, variables),
-          });
-      const route = this.lines.recovery.route({
-        input,
-        answered: prepared.speak,
-        end: prepared.end,
-        verdict: skip ? undefined : this.gate?.last,
-        llm,
+          }),
       });
-      if (route.kind === 'recover') {
-        yield* this.lines.speak(route.plan, variables);
-        return;
-      }
+      if (route.kind === 'recover') return yield* this.lines.speak(route.plan, variables);
+      const { prepared } = route;
       if (route.end !== undefined) this.ending.arm(`decision:${route.end}`);
       if (route.say !== undefined) {
         yield this.say(route.say, turn);
