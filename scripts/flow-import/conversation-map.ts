@@ -13,7 +13,7 @@ export function diffConversationMap(
   markdown: string,
   constants: Record<string, string> = {},
 ): string[] {
-  const { flow } = imported;
+  const { flow } = imported.decision;
   const map = parseConversationMap(markdown);
   map.nodes.delete(`${IDLE_END_NODE} END`);
   const nodes = new Set(flow.nodes.map((node) => marker(node.id, node.end)));

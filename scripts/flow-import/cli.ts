@@ -71,7 +71,7 @@ async function run(): Promise<number> {
   if (!out) process.stdout.write(json);
   else {
     await writeFile(out, json);
-    const { nodes, listens, lines } = config.flow;
+    const { nodes, listens, lines } = config.decision.flow;
     console.error(
       `Wrote ${out}: ${nodes.length} nodes, ${listens.length} listen sets, ${Object.keys(lines).length} lines.`,
     );

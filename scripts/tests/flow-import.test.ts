@@ -25,7 +25,7 @@ interface PocModule extends PocFlowModule {
 }
 const poc = (await import(CREDITMANTRI_PRESET.input)) as PocModule;
 const { config: imported, notes } = importPocFlow(poc, CREDITMANTRI_PRESET.options);
-const { flow } = imported;
+const { flow } = imported.decision;
 const map = await readFile(CREDITMANTRI_PRESET.map, 'utf8');
 const rulesOf = (rule: RegExp | RegExp[] | undefined) =>
   rule === undefined ? [] : Array.isArray(rule) ? rule : [rule];
@@ -73,7 +73,7 @@ describe('importPocFlow on the CreditMantri POC', () => {
   it('matches the committed fixture, so a POC or importer change cannot drift silently', async () => {
     const committed = JSON.parse(await readFile(CREDITMANTRI_PRESET.out, 'utf8'));
     expect(committed).toEqual(JSON.parse(JSON.stringify(imported)));
-    expect(checkFlow(committed.flow, committed.variables.required)).toBeTruthy();
+    expect(checkFlow(committed.decision.flow, committed.variables.required)).toBeTruthy();
   });
 
   it('routes every rule phrase exactly as the POC router does, in every listen', () => {
@@ -267,8 +267,8 @@ describe('flow:import CLI', () => {
     const printed = cli(...args, '--map', CREDITMANTRI_PRESET.map);
     expect(printed.status, printed.stderr).toBe(0);
     const printedConfig = JSON.parse(printed.stdout);
-    expect(printedConfig.flow.context).toBe('A collections call.');
-    expect(printedConfig.flow.nodes).toEqual(flow.nodes);
+    expect(printedConfig.decision.flow.context).toBe('A collections call.');
+    expect(printedConfig.decision.flow.nodes).toEqual(flow.nodes);
     expect(printed.stderr).toContain('note: node pay_now: sends the full SMS');
 
     const dir = await mkdtemp(path.join(tmpdir(), 'flow-import-'));

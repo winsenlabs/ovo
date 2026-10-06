@@ -78,20 +78,23 @@ export interface JevEvalOutcome {
   error?: string;
 }
 
-/** The decision state of one case: what was asked, what the agent just said, what came back. */
+/**
+ * The request a call in this state sends for this reply. The state mirrors the flow runtime's
+ * (`flowDecisionState` on wave3/flow): the reply, the node's lines as the agent's last words, those
+ * lines as the recent turns (the caller's first reply in the state), and today as an ISO date.
+ */
 export function jevEvalRequest(set: JevEvalSet, evalCase: JevEvalCase): DecisionRequest {
-  const listen = flowListen(set.flow, evalCase.listen);
-  if (!listen) throw new Error(`Case ${evalCase.id}: unknown listen set ${evalCase.listen}`);
+  if (!flowListen(set.flow, evalCase.listen))
+    throw new Error(`Case ${evalCase.id}: unknown listen set ${evalCase.listen}`);
   const nodeId =
     evalCase.node ?? set.flow.nodes.find((node) => node.listen === evalCase.listen)?.id;
   const node = set.flow.nodes.find((candidate) => candidate.id === nodeId);
   if (!node) throw new Error(`Case ${evalCase.id}: no node listens with ${evalCase.listen}`);
-  const said = node.say.map((line) => renderFlowLine(set.flow, line, set.variables)).join(' ');
+  const said = node.say.map((line) => renderFlowLine(set.flow, line, set.variables));
   return flowDecisionRequest(set.flow, evalCase.listen, {
-    current_state_question: listen.question,
-    agent_last_said: said,
-    recent_turns: [`agent: ${said}`],
     caller_reply: evalCase.text,
+    agent_last_said: said.join(' '),
+    recent_turns: said.map((line) => `agent: ${line}`),
     today: set.today,
   });
 }

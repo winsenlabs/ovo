@@ -184,7 +184,7 @@ const imported = JSON.parse(
 
 export const CREDITMANTRI_JEV_EVAL: JevEvalSet = {
   name: 'CreditMantri collections',
-  flow: imported.flow as AgentFlow,
+  flow: imported.decision.flow as AgentFlow,
   // One of the POC's cases (lib/cases.js, NACH bounce) as the dialer would render it on 7 Oct 2026.
   variables: {
     full_name: 'Rahul Sharma',
@@ -202,7 +202,7 @@ export const CREDITMANTRI_JEV_EVAL: JevEvalSet = {
     date_3days: 'Saturday, the 10th of October',
     date_week: 'Wednesday, the 14th of October',
   },
-  today: 'Wednesday, the 7th of October 2026',
+  today: '2026-10-07',
   cases: [
     ...identity,
     ...payment,

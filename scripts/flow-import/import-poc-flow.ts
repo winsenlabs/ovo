@@ -51,9 +51,12 @@ export interface PocImportOptions {
   threshold?: number;
 }
 
-/** The agent-config fields an import fills: `flow`, the silence handling, and `variables`. */
+/**
+ * The agent-config fields an import fills, ready to merge into an agent: the flow (authored inside
+ * the decision policy, as the flow lane's contract has it), the silence handling, and `variables`.
+ */
 export interface ImportedFlowConfig {
-  flow: AgentFlow;
+  decision: { enabled: true; flow: AgentFlow };
   /** The jevonly lane's `AgentIdle`: one prompt per silence, then the closing line. */
   idle: { prompts: string[]; finalLine: string };
   variables: {
@@ -149,7 +152,7 @@ export function importPocFlow(
   checkFlow(flow, variables);
   return {
     config: {
-      flow,
+      decision: { enabled: true, flow },
       idle,
       variables: {
         type: 'object',
