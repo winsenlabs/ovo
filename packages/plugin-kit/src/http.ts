@@ -79,12 +79,14 @@ export async function readBoundedJson(
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
     return value as Record<string, unknown>;
   } catch {
+    // swallow-ok: rethrown as a typed error that cannot carry the provider body.
     throw new ProviderProtocolError('Provider returned malformed JSON');
   }
 }
 
 export async function assertSuccessful(response: Response): Promise<void> {
   if (response.ok) return;
+  // swallow-ok: the body is discarded either way; the HTTP status below is the failure.
   await response.body?.cancel().catch(() => undefined);
   throw new ProviderProtocolError(`Provider request failed with HTTP ${response.status}`);
 }
@@ -190,6 +192,7 @@ export async function httpJson(
           body: parsed as Record<string, unknown>,
         };
       } catch {
+        // swallow-ok: becomes an `unknown` outcome with its reason.
         return { kind: 'unknown', status, reason: 'malformed JSON in a successful response' };
       }
     }
@@ -198,6 +201,7 @@ export async function httpJson(
       try {
         parsed = parseJson(bytes);
       } catch {
+        // swallow-ok: a rejection body that is not JSON is still a rejection.
         parsed = undefined;
       }
       return {
