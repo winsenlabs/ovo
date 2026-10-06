@@ -199,10 +199,14 @@ export function TurnPacingEditor({
             value={minFirstWords ?? ''}
             onChange={(event) => {
               const raw = event.target.value;
-              const { minFirstWords: _previous, ...reply } = config.reply ?? {};
-              if (raw !== '')
-                reply.minFirstWords = Math.min(12, Math.max(0, Math.round(Number(raw))));
-              update({ ...config, reply: Object.keys(reply).length ? reply : undefined });
+              // The whole of `reply` today is this one knob (contracts AgentReplyPacing).
+              update({
+                ...config,
+                reply:
+                  raw === ''
+                    ? undefined
+                    : { minFirstWords: Math.min(12, Math.max(0, Math.round(Number(raw)))) },
+              });
             }}
           />
         </Field>

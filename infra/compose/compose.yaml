@@ -90,6 +90,7 @@ services:
       OVO_SEED_ADMIN_PASSWORD: ${OVO_SEED_ADMIN_PASSWORD:?run ./scripts/bootstrap-compose.sh first}
       OVO_SEED_ADMIN_LABEL: ${OVO_SEED_ADMIN_LABEL:-First administrator}
       OVO_RESTORE_ADMIN_RECOVERY: ${OVO_RESTORE_ADMIN_RECOVERY:-false}
+      OVO_SESSION_TTL_SECONDS: ${OVO_SESSION_TTL_SECONDS:-}
       OVO_STORAGE_ADAPTER: postgres
       OVO_SECRETS_BACKEND: encrypted-store
       OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?set OVO_SECRETS_MASTER_KEY}
@@ -171,6 +172,8 @@ services:
       # Drain live calls on SIGTERM inside stop_grace_period below (OPS-6).
       OVO_MEDIA_DRAIN_TIMEOUT_MS: '240000'
       OVO_MEDIA_WORKER_TOKEN: ${OVO_MEDIA_WORKER_TOKEN:?set OVO_MEDIA_WORKER_TOKEN}
+      # Bearer token for /health?verbose=1 (OBS-12); empty keeps verbose health off.
+      OVO_HEALTH_TOKEN: ${OVO_HEALTH_TOKEN:-}
       OVO_SECRETS_MASTER_KEY: ${OVO_SECRETS_MASTER_KEY:?set OVO_SECRETS_MASTER_KEY}
       OVO_SECRETS_MASTER_KEY_PREVIOUS: ${OVO_SECRETS_MASTER_KEY_PREVIOUS:-}
       OVO_INBOUND_ENABLED: ${OVO_INBOUND_ENABLED:-false}
@@ -270,6 +273,7 @@ services:
       # Worker tuning added in Waves 1-4 (docs/env-reference.md). Each is forwarded empty when unset
       # in .env, and every worker parser reads an empty value as "use the default".
       OVO_WORKER_DRAIN_TIMEOUT_MS: ${OVO_WORKER_DRAIN_TIMEOUT_MS:-}
+      OVO_HEALTH_TOKEN: ${OVO_HEALTH_TOKEN:-}
       OVO_SPEECH_CACHE_TTL_MS: ${OVO_SPEECH_CACHE_TTL_MS:-}
       OVO_SPEECH_CACHE_MAX_ENTRIES: ${OVO_SPEECH_CACHE_MAX_ENTRIES:-}
       OVO_SPEECH_CACHE_MAX_BYTES: ${OVO_SPEECH_CACHE_MAX_BYTES:-}
