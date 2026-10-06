@@ -4,6 +4,7 @@ import { apiRequest, ApiError, items, type SessionIdentity } from '../../lib/api
 import type { CampaignRecord } from '../../lib/operator-api';
 import { EmptyState, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
 import { CampaignCreateForm } from './campaign-create-form';
+import { TestCallPanel } from './test-call-panel';
 
 export function campaignAttemptLabel(status: string): string {
   return status === 'unknown' ? 'Reconciling' : status === 'superseded' ? 'Superseded' : status;
@@ -124,6 +125,7 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
                   <td>
                     {new Date(campaign.scheduleAt).toLocaleString()}
                     <small>{campaign.timezone}</small>
+                    <small>{callingHoursLabel(campaign)}</small>
                   </td>
                   <td>
                     {campaign.maxAttemptsTotal} total
@@ -192,6 +194,21 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
           </ResponsiveTable>
         )}
       </Panel>
+      <TestCallPanel role={role} campaigns={campaigns} />
     </div>
   );
+}
+
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/** The campaign's calling-hours snapshot, as the list shows it. */
+export function callingHoursLabel(campaign: CampaignRecord): string {
+  const window = (
+    campaign as CampaignRecord & {
+      callingWindow?: { start: string; end: string; days?: number[]; timezone: string } | null;
+    }
+  ).callingWindow;
+  if (!window) return 'Any hour';
+  const days = window.days ? ` ${window.days.map((day) => DAY_NAMES[day - 1]).join(',')}` : '';
+  return `Calls ${window.start}–${window.end}${days} ${window.timezone}`;
 }

@@ -1,11 +1,12 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, items, type Release } from '../../lib/api';
-import type { CampaignPreview, CampaignRecord } from '../../lib/operator-api';
+import type { CampaignRecord } from '../../lib/operator-api';
 import { useFormAction } from '../forms/use-form-action';
 import { useOperationId } from '../../lib/ids';
 import { EmptyState, Field } from '../primitives';
-import { CampaignContactImport } from './campaign-contact-import';
+import { CampaignContactImport, type CompliancePreview } from './campaign-contact-import';
+import { CampaignCallingWindow, callingWindowBody } from './campaign-calling-window';
 import { loadAgentChoices } from './agent-release-options';
 
 export function CampaignCreateForm({
@@ -17,7 +18,7 @@ export function CampaignCreateForm({
   const [agentId, setAgentId] = useState('');
   const [releases, setReleases] = useState<Release[]>([]);
   const [releaseId, setReleaseId] = useState('');
-  const [preview, setPreview] = useState<CampaignPreview>();
+  const [preview, setPreview] = useState<CompliancePreview>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const formAction = useFormAction();
@@ -32,6 +33,8 @@ export function CampaignCreateForm({
         setError(failure instanceof Error ? failure.message : 'Agents unavailable.'),
       );
   }, []);
+  // A preview validated against another release's variables no longer holds.
+  useEffect(() => setPreview(undefined), [releaseId]);
   useEffect(() => {
     setReleases([]);
     setReleaseId('');
@@ -69,6 +72,7 @@ export function CampaignCreateForm({
             maxAttemptsPerLocalDay: Number(values.get('maxAttemptsPerLocalDay')),
             maxConcurrency: Number(values.get('maxConcurrency')),
             activeCallPolicy: values.get('activeCallPolicy'),
+            ...callingWindowBody(values),
             contacts: preview.rows,
           }),
         });
@@ -129,7 +133,7 @@ export function CampaignCreateForm({
           </div>
         )}
       </fieldset>
-      <CampaignContactImport preview={preview} onPreview={setPreview} />
+      <CampaignContactImport preview={preview} onPreview={setPreview} releaseId={releaseId} />
       <fieldset className="nested-card">
         <legend>3 · Schedule and limits</legend>
         {!preview && (
@@ -222,6 +226,7 @@ export function CampaignCreateForm({
             </select>
           </Field>
         </div>
+        <CampaignCallingWindow disabled={!preview} />
         <button
           className="button primary"
           disabled={busy || !preview?.rows.length || Boolean(preview.errors.length) || !releaseId}
