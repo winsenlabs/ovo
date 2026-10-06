@@ -22,6 +22,7 @@ import {
   type FlowResume,
 } from './flow-rejoin.ts';
 import type { FlowSession } from './flow-session.ts';
+import type { InferenceCall } from './speculation-llm.ts';
 import type { ToolEvents } from './tool-events.ts';
 
 export * from './flow-rejoin.ts';
@@ -61,11 +62,46 @@ export interface InferenceStepInput {
   guard?: (segment: string) => string | undefined;
 }
 
-/** How the flow is offered to the LLM for one turn, and what the LLM did with it. */
-interface Rejoin {
+/** How the flow is offered to the LLM for one turn. */
+interface RejoinOffer {
   tool: ToolDefinition;
   guide: string;
+}
+
+/** ...and what the LLM did with it. */
+interface Rejoin extends RejoinOffer {
   resume(input: Pick<FlowResume, 'resumeAt' | 'action'>): void;
+}
+
+type RequestInput = Pick<
+  InferenceStepInput,
+  'config' | 'input' | 'history' | 'context' | 'tools' | 'results' | 'flow'
+>;
+
+function rejoinOffer({ config, flow }: RequestInput): RejoinOffer | undefined {
+  const endAllowed = Boolean(config.ending?.llmTool);
+  const tool = flow ? flowResumeTool(flow, endAllowed) : undefined;
+  return flow && tool ? { tool, guide: flowGuide(flow, endAllowed) } : undefined;
+}
+
+function inferenceRequest(step: RequestInput, rejoin: RejoinOffer | undefined): InferenceCall {
+  return {
+    input: step.input,
+    history: step.history,
+    context: rejoin ? [step.context, rejoin.guide].filter(Boolean).join('\n\n') : step.context,
+    uncertainty: step.config.uncertainty,
+    tools: rejoin ? [...step.tools, rejoin.tool] : step.tools,
+    results: step.results,
+  };
+}
+
+/**
+ * The first request `runInferenceSteps` will send for a turn in the flow state the call is in now.
+ * LAT-3 asks it while the decision is still deciding; the step reuses that answer only when its own
+ * first request turns out the same.
+ */
+export function firstInferenceRequest(step: RequestInput): InferenceCall {
+  return inferenceRequest(step, rejoinOffer(step));
 }
 
 /**
@@ -75,12 +111,11 @@ interface Rejoin {
 export async function* runInferenceSteps(step: InferenceStepInput): AsyncGenerator<string, void> {
   const flow = step.flow;
   const endAllowed = Boolean(step.config.ending?.llmTool);
-  const tool = flow ? flowResumeTool(flow, endAllowed) : undefined;
-  if (!flow || !tool) return yield* inferenceSteps(step);
+  const offer = rejoinOffer(step);
+  if (!flow || !offer) return yield* inferenceSteps(step);
   let rejoined = false;
   yield* inferenceSteps(step, {
-    tool,
-    guide: flowGuide(flow, endAllowed),
+    ...offer,
     resume: (resume) => {
       rejoined = true;
       if (applyFlowResume(flow, resume, endAllowed)) step.endCall('llm:resume_flow:end');
@@ -102,15 +137,7 @@ async function* inferenceSteps(
   };
   for (let index = 0; index < config.maxSteps; index += 1) {
     signal.throwIfAborted();
-    const request = {
-      input: step.input,
-      history: step.history,
-      context: rejoin ? [step.context, rejoin.guide].filter(Boolean).join('\n\n') : step.context,
-      uncertainty: config.uncertainty,
-      tools: rejoin ? [...step.tools, rejoin.tool] : step.tools,
-      results: step.results,
-      signal,
-    };
+    const request = { ...inferenceRequest(step, rejoin), signal };
     let reply: InferenceReply;
     if (step.streaming && step.inference.stream) {
       const events = step.inference.stream(request);
@@ -146,6 +173,9 @@ async function* inferenceSteps(
       return;
     }
 
+    // A reply put inside `resume_flow` is spoken only once the whole call has arrived: the inference
+    // port delivers a tool call whole (`InferenceStreamEvent` has no argument deltas), so it cannot
+    // stream. That is why the model is told to say its answer as text first, which streams.
     if (rejoin && reply.toolId === FLOW_RESUME_TOOL_ID) {
       const resume = readFlowResume(reply.input);
       if (!resume)

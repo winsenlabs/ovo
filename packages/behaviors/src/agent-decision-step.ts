@@ -14,6 +14,8 @@ export interface DecisionStepOptions {
   stale: () => boolean;
   /** Renders an authored line with this call's variables. */
   render: (line: string) => string;
+  /** Called when the turn is about to wait on the decision model (LAT-3 starts the LLM then). */
+  waiting?: () => void;
 }
 
 export interface DecisionStepResult {
@@ -35,9 +37,9 @@ export interface DecisionStepResult {
  */
 export async function runDecisionStep(
   gate: DecisionGate,
-  { turn, signal, clarification, record, stale, render }: DecisionStepOptions,
+  { turn, signal, clarification, record, stale, render, waiting }: DecisionStepOptions,
 ): Promise<DecisionStepResult> {
-  const verdict = await gate.evaluate(turn, signal);
+  const verdict = await gate.evaluate(turn, signal, waiting);
   signal.throwIfAborted();
   if (stale()) throw new DOMException('stale agent turn', 'AbortError');
   record(verdict);

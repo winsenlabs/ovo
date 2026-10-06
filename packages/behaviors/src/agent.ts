@@ -1,116 +1,27 @@
-import type { ValidateFunction } from 'ajv';
-import { compileAgentTools, type AgentBehaviorOptions } from './agent-tools.ts';
-import {
-  AgentTurnLog,
-  type AgentDecisionRecord,
-  type AgentGroundingRecord,
-  type AgentSkippedLineRecord,
-} from './agent-turn-log.ts';
-import type { AgentToolErrorRecord } from './agent-tools.ts';
+import { flowFacts } from './agent-decision-step.ts';
+import { runPreReplySteps } from './agent-pre-reply.ts';
+import { resumeConfirmation } from './agent-confirmation-step.ts';
+import { firstInferenceRequest, runInferenceSteps } from './agent-inference-step.ts';
+import { AgentSession } from './agent-session.ts';
+import type { AgentBehaviorOptions } from './agent-tools.ts';
+import type { AgentSpeculationOptions } from './speculation.ts';
+import type {
+  AgentConfig,
+  Execution,
+  Inference,
+  OperationRecord,
+} from '@winsendotai/ovo-contracts';
 export {
   AgentToolSelectionError,
   type AgentBehaviorOptions,
   type AgentToolErrorRecord,
 } from './agent-tools.ts';
-import {
-  AgentConfig as AgentConfigSchema,
-  type AgentConfig,
-  type Behavior,
-  type Execution,
-  type Inference,
-  type OperationRecord,
-  type ToolDefinition,
-  type SpeechReceipt,
-  type SpeechKindV2,
-} from '@winsendotai/ovo-contracts';
-import { PlaybackConversation } from './history.ts';
-import { ToolConfirmation } from './confirmation.ts';
-import { ToolEvents } from './tool-events.ts';
-import { assembleBoundedContext } from './context.ts';
-import { ruledDecisionGate, type RuledDecisionGate } from './rules-gate.ts';
-import type { FlowSession } from './decision-gate.ts';
-import { flowBriefing, flowFacts } from './agent-decision-step.ts';
-import { ScriptedLines } from './reprompt-lines.ts';
-import { runPreReplySteps } from './agent-pre-reply.ts';
-import { resumeConfirmation } from './agent-confirmation-step.ts';
-import { Grounding } from './grounding.ts';
-import { runInferenceSteps } from './agent-inference-step.ts';
-import { CallEnding } from './agent-ending.ts';
-import { AgentVariables } from './agent-variables.ts';
-import { AgentReplyGuard } from './agent-guardrail.ts';
-import { CallOutcomeEvents } from './outcome-events.ts';
+export { AgentSession } from './agent-session.ts';
+export * from './speculation.ts';
+export type { LlmSpeculationMetrics } from './speculation-llm.ts';
+export type { PartialWords } from './speculation-turn.ts';
 
-export class AgentBehavior implements Behavior {
-  readonly config: AgentConfig;
-  readonly assembledContext: string;
-  private readonly tools: ToolDefinition[];
-  private readonly validators: Map<string, ValidateFunction>;
-  private readonly operationId: () => string;
-  private active?: AbortController;
-  private turn = 0;
-  private readonly conversation = new PlaybackConversation();
-  private readonly events = new ToolEvents();
-  private readonly confirmation = new ToolConfirmation(this.events.emit);
-  readonly subscribe = this.events.subscribe;
-  speechKind(text: string): SpeechKindV2 | undefined {
-    return this.lines.speechKind(text) ?? this.confirmation.speechKind(text);
-  }
-  private uncertainWrite = false;
-  private readonly gate?: RuledDecisionGate;
-  /** The authored flow this call follows, when its decision policy has one and is enabled. */
-  readonly flow?: FlowSession;
-  /** Opening, idle and recovery lines. */
-  private readonly lines: ScriptedLines;
-  private readonly grounding?: Grounding;
-  private readonly log = new AgentTurnLog();
-  private readonly ending = new CallEnding();
-  private readonly variables: AgentVariables;
-  /** Tool-selection failures and decisions asked, oldest first, bounded. */
-  readonly toolErrors: readonly AgentToolErrorRecord[] = this.log.toolErrors;
-  readonly decisions: readonly AgentDecisionRecord[] = this.log.decisions;
-  readonly groundings: readonly AgentGroundingRecord[] = this.log.groundings;
-  readonly skippedLines: readonly AgentSkippedLineRecord[] = this.log.skippedLines;
-  private readonly guard: AgentReplyGuard;
-  private readonly outcomes: CallOutcomeEvents;
-  /** Sentences the reply guardrail checked, flagged, blocked and dropped, and what it cost. */
-  get guardrailMetrics() {
-    return this.guard.metrics;
-  }
-
-  constructor(
-    config: AgentConfig,
-    /** Absent for a Jev-only agent (AGT-4): a turn that would reach it is recovered instead. */
-    private readonly inference: Inference | undefined,
-    private readonly execution: Execution,
-    private readonly options: AgentBehaviorOptions,
-  ) {
-    this.config = AgentConfigSchema.parse(config);
-    if (this.config.mode !== 'agent')
-      throw new TypeError(`Agent behavior requires agent mode, received ${this.config.mode}`);
-    if (!options.workspaceId || !options.sessionId)
-      throw new TypeError('Agent behavior requires workspaceId and sessionId');
-    this.assembledContext = assembleBoundedContext(this.config.context, this.config.contextBudget);
-    this.operationId = options.operationId ?? (() => crypto.randomUUID());
-    // Validates every authored line against the declared variables before the first call.
-    this.variables = new AgentVariables(this.config, options.now);
-    this.guard = new AgentReplyGuard(this.config, options);
-    this.lines = new ScriptedLines(this.config, this.variables, {
-      ending: this.ending,
-      skipped: (field) => this.log.skippedLine(this.turn, field),
-      say: (text, conversational) => this.say(text, conversational ? this.turn : undefined),
-    });
-
-    const compiled = compileAgentTools(this.config);
-    this.tools = compiled.tools;
-    this.validators = compiled.validators;
-    this.gate = ruledDecisionGate(this.config, this.options.decision);
-    this.flow = this.gate?.flow;
-    this.outcomes = new CallOutcomeEvents(options.events, this.log);
-    this.outcomes.follow(this.flow, () => this.turn);
-    if (this.config.knowledge)
-      this.grounding = new Grounding(this.config.knowledge, this.options.knowledge);
-  }
-
+export class AgentBehavior extends AgentSession {
   async respond(input: string, variables: Record<string, unknown> = {}): Promise<string> {
     const segments: string[] = [];
     for await (const segment of this.runResponse(input, false, variables)) segments.push(segment);
@@ -128,9 +39,11 @@ export class AgentBehavior implements Behavior {
   ): AsyncIterable<string> {
     this.ending.startTurn();
     this.lines.startTurn();
+    this.ahead.heardTurn(variables);
     if (variables.inputEvent === 'opening') return yield* this.lines.opening(variables, this.flow);
     if (variables.inputEvent === 'idle') return yield* this.lines.silence(variables);
     this.lines.heard();
+    this.gate?.closePrepared();
     this.active?.abort(new DOMException('superseded by a newer turn', 'AbortError'));
     const controller = new AbortController();
     const turn = ++this.turn;
@@ -138,6 +51,18 @@ export class AgentBehavior implements Behavior {
     const results: OperationRecord[] = [];
     const history = this.conversation.user(input);
     let wrote = false;
+    // LAT-3: the LLM's first step, asked alongside the decision when the agent speculates.
+    const early = this.ahead.llmTurn(this.inference, streaming, controller.signal, (context) =>
+      firstInferenceRequest({
+        config: this.config,
+        input,
+        history,
+        context,
+        tools: this.tools,
+        results,
+        ...(this.flow ? { flow: this.flow } : {}),
+      }),
+    );
 
     try {
       if (this.confirmation.waiting) {
@@ -175,9 +100,7 @@ export class AgentBehavior implements Behavior {
             grounding: this.grounding,
             gate: this.gate,
             // AGT-5: until a flow confirms identity, neither carries this call's variable values.
-            briefing: flowBriefing(this.flow, this.assembledContext, (text) =>
-              this.variables.renderBriefing(text, variables),
-            ),
+            briefing: this.briefing(variables),
             facts: flowFacts(this.flow, this.variables.facts(variables)),
             turnInput: { input, history, variables, today: this.variables.today() },
             signal: controller.signal,
@@ -186,6 +109,7 @@ export class AgentBehavior implements Behavior {
             stale: () => turn !== this.turn,
             render: (line) => this.variables.render(line, variables),
             ...this.guard.input(results),
+            ...(early ? { speculateLlm: early.start } : {}),
           }),
       });
       this.outcomes.routed(turn, route);
@@ -201,7 +125,7 @@ export class AgentBehavior implements Behavior {
       if (!this.inference) return;
       yield* runInferenceSteps({
         config: this.config,
-        inference: this.inference,
+        inference: early?.inference() ?? this.inference,
         execution: this.execution,
         identity: { workspaceId: this.options.workspaceId, sessionId: this.options.sessionId },
         tools: this.tools,
@@ -227,48 +151,9 @@ export class AgentBehavior implements Behavior {
       });
       this.ending.seal();
     } finally {
+      early?.finish();
       if (this.active === controller) this.active = undefined;
     }
-  }
-
-  /** `turn` marks a conversational line, which a later repeat replays. */
-  private say(text: string, turn?: number): string {
-    if (turn !== undefined) this.lines.recovery.remember(turn, text);
-    this.ending.said();
-    return this.conversation.generated(text);
-  }
-
-  /** The caller-silence timeout, when this agent handles silence itself (AGT-11). */
-  idleTimeoutMs = (): number | undefined => this.lines.idleTimeoutMs;
-  speaksFirst = (): boolean => this.lines.speaksFirst();
-  /** Undefined without a detecting policy: a machine verdict alone never ends this agent's call. */
-  voicemail = (variables: Record<string, unknown>) => this.lines.voicemail(variables);
-
-  isComplete(): boolean {
-    return this.ending.complete;
-  }
-
-  completionReason(): string | undefined {
-    return this.ending.reason;
-  }
-
-  cancel(reason = 'agent turn cancelled'): void {
-    this.turn += 1;
-    this.active?.abort(new DOMException(reason, 'AbortError'));
-    this.active = undefined;
-    this.confirmation.expire();
-    this.ending.cancel();
-  }
-
-  beginTurn(epoch: number): void {
-    this.conversation.beginTurn(epoch);
-    this.confirmation.beginTurn(epoch);
-    this.ending.beginTurn(epoch);
-  }
-  onPlayback(receipt: SpeechReceipt): void {
-    this.conversation.played(receipt);
-    this.confirmation.played(receipt);
-    this.ending.played(receipt);
   }
 }
 
@@ -276,7 +161,7 @@ export function createAgentBehavior(
   config: AgentConfig,
   inference: Inference | undefined,
   execution: Execution,
-  options: AgentBehaviorOptions,
+  options: AgentBehaviorOptions & AgentSpeculationOptions,
 ): AgentBehavior {
   return new AgentBehavior(config, inference, execution, options);
 }
