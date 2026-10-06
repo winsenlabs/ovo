@@ -19,6 +19,8 @@ export * from './agent.ts';
 export * from './announcement.ts';
 export * from './context.ts';
 export * from './agent-confirmation-step.ts';
+export * from './agent-ending.ts';
+export * from './agent-variables.ts';
 export * from './agent-turn-log.ts';
 export * from './agent-decision-step.ts';
 export * from './agent-pre-reply.ts';

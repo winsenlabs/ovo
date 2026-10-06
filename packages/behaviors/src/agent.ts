@@ -13,6 +13,7 @@ export {
 } from './agent-tools.ts';
 import {
   AgentConfig as AgentConfigSchema,
+  effectiveVoicemailPolicy,
   type AgentConfig,
   type Behavior,
   type Execution,
@@ -30,6 +31,8 @@ import { runPreReplySteps } from './agent-pre-reply.ts';
 import { resumeConfirmation } from './agent-confirmation-step.ts';
 import { Grounding } from './grounding.ts';
 import { runInferenceSteps } from './agent-inference-step.ts';
+import { CallEnding } from './agent-ending.ts';
+import { AgentVariables } from './agent-variables.ts';
 
 export class AgentBehavior implements Behavior {
   readonly config: AgentConfig;
@@ -50,6 +53,9 @@ export class AgentBehavior implements Behavior {
   private readonly gate?: DecisionGate;
   private readonly grounding?: Grounding;
   private readonly log = new AgentTurnLog();
+  private readonly ending = new CallEnding();
+  private readonly variables: AgentVariables;
+  private opened = false;
   /** Tool-selection failures and decisions asked, oldest first, bounded. */
   readonly toolErrors: readonly AgentToolErrorRecord[] = this.log.toolErrors;
   readonly decisions: readonly AgentDecisionRecord[] = this.log.decisions;
@@ -69,6 +75,8 @@ export class AgentBehavior implements Behavior {
       throw new TypeError('Agent behavior requires workspaceId and sessionId');
     this.assembledContext = assembleBoundedContext(this.config.context, this.config.contextBudget);
     this.operationId = options.operationId ?? (() => crypto.randomUUID());
+    // Validates every authored line against the declared variables before the first call.
+    this.variables = new AgentVariables(this.config, options.now);
 
     const compiled = compileAgentTools(this.config);
     this.tools = compiled.tools;
@@ -94,6 +102,11 @@ export class AgentBehavior implements Behavior {
     streaming: boolean,
     variables: Record<string, unknown> = {},
   ): AsyncIterable<string> {
+    this.ending.startTurn();
+    if (variables.inputEvent === 'opening') {
+      yield* this.opening(variables);
+      return;
+    }
     this.active?.abort(new DOMException('superseded by a newer turn', 'AbortError'));
     const controller = new AbortController();
     const turn = ++this.turn;
@@ -121,7 +134,7 @@ export class AgentBehavior implements Behavior {
         });
         if (resumed.record) results.push(resumed.record);
         if (resumed.kind === 'speak') {
-          yield this.conversation.generated(resumed.text);
+          yield this.say(resumed.text);
           return;
         }
         wrote = resumed.wrote;
@@ -130,15 +143,19 @@ export class AgentBehavior implements Behavior {
         config: this.config,
         grounding: this.grounding,
         gate: this.gate,
-        briefing: this.assembledContext,
-        turnInput: { input, history, variables },
+        briefing: this.variables.renderBriefing(this.assembledContext, variables),
+        facts: this.variables.facts(variables),
+        turnInput: { input, history, variables, today: this.variables.today() },
         signal: controller.signal,
         log: this.log,
         turn,
         stale: () => turn !== this.turn,
+        render: (line) => this.variables.render(line, variables),
       });
+      if (prepared.end !== undefined) this.ending.arm(`decision:${prepared.end}`);
       if (prepared.speak !== undefined) {
-        yield this.conversation.generated(prepared.speak);
+        yield this.say(prepared.speak);
+        this.ending.seal();
         return;
       }
       yield* runInferenceSteps({
@@ -151,7 +168,8 @@ export class AgentBehavior implements Behavior {
         log: this.log,
         confirmation: this.confirmation,
         events: this.events,
-        conversation: this.conversation,
+        publish: (text) => this.say(text),
+        endCall: (reason) => this.ending.arm(reason),
         operationId: this.operationId,
         turn,
         current: () => turn === this.turn,
@@ -164,9 +182,44 @@ export class AgentBehavior implements Behavior {
         uncertainWrite: () => this.uncertainWrite,
         wrote,
       });
+      this.ending.seal();
     } finally {
       if (this.active === controller) this.active = undefined;
     }
+  }
+
+  /** The opening lines, rendered for this call. No decision, LLM or caller words are involved. */
+  private *opening(variables: Record<string, unknown>): Generator<string> {
+    if (this.opened || !this.config.opening) return;
+    this.opened = true;
+    const lines = this.config.opening.lines.map((line) => this.variables.render(line, variables));
+    for (const line of lines) yield this.say(line);
+  }
+
+  private say(text: string): string {
+    this.ending.said(text);
+    return this.conversation.generated(text);
+  }
+
+  speaksFirst(): boolean {
+    return this.config.opening !== undefined;
+  }
+
+  /** Undefined without a detecting policy: a machine verdict alone never ends this agent's call. */
+  voicemail(variables: Record<string, unknown>): string | undefined {
+    const policy = effectiveVoicemailPolicy(this.config);
+    if (!policy) return undefined;
+    return policy.action === 'message' && policy.message
+      ? this.variables.render(policy.message, variables)
+      : '';
+  }
+
+  isComplete(): boolean {
+    return this.ending.complete;
+  }
+
+  completionReason(): string | undefined {
+    return this.ending.reason;
   }
 
   cancel(reason = 'agent turn cancelled'): void {
@@ -174,15 +227,18 @@ export class AgentBehavior implements Behavior {
     this.active?.abort(new DOMException(reason, 'AbortError'));
     this.active = undefined;
     this.confirmation.expire();
+    this.ending.cancel();
   }
 
   beginTurn(epoch: number): void {
     this.conversation.beginTurn(epoch);
     this.confirmation.beginTurn(epoch);
+    this.ending.beginTurn(epoch);
   }
   onPlayback(receipt: SpeechReceipt): void {
     this.conversation.played(receipt);
     this.confirmation.played(receipt);
+    this.ending.played(receipt);
   }
 }
 

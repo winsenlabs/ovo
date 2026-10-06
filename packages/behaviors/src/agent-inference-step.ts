@@ -1,17 +1,17 @@
 import type { ValidateFunction } from 'ajv';
-import type {
-  AgentConfig,
-  Execution,
-  Inference,
-  InferenceReply,
-  InferenceRequest,
-  OperationRecord,
-  ToolDefinition,
+import {
+  END_CALL_TOOL_ID,
+  type AgentConfig,
+  type Execution,
+  type Inference,
+  type InferenceReply,
+  type InferenceRequest,
+  type OperationRecord,
+  type ToolDefinition,
 } from '@winsendotai/ovo-contracts';
 import { streamAgentReply } from './agent-stream.ts';
 import type { AgentTurnLog } from './agent-turn-log.ts';
 import type { ToolConfirmation } from './confirmation.ts';
-import type { PlaybackConversation } from './history.ts';
 import type { ToolEvents } from './tool-events.ts';
 
 export interface InferenceStepInput {
@@ -24,7 +24,10 @@ export interface InferenceStepInput {
   log: AgentTurnLog;
   confirmation: ToolConfirmation;
   events: ToolEvents;
-  conversation: PlaybackConversation;
+  /** Records a line as generated and returns it for speaking. */
+  publish: (text: string) => string;
+  /** The LLM ended the call; its goodbye is this turn's reply. */
+  endCall: (reason: string) => void;
   operationId: () => string;
   turn: number;
   /** False once a newer turn has superseded this one. */
@@ -47,7 +50,7 @@ export interface InferenceStepInput {
  * or a confirmation-gated tool is never executed here, only proposed for the caller to confirm.
  */
 export async function* runInferenceSteps(step: InferenceStepInput): AsyncGenerator<string, void> {
-  const { config, conversation, signal } = step;
+  const { config, publish, signal } = step;
   const assertCurrent = () => {
     signal.throwIfAborted();
     if (!step.current()) throw new DOMException('stale agent turn', 'AbortError');
@@ -69,7 +72,12 @@ export async function* runInferenceSteps(step: InferenceStepInput): AsyncGenerat
         step.inference.stream(request),
         config.locale,
         assertCurrent,
-        (text) => conversation.generated(text),
+        publish,
+        (input) => {
+          const accepted = isEndCall(step, input);
+          if (accepted) step.endCall(endReason(input));
+          return accepted;
+        },
       );
       if (!streamed) return;
       reply = streamed;
@@ -79,7 +87,7 @@ export async function* runInferenceSteps(step: InferenceStepInput): AsyncGenerat
     assertCurrent();
 
     if (reply.kind === 'text') {
-      yield conversation.generated(reply.text.trim() || config.uncertainty);
+      yield publish(reply.text.trim() || config.uncertainty);
       return;
     }
 
@@ -104,22 +112,27 @@ export async function* runInferenceSteps(step: InferenceStepInput): AsyncGenerat
         `Inference supplied invalid input for ${tool.id}: ${reason ?? 'schema mismatch'}`,
       );
     }
+    if (tool.id === END_CALL_TOOL_ID) {
+      step.endCall(endReason(reply.input));
+      yield publish((reply.input as { goodbye: string }).goodbye.trim());
+      return;
+    }
 
     if (tool.effect === 'write' && step.uncertainWrite()) {
-      yield conversation.generated(
+      yield publish(
         'A previous change has an unconfirmed outcome. An operator must reconcile it before another change.',
       );
       return;
     }
     if (tool.effect === 'write' && step.wrote) {
-      yield conversation.generated(
+      yield publish(
         'The confirmed action is complete. Please make a separate request for another change.',
       );
       return;
     }
     const operationId = step.operationId();
     if (tool.effect === 'write' || tool.confirmation) {
-      yield conversation.generated(
+      yield publish(
         step.confirmation.request({ tool, input: reply.input, operationId }, config.locale),
       );
       return;
@@ -143,9 +156,24 @@ export async function* runInferenceSteps(step: InferenceStepInput): AsyncGenerat
     // A fresh model-selected ID must never turn an uncertain effect into an
     // automatic retry. Surface failure and require explicit reconciliation.
     if (result.state !== 'succeeded') {
-      yield conversation.generated(tool.processing?.failure ?? config.processing.failure);
+      yield publish(tool.processing?.failure ?? config.processing.failure);
       return;
     }
   }
-  yield conversation.generated(config.uncertainty);
+  yield publish(config.uncertainty);
+}
+
+/** Only an offered `end_call` with valid input ends the call; anything else is a protocol error. */
+function isEndCall(step: InferenceStepInput, input: unknown): boolean {
+  const validate = step.validators.get(END_CALL_TOOL_ID);
+  return Boolean(
+    validate && step.tools.some((tool) => tool.id === END_CALL_TOOL_ID) && validate(input),
+  );
+}
+
+function endReason(input: unknown): string {
+  const reason = (input as { reason?: unknown }).reason;
+  return typeof reason === 'string' && reason.trim()
+    ? `llm:end_call:${reason.trim()}`
+    : 'llm:end_call';
 }

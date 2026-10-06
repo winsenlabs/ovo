@@ -1,4 +1,10 @@
 import { z } from 'zod';
+import {
+  AgentEnding,
+  AgentOpening,
+  AgentVoicemail,
+  END_CALL_TOOL_ID,
+} from './agent-call-control.ts';
 import { AgentDecisionPolicy } from './agent-decision.ts';
 import { AgentKnowledgePolicy } from './agent-knowledge.ts';
 import { ScriptGraph } from './script.ts';
@@ -80,6 +86,12 @@ export const AgentConfig = z
     decision: AgentDecisionPolicy.optional(),
     /** Per-agent grounding, retrieved from the selected `knowledge` plugin. */
     knowledge: AgentKnowledgePolicy.optional(),
+    /** Agent mode only: spoken first, before the caller says anything (greet-first). */
+    opening: AgentOpening.optional(),
+    /** Agent mode only: answering-machine handling on outbound calls. */
+    voicemail: AgentVoicemail.optional(),
+    /** Agent mode only: how the agent may end the call itself. */
+    ending: AgentEnding.optional(),
     faqMargin: z.number().min(0).max(1).default(0.15),
     clarification: z.string().default('Please clarify your question.'),
     context: z.string().max(100000).default(''),
@@ -138,6 +150,25 @@ export const AgentConfig = z
   .refine((config) => new Set(config.faq.map((entry) => entry.id)).size === config.faq.length, {
     message: 'FAQ IDs must be unique',
     path: ['faq'],
-  });
+  })
+  // Only the agent behaviour speaks an opening, leaves a voicemail or ends the call; on any other
+  // mode these would validate and then do nothing.
+  .refine((config) => config.mode === 'agent' || !config.opening, {
+    message: 'An opening requires agent mode',
+    path: ['opening'],
+  })
+  .refine((config) => config.mode === 'agent' || !config.voicemail, {
+    message: 'A voicemail policy requires agent mode',
+    path: ['voicemail'],
+  })
+  .refine((config) => config.mode === 'agent' || !config.ending, {
+    message: 'An ending policy requires agent mode',
+    path: ['ending'],
+  })
+  .refine(
+    (config) =>
+      !config.ending?.llmTool || !config.tools.some((tool) => tool.id === END_CALL_TOOL_ID),
+    { message: `Tool id ${END_CALL_TOOL_ID} is reserved for ending the call`, path: ['tools'] },
+  );
 
 export type AgentConfig = z.infer<typeof AgentConfig>;

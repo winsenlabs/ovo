@@ -27,6 +27,7 @@ import { licenceUnaccepted } from './licence-unaccepted.ts';
 import { fixtureUnavailable } from './fixture-unavailable.ts';
 import { mcpToolRemoved } from './mcp-tool-removed.ts';
 import { terminationUnsupported } from './termination-unsupported.ts';
+import { templateVariableUndeclared } from './template-variable-undeclared.ts';
 import { legacyReleaseUnpinned } from './legacy-release-unpinned.ts';
 import type { CompatInput, CompatRule } from './types.ts';
 import { legacySelections } from '../legacy-session-selections.ts';
@@ -45,6 +46,7 @@ const RELEASE_RULES: readonly CompatRule[] = [
   decisionPluginUnused,
   knowledgePluginMissing,
   knowledgePluginUnused,
+  templateVariableUndeclared,
 ];
 const ADMISSION_RULES: readonly CompatRule[] = [
   pluginUnavailable,

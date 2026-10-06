@@ -1,4 +1,5 @@
 export * from './agent.ts';
+export * from './agent-call-control.ts';
 export * from './agent-decision.ts';
 export * from './agent-decision-apply.ts';
 export * from './ports.ts';

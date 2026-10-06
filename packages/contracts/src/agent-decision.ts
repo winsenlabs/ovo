@@ -28,6 +28,11 @@ export const DecisionOutcome = z
      * means this branch records its answer and lets the LLM compose the reply.
      */
     say: z.string().trim().min(1).max(2_000).optional(),
+    /**
+     * End the call once this turn's reply has played: `say` when set, otherwise the LLM's reply.
+     * The call ends `completed`; a caller who barges in on the goodbye keeps it open.
+     */
+    end: z.boolean().optional(),
   })
   .strict();
 
@@ -162,6 +167,10 @@ export const DECISION_STATE_SOURCES = [
   'context',
   /** Passages the `knowledge` plugin retrieved for this turn. Empty when nothing cleared the bar. */
   'knowledge',
+  /** The agent's last played line: what the caller is most likely answering. */
+  'agent-last-said',
+  /** Today's date in the agent's timezone, so a relative date ("tomorrow") can be resolved. */
+  'today',
 ] as const;
 export const DecisionStateSource = z.enum(DECISION_STATE_SOURCES);
 export type DecisionStateSource = z.infer<typeof DecisionStateSource>;
