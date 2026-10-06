@@ -1,0 +1,28 @@
+# OVO public origin for a single Compose host (OPS-8). scripts/bootstrap-compose.sh --public-host
+# renders this into infra/compose/Caddyfile; install it as /etc/caddy/Caddyfile on the host and
+# `systemctl reload caddy`. Compose publishes every service on 127.0.0.1 only, so Caddy is the sole
+# public listener. Caddy obtains and renews the TLS certificate itself (ports 80 and 443 must be
+# open). It overwrites X-Forwarded-* from the client, which the API relies on.
+#
+# No access log on purpose: carrier URLs carry signed query tokens that must not land on disk.
+
+__OVO_PUBLIC_HOST__ {
+	# Carrier webhooks and the media WebSocket (WSS upgrade) go to the media gateway.
+	handle /carriers/* {
+		reverse_proxy 127.0.0.1:__OVO_GATEWAY_PORT__ {
+			# Keep live calls' WebSockets open across `systemctl reload caddy`.
+			stream_close_delay 10m
+		}
+	}
+
+	# Public health for uptime probes and verify-live.sh: the gateway's ready flag only.
+	handle /ovo-gateway-health {
+		rewrite * /health
+		reverse_proxy 127.0.0.1:__OVO_GATEWAY_PORT__
+	}
+
+	# Everything else is the console, which proxies /api/* to the API with forwarded TLS.
+	handle {
+		reverse_proxy 127.0.0.1:__OVO_CONSOLE_PORT__
+	}
+}

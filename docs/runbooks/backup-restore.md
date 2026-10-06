@@ -16,6 +16,8 @@ Production OVO uses one shared PostgreSQL restore boundary. The local scripts in
 - campaigns and business operations: `ovo_ops_*`
 - telemetry: `ovo_telemetry_*`
 
+Scheduled offsite backups of this database, the Compose `.env` and the recordings, and the monthly restore drill, are in [offsite-backups.md](offsite-backups.md).
+
 Recording/media object bytes are a separate backup domain. Restoring PostgreSQL never makes an object safe to expose by itself: restore the matching object-store point, then verify PostgreSQL tombstones before allowing reads.
 
 ## Executable local drill

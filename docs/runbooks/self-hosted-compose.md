@@ -132,6 +132,8 @@ docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml up -d
 
 It polls each worker's `/health` every 5 seconds and gives up after 600 seconds (pass a different timeout as the second argument). Changing a live flag such as `OVO_INBOUND_ENABLED` recreates containers, so it needs the same drain.
 
+`scripts/deploy/deploy-compose.sh` does all of this in one command: it checks out a revision, pulls digest-pinned images (or builds), starts the API first so migrations run, then recreates each worker and the gateway one at a time after its call ends, verifies, and records the deploy for `--rollback`. `scripts/deploy/ovo-live.sh on|off` switches the live flags and the carrier number. See [deploy-ovo-dev.md](deploy-ovo-dev.md).
+
 Rolling the images back to a release before secrets master key versioning breaks every credential created, rotated or rewrapped since: older releases cannot read the key-tagged ciphertext. Roll back only to a release that has key versioning, or restore the database backup taken before the upgrade.
 
 ## Inbound readiness before go-live
@@ -180,3 +182,5 @@ docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml logs 
 - A worker in `dial-disabled` is healthy when live dialing is false.
 - A `carrier_env_bindings` log line with a non-empty `active` list means a service still has an env carrier binding; remove `OVO_CARRIER_ENV_BINDINGS` overrides and use a console provider binding.
 - A managed database connection failure should be fixed in `DATABASE_URL`/TLS configuration; OVO does not silently fall back to local PostgreSQL.
+
+Container logs are rotated by Docker (Compose `x-logging`: json-file, 5 files of 20 MiB per container, compressed), so `logs` shows at most the last ~100 MiB per service. To debug one service, recreate only it at `debug`: `OVO_LOG_LEVEL=debug docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml up -d --no-deps <service>`. Every variable is described in the [environment reference](../env-reference.md).

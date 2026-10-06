@@ -18,6 +18,15 @@ The API explicitly enables `OVO_FIXTURE_TEST_CALLS=true`; these calls use fixtur
 5. Stop with `docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml down`. Add
    `--volumes` only when intentionally deleting local data.
 
+For a long-lived public host use the scripted path instead of steps 2-4: `bootstrap-compose.sh
+--public-host HOST` (public origin, TLS-only API, `infra/caddy` reverse proxy), images built
+elsewhere with `scripts/deploy/build-images.sh`, `scripts/deploy/deploy-compose.sh` (drained rolling
+restart, migrations, verification, rollback), `scripts/deploy/ovo-live.sh on|off` and
+`scripts/ops/verify-live.sh`. See `docs/runbooks/go-live.md` and `docs/runbooks/deploy-ovo-dev.md`.
+Every container's log rotates at 5 × 20 MiB (`x-logging`). Every variable is in
+`docs/env-reference.md`; the optional worker tuning variables are forwarded empty when unset, which
+means "use the default".
+
 `OVO_MEDIA_PUBLIC_BASE_URL` must be a public **HTTPS** origin a carrier can reach, with a working WSS
 upgrade — `verify-compose.sh` refuses anything else. On a laptop that means a tunnel; on a host it
 means a domain and a certificate. It is normally the only thing a new deployment is missing.

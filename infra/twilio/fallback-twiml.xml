@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OPS-11 fallback: paste into a Twilio TwiML Bin and set its URL as OVO_OPS_FALLBACK_URL in
+  infra/compose/.env.ops. `ovo-live.sh on` makes it the number's Voice fallback URL (used when OVO
+  errors or times out); `ovo-live.sh off` and the preemption shutdown script make it the Voice URL.
+  Edit the wording, and keep it short: the caller is told to call back, nothing is recorded.
+-->
+<Response>
+  <Say voice="Polly.Aditi" language="en-IN">Sorry, we are unable to take your call right now. Please call again in a little while. Thank you.</Say>
+  <Hangup/>
+</Response>

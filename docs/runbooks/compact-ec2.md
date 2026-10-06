@@ -25,6 +25,10 @@ docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml ps
 ```
 
 `--build` is needed on a first run, because every image tag defaults to a local `:local` build.
+After the first install, build images on another machine and deploy them by digest
+(`scripts/deploy/build-images.sh`, `scripts/deploy/deploy-compose.sh --images …`; see
+[deploy-ovo-dev.md](deploy-ovo-dev.md)): building on the call host competes with live calls. On GCP,
+also follow [compact-gcp.md](compact-gcp.md) for restarts, alerting and the carrier fallback.
 
 4. Verify both workers have distinct IDs and one call slot. Run a synthetic duplicate-delivery check before any authorized carrier test.
 

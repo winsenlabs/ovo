@@ -4,6 +4,20 @@
 .session-history
 **/dist
 **/node_modules
+**/.next
+**/.turbo
+**/*.tsbuildinfo
 node_modules
 coverage
+playwright-report
+test-results
 *.log
+# Not part of any image. The Dockerfile copies only what it names, but the build context is still
+# uploaded to the builder, so keeping these out also keeps context uploads small.
+docs
+PM
+experiments
+tests
+infra
+**/.env
+**/.env.*

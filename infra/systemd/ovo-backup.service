@@ -1,0 +1,15 @@
+# OPS-12: one offsite backup run; scheduled by ovo-backup.timer. Logs go to the journal
+# (journalctl -u ovo-backup). A failure exits non-zero, and the missing heartbeat alerts.
+[Unit]
+Description=OVO offsite backup (pg_dump + .env + recordings to GCS)
+Requires=docker.service
+After=docker.service network-online.target ovo-compose.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=__OVO_REPO__
+ExecStart=__OVO_REPO__/scripts/backup/ovo-backup.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=3600
