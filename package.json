@@ -25,6 +25,7 @@
     "check:terraform": "node scripts/check-terraform.mjs",
     "test:console:e2e": "pnpm --filter @winsendotai/ovo-console --if-present run e2e",
     "test:live-path": "vitest run --config tests/e2e/vitest.config.ts",
+    "test:golden": "vitest run packages/fixture-calls/tests/golden packages/plugin-evaluations/tests/jev-eval.test.ts",
     "flow:import": "tsx scripts/flow-import/cli.ts",
     "eval:jev": "tsx scripts/jev-eval.ts"
   },
