@@ -96,3 +96,25 @@ describe('cancelling a turn', () => {
     expect(jev.requests).toHaveLength(1);
   });
 });
+
+describe('the authored flag (integration)', () => {
+  it('reads `decision.speculation` from the agent config', () => {
+    const config = AgentConfig.parse({
+      name: 'A',
+      mode: 'agent',
+      decision: { ...decision(['last-turn']), speculation: { llm: true, match: 'prefix' } },
+    });
+    expect(new AgentSpeculation(config).policy).toEqual({
+      ...DEFAULT_SPECULATION,
+      llm: true,
+      match: 'prefix',
+    });
+    expect(() =>
+      AgentConfig.parse({
+        name: 'A',
+        mode: 'agent',
+        decision: { ...decision(['last-turn']), speculation: { llm: 'yes' } },
+      }),
+    ).toThrow();
+  });
+});

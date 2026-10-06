@@ -67,3 +67,18 @@ describe('speculative LLM pricing (LAT-3)', () => {
     ]);
   });
 });
+
+describe('the authored flag (integration)', () => {
+  it('parses `decision.speculation` and warns through validateSelections', async () => {
+    const { validateSelections } = await import('../src/compat/index.ts');
+    const input = withConfig(fixture(), {
+      ...agent,
+      decision: { ...agent.decision, speculation: { llm: true } },
+    });
+    expect(
+      validateSelections(input, 'release').filter(
+        (issue) => issue.field === 'decision.speculation.llm',
+      ),
+    ).toEqual([expect.objectContaining({ code: 'meter_uncovered', severity: 'warning' })]);
+  });
+});

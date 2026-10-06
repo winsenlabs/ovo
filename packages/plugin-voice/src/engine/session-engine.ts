@@ -115,6 +115,7 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
       this.latency,
       (epoch) => this.driver.turnIdForEpoch(epoch),
       (event) => this.emit(event),
+      (id) => this.driver.isFiller(id), // LAT-6: speech over a filler is a turn (AGT-9).
     );
     this.unsubs.push(
       projectBusEvents(this.bus, this.latency, this.turnController, (event) => this.emit(event)),

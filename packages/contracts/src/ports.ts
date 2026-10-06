@@ -1,6 +1,7 @@
 import type { ToolDefinition } from './agent.ts';
 import type { SpeechKindV2 } from './voice/evidence.ts';
 import type { PlaybackEvidence } from './voice/media.ts';
+import type { SttConfigurationUpdate } from './speech/stt.ts';
 
 export interface CallEvent {
   id: string;
@@ -98,6 +99,8 @@ export interface Execution {
 /** Tool and confirmation lifecycle, for turn-detector mute rules (§2.6). Optional for engines. */
 export type BehaviorEvent =
   | { type: 'tool.started' | 'tool.settled'; toolId: string; operationId: string }
+  /** STT-4: the provider's endpointing for what the caller says next (e.g. per flow state). */
+  | { type: 'stt.configure'; update: SttConfigurationUpdate }
   | { type: 'confirmation.pending'; toolId: string; operationId: string }
   | {
       type: 'confirmation.resolved';

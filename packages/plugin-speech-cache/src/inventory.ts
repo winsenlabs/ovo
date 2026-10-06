@@ -3,7 +3,7 @@ import {
   agentRecoveryLines,
   canonicalJson,
   flowLineTemplates,
-  TurnConfigSchema,
+  turnDetectorLines,
   type AgentConfig,
   type DecisionOutcome,
   type TextFilter,
@@ -22,7 +22,8 @@ export type FixedLineSource =
   | 'script'
   | 'idle-prompt'
   | 'recovery'
-  | 'guardrail';
+  | 'guardrail'
+  | 'filler';
 
 export interface FixedLine {
   text: string;
@@ -87,9 +88,10 @@ export function staticSpeechInventory(release: SpeechInventoryRelease): SpeechIn
   for (const line of agentRecoveryLines(config))
     add(line.text, line.field.startsWith('idle.') ? 'idle-prompt' : 'recovery');
   const turns = release.selections?.turnDetector;
-  const parsed = turns ? TurnConfigSchema.safeParse(turns.config) : undefined;
-  for (const prompt of parsed?.success ? (parsed.data.idle?.prompts ?? []) : [])
-    add(prompt, 'idle-prompt');
+  const detector = turns ? turnDetectorLines(turns.config) : { idle: [], filler: [] };
+  for (const prompt of detector.idle) add(prompt, 'idle-prompt');
+  // LAT-6: the detector's filler lines play while a slow reply is composed, each its own clip.
+  for (const line of detector.filler) add(line, 'filler');
   return inventory;
 }
 

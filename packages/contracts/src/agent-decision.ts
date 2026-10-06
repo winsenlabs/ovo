@@ -204,6 +204,21 @@ export const AgentDecisionPolicy = z
      * from Mumbai does not turn into an `unavailable` verdict.
      */
     timeoutMs: z.number().int().min(50).max(10_000).default(800),
+    /**
+     * How far the agent works ahead of the caller (LAT-3, LAT-4). An absent field keeps the
+     * behaviour's default (`DEFAULT_SPECULATION`): decisions on partial transcripts on, after a
+     * 150ms debounce and on exactly the same words; the LLM asked alongside the decision off, since
+     * the calls it aborts are still billed.
+     */
+    speculation: z
+      .object({
+        partials: z.boolean().optional(),
+        debounceMs: z.number().int().min(0).max(2_000).optional(),
+        match: z.enum(['exact', 'prefix']).optional(),
+        llm: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .refine(

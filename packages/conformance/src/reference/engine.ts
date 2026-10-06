@@ -107,9 +107,10 @@ export class ReferenceEngine implements VoiceSessionEngine {
         Math.max(1, session.maxCallSeconds) * 1000,
       ),
     );
-    const off = behavior.subscribe?.((event) =>
-      this.observe({ type: event.type, atMs: clock.now() }),
-    );
+    const off = behavior.subscribe?.((event) => {
+      // Endpointing updates (STT-4) retune a provider; they are not voice events.
+      if (event.type !== 'stt.configure') this.observe({ type: event.type, atMs: clock.now() });
+    });
     if (off) this.cleanup.push(off);
     if (session.inputEnabled) {
       this.stt = await this.ports.stt.start({

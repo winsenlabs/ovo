@@ -14,6 +14,10 @@ import {
 } from '@winsendotai/ovo-plugin-cache';
 import { legacyFromDuplex } from '@winsendotai/ovo-plugin-kit';
 import {
+  ReplyStreams,
+  warmSessionTts,
+} from '@winsendotai/ovo-session-host/speech-adapters/tts-reply-format';
+import {
   createSpeechCacheKey,
   ApprovedSpeechPolicy,
   normalizeSpeechText,
@@ -90,25 +94,39 @@ export function createV2SpeechCachePlugin(
       let timing:
         ((phase: TimingPhase, segment: SpeechSegment, elapsedMs?: number) => void) | undefined;
       let maxPrefetchBytes = 262_144;
+      const input = (segment: SpeechSegment, signal: AbortSignal) => ({
+        sessionId: media.sessionId,
+        format: media.format,
+        language: release.config.language,
+        voice,
+        kind: segment.kind,
+        signal,
+        onUsage: usage,
+      });
+      // Session start: the first reply finds the provider's connection open (Wave 2 request #2).
+      warmSessionTts(tts, media.format, voice);
+      // LAT-5: uncached lines of one reply share one provider context. Cached and fixed lines
+      // keep rendering on their own, so a stored clip is always exactly its own text.
+      const replies = ReplyStreams.for(tts, (segment, open) =>
+        segmentAudio(tts, { ...open, text: segment.text }),
+      );
       const synthesize = (segment: SpeechSegment, signal: AbortSignal) =>
-        observeFirstByte(
-          segmentAudio(tts, {
-            sessionId: media.sessionId,
-            text: segment.text,
-            format: media.format,
-            language: release.config.language,
-            voice,
-            kind: segment.kind,
-            signal,
-            onUsage: usage,
-          }),
-          () => timing?.('tts-first-byte', segment),
+        observeFirstByte(segmentAudio(tts, { ...input(segment, signal), text: segment.text }), () =>
+          timing?.('tts-first-byte', segment),
         );
       const live = (segment: SpeechSegment, signal: AbortSignal) =>
         telemetry.track(
           segment,
           'bypass',
-          prefetchSpeech(synthesize(segment, signal), signal, maxPrefetchBytes),
+          prefetchSpeech(
+            replies
+              ? observeFirstByte(replies.audio(segment, input(segment, signal)), () =>
+                  timing?.('tts-first-byte', segment),
+                )
+              : synthesize(segment, signal),
+            signal,
+            maxPrefetchBytes,
+          ),
         );
       // A set rendered for another format (an early render, a different carrier) is not playable.
       const clips =
@@ -205,25 +223,30 @@ export function createV2SpeechCachePlugin(
         }
         return live(segment, signal);
       };
-      const output = Object.assign(
-        new SessionSpeechOutput(player, createAudio, (segment) =>
-          timing?.('carrier-first-audio', segment),
-        ),
-        {
-          configure(options: { markTimeoutMs?: number; maxPrefetchBytes?: number }) {
-            player.configure(options);
-            if (options.maxPrefetchBytes !== undefined)
-              maxPrefetchBytes = new BoundedAudioPrefetch(options.maxPrefetchBytes).maxBytes;
-          },
-          configureTiming(listener: typeof timing) {
-            timing = listener;
-          },
-        },
+      const session = new SessionSpeechOutput(player, createAudio, (segment) =>
+        timing?.('carrier-first-audio', segment),
       );
+      const interrupt = session.interrupt.bind(session);
+      const output = Object.assign(session, {
+        /** Barge-in closes that reply's provider context only. */
+        interrupt(epoch: number) {
+          replies?.close(epoch);
+          return interrupt(epoch);
+        },
+        configure(options: { markTimeoutMs?: number; maxPrefetchBytes?: number }) {
+          player.configure(options);
+          if (options.maxPrefetchBytes !== undefined)
+            maxPrefetchBytes = new BoundedAudioPrefetch(options.maxPrefetchBytes).maxBytes;
+        },
+        configureTiming(listener: typeof timing) {
+          timing = listener;
+        },
+      });
       ctx.provide(Cap.output, output);
       ctx.effect(() => () => {
         // The call's own audio goes with the call (TTS-10): nothing of it outlives the session.
         clips?.discard();
+        replies?.dispose();
         output.dispose();
         telemetry.summary();
       });

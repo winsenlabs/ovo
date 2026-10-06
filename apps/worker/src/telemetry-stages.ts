@@ -102,6 +102,9 @@ function instrumentV2SttSession(
       }
     },
     ...(session.forceEndpoint ? { forceEndpoint: () => session.forceEndpoint!() } : {}),
+    ...(session.updateConfiguration
+      ? { updateConfiguration: (update) => session.updateConfiguration!(update) }
+      : {}),
     finish: async (signal) => {
       try {
         await session.finish(signal);

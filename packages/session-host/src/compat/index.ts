@@ -33,6 +33,7 @@ import { flowInvalid } from './flow-invalid.ts';
 import { flowVariables } from './flow-variables.ts';
 import { flowMode } from './flow-mode.ts';
 import { flowDecisionLimits } from './flow-decision-limits.ts';
+import { speculativeLlmUnpriced } from './speculative-llm-unpriced.ts';
 import type { CompatInput, CompatRule } from './types.ts';
 import { legacySelections } from '../legacy-session-selections.ts';
 
@@ -54,6 +55,7 @@ const RELEASE_RULES: readonly CompatRule[] = [
   flowInvalid,
   flowVariables,
   flowMode,
+  speculativeLlmUnpriced,
 ];
 const ADMISSION_RULES: readonly CompatRule[] = [
   pluginUnavailable,

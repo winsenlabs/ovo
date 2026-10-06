@@ -12,6 +12,7 @@ import {
   type AgentConfig,
   type Behavior,
   type Execution,
+  type FinalUtterance,
   type Inference,
   type ToolDefinition,
   type SpeechReceipt,
@@ -149,9 +150,22 @@ export abstract class AgentSession implements Behavior {
     );
   }
 
+  /** The utterance whose reply started last (`TurnSpeculation.finalize`). */
+  private finalized?: FinalUtterance;
+
+  /** `TurnSpeculation.finalize`: `final.text` is the next `respond` input, on the same tick. */
+  finalize(final: FinalUtterance): void {
+    this.finalized = final;
+  }
+
   /** `TurnSpeculation.discard`: utterance `turnId` will not be answered as it was heard. */
-  discard(turnId: string): void {
+  discard(turnId: string, reason?: 'reset' | 'superseded'): void {
     this.gate?.discardPrepared(turnId);
+    // AGT-10: its words come back inside the merged turn, so they leave the history here.
+    if (reason === 'superseded' && this.finalized?.turnId === turnId) {
+      this.conversation.withdraw(this.finalized.text);
+      this.finalized = undefined;
+    }
   }
 
   /** AGT-5: until a flow confirms identity, the briefing carries none of this call's values. */

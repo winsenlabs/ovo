@@ -42,6 +42,19 @@ export class PlaybackConversation {
     return previous;
   }
 
+  /**
+   * AGT-10: the caller spoke again before hearing any answer to `text`, and the engine merged both
+   * into the next turn. The superseded words leave the history (the merged turn records them again)
+   * and its unplayed lines leave no interruption note: the caller never heard them start.
+   */
+  withdraw(text: string): void {
+    const index = this.entries.findLastIndex(
+      (entry) => entry.role === 'user' && entry.content === text,
+    );
+    if (index >= 0) this.entries.splice(index, 1);
+    this.pending = [];
+  }
+
   generated(text: string): string {
     if (this.epoch !== undefined) this.pending.push({ text, epoch: this.epoch });
     return text;

@@ -68,4 +68,19 @@ describe('worker session outcomes (AGT-8)', () => {
     auditGuardrail({ ctx: { get: () => undefined } } as never, telemetry);
     expect(audits).toEqual(['guardrail.summary']);
   });
+
+  it('audits speculative decisions and LLM calls when the agent made any', () => {
+    const audits: [string, unknown][] = [];
+    const telemetry = { audit: (type: string, payload: unknown) => !!audits.push([type, payload]) };
+    const decision = { started: 2, modelCalls: 1, reused: 1, discarded: 1, cancelled: 0 };
+    const llm = { started: 1, used: 0, aborted: 1, discarded: 0 };
+    const composition = (metrics: unknown) => ({
+      ctx: {
+        get: (key: string) => (key === Cap.behavior ? { speculationMetrics: metrics } : undefined),
+      },
+    });
+    auditGuardrail(composition({ llm: { ...llm, started: 0 } }) as never, telemetry);
+    auditGuardrail(composition({ decision, llm }) as never, telemetry);
+    expect(audits).toEqual([['speculation.summary', { decision, llm }]]);
+  });
 });

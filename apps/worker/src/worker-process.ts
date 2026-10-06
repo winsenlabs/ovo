@@ -196,7 +196,7 @@ export async function openWorkerProcess() {
   });
   const registry = new PluginRegistry(catalog);
   const prewarmLog = createLogger({ service: 'worker', workerId });
-  const prewarm =
+  const warm =
     process.env.OVO_PROVIDER_PREWARM === 'false'
       ? undefined
       : (jobId: string) =>
@@ -209,6 +209,7 @@ export async function openWorkerProcess() {
             defaults: distribution.defaults,
             log: prewarmLog,
           });
+  const prewarm = speechCache.onDial(warm, store, controlStore, costs);
   return {
     kind: 'live' as const,
     composition,

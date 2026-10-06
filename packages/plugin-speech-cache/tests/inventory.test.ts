@@ -209,6 +209,28 @@ describe('static speech inventory (TTS-5)', () => {
     ).not.toContain('guardrail');
   });
 
+  it('pre-renders the turn detector filler lines, past its own commit settings (LAT-6)', () => {
+    const inventory = staticSpeechInventory({
+      config,
+      selections: {
+        turnDetector: {
+          config: {
+            strategy: 'commit',
+            commit: { silenceMs: 50 },
+            filler: { lines: ['Let me check.', 'Just a second.'], afterMs: 600 },
+          },
+        },
+      },
+    });
+    expect(inventory.static).toEqual(
+      expect.arrayContaining([
+        { text: 'Are you still there?', source: 'idle-prompt' },
+        { text: 'Let me check.', source: 'filler' },
+        { text: 'Just a second.', source: 'filler' },
+      ]),
+    );
+  });
+
   it('uses the default idle prompt for a selected turn detector and skips disabled decisions', () => {
     const off = AgentConfig.parse({ ...config, decision: { ...config.decision!, enabled: false } });
     const inventory = staticSpeechInventory({

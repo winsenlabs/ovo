@@ -52,7 +52,7 @@ export class ScriptBehavior implements Behavior {
     this.pending = undefined;
     const generation = ++this.generation;
     const node = this.graph.nodes.find((node) => node.id === this.current)!;
-    if (!this.started) return this.prepare(node.id, variables);
+    if (!this.started) return this.stageNode(node.id, variables);
     if (node.terminal) return '';
     if (this.faqConfirmation) return this.detour(input, variables, node.id, generation);
     if (this.visits >= this.graph.maxVisits) return this.config.clarification;
@@ -63,7 +63,7 @@ export class ScriptBehavior implements Behavior {
         transition.event === event &&
         transition.matches.some((match) => normalizeForMatch(match) === normalized),
     );
-    if (transition) return this.prepare(transition.to, variables);
+    if (transition) return this.stageNode(transition.to, variables);
     // Only a script with a decision policy and plugin waits on anything here; without one the
     // reply goes straight to the detour or the clarification, exactly as before. A policy with
     // questions predates script decisions: releases published with one ignored it, and still do.
@@ -72,7 +72,7 @@ export class ScriptBehavior implements Behavior {
       const decided = await this.decide(input, node, variables);
       if (generation !== this.generation)
         throw new DOMException('Stale script response', 'AbortError');
-      if (decided) return this.prepare(decided, variables);
+      if (decided) return this.stageNode(decided, variables);
     }
     if (event === 'dtmf' || !this.faq) return this.config.clarification;
     return this.detour(input, variables, node.id, generation);
@@ -172,7 +172,8 @@ export class ScriptBehavior implements Behavior {
     return this.faq?.subscribe?.(listener) ?? (() => undefined);
   }
 
-  private prepare(node: string, variables: Record<string, unknown>): string {
+  /** Named apart from the `prepare` hook a turn driver calls on a behaviour (LAT-4). */
+  private stageNode(node: string, variables: Record<string, unknown>): string {
     const text = this.render(node, variables);
     if (this.epoch === undefined) throw new Error('Script requires beginTurn before response');
     this.pending = { node, text, epoch: this.epoch };

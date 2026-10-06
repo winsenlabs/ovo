@@ -1,5 +1,6 @@
 import { sameFormat, type AudioFormat, type TextToSpeech } from '@winsendotai/ovo-contracts';
 import { createTranscoder, plan } from '@winsendotai/ovo-audio';
+import { adaptReplyAndWarm } from './tts-reply-format.ts';
 
 function nativeFor(tts: TextToSpeech, requested: AudioFormat): AudioFormat {
   const formats = tts.capabilities.outputFormats ?? [];
@@ -51,6 +52,8 @@ export function adaptTextToSpeech(tts: TextToSpeech): TextToSpeech {
           },
         }
       : {}),
+    // LAT-5 reply contexts and the session-start warm-up (Wave 2 request #2).
+    ...adaptReplyAndWarm(tts, nativeFor),
   };
   return wrapped;
 }
