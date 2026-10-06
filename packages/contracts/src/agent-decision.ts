@@ -52,9 +52,8 @@ export type DecisionOutcome = z.infer<typeof DecisionOutcome>;
  * What happens when confidence falls below the authored threshold. `llm` is the documented Jev
  * posture — the decision model answers what it is confident about and defers the rest.
  *
- * `handoff` is deliberately absent. `HumanHandoffPort` is a contract with no implementation and no
- * caller anywhere in this repository, so a `handoff` fallback would be a configuration that reads
- * as a safety net and does nothing. It arrives with that port, not before.
+ * `handoff` is deliberately not a fallback here: a transfer is the agent's `handoff` block (AGT-15),
+ * triggered by flow nodes, an unavailable decision, exhausted re-asks or the LLM tool.
  */
 export const DecisionFallback = z.enum(['llm', 'clarify']);
 export type DecisionFallback = z.infer<typeof DecisionFallback>;

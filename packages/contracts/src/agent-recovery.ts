@@ -85,8 +85,8 @@ export type AgentRecovery = z.infer<typeof AgentRecovery>;
  * `recovery`) the turn falls through to the LLM, as it always has. With it the caller hears `line`
  * (or the recovery re-ask) and the turn counts as a miss; `end` ends the call after the line.
  *
- * There is no `transfer` action: `HumanHandoffPort` has no implementation yet (AGT-15), and an
- * action that validates and then does nothing would read as a safety net that is not there.
+ * To hand the caller to a person instead, set `handoff.transfer.onDecisionUnavailable` (AGT-15,
+ * `human-handoff.ts`); that takes precedence over this line.
  */
 export const AgentDecisionUnavailable = z
   .object({

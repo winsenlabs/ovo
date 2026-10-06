@@ -8,6 +8,7 @@ import { getProductionRecordingServices } from '../recording-runtime.ts';
 import { EVALUATION_FIXTURE_BINDING_VERSION } from '../evaluation-runtime.ts';
 import { registerAgentsRoutes } from './agents.ts';
 import { registerAuthRoutes } from './auth.ts';
+import { registerCallbacks } from './callbacks.ts';
 import { registerCostRoutes } from './cost.ts';
 import { registerCredentialsRoutes } from './credentials.ts';
 import { registerEvaluationDatasetRoutes } from './evaluation-datasets.ts';
@@ -80,6 +81,7 @@ export function registerApiRoutes(deps: any): void {
   registerMcpRoutes(deps);
   registerSimulationRoutes(deps);
   registerInspectionRoutes(deps);
+  registerCallbacks({ app, requireRole, error, store, options });
   registerTestCallRoutes(deps);
   registerRecordingRoutes({
     app,

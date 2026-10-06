@@ -159,6 +159,7 @@ async function* inferenceSteps(
           return accepted;
         },
         step.guard,
+        config.reply?.minFirstWords,
       );
       if (!streamed) return;
       reply = streamed;

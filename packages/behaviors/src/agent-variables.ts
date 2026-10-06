@@ -1,5 +1,6 @@
 import {
   AGENT_BUILTIN_VARIABLES,
+  agentHandoffLines,
   agentRecoveryLines,
   type AgentBuiltinVariable,
   type AgentConfig,
@@ -122,8 +123,8 @@ export function templateSchema(config: AgentConfig): JsonSchema {
 }
 
 /**
- * Every template an agent authors: opening, voicemail message, decision lines, idle and recovery
- * lines, and the briefing.
+ * Every template an agent authors: opening, voicemail message, decision lines, idle, recovery and
+ * transfer lines, and the briefing.
  */
 export function agentTemplates(config: AgentConfig): AgentTemplate[] {
   if (config.mode !== 'agent') return [];
@@ -148,6 +149,7 @@ export function agentTemplates(config: AgentConfig): AgentTemplate[] {
       );
   });
   for (const line of agentRecoveryLines(config)) spoken(line.field, line.text);
+  for (const line of agentHandoffLines(config)) spoken(line.field, line.text);
   if (config.context) found.push({ field: 'context', template: config.context, spoken: false });
   return found;
 }

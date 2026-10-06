@@ -26,8 +26,14 @@ export function agentLlmPaths(config: AgentConfig): string[] {
     for (const [field, outcome] of outcomes(question))
       if (outcome.say === undefined) paths.push(`${at}.${field}.outcome.say`);
   });
-  // An unavailable verdict falls through to the LLM unless something else is configured to speak.
-  if (!config.decisionUnavailable && !config.recovery) paths.push('decisionUnavailable');
+  // An unavailable verdict falls through to the LLM unless something else is configured to speak
+  // or the agent transfers instead (AGT-15).
+  if (
+    !config.decisionUnavailable &&
+    !config.recovery &&
+    !config.handoff?.transfer?.onDecisionUnavailable
+  )
+    paths.push('decisionUnavailable');
   return [...paths, ...commonPaths(config)];
 }
 

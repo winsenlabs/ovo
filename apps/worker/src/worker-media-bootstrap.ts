@@ -16,7 +16,8 @@ import type { Server } from 'node:http';
 import type { LiveGraphOptions } from './session-graph-runtime.ts';
 import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
 import { terminateOwnedJob } from './worker-termination.ts';
-import type { EndReason } from '@winsendotai/ovo-contracts';
+import { releaseTransferTarget } from './call-transfer.ts';
+import type { EndReason, HandoffTarget } from '@winsendotai/ovo-contracts';
 import type { SessionRoute } from '@winsendotai/ovo-plugin-orchestration';
 
 export function createProductionWorkerMediaRuntime(input: {
@@ -40,7 +41,12 @@ export function createProductionWorkerMediaRuntime(input: {
   carriers?: WorkerCarrierRuntime;
 }): WorkerMediaRuntime {
   let runtime!: WorkerMediaRuntime;
-  const terminate = async (route: SessionRoute, reason: EndReason, closingFromEngine = false) => {
+  const terminate = async (
+    route: SessionRoute,
+    reason: EndReason,
+    closingFromEngine = false,
+    transfer?: HandoffTarget,
+  ) => {
     const current = await input.store.getSessionRoute(route.jobId);
     if (!current || current.terminalAt || current.releasedAt || current.status === 'terminating')
       return;
@@ -52,6 +58,7 @@ export function createProductionWorkerMediaRuntime(input: {
         reason,
         store: input.store,
         carriers: input.carriers,
+        ...(transfer ? { transfer } : {}),
         media: closingFromEngine
           ? { terminate: async () => undefined, closeSession: async () => undefined }
           : runtime,
@@ -91,7 +98,15 @@ export function createProductionWorkerMediaRuntime(input: {
       input.recordingRetentionDays,
       input.speechCache,
       input.graph,
-      async (_job, route, reason) => terminate(route, reason, true),
+      async (job, route, reason) =>
+        terminate(
+          route,
+          reason,
+          true,
+          reason === 'transferred'
+            ? await releaseTransferTarget(input.controlStore, job)
+            : undefined,
+        ),
       { pool: input.store.pool },
     ),
     async (route, reason) => {

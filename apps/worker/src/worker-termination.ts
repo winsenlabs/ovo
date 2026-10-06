@@ -1,4 +1,9 @@
-import { outcomeFor, type EndReason, type Reconciliation } from '@winsendotai/ovo-contracts';
+import {
+  outcomeFor,
+  type EndReason,
+  type HandoffTarget,
+  type Reconciliation,
+} from '@winsendotai/ovo-contracts';
 import { asEndReason } from '@winsendotai/ovo-plugin-kit';
 import type { DurableJobStore } from '@winsendotai/ovo-plugin-orchestration';
 import { terminateCarrierLeg } from '@winsendotai/ovo-session-host';
@@ -15,6 +20,8 @@ export interface OwnedTermination {
   media: Pick<WorkerMediaRuntime, 'terminate' | 'closeSession'>;
   /** Asks the carrier for the final status when its terminal callback does not arrive (OBS-11). */
   reconcile?: TerminalReconcile;
+  /** AGT-15: the agent's transfer target, for a call it ended `transferred`. */
+  transfer?: HandoffTarget;
 }
 
 type EndedState = Extract<Reconciliation, { kind: 'ended' }>['state'];
@@ -102,6 +109,9 @@ export async function terminateOwnedJob(input: OwnedTermination): Promise<boolea
       },
     },
     reason,
+    ...(input.transfer
+      ? { transfer: { target: input.transfer, workspaceId: job.workspaceId } }
+      : {}),
   });
   if (input.reconcile) {
     const reconcile = input.reconcile;

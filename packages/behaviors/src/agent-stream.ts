@@ -21,9 +21,12 @@ export async function* streamAgentReply(
    * the text to speak, or undefined to drop the sentence. Never waits for the whole reply.
    */
   guard?: (segment: string) => string | undefined,
+  /** LAT-9 per agent (`reply.minFirstWords`); the segmenter's default when absent. */
+  minFirstWords?: number,
 ): AsyncGenerator<string, InferenceReply | undefined> {
   const segmenter = new StreamingTextSegmenter(undefined, undefined, {
     language: language,
+    ...(minFirstWords !== undefined ? { minFirstWords } : {}),
   });
   let toolReply: { kind: 'tool'; toolId: string; input: unknown } | undefined;
   let emittedText = false;

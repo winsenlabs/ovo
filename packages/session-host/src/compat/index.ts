@@ -34,6 +34,8 @@ import { flowVariables } from './flow-variables.ts';
 import { flowMode } from './flow-mode.ts';
 import { flowDecisionLimits } from './flow-decision-limits.ts';
 import { speculativeLlmUnpriced } from './speculative-llm-unpriced.ts';
+import { engineFeatureUnsupported } from './engine-feature-unsupported.ts';
+import { handoffCarrierUnsupported } from './handoff-carrier-unsupported.ts';
 import type { CompatInput, CompatRule } from './types.ts';
 import { legacySelections } from '../legacy-session-selections.ts';
 
@@ -56,6 +58,8 @@ const RELEASE_RULES: readonly CompatRule[] = [
   flowVariables,
   flowMode,
   speculativeLlmUnpriced,
+  engineFeatureUnsupported,
+  handoffCarrierUnsupported,
 ];
 const ADMISSION_RULES: readonly CompatRule[] = [
   pluginUnavailable,
