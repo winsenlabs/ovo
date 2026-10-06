@@ -1,0 +1,2715 @@
+{
+  "provenance": "synthetic",
+  "note": "Synthetic: every decided case is answered with its own label. Not a Jev measurement; record live answers with `pnpm eval:jev --record`.",
+  "recordedAt": "2026-10-06T03:25:42.270Z",
+  "modelId": "synthetic-label-echo",
+  "answers": {
+    "sha256:6295d361311cf0ba8a371986599dc8f4b6ab9245da2289e282805e928018ad47": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "confirmed",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.9,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:a5020715c1952f533b5f927acbb3b2ef7b73ed5f3e9f83e5f2356ed42114719a": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "confirmed",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.9,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:722633abe673ff59a157760a37d4508dfc18d64664a1906fd0c695b4d82da1d9": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "confirmed",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.9,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:772c449bd09024b267d3dccc63c467dc2c9bdce1ae3c896b04282504895af93f": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "confirmed",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.9,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:00071cbd0ea2a6f2f41025204d8db25ca17e4bbddd60e77b2c40d841bf42bd01": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "confirmed",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.9,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:93130462a1daf533ad29756a38de741bcfac84c7fe488135d827960ecb9ff444": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "wrong_person",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.9,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:05087436cb78ed46cfb612d00dda47f3763252f7ea7a7bb19d77330f9e2275eb": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "wrong_person",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.9,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:0199b25c6356fcad94dbab8bd020239c82065f5fbd8408d1c7567458876ba7c8": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "wrong_person",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.9,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:13dc0e670b3922bcca78c4951daaaaed5cec111d48d5432e9f460fa6271816af": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "wrong_person",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.9,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:67765e22c696ed9e1b60a6019425a0f977b25d00dc4b227c25a9678f18baf3de": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "third_party",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.9,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:ab1828b1a26739708c633be28bb1478cd5d369be5d621d7b2b4441302ad42f81": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "third_party",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.9,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:fd4c77760a300aa61f160648cd3a660badcb85ce4c44a07ab8ac77f081aac533": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "third_party",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.9,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:1ecb840630f320a5f27bcf99c641d29d03d9b349e510ca579bfc2695112726bd": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "busy",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.9,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:b4f26aa7bf7f8db2dd44f77f76991c0e373cae45baec2a9fd7d37c631f75a9d0": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "busy",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.9,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:18caf870c08266f94f89675ec6b241bedb8fc09f9de527311cbdd2b9e9e3e51b": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "busy",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.9,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:a28704c354fdfbabb72a0800778db8d988c900793f4025f456046c5fe1e23288": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "asks_purpose",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.9,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:722065bb54424f043150716c62c2b66cfadddd2121fb976104038c997577e515": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "asks_purpose",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.9,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:381ad60d36fc14413071fee3cae8cf4454042e778e19f966425e261c7fab537d": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "asks_purpose",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.9,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:8a1afb4497592d1f8a7facce0d2dda7efaf6d287789b66d357f785e4c8bb5515": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "asks_purpose",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.9,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:3bda413b1a7c052363a1608ba6eac00e3274a7e1dfacb1f6dcdaa2571a051960": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "repeat",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.9,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:62a2ae3948a2f845ebda9973b7e856f376cb917f8a6dc8394e7dc3fa46ad0f5a": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "human_agent",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.9,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:1e9f2c7f2c3397e34a95ced103515681cdf253056333deeefb7e63e409d6ed34": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "stop_calling",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.9,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:b8c0e7f2b3699b995c4faebc2a86e7c6ccb2f8ee07df0895b16583e49b62f4df": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "abusive",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.9,
+            "other": 0.011111111111111108
+          }
+        }
+      }
+    },
+    "sha256:033bcf5fa509e8c1dcb68e6f96fa7555367631a639695de0edc6856c530037a8": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.9
+          }
+        }
+      }
+    },
+    "sha256:3054967436034b47a7b93143a460277c5a1a487eea7068813114bdf85a2cefcd": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.011111111111111108,
+            "wrong_person": 0.011111111111111108,
+            "third_party": 0.011111111111111108,
+            "busy": 0.011111111111111108,
+            "asks_purpose": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.9
+          }
+        }
+      }
+    },
+    "sha256:eb45fea3d942e7ff9f86916a1bf9a356ae0f30a4c3f2897d8775a8430f90005e": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "pay_now",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.9,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:1c450e37b62180824d34044cfb95118e33e12237fceb68561ec957d060c571a3": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "pay_now",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.9,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:76faff6a99d01f07b4935dec4d678c30a32e3e54894eb1ccf9b12a395d82f1c0": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "pay_now",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.9,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:caed28b5ec06d85d585faa0f5f7c9a0fe9bd2f9487ccf1b39e8500c6d13286cd": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "promise_to_pay",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.9,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "tomorrow",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.9,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.019999999999999997
+          }
+        }
+      }
+    },
+    "sha256:2f8f2c18eeb29f0c6419d8a7c34f54c05135f0bfda5cc7d4faab2f199aa59ef5": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "promise_to_pay",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.9,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "tomorrow",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.9,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.019999999999999997
+          }
+        }
+      }
+    },
+    "sha256:877a1e0e7c0133843fa9ff798afb29072694117535b7fe77cabe67261e888bf5": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "promise_to_pay",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.9,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "tomorrow",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.9,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.019999999999999997
+          }
+        }
+      }
+    },
+    "sha256:2f8e8e959bdf8e7a4459b4b98a4194306ae4f98e931dc10a3680649bff231ccb": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "promise_to_pay",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.9,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "today",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.9,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.019999999999999997
+          }
+        }
+      }
+    },
+    "sha256:e492707f5af9f04bfc76d8640616569cb8d8c51753c31c82eeea3eaa3853f663": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "promise_to_pay",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.9,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "within_3_days",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.9,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.019999999999999997
+          }
+        }
+      }
+    },
+    "sha256:b95571a7bc68f8e7362c260980daff676bd1a299d217278897dc2e3e9a0b719b": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "promise_to_pay",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.9,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "within_3_days",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.9,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.019999999999999997
+          }
+        }
+      }
+    },
+    "sha256:4033b3508cd8e79af341c53c5315805b5b587a8bbc1ad0643e1b78ed21af0ff0": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "promise_to_pay",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.9,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "within_week",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.9,
+            "later": 0.019999999999999997,
+            "unspecified": 0.019999999999999997
+          }
+        }
+      }
+    },
+    "sha256:225391357b045da4f80152d3687035d64738b097f51e7df346275b5aa57dce98": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "promise_to_pay",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.9,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "later",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.9,
+            "unspecified": 0.019999999999999997
+          }
+        }
+      }
+    },
+    "sha256:4b10b2c41acc30d6000441ed47107f1fec3e186540fa4345d5ea32d85427d973": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "promise_to_pay",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.9,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "later",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.9,
+            "unspecified": 0.019999999999999997
+          }
+        }
+      }
+    },
+    "sha256:ef1c5b310eb04abaaa98afa25b5ed577524c5d4faa6739ec8ffb8c7b1026d20b": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "promise_to_pay",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.9,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:9154652451c3ab74cd3a38a7dd49e865a0e0419aac0a943c654be69fc0902085": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "already_paid",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.9,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:50764e137073856db334245776460cbc52f1d80e0093dbb6419ac790f262e6ec": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "already_paid",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.9,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:967cc0361a84fd128af96bea4ebddc8482bfa8b3d6430f531d945db60fbcdf3c": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "already_paid",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.9,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:c9a8f9a67158a2e35c23f1a3eecfbea4d8551af9678fe326b69cabd95d5f31b8": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "cannot_pay",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.9,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:208d0761db2a7f411ceeb21e94c89e2185c6689b5d4e6f2f998b713682587594": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "cannot_pay",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.9,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:e1a16bff231de1d729bc2c735121fa9e0033bb6a6d366ef8f6ea51fcf34e27ca": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "cannot_pay",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.9,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:810402d94a9ed4e73e3d4e621c92673dfd66fe9a9bd5dd988d2a0066d7d3072b": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "dispute",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.9,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:f403e99ea9a0be4029dc98028c4b3cc7e407f4635fa7e434a29d6f7885d5cebc": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "dispute",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.9,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:7b72875456c5276663dd6048a99dbb0f164b95147634db1c2144e450f083bc5f": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "waiver_request",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.9,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:d553a7d604ac7d3b5b5785aace27aa6f09e5d3f8ba39f6bdbd98da154d31e955": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "waiver_request",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.9,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:31377c8091169c34bee3ad813bc44b124027fa6f86ae04155012cfbe5b87a751": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "waiver_request",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.9,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:d6a3080ffa9d334d0dfd2e4667a59d4e98fdaca667ef273f3ad7d6e1f7c5967a": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "mandate_help",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.9,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:d8d11659931c531f0f1948d03b070f8848fec879957e71e0395076b0741a2272": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "mandate_help",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.9,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:c583f8eb0f8b41304120b44446f9f9e62b35ac0c74146c022b9bdcaa1413320e": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "busy",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.9,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:bd8ac5f16c4da1c94dcbef922021edb43ae0a2d606e909fb3a1d15d663e59cfc": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "human_agent",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.9,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:26ef7033b62143d32affab3ec2445d6e0b429874ab8c474f7d27d4cc17b1b591": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "stop_calling",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.9,
+            "abusive": 0.008333333333333331,
+            "other": 0.008333333333333331
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:f9dd0e1bd01c31f8a652fd5f59cb377e7c95ac9c61d15c57a7bacecb12fb6030": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.9
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:19b35a6c5219e1787ba0ce946380880e3fc91ac0105a00ac6251a9676f2b8174": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.9
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:3fdf69d32c7f038554301ca4927e353cf66987348019d1ed122a564fefe48891": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.008333333333333331,
+            "promise_to_pay": 0.008333333333333331,
+            "already_paid": 0.008333333333333331,
+            "cannot_pay": 0.008333333333333331,
+            "dispute": 0.008333333333333331,
+            "waiver_request": 0.008333333333333331,
+            "mandate_help": 0.008333333333333331,
+            "busy": 0.008333333333333331,
+            "repeat": 0.008333333333333331,
+            "human_agent": 0.008333333333333331,
+            "stop_calling": 0.008333333333333331,
+            "abusive": 0.008333333333333331,
+            "other": 0.9
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:04e196b435527ef9d94185a850864477c7fc9c5a646a37607744e3219ebdc779": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "received",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "received": 0.9,
+            "not_received": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:373c7191ab9d0afbbaabdd46a8149c2de7a7e2cc91dfd2e0d8d37fb94f741ef4": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "received",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "received": 0.9,
+            "not_received": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:ec689b067a816631a5895eabb2b2a2aa390ef8cad81d16abcf406cb82f3e85f5": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "not_received",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "received": 0.016666666666666663,
+            "not_received": 0.9,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:8bcd696692efc133181ee10ea609251b941e68630d228b19642d1605ab53ea1b": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "not_received",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "received": 0.016666666666666663,
+            "not_received": 0.9,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:274d79eb13276cfc15d6440d2288b92bba871ca78a258ba931bb1531f98ffb5f": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "received": 0.016666666666666663,
+            "not_received": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.9
+          }
+        }
+      }
+    },
+    "sha256:00aeba4027570ef7764139cf2b443876d3c30c645ca06a8d83817d7b54ec62d1": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "no_more",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "no_more": 0.9,
+            "repeat": 0.019999999999999997,
+            "human_agent": 0.019999999999999997,
+            "stop_calling": 0.019999999999999997,
+            "abusive": 0.019999999999999997,
+            "other": 0.019999999999999997
+          }
+        }
+      }
+    },
+    "sha256:853121858760aa10d701217cd0e58cc144f8324c88479d2b26e526808050dc0e": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "no_more",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "no_more": 0.9,
+            "repeat": 0.019999999999999997,
+            "human_agent": 0.019999999999999997,
+            "stop_calling": 0.019999999999999997,
+            "abusive": 0.019999999999999997,
+            "other": 0.019999999999999997
+          }
+        }
+      }
+    },
+    "sha256:d035b0a579bb0195fb3b68634cfc43d86089412ea438980dab775ce5c524325f": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "no_more",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "no_more": 0.9,
+            "repeat": 0.019999999999999997,
+            "human_agent": 0.019999999999999997,
+            "stop_calling": 0.019999999999999997,
+            "abusive": 0.019999999999999997,
+            "other": 0.019999999999999997
+          }
+        }
+      }
+    },
+    "sha256:e59373aa746dbb25b63ab393ae7fe0c3e0a128077c364540adcd040505bfe972": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "no_more": 0.019999999999999997,
+            "repeat": 0.019999999999999997,
+            "human_agent": 0.019999999999999997,
+            "stop_calling": 0.019999999999999997,
+            "abusive": 0.019999999999999997,
+            "other": 0.9
+          }
+        }
+      }
+    },
+    "sha256:cf9999938ca0d76c3f43a7b2163834cf6c659a064cc3a305fde403a30238b8b9": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "no_more": 0.019999999999999997,
+            "repeat": 0.019999999999999997,
+            "human_agent": 0.019999999999999997,
+            "stop_calling": 0.019999999999999997,
+            "abusive": 0.019999999999999997,
+            "other": 0.9
+          }
+        }
+      }
+    },
+    "sha256:9a3677531269a601c2a7625ce74b40c3cf4408785c5b00bcb38d823b9b0dc72c": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "stop_calling",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "no_more": 0.019999999999999997,
+            "repeat": 0.019999999999999997,
+            "human_agent": 0.019999999999999997,
+            "stop_calling": 0.9,
+            "abusive": 0.019999999999999997,
+            "other": 0.019999999999999997
+          }
+        }
+      }
+    },
+    "sha256:acb9351f7b994e89de35dcb0e20d5e2345101d2f26def0aee46d2444ff43d1bb": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "yes",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "yes": 0.9,
+            "no": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:d9badbc1f452cc1c709f10aa945d14861ee42d3f88ae88915e40e4c0b681df75": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "yes",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "yes": 0.9,
+            "no": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:e7f122dad5143bc132edfad4dc771fcaa1141fcebf1bbc3e6ec8f2a8e9eec30b": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "no",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "yes": 0.016666666666666663,
+            "no": 0.9,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:ae2541142aef1a781f8c19c38e135bb65ba0f09a9b5bfadf090159bba939071c": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "no",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "yes": 0.016666666666666663,
+            "no": 0.9,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:e310842285bba53b446c5faa0dc9ca33ce6183713f744bc502db11ea03815da0": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "yes": 0.016666666666666663,
+            "no": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.9
+          }
+        }
+      }
+    },
+    "sha256:2f1bdc356ceac7c3a4995079c63709c3444e18a8fa545cf8d53d1c20397fbfd2": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "gave_date",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "gave_date": 0.9,
+            "doesnt_remember": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:24f3fa044580cc8d207437acc038147e116ab598ced658b10d4d94af40c067cb": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "gave_date",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "gave_date": 0.9,
+            "doesnt_remember": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:d6fdb43f8cff0f8caa16bc6e12e9941e4943f11bcf1619027c1894cf57a0c189": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "gave_date",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "gave_date": 0.9,
+            "doesnt_remember": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:795426eb9c13379898aed41fd10420cc3c204da7b13744a9f16aaa67b0c516ac": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "doesnt_remember",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "gave_date": 0.016666666666666663,
+            "doesnt_remember": 0.9,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:c440fd59c2e5ef63afe069abc5b431ca5729c924eb0ba9903436b011037a3969": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "doesnt_remember",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "gave_date": 0.016666666666666663,
+            "doesnt_remember": 0.9,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:88962c0c6d6df362434d8c1f3f536edf75fa1797ca2b961d914b7e8adca18248": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "doesnt_remember",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "gave_date": 0.016666666666666663,
+            "doesnt_remember": 0.9,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:b5b5efc77d77fec1afeb59aa60b81b9815e706229e7b3351d61d18aa6e1cdb8d": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "partial",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "partial": 0.9,
+            "relief": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:c17f1ad22d4c7ddd99eda5fea6131ddcff777a7cbb2afa63c3dbd336584d8764": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "partial",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "partial": 0.9,
+            "relief": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:6f22d46971d01e18d90e44643957eeeaaa4d6fef480aad6ab4e42eb869c001ba": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "partial",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "partial": 0.9,
+            "relief": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:f9bfd9bd5cd0e7be80795b91368263d65df07acfe2d6a922333bcff6d9812b7e": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "relief",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "partial": 0.016666666666666663,
+            "relief": 0.9,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:b1234b474fad6261678886ed67fbe9cb642f07caebb1c97a3f6bc9b8a109f99c": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "relief",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "partial": 0.016666666666666663,
+            "relief": 0.9,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:b8c1e35aa615f4288f36b2413dde931a8f30fa46112b1ccc24204df98ec97270": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "relief",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "partial": 0.016666666666666663,
+            "relief": 0.9,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:35b2c1d41cef0072d5a5252e12f30a6fe29c7724bb352ac2f51dcf42f46ed4d0": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "partial": 0.016666666666666663,
+            "relief": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.9
+          }
+        }
+      }
+    },
+    "sha256:94054f25178b93736551afb69f84f518c07dc8a41eb8de69d93aaccc6bafc1ed": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "this_evening",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "this_evening": 0.9,
+            "tomorrow_morning": 0.012499999999999997,
+            "tomorrow_evening": 0.012499999999999997,
+            "other_time": 0.012499999999999997,
+            "repeat": 0.012499999999999997,
+            "human_agent": 0.012499999999999997,
+            "stop_calling": 0.012499999999999997,
+            "abusive": 0.012499999999999997,
+            "other": 0.012499999999999997
+          }
+        }
+      }
+    },
+    "sha256:a3251bca44c77899f8988896372e7a0365a0bbbccbb98075b30fd93faf9eb752": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "this_evening",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "this_evening": 0.9,
+            "tomorrow_morning": 0.012499999999999997,
+            "tomorrow_evening": 0.012499999999999997,
+            "other_time": 0.012499999999999997,
+            "repeat": 0.012499999999999997,
+            "human_agent": 0.012499999999999997,
+            "stop_calling": 0.012499999999999997,
+            "abusive": 0.012499999999999997,
+            "other": 0.012499999999999997
+          }
+        }
+      }
+    },
+    "sha256:213dcce42300508e05d828f3e10860fd82e7a0c9fa4ca9feefece8ac2851ead6": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "this_evening",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "this_evening": 0.9,
+            "tomorrow_morning": 0.012499999999999997,
+            "tomorrow_evening": 0.012499999999999997,
+            "other_time": 0.012499999999999997,
+            "repeat": 0.012499999999999997,
+            "human_agent": 0.012499999999999997,
+            "stop_calling": 0.012499999999999997,
+            "abusive": 0.012499999999999997,
+            "other": 0.012499999999999997
+          }
+        }
+      }
+    },
+    "sha256:656997aa35ed3e2215c01721395fb60998b39b82ceb6cbac481f4ec7ab89cb1c": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "tomorrow_morning",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "this_evening": 0.012499999999999997,
+            "tomorrow_morning": 0.9,
+            "tomorrow_evening": 0.012499999999999997,
+            "other_time": 0.012499999999999997,
+            "repeat": 0.012499999999999997,
+            "human_agent": 0.012499999999999997,
+            "stop_calling": 0.012499999999999997,
+            "abusive": 0.012499999999999997,
+            "other": 0.012499999999999997
+          }
+        }
+      }
+    },
+    "sha256:38507d7cfa25c50e862330a1f92c8aa323576c7d860b37b083d402cbbc863a56": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "tomorrow_morning",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "this_evening": 0.012499999999999997,
+            "tomorrow_morning": 0.9,
+            "tomorrow_evening": 0.012499999999999997,
+            "other_time": 0.012499999999999997,
+            "repeat": 0.012499999999999997,
+            "human_agent": 0.012499999999999997,
+            "stop_calling": 0.012499999999999997,
+            "abusive": 0.012499999999999997,
+            "other": 0.012499999999999997
+          }
+        }
+      }
+    },
+    "sha256:2df6769369cccdc2596ce4d659e5afea48d523efdaf85c1d04fd50773bdbc575": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "tomorrow_evening",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "this_evening": 0.012499999999999997,
+            "tomorrow_morning": 0.012499999999999997,
+            "tomorrow_evening": 0.9,
+            "other_time": 0.012499999999999997,
+            "repeat": 0.012499999999999997,
+            "human_agent": 0.012499999999999997,
+            "stop_calling": 0.012499999999999997,
+            "abusive": 0.012499999999999997,
+            "other": 0.012499999999999997
+          }
+        }
+      }
+    },
+    "sha256:ce6ca9ec8fb5a54eb8310b253d311a64bb0c9e9127ad9fca5c13d8ea8de37468": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "tomorrow_evening",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "this_evening": 0.012499999999999997,
+            "tomorrow_morning": 0.012499999999999997,
+            "tomorrow_evening": 0.9,
+            "other_time": 0.012499999999999997,
+            "repeat": 0.012499999999999997,
+            "human_agent": 0.012499999999999997,
+            "stop_calling": 0.012499999999999997,
+            "abusive": 0.012499999999999997,
+            "other": 0.012499999999999997
+          }
+        }
+      }
+    },
+    "sha256:841f90a683fd6f7905104915e78980afdf902f86a394ab308936f1b663f59af4": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "other_time",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "this_evening": 0.012499999999999997,
+            "tomorrow_morning": 0.012499999999999997,
+            "tomorrow_evening": 0.012499999999999997,
+            "other_time": 0.9,
+            "repeat": 0.012499999999999997,
+            "human_agent": 0.012499999999999997,
+            "stop_calling": 0.012499999999999997,
+            "abusive": 0.012499999999999997,
+            "other": 0.012499999999999997
+          }
+        }
+      }
+    },
+    "sha256:e94d1004a98a1ac02908ccd75f8445439cebc6eba3e0fb7b662083b9f59a275c": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "other_time",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "this_evening": 0.012499999999999997,
+            "tomorrow_morning": 0.012499999999999997,
+            "tomorrow_evening": 0.012499999999999997,
+            "other_time": 0.9,
+            "repeat": 0.012499999999999997,
+            "human_agent": 0.012499999999999997,
+            "stop_calling": 0.012499999999999997,
+            "abusive": 0.012499999999999997,
+            "other": 0.012499999999999997
+          }
+        }
+      }
+    },
+    "sha256:9d61e38b00690a47a367e5312ee66a50e4f08273ed33ac3ae48c522ee50bbff2": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "yes",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "yes": 0.9,
+            "no": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:28dc0c3fd572fc006b61c7ce551e100a9a36e89b15cff327fa117fecdca5e48d": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "yes",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "yes": 0.9,
+            "no": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:935f17a2fcb7e6d9c52d369a320ebea4dc30973c2791d254900d74aa34c15836": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "no",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "yes": 0.016666666666666663,
+            "no": 0.9,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:7a9f29d76034368cfd2f4ae3566b6131ab2191fd70e64b493bef760f2c483169": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "no",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "yes": 0.016666666666666663,
+            "no": 0.9,
+            "repeat": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    }
+  }
+}
