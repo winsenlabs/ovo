@@ -12,6 +12,8 @@ describe('opt-out intent', () => {
     'मुझे कॉल मत करो',
     'दोबारा फोन मत करना',
     'inimel call pannadheenga',
+    'I told you before, stop calling me',
+    'kab tak call karoge, mujhe call mat karo',
   ])('hears "%s" as an opt-out', (text) => {
     expect(detectsOptOut(text)).toBe(true);
   });
@@ -25,6 +27,38 @@ describe('opt-out intent', () => {
     'calling',
   ])('does not hear "%s" as an opt-out', (text) => {
     expect(detectsOptOut(text)).toBe(false);
+  });
+
+  // Regression: each of these asks for a later call, and was heard as a permanent opt-out (which
+  // lists the number on the do-not-call list for good) while the phrase alone decided.
+  it.each([
+    'abhi mujhe call mat karo, main busy hoon',
+    'mujhe call mat karo abhi, baad mein karna',
+    'अभी मुझे कॉल मत करो',
+    'mujhe phone mat karo office time pe',
+    'stop calling me at work, call me in the evening',
+    'dont call me again today, I will pay tomorrow',
+    'Never call me before 10am',
+    'never call me before ten',
+    'mujhe call mat karo, 5 baje ke baad karna',
+  ])('hears the deferral in "%s", not an opt-out', (text) => {
+    expect(detectsOptOut(text)).toBe(false);
+  });
+
+  it.each([
+    "Don't ever call me again, not today, not tomorrow",
+    'Take me off your list, I am busy',
+    'aaj ke baad mujhe call mat karna',
+    'From now on stop calling me',
+    'abhi se mujhe kabhi bhi call mat karna',
+    'मुझे अभी से कभी कॉल मत करना',
+  ])('lets a permanent ask in "%s" win over a deferral word', (text) => {
+    expect(detectsOptOut(text)).toBe(true);
+  });
+
+  it('vetoes authored phrases with a deferral word too', () => {
+    expect(detectsOptOut('band karo yeh calls', ['band karo yeh'])).toBe(true);
+    expect(detectsOptOut('abhi band karo yeh calls', ['band karo yeh'])).toBe(false);
   });
 
   it('adds authored phrases, matched as whole words', () => {
