@@ -1,0 +1,19 @@
+{
+  "name": "@winsendotai/ovo-plugin-tts-elevenlabs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "dependencies": {
+    "@winsendotai/ovo-audio": "workspace:*",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@winsendotai/ovo-conformance": "workspace:*"
+  }
+}
