@@ -35,6 +35,7 @@
     "@winsendotai/ovo-plugin-tools": "workspace:*",
     "@winsendotai/ovo-plugin-tools-http": "workspace:*",
     "@winsendotai/ovo-plugin-tools-mcp": "workspace:*",
+    "@winsendotai/ovo-plugin-tts-elevenlabs": "workspace:*",
     "@winsendotai/ovo-plugin-tts-openai": "workspace:*",
     "@winsendotai/ovo-plugin-turns": "workspace:*",
     "@winsendotai/ovo-plugin-vad": "workspace:*",

@@ -22,6 +22,7 @@
     "packages/plugin-carrier-plivo": "vendor-plugin",
     "packages/plugin-stt-deepgram": "vendor-plugin",
     "packages/plugin-tts-openai": "vendor-plugin",
+    "packages/plugin-tts-elevenlabs": "vendor-plugin",
     "packages/plugin-llm-openai": "vendor-plugin",
     "packages/plugin-stt-assemblyai": "vendor-plugin",
     "packages/plugin-speech-sarvam": "vendor-plugin",

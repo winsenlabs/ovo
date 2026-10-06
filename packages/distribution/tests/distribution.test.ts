@@ -86,6 +86,7 @@ describe('distribution inventory', () => {
       'plugin-carrier-plivo',
       'plugin-stt-deepgram',
       'plugin-tts-openai',
+      'plugin-tts-elevenlabs',
       'plugin-llm-openai',
       'plugin-stt-assemblyai',
       'plugin-speech-sarvam',

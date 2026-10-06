@@ -45,6 +45,11 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
     load: () => import('@winsendotai/ovo-plugin-tts-openai'),
   },
   {
+    package: '@winsendotai/ovo-plugin-tts-elevenlabs',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-tts-elevenlabs'),
+  },
+  {
     package: '@winsendotai/ovo-plugin-llm-openai',
     roles: ['session'],
     load: () => import('@winsendotai/ovo-plugin-llm-openai'),
