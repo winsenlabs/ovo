@@ -22,6 +22,7 @@ import {
   createWorkerCostPolicyAttachment,
   type WorkerCostPolicyAttachment,
 } from './cost-policy.ts';
+import { meterKeysPricedForAnotherModel, requiredMeterModels } from './cost-runtime-models.ts';
 
 export interface CostAdmission {
   admitted: boolean;
@@ -114,6 +115,23 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
         ...noCostAdmission(),
         admitted: false,
         reason: `cost-meter-unconfigured:${missingMeters.join(',')}`,
+      };
+    const repriced = await meterKeysPricedForAnotherModel(
+      this.ledger,
+      policy,
+      requiredMeterModels(
+        release,
+        requiredMeterKeys,
+        this.registry && selections
+          ? { meters: selectedMeters, selections, registry: this.registry }
+          : undefined,
+      ),
+    );
+    if (repriced.length)
+      return {
+        ...noCostAdmission(),
+        admitted: false,
+        reason: `price_unknown_for_model:${repriced.join(',')}`,
       };
     const inferenceRecord = release.providerBindings.inference;
     const inferenceModel = inferenceRecord?.config.model;
