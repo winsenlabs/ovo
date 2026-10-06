@@ -2,7 +2,6 @@ import {
   normalizePhoneNumber,
   operationsApiSchemas as schemas,
   operationsRequestError,
-  releaseCallingWindow,
   validateReleaseVariables,
 } from '@winsendotai/ovo-plugin-operations';
 import { resolveCampaignCarrier } from '../operations-plugin.ts';
@@ -45,7 +44,7 @@ export function registerOperationsLiveCallRoute(input: RealtimeRouteDependencies
     const accepted = await store.getCall(principal.workspaceId, body.operationId);
     const compliance =
       accepted && !body.dryRun
-        ? ({ ok: true, value: releaseCallingWindow(release.config) ?? null } as const)
+        ? ({ ok: true, value: null } as const)
         : await manualDialCompliance(operations, release, body.to);
     if (!compliance.ok)
       return reply.code(compliance.status).send({
@@ -86,7 +85,9 @@ export function registerOperationsLiveCallRoute(input: RealtimeRouteDependencies
           activeCallPolicy: 'continue',
           maxConcurrency: 1,
           ...carrier,
-          callingWindow: compliance.value,
+          // Checked above, at request time. Snapshotting it would requeue a call accepted just
+          // before the window closed and dial it unasked when the window next opens.
+          callingWindow: null,
           variablesSchema: release.config.variables,
         },
         [{ sourceRow: 1, phoneNumber: body.to, variables: body.variables }],

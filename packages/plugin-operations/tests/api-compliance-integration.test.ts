@@ -172,15 +172,15 @@ integration('outbound compliance through the operations API', () => {
     const operationId = randomUUID();
     const opened = await call({ releaseId: releases.open, operationId });
     expect(opened.statusCode).toBe(202);
+    // A manual dial is judged when it is requested; its campaign carries no window, so a call
+    // accepted just before closing is never requeued and dialed unasked the next morning.
     const campaign = await operations.campaigns.get(opened.json().campaignId);
-    expect(campaign.callingWindow).toEqual(OPEN);
-    // The window closes; a retry of the accepted launch still replays its receipt.
-    await operations.pool.query('UPDATE ovo_ops_campaigns SET calling_window = $2 WHERE id = $1', [
-      campaign.id,
-      JSON.stringify(CLOSED),
-    ]);
+    expect(campaign.callingWindow).toBeNull();
+    // A retry of the accepted launch replays its receipt, even once the window has closed.
+    compliance.set(releases.open, { callingHours: CLOSED });
     const retried = await call({ releaseId: releases.open, operationId });
     expect(retried.json()).toEqual(opened.json());
+    compliance.set(releases.open, { callingHours: OPEN });
   });
 
   it('dry-runs a test call through every check without queueing it', async () => {
