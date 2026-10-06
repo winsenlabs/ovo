@@ -90,3 +90,23 @@ export function sessionSecretFromEnv(
   }
   return localSessionSecret;
 }
+
+/** Session lifetimes (OPS-15), in seconds: the default, and the shortest and longest allowed. */
+export const SESSION_TTL = { default: 28_800, min: 300, max: 86_400 } as const;
+/** A session signed in only to change its password lasts this long. */
+export const PASSWORD_CHANGE_SESSION_SECONDS = 900;
+
+/**
+ * `OVO_SESSION_TTL_SECONDS`: how long a console session lasts after sign-in, 5 minutes to 24 hours
+ * (default 8 hours). Sessions never slide: a longer working day signs in again.
+ */
+export function sessionTtlSecondsFromEnv(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.OVO_SESSION_TTL_SECONDS?.trim();
+  if (!raw) return SESSION_TTL.default;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < SESSION_TTL.min || value > SESSION_TTL.max)
+    throw new Error(
+      `OVO_SESSION_TTL_SECONDS must be an integer from ${SESSION_TTL.min} to ${SESSION_TTL.max}`,
+    );
+  return value;
+}
