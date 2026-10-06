@@ -71,6 +71,16 @@ load_ops_env() {
   done <"$file"
 }
 
+# The live checks and `ovo-live.sh on` read the console as a dedicated account: since OPS-15 the
+# bootstrap seed password only reaches the password-change routes.
+require_ops_admin() {
+  local name
+  for name in OVO_OPS_ADMIN_EMAIL OVO_OPS_ADMIN_PASSWORD; do
+    [[ -n ${!name:-} ]] ||
+      die "$name is not set in $OPS_ENV_FILE: a console administrator other than the seed account (docs/env-reference.md)" 2
+  done
+}
+
 json_string() {
   local value=$1
   value=${value//\\/\\\\}

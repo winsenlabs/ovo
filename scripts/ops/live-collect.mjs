@@ -75,25 +75,24 @@ export async function collectLiveSnapshot(input) {
   return snapshot;
 }
 
+/** A URL with its query (the signed token) replaced by a fingerprint that still tells URLs apart. */
+export function redactUrl(url) {
+  if (typeof url !== 'string' || !url.includes('?')) return url;
+  let hash = 0x811c9dc5;
+  for (const char of url) hash = Math.imul(hash ^ char.charCodeAt(0), 0x01000193) >>> 0;
+  return `${url.split('?', 1)[0]}?redacted-${hash.toString(16).padStart(8, '0')}`;
+}
+
 /** Carrier URLs carry signed query tokens; a saved snapshot keeps only a fingerprint of each. */
 export function redactSnapshot(snapshot) {
-  const fingerprint = (value) => {
-    let hash = 0x811c9dc5;
-    for (const char of value) hash = Math.imul(hash ^ char.charCodeAt(0), 0x01000193) >>> 0;
-    return hash.toString(16).padStart(8, '0');
-  };
-  const redact = (url) =>
-    typeof url === 'string' && url.includes('?')
-      ? `${url.split('?', 1)[0]}?redacted-${fingerprint(url)}`
-      : url;
   const copy = structuredClone(snapshot);
   for (const targets of Object.values(copy.carrierUrls ?? {}))
     for (const purpose of ['inbound', 'status'])
-      if (targets[purpose]) targets[purpose] = redact(targets[purpose]);
+      if (targets[purpose]) targets[purpose] = redactUrl(targets[purpose]);
   const current = copy.twilio?.current;
   if (current)
     for (const field of ['voiceUrl', 'statusCallback', 'voiceFallbackUrl'])
-      current[field] = redact(current[field]);
-  if (copy.upgradeUrl) copy.upgradeUrl = redact(copy.upgradeUrl);
+      current[field] = redactUrl(current[field]);
+  if (copy.upgradeUrl) copy.upgradeUrl = redactUrl(copy.upgradeUrl);
   return copy;
 }

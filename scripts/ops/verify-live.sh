@@ -49,6 +49,7 @@ fi
 
 require_file "$ENV_FILE" 'Compose environment'
 load_ops_env
+require_ops_admin
 
 if [[ $SKIP_BASE != true ]]; then
   step 'base Compose checks'

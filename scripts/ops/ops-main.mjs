@@ -32,13 +32,23 @@ async function opsMain(input) {
   const apiEnv = serviceEnv.api ?? {};
   delete serviceEnv.api;
   const endpoints = { ...OPS_DEFAULT_ENDPOINTS, ...(input.endpoints ?? {}) };
-  const session = () =>
-    openConsoleSession({
+  // A dedicated console account, never the seed administrator: since OPS-15 the bootstrap
+  // OVO_SEED_ADMIN_PASSWORD only reaches the password-change routes, then stops working.
+  const session = () => {
+    if (
+      ops.OVO_OPS_ADMIN_PASSWORD &&
+      ops.OVO_OPS_ADMIN_PASSWORD === process.env.OVO_SEED_ADMIN_PASSWORD
+    )
+      throw new Error(
+        'OVO_OPS_ADMIN_PASSWORD is the bootstrap seed password; use a console administrator with its own password',
+      );
+    return openConsoleSession({
       consoleBase: endpoints.console,
-      email: ops.OVO_OPS_ADMIN_EMAIL || process.env.OVO_SEED_ADMIN_EMAIL,
-      password: ops.OVO_OPS_ADMIN_PASSWORD || process.env.OVO_SEED_ADMIN_PASSWORD,
+      email: ops.OVO_OPS_ADMIN_EMAIL,
+      password: ops.OVO_OPS_ADMIN_PASSWORD,
       forwardedTls: apiEnv.OVO_ALLOW_LOCAL_HTTP !== 'true',
     });
+  };
 
   switch (input.command) {
     case 'evaluate':
@@ -92,11 +102,15 @@ async function opsMain(input) {
     case 'live-status': {
       const current = await twilio().find(number());
       const where = classifyNumber(current, { fallbackUrl: ops.OVO_OPS_FALLBACK_URL });
+      // OVO's own carrier URLs carry signed tokens; any other URL is printed whole, to record it.
+      const shown = (url) => (/\/carriers\//.test(url ?? '') ? redactUrl(url) : url);
       log(
-        `${current.phoneNumber}: ${where === 'fallback' ? 'OFF (fallback TwiML)' : 'routed to'} ${current.voiceUrl ?? '<no Voice URL>'}`,
+        `${current.phoneNumber}: ${where === 'fallback' ? 'OFF (fallback TwiML)' : 'routed to'} ${shown(current.voiceUrl) ?? '<no Voice URL>'} (${current.voiceMethod ?? '?'})`,
       );
-      log(`  voice fallback: ${current.voiceFallbackUrl ?? '<none>'}`);
-      log(`  status callback: ${current.statusCallback ?? '<none>'}`);
+      log(`  voice fallback: ${shown(current.voiceFallbackUrl) ?? '<none>'}`);
+      log(
+        `  status callback: ${shown(current.statusCallback) ?? '<none>'} (${current.statusCallbackMethod ?? '?'})`,
+      );
       return true;
     }
     default:

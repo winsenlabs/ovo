@@ -92,7 +92,20 @@ async function setup(
   );
   const env = { ...box.env, OVO_OPS_ENDPOINTS: JSON.stringify(stack.endpoints) };
   const files = ['--env-file', envFile, '--ops-env', opsFile];
-  return { stack, twilio, box, envFile, env, files };
+  // Drops the named OVO_OPS_* lines and appends others, as an operator editing .env.ops would.
+  const editOps = (drop: string[], add: string[] = []) =>
+    writeFileSync(
+      opsFile,
+      [
+        ...readFileSync(opsFile, 'utf8')
+          .split('\n')
+          .filter((line) => line && !drop.includes(line.split('=', 1)[0]!)),
+        ...add,
+        '',
+      ].join('\n'),
+      { mode: 0o600 },
+    );
+  return { stack, twilio, box, envFile, env, files, editOps };
 }
 
 describe('verify-live.sh (OPS-7)', () => {
@@ -128,6 +141,39 @@ describe('verify-live.sh (OPS-7)', () => {
     const run = await runScript('scripts/ops/verify-live.sh', [...files, '--pre-switch'], env);
     expect(run.code).toBe(1);
     expect(run.stdout).toContain('FAIL wss-upgrade: the proxy answered 426');
+  });
+
+  it('signs in only as the dedicated ops account, never as the seed administrator', async () => {
+    const { env, files, box, editOps } = await setup({ voiceUrl: INBOUND });
+    editOps(['OVO_OPS_ADMIN_EMAIL', 'OVO_OPS_ADMIN_PASSWORD']);
+    const seeded = {
+      ...env,
+      OVO_SEED_ADMIN_EMAIL: ADMIN.email,
+      OVO_SEED_ADMIN_PASSWORD: ADMIN.password,
+    };
+    const missing = await runScript('scripts/ops/verify-live.sh', files, seeded);
+    expect(missing.code).toBe(2);
+    expect(missing.stderr).toContain('OVO_OPS_ADMIN_EMAIL is not set');
+    expect(box.dockerLog()).toEqual([]);
+
+    editOps([], [`OVO_OPS_ADMIN_EMAIL=${ADMIN.email}`, `OVO_OPS_ADMIN_PASSWORD=${ADMIN.password}`]);
+    const seedPassword = await runScript(
+      'scripts/ops/verify-live.sh',
+      [...files, '--skip-base'],
+      seeded,
+    );
+    expect(seedPassword.code).toBe(1);
+    expect(seedPassword.stderr).toContain('OVO_OPS_ADMIN_PASSWORD is the bootstrap seed password');
+  });
+
+  it('reports an ops account that must change its password (OPS-15) instead of failing every read', async () => {
+    const { env, files } = await setup({
+      voiceUrl: INBOUND,
+      stack: { passwordChangeRequired: true },
+    });
+    const run = await runScript('scripts/ops/verify-live.sh', [...files, '--skip-base'], env);
+    expect(run.code).toBe(1);
+    expect(run.stderr).toContain('console sign-in needs a password change first');
   });
 
   it('saves a redacted snapshot that --snapshot re-evaluates offline without docker', async () => {
@@ -206,8 +252,34 @@ describe('ovo-live.sh (OPS-8)', () => {
   it('status reports where the number points', async () => {
     const { env, files } = await setup();
     const run = await runScript('scripts/deploy/ovo-live.sh', ['status', ...files], env);
-    expect(run.stdout).toContain(`${NUMBER}: OFF (fallback TwiML)`);
+    expect(run.stdout).toContain(`${NUMBER}: OFF (fallback TwiML) ${FALLBACK} (POST)`);
     expect(run.stderr).toContain('OVO_INBOUND_ENABLED=true');
+  });
+
+  it('status never prints the signed token of the stack carrier URLs', async () => {
+    const { env, files, twilio } = await setup({ voiceUrl: INBOUND });
+    twilio.number.status_callback = STATUS;
+    const run = await runScript('scripts/deploy/ovo-live.sh', ['status', ...files], env);
+    expect(run.code).toBe(0);
+    expect(run.stdout).toContain(
+      'routed to https://voice.ovo.test/carriers/twilio/bind-1/inbound?redacted-',
+    );
+    expect(run.stdout).toContain(
+      'status callback: https://voice.ovo.test/carriers/twilio/bind-1/status?redacted-',
+    );
+    expect(run.stdout).not.toMatch(/secret-inbound|secret-status/);
+  });
+
+  it('on refuses before changing anything without the ops console account', async () => {
+    const { env, files, envFile, box, twilio, editOps } = await setup({ liveEnv: false });
+    editOps(['OVO_OPS_ADMIN_PASSWORD']);
+    const before = readFileSync(envFile, 'utf8');
+    const run = await runScript('scripts/deploy/ovo-live.sh', ['on', ...files], env);
+    expect(run.code).toBe(2);
+    expect(run.stderr).toContain('OVO_OPS_ADMIN_PASSWORD is not set');
+    expect(readFileSync(envFile, 'utf8')).toBe(before);
+    expect(box.dockerLog()).toEqual([]);
+    expect(twilio.posts).toEqual([]);
   });
 
   it('refuses to run without carrier control credentials', async () => {

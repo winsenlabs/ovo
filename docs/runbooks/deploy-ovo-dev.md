@@ -28,15 +28,19 @@ scripts/deploy/build-images.sh --registry asia-south1-docker.pkg.dev/<project>/o
 ## Deploy (OPS-8)
 
 ```sh
-scripts/deploy/deploy-compose.sh --ref <commit, tag or origin/branch> --images images-<revision>.env
+scripts/deploy/deploy-compose.sh --ref <commit, tag or branch> --images images-<revision>.env
 ```
 
 1. Preflight: the Compose `.env` exists, the checkout is clean, the pin file is well-formed.
-2. `git fetch` and a detached checkout of `--ref` (or `--pull` for a fast-forward); the deploy then
-   re-runs itself from the new revision, so that revision's own steps apply.
+2. `git fetch` and a detached checkout of `--ref` (or `--pull` for a fast-forward); a branch name is
+   taken from `origin`, so no local branch is needed. The deploy then re-runs itself from the new
+   revision, so that revision's own steps apply.
+   It then appends a `status=pending` line to `infra/compose/.deploy/history` (time, revision, the
+   image pins it is about to run or `built`, the previous revision) before anything changes.
 3. `bootstrap-compose.sh` adds any variable a new release introduced; it never changes a set value.
    `compose config --quiet` must render.
-4. The pins are written to `.env` and pulled. `--build` builds on the host instead (slow).
+4. The pins are written to `.env` and pulled. Without `--images` the pins already in `.env` are pulled
+   again. `--build` builds on the host instead (slow), tagging the images `ovo-<name>:local` again.
 5. Backing services (`postgres`, `queue`, per `COMPOSE_PROFILES`), then the **API alone**: every
    service migrates its own schema at startup, so the API turning healthy means the control,
    orchestration, ledger, speech-cache, telemetry and outcome migrations it owns have run.
@@ -46,7 +50,8 @@ scripts/deploy/deploy-compose.sh --ref <commit, tag or origin/branch> --images i
    Past the timeout it proceeds: the container's SIGTERM drain still lets a call finish for up to
    240 s inside the 300 s `stop_grace_period`.
 7. `verify-compose.sh`, and `ops/verify-live.sh` when `OVO_INBOUND_ENABLED=true`.
-8. A line in `infra/compose/.deploy/history`: time, revision, the pins it ran, the previous revision.
+8. The history line becomes `status=ok` (`unverified` with `--skip-verify`). If any step fails it
+   becomes `status=failed`; the stack may already run the new images, which is what `--rollback` is for.
 
 `--dry-run` prints every mutating command and changes nothing. While a deploy recreates the gateway,
 new calls get the Twilio Voice fallback (the number's fallback URL, set by `ovo-live.sh on`).
@@ -57,8 +62,10 @@ new calls get the Twilio Voice fallback (the number's fallback URL, set by `ovo-
 scripts/deploy/deploy-compose.sh --rollback
 ```
 
-Redeploys the previous history entry: its revision and its image pins (pulled again by digest), or a
-rebuild when that deploy built locally. Running it twice returns to where you started. Two limits:
+Redeploys the newest `ok` (or `unverified`) history entry whose revision and image pins differ from
+the last entry, which is what the host runs now even when that deploy failed: its revision and its
+image pins (pulled again by digest), or a rebuild only when that deploy itself built with `--build`.
+A failed deploy is never a rollback target. Running it twice returns to where you started. Two limits:
 
 - **Schema:** migrations are forward-only. Every Wave 1-4 migration only adds tables or nullable
   columns, so an older image runs against the newer schema; a future migration that is not additive

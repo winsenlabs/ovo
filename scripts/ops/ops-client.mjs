@@ -24,7 +24,9 @@ export async function opsJson(url, init = {}) {
 /** Signs in through the console proxy exactly as a browser would (see verify-compose.sh). */
 export async function openConsoleSession({ consoleBase, email, password, forwardedTls }) {
   if (!email || !password)
-    throw new Error('console sign-in needs an administrator email and password');
+    throw new Error(
+      'set OVO_OPS_ADMIN_EMAIL and OVO_OPS_ADMIN_PASSWORD in infra/compose/.env.ops (a console administrator other than the seed account)',
+    );
   const login = await opsJson(`${consoleBase}/api/v1/auth/session`, {
     method: 'POST',
     headers: {
@@ -35,6 +37,12 @@ export async function openConsoleSession({ consoleBase, email, password, forward
     body: JSON.stringify({ email, password }),
   });
   if (!login.ok) throw new Error(`console sign-in returned ${login.status}`);
+  // OPS-15: a password that fails the policy (or is the bootstrap seed one) only reaches the
+  // password-change routes; every read below would answer 403 password_change_required.
+  if (login.body?.passwordChangeRequired)
+    throw new Error(
+      'console sign-in needs a password change first: sign in to the console as OVO_OPS_ADMIN_EMAIL, change the password, and update .env.ops',
+    );
   const cookie = login.headers.get('set-cookie')?.split(';', 1)[0];
   if (!cookie) throw new Error('console sign-in issued no session cookie');
   return {

@@ -45,8 +45,10 @@ scripts/ops/gcp-monitoring-setup.sh --project <p> --zone <z> --instance ovo-dev 
 - **Host failure:** with `--on-demand`, `restart-on-failure` brings the VM back on another host.
 - **Preemption:** the instance's `shutdown-script` runs `scripts/ops/preemption-shutdown.sh`. On a
   real preemption (the metadata server says `preempted=TRUE`) it runs `ovo-live.sh off`, which points
-  the number at the fallback TwiML within the 30 s notice; it needs no container. An ordinary
-  shutdown leaves the number alone and drains instead.
+  the number at the fallback TwiML within the 30 s notice. It needs no Compose service: it runs
+  with the host's `node`, or else in a `node:24.8.0-bookworm-slim` container, which
+  `install-host-units.sh` pulls ahead of time when the host has no `node`. An ordinary shutdown
+  leaves the number alone and drains instead.
 - **Carrier fallback:** `ovo-live.sh on` sets the number's Voice **fallback** URL to the TwiML Bin
   (`OVO_OPS_FALLBACK_URL`). Twilio requests it whenever the primary URL errors or times out, so a
   dead VM produces a short message ("unable to take your call, please call again"), not silence.

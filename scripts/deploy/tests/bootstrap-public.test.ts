@@ -48,6 +48,9 @@ it('sets the public origin, forbids plain HTTP and renders the reverse proxy for
   expect(proxy).toContain('voice.ovo.example {');
   expect(proxy).toContain('handle /carriers/* {\n\t\treverse_proxy 127.0.0.1:4001 {');
   expect(proxy).toContain('handle /ovo-gateway-health {');
+  // The public health answers only the ready flag, never the gateway's live session count.
+  expect(proxy).toContain('respond `{"ready":true}` 200');
+  expect(proxy).toContain('respond `{"ready":false}` 503');
   expect(proxy).toContain('reverse_proxy 127.0.0.1:3000');
   expect(proxy).not.toMatch(/__OVO_[A-Z_]+__/);
 });

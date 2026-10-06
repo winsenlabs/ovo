@@ -101,6 +101,7 @@ case $COMMAND in
     ;;
   on)
     require_file "$ENV_FILE" 'Compose environment'
+    require_ops_admin
     base_url=$(env_value "$ENV_FILE" OVO_MEDIA_PUBLIC_BASE_URL)
     [[ $base_url == https://* && $base_url != *.invalid* ]] ||
       die 'OVO_MEDIA_PUBLIC_BASE_URL is not a public https origin; run bootstrap-compose.sh --public-host first' 2

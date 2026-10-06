@@ -67,8 +67,19 @@ function fixture(dockerState: Record<string, unknown> = {}) {
       .dockerLog()
       .filter((line) => / up /.test(line))
       .map((line) => line.split(' --env-file ')[1]!.split(' ').slice(4).join(' '));
-  return { box, repo, envFile, first, second, deploy, ups };
+  const history = () =>
+    readFileSync(join(dirname(envFile), '.deploy/history'), 'utf8')
+      .trim()
+      .split('\n');
+  const setDocker = (patch: Record<string, unknown>) => {
+    const file = box.env.FAKE_DOCKER_STATE;
+    writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), ...patch }));
+  };
+  return { box, repo, envFile, first, second, deploy, ups, history, setDocker };
 }
+
+const image = (envFile: string, name: string) =>
+  readFileSync(envFile, 'utf8').match(new RegExp(`^OVO_${name}_IMAGE=(.*)$`, 'm'))?.[1];
 
 function pins(dir: string, revision = 'b2') {
   const file = join(dir, 'images.env');
@@ -112,7 +123,9 @@ describe('deploy-compose.sh (OPS-8)', () => {
     ]);
     const history = readFileSync(join(dirname(envFile), '.deploy/history'), 'utf8');
     expect(history).toMatch(
-      new RegExp(`ref=${first} images=\\S+/\\.deploy/images-\\S+\\.env previous=${first}\\n$`),
+      new RegExp(
+        `ref=${first} images=\\S+/\\.deploy/images-\\S+\\.env previous=${first} status=unverified\\n$`,
+      ),
     );
   });
 
@@ -161,7 +174,7 @@ describe('deploy-compose.sh (OPS-8)', () => {
   });
 
   it('checks out --ref, continues with that revision, and rolls back to the previous deploy', async () => {
-    const { repo, deploy, box, envFile, first, second } = fixture();
+    const { repo, deploy, box, history, first, second } = fixture();
     expect((await deploy('--build', '--skip-verify')).code).toBe(0);
     const forward = await deploy('--ref', second, '--build', '--skip-verify');
     expect(forward.code).toBe(0);
@@ -171,16 +184,71 @@ describe('deploy-compose.sh (OPS-8)', () => {
         .dockerLog()
         .filter((line) => line.endsWith('build api console gateway dispatcher worker-1 worker-2')),
     ).toHaveLength(2);
-    const history = () =>
-      readFileSync(join(dirname(envFile), '.deploy/history'), 'utf8')
-        .trim()
-        .split('\n');
     expect(history()[1]).toContain(`ref=${second} images=built previous=${first}`);
     const back = await deploy('--rollback', '--skip-verify');
     expect(back.stderr).toContain(`rolling back to ${first}`);
     expect(back.code).toBe(0);
     expect(git(repo, 'rev-parse', 'HEAD')).toBe(first);
     expect(history()[2]).toContain(`ref=${first} images=built previous=${second}`);
+  });
+
+  it('rolls back to the last pinned release, never building, across a plain redeploy', async () => {
+    const { box, deploy, envFile, history } = fixture();
+    expect((await deploy('--images', pins(box.dir, 'aaa'), '--skip-verify')).code).toBe(0);
+    expect((await deploy('--skip-verify')).code).toBe(0);
+    expect((await deploy('--images', pins(box.dir, 'ccc'), '--skip-verify')).code).toBe(0);
+    expect(history().map((line) => /images=built/.test(line))).toEqual([false, false, false]);
+    const before = box.dockerLog().length;
+    const back = await deploy('--rollback', '--skip-verify');
+    expect(back.code).toBe(0);
+    const log = box.dockerLog().slice(before);
+    expect(log.some((line) => / build /.test(line))).toBe(false);
+    expect(back.stderr).not.toContain('building on this host');
+    expect(
+      log.some((line) => line.endsWith('pull api console gateway dispatcher worker-1 worker-2')),
+    ).toBe(true);
+    expect(image(envFile, 'API')).toBe(`reg.example/ovo/ovo-api:aaa@${DIGEST('a')}`);
+    expect(image(envFile, 'TOOLS')).toBe(`reg.example/ovo/ovo-tools:aaa@${DIGEST('f')}`);
+  });
+
+  it('records a deploy whose verification fails, so --rollback returns to the last good one', async () => {
+    const services = ['api', 'console', 'gateway', 'dispatcher', 'worker-1', 'worker-2'];
+    const { box, deploy, envFile, history, setDocker } = fixture({ services });
+    expect((await deploy('--images', pins(box.dir, 'aaa'))).code).toBe(0);
+    expect((await deploy('--images', pins(box.dir, 'bbb'))).code).toBe(0);
+    setDocker({ baseVerify: 'fail' });
+    const bad = await deploy('--images', pins(box.dir, 'ccc'));
+    expect(bad.code).not.toBe(0);
+    expect(image(envFile, 'API')).toBe(`reg.example/ovo/ovo-api:ccc@${DIGEST('a')}`);
+    expect(history().map((line) => line.split(' status=')[1])).toEqual(['ok', 'ok', 'failed']);
+    setDocker({ baseVerify: 'pass' });
+    const back = await deploy('--rollback');
+    expect(back.code).toBe(0);
+    expect(image(envFile, 'API')).toBe(`reg.example/ovo/ovo-api:bbb@${DIGEST('a')}`);
+    expect(history().at(-1)).toMatch(/images=\S+ previous=\S+ status=ok$/);
+    // Rolling back again returns to the newest good release other than bbb.
+    expect((await deploy('--rollback')).code).toBe(0);
+    expect(image(envFile, 'API')).toBe(`reg.example/ovo/ovo-api:aaa@${DIGEST('a')}`);
+  });
+
+  it('deploys a branch that exists only on origin', async () => {
+    const { repo, box, deploy, second } = fixture();
+    const remote = join(box.dir, 'remote.git');
+    execFileSync('git', ['init', '-q', '--bare', remote]);
+    git(repo, 'remote', 'set-url', 'origin', remote);
+    git(repo, 'push', '-q', 'origin', `${second}:refs/heads/ovo/release`);
+    const run = await deploy('--ref', 'ovo/release', '--images', pins(box.dir), '--skip-verify');
+    expect(run.code).toBe(0);
+    expect(git(repo, 'rev-parse', 'HEAD')).toBe(second);
+  });
+
+  it('--build tags the images :local again instead of rebuilding registry pins', async () => {
+    const { box, deploy, envFile, history } = fixture();
+    expect((await deploy('--images', pins(box.dir), '--skip-verify')).code).toBe(0);
+    expect((await deploy('--build', '--skip-verify')).code).toBe(0);
+    expect(image(envFile, 'API')).toBe('ovo-api:local');
+    expect(image(envFile, 'WORKER')).toBe('ovo-worker:local');
+    expect(history().at(-1)).toContain('images=built');
   });
 
   it('--dry-run prints the plan and changes nothing', async () => {

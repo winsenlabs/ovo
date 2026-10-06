@@ -48,7 +48,8 @@ before Wave 2 cannot run this code. The VM pulls with its service account: grant
    `OVO_OPS_*` values from [the env reference](../env-reference.md#host-side-ops-variables-infracomposeenvops):
    a Twilio API key (SID + secret) restricted to this account, the number, the fallback TwiML URL
    (paste `infra/twilio/fallback-twiml.xml` into a TwiML Bin), the backup bucket, the age recipient
-   and the heartbeat URL.
+   and the heartbeat URL. `OVO_OPS_ADMIN_EMAIL`/`OVO_OPS_ADMIN_PASSWORD` are added in step 5.0, once
+   the console runs the new code.
 4. **Host units (OPS-11/12/17):** `sudo apt-get install -y age` then
    `sudo scripts/ops/install-host-units.sh --apply`. That installs `ovo-compose.service`, the nightly
    `ovo-backup.timer`, the journald cap and the logrotate policy, and `/etc/docker/daemon.json` if
@@ -100,6 +101,12 @@ inbound report to say `admission disabled` with `readyWorkers` ≥ 1 (Wave 1, OP
 
 In this order, in the admin console:
 
+0. **Accounts** (Wave 5, OPS-15): sign in as the seed administrator; the console asks for a new
+   password, because the bootstrap `OVO_SEED_ADMIN_PASSWORD` is only good for that one sign-in. Then
+   add a second **admin** user for the scripts, sign in as it once to give it its own password, and
+   put both values in `infra/compose/.env.ops` as `OVO_OPS_ADMIN_EMAIL` and `OVO_OPS_ADMIN_PASSWORD`.
+   `verify-live.sh`, `ovo-live.sh on` and every deploy with inbound on sign in as this account and
+   stop without it; they never use the seed password.
 1. **Twilio** (Wave 1, OPS-2): a credential holding the auth token, and a carrier binding
    `@winsendotai/ovo-carrier-twilio` with `config: {"accountSid": "AC…"}`. `GET /v1/provider-bindings`
    must list no `env` Twilio binding.

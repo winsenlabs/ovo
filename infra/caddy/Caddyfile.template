@@ -15,10 +15,21 @@ __OVO_PUBLIC_HOST__ {
 		}
 	}
 
-	# Public health for uptime probes and verify-live.sh: the gateway's ready flag only.
+	# Public health for uptime probes and verify-live.sh: the gateway's ready flag only. The
+	# gateway's own body also counts live sessions (call volume), so it is replaced here.
 	handle /ovo-gateway-health {
 		rewrite * /health
-		reverse_proxy 127.0.0.1:__OVO_GATEWAY_PORT__
+		reverse_proxy 127.0.0.1:__OVO_GATEWAY_PORT__ {
+			@ready status 200
+			handle_response @ready {
+				header Content-Type application/json
+				respond `{"ready":true}` 200
+			}
+			handle_response {
+				header Content-Type application/json
+				respond `{"ready":false}` 503
+			}
+		}
 	}
 
 	# Everything else is the console, which proxies /api/* to the API with forwarded TLS.

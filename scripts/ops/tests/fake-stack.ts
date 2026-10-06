@@ -22,6 +22,8 @@ export interface StackState {
   liveReady: boolean;
   gatewayReady: boolean;
   upgradeStatus: number;
+  /** OPS-15: the account's password fails the policy, so sign-in only reaches the change routes. */
+  passwordChangeRequired?: boolean;
 }
 
 export function healthyStack(): StackState {
@@ -62,7 +64,14 @@ export async function startStack(state: StackState) {
       const body = JSON.parse(await readBody(request));
       if (body.email !== ADMIN.email || body.password !== ADMIN.password)
         return send(response, 401, {});
-      return send(response, 201, {}, { 'set-cookie': 'ovo_session=s1; Path=/; HttpOnly; Secure' });
+      return send(
+        response,
+        201,
+        state.passwordChangeRequired ? { passwordChangeRequired: true } : {},
+        {
+          'set-cookie': 'ovo_session=s1; Path=/; HttpOnly; Secure',
+        },
+      );
     }
     if (path === '/dispatcher/health') return send(response, 200, { inbound: state.inbound });
     if (path.startsWith('/workers/'))

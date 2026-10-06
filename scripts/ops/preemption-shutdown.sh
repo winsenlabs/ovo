@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # OPS-11: GCE shutdown script. A Spot (preemptible) VM gets about 30 s notice, far less than the
 # 240 s call drain, so on preemption the only useful move is to stop new calls arriving: point the
-# number at the fallback TwiML (`ovo-live.sh off`, which needs no container) before the host dies.
+# number at the fallback TwiML (`ovo-live.sh off`, which needs no Compose service: it runs with the
+# host's node, or the node image install-host-units.sh caches) before the host dies.
 # On an ordinary shutdown or reboot it does nothing unless --always is passed: ovo-compose.service
 # stops the stack with the full drain instead. Install it as the instance's `shutdown-script`
 # metadata through scripts/ops/gcp-monitoring-setup.sh (which writes a wrapper naming the repo).

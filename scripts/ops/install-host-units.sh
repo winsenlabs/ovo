@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # OPS-11/12/17: installs the host units for the call VM: ovo-compose.service (start at boot, drain
-# at shutdown), the nightly ovo-backup.timer, the journald size cap and the logrotate policy. With
+# at shutdown), the nightly ovo-backup.timer, the journald size cap and the logrotate policy, and
+# caches the node image the preemption shutdown script falls back to. With
 # --probe-host it instead installs the external uptime probe timer (for a machine OTHER than the
 # call VM). Prints what it would do by default; --apply needs root. infra/docker/daemon.json is
 # never written over an existing file: merge it by hand (see docs/runbooks/compact-gcp.md).
@@ -66,6 +67,9 @@ run systemctl daemon-reload
 run systemctl enable ovo-compose.service
 run systemctl enable --now ovo-backup.timer
 run systemctl restart systemd-journald
+# The preemption shutdown script runs ovo-live.sh off with the host's node, or else in this image;
+# pulling it inside the 30 s preemption notice would leave the number pointing at a dead VM.
+command -v node >/dev/null 2>&1 || run docker pull "$OVO_NODE_IMAGE"
 if [[ -f $ROOT/etc/docker/daemon.json ]]; then
   say "keeping the existing $ROOT/etc/docker/daemon.json: merge infra/docker/daemon.json into it by hand"
 else

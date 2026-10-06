@@ -235,5 +235,24 @@ describe('install-host-units.sh', () => {
       'enable --now ovo-backup.timer',
       'restart systemd-journald',
     ]);
+    // node is on this PATH, so the preemption fallback image is not needed.
+    expect(box.dockerLog()).toEqual([]);
+  });
+
+  it('caches the node image for the preemption shutdown on a host without node', async () => {
+    const box = sandbox();
+    cleanups.push(box.cleanup);
+    recorder(box, 'systemctl');
+    const run = await runScript(
+      'scripts/ops/install-host-units.sh',
+      ['--repo-dir', '/srv/ovo', '--apply'],
+      {
+        ...box.env,
+        PATH: `${join(box.dir, 'bin')}:/usr/bin:/bin`,
+        OVO_HOST_ROOT: join(box.dir, 'root'),
+      },
+    );
+    expect(run.code).toBe(0);
+    expect(box.dockerLog()).toEqual(['pull node:24.8.0-bookworm-slim']);
   });
 });
