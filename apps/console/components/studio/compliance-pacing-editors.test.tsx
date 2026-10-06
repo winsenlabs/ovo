@@ -104,14 +104,16 @@ describe('turn pacing editor (Wave 4 knobs)', () => {
     expect(() => AgentConfigSchema.parse(read())).not.toThrow();
   });
 
-  it('turns speculation on and off and warns that the speculative LLM is unpriced', () => {
+  it('shows the speculative LLM on by default and turns speculation off', () => {
     const read = harness(TurnPacingEditor, voiced());
-    expect(screen.queryByText(/not reliably priced/)).toBeNull();
-    fireEvent.click(screen.getByLabelText(/Ask the LLM alongside the decision/));
-    expect(read().decision?.speculation).toEqual({ llm: true });
-    expect(screen.getByText(/not reliably priced/)).toBeTruthy();
+    const llm = screen.getByLabelText(/Ask the LLM alongside the decision/) as HTMLInputElement;
+    expect(llm.checked).toBe(true);
+    expect(screen.getByText(/billed even when aborted/)).toBeTruthy();
+    fireEvent.click(llm);
+    expect(read().decision?.speculation).toEqual({ llm: false });
+    expect(screen.queryByText(/billed even when aborted/)).toBeNull();
     fireEvent.click(screen.getByLabelText(/Decide on partial transcripts/));
-    expect(read().decision?.speculation).toEqual({ llm: true, partials: false });
+    expect(read().decision?.speculation).toEqual({ llm: false, partials: false });
     expect(() => AgentConfigSchema.parse(read())).not.toThrow();
   });
 

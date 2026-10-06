@@ -56,7 +56,10 @@ describe('speculative LLM pricing (LAT-3)', () => {
     const confirmed = { 'llm.usage': { id: 'luna', version: '2', provisional: false } };
     expect(speculativeLlmUnpriced(speculating(true, confirmed), 'live')).toEqual([]);
     expect(speculativeLlmUnpriced(speculating(false), 'live')).toEqual([]);
-    expect(speculativeLlmUnpriced(withConfig(fixture(), agent), 'live')).toEqual([]);
+  });
+
+  it('speculates by default, so an agent that authors nothing still needs a confirmed price', () => {
+    expect(speculativeLlmUnpriced(withConfig(fixture(), agent), 'live')).toHaveLength(1);
   });
 
   it('warns about a missing LLM selection rather than pass it silently', () => {

@@ -1,7 +1,7 @@
 /**
  * How far an agent may work ahead of the caller (LAT-3, LAT-4), authored as
  * `decision.speculation`. Every field has a default, so an agent that authors nothing gets
- * speculation on partial transcripts and no speculative LLM.
+ * speculation on partial transcripts and the LLM asked alongside the decision.
  */
 export interface SpeculationPolicy {
   /**
@@ -18,8 +18,8 @@ export interface SpeculationPolicy {
   match: 'exact' | 'prefix';
   /**
    * LAT-3: ask the LLM at the same time as the decision model, and abort it when the decision
-   * answers the turn. An aborted call still costs its input tokens, so it is off until the LLM has
-   * a confirmed price (the `meter_uncovered` warning says so).
+   * answers the turn. An aborted call still costs its input tokens; on by default since
+   * gpt-6-luna's price is confirmed (the `meter_uncovered` warning flags an LLM without one).
    */
   llm: boolean;
 }
@@ -28,7 +28,7 @@ export const DEFAULT_SPECULATION: Readonly<SpeculationPolicy> = Object.freeze({
   partials: true,
   debounceMs: 150,
   match: 'exact',
-  llm: false,
+  llm: true,
 });
 
 export interface AgentSpeculationOptions {

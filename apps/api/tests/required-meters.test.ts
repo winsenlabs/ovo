@@ -138,7 +138,7 @@ describe('required meter checklist', () => {
       'elevenlabs-tts-flash-v2-5',
     ]);
     expect(result.meters[2]!.catalog).toEqual([
-      expect.objectContaining({ id: 'openai-gpt-6-luna-input', provisional: true }),
+      expect.objectContaining({ id: 'openai-gpt-6-luna-input', provisional: false }),
     ]);
   });
 

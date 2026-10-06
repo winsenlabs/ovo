@@ -10,6 +10,8 @@ import { execution, llm, NOW, variables } from './agent-call-control-fixture.ts'
 /** A collections policy where every outcome speaks: the shape a Jev-only agent is authored in. */
 export const policy = (fallback: 'clarify' | 'llm' = 'clarify') => ({
   enabled: true,
+  // LAT-3 (the LLM asked alongside the decision) is on by default; these tests count LLM calls.
+  speculation: { llm: false },
   questions: [
     {
       type: 'choice',

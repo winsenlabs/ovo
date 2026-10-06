@@ -32,7 +32,10 @@ export function registerApiRoutes(deps: any): void {
   registerAuthRoutes(deps);
   registerUserRoutes({ app, users, store, requireTls: options.requireTlsForSecrets ?? false });
   registerAgentsRoutes(deps);
-  registerReadinessRoutes(deps);
+  registerReadinessRoutes({
+    ...deps,
+    ledger: options.costLedgerEnabled ? (ctx.get(Cap.costLedger) as CostLedgerService) : undefined,
+  });
   registerRequiredMeterRoutes({
     ...deps,
     ledger: options.costLedgerEnabled ? (ctx.get(Cap.costLedger) as CostLedgerService) : undefined,

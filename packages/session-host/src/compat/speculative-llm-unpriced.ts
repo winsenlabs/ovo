@@ -6,12 +6,12 @@ import { issue, resolved } from './types.ts';
 
 /**
  * LAT-3: an agent that asks the LLM alongside its decision (`decision.speculation.llm`) pays for
- * the calls it aborts whenever the decision answers first, so it is off until the LLM's price is
- * known. A warning, never a blocker, at every stage: the agent still runs, but its cost is a guess.
+ * the calls it aborts whenever the decision answers first, so its price must be known. On by
+ * default; a warning, never a blocker, at every stage: the agent still runs, but its cost is a guess.
  *
  * A price reference counts as confirmed only when whoever resolved it says it is not provisional
  * (`provisional: false`, as a ledger card carries it). A bare `{ id, version }` reference cannot
- * say, so it is treated as provisional: the vendor catalog's gpt-6-luna cards are.
+ * say, so it is treated as provisional; the API resolves references against the ledger first.
  */
 export const speculativeLlmUnpriced: CompatRule = (input, stage) => {
   const { config } = input;
