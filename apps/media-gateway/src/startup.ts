@@ -23,6 +23,7 @@ import {
   type PluginDefinition,
 } from '@winsendotai/ovo-runtime';
 import { createGatewayHost, type GatewayHostOptions } from './gateway-host.ts';
+import { GatewayHealth } from './gateway-health.ts';
 import { installInboundCarriers } from './inbound-carrier-installation.ts';
 
 const GATEWAY_NET_PLUGIN_ID = 'ovo.gateway.node-net';
@@ -88,9 +89,41 @@ function drainTimeoutMs(env: Readonly<Record<string, string | undefined>>): numb
   return Math.max(100, deregistrationSeconds * 1_000 - 30_000);
 }
 
+/**
+ * The media gateway's limits. One handshake deadline covers route resolution and the worker dial,
+ * so the pre-accept audio buffer defaults to that deadline (OBS-9): with the old 3 s default a slow
+ * route lookup overflowed the buffer and closed the call before the handshake deadline it was
+ * still inside. The buffer's own 6 s byte ceiling still applies.
+ */
+export function gatewayMediaConfig(env: Readonly<Record<string, string | undefined>>) {
+  const handshakeTimeoutMs = integer(env.OVO_MEDIA_HANDSHAKE_TIMEOUT_MS, 5_000);
+  return {
+    host: env.OVO_MEDIA_HOST ?? '0.0.0.0',
+    port: integer(env.OVO_MEDIA_PORT, 8080),
+    maxMessageBytes: integer(env.OVO_MEDIA_MAX_MESSAGE_BYTES, 65_536),
+    maxAudioFrameBytes: integer(env.OVO_MEDIA_MAX_AUDIO_FRAME_BYTES, 8_192),
+    maxBufferedBytes: integer(env.OVO_MEDIA_MAX_BUFFERED_BYTES, 262_144),
+    preAcceptBufferMs:
+      env.OVO_MEDIA_PRE_ACCEPT_MS !== undefined
+        ? integer(env.OVO_MEDIA_PRE_ACCEPT_MS, 3_000)
+        : env.OVO_MEDIA_MAX_PENDING_FRAMES === undefined
+          ? Math.min(handshakeTimeoutMs, 30_000)
+          : undefined,
+    maxPendingFrames:
+      env.OVO_MEDIA_MAX_PENDING_FRAMES === undefined
+        ? undefined
+        : integer(env.OVO_MEDIA_MAX_PENDING_FRAMES, 25),
+    handshakeTimeoutMs,
+    idleTimeoutMs: integer(env.OVO_MEDIA_IDLE_TIMEOUT_MS, 30_000),
+    drainTimeoutMs: drainTimeoutMs(env),
+  };
+}
+
 export interface GatewayRuntime {
   composition: Composition;
   gateway: MediaGateway;
+  /** Live-path state for verbose health (OBS-12). */
+  health: GatewayHealth;
   close(): Promise<void>;
 }
 
@@ -133,6 +166,10 @@ export async function startGateway(
     await operations.migrate();
     const environmentCarrierId = installInboundCarriers(operations, distribution, env);
     operations.inboundGateway.assertArmed();
+    const health = new GatewayHealth({
+      pool: operations.pool,
+      assertArmed: () => operations.inboundGateway.assertArmed(),
+    });
     const resolver: MediaRouteResolver = {
       authenticateSessionRoute: store.authenticateSessionRoute.bind(store),
       resolveSessionRoute: store.resolveSessionRoute.bind(store),
@@ -153,6 +190,7 @@ export async function startGateway(
         ingresses: [...composition.all(Cap.carrierIngress).values()] as CarrierIngress[],
         environmentCarrierId,
         env,
+        health,
       });
       return host.hostFor(carrierId, bindingId);
     };
@@ -187,22 +225,7 @@ export async function startGateway(
           id: MEDIA_PLUGIN_IDS.gateway,
           config: {
             publicBaseUrl,
-            host: env.OVO_MEDIA_HOST ?? '0.0.0.0',
-            port: integer(env.OVO_MEDIA_PORT, 8080),
-            maxMessageBytes: integer(env.OVO_MEDIA_MAX_MESSAGE_BYTES, 65_536),
-            maxAudioFrameBytes: integer(env.OVO_MEDIA_MAX_AUDIO_FRAME_BYTES, 8_192),
-            maxBufferedBytes: integer(env.OVO_MEDIA_MAX_BUFFERED_BYTES, 262_144),
-            preAcceptBufferMs:
-              env.OVO_MEDIA_PRE_ACCEPT_MS === undefined
-                ? undefined
-                : integer(env.OVO_MEDIA_PRE_ACCEPT_MS, 3_000),
-            maxPendingFrames:
-              env.OVO_MEDIA_MAX_PENDING_FRAMES === undefined
-                ? undefined
-                : integer(env.OVO_MEDIA_MAX_PENDING_FRAMES, 25),
-            handshakeTimeoutMs: integer(env.OVO_MEDIA_HANDSHAKE_TIMEOUT_MS, 5_000),
-            idleTimeoutMs: integer(env.OVO_MEDIA_IDLE_TIMEOUT_MS, 30_000),
-            drainTimeoutMs: drainTimeoutMs(env),
+            ...gatewayMediaConfig(env),
           },
         },
       ],
@@ -214,6 +237,7 @@ export async function startGateway(
     return {
       composition: active,
       gateway,
+      health,
       async close() {
         await active.dispose();
         await operations.close();

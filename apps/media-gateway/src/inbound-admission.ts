@@ -17,6 +17,11 @@ export interface InboundAdmissionOptions {
   hostFor(carrierId: string, bindingId: string): CarrierHostPorts;
   validateBeforeAdmission?(admission: InboundAdmission): Promise<void>;
   handshakeTtlMs?: number;
+  /** Counts decisions and keeps the last refusals for verbose health (OBS-12). */
+  health?: {
+    admission(kind: string): void;
+    rejection(reason: string, carrierCallId?: string): void;
+  };
 }
 
 function withStage(url: string, stage: 'wait' | 'callback'): string {
@@ -103,20 +108,39 @@ export function createInboundAdmission(
         return inboundDecisionFor(decision, { kind: 'busy' });
     }
   };
+  const validate = async (admission: InboundAdmission) => {
+    try {
+      await options.validateBeforeAdmission?.(admission);
+    } catch (error) {
+      options.health?.rejection(
+        error instanceof Error ? error.message : String(error),
+        admission.carrierCallId,
+      );
+      throw error;
+    }
+  };
+  const counted = (decision: InboundGatewayDecision) => {
+    options.health?.admission(
+      decision.kind === 'busy' && decision.reason ? `busy:${decision.reason}` : decision.kind,
+    );
+    return decision;
+  };
   return {
     async admitInbound(admission) {
-      await options.validateBeforeAdmission?.(admission);
+      await validate(admission);
       const { host, routeToken, input } = call(admission);
-      const decision = await options.operations.inboundGateway.admit(input);
+      const decision = counted(await options.operations.inboundGateway.admit(input));
       return map(decision, admission, host, routeToken);
     },
     async confirmCallback(admission) {
-      await options.validateBeforeAdmission?.(admission);
+      await validate(admission);
       const { host, routeToken, input } = call(admission);
-      const decision = await options.operations.inboundGateway.confirmCallback({
-        ...input,
-        digits: admission.digits,
-      });
+      const decision = counted(
+        await options.operations.inboundGateway.confirmCallback({
+          ...input,
+          digits: admission.digits,
+        }),
+      );
       return map(decision, admission, host, routeToken);
     },
   };
