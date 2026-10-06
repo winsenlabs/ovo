@@ -46,3 +46,36 @@ export async function readInboundReadiness(
     stale: ageMs > maxAgeMs,
   };
 }
+
+/** What one worker last published about its live path (OBS-12, the worker's verbose health). */
+export interface WorkerLiveState {
+  workerId: string;
+  state: string;
+  observedAt: string;
+  live: Record<string, unknown> | null;
+}
+
+/** Every worker with a fresh heartbeat and the live-path state its report carried, newest first. */
+export async function readWorkerLiveState(
+  pool: Pick<Pool, 'query'>,
+  heartbeatMaxAgeMs: number,
+  limit = 50,
+): Promise<WorkerLiveState[]> {
+  const result = await pool.query<{
+    worker_id: string;
+    state: string;
+    observed_at: Date;
+    live: Record<string, unknown> | null;
+  }>(
+    `SELECT worker_id, state, observed_at, metadata->'live' AS live FROM ovo_worker_slots
+     WHERE lease_expires_at > now() AND observed_at >= now() - ($1 * interval '1 millisecond')
+     ORDER BY observed_at DESC, worker_id LIMIT $2`,
+    [heartbeatMaxAgeMs, limit],
+  );
+  return result.rows.map((row) => ({
+    workerId: row.worker_id,
+    state: row.state,
+    observedAt: new Date(row.observed_at).toISOString(),
+    live: row.live && typeof row.live === 'object' ? row.live : null,
+  }));
+}
