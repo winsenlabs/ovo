@@ -5,9 +5,15 @@ import {
   type FlowIntent,
   type FlowListen,
   type FlowNode,
-  type FlowRoute,
 } from './agent-flow.ts';
+import {
+  FLOW_INSTRUCTIONS_LIMIT,
+  flowListenInstructions,
+  routeTargets,
+} from './agent-flow-queries.ts';
 import { normalizeForMatch } from './text.ts';
+
+export * from './agent-flow-queries.ts';
 
 /**
  * Graph checks for an authored flow. Pure: the release check reports the issues as blockers, the
@@ -39,49 +45,6 @@ export class FlowCompileError extends Error {
     super(`Invalid flow: ${issues.map((issue) => `${issue.path}: ${issue.message}`).join('; ')}`);
     this.name = 'FlowCompileError';
   }
-}
-
-/** Every node a route can lead to. */
-export function routeTargets(route: FlowRoute | undefined): string[] {
-  if (route === undefined) return [];
-  if (typeof route === 'string') return [route];
-  return [...new Set([...Object.values(route.cases), route.otherwise])];
-}
-
-/** Every authored line the flow can speak, with its path for error messages. */
-export function flowLineTemplates(
-  flow: AgentFlow,
-): { id: string; field: string; template: string }[] {
-  return Object.entries(flow.lines).map(([id, template]) => ({
-    id,
-    field: `lines.${id}`,
-    template,
-  }));
-}
-
-/**
- * True when some path can reach the LLM: a fallback to it, or a node with no lines of its own. A
- * flow without either runs on the decision model alone (Jev-only).
- */
-export function flowReachesLlm(flow: AgentFlow): boolean {
-  return flow.fallback === 'llm' || flow.nodes.some((node) => node.say.length === 0);
-}
-
-/**
- * True when an enabled flow's start node has lines: the agent then greets first with them, the
- * same way an `opening` does, so an outbound call waits for the answering-machine verdict too.
- */
-export function flowSpeaksFirst(policy: { enabled: boolean; flow?: AgentFlow } | undefined) {
-  const flow = policy?.enabled ? policy.flow : undefined;
-  return Boolean(flow?.nodes.find((node) => node.id === flow.start)?.say.length);
-}
-
-/** The wire limit on a decision question's instructions (`decision.ts`). */
-const INSTRUCTIONS_LIMIT = 2_000;
-
-/** What the decision model is asked for a listen set: the flow's context, then the question. */
-export function flowListenInstructions(flow: AgentFlow, listen: FlowListen): string {
-  return flow.context ? `${flow.context}\n\n${listen.question}` : listen.question;
 }
 
 export function inspectFlow(flow: AgentFlow): FlowIssue[] {
@@ -123,11 +86,11 @@ export function inspectFlow(flow: AgentFlow): FlowIssue[] {
   flow.listens.forEach((listen, index) => {
     const at = `listens.${index}`;
     const instructions = flowListenInstructions(flow, listen).length;
-    if (instructions > INSTRUCTIONS_LIMIT)
+    if (instructions > FLOW_INSTRUCTIONS_LIMIT)
       error(
         `${at}.question`,
         `The context and this question together are ${instructions} characters; the decision ` +
-          `model reads at most ${INSTRUCTIONS_LIMIT}`,
+          `model reads at most ${FLOW_INSTRUCTIONS_LIMIT}`,
       );
     const slotIds = new Set<string>();
     listen.slots.forEach((slot, slotIndex) => {

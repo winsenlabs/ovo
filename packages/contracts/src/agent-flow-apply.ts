@@ -5,7 +5,8 @@ import {
   type FlowIntent,
   type FlowListen,
 } from './agent-flow.ts';
-import { flowListenInstructions, type CompiledFlow } from './agent-flow-compile.ts';
+import type { CompiledFlow } from './agent-flow-compile.ts';
+import { flowListenInstructions } from './agent-flow-queries.ts';
 import {
   validateDecisionExchange,
   type DecisionQuestion,
