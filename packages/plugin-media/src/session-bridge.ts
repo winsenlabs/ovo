@@ -127,7 +127,13 @@ export class SessionBridge {
       return;
     }
     if (!this.started) throw new Error('media received before carrier start');
-    if (event.type === 'stop') return this.close(`carrier ${event.reason}`);
+    if (event.type === 'stop') {
+      // OBS-1: a carrier stop is the far end hanging up (Twilio and Plivo report every hang-up
+      // as stream-ended), so the worker gets the typed EndReason. If the worker ended the call
+      // first, its session.end already closed this bridge and its own reason stands.
+      this.log.debug('carrier_stream_stopped', { carrierStopReason: event.reason });
+      return this.close('caller_hangup');
+    }
     let message: MediaMessage;
     let audioBytes = 0;
     if (event.type === 'audio') {
