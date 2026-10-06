@@ -1,5 +1,6 @@
 import type { PoolClient, QueryResultRow } from 'pg';
 import { normalizePhoneNumber } from './csv.ts';
+import { callingWindowSchema, resolveCallingWindow, type CallingWindow } from './calling-window.ts';
 import { resolveScheduledInstant } from './timezone.ts';
 import type { CampaignConfig, CampaignRecord, CampaignStatus, ContactState } from './types.ts';
 
@@ -23,6 +24,8 @@ export interface CampaignRow extends QueryResultRow {
   carrier_binding_id: string | null;
   binding_cps: string | null;
   driver_error: string | null;
+  calling_window: CallingWindow | null;
+  variables_schema: Record<string, unknown> | null;
   version: string;
 }
 
@@ -40,7 +43,8 @@ export interface ContactRow extends QueryResultRow {
 
 export const campaignColumns = `id, operation_id, input_digest, name, agent_release_id, from_number, status, schedule_at, timezone,
   per_number_attempt_limit, max_attempts_total, max_attempts_per_local_day, active_call_policy,
-  max_concurrency, carrier_plugin_id, carrier_id, carrier_binding_id, binding_cps, driver_error, version`;
+  max_concurrency, carrier_plugin_id, carrier_id, carrier_binding_id, binding_cps, driver_error,
+  calling_window, variables_schema, version`;
 
 export function campaignFromRow(row: CampaignRow): CampaignRecord {
   return {
@@ -62,6 +66,7 @@ export function campaignFromRow(row: CampaignRow): CampaignRecord {
     carrierBindingId: row.carrier_binding_id,
     bindingCps: row.binding_cps === null ? null : Number(row.binding_cps),
     ...(row.driver_error ? { driverError: row.driver_error } : {}),
+    callingWindow: row.calling_window,
     version: Number(row.version),
   };
 }
@@ -89,7 +94,16 @@ export function validateCampaignConfig(config: CampaignConfig): Date {
     throw new Error('bindingCps is out of range');
   if (!['continue', 'request_end'].includes(config.activeCallPolicy))
     throw new Error('activeCallPolicy is invalid');
-  return resolveScheduledInstant(config.schedule.localDateTime, config.schedule.timezone);
+  const scheduleAt = resolveScheduledInstant(
+    config.schedule.localDateTime,
+    config.schedule.timezone,
+  );
+  if (config.callingWindow) {
+    const parsed = callingWindowSchema.safeParse(config.callingWindow);
+    if (!parsed.success) throw new Error('callingWindow is invalid');
+    resolveCallingWindow(parsed.data, config.schedule.timezone);
+  }
+  return scheduleAt;
 }
 
 export async function lockedCampaign(

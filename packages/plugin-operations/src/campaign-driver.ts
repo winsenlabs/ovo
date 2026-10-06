@@ -134,7 +134,7 @@ export class CampaignDriver {
          driver_error = NULL, updated_at = now()
        WHERE id = $1 AND status = 'running'
          AND NOT EXISTS (SELECT 1 FROM ovo_ops_campaign_contacts c WHERE c.campaign_id = k.id
-           AND c.state NOT IN ('succeeded','failed','cancelled','superseded','suppressed','exhausted'))
+           AND c.state NOT IN ('succeeded','failed','cancelled','superseded','suppressed','exhausted','invalid'))
          AND NOT EXISTS (SELECT 1 FROM ovo_ops_attempts a
            WHERE a.campaign_id = k.id AND a.status = 'unknown')`,
       [id],

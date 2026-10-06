@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import type { CallingWindow } from './calling-window.ts';
 
 export type CampaignStatus = 'scheduled' | 'running' | 'paused' | 'cancelled' | 'completed';
 export type ContactState =
@@ -12,7 +13,9 @@ export type ContactState =
   | 'unknown'
   | 'superseded'
   | 'suppressed'
-  | 'exhausted';
+  | 'exhausted'
+  /** Its variables failed the release's declared schema at admission; it is never dialed. */
+  | 'invalid';
 
 export interface CampaignSchedule {
   localDateTime: string;
@@ -34,6 +37,10 @@ export interface CampaignConfig {
   carrierId?: string;
   carrierBindingId?: string | null;
   bindingCps?: number | null;
+  /** Calls are placed only inside this local window; absent places them at any hour. */
+  callingWindow?: CallingWindow | null;
+  /** The release's declared variables schema; each contact is checked against it at admission. */
+  variablesSchema?: Record<string, unknown> | null;
 }
 
 export interface CampaignContactInput {
@@ -43,7 +50,7 @@ export interface CampaignContactInput {
   variables: Record<string, string>;
 }
 
-export interface CampaignRecord extends Omit<CampaignConfig, 'schedule'> {
+export interface CampaignRecord extends Omit<CampaignConfig, 'schedule' | 'variablesSchema'> {
   id: string;
   status: CampaignStatus;
   scheduleAt: Date;
@@ -61,6 +68,7 @@ export type ContactAdmission =
   | { kind: 'scheduled'; scheduleAt: Date }
   | { kind: 'quota_exhausted'; quota: 'total' | 'daily' }
   | { kind: 'capacity_exhausted' }
+  | { kind: 'outside_calling_hours'; nextOpenAt: Date }
   | { kind: 'empty' };
 
 export interface DialAuthorization {
@@ -94,7 +102,8 @@ export type DialAuthorizationResult =
         | 'suppressed'
         | 'attempt_limit'
         | 'total_quota'
-        | 'daily_quota';
+        | 'daily_quota'
+        | 'outside_calling_hours';
     };
 
 export interface CampaignCounters {
@@ -112,10 +121,26 @@ export interface CampaignCounters {
   >;
 }
 
+export type DoNotCallSource = 'manual' | 'import' | 'opt_out';
+
 export interface SuppressionRecord {
   phoneNumber: string;
   reason: string;
+  /** Who listed it: an operator, a bulk import, or the caller asking not to be called (opt-out). */
+  source: DoNotCallSource;
+  /** The call in which the caller opted out. */
+  callId?: string;
   createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CampaignContactRecord {
+  id: string;
+  sourceRow: number;
+  phoneNumber: string;
+  externalId?: string;
+  variables: Record<string, string>;
+  state: ContactState;
 }
 
 export interface OperationsServiceConfig {
