@@ -7,6 +7,10 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { WorkerSpeechCacheRuntime } from '../src/speech-cache-runtime.ts';
 import { perCallLines } from '../src/speech-cache-percall.ts';
+import {
+  DEFAULT_SPEECH_CACHE_OPTIONS,
+  speechCacheOptionsFromEnv,
+} from '../src/speech-cache-env.ts';
 import type { SpeechClipStore } from '../src/speech-cache-tiers.ts';
 import { composeCacheOutput, fixtureRelease, RecordingTts } from './speech-cache-harness.ts';
 
@@ -324,5 +328,62 @@ describe('per-call clips in a live session (TTS-10)', () => {
     ]);
     runtime.perCall.release('job-6');
     await runtime.close();
+  });
+
+  it('prepares a dialled job from its payload, metering renders to that job', async () => {
+    const tts = new RecordingTts();
+    const runtime = runtimeWith(tts);
+    const release = greetFirstRelease();
+    const metered: string[] = [];
+    const jobs = new Map([
+      [
+        'job-7',
+        { workspaceId: 'workspace-a', payload: { releaseId: 'release-1', variables: VARIABLES } },
+      ],
+      ['job-8', { workspaceId: 'workspace-a', payload: { releaseId: 'missing' } }],
+    ]);
+    const deps = {
+      jobs: { get: async (id: string) => jobs.get(id) },
+      releases: {
+        getRelease: async (_: string, id: string) => (id === release.id ? release : undefined),
+      },
+      usage: (jobId: string) => () => void metered.push(jobId),
+    };
+    const clips = await runtime.prepareJob('job-7', deps);
+    await vi.waitFor(() => expect(clips?.get(SPOKEN)?.ready).toBe(true));
+    // Outbound: the voicemail message is rendered with the opening, before anyone answers.
+    expect(clips?.get('Please call us back, Asha Rao.')).toBeDefined();
+    expect(metered.every((jobId) => jobId === 'job-7') && metered.length > 0).toBe(true);
+    expect(await runtime.prepareJob('job-8', deps)).toBeUndefined();
+    expect(await runtime.prepareJob('job-9', deps)).toBeUndefined();
+    await runtime.close();
+    expect(clips?.discarded).toBe(true);
+  });
+
+  it('reads its limits from the environment and rejects invalid values', () => {
+    expect(speechCacheOptionsFromEnv({}).perCall).toEqual(DEFAULT_SPEECH_CACHE_OPTIONS.perCall);
+    expect(
+      speechCacheOptionsFromEnv({
+        OVO_SPEECH_PERCALL_ENABLED: 'false',
+        OVO_SPEECH_PERCALL_SCOPE: 'opening',
+        OVO_SPEECH_PERCALL_MAX_LINES: '4',
+      }).perCall,
+    ).toMatchObject({ enabled: false, scope: 'opening', maxLines: 4 });
+    expect(() => speechCacheOptionsFromEnv({ OVO_SPEECH_PERCALL_SCOPE: 'some' })).toThrow();
+    expect(() => speechCacheOptionsFromEnv({ OVO_SPEECH_PERCALL_ENABLED: 'yes' })).toThrow();
+    expect(() => speechCacheOptionsFromEnv({ OVO_SPEECH_PERCALL_MAX_LINES: '0' })).toThrow();
+    const off = new WorkerSpeechCacheRuntime(
+      {},
+      speechCacheOptionsFromEnv({ OVO_SPEECH_PERCALL_ENABLED: 'false' }),
+    );
+    expect(
+      off.prepareCall({
+        callKey: 'job-10',
+        release: greetFirstRelease(),
+        variables: VARIABLES,
+        usage: () => undefined,
+        answeringMachine: false,
+      }),
+    ).toBeUndefined();
   });
 });
