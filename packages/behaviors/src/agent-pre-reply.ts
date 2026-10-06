@@ -4,6 +4,7 @@ import type { AgentTurnLog } from './agent-turn-log.ts';
 import type { DecisionGate } from './decision-gate.ts';
 import type { Grounding } from './grounding.ts';
 import { runGroundingStep } from './grounding-step.ts';
+import { authoredGuardrailTexts, ReplyGuardrail, type ReplyGuardrailInput } from './guardrail.ts';
 
 export interface PreReplyInput {
   config: AgentConfig;
@@ -25,6 +26,8 @@ export interface PreReplyInput {
   log: AgentTurnLog;
   turn: number;
   stale: () => boolean;
+  /** Checks the LLM's reply for values nobody declared; absent or `off` checks nothing. */
+  guardrail?: ReplyGuardrailInput;
 }
 
 export interface PreReply {
@@ -34,6 +37,11 @@ export interface PreReply {
   context: string;
   /** A trusted decision ends the call once this turn's reply has played. */
   end?: string;
+  /**
+   * Applied to each sentence of the LLM's reply before it is spoken: the text to speak, or
+   * undefined to drop it. Authored lines (`speak`) are never checked.
+   */
+  guard?: (segment: string) => string | undefined;
 }
 
 /**
@@ -55,6 +63,7 @@ export async function runPreReplySteps({
   turn,
   stale,
   render,
+  guardrail,
 }: PreReplyInput): Promise<PreReply> {
   let retrieved = '';
   if (grounding) {
@@ -73,6 +82,17 @@ export async function runPreReplySteps({
     facts || retrieved
       ? [briefing, facts, retrieved].filter(Boolean).join('\n\n').trim()
       : briefing;
+  // Built before the LLM is asked, so checking its first sentence costs only that sentence.
+  const guard =
+    guardrail && guardrail.policy.mode !== 'off'
+      ? new ReplyGuardrail(
+          guardrail,
+          [briefing, facts, retrieved, ...authoredGuardrailTexts(config)],
+          turnInput.variables,
+          turn,
+        )
+      : undefined;
+  const checked = guard ? { guard: (segment: string) => guard.check(segment) } : {};
   if (gate) {
     const answered = await runDecisionStep(gate, {
       turn: { ...turnInput, context: briefing, retrieved },
@@ -82,7 +102,7 @@ export async function runPreReplySteps({
       stale,
       render,
     });
-    return { ...answered, context };
+    return { ...answered, context, ...checked };
   }
-  return { context };
+  return { context, ...checked };
 }

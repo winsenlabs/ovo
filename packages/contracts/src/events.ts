@@ -34,3 +34,8 @@ export type DurableEvent = z.infer<typeof DurableEvent>;
 export function readDurableEvent(input: unknown): DurableEvent {
   return DurableEvent.parse(input);
 }
+
+// Per-call outcome events (AGT-8) and the guardrail policy their `guardrail` events report on.
+// Re-exported here, beside the other durable event shapes, so index.ts needs no new entry.
+export * from './session-events.ts';
+export * from './agent-guardrail.ts';
