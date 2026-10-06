@@ -33,7 +33,7 @@ import { createFakeCarrier, createScriptedTts, realClock, withEgressSentinel } f
   values.set(Cap.media, carrier.duplex); values.set(Cap.tts, createScriptedTts());
   values.set(Cap.clock, realClock); values.set(Cap.usage, () => {});
   values.set(Cap.behavior, { respond: async () => 'Native bundle speech.', isComplete: () => true });
-  const ctx = { get: (key) => values.get(key), maybe: (key) => values.get(key), provide: (key,value) => values.set(key,value), effect: () => {} };
+  const ctx = { get: (key) => values.get(key), maybe: (key) => values.get(key), all: () => new Map(), provide: (key,value) => values.set(key,value), effect: () => {} };
   await plugins.find(p => p.manifest.id === ENGINE_ID + '/speech').apply(ctx, {});
   await plugins.find(p => p.manifest.id === ENGINE_ID).apply(ctx, { engine: {}, session: { mode: 'announcement', language: 'en-US', inputEnabled: false, variables: {}, maxCallSeconds: 10, acknowledgements: [] } });
   const engine = values.get(Cap.engine); await engine.start();
