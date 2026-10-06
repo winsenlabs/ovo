@@ -2,9 +2,19 @@ import type { Clock, NetPort, WebSocketLike } from '@winsendotai/ovo-contracts';
 import { abortError, decodeBase64 } from '@winsendotai/ovo-plugin-kit';
 import { ElevenLabsTtsError, retryableClose } from './errors.ts';
 
+/**
+ * Character timings of one audio frame, relative to that frame's first sample. The reference lists
+ * `alignment` as optional on `AudioOutputMulti`; Pipecat's production plugin reads it on the
+ * multi-context socket without asking for `sync_alignment` (PIPECAT in testing.ts, 2026-10-06).
+ */
+export interface Alignment {
+  chars: readonly string[];
+  charStartTimesMs: readonly number[];
+}
+
 /** What the pooled socket routes to one context. */
 export interface ContextSink {
-  onAudio(bytes: Uint8Array): void;
+  onAudio(bytes: Uint8Array, alignment?: Alignment): void;
   onFinal(): void;
   onError(error: Error): void;
 }
@@ -14,6 +24,18 @@ export const MAX_CONTEXTS = 5;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
+
+/** A well-formed alignment, or undefined (absent, null, or a shape we do not recognise). */
+function readAlignment(value: unknown): Alignment | undefined {
+  if (!isRecord(value)) return undefined;
+  const { chars, charStartTimesMs } = value;
+  if (!Array.isArray(chars) || !Array.isArray(charStartTimesMs)) return undefined;
+  if (chars.length !== charStartTimesMs.length) return undefined;
+  if (!chars.every((char) => typeof char === 'string')) return undefined;
+  if (!charStartTimesMs.every((ms) => typeof ms === 'number' && Number.isFinite(ms) && ms >= 0))
+    return undefined;
+  return { chars: chars as string[], charStartTimesMs: charStartTimesMs as number[] };
+}
 
 /**
  * One `multi-stream-input` socket shared by every context of a session (TTS-2). Contexts are
@@ -150,7 +172,7 @@ export class MultiContextConnection {
       } catch {
         return sink.onError(new ElevenLabsTtsError('ElevenLabs TTS sent invalid base64', false));
       }
-      sink.onAudio(bytes);
+      sink.onAudio(bytes, readAlignment(data.alignment));
     }
     // The API reference spells it `isFinal`; the multi-context cookbook reads `is_final`.
     if (data.isFinal === true || data.is_final === true) sink.onFinal();

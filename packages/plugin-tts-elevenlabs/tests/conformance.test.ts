@@ -2,10 +2,19 @@ import { describeTextToSpeech } from '@winsendotai/ovo-conformance';
 import type { AudioFormat, NetFixtureScript } from '@winsendotai/ovo-contracts';
 import type { ElevenLabsTtsBinding } from '../src/binding.ts';
 import { ElevenLabsTts } from '../src/tts.ts';
-import { RETRIEVED, WS_SOURCE, elevenLabsTtsTemplate, socketOpen } from '../src/testing.ts';
+import {
+  RETRIEVED,
+  WS_SOURCE,
+  elevenLabsReplyTemplate,
+  elevenLabsTtsTemplate,
+  socketOpen,
+} from '../src/testing.ts';
 
-/** The socket drops (1011) after the first context's input, before any audio. */
-const droppedSocket = (format: AudioFormat): NetFixtureScript[] => [
+/**
+ * The provider refuses the first context after its input, before any audio. A policy close (1008:
+ * key or quota) is not replayed; a dropped socket (1011) would be, over HTTP (reply.test.ts).
+ */
+const refusedSocket = (format: AudioFormat): NetFixtureScript[] => [
   {
     host: 'api.elevenlabs.io',
     source: WS_SOURCE,
@@ -15,7 +24,7 @@ const droppedSocket = (format: AudioFormat): NetFixtureScript[] => [
       { expect: 'ws-send', match: 'json', where: { context_id: 'ovo-1' } },
       { expect: 'ws-send', match: 'json', where: { context_id: 'ovo-1' }, repeat: 'until-next' },
       { expect: 'ws-send', match: 'json', where: { context_id: 'ovo-1', close_context: true } },
-      { close: { code: 1011, reason: 'internal error' } },
+      { close: { code: 1008, reason: 'quota exceeded' } },
     ],
   },
 ];
@@ -45,7 +54,15 @@ describeTextToSpeech(
     template: elevenLabsTtsTemplate,
     language: 'en-IN',
     incrementalPushes: 2,
-    incrementalFailure: droppedSocket,
+    incrementalFailure: refusedSocket,
+    replyScripts: (texts, format) =>
+      elevenLabsReplyTemplate({
+        format,
+        language: 'en-IN',
+        sessionId: 'kit',
+        turns: [],
+        agentTexts: texts,
+      }),
     distinctRequestIds: true,
     identityVariants: VARIANTS.map(([name, binding]) => ({
       name,

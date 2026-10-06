@@ -34,6 +34,16 @@ export function httpScript(steps: NetFixtureStep[]): NetFixtureScript {
 export const audioFrame = (contextId: string, bytes: number[]) =>
   JSON.stringify({ audio: Buffer.from(bytes).toString('base64'), contextId });
 
+export const fill = (length: number, value: number) => Array<number>(length).fill(value);
+
+/** An audio frame whose alignment names `chars`, starting at the given ms from the frame start. */
+export const aligned = (contextId: string, bytes: number[], chars: string, startsMs: number[]) =>
+  JSON.stringify({
+    audio: Buffer.from(bytes).toString('base64'),
+    contextId,
+    alignment: { chars: [...chars], charStartTimesMs: startsMs, charDurationsMs: startsMs },
+  });
+
 export const finalFrame = (contextId: string) => JSON.stringify({ isFinal: true, contextId });
 
 /** A client frame for `contextId` that carries `extra` (subset match). */

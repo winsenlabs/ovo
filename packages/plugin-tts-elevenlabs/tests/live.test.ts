@@ -48,4 +48,42 @@ describe.skipIf(!key)('ElevenLabs live smoke (OVO_LIVE_ELEVENLABS_API_KEY)', () 
       await net.close();
     }
   }, 60_000);
+
+  // LAT-5: confirms the UNCONFIRMED parts of the reply context on the real API. Both sentences
+  // must get their own audio; if frames carried no alignment, every byte would land on the first.
+  it('renders a two-sentence reply in one context and cuts it by alignment', async () => {
+    const net = createNodeNet();
+    const tts = new ElevenLabsTts(net, key!, {
+      httpFallback: false,
+      ...(voiceId ? { voiceId } : {}),
+    });
+    const usage: UsageMeter[] = [];
+    try {
+      await tts.warm({ format: MULAW_8K });
+      const reply = await tts.openReply!({
+        sessionId: 'live-reply',
+        format: MULAW_8K,
+        language: 'en-IN',
+        signal: AbortSignal.timeout(15_000),
+        onUsage: (meter) => usage.push(meter),
+      });
+      const sizes: number[] = [];
+      const segments = ['Your EMI is due on the fifth.', 'Shall I send you a payment link?'].map(
+        (text) => reply.segment(text, AbortSignal.timeout(15_000)),
+      );
+      for (const segment of segments) {
+        let bytes = 0;
+        for await (const chunk of segment) bytes += chunk.byteLength;
+        sizes.push(bytes);
+      }
+      await reply.close();
+      console.log(JSON.stringify({ event: 'elevenlabs_live_reply', sizes, usage }));
+      expect(sizes[0]).toBeGreaterThan(4000);
+      expect(sizes[1]).toBeGreaterThan(4000);
+      expect(usage).toHaveLength(2);
+    } finally {
+      tts.dispose();
+      await net.close();
+    }
+  }, 60_000);
 });

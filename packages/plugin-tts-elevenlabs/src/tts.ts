@@ -10,7 +10,7 @@ import {
   type NetPort,
   type SynthesisInput,
   type TextToSpeech,
-  type UsageMeter,
+  type TtsReply,
 } from '@winsendotai/ovo-contracts';
 import { abortError, syntheticRequestId, systemClock } from '@winsendotai/ovo-plugin-kit';
 import {
@@ -27,6 +27,9 @@ import { ElevenLabsContext } from './context.ts';
 import { ElevenLabsTtsError } from './errors.ts';
 import { HttpIncrementalTts } from './http-context.ts';
 import { streamHttp } from './http-stream.ts';
+import { ReplayingContext } from './replaying-context.ts';
+import type { HttpRender } from './reply-part.ts';
+import { ElevenLabsReply } from './reply.ts';
 
 export const ELEVENLABS_TTS_CAPABILITIES = Object.freeze({
   // μ-law 8 kHz first: Twilio takes it as is, with no resample or transcode on the hot path.
@@ -43,6 +46,8 @@ export const ELEVENLABS_TTS_CAPABILITIES = Object.freeze({
 /** After a failed connect, new utterances use HTTP for this long instead of paying the timeout again. */
 const SOCKET_RETRY_MS = 30_000;
 const DEFAULT_CONNECT_TIMEOUT_MS = 3_000;
+/** Without alignment, a reply segment is over once its audio has been quiet this long. */
+const REPLY_QUIET_MS = 600;
 
 type OpenInput = Omit<SynthesisInput, 'text'>;
 
@@ -56,6 +61,8 @@ export class ElevenLabsTts implements TextToSpeech {
     maxChars: number;
   };
   readonly binding: Readonly<ElevenLabsTtsBinding>;
+  /** LAT-5 reply contexts; absent when the binding sets `replyStream: false`. */
+  readonly openReply?: (input: OpenInput) => Promise<TtsReply>;
   private readonly pool = new Map<string, MultiContextConnection>();
   private requestNumber = 0;
   private socketDownUntil = Number.NEGATIVE_INFINITY;
@@ -72,6 +79,7 @@ export class ElevenLabsTts implements TextToSpeech {
       ...ELEVENLABS_TTS_CAPABILITIES,
       maxChars: textLimit(this.binding),
     });
+    if (this.binding.replyStream !== false) this.openReply = (input) => this.reply(input);
   }
 
   cacheIdentity(format: AudioFormat, voice?: string) {
@@ -94,81 +102,63 @@ export class ElevenLabsTts implements TextToSpeech {
   }
 
   async open(input: OpenInput): Promise<IncrementalTts> {
-    this.assertNative(input.format);
-    input.signal.throwIfAborted();
-    if (this.disposed) throw new ElevenLabsTtsError('ElevenLabs TTS is disposed', false);
-    const number = ++this.requestNumber;
+    const number = this.begin(input);
     const requestId = syntheticRequestId('elevenlabs', input.sessionId, number);
-    if (this.binding.transport === 'http' || this.clock.now() < this.socketDownUntil)
-      return this.overHttp(input, number, requestId);
-    let connection: MultiContextConnection;
-    try {
-      connection = this.connection(input.format, input.voice);
-      await untilAborted(connection.ready, input.signal);
-    } catch (error) {
-      if (input.signal.aborted || this.binding.httpFallback === false) throw error;
-      this.socketDownUntil = this.clock.now() + SOCKET_RETRY_MS;
-      return this.overHttp(input, number, requestId);
-    }
-    const release = await connection.acquire(input.signal);
-    try {
-      return new ElevenLabsContext({
-        connection,
-        contextId: `ovo-${number}`,
-        requestId,
-        input,
-        opening: contextOpening(this.binding),
-        limit: this.capabilities.maxChars,
-        clock: this.clock,
-        release,
-      });
-    } catch (error) {
-      release();
-      throw error;
-    }
+    const socket = await this.socketFor(input);
+    if (!socket) return this.overHttp(input, number, requestId);
+    const context = (onUsage: OpenInput['onUsage']) => {
+      try {
+        return new ElevenLabsContext({
+          connection: socket.connection,
+          contextId: `ovo-${number}`,
+          requestId,
+          input: { ...input, onUsage },
+          opening: contextOpening(this.binding),
+          limit: this.capabilities.maxChars,
+          clock: this.clock,
+          release: socket.release,
+        });
+      } catch (error) {
+        socket.release();
+        throw error;
+      }
+    };
+    if (this.binding.httpFallback === false) return context(input.onUsage);
+    return new ReplayingContext(context, this.render(input), input.signal, input.onUsage);
+  }
+
+  /** LAT-5: one context for a whole reply (see ElevenLabsReply). Unset by `replyStream: false`. */
+  private async reply(input: OpenInput): Promise<TtsReply> {
+    const number = this.begin(input);
+    const socket = await this.socketFor(input);
+    return new ElevenLabsReply({
+      ...(socket ? { socket } : {}),
+      contextId: `ovo-${number}`,
+      requestId: syntheticRequestId('elevenlabs', input.sessionId, number),
+      input,
+      opening: contextOpening(this.binding),
+      limit: this.capabilities.maxChars,
+      clock: this.clock,
+      render: this.render(input),
+      replay: this.binding.httpFallback !== false,
+      quietMs: REPLY_QUIET_MS,
+    });
   }
 
   async *synthesize(input: SynthesisInput): AsyncIterable<Uint8Array> {
-    this.assertNative(input.format);
     if (!input.text || [...input.text].length > this.capabilities.maxChars)
       throw new TypeError(
         `ElevenLabs TTS text must contain 1–${this.capabilities.maxChars} characters`,
       );
-    input.signal.throwIfAborted();
-    let received = false;
-    let overSocket = true;
-    let retry = false;
-    // The first attempt's meter is held until we know whether HTTP retries it, so one synthesis
-    // emits exactly one meter: a dropped socket's estimate is replaced by the retry's.
-    const held: UsageMeter[] = [];
+    // A socket that drops before the first byte is replayed over HTTP inside the context.
+    const context = await this.open(input);
     try {
-      const context = await this.open({ ...input, onUsage: (meter) => held.push(meter) });
-      overSocket = context instanceof ElevenLabsContext;
-      try {
-        context.push(input.text);
-        context.flush();
-        for await (const chunk of context.audio) {
-          received = true;
-          yield chunk;
-        }
-      } finally {
-        await context.close();
-      }
-    } catch (error) {
-      // A socket that dropped before any audio is retried once over HTTP; anything after the
-      // first byte, a cancel, a refusal (bad key, quota) or an HTTP failure is the caller's.
-      retry =
-        overSocket &&
-        !received &&
-        !input.signal.aborted &&
-        this.binding.httpFallback !== false &&
-        error instanceof ElevenLabsTtsError &&
-        error.retryable;
-      if (!retry) throw error;
+      context.push(input.text);
+      context.flush();
+      yield* context.audio;
     } finally {
-      if (!retry) for (const meter of held) input.onUsage(meter);
+      await context.close();
     }
-    if (retry) yield* streamHttp(this.httpPort(), input, ++this.requestNumber);
   }
 
   /** Closes every pooled socket (session end). */
@@ -200,6 +190,40 @@ export class ElevenLabsTts implements TextToSpeech {
       requestId,
       this.capabilities.maxChars,
     );
+  }
+
+  /** One HTTP stream per call, each with its own request number (and so its own meter id). */
+  private render(input: OpenInput): HttpRender {
+    return (text, signal, onUsage) =>
+      streamHttp(this.httpPort(), { ...input, text, signal, onUsage }, ++this.requestNumber);
+  }
+
+  private begin(input: OpenInput): number {
+    this.assertNative(input.format);
+    input.signal.throwIfAborted();
+    if (this.disposed) throw new ElevenLabsTtsError('ElevenLabs TTS is disposed', false);
+    return ++this.requestNumber;
+  }
+
+  /**
+   * The pooled socket with a context slot held, or undefined when this utterance goes over HTTP:
+   * `transport: 'http'`, a socket that failed within the last 30 s, or one that fails now.
+   */
+  private async socketFor(
+    input: OpenInput,
+  ): Promise<{ connection: MultiContextConnection; release: () => void } | undefined> {
+    if (this.binding.transport === 'http' || this.clock.now() < this.socketDownUntil)
+      return undefined;
+    let connection: MultiContextConnection;
+    try {
+      connection = this.connection(input.format, input.voice);
+      await untilAborted(connection.ready, input.signal);
+    } catch (error) {
+      if (input.signal.aborted || this.binding.httpFallback === false) throw error;
+      this.socketDownUntil = this.clock.now() + SOCKET_RETRY_MS;
+      return undefined;
+    }
+    return { connection, release: await connection.acquire(input.signal) };
   }
 
   private httpPort() {

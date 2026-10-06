@@ -27,8 +27,13 @@ export interface ElevenLabsTtsBinding {
   /** Seconds the pooled socket may idle (provider maximum 180). */
   inactivityTimeoutS?: number;
   connectTimeoutMs?: number;
-  /** Stream over HTTP when the WebSocket cannot be opened (default true). */
+  /** Stream over HTTP when the WebSocket cannot be opened or drops before audio (default true). */
   httpFallback?: boolean;
+  /**
+   * One context per agent reply rather than per sentence (LAT-5, default true). Off restores the
+   * Wave 2 per-segment contexts; it does not change the audio of a cached line.
+   */
+  replyStream?: boolean;
   enableLogging?: boolean;
 }
 
