@@ -7,6 +7,7 @@ import {
   type AssemblyAiBinding,
 } from './provider.ts';
 import { ENDPOINTING_PRESETS } from './endpointing.ts';
+import { MAX_KEYTERMS } from './keyterms.ts';
 import { fixtures, fixtureTemplates } from './testing.ts';
 
 export {
@@ -30,6 +31,7 @@ export {
   type EndpointingPreset,
 } from './endpointing.ts';
 export { AssemblyAiProviderError, AssemblyAiSession } from './session.ts';
+export { callKeyterms, type AssemblyAiCallKeyterms } from './keyterms.ts';
 export { fixtures, fixtureTemplates };
 
 export const assemblyAiPlugin = definePlugin(
@@ -50,6 +52,10 @@ export const assemblyAiPlugin = definePlugin(
         workspaceId: { type: 'string' },
         bindingId: { type: 'string' },
         updatedAt: { type: 'string' },
+        // STT-11, from the agent's `voice.stt.config`: terms every call favours, and the call
+        // variables (paths such as `full_name`) whose values that call favours.
+        keyterms: { type: 'array', maxItems: MAX_KEYTERMS, items: { type: 'string' } },
+        keytermVariables: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1 } },
       },
       additionalProperties: false,
     },
@@ -75,7 +81,7 @@ export const assemblyAiPlugin = definePlugin(
         maxTurnSilenceMs: { type: 'integer', minimum: 1 },
         endOfTurnConfidenceThreshold: { type: 'number', minimum: 0, maximum: 1 },
         vadThreshold: { type: 'number', minimum: 0, maximum: 1 },
-        keyterms: { type: 'array', maxItems: 100, items: { type: 'string' } },
+        keyterms: { type: 'array', maxItems: MAX_KEYTERMS, items: { type: 'string' } },
         // Sent to the pro models only.
         prompt: { type: 'string', minLength: 1, maxLength: 1_750 },
         inactivityTimeoutSec: { type: 'integer', minimum: 5, maximum: 3_600 },
@@ -105,7 +111,13 @@ export const assemblyAiPlugin = definePlugin(
   },
   async (ctx, row) => {
     const key = await ctx.secret('');
-    ctx.provide(Cap.stt, new AssemblyAiStt(ctx.net, key, (row.binding ?? {}) as AssemblyAiBinding));
+    ctx.provide(
+      Cap.stt,
+      new AssemblyAiStt(ctx.net, key, (row.binding ?? {}) as AssemblyAiBinding, undefined, {
+        keyterms: row.keyterms as string[] | undefined,
+        keytermVariables: row.keytermVariables as string[] | undefined,
+      }),
+    );
   },
 );
 

@@ -8,6 +8,7 @@ import {
   SCRIBE_REGIONS,
   type ElevenLabsSttBinding,
 } from './provider.ts';
+import { SCRIBE_MAX_KEYTERM_CHARS, SCRIBE_MAX_KEYTERMS } from './keyterms.ts';
 import { fixtures, fixtureTemplates } from './testing.ts';
 
 export {
@@ -22,6 +23,7 @@ export {
   type ElevenLabsSttBinding,
 } from './provider.ts';
 export { ElevenLabsSttError } from './protocol.ts';
+export { scribeKeyterms, type ScribeCallKeyterms } from './keyterms.ts';
 export { fixtures, fixtureTemplates };
 
 export const elevenLabsSttPlugin = definePlugin(
@@ -42,6 +44,10 @@ export const elevenLabsSttPlugin = definePlugin(
         workspaceId: { type: 'string' },
         bindingId: { type: 'string' },
         updatedAt: { type: 'string' },
+        // STT-11, from the agent's `voice.stt.config`: terms every call favours, and the call
+        // variables (paths such as `full_name`) whose values that call favours.
+        keyterms: { type: 'array', maxItems: SCRIBE_MAX_KEYTERMS, items: { type: 'string' } },
+        keytermVariables: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1 } },
       },
       additionalProperties: false,
     },
@@ -65,8 +71,8 @@ export const elevenLabsSttPlugin = definePlugin(
         // The provider accepts up to 50 keyterms of up to 20 characters each.
         keyterms: {
           type: 'array',
-          maxItems: 50,
-          items: { type: 'string', minLength: 1, maxLength: 20 },
+          maxItems: SCRIBE_MAX_KEYTERMS,
+          items: { type: 'string', minLength: 1, maxLength: SCRIBE_MAX_KEYTERM_CHARS },
         },
         noVerbatim: { type: 'boolean', default: false },
         enableLogging: { type: 'boolean', default: true },
@@ -91,7 +97,10 @@ export const elevenLabsSttPlugin = definePlugin(
     const key = await ctx.secret('');
     ctx.provide(
       Cap.stt,
-      new ElevenLabsStt(ctx.net, key, (row.binding ?? {}) as ElevenLabsSttBinding),
+      new ElevenLabsStt(ctx.net, key, (row.binding ?? {}) as ElevenLabsSttBinding, undefined, {
+        keyterms: row.keyterms as string[] | undefined,
+        keytermVariables: row.keytermVariables as string[] | undefined,
+      }),
     );
   },
 );
