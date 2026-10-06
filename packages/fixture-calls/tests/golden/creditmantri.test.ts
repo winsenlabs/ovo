@@ -147,17 +147,20 @@ describe.skipIf(!flowRuntime)('CreditMantri golden conversations, agent runtime'
         now: () => NOW,
       });
       let epoch = 0;
+      // What was said, compared as one text: how a node's lines are split into speech segments
+      // is the engine's and the clip cache's business, not the conversation's.
       const turn = async (text: string) => {
         behavior.beginTurn(epoch);
         const said = await collect(behavior.respondStream(text, variables));
-        for (const line of said) behavior.onPlayback(receipt(line, epoch));
+        for (const segment of said) behavior.onPlayback(receipt(segment, epoch));
         epoch += 1;
-        return said;
+        return said.join(' ');
       };
+      const text = (index: number) => expected[index]!.says.join(' ');
       // A flow enters its start node on the first turn, whatever the caller said.
-      expect(await turn('Hello?')).toEqual(expected[0]!.says);
+      expect(await turn('Hello?')).toBe(text(0));
       for (const [index, step] of conversation.steps.entries())
-        expect(await turn(step.caller!), `step ${index + 1}`).toEqual(expected[index + 1]!.says);
+        expect(await turn(step.caller!), `step ${index + 1}`).toBe(text(index + 1));
       expect(script).toEqual([]);
       expect(dispositionsOf(behavior)).toEqual(conversation.outcome.dispositions);
       expect(behavior.isComplete()).toBe(conversation.outcome.ended);

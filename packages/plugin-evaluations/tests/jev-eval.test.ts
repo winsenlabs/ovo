@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import * as contracts from '@winsendotai/ovo-contracts';
 import type { DecisionPort, DecisionRequest, DecisionResponse } from '@winsendotai/ovo-contracts';
 import { CREDITMANTRI_JEV_EVAL } from '../src/corpus/jev-eval-creditmantri.ts';
-import { flowListen } from '../src/jev-eval-flow.ts';
+import { flowListen, matchFlowPhrase } from '../src/jev-eval-flow.ts';
 import {
+  jevEvalRequest,
   runJevEval,
   scoreJevCase,
   validateJevEvalSet,
@@ -249,5 +251,32 @@ describe('recording', () => {
     expect(recorded).toMatchObject({ provenance: 'live', modelId: 'fixture-jev' });
     const direct = await runJevEval(set, live.port);
     expect(await runJevEval(set, replayDecision(recorded))).toEqual(direct);
+  });
+});
+
+/**
+ * The eval must score the request production sends. Until the flow contract lands (wave3/flow),
+ * `jev-eval-flow.ts` stands in for it; once contracts export the flow compiler this block runs and
+ * pins the stand-in to it: same checks, same phrase tier, same request for every labelled reply.
+ */
+const runtime = contracts as unknown as {
+  compileFlow?: (flow: unknown) => unknown;
+  inspectFlow?: (flow: unknown) => { severity: string }[];
+  flowDecisionRequest?: (compiled: unknown, listen: string, state: unknown) => unknown;
+  matchFlowPhrase?: (compiled: unknown, listen: string, reply: string) => string | undefined;
+};
+describe.skipIf(!runtime.compileFlow)('the stand-in agrees with the flow contract', () => {
+  it('asks the runtime request and resolves the runtime phrases for every labelled reply', () => {
+    expect(runtime.inspectFlow!(set.flow).filter((issue) => issue.severity === 'error')).toEqual(
+      [],
+    );
+    const compiled = runtime.compileFlow!(set.flow);
+    for (const evalCase of set.cases) {
+      const ours = jevEvalRequest(set, evalCase);
+      expect(runtime.flowDecisionRequest!(compiled, evalCase.listen, ours.state)).toEqual(ours);
+      expect(runtime.matchFlowPhrase!(compiled, evalCase.listen, evalCase.text)).toEqual(
+        matchFlowPhrase(set.flow, evalCase.listen, evalCase.text),
+      );
+    }
   });
 });
