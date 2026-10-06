@@ -29,6 +29,10 @@ import { mcpToolRemoved } from './mcp-tool-removed.ts';
 import { terminationUnsupported } from './termination-unsupported.ts';
 import { templateVariableUndeclared } from './template-variable-undeclared.ts';
 import { legacyReleaseUnpinned } from './legacy-release-unpinned.ts';
+import { flowInvalid } from './flow-invalid.ts';
+import { flowVariables } from './flow-variables.ts';
+import { flowMode } from './flow-mode.ts';
+import { flowDecisionLimits } from './flow-decision-limits.ts';
 import type { CompatInput, CompatRule } from './types.ts';
 import { legacySelections } from '../legacy-session-selections.ts';
 
@@ -47,6 +51,9 @@ const RELEASE_RULES: readonly CompatRule[] = [
   knowledgePluginMissing,
   knowledgePluginUnused,
   templateVariableUndeclared,
+  flowInvalid,
+  flowVariables,
+  flowMode,
 ];
 const ADMISSION_RULES: readonly CompatRule[] = [
   pluginUnavailable,
@@ -56,6 +63,7 @@ const ADMISSION_RULES: readonly CompatRule[] = [
   modeRequiresLlm,
   modeLlmUnused,
   decisionPrimitiveUnsupported,
+  flowDecisionLimits,
   knowledgeLimits,
   turnSignalMissing,
   playbackEvidenceInsufficient,

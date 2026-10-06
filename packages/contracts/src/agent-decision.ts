@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import { AgentFlow } from './agent-flow.ts';
+
+// The flow is authored inside the decision policy, so it is exported alongside it.
+export * from './agent-flow.ts';
 
 /**
  * Per-agent decision authoring. `decision.ts` holds the provider-neutral wire contract; this holds
@@ -37,18 +41,10 @@ export const DecisionOutcome = z
   .strict();
 
 /*
- * A business disposition (`promise_to_pay:tomorrow`) and a script jump are the two other outcomes
- * this shape obviously wants, and neither is here, because neither can act today:
- *
- *   - `EventSink` and `HumanHandoffPort` are declared in `contracts/src/ports.ts` and
- *     `human-handoff.ts` with no implementation and no caller anywhere in this repository, and
- *     `TranscriptObserver` accepts only `user.transcript` and `agent.transcript`. There is no
- *     durable sink a behaviour can write a disposition to.
- *   - A script jump needs a router. `AgentConfig` already refuses a script outside announcement and
- *     FAQ mode, so an agent-mode decision has no graph to jump in.
- *
- * Both are named open items (`PM/CURRENT-STATE.md` item 8, and P2 for the intent graph). An outcome
- * field that validates and then does nothing is worse than its absence, so they wait for those.
+ * A business disposition (`promise_to_pay:tomorrow`) and a jump to another state are deliberately
+ * not flat outcomes. Both need conversation state, and the flat policy has none: it asks the same
+ * questions on every turn. They live on the flow (`agent-flow.ts`), whose nodes carry a
+ * `disposition` and whose intents name the `next` node. A flat outcome stays a single reply.
  */
 export type DecisionOutcome = z.infer<typeof DecisionOutcome>;
 
@@ -178,8 +174,18 @@ export type DecisionStateSource = z.infer<typeof DecisionStateSource>;
 export const AgentDecisionPolicy = z
   .object({
     enabled: z.boolean().default(false),
-    /** Asked together in one round trip. Separate questions do not cost separate calls. */
-    questions: z.array(AgentDecisionQuestion).min(1).max(32),
+    /**
+     * Asked together in one round trip. Separate questions do not cost separate calls. Empty when
+     * a `flow` routes the agent, or when a script uses the decision model only to match replies to
+     * its transitions; the release check requires one of the two in agent mode.
+     */
+    questions: z.array(AgentDecisionQuestion).max(32).default([]),
+    /** The state-aware flow (AGT-1). It replaces `questions`: one listen set is asked per turn. */
+    flow: AgentFlow.optional(),
+    /**
+     * What the model is shown. A flow always sends the caller's reply, the agent's last line, the
+     * recent turns and today; `variables`, `context` and `knowledge` add to that when listed.
+     */
     state: z
       .object({
         sources: z.array(DecisionStateSource).min(1),
@@ -189,7 +195,8 @@ export const AgentDecisionPolicy = z
       .refine(
         (state) => new Set(state.sources).size === state.sources.length,
         'State sources must be unique',
-      ),
+      )
+      .default({ sources: ['last-turn'], transcriptTurns: 6 }),
     /**
      * Milliseconds the decision may take before the turn gives up and runs the fallback. A decision
      * sits in front of the reply, so its latency is audible. Jev answers in ~300ms on a warm
@@ -203,5 +210,10 @@ export const AgentDecisionPolicy = z
     (policy) =>
       new Set(policy.questions.map((question) => question.id)).size === policy.questions.length,
     { message: 'Decision question ids must be unique', path: ['questions'] },
-  );
+  )
+  // Asking both would leave two answers to one turn and no rule for which one speaks.
+  .refine((policy) => !(policy.flow && policy.questions.length), {
+    message: 'A flow replaces the decision questions; configure one or the other',
+    path: ['flow'],
+  });
 export type AgentDecisionPolicy = z.infer<typeof AgentDecisionPolicy>;

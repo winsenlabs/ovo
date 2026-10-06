@@ -7,7 +7,12 @@ import {
   type DecisionRequest,
   type DecisionResolution,
 } from '@winsendotai/ovo-contracts';
+import { callDecision, SYSTEM_DECISION_CLOCK, type DecisionClock } from './flow-decide.ts';
+import { FlowSession, type FlowSessionOptions, type FlowStep } from './flow-session.ts';
 import { spokenHistory } from './history.ts';
+
+export * from './flow-decide.ts';
+export * from './flow-session.ts';
 
 /** Everything a decision may be grounded in. The policy chooses which of these the model sees. */
 export interface DecisionTurn {
@@ -47,7 +52,9 @@ export type DecisionGateResult =
       modelId: string;
       resolutions: readonly DecisionResolution[];
       action: DecisionAction;
-    };
+    }
+  /** A flow routed this turn; the step is applied only once the turn is still current. */
+  | { kind: 'flow'; step: FlowStep };
 
 /**
  * Runs the authored decision policy against the selected decision plugin, applies each authored
@@ -57,51 +64,47 @@ export type DecisionGateResult =
  * It re-validates the exchange even though a conformant plugin already has. The plugin boundary is
  * the product; a third-party decision plugin is expected, and the invariant that an answer matches
  * the question asked is not one the host delegates.
+ *
+ * With a flow, the gate holds the session's `FlowSession` and asks only the listen set of the
+ * state the call is in. The gate lives as long as the behaviour, which is one per session.
  */
 export class DecisionGate {
+  /** This session's position in the authored flow, when the policy routes by one. */
+  readonly flow?: FlowSession;
+
   constructor(
     private readonly policy: AgentDecisionPolicy,
     private readonly port: DecisionPort | undefined,
-    private readonly clock: { timeout(ms: number): AbortSignal } = {
-      timeout: (ms) => AbortSignal.timeout(ms),
-    },
-  ) {}
+    private readonly clock: DecisionClock = SYSTEM_DECISION_CLOCK,
+    flowOptions: Pick<FlowSessionOptions, 'rules' | 'now'> = {},
+  ) {
+    if (policy.flow)
+      this.flow = new FlowSession(policy.flow, {
+        ...flowOptions,
+        ...(port ? { port } : {}),
+        timeoutMs: policy.timeoutMs,
+        transcriptTurns: policy.state.transcriptTurns,
+        sources: policy.state.sources,
+        clock,
+      });
+  }
 
   async evaluate(turn: DecisionTurn, signal: AbortSignal): Promise<DecisionGateResult> {
     if (!this.policy.enabled) return { kind: 'off' };
-    if (!this.port)
-      return {
-        kind: 'unavailable',
-        reason: 'error',
-        message: 'No decision plugin is available for a configured decision policy',
-      };
+    if (this.flow) return { kind: 'flow', step: await this.flow.next(turn, signal) };
+    // No questions is a script's policy: it only widens transition matching (`script.ts`).
+    if (!this.policy.questions.length) return { kind: 'off' };
     const request = compileDecisionRequest(this.policy, this.state(turn));
-    const deadline = this.clock.timeout(this.policy.timeoutMs);
-    let response;
-    try {
-      response = await this.port.decide(request, {
-        signal: AbortSignal.any([signal, deadline]),
-      });
-    } catch (error) {
-      // A cancelled turn is not a decision failure; the caller is already gone.
-      signal.throwIfAborted();
-      if (deadline.aborted)
-        return {
-          kind: 'unavailable',
-          reason: 'timeout',
-          message: `Decision did not answer within ${this.policy.timeoutMs}ms`,
-        };
-      return {
-        kind: 'unavailable',
-        reason: 'error',
-        message: error instanceof Error ? error.message : String(error),
-      };
-    }
-    signal.throwIfAborted();
+    const call = await callDecision(this.port, request, {
+      timeoutMs: this.policy.timeoutMs,
+      signal,
+      clock: this.clock,
+    });
+    if (!call.ok) return { kind: 'unavailable', reason: call.reason, message: call.message };
     let resolutions: DecisionResolution[];
     let modelId: string;
     try {
-      const exchange = validateDecisionExchange(request, response);
+      const exchange = validateDecisionExchange(request, call.response);
       modelId = exchange.response.modelId;
       resolutions = this.policy.questions.map((question) =>
         resolveDecision(question, exchange.response.answers[question.id]!),
