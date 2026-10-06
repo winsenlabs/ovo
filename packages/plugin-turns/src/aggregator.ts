@@ -4,6 +4,8 @@ import type { TranscriptSegment } from '@winsendotai/ovo-contracts';
 export class TurnAggregator {
   private finals = new Map<string, string>();
   private views = new Map<string, string>();
+  /** Segments a turn ended on their interim text; their late finals are dropped. Survives clear(). */
+  private closed = new Set<string>();
 
   observe(segment: TranscriptSegment): void {
     if (this.finals.has(segment.segmentId)) {
@@ -22,6 +24,17 @@ export class TurnAggregator {
   }
   get segments(): number {
     return this.finals.size;
+  }
+  /** Ends every segment that has an interim view and no final yet. */
+  closeOpenSegments(): void {
+    for (const id of this.views.keys()) {
+      if (this.finals.has(id)) continue;
+      this.closed.add(id);
+      if (this.closed.size > 64) this.closed.delete(this.closed.values().next().value!);
+    }
+  }
+  isClosed(segmentId: string): boolean {
+    return this.closed.has(segmentId);
   }
   get hasText(): boolean {
     return this.text.length > 0;

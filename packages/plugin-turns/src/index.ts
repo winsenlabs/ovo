@@ -1,14 +1,12 @@
-import {
-  Cap,
-  TurnConfigSchema,
-  type TurnDetectorFactory,
-  type TurnConfig,
-} from '@winsendotai/ovo-contracts';
+import { Cap, type TurnDetectorFactory } from '@winsendotai/ovo-contracts';
 import { definePluginV2 } from '@winsendotai/ovo-sdk';
+import { DetectorConfigSchema, type DetectorConfig } from './config.ts';
 import { TurnController } from './controller.ts';
 
+export { CommitConfigSchema, DetectorConfigSchema, type DetectorConfig } from './config.ts';
+
 export function createTurnDetector(row: unknown = {}): TurnDetectorFactory {
-  const config: TurnConfig = TurnConfigSchema.parse(row);
+  const config: DetectorConfig = DetectorConfigSchema.parse(row);
   return { create: (input) => new TurnController(config, input) };
 }
 
@@ -20,7 +18,7 @@ export const turnDetectorPlugin = definePluginV2(
     kind: 'turn-detector',
     provider: 'ovo',
     provides: [Cap.turnDetector],
-    config: TurnConfigSchema,
+    config: DetectorConfigSchema,
     conformance: ['turn@1'],
   },
   (ctx, config) => {

@@ -1,5 +1,5 @@
 {
-  "name": "@winsendotai/ovo-plugin-turns",
+  "name": "@winsendotai/ovo-plugin-stt-elevenlabs",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,8 +12,7 @@
     "@winsendotai/ovo-contracts": "workspace:*",
     "@winsendotai/ovo-plugin-kit": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*",
-    "@winsendotai/ovo-sdk": "workspace:*",
-    "zod": "4.6.5"
+    "@winsendotai/ovo-sdk": "workspace:*"
   },
   "devDependencies": {
     "@winsendotai/ovo-conformance": "workspace:*"
