@@ -12,6 +12,7 @@ import type { StoredCallEvent, UsageEntry } from '@winsendotai/ovo-plugin-storag
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { getProductionRecordingServices } from '../recording-runtime.ts';
 import { publicRecording } from './recording-lifecycle-data.ts';
+import { registerCallOutcomes } from './call-outcomes.ts';
 export function registerInspectionRoutes(dependencies: any) {
   const {
     app,
@@ -25,6 +26,7 @@ export function registerInspectionRoutes(dependencies: any) {
     priceUsage,
     summarizeUsage,
   } = dependencies;
+  const outcomes = registerCallOutcomes(dependencies);
   app.get('/v1/calls', async (request: FastifyRequest) => {
     const principal = requireRole(request, 'viewer'),
       page = queryPage(request);
@@ -38,7 +40,8 @@ export function registerInspectionRoutes(dependencies: any) {
         status: z.string().min(1).max(100).optional(),
       })
       .parse(request.query);
-    return await store.listCalls(principal.workspaceId, page.limit, page.cursor, filters);
+    const calls = await store.listCalls(principal.workspaceId, page.limit, page.cursor, filters);
+    return await outcomes.attach(principal.workspaceId, calls, request.log);
   });
   app.get('/v1/calls/:callId', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'viewer'),

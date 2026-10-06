@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { useCursorList } from '../lib/data/use-cursor-list';
+import type { CallOutcomeSummary } from '@winsendotai/ovo-contracts';
 import type { CallSummary } from '../lib/api';
 import { useSession } from '../components/shell/session-provider';
 import { LiveCallForm } from '../components/operations/live-call-form';
@@ -13,6 +14,8 @@ import { PageHeader } from '../components/ui/layout';
 import { Time } from '../components/ui/button';
 
 const filters = ['agentId', 'engine', 'carrier', 'kind', 'status'] as const;
+/** The API attaches each call's recorded outcome (AGT-8), or null when none was recorded. */
+type CallRow = CallSummary & { outcome?: CallOutcomeSummary | null };
 export function CallsIndexFeature() {
   const identity = useSession();
   const search = useSearchParams();
@@ -25,7 +28,7 @@ export function CallsIndexFeature() {
     if (value) query.set(filter, value);
   }
   query.set('order', 'desc');
-  const page = useCursorList<CallSummary>(`/calls?${query}`, 50);
+  const page = useCursorList<CallRow>(`/calls?${query}`, 50);
   const setFilter = (key: string, value: string) => {
     const next = new URLSearchParams(search.toString());
     if (value) next.set(key, value);
@@ -78,6 +81,17 @@ export function CallsIndexFeature() {
           },
           { id: 'kind', header: 'Kind', cell: (call) => call.kind ?? 'Unknown' },
           { id: 'status', header: 'Status', cell: (call) => call.status ?? 'Unknown' },
+          {
+            id: 'disposition',
+            header: 'Disposition',
+            cell: (call) => call.outcome?.disposition ?? '—',
+          },
+          {
+            id: 'final-node',
+            header: 'Final node',
+            priority: 'low',
+            cell: (call) => call.outcome?.finalNode ?? '—',
+          },
           {
             id: 'when',
             header: 'Started',

@@ -8,6 +8,7 @@ import {
   ProductionTrackPlayer,
   type RecordingTrackSegment,
 } from '../components/operations/production-track-player';
+import { CallOutcomePanel } from './call-outcome-panel';
 
 type Evidence = {
   call: {
@@ -69,6 +70,10 @@ export function CallInspectorFeature({ callId }: { callId: string }) {
           </span>
         ))}
       </div>
+      <section className="panel panel-body">
+        <h2>Outcome</h2>
+        <CallOutcomePanel callId={callId} />
+      </section>
       <div className="inspector-grid">
         <div className="ui-stack">
           <section className="panel panel-body">

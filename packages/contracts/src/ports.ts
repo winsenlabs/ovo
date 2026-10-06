@@ -134,8 +134,18 @@ export interface Behavior {
   subscribe?(fn: (event: BehaviorEvent) => void): () => void;
 }
 
+/**
+ * Where a session records what it decided (AGT-8): `turn.route`, `flow.state`, `disposition`,
+ * `variables.captured`, `guardrail` and `call.outcome`, validated by `readSessionEvent`.
+ *
+ * `append` is called on the live turn path, so an implementation must never wait on storage or
+ * throw into the call: it validates, queues and returns. A malformed event is reported by the sink
+ * and dropped. Optional for behaviours; a session without a sink records nothing and runs the same.
+ */
 export interface EventSink {
   append(type: string, payload: Record<string, unknown>): Promise<void>;
+  /** Writes what is queued, bounded by the sink's own deadline. Called once the call has ended. */
+  flush?(): Promise<void>;
 }
 
 export interface SecretResolver {

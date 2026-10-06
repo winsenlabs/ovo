@@ -16,6 +16,11 @@ export async function* streamAgentReply(
    * the streamed goodbye; any other tool after text is still a protocol error.
    */
   endAfterText?: (input: unknown) => boolean,
+  /**
+   * The reply guardrail, run on each sentence as the segmenter produces it and before TTS sees it:
+   * the text to speak, or undefined to drop the sentence. Never waits for the whole reply.
+   */
+  guard?: (segment: string) => string | undefined,
 ): AsyncGenerator<string, InferenceReply | undefined> {
   const segmenter = new StreamingTextSegmenter(undefined, undefined, {
     language: language,
@@ -43,14 +48,18 @@ export async function* streamAgentReply(
         );
       receivedText ||= Boolean(event.delta);
       for (const segment of segmenter.push(event.delta)) {
+        const spoken = guard ? guard(segment) : segment;
+        if (spoken === undefined) continue;
         emittedText = true;
-        yield publish(segment);
+        yield publish(spoken);
       }
     }
   }
   for (const segment of segmenter.finish()) {
+    const spoken = guard ? guard(segment) : segment;
+    if (spoken === undefined) continue;
     emittedText = true;
-    yield publish(segment);
+    yield publish(spoken);
   }
   if (emittedText) return;
   return toolReply ?? { kind: 'text' as const, text: '' };
