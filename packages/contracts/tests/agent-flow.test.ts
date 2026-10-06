@@ -7,6 +7,7 @@ import {
   FlowCompileError,
   compileFlow,
   flowReachesLlm,
+  flowSpeaksFirst,
   inspectFlow,
   type FlowIssue,
 } from '../src/index.ts';
@@ -232,6 +233,16 @@ describe('compiling a flow', () => {
     );
     expect(open.gatesIdentity).toBe(false);
     expect([...open.preVerificationListens].sort()).toEqual(['identity', 'payment', 'wrapup']);
+  });
+
+  it('greets first only when an enabled flow starts on a node with lines', () => {
+    expect(flowSpeaksFirst({ enabled: true, flow: parse() })).toBe(true);
+    expect(flowSpeaksFirst({ enabled: false, flow: parse() })).toBe(false);
+    expect(flowSpeaksFirst({ enabled: true })).toBe(false);
+    expect(flowSpeaksFirst(undefined)).toBe(false);
+    const silent = collectionsFlow();
+    silent.nodes[0]!.say = [];
+    expect(flowSpeaksFirst({ enabled: true, flow: AgentFlow.parse(silent) })).toBe(false);
   });
 
   it('knows whether any path reaches the LLM', () => {

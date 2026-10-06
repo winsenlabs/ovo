@@ -67,6 +67,15 @@ export function flowReachesLlm(flow: AgentFlow): boolean {
   return flow.fallback === 'llm' || flow.nodes.some((node) => node.say.length === 0);
 }
 
+/**
+ * True when an enabled flow's start node has lines: the agent then greets first with them, the
+ * same way an `opening` does, so an outbound call waits for the answering-machine verdict too.
+ */
+export function flowSpeaksFirst(policy: { enabled: boolean; flow?: AgentFlow } | undefined) {
+  const flow = policy?.enabled ? policy.flow : undefined;
+  return Boolean(flow?.nodes.find((node) => node.id === flow.start)?.say.length);
+}
+
 export function inspectFlow(flow: AgentFlow): FlowIssue[] {
   const issues: FlowIssue[] = [];
   const error = (path: string, message: string) =>
