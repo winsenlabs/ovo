@@ -4,7 +4,10 @@ import {
   AnnouncementValidationError,
   DecisionGate,
   FlowSession,
+  UNVERIFIED_FACTS_NOTICE,
   applyFlowStep,
+  flowFacts,
+  openFlow,
   runDecisionStep,
 } from '../src/index.ts';
 import { collectionsFlow, scriptedJev } from './flow-fixture.ts';
@@ -79,6 +82,25 @@ describe('applying a flow step', () => {
       end: 'flow:wrong_person',
       lines: ['Sorry for the trouble. Goodbye.'],
     });
+  });
+});
+
+describe('opening a flow and gating facts', () => {
+  it('speaks the start state once, and nothing without a flow', () => {
+    const flow = new FlowSession(AgentFlow.parse(collectionsFlow()), { timeoutMs: 800 });
+    expect(openFlow(flow, { render: plain, clarification })).toEqual({
+      lines: ["Hello, I'm calling from CreditMantri.", 'Am I speaking with Ravi?'],
+      speak: "Hello, I'm calling from CreditMantri. Am I speaking with Ravi?",
+    });
+    expect(openFlow(flow, { render: plain, clarification })).toBeUndefined();
+    expect(openFlow(undefined, { render: plain, clarification })).toBeUndefined();
+  });
+
+  it('passes facts through without a flow and gates them with one', () => {
+    const flow = new FlowSession(AgentFlow.parse(collectionsFlow()), { timeoutMs: 800 });
+    expect(flowFacts(undefined, '- emi: 1')).toBe('- emi: 1');
+    expect(flowFacts(flow, '- emi: 1')).toBe(UNVERIFIED_FACTS_NOTICE);
+    expect(flowFacts(flow, '')).toBe('');
   });
 });
 

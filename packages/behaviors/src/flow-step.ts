@@ -53,3 +53,20 @@ export function renderFlowLines(
   }
   return { lines: rendered, skipped };
 }
+
+/**
+ * A greet-first opening enters the flow's start state and speaks its lines, after any `opening`
+ * lines. Undefined without a flow, or once it has started.
+ */
+export function openFlow(
+  flow: FlowSession | undefined,
+  options: { render: (template: string) => string; clarification: string },
+): AppliedFlowStep | undefined {
+  const start = flow?.begin();
+  return start ? applyFlowStep(flow!, start, options) : undefined;
+}
+
+/** AGT-5: a flow that confirms identity withholds the LLM's call facts until it has. */
+export function flowFacts(flow: FlowSession | undefined, facts: string): string {
+  return flow ? flow.gateFacts(facts) : facts;
+}
