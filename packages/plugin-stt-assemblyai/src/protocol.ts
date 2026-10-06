@@ -1,4 +1,4 @@
-import type { TranscriptSegment } from '@winsendotai/ovo-contracts';
+import type { SttEvent, TranscriptSegment } from '@winsendotai/ovo-contracts';
 
 export class AssemblyAiProviderError extends Error {
   constructor(
@@ -104,4 +104,24 @@ export function retryable(code: number): boolean {
 /** A connection lost mid-session without a usable close code, typed like a 1006 close. */
 export function connectionDrop(detail: string): AssemblyAiProviderError {
   return new AssemblyAiProviderError(`AssemblyAI ${detail}`, 1006, true);
+}
+
+/** A session's Turn messages as STT events: revisions rise, and each turn ends at most once. */
+export class TurnEvents {
+  private revision = 0;
+  private readonly completed = new Set<number>();
+
+  /** Undefined for a malformed Turn, which fails the session. */
+  of(value: Record<string, unknown>): SttEvent[] | undefined {
+    const segment = turnSegment(value, this.revision + 1);
+    if (!segment) return undefined;
+    this.revision = segment.revision;
+    const index = value.turn_order as number;
+    const events: SttEvent[] = [{ type: 'transcript', segment }];
+    if (value.end_of_turn === true && !this.completed.has(index)) {
+      this.completed.add(index);
+      events.push({ type: 'end-of-turn', confidence: numeric(value.end_of_turn_confidence) });
+    }
+    return events;
+  }
 }

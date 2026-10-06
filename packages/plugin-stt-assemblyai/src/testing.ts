@@ -9,6 +9,17 @@ const ID = '@winsendotai/ovo-stt-assemblyai';
 const SOURCE = 'https://www.assemblyai.com/docs/streaming/message-sequence';
 const RETRIEVED = '2026-09-26';
 
+/**
+ * The documented graceful close: the client's Terminate, then the Termination carrying the billed
+ * session length. A finish sends it, and so does a cancel or a hang-up after Begin (OPS-18).
+ */
+export function terminationSteps(sessionSeconds = 1.2): NetFixtureStep[] {
+  return [
+    { expect: 'ws-send', match: 'json', where: { type: 'Terminate' } },
+    { send: JSON.stringify({ type: 'Termination', session_duration_seconds: sessionSeconds }) },
+  ];
+}
+
 /** The conformance template follows the documented Begin, Turn and Termination sequence. */
 export const assemblyAiTemplate: FixtureTemplate = (input): NetFixtureScript[] => {
   const says = input.turns.flatMap((turn) => (turn.say ? [turn.say] : []));
@@ -49,8 +60,7 @@ export const assemblyAiTemplate: FixtureTemplate = (input): NetFixtureScript[] =
         }),
       },
     ]),
-    { expect: 'ws-send', match: 'json', where: { type: 'Terminate' } },
-    { send: JSON.stringify({ type: 'Termination', session_duration_seconds: 1.2 }) },
+    ...terminationSteps(),
     { close: { code: 1000 } },
   ];
   return [{ host: 'streaming.assemblyai.com', source: SOURCE, retrieved: RETRIEVED, steps }];
