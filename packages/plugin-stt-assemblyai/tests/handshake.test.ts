@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { assemblyAiPlugin } from '../src/index.ts';
 import { assemblyAiLanguageCodes } from '../src/languages.ts';
 import { AssemblyAiStt, assemblyAiCapabilitiesFor, assemblyAiUrl } from '../src/provider.ts';
+import { terminationSteps } from '../src/testing.ts';
 
 const source = 'https://www.assemblyai.com/docs/streaming/message-sequence';
 
@@ -93,7 +94,11 @@ describe('AssemblyAI handshake deadline and region failover', () => {
       [
         // The primary region accepts the socket and never sends Begin.
         socket('streaming.us.assemblyai.com'),
-        socket('streaming.eu.assemblyai.com', [{ delayMs: 400 }, { send: begin() }]),
+        socket('streaming.eu.assemblyai.com', [
+          { delayMs: 400 },
+          { send: begin() },
+          ...terminationSteps(),
+        ]),
       ],
       { clock },
     );
@@ -202,7 +207,10 @@ describe('AssemblyAI handshake deadline and region failover', () => {
 describe('AssemblyAI binding-aware languages', () => {
   it('accepts a Hinglish agent on the pro models and sends language_codes', async () => {
     const net = createFixtureNet([
-      socket('streaming.assemblyai.com', [{ send: begin('universal-3-6-pro') }]),
+      socket('streaming.assemblyai.com', [
+        { send: begin('universal-3-6-pro') },
+        ...terminationSteps(),
+      ]),
     ]);
     const stt = new AssemblyAiStt(net, 'fixture-key', { model: 'universal-3-6-pro' });
     expect(stt.capabilities.languages).toContain('hi');

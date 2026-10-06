@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { assemblyAiPlugin } from '../src/index.ts';
 import { assemblyAiTurnDetection, updateConfigurationMessage } from '../src/endpointing.ts';
 import { AssemblyAiStt, DEFAULT_CONNECT_TIMEOUT_MS, assemblyAiUrl } from '../src/provider.ts';
+import { terminationSteps } from '../src/testing.ts';
 
 const source = 'https://www.assemblyai.com/docs/streaming/message-sequence';
 const begin = JSON.stringify({
@@ -125,6 +126,7 @@ describe('AssemblyAI endpointing presets (STT-4)', () => {
           match: 'json',
           where: { type: 'UpdateConfiguration', max_turn_silence: 500 },
         },
+        ...terminationSteps(),
       ]),
     ]);
     const session = await new AssemblyAiStt(net, 'fixture-key').start(input());
@@ -149,7 +151,10 @@ describe('AssemblyAI connect deadline for asia-south1', () => {
     // Regression: the 3 s default abandoned every handshake slower than 3 s, and the 2-5 s
     // handshakes measured from asia-south1 then needed a retry or failed the call.
     const clock = new FakeClock();
-    const net = createFixtureNet([socket([{ delayMs: 5_000 }, { send: begin }])], { clock });
+    const net = createFixtureNet(
+      [socket([{ delayMs: 5_000 }, { send: begin }, ...terminationSteps()])],
+      { clock },
+    );
     const starting = new AssemblyAiStt(net, 'fixture-key', {}, clock).start(input());
     await clock.advanceAsync(5_000);
     const session = await starting;

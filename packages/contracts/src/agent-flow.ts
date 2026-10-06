@@ -26,6 +26,14 @@ const Prose = z.string().trim().min(1).max(2_000);
 /** A spoken line. `{{path}}` renders from the call's variables, as every agent template does. */
 const Line = z.string().trim().min(1).max(1_000);
 const Phrase = z.string().trim().min(1).max(200);
+/**
+ * How quickly the STT ends the caller's turn while the call is in a state (Wave 4 request 5): `fast`
+ * after a yes/no question, `patient` while the caller reads out a number or explains. Sent as an
+ * `stt.configure` update when the call enters the state; a provider that fixes its endpointing at
+ * connect (Scribe) ignores it.
+ */
+export const FlowEndpointing = z.enum(['fast', 'balanced', 'patient']);
+export type FlowEndpointing = z.infer<typeof FlowEndpointing>;
 
 /** The automatic "none of these" criterion, added to every listen set. An intent cannot use it. */
 export const FLOW_OTHER_INTENT = 'other';
@@ -107,6 +115,8 @@ export const FlowListen = z
     question: Prose,
     intents: z.array(FlowIntent).min(1).max(64),
     slots: z.array(FlowSlot).max(8).default([]),
+    /** The endpointing for the reply this listen set interprets. */
+    endpointing: FlowEndpointing.optional(),
   })
   .strict();
 export type FlowListen = z.infer<typeof FlowListen>;
@@ -133,6 +143,8 @@ export const FlowNode = z
      * none has been entered, the LLM fallback is not shown the call's facts.
      */
     verified: z.boolean().default(false),
+    /** Overrides the endpointing of the node's listen set. */
+    endpointing: FlowEndpointing.optional(),
   })
   .strict();
 export type FlowNode = z.infer<typeof FlowNode>;
@@ -160,6 +172,11 @@ export const AgentFlow = z
     clarify: Key.optional(),
     /** Spoken before the replayed lines of a `repeat` intent. */
     repeatPrefix: Key.optional(),
+    /**
+     * The endpointing of a state whose node and listen set set none. Without it such a state keeps
+     * whatever was last sent, because the binding's own setting cannot be restored mid-call.
+     */
+    endpointing: FlowEndpointing.optional(),
   })
   .strict();
 export type AgentFlow = z.infer<typeof AgentFlow>;

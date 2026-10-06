@@ -173,6 +173,52 @@ describe('checkCarrier rejects ingress routes that skip the host', () => {
     );
     expect(messages(failures)).toMatch(/status produced 0 call events/);
   });
+
+  it('flags an inbound route that admits a bare-digit number the E.164 routes never match', async () => {
+    const inboundRoute = (to: string) => ({
+      method: 'POST' as const,
+      purpose: 'inbound' as const,
+      async handle(
+        req: { bindingId: string },
+        host: Parameters<CarrierIngress['routes'][number]['handle']>[1],
+      ) {
+        await host.admitInbound({
+          carrierId: 'fixture',
+          bindingId: req.bindingId,
+          carrierCallId: 'call-in',
+          from: '+919812345678',
+          to,
+          receivedAt: new Date(),
+          raw: {},
+        });
+        return { status: 200, contentType: 'text/plain', body: '' };
+      },
+    });
+    const withInbound = (to: string) =>
+      broken(
+        ({ control, ingress }) => ({
+          control,
+          ingress: {
+            ...ingress,
+            routes: [
+              ...ingress.routes.filter((route) => route.purpose !== 'inbound'),
+              inboundRoute(to),
+            ],
+          },
+        }),
+        ['admits E.164'],
+        {
+          requests: {
+            ...fixtureCarrierKitOptions().requests,
+            inbound: { ...fixtureCarrierKitOptions().requests!.status!, query: {} },
+          },
+        },
+      );
+    expect(messages(await withInbound('918069450000'))).toMatch(
+      /admitted to 918069450000, not E\.164/,
+    );
+    expect(await withInbound('+918069450000')).toEqual([]);
+  });
 });
 
 describe('checkCarrier rejects undeclared media framing and untested transcripts', () => {

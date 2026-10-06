@@ -1,0 +1,27 @@
+{
+  "$comment": "List prices for the bake-off's cost column. PROVISIONAL: confirm against the founder's contracts and invoices before quoting. Keyterm prompting is billed extra by ElevenLabs and is not included.",
+  "scribe": {
+    "unit": "audio_seconds",
+    "currency": "USD",
+    "perHour": 0.39,
+    "source": "https://elevenlabs.io/pricing/api (Scribe v2 Realtime)",
+    "retrieved": "2026-10-06",
+    "note": "unconfirmed: list price, plan discounts and the keyterm surcharge not applied"
+  },
+  "assemblyai": {
+    "unit": "session_seconds",
+    "currency": "USD",
+    "perHour": 0.15,
+    "source": "https://www.assemblyai.com/pricing (Universal-Streaming, billed on session duration)",
+    "retrieved": "2026-10-06",
+    "note": "unconfirmed for the universal-3-6-pro model"
+  },
+  "sarvam": {
+    "unit": "audio_seconds",
+    "currency": "INR",
+    "perHour": 30,
+    "source": "https://docs.sarvam.ai/api/getting-started/pricing (Saaras speech to text)",
+    "retrieved": "2026-10-06",
+    "note": "unconfirmed: per-second billing rounded up per request"
+  }
+}

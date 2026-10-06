@@ -1,4 +1,10 @@
-import type { AgentFlow, FlowListen, FlowRoute } from './agent-flow.ts';
+import type {
+  AgentFlow,
+  FlowEndpointing,
+  FlowListen,
+  FlowPosition,
+  FlowRoute,
+} from './agent-flow.ts';
 
 /** Read-only questions about an authored flow, shared by the compiler, the runtime and the console. */
 
@@ -43,4 +49,20 @@ export const FLOW_INSTRUCTIONS_LIMIT = 2_000;
 /** What the decision model is asked for a listen set: the flow's context, then the question. */
 export function flowListenInstructions(flow: AgentFlow, listen: FlowListen): string {
   return flow.context ? `${flow.context}\n\n${listen.question}` : listen.question;
+}
+
+/**
+ * The endpointing a call uses in `position`: the node's, else its listen set's, else the flow's.
+ * A node's own setting holds only while the call listens with the node's listen set: after the LLM
+ * resumes the flow at another one, that listen set decides. Undefined when nothing sets one, so the
+ * STT keeps what it has.
+ */
+export function flowEndpointing(
+  flow: AgentFlow,
+  position: FlowPosition,
+): FlowEndpointing | undefined {
+  const node = flow.nodes.find((candidate) => candidate.id === position.node);
+  const listen = flow.listens.find((candidate) => candidate.id === position.listen);
+  const own = node?.listen === undefined || node.listen === position.listen;
+  return (own ? node?.endpointing : undefined) ?? listen?.endpointing ?? flow.endpointing;
 }

@@ -1,0 +1,36 @@
+{
+  "provider": "assemblyai",
+  "model": "universal-3-6-pro",
+  "utteranceId": "en-identity",
+  "language": "en-IN",
+  "audioEndMs": 1800,
+  "events": [
+    {
+      "atMs": 480,
+      "kind": "partial",
+      "segmentId": "0",
+      "text": "Yes this"
+    },
+    {
+      "atMs": 1080,
+      "kind": "partial",
+      "segmentId": "0",
+      "text": "Yes this is"
+    },
+    {
+      "atMs": 2220,
+      "kind": "final",
+      "segmentId": "0",
+      "text": "Yes this is Ravi Kumar speaking"
+    }
+  ],
+  "usage": [
+    {
+      "unit": "session_seconds",
+      "quantity": "3.720",
+      "state": "reconciled"
+    }
+  ],
+  "recordedAt": "2026-10-06T00:00:00.000Z",
+  "synthetic": true
+}

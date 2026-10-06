@@ -9,6 +9,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { createLogger, errorFields, systemClock } from '@winsendotai/ovo-plugin-kit';
 import { connectTurnDetection, type EndpointingPreset } from './endpointing.ts';
+import { callKeyterms, type AssemblyAiCallKeyterms, type KeytermStart } from './keyterms.ts';
 import {
   MODEL_LANGUAGES,
   assemblyAiLanguageCodes,
@@ -132,12 +133,14 @@ export class AssemblyAiStt implements SpeechToText {
     private readonly key: string,
     binding: AssemblyAiBinding = {},
     private readonly clock: Clock = systemClock,
+    /** The agent's keyterm settings; the call's variables fill them in at start (STT-11). */
+    private readonly agent: AssemblyAiCallKeyterms = {},
   ) {
     this.binding = Object.freeze(structuredClone(binding));
     this.capabilities = assemblyAiCapabilitiesFor(binding);
   }
 
-  async start(input: Parameters<SpeechToText['start']>[0]): Promise<AssemblyAiSession> {
+  async start(input: KeytermStart): Promise<AssemblyAiSession> {
     if (!this.capabilities.inputFormats.some((format) => sameFormat(format, input.format)))
       throw new TypeError('AssemblyAI requires a native PCM or mu-law format');
     if (!assemblyAiSupportsLanguage(this.binding, input.language))
@@ -163,13 +166,11 @@ export class AssemblyAiStt implements SpeechToText {
     throw new Error('unreachable');
   }
 
-  private async connect(
-    input: Parameters<SpeechToText['start']>[0],
-    region: AssemblyAiRegion,
-  ): Promise<AssemblyAiSession> {
+  private async connect(input: KeytermStart, region: AssemblyAiRegion): Promise<AssemblyAiSession> {
     const timeoutMs = this.binding.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
+    const keyterms = callKeyterms(this.binding.keyterms, this.agent, input.variables);
     const socket = this.net.websocket(
-      assemblyAiUrl({ ...this.binding, region }, input.format, input.language),
+      assemblyAiUrl({ ...this.binding, region, keyterms }, input.format, input.language),
       { headers: { Authorization: this.key } },
     );
     const session = new AssemblyAiSession(socket, input, this.binding, this.clock, ++this.sessions);

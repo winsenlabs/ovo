@@ -1,0 +1,36 @@
+{
+  "provider": "assemblyai",
+  "model": "universal-3-6-pro",
+  "utteranceId": "en-amount",
+  "language": "en-IN",
+  "audioEndMs": 2600,
+  "events": [
+    {
+      "atMs": 480,
+      "kind": "partial",
+      "segmentId": "0",
+      "text": "I will"
+    },
+    {
+      "atMs": 1560,
+      "kind": "partial",
+      "segmentId": "0",
+      "text": "I will pay the EMI"
+    },
+    {
+      "atMs": 3020,
+      "kind": "final",
+      "segmentId": "0",
+      "text": "I will pay the EMI of 4210 rupees by Friday"
+    }
+  ],
+  "usage": [
+    {
+      "unit": "session_seconds",
+      "quantity": "4.520",
+      "state": "reconciled"
+    }
+  ],
+  "recordedAt": "2026-10-06T00:00:00.000Z",
+  "synthetic": true
+}

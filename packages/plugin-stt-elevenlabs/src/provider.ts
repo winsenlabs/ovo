@@ -7,6 +7,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { createLogger, errorFields, systemClock } from '@winsendotai/ovo-plugin-kit';
 import { baseLanguage, scribeCapabilitiesFor, scribeSupportsLanguage } from './capabilities.ts';
+import { scribeKeyterms, type ScribeCallKeyterms, type ScribeStart } from './keyterms.ts';
 import { ElevenLabsSttError } from './protocol.ts';
 import { ScribeSession } from './session.ts';
 
@@ -102,12 +103,14 @@ export class ElevenLabsStt implements SpeechToText {
     private readonly key: string,
     binding: ElevenLabsSttBinding = {},
     private readonly clock: Clock = systemClock,
+    /** The agent's keyterm settings; the call's variables fill them in at start (STT-11). */
+    private readonly agent: ScribeCallKeyterms = {},
   ) {
     this.binding = Object.freeze(structuredClone(binding));
     this.capabilities = scribeCapabilitiesFor(binding);
   }
 
-  async start(input: Parameters<SpeechToText['start']>[0]): Promise<ScribeSession> {
+  async start(input: ScribeStart): Promise<ScribeSession> {
     if (!this.capabilities.inputFormats.some((format) => sameFormat(format, input.format)))
       throw new TypeError('ElevenLabs STT requires 8 kHz mu-law or 8/16 kHz PCM');
     if (!scribeSupportsLanguage(input.language))
@@ -131,13 +134,11 @@ export class ElevenLabsStt implements SpeechToText {
     throw new Error('unreachable');
   }
 
-  private async connect(
-    input: Parameters<SpeechToText['start']>[0],
-    region: ScribeRegion,
-  ): Promise<ScribeSession> {
+  private async connect(input: ScribeStart, region: ScribeRegion): Promise<ScribeSession> {
     const timeoutMs = this.binding.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
+    const keyterms = scribeKeyterms(this.binding.keyterms, this.agent, input.variables);
     const socket = this.net.websocket(
-      scribeUrl({ ...this.binding, region }, input.format, input.language),
+      scribeUrl({ ...this.binding, region, keyterms }, input.format, input.language),
       { headers: { 'xi-api-key': this.key } },
     );
     const session = new ScribeSession(socket, input, this.clock, ++this.sessions);

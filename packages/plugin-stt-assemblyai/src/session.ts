@@ -6,22 +6,22 @@ import {
   type SttSession,
   type WebSocketLike,
 } from '@winsendotai/ovo-contracts';
-import { decimal, syntheticRequestId, usageOnce } from '@winsendotai/ovo-plugin-kit';
 import { updateConfigurationMessage, type AssemblyAiConfigurationUpdate } from './endpointing.ts';
 import type { AssemblyAiBinding } from './provider.ts';
+import { AssemblyAiUsage, TERMINATION_GRACE_MS } from './session-usage.ts';
 import {
   AssemblyAiProviderError,
   beginId,
   connectionDrop,
   milliseconds,
-  numeric,
   providerError,
   retryable,
   sessionDuration,
-  turnSegment,
+  TurnEvents,
 } from './protocol.ts';
 
 export { AssemblyAiProviderError } from './protocol.ts';
+export { TERMINATION_GRACE_MS } from './session-usage.ts';
 
 type Start = Parameters<SpeechToText['start']>[0];
 
@@ -32,18 +32,14 @@ export class AssemblyAiSession implements SttSession {
   private rejectReady!: (error: Error) => void;
   private resolveDone!: () => void;
   private rejectDone!: (error: Error) => void;
-  private readonly once;
+  private readonly meter: AssemblyAiUsage;
   private readonly offs: Array<() => void> = [];
-  private revision = 0;
-  private readonly completedTurns = new Set<number>();
-  private readonly startedAt: number;
+  private readonly turns = new TurnEvents();
   private pending = new Uint8Array(0);
-  private byteCount = 0;
-  private providerId?: string;
-  private duration?: number;
   private ending = false;
   private ended = false;
   private failure?: Error;
+  private cancelGrace?: () => void;
 
   constructor(
     private readonly socket: WebSocketLike,
@@ -51,10 +47,9 @@ export class AssemblyAiSession implements SttSession {
     private readonly binding: Readonly<AssemblyAiBinding>,
     private readonly clock: Clock,
     /** Distinguishes the estimated usage of each connect attempt or reconnect in one call. */
-    private readonly attempt = 1,
+    attempt = 1,
   ) {
-    this.startedAt = clock.now();
-    this.once = usageOnce(input.onUsage);
+    this.meter = new AssemblyAiUsage(input, clock, attempt);
     this.ready = new Promise<void>((resolve, reject) => {
       this.resolveReady = resolve;
       this.rejectReady = reject;
@@ -75,10 +70,16 @@ export class AssemblyAiSession implements SttSession {
       // After Begin a transport error (a reset) is a drop; during the handshake the connect
       // retry already handles it.
       this.socket.on('error', (error) =>
-        this.fail(this.providerId ? connectionDrop(`transport error: ${error.message}`) : error),
+        this.fail(
+          this.meter.providerId ? connectionDrop(`transport error: ${error.message}`) : error,
+        ),
       ),
     );
-    const abort = () => this.fail(new DOMException('AssemblyAI session aborted', 'AbortError'));
+    // A hang-up aborts the session: it still asks for Termination so the billed duration arrives.
+    const abort = () => {
+      if (!this.terminate())
+        this.fail(new DOMException('AssemblyAI session aborted', 'AbortError'));
+    };
     this.input.signal.addEventListener('abort', abort, { once: true });
     this.offs.push(() => this.input.signal.removeEventListener('abort', abort));
   }
@@ -86,7 +87,7 @@ export class AssemblyAiSession implements SttSession {
   async write(frame: Uint8Array, signal?: AbortSignal): Promise<void> {
     this.writable(signal);
     if (!frame.byteLength) throw new TypeError('AssemblyAI audio frame is empty');
-    this.byteCount += frame.byteLength;
+    this.meter.sent(frame.byteLength);
     const joined = new Uint8Array(this.pending.byteLength + frame.byteLength);
     joined.set(this.pending);
     joined.set(frame, this.pending.byteLength);
@@ -128,7 +129,35 @@ export class AssemblyAiSession implements SttSession {
     }
   }
 
+  /** Ends the session within {@link TERMINATION_GRACE_MS}, metering the billed duration if it comes. */
   async cancel(_reason: string): Promise<void> {
+    if (this.ended) return;
+    if (!this.terminate()) return this.settle();
+    // swallow-ok: a provider failure while terminating has already been metered and reported.
+    await this.done.catch(() => undefined);
+  }
+
+  /**
+   * OPS-18: sends Terminate (once) so the provider's Termination reports the billed duration, and
+   * settles with the estimate if it has not arrived within the grace. False when the session cannot
+   * take one: before Begin, or once the socket is no longer open.
+   */
+  private terminate(): boolean {
+    if (this.ended || !this.meter.providerId || this.socket.readyState !== 1) return false;
+    if (!this.ending) {
+      this.ending = true;
+      try {
+        this.socket.send(JSON.stringify({ type: 'Terminate' }));
+      } catch {
+        return false; // swallow-ok: the caller settles with the wall-clock estimate instead.
+      }
+    }
+    this.cancelGrace ??= this.clock.setTimeout(() => this.settle(), TERMINATION_GRACE_MS);
+    return true;
+  }
+
+  /** Ends the session now with the usage known so far: the estimate without a Termination. */
+  private settle(): void {
     if (this.ended) return;
     this.ended = true;
     this.usage();
@@ -180,44 +209,34 @@ export class AssemblyAiSession implements SttSession {
     if (value.type === 'Begin') {
       const id = beginId(value, this.binding.model ?? 'universal-streaming-english');
       if (typeof id !== 'string') return this.fail(id);
-      this.providerId = id;
+      this.meter.providerId = id;
       this.resolveReady();
       return;
     }
-    if (!this.providerId)
+    if (!this.meter.providerId)
       return this.fail(new AssemblyAiProviderError('message before Begin', 'protocol', false));
     if (value.type === 'SpeechStarted') {
       this.input.onEvent({ type: 'speech-start', atMs: milliseconds(value.timestamp) });
     } else if (value.type === 'Turn') {
-      this.turn(value);
+      const events = this.turns.of(value);
+      if (!events) return this.fail(new AssemblyAiProviderError('invalid Turn', 'protocol', false));
+      for (const event of events) this.input.onEvent(event);
     } else if (value.type === 'Termination') {
       const duration = sessionDuration(value);
       if (duration === undefined)
         return this.fail(
           new AssemblyAiProviderError('Termination has no duration', 'protocol', false),
         );
-      this.duration = duration;
+      this.meter.duration = duration;
+      // A cancel or hang-up does not wait for the provider's own close after its Termination.
+      const cancelled = this.cancelGrace !== undefined;
       this.ended = true;
       this.usage();
       this.dispose();
       this.resolveDone();
+      if (cancelled) this.socket.close();
     } else if (value.type === 'Error') {
       this.fail(providerError(value));
-    }
-  }
-
-  private turn(value: Record<string, unknown>): void {
-    const segment = turnSegment(value, this.revision + 1);
-    if (!segment) return this.fail(new AssemblyAiProviderError('invalid Turn', 'protocol', false));
-    this.revision = segment.revision;
-    const index = value.turn_order as number;
-    this.input.onEvent({ type: 'transcript', segment });
-    if (value.end_of_turn === true && !this.completedTurns.has(index)) {
-      this.completedTurns.add(index);
-      this.input.onEvent({
-        type: 'end-of-turn',
-        confidence: numeric(value.end_of_turn_confidence),
-      });
     }
   }
 
@@ -244,19 +263,11 @@ export class AssemblyAiSession implements SttSession {
   }
 
   private usage(): void {
-    this.once.emit({
-      provider: 'assemblyai',
-      operation: 'stt',
-      unit: 'session_seconds',
-      quantity: decimal(this.duration ?? Math.max(0, this.clock.now() - this.startedAt) / 1000),
-      state: this.duration === undefined ? 'estimated' : 'reconciled',
-      requestId:
-        this.providerId ?? syntheticRequestId('assemblyai', this.input.sessionId, this.attempt),
-      elapsedMs: Math.max(0, this.clock.now() - this.startedAt),
-    });
+    this.meter.emit();
   }
 
   private dispose(): void {
+    this.cancelGrace?.();
     for (const off of this.offs.splice(0)) off();
   }
 }
