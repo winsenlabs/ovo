@@ -74,13 +74,23 @@ async function eventId(req: CarrierHttpRequest): Promise<string> {
   return `plivo:${Buffer.from(digest).toString('hex')}`;
 }
 
+/**
+ * Inbound routes are keyed by E.164 (`+918069450000`). Plivo's API documents numbers with the `+`,
+ * but its callback examples have shown bare digits (`918069450000`) [UNCONFIRMED for Indian DIDs],
+ * so a bare 8-15 digit number gains the `+`; anything else (a SIP URI) passes through unchanged.
+ */
+export function plivoE164(raw: string): string {
+  const compact = raw.trim().replace(/[\s()-]/g, '');
+  return /^\d{8,15}$/.test(compact) ? `+${compact}` : /^\+\d{8,15}$/.test(compact) ? compact : raw;
+}
+
 function admission(params: Record<string, string>, req: CarrierHttpRequest) {
   return {
     carrierId,
     bindingId: req.bindingId,
     carrierCallId: params.CallUUID!,
-    from: params.From!,
-    to: params.To!,
+    from: plivoE164(params.From!),
+    to: plivoE164(params.To!),
     receivedAt: new Date(),
     raw: params,
   };
