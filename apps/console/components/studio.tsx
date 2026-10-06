@@ -222,7 +222,7 @@ export function AgentStudio({
           )}
           <ProviderMap config={selected.config} bindings={bindings} update={applyUpdate} />
           <SpeechCacheEditor config={selected.config} update={applyUpdate} />
-          <CostPolicyEditor config={selected.config} update={applyUpdate} />
+          <CostPolicyEditor config={selected.config} update={applyUpdate} agentId={selected.id} />
           <RecordingPolicyPanel
             config={selected.config}
             role={identity.role}

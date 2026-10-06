@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import type { InfrastructureService, InfrastructureSnapshot } from './infrastructure-types.ts';
 import { aggregateWorkerMetrics, readWorkerSamples } from './infrastructure-worker-samples.ts';
+import { readInboundReadiness, type InboundReadinessReport } from './inbound-readiness.ts';
 
 interface InfrastructureServiceOptions {
   organizationId: string;
@@ -25,6 +26,10 @@ export class PostgresInfrastructureService implements InfrastructureService {
     this.heartbeatMaxAgeMs = bounded(options.heartbeatMaxAgeMs ?? 15_000, 1_000, 60_000);
     this.capacitySignalMaxAgeMs = bounded(options.capacitySignalMaxAgeMs ?? 30_000, 1_000, 300_000);
     this.maxWorkerSamples = bounded(options.maxWorkerSamples ?? 100, 1, 100);
+  }
+
+  inboundReadiness(): Promise<InboundReadinessReport | null> {
+    return readInboundReadiness(this.pool, this.capacitySignalMaxAgeMs);
   }
 
   async snapshot(workspaceId: string, releaseId?: string): Promise<InfrastructureSnapshot> {

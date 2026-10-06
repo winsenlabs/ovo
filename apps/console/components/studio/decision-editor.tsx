@@ -46,7 +46,7 @@ export function DecisionEditor({
                   enabled: true,
                   questions: [DEFAULT_QUESTION()],
                   state: { sources: ['last-turn'], transcriptTurns: 6 },
-                  timeoutMs: 1500,
+                  timeoutMs: 800,
                 })
               }
             >

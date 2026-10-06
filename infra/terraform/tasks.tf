@@ -125,6 +125,8 @@ resource "aws_ecs_task_definition" "worker" {
       { name = "OVO_ECS_CLUSTER", value = aws_ecs_cluster.this.name },
       { name = "OVO_PROTECTION_REQUIRED", value = "true" },
       { name = "OVO_PROTECTION_MODE", value = "ecs" },
+      # OPS-6 SIGTERM drain: must end well inside stopTimeout (120s) or ECS SIGKILLs mid-cleanup.
+      { name = "OVO_WORKER_DRAIN_TIMEOUT_MS", value = "90000" },
       { name = "OVO_CALL_SLOTS", value = "1" },
       { name = "OVO_LIVE_DIAL_ENABLED", value = tostring(var.enable_live_dial) },
       { name = "OVO_INBOUND_CAPACITY_ENABLED", value = tostring(var.enable_inbound_calls) },

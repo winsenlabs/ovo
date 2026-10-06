@@ -135,10 +135,10 @@ export class WorkerMediaLink implements WorkerMediaSession {
     if (this.closed) return;
     if (message.type === 'session.open') throw new Error('duplicate session.open');
     if (message.type === 'session.close') return this.gatewayClosed(message.reason);
-    // Not held with caller audio: the verdict gates the opening, which plays before activation.
-    if (message.type === 'call.answered-by') return this.answer(message.value);
-    if (this.activated) return this.dispatch(message);
-    // Caller audio is held until the voice session opens.
+    // Only caller input is held until the voice session opens. The verdict gates the opening, which
+    // plays before activation, and marks and clears answer that opening's output.
+    if (this.activated || (message.type !== 'media.audio' && message.type !== 'media.dtmf'))
+      return this.dispatch(message);
     const dropped = this.pending.hold(message);
     if (dropped === false) return this.finish('error:worker-input-buffer-overflow');
     if (dropped)

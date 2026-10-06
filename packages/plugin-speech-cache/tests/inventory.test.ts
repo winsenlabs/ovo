@@ -110,7 +110,12 @@ describe('static speech inventory (TTS-5)', () => {
     const greetFirst = {
       ...config,
       opening: { lines: ['Hi, this is Monika from the bank.', 'Am I speaking with {{name}}?'] },
-      voicemail: { message: 'Please call us back.' },
+      voicemail: {
+        detect: true,
+        timeoutMs: 4000,
+        action: 'message' as const,
+        message: 'Please call us back.',
+      },
     };
     const inventory = staticSpeechInventory({ config: greetFirst });
     expect(inventory.static.slice(0, 3)).toEqual([

@@ -133,7 +133,7 @@ export async function composeLiveSessionGraph(input: {
     input.variables,
   );
   const cachedOutput = input.speechCache
-    ? createV2SpeechCachePlugin(release, input.speechCache.cache)
+    ? createV2SpeechCachePlugin(release, input.speechCache.cache, telemetry)
     : undefined;
   const graphRelease: ReleaseRecord =
     !release.selections?.engine && selected.definition.manifest.contractVersion === 1

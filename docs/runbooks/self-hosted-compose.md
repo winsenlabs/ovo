@@ -123,7 +123,7 @@ The local stack remains useful for administration, fixtures, deterministic evalu
 
 ## Redeploying without cutting calls
 
-Docker stops a container with SIGTERM and kills it after its stop grace period. Compose gives the gateway and both workers `stop_grace_period: 300s`; the gateway drains live media for up to `OVO_MEDIA_DRAIN_TIMEOUT_MS=240000` before exiting. A worker's SIGTERM still ends its active call, so drain first:
+Docker stops a container with SIGTERM and kills it after its stop grace period. Compose gives the gateway and both workers `stop_grace_period: 300s`; the gateway drains live media for up to `OVO_MEDIA_DRAIN_TIMEOUT_MS=240000` before exiting. A worker's SIGTERM stops new work and waits up to `OVO_WORKER_DRAIN_TIMEOUT_MS` (default 240000 here; 90000 under ECS protection, whose task stopTimeout is 120s) for its active call to end, then ends whatever is still running. Waiting for idle first is still the safest order:
 
 ```sh
 ./scripts/wait-compose-idle.sh            # exits 0 once no worker is active or reserved

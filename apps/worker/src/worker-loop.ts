@@ -195,7 +195,7 @@ export async function runWorkerLoop(input: {
       });
       await mediaRuntime.close('worker-shutdown');
       await telemetry.close();
-      speechCache.close();
+      await speechCache.close();
       await costLedger.close();
       await controlStore.close();
       await composition.dispose();

@@ -23,13 +23,9 @@ const LIVE_PATH = [
   'apps/dispatcher/src',
 ];
 
-// Found by the widened patterns in code this gate's owner may not edit (plugin-voice): both end
-// the call but drop the error. Requested cross-lane: log it or mark it swallow-ok. Listed by exact
-// source text, so the fix (or any edit to the line) has to remove the entry.
-const PENDING = new Set([
-  "packages/plugin-voice/src/engine/turn-driver.ts: void task.catch(() => this.end('error:turn')).finally(() => this.tasks.delete(task));",
-  'packages/plugin-voice/src/engine/turn-driver.ts: .catch(() => {',
-]);
+// Swallows found in code this gate's owner may not edit, awaiting a cross-lane fix. Listed by exact
+// source text, so the fix (or any edit to the line) has to remove the entry. Empty since Wave 2.
+const PENDING = new Set<string>([]);
 
 const SILENT = [
   // Optional catch binding: the error cannot be logged because it was never named.

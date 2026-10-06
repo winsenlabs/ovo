@@ -32,6 +32,7 @@
     "@winsendotai/ovo-plugin-storage": "workspace:*",
     "@winsendotai/ovo-plugin-stt-assemblyai": "workspace:*",
     "@winsendotai/ovo-plugin-stt-deepgram": "workspace:*",
+    "@winsendotai/ovo-plugin-stt-elevenlabs": "workspace:*",
     "@winsendotai/ovo-plugin-tools": "workspace:*",
     "@winsendotai/ovo-plugin-tools-http": "workspace:*",
     "@winsendotai/ovo-plugin-tools-mcp": "workspace:*",

@@ -443,6 +443,9 @@ importers:
       '@winsendotai/ovo-plugin-stt-deepgram':
         specifier: workspace:*
         version: link:../plugin-stt-deepgram
+      '@winsendotai/ovo-plugin-stt-elevenlabs':
+        specifier: workspace:*
+        version: link:../plugin-stt-elevenlabs
       '@winsendotai/ovo-plugin-tools':
         specifier: workspace:*
         version: link:../plugin-tools

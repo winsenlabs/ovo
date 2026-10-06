@@ -200,4 +200,23 @@ describe('the worker media link', () => {
     await Promise.resolve();
     expect(late.mock.calls).toEqual([['human']]);
   });
+
+  it("answers the opening's marks and clears before activation while caller audio waits", () => {
+    const media = link();
+    const played = vi.fn();
+    const cleared = vi.fn();
+    const audio = vi.fn();
+    media.onPlayed(played);
+    media.onCleared(cleared);
+    media.onAudio(audio);
+    media.receive({ type: 'media.audio', payload: 'AAAA', sequenceNumber: 1, timestampMs: 0 });
+    media.receive({ type: 'media.played', name: 'opening-1', evidence: 'carrier-played' });
+    media.receive({ type: 'media.cleared' });
+    expect(played.mock.calls).toEqual([['opening-1']]);
+    expect(cleared).toHaveBeenCalledTimes(1);
+    expect(audio).not.toHaveBeenCalled();
+    media.activate();
+    expect(audio).toHaveBeenCalledTimes(1);
+    expect(played).toHaveBeenCalledTimes(1);
+  });
 });

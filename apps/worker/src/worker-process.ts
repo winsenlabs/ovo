@@ -91,7 +91,7 @@ export async function openWorkerProcess() {
   const costLedger = new PostgresCostLedger({ connectionString: databaseUrl });
   await costLedger.migrate();
   const extensions = await loadInstalledSessionExtensions(process.env.OVO_PLUGIN_MODULES ?? '[]');
-  const speechCache = new WorkerSpeechCacheRuntime();
+  const speechCache = await WorkerSpeechCacheRuntime.fromEnvironment(process.env, databaseUrl);
   const telemetry = await openWorkerTelemetry(
     process.env.OVO_TELEMETRY_DATABASE_URL ?? env('DATABASE_URL'),
     controlStore,
@@ -177,6 +177,17 @@ export async function openWorkerProcess() {
   const recordings = composition.ctx.get(
     RECORDING_SERVICE_KEYS.production,
   ) as ProductionRecordingServices;
+  speechCache.startPrerender({
+    workerId,
+    releases: controlStore,
+    ledger: costLedger,
+    speech: {
+      catalog: distribution.catalog,
+      parent: composition,
+      secrets,
+      defaults: distribution.defaults,
+    },
+  });
   const registry = new PluginRegistry(catalog);
   const prewarmLog = createLogger({ service: 'worker', workerId });
   const prewarm =
