@@ -8,7 +8,9 @@ import { partAudio, spokenCount, unspokenText, type Part, type ReplyInit } from 
  * LAT-5: every segment of one agent reply on one `multi-stream-input` context. The context is
  * initialised with a single space (the documented shape), then each segment goes out as whole words
  * ending in a space with `flush: true`, so the provider renders it at once whatever `auto_mode` or
- * `chunk_length_schedule` say. Audio is cut back into segments by the frames' character alignment.
+ * `chunk_length_schedule` say. Audio is cut back into segments by the frames' character alignment:
+ * a segment ends where the next one's first spoken character starts (or on isFinal, or a quiet gap),
+ * never at its own last letter, whose phoneme, punctuation and silence can still follow.
  * A socket that drops replays the unheard rest over HTTP instead of failing the reply.
  *
  * Each segment is metered when it is done, under `<requestId>/<n>`: a reply's last sentence is
@@ -26,7 +28,7 @@ export class ElevenLabsReply implements TtsReply, ContextSink {
   private socket?: { connection: MultiContextConnection; release: () => void };
   private httpTail: Promise<void> = Promise.resolve();
   private cancelQuiet?: () => void;
-  /** Audio that arrived with no segment waiting for it; it leads the next segment. */
+  /** Audio after every segment had ended (the quiet net ended it early); it leads the next one. */
   private carry: Uint8Array[] = [];
   /** A socket failure that is not replayed: every later segment fails with it. */
   private failure?: Error;
@@ -120,28 +122,31 @@ export class ElevenLabsReply implements TtsReply, ContextSink {
     const whole = this.aligner.push(bytes);
     if (!whole) return;
     let offset = 0;
-    if (alignment)
+    if (alignment) {
       alignment.chars.forEach((char, index) => {
         const spoken = spokenCount(char);
         if (!spoken) return;
-        // A character past the head's last one starts the next segment: cut the frame there.
-        for (let head = this.head(); head && head.aligned >= head.spoken; head = this.head()) {
+        let head = this.head();
+        // The next segment's first spoken character ends this one: cut the frame where it starts.
+        const rest =
+          head && head.aligned >= head.spoken ? this.parts.slice(this.parts.indexOf(head) + 1) : [];
+        const next = rest.find((part) => !part.done);
+        if (head && next) {
           const cut = this.cutAt(alignment.charStartTimesMs[index]!, offset, whole.byteLength);
           this.give(head, whole.subarray(offset, cut));
           offset = cut;
           this.finish(head);
+          head = next;
         }
-        const head = this.head();
+        // Past the last segment's own count, our count and the provider's disagree: it stays there.
         if (head) head.aligned += spoken;
       });
-    const head = this.head();
-    if (!head) {
-      if (offset < whole.byteLength) this.carry.push(whole.slice(offset));
-    } else {
-      this.give(head, whole.subarray(offset));
-      if (alignment && head.aligned >= head.spoken) this.finish(head);
+      this.alignmentSeen = true;
     }
-    if (alignment) this.alignmentSeen = true;
+    // The rest belongs to the segment playing now, even with no new spoken character in it.
+    const head = this.head();
+    if (head) this.give(head, whole.subarray(offset));
+    else if (offset < whole.byteLength) this.carry.push(whole.slice(offset));
     this.armQuiet();
   }
 
@@ -222,27 +227,27 @@ export class ElevenLabsReply implements TtsReply, ContextSink {
   }
 
   /**
-   * Safety net for a provider that stops sending alignment (or whose alignment drifts from our
-   * count): once audio has gone quiet for `quietMs`, the segments it was for are over. A segment
-   * still waiting for its first audio is never ended this way, however slow the provider is.
+   * `quietMs` without audio ends a head whose every character is aligned (how a reply's last
+   * segment ends without an isFinal); before that, our count and the provider's disagree, so it
+   * waits four times as long. Without alignment the head already holds every flushed segment's
+   * audio, so all of them end. A segment still waiting for its first audio never ends this way.
    */
   private armQuiet(): void {
     this.cancelQuiet?.();
     this.cancelQuiet = undefined;
+    const head = this.head();
     const pending = this.parts.filter((part) => !part.done);
-    if (!this.socket || !pending.some((part) => part.received)) return;
+    if (!this.socket || !head || !pending.some((part) => part.received)) return;
+    const heard = !this.alignmentSeen || head.aligned >= head.spoken;
     this.cancelQuiet = this.init.clock.setTimeout(
       () => {
         this.cancelQuiet = undefined;
         if (this.closed || !this.socket) return;
         const waiting = this.parts.filter((part) => !part.done);
-        // With alignment, only the head can be late; without it every flushed segment's audio has
-        // already gone to the head, so the rest would otherwise wait forever.
         for (const part of this.alignmentSeen ? waiting.slice(0, 1) : waiting) this.finish(part);
         this.armQuiet();
       },
-      // Mid-segment silence this long only happens when our count and the provider's disagree.
-      this.alignmentSeen ? this.init.quietMs * 4 : this.init.quietMs,
+      heard ? this.init.quietMs : this.init.quietMs * 4,
     );
   }
 

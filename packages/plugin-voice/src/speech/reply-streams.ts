@@ -17,6 +17,8 @@ interface OpenReply {
   controller: AbortController;
   pending: number;
   cancelIdle?: () => void;
+  /** Superseded by a newer epoch: closes once its last segment has played out. */
+  retired?: boolean;
 }
 
 /** A reply that has rendered every segment so far is closed after this long without a new one. */
@@ -35,8 +37,9 @@ const realTimers: Pick<Clock, 'setTimeout'> = {
  * segment by segment, each already through the guardrail and the text filters; here every segment
  * of one epoch goes into one provider context (`TextToSpeech.openReply`), in the order the
  * scheduler prepares them. Each segment still has its own audio, carrier mark and receipt, so
- * PlaybackConversation and barge-in see sentences exactly as before. A new epoch, a barge-in or
- * an idle reply closes the context; only that context, never the session's socket.
+ * PlaybackConversation and barge-in see sentences exactly as before. A barge-in or an idle reply
+ * closes the context, and a new epoch once the old one's segments have played; only that context,
+ * never the session's socket.
  *
  * Segments are pushed whole, never token by token: a guardrail-blocked sentence must not reach the
  * provider, the text filters need whole phrases, and ElevenLabs' `auto_mode` is "recommended for
@@ -92,6 +95,21 @@ export class ReplyStreams {
   private closeReply(open: OpenReply): void {
     if (this.current !== open) return;
     this.current = undefined;
+    this.shut(open);
+  }
+
+  /**
+   * A new epoch without a barge-in. Closing the old context now would cut the audio its last
+   * segment still has coming (the provider ends a segment after its tail, not at its last letter).
+   */
+  private retire(open: OpenReply): void {
+    this.current = undefined;
+    open.cancelIdle?.();
+    if (open.pending) open.retired = true;
+    else this.shut(open);
+  }
+
+  private shut(open: OpenReply): void {
     open.cancelIdle?.();
     open.controller.abort(new DOMException('reply closed', 'AbortError'));
     // swallow-ok: a reply that failed to open has nothing to close.
@@ -100,7 +118,7 @@ export class ReplyStreams {
 
   private openFor(epoch: number, input: SegmentInput): OpenReply {
     if (this.current?.epoch === epoch) return this.current;
-    if (this.current) this.closeReply(this.current);
+    if (this.current) this.retire(this.current);
     const controller = new AbortController();
     const reply = this.tts
       .openReply({ ...input, signal: controller.signal })
@@ -141,7 +159,8 @@ export class ReplyStreams {
       }
     } finally {
       open.pending -= 1;
-      if (!open.pending && this.current === open)
+      if (!open.pending && open.retired) this.shut(open);
+      else if (!open.pending && this.current === open)
         open.cancelIdle = this.clock.setTimeout(() => {
           if (!open.pending) this.closeReply(open);
         }, this.idleMs);

@@ -13,6 +13,7 @@ import { BoundedSpeechScheduler } from '../src/scheduler.ts';
 import {
   NativeStreamingSpeechOutput,
   REPLY_IDLE_MS,
+  ReplyStreams,
   warmSessionTts,
 } from '../src/speech/media-output-v2.ts';
 
@@ -246,6 +247,58 @@ describe('LAT-5 reply streams', () => {
     expect(tts.log).toEqual(['synthesize:One.', 'synthesize:Two.']);
     output.dispose();
     await speech.dispose();
+  });
+});
+
+describe('LAT-5 reply close (Wave 4 review)', () => {
+  it('a new epoch closes the previous reply only after its last segment has played out', async () => {
+    const tail = Promise.withResolvers<void>();
+    const replies: { epoch: number; closed: boolean; aborted: () => boolean }[] = [];
+    let epoch = 0;
+    const tts: TextToSpeech = {
+      capabilities,
+      cacheIdentity: () => ({ provider: 'model', model: 'm', voice: 'v', revision: '1' }),
+      synthesize: () => (async function* () {})(),
+      async openReply(input) {
+        const record = { epoch: ++epoch, closed: false, aborted: () => input.signal.aborted };
+        replies.push(record);
+        return {
+          segment: (text) =>
+            (async function* () {
+              yield new Uint8Array([text.length]);
+              // The segment's tail (trailing silence) is still on its way.
+              if (record.epoch === 1) await tail.promise;
+              if (input.signal.aborted) return;
+              yield new Uint8Array([0]);
+            })(),
+          close: async () => void (record.closed = true),
+        };
+      },
+    };
+    const streams = ReplyStreams.for(tts, () => (async function* () {})())!;
+    const input = {
+      sessionId: 's',
+      format: MULAW_8K,
+      language: 'en-IN',
+      signal: new AbortController().signal,
+      onUsage: () => undefined,
+    };
+    const segment = (id: string, text: string, at: number) =>
+      ({ id, text, epoch: at, kind: 'response', generatedAt: 0 }) as const;
+    const goodbye = streams.audio(segment('a', 'Bye.', 1), input)[Symbol.asyncIterator]();
+    expect(await goodbye.next()).toMatchObject({ value: new Uint8Array([4]) });
+    // The next reply starts while the goodbye's tail is still arriving.
+    const next = streams.audio(segment('b', 'Hello.', 2), input)[Symbol.asyncIterator]();
+    expect(await next.next()).toMatchObject({ value: new Uint8Array([6]) });
+    expect(replies.map((reply) => [reply.closed, reply.aborted()])).toEqual([
+      [false, false],
+      [false, false],
+    ]);
+    tail.resolve();
+    expect(await goodbye.next()).toMatchObject({ value: new Uint8Array([0]) });
+    expect(await goodbye.next()).toMatchObject({ done: true });
+    expect(replies[0]!.closed).toBe(true);
+    streams.dispose();
   });
 });
 

@@ -38,8 +38,10 @@ export const LIVEKIT =
  * - audio frames carry `alignment: {chars, charStartTimesMs, charDurationsMs}` with times relative
  *   to the frame, without `sync_alignment`: PIPECAT reads it that way and accumulates the offsets.
  * UNCONFIRMED until a live call (`live.test.ts` checks both):
- * - that every multi-context audio frame carries `alignment` (the reference marks it optional;
- *   without it a segment ends after a quiet gap instead);
+ * - that every multi-context audio frame carries `alignment` (the reference marks it optional and
+ *   nullable; `sync_alignment` is not requested). A frame without it, or with no new spoken
+ *   character (trailing punctuation, silence), stays with the segment playing; only the next
+ *   segment's first spoken character, an isFinal or a quiet gap ends it;
  * - whether an `isFinal` follows every flush. ElevenLabs' guides only show it ending a context; a
  *   compatible API calls its per-flush final the "ElevenLabs is_final equivalent"
  *   (https://docs.kugelaudio.com/api-reference/tts/multi-context). The reply handles both.

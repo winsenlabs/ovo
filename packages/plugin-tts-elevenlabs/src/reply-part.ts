@@ -22,7 +22,7 @@ export interface ReplyInit {
   render: HttpRender;
   /** Replay over HTTP after the socket drops (binding `httpFallback`). */
   replay: boolean;
-  /** No alignment and no audio for this long ends the oldest flushed segment (safety net). */
+  /** No audio for this long ends a segment whose text has all been heard (see armQuiet). */
   quietMs: number;
 }
 
