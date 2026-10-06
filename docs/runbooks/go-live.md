@@ -90,9 +90,10 @@ inbound report to say `admission disabled` with `readyWorkers` ≥ 1 (Wave 1, OP
 ## 4. Database checks after the first deploy
 
 - **Connections:** Waves 2-3 added up to 10 PostgreSQL connections per worker (speech-clip pool 4,
-  pre-render 4, outcomes 2) and 2 on the API. With the bundled PostgreSQL (`max_connections` 100):
+  pre-render 4, outcomes 2) and 2 on the API. With the bundled PostgreSQL:
   `docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml exec -T postgres psql -U ovo -d ovo -c "select count(*) from pg_stat_activity"`
-  must stay well below 100 during a call. If not, lower `OVO_SPEECH_PRERENDER_CONCURRENCY` in `.env`.
+  must stay well below `max_connections` (300 for the bundled PostgreSQL since Wave 5; check a managed
+  database's own limit) during a call. If not, lower `OVO_SPEECH_PRERENDER_CONCURRENCY` in `.env`.
 - **search_path (Wave 1):** the readiness probe follows `search_path`; confirm no schema named after
   the database role holds `ovo_*` tables: `select schemaname from pg_tables where tablename like 'ovo\_%' group by 1`
   must print only `public`.
@@ -164,5 +165,33 @@ Then make the first call and collect the evidence in [first-real-call.md](first-
 
 ## Other Wave 5 lanes
 
-The inspector, outbound, telephony and extras lanes of Wave 5 add their own migrations, variables
-and console steps; the integrator appends them here from the Wave 5 integration report.
+What the inspector, outbound, telephony and extras lanes add, from the Wave 5 integration report.
+
+- **Migrations, at service startup (step 3 runs them):** operations `008_outbound_compliance.sql`
+  (campaign `calling_window` and `variables_schema`, the `invalid` contact state, do-not-call
+  `source`/`call_id`/`updated_at`); the API's callback schema v1 (`ovo_callbacks`, tracked in
+  `ovo_callback_schema_migrations`, plus a partial index on `ovo_session_events` built without
+  `CONCURRENTLY`, so it briefly blocks event writes on a large table: deploy while idle).
+- **Compose:** the bundled PostgreSQL now starts with `max_connections=300` (each worker holds about
+  15 connections on a call; see `tests/load/README.md`), so step 3 recreates the `postgres`
+  container once. `OVO_HEALTH_TOKEN` (gateway, workers) and `OVO_SESSION_TTL_SECONDS` (API) are
+  forwarded empty by default; see [env-reference.md](../env-reference.md).
+- **Optional `.env`:** `OVO_HEALTH_TOKEN=<random>` enables `/health?verbose=1` on the gateway and
+  workers and is what you pass as a bearer token when debugging a refused call.
+- **Accounts:** every console user whose password fails the OPS-15 policy (12+ characters, three
+  character types or a 20+ passphrase) is asked to change it at next sign-in; five wrong passwords
+  lock an account for 15 minutes. Keep `OVO_SEED_ADMIN_PASSWORD` in `.env` (Compose requires it); the
+  API refuses it as a password once changed.
+- **Twilio stream status (OBS-11):** inbound `<Stream>` now carries a signed `statusCallback`; nothing
+  to paste. A call whose terminal status callback never arrives is reconciled with Twilio once after
+  15 s, which releases its inbound slot.
+- **Console, per agent (all off by default, existing releases unchanged):** Compliance (calling
+  hours, recording disclosure line, opt-out) and Turn pacing (backchannels, filler, speculation,
+  `reply.minFirstWords`) panels in Studio; the `handoff` block (transfer target and triggers,
+  callbacks) has no Studio panel yet and is set in the agent's JSON. Any change needs a
+  **re-release** so the disclosure, opt-out and handoff lines are pre-rendered. The do-not-call list
+  (formerly suppressions) and Operations > Callbacks are console pages.
+- **Diagnostics:** `GET /v1/diagnostics/live-path` (admin) answers 200 when a live call can go
+  through, or 503 naming the blocking stage, without calling a provider.
+- **Indian DID:** [indian-did.md](indian-did.md) (Plivo; Exotel stays held) and
+  [../residency.md](../residency.md) before buying a number.
