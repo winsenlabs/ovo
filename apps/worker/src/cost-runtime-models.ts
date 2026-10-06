@@ -3,6 +3,7 @@ import {
   bindingModel,
   priceCardMatchesModel,
   type CostLedgerService,
+  type PriceCardVersion,
 } from '@winsendotai/ovo-plugin-ledger';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import type { ReleaseSelections } from '@winsendotai/ovo-contracts';
@@ -55,17 +56,20 @@ export function requiredMeterModels(
  * OPS-13 at admission: required meters whose price card names a different model than the binding
  * runs. Meter keys carry no model, so without this a model swap is silently billed at the old
  * model's price. A card the ledger does not hold is left to the catalog load, which refuses it.
+ * `cards` keeps what was read, so the catalog load does not read the same cards again.
  */
 export async function meterKeysPricedForAnotherModel(
   ledger: Pick<CostLedgerService, 'getPriceCard'>,
   policy: CostPolicy,
   models: ReadonlyMap<string, string>,
+  cards: Map<string, PriceCardVersion | undefined>,
 ): Promise<string[]> {
   const mismatched: string[] = [];
   for (const [meterKey, model] of models) {
     const reference = policy.priceCards[meterKey];
     if (!reference) continue;
     const card = await ledger.getPriceCard(reference.id, reference.version);
+    cards.set(meterKey, card);
     if (card && !priceCardMatchesModel(card, model)) mismatched.push(meterKey);
   }
   return mismatched.sort();

@@ -75,6 +75,7 @@ export class WorkerCostPolicyCore {
       this.options.ledger,
       this.policy,
       this.options.requiredMeterKeys ?? [],
+      this.options.prefetchedPriceCards,
     );
   }
 

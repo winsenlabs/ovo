@@ -7,7 +7,7 @@ import type {
   TelephonyControl,
 } from '@winsendotai/ovo-plugin-orchestration';
 import type { ProviderUsageSink } from './cost-policy-types.ts';
-import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
+import type { CostLedgerService, PriceCardVersion } from '@winsendotai/ovo-plugin-ledger';
 import { type ControlStore, type ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { manifestKeys, PluginRegistry } from '@winsendotai/ovo-runtime';
 import { metersFor, type SessionDefaults } from '@winsendotai/ovo-session-host';
@@ -116,6 +116,7 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
         admitted: false,
         reason: `cost-meter-unconfigured:${missingMeters.join(',')}`,
       };
+    const prefetchedPriceCards = new Map<string, PriceCardVersion | undefined>();
     const repriced = await meterKeysPricedForAnotherModel(
       this.ledger,
       policy,
@@ -126,6 +127,7 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
           ? { meters: selectedMeters, selections, registry: this.registry }
           : undefined,
       ),
+      prefetchedPriceCards,
     );
     if (repriced.length)
       return {
@@ -166,6 +168,7 @@ export class ProductionWorkerCostRuntime implements WorkerCostRuntimePort {
       attemptId: text(payload.attemptId),
       sessionStartedAt: new Date().toISOString(),
       requiredMeterKeys,
+      prefetchedPriceCards,
       inference:
         inferenceRecord && typeof inferenceModel === 'string'
           ? { provider: inferenceRecord.provider, modelId: inferenceModel }
