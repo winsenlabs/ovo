@@ -2,6 +2,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai';
 import type { NetPort, UsageSink } from '@winsendotai/ovo-contracts';
 import { AiSdkInference, type AiSdkInferenceOptions } from '@winsendotai/ovo-plugin-kit';
+import { AbortMeteredInference } from './aborted-usage.ts';
 import { resolveVoiceTuning, type VoiceTuning } from './voice-tuning.ts';
 
 export interface OpenAiInferenceConfig extends VoiceTuning {
@@ -37,7 +38,7 @@ export function openAiInference(
   )
     throw new TypeError('OpenAI temperature must be between 0 and 2');
   const model = provider.responses(binding.model);
-  return new AiSdkInference({
+  return new AbortMeteredInference({
     model:
       binding.temperature === undefined
         ? model
