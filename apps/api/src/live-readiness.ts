@@ -137,12 +137,21 @@ export async function liveDiagnostics(
   const blockers: string[] = [];
   if (!infrastructure)
     return { ready: false, blockers: ['infrastructure: readiness service is not configured'] };
+  // Worker and inbound state is installation-wide: only the installation's own workspace may
+  // read it, exactly as InfrastructureService.snapshot refuses every other organization.
+  if (infrastructure.organizationId !== workspaceId)
+    throw Object.assign(new Error('Live-path diagnostics are not available for this workspace'), {
+      statusCode: 404,
+      code: 'not_found',
+    });
   const started = Date.now();
   let snapshot: Awaited<ReturnType<InfrastructureService['snapshot']>> | undefined;
   let databaseError: string | undefined;
   try {
     snapshot = await infrastructure.snapshot(workspaceId);
   } catch (error) {
+    // An HTTP-shaped error (404 not_found and the like) is a refusal, not a database outage.
+    if (typeof (error as { statusCode?: unknown })?.statusCode === 'number') throw error;
     databaseError = error instanceof Error ? error.message.slice(0, 200) : 'unavailable';
     blockers.push(`database: ${databaseError}`);
   }
@@ -176,8 +185,14 @@ export async function liveDiagnostics(
     }
     const failure = worker.live?.lastSessionOpenFailure as
       { stage: string; reason: string; at: string } | null | undefined;
+    // Named fields only: the published failure also carries the session id, which stays private.
     if (failure && now - Date.parse(failure.at) <= OPEN_FAILURE_WINDOW_MS)
-      openFailures.push({ workerId: worker.workerId, ...failure });
+      openFailures.push({
+        workerId: worker.workerId,
+        stage: failure.stage,
+        reason: failure.reason,
+        at: failure.at,
+      });
   }
   for (const provider of providers.values())
     if (!provider.ok)

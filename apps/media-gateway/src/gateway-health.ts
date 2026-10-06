@@ -76,14 +76,8 @@ export class GatewayHealth {
 
   private async database(): Promise<{ ok: boolean; latencyMs: number; error?: string }> {
     const started = this.now();
-    let timer: NodeJS.Timeout | undefined;
     try {
-      await Promise.race([
-        this.options.pool.query('SELECT 1'),
-        new Promise((_, reject) => {
-          timer = setTimeout(() => reject(new Error('database ping timed out')), DB_TIMEOUT_MS);
-        }),
-      ]);
+      await bounded(this.options.pool.query('SELECT 1'), 'database ping timed out');
       return { ok: true, latencyMs: this.now() - started };
     } catch (error) {
       return {
@@ -91,16 +85,17 @@ export class GatewayHealth {
         latencyMs: this.now() - started,
         error: error instanceof Error ? error.message.slice(0, 200) : 'database unavailable',
       };
-    } finally {
-      clearTimeout(timer);
     }
   }
 
   private async readiness(): Promise<Record<string, unknown> | null> {
     try {
-      const result = await this.options.pool.query(
-        `SELECT signal, extract(epoch FROM (now() - signal_at))*1000 AS age_ms
-           FROM ovo_capacity_signal_latest WHERE service_key = 'inbound-readiness'`,
+      const result = await bounded(
+        this.options.pool.query(
+          `SELECT signal, extract(epoch FROM (now() - signal_at))*1000 AS age_ms
+             FROM ovo_capacity_signal_latest WHERE service_key = 'inbound-readiness'`,
+        ),
+        'inbound readiness read timed out',
       );
       const row = result.rows[0] as { signal: Record<string, unknown>; age_ms: string } | undefined;
       if (!row) return null;
@@ -117,6 +112,21 @@ export class GatewayHealth {
     } catch (error) {
       return { error: error instanceof Error ? error.message.slice(0, 200) : 'unavailable' };
     }
+  }
+}
+
+/** A health read that hangs (pool exhausted, lock wait) must not hang the health probe. */
+async function bounded<T>(query: Promise<T>, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      query,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), DB_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

@@ -137,6 +137,60 @@ describe('live-path diagnostics (OBS-12)', () => {
       blockers: ['infrastructure: readiness service is not configured'],
     });
   });
+
+  it('refuses another workspace before reading any installation-wide state', async () => {
+    const workerLiveState = vi.fn(async () => [healthyWorker] as never);
+    const inboundReadiness = vi.fn(async () => null);
+    const snapshotRead = vi.fn(async () => snapshot());
+    const infra = {
+      ...infrastructure({}),
+      snapshot: snapshotRead as never,
+      workerLiveState,
+      inboundReadiness,
+    };
+    await expect(liveDiagnostics(infra, 'org-b', NOW)).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'not_found',
+    });
+    expect(snapshotRead).not.toHaveBeenCalled();
+    expect(workerLiveState).not.toHaveBeenCalled();
+    expect(inboundReadiness).not.toHaveBeenCalled();
+  });
+
+  it('rethrows a refusal from the snapshot instead of calling it a database outage', async () => {
+    const refusal = Object.assign(new Error('not for you'), { statusCode: 404, code: 'not_found' });
+    await expect(
+      liveDiagnostics(
+        infrastructure({
+          snapshot: async () => {
+            throw refusal;
+          },
+        }),
+        'org',
+        NOW,
+      ),
+    ).rejects.toBe(refusal);
+  });
+
+  it('publishes only the named fields of a session-open failure', async () => {
+    const worker = {
+      ...healthyWorker,
+      live: {
+        ...healthyWorker.live,
+        lastSessionOpenFailure: {
+          stage: 'stt',
+          reason: 'error:session-open-failed:stt',
+          at: ago(1_000),
+          sessionId: 'sess-private',
+        },
+      },
+    };
+    const result = await liveDiagnostics(infrastructure({ workers: [worker] }), 'org', NOW);
+    expect(result.recentSessionOpenFailures).toEqual([
+      { workerId: 'w1', stage: 'stt', reason: 'error:session-open-failed:stt', at: ago(1_000) },
+    ]);
+    expect(JSON.stringify(result)).not.toContain('sess-private');
+  });
 });
 
 describe('GET /v1/diagnostics/live-path', () => {
@@ -145,12 +199,12 @@ describe('GET /v1/diagnostics/live-path', () => {
     await Promise.all(apps.splice(0).map((app) => app.close()));
   });
 
-  function build(role: string, infra?: LivePathInfrastructure) {
+  function build(role: string, infra?: LivePathInfrastructure, workspaceId = 'org') {
     const app = Fastify({ logger: false });
     apps.push(app);
     app.addHook('onRequest', async (request) => {
       (request as unknown as { principal: unknown }).principal = {
-        workspaceId: 'org',
+        workspaceId,
         identityId: 'u1',
         role,
       };
@@ -177,6 +231,18 @@ describe('GET /v1/diagnostics/live-path', () => {
     ]);
     const viewer = await build('viewer', infrastructure({})).inject('/v1/diagnostics/live-path');
     expect(viewer.statusCode).toBe(403);
+  });
+
+  it('answers 404 to an admin of another workspace without reading worker state', async () => {
+    const workerLiveState = vi.fn(async () => [healthyWorker] as never);
+    const foreign = await build(
+      'admin',
+      { ...infrastructure({}), workerLiveState },
+      'org-b',
+    ).inject('/v1/diagnostics/live-path');
+    expect(foreign.statusCode).toBe(404);
+    expect(foreign.body).not.toContain('w1');
+    expect(workerLiveState).not.toHaveBeenCalled();
   });
 });
 

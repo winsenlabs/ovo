@@ -60,6 +60,26 @@ describe('gateway verbose health (OBS-12)', () => {
     });
   });
 
+  it('answers within the timeout when the readiness read hangs', async () => {
+    vi.useFakeTimers();
+    try {
+      const hanging = {
+        query: (sql: string) =>
+          sql === 'SELECT 1'
+            ? Promise.resolve({ rows: [] })
+            : new Promise<{ rows: unknown[] }>(() => undefined),
+      };
+      const pending = new GatewayHealth({ pool: hanging, assertArmed: () => undefined }).snapshot();
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(await pending).toMatchObject({
+        database: { ok: true },
+        inbound: { readiness: { error: 'inbound readiness read timed out' } },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('keeps only the last twenty refusals', () => {
     const health = new GatewayHealth({ pool: pool(), assertArmed: () => undefined });
     for (let index = 0; index < 25; index++) health.rejection(`refusal ${index}`);
