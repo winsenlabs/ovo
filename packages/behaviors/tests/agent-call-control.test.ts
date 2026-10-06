@@ -236,6 +236,31 @@ describe('ending the call (AGT-3)', () => {
     expect(behavior.completionReason()).toBe('decision:intent=bye');
   });
 
+  it('ends even when the speaker reports the goodbye as filtered text', async () => {
+    const { behavior } = agent(
+      { decision: goodbye({ say: 'Your ₹12,500 is noted, goodbye.', end: true }) },
+      { decision: decides('bye') },
+    );
+    behavior.beginTurn(2);
+    await behavior.respond('bye', call);
+    // A verbalisation filter ran between the behaviour and the receipt.
+    behavior.onPlayback(receipt('Your twelve thousand five hundred rupees is noted, goodbye.', 2));
+    expect(behavior.completionReason()).toBe('decision:intent=bye');
+  });
+
+  it('ignores a receipt from an earlier turn', async () => {
+    const { behavior } = agent(
+      { decision: goodbye({ say: 'Thank you, goodbye.', end: true }) },
+      { decision: decides('bye') },
+    );
+    behavior.beginTurn(5);
+    await behavior.respond('bye', call);
+    behavior.onPlayback(receipt('Thank you, goodbye.', 4));
+    expect(behavior.isComplete()).toBe(false);
+    behavior.onPlayback(receipt('Thank you, goodbye.', 5));
+    expect(behavior.isComplete()).toBe(true);
+  });
+
   it('keeps the call open when the caller barges in on the goodbye', async () => {
     const { behavior } = agent(
       { decision: goodbye({ say: 'Thank you, goodbye.', end: true }) },

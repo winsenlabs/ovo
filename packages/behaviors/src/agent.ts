@@ -197,7 +197,7 @@ export class AgentBehavior implements Behavior {
   }
 
   private say(text: string): string {
-    this.ending.said(text);
+    this.ending.said();
     return this.conversation.generated(text);
   }
 
