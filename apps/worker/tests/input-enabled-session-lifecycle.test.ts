@@ -298,6 +298,11 @@ describe('input-enabled production session lifecycle', () => {
       transport.send({ type: 'media.audio', payload: 'AQ==', sequenceNumber: 1, timestampMs: 20 });
       await vi.waitFor(() => expect(telemetryClose).toHaveBeenCalledWith('behavior_completed'));
       expect(finish).toHaveBeenCalledOnce();
+      // STT-6: the handshake began at session.open; the engine adopted that session.
+      expect(audit).toHaveBeenCalledWith(
+        'stt.preconnect',
+        expect.objectContaining({ adopted: true }),
+      );
       expect(order).toContain('fence:behavior_completed');
       await vi.waitFor(() =>
         expect(transport.messages.some((frame) => frame.type === 'session.end')).toBe(true),

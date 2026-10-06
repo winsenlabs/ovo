@@ -1,8 +1,12 @@
 import type { SpeechSegment } from '@winsendotai/ovo-contracts';
 import type { PreparedAudio } from './session-graph-speech-output.ts';
 
-/** Where one segment's audio came from (TTS-11). `bypass` is live speech the cache may not hold. */
-export type SpeechCacheSource = 'pinned' | 'durable' | 'l1' | 'miss' | 'coalesced' | 'bypass';
+/**
+ * Where one segment's audio came from (TTS-11). `bypass` is live speech the cache may not hold;
+ * `template` is a line rendered for this call alone from its variables (TTS-10).
+ */
+export type SpeechCacheSource =
+  'pinned' | 'durable' | 'l1' | 'template' | 'miss' | 'coalesced' | 'bypass';
 
 /** The session's audit sink; the worker passes `telemetry.audit`. Payloads never carry text. */
 export interface SpeechCacheObserver {
@@ -13,11 +17,18 @@ const SOURCES: readonly SpeechCacheSource[] = [
   'pinned',
   'durable',
   'l1',
+  'template',
   'miss',
   'coalesced',
   'bypass',
 ];
-const CACHED: ReadonlySet<SpeechCacheSource> = new Set(['pinned', 'durable', 'l1', 'coalesced']);
+const CACHED: ReadonlySet<SpeechCacheSource> = new Set([
+  'pinned',
+  'durable',
+  'l1',
+  'template',
+  'coalesced',
+]);
 
 /** Per-segment cache evidence plus a per-call summary, so hit rate and savings are measurable. */
 export class SpeechCacheTelemetry {

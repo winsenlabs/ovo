@@ -16,6 +16,8 @@ import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { compose, definePlugin } from '@winsendotai/ovo-runtime';
 import { createV2SpeechCachePlugin } from '../src/speech-cache-v2.ts';
 import type { SpeechCacheObserver } from '../src/speech-cache-telemetry.ts';
+import type { CallClips } from '../src/speech-cache-percall.ts';
+import type { PerCallClipOptions } from '../src/speech-cache-env.ts';
 
 /** A provider that records every call and can be switched to the incremental (open) path. */
 export class RecordingTts implements TextToSpeech {
@@ -91,9 +93,12 @@ export class RecordingTts implements TextToSpeech {
   }
 }
 
-export function fixtureMedia() {
+export function fixtureMedia(options: { frameMs?: number } = {}) {
   const marks: string[] = [];
   const audio: Uint8Array[] = [];
+  /** When each frame reached the carrier, on the (possibly fake) clock. */
+  const sentAt: number[] = [];
+  const clears: number[] = [];
   const played = new Set<(name: string) => void>();
   const media = {
     sessionId: 'session-1',
@@ -102,8 +107,12 @@ export function fixtureMedia() {
     playbackEvidence: 'carrier-played',
     clearFlushesMarkers: true,
     bufferedBytes: 0,
-    async sendAudio(bytes: Uint8Array) {
+    async sendAudio(bytes: Uint8Array, signal?: AbortSignal) {
+      // A paced carrier takes one frame per frame time, as a real-time media link does.
+      if (options.frameMs) await new Promise((resolve) => setTimeout(resolve, options.frameMs));
+      signal?.throwIfAborted();
       audio.push(bytes.slice());
+      sentAt.push(Date.now());
     },
     async mark(name: string) {
       marks.push(name);
@@ -111,7 +120,9 @@ export function fixtureMedia() {
         for (const listener of played) listener(name);
       });
     },
-    async clear() {},
+    async clear() {
+      clears.push(Date.now());
+    },
     onPlayed(listener: (name: string) => void) {
       played.add(listener);
       return () => played.delete(listener);
@@ -122,7 +133,7 @@ export function fixtureMedia() {
     onClose: () => () => undefined,
     close: async () => undefined,
   } satisfies MediaDuplex;
-  return { media, marks, audio };
+  return { media, marks, audio, sentAt, clears };
 }
 
 export function fixtureRelease(
@@ -166,8 +177,10 @@ export async function composeCacheOutput(input: {
   filters?: TextFilter[];
   observer?: SpeechCacheObserver;
   usage?: (meter: UsageMeter) => void;
+  perCall?: { clips: CallClips; options?: PerCallClipOptions };
+  frameMs?: number;
 }) {
-  const { media, marks, audio } = fixtureMedia();
+  const { media, marks, audio, sentAt, clears } = fixtureMedia({ frameMs: input.frameMs });
   const host = definePlugin(
     {
       id: 'fixture-cache-host',
@@ -205,7 +218,12 @@ export async function composeCacheOutput(input: {
       },
     ),
   );
-  const plugin = createV2SpeechCachePlugin(input.release, input.cache, input.observer)!;
+  const plugin = createV2SpeechCachePlugin(
+    input.release,
+    input.cache,
+    input.observer,
+    input.perCall,
+  )!;
   const composition = await compose(
     [host, ...filters, plugin].map((definition) => ({ id: definition.manifest.id })),
     [host, ...filters, plugin],
@@ -218,7 +236,7 @@ export async function composeCacheOutput(input: {
     const segment: SpeechSegment = { id: `s${next}`, text, kind, epoch: next, generatedAt: 0 };
     return output.play(segment, { signal: signal ?? new AbortController().signal });
   };
-  return { output, play, marks, audio, dispose: () => composition.dispose() };
+  return { output, play, marks, audio, sentAt, clears, dispose: () => composition.dispose() };
 }
 
 export function deferred<T = void>() {

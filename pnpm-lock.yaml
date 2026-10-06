@@ -223,6 +223,9 @@ importers:
       '@livekit/rtc-node':
         specifier: 0.13.34
         version: 0.13.34
+      '@winsendotai/ovo-behaviors':
+        specifier: workspace:*
+        version: link:../../packages/behaviors
       '@winsendotai/ovo-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

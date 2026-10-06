@@ -19,6 +19,21 @@ export interface SpeechPrerenderOptions {
   routedRefreshMs?: number;
 }
 
+/** Per-call pre-render of templated lines (TTS-10); held in memory for the call only. */
+export interface PerCallClipOptions {
+  enabled: boolean;
+  /** 'opening' renders only what is spoken first; 'all' every templated line of the call. */
+  scope: 'opening' | 'all';
+  maxLines: number;
+  /** Renders in flight at once for one call. */
+  concurrency: number;
+  renderTimeoutMs: number;
+  /** How long playback waits on a render's first byte before speaking the line live instead. */
+  firstByteBudgetMs: number;
+  /** Clips prepared while a phone rang are dropped if no session claims them by then. */
+  unclaimedTtlMs: number;
+}
+
 export interface WorkerSpeechCacheOptions {
   l1: ByteCacheLimits;
   /** In-memory clips pinned for their release's lifetime (no TTL). */
@@ -26,6 +41,7 @@ export interface WorkerSpeechCacheOptions {
   clipMaxBytes: number;
   workspaceMaxBytes: number;
   prerender: SpeechPrerenderOptions;
+  perCall: PerCallClipOptions;
 }
 
 export const DEFAULT_SPEECH_CACHE_OPTIONS: WorkerSpeechCacheOptions = Object.freeze({
@@ -42,6 +58,15 @@ export const DEFAULT_SPEECH_CACHE_OPTIONS: WorkerSpeechCacheOptions = Object.fre
     attempts: 3,
     retentionDays: 30,
   }),
+  perCall: Object.freeze({
+    enabled: true,
+    scope: 'all',
+    maxLines: 16,
+    concurrency: 2,
+    renderTimeoutMs: 15_000,
+    firstByteBudgetMs: 1_500,
+    unclaimedTtlMs: 180_000,
+  }),
 });
 
 /** Inclusive bounds for every numeric speech cache variable. */
@@ -57,6 +82,7 @@ const BOUNDS = {
   OVO_SPEECH_PRERENDER_CONCURRENCY: [1, 32],
   OVO_SPEECH_PRERENDER_POLL_MS: [100, 3_600_000],
   OVO_SPEECH_CLIPS_RETENTION_DAYS: [1, 3_650],
+  OVO_SPEECH_PERCALL_MAX_LINES: [1, 64],
 } as const satisfies Record<string, readonly [number, number]>;
 
 /** Every speech cache limit is an env var; an invalid value stops the worker at startup. */
@@ -86,6 +112,12 @@ export function speechCacheOptionsFromEnv(
   const enabled = env.OVO_SPEECH_PRERENDER_ENABLED;
   if (enabled && enabled !== 'true' && enabled !== 'false')
     throw new RangeError('OVO_SPEECH_PRERENDER_ENABLED must be true or false');
+  const perCallEnabled = env.OVO_SPEECH_PERCALL_ENABLED;
+  if (perCallEnabled && perCallEnabled !== 'true' && perCallEnabled !== 'false')
+    throw new RangeError('OVO_SPEECH_PERCALL_ENABLED must be true or false');
+  const scope = env.OVO_SPEECH_PERCALL_SCOPE;
+  if (scope && scope !== 'opening' && scope !== 'all')
+    throw new RangeError('OVO_SPEECH_PERCALL_SCOPE must be opening or all');
   return {
     l1,
     pinnedMaxBytes: read('OVO_SPEECH_CLIPS_MAX_BYTES') ?? defaults.pinnedMaxBytes,
@@ -97,6 +129,12 @@ export function speechCacheOptionsFromEnv(
       concurrency: read('OVO_SPEECH_PRERENDER_CONCURRENCY') ?? defaults.prerender.concurrency,
       pollMs: read('OVO_SPEECH_PRERENDER_POLL_MS') ?? defaults.prerender.pollMs,
       retentionDays: read('OVO_SPEECH_CLIPS_RETENTION_DAYS') ?? defaults.prerender.retentionDays,
+    },
+    perCall: {
+      ...defaults.perCall,
+      enabled: perCallEnabled !== 'false',
+      scope: scope === 'opening' || scope === 'all' ? scope : defaults.perCall.scope,
+      maxLines: read('OVO_SPEECH_PERCALL_MAX_LINES') ?? defaults.perCall.maxLines,
     },
   };
 }

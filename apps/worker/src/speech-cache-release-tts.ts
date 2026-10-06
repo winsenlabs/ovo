@@ -13,6 +13,7 @@ import {
   compose,
   definePlugin,
   PluginRegistry,
+  type Composition,
   type ParentView,
   type PluginDefinition,
 } from '@winsendotai/ovo-runtime';
@@ -47,17 +48,18 @@ const clock: Clock = {
 };
 
 /**
- * Composes a release's own TTS selection (pinned plugin, binding, credential, host format adapter)
- * and its text filters outside any call, through the same contracts a session uses. Nothing here
- * is provider-specific: whichever TTS binding the release selects pre-renders the same way.
+ * Composes one of a release's own provider selections (pinned plugin, binding, credential, host
+ * format adapter) outside any call, through the same contracts a session uses. Nothing here is
+ * provider-specific: whichever binding the release selects composes the same way.
  */
-export async function openReleaseSpeech(
+export async function composeReleaseProvider(
   release: ReleaseRecord,
+  slot: 'tts' | 'stt',
   usage: UsageSink,
-  deps: ReleaseSpeechDeps,
-): Promise<ReleaseSpeech> {
-  const selection = release.selections?.tts;
-  if (!selection) throw new PrerenderSkipError('release has no pinned tts selection');
+  deps: Omit<ReleaseSpeechDeps, 'defaults'>,
+): Promise<Composition> {
+  const selection = release.selections?.[slot];
+  if (!selection) throw new PrerenderSkipError(`release has no pinned ${slot} selection`);
   let definition: PluginDefinition;
   try {
     definition = new PluginRegistry(deps.catalog).resolvePin(
@@ -119,11 +121,21 @@ export async function openReleaseSpeech(
     },
   );
   const adapted = adaptDefinitionFormats(definition);
-  const composition = await compose(
-    [{ id: host.manifest.id }, { id: adapted.manifest.id, config }],
-    [host, adapted],
-    { scope: 'session', parent: deps.parent, workspaceId: release.workspaceId },
-  );
+  return compose([{ id: host.manifest.id }, { id: adapted.manifest.id, config }], [host, adapted], {
+    scope: 'session',
+    parent: deps.parent,
+    workspaceId: release.workspaceId,
+  });
+}
+
+/** The release's TTS and its text filters, composed outside any call (TTS-9). */
+export async function openReleaseSpeech(
+  release: ReleaseRecord,
+  usage: UsageSink,
+  deps: ReleaseSpeechDeps,
+): Promise<ReleaseSpeech> {
+  const selection = release.selections?.tts;
+  const composition = await composeReleaseProvider(release, 'tts', usage, deps);
   const filters = await composeReleaseTextFilters(release, deps.catalog, deps.defaults).catch(
     async (error: unknown) => {
       await composition.dispose();
@@ -141,7 +153,7 @@ export async function openReleaseSpeech(
   const tts = composition.get(Cap.tts) as TextToSpeech | undefined;
   if (!tts) {
     await close();
-    throw new PrerenderSkipError(`${selection.pluginId} did not provide a tts service`);
+    throw new PrerenderSkipError(`${selection!.pluginId} did not provide a tts service`);
   }
   return { tts, filters: filters.filters, close };
 }
