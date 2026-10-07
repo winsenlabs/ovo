@@ -23,7 +23,14 @@ export type SettledStage = StageInput & {
   payload?: Record<string, unknown>;
 };
 
-const REPLY_STAGES = new Set(['grounding', 'decision', 'inference', 'llm_first_token', 'tts']);
+const REPLY_STAGES = new Set([
+  'grounding',
+  'decision',
+  'inference',
+  'llm_first_token',
+  'web_search',
+  'tts',
+]);
 
 /**
  * Reply stages carry no turn; they are stamped with the turn the engine is running. Recognition

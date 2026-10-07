@@ -29,6 +29,8 @@ turned on per LLM binding:
 | `searchContextSize` | no       | `low`   | `low` / `medium` / `high`. Larger is slower and costs more search content tokens.     |
 | `userLocation`      | no       |         | Approximate: `country` (ISO 3166-1 alpha-2), `city`, `region`, `timezone` (IANA).     |
 | `allowedDomains`    | no       |         | Search only these domains and their subdomains, without `https://`. 1 to 100 entries. |
+| `announce`          | no       | on      | Lines said while a search runs (below), or `false` for none.                          |
+| `skipUnclearInput`  | no       | `true`  | Leave the tool out for a cut-off or backchannel-only caller turn (below).             |
 
 How it behaves:
 
@@ -44,17 +46,57 @@ How it behaves:
   stream deltas until it can remove it whole. The default markdown text filter
   (`@winsendotai/ovo-text-filter-markdown`) also drops citation groups and markers, as a second
   line before TTS.
-- **Latency.** A search runs before the first answer sentence, so a searched turn starts later
-  (not yet measured on a live call). Keep `searchContextSize` at `low` for calls, and give the
-  agent a LAT-6 filler line so the caller hears something while the model searches. It is set on
-  `voice.turnDetector.config.filler`, needs the speech cache, and plays only when the reply has
-  made no sound by `afterMs`:
+- **Latency.** A search runs before the first answer sentence. In the Maya calls of 2026-10-07
+  (gpt-6-luna, `low` context) a searched turn's first token came 3.9–5.0 s after the caller
+  stopped (p50 3.95 s), against 1.72 s for the same agent's turns that did not search. Keep
+  `searchContextSize` at `low` for calls.
+- **What the caller hears (N3).** The plugin reports each search as the provider starts it, before
+  it runs (the AI SDK surfaces `response.output_item.added` for the `web_search_call` as a
+  provider-executed `tool-input-start`), through `observeActivity` on the inference port. The
+  native engine then says `announce.line` at once, in place of a generic filler not yet due, and
+  `announce.stillLine` if the answer has still not started `announce.stillAfterMs` later. A turn
+  that does not search never hears them. Defaults:
 
   ```json
-  { "filler": { "lines": ["One moment, let me check."], "afterMs": 600 } }
+  {
+    "announce": {
+      "line": "Let me look that up.",
+      "stillLine": "Still checking, one moment.",
+      "stillAfterMs": 2500
+    }
+  }
   ```
 
+  The agent's generic LAT-6 filler (`voice.turnDetector.config.filler`) plays on any slow turn,
+  searched or not, so give an agent with web search neutral lines that promise no lookup, and an
+  `afterMs` of 1500 or more so fast turns never hear one:
+
+  ```json
+  { "filler": { "lines": ["One moment."], "afterMs": 1500 } }
+  ```
+
+  The search lines are not in the release's pre-rendered clip inventory yet; they are synthesised
+  live (about 140 ms to first audio on ElevenLabs flash).
+
+- **Unclear input.** With `skipUnclearInput` (the default) a caller turn cut off mid-word ("tell
+  me about-", "Can you change your..."), with no words, or that is only a yes, no, "hmm" or hello
+  ("Yes.", "No, no.", "Hey.", "haan", "हाँ।", "சரி") is sent without the search tool, unless the
+  agent's last line offered to do something ("Shall I check the train times?", "Do you want me to
+  see what the news says?"). Any other one-word turn ("Chennai." after "Which city?") goes to the
+  model with the tool. In the Maya calls "No, no." and "Yes." each searched for 3.8–3.9 s only to
+  restate the previous answer.
+- **Measuring first-token latency.** `scripts/measure-first-token.mjs` asks the Responses API the
+  same non-search question with and without the search tool, with low verbosity, without the
+  prompt cache key, with `store: true` and without encrypted reasoning, and prints time to first
+  text and the token counts. It needs `OVO_MEASURE_OPENAI_KEY`, a key meant for experiments.
+
 ### Metering and price cards
+
+A request the caller cuts off (barge-in, a superseded turn) reports no usage, so it is metered as
+an estimate: its text plus what the call's last fully reported request carried beyond its text
+(the search tool's own instructions, scaffolding and tool schemas, about 4,400 tokens on a first
+request), split into cached and uncached as that request was, and one `web_search_calls` for each
+search it had started (for a non-streamed request, one when it ran for 1.5 s or more).
 
 Each search the model runs is metered as `openai.inference.web_search_calls` (unit
 `web_search_calls`, one per search action; `open_page` and `find_in_page` actions are not
