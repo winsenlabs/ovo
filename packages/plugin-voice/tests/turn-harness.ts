@@ -3,6 +3,7 @@ import type {
   Clock,
   MediaDuplex,
   SessionInput,
+  SpeechOutput,
   TurnDecision,
   TurnSpeculation,
 } from '@winsendotai/ovo-contracts';
@@ -82,14 +83,19 @@ export function slowAgent(clock: TestClock, { llmMs = 2500, fastMs = 100 } = {})
 export function driverHarness(
   clock: TestClock,
   behavior: Behavior & TurnSpeculation,
-  { ttsMs = 200, playMs = 1500, fillers = [] as string[] } = {},
+  {
+    ttsMs = 200,
+    playMs = 1500,
+    fillers = [] as string[],
+    output,
+  }: { ttsMs?: number; playMs?: number; fillers?: string[]; output?: SpeechOutput } = {},
 ) {
   const bus = new VoiceEventBus();
   /** Each line whose audio reached the carrier, and when. */
   const audio: { text: string; atMs: number; kind: string }[] = [];
   /** Each line cut off after its audio reached the carrier, and when. */
   const cut: { text: string; atMs: number }[] = [];
-  const scheduler = new BoundedSpeechScheduler({
+  const fake: SpeechOutput = {
     async play(segment, { signal, report }) {
       await sleep(clock, fillers.includes(segment.text) ? 0 : ttsMs, signal);
       if (signal.aborted) return { state: 'interrupted', evidence: 'estimated' };
@@ -102,7 +108,9 @@ export function driverHarness(
         : { state: 'completed', evidence: 'confirmed' };
     },
     async interrupt() {},
-  });
+  };
+  // A real output (`output`) records no `audio` or `cut` here.
+  const scheduler = new BoundedSpeechScheduler(output ?? fake);
   const ended: string[] = [];
   /** `reason` or `reason:detail`, for each end the driver asked for. */
   const endings: string[] = [];

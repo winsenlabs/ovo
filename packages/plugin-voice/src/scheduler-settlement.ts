@@ -14,6 +14,8 @@ export interface QueueEntry {
   order: number;
   /** The output reported this line's audio reaching the carrier. */
   sent?: boolean;
+  /** The output is playing this line (its prepare has returned). */
+  playing?: boolean;
   /** P1: hold() took this line back before its audio reached the carrier. */
   held?: boolean;
   /** The output was asked to prepare this line while it was held. */

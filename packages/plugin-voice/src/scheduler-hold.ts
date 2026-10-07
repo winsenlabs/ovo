@@ -1,6 +1,9 @@
 import type { SpeechOutput } from '@winsendotai/ovo-contracts';
 import type { QueueEntry } from './scheduler-settlement.ts';
 
+/** How a held line left the output: `kept` its preparation, or after aborting `playing`. */
+export type TakenBack = { kept: boolean; playing?: Promise<unknown> };
+
 /**
  * P1: the caller started talking before hearing any of the reply. While held no line starts, and
  * a line already playing whose audio has not reached the carrier is taken back, to play on release
@@ -43,7 +46,10 @@ export class SpeechHold {
       if (entry.sent || entry.held || entry.segment.epoch !== epoch) continue;
       entry.held = true;
       this.returning += 1;
-      controller.abort(new DOMException('speech held for the caller', 'AbortError'));
+      // A line still being prepared returns once prepared, keeping its synthesis; only a line the
+      // output is playing has to be stopped.
+      if (entry.playing)
+        controller.abort(new DOMException('speech held for the caller', 'AbortError'));
     }
   }
 
@@ -69,13 +75,48 @@ export class SpeechHold {
     return true;
   }
 
-  /** A held line has left the output; a `current` one waits in the queue again, in order. */
-  returned(entry: QueueEntry, current: boolean): boolean {
-    entry.held = entry.prepared = false;
+  /**
+   * How a held line whose play threw goes back: after the output's play, or with its preparation
+   * (a failed one is redone on the next play). An epoch's flush or a timeout during the preparation
+   * ends it as any line; undefined then, and for a line not held.
+   */
+  takenBack(entry: QueueEntry, playing: Promise<unknown> | undefined, aborted: boolean) {
+    if (!entry.held) return undefined;
+    if (playing) return { kept: false, playing };
+    if (!aborted) return { kept: true };
+    this.returned(entry, false);
+    return undefined;
+  }
+
+  /**
+   * A held line goes back in the queue unless no longer `current`; else the reason it was not.
+   * One the output was playing goes back only once that play has unwound: the output keys its
+   * per-line state by segment, and the old play's cleanup would otherwise tear down the replay's
+   * (a TypeError in the native output, a silently dropped line in the session's cached one).
+   */
+  async giveBack(
+    entry: QueueEntry,
+    taken: TakenBack,
+    current: () => boolean,
+    timeoutMs: number,
+  ): Promise<string | undefined> {
+    const unwound = taken.playing ? await settledWithin(taken.playing, timeoutMs) : true;
+    if (this.returned(entry, unwound && current(), taken.kept)) return undefined;
+    return unwound ? 'stale response epoch' : 'held speech did not stop playing';
+  }
+
+  /**
+   * A held line has left the output; a `current` one waits in the queue again, in order. One that
+   * `kept` its preparation keeps the signal it was prepared under; one that was stopped is
+   * prepared afresh.
+   */
+  returned(entry: QueueEntry, current: boolean, kept = false): boolean {
+    entry.held = false;
+    entry.prepared = kept;
     this.returning -= 1;
     this.lines.active.delete(entry);
     if (!current) return false;
-    entry.controller = new AbortController();
+    if (!kept) entry.controller = new AbortController();
     const queue = this.lines.queue;
     const index = queue.findIndex((queued) => queued.order > entry.order);
     queue.splice(index < 0 ? queue.length : index, 0, entry);
@@ -97,4 +138,17 @@ export class SpeechHold {
       void prepare(entry.segment, entry.controller.signal).catch(() => undefined);
     }
   }
+}
+
+/** False when `operation` (an output ignoring an abort) has not settled within `timeoutMs`. */
+function settledWithin(operation: Promise<unknown>, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), timeoutMs);
+    timer.unref?.();
+    const done = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    operation.then(done, done);
+  });
 }

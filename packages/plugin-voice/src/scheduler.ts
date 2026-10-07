@@ -5,10 +5,10 @@ import type {
   SpeechReceipt,
   TextFilter,
 } from '@winsendotai/ovo-contracts';
-import { raceAbort } from './async.ts';
 import { resolveSpeechSchedulerConfig, SpeechQueueBudget } from './budgets.ts';
 import { SpeechEvidenceHistory } from './history.ts';
 import { SpeechHold } from './scheduler-hold.ts';
+import { playLine, type LinePlayback } from './scheduler-play.ts';
 import { SpeechSettlement, type QueueEntry } from './scheduler-settlement.ts';
 import { filterSpeechText, orderTextFilters } from './speech/text-filters.ts';
 import type { SpeechTimingSink } from './speech/timing.ts';
@@ -18,7 +18,6 @@ import {
   type SpeechEvidence,
   type SpeechKind,
   type SpeechOutput,
-  type SpeechOutputResult,
   type SpeechSchedulerConfig,
   type SpeechSegment,
 } from './types.ts';
@@ -49,6 +48,7 @@ export class BoundedSpeechScheduler implements Speech {
   private _epoch = 0;
   /** P1: no line starts while the caller speaks over a reply they have not heard yet. */
   private readonly holds: SpeechHold;
+  private readonly lines: LinePlayback;
 
   constructor(
     private readonly output: SpeechOutput,
@@ -62,6 +62,15 @@ export class BoundedSpeechScheduler implements Speech {
     this.history = this.evidence.entries;
     const playing = () => [...this.tasks, ...(this.pumping ? [this.pumping] : [])];
     this.holds = new SpeechHold({ queue: this.queue, active: this.active, output, playing });
+    this.lines = {
+      output,
+      holds: this.holds,
+      evidence: this.evidence,
+      settlement: this.settlement,
+      active: this.active,
+      timeoutMs: this.limits.playbackTimeoutMs,
+      epoch: () => this._epoch,
+    };
   }
 
   get epoch(): number {
@@ -227,46 +236,12 @@ export class BoundedSpeechScheduler implements Speech {
   }
 
   private async play(entry: QueueEntry): Promise<void> {
-    const controller = entry.controller;
-    this.active.set(entry, controller);
-    this.evidence.record(entry.segment, 'started', 'generated');
-    const timeout = setTimeout(() => {
-      controller.abort(new DOMException('speech playback timed out', 'TimeoutError'));
-    }, this.limits.playbackTimeoutMs);
-    timeout.unref?.();
-
-    try {
-      // Raced, so a line taken back for the caller (P1) leaves even a prepare that ignores aborts.
-      const preparing = this.output.prepare?.(entry.segment, controller.signal);
-      if (preparing) await raceAbort(preparing, controller.signal);
-      const result = await raceAbort(
-        this.output.play(entry.segment, {
-          signal: controller.signal,
-          report: (phase, evidence) => {
-            if (this.holds.reported(entry, phase))
-              this.evidence.record(entry.segment, phase, evidence);
-          },
-        }),
-        controller.signal,
-      );
-      if (entry.held) return this.requeue(entry);
-      const current = entry.segment.epoch === this._epoch && !controller.signal.aborted;
-      this.settlement.finished(entry, result, current);
-    } catch (error) {
-      if (entry.held) return this.requeue(entry);
-      await this.settlement.failed(entry, controller.signal, error, (epoch) =>
-        this.output.interrupt(epoch),
-      );
-    } finally {
-      clearTimeout(timeout);
-      if (this.active.get(entry) === controller) this.active.delete(entry);
-    }
-  }
-
-  /** A held line has left the output: it waits in the queue again, unless its epoch ended. */
-  private requeue(entry: QueueEntry): void {
-    if (!this.holds.returned(entry, !this.disposed && entry.segment.epoch === this._epoch))
-      this.settlement.interrupted(entry, 'stale response epoch');
+    const taken = await playLine(this.lines, entry);
+    if (!taken) return;
+    // A held line goes back in the queue (SpeechHold.giveBack), unless its epoch ended.
+    const current = () => !this.disposed && entry.segment.epoch === this._epoch;
+    const dropped = await this.holds.giveBack(entry, taken, current, this.limits.playbackTimeoutMs);
+    if (dropped) this.settlement.interrupted(entry, dropped);
     this.ensurePump();
   }
 

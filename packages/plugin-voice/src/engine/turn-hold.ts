@@ -67,7 +67,9 @@ export class ReplyHold {
 
   started(turnId: string): void {
     this.openTurn = turnId;
-    this.consider(turnId);
+    // Held a microtask later: a turn the detector drops in the same tick (muted, while a tool runs
+    // or a disclosure plays) holds nothing, so the reply's synthesis is not stopped for it.
+    queueMicrotask(() => this.consider(turnId));
   }
 
   /** The turn's words so far: it is speech, and a reply its VAD start did not hold is held now. */
@@ -82,6 +84,8 @@ export class ReplyHold {
   }
 
   release(reason: Release): void {
+    // Closing: a turn that started this tick holds nothing either.
+    if (reason === 'closing') this.openTurn = undefined;
     const turnId = this.turnId;
     if (turnId === undefined) return;
     this.turnId = undefined;
