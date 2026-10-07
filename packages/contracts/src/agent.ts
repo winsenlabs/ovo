@@ -9,6 +9,7 @@ import { AgentCompliance } from './agent-compliance.ts';
 import { AgentDecisionPolicy } from './agent-decision.ts';
 import { AgentGuardrailPolicy } from './agent-guardrail.ts';
 import { AgentHandoff, handoffIssues } from './human-handoff.ts';
+import { AgentLanguages, agentLanguageIssues } from './agent-language.ts';
 import { AgentKnowledgePolicy } from './agent-knowledge.ts';
 import { AgentDecisionUnavailable, AgentIdle, AgentRecovery } from './agent-recovery.ts';
 import { AgentRules } from './agent-rules.ts';
@@ -21,6 +22,7 @@ export * from './agent-recovery.ts';
 export * from './agent-rules.ts';
 export * from './agent-jev-only.ts';
 export * from './agent-compliance.ts';
+export * from './agent-language.ts';
 
 export const JsonSchema = z.record(z.string(), z.unknown());
 export type JsonSchema = z.infer<typeof JsonSchema>;
@@ -131,6 +133,8 @@ export const AgentConfig = z
     reply: AgentReplyPacing.optional(),
     /** Outbound collections compliance: calling hours, recording disclosure, caller opt-out. */
     compliance: AgentCompliance.optional(),
+    /** Agent mode only: the languages a caller may speak; the agent replies in its own (N4). */
+    languages: AgentLanguages.optional(),
     faqMargin: z.number().min(0).max(1).default(0.15),
     clarification: z.string().default('Please clarify your question.'),
     context: z.string().max(100000).default(''),
@@ -235,6 +239,8 @@ export const AgentConfig = z
         ctx.addIssue({ code: 'custom', message: `${field} requires agent mode`, path: [field] });
     for (const found of handoffIssues(config))
       ctx.addIssue({ code: 'custom', message: found.message, path: found.path });
+    for (const found of agentLanguageIssues(config))
+      ctx.addIssue({ code: 'custom', message: found.message, path: ['languages', ...found.path] });
     checkRoutingTargets(config, ctx);
   });
 

@@ -4,7 +4,7 @@ import type { ElevenLabsSttBinding } from './provider.ts';
 // BCP-47 base subtags (ISO 639-1 where one exists) of the Scribe v2 languages, which the realtime
 // model shares. Source:
 // https://elevenlabs.io/docs/capabilities/speech-to-text#supported-languages (retrieved 2026-10-06).
-const SCRIBE_LANGUAGES = [
+export const SCRIBE_LANGUAGES: readonly string[] = [
   ...['af', 'am', 'ar', 'as', 'az', 'be', 'bg', 'bn', 'bs', 'ca', 'cs', 'cy', 'da', 'de', 'el'],
   ...['en', 'es', 'et', 'fa', 'ff', 'fi', 'fil', 'fr', 'ga', 'gl', 'gu', 'ha', 'he', 'hi', 'hr'],
   ...['hu', 'hy', 'id', 'ig', 'is', 'it', 'ja', 'jv', 'ka', 'kk', 'km', 'kn', 'ko', 'ku', 'ky'],

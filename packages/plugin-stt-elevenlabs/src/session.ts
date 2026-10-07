@@ -63,7 +63,7 @@ export class ScribeSession implements SttSession {
     this.startedAt = clock.now();
     this.once = usageOnce(input.onUsage);
     this.frames = new FrameAggregator(input.format, CHUNK_MS);
-    this.segments = new ScribeSegments(input.onEvent);
+    this.segments = new ScribeSegments(input.onEvent, () => clock.now());
     this.detach = [
       socket.on('message', (raw, binary) => this.message(raw, binary)),
       socket.on('close', (code, reason) => this.onClose(code, reason)),
@@ -173,6 +173,12 @@ export class ScribeSession implements SttSession {
     if (message.kind === 'notice') this.notice(message.type, message.detail);
     else if (message.kind === 'partial') this.segments.onPartial(message.text);
     else if (message.kind === 'committed') this.onCommitted(message.text);
+    else if (message.kind === 'language')
+      logger.info('stt_language_detected', {
+        sessionId: this.input.sessionId,
+        language: message.language,
+        expected: this.input.language,
+      });
   }
 
   private notice(type: string, detail: string): void {

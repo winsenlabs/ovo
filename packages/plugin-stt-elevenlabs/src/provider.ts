@@ -36,10 +36,29 @@ export interface ElevenLabsSttBinding {
   minSilenceDurationMs?: number;
   /**
    * 'auto' (the default) sends no language_code: the model detects the language and keeps
-   * code-mixed Hindi-English intact, as the POC did for en and hi. 'session' pins the session
-   * language's base code (ta-IN becomes `ta`).
+   * code-mixed Hindi-English intact, as the POC did for en and hi, but on 8 kHz phone audio it
+   * drifts (Tamil heard as Spanish, P9; Russian and Dutch, N4). 'session' pins a base code: the
+   * session language's (ta-IN becomes `ta`), or `sessionLanguage` when set.
    */
   languageMode?: 'auto' | 'session';
+  /**
+   * The base code 'session' pins instead of the session language's, such as `hi` for an en-IN
+   * agent whose callers speak Hinglish. Ignored in 'auto'.
+   */
+  sessionLanguage?: string;
+  /**
+   * Other languages the audio may hold, sent as `secondary_languages`; the provider's language
+   * identification then only considers these and the pinned one. [unconfirmed: the reference lists
+   * the parameter as an array without a description or its query encoding; a repeated parameter
+   * is assumed, as for keyterms. Unset (the default), nothing is sent.]
+   */
+  secondaryLanguages?: readonly string[];
+  /**
+   * Asks for `include_language_detection` and logs the language the provider detected for each
+   * commit (`stt_language_detected`, the code only), the evidence for choosing a languageMode. It
+   * arrives after the committed transcript, so it never delays a final.
+   */
+  languageDetection?: boolean;
   keyterms?: readonly string[];
   noVerbatim?: boolean;
   /** False asks for zero retention, which the provider allows on enterprise plans only. */
@@ -74,7 +93,10 @@ export function scribeUrl(
   const strategy = binding.commitStrategy ?? 'manual';
   url.searchParams.set('commit_strategy', strategy);
   if (binding.languageMode === 'session')
-    url.searchParams.set('language_code', baseLanguage(language));
+    url.searchParams.set('language_code', binding.sessionLanguage ?? baseLanguage(language));
+  for (const code of binding.secondaryLanguages ?? [])
+    url.searchParams.append('secondary_languages', code);
+  if (binding.languageDetection) url.searchParams.set('include_language_detection', 'true');
   if (strategy === 'vad') {
     const vad: [string, number | undefined][] = [
       ['vad_silence_threshold_secs', binding.vadSilenceThresholdSecs],
