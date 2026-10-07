@@ -1,4 +1,11 @@
-import type { SttEvent } from '@winsendotai/ovo-contracts';
+import { normalizeForMatch, type SttEvent } from '@winsendotai/ovo-contracts';
+
+/**
+ * How long after a commit a partial that only repeats the committed words is taken as stale. The
+ * live ones landed 12 and 23 ms after their commit (N5); a caller who says the same words again
+ * later is heard as usual.
+ */
+export const STALE_PARTIAL_MS = 2_000;
 
 /**
  * The transcript side of a Scribe session. Partials of the open segment are interim revisions; a
@@ -11,14 +18,19 @@ export class ScribeSegments {
   private partial = '';
   /** Text of a throttled commit, finalised here, that the provider still holds uncommitted. */
   private carried = '';
+  /** The last commit's words while a late partial of them may still arrive (N5). */
+  private committed?: { words: string; atMs: number };
 
-  constructor(private readonly onEvent: (event: SttEvent) => void) {}
+  constructor(
+    private readonly onEvent: (event: SttEvent) => void,
+    private readonly now: () => number = () => 0,
+  ) {}
 
   onPartial(raw: string): void {
     const text = this.uncarried(raw);
     // Repeated partials carry nothing new, and the turn detector's stall fallback relies on
     // seeing only changes.
-    if (!text || text === this.partial) return;
+    if (!text || text === this.partial || this.stale(text)) return;
     this.partial = text;
     this.transcript(text, 'interim');
   }
@@ -48,6 +60,23 @@ export class ScribeSegments {
     this.onEvent({ type: 'end-of-turn' });
     this.segment++;
     this.partial = '';
+    const words = normalizeForMatch(text);
+    this.committed = words ? { words, atMs: this.now() } : undefined;
+  }
+
+  /**
+   * N5: a partial the provider sent before its commit can land after it. Equal to the committed
+   * words, or a prefix of them ("Okay. य" after "Okay. याद नहीं।"), it would open a new segment and
+   * a phantom turn that repeats the last one. Such partials are dropped until one brings new words.
+   */
+  private stale(text: string): boolean {
+    const last = this.committed;
+    if (!last) return false;
+    const words = normalizeForMatch(text);
+    if (this.now() - last.atMs <= STALE_PARTIAL_MS && (!words || last.words.startsWith(words)))
+      return true;
+    this.committed = undefined;
+    return false;
   }
 
   private uncarried(text: string): string {

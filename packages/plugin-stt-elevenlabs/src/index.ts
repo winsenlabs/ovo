@@ -1,6 +1,6 @@
 import { Cap } from '@winsendotai/ovo-contracts';
 import { definePlugin } from '@winsendotai/ovo-runtime';
-import { SCRIBE_CAPABILITIES } from './capabilities.ts';
+import { SCRIBE_CAPABILITIES, SCRIBE_LANGUAGES } from './capabilities.ts';
 import {
   ElevenLabsStt,
   SCRIBE_HOSTS,
@@ -13,6 +13,7 @@ import { fixtures, fixtureTemplates } from './testing.ts';
 
 export {
   SCRIBE_CAPABILITIES,
+  SCRIBE_LANGUAGES,
   scribeCapabilitiesFor,
   scribeSupportsLanguage,
 } from './capabilities.ts';
@@ -68,6 +69,16 @@ export const elevenLabsSttPlugin = definePlugin(
         minSpeechDurationMs: { type: 'integer', minimum: 0, maximum: 10_000 },
         minSilenceDurationMs: { type: 'integer', minimum: 0, maximum: 10_000 },
         languageMode: { type: 'string', enum: ['auto', 'session'], default: 'auto' },
+        // N4/P9: the base code 'session' pins, the others the audio may hold, and logging of the
+        // language the provider detects per commit.
+        sessionLanguage: { type: 'string', enum: [...SCRIBE_LANGUAGES] },
+        secondaryLanguages: {
+          type: 'array',
+          maxItems: 10,
+          uniqueItems: true,
+          items: { type: 'string', enum: [...SCRIBE_LANGUAGES] },
+        },
+        languageDetection: { type: 'boolean', default: false },
         // The provider accepts up to 50 keyterms of up to 20 characters each.
         keyterms: {
           type: 'array',

@@ -54,6 +54,7 @@ export type ScribeMessage =
   | { kind: 'started'; sessionId: string }
   | { kind: 'partial'; text: string }
   | { kind: 'committed'; text: string }
+  | { kind: 'language'; language: string }
   | { kind: 'notice'; type: string; detail: string }
   | { kind: 'failure'; error: ElevenLabsSttError }
   | { kind: 'ignored' };
@@ -79,6 +80,12 @@ export function parseMessage(raw: string): ScribeMessage {
     if (typeof message.text !== 'string') return protocol(`${type} has no text`);
     return { kind: type === 'partial_transcript' ? 'partial' : 'committed', text: message.text };
   }
+  // Sent after the committed transcript when include_language_detection (or include_timestamps)
+  // is set; only its detected language is read, the text is already final.
+  if (type === 'committed_transcript_with_timestamps')
+    return typeof message.language_code === 'string' && message.language_code
+      ? { kind: 'language', language: message.language_code }
+      : { kind: 'ignored' };
   const detail = typeof message.error === 'string' ? message.error : type;
   if (NOTICES.has(type)) return { kind: 'notice', type, detail };
   if (FATAL_ERRORS.has(type))
@@ -90,8 +97,8 @@ export function parseMessage(raw: string): ScribeMessage {
         RETRYABLE_ERRORS.has(type),
       ),
     };
-  // committed_transcript_with_timestamps, entities and edits follow only opt-in parameters this
-  // plugin never sends; the plain committed transcript already carries the final text.
+  // Entities and edits follow only opt-in parameters this plugin never sends; the plain committed
+  // transcript already carries the final text.
   return { kind: 'ignored' };
 }
 
