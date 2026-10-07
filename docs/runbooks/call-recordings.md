@@ -20,8 +20,9 @@ reading the release:
 
 ## Enabling it for an agent
 
-1. Set `"recording": true` in the agent config and publish a release. Nothing else changes per
-   agent; calls already on the line keep the release they started with.
+1. Set `"recording": true` in the agent config (in the console: Studio, "Request recording for
+   new releases") and publish a release. Nothing else changes per agent; calls already on the
+   line keep the release they started with.
 2. Say so at the start of the call, before any account detail: `compliance.disclosure.text`
    (agent mode, spoken first and pre-rendered), or the flow's first line in flow mode. See the
    DPDP section for the wording decision.
