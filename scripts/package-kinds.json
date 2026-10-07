@@ -47,6 +47,7 @@
     "packages/plugin-tools": "plugin",
     "packages/plugin-tools-http": "plugin",
     "packages/plugin-tools-mcp": "plugin",
+    "packages/plugin-audio-filter": "plugin",
     "packages/ui": "console",
     "apps/api": "app",
     "apps/dispatcher": "app",

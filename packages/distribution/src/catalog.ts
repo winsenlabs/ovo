@@ -199,4 +199,9 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
     roles: ['api'],
     load: () => import('@winsendotai/ovo-plugin-evaluations'),
   },
+  {
+    package: '@winsendotai/ovo-plugin-audio-filter',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-audio-filter'),
+  },
 ];

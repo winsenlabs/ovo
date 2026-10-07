@@ -377,6 +377,9 @@ importers:
       '@winsendotai/ovo-fixture-calls':
         specifier: workspace:*
         version: link:../fixture-calls
+      '@winsendotai/ovo-plugin-audio-filter':
+        specifier: workspace:*
+        version: link:../plugin-audio-filter
       '@winsendotai/ovo-plugin-cache':
         specifier: workspace:*
         version: link:../plugin-cache
@@ -503,6 +506,28 @@ importers:
       '@winsendotai/ovo-session-host':
         specifier: workspace:*
         version: link:../session-host
+
+  packages/plugin-audio-filter:
+    dependencies:
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@winsendotai/ovo-audio':
+        specifier: workspace:*
+        version: link:../audio
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
 
   packages/plugin-cache:
     dependencies:
