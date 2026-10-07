@@ -36,7 +36,11 @@ export interface AgentBehaviorOptions {
 export interface AgentToolErrorRecord {
   turn: number;
   toolId: string;
-  kind: 'unknown-or-unapproved' | 'invalid-input';
+  /**
+   * `protocol`: tool and text out of order, or two tool calls in one reply. `inference`: the
+   * provider failed; `toolId` is then empty.
+   */
+  kind: 'unknown-or-unapproved' | 'invalid-input' | 'protocol' | 'inference';
   message: string;
   at: string;
 }
@@ -78,3 +82,21 @@ export const END_CALL_TOOL: ToolDefinition = {
   confirmation: false,
   timeoutMs: 1_000,
 };
+
+/** Only an offered `end_call` with valid input ends the call; anything else is a protocol error. */
+export function isEndCall(
+  tools: readonly ToolDefinition[],
+  validators: ReadonlyMap<string, ValidateFunction>,
+  input: unknown,
+): boolean {
+  const validate = validators.get(END_CALL_TOOL_ID);
+  return Boolean(validate && tools.some((tool) => tool.id === END_CALL_TOOL_ID) && validate(input));
+}
+
+/** The completion reason of an LLM's `end_call`, with the reason it gave. */
+export function endCallReason(input: unknown): string {
+  const reason = (input as { reason?: unknown }).reason;
+  return typeof reason === 'string' && reason.trim()
+    ? `llm:end_call:${reason.trim()}`
+    : 'llm:end_call';
+}

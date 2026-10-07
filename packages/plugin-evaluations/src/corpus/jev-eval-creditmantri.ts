@@ -67,6 +67,9 @@ const identity = listen('identity', [
   ["Stop calling me, don't call this number again.", 'stop_calling', 'en'],
   ['Shut up, you idiot.', 'abusive', 'en'],
   ['hmm', 'other', 'en', 'backchannel short'],
+  // 2026-10-07 call B: asking the agent to wait or listen is not busy, and not an opt-out.
+  ['Yeah, and just wait, uh, one minute.', 'hold', 'en-IN', 'noisy'],
+  ['Okay, so listen to me one by one.', 'hold', 'en-IN'],
   ['Is this about the Diwali offer?', 'other', 'en-IN'],
 ]);
 
@@ -100,6 +103,9 @@ const payment = listen('payment', [
   ["I'm busy now, call me later.", 'busy', 'en'],
   ['Let me talk to your manager.', 'human_agent', 'en'],
   ['Stop calling me every day.', 'stop_calling', 'en'],
+  ['Ananya, please stop.', 'hold', 'en-IN'],
+  ['Okay, stop.', 'hold', 'en', 'short'],
+  ['One minute.', 'hold', 'en', 'short'],
   ['What is my total outstanding?', 'other', 'en', 'question'],
   ['ok', 'other', 'en', 'backchannel short'],
   ['hmm hmm', 'other', 'en', 'backchannel short'],
@@ -129,6 +135,8 @@ const wrapup = listen('wrapup', [
   ['Actually, can you tell me my loan balance?', 'other', 'en', 'question'],
   ['Yes, one more thing.', 'other', 'en', 'qualified'],
   ["Just don't call me again.", 'stop_calling', 'en'],
+  // 2026-10-07 call A, after the LLM gave the helpline number.
+  ['Can you repeat the number?', 'repeat', 'en'],
 ]);
 
 const confirmWeek = listen('confirm_week', [

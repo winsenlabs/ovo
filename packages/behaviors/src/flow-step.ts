@@ -8,6 +8,16 @@ export interface AppliedFlowStep {
   speak?: string;
   /** The call ends once this turn's reply has played; `flow:<node>`. */
   end?: string;
+  /**
+   * Per line of `lines`, the id of a mandatory line the caller must hear in full (P5); the agent
+   * reports each one's playback to `FlowSession.heard`.
+   */
+  mandatory?: (string | undefined)[];
+  /**
+   * The lines restate rather than say something new (a repeat, a hold, a clarification, a node
+   * said again), so a later repeat does not replay them.
+   */
+  replay?: boolean;
 }
 
 /**
@@ -28,30 +38,41 @@ export function applyFlowStep(
     if (step.action === 'llm') return {};
     const line = step.line ? renderFlowLines([step.line], options.render).lines[0] : undefined;
     const text = line ?? options.clarification;
-    return { lines: [text], speak: text };
+    return { lines: [text], speak: text, replay: true };
   }
-  const { lines, skipped } = renderFlowLines(step.lines, options.render);
+  const { lines, ids, skipped } = renderFlowLines(step.lines, options.render);
   flow.commit(step, skipped);
   const end = step.kind === 'enter' && step.end ? { end: `flow:${step.node}` } : {};
-  return lines.length ? { lines, speak: lines.join(' '), ...end } : end;
+  if (!lines.length) return end;
+  const unheard = flow.unheardLines;
+  const mandatory = ids.map((id) => (unheard.includes(id) ? id : undefined));
+  return {
+    lines,
+    speak: lines.join(' '),
+    ...end,
+    ...(mandatory.some(Boolean) ? { mandatory } : {}),
+    ...(step.kind === 'repeat' ? { replay: true } : {}),
+  };
 }
 
 export function renderFlowLines(
   lines: readonly FlowLine[],
   render: (template: string) => string,
-): { lines: string[]; skipped: string[] } {
+): { lines: string[]; ids: string[]; skipped: string[] } {
   const rendered: string[] = [];
+  const ids: string[] = [];
   const skipped: string[] = [];
   for (const line of lines) {
     try {
-      rendered.push(render(line.template));
+      rendered.push(line.rendered ? line.template : render(line.template));
+      ids.push(line.id);
     } catch (error) {
       // swallow-ok: recorded on the transition as `skippedLines`; the rest of the node still plays.
       if (!(error instanceof AnnouncementValidationError)) throw error;
       skipped.push(line.id);
     }
   }
-  return { lines: rendered, skipped };
+  return { lines: rendered, ids, skipped };
 }
 
 /**

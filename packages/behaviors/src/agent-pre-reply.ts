@@ -45,6 +45,10 @@ export interface PreReply {
   context: string;
   /** A trusted decision ends the call once this turn's reply has played. */
   end?: string;
+  /** Per line of `lines`, the flow's mandatory line id it says (P5). */
+  mandatory?: (string | undefined)[];
+  /** The lines restate rather than say something new; a later repeat does not replay them. */
+  replay?: boolean;
   /**
    * Applied to each sentence of the LLM's reply before it is spoken: the text to speak, or
    * undefined to drop it. Authored lines (`speak`) are never checked.

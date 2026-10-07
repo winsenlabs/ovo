@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { DecisionRequest } from '@winsendotai/ovo-contracts';
-import { AgentToolSelectionError } from '../src/index.ts';
 import {
   agent,
   call,
@@ -118,7 +117,10 @@ describe('ending the call (AGT-3)', () => {
   it('never offers end_call unless the agent allows it', async () => {
     const model = llm([{ kind: 'tool', toolId: 'end_call', input: { goodbye: 'Bye.' } }]);
     const { behavior } = agent({}, { llm: model });
-    await expect(behavior.respond('bye', call)).rejects.toBeInstanceOf(AgentToolSelectionError);
+    // A model that calls it anyway is answered, not hung up on, and the call stays open (P8).
+    expect(await behavior.respond('bye', call)).toBe(behavior.config.uncertainty);
+    expect(behavior.toolErrors).toMatchObject([{ toolId: 'end_call' }]);
+    expect(behavior.isComplete()).toBe(false);
     expect(model.requests[0]!.tools).toEqual([]);
   });
 });

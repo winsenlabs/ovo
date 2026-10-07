@@ -1,10 +1,18 @@
-import type {
-  DecisionPort,
-  DecisionRequest,
-  DecisionStateSource,
-  DecisionTrace,
+import {
+  findFlowIntent,
+  flowDecisionRequest,
+  matchFlowPhrase,
+  readFlowAnswer,
+  type CompiledFlow,
+  type DecisionPort,
+  type DecisionRequest,
+  type DecisionStateSource,
+  type DecisionTrace,
+  type FlowIntent,
+  type FlowTransition,
 } from '@winsendotai/ovo-contracts';
 import type { DecisionTurn } from './decision-gate.ts';
+import type { FlowSessionOptions } from './flow-types.ts';
 import { spokenHistory } from './history.ts';
 
 export interface DecisionClock {
@@ -92,4 +100,83 @@ export function flowDecisionState(
     else if (source === 'knowledge') state.retrieved = turn.retrieved ?? '';
   }
   return state;
+}
+
+type FlowTrace = Partial<FlowTransition> & Pick<FlowTransition, 'tier'>;
+
+/** What a caller's reply means in a listen set: an intent to follow, or the fallback and why. */
+export type FlowReply =
+  | {
+      kind: 'intent';
+      intent: FlowIntent;
+      slots: Readonly<Record<string, string>>;
+      trace: FlowTrace;
+    }
+  | {
+      kind: 'fallback';
+      trace: Partial<FlowTransition>;
+      unavailable?: { reason: 'timeout' | 'error' | 'invalid'; message: string };
+    };
+
+/**
+ * A flow's tiers for one reply in `listen`: a whole-reply phrase (no network), then one decision
+ * request scoped to the listen set, the globals and `other`. A model that is down, slow or
+ * incoherent is reported as the fallback's reason, never thrown.
+ */
+export async function decideFlowReply(
+  compiled: CompiledFlow,
+  options: FlowSessionOptions,
+  at: { node?: string; listen: string },
+  turn: DecisionTurn,
+  signal: AbortSignal,
+): Promise<FlowReply> {
+  const { listen } = at;
+  const rules = options.rules ?? ((reply) => matchFlowPhrase(compiled, listen, reply));
+  const ruled = rules(turn.input, listen, compiled);
+  const matched = ruled === undefined ? undefined : findFlowIntent(compiled, listen, ruled);
+  if (matched)
+    return {
+      kind: 'intent',
+      intent: matched,
+      slots: {},
+      trace: { tier: 'rule', intent: matched.key, confidence: 1 },
+    };
+
+  const request = flowDecisionRequest(
+    compiled,
+    listen,
+    flowDecisionState(turn, options.transcriptTurns ?? 6, options.sources ?? []),
+  );
+  const call = await callDecision(options.port, request, {
+    timeoutMs: options.timeoutMs,
+    signal,
+    ...(options.clock ? { clock: options.clock } : {}),
+    trace: { flow: { ...(at.node ? { node: at.node } : {}), listen } },
+  });
+  if (!call.ok)
+    return {
+      kind: 'fallback',
+      trace: { reason: 'unavailable' },
+      unavailable: { reason: call.reason, message: call.message },
+    };
+  let answer;
+  try {
+    answer = readFlowAnswer(compiled, request, call.response, listen);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      kind: 'fallback',
+      trace: { reason: 'unavailable' },
+      unavailable: { reason: 'invalid', message },
+    };
+  }
+  const judged = { intent: answer.intent, confidence: answer.confidence, modelId: answer.modelId };
+  if (answer.kind !== 'intent')
+    return { kind: 'fallback', trace: { reason: answer.kind, ...judged } };
+  return {
+    kind: 'intent',
+    intent: findFlowIntent(compiled, listen, answer.intent)!,
+    slots: answer.slots,
+    trace: { tier: 'decision', ...judged, slots: answer.slots },
+  };
 }

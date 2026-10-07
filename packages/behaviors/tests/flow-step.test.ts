@@ -57,9 +57,11 @@ describe('applying a flow step', () => {
     });
     applyFlowStep(flow, flow.begin()!, { render: plain, clarification });
     const step = await flow.next(turn('blah'), live());
+    // A clarification restates; a later repeat replays what came before it, not it.
     expect(applyFlowStep(flow, step, { render: plain, clarification })).toEqual({
       lines: [clarification],
       speak: clarification,
+      replay: true,
     });
   });
 

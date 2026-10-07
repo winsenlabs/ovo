@@ -183,18 +183,35 @@ describe('flow validation', () => {
     );
   });
 
-  it('needs exactly one of next and repeat on every intent', () => {
+  it('needs exactly one of next, repeat and hold on every intent', () => {
     expect(
       edit((flow) => {
         flow.globalIntents[0] = { ...flow.globalIntents[0]!, next: 'goodbye' } as never;
         delete (flow.globalIntents[1] as { next?: string }).next;
       }),
     ).toEqual([
-      'An intent needs exactly one of `next` or `repeat`',
-      'An intent needs exactly one of `next` or `repeat`',
+      'An intent needs exactly one of `next`, `repeat` or `hold`',
+      'An intent needs exactly one of `next`, `repeat` or `hold`',
       // Its only route was the global intent that just lost its `next`.
       'Node stop_calling cannot be reached from greet',
     ]);
+    expect(
+      edit((flow) => {
+        flow.globalIntents.push({ key: 'hold', description: 'Wait', hold: true, repeat: true });
+      }),
+    ).toEqual(['An intent needs exactly one of `next`, `repeat` or `hold`']);
+    expect(
+      edit((flow) => flow.globalIntents.push({ key: 'hold', description: 'Wait', hold: true })),
+    ).toEqual([]);
+  });
+
+  it('checks the hold prefix and that mandatory lines are lines the node says', () => {
+    expect(
+      edit((flow) => {
+        (flow as { holdPrefix?: string }).holdPrefix = 'take_your_time';
+        flow.nodes[2]!.mandatory = ['emi', 'goodbye'];
+      }),
+    ).toEqual(['Line take_your_time does not exist', 'Line goodbye is not one the node says']);
   });
 
   it('checks slot routes against the listen set that asks the slot', () => {
@@ -254,15 +271,18 @@ describe('compiling a flow', () => {
     expect(() => compileFlow(parse({ start: 'nowhere' }))).toThrow(FlowCompileError);
   });
 
-  it('lets the LLM resume only before identity is confirmed until it is', () => {
+  it('lets the LLM resume only before identity is confirmed until it is, and after it after', () => {
     const compiled = compileFlow(parse());
     expect(compiled.gatesIdentity).toBe(true);
     expect([...compiled.preVerificationListens]).toEqual(['identity']);
+    // Once confirmed, "am I speaking with…?" is no place to hand the call back to.
+    expect([...compiled.postVerificationListens].sort()).toEqual(['payment', 'wrapup']);
     const open = compileFlow(
       parse({ nodes: collectionsFlow().nodes.map((node) => ({ ...node, verified: false })) }),
     );
     expect(open.gatesIdentity).toBe(false);
     expect([...open.preVerificationListens].sort()).toEqual(['identity', 'payment', 'wrapup']);
+    expect([...open.postVerificationListens].sort()).toEqual(['identity', 'payment', 'wrapup']);
   });
 
   it('greets first only when an enabled flow starts on a node with lines', () => {

@@ -25,6 +25,10 @@ export interface DecisionStepResult {
   lines?: string[];
   /** The call ends once this turn's reply has played; `<question>=<answer>` or `flow:<node>`. */
   end?: string;
+  /** Per line of `lines`, the flow's mandatory line id it says (`AppliedFlowStep.mandatory`). */
+  mandatory?: (string | undefined)[];
+  /** The lines restate rather than say something new (`AppliedFlowStep.replay`). */
+  replay?: boolean;
 }
 
 /**

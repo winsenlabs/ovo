@@ -62,6 +62,11 @@ export class RecoveryState {
     this.phrases = new Set(config.recovery?.repeat?.phrases.map(normalizeUtterance) ?? []);
   }
 
+  /** The lines of the last conversational turn, most recent turn only. */
+  get lastSaid(): readonly string[] {
+    return this.lastLines;
+  }
+
   /** A line the conversation said (not a recovery or idle line): what a repeat replays. */
   remember(turn: number, line: string): void {
     if (turn !== this.lastTurn) {

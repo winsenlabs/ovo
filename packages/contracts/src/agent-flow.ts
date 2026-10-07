@@ -97,10 +97,22 @@ export const FlowIntent = z
      * yes-rule alone expands to 324 phrases.
      */
     phrases: z.array(Phrase).max(FLOW_MAX_PHRASES).default([]),
-    /** Where the conversation goes. Exactly one of `next` and `repeat` is set. */
+    /** Where the conversation goes. Exactly one of `next`, `repeat` and `hold` is set. */
     next: FlowRoute.optional(),
-    /** Say the agent's last lines again instead of moving ("sorry, what?"). */
+    /** Say what the agent last said again instead of moving ("can you repeat that?"). */
     repeat: z.boolean().optional(),
+    /**
+     * The caller asks the agent to wait or to stop and listen ("one minute", "stop, listen"): stay
+     * in the state and ask its question again, after the flow's `holdPrefix`. Unlike `repeat`, it
+     * says only the question, not everything the agent said.
+     */
+    hold: z.boolean().optional(),
+    /**
+     * The confidence this intent needs, when it needs more than the flow's `threshold`. An intent
+     * that cannot be undone (one that ends the call, or lists the number as do-not-call) should not
+     * be taken on a guess: "please stop" said to an agent talking over the caller is not an opt-out.
+     */
+    threshold: z.number().finite().min(0).max(1).optional(),
   })
   .strict();
 export type FlowIntent = z.infer<typeof FlowIntent>;
@@ -131,7 +143,10 @@ export const FlowNode = z
     say: z.array(Key).max(10).default([]),
     /** The listen set that interprets the caller's next reply. Every node that does not end has one. */
     listen: Key.optional(),
-    /** The call ends once this node's lines have played (a caller who barges in keeps it open). */
+    /**
+     * The call ends after this node's lines. It is final: a caller who barges in on them hears
+     * them once more if they were cut before any line finished, and then the call ends anyway.
+     */
     end: z.boolean().default(false),
     /** The business outcome recorded on entering the node, such as `promise_to_pay:tomorrow`. */
     disposition: z
@@ -145,6 +160,12 @@ export const FlowNode = z
     verified: z.boolean().default(false),
     /** Overrides the endpointing of the node's listen set. */
     endpointing: FlowEndpointing.optional(),
+    /**
+     * Lines of `say` the caller must hear in full, such as a recording notice or the disclosure of
+     * what the call is about. Until each has played to the end, the node's `verified` does not
+     * count, and the caller's next reply hears the node again from the first unheard one.
+     */
+    mandatory: z.array(Key).max(10).optional(),
   })
   .strict();
 export type FlowNode = z.infer<typeof FlowNode>;
@@ -172,6 +193,8 @@ export const AgentFlow = z
     clarify: Key.optional(),
     /** Spoken before the replayed lines of a `repeat` intent. */
     repeatPrefix: Key.optional(),
+    /** Spoken before the question a `hold` intent asks again ("Sure, take your time."). */
+    holdPrefix: Key.optional(),
     /**
      * The endpointing of a state whose node and listen set set none. Without it such a state keeps
      * whatever was last sent, because the binding's own setting cannot be restored mid-call.
@@ -199,8 +222,16 @@ export interface FlowTransition {
   slots?: Record<string, string>;
   modelId?: string;
   disposition?: string;
-  /** Why a fallback ran, or why an LLM resume point was refused. */
-  reason?: 'other' | 'low-confidence' | 'unavailable' | 'ended' | 'invalid-resume';
+  /**
+   * Why a fallback ran, why an LLM resume point was refused, or `unheard`: the node's mandatory
+   * lines had not been heard, so the node was said again instead of following `intent`.
+   */
+  reason?: 'other' | 'low-confidence' | 'unavailable' | 'ended' | 'invalid-resume' | 'unheard';
   /** Line ids this call's variables could not fill, so they were not spoken. */
   skippedLines?: string[];
+  /**
+   * Mandatory line ids the caller never heard in full: the node was said again as often as the
+   * flow allows, and the call moved on without them.
+   */
+  unheardLines?: string[];
 }

@@ -261,7 +261,8 @@ describe('rejoining after the LLM (AGT-7)', () => {
     flow.rejoin('payment', false);
     expect(flow.state.listen).toBe('identity');
     await say(flow, 'yes');
-    expect(flow.resumeOptions(true)).toEqual(['identity', 'payment', 'wrapup', 'end']);
+    // Confirmed: the LLM goes forward from here, never back to asking who picked up.
+    expect(flow.resumeOptions(true)).toEqual(['payment', 'wrapup', 'end']);
   });
 
   it('records an LLM turn that kept the flow where it was', async () => {

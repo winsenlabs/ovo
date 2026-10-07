@@ -11,7 +11,7 @@ import type { DecisionGateResult, FlowSession } from './decision-gate.ts';
 import type { AgentVariables } from './agent-variables.ts';
 import { IdleLines } from './idle.ts';
 import { RecoveryState, renderLines, type AuthoredLine, type RecoveryPlan } from './reprompt.ts';
-import { disclosureLine, withDisclosure } from './disclosure.ts';
+import { DISCLOSURE_FIELD, disclosureLine, withDisclosure } from './disclosure.ts';
 
 /** Where a caller turn goes: recovery lines, or the decision step's answer (no `say`: the LLM). */
 export type CallerTurn =
@@ -24,6 +24,8 @@ export interface ScriptedLinesHost {
   skipped(field: string): void;
   /** Speaks a line; `conversational` lines are what a later repeat replays. */
   say(text: string, conversational: boolean): string;
+  /** `text` is about to be said and must be heard in full as `id` (P5). */
+  mustHear(id: string, text: string): void;
 }
 
 /**
@@ -115,13 +117,25 @@ export class ScriptedLines {
       })),
     );
     const rendered = this.render(lines, variables);
+    const disclosure = disclosureLine(this.config);
+    const mustHear: (string | undefined)[] = rendered.map((text) =>
+      text === disclosure ? DISCLOSURE_FIELD : undefined,
+    );
     const started = openFlow(flow, {
       render: (line) => this.variables.render(line, variables),
       clarification: this.config.clarification,
     });
-    rendered.push(...(started?.lines ?? []));
-    if (started?.end !== undefined) this.host.ending.arm(`decision:${started.end}`);
-    for (const line of rendered) yield this.host.say(line, true);
+    for (const [index, line] of (started?.lines ?? []).entries()) {
+      rendered.push(line);
+      mustHear.push(started?.mandatory?.[index]);
+    }
+    if (started?.end !== undefined)
+      this.host.ending.arm(`decision:${started.end}`, { terminal: true });
+    for (const [index, line] of rendered.entries()) {
+      const id = mustHear[index];
+      if (id !== undefined) this.host.mustHear(id, line);
+      yield this.host.say(line, true);
+    }
     this.host.ending.seal();
   }
 
