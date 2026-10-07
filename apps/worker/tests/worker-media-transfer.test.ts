@@ -58,14 +58,17 @@ function runtime(transfer?: Record<string, unknown>) {
       }),
     } as never,
   });
+  // The production factory, inside the wrapper that keeps the engine's end reason (N2).
   const close = (reason: EndReason) =>
     (
       media as unknown as {
         factory: {
-          beforeEngineMediaClose(job: unknown, route: unknown, reason: EndReason): Promise<void>;
+          factory: {
+            beforeEngineMediaClose(job: unknown, route: unknown, reason: EndReason): Promise<void>;
+          };
         };
       }
-    ).factory.beforeEngineMediaClose(job, route, reason);
+    ).factory.factory.beforeEngineMediaClose(job, route, reason);
   return { close, order, handoff };
 }
 

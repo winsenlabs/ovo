@@ -21,6 +21,14 @@ export interface SpeechReceipt {
   evidence: 'simulated' | 'estimated' | 'confirmed';
   /** Set when weaker carrier evidence was accepted as confirmed by acknowledgement (§2.5). */
   evidenceSource?: PlaybackEvidence;
+  /**
+   * How long the line played to the caller before it settled, in milliseconds: from when its audio
+   * reached the carrier (or the line before it finished playing, if later) to its completion or
+   * cut. 0 for a line that never played. Absent when the output does not report audio reaching
+   * the carrier. A completed line's value is its length (plus the carrier's acknowledgement), so
+   * comparing a cut line's value with it tells how much of the line the caller heard.
+   */
+  playedMs?: number;
 }
 
 export interface Speech {

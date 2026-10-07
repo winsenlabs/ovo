@@ -2,6 +2,7 @@ import type { SpeechReceipt } from '@winsendotai/ovo-contracts';
 import { errorMessage, isAbortError } from './async.ts';
 import type { SpeechQueueBudget } from './budgets.ts';
 import type { SpeechEvidenceHistory } from './history.ts';
+import type { SpeechPlayout } from './scheduler-playout.ts';
 import type { SpeechOutputResult, SpeechSegment } from './types.ts';
 
 export interface QueueEntry {
@@ -20,6 +21,12 @@ export interface QueueEntry {
   held?: boolean;
   /** The output was asked to prepare this line while it was held. */
   prepared?: boolean;
+  /** SpeechPlayout: when its audio reached the carrier, the line still playing ahead of it then, */
+  sentAt?: number;
+  behind?: QueueEntry;
+  /** and when and how it settled. */
+  endedAt?: number;
+  completed?: boolean;
 }
 
 /** Settles promises, queue budgets and terminal evidence exactly once. */
@@ -27,6 +34,7 @@ export class SpeechSettlement {
   constructor(
     private readonly budget: SpeechQueueBudget,
     private readonly evidence: SpeechEvidenceHistory,
+    private readonly playout: SpeechPlayout,
   ) {}
 
   /** Playback returned; a line no longer `current` (aborted, or its epoch ended) was interrupted. */
@@ -100,6 +108,7 @@ export class SpeechSettlement {
     if (entry.settled) return;
     entry.settled = true;
     this.budget.remove(entry.segment.text);
-    entry.resolve(receipt);
+    const playedMs = this.playout.settled(entry, receipt.state === 'completed');
+    entry.resolve(playedMs === undefined ? receipt : { ...receipt, playedMs });
   }
 }

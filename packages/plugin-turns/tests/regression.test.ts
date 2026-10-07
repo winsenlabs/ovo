@@ -54,6 +54,12 @@ function fixture(
   return { clock, decisions, controller, send, transcript, say, speech, digits };
 }
 
+/** Mid-call speech: the opening has already played (N8 protects that; see opening.test.ts). */
+function greeted(f: ReturnType<typeof fixture>): void {
+  f.send({ type: 'bot.started', epoch: 0, kind: 'response' });
+  f.send({ type: 'bot.stopped', epoch: 0, kind: 'response' });
+}
+
 describe('turn regressions', () => {
   const speechSignals: SpeechCapabilities = {
     languages: ['en-US'],
@@ -97,6 +103,7 @@ describe('turn regressions', () => {
   });
   it('barge-in reevaluates the third interim', () => {
     const f = fixture();
+    greeted(f);
     f.send({ type: 'bot.started', epoch: 1, kind: 'response' });
     f.transcript('yeah', 'interim', 'a');
     f.transcript('ok', 'interim', 'a');
@@ -106,6 +113,7 @@ describe('turn regressions', () => {
   });
   it('uses a later interim for barge-in without replacing a final segment', () => {
     const f = fixture({}, 'faq', true);
+    greeted(f);
     f.send({ type: 'vad.start' });
     f.transcript('yeah', 'final', 'x');
     f.send({ type: 'bot.started', epoch: 1, kind: 'response' });
@@ -309,6 +317,7 @@ describe('turn regressions', () => {
   });
   it('interrupts before a late final can close the turn during bot speech', () => {
     const f = fixture({}, 'faq', true);
+    greeted(f);
     f.send({ type: 'bot.started', epoch: 1, kind: 'response' });
     f.send({ type: 'vad.start' });
     f.send({ type: 'vad.stop' });

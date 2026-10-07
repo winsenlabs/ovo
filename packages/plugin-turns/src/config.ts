@@ -57,6 +57,28 @@ export const SpeechEvidenceConfigSchema = z
 export type SpeechEvidenceConfig = z.output<typeof SpeechEvidenceConfigSchema>;
 
 /**
+ * N8: the opening (the agent's first speech, before the caller has had a turn) is protected from a
+ * single stray interim: a cough or the STT's first garbled guess must not cut the greeting.
+ */
+export const OpeningConfigSchema = z
+  .object({
+    /**
+     * Nothing barges in on the opening for this long after it starts. On the call's first line
+     * that is when its synthesis starts (no audio has reached the carrier yet to time it by), so
+     * the default allows ~300 ms of TTS first byte and carrier delay: ~1.5 s of heard audio.
+     * 0 disables.
+     */
+    protectMs: z.number().int().min(0).max(10000).default(1800),
+    /**
+     * After that, only confirmed words barge in on it: two transcript revisions that start with
+     * the same word. A lone interim the STT then revises away never does.
+     */
+    confirmWords: z.boolean().default(true),
+  })
+  .strict();
+export type OpeningConfig = z.output<typeof OpeningConfigSchema>;
+
+/**
  * The detector's row config: the shared TurnConfig plus the 'commit' strategy. In 'commit',
  * `userSpeechTimeoutMs` is a ceiling on the wait for the final after the commit, not an extra
  * wait added to it.
@@ -75,6 +97,7 @@ export const DetectorConfigSchema = TurnConfigSchema.extend({
    */
   cutoffHoldMs: z.number().int().min(0).max(10000).default(700),
   speechEvidence: SpeechEvidenceConfigSchema.default(() => SpeechEvidenceConfigSchema.parse({})),
+  opening: OpeningConfigSchema.default(() => OpeningConfigSchema.parse({})),
 });
 export type DetectorConfig = z.output<typeof DetectorConfigSchema>;
 
@@ -92,5 +115,6 @@ export const PHONE_TURN_CONFIG: Readonly<DetectorConfig> = Object.freeze(
     commit: { silenceMs: 50, longSilenceMs: 250, longUtteranceMs: 1200, minSpeechMs: 180 },
     cutoffHoldMs: 700,
     speechEvidence: { bargeIn: true, turns: false, minSpeechMs: 0, windowMs: 1500 },
+    opening: { protectMs: 1800, confirmWords: true },
   }),
 );

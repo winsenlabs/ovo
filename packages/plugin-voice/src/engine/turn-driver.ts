@@ -24,10 +24,12 @@ export class TurnDriver extends TurnRunner {
     }
     // The caller is taking a turn, or a false start ended with nothing to answer.
     if (decision.type === 'turn.reset') {
+      if (this.callerOpen === decision.turnId) this.callerOpen = undefined;
       this.hold.ended(decision.turnId, 'reset');
       this.idle?.arm();
       const carry = this.turns.reset(decision.turnId);
       if (carry) this.queue(carry);
+      this.endIfQuiet();
     } else if (decision.type !== 'idle') this.idle?.cancel();
     if (decision.type === 'interrupt') {
       this.events.emit({ type: 'interrupt', reason: decision.reason });
@@ -42,10 +44,12 @@ export class TurnDriver extends TurnRunner {
       return;
     }
     if (decision.type === 'turn.started') {
+      this.callerOpen = decision.turnId;
       this.events.emit({ type: 'user.turn', phase: 'started', turnId: decision.turnId });
       this.hold.started(decision.turnId);
     }
     if (decision.type === 'turn.stopped') {
+      if (this.callerOpen === decision.turnId) this.callerOpen = undefined;
       const input = decision.input;
       const endpointMs = this.latency.accept(decision.turnId, input.kind === 'speech');
       this.events.emit({

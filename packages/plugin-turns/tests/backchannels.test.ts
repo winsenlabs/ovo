@@ -37,6 +37,9 @@ function fixture(overrides: Record<string, unknown> = {}, language = 'en-IN') {
     transcript(text);
     send({ type: 'stt', event: { type: 'end-of-turn' } });
   };
+  // Mid-call speech: the opening has already played (N8 protects that; see opening.test.ts).
+  send({ type: 'bot.started', epoch: 0, kind: 'response' });
+  send({ type: 'bot.stopped', epoch: 0, kind: 'response' });
   const speaking = (question = false) =>
     send({ type: 'bot.started', epoch: 1, kind: 'response', ...(question ? { question } : {}) });
   const silent = () => send({ type: 'bot.stopped', epoch: 1, kind: 'response' });

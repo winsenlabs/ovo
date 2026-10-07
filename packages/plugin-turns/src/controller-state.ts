@@ -14,6 +14,7 @@ import { DetectorConfigSchema, type DetectorConfig } from './config.ts';
 import { DtmfCollector } from './dtmf.ts';
 import { IdleTimer } from './idle.ts';
 import type { MuteView } from './mute.ts';
+import { OpeningGuard } from './opening-guard.ts';
 import { SpeechEvidence } from './speech-evidence.ts';
 import { CommitTimers } from './stop-commit.ts';
 import { SpeechStopTimers } from './stop-speech-timeout.ts';
@@ -41,6 +42,7 @@ export abstract class TurnControllerState {
   protected readonly commitTimers: CommitTimers;
   protected readonly evidence: SpeechEvidence;
   protected readonly cutoff: CutoffHold;
+  protected readonly opening: OpeningGuard;
   protected cancelSafety?: () => void;
   protected turnId?: string;
   protected sequence = 0;
@@ -96,6 +98,7 @@ export abstract class TurnControllerState {
     });
     this.evidence = new SpeechEvidence(input.clock, this.config.speechEvidence, input.vad);
     this.cutoff = new CutoffHold(input.clock, this.config.cutoffHoldMs);
+    this.opening = new OpeningGuard(input.clock, this.config.opening);
   }
 
   on(fn: (decision: TurnDecision) => void): () => void {
@@ -143,6 +146,7 @@ export abstract class TurnControllerState {
     this.stopTimers.cancel();
     this.commitTimers.cancel();
     this.evidence.cancel();
+    this.opening.clear();
     this.cutoff.resume();
     // The endpoint is forced once per utterance; a VAD held open across turns must not carry it.
     this.forceSent = this.committed = false;
@@ -156,6 +160,8 @@ export abstract class TurnControllerState {
     const id = this.turnId;
     const segments = Math.max(1, this.aggregate.segments);
     this.clear();
+    // The caller has had a turn: whatever the agent says from here is no longer the opening.
+    this.opening.end();
     const filler = this.announcer.nextFiller();
     this.emit({
       type: 'turn.stopped',

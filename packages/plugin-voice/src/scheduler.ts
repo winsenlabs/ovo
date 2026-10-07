@@ -9,6 +9,7 @@ import { resolveSpeechSchedulerConfig, SpeechQueueBudget } from './budgets.ts';
 import { SpeechEvidenceHistory } from './history.ts';
 import { SpeechHold } from './scheduler-hold.ts';
 import { playLine, type LinePlayback } from './scheduler-play.ts';
+import { SpeechPlayout } from './scheduler-playout.ts';
 import { SpeechSettlement, type QueueEntry } from './scheduler-settlement.ts';
 import { filterSpeechText, orderTextFilters } from './speech/text-filters.ts';
 import type { SpeechTimingSink } from './speech/timing.ts';
@@ -58,7 +59,8 @@ export class BoundedSpeechScheduler implements Speech {
     this.limits = resolveSpeechSchedulerConfig(config);
     this.budget = new SpeechQueueBudget(this.limits);
     this.evidence = new SpeechEvidenceHistory(this.limits.maxEvidenceEntries, now);
-    this.settlement = new SpeechSettlement(this.budget, this.evidence);
+    const playout = new SpeechPlayout(now);
+    this.settlement = new SpeechSettlement(this.budget, this.evidence, playout);
     this.history = this.evidence.entries;
     const playing = () => [...this.tasks, ...(this.pumping ? [this.pumping] : [])];
     this.holds = new SpeechHold({ queue: this.queue, active: this.active, output, playing });
@@ -67,6 +69,7 @@ export class BoundedSpeechScheduler implements Speech {
       holds: this.holds,
       evidence: this.evidence,
       settlement: this.settlement,
+      playout,
       active: this.active,
       timeoutMs: this.limits.playbackTimeoutMs,
       epoch: () => this._epoch,

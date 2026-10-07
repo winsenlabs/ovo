@@ -95,6 +95,17 @@ export const AgentWrapUp = z
   .strict();
 export type AgentWrapUp = z.infer<typeof AgentWrapUp>;
 
+/** N1: `end_call` is refused before the caller has taken this many turns, */
+export const DEFAULT_END_CALL_MIN_CALLER_TURNS = 2;
+/** ...and before the call has run this long, unless the caller says goodbye. */
+export const DEFAULT_END_CALL_MIN_CALL_SECONDS = 20;
+
+/**
+ * N1: a caller turn's variable, set true by whatever judged its transcript untrustworthy (low STT
+ * confidence, a language the agent does not speak). Such a turn can never end the call.
+ */
+export const UNTRUSTED_INPUT_VARIABLE = 'inputUntrusted';
+
 export const AgentEnding = z
   .object({
     /**
@@ -102,6 +113,16 @@ export const AgentEnding = z
      * has played. Off by default: a model that hangs up mid-flow loses the call.
      */
     llmTool: z.boolean().default(false),
+    /**
+     * N1: the LLM's `end_call` is refused (the model is told so and answers instead) until the
+     * caller has taken `minCallerTurns` turns and the call has run `minCallSeconds`, unless the
+     * caller says goodbye. Never on a turn whose words are untrusted (`UNTRUSTED_INPUT_VARIABLE`,
+     * or written in a script the agent's language does not use), nor right after the agent asked a
+     * question. Defaults: `DEFAULT_END_CALL_MIN_CALLER_TURNS`, `DEFAULT_END_CALL_MIN_CALL_SECONDS`;
+     * 0 lifts either minimum.
+     */
+    minCallerTurns: z.number().int().min(0).max(50).optional(),
+    minCallSeconds: z.number().int().min(0).max(3_600).optional(),
     wrapUp: AgentWrapUp.optional(),
   })
   .strict();

@@ -162,6 +162,11 @@ export class TurnBook {
     return this.waiting.some((turn) => turn.speech);
   }
 
+  /** N1: a caller turn (words or keys) waits to be answered. */
+  callerWaiting(): boolean {
+    return this.waiting.some((turn) => turn.speech || turn.extra.inputEvent === 'dtmf');
+  }
+
   finish(turn: Turn): void {
     if (turn.epoch !== undefined && this.byEpoch.get(turn.epoch) === turn.id) {
       this.latency.total(turn.id);
