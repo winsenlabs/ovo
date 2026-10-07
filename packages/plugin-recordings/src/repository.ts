@@ -23,6 +23,12 @@ export interface RecordingRepository {
   appendSegment(segment: RecordingSegment): Promise<void>;
   appendTimeline(event: RecordingTimelineEvent): Promise<void>;
   manifest(workspaceId: string, callId: string, artifactId: string): Promise<RecordingManifest>;
+  /**
+   * Settles up to `limit` artifacts created before `createdBefore` that never finalized (the
+   * worker that captured them exited mid-call): `partial` when a segment is available, otherwise
+   * `failed`. Returns how many it settled.
+   */
+  recoverAbandoned(createdBefore: string, at: string, limit: number): Promise<number>;
   pageExpired(
     now: string,
     cursor: RetentionCursor | undefined,
@@ -63,6 +69,9 @@ export interface RecordingRepository {
       | { state: 'failed'; error: string },
   ): Promise<void>;
 }
+
+/** Why `recoverAbandoned` settled an artifact. */
+export const ABANDONED_FAILURE = 'Capture stopped without finalizing (the worker exited mid-call)';
 
 export class RecordingUnavailableError extends Error {
   constructor(message = 'Recording is unavailable') {

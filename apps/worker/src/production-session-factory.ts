@@ -27,7 +27,6 @@ import {
   type LiveGraphOptions,
 } from './session-graph-runtime.ts';
 import { composeLegacySessionGraph } from './legacy-session-compat.ts';
-import { attachRecordingEvidence } from './recording-evidence.ts';
 import { auditGuardrail, closeSessionEvents, openSessionEvents } from './session-outcomes.ts';
 import { optOutRecorder } from './opt-out-dnc.ts';
 import {
@@ -127,9 +126,9 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
         workspaceId: job.workspaceId,
         callId,
         retentionDays: this.recordingRetentionDays,
+        audit: (type, payload) => telemetry.audit(type, payload),
       });
-      const capture = recording.capture;
-      if (capture) cleanup.defer(() => capture.finish());
+      cleanup.defer(() => recording.finish());
 
       if (this.graph) {
         if (!this.graph.carriers)
@@ -202,7 +201,7 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
         cleanup.defer(optOutRecorder(this.graph, graph, job, telemetry));
         const unsubscribe = subscribeEngineTelemetry(graph.engine, telemetry);
         cleanup.defer(() => unsubscribe());
-        if (capture) cleanup.defer(attachRecordingEvidence(capture, graph.engine));
+        cleanup.defer(recording.attachEvidence(graph.engine));
         cleanup.defer(async () => {
           await graph.engine.dispose(requestedReason);
         });

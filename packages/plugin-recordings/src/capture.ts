@@ -2,21 +2,21 @@ import type { LiveRecordingService } from './live-service.ts';
 import type { LiveRecording, RecordingTimelineEvent, RecordingTrack } from './types.ts';
 import { MULAW_8K } from '@winsendotai/ovo-contracts';
 import {
+  captureError,
   recordingBytesPerSecond,
   supportedRecordingFormat,
+  takeSegment,
+  type CaptureOutcome,
+  type PendingTrack,
   type PlaybackEvidenceSource,
   type RecordingMediaTransport,
 } from './capture-types.ts';
 
-export type { PlaybackEvidenceSource, RecordingMediaTransport } from './capture-types.ts';
-
-interface PendingTrack {
-  bytes: Uint8Array[];
-  byteLength: number;
-  sequence: number;
-  startMs?: number;
-  endMs?: number;
-}
+export type {
+  CaptureOutcome,
+  PlaybackEvidenceSource,
+  RecordingMediaTransport,
+} from './capture-types.ts';
 
 export class LiveRecordingCapture implements RecordingMediaTransport {
   readonly identity: unknown;
@@ -29,6 +29,8 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
     inbound: { bytes: [], byteLength: 0, sequence: 0 },
     outbound: { bytes: [], byteLength: 0, sequence: 0 },
   };
+  /** Bytes per track durably written as available segments. */
+  private readonly written: Record<RecordingTrack, number> = { inbound: 0, outbound: 0 };
   private readonly unsubscribers: Array<() => void> = [];
   private chain = Promise.resolve();
   private timelineSequence = 0;
@@ -100,6 +102,14 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
 
   get artifact(): LiveRecording {
     return { ...this.recording };
+  }
+
+  /**
+   * What the artifact holds: `available`, or `partial` when audio was lost on the way (a failed
+   * upload, a full queue). Final once `finish` has settled.
+   */
+  get outcome(): CaptureOutcome {
+    return { state: this.partial ? 'partial' : 'available', bytes: { ...this.written } };
   }
 
   attachEvidence(evidence: PlaybackEvidenceSource): () => void {
@@ -180,7 +190,7 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
       .catch(async (error) => {
         this.partial = true;
         await this.service
-          .state(this.recording.id, 'partial', safeError(error))
+          .state(this.recording.id, 'partial', captureError(error))
           .catch(() => undefined);
       });
     return this.chain;
@@ -226,28 +236,18 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
   private async flush(trackName: RecordingTrack): Promise<void> {
     const track = this.tracks[trackName];
     if (!track.byteLength) return;
-    const bytes = new Uint8Array(track.byteLength);
-    let cursor = 0;
-    for (const chunk of track.bytes) {
-      bytes.set(chunk, cursor);
-      cursor += chunk.byteLength;
-    }
-    try {
-      await this.service.writeSegment({
-        recording: this.recording,
-        track: trackName,
-        sequence: track.sequence,
-        bytes,
-        startMs: track.startMs ?? 0,
-        endMs: track.endMs ?? track.startMs ?? 0,
-      });
-      track.sequence += 1;
-    } finally {
-      track.bytes = [];
-      track.byteLength = 0;
-      track.startMs = undefined;
-      track.endMs = undefined;
-    }
+    // Taken out of the buffer first: a failed upload is not retried into the next segment.
+    const { bytes, startMs, endMs } = takeSegment(track);
+    await this.service.writeSegment({
+      recording: this.recording,
+      track: trackName,
+      sequence: track.sequence,
+      bytes,
+      startMs,
+      endMs,
+    });
+    track.sequence += 1;
+    this.written[trackName] += bytes.byteLength;
   }
 
   private enqueueTimeline(
@@ -276,14 +276,12 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
     this.partial = true;
     this.stopped = true;
     for (const unsubscribe of this.unsubscribers.splice(0)) unsubscribe();
-    await this.service.state(this.recording.id, 'partial', safeError(error)).catch(() => undefined);
+    await this.service
+      .state(this.recording.id, 'partial', captureError(error))
+      .catch(() => undefined);
   }
 
   private elapsed(): number {
     return Math.max(0, this.monotonicNow() - this.startedMonotonic);
   }
-}
-
-function safeError(error: unknown): string {
-  return (error instanceof Error ? error.message : 'Recording capture failed').slice(0, 500);
 }

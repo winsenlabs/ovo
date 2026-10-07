@@ -172,6 +172,9 @@ describe('production session lifecycle from a loaded distribution', () => {
           get(target, key) {
             if (key === 'finish') return finish;
             if (key === 'attachEvidence') return attachEvidence;
+            if (key === 'artifact') return { id: 'recording-1', expiresAt: '2026-02-01' };
+            if (key === 'outcome')
+              return { state: 'available', bytes: { inbound: 0, outbound: 0 } };
             const value: unknown = Reflect.get(target, key, target);
             return typeof value === 'function' ? value.bind(target) : value;
           },

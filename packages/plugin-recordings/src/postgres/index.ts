@@ -10,6 +10,7 @@ import type {
 } from '../types.ts';
 import { PostgresRecordingArtifacts } from './artifacts.ts';
 import { PostgresRecordingExports } from './exports.ts';
+import { recoverAbandonedArtifacts } from './artifacts-retention.ts';
 import { runRecordingMigrations } from './migrations.ts';
 
 export class PostgresRecordingRepository implements RecordingRepository {
@@ -52,6 +53,9 @@ export class PostgresRecordingRepository implements RecordingRepository {
   }
   manifest(workspaceId: string, callId: string, id: string) {
     return this.artifacts.manifest(workspaceId, callId, id);
+  }
+  recoverAbandoned(createdBefore: string, at: string, limit: number) {
+    return recoverAbandonedArtifacts(this.pool, createdBefore, at, limit);
   }
   pageExpired(now: string, cursor: RetentionCursor | undefined, limit: number) {
     return this.artifacts.pageExpired(now, cursor, limit);

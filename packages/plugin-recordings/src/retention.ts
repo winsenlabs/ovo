@@ -2,7 +2,15 @@ import type { ObjectBackend } from './backend.ts';
 import type { RecordingRepository } from './repository.ts';
 import type { RetentionCursor } from './types.ts';
 
+/**
+ * An artifact still unfinalized this long after it was created was left by a worker that exited
+ * mid-call: longer than any call runs (`costPolicy.maxCallSeconds` is at most 4 hours).
+ */
+export const ABANDONED_AFTER_MS = 6 * 3_600_000;
+
 export interface RetentionSweepResult {
+  /** Artifacts a crashed capture left unfinalized, now `partial` (playable) or `failed`. */
+  recovered: number;
   examined: number;
   tombstoned: number;
   cleaned: number;
@@ -21,7 +29,13 @@ export class RecordingRetentionService {
     input: { cursor?: RetentionCursor; limit?: number } = {},
   ): Promise<RetentionSweepResult> {
     const limit = boundedLimit(input.limit);
-    const at = new Date(this.clock()).toISOString();
+    const now = this.clock();
+    const at = new Date(now).toISOString();
+    const recovered = await this.repository.recoverAbandoned(
+      new Date(now - ABANDONED_AFTER_MS).toISOString(),
+      at,
+      limit,
+    );
     const page = await this.repository.pageExpired(at, input.cursor, limit);
     let tombstoned = 0;
     for (const artifact of page.items) {
@@ -36,6 +50,7 @@ export class RecordingRetentionService {
     }
     const cleanup = await this.cleanup({ limit });
     return {
+      recovered,
       examined: page.items.length,
       tombstoned,
       cleaned: cleanup.cleaned,
