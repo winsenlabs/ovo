@@ -6,7 +6,8 @@ Wave 4 speculation lane (LAT-4, LAT-3). The runtime is in
 and `agent-session.ts` (the hooks). The release warning is
 `packages/session-host/src/compat/speculative-llm-unpriced.ts`.
 
-An agent that authors nothing gets decisions on partial transcripts and no speculative LLM.
+An agent that authors nothing gets decisions on partial transcripts and the LLM asked alongside
+the decision.
 
 ```json
 {
@@ -44,15 +45,18 @@ is still in flight (`behaviors/tests/speculation-partials.test.ts`).
 
 ## The LLM alongside the decision (LAT-3)
 
-Off by default: an aborted call still bills its input, and the gpt-6-luna price is provisional.
-With `llm: true`, the turn's first LLM request starts the moment the turn has to wait on the
+On by default since the gpt-6-luna price was confirmed on the OpenAI pricing page (2026-10-06;
+catalog version `2026-10-06-confirmed`). An aborted call still bills its input; `llm: false` turns
+it off. While on, the turn's first LLM request starts the moment the turn has to wait on the
 decision model (never for a turn the rules tier or a prepared verdict answers). Its events are
 buffered; the inference step takes them only if its own first request is identical. A scripted
 line, a clarification, a recovery line, or a different request (the decision moved the flow)
 aborts it. Fixtures (300ms decision, 500ms to first LLM text): 800ms to 500ms.
 
 While it is on and any LLM meter lacks a price card that says `provisional: false`, every stage
-shows a `meter_uncovered` warning on `decision.speculation.llm`.
+shows a `meter_uncovered` warning on `decision.speculation.llm`. The API's live-readiness check
+reads each referenced card's `provisional` flag from the ledger, so an agent priced with the
+confirmed catalog cards gets no warning.
 
 ## Metering
 

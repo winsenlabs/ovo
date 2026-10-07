@@ -6,6 +6,8 @@ import { type PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { InfrastructureService } from './infrastructure-types.ts';
 import { discoveredAllowedMcpTools } from './mcp-discovered-state.ts';
 import type { WorkerLiveState } from './inbound-readiness.ts';
+import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
+import { resolvePriceCards } from './price-card-references.ts';
 
 /** Advisory snapshot; live admission rechecks the immutable release and worker lease. */
 export async function liveReadiness(
@@ -16,6 +18,7 @@ export async function liveReadiness(
   infrastructure?: InfrastructureService,
   bindings?: Readonly<Record<string, ProviderBinding>>,
   defaults?: SessionDefaults,
+  ledger?: Pick<CostLedgerService, 'getPriceCard'>,
 ) {
   const strategy = selections.engine?.config.turnStrategy;
   const turnStrategy =
@@ -34,7 +37,7 @@ export async function liveReadiness(
       config: agent.config,
       selections,
       registry,
-      priceCards: agent.config.costPolicy?.priceCards,
+      priceCards: await resolvePriceCards(agent.config.costPolicy?.priceCards, ledger),
       bindings,
       defaults,
       turnStrategy,

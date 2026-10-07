@@ -60,8 +60,8 @@ export function TurnPacingEditor({
         id="turn-pacing-title"
         title="Turn pacing"
         badge={
-          <StatusBadge tone={speculation.llm ? 'warning' : 'soft'}>
-            {speculation.llm ? 'Speculative LLM on' : 'Wave 4 defaults'}
+          <StatusBadge tone="soft">
+            {speculation.llm === false ? 'Speculative LLM off' : 'Defaults'}
           </StatusBadge>
         }
       />
@@ -164,7 +164,7 @@ export function TurnPacingEditor({
             <label className="toggle-row">
               <input
                 type="checkbox"
-                checked={speculation.llm === true}
+                checked={speculation.llm !== false}
                 onChange={(event) => patchSpeculation({ llm: event.target.checked })}
               />
               <span>
@@ -174,11 +174,10 @@ export function TurnPacingEditor({
                 </small>
               </span>
             </label>
-            {speculation.llm && (
-              <Notice tone="warning">
-                Speculative LLM calls are billed even when aborted, and gpt-6-luna&rsquo;s price
-                card is provisional, so this spend is not reliably priced. Keep it off until the LLM
-                has a firm price card.
+            {speculation.llm !== false && (
+              <Notice>
+                Speculative LLM calls are billed even when aborted. Publish warns if the LLM has no
+                confirmed (non-provisional) price card.
               </Notice>
             )}
           </>

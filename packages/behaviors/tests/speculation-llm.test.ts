@@ -83,7 +83,7 @@ describe('the LLM asked alongside the decision (LAT-3)', () => {
   const unsure = { 'what is my balance': answer('pay', 0.4) };
 
   it('saves the decision round trip on a turn the decision hands to the LLM', async () => {
-    const off = flatAgent(unsure, { partials: false });
+    const off = flatAgent(unsure, { partials: false, llm: false });
     const before = await streamed(off.agent, 'what is my balance');
     expect(before).toEqual({ ms: JEV_MS + LLM_MS, segment: 'A composed LLM answer.' });
 
@@ -104,8 +104,15 @@ describe('the LLM asked alongside the decision (LAT-3)', () => {
     });
   });
 
-  it('is off unless the agent turns it on', async () => {
-    const { agent, llm } = flatAgent(unsure, {});
+  it('is on by default, and off when the agent turns it off', async () => {
+    const byDefault = flatAgent(unsure, {});
+    expect(byDefault.agent.speculation.llm).toBe(true);
+    expect(await streamed(byDefault.agent, 'what is my balance')).toEqual({
+      ms: LLM_MS,
+      segment: 'A composed LLM answer.',
+    });
+
+    const { agent, llm } = flatAgent(unsure, { llm: false });
     const reply = agent.respondStream('what is my balance', {})[Symbol.asyncIterator]().next();
     await vi.advanceTimersByTimeAsync(JEV_MS - 5);
     expect(llm.requests).toHaveLength(0);

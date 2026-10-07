@@ -19,6 +19,7 @@ export function registerReadinessRoutes(input: {
   services: PluginDefinition;
   infrastructure?: LivePathInfrastructure;
   distributionDefaults?: import('@winsendotai/ovo-session-host').SessionDefaults;
+  ledger?: Pick<import('@winsendotai/ovo-plugin-ledger').CostLedgerService, 'getPriceCard'>;
 }) {
   /**
    * OBS-12: can a call go live right now, and if not, which stage is the blocker. Admin only: it
@@ -75,6 +76,7 @@ export function registerReadinessRoutes(input: {
         input.infrastructure,
         Object.fromEntries(bindingRows),
         input.distributionDefaults,
+        input.ledger,
       ).catch(() => ({
         liveReady: false,
         liveBlockers: ['Current infrastructure readiness could not be verified.'],

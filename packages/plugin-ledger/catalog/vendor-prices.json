@@ -4,105 +4,100 @@
     {
       "card": {
         "id": "openai-gpt-6-luna-uncached-input",
-        "version": "2026-10-06",
+        "version": "2026-10-06-confirmed",
         "provider": "openai",
         "unit": "uncached_input_tokens",
         "model": "gpt-6-luna",
         "currency": "USD",
         "minorUnitsPerBlock": "10",
         "blockQuantity": "1000000",
-        "effectiveAt": "2026-10-06T00:00:00.000Z",
-        "provisional": true
+        "effectiveAt": "2026-10-06T00:00:00.000Z"
       },
       "meterKeys": ["openai.inference.uncached_input_tokens"],
       "source": {
-        "url": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "url": "https://developers.openai.com/api/docs/pricing",
         "retrievedAt": "2026-10-06",
-        "note": "PROVISIONAL: founder decision (ovo-build-plan) treats the gpt-6-luna price as unknown until an OpenAI invoice confirms it. Standard tier; Flex/Batch are 50%, priority and regional processing cost more.",
+        "note": "Confirmed on the OpenAI pricing page (short context, <=272K input tokens; long context is 2x input and 1.5x output). Standard tier; Flex/Batch are 50%, priority and regional processing cost more.",
         "quote": "Input $0.1 / 1M tokens"
       }
     },
     {
       "card": {
         "id": "openai-gpt-6-luna-input",
-        "version": "2026-10-06",
+        "version": "2026-10-06-confirmed",
         "provider": "openai",
         "unit": "input_tokens",
         "model": "gpt-6-luna",
         "currency": "USD",
         "minorUnitsPerBlock": "10",
         "blockQuantity": "1000000",
-        "effectiveAt": "2026-10-06T00:00:00.000Z",
-        "provisional": true
+        "effectiveAt": "2026-10-06T00:00:00.000Z"
       },
       "meterKeys": ["openai.inference.input_tokens"],
       "source": {
-        "url": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "url": "https://developers.openai.com/api/docs/pricing",
         "retrievedAt": "2026-10-06",
-        "note": "PROVISIONAL: founder decision (ovo-build-plan) treats the gpt-6-luna price as unknown until an OpenAI invoice confirms it. Standard tier; Flex/Batch are 50%, priority and regional processing cost more. The aggregate input meter is used only when the cache meters are not priced; charging it at the uncached rate is an upper bound.",
+        "note": "Confirmed on the OpenAI pricing page (short context, <=272K input tokens; long context is 2x input and 1.5x output). Standard tier; Flex/Batch are 50%, priority and regional processing cost more. The aggregate input meter is used only when the cache meters are not priced; charging it at the uncached rate is an upper bound.",
         "quote": "Input $0.1 / 1M tokens"
       }
     },
     {
       "card": {
         "id": "openai-gpt-6-luna-cached-input",
-        "version": "2026-10-06",
+        "version": "2026-10-06-confirmed",
         "provider": "openai",
         "unit": "cache_read_input_tokens",
         "model": "gpt-6-luna",
         "currency": "USD",
         "minorUnitsPerBlock": "1",
         "blockQuantity": "1000000",
-        "effectiveAt": "2026-10-06T00:00:00.000Z",
-        "provisional": true
+        "effectiveAt": "2026-10-06T00:00:00.000Z"
       },
       "meterKeys": ["openai.inference.cache_read_input_tokens"],
       "source": {
-        "url": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "url": "https://developers.openai.com/api/docs/pricing",
         "retrievedAt": "2026-10-06",
-        "note": "PROVISIONAL: founder decision (ovo-build-plan) treats the gpt-6-luna price as unknown until an OpenAI invoice confirms it. Standard tier; Flex/Batch are 50%, priority and regional processing cost more.",
+        "note": "Confirmed on the OpenAI pricing page (short context, <=272K input tokens; long context is 2x input and 1.5x output). Standard tier; Flex/Batch are 50%, priority and regional processing cost more.",
         "quote": "Cached input $0.01 / 1M tokens"
       }
     },
     {
       "card": {
         "id": "openai-gpt-6-luna-cache-write",
-        "version": "2026-10-06",
+        "version": "2026-10-06-confirmed",
         "provider": "openai",
         "unit": "cache_write_input_tokens",
         "model": "gpt-6-luna",
         "currency": "USD",
         "minorUnitsPerBlock": "12.5",
         "blockQuantity": "1000000",
-        "effectiveAt": "2026-10-06T00:00:00.000Z",
-        "provisional": true
+        "effectiveAt": "2026-10-06T00:00:00.000Z"
       },
       "meterKeys": ["openai.inference.cache_write_input_tokens"],
       "source": {
-        "url": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "url": "https://developers.openai.com/api/docs/pricing",
         "retrievedAt": "2026-10-06",
-        "note": "PROVISIONAL: founder decision (ovo-build-plan) treats the gpt-6-luna price as unknown until an OpenAI invoice confirms it. Standard tier; Flex/Batch are 50%, priority and regional processing cost more.",
+        "note": "Confirmed on the OpenAI pricing page (short context, <=272K input tokens; long context is 2x input and 1.5x output). Standard tier; Flex/Batch are 50%, priority and regional processing cost more.",
         "quote": "Cache writes $0.125 / 1M tokens"
       }
     },
     {
       "card": {
         "id": "openai-gpt-6-luna-output",
-        "version": "2026-10-06",
+        "version": "2026-10-06-confirmed",
         "provider": "openai",
         "unit": "output_tokens",
         "model": "gpt-6-luna",
         "currency": "USD",
         "minorUnitsPerBlock": "50",
         "blockQuantity": "1000000",
-        "effectiveAt": "2026-10-06T00:00:00.000Z",
-        "provisional": true
+        "effectiveAt": "2026-10-06T00:00:00.000Z"
       },
       "meterKeys": ["openai.inference.output_tokens"],
       "source": {
-        "url": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "url": "https://developers.openai.com/api/docs/pricing",
         "retrievedAt": "2026-10-06",
-        "note": "PROVISIONAL: founder decision (ovo-build-plan) treats the gpt-6-luna price as unknown until an OpenAI invoice confirms it. Standard tier; Flex/Batch are 50%, priority and regional processing cost more.",
+        "note": "Confirmed on the OpenAI pricing page (short context, <=272K input tokens; long context is 2x input and 1.5x output). Standard tier; Flex/Batch are 50%, priority and regional processing cost more.",
         "quote": "Output $0.5 / 1M tokens"
       }
     },

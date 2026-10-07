@@ -121,9 +121,11 @@ In this order, in the admin console:
    no turn fields uses the `fast` preset.
 4. **Prices** (Wave 2, OPS-13/14): `POST /v1/cost/price-catalog/import`, then confirm cards exist for
    `elevenlabs.streaming-tts.characters`, `elevenlabs.streaming-stt.audio_seconds` and every meter
-   in the agent's required-meters checklist. gpt-6-luna is provisional ($0.1 / $0.01 / $0.125 / $0.5
-   per 1M tokens) until a real price card exists; keep the speculative LLM (LAT-3,
-   `decision.speculation.llm`) **off** until then.
+   in the agent's required-meters checklist. gpt-6-luna is confirmed ($0.1 input / $0.01 cached /
+   $0.125 cache write / $0.5 output per 1M tokens, OpenAI pricing page 2026-10-06; catalog version
+   `2026-10-06-confirmed`). Point the agent's cost policy at those card versions. The speculative
+   LLM (LAT-3, `decision.speculation.llm`) is **on** by default; set it to `false` per agent to
+   save the aborted-call input tokens.
 5. **Agent** (Waves 2-4): import the flow (`pnpm flow:import --preset creditmantri`, Wave 3), bind
    the decision provider (Jev), set `speechCache.enabled`, optionally the LAT-6 filler
    (`voice.turnDetector.config.filler`, needs the speech cache), then **re-release** the agent.

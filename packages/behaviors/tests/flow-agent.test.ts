@@ -20,7 +20,8 @@ const call = { full_name: 'Ravi Kumar', emi: 'four thousand rupees' };
 function agent(script: Scripted[] = [], over: Record<string, unknown> = {}) {
   const jev = scriptedJev(script);
   const model = llm();
-  const decision = { enabled: true, flow: collectionsFlow(), ...over };
+  // LAT-3 is on by default; these tests assert the confident path never asks the LLM.
+  const decision = { enabled: true, flow: collectionsFlow(), speculation: { llm: false }, ...over };
   const behavior = new AgentBehavior(
     AgentConfig.parse({ name: 'Collections', mode: 'agent', variables, decision }),
     model.port,

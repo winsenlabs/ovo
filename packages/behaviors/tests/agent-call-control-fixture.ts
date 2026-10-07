@@ -77,6 +77,8 @@ export async function collect(stream: AsyncIterable<string>): Promise<string[]> 
 
 export const goodbye = (outcome: Record<string, unknown>) => ({
   enabled: true,
+  // LAT-3 (the LLM asked alongside the decision) is on by default; these tests count LLM calls.
+  speculation: { llm: false },
   questions: [
     {
       type: 'choice',

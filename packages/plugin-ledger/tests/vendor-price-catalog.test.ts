@@ -50,7 +50,7 @@ describe('vendor price catalog (OPS-14)', () => {
     }
   });
 
-  it('labels every gpt-6-luna price provisional, per the founder decision', () => {
+  it('prices gpt-6-luna as confirmed on the OpenAI pricing page', () => {
     const luna = VENDOR_PRICE_CATALOG.filter((entry) => entry.card.model === 'gpt-6-luna');
     expect(luna.map((entry) => entry.card.unit).sort()).toEqual([
       'cache_read_input_tokens',
@@ -60,8 +60,13 @@ describe('vendor price catalog (OPS-14)', () => {
       'uncached_input_tokens',
     ]);
     for (const entry of luna) {
-      expect(entry.card.provisional).toBe(true);
-      expect(vendorPriceCard(entry).provenance).toContain('PROVISIONAL');
+      // A new version, so a ledger holding the old provisional 2026-10-06 card sees an update.
+      expect(entry.card.version).toBe('2026-10-06-confirmed');
+      expect(entry.card.provisional).toBeUndefined();
+      expect(vendorPriceCard(entry).provenance).toContain(
+        'https://developers.openai.com/api/docs/pricing (retrieved 2026-10-06)',
+      );
+      expect(vendorPriceCard(entry).provenance).not.toContain('PROVISIONAL');
     }
   });
 

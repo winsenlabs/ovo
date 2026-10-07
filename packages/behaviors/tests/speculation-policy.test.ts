@@ -24,18 +24,18 @@ const decision = (sources: string[]) => ({
 });
 
 describe('the speculation policy', () => {
-  it('decides on partials and leaves the LLM alone unless an agent says otherwise', () => {
+  it('decides on partials and asks the LLM alongside unless an agent says otherwise', () => {
     expect(DEFAULT_SPECULATION).toEqual({
       partials: true,
       debounceMs: 150,
       match: 'exact',
-      llm: false,
+      llm: true,
     });
     expect(speculationPolicy(undefined)).toEqual(DEFAULT_SPECULATION);
-    // `decision.speculation` once the contract carries it (cross-lane request), then the override.
+    // `decision.speculation`, then the override.
     expect(
-      speculationPolicy({ speculation: { llm: true, debounceMs: 80 } }, { debounceMs: undefined }),
-    ).toEqual({ ...DEFAULT_SPECULATION, llm: true, debounceMs: 80 });
+      speculationPolicy({ speculation: { llm: false, debounceMs: 80 } }, { debounceMs: undefined }),
+    ).toEqual({ ...DEFAULT_SPECULATION, llm: false, debounceMs: 80 });
     expect(speculationPolicy({ speculation: { llm: true } }, { llm: false }).llm).toBe(false);
   });
 

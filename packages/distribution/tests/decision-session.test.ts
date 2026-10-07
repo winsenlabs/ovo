@@ -51,6 +51,8 @@ const policy = {
   questions: [question],
   state: { sources: ['last-turn' as const], transcriptTurns: 6 },
   timeoutMs: 1_500,
+  // LAT-3 is on by default; this test asserts the authored outcome needs no LLM turn.
+  speculation: { llm: false },
 };
 
 /**

@@ -36,6 +36,8 @@ const config = (over: Record<string, unknown> = {}) =>
       enabled: true,
       questions: [question],
       state: { sources: ['last-turn', 'variables'] },
+      // LAT-3 (the LLM asked alongside the decision) is on by default; these tests count LLM calls.
+      speculation: { llm: false },
       ...over,
     },
   });
