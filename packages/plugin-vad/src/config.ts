@@ -18,14 +18,19 @@ export const EnergyVadConfigSchema = VadParamsSchema.extend({
    * mid-sentence; the default keeps the floor where the pauses put it.
    */
   speechFloorTauMs: z.number().int().min(100).max(120000).default(15000),
-  /** Steady tones (beeps, DTMF, ring-back, a vibrating phone's buzz) are never speech. */
+  /**
+   * Steady tones (beeps, DTMF, ring-back, a vibrating phone's buzz) never start speech. Inside an
+   * utterance only a tone lasting 1.5 s ends it, so a held vowel or a "mmm" cannot.
+   */
   rejectTones: z.boolean().default(true),
   /**
-   * Once a second of the caller's speech is learned, a new utterance this many dB below the
-   * caller's own level is a far-field talker in the room and does not start speech. It never ends
-   * an utterance already under way. null disables it.
+   * Once a second of the caller's speech is learned, sound this many dB below the caller's own
+   * RMS level is a far-field talker, a TV or the room: it does not start speech, does not freeze
+   * the noise floor and does not hold an utterance open, though it never cuts one short. At 12 a
+   * talker 8 dB or more below the caller is ignored and the caller's own reply up to ~8 dB softer
+   * than before still starts. null disables it.
    */
-  callerGateDb: z.number().min(6).max(60).nullable().default(20),
+  callerGateDb: z.number().min(6).max(60).nullable().default(12),
 }).strict();
 export type EnergyVadConfig = z.output<typeof EnergyVadConfigSchema>;
 
@@ -38,7 +43,7 @@ export const PHONE_VAD_CONFIG: Readonly<EnergyVadConfig> = Object.freeze(
     highPassHz: 200,
     speechFloorTauMs: 15000,
     rejectTones: true,
-    callerGateDb: 20,
+    callerGateDb: 12,
   }),
 );
 

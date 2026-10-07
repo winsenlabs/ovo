@@ -38,10 +38,11 @@ describe('energy VAD state machine', () => {
         [450, 850],
       ]);
       // The first burst's syllable dip (-39 dBFS at 187 ms) falls under minVolume before 200 ms
-      // of speech accumulate, so only the second burst starts.
+      // of speech accumulate, so only the second burst starts. It stops 250 ms after the burst
+      // ends: tone rejection no longer cuts the harmonic signal's steady tail inside the run.
       expect(transitions(rate, pcm)).toEqual([
         { type: 'vad.start', atMs: 640, frame: 32 },
-        { type: 'vad.stop', atMs: 1040, frame: 52 },
+        { type: 'vad.stop', atMs: 1100, frame: 55 },
       ]);
     });
     it(`${rate} Hz: an 80 ms cough is too short`, () => {

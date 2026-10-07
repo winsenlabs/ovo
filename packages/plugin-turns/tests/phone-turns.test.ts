@@ -257,6 +257,8 @@ describe('Indian English and Hinglish backchannels', () => {
     'correct correct',
   ])('%s only acknowledges the agent', (text) => {
     expect(isBackchannel(text, 'en-IN', config)).toBe(true);
+    // By the list alone, as over a filler: one word is already under minWordsWhileBotSpeaking.
+    expect(isBackchannel(text, 'en-IN', { ...config, minWordsWhileBotSpeaking: 0 })).toBe(true);
   });
 
   it.each(['madam madam', 'sir sir please', 'no sir', 'sir I already paid', 'हाँ पर सर सुनिए'])(

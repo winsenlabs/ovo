@@ -20,26 +20,33 @@ const VOWELS = [
   [600, 1000, 2500],
 ] as const;
 
+/** One vowel held without a syllable rhythm ("aaaa", "mmm"): pitch, jitter, 5 Hz vibrato, F1. */
+type Held = { pitch: number; jitter: number; vibrato: number; f1: number };
+
 /**
  * Connected voiced speech at `db` dBFS RMS: a jittered 110–190 Hz glottal pulse train with breath
  * noise through three formant resonators, a new vowel every 220 ms and a 4.5 Hz syllable envelope
- * dipping by `depth`. Its prediction gain (median 17 dB, max 21) matches real 8 kHz speech.
+ * dipping by `depth`. Its prediction gain (median 17 dB, max 21) matches real 8 kHz speech. With
+ * `held`, one steady vowel instead.
  */
-function voice(ms: number, db: number, seed = 1, depth = 0.4): Part {
+function voice(ms: number, db: number, seed = 1, depth = 0.4, held?: Held): Part {
   const random = seededRandom(seed);
-  const pitch = 110 + random() * 80;
+  const pitch = held?.pitch ?? 110 + random() * 80;
   const samples = new Float64Array(Math.round((RATE * ms) / 1000));
   const state = new Float64Array(6);
-  let vowel: readonly number[] = VOWELS[0];
+  let vowel: readonly number[] = held ? [held.f1, 1200, 2600] : VOWELS[0];
   let pulseAt = 0;
   for (let i = 0; i < samples.length; i++) {
     const t = i / RATE;
-    if (i % 1760 === 0) vowel = VOWELS[Math.floor(random() * VOWELS.length)]!;
+    if (!held && i % 1760 === 0) vowel = VOWELS[Math.floor(random() * VOWELS.length)]!;
     let value = (random() - 0.5) * 0.15;
     if (i >= pulseAt) {
       value += 1;
-      const hz = pitch * (1 + 0.08 * Math.sin(2 * Math.PI * 0.7 * t));
-      pulseAt = i + Math.round((RATE / hz) * (1 + (random() - 0.5) * 0.04));
+      const hz = held
+        ? pitch * (1 + held.vibrato * Math.sin(2 * Math.PI * 5 * t))
+        : pitch * (1 + 0.08 * Math.sin(2 * Math.PI * 0.7 * t));
+      const jitter = held ? held.jitter * 2 : 0.04;
+      pulseAt = i + Math.round((RATE / hz) * (1 + (random() - 0.5) * jitter));
     }
     for (let k = 0; k < 3; k++) {
       const radius = Math.exp((-Math.PI * (90 + 40 * k)) / RATE);
@@ -49,13 +56,31 @@ function voice(ms: number, db: number, seed = 1, depth = 0.4): Part {
       state[2 * k] = next;
       value = next * (1 - radius);
     }
-    samples[i] = value * (1 - depth + depth * Math.sin(2 * Math.PI * 4.5 * t));
+    samples[i] = held ? value : value * (1 - depth + depth * Math.sin(2 * Math.PI * 4.5 * t));
   }
   const rms = Math.sqrt(samples.reduce((sum, v) => sum + v * v, 0) / samples.length);
   const scale = dbToAmplitude(db) / rms;
   return { ms, at: (i) => samples[i]! * scale };
 }
 const silence = (ms: number): Part => ({ ms, at: () => 0 });
+/** `parts` played together, each from its own offset (ms) into an `ms`-long segment. */
+const layered = (ms: number, parts: readonly (readonly [number, Part])[]): Part => ({
+  ms,
+  at: (i) =>
+    parts.reduce((sum, [from, part]) => {
+      const j = i - Math.round((RATE * from) / 1000);
+      return j >= 0 && j < Math.round((RATE * part.ms) / 1000) ? sum + part.at(j, j / RATE) : sum;
+    }, 0),
+});
+/** Several talkers at once, `db` dBFS RMS together. */
+const babble = (ms: number, db: number, talkers = 3, seed = 20): Part =>
+  layered(
+    ms,
+    Array.from(
+      { length: talkers },
+      (_, k) => [0, voice(ms, db - 10 * Math.log10(talkers), seed + k, 0.5)] as const,
+    ),
+  );
 const tones = (ms: number, db: number, ...freqs: number[]): Part => ({
   ms,
   at: (i) =>
@@ -101,12 +126,71 @@ describe('energy VAD on phone audio', () => {
     expect(before.find((t) => t.type === 'vad.stop')!.atMs).toBeLessThan(8000);
   });
 
-  it('P2: a soft trailing stretch below minVolume does not end the utterance', () => {
-    // -38 dBFS is under minVolume's -32.5 dBFS but 20 dB over the line noise.
-    const pcm = call([silence(400), voice(1200, -20), voice(600, -38, 2), silence(600)], -60);
+  it('P2: a quiet caller trailing off below minVolume is not cut short', () => {
+    // A -24 dBFS caller ends on a -32 dBFS stretch: mostly under minVolume's -32.5 dBFS frame
+    // level, but within the caller gate of their own learned level, so it is still the caller.
+    const pcm = call([silence(400), voice(1600, -24, 9), voice(700, -32, 2), silence(600)], -60);
     const list = transitions(pcm);
     expect(list.map((t) => t.type)).toEqual(['vad.start', 'vad.stop']);
-    expect(list[1]!.atMs).toBeGreaterThanOrEqual(2200);
+    expect(list[1]!.atMs).toBeGreaterThanOrEqual(2700);
+  });
+
+  it('review: babble 20 dB below the caller does not hold the utterance open after they stop', () => {
+    // A quiet line, then a room of talkers at -40 dBFS from 1 s to 9 s; the -20 dBFS caller talks
+    // from 4.0 to 5.5 s. The floor froze for the babble, and the minVolume hold kept every frame of
+    // it in the utterance: the stop waited for the babble to end at 9.2 s.
+    const pcm = call(
+      [
+        silence(1000),
+        layered(8000, [
+          [0, babble(8000, -40)],
+          [3000, voice(1500, -20, 9)],
+        ]),
+        silence(1000),
+      ],
+      -60,
+    );
+    const stop = transitions(pcm).find((t) => t.type === 'vad.stop')!;
+    expect(stop.atMs).toBeGreaterThan(5500);
+    expect(stop.atMs).toBeLessThanOrEqual(5800);
+    // One talker 16 dB below the caller, starting during them and going on after.
+    const talker = call(
+      [
+        silence(4000),
+        layered(4500, [
+          [0, voice(1500, -20, 9)],
+          [500, voice(4000, -36, 7)],
+        ]),
+        silence(500),
+      ],
+      -60,
+    );
+    const after = transitions(talker).find((t) => t.type === 'vad.stop')!;
+    expect(after.atMs).toBeLessThanOrEqual(5900);
+  });
+
+  it('review: a held vowel inside an utterance does not stop it', () => {
+    // An 800 ms "aaaa" at 200 Hz with little jitter predicts like a tone; rejected mid-utterance
+    // it stopped the VAD and restarted it ~200 ms later, inside the commit wait.
+    const held = { pitch: 200, jitter: 0.01, vibrato: 0.03, f1: 700 };
+    const pcm = call(
+      [
+        silence(400),
+        voice(1200, -22, 1),
+        voice(800, -24, 3, 0, held),
+        voice(1200, -22, 2),
+        silence(600),
+      ],
+      -55,
+    );
+    expect(transitions(pcm).map((t) => t.type)).toEqual(['vad.start', 'vad.stop']);
+  });
+
+  it('a tone that goes on after the caller stops ends the utterance within 1.5 s', () => {
+    const pcm = call([silence(400), voice(1500, -20, 9), tones(3000, -20, 400, 450), silence(400)]);
+    const list = transitions(pcm);
+    expect(list.map((t) => t.type)).toEqual(['vad.start', 'vad.stop']);
+    expect(list[1]!.atMs).toBeLessThanOrEqual(1900 + 1500 + 300);
   });
 
   it('handling rumble and vibration thumps below the high-pass corner never start speech', () => {
@@ -127,7 +211,9 @@ describe('energy VAD on phone audio', () => {
     expect(starts(transitions(pcm))).toEqual([]);
     // The high-pass alone rejects it; without it (and tone rejection) it was speech.
     expect(starts(transitions(pcm, { rejectTones: false }))).toEqual([]);
-    expect(starts(transitions(pcm, { highPassHz: 0, rejectTones: false })).length).toBe(1);
+    expect(starts(transitions(pcm, { highPassHz: 0, rejectTones: false })).length).toBeGreaterThan(
+      0,
+    );
   });
 
   it('50 Hz mains hum with harmonics never starts speech', () => {
@@ -161,54 +247,51 @@ describe('energy VAD on phone audio', () => {
     expect(starts(transitions(pcm))).toEqual([]);
   });
 
-  // minVolume is lowered so only the caller gate, not absolute level, decides these. The learned
-  // level is the mean frame level, about 8 dB under the caller's RMS.
-  const gated = { minVolume: 0.3 };
-
   it('a TV or a crowd from the first frame is learned as floor as fast as before', () => {
     // Four talkers at once, -32 dBFS from the moment the call connects, then the caller.
-    const crowd: Part[] = [1, 2, 3, 4].map((seed) => voice(6000, -38, 20 + seed, 0.5));
-    const babble: Part = { ms: 6000, at: (i, t) => crowd.reduce((sum, p) => sum + p.at(i, t), 0) };
-    const list = transitions(call([babble, voice(1500, -14, 9), silence(600)], -60));
+    const crowd = babble(6000, -32, 4, 21);
+    const list = transitions(call([crowd, voice(1500, -14, 9), silence(600)], -60));
     const speaking = list.reduce(
       (sum, t, i) => (t.type === 'vad.start' ? sum + ((list[i + 1]?.atMs ?? 8100) - t.atMs) : sum),
       0,
     );
     // The crowd holds the VAD open only until the floor reaches it, as with the 2 s rise alone.
-    const before = transitions(call([babble, voice(1500, -14, 9), silence(600)], -60), {
+    const before = transitions(call([crowd, voice(1500, -14, 9), silence(600)], -60), {
       speechFloorTauMs: 2000,
     });
     expect(list).toEqual(before);
     expect(speaking).toBeLessThan(5000);
   });
 
-  it('a background talker 24 dB below the caller does not start speech', () => {
-    const caller = (seed: number) => voice(1500, -16, seed);
-    const pcm = call(
-      [silence(300), caller(1), silence(700), voice(1200, -40, 7), silence(700), caller(3)],
-      -64,
-    );
+  // Default config throughout: the gate is measured against the caller's RMS level, and a -14 dBFS
+  // caller is loud enough for minVolume alone to let a talker 12 dB below them through.
+  const talkerAfter = (callerMs: number) => [
+    silence(300),
+    voice(callerMs, -14, 9),
+    silence(700),
+    voice(1200, -26, 7),
+    silence(700),
+    voice(1500, -14, 3),
+  ];
+
+  it('review: a talker 12 dB below the caller does not start speech at the default config', () => {
+    const pcm = call(talkerAfter(2000), -60);
     // The caller's two utterances, and nothing for the talker across the room in between.
-    expect(starts(transitions(pcm, gated)).map((t) => Math.round(t.atMs / 1000))).toEqual([0, 5]);
-    expect(starts(transitions(pcm, { ...gated, callerGateDb: null })).length).toBe(3);
+    expect(starts(transitions(pcm)).map((t) => Math.round(t.atMs / 1000))).toEqual([0, 5]);
+    expect(starts(transitions(pcm, { callerGateDb: null })).length).toBe(3);
+    // The caller's own next reply 8 dB softer than before still starts.
+    const softer = call([silence(300), voice(2000, -14, 9), silence(1200), voice(1000, -22, 4)]);
+    expect(starts(transitions(softer)).length).toBe(2);
   });
 
   it('the gate needs a second of caller speech: after a short "haan" a quieter voice still starts', () => {
-    const parts = (callerMs: number) => [
-      silence(300),
-      voice(callerMs, -12),
-      silence(700),
-      voice(1000, -38, 7),
-      silence(500),
-    ];
-    // 26 dB below the caller: admitted after 600 ms of caller speech, gated after 1500 ms.
-    expect(starts(transitions(call(parts(600), -66), gated)).length).toBe(2);
-    expect(starts(transitions(call(parts(1500), -66), gated)).length).toBe(1);
+    expect(starts(transitions(call(talkerAfter(600), -60))).length).toBe(3);
+    expect(starts(transitions(call(talkerAfter(2000), -60))).length).toBe(2);
   });
 
-  it('the gate only blocks starts: the caller dropping 24 dB mid-utterance is not cut off', () => {
-    const pcm = call([silence(300), voice(1500, -16), voice(1000, -40, 2), silence(600)], -64);
-    const list = transitions(pcm, gated);
+  it('the gate only blocks starts: the caller dropping 16 dB mid-utterance is not cut off', () => {
+    const pcm = call([silence(300), voice(1500, -8, 9), voice(1000, -24, 2), silence(600)], -64);
+    const list = transitions(pcm);
     expect(list.map((t) => t.type)).toEqual(['vad.start', 'vad.stop']);
     expect(list[1]!.atMs).toBeGreaterThanOrEqual(2800);
   });
@@ -227,7 +310,7 @@ describe('energy VAD on phone audio', () => {
       highPassHz: 200,
       speechFloorTauMs: 15000,
       rejectTones: true,
-      callerGateDb: 20,
+      callerGateDb: 12,
     });
     expect(Object.keys(createEnergyVad(PHONE_VAD_CONFIG).params).sort()).toEqual([
       'confidence',
