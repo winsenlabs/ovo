@@ -6,12 +6,14 @@ import { convertTemplate, IDLE_END_NODE, type ImportedFlowConfig } from './impor
  * founder reviews. The map is derived from the same `lib/flow.js`, so a difference means the map is
  * stale or the import lost something: a node or its END marker, an intent edge, or the text of a
  * line the flow speaks. The idle ending is not a flow node (it became `idle`), and the clips and
- * SMS markers the import drops are listed by its notes instead. Empty means they agree.
+ * SMS markers the import drops are listed by its notes instead; `added` are lines OVO's adjustment
+ * wrote, which the map cannot know. Empty means they agree.
  */
 export function diffConversationMap(
   imported: ImportedFlowConfig,
   markdown: string,
   constants: Record<string, string> = {},
+  added: readonly string[] = [],
 ): string[] {
   const { flow } = imported.decision;
   const map = parseConversationMap(markdown);
@@ -34,6 +36,7 @@ export function diffConversationMap(
   compare('node', nodes, map.nodes);
   compare('edge', edges, map.edges);
   for (const [id, line] of Object.entries(flow.lines)) {
+    if (added.includes(id)) continue;
     const clip = map.clips.get(id);
     if (clip === undefined) differences.push(`clip missing from map: ${id}`);
     else if (convertTemplate(clip, constants) !== line)

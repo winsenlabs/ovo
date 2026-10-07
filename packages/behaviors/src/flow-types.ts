@@ -10,11 +10,17 @@ import type { DecisionClock } from './flow-decide.ts';
 export interface FlowLine {
   id: string;
   template: string;
+  /** Text the agent already said (a repeat replays it), spoken as it is and never rendered. */
+  rendered?: boolean;
 }
 
 /** What the flow wants this turn to do. Nothing moves until the step is committed. */
 export type FlowStep =
   | { kind: 'enter'; node: string; lines: FlowLine[]; end: boolean; transition: FlowTransition }
+  /**
+   * Stay put and say something again: what the agent last said (`repeat`), the current question
+   * (`hold`), or the node's lines from the first mandatory one the caller has not heard.
+   */
   | { kind: 'repeat'; lines: FlowLine[]; transition: FlowTransition }
   | {
       kind: 'fallback';

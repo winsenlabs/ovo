@@ -138,6 +138,33 @@ describe('reading the answer', () => {
       kind: 'repeat',
     });
   });
+
+  it('routes a hold intent to the current question again', () => {
+    expect(
+      routeFlowIntent({ key: 'hold', description: 'Wait', phrases: [], hold: true }, {}),
+    ).toEqual({ kind: 'hold' });
+  });
+
+  it("holds an intent to its own threshold when it sets a higher one than the flow's", () => {
+    // 2026-10-07 call B: "Ananya, please stop." was taken as stop_calling at 0.60 and 0.63.
+    const flow = collectionsFlow();
+    flow.globalIntents[1] = { ...flow.globalIntents[1]!, threshold: 0.8 } as never;
+    const strict = compileFlow(AgentFlow.parse(flow));
+    const asked = flowDecisionRequest(strict, 'payment', { caller_reply: 'Ananya, please stop.' });
+    const said = (confidence: number) => response('stop_calling', confidence);
+    expect(readFlowAnswer(strict, asked, said(0.63), 'payment')).toMatchObject({
+      kind: 'low-confidence',
+      intent: 'stop_calling',
+    });
+    expect(readFlowAnswer(strict, asked, said(0.85), 'payment')).toMatchObject({
+      kind: 'intent',
+      intent: 'stop_calling',
+    });
+    // Other intents keep the flow's threshold.
+    expect(readFlowAnswer(strict, asked, response('promise_to_pay', 0.6), 'payment')).toMatchObject(
+      { kind: 'intent' },
+    );
+  });
 });
 
 describe('the instant phrase tier', () => {

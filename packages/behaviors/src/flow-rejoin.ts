@@ -50,7 +50,11 @@ export function flowResumeTool(flow: FlowSession, endAllowed: boolean): ToolDefi
   };
 }
 
-/** The prompt section that tells the LLM where the conversation stands and where it may resume. */
+/**
+ * The prompt section that tells the LLM where the conversation stands and where it may resume, and
+ * how to behave on a scripted call (P10): what the caller has already been told, so it does not
+ * refuse to name what the call is about; and to steer an unrelated topic back to the question.
+ */
 export function flowGuide(flow: FlowSession, endAllowed: boolean): string {
   const { compiled } = flow;
   const current = flow.state.listen ? compiled.listens.get(flow.state.listen) : undefined;
@@ -61,9 +65,24 @@ export function flowGuide(flow: FlowSession, endAllowed: boolean): string {
         ? `- ${FLOW_RESUME_END}: the call ends after your reply.`
         : `- ${id}: ${forPrompt(compiled.listens.get(id)!.question)}`,
     );
+  const confirmed = compiled.gatesIdentity && flow.verified;
+  const told = confirmed ? flow.disclosed : [];
   return [
     'Conversation flow: the caller said something the scripted conversation could not place.',
     current ? `The agent was waiting for: ${forPrompt(current.question)}` : '',
+    confirmed
+      ? 'The caller has confirmed who they are and has been told why you are calling. Answer ' +
+        'their questions about it (what the account or product is, the amounts, the dates) from ' +
+        'the facts you have, and do not ask who they are again.'
+      : '',
+    told.length
+      ? `They have already heard these lines in full, which you may repeat or explain:\n${told
+          .map((line) => `- ${line}`)
+          .join('\n')}`
+      : '',
+    'Keep to the purpose of this call. If the caller talks about something unrelated, say in one ' +
+      'short, polite sentence that you can only help with this call, then ask again what the ' +
+      'agent was waiting for. Do not offer help with unrelated things.',
     `Say a brief answer as plain text, then call \`${FLOW_RESUME_TOOL_ID}\` with the point the ` +
       'conversation continues from:',
     ...points,

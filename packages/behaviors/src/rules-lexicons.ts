@@ -18,8 +18,14 @@ const THANKS =
   /^(ok |okay )?(thanks|thank you|thank you so much|thanks a lot|dhanyavaad|dhanyawad|shukriya|bahut shukriya|nandri|romba nandri|धन्यवाद|शुक्रिया|நன்றி|ரொம்ப நன்றி)( (ji|sir|madam|ங்க))?$/u;
 const BYE =
   /^((ok|okay|thanks|thank you|chalo) )?(bye|bye bye|goodbye|good bye|alvida|बाय|अलविदा|பை|போயிட்டு வரேன்)( (ji|sir|madam))?$/u;
+/**
+ * A lone "what?", "sorry?" or "kya?" (and "enna", Tamil for what) is not here: on a noisy line it
+ * is as often the start of a sentence the turn detector cut short, or the caller reacting to what
+ * they heard, and replaying the agent's last turn over them made the 2026-10-07 calls worse (P6).
+ * The decision model still hears them and can pick `repeat`.
+ */
 const REPEAT =
-  /^(sorry|pardon|what|come again|repeat|repeat that|can you repeat|can you repeat that|say that again|kya|kya bola|phir se|phir se boliye|dobara|enna|enna sonneenga|marupadiyum|sorry what|excuse me|क्या|फिर से|दोबारा|என்ன|மறுபடியும்)$/u;
+  /^(pardon|come again|repeat|repeat that|can you repeat|can you repeat that|say that again|kya bola|phir se|phir se boliye|dobara|enna sonneenga|marupadiyum|excuse me|फिर से|दोबारा|மறுபடியும்)$/u;
 const WAIT =
   /^(wait|one minute|one second|hold on|just a minute|just a second|ek minute|ek second|ruko|ruk jao|oru nimisham|konjam iru|रुको|एक मिनट|இருங்க|ஒரு நிமிஷம்)( (please|ji))?$/u;
 

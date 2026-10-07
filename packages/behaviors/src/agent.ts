@@ -76,7 +76,8 @@ export class AgentBehavior extends AgentSession {
     this.lines.startTurn();
     this.ahead.heardTurn(variables);
     if (variables.inputEvent === 'opening') return yield* this.lines.opening(variables, this.flow);
-    if (variables.inputEvent === 'idle') return yield* this.lines.silence(variables);
+    if (variables.inputEvent === 'idle')
+      return yield* this.flow?.state.ended ? this.closeFlow('') : this.lines.silence(variables);
     this.lines.heard();
     this.gate?.closePrepared();
     this.active?.abort(new DOMException('superseded by a newer turn', 'AbortError'));
@@ -90,11 +91,15 @@ export class AgentBehavior extends AgentSession {
       this.ending.seal();
       return;
     }
+    if (this.flow?.state.ended) return yield* this.closeFlow(input);
+    // What the agent said last turn, read before this turn says anything (P10).
+    const previous = [...this.lines.recovery.lastSaid];
     const controller = new AbortController();
     const turn = ++this.turn;
     this.active = controller;
     const results: OperationRecord[] = [];
     const history = this.conversation.user(input);
+    const replyCut = this.conversation.replyCut;
     let wrote = false;
     // LAT-3: the LLM's first step, asked alongside the decision when the agent speculates.
     const early = this.ahead.llmTurn(this.inference, streaming, controller.signal, (context) =>
@@ -106,10 +111,14 @@ export class AgentBehavior extends AgentSession {
         tools: this.tools,
         results,
         ...(this.flow ? { flow: this.flow } : {}),
+        replyCut,
+        previous,
       }),
     );
 
     try {
+      const disclosure = this.disclosureAgain();
+      if (disclosure !== undefined) yield disclosure;
       if (this.confirmation.waiting) {
         const resumed = await resumeConfirmation({
           confirmation: this.confirmation,
@@ -162,10 +171,16 @@ export class AgentBehavior extends AgentSession {
       if (diverted) return yield* this.lines.speak(diverted, variables);
       if (route.kind === 'recover') return yield* this.lines.speak(route.plan, variables);
       const { prepared } = route;
-      if (route.end !== undefined) this.ending.arm(`decision:${route.end}`);
+      // A flow that has reached its end node is final (P4): a barge-in cannot reopen it.
+      if (route.end !== undefined)
+        this.ending.arm(`decision:${route.end}`, { terminal: this.flow?.state.ended });
       if (route.say !== undefined) {
         // A flow node's lines are separate segments, so each one is cached and played on its own.
-        for (const line of prepared.lines ?? [route.say]) yield this.say(line, turn);
+        for (const [index, line] of (prepared.lines ?? [route.say]).entries()) {
+          const mandatory = prepared.mandatory?.[index];
+          if (mandatory !== undefined) this.mustHear.expect(this.epoch, mandatory, line);
+          yield this.say(line, prepared.replay ? undefined : turn);
+        }
         this.ending.seal();
         return;
       }
@@ -181,7 +196,7 @@ export class AgentBehavior extends AgentSession {
         confirmation: this.confirmation,
         events: this.events,
         publish: (text) => this.say(text, turn),
-        endCall: (reason) => this.ending.arm(reason),
+        endCall: (reason) => this.ending.arm(reason, { terminal: this.flow?.state.ended }),
         operationId: this.operationId,
         turn,
         current: () => turn === this.turn,
@@ -195,12 +210,27 @@ export class AgentBehavior extends AgentSession {
         wrote,
         ...(this.flow ? { flow: this.flow } : {}),
         guard: prepared.guard,
+        replyCut,
+        previous,
       });
       this.ending.seal();
     } finally {
       early?.finish();
       if (this.active === controller) this.active = undefined;
     }
+  }
+
+  /**
+   * P4: the flow has ended, so this turn only closes the call. The goodbye is said once more when
+   * the caller barged in before hearing any of it; the call then ends whatever they say, and no
+   * decision or LLM is asked: nothing can reopen a call the flow has finished.
+   */
+  private *closeFlow(input: string): Generator<string> {
+    this.turn += 1;
+    if (input) this.conversation.user(input);
+    const reason = `decision:flow:${this.flow!.state.node ?? 'end'}`;
+    for (const line of this.ending.close(reason)) yield this.say(line);
+    this.ending.seal();
   }
 }
 

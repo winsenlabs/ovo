@@ -49,6 +49,12 @@ export interface PocImportOptions {
   start?: string;
   /** The POC's `JEV_MIN_CONFIDENCE` (0.55 by default). */
   threshold?: number;
+  /**
+   * OVO's own changes on top of the imported map, made to the flow before it is checked: what
+   * live calls taught that the POC does not have. Returns the ids of the lines it adds, which the
+   * POC's conversation map cannot list.
+   */
+  adjust?: (flow: AgentFlow) => string[];
 }
 
 /**
@@ -103,7 +109,7 @@ export function convertTemplate(text: string, constants: Record<string, string> 
 export function importPocFlow(
   poc: PocFlowModule,
   options: PocImportOptions,
-): { config: ImportedFlowConfig; notes: string[] } {
+): { config: ImportedFlowConfig; notes: string[]; added: string[] } {
   const notes: string[] = [];
   const constants = options.constants ?? {};
   const text = (id: string) => convertTemplate(poc.CLIPS[id]!, constants);
@@ -148,7 +154,8 @@ export function importPocFlow(
     clarify: RECOVERY.clarify,
     repeatPrefix: RECOVERY.repeatPrefix,
   };
-  const variables = [...new Set(Object.values(lines).flatMap(templateVariables))];
+  const added = options.adjust?.(flow) ?? [];
+  const variables = [...new Set(Object.values(flow.lines).flatMap(templateVariables))];
   checkFlow(flow, variables);
   return {
     config: {
@@ -162,6 +169,7 @@ export function importPocFlow(
       },
     },
     notes,
+    added,
   };
 }
 

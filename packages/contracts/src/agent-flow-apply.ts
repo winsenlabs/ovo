@@ -95,20 +95,26 @@ export type FlowAnswer =
   | { kind: 'other' | 'low-confidence'; intent: string; confidence: number; modelId: string };
 
 /**
- * Validate the exchange and apply the flow's threshold. Throws when the response does not answer
- * the request it was given; the caller treats that as an unavailable decision.
+ * Validate the exchange and apply the flow's threshold, or the chosen intent's own when it is
+ * higher (looked up in `listenId`). Throws when the response does not answer the request it was
+ * given; the caller treats that as an unavailable decision.
  */
 export function readFlowAnswer(
   compiled: CompiledFlow,
   request: DecisionRequest,
   rawResponse: unknown,
+  listenId?: string,
 ): FlowAnswer {
   const { response } = validateDecisionExchange(request, rawResponse);
   const answer = choiceOf(response, FLOW_INTENT_QUESTION);
   const { threshold } = compiled.flow;
   const base = { intent: answer.choice, confidence: answer.confidence, modelId: response.modelId };
   if (answer.choice === FLOW_OTHER_INTENT) return { kind: 'other', ...base };
-  if (answer.confidence < threshold) return { kind: 'low-confidence', ...base };
+  const own =
+    listenId === undefined
+      ? undefined
+      : findFlowIntent(compiled, listenId, answer.choice)?.threshold;
+  if (answer.confidence < Math.max(threshold, own ?? 0)) return { kind: 'low-confidence', ...base };
   const slots: Record<string, string> = {};
   for (const id of Object.keys(request.questions)) {
     if (id === FLOW_INTENT_QUESTION) continue;
@@ -124,13 +130,14 @@ function choiceOf(response: DecisionResponse, id: string) {
   return answer;
 }
 
-export type FlowTarget = { kind: 'node'; node: string } | { kind: 'repeat' };
+export type FlowTarget = { kind: 'node'; node: string } | { kind: 'repeat' } | { kind: 'hold' };
 
 /** Where an intent leads, given the slot answers of the same turn. */
 export function routeFlowIntent(
   intent: FlowIntent,
   slots: Readonly<Record<string, string>>,
 ): FlowTarget {
+  if (intent.hold) return { kind: 'hold' };
   const route = intent.next;
   if (route === undefined) return { kind: 'repeat' };
   if (typeof route === 'string') return { kind: 'node', node: route };

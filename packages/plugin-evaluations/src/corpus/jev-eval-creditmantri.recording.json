@@ -1,10 +1,10 @@
 {
   "provenance": "synthetic",
   "note": "Synthetic: every decided case is answered with its own label. Not a Jev measurement; record live answers with `pnpm eval:jev --record`.",
-  "recordedAt": "2026-10-06T03:52:37.181Z",
+  "recordedAt": "2026-10-07T14:16:48.443Z",
   "modelId": "synthetic-label-echo",
   "answers": {
-    "sha256:3e2521b2fc06894dfe84b09ddca3edaa78152e1eab7706350b83bc94f60bfac6": {
+    "sha256:2bb89bea10309c35aa0d6862e182df7e9c4c8c48b48329b182e08d52d737dae0": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -14,20 +14,21 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "confirmed": 0.9,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:c4a9fced67e2558eabc2d4b39c2b9aee9ec85db1b9710bcb891b3df96c4e8fe5": {
+    "sha256:aeec353caad36dba05d7cf43d1ed4419ed2e1842c139dfa6f2b38e9f0c252572": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -37,20 +38,21 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "confirmed": 0.9,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:ea18169c2a8d969669687c70c4ffcc7f95606a6b309201637fcafc3ba9c01159": {
+    "sha256:7e596cac0d04642206f4783751f3443fd3905250cc3a92c63ba379c56a5a00a0": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -60,20 +62,21 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "confirmed": 0.9,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:00301388aba303426baa35a337526ba1f1f4f1d21b55ac5bddbce272c69a1517": {
+    "sha256:8ddd08a3877fa6aa582d59e2b13857c14e249b1e71e61d99309e323fc8ae6f45": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -83,20 +86,21 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "confirmed": 0.9,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:bba97bb995c0aff7b1ff32be1f0e719cdb29f7e10bd1cfad79913fcb9967f469": {
+    "sha256:e19b61041b14c3ece633e279b6a6368f9ffea61cb5d26e81cd2cda7521c4fc6e": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -106,20 +110,21 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "confirmed": 0.9,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:69df7091e03c337ae8390ee340ba31a54fae86eb1e93ab659e3a9ec4effcf114": {
+    "sha256:8fe6a6f2ca8606ae54813585e1116ec4cc7b12da13352f1f3be581f0b882c389": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -128,21 +133,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
             "wrong_person": 0.9,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:dde8dc010c0e5e85988f8bdb9b5f6a4cab04719649f45e3c146b3e75daf6602a": {
+    "sha256:f78cea59606cd15cae9abbfa4927c6e75719bc4dec9245c23590f414acf6efeb": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -151,21 +157,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
             "wrong_person": 0.9,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:10999d4f9e6fe64ce8e17c4576c13f569323e00dda8cc9a2559caba85b3b79e5": {
+    "sha256:92fbfa2cdc22998b254f129cd1e93670a3a3df478990d289709d570f259c1620": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -174,21 +181,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
             "wrong_person": 0.9,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:cea6c4e47059d3c98f3afec240b37523e051ce1d8a49aec49e668ef797340dbe": {
+    "sha256:5cd12c35280143578b8560aaac0094cf707c8d76c4d618edc26f829437801120": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -197,21 +205,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
             "wrong_person": 0.9,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:047279fe3d4f3e874cca3b659e4e1fd7985427b2b5b9229528e67bab504befcb": {
+    "sha256:62aad20858fe4bad9db682345f067fa75cb57f967566572d78673c711454a8cc": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -220,21 +229,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
             "third_party": 0.9,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:4b01c344cdfc7ace004eba4ae91a2ca88a9b7ab4f533d7616db182c60f30c8de": {
+    "sha256:02b8ae157580d6d01a54dcf7a3c0268d50184cb8c715c5b7c2671b282cf359bb": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -243,21 +253,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
             "third_party": 0.9,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:21717dd949ebc40fef06def4ce04e5d4b12b34f2d6c509cb5b83f339694c1890": {
+    "sha256:c26f67fd3d7af2bcc3953d2e156c02fe90fad47390703c7f762afd9f9cfefb8c": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -266,21 +277,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
             "third_party": 0.9,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:fb549befd8cb1b34bda677fca1b1c0ba845fbf0196064b8f4f136868f6406105": {
+    "sha256:82c63862cde20bbc6ebe8aaf2977bbd77d54aafe006a24e8d916946535710c78": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -289,21 +301,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
             "busy": 0.9,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:44ea931db61605d376be6bba249c279f878155fc685cadd316e3d6b3169adff0": {
+    "sha256:4190adc4a1fb4a30fea7a14f6bf656ccb6f1d65e239e3a21fbe6bc942f591345": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -312,21 +325,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
             "busy": 0.9,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:012534b801f6797cc5c316d32dce42f8a393abb193a98610efb4fb5164b441eb": {
+    "sha256:c8c9e5516c4a2b3bedf6033920f28d1aa6ba6ce4f997829f742cb8ae9ea33468": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -335,21 +349,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
             "busy": 0.9,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:028eb8c23a469fd124f43f8fcd2e57df56f68b20b7cee0ab0af1a67565e59688": {
+    "sha256:e244ae8e42560c1ea4417bb7526057ce3b6c3745d41bfc3e5901d624820ee2fd": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -358,21 +373,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
             "asks_purpose": 0.9,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:800448a2fb0c4cb9fec50dcc89f7449e64174b27b198e2fbc4c5abb93b54ae3f": {
+    "sha256:67c18169bcd377fbd5e875cb1f0c77e5a0bccf73c3c5a7b85e5fe4318dbc5fa1": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -381,21 +397,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
             "asks_purpose": 0.9,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:c2ca4d71e79d5272ce451e3419f31eaae80862163fa38a9d56c3e2e5809a1fe7": {
+    "sha256:6be6017107de5ab1ae3b08ade69359b44c24aca0c45254c95dc6491db50cb4c2": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -404,21 +421,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
             "asks_purpose": 0.9,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:826b0afbd0250b90d09863ed8001c58723a3fef467cc4b14495d27062f6e025b": {
+    "sha256:7e130722de7a0209c9d460ddfd35cd75ebffe626a3adcaf5b5be48418dd10dd6": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -427,21 +445,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
             "asks_purpose": 0.9,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:13f405741f345c359a095f8c4ae4f1bf5ca562280edd6bc677390d420af65298": {
+    "sha256:d7f04aa9224211ea89b4b9181d59115ffa17d53179e12756c091701939a13f7a": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -450,21 +469,70 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
             "repeat": 0.9,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:9841036b8d132cfd31de05ea5a36386e1ebaec9e9f31d7908df247dcf75d864a": {
+    "sha256:932b094a2c831399f0c096eb20b038921efaa657939658ed725b75f4d5767180": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "repeat",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.9,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
+          }
+        }
+      }
+    },
+    "sha256:1182fe9c0e20b8066dc89fe9f41b7e9ea2245ccba03bb0fb73d9611e1ef29ae0": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "repeat",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.9,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
+          }
+        }
+      }
+    },
+    "sha256:7cd3b887dff1aeda4db5ecb5dadcfac815230b5d23239ef82942f130a6ded7a1": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -473,21 +541,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
             "human_agent": 0.9,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:4f9c1f9c6ccfd66999b518aa1667052025180b7aecd6bd4bb2333402cafcfe43": {
+    "sha256:e46d6f1a040424529489c8b5601993011e691e201f4f648464b2c0cf7bbdc51b": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -496,21 +565,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
             "stop_calling": 0.9,
-            "abusive": 0.011111111111111108,
-            "other": 0.011111111111111108
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:b4e6512a04107266fb3d1cf81f9612f38c836ef387e7dde831ec5c6d3a52c1bd": {
+    "sha256:8c544dce8fde2032f27b33ce695fb885af359754d2d2ff5c789c4e87c5922e25": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -519,21 +589,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
             "abusive": 0.9,
-            "other": 0.011111111111111108
+            "other": 0.009999999999999998
           }
         }
       }
     },
-    "sha256:09c033586a9d1edadc7fd9b1896f2eb8830939b11834894c818bf4aeaf30169d": {
+    "sha256:2d4cf81b7cf37da457f2dbc376ad652a224b2fbda5f9cfdb41caed1dd53d353e": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -542,21 +613,70 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
             "other": 0.9
           }
         }
       }
     },
-    "sha256:5f283bfdd2f1cf1af65ff9e2f9c00397f569c2b135dae7f2cfa8edf25f731fd0": {
+    "sha256:5b769e59000f8d6aeba32305dba36e80ef50f72eea99c82056c766de1bab0a0d": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "hold",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.9,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
+          }
+        }
+      }
+    },
+    "sha256:4dfcc19732e9f744e7ea791364dd279af60037a7a4cbca7fc759043ba3c67021": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "hold",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.9,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
+            "other": 0.009999999999999998
+          }
+        }
+      }
+    },
+    "sha256:1a3bfee234d92e7e75e408e45ac242c770387153ed378e01b45d2a760c909d3b": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -565,21 +685,22 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "confirmed": 0.011111111111111108,
-            "wrong_person": 0.011111111111111108,
-            "third_party": 0.011111111111111108,
-            "busy": 0.011111111111111108,
-            "asks_purpose": 0.011111111111111108,
-            "repeat": 0.011111111111111108,
-            "human_agent": 0.011111111111111108,
-            "stop_calling": 0.011111111111111108,
-            "abusive": 0.011111111111111108,
+            "confirmed": 0.009999999999999998,
+            "wrong_person": 0.009999999999999998,
+            "third_party": 0.009999999999999998,
+            "busy": 0.009999999999999998,
+            "asks_purpose": 0.009999999999999998,
+            "repeat": 0.009999999999999998,
+            "hold": 0.009999999999999998,
+            "human_agent": 0.009999999999999998,
+            "stop_calling": 0.009999999999999998,
+            "abusive": 0.009999999999999998,
             "other": 0.9
           }
         }
       }
     },
-    "sha256:d87b777f201cabfdd3d889a9e180c90db68cdabb4df14dffcc609620a6cedeb6": {
+    "sha256:f12247dc357ea3d65579b5dd35eaab6461ae2bd677c8edb8fff1b54953878cb8": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -589,18 +710,19 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "pay_now": 0.9,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -619,7 +741,7 @@
         }
       }
     },
-    "sha256:db8e77d1a2acd4202e1bc0a4ddaad94d2a1d08d7f36542d0caf861f1ccf49cca": {
+    "sha256:850076e4431cb9abd1f3446976f60d109d31334325bb7438b2cfe2ab840ae3a0": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -629,18 +751,19 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "pay_now": 0.9,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -659,7 +782,7 @@
         }
       }
     },
-    "sha256:9fc44917c300127e4a6c9b7073261c0b745f8a391a279132ff3d9d17f3e8d655": {
+    "sha256:e16acd945b0e04a6d9e3fbdcb6a63da8dd064fdb1be55f3046f5e0f006eddc45": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -669,18 +792,19 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "pay_now": 0.9,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -699,7 +823,7 @@
         }
       }
     },
-    "sha256:e6bd1d2c8468ff5818fe9034f0614f0ab1fd93e6be867391ca9017439f6b91df": {
+    "sha256:167badfeeb013e74a3d7643b73460e5c8e0af00f283598e5d520921ac217ae63": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -708,19 +832,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
             "promise_to_pay": 0.9,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -739,7 +864,7 @@
         }
       }
     },
-    "sha256:17c03ef4c3c008e4ebe4781249ea619e53e61ed5169d759898e309e36b914a42": {
+    "sha256:b6f8d75d86a11b6ae42467c288bb2608c76d0b3d50b603220fa04c8f78b1ffe9": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -748,19 +873,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
             "promise_to_pay": 0.9,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -779,7 +905,7 @@
         }
       }
     },
-    "sha256:02b6bcfe36bd8f785b5129d73e0e481169acbf4864790b6493d5e4f61e123759": {
+    "sha256:45bfe03983d0e528874be0bdf5c3a830ba7dc2d0833b0ee9b2e725ba5571f5d5": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -788,19 +914,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
             "promise_to_pay": 0.9,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -819,7 +946,7 @@
         }
       }
     },
-    "sha256:d0c85aaca7d38f32de6d4cf9b297f6d9ce6596b2601ebe6b7c2db8fb87b68ad9": {
+    "sha256:c80ef4108e9a0af803d535eb6ff4c6f7f28f83d97ddcc0e2e17b850fefa44e8d": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -828,19 +955,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
             "promise_to_pay": 0.9,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -859,7 +987,7 @@
         }
       }
     },
-    "sha256:6f04d4158d00a70130447389da9eac795e89c785c1b77949ded65b2a98b12eb5": {
+    "sha256:12f913b9133bcce2ab476f15de737461ecc4f8f905981302e80661c20b666e3b": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -868,19 +996,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
             "promise_to_pay": 0.9,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -899,7 +1028,7 @@
         }
       }
     },
-    "sha256:f1aaf66d1ed7634abb0bfb9dfdb08ce5ad5ac62a7998c303a100608701ddec89": {
+    "sha256:b3ee184c27c7641c463221d6c4f943760da2db86756b9ff10d80f4306a8dc5bd": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -908,19 +1037,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
             "promise_to_pay": 0.9,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -939,7 +1069,7 @@
         }
       }
     },
-    "sha256:020b48432ad1c0a9c73e4e04e6d1a76e336a659b75dc2959bfb59d92bf280345": {
+    "sha256:4d1cee345a5124dafa6479e84783d9f60e4ff75e88ad7d3ce9f55eefb3f6087a": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -948,19 +1078,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
             "promise_to_pay": 0.9,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -979,7 +1110,7 @@
         }
       }
     },
-    "sha256:4bf64e2d2755d4da89a07e2023313ee536c085633ce15b3af3c02624d8dcfb17": {
+    "sha256:45a82f21544d807eee1c6c30f8f56b7fe584051183d29070dbaebf981ae9c9e3": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -988,19 +1119,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
             "promise_to_pay": 0.9,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1019,7 +1151,7 @@
         }
       }
     },
-    "sha256:093725e956304e2cfc15cf2cfeb267094fd669ad4727b8540c61e99a61064320": {
+    "sha256:5d4469148b2a72dee075ad964e9228d7cd07824dbf6f1f7eb1003bb1277f86cd": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1028,19 +1160,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
             "promise_to_pay": 0.9,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1059,7 +1192,7 @@
         }
       }
     },
-    "sha256:c1d80452987b25da58eb926cac80113ab08565178bcaa0b6ae880dc86fababce": {
+    "sha256:172d7a42cc995591c2d788073616e632b8be685cda9eb1bd9948d9801566c362": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1068,19 +1201,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
             "promise_to_pay": 0.9,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1099,7 +1233,7 @@
         }
       }
     },
-    "sha256:ed7d6ef47626f9ab5c29ce4feb4995766a40bc7a01bb8fc794fc2de55d6d62a2": {
+    "sha256:acedc16c4a7249fde5bb79a66d4ad578ed9774a050f39d4f3a4d0de5eb5cd45c": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1108,19 +1242,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
             "already_paid": 0.9,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1139,7 +1274,7 @@
         }
       }
     },
-    "sha256:aafc66d75574bcbed56a6dd669a578db11ca91db8b2898b5c46e6e64b19a20af": {
+    "sha256:d6ee5a3ab19c98151f8b1a84c9fa23c0ae710d085cf08a73d838da93893b622d": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1148,19 +1283,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
             "already_paid": 0.9,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1179,7 +1315,7 @@
         }
       }
     },
-    "sha256:581b51b68a64bf50c65d3d2e1875f4fb5d1bc8015cadb1eba582e498b68bc82e": {
+    "sha256:38efc87d983c1925481a29ad1e2745f890113385832f8c24ce9c9cd96842cec2": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1188,19 +1324,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
             "already_paid": 0.9,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1219,7 +1356,7 @@
         }
       }
     },
-    "sha256:1f1049380854278f802c6eded1ab6e1671a124094ee39ba6bac80a2dabe741a5": {
+    "sha256:238e03d181f037657feab9d8fd9c994bc2082c2acd6dc948287e4622d92b4e28": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1228,19 +1365,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
             "cannot_pay": 0.9,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1259,7 +1397,7 @@
         }
       }
     },
-    "sha256:b623ce85ea2c45b455f284127c9d842c86065348df31dd6d065cf1393bd73035": {
+    "sha256:444491e08b6e9abfa71d0c7bce1e98a2f5d4fa3eaa748dde4fba308e76a44559": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1268,19 +1406,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
             "cannot_pay": 0.9,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1299,7 +1438,7 @@
         }
       }
     },
-    "sha256:c5768f52c593ad5e787aad55407872f77f0a6d2a9724836396f67d62ee845834": {
+    "sha256:6f27ff391e4458442b94969c3f436add6d2eac95d3191e62b825bce442744375": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1308,19 +1447,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
             "cannot_pay": 0.9,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1339,7 +1479,7 @@
         }
       }
     },
-    "sha256:1da69887131bab6485de0c75a55f1d06f5792855eaefba96caf986ef9bd4dc8a": {
+    "sha256:436d10d0f29c25d4fafe1e87064a2e9ff8397e0e0371bed32fae78688c230ae0": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1348,19 +1488,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
             "dispute": 0.9,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1379,7 +1520,7 @@
         }
       }
     },
-    "sha256:9bb1a841d8e47e7bdac9fac0dbe09c0cf406cbc8f97e2ac5d64b29f1a7694aee": {
+    "sha256:9b93cc9de51a6dd3fe777964bbcfbadbcf374b442276a73f16c558a010effb44": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1388,19 +1529,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
             "dispute": 0.9,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1419,7 +1561,7 @@
         }
       }
     },
-    "sha256:627822f5ab01eeca98f2030e8d31058531dbc99c20b1d89c51bed1b97718a489": {
+    "sha256:28b40f65ef92f8ffdef7576aeec5adb2cc69c1cd94ff906b88a092ebad19e395": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1428,19 +1570,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
             "waiver_request": 0.9,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1459,7 +1602,7 @@
         }
       }
     },
-    "sha256:7b89279a196644096fc718899824639fa48a8bb7c4e9ed3e452584234b053934": {
+    "sha256:c7ca71c1316c5410a60de5ec96167433336c5a15264881c6c06d7ab69034159b": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1468,19 +1611,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
             "waiver_request": 0.9,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1499,7 +1643,7 @@
         }
       }
     },
-    "sha256:235f9246c6061786c232ba700ab153ba01e573b0cc302744f6571bfeddbf602e": {
+    "sha256:99f2ba0bb962e0b0662fb1507305d41aa5e8fe576decd8ca11d2157fb8bd1553": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1508,19 +1652,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
             "waiver_request": 0.9,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1539,7 +1684,7 @@
         }
       }
     },
-    "sha256:7a2a62dbc9ad19a6e732fd517ec172dc13eab8e5032ed4cbfe684aa7f1b34778": {
+    "sha256:13e7bbab5be21b49765dbc02d59ec7c70519f50fa6b1535afa4a651bc79086d0": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1548,19 +1693,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
             "mandate_help": 0.9,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1579,7 +1725,7 @@
         }
       }
     },
-    "sha256:0bdd5d588b237fa7b9085731a91b18c97eb0305191f7701a749be59baeb5ce2e": {
+    "sha256:2410bbc691842575ac396a5dbb1ac6523b2ae546382ba88977cea8f16f074f31": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1588,19 +1734,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
             "mandate_help": 0.9,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1619,7 +1766,7 @@
         }
       }
     },
-    "sha256:649f4f31be4e9b77d1e1946ab11b0a115ca8a7b29403fe367d83b78c525d4e97": {
+    "sha256:915ba24f96239206981b34fa10a5bb1f8ecd2cfb43edbecc060bd73546b9f05f": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1628,19 +1775,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
             "busy": 0.9,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1659,7 +1807,7 @@
         }
       }
     },
-    "sha256:e3d056e1650a2ae28901d1c07844968d73ab847796a00f3398c7115820ad027d": {
+    "sha256:adf9503cbeb9a910c18bb836e1b774b118047651dadfed4347cdebfd12c14a36": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1668,19 +1816,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
             "human_agent": 0.9,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1699,7 +1848,7 @@
         }
       }
     },
-    "sha256:b874e28e0dc082eba5bc5e03d136cc446b024facc90d3da0b68daf8386543fa5": {
+    "sha256:008e4dd56902461b59da94e397abc76281b12fc886d96feabcc1f516c6070722": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1708,19 +1857,20 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
             "stop_calling": 0.9,
-            "abusive": 0.008333333333333331,
-            "other": 0.008333333333333331
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
           }
         },
         "ptp_when": {
@@ -1739,7 +1889,89 @@
         }
       }
     },
-    "sha256:3b73683928051237b8fe0e3af21d1914e875cbead4b1c2931d952e8f5b811213": {
+    "sha256:a46e545eb7ecca3d0d773104dd81db0943219cd860f942263cac963858cbd3ee": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "hold",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.9,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:06faab981be40a27d37abac5c29ea8125b1be4b2d9ea5223e684a89dbacb58c2": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "hold",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.9,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
+            "other": 0.007692307692307691
+          }
+        },
+        "ptp_when": {
+          "type": "choice",
+          "choice": "unspecified",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "today": 0.019999999999999997,
+            "tomorrow": 0.019999999999999997,
+            "within_3_days": 0.019999999999999997,
+            "within_week": 0.019999999999999997,
+            "later": 0.019999999999999997,
+            "unspecified": 0.9
+          }
+        }
+      }
+    },
+    "sha256:b5fe2c4546b641f352d1995ce22f1f2ed4bd5502947e0103927dc381c4d99c52": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1748,18 +1980,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
             "other": 0.9
           }
         },
@@ -1779,7 +2012,7 @@
         }
       }
     },
-    "sha256:fae6564495d8c72fd3c6770987530ca887e35cf3d6cd1aecca1652900cc490d9": {
+    "sha256:2cb0064b7a987b1eb2d88be53a319531ab3f518e50412d27296b1a719df2be2b": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1788,18 +2021,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
             "other": 0.9
           }
         },
@@ -1819,7 +2053,7 @@
         }
       }
     },
-    "sha256:d1d226fac1faefcc2fa63d11006d74e464fce428876f12b29d546c4cab129728": {
+    "sha256:1b0f83a798868dbc683eefceb2feac4929fea8747031bb09fa4541b01f7ab650": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1828,18 +2062,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "pay_now": 0.008333333333333331,
-            "promise_to_pay": 0.008333333333333331,
-            "already_paid": 0.008333333333333331,
-            "cannot_pay": 0.008333333333333331,
-            "dispute": 0.008333333333333331,
-            "waiver_request": 0.008333333333333331,
-            "mandate_help": 0.008333333333333331,
-            "busy": 0.008333333333333331,
-            "repeat": 0.008333333333333331,
-            "human_agent": 0.008333333333333331,
-            "stop_calling": 0.008333333333333331,
-            "abusive": 0.008333333333333331,
+            "pay_now": 0.007692307692307691,
+            "promise_to_pay": 0.007692307692307691,
+            "already_paid": 0.007692307692307691,
+            "cannot_pay": 0.007692307692307691,
+            "dispute": 0.007692307692307691,
+            "waiver_request": 0.007692307692307691,
+            "mandate_help": 0.007692307692307691,
+            "busy": 0.007692307692307691,
+            "repeat": 0.007692307692307691,
+            "hold": 0.007692307692307691,
+            "human_agent": 0.007692307692307691,
+            "stop_calling": 0.007692307692307691,
+            "abusive": 0.007692307692307691,
             "other": 0.9
           }
         },
@@ -1859,7 +2094,7 @@
         }
       }
     },
-    "sha256:b9fe8a42e3cfce3374b83c90e682fd5bace2b220210c1bfa697743637af292df": {
+    "sha256:d522ecf0f1eb1d58546efd4c014d4ba461cf7105e81a5b6e9c8cc5a059c436d8": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1869,17 +2104,18 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "received": 0.9,
-            "not_received": 0.016666666666666663,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "not_received": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:4026144cd5f818c7a9d6640a9a35c58d48a4d40f2eef0deb8d0cd1d78e92b089": {
+    "sha256:d0200c0fa55420debe23bf4e81705d27a893a3d2b79c3164d6c9de4c55341d2d": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1889,17 +2125,18 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "received": 0.9,
-            "not_received": 0.016666666666666663,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "not_received": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:f0c076eb9b5b1b4214567c3507f9df96fe31fe73427e43356b1de8f6eed33c64": {
+    "sha256:8ce9fe69cd487b1224553e4b74bd25e8e7745958e3144a6899061840f86d47d1": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1908,18 +2145,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "received": 0.016666666666666663,
+            "received": 0.014285714285714282,
             "not_received": 0.9,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:ff014f0f03b981796df344ab9f0924f883d784cae4ebfdb7e16490026de01e78": {
+    "sha256:255816dedbe9a13acf5816831af52743ae049b9b26ba193a5687f93fefeedab7": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1928,9 +2166,72 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "received": 0.016666666666666663,
+            "received": 0.014285714285714282,
             "not_received": 0.9,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
+          }
+        }
+      }
+    },
+    "sha256:c9a45faab2a95424514f5f63921c9aa576da9eb8dc503013813e87b5bc960a70": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "received": 0.014285714285714282,
+            "not_received": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.9
+          }
+        }
+      }
+    },
+    "sha256:f608d2bb6f2b699f07ec745daf6d12e5a178a74062df08c58b24329c6bfe5d6a": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "repeat",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "received": 0.014285714285714282,
+            "not_received": 0.014285714285714282,
+            "repeat": 0.9,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
+          }
+        }
+      }
+    },
+    "sha256:99bbc7de722afdede77e89138555e8b668dc64bc5748af1c0721aa331c48e182": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "no_more",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "no_more": 0.9,
             "repeat": 0.016666666666666663,
+            "hold": 0.016666666666666663,
             "human_agent": 0.016666666666666663,
             "stop_calling": 0.016666666666666663,
             "abusive": 0.016666666666666663,
@@ -1939,7 +2240,47 @@
         }
       }
     },
-    "sha256:31d581020c2c9f70e9b64db6dd82cddc9a4dc7a2e5d00429c74c77f5d5bbc818": {
+    "sha256:7e4db1f87087bd3a7895c1d3c7d33d7a1b84d931587fb04fa3e43dd75e54807f": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "no_more",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "no_more": 0.9,
+            "repeat": 0.016666666666666663,
+            "hold": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:3c41189a86eedc31cec30fb12914138f1161ea8f64c5a8e6d49bb149ba9ba8e7": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "no_more",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "no_more": 0.9,
+            "repeat": 0.016666666666666663,
+            "hold": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:03991a5c926de8c2bb61cf2ef984c1b7b1fc02dffcc094977b757eefda78309d": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -1948,9 +2289,9 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "received": 0.016666666666666663,
-            "not_received": 0.016666666666666663,
+            "no_more": 0.016666666666666663,
             "repeat": 0.016666666666666663,
+            "hold": 0.016666666666666663,
             "human_agent": 0.016666666666666663,
             "stop_calling": 0.016666666666666663,
             "abusive": 0.016666666666666663,
@@ -1959,64 +2300,7 @@
         }
       }
     },
-    "sha256:91683182030c992799501e7ca06df5807358ca8a56fce1d47d3bd3d69b816174": {
-      "modelId": "synthetic-label-echo",
-      "answers": {
-        "intent": {
-          "type": "choice",
-          "choice": "no_more",
-          "confidence": 0.9,
-          "calibrationVersion": "synthetic-label-echo",
-          "probabilities": {
-            "no_more": 0.9,
-            "repeat": 0.019999999999999997,
-            "human_agent": 0.019999999999999997,
-            "stop_calling": 0.019999999999999997,
-            "abusive": 0.019999999999999997,
-            "other": 0.019999999999999997
-          }
-        }
-      }
-    },
-    "sha256:76c73eb4605981a462c12d1071446a15cd9d329e9aa3dcaa05894cdad5554ee7": {
-      "modelId": "synthetic-label-echo",
-      "answers": {
-        "intent": {
-          "type": "choice",
-          "choice": "no_more",
-          "confidence": 0.9,
-          "calibrationVersion": "synthetic-label-echo",
-          "probabilities": {
-            "no_more": 0.9,
-            "repeat": 0.019999999999999997,
-            "human_agent": 0.019999999999999997,
-            "stop_calling": 0.019999999999999997,
-            "abusive": 0.019999999999999997,
-            "other": 0.019999999999999997
-          }
-        }
-      }
-    },
-    "sha256:e2186e27cdf0df9dc72252fea6de66feb2e5d19919448d1c7bdc8774d72fad1a": {
-      "modelId": "synthetic-label-echo",
-      "answers": {
-        "intent": {
-          "type": "choice",
-          "choice": "no_more",
-          "confidence": 0.9,
-          "calibrationVersion": "synthetic-label-echo",
-          "probabilities": {
-            "no_more": 0.9,
-            "repeat": 0.019999999999999997,
-            "human_agent": 0.019999999999999997,
-            "stop_calling": 0.019999999999999997,
-            "abusive": 0.019999999999999997,
-            "other": 0.019999999999999997
-          }
-        }
-      }
-    },
-    "sha256:174ff6d16ecb14d9cd0639d183d381cee5a2c649afcdbee1563bb5817fb9d003": {
+    "sha256:6e682a4ac287265b5007df2b7cf18ed819040ca933c0a3660f86d7df4139dca1": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2025,36 +2309,18 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "no_more": 0.019999999999999997,
-            "repeat": 0.019999999999999997,
-            "human_agent": 0.019999999999999997,
-            "stop_calling": 0.019999999999999997,
-            "abusive": 0.019999999999999997,
+            "no_more": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "hold": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
             "other": 0.9
           }
         }
       }
     },
-    "sha256:f4e2ad96b1805a7c12e673ba9b39d34fd21a8215e4b5da30f0db195c1515f5c1": {
-      "modelId": "synthetic-label-echo",
-      "answers": {
-        "intent": {
-          "type": "choice",
-          "choice": "other",
-          "confidence": 0.9,
-          "calibrationVersion": "synthetic-label-echo",
-          "probabilities": {
-            "no_more": 0.019999999999999997,
-            "repeat": 0.019999999999999997,
-            "human_agent": 0.019999999999999997,
-            "stop_calling": 0.019999999999999997,
-            "abusive": 0.019999999999999997,
-            "other": 0.9
-          }
-        }
-      }
-    },
-    "sha256:f0ecdd7a56bebd1da577499886ddc261dad75e0f4f6e22d7cb22b569fc434f4a": {
+    "sha256:619f3870909bca2b43ba765187dc303efb3a1d02c7fae4b8c7448bc4ba57d3c5": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2063,17 +2329,38 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "no_more": 0.019999999999999997,
-            "repeat": 0.019999999999999997,
-            "human_agent": 0.019999999999999997,
+            "no_more": 0.016666666666666663,
+            "repeat": 0.016666666666666663,
+            "hold": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
             "stop_calling": 0.9,
-            "abusive": 0.019999999999999997,
-            "other": 0.019999999999999997
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
           }
         }
       }
     },
-    "sha256:0bc1819d68226818426bc9818b64256ab1d794b40b4ed5c41a4cf498d87660ce": {
+    "sha256:c422f910350679e4677a640f3ea0c296155739bc8e5c72508ddd6ce923a4fff2": {
+      "modelId": "synthetic-label-echo",
+      "answers": {
+        "intent": {
+          "type": "choice",
+          "choice": "repeat",
+          "confidence": 0.9,
+          "calibrationVersion": "synthetic-label-echo",
+          "probabilities": {
+            "no_more": 0.016666666666666663,
+            "repeat": 0.9,
+            "hold": 0.016666666666666663,
+            "human_agent": 0.016666666666666663,
+            "stop_calling": 0.016666666666666663,
+            "abusive": 0.016666666666666663,
+            "other": 0.016666666666666663
+          }
+        }
+      }
+    },
+    "sha256:695be1b21dca3ce14f27bf3246f526fbcd124ab7cc55672b1843dc3f58f1820b": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2083,17 +2370,18 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "yes": 0.9,
-            "no": 0.016666666666666663,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "no": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:4781d413a46b1cb4603ab75cc5e792ab89a6a91eeedd71ef6e972d7ad5a3986e": {
+    "sha256:b64fb5024a074759b0104d411fd6e72e25dcc88f407677e4e4815400eed669b7": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2103,17 +2391,18 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "yes": 0.9,
-            "no": 0.016666666666666663,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "no": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:64f09264145ee99690f03f64437c8c38c973019d541947b460a1e1c641a1ba95": {
+    "sha256:19f4e0d9a4ad3766b9400639741a9ffd874f6f562bbfcf59d2ccffed51c81e56": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2122,18 +2411,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "yes": 0.016666666666666663,
+            "yes": 0.014285714285714282,
             "no": 0.9,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:f3b7b9012701d3b641a2bef37fafd726f2b22624d41319531270dbeb82dd0909": {
+    "sha256:71dd85b3528cf6f6198a22bfb919cbe381dd9af468a8b8b3668a0d552efbef59": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2142,18 +2432,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "yes": 0.016666666666666663,
+            "yes": 0.014285714285714282,
             "no": 0.9,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:7a3c9cce74ca1541fddc6883c87a47e7790a10e7f414b64adab49af7beca597f": {
+    "sha256:0d79eb4406628d361319247c29f4d2f99c6c5ff2f617303f11845603519bb129": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2162,18 +2453,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "yes": 0.016666666666666663,
-            "no": 0.016666666666666663,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
+            "yes": 0.014285714285714282,
+            "no": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
             "other": 0.9
           }
         }
       }
     },
-    "sha256:1f034fca61d772f139889f19603fc6571eaac33f709b318af03baa7db4d899be": {
+    "sha256:c1facce1b698e37ec1959a2700b03ec17325882f2e373e1d27943a30b44a9eca": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2183,17 +2475,18 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "gave_date": 0.9,
-            "doesnt_remember": 0.016666666666666663,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "doesnt_remember": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:4953ad74c17adef8e073005047e724eb4ded5b25b1d52def0635882155b2cf86": {
+    "sha256:e3bc5bbb6899cc26884c9e8fd8c384872b19cbd262d9060f5c812de20c2c9a2c": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2203,17 +2496,18 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "gave_date": 0.9,
-            "doesnt_remember": 0.016666666666666663,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "doesnt_remember": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:727f7476034e997adfcab5750eb3bb8c28412c611a7d1d77d5b4655aa1fbccec": {
+    "sha256:4eb949f6ce2908b6fcef0ba950fee7056a317d2c8bda2227142dbded1171cfd5": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2223,17 +2517,18 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "gave_date": 0.9,
-            "doesnt_remember": 0.016666666666666663,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "doesnt_remember": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:c4a5553b54860f12f41d0ca2918a4a8e6846e919a22b623e681960f1e63822f8": {
+    "sha256:eb2794a95403a26ca4d68551b7c0b2e2fa044ef66cd1316330be1b3f81ba0861": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2242,18 +2537,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "gave_date": 0.016666666666666663,
+            "gave_date": 0.014285714285714282,
             "doesnt_remember": 0.9,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:c43aa76449f3368a29d1c03cb5eab358879aa1fa04a74fd15538015bda7523f1": {
+    "sha256:d540f19e293ddf47475c64cb77c7723f9462676e3af16c9363d679b9e04c5f00": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2262,18 +2558,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "gave_date": 0.016666666666666663,
+            "gave_date": 0.014285714285714282,
             "doesnt_remember": 0.9,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:55a02bc8ec64d62fb36134825c8f5387c2abc4f7a1ba331401177d4a0491f7ed": {
+    "sha256:9f9d2c980e54e7510ec57aee11af87eeb1d285f03f8f785d33ddf08e5f446d38": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2282,18 +2579,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "gave_date": 0.016666666666666663,
+            "gave_date": 0.014285714285714282,
             "doesnt_remember": 0.9,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:ac815f216afa76a0edf32252f258e4dd7bdddfa92a3920c8865d60186e11dc7c": {
+    "sha256:835729e337c7e9fab413d2e43689cbcb6b3bcc4fa924cb67afef3d8934f9f21b": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2303,17 +2601,18 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "partial": 0.9,
-            "relief": 0.016666666666666663,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "relief": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:7d668f169f1254768edba4ce38b38a174374a7ebdf2013f8e5a7c84d01fc8fef": {
+    "sha256:9f1941f6e0619a310e8b59655b17119179941a28e8dc05ab3bd8480a9ef29f47": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2323,17 +2622,18 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "partial": 0.9,
-            "relief": 0.016666666666666663,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "relief": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:cca51cbd003f35dd39a5e66c74ed06faba55f2c46fbb639254ea2d72624a27c2": {
+    "sha256:5a36a58c32517ada4c22845be285e8e2c58aeefb94cf3e32f781bef787225951": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2343,17 +2643,18 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "partial": 0.9,
-            "relief": 0.016666666666666663,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "relief": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:824252fe8a2d0d324172f04fc76c987332b93cefeb9e89d77bfd65fb1d067a82": {
+    "sha256:849bc622283948da450fa50e43fa1a62a2c4117113098e88074eed03a2fe6b1b": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2362,18 +2663,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "partial": 0.016666666666666663,
+            "partial": 0.014285714285714282,
             "relief": 0.9,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:9b13d7810e39ab9228ffd139b07564fbafb73e710efd4d5d8e15434ee2782265": {
+    "sha256:59191877cbdfc1c543c080297a0d1fcf5b0179d1b9cee17673aee5ba75cc00de": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2382,18 +2684,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "partial": 0.016666666666666663,
+            "partial": 0.014285714285714282,
             "relief": 0.9,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:3b6cff520b2d77d732b0513ceccd6203953cd76a18144bffc7ebd9fc3152a838": {
+    "sha256:a75c18680e11348d3b2520c27e5376fb31b7e4a6e174e310287b35965cbc4c28": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2402,18 +2705,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "partial": 0.016666666666666663,
+            "partial": 0.014285714285714282,
             "relief": 0.9,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:9fd0242b13b5106ade4b4ba7ac0352b9d732bf63f126471c967f03e0cdeaa6ee": {
+    "sha256:bce8ccb81ed53b897aea5fa3fbad66ba43bd8f896955bdb60ca92e0a765759a7": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2422,18 +2726,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "partial": 0.016666666666666663,
-            "relief": 0.016666666666666663,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
+            "partial": 0.014285714285714282,
+            "relief": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
             "other": 0.9
           }
         }
       }
     },
-    "sha256:b3cdc6df8d2322b2194e096da0481045b2c190793ef42793de13ffc13193d721": {
+    "sha256:fdc04f7407a38c33f3122d5353a597cc70a0c9394a234f5b7b8c6e7be0dd7354": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2443,19 +2748,20 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "this_evening": 0.9,
-            "tomorrow_morning": 0.012499999999999997,
-            "tomorrow_evening": 0.012499999999999997,
-            "other_time": 0.012499999999999997,
-            "repeat": 0.012499999999999997,
-            "human_agent": 0.012499999999999997,
-            "stop_calling": 0.012499999999999997,
-            "abusive": 0.012499999999999997,
-            "other": 0.012499999999999997
+            "tomorrow_morning": 0.011111111111111108,
+            "tomorrow_evening": 0.011111111111111108,
+            "other_time": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "hold": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
           }
         }
       }
     },
-    "sha256:fbda02600c38358b2371cc79940016fe1ff9fe251dd490f4ef56941d58ce8c95": {
+    "sha256:84e8d0c9d1c44f94d31f8eedeef64cf4e7b1808a0273f6928f78ad8ff49d9daf": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2465,19 +2771,20 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "this_evening": 0.9,
-            "tomorrow_morning": 0.012499999999999997,
-            "tomorrow_evening": 0.012499999999999997,
-            "other_time": 0.012499999999999997,
-            "repeat": 0.012499999999999997,
-            "human_agent": 0.012499999999999997,
-            "stop_calling": 0.012499999999999997,
-            "abusive": 0.012499999999999997,
-            "other": 0.012499999999999997
+            "tomorrow_morning": 0.011111111111111108,
+            "tomorrow_evening": 0.011111111111111108,
+            "other_time": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "hold": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
           }
         }
       }
     },
-    "sha256:ffa51418c4c57a752b91ece603b901a9e5ad3cb8f9acf0c5709541699b193b24": {
+    "sha256:67ed8c6b66f8c4a89a6ed00edde395f8d3c52d2cd49fae3218080211fd918bed": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2487,19 +2794,20 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "this_evening": 0.9,
-            "tomorrow_morning": 0.012499999999999997,
-            "tomorrow_evening": 0.012499999999999997,
-            "other_time": 0.012499999999999997,
-            "repeat": 0.012499999999999997,
-            "human_agent": 0.012499999999999997,
-            "stop_calling": 0.012499999999999997,
-            "abusive": 0.012499999999999997,
-            "other": 0.012499999999999997
+            "tomorrow_morning": 0.011111111111111108,
+            "tomorrow_evening": 0.011111111111111108,
+            "other_time": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "hold": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
           }
         }
       }
     },
-    "sha256:1000eaf5a3a2441c91b7b51dafe812aa3953c6dbb4829f2a853350cf724d5533": {
+    "sha256:b4aab8482db3328859c11d7c93bc11db8c011f4c42e62650149dd7e10207a701": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2508,20 +2816,21 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "this_evening": 0.012499999999999997,
+            "this_evening": 0.011111111111111108,
             "tomorrow_morning": 0.9,
-            "tomorrow_evening": 0.012499999999999997,
-            "other_time": 0.012499999999999997,
-            "repeat": 0.012499999999999997,
-            "human_agent": 0.012499999999999997,
-            "stop_calling": 0.012499999999999997,
-            "abusive": 0.012499999999999997,
-            "other": 0.012499999999999997
+            "tomorrow_evening": 0.011111111111111108,
+            "other_time": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "hold": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
           }
         }
       }
     },
-    "sha256:3b228abbd7ac36656f3543402c7822caea6f52fcdbe0678b9580d521f15a3ec8": {
+    "sha256:bafa0473352d2fd2bef062b3317f2414820ca9c035539df6b3159c7668b9d0ed": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2530,20 +2839,21 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "this_evening": 0.012499999999999997,
+            "this_evening": 0.011111111111111108,
             "tomorrow_morning": 0.9,
-            "tomorrow_evening": 0.012499999999999997,
-            "other_time": 0.012499999999999997,
-            "repeat": 0.012499999999999997,
-            "human_agent": 0.012499999999999997,
-            "stop_calling": 0.012499999999999997,
-            "abusive": 0.012499999999999997,
-            "other": 0.012499999999999997
+            "tomorrow_evening": 0.011111111111111108,
+            "other_time": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "hold": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
           }
         }
       }
     },
-    "sha256:760017ac7ab93181604f3554d03e6942789b3f99161fd1ce64a2fe584c96c1bb": {
+    "sha256:baeba64289211474cc08c21057e6f133265f01e2022dc48e578bdebff5c25299": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2552,20 +2862,21 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "this_evening": 0.012499999999999997,
-            "tomorrow_morning": 0.012499999999999997,
+            "this_evening": 0.011111111111111108,
+            "tomorrow_morning": 0.011111111111111108,
             "tomorrow_evening": 0.9,
-            "other_time": 0.012499999999999997,
-            "repeat": 0.012499999999999997,
-            "human_agent": 0.012499999999999997,
-            "stop_calling": 0.012499999999999997,
-            "abusive": 0.012499999999999997,
-            "other": 0.012499999999999997
+            "other_time": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "hold": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
           }
         }
       }
     },
-    "sha256:7084a51d5191d0cd86f9886b0826bdd69ed56203e24b847db87947f67e8dd1fe": {
+    "sha256:bbf0726865e51f2b2a2c0e689255b13a75c63f062ae71bdc19d3b6d815a8f9f2": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2574,20 +2885,21 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "this_evening": 0.012499999999999997,
-            "tomorrow_morning": 0.012499999999999997,
+            "this_evening": 0.011111111111111108,
+            "tomorrow_morning": 0.011111111111111108,
             "tomorrow_evening": 0.9,
-            "other_time": 0.012499999999999997,
-            "repeat": 0.012499999999999997,
-            "human_agent": 0.012499999999999997,
-            "stop_calling": 0.012499999999999997,
-            "abusive": 0.012499999999999997,
-            "other": 0.012499999999999997
+            "other_time": 0.011111111111111108,
+            "repeat": 0.011111111111111108,
+            "hold": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
           }
         }
       }
     },
-    "sha256:6b377d128d99e757c2fbaa50aa218209075894ac31798d9f05643355c68d464a": {
+    "sha256:8122057393c76ff4f0928dabaf9ea36659c216aa1d9e92e88c6580372581ed17": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2596,20 +2908,21 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "this_evening": 0.012499999999999997,
-            "tomorrow_morning": 0.012499999999999997,
-            "tomorrow_evening": 0.012499999999999997,
+            "this_evening": 0.011111111111111108,
+            "tomorrow_morning": 0.011111111111111108,
+            "tomorrow_evening": 0.011111111111111108,
             "other_time": 0.9,
-            "repeat": 0.012499999999999997,
-            "human_agent": 0.012499999999999997,
-            "stop_calling": 0.012499999999999997,
-            "abusive": 0.012499999999999997,
-            "other": 0.012499999999999997
+            "repeat": 0.011111111111111108,
+            "hold": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
           }
         }
       }
     },
-    "sha256:0f58d80e5af10b31928276d88251773ab0940d93111b8fccba026892c687362e": {
+    "sha256:869cca2c7963dd8a07633e8b4aba18c0a15e5e60232449638727d31fc79fcece": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2618,20 +2931,21 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "this_evening": 0.012499999999999997,
-            "tomorrow_morning": 0.012499999999999997,
-            "tomorrow_evening": 0.012499999999999997,
+            "this_evening": 0.011111111111111108,
+            "tomorrow_morning": 0.011111111111111108,
+            "tomorrow_evening": 0.011111111111111108,
             "other_time": 0.9,
-            "repeat": 0.012499999999999997,
-            "human_agent": 0.012499999999999997,
-            "stop_calling": 0.012499999999999997,
-            "abusive": 0.012499999999999997,
-            "other": 0.012499999999999997
+            "repeat": 0.011111111111111108,
+            "hold": 0.011111111111111108,
+            "human_agent": 0.011111111111111108,
+            "stop_calling": 0.011111111111111108,
+            "abusive": 0.011111111111111108,
+            "other": 0.011111111111111108
           }
         }
       }
     },
-    "sha256:9103aebfd6d7caca1fa564a08f49d3b973594411b7107614e2fc31f8c9c842e6": {
+    "sha256:a47a032d4c362c0864b8e34a711068e6d29a03356336ef2b816d587d76ecbb58": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2641,17 +2955,18 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "yes": 0.9,
-            "no": 0.016666666666666663,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "no": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:b73a0d6148eac029683e4d647134bcd5cffce9a83be6bb203caf8bc726048e92": {
+    "sha256:8293ae4215594ac3e49b4445a787f7f22e021c3a15e88a0593a28df7290e0b53": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2661,17 +2976,18 @@
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
             "yes": 0.9,
-            "no": 0.016666666666666663,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "no": 0.014285714285714282,
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:bbb9a29587eae4c91b8df36ecc1d968dc228b043f2b5bf0b21e8658dfe846432": {
+    "sha256:1c373a29e723db49b3001bca4c63788fd9f97837d883c667911fb1d7428be1bd": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2680,18 +2996,19 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "yes": 0.016666666666666663,
+            "yes": 0.014285714285714282,
             "no": 0.9,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }
     },
-    "sha256:2d5fb78570d4953a718a32e7b880c47fd05afa223380e9faffbbec36c9809e92": {
+    "sha256:8ab7dd1be5270620fa6e2d7184690521157f289a2d8d80181232165e454dd012": {
       "modelId": "synthetic-label-echo",
       "answers": {
         "intent": {
@@ -2700,13 +3017,14 @@
           "confidence": 0.9,
           "calibrationVersion": "synthetic-label-echo",
           "probabilities": {
-            "yes": 0.016666666666666663,
+            "yes": 0.014285714285714282,
             "no": 0.9,
-            "repeat": 0.016666666666666663,
-            "human_agent": 0.016666666666666663,
-            "stop_calling": 0.016666666666666663,
-            "abusive": 0.016666666666666663,
-            "other": 0.016666666666666663
+            "repeat": 0.014285714285714282,
+            "hold": 0.014285714285714282,
+            "human_agent": 0.014285714285714282,
+            "stop_calling": 0.014285714285714282,
+            "abusive": 0.014285714285714282,
+            "other": 0.014285714285714282
           }
         }
       }

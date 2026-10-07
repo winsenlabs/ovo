@@ -9,7 +9,6 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { compose, definePlugin } from '@winsendotai/ovo-runtime';
 import {
-  AgentToolSelectionError,
   ContextBudgetExceededError,
   createAgentBehavior,
   createAnnouncementBehavior,
@@ -202,7 +201,7 @@ describe('context and agent behavior', () => {
     ]);
   });
 
-  it('rejects an unapproved tool before Execution', async () => {
+  it('refuses an unapproved tool before Execution, and answers instead of failing', async () => {
     const inference: Inference = {
       generate: async () => ({ kind: 'tool', toolId: 'unknown', input: {} }),
     };
@@ -217,7 +216,8 @@ describe('context and agent behavior', () => {
         operationId: () => 'operation-1',
       },
     );
-    await expect(behavior.respond('Do it')).rejects.toBeInstanceOf(AgentToolSelectionError);
+    // P8: a turn that throws ends the call; a model's slip is answered with the uncertainty line.
+    expect(await behavior.respond('Do it')).toBe(behavior.config.uncertainty);
     expect(execution.execute).not.toHaveBeenCalled();
     expect(behavior.toolErrors).toMatchObject([
       { toolId: 'unknown', kind: 'unknown-or-unapproved' },

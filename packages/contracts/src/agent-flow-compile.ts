@@ -11,6 +11,7 @@ import {
   flowListenInstructions,
   routeTargets,
 } from './agent-flow-queries.ts';
+import { reachable, verificationListens } from './agent-flow-reach.ts';
 import { normalizeForMatch } from './text.ts';
 
 export * from './agent-flow-queries.ts';
@@ -38,6 +39,12 @@ export interface CompiledFlow {
    * LLM fallback may only resume at one of these, so it can never talk its way past verification.
    */
   preVerificationListens: ReadonlySet<string>;
+  /**
+   * Listen sets reachable from an identity-confirming node. Once identity is confirmed the LLM
+   * fallback resumes only at these: handing the call back to "am I speaking with…?" would ask the
+   * caller who they are again.
+   */
+  postVerificationListens: ReadonlySet<string>;
   /**
    * Per listen set, each normalised phrase of its own intents and the global ones, to the intent
    * key it means, so the instant tier normalises the reply once and looks it up (`matchFlowPhrase`)
@@ -73,9 +80,14 @@ export function inspectFlow(flow: AgentFlow): FlowIssue[] {
   if (!nodes.has(flow.start)) error('start', `Start node ${flow.start} does not exist`);
   line('clarify', flow.clarify);
   line('repeatPrefix', flow.repeatPrefix);
+  line('holdPrefix', flow.holdPrefix);
   flow.nodes.forEach((node, index) => {
     const at = `nodes.${index}`;
     node.say.forEach((id, lineIndex) => line(`${at}.say.${lineIndex}`, id));
+    node.mandatory?.forEach((id, lineIndex) => {
+      if (!node.say.includes(id))
+        error(`${at}.mandatory.${lineIndex}`, `Line ${id} is not one the node says`);
+    });
     if (node.end && node.listen !== undefined)
       error(`${at}.listen`, 'A node that ends the call does not listen');
     if (!node.end && node.listen === undefined)
@@ -138,21 +150,14 @@ export function compileFlow(flow: AgentFlow): CompiledFlow {
   if (errors.length) throw new FlowCompileError(errors);
   const nodes = new Map(flow.nodes.map((node) => [node.id, node]));
   const listens = new Map(flow.listens.map((listen) => [listen.id, listen]));
-  const gatesIdentity = flow.nodes.some((node) => node.verified);
-  const before = reachable(flow, nodes, listens, (node) => !node.verified);
+  const { before, after } = verificationListens(flow, nodes, listens);
   return {
     flow,
     nodes,
     listens,
-    gatesIdentity,
-    preVerificationListens: new Set(
-      gatesIdentity
-        ? [...before].flatMap((id) => {
-            const node = nodes.get(id)!;
-            return !node.verified && node.listen ? [node.listen] : [];
-          })
-        : listens.keys(),
-    ),
+    gatesIdentity: flow.nodes.some((node) => node.verified),
+    preVerificationListens: before,
+    postVerificationListens: after,
     phrases: new Map(
       flow.listens.map((listen) => [
         listen.id,
@@ -204,8 +209,9 @@ function checkIntents(
       error(`${at}.key`, `Intent ${FLOW_OTHER_INTENT} is added automatically and is reserved`);
     if (keys.has(intent.key)) error(`${at}.key`, `Duplicate intent ${intent.key}`);
     keys.add(intent.key);
-    if ((intent.next === undefined) === (intent.repeat !== true))
-      error(at, 'An intent needs exactly one of `next` or `repeat`');
+    const routes = [intent.next !== undefined, intent.repeat === true, intent.hold === true];
+    if (routes.filter(Boolean).length !== 1)
+      error(at, 'An intent needs exactly one of `next`, `repeat` or `hold`');
     const route = intent.next;
     if (route !== undefined && typeof route !== 'string') {
       const slot = listen?.slots.find((candidate) => candidate.id === route.slot);
@@ -239,30 +245,4 @@ function checkPhrases(
         error(path, `Phrase "${phrase}" means both ${previous} and ${intent.key}`);
       owner.set(normalized, intent.key);
     }
-}
-
-/** Nodes reachable from the start, entering only nodes `enter` accepts. */
-function reachable(
-  flow: AgentFlow,
-  nodes: ReadonlyMap<string, FlowNode>,
-  listens: ReadonlyMap<string, FlowListen>,
-  enter: (node: FlowNode) => boolean,
-): Set<string> {
-  const reached = new Set<string>();
-  const queue = [flow.start];
-  let globalsVisited = false;
-  while (queue.length) {
-    const id = queue.shift()!;
-    const node = nodes.get(id);
-    if (!node || reached.has(id)) continue;
-    reached.add(id);
-    if (!enter(node) || node.listen === undefined) continue;
-    const listen = listens.get(node.listen);
-    for (const intent of listen?.intents ?? []) queue.push(...routeTargets(intent.next));
-    if (!globalsVisited) {
-      globalsVisited = true;
-      for (const intent of flow.globalIntents) queue.push(...routeTargets(intent.next));
-    }
-  }
-  return reached;
 }
