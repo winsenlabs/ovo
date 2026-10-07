@@ -9,9 +9,9 @@ import {
   ReconciliationBody,
   ScenarioBody,
 } from './cost-schemas.ts';
+import { priceCatalog } from './cost-catalog.ts';
 import {
   calculateInrScenario,
-  diffVendorCatalog,
   LedgerConflictError,
   VENDOR_PRICE_CATALOG,
   vendorPriceCard,
@@ -70,9 +70,7 @@ export function registerCostRoutes(dependencies: CostRouteDependencies): void {
     requireRole(request, 'viewer');
     const ledger = configuredLedger(dependencies, reply);
     if (!ledger) return;
-    return safely(reply, async () =>
-      reply.send({ items: diffVendorCatalog(await allPriceCards(ledger)) }),
-    );
+    return safely(reply, async () => reply.send({ items: await priceCatalog(ledger) }));
   });
 
   app.post('/v1/cost/price-catalog/import', async (request, reply) => {
@@ -168,9 +166,13 @@ export function registerCostRoutes(dependencies: CostRouteDependencies): void {
     const { callId } = CallParams.parse(request.params);
     const call = await controlStore.getCall(principal.workspaceId, callId);
     if (!call) return failure(reply, 404, 'not_found', 'Call not found');
-    return safely(reply, async () =>
-      reply.send(await ledger.getSessionCost(principal.workspaceId, callId)),
-    );
+    // P11: usage is keyed by the worker's media session id, not the call id; the ledger finds the
+    // call's sessions through the call id each usage row carries. Media session ids stay private
+    // below admin, as in live diagnostics.
+    return safely(reply, async () => {
+      const { sessionIds, ...cost } = await ledger.getCallCost(principal.workspaceId, callId);
+      return reply.send(principal.role === 'admin' ? { ...cost, sessionIds } : cost);
+    });
   });
 
   app.post('/v1/cost/reconciliation', async (request, reply) => {
@@ -196,19 +198,6 @@ export function registerCostRoutes(dependencies: CostRouteDependencies): void {
       return reply.code(201).send(result);
     });
   });
-}
-
-/** Every stored price card; the catalog diff compares against all versions, not one page. */
-async function allPriceCards(ledger: CostLedgerService): Promise<PriceCardVersion[]> {
-  const cards: PriceCardVersion[] = [];
-  let cursor: string | undefined;
-  for (let page = 0; page < 100; page += 1) {
-    const result = await ledger.listPriceCards(100, cursor);
-    cards.push(...result.items);
-    cursor = result.nextCursor;
-    if (!cursor) break;
-  }
-  return cards;
 }
 
 function configuredLedger(

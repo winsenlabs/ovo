@@ -7,11 +7,25 @@ import {
   COST_SCENARIO_SERVICE_KEY,
   convertMinor,
   createCostLedgerPlugin,
+  exactPaise,
   parseDecimal,
   parseMinor,
   roundMinor,
   type InrScenarioInput,
 } from '../src/index.ts';
+
+describe('exact charge amounts (P11)', () => {
+  it('keeps a sub-paise charge exact to 12 places, through FX for a non-INR card', () => {
+    const llm = { minorUnitsPerBlock: '40', blockQuantity: '1000000' };
+    const usdInr = { rateNumerator: '8345', rateDenominator: '100' };
+    expect(exactPaise('400', llm, usdInr)).toBe('1.3352');
+    expect(exactPaise('400', llm)).toBe('0.016');
+    expect(exactPaise('1', { minorUnitsPerBlock: '1', blockQuantity: '3' })).toBe('0.333333333333');
+    expect(exactPaise('2', { minorUnitsPerBlock: '1', blockQuantity: '3' })).toBe('0.666666666667');
+    expect(exactPaise('100', { minorUnitsPerBlock: '25', blockQuantity: '100' })).toBe('25');
+    expect(exactPaise('0', llm, usdInr)).toBe('0');
+  });
+});
 
 describe('stable allocation tie-break', () => {
   it('assigns the first remaining paise by code-unit target ID order', () => {

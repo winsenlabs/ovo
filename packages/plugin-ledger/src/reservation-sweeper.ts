@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { costTotals } from './postgres/cost-summary.ts';
 import { transaction } from './postgres/database.ts';
 import { UsageRepository } from './postgres/usage.ts';
 
@@ -104,27 +105,23 @@ export class ReservationSweeper {
       : undefined;
     if (route?.rows[0]) {
       await this.recordCarrier(client, row, jobId, route.rows[0]);
-      const amount = await client.query<{ total: string }>(
-        `WITH effective AS (
-           SELECT c.amount_paise + COALESCE(SUM(x.delta_paise),0) AS amount
-           FROM ovo_cost_native_usage u JOIN ovo_cost_charges c ON c.usage_id = u.id
-           LEFT JOIN ovo_cost_corrections x ON x.usage_id = u.id
-           WHERE u.workspace_id = $1 AND u.session_id = $2 GROUP BY c.id
-         ) SELECT COALESCE(SUM(amount),0)::text AS total FROM effective`,
-        [row.workspace_id, row.session_id],
-      );
+      // The same once-per-session rounding the worker settles with (P11).
+      const amount = await costTotals(client, 'u.workspace_id=$1 AND u.session_id=$2', [
+        row.workspace_id,
+        row.session_id,
+      ]);
       await client.query('SELECT id FROM ovo_cost_budgets WHERE id = $1 FOR UPDATE', [
         row.budget_id,
       ]);
       await client.query(
         `UPDATE ovo_cost_reservations SET state = 'settled', actual_paise = $2, settled_at = now()
          WHERE id = $1 AND state = 'reserved'`,
-        [row.id, amount.rows[0]!.total],
+        [row.id, amount.total],
       );
       await client.query(
         `UPDATE ovo_cost_budgets SET spent_paise = spent_paise + $2,
            reserved_paise = reserved_paise - $3, updated_at = now() WHERE id = $1`,
-        [row.budget_id, amount.rows[0]!.total, row.amount_paise],
+        [row.budget_id, amount.total, row.amount_paise],
       );
       await this.event(client, row, 'settled');
       return;

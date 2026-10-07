@@ -154,6 +154,13 @@ export interface CostSummary {
   provisionalPriceCards: { id: string; version: string }[];
 }
 
+/** P11: a call's cost: every ledger session that metered it, rounded to paise once. */
+export interface CallCostSummary extends Omit<CostSummary, 'sessionId'> {
+  callId: string;
+  /** The ledger sessions (media sessions, keyed by the worker's session id) the call's usage used. */
+  sessionIds: string[];
+}
+
 export interface LedgerPage<T> {
   items: T[];
   nextCursor?: string;
@@ -182,6 +189,7 @@ export interface CostLedgerService {
     sourceRef: string;
   }): Promise<BudgetSnapshot>;
   getSessionCost(workspaceId: string, sessionId: string): Promise<CostSummary>;
+  getCallCost(workspaceId: string, callId: string): Promise<CallCostSummary>;
   getBudget(id: string): Promise<BudgetSnapshot | undefined>;
   listBudgets(
     workspaceId: string,

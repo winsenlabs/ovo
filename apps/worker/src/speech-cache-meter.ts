@@ -14,6 +14,48 @@ export interface PrerenderMeterSummary {
   failed: number;
 }
 
+/**
+ * What metering needs: `recordUsage`, and, to find the FX a non-INR card's reference left out,
+ * the card and FX reads (optional; without them such a usage fails to price, as before).
+ */
+export type PrerenderLedger = Pick<CostLedgerService, 'recordUsage'> &
+  Partial<Pick<CostLedgerService, 'getPriceCard' | 'getFxVersion'>>;
+
+type PriceReference = NonNullable<ReleaseRecord['config']['costPolicy']>['priceCards'][string];
+type FxReference = { id: string; version: string };
+
+/**
+ * The FX a pre-render charge converts with: its own reference's; else, for a non-INR card the
+ * release references without one, the one FX version the release's cost policy references that
+ * converts that currency to INR. 2026-10-07: release eb35ee47's TTS card had no FX of its
+ * own, so every pre-render charge failed with "Non-INR pricing requires an explicit immutable FX
+ * version" although the release's other USD cards named usd-inr. Ambiguous or absent: undefined.
+ */
+async function releaseFx(
+  release: Pick<ReleaseRecord, 'config'>,
+  reference: PriceReference,
+  ledger: PrerenderLedger,
+): Promise<FxReference | undefined> {
+  if (reference.fxId && reference.fxVersion)
+    return { id: reference.fxId, version: reference.fxVersion };
+  if (!ledger.getPriceCard || !ledger.getFxVersion) return undefined;
+  const card = await ledger.getPriceCard(reference.id, reference.version);
+  if (!card || card.currency === 'INR') return undefined;
+  const candidates = new Map<string, FxReference>();
+  for (const other of Object.values(release.config.costPolicy?.priceCards ?? {}))
+    if (other.fxId && other.fxVersion)
+      candidates.set(JSON.stringify([other.fxId, other.fxVersion]), {
+        id: other.fxId,
+        version: other.fxVersion,
+      });
+  const matching: FxReference[] = [];
+  for (const candidate of candidates.values()) {
+    const fx = await ledger.getFxVersion(candidate.id, candidate.version);
+    if (fx?.baseCurrency === card.currency && fx.quoteCurrency === 'INR') matching.push(candidate);
+  }
+  return matching.length === 1 ? matching[0] : undefined;
+}
+
 export interface PrerenderMeter {
   sink: UsageSink;
   flush(): Promise<PrerenderMeterSummary>;
@@ -26,11 +68,13 @@ export interface PrerenderMeter {
  */
 export function createPrerenderMeter(
   release: Pick<ReleaseRecord, 'id' | 'workspaceId' | 'config'>,
-  ledger: Pick<CostLedgerService, 'recordUsage'> | undefined,
+  ledger: PrerenderLedger | undefined,
   log: Logger,
 ): PrerenderMeter {
   const writes: Promise<void>[] = [];
   const summary: PrerenderMeterSummary = { recorded: 0, unpriced: [], failed: 0 };
+  // One lookup per meter key and release, not one per rendered line.
+  const fxByKey = new Map<string, Promise<FxReference | undefined>>();
   const record = async (meter: UsageMeter) => {
     const key = meterKey(meter);
     const card = release.config.costPolicy?.priceCards[key];
@@ -45,6 +89,8 @@ export function createPrerenderMeter(
       return;
     }
     try {
+      if (!fxByKey.has(key)) fxByKey.set(key, releaseFx(release, card, ledger));
+      const fx = await fxByKey.get(key)!;
       await ledger.recordUsage({
         idempotencyKey: `prerender:${release.id}:${meter.requestId}:${meter.unit}`,
         workspaceId: release.workspaceId,
@@ -60,7 +106,7 @@ export function createPrerenderMeter(
         unit: meter.unit,
         occurredAt: new Date().toISOString(),
         priceCard: { id: card.id, version: card.version },
-        fx: card.fxId && card.fxVersion ? { id: card.fxId, version: card.fxVersion } : undefined,
+        fx,
       });
       summary.recorded += 1;
     } catch (error) {

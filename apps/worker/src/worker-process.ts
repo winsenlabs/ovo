@@ -1,6 +1,6 @@
 import { Cap, type NetPort } from '@winsendotai/ovo-contracts';
 import { loadDistribution } from '@winsendotai/ovo-distribution';
-import { createLogger, createNodeNet } from '@winsendotai/ovo-plugin-kit';
+import { createLogger } from '@winsendotai/ovo-plugin-kit';
 import { PostgresCostLedger } from '@winsendotai/ovo-plugin-ledger';
 import { createOperationsPlugin } from '@winsendotai/ovo-plugin-operations';
 import type {
@@ -16,7 +16,6 @@ import { PostgresControlStore } from '@winsendotai/ovo-plugin-storage';
 import { PostgresCallOutcomeStore } from '@winsendotai/ovo-plugin-storage/outcomes';
 import {
   compose,
-  definePlugin,
   loadInstalledSessionExtensions,
   manifestKeys,
   PluginRegistry,
@@ -31,10 +30,12 @@ import { createWorkerCostRuntimePlugin } from './cost-runtime-plugin.ts';
 import { createWorkerRecordingsPlugin } from './recording-runtime.ts';
 import { ecsRuntimeConfig, localProtectionPlugin, readinessPlugin } from './runtime-plugins.ts';
 import { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
+import { withDialDisabledPrerender } from './speech-cache-dial-disabled.ts';
 import type { LiveGraphOptions } from './session-graph-runtime.ts';
 import { workerSecretManager } from './worker-secrets.ts';
 import { prewarmJobProviders } from './provider-prewarm.ts';
 import { createWorkerRunnerPlugin } from './worker-plugin.ts';
+import { netPlugin } from './worker-net.ts';
 import type { WorkerRunner } from './runner.ts';
 import {
   durableAdapterPlugins,
@@ -44,29 +45,6 @@ import {
   workerRuntimeServices,
 } from './worker-environment.ts';
 
-const netManifest = {
-  id: 'ovo.worker.node-net',
-  version: '1.0.0',
-  contractVersion: 2,
-  scope: 'process',
-  kind: 'host',
-  provides: [Cap.net],
-  requires: [],
-  secretFields: [],
-  configSchema: { type: 'object', additionalProperties: false },
-} as const;
-const netPlugin = definePlugin(netManifest, (ctx) => {
-  // LAT-8: pooled provider connections outlive the gap between caller turns.
-  const port = createNodeNet({
-    keepAlive: {
-      keepAliveTimeoutMs: optionalInteger('OVO_NET_KEEP_ALIVE_MS', 1_000, 600_000),
-      keepAliveMaxTimeoutMs: optionalInteger('OVO_NET_KEEP_ALIVE_MAX_MS', 1_000, 3_600_000),
-    },
-  });
-  ctx.effect(() => () => port.close());
-  ctx.provide(Cap.net, port);
-});
-
 export async function openWorkerProcess() {
   const distribution = await loadDistribution({
     role: 'worker',
@@ -75,8 +53,14 @@ export async function openWorkerProcess() {
   });
   const { definitions: adapters, rows: adapterRows } = durableAdapterPlugins();
   if (process.env.OVO_LIVE_DIAL_ENABLED !== 'true') {
-    const composition = await compose(adapterRows, [...adapters, ...distribution.catalog]);
-    return { kind: 'dial-disabled' as const, composition };
+    const composition = await compose(
+      [...adapterRows, { id: netPlugin.manifest.id }],
+      [...adapters, ...distribution.catalog, netPlugin],
+    );
+    return {
+      kind: 'dial-disabled' as const,
+      composition: withDialDisabledPrerender(composition, distribution),
+    };
   }
   const protectionMode = process.env.OVO_PROTECTION_MODE ?? 'ecs';
   const protectionDefinition =

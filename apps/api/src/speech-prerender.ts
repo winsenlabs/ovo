@@ -12,23 +12,49 @@ import {
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import type { PluginDefinition } from '@winsendotai/ovo-runtime';
 
+/**
+ * `GET /v1/agents/:agentId/releases/:releaseId/speech-clips`. Progress is `state`, the field name
+ * every OVO status response uses (the price catalog's import state too); there is no `status`
+ * field. Pre-render is finished when `state` is `done` (or `failed`/`skipped`) and `pending` is 0.
+ */
 export interface SpeechClipStatus {
   /**
+   * `queued` | `running` | `done` | `failed` | `skipped`: the release's pre-render job.
    * `disabled`: the release does not opt in to the speech cache. `unavailable`: this installation
    * has no durable clip store (SQLite). `not-requested`: published before pre-rendering existed.
    */
   state: 'disabled' | 'unavailable' | 'not-requested' | PrerenderState;
+  /** Fixed lines in the release's inventory, on the speaker's post-filter text. */
   total: number;
+  /** Fixed lines whose clip is stored. */
   ready: number;
+  /** Fixed lines whose render failed after retries. */
   failed: number;
+  /** `total - ready - failed`: lines not rendered yet (all of them while `unavailable`). */
   pending: number;
   /** Templated lines: rendered per call, never pre-rendered or stored. */
   perCall: number;
+  /** Identifies the inventory rendered; changes when any fixed line's text changes. */
   inventorySha256: string | null;
+  /** The worker's note on a failed or skipped job. */
   detail: string | null;
   requestedAt: string | null;
   finishedAt: string | null;
 }
+
+/** Every field the speech-clips response carries, in documentation order. */
+export const SPEECH_CLIP_STATUS_FIELDS = [
+  'state',
+  'total',
+  'ready',
+  'failed',
+  'pending',
+  'perCall',
+  'inventorySha256',
+  'detail',
+  'requestedAt',
+  'finishedAt',
+] as const satisfies readonly (keyof SpeechClipStatus)[];
 
 type Release = Pick<ReleaseRecord, 'id' | 'workspaceId' | 'agentId' | 'config' | 'selections'>;
 

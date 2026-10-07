@@ -61,11 +61,20 @@ describe('price catalog routes', () => {
     });
     const response = await app.inject({ method: 'GET', url: '/v1/cost/price-catalog' });
     expect(response.statusCode).toBe(200);
-    const items = response.json().items as { card: { id: string }; status: string }[];
+    const items = response.json().items as { card: { id: string }; state: string }[];
     expect(items).toHaveLength(VENDOR_PRICE_CATALOG.length);
-    expect(items[0]).toMatchObject({ card: { id: first!.card.id }, status: 'imported' });
-    expect(items[1]).toMatchObject({ status: 'update_available', storedVersion: '2025-01-01' });
-    expect(items[2]).toMatchObject({ status: 'not_imported' });
+    // `state` is the import state every client reads; `status` stays for older clients.
+    expect(items[0]).toMatchObject({
+      card: { id: first!.card.id },
+      state: 'imported',
+      status: 'imported',
+    });
+    expect(items[1]).toMatchObject({
+      state: 'update_available',
+      status: 'update_available',
+      storedVersion: '2025-01-01',
+    });
+    expect(items[2]).toMatchObject({ state: 'not_imported', status: 'not_imported' });
     expect(listPriceCards).toHaveBeenCalledTimes(2);
   });
 

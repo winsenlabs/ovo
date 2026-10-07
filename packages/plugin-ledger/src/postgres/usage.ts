@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { priceUsage } from '@winsendotai/ovo-contracts';
 import type { Pool, PoolClient } from 'pg';
-import { parseMinor } from '../money.ts';
+import { exactPaise, parseMinor } from '../money.ts';
 import type {
+  CallCostSummary,
   CostSummary,
   RecordedUsage,
   ReconcileUsageInput,
@@ -10,6 +11,7 @@ import type {
   RecordUsageInput,
 } from '../types.ts';
 import { LedgerConflictError } from '../types.ts';
+import { summarizeCall, summarizeSession } from './cost-summary.ts';
 import { transaction } from './database.ts';
 import { convertExplicit, getPriceCard, priceInInr } from './usage-pricing.ts';
 import { validateReconciliation, validateUsage } from './usage-validation.ts';
@@ -51,6 +53,8 @@ export class UsageRepository {
       card,
     ).amountMinor;
     const { amountPaise, fx } = await priceInInr(client, nativeAmount, card.currency, input.fx);
+    // P11: `amountPaise` rounds this one event; the exact value is what call totals add up.
+    const exactAmountPaise = exactPaise(input.quantity, card, fx);
     const chargeId = randomUUID();
     const digest = usageFingerprint(input);
     const inserted = await client.query(
@@ -87,8 +91,9 @@ export class UsageRepository {
     }
     await client.query(
       `INSERT INTO ovo_cost_charges
-         (id,usage_id,price_card_id,price_card_version,fx_id,fx_version,native_amount_minor,native_currency,amount_paise)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+         (id,usage_id,price_card_id,price_card_version,fx_id,fx_version,native_amount_minor,native_currency,
+          amount_paise,exact_amount_paise)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [
         chargeId,
         usageId,
@@ -99,6 +104,7 @@ export class UsageRepository {
         nativeAmount,
         card.currency,
         amountPaise,
+        exactAmountPaise,
       ],
     );
     return {
@@ -190,41 +196,12 @@ export class UsageRepository {
     });
   }
 
-  async summarizeSession(workspaceId: string, sessionId: string): Promise<CostSummary> {
-    const result = await this.pool.query(
-      `WITH effective AS (
-         SELECT u.state,c.amount_paise + COALESCE(SUM(x.delta_paise),0) AS amount
-         FROM ovo_cost_native_usage u
-         JOIN ovo_cost_charges c ON c.usage_id=u.id
-         LEFT JOIN ovo_cost_corrections x ON x.usage_id=u.id
-         WHERE u.workspace_id=$1 AND u.session_id=$2
-         GROUP BY u.id,c.id
-       )
-       SELECT COALESCE(SUM(amount) FILTER (WHERE state='estimated'),0)::text AS estimated,
-              COALESCE(SUM(amount) FILTER (WHERE state='reconciled'),0)::text AS reconciled,
-              COALESCE(SUM(amount),0)::text AS total FROM effective`,
-      [workspaceId, sessionId],
-    );
-    // OPS-13: a total priced even partly from a placeholder card is not an honest cost.
-    const provisional = await this.pool.query<{ id: string; version: string }>(
-      `SELECT DISTINCT p.id,p.version
-       FROM ovo_cost_native_usage u
-       JOIN ovo_cost_charges c ON c.usage_id=u.id
-       JOIN ovo_cost_price_cards p ON p.id=c.price_card_id AND p.version=c.price_card_version
-       WHERE u.workspace_id=$1 AND u.session_id=$2 AND p.provisional
-       ORDER BY p.id,p.version`,
-      [workspaceId, sessionId],
-    );
-    return {
-      workspaceId,
-      sessionId,
-      currency: 'INR',
-      estimatedPaise: result.rows[0]!.estimated,
-      reconciledPaise: result.rows[0]!.reconciled,
-      totalPaise: result.rows[0]!.total,
-      provisional: provisional.rows.length > 0,
-      provisionalPriceCards: provisional.rows.map(({ id, version }) => ({ id, version })),
-    };
+  summarizeSession(workspaceId: string, sessionId: string): Promise<CostSummary> {
+    return summarizeSession(this.pool, workspaceId, sessionId);
+  }
+
+  summarizeCall(workspaceId: string, callId: string): Promise<CallCostSummary> {
+    return summarizeCall(this.pool, workspaceId, callId);
   }
 
   private async findExisting(
