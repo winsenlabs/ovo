@@ -42,24 +42,40 @@ export function searchAnnouncement(
 /** A caller turn cut off mid-word or mid-sentence ("tell me about-", "Can you change your..."). */
 const CUT_OFF = /(?:-|–|—|…|\.\.\.)$/u;
 const WORD = /[\p{L}\p{M}]+/gu;
-/** The agent's last line offered to look something up, so a bare "yes" asks for the search. */
-const OFFERED = /\b(?:look\w* (?:\w+ )?up|check|search|find out)\b/i;
+/**
+ * Words that say yes, no, "go on" or hello and nothing else, in English, Hinglish and Tamil, in
+ * Latin, Devanagari and Tamil script. Any other single word ("Chennai.", "Tomorrow.", "Bitcoin?")
+ * can be the whole answer to a question, so the model decides.
+ */
+const BACKCHANNEL = new Set([
+  ...['yes', 'yeah', 'yep', 'yup', 'ya', 'yah', 'no', 'nope', 'nah', 'ok', 'okay', 'sure'],
+  ...['right', 'alright', 'fine', 'cool', 'thanks', 'hmm', 'hm', 'mm', 'mhm', 'uh', 'um', 'huh'],
+  ...['hey', 'hi', 'hello', 'haan', 'han', 'ha', 'nahi', 'nahin', 'na', 'accha', 'acha', 'achha'],
+  ...['theek', 'thik', 'aama', 'aamaa', 'aamam', 'illa', 'illai', 'seri', 'sari'],
+  ...['हाँ', 'हां', 'हा', 'नहीं', 'नही', 'ना', 'अच्छा', 'ठीक', 'हम्म', 'हेलो'],
+  ...['ஆமா', 'ஆமாம்', 'இல்லை', 'இல்ல', 'சரி', 'ம்ம்', 'ஹலோ'],
+]);
+/**
+ * The agent's last line offered to do something, so a bare "yes" or "sure" accepts it and may need
+ * the search ("Shall I check the train times?", "Do you want me to see what the news says?").
+ */
+const OFFERED =
+  /\b(?:(?:want|like|need) me to|shall i|should i|can i|could i|may i|i can|i could|let me|if you(?:'d)? like|look\w* (?:\w+ )?up|check|search|find out)\b/i;
 
 /**
  * Why the caller's words are too unclear to search on, or undefined to let the model decide.
- * Cheap and conservative: a cut-off fragment, no words at all, or one distinct word ("Yes.",
- * "No, no.", "Hey.", "Nee.") that does not answer an offer to look something up. In the Maya calls
- * "No, no." and "Yes." each searched for 3.8–3.9 s to restate the previous answer.
+ * Cheap and conservative: a cut-off fragment, no words at all, or only a backchannel ("Yes.",
+ * "No, no.", "Hey.", "हाँ।") that does not accept an offer. In the Maya calls "No, no." and "Yes.",
+ * each answering a question, searched for 3.8–3.9 s to restate the previous answer.
  */
 export function unclearForSearch(
   request: Pick<InferenceRequest, 'input' | 'history'>,
-): 'cut-off' | 'no-words' | 'one-word' | undefined {
+): 'cut-off' | 'no-words' | 'backchannel' | undefined {
   const input = request.input.trim();
   if (CUT_OFF.test(input)) return 'cut-off';
   const words = new Set(input.toLowerCase().match(WORD) ?? []);
   if (!words.size) return 'no-words';
-  if (words.size > 1) return undefined;
+  if (words.size > 1 || !BACKCHANNEL.has([...words][0]!)) return undefined;
   const last = [...(request.history ?? [])].reverse().find((entry) => entry.role === 'assistant');
-  const offered = last && last.content.trim().endsWith('?') && OFFERED.test(last.content);
-  return offered ? undefined : 'one-word';
+  return last && OFFERED.test(last.content) ? undefined : 'backchannel';
 }

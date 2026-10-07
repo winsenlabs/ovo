@@ -136,18 +136,19 @@ describe('the provider starting a web search is seen at once (N3)', () => {
 describe('no web search on input too unclear to search on (N3)', () => {
   // The Maya calls of 2026-10-07: each of these searched (3.8–4.3 s) or would have.
   const live = [
-    ['No, no.', 'one-word'],
-    ['Yes.', 'one-word'],
-    ['Hey.', 'one-word'],
-    ['Chilly. Chilly.', 'one-word'],
-    ['हाँ।', 'one-word'],
+    ['No, no.', 'backchannel'],
+    ['Yes.', 'backchannel'],
+    ['Hey.', 'backchannel'],
+    ['हाँ।', 'backchannel'],
+    ['Haan.', 'backchannel'],
+    ['சரி.', 'backchannel'],
     ["I don't know, tell me about-", 'cut-off'],
     ['Can you change your...', 'cut-off'],
     ['…', 'cut-off'],
     ['?!', 'no-words'],
   ] as const;
 
-  it('classifies cut-off, empty and one-word turns, and leaves real questions to the model', () => {
+  it('classifies cut-off, empty and backchannel turns, and leaves real questions to the model', () => {
     for (const [input, reason] of live)
       expect(unclearForSearch({ input, history: [] }), input).toBe(reason);
     for (const input of [
@@ -155,6 +156,7 @@ describe('no web search on input too unclear to search on (N3)', () => {
       'I am Indian vegetarian. Can I get food there?',
       'Okay. याद नहीं।',
       'Weather Zagreb',
+      'Chilly. Chilly.',
     ])
       expect(unclearForSearch({ input, history: [] }), input).toBeUndefined();
   });
@@ -163,7 +165,30 @@ describe('no web search on input too unclear to search on (N3)', () => {
     const offered = [{ role: 'assistant' as const, content: 'Shall I check the train times?' }];
     const asked = [{ role: 'assistant' as const, content: 'Is that Barcelona then Rome?' }];
     expect(unclearForSearch({ input: 'Yes.', history: offered })).toBeUndefined();
-    expect(unclearForSearch({ input: 'Yes.', history: asked })).toBe('one-word');
+    expect(unclearForSearch({ input: 'Yes.', history: asked })).toBe('backchannel');
+  });
+
+  it('skips the search for the Maya yes and no, which answered questions, not offers', () => {
+    const after = (content: string) => [{ role: 'assistant' as const, content }];
+    const maya = [
+      ['No, no.', 'How many days are you thinking of staying?'],
+      ['Yes.', 'Are you hoping to visit Barcelona and Italy on the same trip?'],
+    ] as const;
+    for (const [input, line] of maya)
+      expect(unclearForSearch({ input, history: after(line) }), input).toBe('backchannel');
+  });
+
+  it("leaves a one-word answer to the agent's question, or a yes to any offer, to the model", () => {
+    const after = (content: string) => [{ role: 'assistant' as const, content }];
+    for (const [input, history] of [
+      ['Chennai.', after('Which city should I give you the weather for?')],
+      ['Tomorrow.', after('Do you want the forecast for today or tomorrow?')],
+      ['Bitcoin?', after('What would you like to know about?')],
+      ['Sure.', after('Do you want me to see what the latest news says?')],
+      ['Yes.', after('I can see what the latest news says, if you like.')],
+      ['Haan.', after('Would you like me to find a vegetarian place nearby?')],
+    ] as const)
+      expect(unclearForSearch({ input, history }), input).toBeUndefined();
   });
 
   it('sends the request without the search tool, so it cannot search', async () => {

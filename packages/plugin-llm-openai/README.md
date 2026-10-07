@@ -30,7 +30,7 @@ turned on per LLM binding:
 | `userLocation`      | no       |         | Approximate: `country` (ISO 3166-1 alpha-2), `city`, `region`, `timezone` (IANA).     |
 | `allowedDomains`    | no       |         | Search only these domains and their subdomains, without `https://`. 1 to 100 entries. |
 | `announce`          | no       | on      | Lines said while a search runs (below), or `false` for none.                          |
-| `skipUnclearInput`  | no       | `true`  | Leave the tool out for a cut-off or one-word caller turn (below).                     |
+| `skipUnclearInput`  | no       | `true`  | Leave the tool out for a cut-off or backchannel-only caller turn (below).             |
 
 How it behaves:
 
@@ -79,10 +79,12 @@ How it behaves:
   live (about 140 ms to first audio on ElevenLabs flash).
 
 - **Unclear input.** With `skipUnclearInput` (the default) a caller turn cut off mid-word ("tell
-  me about-", "Can you change your..."), with no words, or of one distinct word ("Yes.", "No, no.",
-  "Hey.") is sent without the search tool, unless the agent's last line offered to look something
-  up ("Shall I check the train times?"). In the Maya calls "No, no." and "Yes." each searched for
-  3.8–3.9 s only to restate the previous answer.
+  me about-", "Can you change your..."), with no words, or that is only a yes, no, "hmm" or hello
+  ("Yes.", "No, no.", "Hey.", "haan", "हाँ।", "சரி") is sent without the search tool, unless the
+  agent's last line offered to do something ("Shall I check the train times?", "Do you want me to
+  see what the news says?"). Any other one-word turn ("Chennai." after "Which city?") goes to the
+  model with the tool. In the Maya calls "No, no." and "Yes." each searched for 3.8–3.9 s only to
+  restate the previous answer.
 - **Measuring first-token latency.** `scripts/measure-first-token.mjs` asks the Responses API the
   same non-search question with and without the search tool, with low verbosity, without the
   prompt cache key, with `store: true` and without encrypted reasoning, and prints time to first
