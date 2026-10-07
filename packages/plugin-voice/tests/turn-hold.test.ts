@@ -223,7 +223,11 @@ describe('a reply is held while the caller speaks again before hearing it (P1)',
     expect(h.audio.map((line) => line.text)).toEqual(['Hello, this is Asha.']);
   });
 
-  it('holds through the default turn detector, as the engine wires it (Scribe commit, VAD)', async () => {
+  /**
+   * Turns 5 and 6 through the default turn detector, as the engine wires it (Scribe commit, VAD):
+   * the caller says `first`, pauses, and 443 ms after that final starts again with T6.
+   */
+  async function throughDetector(first: string) {
     const clock = new FakeClock();
     const agent = slowAgent(clock, { llmMs: LIVE.llmMs });
     const h = driverHarness(clock, agent.behavior, {
@@ -253,10 +257,14 @@ describe('a reply is held while the caller speaks again before hearing it (P1)',
       },
     });
     const decisions: string[] = [];
+    /** When each caller turn stopped, from the greeting's end. */
+    const stops: number[] = [];
+    let t0 = 0;
     h.bus.onEvent((event) => detector.observe(event));
     detector.on((decision: TurnDecision) => {
       if (decision.type === 'turn.started' || decision.type === 'turn.stopped')
         decisions.push(`${decision.type} ${decision.turnId}`);
+      if (decision.type === 'turn.stopped') stops.push(clock.now() - t0);
       h.driver.decide(decision);
     });
     let segment = 0;
@@ -276,15 +284,14 @@ describe('a reply is held while the caller speaks again before hearing it (P1)',
     };
     const vad = (type: 'vad.start' | 'vad.stop') => h.bus.observe({ type, atMs: clock.now() });
 
-    const t0 = await h.greet();
+    t0 = await h.greet();
     vad('vad.start');
     await clock.advanceAsync(500);
     heard("Ma'am, what is this?", 'interim');
     await clock.advanceAsync(1000);
     vad('vad.stop');
     await clock.advanceAsync(100);
-    heard(T5, 'final');
-    const stopped = clock.now() - t0;
+    heard(first, 'final');
     // The caller goes on 443 ms later; the VAD starts their next turn before any words.
     await clock.advanceAsync(LIVE.resumedMs);
     vad('vad.start');
@@ -294,25 +301,40 @@ describe('a reply is held while the caller speaks again before hearing it (P1)',
     vad('vad.stop');
     await clock.advanceAsync(100);
     heard(T6, 'final');
-    const resumedStop = clock.now() - t0;
     await clock.advanceAsync(10_000);
+    const at = (line: { text: string; atMs: number }) => [line.text, line.atMs - t0];
+    return { agent, decisions, stops, audio: h.audio.map(at), cut: h.cut.map(at) };
+  }
 
+  it('holds through the default turn detector when the first part ended a sentence', async () => {
+    const first = "Ma'am, what is this? I am so random.";
+    const { agent, decisions, stops, audio, cut } = await throughDetector(first);
     expect(decisions).toEqual([
       'turn.started turn-1',
       'turn.stopped turn-1',
       'turn.started turn-2',
       'turn.stopped turn-2',
     ]);
-    const merged = mergeUtterances(T5, T6);
-    expect(agent.asked).toEqual([T5, merged]);
+    const merged = mergeUtterances(first, T6);
+    expect(agent.asked).toEqual([first, merged]);
     // Nothing over the caller. The merged reply then gets its own filler, which it cuts (P3).
-    expect(h.audio.map((line) => [line.text, line.atMs - t0])).toEqual([
+    const resumedStop = stops[1]!;
+    expect(audio).toEqual([
       [FILLER.text, resumedStop + FILLER.afterMs],
       [`Answer: ${merged}.`, resumedStop + LIVE.llmMs + 150],
     ]);
-    expect(h.cut.map((line) => [line.text, line.atMs - t0])).toEqual([
-      [FILLER.text, resumedStop + LIVE.llmMs],
+    expect(cut).toEqual([[FILLER.text, resumedStop + LIVE.llmMs]]);
+  });
+
+  it('keeps the live cut-off fragment and what followed as one turn, with one reply', async () => {
+    // T5 ends mid-word ("--"): the detector waits for more (wave 6 noise lane, P2), so the turn
+    // that played a reply over the caller in call 8cbac365 never ends early and nothing is held.
+    const { agent, decisions, stops, audio } = await throughDetector(T5);
+    expect(decisions).toEqual(['turn.started turn-1', 'turn.stopped turn-1']);
+    expect(agent.asked).toEqual([`${T5} ${T6}`]);
+    expect(audio).toEqual([
+      [FILLER.text, stops[0]! + FILLER.afterMs],
+      [`Answer: ${T5} ${T6}.`, stops[0]! + LIVE.llmMs + 150],
     ]);
-    expect(resumedStop - stopped).toBe(LIVE.wordsMs + 1800);
   });
 });
