@@ -73,6 +73,23 @@ describe('BoundedSpeechScheduler.hold (P1)', () => {
     ).toEqual([]);
   });
 
+  it('prepares held lines in speaking order, after a line taken back has returned', async () => {
+    const out = manualOutput();
+    const scheduler = new BoundedSpeechScheduler(out.output);
+    scheduler.configurePipeline(2);
+    for (const text of ['A.', 'B.']) void scheduler.speak(text);
+    await out.tick();
+    out.synthesised.get('A.')!();
+    await out.tick();
+    // A is on the carrier and B is synthesising; nothing waits in the queue.
+    scheduler.hold();
+    void scheduler.speak('C.');
+    await out.tick();
+    // The session's cached output sends in the order lines were prepared: B before C.
+    expect(out.prepared).toEqual(['A.', 'B.', 'B.', 'C.']);
+    await scheduler.dispose();
+  });
+
   it('flushes held lines with their epoch', async () => {
     const out = manualOutput();
     const scheduler = new BoundedSpeechScheduler(out.output);

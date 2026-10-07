@@ -82,10 +82,14 @@ export class SpeechHold {
     return true;
   }
 
-  /** The output synthesises the next held lines ahead, as it would while they queue to play. */
+  /**
+   * The output synthesises the next held lines ahead, as it would while they queue to play. Not
+   * while a line is still leaving: an output that orders its carrier writes by preparation (the
+   * session's cached output) would then send a later line before it.
+   */
   private prepare(epoch: number, count: number): void {
     const prepare = this.lines.output.prepare?.bind(this.lines.output);
-    if (!this.holding || !prepare) return;
+    if (!this.holding || this.returning > 0 || !prepare) return;
     for (const entry of this.lines.queue.slice(0, count)) {
       if (entry.prepared || entry.segment.epoch !== epoch) continue;
       entry.prepared = true;
