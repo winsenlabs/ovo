@@ -36,8 +36,11 @@ export interface AgentBehaviorOptions {
 export interface AgentToolErrorRecord {
   turn: number;
   toolId: string;
-  /** `protocol`: tool and text out of order, or two tool calls in one reply. */
-  kind: 'unknown-or-unapproved' | 'invalid-input' | 'protocol';
+  /**
+   * `protocol`: tool and text out of order, or two tool calls in one reply. `inference`: the
+   * provider failed; `toolId` is then empty.
+   */
+  kind: 'unknown-or-unapproved' | 'invalid-input' | 'protocol' | 'inference';
   message: string;
   at: string;
 }

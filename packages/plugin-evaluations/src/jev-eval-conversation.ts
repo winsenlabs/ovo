@@ -7,7 +7,6 @@ import {
   FLOW_INTENT_QUESTION,
   FLOW_OTHER_INTENT,
   flowDecisionRequest,
-  flowIntents,
   flowNode,
   matchFlowPhrase,
   renderFlowLine,
@@ -87,7 +86,7 @@ export class ReferenceConversation {
   ended = false;
   node?: string;
   listen?: string;
-  /** What the agent said in its last turn that was not itself a replay, which a repeat replays. */
+  /** The entered node's lines, which a repeat replays. */
   private last: string[] = [];
   /** Every line played and every caller reply so far, which the decision state is built from. */
   private readonly spoken: SpokenEntry[] = [];
@@ -128,10 +127,7 @@ export class ReferenceConversation {
     const answer = scriptedAnswer(request, scripted.decision).answers;
     const intent = answer[FLOW_INTENT_QUESTION]!;
     if (intent.type !== 'choice') throw new Error('unreachable');
-    // An intent may need more confidence than the flow's threshold (one that ends the call).
-    const own = flowIntents(this.flow, listen).find((each) => each.key === intent.choice);
-    const needed = Math.max(this.flow.threshold, own?.threshold ?? 0);
-    if (intent.choice !== FLOW_OTHER_INTENT && intent.confidence >= needed) {
+    if (intent.choice !== FLOW_OTHER_INTENT && intent.confidence >= this.flow.threshold) {
       const slots: Record<string, string> = {};
       for (const [id, slot] of Object.entries(answer))
         if (
@@ -149,7 +145,6 @@ export class ReferenceConversation {
     else if (!this.flow.listens.some((candidate) => candidate.id === resumeAt))
       throw new Error(`The LLM cannot resume at ${resumeAt}`);
     else this.listen = resumeAt;
-    this.last = [reply];
     return this.said({ tier: 'llm', says: [reply], end: this.ended });
   }
 
@@ -170,16 +165,6 @@ export class ReferenceConversation {
     const target = routeFlowIntent(this.flow, listen, intent, slots);
     if (!target) throw new Error(`${intent} is not an intent of ${listen}`);
     if (target.kind === 'node') return { ...this.enter(target.node, tier), intent };
-    if (target.kind === 'hold') {
-      // The current question again: the node's own last line while it listens with its own
-      // listen set, otherwise the last thing the agent said.
-      const node = flowNode(this.flow, this.node!);
-      const own = node?.listen === this.listen ? node?.say.at(-1) : undefined;
-      const question = own === undefined ? this.last.at(-1) : this.render(own);
-      const prefix = this.flow.holdPrefix ? [this.render(this.flow.holdPrefix)] : [];
-      const says = question === undefined ? [...prefix, ...this.last] : [...prefix, question];
-      return this.said({ tier, intent, says, end: false });
-    }
     const prefix = this.flow.repeatPrefix ? [this.render(this.flow.repeatPrefix)] : [];
     return this.said({ tier, intent, says: [...prefix, ...this.last], end: false });
   }

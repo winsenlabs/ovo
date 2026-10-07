@@ -11,12 +11,12 @@ import {
   type ToolDefinition,
 } from '@winsendotai/ovo-contracts';
 import { streamAgentReply, stripInternalNotes } from './agent-stream.ts';
-import { AgentToolSelectionError, endCallReason, isEndCall } from './agent-tools.ts';
+import { endCallReason, isEndCall } from './agent-tools.ts';
 import type { AgentTurnLog } from './agent-turn-log.ts';
 import type { ToolConfirmation } from './confirmation.ts';
 import { applyFlowResume, interceptLateResume, readFlowResume } from './flow-rejoin.ts';
 import type { FlowSession } from './flow-session.ts';
-import { recoveryLine, repeatGuard, uncertaintyAgain } from './inference-recovery.ts';
+import { recovered, recoveryLine, repeatGuard, uncertaintyAgain } from './inference-recovery.ts';
 import { inferenceRequest, rejoinOffer, type Rejoin } from './inference-request.ts';
 import type { ToolEvents } from './tool-events.ts';
 
@@ -67,8 +67,8 @@ export interface InferenceStepInput {
  * or a confirmation-gated tool is never executed here, only proposed for the caller to confirm.
  *
  * A model that misuses a tool (an unknown tool, input that fails its schema, a tool call after its
- * text) is recorded and answered with the uncertainty line, never thrown to the engine: a turn that
- * fails ends the call, and a model's slip is not a reason to hang up on the caller (P8).
+ * text), or on the voice path a provider that fails, is recorded and answered with the uncertainty
+ * line, never thrown to the engine: a turn that fails ends the call (P8, see `recovered`).
  */
 export async function* runInferenceSteps(step: InferenceStepInput): AsyncGenerator<string, void> {
   const flow = step.flow;
@@ -97,10 +97,7 @@ export async function* runInferenceSteps(step: InferenceStepInput): AsyncGenerat
         : undefined,
     );
   } catch (error) {
-    if (!(error instanceof AgentToolSelectionError)) throw error;
-    const { turn, log } = step;
-    if (!log.toolErrors.some((record) => record.turn === turn && record.message === error.message))
-      log.toolError(turn, error.toolId, 'protocol', error.message);
+    if (!recovered(step, error)) throw error;
     if (!spoke) yield step.publish(recoveryLine(step));
   }
   // Answered in plain text: the flow stays where it was, and the path records that the LLM spoke.

@@ -187,7 +187,6 @@ describe('scoring', () => {
       'busy',
       'asks_purpose',
       'repeat',
-      'hold',
       'human_agent',
       'stop_calling',
       'abusive',
@@ -279,8 +278,7 @@ describe('recording', () => {
         : Object.keys(request.questions.intent!.criteria as object)[0]!;
     });
     const recorded = await recordJevEval(set, live.port, { note: 'test', recordedAt: 'now' });
-    // 18 replies are whole phrases; a lone "Sorry?" or "kya?" no longer is (P6).
-    const decided = set.cases.length - 18;
+    const decided = set.cases.length - 20;
     expect(live.requests).toHaveLength(decided);
     expect(Object.keys(recorded.answers)).toHaveLength(decided);
     expect(recorded).toMatchObject({ provenance: 'live', modelId: 'fixture-jev' });

@@ -9,9 +9,10 @@ import type { SpeechReceipt } from '@winsendotai/ovo-contracts';
  * in on the goodbye has something to say, so the call stays open for the next turn.
  *
  * A flow's ending is different (P4): the flow has reached a terminal node, and nothing the caller
- * says next can move it. Its goodbye is `terminal`; when the caller barges in on it, the next turn
- * `close`s the call, saying the goodbye once more only if no line of it was heard, and that close
- * is `final`: a barge-in no longer disarms it, and the call ends once its lines are out.
+ * says next can move it. Its goodbye is `terminal`; a caller who barges in on it after one of its
+ * lines played ends the call there and then. One who cut it before any line played gets it once
+ * more: the next turn `close`s the call with it, and that close is `final`: a barge-in no longer
+ * disarms it, and the call ends once its lines are out. An opt-out's closing line is terminal too.
  *
  * Receipts are counted per playback epoch, never matched by text: the speaker's text filters (the
  * Indian verbalisation of an amount, say) change what a receipt reports having said.
@@ -26,7 +27,7 @@ export class CallEnding {
   private turnLines: string[] = [];
   private turnHeard = 0;
   /** A terminal goodbye the caller barged in on, waiting for the next turn to `close`. */
-  private cut?: { reason: string; lines: string[]; heard: boolean };
+  private cut?: { reason: string; lines: string[] };
   private replayed = false;
 
   /** Why the call ended, once it has. */
@@ -72,7 +73,7 @@ export class CallEnding {
 
   /**
    * P4: the flow has ended and this turn closes the call. Returns the lines to say first: the
-   * goodbye the caller barged in on, once, when none of it was heard; otherwise nothing. The call
+   * goodbye the caller barged in on before any of it played, once; otherwise nothing. The call
    * ends when this turn's lines are out, played or cut. `reason` names the ending when no goodbye
    * was cut (the flow ended some other way).
    */
@@ -80,7 +81,7 @@ export class CallEnding {
     if (this.ended !== undefined) return [];
     const cut = this.cut;
     this.cut = undefined;
-    const again = cut && !cut.heard && !this.replayed ? cut.lines : [];
+    const again = cut && !this.replayed ? cut.lines : [];
     if (again.length) this.replayed = true;
     this.armed = { reason: cut?.reason ?? reason, sealed: false, final: true };
     return again;
@@ -106,13 +107,15 @@ export class CallEnding {
     this.armed = undefined;
   }
 
+  /**
+   * A terminal goodbye cut after one of its lines played has been heard: the call ends now, so the
+   * engine can hang up on the receipt instead of waiting for the caller's next turn. One cut before
+   * any of it played waits for `close` to say it once more.
+   */
   private keepCut(): void {
-    if (this.armed?.terminal)
-      this.cut = {
-        reason: this.armed.reason,
-        lines: [...this.turnLines],
-        heard: this.turnHeard > 0,
-      };
+    if (!this.armed?.terminal) return;
+    if (this.turnHeard > 0) this.ended = this.armed.reason;
+    else this.cut = { reason: this.armed.reason, lines: [...this.turnLines] };
   }
 
   private settle(): void {

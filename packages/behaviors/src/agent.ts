@@ -77,21 +77,22 @@ export class AgentBehavior extends AgentSession {
     this.ahead.heardTurn(variables);
     if (variables.inputEvent === 'opening') return yield* this.lines.opening(variables, this.flow);
     if (variables.inputEvent === 'idle')
-      return yield* this.flow?.state.ended ? this.closeFlow('') : this.lines.silence(variables);
+      return yield* this.final ? this.closeFlow('') : this.lines.silence(variables);
     this.lines.heard();
     this.gate?.closePrepared();
     this.active?.abort(new DOMException('superseded by a newer turn', 'AbortError'));
-    // The caller withdrew consent: no decision, LLM or pending confirmation answers this turn.
-    if (this.optOut.heard(input, this.turn + 1)) {
+    // The caller withdrew consent: no decision, LLM or pending confirmation answers this turn, and
+    // the closing line is final like a flow's end (P4): a barge-in on it cannot reopen the call.
+    if (!this.optOut.optedOut && this.optOut.heard(input, this.turn + 1)) {
       this.turn += 1;
       this.confirmation.expire();
       this.conversation.user(input);
-      this.ending.arm(OPT_OUT_COMPLETION);
+      this.ending.arm(OPT_OUT_COMPLETION, { terminal: true });
       yield this.say(this.optOut.closingLine);
       this.ending.seal();
       return;
     }
-    if (this.flow?.state.ended) return yield* this.closeFlow(input);
+    if (this.final) return yield* this.closeFlow(input);
     // What the agent said last turn, read before this turn says anything (P10).
     const previous = [...this.lines.recovery.lastSaid];
     const controller = new AbortController();
@@ -220,15 +221,22 @@ export class AgentBehavior extends AgentSession {
     }
   }
 
+  /** The flow has ended or the caller opted out: no later turn can reopen the call (P4). */
+  private get final(): boolean {
+    return this.optOut.optedOut || Boolean(this.flow?.state.ended);
+  }
+
   /**
-   * P4: the flow has ended, so this turn only closes the call. The goodbye is said once more when
-   * the caller barged in before hearing any of it; the call then ends whatever they say, and no
-   * decision or LLM is asked: nothing can reopen a call the flow has finished.
+   * P4: the flow has ended, or the caller opted out, so this turn only closes the call. The goodbye
+   * is said once more when the caller barged in before hearing any of it; the call then ends
+   * whatever they say, and no decision or LLM is asked: nothing can reopen a finished call.
    */
   private *closeFlow(input: string): Generator<string> {
     this.turn += 1;
     if (input) this.conversation.user(input);
-    const reason = `decision:flow:${this.flow!.state.node ?? 'end'}`;
+    const reason = this.optOut.optedOut
+      ? OPT_OUT_COMPLETION
+      : `decision:flow:${this.flow?.state.node ?? 'end'}`;
     for (const line of this.ending.close(reason)) yield this.say(line);
     this.ending.seal();
   }

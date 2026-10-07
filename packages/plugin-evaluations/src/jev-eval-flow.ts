@@ -70,16 +70,13 @@ export function matchFlowPhrase(flow: AgentFlow, listenId: string, reply: string
   return compiledPhrase(compile(flow), listenId, reply);
 }
 
-/**
- * Where an intent leads given the turn's slot answers: a node, a replay, the current question again
- * (`hold`), or nothing (`other`).
- */
+/** Where an intent leads given the turn's slot answers: a node, a replay, or nothing (`other`). */
 export function routeFlowIntent(
   flow: AgentFlow,
   listenId: string,
   key: string,
   slots: Readonly<Record<string, string | undefined>> = {},
-): { kind: 'node'; node: string } | { kind: 'repeat' } | { kind: 'hold' } | undefined {
+): { kind: 'node'; node: string } | { kind: 'repeat' } | undefined {
   const intent = flowIntents(flow, listenId).find((candidate) => candidate.key === key);
   if (!intent) return undefined;
   const answered = Object.entries(slots).filter((entry): entry is [string, string] =>

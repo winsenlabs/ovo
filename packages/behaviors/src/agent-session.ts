@@ -164,8 +164,9 @@ export abstract class AgentSession implements Behavior {
   prepare(partial: PartialWords): void {
     const { recovery } = this.lines;
     this.ahead.prepare(partial, this.gate, (input, variables) =>
-      // An ended flow decides nothing more: the next turn only closes the call (P4).
+      // An ended flow or an opt-out decides nothing more: the next turn only closes the call (P4).
       this.flow?.state.ended ||
+      this.optOut.optedOut ||
       this.confirmation.waiting ||
       recovery.replay(input) ||
       recovery.skipsDecision(input, this.inference !== undefined)

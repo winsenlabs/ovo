@@ -118,14 +118,16 @@ describe('a terminal node is final (P4)', () => {
     expect(behavior.flow!.state).toMatchObject({ node: 'stop_calling', ended: true });
   });
 
-  it('ends without a word when the caller had heard part of the goodbye', async () => {
+  it('ends on the cut when the caller had heard part of the goodbye', async () => {
     const flow = liveFlow((f) => {
       f.nodes.find((node) => node.id === 'stop_calling')!.say = ['stop_calling', 'goodbye'];
     });
     const { behavior, turn } = agent([{ intent: 'stop_calling', confidence: 0.92 }], { flow });
     await turn('hello?');
     await turn('never call me again', ['completed', 'interrupted']);
-    expect(behavior.isComplete()).toBe(false);
+    // Complete on the receipt itself, so the engine can hang up without waiting for a next turn.
+    expect(behavior.isComplete()).toBe(true);
+    expect(behavior.completionReason()).toBe('decision:flow:stop_calling');
     expect(await turn('What is your name?')).toEqual([]);
     expect(behavior.isComplete()).toBe(true);
     expect(behavior.completionReason()).toBe('decision:flow:stop_calling');
@@ -305,6 +307,100 @@ describe('no recoverable inference error ends the call (P8)', () => {
     expect(await turn('I, I was-')).toEqual([behavior.config.uncertainty]);
     expect(behavior.flow!.state.listen).toBe('wrapup');
     expect(behavior.isComplete()).toBe(false);
+  });
+
+  // A provider failure used to escape respondStream; the engine logs turn_failed and ends the call
+  // with error:turn.
+  for (const failing of ['stream', 'generate'] as const)
+    it(`answers a provider failure in ${failing} with the uncertainty line and stays put`, async () => {
+      const { behavior, model, turn } = agent([{ intent: 'other' }, { intent: 'other' }]);
+      if (failing === 'stream')
+        model.port.stream = async function* () {
+          yield* [];
+          throw new Error('upstream 503');
+        };
+      else {
+        delete (model.port as { stream?: unknown }).stream;
+        model.port.generate = async () => {
+          throw new Error('upstream 503');
+        };
+      }
+      await turn('hello?');
+      await turn('yes');
+      const before = { ...behavior.flow!.state };
+      await expect(turn('what product is this?')).resolves.toEqual([behavior.config.uncertainty]);
+      expect(behavior.flow!.state).toEqual(before);
+      expect(behavior.isComplete()).toBe(false);
+      expect(behavior.toolErrors.at(-1)).toMatchObject({
+        kind: 'inference',
+        message: 'upstream 503',
+      });
+      // Said twice running, the line becomes the clarification (P10).
+      await expect(turn('which product?')).resolves.toEqual([behavior.config.clarification]);
+      expect(behavior.isComplete()).toBe(false);
+    });
+
+  it('lets a respond caller see a provider failure, so a budget stop still stops it', async () => {
+    const { behavior, model, turn } = agent([{ intent: 'other' }]);
+    model.port.generate = async () => {
+      throw new Error('Provider evaluation stopped: evaluation-budget-exhausted');
+    };
+    await turn('hello?');
+    await turn('yes');
+    behavior.beginTurn(99);
+    await expect(behavior.respond('what product is this?', call)).rejects.toThrow(
+      'evaluation-budget-exhausted',
+    );
+  });
+
+  it('keeps the provider failure of a superseded turn out of the reply', async () => {
+    const { behavior, model, turn } = agent([{ intent: 'other' }]);
+    model.port.stream = async function* () {
+      yield* [];
+      behavior.cancel('turn interrupted');
+      throw new Error('upstream 503');
+    };
+    await turn('hello?');
+    await turn('yes');
+    await expect(turn('what product is this?')).rejects.toThrow('upstream 503');
+    expect(behavior.toolErrors).toEqual([]);
+  });
+});
+
+describe('an opt-out is final (P4)', () => {
+  const optOut = { compliance: { optOut: { enabled: true } } };
+  const CLOSING = "Understood. We won't call this number again. Thank you, goodbye.";
+
+  it('closes the call when the caller cut the closing line, never disclosing the loan', async () => {
+    // Call B by another route: the opt-out rule catches "stop calling me" before the flow does.
+    const { behavior, jev, model, turn } = agent([], { config: optOut });
+    await turn('hello?');
+    const asked = [jev.requests.length, model.requests.length];
+    expect(await turn('stop calling me', 'interrupted')).toEqual([CLOSING]);
+    expect(behavior.isComplete()).toBe(false);
+    expect(await turn('yes I am Ravi Kumar')).toEqual([CLOSING]);
+    expect(behavior.isComplete()).toBe(true);
+    expect(behavior.completionReason()).toBe('opt_out');
+    expect(behavior.optedOut).toBe(true);
+    expect(behavior.flow!.state.verified).toBe(false);
+    expect([jev.requests.length, model.requests.length]).toEqual(asked);
+  });
+
+  it('ends on a second cut, and on a silence, without asking anyone', async () => {
+    const { behavior, turn } = agent([], { config: optOut });
+    await turn('hello?');
+    await turn('stop calling me', 'interrupted');
+    expect(await turn('Hello? Hello?', 'interrupted')).toEqual([CLOSING]);
+    expect(behavior.isComplete()).toBe(true);
+
+    const idle = agent([], {
+      config: { ...optOut, idle: { prompts: ['Hello? Can you hear me?'], finalLine: 'Goodbye.' } },
+    });
+    await idle.turn('hello?');
+    await idle.turn('stop calling me', 'interrupted');
+    expect(await idle.turn('', 'completed', { inputEvent: 'idle' })).toEqual([CLOSING]);
+    expect(idle.behavior.isComplete()).toBe(true);
+    expect(idle.behavior.completionReason()).toBe('opt_out');
   });
 });
 
