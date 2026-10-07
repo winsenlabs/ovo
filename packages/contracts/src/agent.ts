@@ -154,6 +154,11 @@ export const AgentConfig = z
     /** Per-agent plugin selection (§4.1). Missing slots are filled from the distribution defaults. */
     voice: AgentVoice.optional(),
     recording: z.boolean().default(false),
+    /**
+     * Days this agent's recordings are kept, 1-365. Absent: the installation's
+     * `OVO_RECORDING_RETENTION_DAYS` (30 by default).
+     */
+    recordingRetentionDays: z.number().int().min(1).max(365).optional(),
     speechCache: z
       .object({
         enabled: z.boolean(),

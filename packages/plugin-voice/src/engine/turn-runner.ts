@@ -5,6 +5,7 @@ import type {
   SessionInput,
   TurnSpeculation,
 } from '@winsendotai/ovo-contracts';
+import type { InferenceActivity } from '@winsendotai/ovo-plugin-kit';
 import type { BoundedSpeechScheduler } from '../scheduler.ts';
 import { realClock } from './clock.ts';
 import type { VoiceEventBus } from './events.ts';
@@ -97,6 +98,11 @@ export abstract class TurnRunner {
     );
     const unheard = () => this.turns.unheard();
     this.hold = new ReplyHold(clock, speech, events, unheard, media.sessionId);
+  }
+
+  /** N3: a provider tool's progress inside the reply being composed (a web search starting). */
+  inferenceActivity(activity: InferenceActivity): void {
+    this.filler.activity(activity);
   }
 
   async dispose(): Promise<void> {

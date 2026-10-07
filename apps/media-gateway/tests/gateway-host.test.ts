@@ -58,7 +58,21 @@ it.each([
       occurredAt: new Date(2),
     };
     expect(await hostFor('fixture', 'env').applyCallEvent(event)).toEqual({ kind: 'applied' });
-    expect(recordAttempt).toHaveBeenCalledWith('attempt-1', 'event-1', expected, event.occurredAt);
+    expect(recordAttempt).toHaveBeenCalledWith(
+      'attempt-1',
+      'event-1',
+      expected,
+      event.occurredAt,
+      // The retry policy's reason: busy backs off 30 minutes, a machine answer a day, and an
+      // answer with no agent session is never retried.
+      state === 'busy'
+        ? 'busy'
+        : answeredBy === 'machine'
+          ? 'voicemail'
+          : sessionOpened
+            ? undefined
+            : 'completed_without_session',
+    );
     expect(store.applyCarrierCallback).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: 'org',
@@ -129,7 +143,13 @@ it('keeps an earlier verified machine answer when completion omits answeredBy', 
     state: 'completed',
     occurredAt: new Date(2),
   });
-  expect(recordAttempt).toHaveBeenLastCalledWith('attempt-1', 'completed', 'failed', new Date(2));
+  expect(recordAttempt).toHaveBeenLastCalledWith(
+    'attempt-1',
+    'completed',
+    'failed',
+    new Date(2),
+    'voicemail',
+  );
 });
 
 const postgresUrl = process.env.OVO_TEST_POSTGRES_URL;
@@ -205,6 +225,8 @@ describe.skipIf(!postgresUrl)('durable campaign callback history', () => {
         'completed',
         expected,
         new Date(2),
+        // The retry policy's reason: a machine answer backs off a day.
+        expected === 'failed' ? 'voicemail' : undefined,
       );
     } finally {
       await durable.close();

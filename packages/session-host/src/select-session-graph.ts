@@ -21,7 +21,7 @@ import { behaviorPluginId, createSessionPluginCatalog } from './session-catalog.
 import { legacySelections } from './legacy-session-selections.ts';
 import type { NormalizationBinding, SessionDefaults } from './normalize.ts';
 import { adaptDefinitionFormats } from './speech-adapters/decorate.ts';
-import { sessionRequiresInput } from './input-policy.ts';
+import { sessionRequiresInput, turnDetectorConfig } from './input-policy.ts';
 import { STREAMING_VOICE_PLUGIN_IDS } from '@winsendotai/ovo-plugin-voice';
 
 export interface SessionGraphRelease {
@@ -112,7 +112,7 @@ function configFor(
       selection.pluginId === STREAMING_VOICE_PLUGIN_IDS.sessionEngine && config.ending?.wrapUp;
     return { session, engine: wrapUp ? { ...selection.config, wrapUp } : selection.config };
   }
-  if (slot === 'turnDetector') return selection.config;
+  if (slot === 'turnDetector') return turnDetectorConfig(selection, config);
   const binding =
     selection.binding ??
     Object.values(bindings ?? {}).find((row) => row.id === selection.bindingId);

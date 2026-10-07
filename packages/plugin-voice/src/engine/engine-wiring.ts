@@ -3,11 +3,13 @@ import type {
   BehaviorEvent,
   Clock,
   EngineEvent,
+  Inference,
   SessionInput,
   SttConfigurationUpdate,
   TextFilter,
   TranscriptObserver,
 } from '@winsendotai/ovo-contracts';
+import { inferenceActivity, type InferenceActivity } from '@winsendotai/ovo-plugin-kit';
 import type { BoundedSpeechScheduler } from '../scheduler.ts';
 import type { VoiceEventBus } from './events.ts';
 import type { TurnLatency } from './latency.ts';
@@ -141,4 +143,16 @@ export function disposalDeadline(ms: number): { expired: Promise<never>; clear()
   // swallow-ok: the disposal awaiting it reports the timeout; a cleared deadline never rejects.
   expired.catch(() => undefined);
   return { expired, clear: () => clearTimeout(timer) };
+}
+
+/** N3: hands the session LLM's provider-tool progress (a web search starting) to the turn driver. */
+export function observeInference(
+  inference: Inference | undefined,
+  driver: { inferenceActivity(activity: InferenceActivity): void },
+): () => void {
+  return (
+    inferenceActivity(inference)?.observeActivity((activity) =>
+      driver.inferenceActivity(activity),
+    ) ?? (() => undefined)
+  );
 }

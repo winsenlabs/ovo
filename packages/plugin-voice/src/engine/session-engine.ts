@@ -5,6 +5,7 @@ import {
   type EndReason,
   type EngineEvent,
   type EngineOutcome,
+  type Inference,
   type MediaDuplex,
   type SessionInput,
   type SpeechToText,
@@ -25,6 +26,7 @@ import {
   disposalDeadline,
   emptyIngressStats,
   observeBehavior,
+  observeInference,
   observeTranscript,
   projectBusEvents,
 } from './engine-wiring.ts';
@@ -51,6 +53,7 @@ export interface NativeEnginePorts {
   clock?: Clock;
   usage?: UsageSink;
   transcripts?: TranscriptObserver;
+  inference?: Inference; // N3: observed, never called, for the provider tools it runs (web search)
   textFilters?: readonly TextFilter[];
   engine?: {
     prefetchSegments?: number;
@@ -132,6 +135,7 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
       }),
       ports.scheduler.subscribe((evidence) => this.speechEvents.onSpeech(evidence)),
       observeBehavior(ports.behavior, this.bus, this.clock, this),
+      observeInference(ports.inference, this.driver),
     );
   }
 

@@ -5,6 +5,7 @@ import {
   PCM16_16K,
   SESSION_INPUT_JSON_SCHEMA,
   type AudioFilter,
+  type Inference,
   type Behavior,
   type Clock,
   type MediaDuplex,
@@ -77,6 +78,8 @@ export function createNativeVoiceEngineV2Plugin() {
         Cap.clock,
         Cap.usage,
         Cap.transcripts,
+        // N3: observed for the web searches its replies run, to say a search line.
+        Cap.inference,
       ],
       provides: [Cap.engine + '@2'],
       companions: {
@@ -110,6 +113,7 @@ export function createNativeVoiceEngineV2Plugin() {
         clock: ctx.maybe(Cap.clock) as Clock | undefined,
         usage: ctx.maybe(Cap.usage) as UsageSink | undefined,
         transcripts: ctx.maybe(Cap.transcripts) as TranscriptObserver | undefined,
+        inference: ctx.maybe(Cap.inference) as Inference | undefined,
         textFilters: [...ctx.all(Cap.textFilters).values()] as TextFilter[],
         session: config.session as SessionInput,
         engine: config.engine as NativeEnginePorts['engine'],

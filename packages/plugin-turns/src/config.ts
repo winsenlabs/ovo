@@ -98,6 +98,16 @@ export const DetectorConfigSchema = TurnConfigSchema.extend({
   cutoffHoldMs: z.number().int().min(0).max(10000).default(700),
   speechEvidence: SpeechEvidenceConfigSchema.default(() => SpeechEvidenceConfigSchema.parse({})),
   opening: OpeningConfigSchema.default(() => OpeningConfigSchema.parse({})),
+  /**
+   * N4: the agent's allowed languages (base codes), filled in by the session host from the
+   * agent's `languages`. Words mostly outside them never barge in, and over the agent they are no
+   * turn at all. Absent, every transcript counts.
+   */
+  languages: z
+    .array(z.string().regex(/^[a-z]{2,3}$/))
+    .min(1)
+    .max(12)
+    .optional(),
 });
 export type DetectorConfig = z.output<typeof DetectorConfigSchema>;
 

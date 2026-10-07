@@ -2,6 +2,7 @@ import type { ToolDefinition } from '@winsendotai/ovo-contracts';
 import type { InferenceStepInput } from './agent-inference-step.ts';
 import { flowGuide, flowResumeTool, type FlowResume } from './flow-rejoin.ts';
 import { INTERRUPTED_CONTEXT } from './history.ts';
+import { replyLanguageNote } from './language-guard.ts';
 import { saidUncertainty, uncertaintyNote } from './inference-recovery.ts';
 import type { InferenceCall } from './speculation-llm.ts';
 
@@ -45,6 +46,8 @@ export function inferenceRequest(
   rejoin: RejoinOffer | undefined,
 ): InferenceCall {
   const notes = [
+    // First: fixed for the call, so the prompt's cached prefix ends after it (N4).
+    replyLanguageNote(step.config) ?? '',
     step.replyCut ? INTERRUPTED_CONTEXT : '',
     saidUncertainty(step) ? uncertaintyNote(step.config.uncertainty) : '',
     rejoin?.guide ?? '',

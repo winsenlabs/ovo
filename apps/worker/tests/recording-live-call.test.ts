@@ -59,7 +59,13 @@ describe.skipIf(!databaseUrl)('a recorded live call, end to end', () => {
   });
 
   it('records both sides of the call, keeps it for the retention period, then deletes it', async () => {
-    const call = await recordedCall({ recording: true, recordings: service, retentionDays: 7 });
+    // The agent's own retention wins over the installation's 30 days.
+    const call = await recordedCall({
+      recording: true,
+      recordings: service,
+      retentionDays: 30,
+      agentRetentionDays: 7,
+    });
     // 40 s of caller audio, more than one live segment, and 3 s of the agent.
     const caller = audio(320_000, 7);
     const agent = audio(24_000, 99);

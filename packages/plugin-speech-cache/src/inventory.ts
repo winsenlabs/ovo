@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
 import {
   agentHandoffLines,
+  agentLanguageLine,
   agentRecoveryLines,
   canonicalJson,
+  disclosureLines,
   flowLineTemplates,
   turnDetectorLines,
   type AgentConfig,
@@ -71,7 +73,7 @@ export function staticSpeechInventory(release: SpeechInventoryRelease): SpeechIn
   add(config.message, 'greeting');
   // Collections compliance: the recording disclosure opens every call and the opt-out closing line
   // ends it; both are fixed lines, so both are clips before the first call.
-  if (config.compliance?.disclosure) add(config.compliance.disclosure.text, 'disclosure');
+  add(disclosureLines(config.compliance).join(' ').trim(), 'disclosure');
   if (config.compliance?.optOut?.enabled) add(config.compliance.optOut.closingLine, 'opt-out');
   // The engine's closing line before the call time limit (AgentEnding.wrapUp).
   add(config.ending?.wrapUp?.line, 'wrap-up');
@@ -85,6 +87,8 @@ export function staticSpeechInventory(release: SpeechInventoryRelease): SpeechIn
     add(processing?.failure, 'processing');
   }
   add(config.clarification, 'clarification');
+  // N4: asked of a caller heard outside the agent's languages.
+  add(agentLanguageLine(config), 'recovery');
   add(config.uncertainty, 'uncertainty');
   if (config.guardrail?.mode === 'block') add(config.guardrail.safeLine, 'guardrail');
   for (const entry of config.faq) add(entry.answer, 'faq');

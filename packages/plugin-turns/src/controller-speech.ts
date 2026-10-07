@@ -1,4 +1,4 @@
-import { classifyConfirmation, type SttEvent } from '@winsendotai/ovo-contracts';
+import { classifyConfirmation, offLanguage, type SttEvent } from '@winsendotai/ovo-contracts';
 import { TurnControllerState } from './controller-state.ts';
 import { canInterrupt, confirmationPrompt, speechMuted } from './mute.ts';
 import { acknowledges, containsConfirmationPhrase, speechCanInterrupt } from './start-min-words.ts';
@@ -40,6 +40,12 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
         this.reset('backchannel');
         return;
       }
+      // N4: words outside the agent's languages (an STT that drifted, a background talker) are
+      // not understood, so over the agent they are no turn either.
+      if (this.offLanguage(text)) {
+        this.reset('backchannel');
+        return;
+      }
     }
     if (this.cutoff.holds(text, () => this.tryStop())) return;
     this.stop();
@@ -61,7 +67,10 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
         this.input.language,
         this.config,
         this.confirmationPending,
-      )
+      ) ||
+      // N4: a transcript outside the agent's languages never barges in (call b1fd8b51: a Russian
+      // interim cut the greeting at 2.27 s).
+      this.offLanguage(this.aggregate.view)
     )
       return;
     // N8: the opening waits out its protected window, then for confirmed words.
@@ -73,6 +82,10 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
     if (waitMs > 0) return this.evidence.recheck(waitMs, () => this.maybeInterrupt());
     this.interruptedEpoch = this.bot.epoch;
     this.emit({ type: 'interrupt', reason: 'transcript' });
+  }
+
+  private offLanguage(text: string): boolean {
+    return Boolean(this.config.languages && offLanguage(text, this.config.languages));
   }
 
   protected safety(): void {

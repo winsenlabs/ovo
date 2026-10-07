@@ -29,6 +29,7 @@ export async function recordedCall(input: {
   recording: boolean;
   recordings?: LiveRecordingService;
   retentionDays?: number;
+  agentRetentionDays?: number;
 }) {
   const audits: Array<[string, Record<string, unknown>]> = [];
   const heard: Uint8Array[] = [];
@@ -98,6 +99,7 @@ export async function recordedCall(input: {
       mode: 'announcement',
       message: 'Done',
       recording: input.recording,
+      ...(input.agentRetentionDays ? { recordingRetentionDays: input.agentRetentionDays } : {}),
     }),
     plugins: [{ id: '@winsendotai/ovo-behavior-announcement', version: '0.1.0' }],
     selections: {

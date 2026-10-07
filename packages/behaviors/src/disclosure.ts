@@ -1,17 +1,22 @@
-import type { SpeechKindV2 } from '@winsendotai/ovo-contracts';
+import {
+  disclosureLines,
+  type AgentCompliance,
+  type SpeechKindV2,
+} from '@winsendotai/ovo-contracts';
 import type { AuthoredLine } from './reprompt.ts';
 
 /** Where a disclosure line is authored, for skipped-line records. */
 export const DISCLOSURE_FIELD = 'compliance.disclosure';
 
 /**
- * The recording disclosure (`AgentConfig.compliance.disclosure.text`), read structurally. It is
- * spoken before anything else on the call, so an agent with one always speaks first.
+ * The opening disclosure: the optional identity and AI lines, the recording line and the opt-out
+ * hint (`AgentConfig.compliance`), in that order and spoken as one line before anything else, so
+ * an agent with any of them always speaks first.
  */
 export function disclosureLine(config: unknown): string | undefined {
-  const text = (config as { compliance?: { disclosure?: { text?: unknown } } } | undefined)
-    ?.compliance?.disclosure?.text;
-  return typeof text === 'string' && text.trim() ? text : undefined;
+  const compliance = (config as { compliance?: AgentCompliance } | undefined)?.compliance;
+  const text = disclosureLines(compliance).join(' ').trim();
+  return text || undefined;
 }
 
 /** The opening's authored lines with the disclosure first, when the agent has one. */

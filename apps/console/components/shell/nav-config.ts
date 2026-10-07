@@ -5,6 +5,7 @@ export const navigation = [
   { href: '/calls', label: 'Calls', group: 'Operations' },
   { href: '/campaigns', label: 'Campaigns', group: 'Operations' },
   { href: '/operations/suppressions', label: 'Suppressions', group: 'Operations' },
+  { href: '/operations/compliance', label: 'Compliance', group: 'Operations' },
   { href: '/operations/handoffs', label: 'Handoffs', group: 'Operations' },
   { href: '/operations/callbacks', label: 'Callbacks', group: 'Operations' },
   { href: '/operations/inbound', label: 'Inbound', group: 'Operations' },

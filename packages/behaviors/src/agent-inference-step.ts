@@ -11,6 +11,7 @@ import {
   type ToolDefinition,
 } from '@winsendotai/ovo-contracts';
 import { streamAgentReply, stripInternalNotes } from './agent-stream.ts';
+import { EndCallRefusal } from './agent-end-refusal.ts';
 import { endCallReason, isEndCall } from './agent-tools.ts';
 import type { AgentTurnLog } from './agent-turn-log.ts';
 import type { ToolConfirmation } from './confirmation.ts';
@@ -37,6 +38,8 @@ export interface InferenceStepInput {
   publish: (text: string) => string;
   /** The LLM ended the call; its goodbye is this turn's reply. */
   endCall: (reason: string) => void;
+  /** N1: why the LLM may not end the call on this turn (`EndCallGate`); undefined when it may. */
+  endRefused?: () => string | undefined;
   operationId: () => string;
   turn: number;
   /** False once a newer turn has superseded this one. */
@@ -108,7 +111,9 @@ async function* inferenceSteps(
   step: InferenceStepInput,
   rejoin?: Rejoin,
 ): AsyncGenerator<string, void> {
-  const { config, publish, signal } = step;
+  const { config, signal } = step;
+  const ending = new EndCallRefusal(step);
+  const publish = ending.publish;
   // A streamed reply drops the repeated sentences; a whole one that is only the uncertainty line
   // again becomes the clarification.
   const repeated = repeatGuard(step);
@@ -148,7 +153,8 @@ async function* inferenceSteps(
         publish,
         (input) => {
           const accepted = isEndCall(step.tools, step.validators, input);
-          if (accepted) step.endCall(endCallReason(input));
+          // A refused goodbye already streamed stays said; the call stays open.
+          if (accepted && !ending.refused(true)) step.endCall(endCallReason(input));
           return accepted;
         },
         streamGuard,
@@ -210,6 +216,12 @@ async function* inferenceSteps(
       );
     }
     if (tool.id === END_CALL_TOOL_ID) {
+      const why = ending.refused(false);
+      // Refused: the model hears why, and answers the caller instead in its next step.
+      if (why) {
+        step.results.push(ending.record(reply.input, why));
+        continue;
+      }
       step.endCall(endCallReason(reply.input));
       const goodbye = checked((reply.input as { goodbye: string }).goodbye.trim());
       if (goodbye !== undefined) yield publish(goodbye);

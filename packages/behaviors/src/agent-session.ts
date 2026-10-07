@@ -39,6 +39,7 @@ import type { AgentSpeculationOptions } from './speculation.ts';
 import { CallOptOut } from './opt-out.ts';
 import { DISCLOSURE_FIELD, disclosureLine, disclosureSpeechKind } from './disclosure.ts';
 import { MustHear } from './must-hear.ts';
+import { CallLanguages } from './language-guard.ts';
 
 /**
  * One agent call's state and the hooks the engine calls between turns: playback, cancellation,
@@ -89,6 +90,12 @@ export abstract class AgentSession implements Behavior {
   protected readonly outcomes: CallOutcomeEvents;
   /** The caller's "stop calling me" (collections compliance). */
   protected readonly optOut: CallOptOut;
+  /** The languages callers may speak and the agent replies in (N4). */
+  protected readonly languages: CallLanguages;
+  /** Off-language caller turns and replies the language guard replaced. */
+  get languageMetrics() {
+    return this.languages.metrics.snapshot();
+  }
   /** True once the caller asked not to be called again; the host lists the number. */
   get optedOut(): boolean {
     return this.optOut.optedOut;
@@ -143,6 +150,7 @@ export abstract class AgentSession implements Behavior {
     this.flow = this.gate?.flow;
     this.outcomes = new CallOutcomeEvents(options.events, this.log);
     this.optOut = new CallOptOut(this.config, options.events);
+    this.languages = new CallLanguages(this.config);
     this.outcomes.follow(this.flow, () => this.turn);
     // Wave 4 request 5: each state's endpointing reaches the STT as an `stt.configure` event.
     if (this.flow)
@@ -167,6 +175,8 @@ export abstract class AgentSession implements Behavior {
       // An ended flow or an opt-out decides nothing more: the next turn only closes the call (P4).
       this.flow?.state.ended ||
       this.optOut.optedOut ||
+      // N4: words outside the agent's languages get its language line, never a decision.
+      !this.languages.understands(input) ||
       this.confirmation.waiting ||
       recovery.replay(input) ||
       recovery.skipsDecision(input, this.inference !== undefined)

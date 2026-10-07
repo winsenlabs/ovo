@@ -125,7 +125,7 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
         media,
         workspaceId: job.workspaceId,
         callId,
-        retentionDays: this.recordingRetentionDays,
+        retentionDays: release.config.recordingRetentionDays ?? this.recordingRetentionDays,
         audit: (type, payload) => telemetry.audit(type, payload),
       });
       cleanup.defer(() => recording.finish());

@@ -38,9 +38,10 @@ export interface AgentToolErrorRecord {
   toolId: string;
   /**
    * `protocol`: tool and text out of order, or two tool calls in one reply. `inference`: the
-   * provider failed; `toolId` is then empty.
+   * provider failed; `toolId` is then empty. `refused`: an `end_call` the call does not allow yet
+   * (N1); the call goes on.
    */
-  kind: 'unknown-or-unapproved' | 'invalid-input' | 'protocol' | 'inference';
+  kind: 'unknown-or-unapproved' | 'invalid-input' | 'protocol' | 'inference' | 'refused';
   message: string;
   at: string;
 }
@@ -67,7 +68,8 @@ export const END_CALL_TOOL: ToolDefinition = {
   id: END_CALL_TOOL_ID,
   description:
     'End the phone call. Call this instead of replying, only once the conversation is finished ' +
-    'and the caller has nothing more to ask; put your closing sentence in `goodbye`.',
+    'and the caller has nothing more to ask; put your closing sentence in `goodbye`. Never call ' +
+    'it after asking the caller a question, or when you did not understand what they said.',
   connector: 'native',
   inputSchema: {
     type: 'object',
