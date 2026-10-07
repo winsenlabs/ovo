@@ -76,8 +76,16 @@ function fixture(row: Record<string, unknown> = {}, { vad = true } = {}) {
     decisions.filter((d): d is Extract<TurnDecision, { type: T }> => d.type === type);
   const turns = () =>
     of('turn.stopped').flatMap((d) => (d.input.kind === 'speech' ? [d.input.text] : []));
-  const speaking = (question = false) =>
+  let greeted = false;
+  const speaking = (question = false) => {
+    // Mid-call speech: the opening has already played (N8 protects that; see opening.test.ts).
+    if (!greeted) {
+      greeted = true;
+      send({ type: 'bot.started', epoch: 0, kind: 'response' });
+      send({ type: 'bot.stopped', epoch: 0, kind: 'response' });
+    }
     send({ type: 'bot.started', epoch: 1, kind: 'response', ...(question ? { question } : {}) });
+  };
   const silent = () => send({ type: 'bot.stopped', epoch: 1, kind: 'response' });
   return { clock, decisions, send, transcript, speak, utter, forced, of, turns, speaking, silent };
 }

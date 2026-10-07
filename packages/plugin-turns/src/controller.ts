@@ -38,7 +38,9 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
           if (
             this.bot &&
             canInterrupt(this.view(), this.rules) &&
-            this.interruptedEpoch !== this.bot.epoch
+            this.interruptedEpoch !== this.bot.epoch &&
+            // N8: a sound alone never cuts the opening.
+            this.opening.waitMs() === 0
           ) {
             this.interruptedEpoch = this.bot.epoch;
             this.emit({ type: 'interrupt', reason: 'vad' });
@@ -85,6 +87,7 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         break;
       case 'bot.started':
         this.idle.cancel();
+        if (!this.firstSpeechComplete) this.opening.botStarted(event.atMs);
         this.bot = {
           epoch: event.epoch,
           kind: event.kind,
@@ -98,6 +101,7 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         const wasPrompt = confirmationPrompt(this.view(), this.rules);
         this.bot = undefined;
         this.firstSpeechComplete = true;
+        this.opening.end();
         if (wasPrompt && this.turnId) {
           if (!this.aggregate.hasText) {
             this.awaitingConfirmationFinal = true;

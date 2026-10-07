@@ -64,6 +64,10 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
       )
     )
       return;
+    // N8: the opening waits out its protected window, then for confirmed words.
+    const openingMs = this.opening.waitMs();
+    if (openingMs === Infinity) return;
+    if (openingMs > 0) return this.opening.recheck(openingMs, () => this.maybeInterrupt());
     const waitMs = this.evidence.bargeInWaitMs();
     if (waitMs === Infinity) return;
     if (waitMs > 0) return this.evidence.recheck(waitMs, () => this.maybeInterrupt());
@@ -101,6 +105,7 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
     if (!prompt && !this.bot && !this.turnId && !this.evidence.startsTurn()) return;
     this.start();
     this.aggregate.observe(segment);
+    this.opening.words(this.aggregate.view);
     // New words: a turn held as broken off goes on, and waits again if it breaks off again.
     this.cutoff.resume();
     if (this.strategy === 'commit' && segment.stability === 'interim')

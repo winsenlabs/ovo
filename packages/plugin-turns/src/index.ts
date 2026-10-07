@@ -6,6 +6,7 @@ import { TurnController } from './controller.ts';
 export {
   CommitConfigSchema,
   DetectorConfigSchema,
+  OpeningConfigSchema,
   PHONE_TURN_CONFIG,
   SpeechEvidenceConfigSchema,
   type DetectorConfig,
