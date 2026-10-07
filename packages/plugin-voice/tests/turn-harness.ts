@@ -87,6 +87,8 @@ export function driverHarness(
   const bus = new VoiceEventBus();
   /** Each line whose audio reached the carrier, and when. */
   const audio: { text: string; atMs: number; kind: string }[] = [];
+  /** Each line cut off after its audio reached the carrier, and when. */
+  const cut: { text: string; atMs: number }[] = [];
   const scheduler = new BoundedSpeechScheduler({
     async play(segment, { signal, report }) {
       await sleep(clock, fillers.includes(segment.text) ? 0 : ttsMs, signal);
@@ -94,6 +96,7 @@ export function driverHarness(
       audio.push({ text: segment.text, atMs: clock.now(), kind: segment.kind });
       report?.('sent', 'estimated');
       await sleep(clock, playMs, signal);
+      if (signal.aborted) cut.push({ text: segment.text, atMs: clock.now() });
       return signal.aborted
         ? { state: 'interrupted', evidence: 'estimated' }
         : { state: 'completed', evidence: 'confirmed' };
@@ -101,22 +104,27 @@ export function driverHarness(
     async interrupt() {},
   });
   const ended: string[] = [];
+  /** `reason` or `reason:detail`, for each end the driver asked for. */
+  const endings: string[] = [];
   const driver = new TurnDriver(
     behavior,
     scheduler,
     session,
     bus,
     new TurnLatency(clock, () => undefined),
-    (reason) => ended.push(reason),
+    (reason, detail) => {
+      ended.push(reason);
+      endings.push(detail ? `${reason}:${detail}` : reason);
+    },
     4,
     { sessionId: 's-1', playbackEvidence: 'carrier-played' } as MediaDuplex,
     clock,
   );
-  let turn = 0;
+  let callerTurns = 0;
   const caller = (text: string, filler?: { text: string; afterMs: number }) =>
     driver.decide({
       type: 'turn.stopped',
-      turnId: `turn-${++turn}`,
+      turnId: `turn-${++callerTurns}`,
       input: { kind: 'speech', text, segments: 1 },
       ...(filler ? { filler } : {}),
     } satisfies TurnDecision);
@@ -127,5 +135,20 @@ export function driverHarness(
     audio.length = 0;
     return clock.now();
   };
-  return { driver, audio, ended, caller, greet, scheduler, bus };
+  /** The detector's decisions for one caller turn, by id, and the VAD around it. */
+  const turn = {
+    started: (turnId: string) => driver.decide({ type: 'turn.started', turnId }),
+    partial: (turnId: string, text: string) =>
+      driver.decide({ type: 'turn.partial', turnId, text, stable: false }),
+    stopped: (turnId: string, text: string, filler?: { text: string; afterMs: number }) =>
+      driver.decide({
+        type: 'turn.stopped',
+        turnId,
+        input: { kind: 'speech', text, segments: 1 },
+        ...(filler ? { filler } : {}),
+      }),
+    reset: (turnId: string) => driver.decide({ type: 'turn.reset', turnId, reason: 'backchannel' }),
+    vad: (type: 'vad.start' | 'vad.stop') => bus.observe({ type, atMs: clock.now() }),
+  };
+  return { driver, audio, cut, ended, endings, caller, greet, scheduler, bus, turn };
 }

@@ -66,7 +66,8 @@ export class TurnTelemetryCollector {
       // DTMF digits can be PINs or card numbers; only spoken input is kept as text.
       state.turn.userText = state.turn.input === 'speech' ? bounded(event.text) : null;
       if (state.turn.input === 'speech') {
-        state.turn.endpointMs = this.pendingEndpointMs ?? null;
+        // The provider's own measure, from its word timings, else the engine's from the VAD.
+        state.turn.endpointMs = this.pendingEndpointMs ?? event.endpointMs ?? null;
         this.pendingEndpointMs = undefined;
       }
       state.dirty = true;
@@ -87,7 +88,9 @@ export class TurnTelemetryCollector {
       if (!turnId || !segment) return;
       segment.state = phase;
       const state = this.turns.get(turnId)!;
-      if (phase === 'interrupted') state.turn.interrupted = true;
+      // A filler cut by its own reply (P3) is no interruption; a barge-in sends 'interrupt'.
+      if (phase === 'interrupted' && event.evidence.kind !== 'acknowledgment')
+        state.turn.interrupted = true;
       state.dirty = true;
       this.publish(turnId);
     }

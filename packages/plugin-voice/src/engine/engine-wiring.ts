@@ -48,6 +48,7 @@ export function projectBusEvents(
     if (event.type === 'vad.stop') latency.noteVadStop();
     if (event.type === 'stt' && event.event.type === 'transcript') {
       const segment = event.event.segment;
+      if (segment.text.trim()) latency.noteWords(segment.text.trim());
       if (segment.stability === 'final') latency.noteFinalStt();
       emit({
         type: 'user.transcript',
@@ -59,6 +60,23 @@ export function projectBusEvents(
     }
     turnController.observe(event);
   });
+}
+
+/**
+ * Disposal's cleanup runner: every acquired port gets its cleanup attempt even when another hook
+ * throws synchronously, and each failure goes to `failed`.
+ */
+export function cleanupAttempt(
+  failed: (error?: unknown) => void,
+): (cleanup: () => void | Promise<void>) => Promise<void> {
+  return (cleanup) => {
+    try {
+      return Promise.resolve(cleanup()).catch(failed);
+    } catch (error) {
+      failed(error);
+      return Promise.resolve();
+    }
+  };
 }
 
 /** What an engine reports before its ingress exists (input disabled, or not started yet). */

@@ -20,6 +20,7 @@ import { BoundedSpeechScheduler } from '../scheduler.ts';
 import { AnsweredByGate } from './answered-by-gate.ts';
 import { realClock } from './clock.ts';
 import {
+  cleanupAttempt,
   configureScheduler,
   disposalDeadline,
   emptyIngressStats,
@@ -59,6 +60,7 @@ export interface NativeEnginePorts {
     maxIngressBytes?: number;
     maxConcurrentTurns?: number;
     preSttBufferMs?: number;
+    wrapUp?: { line: string; leadSeconds?: number };
   };
 }
 
@@ -94,7 +96,8 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
       vad: Boolean(ports.vad),
       session: ports.session,
     });
-    this.latency = new TurnLatency(this.clock, (event) => this.emit(event));
+    const hangover = ports.vad?.params.stopMs;
+    this.latency = new TurnLatency(this.clock, (e) => this.emit(e), hangover);
     this.driver = new TurnDriver(
       ports.behavior,
       ports.scheduler,
@@ -158,6 +161,7 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
     this.cancelWatchdog = startWatchdog(this.clock, session.maxCallSeconds, () => {
       void this.dispose('max_duration');
     });
+    this.driver.armWrapUp(engine?.wrapUp);
     let connecting: Promise<void> | undefined;
     if (session.inputEnabled) {
       if (!stt) throw new Error('Native voice input requires ovo.stt');
@@ -200,16 +204,8 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
       this.log('engine_disposal_failed', error, { reason });
       endedReason = 'error:native-engine-disposal';
     };
-    // Every acquired port gets its cleanup attempt even when another hook throws
-    // synchronously. Invoke close first to preserve the carrier termination fence.
-    const attempt = (cleanup: () => void | Promise<void>): Promise<void> => {
-      try {
-        return Promise.resolve(cleanup()).catch(failed);
-      } catch (error) {
-        failed(error);
-        return Promise.resolve();
-      }
-    };
+    // Invoke close first to preserve the carrier termination fence.
+    const attempt = cleanupAttempt(failed);
     const close = attempt(() => this.ports.media.close(reason));
     const watchdog = attempt(() => this.cancelWatchdog?.());
     const detector = attempt(() => this.turnController.dispose());

@@ -19,7 +19,7 @@ import { definePlugin } from '@winsendotai/ovo-runtime';
 import { BoundedSpeechScheduler } from '../scheduler.ts';
 import { STREAMING_VOICE_PLUGIN_IDS } from '../production-plugins.ts';
 import { VOICE_PLUGIN_IDS } from '../types.ts';
-import { NativeVoiceSessionEngine } from './session-engine.ts';
+import { NativeVoiceSessionEngine, type NativeEnginePorts } from './session-engine.ts';
 
 const engineSchema = {
   type: 'object',
@@ -32,6 +32,16 @@ const engineSchema = {
     maxIngressBytes: { type: 'integer', minimum: 1, maximum: 8_388_608 },
     maxConcurrentTurns: { type: 'integer', minimum: 1, maximum: 16 },
     preSttBufferMs: { type: 'integer', minimum: 1, maximum: 30_000, default: 15_000 },
+    // AgentEnding.wrapUp, mapped here by the session host.
+    wrapUp: {
+      type: 'object',
+      required: ['line'],
+      properties: {
+        line: { type: 'string', minLength: 1, maxLength: 1_000 },
+        leadSeconds: { type: 'integer', minimum: 5, maximum: 120 },
+      },
+      additionalProperties: false,
+    },
   },
   additionalProperties: false,
 } as const;
@@ -95,7 +105,7 @@ export function createNativeVoiceEngineV2Plugin() {
         transcripts: ctx.maybe(Cap.transcripts) as TranscriptObserver | undefined,
         textFilters: [...ctx.all(Cap.textFilters).values()] as TextFilter[],
         session: config.session as SessionInput,
-        engine: config.engine as Record<string, number>,
+        engine: config.engine as NativeEnginePorts['engine'],
       });
       ctx.provide(Cap.engine, engine);
       ctx.effect(() => () => engine.dispose('drain'));
