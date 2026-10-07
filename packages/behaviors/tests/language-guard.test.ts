@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CallLanguages, replyLanguageNote } from '../src/language-guard.ts';
 
 const EN_HI = { language: 'en-IN', languages: { allowed: ['en', 'hi'] } };
-const LINE = 'Sorry, I can only speak English or Hindi. Could you say that again?';
+const LINE = 'Sorry, I can only understand English or Hindi. Could you say that again?';
 
 describe('CallLanguages (N4/P9)', () => {
   it('is inert without a language policy', () => {

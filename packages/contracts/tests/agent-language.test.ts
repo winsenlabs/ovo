@@ -152,9 +152,9 @@ describe('agentLanguageLine', () => {
   it('names the allowed languages, the agent language first', () => {
     expect(
       agentLanguageLine({ language: 'en-IN', languages: { allowed: ['hi', 'en', 'ta'] } }),
-    ).toBe('Sorry, I can only speak English, Hindi or Tamil. Could you say that again?');
+    ).toBe('Sorry, I can only understand English, Hindi or Tamil. Could you say that again?');
     expect(agentLanguageLine({ language: 'en-IN', languages: { allowed: ['en'] } })).toBe(
-      'Sorry, I can only speak English. Could you say that again?',
+      'Sorry, I can only understand English. Could you say that again?',
     );
     expect(agentLanguageLine({ language: 'hi-IN', languages: { allowed: ['hi', 'en'] } })).toBe(
       'माफ़ कीजिए, क्या आप हिंदी या अंग्रेज़ी में दोबारा बता सकते हैं?',

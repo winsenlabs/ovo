@@ -78,7 +78,7 @@ export function agentLanguageLine(config: {
   const codes = [own, ...policy.allowed.filter((code) => code !== own)];
   const names = codes.flatMap((code) => (NAMES[code] ? [NAMES[code][own]] : []));
   return own === 'en'
-    ? `Sorry, I can only speak ${listed(names, 'or')}. Could you say that again?`
+    ? `Sorry, I can only understand ${listed(names, 'or')}. Could you say that again?`
     : `माफ़ कीजिए, क्या आप ${listed(names, 'या')} में दोबारा बता सकते हैं?`;
 }
 
