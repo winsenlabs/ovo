@@ -2,6 +2,7 @@ import type { OpenAIProvider } from '@ai-sdk/openai';
 import type { Tool } from 'ai';
 import { dropSpokenCitations, type MeterDeclaration } from '@winsendotai/ovo-contracts';
 import type { ProviderToolResult } from '@winsendotai/ovo-plugin-kit';
+import { SEARCH_ANNOUNCE_SCHEMA, type SearchAnnounceConfig } from './search-voice.ts';
 
 export const SEARCH_CONTEXT_SIZES = ['low', 'medium', 'high'] as const;
 export type SearchContextSize = (typeof SEARCH_CONTEXT_SIZES)[number];
@@ -24,6 +25,13 @@ export interface WebSearchConfig {
   };
   /** Only search these domains (and their subdomains); no scheme. At most 100. */
   allowedDomains?: string[];
+  /**
+   * N3: the lines a voice engine says while a search runs (`DEFAULT_SEARCH_ANNOUNCEMENT` field by
+   * field), or `false` for none.
+   */
+  announce?: SearchAnnounceConfig;
+  /** N3: leave the search tool out for a cut-off or one-word caller turn. Default true. */
+  skipUnclearInput?: boolean;
 }
 
 /** The tool name the model sees; OVO tool ids must not use it while web search is enabled. */
@@ -61,6 +69,8 @@ export const WEB_SEARCH_BINDING_SCHEMA = {
       maxItems: 100,
       items: { type: 'string', pattern: '^(?!https?://)[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' },
     },
+    announce: SEARCH_ANNOUNCE_SCHEMA,
+    skipUnclearInput: { type: 'boolean' },
   },
   additionalProperties: false,
 } as const;

@@ -8,6 +8,13 @@ import type {
   UsageUnit,
 } from '@winsendotai/ovo-contracts';
 import {
+  ActivityListeners,
+  StepActivity,
+  type ActivityAnnouncement,
+  type InferenceActivityListener,
+  type InferenceActivitySource,
+} from './ai-sdk-activity.ts';
+import {
   InferenceProtocolError,
   buildSystemPrompt,
   compactUsage,
@@ -16,15 +23,13 @@ import {
   tokenMeters,
 } from './ai-sdk-support.ts';
 
+import { readStepStream, type ProviderToolResult } from './ai-sdk-stream.ts';
+
 export { InferenceProtocolError } from './ai-sdk-support.ts';
+export * from './ai-sdk-activity.ts';
+export type { ProviderToolResult } from './ai-sdk-stream.ts';
 
 type ProviderOptions = NonNullable<Parameters<typeof streamText>[0]['providerOptions']>;
-
-/** A tool the provider ran itself inside the step (web search), as the AI SDK reported it. */
-export interface ProviderToolResult {
-  toolName: string;
-  output: unknown;
-}
 
 export interface AiSdkInferenceOptions {
   /** Any AI SDK language model. Plugins pass one built with `fetch = ctx.net.fetch`. */
@@ -50,6 +55,13 @@ export interface AiSdkInferenceOptions {
   providerTools?: Record<string, Tool>;
   /** Added to the system prompt's factual sources when provider tools can supply facts. */
   providerToolSources?: string;
+  /**
+   * Whether this request is sent the provider tools; all are by default. A request without them is
+   * also asked without `providerToolSources`.
+   */
+  providerToolsFor?: (request: InferenceRequest) => boolean;
+  /** Lines a voice engine may say while a provider tool runs, carried on each `started` activity. */
+  providerToolAnnounce?: ActivityAnnouncement;
   /** Per-call meters for the provider tools a step ran, emitted with its token meters. */
   providerToolUsage?: (
     results: readonly ProviderToolResult[],
@@ -59,11 +71,15 @@ export interface AiSdkInferenceOptions {
   now?: () => number;
 }
 
-/** One provider step with schema-only tools; OVO owns continuation and execution. */
-export class AiSdkInference implements Inference {
+/**
+ * One provider step with schema-only tools; OVO owns continuation and execution. Provider-run
+ * tools (web search) are reported as they happen through `observeActivity` (N3).
+ */
+export class AiSdkInference implements Inference, InferenceActivitySource {
   readonly provider: string;
   readonly model: string;
   private requests = 0;
+  private readonly activity = new ActivityListeners();
 
   constructor(private readonly options: AiSdkInferenceOptions) {
     const described = describeModel(options.model);
@@ -91,6 +107,17 @@ export class AiSdkInference implements Inference {
       // Streaming SDK errors may also retain headers, bodies and credentials.
       throw new InferenceProtocolError('Inference provider request failed');
     }
+  }
+
+  observeActivity(listener: InferenceActivityListener): () => void {
+    return this.activity.observeActivity(listener);
+  }
+
+  /** True when this request is sent the provider tools (web search). */
+  protected sendsProviderTools(request: InferenceRequest): boolean {
+    const tools = this.options.providerTools;
+    if (!tools || !Object.keys(tools).length) return false;
+    return this.options.providerToolsFor?.(request) ?? true;
   }
 
   private now(): number {
@@ -132,7 +159,7 @@ export class AiSdkInference implements Inference {
 
   private stepInput(request: InferenceRequest) {
     const tools = declareTools(request);
-    const providerTools = this.options.providerTools ?? {};
+    const providerTools = this.sendsProviderTools(request) ? this.options.providerTools! : {};
     for (const name of Object.keys(providerTools))
       if (Object.hasOwn(tools, name))
         throw new InferenceProtocolError(`Tool ${name} collides with a provider tool`);
@@ -200,50 +227,23 @@ export class AiSdkInference implements Inference {
     const startedAt = this.now();
     const { tools: declaredTools, input } = this.stepInput(request);
     const result = streamText(input);
-    let call: { kind: 'tool'; toolId: string; input: unknown } | undefined;
-    let finished = false;
-    let requestId: string | undefined;
-    let modelId: string | undefined;
-    const providerResults: ProviderToolResult[] = [];
-
-    for await (const part of result.fullStream) {
-      request.signal.throwIfAborted();
-      if (part.type === 'text-delta' && part.text) {
-        if (call)
-          throw new InferenceProtocolError('Inference mixed a tool call with response text');
-        yield { kind: 'text-delta', delta: part.text };
-      } else if (part.type === 'tool-call' && part.providerExecuted) {
-        // A provider-executed call (web search) runs inside this step and is never an OVO reply.
-        continue;
-      } else if (part.type === 'tool-result' && part.providerExecuted) {
-        providerResults.push({ toolName: part.toolName, output: part.output });
-      } else if (part.type === 'tool-call') {
-        // Text then one tool call is a valid step: the agent says its answer and then calls
-        // `resume_flow` or `end_call` (AGT-7, AGT-3). The behaviour decides which tool may follow
-        // text; a tool call followed by text is still refused below.
-        if (call)
-          throw new InferenceProtocolError(
-            'Inference returned multiple tool calls in a single OVO step',
-          );
-        if (!Object.hasOwn(declaredTools, part.toolName))
-          throw new InferenceProtocolError(`Inference returned undeclared tool: ${part.toolName}`);
-        call = { kind: 'tool', toolId: part.toolName, input: part.input };
-      } else if (part.type === 'finish-step') {
-        requestId = part.response.headers?.['x-request-id'] ?? part.response.id;
-        modelId = part.response.modelId;
-      } else if (part.type === 'error') {
-        throw part.error;
-      } else if (part.type === 'abort') {
-        throw new DOMException('Inference cancelled', 'AbortError');
-      } else if (part.type === 'finish') {
-        const usage = compactUsage(part.totalUsage);
-        await this.report(startedAt, requestId, modelId, usage, providerResults);
-        if (call) yield call;
-        yield { kind: 'finish', ...(usage ? { usage } : {}) };
-        finished = true;
-      }
+    const activity = new StepActivity(
+      (event) => this.activity.emit(event),
+      request.signal,
+      () => this.now(),
+      this.options.providerToolAnnounce,
+    );
+    try {
+      yield* readStepStream({
+        request,
+        parts: result.fullStream,
+        activity,
+        declaredTools,
+        report: (requestId, modelId, usage, results) =>
+          this.report(startedAt, requestId, modelId, usage, results),
+      });
+    } finally {
+      activity.close();
     }
-    if (!finished)
-      throw new InferenceProtocolError('Inference stream ended without a finish event');
   }
 }

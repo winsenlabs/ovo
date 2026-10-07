@@ -1,8 +1,9 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai';
-import type { NetPort, UsageSink } from '@winsendotai/ovo-contracts';
+import type { InferenceRequest, NetPort, UsageSink } from '@winsendotai/ovo-contracts';
 import { AiSdkInference, type AiSdkInferenceOptions } from '@winsendotai/ovo-plugin-kit';
 import { AbortMeteredInference, SpokenCitationsInference } from './aborted-usage.ts';
+import { searchAnnouncement, unclearForSearch } from './search-voice.ts';
 import { resolveVoiceTuning, type VoiceTuning } from './voice-tuning.ts';
 import { webSearchTools, webSearchUsage, type WebSearchConfig } from './web-search.ts';
 
@@ -43,6 +44,8 @@ export function openAiInference(
   const model = provider.responses(binding.model);
   const providerTools = webSearchTools(provider, binding.webSearch);
   const Inference = providerTools ? SpokenCitationsInference : AbortMeteredInference;
+  const skipUnclear = binding.webSearch?.skipUnclearInput ?? true;
+  const announce = searchAnnouncement(binding.webSearch?.announce);
   return new Inference({
     model:
       binding.temperature === undefined
@@ -64,6 +67,10 @@ export function openAiInference(
           providerTools,
           providerToolSources: 'the results of your web search tool',
           providerToolUsage: webSearchUsage,
+          ...(skipUnclear
+            ? { providerToolsFor: (request: InferenceRequest) => !unclearForSearch(request) }
+            : {}),
+          ...(announce ? { providerToolAnnounce: announce } : {}),
         }
       : {}),
     usage,
