@@ -145,11 +145,28 @@ export class TurnBook {
     this.latency.stage(turn.id, 'turn_decision');
   }
 
+  /** P3: the reply moved to a fresh epoch, flushing its filler; both epochs stay the turn's. */
+  moved(turn: Turn, epoch: number): void {
+    turn.epoch = epoch;
+    this.byEpoch.set(epoch, turn.id);
+  }
+
+  /**
+   * P1: the caller is owed a reply they have not heard any of yet: the running reply to their
+   * words (a filler aside), or one still waiting its turn.
+   */
+  unheard(): boolean {
+    const running = this.running;
+    if (running?.speech && !running.controller?.signal.aborted)
+      return !this.audibility.answered(running.epoch);
+    return this.waiting.some((turn) => turn.speech);
+  }
+
   finish(turn: Turn): void {
     if (turn.epoch !== undefined && this.byEpoch.get(turn.epoch) === turn.id) {
       this.latency.total(turn.id);
       this.latency.clear(turn.id);
-      this.byEpoch.delete(turn.epoch);
+      for (const [epoch, id] of this.byEpoch) if (id === turn.id) this.byEpoch.delete(epoch);
     }
     if (this.running === turn) this.running = undefined;
   }

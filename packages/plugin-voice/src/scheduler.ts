@@ -5,9 +5,10 @@ import type {
   SpeechReceipt,
   TextFilter,
 } from '@winsendotai/ovo-contracts';
-import { errorMessage, isAbortError, raceAbort } from './async.ts';
 import { resolveSpeechSchedulerConfig, SpeechQueueBudget } from './budgets.ts';
 import { SpeechEvidenceHistory } from './history.ts';
+import { SpeechHold } from './scheduler-hold.ts';
+import { playLine, type LinePlayback } from './scheduler-play.ts';
 import { SpeechSettlement, type QueueEntry } from './scheduler-settlement.ts';
 import { filterSpeechText, orderTextFilters } from './speech/text-filters.ts';
 import type { SpeechTimingSink } from './speech/timing.ts';
@@ -17,10 +18,16 @@ import {
   type SpeechEvidence,
   type SpeechKind,
   type SpeechOutput,
-  type SpeechOutputResult,
   type SpeechSchedulerConfig,
   type SpeechSegment,
 } from './types.ts';
+
+/** What an output may also accept from the engine. */
+type ConfigurableOutput = SpeechOutput & {
+  configureSession?: (value: SessionInput) => void;
+  configure?: (value: { markTimeoutMs?: number; maxPrefetchBytes?: number }) => void;
+  configureTiming?: (sink: SpeechTimingSink) => void;
+};
 
 export class BoundedSpeechScheduler implements Speech {
   readonly history: SpeechEvidence[];
@@ -39,6 +46,9 @@ export class BoundedSpeechScheduler implements Speech {
   private nextSegment = 0;
   private disposed = false;
   private _epoch = 0;
+  /** P1: no line starts while the caller speaks over a reply they have not heard yet. */
+  private readonly holds: SpeechHold;
+  private readonly lines: LinePlayback;
 
   constructor(
     private readonly output: SpeechOutput,
@@ -50,6 +60,17 @@ export class BoundedSpeechScheduler implements Speech {
     this.evidence = new SpeechEvidenceHistory(this.limits.maxEvidenceEntries, now);
     this.settlement = new SpeechSettlement(this.budget, this.evidence);
     this.history = this.evidence.entries;
+    const playing = () => [...this.tasks, ...(this.pumping ? [this.pumping] : [])];
+    this.holds = new SpeechHold({ queue: this.queue, active: this.active, output, playing });
+    this.lines = {
+      output,
+      holds: this.holds,
+      evidence: this.evidence,
+      settlement: this.settlement,
+      active: this.active,
+      timeoutMs: this.limits.playbackTimeoutMs,
+      epoch: () => this._epoch,
+    };
   }
 
   get epoch(): number {
@@ -58,6 +79,25 @@ export class BoundedSpeechScheduler implements Speech {
 
   get pendingCount(): number {
     return this.queue.length + this.active.size;
+  }
+
+  /** True between hold() and release(). */
+  get held(): boolean {
+    return this.holds.holding;
+  }
+
+  /** P1: no line starts until release(); see SpeechHold. */
+  hold(): void {
+    if (!this.holds.holding && !this.disposed) this.holds.hold(this._epoch);
+  }
+
+  release(): void {
+    if (this.holds.release()) this.ensurePump();
+  }
+
+  /** Resolves once no line is playing; held lines, waiting to start, do not count. */
+  settled(): Promise<void> {
+    return this.holds.settled();
   }
 
   /** The native engine enables bounded overlap; legacy callers keep serial playback. */
@@ -70,26 +110,16 @@ export class BoundedSpeechScheduler implements Speech {
   }
 
   configureSession(session: SessionInput): void {
-    (
-      this.output as SpeechOutput & { configureSession?: (value: SessionInput) => void }
-    ).configureSession?.(session);
+    (this.output as ConfigurableOutput).configureSession?.(session);
   }
 
   configureOutput(options: { markTimeoutMs?: number; maxPrefetchBytes?: number }): void {
-    (
-      this.output as SpeechOutput & {
-        configure?: (value: typeof options) => void;
-      }
-    ).configure?.(options);
+    (this.output as ConfigurableOutput).configure?.(options);
   }
 
   configureTiming(listener: SpeechTimingSink): void {
     this.timing = listener;
-    (
-      this.output as SpeechOutput & {
-        configureTiming?: (sink: SpeechTimingSink) => void;
-      }
-    ).configureTiming?.(listener);
+    (this.output as ConfigurableOutput).configureTiming?.(listener);
   }
 
   configureFilters(filters: readonly TextFilter[], language: string): void {
@@ -128,6 +158,7 @@ export class BoundedSpeechScheduler implements Speech {
       return Promise.reject(overflow);
     }
 
+    const order = this.nextSegment;
     const promise = new Promise<SpeechReceipt>((resolve, reject) => {
       this.queue.push({
         segment,
@@ -135,6 +166,7 @@ export class BoundedSpeechScheduler implements Speech {
         reject,
         settled: false,
         controller: new AbortController(),
+        order,
       });
       this.budget.add(text);
       this.evidence.record(segment, 'queued', 'generated');
@@ -187,6 +219,7 @@ export class BoundedSpeechScheduler implements Speech {
 
   private async pump(): Promise<void> {
     while (!this.disposed && this.queue.length > 0) {
+      if (this.waitsHeld()) break;
       const entry = this.queue.shift()!;
       if (entry.segment.epoch !== this._epoch) {
         this.settlement.interrupted(entry, 'stale response epoch');
@@ -203,73 +236,21 @@ export class BoundedSpeechScheduler implements Speech {
   }
 
   private async play(entry: QueueEntry): Promise<void> {
-    const controller = entry.controller;
-    this.active.set(entry, controller);
-    this.evidence.record(entry.segment, 'started', 'generated');
-    const timeout = setTimeout(() => {
-      controller.abort(new DOMException('speech playback timed out', 'TimeoutError'));
-    }, this.limits.playbackTimeoutMs);
-    timeout.unref?.();
-
-    try {
-      await this.output.prepare?.(entry.segment, controller.signal);
-      const result = await raceAbort(
-        this.output.play(entry.segment, {
-          signal: controller.signal,
-          report: (phase, evidence) => this.evidence.record(entry.segment, phase, evidence),
-        }),
-        controller.signal,
-      );
-      if (
-        entry.segment.epoch !== this._epoch ||
-        controller.signal.aborted ||
-        result.state === 'interrupted'
-      ) {
-        this.settlement.interrupted(entry, 'playback interrupted', result.evidence);
-      } else {
-        this.settlement.played(entry, result);
-      }
-    } catch (error) {
-      await this.handlePlaybackError(entry, controller, error);
-    } finally {
-      clearTimeout(timeout);
-      this.active.delete(entry);
-    }
+    const taken = await playLine(this.lines, entry);
+    if (!taken) return;
+    // A held line goes back in the queue (SpeechHold.giveBack), unless its epoch ended.
+    const current = () => !this.disposed && entry.segment.epoch === this._epoch;
+    const dropped = await this.holds.giveBack(entry, taken, current, this.limits.playbackTimeoutMs);
+    if (dropped) this.settlement.interrupted(entry, dropped);
+    this.ensurePump();
   }
 
-  private async handlePlaybackError(
-    entry: QueueEntry,
-    controller: AbortController,
-    error: unknown,
-  ): Promise<void> {
-    if (!controller.signal.aborted && !isAbortError(error)) {
-      this.evidence.record(entry.segment, 'failed', 'generated', errorMessage(error));
-      this.settlement.reject(entry, error);
-      return;
-    }
-    if (
-      controller.signal.reason instanceof DOMException &&
-      controller.signal.reason.name === 'TimeoutError'
-    ) {
-      try {
-        await this.output.interrupt(entry.segment.epoch);
-      } catch (interruptError) {
-        this.evidence.record(
-          entry.segment,
-          'failed',
-          'generated',
-          `playback timeout flush failed: ${errorMessage(interruptError)}`,
-        );
-      }
-    }
-    this.settlement.interrupted(
-      entry,
-      errorMessage(controller.signal.reason ?? 'speech playback aborted'),
-    );
+  private waitsHeld(): boolean {
+    return this.holds.next(this._epoch, this.prefetchSegments + 1);
   }
 
   private ensurePump(): void {
-    if (this.pumping || this.disposed || this.queue.length === 0) return;
+    if (this.pumping || this.disposed || this.queue.length === 0 || this.waitsHeld()) return;
     this.pumping = this.pump().finally(() => {
       this.pumping = undefined;
       this.ensurePump();

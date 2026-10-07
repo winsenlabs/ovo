@@ -78,6 +78,23 @@ export function effectiveVoicemailPolicy(config: {
 /** The tool id the LLM calls to end the call. Reserved: an authored tool cannot reuse it. */
 export const END_CALL_TOOL_ID = 'end_call';
 
+/**
+ * A graceful end at the call time limit (`costPolicy.maxCallSeconds`). `leadSeconds` before the
+ * limit the agent stops taking turns, lets the line it is saying finish, speaks `line` and ends the
+ * call completed (end detail `max_duration`) instead of being cut off mid-sentence at the limit.
+ * The engine speaks it without a behaviour, so it is a fixed line with no placeholder, rendered
+ * once into the release's clips.
+ */
+export const AgentWrapUp = z
+  .object({
+    line: Line.refine((line) => !/{{|}}/.test(line), {
+      message: 'The wrap-up line is spoken as written and cannot use {{variables}}',
+    }),
+    leadSeconds: z.number().int().min(5).max(120).default(15),
+  })
+  .strict();
+export type AgentWrapUp = z.infer<typeof AgentWrapUp>;
+
 export const AgentEnding = z
   .object({
     /**
@@ -85,6 +102,7 @@ export const AgentEnding = z
      * has played. Off by default: a model that hangs up mid-flow loses the call.
      */
     llmTool: z.boolean().default(false),
+    wrapUp: AgentWrapUp.optional(),
   })
   .strict();
 export type AgentEnding = z.infer<typeof AgentEnding>;
