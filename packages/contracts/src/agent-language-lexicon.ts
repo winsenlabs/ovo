@@ -6,7 +6,11 @@
  * The lists are deliberately short and unambiguous. A marker word must not also be English,
  * romanized Hindi or romanized Tamil, which is how Indian callers code-mix: "de" (Hindi "give"),
  * "la", "lo", "se", "me", "na", "ne", "ja", "dar", "vale", "oye", "mira", "yani" and "tamam" are left out for that
- * reason, and so are "sim", "pour" and "nou" ("no" misheard), which English callers say.
+ * reason, and so are "sim", "pour" and "nou" ("no" misheard), which English callers say. So are
+ * German "das" and "der" (Hindi "ten" and "delay"), Dutch "maar" (Hindi "hit"), French "des" (Hindi
+ * "country"), and Spanish "para" (Hindi "had to") and "nada" (Tamil "walk"): a promise to pay
+ * like "das tarikh ko de dunga, thodi der lagegi" is Hindi. A word a romanized list does carry is
+ * never evidence against the caller either (see `languageVerdict`).
  */
 
 /** Base codes per non-Latin script. A script shared by languages names all of them. */
@@ -70,36 +74,40 @@ export const FUNCTION_WORDS: Readonly<Record<string, ReadonlySet<string>>> = {
       'could please okay ok sir madam maam thanks thank sorry hello hi just only about'
     ).split(' '),
   ),
-  // Romanized Hindi, as Scribe writes Hinglish in Latin script.
+  // Romanized Hindi, as Scribe writes Hinglish in Latin script, with the words of a promise to pay.
   hi: new Set(
     (
       'haan han nahi nahin hai hain kya main mera meri mere aap aapka aapki theek thik accha ' +
       'acha achha kar karo karna karunga karenge ji bhai abhi kal paisa paise mat ho hoon hun ' +
-      'raha rahi tha thi ko ka ki ke kyun kaise kab kahan woh vo yeh ye bolo boliye samjha'
+      'raha rahi tha thi ko ka ki ke kyun kaise kab kahan woh vo yeh ye bolo boliye samjha ' +
+      'aur bhi toh kuch bahut lekin wala wali chahiye diya liya dunga dungi denge karke gaya ' +
+      'gayi gaye jayega jaayega hoga hogi lagega lagegi sakta sakti thoda thodi der baad pehle ' +
+      'din tarikh tareekh hafta mahina mahine hazaar hazar lakh rupaye das bees pachas sau maar'
     ).split(' '),
   ),
   // Romanized Tamil (Tanglish).
   ta: new Set(
     (
       'illa illai enna sari aama aamam naan nee neenga ungal unga venum vendam sollunga solren ' +
-      'panna pannunga irukku iruku romba konjam inniki naalaiku'
+      'panna pannunga irukku iruku romba konjam inniki naalaiku seri theriyum theriyadhu ' +
+      'mudiyadhu mudiyathu kaasu panam varen'
     ).split(' '),
   ),
   es: new Set(
     (
-      'que qué por para con pero muy está estoy estás sí gracias hola bueno usted tengo quiero ' +
+      'que qué por con pero muy está estoy estás sí gracias hola bueno usted tengo quiero ' +
       'puedo vamos voy entonces porque también donde dónde cuando cuándo eso esto esta una los ' +
-      'las del el ahí aquí nada gente ves cómo señor pasar hacer hay estamos claro tiene'
+      'las del el ahí aquí gente ves cómo señor pasar hacer hay estamos claro tiene'
     ).split(' '),
   ),
   nl: new Set(
     (
-      'ik niet het een wat maar ook zijn geen jij wij mijn heb hebt weet andere kant hier dat ' +
+      'ik niet het een wat ook zijn geen jij wij mijn heb hebt weet andere kant hier dat ' +
       'zaak lieg'
     ).split(' '),
   ),
-  de: new Set('ich nicht und ist das der ein eine auch aber wir bitte danke nein'.split(' ')),
-  fr: new Set('je suis est les des une oui merci avec vous nous mais bonjour très'.split(' ')),
+  de: new Set('ich nicht und ist ein eine auch aber wir bitte danke nein'.split(' ')),
+  fr: new Set('je suis est les une oui merci avec vous nous mais bonjour très'.split(' ')),
   pt: new Set('não obrigado obrigada você muito isso'.split(' ')),
   it: new Set('grazie sono questo perché buongiorno ciao'.split(' ')),
   tr: new Set('bir yok evet değil çok'.split(' ')),

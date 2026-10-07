@@ -119,9 +119,9 @@ const LATIN = /\p{Script=Latin}/u;
  *
  * A word in a non-Latin script is in that script's languages. A Latin word is outside only when it
  * carries a letter that English and romanized Indian languages never use (ı, ñ, ß...) or is a
- * function word of another Latin language ("ik", "niet", "entonces"). Every other Latin word is
- * neutral, so Hinglish and Tanglish in Latin script are never off: transcribed Indian speech is
- * Latin as often as not. The text is off when its outside words outnumber its allowed ones and the
+ * function word of another Latin language ("ik", "niet", "entonces") that no romanized Indian
+ * language also writes. Every other Latin word is neutral, so Hinglish and Tanglish in Latin script
+ * are never off: transcribed Indian speech is Latin as often as not. The text is off when its outside words outnumber its allowed ones and the
  * evidence is not one Latin function word alone.
  */
 export function languageVerdict(text: string, allowed: readonly string[]): LanguageVerdict {
@@ -155,10 +155,7 @@ export function languageVerdict(text: string, allowed: readonly string[]): Langu
     const speakers = Object.keys(FUNCTION_WORDS).filter((code) => FUNCTION_WORDS[code]!.has(lower));
     if (!speakers.length) continue;
     if (isAllowed(speakers)) inside += 1;
-    else {
-      const against = speakers.filter((code) => !ROMANIZED.has(code));
-      if (against.length) outside(against, false);
-    }
+    else if (!speakers.some((code) => ROMANIZED.has(code))) outside(speakers, false);
   }
   const off = strong + weak > inside && (strong > 0 || weak > 1);
   return { off, foreign: off ? [...foreign] : [] };

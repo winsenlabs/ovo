@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AgentConfig, agentLanguageLine, languageVerdict, offLanguage } from '../src/index.ts';
+import { FUNCTION_WORDS, ROMANIZED } from '../src/agent-language-lexicon.ts';
 
 const EN_HI = ['en', 'hi'];
 
@@ -93,6 +94,46 @@ describe('languageVerdict (N4/P9)', () => {
 
   it('accepts an allowed Latin language', () => {
     expect(offLanguage('Vamos a pasar a PISRENGO.', ['en', 'es'])).toBe(false);
+  });
+
+  // Romanized Hindi words that other Latin languages also write: German "das" and "der", Dutch
+  // "maar". A CreditMantri promise to pay is all amounts and dates, so it is full of them.
+  const HINGLISH_HOMOGRAPHS = [
+    'Das tarikh ko de dunga, thodi der lagegi',
+    'Haan das das hazaar karke',
+    'Der ho gayi, das din',
+    'das din der',
+    'Bas das minute der',
+    'Das. Das.',
+    'Das din der ho jayega',
+    'maar maar ke',
+  ];
+
+  it.each(HINGLISH_HOMOGRAPHS)('keeps the Hinglish %j for an en/hi agent', (text) => {
+    expect(languageVerdict(text, EN_HI)).toEqual({ off: false, foreign: [] });
+  });
+
+  it.each(HINGLISH_HOMOGRAPHS)('never counts the Hinglish %j against an English agent', (text) => {
+    expect(offLanguage(text, ['en'])).toBe(false);
+  });
+
+  it('still hears German and Dutch without their Hindi homographs', () => {
+    expect(languageVerdict('Ich weiß das nicht.', EN_HI).foreign).toEqual(['de']);
+    expect(offLanguage('Nein, das ist nicht richtig.', EN_HI)).toBe(true);
+    expect(offLanguage('Maar ik weet het niet.', EN_HI)).toBe(true);
+  });
+
+  it('lists no foreign marker that romanized Hindi or Tamil also writes', () => {
+    const indic = [
+      ...FUNCTION_WORDS.hi!,
+      ...FUNCTION_WORDS.ta!,
+      ...'de la lo se me na ne ja dar des para nada pada'.split(' '),
+    ];
+    const markers = Object.entries(FUNCTION_WORDS).filter(([code]) => !ROMANIZED.has(code));
+    const clashes = markers.flatMap(([code, words]) =>
+      indic.filter((word) => words.has(word) && code !== 'en').map((word) => `${code}:${word}`),
+    );
+    expect(clashes).toEqual([]);
   });
 
   it('checks the LLM replies of the live calls', () => {
