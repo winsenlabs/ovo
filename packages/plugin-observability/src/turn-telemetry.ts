@@ -113,6 +113,11 @@ export class TurnTelemetryCollector {
     } else if (sample.stage === 'inference') {
       turn.llmTotalMs = (turn.llmTotalMs ?? 0) + sample.durationMs;
       turn.llmCalls += 1;
+    } else if (sample.stage === 'web_search') {
+      turn.searchMs = (turn.searchMs ?? 0) + sample.durationMs;
+      turn.searchCalls += 1;
+      const results = sample.payload?.results;
+      if (typeof results === 'number') turn.searchResults = (turn.searchResults ?? 0) + results;
     } else return;
     state.dirty = true;
   }
@@ -227,6 +232,9 @@ function emptyTurn(turnId: string): TurnState['turn'] {
     llmFirstTokenMs: null,
     llmTotalMs: null,
     llmCalls: 0,
+    searchMs: null,
+    searchCalls: 0,
+    searchResults: null,
     firstSegmentMs: null,
     bargeInMs: null,
     interrupted: false,

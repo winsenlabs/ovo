@@ -6,8 +6,9 @@ import type {
   StreamingSttSession,
   StreamingTts,
 } from '@winsendotai/ovo-contracts';
+import { inferenceActivity } from '@winsendotai/ovo-plugin-kit';
 import type { PluginDefinition } from '@winsendotai/ovo-runtime';
-import { EndpointClock, timeFirstToken } from './telemetry-stage-clocks.ts';
+import { EndpointClock, timeFirstToken, timeWebSearches } from './telemetry-stage-clocks.ts';
 import {
   beginStage,
   instrumentPlugin,
@@ -139,6 +140,9 @@ export function instrumentInference(
   telemetry: StageTelemetry,
   identity: StageIdentity,
 ): void {
+  const activity = inferenceActivity(inference);
+  if (activity)
+    timeWebSearches(activity, () => beginStage(telemetry, { stage: 'web_search', ...identity }));
   const generate = inference.generate.bind(inference);
   inference.generate = (request) =>
     timedPromise(() => generate(request), telemetry, { stage: 'inference', ...identity });

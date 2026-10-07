@@ -47,6 +47,11 @@ export interface TurnTelemetry {
   llmFirstTokenMs: number | null;
   llmTotalMs: number | null;
   llmCalls: number;
+  /** N3: the provider's web searches inside the turn's LLM calls, summed; null when none ran. */
+  searchMs: number | null;
+  searchCalls: number;
+  /** Sources the searches returned, when the provider reported them. */
+  searchResults: number | null;
   /** Behavior invoked to its first text: grounding, decision, LLM and sentence aggregation. */
   firstSegmentMs: number | null;
   /** Turn start (caller silence, for speech) to the first audio sent to the carrier. */
