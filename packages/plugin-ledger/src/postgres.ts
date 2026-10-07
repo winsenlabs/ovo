@@ -5,6 +5,7 @@ import type {
   BudgetPolicy,
   BudgetReservationInput,
   BudgetSnapshot,
+  CallCostSummary,
   CostSummary,
   CostLedgerService,
   FxVersion,
@@ -110,6 +111,10 @@ export class PostgresCostLedger implements CostLedgerService {
 
   getSessionCost(workspaceId: string, sessionId: string): Promise<CostSummary> {
     return this.usage.summarizeSession(workspaceId, sessionId);
+  }
+
+  getCallCost(workspaceId: string, callId: string): Promise<CallCostSummary> {
+    return this.usage.summarizeCall(workspaceId, callId);
   }
 
   getBudget(id: string): Promise<BudgetSnapshot | undefined> {

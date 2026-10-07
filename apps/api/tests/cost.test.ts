@@ -119,9 +119,10 @@ describe('cost API routes', () => {
     const getCall = vi.fn(async (workspaceId: string, callId: string) =>
       workspaceId === 'workspace-a' && callId === 'call-a' ? ({ id: callId } as never) : undefined,
     );
-    const getSessionCost = vi.fn(async (workspaceId: string, sessionId: string) => ({
+    const getCallCost = vi.fn(async (workspaceId: string, callId: string) => ({
       workspaceId,
-      sessionId,
+      callId,
+      sessionIds: ['media-session-a'],
       currency: 'INR' as const,
       estimatedPaise: '0',
       reconciledPaise: '573',
@@ -132,7 +133,7 @@ describe('cost API routes', () => {
     const app = buildApp();
     registerCostRoutes({
       app,
-      ledger: fakeLedger({ getSessionCost }),
+      ledger: fakeLedger({ getCallCost }),
       controlStore: { getCall },
       requireRole,
       audit: vi.fn(),
@@ -143,8 +144,8 @@ describe('cost API routes', () => {
 
     expect(missing.statusCode).toBe(404);
     expect(found.statusCode).toBe(200);
-    expect(getSessionCost).toHaveBeenCalledOnce();
-    expect(getSessionCost).toHaveBeenCalledWith('workspace-a', 'call-a');
+    expect(getCallCost).toHaveBeenCalledOnce();
+    expect(getCallCost).toHaveBeenCalledWith('workspace-a', 'call-a');
   });
 
   it('binds reconciliation to the authenticated workspace and audits provenance', async () => {

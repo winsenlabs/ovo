@@ -19,7 +19,7 @@ export function registerReadinessRoutes(input: {
   services: PluginDefinition;
   infrastructure?: LivePathInfrastructure;
   distributionDefaults?: import('@winsendotai/ovo-session-host').SessionDefaults;
-  ledger?: Pick<import('@winsendotai/ovo-plugin-ledger').CostLedgerService, 'getPriceCard'>;
+  ledger?: import('../cost-admission-readiness.ts').CostAdmissionLedger;
 }) {
   /**
    * OBS-12: can a call go live right now, and if not, which stage is the blocker. Admin only: it

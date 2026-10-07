@@ -30,7 +30,7 @@ Each native usage append records:
 - cache generation/hit disposition; and
 - exact immutable price-card and, when needed, FX versions.
 
-There is no fallback price card or implicit FX rate. Non-INR pricing fails unless a matching immutable conversion to INR is supplied. One usage row rounds once to provider minor units and then once at the explicit FX boundary.
+There is no fallback price card or implicit FX rate. Non-INR pricing fails unless a matching immutable conversion to INR is supplied. One usage row rounds once to provider minor units and then once at the explicit FX boundary; that is the row's `amount_paise`, which reconciliation corrects against. Since migration 004 each charge also keeps `exact_amount_paise` (the unrounded INR value, 12 decimal places), and session and call totals add the exact values of estimated charges and round to paise once (P11: a 400-token LLM step is about 1.3 paise at gpt-6-luna list price but 0 US cents, so per-row rounding billed whole calls as 0). Reconciled rows stay whole invoice amounts; rows recorded before migration 004 fall back to their rounded amount. Pre-render metering of a non-INR card whose reference names no FX uses the one FX version the release's cost policy references for that currency, and none when that is ambiguous.
 
 Provider reconciliation is append-only. An invoice line supplies its actual provider-currency amount and explicit FX version when required. The ledger calculates a signed correction from the current effective amount, records that delta idempotently and moves the usage state from `estimated` to `reconciled`. Later invoice corrections can raise or lower the effective total without rewriting history.
 
@@ -69,7 +69,7 @@ The service fabricates no provider prices, taxes, FX, cache savings, idle alloca
 - admin publication and viewer bounded reads for immutable price cards and FX versions;
 - admin-only, workspace-scoped budget policy create/update and bounded reads;
 - viewer scenario calculation through the real `calculateInrScenario` function;
-- viewer call-cost reads only after `ControlStore.getCall(workspaceId, callId)` confirms the call belongs to the authenticated compatibility namespace; and
+- viewer call-cost reads only after `ControlStore.getCall(workspaceId, callId)` confirms the call belongs to the authenticated compatibility namespace. Usage is keyed by the worker's media session id, not the call id, so `GET /v1/calls/:callId/cost` sums every ledger session whose rows carry that call id (`callId`, `sessionIds`, then the usual totals and provisional cards); and
 - admin invoice reconciliation with strict provenance, idempotency, exact string money and the authenticated workspace injected server-side.
 
 All request objects are strict and bounded. Money and native quantities are accepted only as canonical decimal or integer strings, never JSON numbers. Catalog and budget pages are capped at 100 rows and use opaque keyset cursors. Mutation audit entries retain identities and version/invoice provenance but no provider credentials. When the process ledger is not injected, ledger-backed routes return an explicit `503 cost_ledger_unavailable` response rather than fabricated empty data.

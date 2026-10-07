@@ -62,6 +62,38 @@ export function convertMinor(
   }).toString();
 }
 
+/**
+ * Decimal places an estimated charge keeps before it is rounded to paise once per call (P11). A
+ * 400-token LLM step costs about 0.004 paise; rounding each step on its own billed it as 0.
+ */
+export const EXACT_PAISE_SCALE = 12;
+
+/** The exact paise `quantity` costs on `card`, through `fx` for a non-INR card, at 12 places. */
+export function exactPaise(
+  quantity: string,
+  card: { minorUnitsPerBlock: string; blockQuantity: string },
+  fx?: { rateNumerator: string; rateDenominator: string },
+): string {
+  let value = divide(
+    multiply(parseDecimal(quantity), parseDecimal(card.minorUnitsPerBlock)),
+    parseDecimal(card.blockQuantity),
+  );
+  if (fx)
+    value = multiply(value, {
+      numerator: parseMinor(fx.rateNumerator),
+      denominator: parseMinor(fx.rateDenominator),
+    });
+  const scaled = roundMinor({
+    numerator: value.numerator * 10n ** BigInt(EXACT_PAISE_SCALE),
+    denominator: value.denominator,
+  });
+  if (scaled < 0n) throw new RangeError('A charge cannot be negative');
+  const digits = scaled.toString().padStart(EXACT_PAISE_SCALE + 1, '0');
+  const whole = digits.slice(0, -EXACT_PAISE_SCALE);
+  const fraction = digits.slice(-EXACT_PAISE_SCALE).replace(/0+$/, '');
+  return fraction ? `${whole}.${fraction}` : whole;
+}
+
 export interface WeightedTarget {
   id: string;
   weight: string;
