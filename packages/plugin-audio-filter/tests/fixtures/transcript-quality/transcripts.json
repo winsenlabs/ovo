@@ -1,0 +1,1182 @@
+{
+  "asr": "Vosk 0.3.44, model vosk-model-small-en-in-0.4 (Indian English; zip sha256 20663dcac4d5cb783a579c54d98339344a688e4ec6e1b4a4b059fd1235454cc7)",
+  "measuredAt": "2026-10-07",
+  "measured": [
+    {
+      "clip": "callback-evening",
+      "condition": "clean",
+      "filter": "off",
+      "sha256": "329ccfd1c7e9fe91b8fe432c4ec1cfbee7b8bb2a7122fd89686cf5a6ce9b9db6",
+      "transcript": "i'll call you back tomorrow evening thank you and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "clean",
+      "filter": "telephony",
+      "sha256": "7a4ddf5dba00152c7ef7010743b42f724de8b2af13918e4fe6c78dc6b802c27e",
+      "transcript": "i'll call you back tomorrow evening thank you and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "clean",
+      "filter": "telephony-noisy",
+      "sha256": "ef5001a2878d52a3fc54b2c8ffa7b6cf92531b403887f33022cc1c2a7e935332",
+      "transcript": "i'll call you back tomorrow evening thank you and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "rumble",
+      "filter": "off",
+      "sha256": "86ddecadfcefed6eda59729a966ad6b868047851a862090d1b3619efa7c4dd2d",
+      "transcript": "i'll call you back tomorrow evening thank you"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "rumble",
+      "filter": "telephony",
+      "sha256": "12af2941e475a26b0ce94783d7919e4f4d4433c03713105712990f28e7ab8a12",
+      "transcript": "i'll call you back tomorrow evening thank you"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "rumble",
+      "filter": "telephony-noisy",
+      "sha256": "12af2941e475a26b0ce94783d7919e4f4d4433c03713105712990f28e7ab8a12",
+      "transcript": "i'll call you back tomorrow evening thank you"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "hum",
+      "filter": "off",
+      "sha256": "c8feaf79856a7ce6ccabb5ca30e28ef2d6b0db38c280d9f3315399b3c3c17b41",
+      "transcript": "i'll call you back tomorrow evening thank you and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "hum",
+      "filter": "telephony",
+      "sha256": "64aa749bca6a8b1285d83591abe6d68d13c97e4430fb3901d84d3442765c4a2d",
+      "transcript": "i'll call you back tomorrow evening thank you and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "hum",
+      "filter": "telephony-noisy",
+      "sha256": "f1e4067dbe83b57478dc2f19925ff3eef7d4979dc1715b34691940beeb9e2638",
+      "transcript": "i'll call you back tomorrow evening thank you and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "vibration",
+      "filter": "off",
+      "sha256": "d76ec126135f3df4401328e0217125ed20ab1f2d5279ffb2951a722302b0af12",
+      "transcript": "i'll call you back tomorrow evening thank you and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "vibration",
+      "filter": "telephony",
+      "sha256": "d9b035967199ee180be89a2878a362b541cf4f460212a852fa4e8dc10bc3f288",
+      "transcript": "i'll call you back tomorrow evening thank you and have a bad day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "vibration",
+      "filter": "telephony-noisy",
+      "sha256": "9a2b4b2ae54f50e9ef737bacce86823782dce24bb5b585936dbf399f07ad95ce",
+      "transcript": "i'll call you back tomorrow evening thank you and have a bad day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "steady",
+      "filter": "off",
+      "sha256": "2059c24ea28ed4ba33eec2faed3074be7d1aaa6bd13a8d1cf15278958ac94b7e",
+      "transcript": "i'll call you back tomorrow evening thank you and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "steady",
+      "filter": "telephony",
+      "sha256": "e9501d9f5ff9e5429ffdbfa9fc9c8c5cf122fbbf4389d5b724b32e112176d555",
+      "transcript": "i'll call you back tomorrow evening thank you and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "steady",
+      "filter": "telephony-noisy",
+      "sha256": "e9501d9f5ff9e5429ffdbfa9fc9c8c5cf122fbbf4389d5b724b32e112176d555",
+      "transcript": "i'll call you back tomorrow evening thank you and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "talkers",
+      "filter": "off",
+      "sha256": "d928e83f76e2b0c8e26751fc6e66859b3acb27ff938c0beb8efeb433795d3e7f",
+      "transcript": "i'll call you back tomorrow evening and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "talkers",
+      "filter": "telephony",
+      "sha256": "6c560fddddd9955a8ddecc8020f70340d3a2d82e36f128e98dabfa4efd64713c",
+      "transcript": "i'll call you back tomorrow evening and thank you and and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "talkers",
+      "filter": "telephony-noisy",
+      "sha256": "6c560fddddd9955a8ddecc8020f70340d3a2d82e36f128e98dabfa4efd64713c",
+      "transcript": "i'll call you back tomorrow evening and thank you and and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "beeps",
+      "filter": "off",
+      "sha256": "3b3d119aa7fcc453e1d9bb4a6d7ef59b552c3f95d58a3fbeb6878b4d20475d7a",
+      "transcript": "i'll call you back tomorrow evening thank you and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "beeps",
+      "filter": "telephony",
+      "sha256": "07ef823b95937b291f05174231c1edc024c8bdbd6409925ab98280429ce7e1fd",
+      "transcript": "i'll call you back tomorrow evening thank you and have a good day"
+    },
+    {
+      "clip": "callback-evening",
+      "condition": "beeps",
+      "filter": "telephony-noisy",
+      "sha256": "0583282669ee9257a424076e58a52a5513c31a7ac14ea5c182b458c1580e2cc6",
+      "transcript": "i'll call you back tomorrow evening thank you and have a good day"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "clean",
+      "filter": "off",
+      "sha256": "7804fdeb17cc0921e714dcc35ec2ab1ef50c261dad781d3cc8f4288002cfa433",
+      "transcript": "sorry i didn't quite catch that could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "clean",
+      "filter": "telephony",
+      "sha256": "85721247f6e6d6d58d4fff14410889a6a3c46547cc8003f2ecf38e65e81740ae",
+      "transcript": "sorry i didn't quite catch that could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "clean",
+      "filter": "telephony-noisy",
+      "sha256": "c0e12d1aa474d3ac5ca6cfbc4fea24d515e65964899ac5d35127b1f9f9080301",
+      "transcript": "sorry i didn't quite catch that could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "rumble",
+      "filter": "off",
+      "sha256": "81692a0c37e9027c8cdf7d73bc1e596dfa3c62a92d6488e9eb197fe5425a4ab3",
+      "transcript": "sorry i didn't quite catch that would you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "rumble",
+      "filter": "telephony",
+      "sha256": "cc6b147b6df7bfd2392d230b696d8fd8f863a1aa68b10816e7d99255788d38ae",
+      "transcript": "sorry i didn't quite catch that would you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "rumble",
+      "filter": "telephony-noisy",
+      "sha256": "cc6b147b6df7bfd2392d230b696d8fd8f863a1aa68b10816e7d99255788d38ae",
+      "transcript": "sorry i didn't quite catch that would you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "hum",
+      "filter": "off",
+      "sha256": "4c00b248cda63731e54e5ce65967e7dcd36a32e119b0efcc6d44914dd59aa38d",
+      "transcript": "sorry i didn't quite catch that good you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "hum",
+      "filter": "telephony",
+      "sha256": "d57553dff47c943bb310bf280b41ef4e751853ea596f393abe812a4635b60e66",
+      "transcript": "sorry i didn't quite catch that could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "hum",
+      "filter": "telephony-noisy",
+      "sha256": "32aee8044e082eb73b1d378ef7d4cc8ec37645ad231ee2c5a8eb25a4adede5d8",
+      "transcript": "sorry i didn't quite catch that could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "vibration",
+      "filter": "off",
+      "sha256": "47d1769d376d4af8fd6b7333e4c83f4070523fc45895b9aa258f08718d8fbf98",
+      "transcript": "sorry i didn't quite catch that could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "vibration",
+      "filter": "telephony",
+      "sha256": "7f230b6d4e66b9dcc32cf8b77eb32614f417dbe7be440978f592aa5b74ee5a47",
+      "transcript": "sorry i didn't quite catch that could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "vibration",
+      "filter": "telephony-noisy",
+      "sha256": "ead4cb081232450134aa79c25b37bb59cdb7fc72ef82c1ca0a0041f88d7e3323",
+      "transcript": "sorry i didn't quite catch that could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "steady",
+      "filter": "off",
+      "sha256": "dc7a2c5c0658891da37053d137a409d4e15a965715e92b8b74bc6df2c7a2d83f",
+      "transcript": "sorry i didn't quite catch that could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "steady",
+      "filter": "telephony",
+      "sha256": "7467ef960fc5da3efbdd45e4783e34891f6885d909d92231bff515d582802d96",
+      "transcript": "sorry i didn't quite catch that could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "steady",
+      "filter": "telephony-noisy",
+      "sha256": "7467ef960fc5da3efbdd45e4783e34891f6885d909d92231bff515d582802d96",
+      "transcript": "sorry i didn't quite catch that could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "talkers",
+      "filter": "off",
+      "sha256": "1960abecc07b00bc08727a8a53b8c6509988fe4af64fc4e48a1bc27b2ee4d511",
+      "transcript": "sorry i didn't quite catch thank you i could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "talkers",
+      "filter": "telephony",
+      "sha256": "8b1428e5433dbf76d3074b068524c9c19a9040daaceeec844a6d4892e068cd6a",
+      "transcript": "sorry i didn't quite catch thank you i could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "talkers",
+      "filter": "telephony-noisy",
+      "sha256": "8b1428e5433dbf76d3074b068524c9c19a9040daaceeec844a6d4892e068cd6a",
+      "transcript": "sorry i didn't quite catch thank you i could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "beeps",
+      "filter": "off",
+      "sha256": "72113a73f6598cb25d794febfb498ca5370e9239dd900861c2bfb74a0b2b6917",
+      "transcript": "sorry i didn't quite catch that could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "beeps",
+      "filter": "telephony",
+      "sha256": "248819c3699f6ba3e39c3bf0303f120ef43ec53ebc75d18d65649d28e959b150",
+      "transcript": "sorry i didn't quite catch that could you say that again"
+    },
+    {
+      "clip": "did-not-catch",
+      "condition": "beeps",
+      "filter": "telephony-noisy",
+      "sha256": "a040429ad5427b12507393b50ec5408c108600e79655c1d13ef82e89e0d99025",
+      "transcript": "sorry i didn't quite catch that could you say that again"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "clean",
+      "filter": "off",
+      "sha256": "66102433164be7bd1968a2de267396bb61d72e91ca0a436576f175fd565d6d8a",
+      "transcript": "my apologies for the disturbance will update our records have a good day"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "clean",
+      "filter": "telephony",
+      "sha256": "0222abcadb9dec473473dfae77e70811b287803169bbf438158f5a461abac78b",
+      "transcript": "my apologies for the disturbance will update our records have a good day"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "clean",
+      "filter": "telephony-noisy",
+      "sha256": "e7fcd70ef33a4e89b30a900848cffb4c4f0382c3d919142ef8bd8b25a03e2d3d",
+      "transcript": "my apologies for the disturbance will update our records have a good day"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "rumble",
+      "filter": "off",
+      "sha256": "3f97cdcaadfecae6c84928070fe4240dc70095193803988f90f8de6a09d203ad",
+      "transcript": "my apologies for the disturbance will update on amazon"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "rumble",
+      "filter": "telephony",
+      "sha256": "f6f1566c0af6b24c92fa48b6b9bf1a464a35ed1983bed7e6b59f748ac2d54ab8",
+      "transcript": "my apologies for the disturbance will update on amazon"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "rumble",
+      "filter": "telephony-noisy",
+      "sha256": "f6f1566c0af6b24c92fa48b6b9bf1a464a35ed1983bed7e6b59f748ac2d54ab8",
+      "transcript": "my apologies for the disturbance will update on amazon"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "hum",
+      "filter": "off",
+      "sha256": "d190903e1c536e1bf0ede3ef0f24778de26b88e73bcf5455bccf6eea4ac63a8a",
+      "transcript": "my apologies for the disturbance will update out i got have a good day"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "hum",
+      "filter": "telephony",
+      "sha256": "81f5055a0d485673ee1ee04c8c4a84b78031596a6c1dccacfa43f4bfd155e09c",
+      "transcript": "my apologies for the disturbance will update our records have a good day"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "hum",
+      "filter": "telephony-noisy",
+      "sha256": "6fd605f30cbae7056fd20ba48995647d407ecdb81950909a6618a18cfd05c473",
+      "transcript": "my apologies for the disturbance will update our records have a good day"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "vibration",
+      "filter": "off",
+      "sha256": "fb30425ec6343ee6ced849c5b02eb31dbba15df1d71a273fc96073e90e8c5a71",
+      "transcript": "my apologies for the disturbance will update our records have a good day"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "vibration",
+      "filter": "telephony",
+      "sha256": "8bbb72bcfd41adf8eef82725902a00367676846e4ff3b6175a48ddf908e236ec",
+      "transcript": "my apologies for the disturbance will update our records have a good day"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "vibration",
+      "filter": "telephony-noisy",
+      "sha256": "29419123a31d094c1b65272a7bcbd3298f9866b4ea3e961e8df347208114b3f2",
+      "transcript": "my apologies for the disturbance will update our records have a good day"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "steady",
+      "filter": "off",
+      "sha256": "92a1c013942d43fca3007ea759b18a8cd93316d0e28bf65d28aef6716ab88837",
+      "transcript": "my apologies for the disturbance will update our records have a good day"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "steady",
+      "filter": "telephony",
+      "sha256": "ae67eacfb6ed59f9347e49240ee0430e5553f3f3a7563f842b12ebf2be23d376",
+      "transcript": "my apologies for the disturbance will update our records have a good day"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "steady",
+      "filter": "telephony-noisy",
+      "sha256": "ae67eacfb6ed59f9347e49240ee0430e5553f3f3a7563f842b12ebf2be23d376",
+      "transcript": "my apologies for the disturbance will update our records have a good day"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "talkers",
+      "filter": "off",
+      "sha256": "82b56cc71f6c789f5e1294e744050b03a9b716a814a43c44afef1c741fad5ca5",
+      "transcript": "my apologies for they will update out records when i have a pretty well"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "talkers",
+      "filter": "telephony",
+      "sha256": "0753f3145dfbf5eecdd90d68412f321c0b2bfcc2bc27a1f74f0ddfeb852316fd",
+      "transcript": "my apologies for the report them will update our records when i have a pretty well"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "talkers",
+      "filter": "telephony-noisy",
+      "sha256": "0753f3145dfbf5eecdd90d68412f321c0b2bfcc2bc27a1f74f0ddfeb852316fd",
+      "transcript": "my apologies for the report will update our records when i have a pretty well"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "beeps",
+      "filter": "off",
+      "sha256": "7867b4ca09aaac45332905b6b5a957181cfd33a5b70dc2c6cbd9445452269db9",
+      "transcript": "my apologies for the disturbance will update our records have a good day"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "beeps",
+      "filter": "telephony",
+      "sha256": "357313830617053c06f12bf4c7489728bc6e661424fe08cfd163a2aac3cb7a97",
+      "transcript": "my apologies for the disturbance will update our records have a good day"
+    },
+    {
+      "clip": "disturbance-apology",
+      "condition": "beeps",
+      "filter": "telephony-noisy",
+      "sha256": "de02177e579cbe41356d04f291d1084067ca251dadd424e38abbe7922d8ae760",
+      "transcript": "my apologies for the disturbance will update our records have a good day"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "clean",
+      "filter": "off",
+      "sha256": "6ab3ecc158293054843b3e439eb7c7ff48bf275f5e2ef261519240656d284a84",
+      "transcript": "it should arrive in a few seconds could you let me know once you've received it"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "clean",
+      "filter": "telephony",
+      "sha256": "6e9df4d73f8ad9928849f41858777fa1ed4f0857b59ae67031f577400478d477",
+      "transcript": "it should arrive in a few seconds could you let me know once you've received it"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "clean",
+      "filter": "telephony-noisy",
+      "sha256": "215f0dc150f3cf03c51cbde683d503a718b1f3a393009fe073af571c34174d49",
+      "transcript": "it should arrive in a few seconds could you let me know once you've received it"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "rumble",
+      "filter": "off",
+      "sha256": "3a75a4d9e929ef6f1abf33891b45ea7e29f76bbb3559abd1b970da5a412e5648",
+      "transcript": "right on a few seconds could you let me know"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "rumble",
+      "filter": "telephony",
+      "sha256": "c1acb802f13d4e1fa5818fd68cd9292e25584a923545ec2db992124a01752a33",
+      "transcript": "right on a few seconds could you let me know"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "rumble",
+      "filter": "telephony-noisy",
+      "sha256": "c1acb802f13d4e1fa5818fd68cd9292e25584a923545ec2db992124a01752a33",
+      "transcript": "right on a few seconds could you let me know"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "hum",
+      "filter": "off",
+      "sha256": "69ec1dd525f0b6b7d68dc1cd18c0c4b7463763ead31528490cefbb4cdd1b4cec",
+      "transcript": "it should arrive in a few seconds could you let me know when you've received it"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "hum",
+      "filter": "telephony",
+      "sha256": "d3a704f8b0f69252370088f6375b53e110f90fb0cdb3c5b8c427b6d8eaa9b69d",
+      "transcript": "it should arrive in a few seconds could you let me know when you've received it"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "hum",
+      "filter": "telephony-noisy",
+      "sha256": "fde761ae8255b5483b18fb70630339a56fd668a8731b39f7b5f11e396d08f82c",
+      "transcript": "it should arrive in a few seconds could you let me know when you've received it"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "vibration",
+      "filter": "off",
+      "sha256": "a37581ffc0617d6a1ebd745085b2ee874b8a7bec0e68a1c8d9bba6b109864c2c",
+      "transcript": "it should arrive in a few seconds could you let you know once you've received this"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "vibration",
+      "filter": "telephony",
+      "sha256": "e6b91a5409e16be1d3d686ceb49793329b3135c8b5ad8dae7362c6090775a605",
+      "transcript": "it should arrive in a few seconds could you let me know once you've received this"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "vibration",
+      "filter": "telephony-noisy",
+      "sha256": "749f05bfef2662eb72c494c87778cc0a57e31987c6e7ae00e0a6420c2b1d6beb",
+      "transcript": "it should arrive in a few seconds could you let me know once you've received this"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "steady",
+      "filter": "off",
+      "sha256": "0d46f50de245af6d5d0e5741be8a5804eac799b21b4f61ea0411722f768accbf",
+      "transcript": "it should arrive in a few seconds could you let me know when you've received this"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "steady",
+      "filter": "telephony",
+      "sha256": "fad3f6ec1a17f752f01b5c04df8bdae66c95eb3b6ab7b4420a7b574ac6bfddf4",
+      "transcript": "it should arrive in a few seconds could you let me know when you've received this"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "steady",
+      "filter": "telephony-noisy",
+      "sha256": "fad3f6ec1a17f752f01b5c04df8bdae66c95eb3b6ab7b4420a7b574ac6bfddf4",
+      "transcript": "it should arrive in a few seconds could you let me know when you've received this"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "talkers",
+      "filter": "off",
+      "sha256": "fa95ea254368b8f313190eef5a4f7eb937099cf6d0e9b590543b5656dfed4a40",
+      "transcript": "it should arrive in a few seconds could you let me know when you didn't"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "talkers",
+      "filter": "telephony",
+      "sha256": "fb60263a064798bd9d09845d62570d59bf0b2a572febed93c5feefe7f150d381",
+      "transcript": "it should arrive in he could you let me know when you didn't"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "talkers",
+      "filter": "telephony-noisy",
+      "sha256": "4afaf5ed58e156a2eb9f1013e2e1808ea8ab912a371acc6695f0b3d5a793041f",
+      "transcript": "it should arrive in he could you let me know when you didn't"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "beeps",
+      "filter": "off",
+      "sha256": "46225ac4a6998afb886eae97eefeb88f1c2c11f55bfb8aea7fa0881c833b26af",
+      "transcript": "it should arrive in a few seconds could you let me know once you've received it"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "beeps",
+      "filter": "telephony",
+      "sha256": "0e51bd45cd6c43d2633bf12ba32f008b54d2c3fa9c6fdec776fe27f9bf652375",
+      "transcript": "it should arrive in a few seconds could you let me know once you've received it"
+    },
+    {
+      "clip": "link-arriving",
+      "condition": "beeps",
+      "filter": "telephony-noisy",
+      "sha256": "4e0ed6bad76b9690326ebf2bda2e261211c20600e9040dc4dd7c652e6ae3a459",
+      "transcript": "it should arrive in a few seconds could you let me know once you've received it"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "clean",
+      "filter": "off",
+      "sha256": "09f176e968fabfff3111a4a7570f5954185abe13a3dd5a85fe3b1ff0d4198488",
+      "transcript": "thank you i've noted that you'll make the payment by sunday the fourth of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "clean",
+      "filter": "telephony",
+      "sha256": "96eb20d3cdeb63661f79a4f62ee731bd58a4616d1d6294814cb984909d66f422",
+      "transcript": "thank you i've noted that you'll make the payment by sunday the fourth of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "clean",
+      "filter": "telephony-noisy",
+      "sha256": "36b6950cc4de6c70ccedb55ab340606c964e6df04df4b321468d9b9ba1484e7a",
+      "transcript": "thank you i've noted that you'll make the payment by sunday the fourth of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "rumble",
+      "filter": "off",
+      "sha256": "1cb4462abc0648297731b2cd427795660ede4a56e6e7108eb85f8bcb9e2576e9",
+      "transcript": "thank you i've noticed that will make the payment by sunday reports of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "rumble",
+      "filter": "telephony",
+      "sha256": "05307eca7134dcb5ee8cb2cec33e9025ec25cb77a7e451c7eb4eba2f444e0c2a",
+      "transcript": "thank you i've noticed that will make the payment by sunday reports of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "rumble",
+      "filter": "telephony-noisy",
+      "sha256": "05307eca7134dcb5ee8cb2cec33e9025ec25cb77a7e451c7eb4eba2f444e0c2a",
+      "transcript": "thank you i've noticed that will make the payment by sunday reports of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "hum",
+      "filter": "off",
+      "sha256": "185d02da2fb53d00042ce94242872dfd307868c7943748075c729e25f8ea9cee",
+      "transcript": "thank you i have no debt that you'll make the payment by sunday the fourth of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "hum",
+      "filter": "telephony",
+      "sha256": "302b6795e8a6de79aa7356af3641e384d618c2152f1bf150b86c6d830ea13b84",
+      "transcript": "thank you i've noted that you'll make the payment by sunday the fourth of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "hum",
+      "filter": "telephony-noisy",
+      "sha256": "ef8c2a27fefa0a82a4b192ba357c03481b1cab76c710edf00d9c31293abd1696",
+      "transcript": "thank you i've noted that you'll make the payment by sunday the fourth of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "vibration",
+      "filter": "off",
+      "sha256": "7c69a8b0c90e8713151122785098a68f83a2f1e4121d591a5d9459fcb7e58bbf",
+      "transcript": "thank you i've noted that will make the payments by sunday the fourth of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "vibration",
+      "filter": "telephony",
+      "sha256": "6958fce6da8799cc035671acb20f02ba2d6bd641fc96217b1da3a6c8bac9f48b",
+      "transcript": "thank you i've noted that would make the payments by sunday the fourth of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "vibration",
+      "filter": "telephony-noisy",
+      "sha256": "6958fce6da8799cc035671acb20f02ba2d6bd641fc96217b1da3a6c8bac9f48b",
+      "transcript": "thank you i've noted that would make the payments by sunday the fourth of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "steady",
+      "filter": "off",
+      "sha256": "0e5977bf4e1f659a5d638b24b70a38ffac992fa6f4f06be59a888966129f0599",
+      "transcript": "thank you i've noted that will make the payment by sunday the force of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "steady",
+      "filter": "telephony",
+      "sha256": "1462d221c94baa077e83e45066f0c865f9e68f5e8e03327aeaa22380f749fe75",
+      "transcript": "thank you i've noted that will make the payment by sunday the force of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "steady",
+      "filter": "telephony-noisy",
+      "sha256": "1462d221c94baa077e83e45066f0c865f9e68f5e8e03327aeaa22380f749fe75",
+      "transcript": "thank you i've noted that will make the payment by sunday the force of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "talkers",
+      "filter": "off",
+      "sha256": "b0345f227abc67d3726358ab30d19301dde1c7b574c075c580452d4f7e3654f9",
+      "transcript": "thank you i've united that will make the payment by his standards and a fourth of october and"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "talkers",
+      "filter": "telephony",
+      "sha256": "aedc6df6ffe06091d3c40cbff3a441625c1f322c6e04b900dfa7fa0560f27df5",
+      "transcript": "thank you i've united that will make the payments on a fourth of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "talkers",
+      "filter": "telephony-noisy",
+      "sha256": "aedc6df6ffe06091d3c40cbff3a441625c1f322c6e04b900dfa7fa0560f27df5",
+      "transcript": "thank you i've united that will make the payments on a fourth of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "beeps",
+      "filter": "off",
+      "sha256": "714301856ea461177121a8ff1018ec85ae17cfb0c54061f755fc4076ff4d34a7",
+      "transcript": "thank you i've noted that you'll make the payment by sunday the fourth of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "beeps",
+      "filter": "telephony",
+      "sha256": "adc230ab8af2cc4248afeb833e6042552586cd413f3f6b9c9dea901d1eead376",
+      "transcript": "thank you i've noted that you'll make the payment by sunday the fourth of october"
+    },
+    {
+      "clip": "payment-noted",
+      "condition": "beeps",
+      "filter": "telephony-noisy",
+      "sha256": "adc230ab8af2cc4248afeb833e6042552586cd413f3f6b9c9dea901d1eead376",
+      "transcript": "thank you i've noted that you'll make the payment by sunday the fourth of october"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "clean",
+      "filter": "off",
+      "sha256": "2b584355e6e6eb1e9ce89a9adeba96dfca85a9b1399856e5cafa0b333d1d37c2",
+      "transcript": "thank you once you pay three thousand three hundred and forty nine rupees it will reflect in your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "clean",
+      "filter": "telephony",
+      "sha256": "7159bb4770b9ce6bcf240eb0184e0709315150ebe129c8aec1e123cfc381e56b",
+      "transcript": "thank you once you pay three thousand three hundred and forty nine rupees it will reflect in your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "clean",
+      "filter": "telephony-noisy",
+      "sha256": "0dfb9adf97e1876ddfcd80b023d0de2f3449502949aa8efbebc09f1ea31da9b8",
+      "transcript": "thank you once you pay three thousand three hundred and forty nine rupees it will reflect in your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "rumble",
+      "filter": "off",
+      "sha256": "9f900f5949801d3e113014299a2c559cb1bd8a7267e3a9d7c2a7e612cd493587",
+      "transcript": "thank i'm going to pay three thousand three hundred and forty nine it will reflect in your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "rumble",
+      "filter": "telephony",
+      "sha256": "970266d7b3355055996ec288a4bd768801f8aa07dd2aa8af5144c2c8a2df43c1",
+      "transcript": "thank i'm going to pay three thousand three hundred and forty nine to be it will reflect in your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "rumble",
+      "filter": "telephony-noisy",
+      "sha256": "970266d7b3355055996ec288a4bd768801f8aa07dd2aa8af5144c2c8a2df43c1",
+      "transcript": "thank i'm going to pay three thousand three hundred and forty nine to be it will reflect in your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "hum",
+      "filter": "off",
+      "sha256": "f1e6d38d9b2c798cb9ff367d7b00fb1f8bc01f5c858a082c6009211a545f7329",
+      "transcript": "thank you will you pay three thousand three hundred and forty nine rupees it will reflect in your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "hum",
+      "filter": "telephony",
+      "sha256": "e5f027dc67af00a4fb88390fe1fbf46ba7e9145004217665a053b10bfc5be262",
+      "transcript": "thank you once you pay three thousand three hundred and forty nine rupees it will reflect in your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "hum",
+      "filter": "telephony-noisy",
+      "sha256": "ee01826440f31c821604eaf20a4d43b0ef7080ef42b4615e6ae139b01be978f6",
+      "transcript": "thank you once you pay three thousand three hundred and forty nine rupees it will reflect in your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "vibration",
+      "filter": "off",
+      "sha256": "118891c45b7fecfbc3bc39d55a185a04a0cfdddce4b07ef77f9ea3e8f1338a5e",
+      "transcript": "thank you once you pay three thousand three hundred and forty nine to be it will reflect in your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "vibration",
+      "filter": "telephony",
+      "sha256": "454a6cc389a497ddcad8858e94f1521cbb2e55d0357326badc85289943945a80",
+      "transcript": "thank you once you pay three thousand three hundred and forty nine to feed it will reflect in your account with two us"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "vibration",
+      "filter": "telephony-noisy",
+      "sha256": "29b16b11ea535f4e2b9590d1f11ea5c01702434f5d83f82dcb2b74d954d81f4c",
+      "transcript": "thank you once you pay three thousand three hundred and forty nine to feed it will reflect in your account with two us"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "steady",
+      "filter": "off",
+      "sha256": "550a704f7ad7193bf25b54bbe9342a5026c2820863bad29d21276bb8b0ec4123",
+      "transcript": "thank you once you pay three thousand three hundred and forty nine beat it will reflect in your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "steady",
+      "filter": "telephony",
+      "sha256": "328f16a39f361ad84e16d66edafa7175a092d9116de96a7b367365444895191b",
+      "transcript": "thank you once you pay three thousand three hundred and forty nine rupees it will reflect in your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "steady",
+      "filter": "telephony-noisy",
+      "sha256": "328f16a39f361ad84e16d66edafa7175a092d9116de96a7b367365444895191b",
+      "transcript": "thank you once you pay three thousand three hundred and forty nine rupees it will reflect in your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "talkers",
+      "filter": "off",
+      "sha256": "4d8ad61971a05e9e8471e75a156820cf745564dcb5442d4febf7a3254e232831",
+      "transcript": "thank you might want to pay three thousand three hundred and forty nine one it will reflect in her account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "talkers",
+      "filter": "telephony",
+      "sha256": "fdd94c9ff2584e3c8c511001ade4dd9043171db26da6b76990d69a510ce39c1f",
+      "transcript": "thank you might want to pay three thousand three hundred and forty nine what it will reflect in her account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "talkers",
+      "filter": "telephony-noisy",
+      "sha256": "fdd94c9ff2584e3c8c511001ade4dd9043171db26da6b76990d69a510ce39c1f",
+      "transcript": "thank you might want to pay three thousand three hundred and forty nine what it will reflect in her account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "beeps",
+      "filter": "off",
+      "sha256": "e13bfa6491ad3639a117f5e4a40eafc372250b7b86293441ffaa9db50ddc2283",
+      "transcript": "thank you once you pay three thousand three hundred and forty nine rupees it will reflect on your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "beeps",
+      "filter": "telephony",
+      "sha256": "6d36a78ec70c0aacffe5499e5c48d691b5f4a297fab634db91147c3eb643370d",
+      "transcript": "thank you once you pay three thousand three hundred and forty nine rupees it will reflect in your account within two hours"
+    },
+    {
+      "clip": "payment-reflects",
+      "condition": "beeps",
+      "filter": "telephony-noisy",
+      "sha256": "1e77e23691b83ae2282a2371fa8691049262124b701d345b397d42db547232d4",
+      "transcript": "thank you once you pay three thousand three hundred and forty nine rupees it will reflect in your account within two hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "clean",
+      "filter": "off",
+      "sha256": "f53f8ca11915a3fec95c41f921e845ec64c0af878e26c6557b50b43021216ed5",
+      "transcript": "i'm sorry for the trouble i've raised a review request for this payment our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "clean",
+      "filter": "telephony",
+      "sha256": "367da03e1c4a448627b4288ac805d29836c9b72ad827cab8f2c67f1e02854a57",
+      "transcript": "i'm sorry for the trouble i've raised a review request for this payment our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "clean",
+      "filter": "telephony-noisy",
+      "sha256": "4d11de2454d58e9a066146e9f1a8223ecde61d8ffed9a6ec79822af2630720a7",
+      "transcript": "i'm sorry for the trouble i've raised a review request for this payment our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "rumble",
+      "filter": "off",
+      "sha256": "d2fd1efd01f6962fdbbb01918ace0483961596fa08eed6f9a12aa27cae405f39",
+      "transcript": "i'm sorry for the said if you request for our team will contact you within forty eight"
+    },
+    {
+      "clip": "review-request",
+      "condition": "rumble",
+      "filter": "telephony",
+      "sha256": "c24ad0cc4d675d63e87fa79c89d54599e0bbae5d2a2ee32f6248735f60c68f07",
+      "transcript": "i'm sorry for the said if you request for these payments our team will contact you within forty eight"
+    },
+    {
+      "clip": "review-request",
+      "condition": "rumble",
+      "filter": "telephony-noisy",
+      "sha256": "c24ad0cc4d675d63e87fa79c89d54599e0bbae5d2a2ee32f6248735f60c68f07",
+      "transcript": "i'm sorry for the said if you request for these payments our team will contact you within forty eight"
+    },
+    {
+      "clip": "review-request",
+      "condition": "hum",
+      "filter": "off",
+      "sha256": "9e6e2ba18b831223d605ff92ed2a332cf96d619fdacbf63c78835c047d0b15ba",
+      "transcript": "i'm sorry for the trouble i've raised a review request but this payment our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "hum",
+      "filter": "telephony",
+      "sha256": "f1472b12e4b4ceb696d53867053d9a29d6248be32b0f5b4a352177fe88e5104b",
+      "transcript": "i'm sorry for the trouble i've raised a review request for this payment our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "hum",
+      "filter": "telephony-noisy",
+      "sha256": "ad5ed3aee9815510a3c14f4d6ecd8a0be59038e5d067c476f7e58fcc3dc49611",
+      "transcript": "i'm sorry for the trouble i've raised a review request for this payment our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "vibration",
+      "filter": "off",
+      "sha256": "2d4cb324497430d6411e38ef58a16f5a8f17663d5359e655e76d2dcd6f0b1256",
+      "transcript": "i'm sorry for the trouble i've read a review request for the payment our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "vibration",
+      "filter": "telephony",
+      "sha256": "767cb1113be1ddb498608e186d38d87e2a529e0f76d38495b7ebed83b686615e",
+      "transcript": "i'm sorry for the trouble i've read a review request for the payment our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "vibration",
+      "filter": "telephony-noisy",
+      "sha256": "a90c226b381db835d2822110b41dc5dd6b860c0ac0e1527fca68926be5ab3c49",
+      "transcript": "i'm sorry for the trouble i've read a review request for the payment our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "steady",
+      "filter": "off",
+      "sha256": "5e583cd960a35944701948b49bb05e0beb46fe02344ccd9d75bd086e3f567755",
+      "transcript": "i'm sorry for the trouble i braced the review requests for this payments are team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "steady",
+      "filter": "telephony",
+      "sha256": "0d3aeaaddbaaa8a3d2dd2e4a35db2eda428f087febc2d9740ff9560038d292da",
+      "transcript": "i'm sorry for the trouble i braced the review request for this payments are team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "steady",
+      "filter": "telephony-noisy",
+      "sha256": "e924d25024f87ee9831668bbeb50641d247058e7042832e344c8aba0481d8453",
+      "transcript": "i'm sorry for the trouble i braced the review request for this payments are team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "talkers",
+      "filter": "off",
+      "sha256": "611d95f9a16084ce8ee5866d2492805a9a35b08d3434ed113a1782f4436efa08",
+      "transcript": "i'm sorry for the trouble i've raised a review requests but the payments on our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "talkers",
+      "filter": "telephony",
+      "sha256": "48912a87d5ff502cbbb6c201556ecda5e58a6c0b71c6cf8ea6cbb7a4a228b532",
+      "transcript": "i'm sorry for the trouble i've raised a review requests but just payments on our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "talkers",
+      "filter": "telephony-noisy",
+      "sha256": "48912a87d5ff502cbbb6c201556ecda5e58a6c0b71c6cf8ea6cbb7a4a228b532",
+      "transcript": "i'm sorry for the trouble i've raised a review requests but just payments on our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "beeps",
+      "filter": "off",
+      "sha256": "012df8880af40ec1dc59a0fd38eb9422cbc0c45e4f2ee290a3033a1849108e1b",
+      "transcript": "i'm sorry for the trouble i've raised a review request for this payment our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "beeps",
+      "filter": "telephony",
+      "sha256": "a1c99716cf5efc905b25a7f5337f9f87eee2fdc1b551b91aa8a2dfcd2ec9e875",
+      "transcript": "i'm sorry for the trouble i've raised a review request for this payment our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "review-request",
+      "condition": "beeps",
+      "filter": "telephony-noisy",
+      "sha256": "b75c2cece6f6db03a79210fe1d50c3f1a24ef0b3ed9498e339cbd91d76e326f1",
+      "transcript": "i'm sorry for the trouble i've raised a review request for this payment our team will contact you within forty eight hours"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "clean",
+      "filter": "off",
+      "sha256": "c1ad0614c195262ed61316564bbc7c803f04338bd6044faca7914b44b04f6c5f",
+      "transcript": "thank you for your time have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "clean",
+      "filter": "telephony",
+      "sha256": "ad82d02ef5263418967978cffbbee53586fc64ebc2988b2f70aad43cfe6013fa",
+      "transcript": "thank you for your time have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "clean",
+      "filter": "telephony-noisy",
+      "sha256": "5b3181856453408355fddd6b090d7191ea777c25f959dc9239db16098b7bf0ad",
+      "transcript": "thank you for your time have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "rumble",
+      "filter": "off",
+      "sha256": "44696c0fdd2fa991a62fc3e9cb4cdb610075c634d1f2e5ff4c2b137544b0ad78",
+      "transcript": "thank you for your time have a project"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "rumble",
+      "filter": "telephony",
+      "sha256": "0ed33d9868436a00f78cc7fc24c4bbcde2107e89e67eee7186b5b64e3a5bf039",
+      "transcript": "thank you for your time have a project"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "rumble",
+      "filter": "telephony-noisy",
+      "sha256": "0ed33d9868436a00f78cc7fc24c4bbcde2107e89e67eee7186b5b64e3a5bf039",
+      "transcript": "thank you for your time have a project"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "hum",
+      "filter": "off",
+      "sha256": "a2dcae5ac567290f55b402b40de6253a9f3046a9e94bd39c92426e957cfd8370",
+      "transcript": "thank you for your time have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "hum",
+      "filter": "telephony",
+      "sha256": "248a3e213151dcc822af3dfcf8b564eff3aa7fbe71e84753248b8a147ccbd2de",
+      "transcript": "thank you for your time have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "hum",
+      "filter": "telephony-noisy",
+      "sha256": "c9377fc0538f514de0408cdbb60630b208d1fdab3060cb14e928dd0d610ce30f",
+      "transcript": "thank you for your time have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "vibration",
+      "filter": "off",
+      "sha256": "74b6d3ca0013192ea95ee0a056a0a09dcd3e1f5767b81eb675a478f298b56234",
+      "transcript": "thank you for your time have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "vibration",
+      "filter": "telephony",
+      "sha256": "96ab95d7c6858648d9fa3281edf7cb15c073d3a4315397c6094f28c047d77c1d",
+      "transcript": "thank you for your time have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "vibration",
+      "filter": "telephony-noisy",
+      "sha256": "da35389c838653f0bd542584f1fc90365b6f33bb45058dcda08bc5866d5d5dfa",
+      "transcript": "thank you for your time have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "steady",
+      "filter": "off",
+      "sha256": "f75b84575ededea9db601c8e8d1204440128fbddfdb39322f1b4a13be7cc497c",
+      "transcript": "thank you for your time have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "steady",
+      "filter": "telephony",
+      "sha256": "87ce5e9eadc4d896550ce4a0332378bb519cf47a2c9e36d712419f90ab6a132c",
+      "transcript": "thank you for your time have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "steady",
+      "filter": "telephony-noisy",
+      "sha256": "87ce5e9eadc4d896550ce4a0332378bb519cf47a2c9e36d712419f90ab6a132c",
+      "transcript": "thank you for your time have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "talkers",
+      "filter": "off",
+      "sha256": "2180c461fcc4547e691ee67fcade11ba47b0909e04a477f7cfea29634f0d2dbd",
+      "transcript": "thank you for your time to really have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "talkers",
+      "filter": "telephony",
+      "sha256": "cdd7bc35974a1139642315b2c90b157a8794978fc611abb01729398bc0e848c6",
+      "transcript": "thank you for your time to really have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "talkers",
+      "filter": "telephony-noisy",
+      "sha256": "cdd7bc35974a1139642315b2c90b157a8794978fc611abb01729398bc0e848c6",
+      "transcript": "thank you for your time to really have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "beeps",
+      "filter": "off",
+      "sha256": "d20ea38f5fd05722d43bf2c51df47b99e93d105c1943e0b9e8a42afa2b4d54df",
+      "transcript": "thank you for your time have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "beeps",
+      "filter": "telephony",
+      "sha256": "b6efb50567a61de64656d01fd7b152fd713440fc24dfbd00b13f7a989f67a76c",
+      "transcript": "thank you for your time have a good day"
+    },
+    {
+      "clip": "thanks-goodbye",
+      "condition": "beeps",
+      "filter": "telephony-noisy",
+      "sha256": "9cbd7e7fdb9143ddbf06e5d31fe78487c754fe561f5d646d5d0098ab2bcff570",
+      "transcript": "thank you for your time have a good day"
+    }
+  ]
+}

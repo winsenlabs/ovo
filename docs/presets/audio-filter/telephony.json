@@ -1,0 +1,8 @@
+{
+  "plugin": "@winsendotai/ovo-audio-filter-telephony",
+  "config": {
+    "highPassHz": 100,
+    "hum": { "mainsHz": 50, "harmonics": 4, "q": 30 },
+    "gate": null
+  }
+}
