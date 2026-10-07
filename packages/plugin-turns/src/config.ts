@@ -62,8 +62,13 @@ export type SpeechEvidenceConfig = z.output<typeof SpeechEvidenceConfigSchema>;
  */
 export const OpeningConfigSchema = z
   .object({
-    /** Nothing barges in on the opening for this long after its first audio. 0 disables. */
-    protectMs: z.number().int().min(0).max(10000).default(1500),
+    /**
+     * Nothing barges in on the opening for this long after it starts. On the call's first line
+     * that is when its synthesis starts (no audio has reached the carrier yet to time it by), so
+     * the default allows ~300 ms of TTS first byte and carrier delay: ~1.5 s of heard audio.
+     * 0 disables.
+     */
+    protectMs: z.number().int().min(0).max(10000).default(1800),
     /**
      * After that, only confirmed words barge in on it: two transcript revisions that start with
      * the same word. A lone interim the STT then revises away never does.
@@ -110,6 +115,6 @@ export const PHONE_TURN_CONFIG: Readonly<DetectorConfig> = Object.freeze(
     commit: { silenceMs: 50, longSilenceMs: 250, longUtteranceMs: 1200, minSpeechMs: 180 },
     cutoffHoldMs: 700,
     speechEvidence: { bargeIn: true, turns: false, minSpeechMs: 0, windowMs: 1500 },
-    opening: { protectMs: 1500, confirmWords: true },
+    opening: { protectMs: 1800, confirmWords: true },
   }),
 );

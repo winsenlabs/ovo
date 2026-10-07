@@ -3,14 +3,17 @@ import type { OpeningConfig } from './config.ts';
 
 /**
  * N8: the call's opening (the agent's first speech, before the caller has had a turn) is not cut
- * by the first sound on the line. For `protectMs` from its first audio nothing barges in on it: a
- * cough, line noise, an STT's first garbled guess ("Знаете, что?" 2.3 s into a live greeting).
+ * by the first sound on the line. For `protectMs` from its start nothing barges in on it: a cough, line noise, an STT's first garbled guess ("Знаете, что?" 2.3 s into a live greeting).
  * After that, with `confirmWords`, only words the STT confirms do: two revisions of the
  * transcript that start with the same word. Words that do not barge in are not lost: the caller's
  * turn goes on, and is answered once the opening ends.
  */
 export class OpeningGuard {
-  /** When the opening's audio started; unset before it and once it is over. */
+  /**
+   * When the opening started: its `bot.started`, which for the call's first line is the start of
+   * its synthesis, before any audio reaches the carrier (`SpeechEventProjector` cannot yet know the
+   * output reports it). `protectMs` allows for that. Unset before the opening and once it is over.
+   */
   private startedAt?: number;
   /** The opening has ended, or the caller has had a turn: nothing is protected any more. */
   private over = false;

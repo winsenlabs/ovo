@@ -70,7 +70,7 @@ describe('the opening is protected from a single stray interim (N8)', () => {
     f.transcript('please', 'interim');
     f.clock.advance(300);
     f.transcript('please stop', 'interim');
-    f.clock.advance(899);
+    f.clock.advance(1199);
     expect(f.interrupts()).toEqual([]);
     f.clock.advance(1);
     expect(f.interrupts()).toEqual([{ type: 'interrupt', reason: 'transcript' }]);
@@ -81,10 +81,11 @@ describe('the opening is protected from a single stray interim (N8)', () => {
     f.bot(1, true);
     f.clock.advance(2000);
     f.send({ type: 'vad.start' });
-    f.transcript('wait', 'interim');
+    // Enough words to barge in on any other line.
+    f.transcript('please hold on', 'interim');
     expect(f.interrupts()).toEqual([]);
     f.clock.advance(300);
-    f.transcript('wait a minute', 'interim');
+    f.transcript('please hold on a minute', 'interim');
     expect(f.interrupts()).toEqual([{ type: 'interrupt', reason: 'transcript' }]);
   });
 
@@ -135,6 +136,6 @@ describe('the opening is protected from a single stray interim (N8)', () => {
   });
 
   it('is part of the recommended phone row', () => {
-    expect(PHONE_TURN_CONFIG.opening).toEqual({ protectMs: 1500, confirmWords: true });
+    expect(PHONE_TURN_CONFIG.opening).toEqual({ protectMs: 1800, confirmWords: true });
   });
 });

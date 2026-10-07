@@ -101,11 +101,25 @@ Russian. Three guards now stand between the LLM and the hang-up:
   question. A refused `end_call` that followed streamed text leaves that text said and the call
   open; one that was the model's whole reply goes back to the model as a failed operation record
   ("The call was not ended: ... answer the caller."), costing one more LLM step only on a misfire.
-  Each refusal is on `toolErrors` with kind `refused`.
+  Each refusal is on `toolErrors` with kind `refused`. A reply the caller spoke over before hearing
+  any of it, run again on both utterances (AGT-10), counts as one caller turn.
+
+  Decision (conservative default): a refused `end_call` after streamed text may leave a goodbye
+  already said ("Thanks, goodbye!") and the call open, silent until the caller speaks or the idle
+  prompt runs. Hanging up on a caller who might still be there is the worse failure; if the caller
+  then hangs up, the call reads `caller_hangup`. Re-prompting the model or playing an "Anything
+  else?" line instead is open.
+
+  Nothing yet sets `inputUntrusted` from STT confidence: low-confidence English still passes the
+  gate. Off-language turns (Dutch, Russian) are kept from the LLM by the agent's language guard
+  (N4) before `end_call` can be offered.
+
 - **The end reason survives the hang-up.** The engine's own ending is put on the worker's media
   link before the carrier hang-up, so the stream stop that the hang-up causes finishes the session
   `behavior_completed` (or `max_duration`) instead of `caller_hangup`; the outcome, `session.outcome`
-  and the call summary's `endReason` agree with `session.engine-ended`.
+  and the call summary's `endReason` agree with `session.engine-ended`. Only that event's detail
+  carries which ending it was (`llm:end_call:<reason>`, `decision:flow:...`); carrying it into the
+  outcome and the summary is follow-up work.
 
 ## How much of a line was heard (`playedMs`)
 
@@ -120,8 +134,11 @@ flow's mandatory lines) still need a completed receipt: a compliance line cut at
 ## Protecting the opening (wave 7, N8)
 
 The default turn detector protects the agent's first speech before the caller's first turn: for
-`opening.protectMs` (1500 ms) from its first audio nothing barges in, and after that, with
+`opening.protectMs` (1800 ms) from its start nothing barges in, and after that, with
 `opening.confirmWords`, only words two transcript revisions agree on (same first word) do. The
-caller's words are not lost: their turn stops as usual and is answered after the greeting. Set
+caller's words are not lost: their turn stops as usual and is answered after the greeting. The
+window runs from the opening's `bot.started`, which for the call's first line is the start of its
+synthesis (no audio has reached the carrier yet to time it by), so 1800 ms leaves about 1.5 s of
+heard greeting after TTS first byte (~140 ms on the Maya calls) and carrier delay. Set
 `opening: { "protectMs": 0, "confirmWords": false }` on the turn detector row for the old
 behaviour.

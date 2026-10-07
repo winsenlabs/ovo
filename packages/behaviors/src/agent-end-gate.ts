@@ -1,13 +1,10 @@
 import {
   DEFAULT_END_CALL_MIN_CALL_SECONDS,
   DEFAULT_END_CALL_MIN_CALLER_TURNS,
-  END_CALL_TOOL_ID,
   normalizeForMatch,
   UNTRUSTED_INPUT_VARIABLE,
   type AgentConfig,
-  type OperationRecord,
 } from '@winsendotai/ovo-contracts';
-import type { AgentTurnLog } from './agent-turn-log.ts';
 
 /**
  * What callers say to end a call themselves, as STT writes it: English, Hinglish and Hindi, then
@@ -75,6 +72,8 @@ export function saysGoodbye(text: string): boolean {
  */
 export class EndCallGate {
   private callerTurns = 0;
+  /** The words of the last turn counted. */
+  private last = '';
   private readonly startedAt: number;
   private readonly scripts: Set<string>;
 
@@ -90,7 +89,13 @@ export class EndCallGate {
   turn(input: string, variables: Readonly<Record<string, unknown>>): string | undefined {
     if (variables[UNTRUSTED_INPUT_VARIABLE] === true || foreignScript(input, this.scripts))
       return 'the caller was not heard clearly';
-    this.callerTurns += 1;
+    // AGT-10: a reply the caller spoke over before hearing any of it is run again on both
+    // utterances together, which carry on the words already counted: still one caller turn. (Words
+    // said again in a turn of their own count once too; the gate only ever waits longer for it.)
+    const words = normalizeForMatch(input);
+    if (!this.last || (words !== this.last && !words.startsWith(`${this.last} `)))
+      this.callerTurns += 1;
+    this.last = words;
     if (saysGoodbye(input)) return undefined;
     const ending = this.config.ending;
     const turns = ending?.minCallerTurns ?? DEFAULT_END_CALL_MIN_CALLER_TURNS;
@@ -98,58 +103,5 @@ export class EndCallGate {
     if (this.callerTurns < turns || this.now() - this.startedAt < seconds * 1000)
       return 'the conversation has only just started';
     return undefined;
-  }
-}
-
-/**
- * N1, on one inference step: whether the LLM's `end_call` is refused (`EndCallGate`'s verdict for
- * the turn, or the step's own text just asked a question), recorded on `toolErrors` as `refused`.
- * Its `publish` remembers what the step said last.
- */
-export class EndCallRefusal {
-  private said = '';
-
-  constructor(
-    private readonly step: {
-      publish: (text: string) => string;
-      endRefused?: () => string | undefined;
-      log: AgentTurnLog;
-      turn: number;
-      operationId: () => string;
-      identity: { workspaceId: string; sessionId: string };
-    },
-  ) {}
-
-  publish = (text: string): string => {
-    this.said = text;
-    return this.step.publish(text);
-  };
-
-  /** Why `end_call` is refused, `afterText` the step's own; undefined when it may end the call. */
-  refused(afterText: boolean): string | undefined {
-    const asked = afterText && /[?？؟]\s*$/u.test(this.said);
-    const why =
-      this.step.endRefused?.() ?? (asked ? 'the agent has just asked a question' : undefined);
-    if (why)
-      this.step.log.toolError(
-        this.step.turn,
-        END_CALL_TOOL_ID,
-        'refused',
-        `end_call refused: ${why}`,
-      );
-    return why;
-  }
-
-  /** The record a refused `end_call` leaves for the model's next step. */
-  record(input: unknown, why: string): OperationRecord {
-    return {
-      id: this.step.operationId(),
-      ...this.step.identity,
-      toolId: END_CALL_TOOL_ID,
-      input,
-      state: 'failed',
-      error: `The call was not ended: ${why}. Do not say goodbye; answer the caller.`,
-      createdAt: new Date().toISOString(),
-    };
   }
 }
