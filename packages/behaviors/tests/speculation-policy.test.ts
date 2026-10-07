@@ -28,6 +28,8 @@ describe('the speculation policy', () => {
     expect(DEFAULT_SPECULATION).toEqual({
       partials: true,
       debounceMs: 150,
+      partialEnding: 'sentence',
+      maxPartialCalls: 2,
       match: 'exact',
       llm: true,
     });
