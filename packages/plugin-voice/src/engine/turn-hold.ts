@@ -4,13 +4,15 @@ import type { VoiceEventBus } from './events.ts';
 import { logVoiceEvent } from './log.ts';
 
 /**
- * How long a reply waits on a caller turn that may be noise. Words reach the engine 0.7-1.6 s after
- * the caller starts (Scribe interims, live calls 2026-10-07) and within ~0.45 s of the VAD going
- * quiet (the commit and its final), so a turn with no words by then is a cough, a beep or line noise.
+ * How long a reply waits on a caller turn that may be noise (a cough, a beep, handling rumble). The
+ * recogniser ending the utterance with no words says so at once (Scribe answers the commit ~0.35 s
+ * after it); these bound the wait without it. Words reach the engine 0.7-1.6 s after the caller
+ * starts (Scribe interims, live calls 2026-10-07), and a final comes within the commit's silence
+ * (50 ms today, ~450 ms proposed for P2) plus ~0.4 s of the VAD going quiet.
  */
 export const REPLY_HOLD = Object.freeze({
   /** No words this long after the VAD went quiet: noise. */
-  quietMs: 700,
+  quietMs: 1200,
   /** No words this long after the turn started, even with the VAD still on (steady noise). */
   noWordsMs: 1800,
   /** Never wait on one caller turn longer than this. */
@@ -50,6 +52,9 @@ export class ReplyHold {
       if (!this.turnId) return;
       if (event.type === 'stt' && event.event.type === 'transcript') {
         if (event.event.segment.text.trim()) this.heard(this.turnId);
+      } else if (event.type === 'stt' && event.event.type === 'end-of-turn') {
+        // The recogniser closed the utterance with nothing in it.
+        if (!event.event.eager && !this.words) this.release('no-words');
       } else if (event.type === 'vad.start') this.quiet();
       else if (event.type === 'vad.stop' && !this.words)
         this.quiet(this.clock.setTimeout(() => this.release('no-words'), this.limits.quietMs));

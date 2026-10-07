@@ -76,6 +76,26 @@ describe('a reply is held while the caller speaks again before hearing it (P1)',
     ]);
   });
 
+  it('plays the held reply as soon as the recogniser closes the utterance with no words', async () => {
+    const clock = new FakeClock();
+    const agent = slowAgent(clock, { fastMs: 300 });
+    const h = driverHarness(clock, agent.behavior, { ttsMs: 100, playMs: 1500 });
+    const t0 = await h.greet();
+    h.turn.stopped('turn-1', 'rule yes');
+    await clock.advanceAsync(100);
+    h.turn.vad('vad.start');
+    h.turn.started('turn-2');
+    await clock.advanceAsync(300);
+    h.turn.vad('vad.stop');
+    // The commit is answered with an empty transcript: Scribe sends only its end-of-turn.
+    await clock.advanceAsync(400);
+    h.bus.observe({ type: 'stt', atMs: clock.now(), event: { type: 'end-of-turn' } });
+    await clock.advanceAsync(5000);
+    expect(h.audio.map((line) => [line.text, line.atMs - t0])).toEqual([
+      ['Answer: rule yes.', 800 + 100],
+    ]);
+  });
+
   it('plays the held reply at once when the turn is dropped as a backchannel or muted', async () => {
     const clock = new FakeClock();
     const agent = slowAgent(clock, { fastMs: 300 });
@@ -147,17 +167,18 @@ describe('a reply is held while the caller speaks again before hearing it (P1)',
     h.turn.started('turn-2');
     await clock.advanceAsync(200);
     h.turn.vad('vad.stop');
-    // Released as noise at 1000 ms; the recogniser's words come at 1500 ms.
-    await clock.advanceAsync(1200);
+    // Released as noise quietMs later; the recogniser's words come 100 ms after that.
+    await clock.advanceAsync(REPLY_HOLD.quietMs + 100);
     expect(h.scheduler.held).toBe(false);
     h.turn.partial('turn-2', 'next week');
     expect(h.scheduler.held).toBe(true);
     await clock.advanceAsync(1000);
     h.turn.stopped('turn-2', 'next week');
+    const stopped = clock.now() - t0;
     await clock.advanceAsync(10_000);
     expect(agent.asked).toEqual(['I want to pay', 'I want to pay next week']);
     expect(h.audio.map((line) => [line.text, line.atMs - t0])).toEqual([
-      ['Answer: I want to pay next week.', 2500 + 3000 + 100],
+      ['Answer: I want to pay next week.', stopped + 3000 + 100],
     ]);
   });
 
