@@ -26,8 +26,12 @@ export interface DecisionSpeculationMetrics {
   skipped: number;
 }
 
-/** Sentence punctuation an STT puts in a partial: Latin, Devanagari danda, full-width. */
-const PUNCTUATION = /[.,?!;:।॥。，？！]/u;
+/**
+ * Sentence punctuation an STT puts in a partial: Latin, Devanagari danda, full-width. A `.`, `,`
+ * or `:` before a digit is a formatted number, amount or time ("2.5", "3,349", "Rs. 500",
+ * "10:30"), which an STT that never punctuates its partials still writes.
+ */
+const PUNCTUATION = /[?!;।॥。，？！]|[.,:](?!\s?\d)/u;
 /** Ends a sentence: a full stop, question or exclamation mark, or danda, then closing quotes. */
 const SENTENCE_END = /[.?!।॥。？！]["'”’»)\]]*$/u;
 /** A trailing "..." is the STT saying the words trail off, not that the sentence ended. */

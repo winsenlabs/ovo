@@ -162,6 +162,24 @@ describe('the waste limits on revisable partials', () => {
     expect(speculation.metrics.skipped).toBe(1);
   });
 
+  it('does not take a formatted number for punctuation', async () => {
+    const { asked, offer, speculation } = decide();
+    // An unpunctuating STT still formats amounts and times: the call keeps the debounce alone.
+    await offer('mera due 3,349 hai', false, 'u-1');
+    await offer('EMI 2.5 lakh hai', false, 'u-2');
+    await offer('Rs. 500 kal tak', false, 'u-3');
+    await offer('10:30 baje call karo', false, 'u-4');
+    await offer('kal kar dunga', false, 'u-5');
+    expect(asked).toEqual([
+      'mera due 3,349 hai',
+      'EMI 2.5 lakh hai',
+      'Rs. 500 kal tak',
+      '10:30 baje call karo',
+      'kal kar dunga',
+    ]);
+    expect(speculation.metrics.skipped).toBe(0);
+  });
+
   it('caps model calls per utterance but always decides stable words', async () => {
     const { asked, offer } = decide();
     await offer('Yes.');

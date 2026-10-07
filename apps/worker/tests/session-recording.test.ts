@@ -25,7 +25,7 @@ describe('prepareSessionRecording', () => {
   });
 
   it('requires and starts capture only when immutable recording is enabled', async () => {
-    const capture = { finish: vi.fn(), attachEvidence: vi.fn(), artifact: { id: 'r-1' } };
+    const capture = { finish: vi.fn(), attachEvidence: vi.fn() };
     const start = vi.fn(async () => capture as never);
     await expect(
       prepareSessionRecording(
@@ -56,7 +56,7 @@ describe('prepareSessionRecording', () => {
   });
 
   it('writes live segments small enough that a crashed worker loses little audio', async () => {
-    const start = vi.fn(async () => ({ artifact: { id: 'r-1' } }) as never);
+    const start = vi.fn(async () => ({}) as never);
     await prepareSessionRecording(
       {
         enabled: true,
@@ -68,7 +68,13 @@ describe('prepareSessionRecording', () => {
       },
       start,
     );
-    expect(start).toHaveBeenCalledWith(expect.objectContaining({ segmentBytes: 256 * 1024 }));
+    expect(start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        segmentBytes: 256 * 1024,
+        // Smaller segments do not shrink how long a stalled store is ridden out (~11 min, not ~32 s).
+        maxQueuedBytes: 10 * 1024 * 1024,
+      }),
+    );
   });
 
   it('answers the call unrecorded when the recording store refuses to start one', async () => {

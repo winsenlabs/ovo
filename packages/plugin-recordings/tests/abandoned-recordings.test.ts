@@ -128,6 +128,15 @@ describe.skipIf(!databaseUrl)('PostgreSQL recovery of abandoned recordings', () 
     try {
       await repository.pool.query(`CREATE SCHEMA ${schema}`);
       await repository.migrate();
+      await repository.migrate();
+      const { rows } = await repository.pool.query<{ indexdef: string }>(
+        `SELECT indexdef FROM pg_indexes WHERE schemaname=$1
+         AND indexname='ovo_recording_artifacts_unsettled_idx'`,
+        [schema],
+      );
+      // The minute-by-minute sweep reads an index of unsettled rows, not the whole retained table.
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.indexdef).toContain('(created_at, id) WHERE');
       await expectRecovered(repository, objects, { value: Date.parse('2026-10-07T13:00:00Z') });
     } finally {
       await repository.pool.query(`DROP SCHEMA ${schema} CASCADE`);

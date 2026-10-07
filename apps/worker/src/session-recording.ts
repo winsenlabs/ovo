@@ -15,6 +15,13 @@ type Audit = (type: string, payload: Record<string, unknown>) => void;
  */
 export const LIVE_RECORDING_SEGMENT_BYTES = 256 * 1024;
 
+/**
+ * Audio held while the store is slow to take segments: about 11 minutes of both tracks, the
+ * tolerance 5 MiB segments gave. Past it the capture stops and the artifact is `partial`; tying it
+ * to the smaller segments would have cut it to about 32 s.
+ */
+export const LIVE_RECORDING_MAX_QUEUED_BYTES = 10 * 1024 * 1024;
+
 export interface SessionRecording {
   media: WorkerMediaSession | LiveRecordingCapture;
   capture?: LiveRecordingCapture;
@@ -29,8 +36,8 @@ export interface SessionRecording {
  * whether it was recorded (`recording.status`): a live call that should have been recorded and
  * was not is visible without reading the release.
  *
- * A recording store that cannot start one (database or object store down) does not fail the call:
- * the caller is still answered, unrecorded, and the evidence says why. A worker composed without
+ * A recording store that refuses to start one (its database down or rejecting the row) does not
+ * fail the call: the caller is still answered, unrecorded, and the evidence says why. A worker composed without
  * the recording service is a deployment error and still refuses the call.
  */
 export async function prepareSessionRecording(
@@ -65,27 +72,18 @@ export async function prepareSessionRecording(
       callId: input.callId,
       retentionDays: input.retentionDays,
       segmentBytes: LIVE_RECORDING_SEGMENT_BYTES,
+      maxQueuedBytes: LIVE_RECORDING_MAX_QUEUED_BYTES,
+      onStatus: (status) => audit('recording.status', { ...status }),
     });
   } catch (error) {
     audit('recording.status', { state: 'unavailable', error: safeError(error) });
     return unrecorded;
   }
-  const { id: artifactId, expiresAt } = capture.artifact;
-  audit('recording.status', { state: 'recording', artifactId, expiresAt });
   return {
     media: capture,
     capture,
     attachEvidence: (engine) => attachRecordingEvidence(capture, engine),
-    finish: async () => {
-      await capture.finish();
-      const { state, bytes } = capture.outcome;
-      audit('recording.status', {
-        state,
-        artifactId,
-        inboundBytes: bytes.inbound,
-        outboundBytes: bytes.outbound,
-      });
-    },
+    finish: () => capture.finish(),
   };
 }
 

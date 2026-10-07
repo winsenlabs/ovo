@@ -4,9 +4,13 @@ import { MULAW_8K } from '@winsendotai/ovo-contracts';
 import {
   captureError,
   recordingBytesPerSecond,
-  supportedRecordingFormat,
+  recordingFormat,
+  schedulerEvidence,
+  settledStatus,
+  startedStatus,
   takeSegment,
   type CaptureOutcome,
+  type CaptureStatus,
   type PendingTrack,
   type PlaybackEvidenceSource,
   type RecordingMediaTransport,
@@ -14,6 +18,7 @@ import {
 
 export type {
   CaptureOutcome,
+  CaptureStatus,
   PlaybackEvidenceSource,
   RecordingMediaTransport,
 } from './capture-types.ts';
@@ -37,6 +42,7 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
   private queuedBytes = 0;
   private stopped = false;
   private partial = false;
+  private finished?: Promise<void>;
 
   private constructor(
     private readonly service: LiveRecordingService,
@@ -45,6 +51,7 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
     private readonly maxQueuedBytes: number,
     monotonicNow: () => number,
     evidence?: PlaybackEvidenceSource,
+    private readonly onStatus?: (status: CaptureStatus) => void,
   ) {
     this.identity = media.identity;
     this.sessionId = media.sessionId;
@@ -65,6 +72,7 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
       media.onClose(() => void this.finish()),
     );
     if (evidence) this.attachEvidence(evidence);
+    onStatus?.(startedStatus(recording));
   }
 
   private readonly monotonicNow: () => number;
@@ -79,15 +87,10 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
     maxQueuedBytes?: number;
     monotonicNow?: () => number;
     evidence?: PlaybackEvidenceSource;
+    /** Told once the capture has started and once `finish` has settled what the artifact holds. */
+    onStatus?: (status: CaptureStatus) => void;
   }): Promise<LiveRecordingCapture> {
-    const format = input.media.format ?? MULAW_8K;
-    if (!supportedRecordingFormat(format))
-      throw new Error('Live recording requires μ-law 8 kHz or PCM16 8/16 kHz media');
-    if (
-      input.media.codec !== (format.encoding === 'mulaw' ? 'audio/x-mulaw' : 'audio/pcm') ||
-      input.media.sampleRate !== format.sampleRate
-    )
-      throw new Error('Live recording media format and codec disagree');
+    const format = recordingFormat(input.media);
     const recording = await input.service.create({ ...input, format });
     await input.service.state(recording.id, 'active');
     return new LiveRecordingCapture(
@@ -97,6 +100,7 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
       input.maxQueuedBytes ?? recording.segmentBytes * 2,
       input.monotonicNow ?? (() => performance.now()),
       input.evidence,
+      input.onStatus,
     );
   }
 
@@ -118,11 +122,7 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
     const unsubscribe = evidence.subscribe((item) => {
       this.enqueueTimeline(
         'speech-evidence',
-        item.evidence === 'confirmed'
-          ? 'scheduler-confirmed'
-          : item.evidence === 'estimated'
-            ? 'scheduler-estimated'
-            : 'scheduler-generated',
+        schedulerEvidence(item.evidence),
         item.segmentId,
         item.phase,
         Math.max(0, item.at - this.service.now() + this.elapsed()),
@@ -176,24 +176,31 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
     return this.media.onClose(listener);
   }
 
-  async finish(): Promise<void> {
-    if (this.stopped) return this.chain;
-    this.stopped = true;
-    for (const unsubscribe of this.unsubscribers.splice(0)) unsubscribe();
-    this.chain = this.chain
-      .then(async () => {
-        await this.flush('inbound');
-        await this.flush('outbound');
-        await this.service.state(this.recording.id, 'finalizing');
-        await this.service.state(this.recording.id, this.partial ? 'partial' : 'available');
-      })
-      .catch(async (error) => {
-        this.partial = true;
-        await this.service
-          .state(this.recording.id, 'partial', captureError(error))
-          .catch(() => undefined);
-      });
-    return this.chain;
+  finish(): Promise<void> {
+    this.finished ??= this.settle();
+    return this.finished;
+  }
+
+  private async settle(): Promise<void> {
+    if (!this.stopped) {
+      this.stopped = true;
+      for (const unsubscribe of this.unsubscribers.splice(0)) unsubscribe();
+      this.chain = this.chain
+        .then(async () => {
+          await this.flush('inbound');
+          await this.flush('outbound');
+          await this.service.state(this.recording.id, 'finalizing');
+          await this.service.state(this.recording.id, this.partial ? 'partial' : 'available');
+        })
+        .catch(async (error) => {
+          this.partial = true;
+          await this.service
+            .state(this.recording.id, 'partial', captureError(error))
+            .catch(() => undefined);
+        });
+    }
+    await this.chain;
+    this.onStatus?.(settledStatus(this.recording.id, this.outcome));
   }
 
   private enqueueAudio(track: RecordingTrack, input: Uint8Array, timestampMs: number): void {

@@ -35,7 +35,9 @@ reading the release:
 What is kept: two tracks, the caller as the carrier delivered them (`inbound`) and the agent's
 audio as it was sent (`outbound`, including words later cut off by a barge-in), 8 kHz mu-law,
 written in 256 KiB segments (about 33 s) with SHA-256 and timeline evidence in PostgreSQL
-(`ovo_recording_*`). A worker that exits mid-call loses at most the last segment per track; six
+(`ovo_recording_*`). Audio waiting on a slow store is held up to 10 MiB (about 11 minutes of both
+tracks); past that the capture stops for the rest of the call and the artifact is `partial`. A
+worker that exits mid-call loses at most the last segment per track; six
 hours after such a call started, the retention sweep settles its artifact as `partial` (playable)
 or `failed` (nothing was written), so it does not stay `active` and unplayable.
 
@@ -49,8 +51,12 @@ To listen or export, as a workspace member:
 - `DELETE /v1/calls/:callId/live-recordings/:id` (editor) deletes one now: access ends at once,
   the objects are removed by the next sweep.
 
-A recording store that cannot start a recording (PostgreSQL or the object store down) does not
-fail the call: the caller is answered, unrecorded, with `recording.status` `unavailable`. A worker
+A recording that PostgreSQL refuses to start (connection refused, a rejected row) does not fail
+the call: the caller is answered, unrecorded, with `recording.status` `unavailable`. Two limits: the
+object store is first touched when a segment is written, so with it down the recording starts and
+ends `partial`, never `unavailable`; and a PostgreSQL that drops packets instead of refusing them
+holds call setup until the operating system gives up on the connection (the recordings pool sets
+no connect timeout, since its two connections are shared with segment writes). A worker
 deployed without the recordings service at all still refuses calls for recording agents: that is
 a deployment error.
 
