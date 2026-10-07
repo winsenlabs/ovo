@@ -42,6 +42,10 @@ export abstract class TurnRunner {
   protected readonly hooks: SpeculationHooks;
   /** P1: holds an unheard reply while the caller speaks again. */
   protected readonly hold: ReplyHold;
+  /** The caller turn the detector has open, from its start to its stop or reset. */
+  protected callerOpen?: string;
+  /** N1: the behaviour completed while the caller was talking; set to the turn's extra. */
+  private endDeferred?: Readonly<Record<string, unknown>>;
 
   turnIdForEpoch = (epoch: number): string | undefined => this.turns.idForEpoch(epoch);
   /** For SpeechEventProjector: a LAT-6 filler line opens no answer the caller must wait out. */
@@ -144,6 +148,8 @@ export abstract class TurnRunner {
     // swallow-ok: the earlier turn's own task.catch below ends the call; this only orders turns.
     const previous = this.serial.catch(() => undefined);
     const task = previous.then(() => {
+      // A turn that runs decides afresh whether the call ends.
+      this.endDeferred = undefined;
       this.turns.start(turn);
       return this.run(turn);
     });
@@ -208,14 +214,33 @@ export abstract class TurnRunner {
       if (abort.signal.aborted) return;
       await this.receipts.deliver();
       await this.interrupting;
-      if (lines.current() && this.behavior.isComplete?.())
-        this.end(...completionEnd(this.behavior, extra));
+      if (lines.current() && this.behavior.isComplete?.()) this.complete(extra);
     } catch (error) {
       if (!abort.signal.aborted) throw error;
     } finally {
       cancelFiller?.();
       this.turns.finish(turn);
     }
+  }
+
+  /**
+   * N1: the behaviour completed. The call never ends on a caller who is talking or still owed an
+   * answer: it ends once their turn turns out to be no turn at all (`endIfQuiet`, on a reset), and
+   * otherwise their turn is answered, which an ending they can change does not survive.
+   */
+  private complete(extra: Readonly<Record<string, unknown>>): void {
+    if (this.callerOpen === undefined && !this.turns.callerWaiting())
+      return this.end(...completionEnd(this.behavior, extra));
+    this.endDeferred = extra;
+  }
+
+  /** The caller's turn was dropped (a backchannel, noise): a deferred ending goes ahead. */
+  protected endIfQuiet(): void {
+    const extra = this.endDeferred;
+    if (!extra || this.stopped || this.closing) return;
+    if (this.callerOpen !== undefined || this.turns.callerWaiting()) return;
+    this.endDeferred = undefined;
+    if (this.behavior.isComplete?.()) this.end(...completionEnd(this.behavior, extra));
   }
 
   private say(text: string, epoch: number): void {

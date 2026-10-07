@@ -1,6 +1,7 @@
 import { raceAbort } from './async.ts';
 import type { SpeechEvidenceHistory } from './history.ts';
 import type { SpeechHold, TakenBack } from './scheduler-hold.ts';
+import type { SpeechPlayout } from './scheduler-playout.ts';
 import type { QueueEntry, SpeechSettlement } from './scheduler-settlement.ts';
 import type { SpeechOutput, SpeechOutputResult } from './types.ts';
 
@@ -10,6 +11,7 @@ export interface LinePlayback {
   holds: SpeechHold;
   evidence: SpeechEvidenceHistory;
   settlement: SpeechSettlement;
+  playout: SpeechPlayout;
   /** Lines the output is preparing or playing, each with the controller it plays under. */
   active: Map<QueueEntry, AbortController>;
   timeoutMs: number;
@@ -24,7 +26,7 @@ export async function playLine(
   lines: LinePlayback,
   entry: QueueEntry,
 ): Promise<TakenBack | undefined> {
-  const { output, holds, evidence, settlement } = lines;
+  const { output, holds, evidence, settlement, playout } = lines;
   const controller = entry.controller;
   lines.active.set(entry, controller);
   evidence.record(entry.segment, 'started', 'generated');
@@ -43,7 +45,9 @@ export async function playLine(
     playing = output.play(entry.segment, {
       signal: controller.signal,
       report: (phase, reported) => {
-        if (holds.reported(entry, phase)) evidence.record(entry.segment, phase, reported);
+        if (!holds.reported(entry, phase)) return;
+        if (phase === 'sent') playout.sent(entry);
+        evidence.record(entry.segment, phase, reported);
       },
     });
     const result = await raceAbort(playing, controller.signal);

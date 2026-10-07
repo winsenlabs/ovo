@@ -3,6 +3,7 @@ import { runPreReplySteps } from './agent-pre-reply.ts';
 import { resumeConfirmation } from './agent-confirmation-step.ts';
 import { firstInferenceRequest, runInferenceSteps } from './agent-inference-step.ts';
 import { AgentSession } from './agent-session.ts';
+import { EndCallGate } from './agent-end-gate.ts';
 import { OPT_OUT_COMPLETION } from './opt-out.ts';
 import type { AgentBehaviorOptions } from './agent-tools.ts';
 import { AgentHandoffs } from './handoff.ts';
@@ -29,6 +30,8 @@ export class AgentBehavior extends AgentSession {
   private readonly handoffs: AgentHandoffs;
   /** Execution with the built-in handoff tools answered in the behaviour. */
   private readonly toolExecution: Execution;
+  /** N1: when the LLM's `end_call` may end the call. */
+  private readonly endGate: EndCallGate;
 
   constructor(
     config: AgentConfig,
@@ -50,6 +53,8 @@ export class AgentBehavior extends AgentSession {
     this.handoffs.offer(this.tools, this.validators);
     this.handoffs.follow(this.flow);
     this.toolExecution = this.handoffs.execution(execution);
+    const now = options.now ?? (() => new Date());
+    this.endGate = new EndCallGate(this.config, () => now().getTime());
   }
 
   /** A flow node that transfers completes with a `transfer:` reason, ending as `transferred`. */
@@ -73,6 +78,9 @@ export class AgentBehavior extends AgentSession {
     variables: Record<string, unknown> = {},
   ): AsyncIterable<string> {
     this.ending.startTurn();
+    // N1: the call is ending for good (a transfer, a flow's end) and the caller spoke meanwhile:
+    // nothing more is said, and the call ends once this turn is over.
+    if (this.ending.complete) return;
     this.lines.startTurn();
     this.ahead.heardTurn(variables);
     if (variables.inputEvent === 'opening') return yield* this.lines.opening(variables, this.flow);
@@ -97,6 +105,7 @@ export class AgentBehavior extends AgentSession {
     const previous = [...this.lines.recovery.lastSaid];
     const controller = new AbortController();
     const turn = ++this.turn;
+    const endRefused = this.endGate.turn(input, variables);
     this.active = controller;
     const results: OperationRecord[] = [];
     const history = this.conversation.user(input);
@@ -198,6 +207,7 @@ export class AgentBehavior extends AgentSession {
         events: this.events,
         publish: (text) => this.say(text, turn),
         endCall: (reason) => this.ending.arm(reason, { terminal: this.flow?.state.ended }),
+        endRefused: () => endRefused,
         operationId: this.operationId,
         turn,
         current: () => turn === this.turn,

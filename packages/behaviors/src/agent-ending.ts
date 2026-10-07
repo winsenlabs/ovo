@@ -1,4 +1,5 @@
-import type { SpeechReceipt } from '@winsendotai/ovo-contracts';
+import { TRANSFER_REASON_PREFIX, type SpeechReceipt } from '@winsendotai/ovo-contracts';
+import { PlayoutPace } from './agent-playout.ts';
 
 /**
  * The agent's own decision to end the call, held until the goodbye has actually played.
@@ -14,6 +15,14 @@ import type { SpeechReceipt } from '@winsendotai/ovo-contracts';
  * more: the next turn `close`s the call with it, and that close is `final`: a barge-in no longer
  * disarms it, and the call ends once its lines are out. An opt-out's closing line is terminal too.
  *
+ * A line cut in its last words counts as heard (`PlayoutPace`, from the receipt's `playedMs`), so
+ * a one-line terminal goodbye cut at 95% ends the call instead of being said again in full.
+ *
+ * N1: an ending the caller can still change (the LLM's `end_call`, a decision that did not end a
+ * flow) is reopened by their next turn: the engine never ends the call while a caller turn is open,
+ * and when that turn is answered `startTurn` takes the ending back. A final one (a flow's end, an
+ * opt-out, a transfer) stays: the next turn says nothing and the call ends.
+ *
  * Receipts are counted per playback epoch, never matched by text: the speaker's text filters (the
  * Indian verbalisation of an amount, say) change what a receipt reports having said.
  */
@@ -23,6 +32,9 @@ export class CallEnding {
   private interrupted = false;
   private armed?: { reason: string; sealed: boolean; terminal?: boolean; final?: boolean };
   private ended?: string;
+  /** The ending is final: a later caller turn cannot reopen it. */
+  private endedFinal = false;
+  private readonly pace = new PlayoutPace();
   /** The lines this turn has said, and how many of them have played to the end. */
   private turnLines: string[] = [];
   private turnHeard = 0;
@@ -44,8 +56,12 @@ export class CallEnding {
     this.epoch = epoch;
   }
 
-  /** A new reply starts: nothing it says has played, and it has not decided to end. */
+  /**
+   * A new reply starts: nothing it says has played, and it has not decided to end. One that answers
+   * a caller who spoke after an ending the caller can change reopens the call (N1).
+   */
   startTurn(): void {
+    if (this.ended !== undefined && !this.endedFinal) this.ended = undefined;
     this.unplayed = 0;
     this.interrupted = false;
     this.armed = undefined;
@@ -88,8 +104,12 @@ export class CallEnding {
   }
 
   played(receipt: SpeechReceipt): void {
+    this.pace.observe(receipt);
     if (this.epoch === undefined || receipt.epoch !== this.epoch || this.unplayed === 0) return;
     if (receipt.state === 'interrupted' && !this.armed?.final) {
+      // A terminal goodbye cut in its last words was heard. Any other ending a barge-in disarms
+      // however much played: the caller has something to say.
+      if (this.armed?.terminal && this.pace.heard(receipt)) this.turnHeard += 1;
       this.keepCut();
       this.interrupted = true;
       this.armed = undefined;
@@ -114,14 +134,21 @@ export class CallEnding {
    */
   private keepCut(): void {
     if (!this.armed?.terminal) return;
-    if (this.turnHeard > 0) this.ended = this.armed.reason;
+    if (this.turnHeard > 0) this.end(this.armed);
     else this.cut = { reason: this.armed.reason, lines: [...this.turnLines] };
   }
 
   private settle(): void {
     if (this.armed?.sealed && this.unplayed === 0) {
-      this.ended = this.armed.reason;
+      this.end(this.armed);
       this.armed = undefined;
     }
+  }
+
+  private end(armed: { reason: string; terminal?: boolean; final?: boolean }): void {
+    this.ended = armed.reason;
+    this.endedFinal = Boolean(
+      armed.terminal || armed.final || armed.reason.startsWith(TRANSFER_REASON_PREFIX),
+    );
   }
 }

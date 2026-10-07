@@ -22,12 +22,14 @@ Wave 2 (AGT-2, AGT-3, AGT-5, LAT-2 and the critic's voicemail item). Contracts l
 }
 ```
 
-| Field                  | Effect                                                                                                                 |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `opening.lines`        | Spoken first, before the caller says anything. Its presence is what makes an agent greet first.                        |
-| `voicemail`            | Outbound only. Defaults when an outbound agent has an opening: detect, wait 4s, hang up. `detect: false` turns it off. |
-| `ending.llmTool`       | Offers the LLM a reserved `end_call` tool (`goodbye`, optional `reason`). Off by default.                              |
-| decision outcome `end` | Ends the call once that turn's reply has played (the outcome's `say`, or the LLM's reply).                             |
+| Field                   | Effect                                                                                                                 |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `opening.lines`         | Spoken first, before the caller says anything. Its presence is what makes an agent greet first.                        |
+| `voicemail`             | Outbound only. Defaults when an outbound agent has an opening: detect, wait 4s, hang up. `detect: false` turns it off. |
+| `ending.llmTool`        | Offers the LLM a reserved `end_call` tool (`goodbye`, optional `reason`). Off by default.                              |
+| `ending.minCallerTurns` | `end_call` is refused before the caller has taken this many turns (default 2; 0 lifts it), unless they say goodbye.    |
+| `ending.minCallSeconds` | ...and before the call has run this long (default 20 s; 0 lifts it). Both minimums must be met.                        |
+| decision outcome `end`  | Ends the call once that turn's reply has played (the outcome's `say`, or the LLM's reply).                             |
 
 Any other mode refuses these fields at validation, so they never validate and then do nothing.
 
@@ -78,3 +80,48 @@ playback receipt; the engine then ends `behavior_completed` (outcome `completed`
 as `decision:intent=bye` or `llm:end_call:caller-done`. A barge-in on the goodbye disarms it: the
 caller has something to say. Hang-up uses the existing termination path (engine media close →
 `terminateOwnedJob` → carrier control hangup).
+
+## Never on a caller who is talking (wave 7, N1 and N2)
+
+Live Maya calls hung up on a caller who had just said "Hello", and on a first turn misheard as
+Russian. Three guards now stand between the LLM and the hang-up:
+
+- **The engine never ends on an open caller turn.** When the behaviour completes while the turn
+  detector has a caller turn open, or one waits to be answered, the end is deferred: a turn that is
+  reset (a backchannel, noise) lets it go ahead; a turn that stops is answered. Answering it reopens
+  an ending the caller can change (`end_call`, a decision `end` that did not end a flow). A final
+  one (a flow's end node, an opt-out, a transfer) stays: that turn says nothing and the call ends.
+  A final goodbye the caller cuts after hearing part of it still hangs up on the cut (P4).
+- **`end_call` waits for an engaged caller** (`EndCallGate`): `minCallerTurns` and
+  `minCallSeconds`, unless the caller says goodbye ("ok bye", "phone rakhta hoon", Tamil "பை").
+  It is never taken on a turn whose words are untrusted: the turn's variables carry
+  `inputUntrusted: true` (`UNTRUSTED_INPUT_VARIABLE`, for whatever judges STT confidence or
+  language), or most of its letters are in a script the agent's language does not use (an `-IN`
+  agent accepts Latin and every Indian script). Nor right after the agent's own text asked a
+  question. A refused `end_call` that followed streamed text leaves that text said and the call
+  open; one that was the model's whole reply goes back to the model as a failed operation record
+  ("The call was not ended: ... answer the caller."), costing one more LLM step only on a misfire.
+  Each refusal is on `toolErrors` with kind `refused`.
+- **The end reason survives the hang-up.** The engine's own ending is put on the worker's media
+  link before the carrier hang-up, so the stream stop that the hang-up causes finishes the session
+  `behavior_completed` (or `max_duration`) instead of `caller_hangup`; the outcome, `session.outcome`
+  and the call summary's `endReason` agree with `session.engine-ended`.
+
+## How much of a line was heard (`playedMs`)
+
+Each speech receipt carries `playedMs`: from when the line's audio reached the carrier (or the
+line before it finished, when it was sent ahead) to when it completed or was cut. The behaviour
+learns the call's pace from lines that played to the end (75 ms a character until 40 characters
+have been timed) and counts a cut line as heard once 90% of it played. A terminal goodbye cut in
+its last words therefore ends the call instead of being said again in full. A cut LLM goodbye still
+disarms the ending (the caller is talking), and P5 mandatory lines (the recording disclosure, a
+flow's mandatory lines) still need a completed receipt: a compliance line cut at 95% is said again.
+
+## Protecting the opening (wave 7, N8)
+
+The default turn detector protects the agent's first speech before the caller's first turn: for
+`opening.protectMs` (1500 ms) from its first audio nothing barges in, and after that, with
+`opening.confirmWords`, only words two transcript revisions agree on (same first word) do. The
+caller's words are not lost: their turn stops as usual and is answered after the greeting. Set
+`opening: { "protectMs": 0, "confirmWords": false }` on the turn detector row for the old
+behaviour.
