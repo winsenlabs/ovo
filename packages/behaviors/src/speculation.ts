@@ -1,6 +1,6 @@
 import { normalizeForMatch } from '@winsendotai/ovo-contracts';
 import type { DecisionGateResult, DecisionTurn } from './decision-gate.ts';
-import type { SpeculationPolicy } from './speculation-policy.ts';
+import { DEFAULT_SPECULATION, type SpeculationPolicy } from './speculation-policy.ts';
 
 export * from './speculation-policy.ts';
 
@@ -19,6 +19,28 @@ export interface DecisionSpeculationMetrics {
   discarded: number;
   /** Decisions cancelled before they settled: barge-in, a superseded turn, or the call ending. */
   cancelled: number;
+  /**
+   * Revisable partials left undecided: cut mid-sentence (`partialEnding: 'sentence'`), or past
+   * `maxPartialCalls` for their utterance.
+   */
+  skipped: number;
+}
+
+/**
+ * Sentence punctuation an STT puts in a partial: Latin, Devanagari danda, full-width. A `.`, `,`
+ * or `:` before a digit is a formatted number, amount or time ("2.5", "3,349", "Rs. 500",
+ * "10:30"), which an STT that never punctuates its partials still writes.
+ */
+const PUNCTUATION = /[?!;।॥。，？！]|[.,:](?!\s?\d)/u;
+/** Ends a sentence: a full stop, question or exclamation mark, or danda, then closing quotes. */
+const SENTENCE_END = /[.?!।॥。？！]["'”’»)\]]*$/u;
+/** A trailing "..." is the STT saying the words trail off, not that the sentence ended. */
+const TRAILING = /\.\.["'”’»)\]]*$/u;
+
+/** Whether `text` reads as a finished sentence rather than words cut mid-phrase. */
+export function endsSentence(text: string): boolean {
+  const trimmed = text.trim();
+  return SENTENCE_END.test(trimmed) && !TRAILING.test(trimmed);
 }
 
 interface Speculated {
@@ -35,6 +57,8 @@ interface Offer {
   turn: DecisionTurn;
   state: string;
   words: string;
+  /** Not stable: the STT may still revise the words. */
+  revisable: boolean;
 }
 
 /**
@@ -42,9 +66,10 @@ interface Offer {
  * and reused when the final transcript says the same, so a confident turn skips the decision
  * model's round trip (~300ms) entirely.
  *
- * A partial the STT may still revise must hold for `debounceMs` before it is decided; a stable one
- * is decided at once. At most one decision is in flight: a newer partial waits for it to settle and
- * then replaces it. `state` is everything else the verdict depends on (flow position, history,
+ * A partial the STT may still revise must hold for `debounceMs` before it is decided, and is decided
+ * only when it ends a sentence (once the STT is seen punctuating partials) and its utterance has
+ * not used up `maxPartialCalls`; a stable one is decided at once. At most one decision is in
+ * flight: a newer partial waits for it to settle and then replaces it. `state` is everything else the verdict depends on (flow position, history,
  * variables); a final turn in a different state never reuses it. The verdict is never applied
  * here: the gate returns it to the turn exactly as its own evaluation would, so the turn still
  * commits only what it speaks.
@@ -53,22 +78,39 @@ export class DecisionSpeculation {
   private current?: Speculated;
   private offered?: Offer;
   private timer?: ReturnType<typeof setTimeout>;
+  /** This call's STT has put punctuation in a revisable partial, so its partials can be read. */
+  private punctuated = false;
+  /** Model calls made on the revisable partials of utterance `turnId`. */
+  private partialCalls = { turnId: '', count: 0 };
   readonly metrics: DecisionSpeculationMetrics = {
     started: 0,
     modelCalls: 0,
     reused: 0,
     discarded: 0,
     cancelled: 0,
+    skipped: 0,
   };
+  private readonly policy: Pick<
+    SpeculationPolicy,
+    'debounceMs' | 'match' | 'partialEnding' | 'maxPartialCalls'
+  >;
 
   constructor(
-    private readonly policy: Pick<SpeculationPolicy, 'debounceMs' | 'match'>,
+    policy: Pick<SpeculationPolicy, 'debounceMs' | 'match'> &
+      Partial<Pick<SpeculationPolicy, 'partialEnding' | 'maxPartialCalls'>>,
     /** The gate's own evaluation, without recording a verdict; returns whether it asked the model. */
     private readonly decide: (
       turn: DecisionTurn,
       signal: AbortSignal,
     ) => { verdict: Promise<DecisionGateResult>; asked: boolean },
-  ) {}
+  ) {
+    this.policy = {
+      partialEnding: policy.partialEnding ?? DEFAULT_SPECULATION.partialEnding,
+      maxPartialCalls: policy.maxPartialCalls ?? DEFAULT_SPECULATION.maxPartialCalls,
+      debounceMs: policy.debounceMs,
+      match: policy.match,
+    };
+  }
 
   /** A partial transcript of utterance `turnId`. `stable` words skip the debounce. */
   offer(turnId: string, turn: DecisionTurn, state: string, stable: boolean): void {
@@ -77,7 +119,11 @@ export class DecisionSpeculation {
     this.clearOffer();
     const current = this.current;
     if (current && current.words === words && current.state === state) return;
-    this.offered = { turnId, turn, state, words };
+    if (!stable && !this.worthDeciding(turnId, turn.input)) {
+      this.metrics.skipped += 1;
+      return;
+    }
+    this.offered = { turnId, turn, state, words, revisable: !stable };
     if (stable) this.start();
     else
       this.timer = setTimeout(() => {
@@ -156,6 +202,7 @@ export class DecisionSpeculation {
     const { verdict, asked } = this.decide(offered.turn, controller.signal);
     this.metrics.started += 1;
     if (asked) this.metrics.modelCalls += 1;
+    if (asked && offered.revisable) this.countPartialCall(offered.turnId);
     const entry: Speculated = { ...offered, controller, verdict, settled: false };
     if (this.current) this.metrics.discarded += 1;
     this.current = entry;
@@ -163,6 +210,23 @@ export class DecisionSpeculation {
       entry.settled = true;
       if (this.current === entry && this.offered && this.timer === undefined) this.start();
     });
+  }
+
+  /**
+   * A revisable partial is decided only when it reads as a finished sentence (as soon as this
+   * call's STT has shown it punctuates partials) and its utterance is under `maxPartialCalls`.
+   */
+  private worthDeciding(turnId: string, text: string): boolean {
+    if (PUNCTUATION.test(text)) this.punctuated = true;
+    if (this.policy.partialEnding === 'sentence' && this.punctuated && !endsSentence(text))
+      return false;
+    const used = this.partialCalls.turnId === turnId ? this.partialCalls.count : 0;
+    return used < this.policy.maxPartialCalls;
+  }
+
+  private countPartialCall(turnId: string): void {
+    if (this.partialCalls.turnId !== turnId) this.partialCalls = { turnId, count: 0 };
+    this.partialCalls.count += 1;
   }
 
   private drop(entry: Speculated, reason: string): void {

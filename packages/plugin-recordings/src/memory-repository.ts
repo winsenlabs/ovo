@@ -1,5 +1,6 @@
 import type { RecordingRepository } from './repository.ts';
 import { RecordingUnavailableError } from './repository.ts';
+import { compare, expiredPage, settleAbandoned } from './memory-retention.ts';
 import type {
   LiveRecording,
   RecordingExportJob,
@@ -84,29 +85,26 @@ export class MemoryRecordingRepository implements RecordingRepository {
     };
   }
 
+  async recoverAbandoned(createdBefore: string, at: string, limit: number) {
+    return settleAbandoned(this.recordings, this.segments, this.tombstones, {
+      createdBefore,
+      at,
+      limit,
+    });
+  }
+
   async pageExpired(
     now: string,
     cursor: RetentionCursor | undefined,
     limit: number,
   ): Promise<RetentionPage> {
-    const items = [...this.recordings.values()]
-      .filter((item) => item.expiresAt <= now && !this.tombstones.has(item.id))
-      .filter(
-        (item) =>
-          !cursor ||
-          item.expiresAt > cursor.expiresAt ||
-          (item.expiresAt === cursor.expiresAt && item.id > cursor.artifactId),
-      )
-      .sort((a, b) => compare(a.expiresAt, b.expiresAt) || compare(a.id, b.id))
-      .slice(0, Math.min(100, Math.max(1, limit)));
-    const last = items.at(-1);
-    return {
-      items: structuredClone(items),
-      nextCursor:
-        items.length === limit && last
-          ? { expiresAt: last.expiresAt, artifactId: last.id }
-          : undefined,
-    };
+    return expiredPage(
+      this.recordings.values(),
+      (id) => this.tombstones.has(id),
+      now,
+      cursor,
+      limit,
+    );
   }
 
   async tombstone(
@@ -250,8 +248,4 @@ export class MemoryRecordingRepository implements RecordingRepository {
     if (this.tombstones.has(item.artifactId)) throw new RecordingUnavailableError();
     this.exports.set(id, { ...item, ...result, updatedAt: at, leaseExpiresAt: undefined });
   }
-}
-
-function compare(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

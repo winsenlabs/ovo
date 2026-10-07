@@ -12,6 +12,20 @@ export interface SpeculationPolicy {
   /** How long a partial transcript must stay unchanged before a decision is started on it. */
   debounceMs: number;
   /**
+   * Which revisable partials are worth a decision. `sentence`: once the STT has punctuated a
+   * partial in this call, only one that ends a sentence ("Yes, sir.", "Okay, stop."), not one cut
+   * mid-phrase ("Can you please", "I am-"). On live Scribe calls only 4 of 27 and 7 of 57 last
+   * partials equalled the final transcript, and almost all that did ended a sentence; the rest were
+   * billed and thrown away. An STT that never punctuates its partials keeps the debounce alone.
+   * `any`: every revision that holds for `debounceMs`. Stable words are always decided.
+   */
+  partialEnding: 'sentence' | 'any';
+  /**
+   * At most this many decision-model calls per utterance on revisable partials, however long the
+   * caller talks. Stable words do not count: the turn would ask about them anyway.
+   */
+  maxPartialCalls: number;
+  /**
    * `exact`: the final words, normalised, are the partial's. `prefix`: the final words may also
    * continue it ("haan ji" then "haan ji bolo"); the verdict was judged without the extra words.
    */
@@ -27,6 +41,8 @@ export interface SpeculationPolicy {
 export const DEFAULT_SPECULATION: Readonly<SpeculationPolicy> = Object.freeze({
   partials: true,
   debounceMs: 150,
+  partialEnding: 'sentence',
+  maxPartialCalls: 2,
   match: 'exact',
   llm: true,
 });

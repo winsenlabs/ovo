@@ -40,7 +40,7 @@ describe('recording background worker', () => {
       {
         async sweep(input = {}) {
           expect(input.limit).toBe(20);
-          return { examined: 0, tombstoned: 0, cleaned: 0, failed: 0 };
+          return { recovered: 0, examined: 0, tombstoned: 0, cleaned: 0, failed: 0 };
         },
       },
       { onError: (event) => errors.push(event) },

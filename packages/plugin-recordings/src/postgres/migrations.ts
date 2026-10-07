@@ -89,6 +89,17 @@ CREATE TABLE ovo_recording_exports (
 CREATE INDEX ovo_recording_exports_claim_idx ON ovo_recording_exports(state,lease_expires_at,created_at);
 `;
 
+/** The abandoned-recording sweep runs every minute in each process: it reads only unsettled rows. */
+const schemaV2 = `
+CREATE INDEX ovo_recording_artifacts_unsettled_idx ON ovo_recording_artifacts(created_at,id)
+  WHERE state IN ('starting','active','paused','finalizing');
+`;
+
+const MIGRATIONS = [
+  { version: 1, name: 'recording-artifacts', sql: schemaV1 },
+  { version: 2, name: 'recording-unsettled-index', sql: schemaV2 },
+] as const;
+
 export async function runRecordingMigrations(pool: Pool): Promise<void> {
   const client = await pool.connect();
   try {
@@ -97,17 +108,19 @@ export async function runRecordingMigrations(pool: Pool): Promise<void> {
     await client.query(`CREATE TABLE IF NOT EXISTS ovo_recording_schema_migrations(
       version integer PRIMARY KEY,name text NOT NULL,checksum text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now()
     )`);
-    const checksum = createHash('sha256').update(schemaV1).digest('hex');
-    const existing = await client.query<{ checksum: string }>(
-      'SELECT checksum FROM ovo_recording_schema_migrations WHERE version=1',
-    );
-    if (existing.rows[0] && existing.rows[0].checksum !== checksum)
-      throw new Error('Recording migration checksum mismatch');
-    if (!existing.rows[0]) {
-      await client.query(schemaV1);
+    for (const migration of MIGRATIONS) {
+      const checksum = createHash('sha256').update(migration.sql).digest('hex');
+      const existing = await client.query<{ checksum: string }>(
+        'SELECT checksum FROM ovo_recording_schema_migrations WHERE version=$1',
+        [migration.version],
+      );
+      if (existing.rows[0] && existing.rows[0].checksum !== checksum)
+        throw new Error('Recording migration checksum mismatch');
+      if (existing.rows[0]) continue;
+      await client.query(migration.sql);
       await client.query(
-        'INSERT INTO ovo_recording_schema_migrations(version,name,checksum) VALUES(1,$1,$2)',
-        ['recording-artifacts', checksum],
+        'INSERT INTO ovo_recording_schema_migrations(version,name,checksum) VALUES($1,$2,$3)',
+        [migration.version, migration.name, checksum],
       );
     }
     await client.query('COMMIT');
