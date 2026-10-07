@@ -1,16 +1,14 @@
-import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ControlStore, Role } from '@winsendotai/ovo-plugin-storage';
 import {
   operationsApiSchemas as schemas,
-  operationsPage,
   operationsRequestError,
-  normalizePhoneNumber,
   publicHandoff,
   type OperationsService,
 } from '@winsendotai/ovo-plugin-operations';
 import type { Principal } from '../types.ts';
 import { registerOperationsInboundRouteManagement } from './operations-inbound-routes.ts';
+import { registerOperationsSuppressionRoutes } from './operations-suppressions.ts';
 
 export interface RealtimeRouteDependencies {
   app: FastifyInstance;
@@ -29,6 +27,7 @@ export interface RealtimeRouteDependencies {
 export function registerOperationsRealtimeRoutes(input: RealtimeRouteDependencies): void {
   const { app, store, requireRole, use, audit } = input;
   registerOperationsInboundRouteManagement(input);
+  registerOperationsSuppressionRoutes(input);
 
   app.patch('/v1/operations/campaigns/:campaignId', async (request, reply) => {
     const principal = requireRole(request, 'editor');
@@ -79,46 +78,6 @@ export function registerOperationsRealtimeRoutes(input: RealtimeRouteDependencie
       notBefore: notBefore ?? null,
     });
     return reply.code(202).send(result);
-  });
-
-  app.get('/v1/operations/suppressions', async (request, reply) => {
-    const query = schemas.suppressionPage.parse(request.query);
-    const operations = use(reply, requireRole(request, 'viewer'));
-    if (!operations) return;
-    return operationsPage(
-      await operations.campaigns.listSuppressions(query.limit, query.cursor),
-      query.limit,
-    );
-  });
-
-  app.post('/v1/operations/suppressions', async (request, reply) => {
-    const principal = requireRole(request, 'editor'),
-      operations = use(reply, principal);
-    if (!operations) return;
-    const body = schemas.suppression.parse(request.body);
-    await operations.campaigns.suppress(body.phoneNumber, body.reason);
-    const resourceId = createHash('sha256')
-      .update(normalizePhoneNumber(body.phoneNumber))
-      .digest('hex');
-    await audit(principal, 'operations.suppression.upsert', 'suppression', resourceId);
-    return reply.code(204).send();
-  });
-
-  app.delete('/v1/operations/suppressions/:phoneNumber', async (request, reply) => {
-    const principal = requireRole(request, 'editor'),
-      operations = use(reply, principal);
-    if (!operations) return;
-    const { phoneNumber } = schemas.suppressionParams.parse(request.params);
-    const removed = await operations.campaigns.unsuppress(phoneNumber);
-    if (!removed)
-      return operationsRequestError(404, 'suppression_not_found', 'Suppression not found');
-    await audit(
-      principal,
-      'operations.suppression.delete',
-      'suppression',
-      createHash('sha256').update(phoneNumber).digest('hex'),
-    );
-    return reply.code(204).send();
   });
 
   app.post('/v1/operations/handoffs', async (request, reply) => {

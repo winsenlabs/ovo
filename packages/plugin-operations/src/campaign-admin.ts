@@ -9,6 +9,7 @@ import {
 } from './campaign-model.ts';
 import { normalizePhoneNumber } from './csv.ts';
 import { boundedLimit, transaction } from './database.ts';
+import { digestConfig, matchesLegacyDigest } from './campaign-digest.ts';
 import { inputDigest } from './identity.ts';
 import type {
   CampaignCommandResult,
@@ -47,8 +48,8 @@ export class CampaignAdminService {
           id, organization_id, operation_id, input_digest, name, agent_release_id, from_number, status, schedule_at, timezone,
           per_number_attempt_limit, max_attempts_total, max_attempts_per_local_day, active_call_policy,
           max_concurrency, carrier_plugin_id, carrier_id, carrier_binding_id, binding_cps,
-          calling_window, variables_schema
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+          calling_window, variables_schema, compliance_policy, category, purpose
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
         ON CONFLICT (organization_id, operation_id) DO NOTHING RETURNING ${campaignColumns}`,
         [
           id,
@@ -72,6 +73,9 @@ export class CampaignAdminService {
           config.bindingCps ?? null,
           config.callingWindow ? JSON.stringify(config.callingWindow) : null,
           config.variablesSchema ? JSON.stringify(config.variablesSchema) : null,
+          config.compliance ? JSON.stringify(config.compliance) : null,
+          config.compliance?.category ?? null,
+          config.compliance?.purpose ?? null,
         ],
       );
       if (!inserted.rows[0]) {
@@ -223,8 +227,9 @@ export class CampaignAdminService {
       external_id: string | null;
       variables: Record<string, string>;
       state: CampaignContactRecord['state'];
+      compliance_reason: string | null;
     }>(
-      `SELECT id, source_row, phone_number, external_id, variables, state
+      `SELECT id, source_row, phone_number, external_id, variables, state, compliance_reason
        FROM ovo_ops_campaign_contacts WHERE campaign_id = $1 AND ($2::integer IS NULL OR source_row > $2)
        ORDER BY source_row, id LIMIT $3`,
       [campaignId, afterSourceRow ?? null, boundedLimit(limit)],
@@ -236,41 +241,7 @@ export class CampaignAdminService {
       ...(row.external_id ? { externalId: row.external_id } : {}),
       variables: row.variables,
       state: row.state,
+      ...(row.compliance_reason ? { complianceReason: row.compliance_reason } : {}),
     }));
   }
-}
-
-/**
- * The idempotency digest. The variables schema follows from the release id, and a campaign with no
- * calling window digests exactly as it did before windows existed, so retries keep matching.
- */
-function digestConfig(config: CampaignConfig) {
-  const { variablesSchema: _variablesSchema, callingWindow, ...rest } = config;
-  return callingWindow ? { ...rest, callingWindow } : rest;
-}
-
-function matchesLegacyDigest(
-  row: CampaignRow,
-  config: CampaignConfig,
-  contacts: readonly CampaignContactInput[],
-): boolean {
-  if (row.carrier_id !== null || row.max_concurrency !== 1 || (config.maxConcurrency ?? 1) !== 1)
-    return false;
-  if (
-    config.carrierPluginId != null ||
-    config.carrierId != null ||
-    config.carrierBindingId != null ||
-    config.bindingCps != null ||
-    config.callingWindow
-  )
-    return false;
-  const {
-    maxConcurrency: _maxConcurrency,
-    carrierPluginId: _carrierPluginId,
-    carrierId: _carrierId,
-    carrierBindingId: _carrierBindingId,
-    bindingCps: _bindingCps,
-    ...legacyConfig
-  } = digestConfig(config);
-  return row.input_digest === inputDigest({ config: legacyConfig, contacts });
 }

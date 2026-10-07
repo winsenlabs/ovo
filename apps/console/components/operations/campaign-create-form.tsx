@@ -6,7 +6,11 @@ import { useFormAction } from '../forms/use-form-action';
 import { useOperationId } from '../../lib/ids';
 import { EmptyState, Field } from '../primitives';
 import { CampaignContactImport, type CompliancePreview } from './campaign-contact-import';
-import { CampaignCallingWindow, callingWindowBody } from './campaign-calling-window';
+import {
+  CampaignCallingWindow,
+  callingWindowBody,
+  campaignComplianceBody,
+} from './campaign-calling-window';
 import { loadAgentChoices } from './agent-release-options';
 
 export function CampaignCreateForm({
@@ -73,6 +77,7 @@ export function CampaignCreateForm({
             maxConcurrency: Number(values.get('maxConcurrency')),
             activeCallPolicy: values.get('activeCallPolicy'),
             ...callingWindowBody(values),
+            ...campaignComplianceBody(values),
             contacts: preview.rows,
           }),
         });

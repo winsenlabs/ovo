@@ -10,19 +10,32 @@ import {
 } from './campaign-model.ts';
 import { callingWindowState } from './calling-window.ts';
 import { transaction } from './database.ts';
-import { nextValidContact, requeueOutsideWindow } from './campaign-admission-checks.ts';
-import type {
-  CampaignDialJob,
-  ContactAdmission,
-  DialAuthorization,
-  DialAuthorizationResult,
-} from './types.ts';
+import {
+  applyGateVerdict,
+  nextCompliantContact,
+  requeueOutsideWindow,
+} from './campaign-admission-checks.ts';
+import { ComplianceGate } from './compliance/gate.ts';
+import {
+  authorizationFrom,
+  persistAuthorization,
+  reclassifyContacts,
+} from './campaign-authorization.ts';
+import { ComplianceSettingsStore } from './compliance/settings.ts';
+import { SUPPRESSION_APPLIES } from './compliance/suppression-sql.ts';
+import type { CampaignDialJob, ContactAdmission, DialAuthorizationResult } from './types.ts';
 
 export class CampaignAdmissionService {
+  private readonly gate: ComplianceGate;
+
   constructor(
     private readonly pool: Pool,
     private readonly organizationId: string,
-  ) {}
+    gate?: ComplianceGate,
+  ) {
+    this.gate =
+      gate ?? new ComplianceGate(organizationId, new ComplianceSettingsStore(pool, organizationId));
+  }
 
   async admit(
     campaignId: string,
@@ -67,13 +80,17 @@ export class CampaignAdmissionService {
       return { kind: 'capacity_exhausted' };
     const quota = await campaignQuotaState(client, campaign);
     if (quota) return { kind: 'quota_exhausted', quota };
-    const window = campaign.calling_window
-      ? callingWindowState(campaign.calling_window)
-      : undefined;
+    // With a compliance policy the gate judges the campaign window (in IST for +91 numbers), so
+    // reading it again here in the schedule timezone would only close it where the two disagree.
+    const window =
+      campaign.calling_window && !campaign.compliance_policy
+        ? callingWindowState(campaign.calling_window)
+        : undefined;
     if (window && !window.open)
       return { kind: 'outside_calling_hours', nextOpenAt: window.nextOpenAt };
-    const contact = await nextValidContact(client, campaign, this.organizationId);
-    if (!contact) return { kind: 'empty' };
+    const gated = await nextCompliantContact(client, campaign, this.organizationId, this.gate);
+    if (gated.kind !== 'contact') return gated.admission;
+    const contact = gated.contact;
     const claimed = await client.query<ContactRow>(
       `UPDATE ovo_ops_campaign_contacts SET state = 'admitted', owner_id = $2,
            owner_epoch = owner_epoch + 1, admission_campaign_version = $4,
@@ -105,34 +122,8 @@ export class CampaignAdmissionService {
     };
   }
 
-  async reclassifyContacts(client: PoolClient, campaign: CampaignRow): Promise<void> {
-    await client.query(
-      `WITH expired AS (SELECT id FROM ovo_ops_campaign_contacts
-         WHERE campaign_id = $1 AND state = 'admitted'
-           AND (lease_expires_at <= now() OR admission_campaign_version <> $2)
-         ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 100)
-       UPDATE ovo_ops_campaign_contacts c SET state = 'queued', owner_id = NULL,
-         admission_campaign_version = NULL, lease_expires_at = NULL, updated_at = now()
-       FROM expired WHERE c.id = expired.id`,
-      [campaign.id, campaign.version],
-    );
-    await client.query(
-      `WITH blocked AS (SELECT c.id FROM ovo_ops_campaign_contacts c JOIN ovo_ops_suppressions s
-         ON s.organization_id = $2 AND s.phone_number = c.phone_number
-         WHERE c.campaign_id = $1 AND c.state = 'queued' ORDER BY c.id FOR UPDATE OF c SKIP LOCKED LIMIT 100)
-       UPDATE ovo_ops_campaign_contacts c SET state = 'suppressed', updated_at = now()
-       FROM blocked WHERE c.id = blocked.id`,
-      [campaign.id, this.organizationId],
-    );
-    await client.query(
-      `WITH exhausted AS (SELECT c.id FROM ovo_ops_campaign_contacts c
-         WHERE c.campaign_id = $1 AND c.state = 'queued'
-           AND (SELECT count(*) FROM ovo_ops_attempts a WHERE a.contact_id = c.id) >= $2
-         ORDER BY c.id FOR UPDATE OF c SKIP LOCKED LIMIT 100)
-       UPDATE ovo_ops_campaign_contacts c SET state = 'exhausted', updated_at = now()
-       FROM exhausted WHERE c.id = exhausted.id`,
-      [campaign.id, campaign.per_number_attempt_limit],
-    );
+  reclassifyContacts(client: PoolClient, campaign: CampaignRow): Promise<void> {
+    return reclassifyContacts(client, campaign, this.organizationId);
   }
 
   async authorizeDial(
@@ -168,8 +159,9 @@ export class CampaignAdmissionService {
         `ovo-ops-suppression:${this.organizationId}:${current.phone_number}`,
       ]);
       const suppressed = await client.query(
-        'SELECT 1 FROM ovo_ops_suppressions WHERE organization_id = $1 AND phone_number = $2',
-        [this.organizationId, current.phone_number],
+        `SELECT 1 FROM ovo_ops_suppressions s JOIN ovo_ops_campaigns k ON k.id = $3
+         WHERE s.organization_id = $1 AND s.phone_number = $2 AND ${SUPPRESSION_APPLIES}`,
+        [this.organizationId, current.phone_number, campaign.id],
       );
       if (suppressed.rowCount) {
         await client.query(
@@ -187,7 +179,7 @@ export class CampaignAdmissionService {
         [requestId],
       );
       if (existing.rows[0] && current.state === 'dialing')
-        return this.authorizationFrom(existing.rows[0].id, requestId, campaign, current);
+        return authorizationFrom(existing.rows[0].id, requestId, campaign, current);
       if (current.state !== 'admitted') return { kind: 'blocked', reason: 'lease_lost' };
       const attempts = await client.query<{ count: string }>(
         'SELECT count(*)::text AS count FROM ovo_ops_attempts WHERE contact_id = $1',
@@ -198,52 +190,36 @@ export class CampaignAdmissionService {
       const quota = await campaignQuotaState(client, campaign);
       if (quota)
         return { kind: 'blocked', reason: quota === 'total' ? 'total_quota' : 'daily_quota' };
-      return this.persistAuthorization(
+      // The final gate (stage E4): the full evaluator, under the per-number lock, in this transaction.
+      const policy = campaign.compliance_policy;
+      const verdict = policy
+        ? await this.gate.check(client, {
+            stage: 'authorize',
+            phoneNumber: current.phone_number,
+            fromNumber: campaign.from_number,
+            policy,
+            campaignId: campaign.id,
+            contactId,
+            skipWindow: policy.manual,
+          })
+        : undefined;
+      if (verdict && verdict.verdict !== 'allow') {
+        await applyGateVerdict(client, campaign, contactId, verdict);
+        return { kind: 'blocked', reason: verdict.reason! };
+      }
+      const authorization = await persistAuthorization(
         client,
+        this.organizationId,
         campaign,
         current,
         Number(attempts.rows[0]!.count) + 1,
       );
+      if (verdict)
+        await client.query(
+          'UPDATE ovo_ops_compliance_decisions SET attempt_id = $2 WHERE id = $1',
+          [verdict.decisionId, authorization.attemptId],
+        );
+      return authorization;
     });
-  }
-
-  private async persistAuthorization(
-    client: PoolClient,
-    campaign: CampaignRow,
-    contact: ContactRow,
-    sequence: number,
-  ): Promise<DialAuthorization> {
-    const attemptId = randomUUID();
-    const requestId = `${campaign.id}:${contact.id}:${contact.owner_epoch}`;
-    const authorization = this.authorizationFrom(attemptId, requestId, campaign, contact);
-    await client.query(
-      `INSERT INTO ovo_ops_attempts (id, campaign_id, contact_id, request_id, sequence, status)
-       VALUES ($1,$2,$3,$4,$5,'authorized')`,
-      [attemptId, campaign.id, contact.id, requestId, sequence],
-    );
-    await client.query(
-      `UPDATE ovo_ops_campaign_contacts SET state = 'dialing', updated_at = now() WHERE id = $1`,
-      [contact.id],
-    );
-    return authorization;
-  }
-
-  private authorizationFrom(
-    attemptId: string,
-    requestId: string,
-    campaign: CampaignRow,
-    contact: ContactRow,
-  ): DialAuthorization {
-    return {
-      kind: 'authorized',
-      attemptId,
-      requestId,
-      campaignId: campaign.id,
-      contactId: contact.id,
-      to: contact.phone_number,
-      from: campaign.from_number,
-      agentReleaseId: campaign.agent_release_id,
-      variables: contact.variables,
-    };
   }
 }

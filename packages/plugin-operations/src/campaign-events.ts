@@ -1,12 +1,18 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
+import { recordLedgerEvent } from './compliance/ledger.ts';
+import { ComplianceSettingsStore } from './compliance/settings.ts';
 import { transaction } from './database.ts';
 import type { AttemptTerminalStatus, CampaignCounters, ContactState } from './types.ts';
 
 export class CampaignEventService {
+  private readonly settings: ComplianceSettingsStore;
+
   constructor(
     private readonly pool: Pool,
     private readonly organizationId: string,
-  ) {}
+  ) {
+    this.settings = new ComplianceSettingsStore(pool, organizationId);
+  }
 
   async recordAttempt(
     attemptId: string,
@@ -70,8 +76,41 @@ export class CampaignEventService {
         'UPDATE ovo_ops_campaign_contacts SET state = $2, updated_at = now() WHERE id = $1',
         [row.contact_id, contactState],
       );
+      await this.foldIntoLedger(client, row, { attemptId, status, reason, occurredAt });
       return 'applied';
     });
+  }
+
+  /**
+   * The per-recipient ledger learns the answer and the outcome (stage E7). A failed attempt of a
+   * campaign with a compliance policy goes back in the queue when the retry policy allows another
+   * try; admission still re-checks the window and the per-recipient caps when it comes up.
+   */
+  private async foldIntoLedger(
+    client: PoolClient,
+    attempt: { contact_id: string; campaign_id: string },
+    event: { attemptId: string; status: string; reason?: string; occurredAt: Date },
+  ): Promise<void> {
+    const campaign = await client.query<{ compliance: boolean; limit: number; status: string }>(
+      `SELECT compliance_policy IS NOT NULL AS compliance, per_number_attempt_limit AS limit, status
+       FROM ovo_ops_campaigns WHERE id = $1`,
+      [attempt.campaign_id],
+    );
+    const policy = campaign.rows[0]!;
+    const { retryAt } = await recordLedgerEvent(client, this.organizationId, {
+      ...event,
+      contactId: attempt.contact_id,
+      settings: policy.compliance ? (await this.settings.get(client)).settings : undefined,
+      attemptLimit: policy.limit,
+    });
+    if (!retryAt || !['running', 'scheduled', 'paused'].includes(policy.status)) return;
+    await client.query(
+      `UPDATE ovo_ops_campaign_contacts SET state = 'queued', not_before = $2, owner_id = NULL,
+         admission_campaign_version = NULL, lease_expires_at = NULL,
+         compliance_reason = 'retry_backoff', updated_at = now()
+       WHERE id = $1 AND state = 'failed'`,
+      [attempt.contact_id, retryAt],
+    );
   }
 
   async counters(campaignId: string): Promise<CampaignCounters> {

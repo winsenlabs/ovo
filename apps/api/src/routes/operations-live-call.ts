@@ -5,7 +5,10 @@ import {
   validateReleaseVariables,
 } from '@winsendotai/ovo-plugin-operations';
 import { resolveCampaignCarrier } from '../operations-plugin.ts';
-import { manualDialCompliance } from '../outbound-compliance.ts';
+import { campaignPolicy, manualDialCompliance } from '../outbound-compliance.ts';
+
+/** A manual call's policy: the release's, its window judged at request time only. */
+const replay = { scheduleTimezone: 'UTC', manual: true } as const;
 import type { RealtimeRouteDependencies } from './operations-realtime.ts';
 
 export function registerOperationsLiveCallRoute(input: RealtimeRouteDependencies): void {
@@ -42,10 +45,10 @@ export function registerOperationsLiveCallRoute(input: RealtimeRouteDependencies
       });
     // A retry of a launch already accepted replays its receipt, even if the window closed since.
     const accepted = await store.getCall(principal.workspaceId, body.operationId);
-    const compliance =
-      accepted && !body.dryRun
-        ? ({ ok: true, value: null } as const)
-        : await manualDialCompliance(operations, release, body.to);
+    const replayed = accepted && !body.dryRun ? campaignPolicy(release, replay) : undefined;
+    const compliance = replayed?.ok
+      ? ({ ok: true, value: { window: null, policy: replayed.value.policy } } as const)
+      : await manualDialCompliance(operations, release, body.to, fromNumber);
     if (!compliance.ok)
       return reply.code(compliance.status).send({
         error: {
@@ -67,7 +70,7 @@ export function registerOperationsLiveCallRoute(input: RealtimeRouteDependencies
         to: normalizePhoneNumber(body.to),
         fromNumber,
         variables: Object.keys(body.variables).sort(),
-        callingWindow: compliance.value,
+        callingWindow: compliance.value.window,
         carrierId: carrier.carrierId,
       });
     let campaign;
@@ -86,9 +89,11 @@ export function registerOperationsLiveCallRoute(input: RealtimeRouteDependencies
           maxConcurrency: 1,
           ...carrier,
           // Checked above, at request time. Snapshotting it would requeue a call accepted just
-          // before the window closed and dial it unasked when the window next opens.
+          // before the window closed and dial it unasked when the window next opens; the policy
+          // is `manual`, so authorization re-checks everything but the window.
           callingWindow: null,
           variablesSchema: release.config.variables,
+          compliance: compliance.value.policy,
         },
         [{ sourceRow: 1, phoneNumber: body.to, variables: body.variables }],
       );

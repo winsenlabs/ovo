@@ -208,7 +208,9 @@ export function callingHoursLabel(campaign: CampaignRecord): string {
       callingWindow?: { start: string; end: string; days?: number[]; timezone: string } | null;
     }
   ).callingWindow;
-  if (!window) return 'Any hour';
+  // A campaign with a compliance policy keeps the agent's hours and the legal floor.
+  if (!window)
+    return (campaign as { compliance?: unknown }).compliance ? 'Agent hours' : 'Any hour';
   const days = window.days ? ` ${window.days.map((day) => DAY_NAMES[day - 1]).join(',')}` : '';
   return `Calls ${window.start}–${window.end}${days} ${window.timezone}`;
 }

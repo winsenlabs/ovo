@@ -9,13 +9,13 @@ import {
   type OperationsService,
 } from '@winsendotai/ovo-plugin-operations';
 import type { Principal } from '../types.ts';
-import { resolveCampaignCarrier } from '../operations-plugin.ts';
 import type { InfrastructureService } from '../infrastructure-types.ts';
 import { registerOperationsRealtimeRoutes } from './operations-realtime.ts';
 import type { InboundRouteDependencies } from './operations-inbound-routes.ts';
 import { registerOperationsLiveCallRoute } from './operations-live-call.ts';
 import { registerOperationsComplianceRoutes } from './operations-compliance.ts';
-import { campaignCallingWindow, contactVariableErrors } from '../outbound-compliance.ts';
+import { registerCampaignCreateRoute } from './operations-campaign-create.ts';
+import { campaignPolicy, contactVariableErrors } from '../outbound-compliance.ts';
 
 const schemas = operationsApiSchemas;
 
@@ -82,6 +82,18 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
     const listed = await operations.campaigns.doNotCall.listed(
       preview.rows.map((row) => row.phoneNumber),
     );
+    const policy =
+      release && body.fromNumber
+        ? campaignPolicy(release, { compliance: body.compliance, scheduleTimezone: 'UTC' })
+        : undefined;
+    const compliance =
+      policy?.ok && body.fromNumber
+        ? await operations.compliance.preview(
+            policy.value.policy,
+            normalizePhoneNumber(body.fromNumber),
+            preview.rows.map((row) => row.phoneNumber),
+          )
+        : [];
     return {
       ...preview,
       errors: [
@@ -96,74 +108,25 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
       doNotCall: preview.rows
         .filter((row) => listed.has(row.phoneNumber))
         .map((row) => row.sourceRow),
+      // Stage E2: how the compliance gate would judge each row now, when a caller number is given.
+      compliance: compliance.flatMap((verdict, index) =>
+        verdict.verdict === 'allow'
+          ? []
+          : [
+              {
+                row: preview.rows[index]!.sourceRow,
+                verdict: verdict.verdict,
+                reason: verdict.reason,
+              },
+            ],
+      ),
     };
   });
 
   registerOperationsLiveCallRoute({ app, store, requireRole, use, audit });
   registerOperationsComplianceRoutes({ app, store, requireRole, use, audit });
 
-  app.post('/v1/operations/campaigns', async (request, reply) => {
-    const principal = requireRole(request, 'editor');
-    const operations = use(reply, principal);
-    if (!operations) return;
-    const body = schemas.campaign.parse(request.body);
-    const { contacts, releaseId, callingWindow, ...campaignConfig } = body;
-    const release = await store.getRelease(principal.workspaceId, releaseId);
-    if (!release) return operationsRequestError(404, 'release_not_found', 'Release not found');
-    const fromNumber = normalizePhoneNumber(body.fromNumber);
-    if (!operations.config.permittedFromNumbers.includes(fromNumber))
-      return operationsRequestError(
-        403,
-        'from_number_not_permitted',
-        'Caller number is not permitted',
-      );
-    const invalid = contactVariableErrors(release, contacts);
-    if (invalid.length)
-      return reply.code(422).send({
-        error: {
-          code: 'invalid_contact_variables',
-          message: `${invalid.length} contact${invalid.length === 1 ? '' : 's'} do not satisfy the release variable schema`,
-          details: invalid,
-        },
-      });
-    const window = campaignCallingWindow(release, callingWindow, body.schedule.timezone);
-    if (!window.ok)
-      return reply
-        .code(window.status)
-        .send({ error: { code: window.code, message: window.message } });
-    let carrier;
-    try {
-      carrier = await resolveCampaignCarrier(operations, release, store);
-    } catch (error) {
-      return operationsRequestError(422, 'campaign_carrier_unavailable', (error as Error).message);
-    }
-    let campaign;
-    try {
-      campaign = await operations.campaigns.create(
-        {
-          ...campaignConfig,
-          ...carrier,
-          fromNumber,
-          agentReleaseId: release.id,
-          callingWindow: window.value,
-          variablesSchema: release.config.variables,
-        },
-        contacts,
-      );
-    } catch (error) {
-      if ((error as Error).message.includes('operationId collision'))
-        return operationsRequestError(
-          409,
-          'operation_id_collision',
-          'Campaign operation ID was already used with different input',
-        );
-      throw error;
-    }
-    await audit(principal, 'operations.campaign.create', 'campaign', campaign.id, {
-      releaseId: release.id,
-    });
-    return reply.code(201).send(campaign);
-  });
+  registerCampaignCreateRoute({ app, store, requireRole, use, audit });
 
   app.get('/v1/operations/campaigns', async (request, reply) => {
     const principal = requireRole(request, 'viewer');
