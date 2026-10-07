@@ -12,7 +12,14 @@ the decision.
 ```json
 {
   "decision": {
-    "speculation": { "partials": true, "debounceMs": 150, "match": "exact", "llm": false }
+    "speculation": {
+      "partials": true,
+      "debounceMs": 150,
+      "partialEnding": "sentence",
+      "maxPartialCalls": 2,
+      "match": "exact",
+      "llm": false
+    }
   }
 }
 ```
@@ -27,8 +34,11 @@ turns lane): `prepare({ turnId, text, stable })` on every revision while the cal
 `discard(turnId)` when the utterance will not be answered as heard. `AgentBehavior`:
 
 1. Runs the rules tier and the decision model on the partial, exactly as the gate would at the end
-   of the turn. A partial the STT may still revise waits `debounceMs` unchanged; a stable one is
-   decided at once. At most one decision is in flight per call; newer words wait for it.
+   of the turn. A partial the STT may still revise waits `debounceMs` unchanged, and (Wave 7) is
+   decided only when it ends a sentence once the STT has punctuated a partial
+   (`partialEnding: "sentence"`) and only `maxPartialCalls` times per utterance; a stable one is
+   decided at once. At most one decision is in flight per call; newer words wait for it. Why, and
+   the measured saving: `docs/evidence/speculation-waste.md`.
 2. Commits nothing. The flow does not move and no verdict is recorded until a turn speaks.
 3. When the turn's final transcript arrives, reuses the verdict only if the words normalise to the
    same text (`match: "prefix"` also accepts final words that continue it) and nothing else the
@@ -62,10 +72,10 @@ confirmed catalog cards gets no warning.
 
 `AgentBehavior.speculationMetrics`:
 
-| Field      | Counts                                                                              |
-| ---------- | ----------------------------------------------------------------------------------- |
-| `decision` | `started`, `modelCalls` (billed round trips), `reused`, `discarded`, `cancelled`    |
-| `llm`      | `started`, `used`, `aborted` (the decision answered), `discarded` (asked otherwise) |
+| Field      | Counts                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------- |
+| `decision` | `started`, `modelCalls` (billed round trips), `reused`, `discarded`, `cancelled`, `skipped` |
+| `llm`      | `started`, `used`, `aborted` (the decision answered), `discarded` (asked otherwise)         |
 
 The OpenAI plugin meters an aborted call's input as `estimated` `input_tokens` and
 `uncached_input_tokens` (about four characters a token over everything the request sent), request

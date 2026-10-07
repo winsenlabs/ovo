@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import pg from 'pg';
 import { describe, expect, it } from 'vitest';
 import { buildManagementApi } from '../src/server.ts';
+import { SPEECH_CLIP_STATUS_FIELDS } from '../src/speech-prerender.ts';
 import { selectedSpeechFixture, selectedSpeechVoice } from './selected-speech-fixture.ts';
 
 const databaseUrl = process.env.OVO_TEST_POSTGRES_URL;
@@ -79,6 +80,8 @@ describe('speech clip status without a durable clip store (TTS-9)', () => {
       // default turn detector's idle prompt are fixed; the templated answer is rendered per call.
       expect(status.json()).toMatchObject({ state: 'unavailable', total: 7, perCall: 1, ready: 0 });
       expect(status.json().inventorySha256).toMatch(/^[0-9a-f]{64}$/);
+      // The documented fields, exactly: scripts that read `status` got undefined on 2026-10-07.
+      expect(Object.keys(status.json()).sort()).toEqual([...SPEECH_CLIP_STATUS_FIELDS].sort());
       const disabled = await publish(app, false);
       const off = await app.inject({
         method: 'GET',

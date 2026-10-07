@@ -12,7 +12,7 @@ describe('rule lexicons (AGT-6)', () => {
     ['speaking', ['Speaking', 'haan bol raha hoon', "it's me", 'நான் தான்']],
     ['thanks', ['Thank you so much', 'dhanyavaad ji', 'शुक्रिया', 'நன்றி']],
     ['bye', ['Okay bye', 'goodbye', 'chalo bye', 'अलविदा']],
-    ['repeat', ['Sorry?', 'Come again?', 'kya bola', 'phir se boliye', 'என்ன']],
+    ['repeat', ['Pardon?', 'Come again?', 'kya bola', 'phir se boliye', 'மறுபடியும்']],
     ['wait', ['Hold on', 'ek minute', 'one second please', 'ஒரு நிமிஷம்']],
   ] as const)('%s matches whole replies in English, Hindi and Tamil', (lexicon, replies) => {
     for (const reply of replies) expect(matchesLexicon(lexicon, reply), reply).toBe(true);
@@ -22,6 +22,12 @@ describe('rule lexicons (AGT-6)', () => {
     expect(matchesLexicon('yes', 'yes but not today')).toBe(false);
     expect(matchesLexicon('no', 'no I already paid')).toBe(false);
     expect(matchesLexicon('repeat', 'what is my due amount')).toBe(false);
+  });
+
+  it('does not take a lone what, sorry or kya as a request to repeat (P6)', () => {
+    // A cut-off sentence or a reaction on a noisy line as often as a request to hear it again.
+    for (const reply of ['What?', 'Sorry?', 'kya?', 'sorry what', 'क्या?', 'Enna?'])
+      expect(matchesLexicon('repeat', reply), reply).toBe(false);
   });
 
   it('normalises case, punctuation and spacing but keeps Indic marks', () => {

@@ -23,6 +23,7 @@ export interface RecordingBackgroundWorkerResult {
   ran: boolean;
   exports?: { claimed: number; succeeded: number; failed: number };
   swept?: number;
+  recovered?: number;
   cleaned?: number;
   cleanupFailed?: number;
 }
@@ -139,6 +140,7 @@ export class RecordingBackgroundWorker {
         limit: this.options.retentionLimit,
       });
       result.swept = page.tombstoned;
+      result.recovered = page.recovered;
       result.cleaned = page.cleaned;
       result.cleanupFailed = page.failed;
       this.retentionCursor = page.nextCursor ?? undefined;

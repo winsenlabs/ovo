@@ -1,11 +1,16 @@
 import type { Pool, PoolClient } from 'pg';
+import type { ComplianceRefusalCode } from '@winsendotai/ovo-contracts';
 import type { CallingWindow } from './calling-window.ts';
+import type { CompliancePolicy } from './compliance/policy.ts';
+import type { HandoffProviderPort } from './handoff-types.ts';
 import type { ContactState } from './contact-state.ts';
 export type { ContactState } from './contact-state.ts';
+export type * from './handoff-types.ts';
 export type {
   CampaignContactRecord,
   DoNotCallSource,
   SuppressionRecord,
+  SuppressionScope,
 } from './compliance-types.ts';
 
 export type CampaignStatus = 'scheduled' | 'running' | 'paused' | 'cancelled' | 'completed';
@@ -33,6 +38,8 @@ export interface CampaignConfig {
   callingWindow?: CallingWindow | null;
   /** The release's declared variables schema; each contact is checked against it at admission. */
   variablesSchema?: Record<string, unknown> | null;
+  /** The agent's and the campaign's compliance choices; every dial is judged against them. */
+  compliance?: CompliancePolicy | null;
 }
 
 export interface CampaignContactInput {
@@ -42,7 +49,11 @@ export interface CampaignContactInput {
   variables: Record<string, string>;
 }
 
-export interface CampaignRecord extends Omit<CampaignConfig, 'schedule' | 'variablesSchema'> {
+export interface CampaignRecord extends Omit<
+  CampaignConfig,
+  'schedule' | 'variablesSchema' | 'compliance'
+> {
+  compliance: CompliancePolicy | null;
   id: string;
   status: CampaignStatus;
   scheduleAt: Date;
@@ -61,6 +72,7 @@ export type ContactAdmission =
   | { kind: 'quota_exhausted'; quota: 'total' | 'daily' }
   | { kind: 'capacity_exhausted' }
   | { kind: 'outside_calling_hours'; nextOpenAt: Date }
+  | { kind: 'compliance_paused'; reason: ComplianceRefusalCode }
   | { kind: 'empty' };
 
 export interface DialAuthorization {
@@ -95,7 +107,8 @@ export type DialAuthorizationResult =
         | 'attempt_limit'
         | 'total_quota'
         | 'daily_quota'
-        | 'outside_calling_hours';
+        | 'outside_calling_hours'
+        | ComplianceRefusalCode;
     };
 
 export interface CampaignCounters {
@@ -233,67 +246,6 @@ export interface OwnedCallBinding {
   releaseId: string;
   bindingReceiptId: string;
   status: 'active' | 'terminal';
-}
-
-export type HandoffTarget = { kind: 'phone'; value: string } | { kind: 'queue'; value: string };
-export type HandoffFallback =
-  | { kind: 'resume'; message: string }
-  | { kind: 'human'; target: string; message: string }
-  | { kind: 'end'; message: string };
-
-export type HandoffProviderResult =
-  | { kind: 'confirmed'; receiptId: string }
-  | { kind: 'rejected'; reason: string; retryable: boolean }
-  | { kind: 'unknown'; reason: string };
-
-export type HandoffReconciliation =
-  | { kind: 'confirmed'; receiptId: string }
-  | { kind: 'rejected'; reason: string; retryable: boolean }
-  | { kind: 'pending' }
-  | { kind: 'not_found' };
-
-export interface HandoffProviderPort {
-  request(input: {
-    requestId: string;
-    carrierCallId: string;
-    target: HandoffTarget;
-  }): Promise<HandoffProviderResult>;
-  reconcile(requestId: string): Promise<HandoffReconciliation>;
-  fallback(input: {
-    requestId: string;
-    carrierCallId: string;
-    fallback: HandoffFallback;
-  }): Promise<HandoffProviderResult>;
-}
-
-export type HandoffStatus =
-  | 'awaiting_confirmation'
-  | 'ready'
-  | 'submitting'
-  | 'confirmed'
-  | 'failed'
-  | 'unknown'
-  | 'cancelled'
-  | 'fallback_submitting'
-  | 'fallback_completed'
-  | 'fallback_failed'
-  | 'fallback_unknown';
-
-export interface HandoffRecord {
-  id: string;
-  operationId: string;
-  sessionId: string;
-  carrierCallId: string;
-  target: HandoffTarget;
-  fallback: HandoffFallback;
-  status: HandoffStatus;
-  attempt: number;
-  requestId?: string;
-  fallbackAttempt: number;
-  fallbackRequestId?: string;
-  providerReceiptId?: string;
-  retryable: boolean;
-  lastError?: string;
 }
 
 export interface OperationsServiceOptions {

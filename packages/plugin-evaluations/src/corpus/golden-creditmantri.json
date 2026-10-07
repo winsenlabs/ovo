@@ -114,7 +114,7 @@
     "title": "Repeat replays the last lines after the prefix, without moving; Hinglish after it",
     "steps": [
       {
-        "caller": "Sorry?",
+        "caller": "Can you repeat that?",
         "expect": {
           "tier": "rule",
           "intent": "repeat",
@@ -779,6 +779,188 @@
       "dispositions": ["transfer_to_human"],
       "verified": false,
       "node": "human"
+    }
+  },
+  {
+    "id": "repeat-llm-number",
+    "title": "Live call A: \"Can you repeat the number?\" replays the LLM's answer with the number, not the node's lines",
+    "steps": [
+      {
+        "caller": "Yes, this is him.",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "Ma'am, where are you calling from again, ma'am?",
+        "decision": { "intent": "other" },
+        "llm": {
+          "reply": "I'm calling from CreditMantri. You can reach us on 1800 123 4567. When would you be able to make this payment?",
+          "resumeAt": "payment"
+        },
+        "expect": {
+          "tier": "llm",
+          "says": [
+            "I'm calling from CreditMantri. You can reach us on 1800 123 4567. When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "Can you repeat the number?",
+        "decision": { "intent": "repeat" },
+        "expect": {
+          "tier": "decision",
+          "intent": "repeat",
+          "says": [
+            "Sure, let me repeat that.",
+            "I'm calling from CreditMantri. You can reach us on 1800 123 4567. When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "I'm not able to make it, I lost my job.",
+        "decision": { "intent": "cannot_pay" },
+        "expect": { "tier": "decision", "intent": "cannot_pay", "node": "hardship" }
+      },
+      {
+        "caller": "No, second one.",
+        "decision": { "intent": "relief" },
+        "expect": { "tier": "decision", "intent": "relief", "node": "relief" }
+      },
+      {
+        "caller": "no thanks",
+        "expect": {
+          "tier": "rule",
+          "intent": "no_more",
+          "node": "goodbye",
+          "says": ["Thank you for your time. Have a good day!"],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["relief_team_callback"],
+      "verified": true,
+      "node": "goodbye"
+    }
+  },
+  {
+    "id": "hold",
+    "title": "Live call B: \"One minute.\" asks the same question again and stays put, with no decision or LLM",
+    "steps": [
+      {
+        "caller": "Yes, sir.",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "One minute.",
+        "expect": {
+          "tier": "rule",
+          "intent": "hold",
+          "says": ["Sure, no problem.", "When would you be able to make this payment?"]
+        }
+      },
+      {
+        "caller": "No, no, one minute.",
+        "expect": {
+          "tier": "rule",
+          "intent": "hold",
+          "says": ["Sure, no problem.", "When would you be able to make this payment?"]
+        }
+      },
+      {
+        "caller": "Kal tak kar dunga.",
+        "decision": { "intent": "promise_to_pay", "slots": { "ptp_when": "tomorrow" } },
+        "expect": { "tier": "decision", "intent": "promise_to_pay", "node": "ptp_tomorrow" }
+      },
+      {
+        "caller": "no thanks",
+        "expect": {
+          "tier": "rule",
+          "intent": "no_more",
+          "node": "goodbye",
+          "says": ["Thank you for your time. Have a good day!"],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["promise_to_pay:tomorrow"],
+      "verified": true,
+      "node": "goodbye"
+    }
+  },
+  {
+    "id": "please-stop-not-dnc",
+    "title": "Live call B: \"Ananya, please stop.\" at 0.60 is not a do-not-call request; the LLM answers and the call goes on",
+    "steps": [
+      {
+        "caller": "Yes, sir.",
+        "expect": {
+          "tier": "rule",
+          "intent": "confirmed",
+          "node": "disclose",
+          "says": [
+            "Thank you. Please note that this call is recorded for quality purposes.",
+            "I'm calling about your two-wheeler loan ending eight two one three. Your EMI of four thousand eight hundred and fifty rupees, due on the 25th of September, could not be collected because the auto-debit from your bank account bounced due to insufficient balance.",
+            "A bounce charge of five hundred and ninety rupees has been added, and the account is now 12 days overdue.",
+            "When would you be able to make this payment?"
+          ]
+        }
+      },
+      {
+        "caller": "Ananya, please stop.",
+        "decision": { "intent": "stop_calling", "confidence": 0.6 },
+        "llm": {
+          "reply": "Of course, I'll listen. When would you be able to make this payment?",
+          "resumeAt": "payment"
+        },
+        "expect": {
+          "tier": "llm",
+          "says": ["Of course, I'll listen. When would you be able to make this payment?"]
+        }
+      },
+      {
+        "caller": "I'll pay tomorrow.",
+        "decision": { "intent": "promise_to_pay", "slots": { "ptp_when": "tomorrow" } },
+        "expect": { "tier": "decision", "intent": "promise_to_pay", "node": "ptp_tomorrow" }
+      },
+      {
+        "caller": "no thanks",
+        "expect": {
+          "tier": "rule",
+          "intent": "no_more",
+          "node": "goodbye",
+          "says": ["Thank you for your time. Have a good day!"],
+          "end": true
+        }
+      }
+    ],
+    "outcome": {
+      "ended": true,
+      "dispositions": ["promise_to_pay:tomorrow"],
+      "verified": true,
+      "node": "goodbye"
     }
   }
 ]

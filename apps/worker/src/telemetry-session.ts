@@ -7,10 +7,7 @@ import {
   type SpeechEvidence,
   type TranscriptRevision,
 } from '@winsendotai/ovo-contracts';
-import {
-  TurnTelemetryCollector,
-  WorkerTelemetryAdapter,
-} from '@winsendotai/ovo-plugin-observability';
+import { WorkerTelemetryAdapter } from '@winsendotai/ovo-plugin-observability';
 import {
   BoundedCallEventWriter,
   boundedEvidenceText,
@@ -24,6 +21,7 @@ import type {
   WorkerSessionTelemetryInput,
 } from './telemetry-session-types.ts';
 import { startTurnStage, type StageFinish, type StageInput } from './telemetry-turn-stage.ts';
+import { WorkerTurnTelemetry } from './telemetry-turns.ts';
 
 export type {
   InferenceUsageEvidence,
@@ -39,7 +37,7 @@ export class WorkerSessionTelemetry {
   readonly workspaceId: string;
   readonly callId: string;
   /** Per-turn stage breakdowns, published as `turn.summary` telemetry. */
-  readonly turns: TurnTelemetryCollector;
+  readonly turns: WorkerTurnTelemetry;
   private readonly detach = new Set<() => void>();
   private closed = false;
 
@@ -54,7 +52,7 @@ export class WorkerSessionTelemetry {
   ) {
     this.workspaceId = input.workspaceId;
     this.callId = input.callId;
-    this.turns = new TurnTelemetryCollector({
+    this.turns = new WorkerTurnTelemetry({
       includeText: transcriptText === 'store',
       emit: (turn) => this.adapter.turnSummary(turn),
     });

@@ -37,7 +37,9 @@ import type { PartialWords } from './speculation-turn.ts';
 import { AgentSpeculation } from './speculation-agent.ts';
 import type { AgentSpeculationOptions } from './speculation.ts';
 import { CallOptOut } from './opt-out.ts';
-import { disclosureSpeechKind } from './disclosure.ts';
+import { DISCLOSURE_FIELD, disclosureLine, disclosureSpeechKind } from './disclosure.ts';
+import { MustHear } from './must-hear.ts';
+import { CallLanguages } from './language-guard.ts';
 
 /**
  * One agent call's state and the hooks the engine calls between turns: playback, cancellation,
@@ -71,6 +73,13 @@ export abstract class AgentSession implements Behavior {
   protected readonly grounding?: Grounding;
   protected readonly log = new AgentTurnLog();
   protected readonly ending = new CallEnding();
+  /** Lines the caller must hear in full: a flow node's mandatory lines and the disclosure (P5). */
+  protected readonly mustHear = new MustHear();
+  /** The playback epoch of the turn in progress. */
+  protected epoch?: number;
+  /** The disclosure was cut before the caller heard it, and how often it was said again. */
+  private disclosureCut = false;
+  private disclosureRepeats = 0;
   protected readonly variables: AgentVariables;
   /** Tool-selection failures and decisions asked, oldest first, bounded. */
   readonly toolErrors: readonly AgentToolErrorRecord[] = this.log.toolErrors;
@@ -81,6 +90,12 @@ export abstract class AgentSession implements Behavior {
   protected readonly outcomes: CallOutcomeEvents;
   /** The caller's "stop calling me" (collections compliance). */
   protected readonly optOut: CallOptOut;
+  /** The languages callers may speak and the agent replies in (N4). */
+  protected readonly languages: CallLanguages;
+  /** Off-language caller turns and replies the language guard replaced. */
+  get languageMetrics() {
+    return this.languages.metrics.snapshot();
+  }
   /** True once the caller asked not to be called again; the host lists the number. */
   get optedOut(): boolean {
     return this.optOut.optedOut;
@@ -120,6 +135,7 @@ export abstract class AgentSession implements Behavior {
       ending: this.ending,
       skipped: (field) => this.log.skippedLine(this.turn, field),
       say: (text, conversational) => this.say(text, conversational ? this.turn : undefined),
+      mustHear: (id, text) => this.mustHear.expect(this.epoch, id, text),
     });
 
     const compiled = compileAgentTools(this.config);
@@ -134,6 +150,7 @@ export abstract class AgentSession implements Behavior {
     this.flow = this.gate?.flow;
     this.outcomes = new CallOutcomeEvents(options.events, this.log);
     this.optOut = new CallOptOut(this.config, options.events);
+    this.languages = new CallLanguages(this.config);
     this.outcomes.follow(this.flow, () => this.turn);
     // Wave 4 request 5: each state's endpointing reaches the STT as an `stt.configure` event.
     if (this.flow)
@@ -155,6 +172,11 @@ export abstract class AgentSession implements Behavior {
   prepare(partial: PartialWords): void {
     const { recovery } = this.lines;
     this.ahead.prepare(partial, this.gate, (input, variables) =>
+      // An ended flow or an opt-out decides nothing more: the next turn only closes the call (P4).
+      this.flow?.state.ended ||
+      this.optOut.optedOut ||
+      // N4: words outside the agent's languages get its language line, never a decision.
+      !this.languages.understands(input) ||
       this.confirmation.waiting ||
       recovery.replay(input) ||
       recovery.skipsDecision(input, this.inference !== undefined)
@@ -196,9 +218,25 @@ export abstract class AgentSession implements Behavior {
 
   /** `turn` marks a conversational line, which a later repeat replays. */
   protected say(text: string, turn?: number): string {
-    if (turn !== undefined) this.lines.recovery.remember(turn, text);
-    this.ending.said();
+    if (turn !== undefined) {
+      this.lines.recovery.remember(turn, text);
+      this.flow?.said(turn, text);
+    }
+    this.ending.said(text);
     return this.conversation.generated(text);
+  }
+
+  /**
+   * P5: the recording disclosure again, before anything else this reply says, when the caller cut
+   * it before hearing it in full. Twice at most, so a caller who keeps talking over it is answered.
+   */
+  protected disclosureAgain(): string | undefined {
+    const text = disclosureLine(this.config);
+    if (text === undefined || !this.disclosureCut || this.disclosureRepeats >= 2) return undefined;
+    this.disclosureCut = false;
+    this.disclosureRepeats += 1;
+    this.mustHear.expect(this.epoch, DISCLOSURE_FIELD, text);
+    return this.say(text);
   }
 
   /** The caller-silence timeout, when this agent handles silence itself (AGT-11). */
@@ -226,6 +264,7 @@ export abstract class AgentSession implements Behavior {
   }
 
   beginTurn(epoch: number): void {
+    this.epoch = epoch;
     this.conversation.beginTurn(epoch);
     this.confirmation.beginTurn(epoch);
     this.ending.beginTurn(epoch);
@@ -234,5 +273,8 @@ export abstract class AgentSession implements Behavior {
     this.conversation.played(receipt);
     this.confirmation.played(receipt);
     this.ending.played(receipt);
+    const settled = this.mustHear.played(receipt);
+    if (settled?.id === DISCLOSURE_FIELD) this.disclosureCut = !settled.heard;
+    else if (settled?.heard) this.flow?.heard(settled.id, receipt.text);
   }
 }

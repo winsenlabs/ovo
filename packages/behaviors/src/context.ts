@@ -5,7 +5,7 @@ import {
   type Inference,
   type SpeechReceipt,
 } from '@winsendotai/ovo-contracts';
-import { PlaybackConversation } from './history.ts';
+import { INTERRUPTED_CONTEXT, PlaybackConversation } from './history.ts';
 import { StreamingTextSegmenter } from './text-segmenter.ts';
 
 export class ContextBudgetExceededError extends Error {
@@ -53,10 +53,14 @@ export class ContextBehavior implements Behavior {
     const controller = new AbortController();
     const turn = ++this.turn;
     this.active = controller;
+    const history = this.conversation.user(input);
     const request = {
       input,
-      history: this.conversation.user(input),
-      context: this.assembledContext,
+      history,
+      // P7: a cut-off reply is a note in the instructions, never a line in the history to copy.
+      context: this.conversation.replyCut
+        ? `${this.assembledContext}\n\n${INTERRUPTED_CONTEXT}`
+        : this.assembledContext,
       uncertainty: this.config.uncertainty,
       tools: [],
       results: [],

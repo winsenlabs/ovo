@@ -9,7 +9,8 @@ const AUDIBLE = new Set<SpeechEvidence['phase']>(['sent', 'acknowledged', 'compl
  */
 export class ReplyAudibility {
   private readonly heard = new Set<number>();
-  private readonly fillers = new Set<string>();
+  /** Filler lines not yet finished, and their epochs. */
+  private readonly fillers = new Map<string, number>();
   private capturing = false;
   /** As in SpeechEventProjector: until the output reports 'sent', a started line counts as heard. */
   private reportsAudio = false;
@@ -19,7 +20,8 @@ export class ReplyAudibility {
     if (evidence.phase === 'sent') this.reportsAudio = true;
     const audible =
       AUDIBLE.has(evidence.phase) || (evidence.phase === 'started' && !this.reportsAudio);
-    if (evidence.phase === 'generated' && this.capturing) this.fillers.add(evidence.segmentId);
+    if (evidence.phase === 'generated' && this.capturing)
+      this.fillers.set(evidence.segmentId, evidence.epoch);
     else if (audible && !this.fillers.has(evidence.segmentId)) {
       this.heard.add(evidence.epoch);
       for (const epoch of this.heard) if (epoch < evidence.epoch - 4) this.heard.delete(epoch);
@@ -41,6 +43,12 @@ export class ReplyAudibility {
   /** True while the line is a filler that has not finished. */
   isFiller(segmentId: string): boolean {
     return this.fillers.has(segmentId);
+  }
+
+  /** True while a filler line of this epoch is queued or playing (P3). */
+  fillerPending(epoch: number): boolean {
+    for (const fillerEpoch of this.fillers.values()) if (fillerEpoch === epoch) return true;
+    return false;
   }
 
   /** Runs `speak`, marking the line it schedules (synchronously) as a filler. */

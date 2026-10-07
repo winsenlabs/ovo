@@ -1,21 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { mulawToPcm16, pcm16ToMulaw } from '@winsendotai/ovo-audio';
+import { speechLikePcm16 } from '@winsendotai/ovo-conformance/drivers';
 import { createEnergyVad } from '../src/index.ts';
 import { VadState, type VadTransition } from '../src/vad-state.ts';
 
+/**
+ * Seeded voiced speech in `intervals` (ms), silence elsewhere: the conformance kit's speech-like
+ * signal (a 100–220 Hz fundamental, eight harmonics, a 4 Hz syllable envelope). A steady sine is
+ * no longer speech: the analyzer rejects tones.
+ */
 function fixture(rate: 8000 | 16000, intervals: readonly [number, number][]): Int16Array {
-  let state = 19;
-  const random = () => {
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-    return state / 2 ** 32;
-  };
-  const samples = Math.round(rate * 1.65);
-  return Int16Array.from({ length: samples }, (_, index) => {
+  const speech = speechLikePcm16({ seed: 19, ms: 1650, rate });
+  return Int16Array.from(speech, (sample, index) => {
     const ms = (index * 1000) / rate;
-    if (!intervals.some(([start, end]) => ms >= start && ms < end)) return 0;
-    return Math.round(
-      16000 * Math.sin((2 * Math.PI * 170 * index) / rate) + (random() - 0.5) * 400,
-    );
+    return intervals.some(([start, end]) => ms >= start && ms < end) ? sample : 0;
   });
 }
 
@@ -39,9 +37,12 @@ describe('energy VAD state machine', () => {
         [0, 300],
         [450, 850],
       ]);
+      // The first burst's syllable dip (-39 dBFS at 187 ms) falls under minVolume before 200 ms
+      // of speech accumulate, so only the second burst starts. It stops 250 ms after the burst
+      // ends: tone rejection no longer cuts the harmonic signal's steady tail inside the run.
       expect(transitions(rate, pcm)).toEqual([
-        { type: 'vad.start', atMs: 180, frame: 9 },
-        { type: 'vad.stop', atMs: 1040, frame: 52 },
+        { type: 'vad.start', atMs: 640, frame: 32 },
+        { type: 'vad.stop', atMs: 1100, frame: 55 },
       ]);
     });
     it(`${rate} Hz: an 80 ms cough is too short`, () => {

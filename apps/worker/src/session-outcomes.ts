@@ -50,10 +50,15 @@ export function auditGuardrail(
     | {
         guardrailMetrics?: { snapshot(): { segments: number } & Record<string, unknown> };
         speculationMetrics?: SpeculationMetrics;
+        languageMetrics?: { offTurns: number; replacedReplies: number; droppedSegments: number };
       }
     | undefined;
   const metrics = behavior?.guardrailMetrics?.snapshot();
   if (metrics?.segments) telemetry.audit('guardrail.summary', metrics);
+  // N4: caller turns heard outside the agent's languages, and drifted replies replaced.
+  const language = behavior?.languageMetrics;
+  if (language && (language.offTurns > 0 || language.replacedReplies > 0))
+    telemetry.audit('language.summary', language);
   const ahead = behavior?.speculationMetrics;
   if (ahead && ((ahead.decision?.started ?? 0) > 0 || ahead.llm.started > 0))
     telemetry.audit('speculation.summary', {

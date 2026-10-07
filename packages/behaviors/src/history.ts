@@ -2,27 +2,39 @@ import type { InferenceRequest, SpeechReceipt } from '@winsendotai/ovo-contracts
 
 type Message = NonNullable<InferenceRequest['history']>[number];
 
-const INTERRUPTED_NOTE =
-  '[The response was interrupted. Do not assume any unconfirmed words were heard.]';
 const EVIDENCE_NOTE = /^\[Playback evidence: [a-z-]+\.\] /;
 
 /**
- * The words actually exchanged, without the notes this history adds for the LLM: the playback
- * evidence prefix is dropped and an interruption note, which was never said, is left out.
+ * Told to the LLM, in its instructions, when the caller cut off the agent's previous reply. It was
+ * once an assistant message in the history, and a model copied it into its reply, so the caller
+ * heard "[The response was interrupted." (P7). Instructions are not something it says.
  */
+export const INTERRUPTED_CONTEXT =
+  'The caller cut off your previous reply, so they may not have heard any of it: do not assume ' +
+  'they did. This is a note for you, never something to say.';
+
+/** The words actually exchanged, without the playback evidence prefix this history adds. */
 export function spokenHistory(history: readonly Message[]): Message[] {
-  return history
-    .filter((entry) => entry.content !== INTERRUPTED_NOTE)
-    .map((entry) => ({ ...entry, content: entry.content.replace(EVIDENCE_NOTE, '') }));
+  return history.map((entry) => ({ ...entry, content: entry.content.replace(EVIDENCE_NOTE, '') }));
 }
 
-/** Bounded conversational evidence. Unplayed generated answers never enter memory. */
+/**
+ * Bounded conversational evidence. Unplayed generated answers never enter memory, and a reply the
+ * caller cut off leaves only the lines that played before it, plus `replyCut` for the next turn.
+ */
 export class PlaybackConversation {
   private entries: Message[] = [];
   private epoch?: number;
   private pending: { text: string; epoch: number }[] = [];
-  private interruptedEpochs = new Set<number>();
+  /** A reply was cut since the caller last spoke, and whether the one before `user` was. */
+  private cutSinceUser = false;
+  private cut = false;
   constructor(private readonly budget = 4000) {}
+
+  /** The caller cut off the agent's reply to their previous words (`INTERRUPTED_CONTEXT`). */
+  get replyCut(): boolean {
+    return this.cut;
+  }
 
   beginTurn(epoch: number): void {
     if (
@@ -31,13 +43,15 @@ export class PlaybackConversation {
       (this.epoch !== undefined && epoch <= this.epoch)
     )
       throw new Error('Conversation requires increasing playback epochs');
-    for (const pending of this.pending) this.recordInterrupted(pending.epoch);
+    if (this.pending.length) this.cutSinceUser = true;
     this.pending = [];
     this.epoch = epoch;
   }
 
   user(text: string): Message[] {
     const previous = this.entries.map((entry) => ({ ...entry }));
+    this.cut = this.cutSinceUser;
+    this.cutSinceUser = false;
     this.add({ role: 'user', content: text });
     return previous;
   }
@@ -45,7 +59,7 @@ export class PlaybackConversation {
   /**
    * AGT-10: the caller spoke again before hearing any answer to `text`, and the engine merged both
    * into the next turn. The superseded words leave the history (the merged turn records them again)
-   * and its unplayed lines leave no interruption note: the caller never heard them start.
+   * and its unplayed lines do not count as a cut reply: the caller never heard them start.
    */
   withdraw(text: string): void {
     const index = this.entries.findLastIndex(
@@ -67,20 +81,12 @@ export class PlaybackConversation {
     if (index < 0) return;
     this.pending.splice(index, 1);
     if (receipt.state === 'interrupted') {
-      this.recordInterrupted(receipt.epoch);
+      this.cutSinceUser = true;
     } else {
       const prefix =
         receipt.evidence === 'confirmed' ? '' : `[Playback evidence: ${receipt.evidence}.] `;
       this.add({ role: 'assistant', content: prefix + receipt.text });
     }
-  }
-
-  private recordInterrupted(epoch: number): void {
-    if (this.interruptedEpochs.has(epoch)) return;
-    this.interruptedEpochs.add(epoch);
-    if (this.interruptedEpochs.size > 20)
-      this.interruptedEpochs.delete(this.interruptedEpochs.values().next().value!);
-    this.add({ role: 'assistant', content: INTERRUPTED_NOTE });
   }
 
   private add(entry: Message): void {

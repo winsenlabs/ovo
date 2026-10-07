@@ -7,7 +7,7 @@ import {
 import { ToolConfirmation } from '../src/confirmation.ts';
 import { ToolEvents } from '../src/tool-events.ts';
 import { runInferenceSteps, type InferenceStepInput } from '../src/agent-inference-step.ts';
-import { AgentToolSelectionError, AgentTurnLog, FlowSession } from '../src/index.ts';
+import { AgentTurnLog, FlowSession } from '../src/index.ts';
 import { collect, execution, llm } from './agent-call-control-fixture.ts';
 import { collectionsFlow } from './flow-fixture.ts';
 
@@ -106,7 +106,8 @@ describe('the LLM fallback rejoins the flow (AGT-7)', () => {
     expect(tool.inputSchema).toMatchObject({
       required: ['resume_at', 'action'],
       properties: {
-        resume_at: { enum: ['identity', 'payment', 'wrapup'] },
+        // Identity is confirmed: asking who picked up is no longer a place to go back to.
+        resume_at: { enum: ['payment', 'wrapup'] },
         action: { enum: ['none'] },
       },
     });
@@ -116,8 +117,9 @@ describe('the LLM fallback rejoins the flow (AGT-7)', () => {
         '',
         'Conversation flow: the caller said something the scripted conversation could not place.',
         'The agent was waiting for: The agent asked when they can pay. What does the reply express?',
+        'The caller has confirmed who they are and has been told why you are calling. Answer their questions about it (what the account or product is, the amounts, the dates) from the facts you have, and do not ask who they are again.',
+        'Keep to the purpose of this call. If the caller talks about something unrelated, say in one short, polite sentence that you can only help with this call, then ask again what the agent was waiting for. Do not offer help with unrelated things.',
         'Say a brief answer as plain text, then call `resume_flow` with the point the conversation continues from:',
-        '- identity: The agent asked who picked up. How did they respond in the reply?',
         '- payment: The agent asked when they can pay. What does the reply express?',
         '- wrapup: The agent asked if there is anything else. What does the reply say?',
       ].join('\n'),
@@ -219,9 +221,41 @@ describe('the LLM fallback rejoins the flow (AGT-7)', () => {
     expect(flow.path.at(-1)).not.toHaveProperty('reason');
   });
 
-  it('treats a malformed resume as a tool protocol error', async () => {
-    const turn = step([resume({ resume_at: 'wrapup' })], { flow: flowAt() });
-    await expect(turn.run()).rejects.toThrow(AgentToolSelectionError);
+  // 2026-10-07 call B ended `error:turn` on "Inference supplied invalid input for resume_flow":
+  // the model called the tool with no reply and nothing said. That turn must not drop the call (P8).
+  it('takes a resume with no reply as a late resume, and says the uncertainty line', async () => {
+    const flow = flowAt();
+    const turn = step([resume({ resume_at: 'wrapup', action: 'none' })], { flow });
+    expect(await turn.run()).toEqual([turn.input.config.uncertainty]);
+    expect(flow.state.listen).toBe('wrapup');
+    expect(turn.ended).toEqual([]);
+  });
+
+  it('answers a malformed resume instead of failing the turn, and records it', async () => {
+    const flow = flowAt();
+    const turn = step([resume({ resume_at: 42 })], { flow });
+    expect(await turn.run()).toEqual([turn.input.config.uncertainty]);
+    expect(turn.input.log.toolErrors).toMatchObject([
+      { toolId: 'resume_flow', kind: 'invalid-input' },
+    ]);
+    expect(flow.state.listen).toBe('payment');
+    expect(flow.path.at(-1)).toMatchObject({ tier: 'llm', to: { listen: 'payment' } });
+  });
+
+  it('never says the uncertainty line twice in a row (P10)', async () => {
+    const config = AgentConfig.parse({ name: 'Collections', mode: 'agent' });
+    const uncertainty = config.uncertainty;
+    const silent = step([resume({ resume_at: 'wrapup', action: 'none' })], { flow: flowAt() });
+    silent.input.previous = [uncertainty];
+    expect(await silent.run()).toEqual([config.clarification]);
+    // A model that says it again anyway is cut to what is new.
+    const again = step(
+      [[{ kind: 'text-delta', delta: `${uncertainty} When can you pay?` }, { kind: 'finish' }]],
+      { flow: flowAt(), streaming: true },
+    );
+    again.input.previous = [uncertainty];
+    expect(await again.run()).toEqual(['When can you pay?']);
+    expect(again.model.requests[0]!.context).toContain(`Your previous reply was the line`);
   });
 
   it('offers nothing new to an agent without a flow', async () => {

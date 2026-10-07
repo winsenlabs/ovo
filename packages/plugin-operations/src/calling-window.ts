@@ -4,7 +4,7 @@ import { resolveScheduledInstant, ScheduleTimeError } from './timezone.ts';
 
 /**
  * When outbound calls may be placed, in local time (collections compliance): the agent contract's
- * `compliance.callingHours`, which a campaign may also set for itself. `timezone` is optional on
+ * `compliance.callingHours`, which a campaign may narrow for itself. `timezone` is optional on
  * input: the campaign's or the agent's applies.
  */
 export const callingWindowSchema = AgentCallingHours;
@@ -93,7 +93,7 @@ function firstOccurrence(localDateTime: string, timezone: string): Date {
   throw new ScheduleTimeError('nonexistent');
 }
 
-interface LocalParts {
+export interface LocalParts {
   year: number;
   month: number;
   day: number;
@@ -104,7 +104,29 @@ interface LocalParts {
 
 const WEEKDAYS: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
 
-function localParts(instant: Date, timezone: string): LocalParts {
+const formats = new Map<string, Intl.DateTimeFormat>();
+
+/** The wall-clock fields of an instant in an IANA zone; formatters are cached per zone. */
+export function localParts(instant: Date, timezone: string): LocalParts {
+  let format = formats.get(timezone);
+  if (!format) format = cacheFormat(timezone);
+  const parts = Object.fromEntries(
+    format
+      .formatToParts(instant)
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  );
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    hour: Number(parts.hour),
+    minute: Number(parts.minute),
+    weekday: WEEKDAYS[parts.weekday!]!,
+  };
+}
+
+function cacheFormat(timezone: string): Intl.DateTimeFormat {
   let format: Intl.DateTimeFormat;
   try {
     format = new Intl.DateTimeFormat('en-US', {
@@ -122,20 +144,8 @@ function localParts(instant: Date, timezone: string): LocalParts {
   } catch {
     throw new ScheduleTimeError('invalid_timezone');
   }
-  const parts = Object.fromEntries(
-    format
-      .formatToParts(instant)
-      .filter((part) => part.type !== 'literal')
-      .map((part) => [part.type, part.value]),
-  );
-  return {
-    year: Number(parts.year),
-    month: Number(parts.month),
-    day: Number(parts.day),
-    hour: Number(parts.hour),
-    minute: Number(parts.minute),
-    weekday: WEEKDAYS[parts.weekday!]!,
-  };
+  if (formats.size < 500) formats.set(timezone, format);
+  return format;
 }
 
 const pad = (value: number) => String(value).padStart(2, '0');

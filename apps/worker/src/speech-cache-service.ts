@@ -1,6 +1,5 @@
 import type { Logger, UsageSink } from '@winsendotai/ovo-contracts';
 import { createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
-import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
 import type {
   PostgresSpeechPrerenderQueue,
   PrerenderJob,
@@ -8,7 +7,7 @@ import type {
 } from '@winsendotai/ovo-plugin-speech-cache/postgres';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import type { SpeechPrerenderOptions } from './speech-cache-env.ts';
-import { createPrerenderMeter } from './speech-cache-meter.ts';
+import { createPrerenderMeter, type PrerenderLedger } from './speech-cache-meter.ts';
 import { warmReleaseClips, type WarmResult } from './speech-cache-prerender.ts';
 import { PrerenderSkipError, type ReleaseSpeech } from './speech-cache-release-tts.ts';
 import { releaseKey, ROUTED_REFRESH_MS, syncRoutedReleases } from './speech-cache-routed.ts';
@@ -24,7 +23,7 @@ export interface PrerenderServiceInput {
   workerId: string;
   releases: { getRelease(workspaceId: string, id: string): Promise<ReleaseRecord | undefined> };
   openSpeech(release: ReleaseRecord, usage: UsageSink): Promise<ReleaseSpeech>;
-  ledger?: Pick<CostLedgerService, 'recordUsage'>;
+  ledger?: PrerenderLedger;
   log?: Logger;
 }
 

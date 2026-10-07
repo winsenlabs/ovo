@@ -3,11 +3,13 @@ import type {
   BehaviorEvent,
   Clock,
   EngineEvent,
+  Inference,
   SessionInput,
   SttConfigurationUpdate,
   TextFilter,
   TranscriptObserver,
 } from '@winsendotai/ovo-contracts';
+import { inferenceActivity, type InferenceActivity } from '@winsendotai/ovo-plugin-kit';
 import type { BoundedSpeechScheduler } from '../scheduler.ts';
 import type { VoiceEventBus } from './events.ts';
 import type { TurnLatency } from './latency.ts';
@@ -48,6 +50,7 @@ export function projectBusEvents(
     if (event.type === 'vad.stop') latency.noteVadStop();
     if (event.type === 'stt' && event.event.type === 'transcript') {
       const segment = event.event.segment;
+      if (segment.text.trim()) latency.noteWords(segment.text.trim());
       if (segment.stability === 'final') latency.noteFinalStt();
       emit({
         type: 'user.transcript',
@@ -59,6 +62,23 @@ export function projectBusEvents(
     }
     turnController.observe(event);
   });
+}
+
+/**
+ * Disposal's cleanup runner: every acquired port gets its cleanup attempt even when another hook
+ * throws synchronously, and each failure goes to `failed`.
+ */
+export function cleanupAttempt(
+  failed: (error?: unknown) => void,
+): (cleanup: () => void | Promise<void>) => Promise<void> {
+  return (cleanup) => {
+    try {
+      return Promise.resolve(cleanup()).catch(failed);
+    } catch (error) {
+      failed(error);
+      return Promise.resolve();
+    }
+  };
 }
 
 /** What an engine reports before its ingress exists (input disabled, or not started yet). */
@@ -123,4 +143,16 @@ export function disposalDeadline(ms: number): { expired: Promise<never>; clear()
   // swallow-ok: the disposal awaiting it reports the timeout; a cleared deadline never rejects.
   expired.catch(() => undefined);
   return { expired, clear: () => clearTimeout(timer) };
+}
+
+/** N3: hands the session LLM's provider-tool progress (a web search starting) to the turn driver. */
+export function observeInference(
+  inference: Inference | undefined,
+  driver: { inferenceActivity(activity: InferenceActivity): void },
+): () => void {
+  return (
+    inferenceActivity(inference)?.observeActivity((activity) =>
+      driver.inferenceActivity(activity),
+    ) ?? (() => undefined)
+  );
 }

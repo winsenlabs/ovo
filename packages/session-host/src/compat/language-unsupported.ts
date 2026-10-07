@@ -22,19 +22,43 @@ export const languageUnsupported: CompatRule = (input, stage) =>
     const capabilities = manifestKeys(definition.manifest).manifest.capabilities as
       Capabilities | undefined;
     const language = input.config.language;
-    if (supports(capabilities?.languages, language)) return [];
     const byBinding = capabilities?.bindingLanguages;
-    if (byBinding && boundLanguages(byBinding, input, choice).includes(baseOf(language))) return [];
-    return [
-      issue('language_unsupported', stage, `${choice.pluginId} does not support ${language}`, {
-        slot,
-        pluginId: choice.pluginId,
-      }),
-    ];
+    const bound = byBinding ? boundLanguages(byBinding, input, choice) : [];
+    const where = { slot, pluginId: choice.pluginId } as const;
+    const issues =
+      supports(capabilities?.languages, language) || bound.includes(baseOf(language))
+        ? []
+        : [
+            issue(
+              'language_unsupported',
+              stage,
+              `${choice.pluginId} does not support ${language}`,
+              where,
+            ),
+          ];
+    // N4: every language callers may speak must be transcribed, or their words reach the agent as
+    // misheard text in another language rather than being recognised for what they are.
+    if (slot !== 'stt') return issues;
+    for (const code of input.config.languages?.allowed ?? [])
+      if (!supportsBase(capabilities?.languages, code) && !bound.includes(code))
+        issues.push(
+          issue(
+            'language_unsupported',
+            stage,
+            `${choice.pluginId} does not support ${code}, an allowed language`,
+            { ...where, field: 'languages.allowed' },
+          ),
+        );
+    return issues;
   });
 
 function supports(languages: readonly string[] | undefined, language: string): boolean {
   return !languages?.length || languages.includes('*') || languages.includes(language);
+}
+
+/** A base code is supported when any listed tag has it: `hi-IN` covers `hi`. */
+function supportsBase(languages: readonly string[] | undefined, code: string): boolean {
+  return supports(languages, code) || Boolean(languages?.some((tag) => baseOf(tag) === code));
 }
 
 /** The bound model's base codes; the field's declared default when the binding leaves it unset. */

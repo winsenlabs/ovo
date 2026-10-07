@@ -2,21 +2,26 @@ import type { LiveRecordingService } from './live-service.ts';
 import type { LiveRecording, RecordingTimelineEvent, RecordingTrack } from './types.ts';
 import { MULAW_8K } from '@winsendotai/ovo-contracts';
 import {
+  captureError,
   recordingBytesPerSecond,
-  supportedRecordingFormat,
+  recordingFormat,
+  schedulerEvidence,
+  settledStatus,
+  startedStatus,
+  takeSegment,
+  type CaptureOutcome,
+  type CaptureStatus,
+  type PendingTrack,
   type PlaybackEvidenceSource,
   type RecordingMediaTransport,
 } from './capture-types.ts';
 
-export type { PlaybackEvidenceSource, RecordingMediaTransport } from './capture-types.ts';
-
-interface PendingTrack {
-  bytes: Uint8Array[];
-  byteLength: number;
-  sequence: number;
-  startMs?: number;
-  endMs?: number;
-}
+export type {
+  CaptureOutcome,
+  CaptureStatus,
+  PlaybackEvidenceSource,
+  RecordingMediaTransport,
+} from './capture-types.ts';
 
 export class LiveRecordingCapture implements RecordingMediaTransport {
   readonly identity: unknown;
@@ -29,12 +34,15 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
     inbound: { bytes: [], byteLength: 0, sequence: 0 },
     outbound: { bytes: [], byteLength: 0, sequence: 0 },
   };
+  /** Bytes per track durably written as available segments. */
+  private readonly written: Record<RecordingTrack, number> = { inbound: 0, outbound: 0 };
   private readonly unsubscribers: Array<() => void> = [];
   private chain = Promise.resolve();
   private timelineSequence = 0;
   private queuedBytes = 0;
   private stopped = false;
   private partial = false;
+  private finished?: Promise<void>;
 
   private constructor(
     private readonly service: LiveRecordingService,
@@ -43,6 +51,7 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
     private readonly maxQueuedBytes: number,
     monotonicNow: () => number,
     evidence?: PlaybackEvidenceSource,
+    private readonly onStatus?: (status: CaptureStatus) => void,
   ) {
     this.identity = media.identity;
     this.sessionId = media.sessionId;
@@ -63,6 +72,7 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
       media.onClose(() => void this.finish()),
     );
     if (evidence) this.attachEvidence(evidence);
+    onStatus?.(startedStatus(recording));
   }
 
   private readonly monotonicNow: () => number;
@@ -77,15 +87,10 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
     maxQueuedBytes?: number;
     monotonicNow?: () => number;
     evidence?: PlaybackEvidenceSource;
+    /** Told once the capture has started and once `finish` has settled what the artifact holds. */
+    onStatus?: (status: CaptureStatus) => void;
   }): Promise<LiveRecordingCapture> {
-    const format = input.media.format ?? MULAW_8K;
-    if (!supportedRecordingFormat(format))
-      throw new Error('Live recording requires μ-law 8 kHz or PCM16 8/16 kHz media');
-    if (
-      input.media.codec !== (format.encoding === 'mulaw' ? 'audio/x-mulaw' : 'audio/pcm') ||
-      input.media.sampleRate !== format.sampleRate
-    )
-      throw new Error('Live recording media format and codec disagree');
+    const format = recordingFormat(input.media);
     const recording = await input.service.create({ ...input, format });
     await input.service.state(recording.id, 'active');
     return new LiveRecordingCapture(
@@ -95,11 +100,20 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
       input.maxQueuedBytes ?? recording.segmentBytes * 2,
       input.monotonicNow ?? (() => performance.now()),
       input.evidence,
+      input.onStatus,
     );
   }
 
   get artifact(): LiveRecording {
     return { ...this.recording };
+  }
+
+  /**
+   * What the artifact holds: `available`, or `partial` when audio was lost on the way (a failed
+   * upload, a full queue). Final once `finish` has settled.
+   */
+  get outcome(): CaptureOutcome {
+    return { state: this.partial ? 'partial' : 'available', bytes: { ...this.written } };
   }
 
   attachEvidence(evidence: PlaybackEvidenceSource): () => void {
@@ -108,11 +122,7 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
     const unsubscribe = evidence.subscribe((item) => {
       this.enqueueTimeline(
         'speech-evidence',
-        item.evidence === 'confirmed'
-          ? 'scheduler-confirmed'
-          : item.evidence === 'estimated'
-            ? 'scheduler-estimated'
-            : 'scheduler-generated',
+        schedulerEvidence(item.evidence),
         item.segmentId,
         item.phase,
         Math.max(0, item.at - this.service.now() + this.elapsed()),
@@ -166,24 +176,31 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
     return this.media.onClose(listener);
   }
 
-  async finish(): Promise<void> {
-    if (this.stopped) return this.chain;
-    this.stopped = true;
-    for (const unsubscribe of this.unsubscribers.splice(0)) unsubscribe();
-    this.chain = this.chain
-      .then(async () => {
-        await this.flush('inbound');
-        await this.flush('outbound');
-        await this.service.state(this.recording.id, 'finalizing');
-        await this.service.state(this.recording.id, this.partial ? 'partial' : 'available');
-      })
-      .catch(async (error) => {
-        this.partial = true;
-        await this.service
-          .state(this.recording.id, 'partial', safeError(error))
-          .catch(() => undefined);
-      });
-    return this.chain;
+  finish(): Promise<void> {
+    this.finished ??= this.settle();
+    return this.finished;
+  }
+
+  private async settle(): Promise<void> {
+    if (!this.stopped) {
+      this.stopped = true;
+      for (const unsubscribe of this.unsubscribers.splice(0)) unsubscribe();
+      this.chain = this.chain
+        .then(async () => {
+          await this.flush('inbound');
+          await this.flush('outbound');
+          await this.service.state(this.recording.id, 'finalizing');
+          await this.service.state(this.recording.id, this.partial ? 'partial' : 'available');
+        })
+        .catch(async (error) => {
+          this.partial = true;
+          await this.service
+            .state(this.recording.id, 'partial', captureError(error))
+            .catch(() => undefined);
+        });
+    }
+    await this.chain;
+    this.onStatus?.(settledStatus(this.recording.id, this.outcome));
   }
 
   private enqueueAudio(track: RecordingTrack, input: Uint8Array, timestampMs: number): void {
@@ -226,28 +243,18 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
   private async flush(trackName: RecordingTrack): Promise<void> {
     const track = this.tracks[trackName];
     if (!track.byteLength) return;
-    const bytes = new Uint8Array(track.byteLength);
-    let cursor = 0;
-    for (const chunk of track.bytes) {
-      bytes.set(chunk, cursor);
-      cursor += chunk.byteLength;
-    }
-    try {
-      await this.service.writeSegment({
-        recording: this.recording,
-        track: trackName,
-        sequence: track.sequence,
-        bytes,
-        startMs: track.startMs ?? 0,
-        endMs: track.endMs ?? track.startMs ?? 0,
-      });
-      track.sequence += 1;
-    } finally {
-      track.bytes = [];
-      track.byteLength = 0;
-      track.startMs = undefined;
-      track.endMs = undefined;
-    }
+    // Taken out of the buffer first: a failed upload is not retried into the next segment.
+    const { bytes, startMs, endMs } = takeSegment(track);
+    await this.service.writeSegment({
+      recording: this.recording,
+      track: trackName,
+      sequence: track.sequence,
+      bytes,
+      startMs,
+      endMs,
+    });
+    track.sequence += 1;
+    this.written[trackName] += bytes.byteLength;
   }
 
   private enqueueTimeline(
@@ -276,14 +283,12 @@ export class LiveRecordingCapture implements RecordingMediaTransport {
     this.partial = true;
     this.stopped = true;
     for (const unsubscribe of this.unsubscribers.splice(0)) unsubscribe();
-    await this.service.state(this.recording.id, 'partial', safeError(error)).catch(() => undefined);
+    await this.service
+      .state(this.recording.id, 'partial', captureError(error))
+      .catch(() => undefined);
   }
 
   private elapsed(): number {
     return Math.max(0, this.monotonicNow() - this.startedMonotonic);
   }
-}
-
-function safeError(error: unknown): string {
-  return (error instanceof Error ? error.message : 'Recording capture failed').slice(0, 500);
 }

@@ -27,6 +27,9 @@ export const TURN_SCENARIOS: readonly TurnScenario[] = [
     name: 'a long utterance barges in while the bot speaks',
     mode: 'faq',
     run: (d) => {
+      // Mid-call: the opening has played, which a detector may protect from barge-in (N8).
+      d.botStarts();
+      d.botStops();
       d.botStarts();
       d.say('please stop talking now', false);
       return d.interrupts() === 1 ? [] : [`expected one interrupt, saw ${d.interrupts()}`];

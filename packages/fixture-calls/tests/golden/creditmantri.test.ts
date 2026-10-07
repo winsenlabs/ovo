@@ -163,11 +163,14 @@ function runtimeCall(id: string, steps: readonly GoldenStep[], after?: DecisionP
   });
   let epoch = 0;
   // What was said, as one text: how a node's lines are split into speech segments is the
-  // engine's and the clip cache's business, not the conversation's.
-  const turn = async (text: string, extra: Record<string, unknown> = {}) => {
+  // engine's and the clip cache's business, not the conversation's. `cut` is a caller barging in
+  // before any line finished: the engine cancels the turn, then the lines report interrupted.
+  const turn = async (text: string, extra: Record<string, unknown> = {}, cut = false) => {
     behavior.beginTurn(epoch);
     const said = await collect(behavior.respondStream(text, { ...variables, ...extra }));
-    for (const segment of said) behavior.onPlayback(receipt(segment, epoch));
+    if (cut) behavior.cancel('turn interrupted');
+    for (const segment of said)
+      behavior.onPlayback(receipt(segment, epoch, cut ? 'interrupted' : 'completed'));
     epoch += 1;
     return said.join(' ');
   };
@@ -178,6 +181,50 @@ function runtimeCall(id: string, steps: readonly GoldenStep[], after?: DecisionP
   return { behavior, script, turn, open, greetsFirst };
 }
 const OPENING_HELLO = 'Hello?';
+
+/**
+ * The 2026-10-07 live calls on the imported flow, where the caller barges in: what a golden step
+ * cannot express, since every golden line plays to its end. Caller words are the calls' own.
+ */
+describe.skipIf(!flowRuntime)('CreditMantri live-call regressions, agent runtime', () => {
+  const lines = flow.lines as Record<string, string>;
+  const render = (id: string) =>
+    lines[id]!.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(variables[name as never]));
+  const DISCLOSE = ['recording', 'emi_status', 'charges', 'ask_when'].map(render).join(' ');
+
+  it('call B: a cut disclosure is said again, and only then counts as heard', async () => {
+    const { behavior, turn, open } = runtimeCall('live-disclosure', [
+      { caller: '', decision: { intent: 'confirmed', confidence: 0.73 }, expect: { tier: 'rule' } },
+      { caller: '', decision: { intent: 'other', confidence: 0.44 }, expect: { tier: 'rule' } },
+    ]);
+    await open();
+    expect(await turn('Yes, sir. It takes a lot of time.', {}, true)).toBe(DISCLOSE);
+    expect(behavior.flow!.verified).toBe(false);
+    expect(await turn('It is not.')).toBe(DISCLOSE);
+    expect(behavior.flow!.verified).toBe(true);
+    expect(behavior.flow!.path.at(-1)).toMatchObject({ reason: 'unheard' });
+  });
+
+  it('call B: a cut do-not-call goodbye is said once more and the call ends, never reopened', async () => {
+    const { behavior, turn, open } = runtimeCall('live-dnc', [
+      {
+        caller: '',
+        decision: { intent: 'stop_calling', confidence: 0.92 },
+        expect: { tier: 'decision' },
+      },
+    ]);
+    await open();
+    await turn('Yes, sir.');
+    const goodbye = render('stop_calling');
+    expect(await turn('Stop calling me. Do not call this number again.', {}, true)).toBe(goodbye);
+    // Call B rejoined at identity here and disclosed the loan again.
+    expect(await turn('Okay, so listen to me one by one.', {}, true)).toBe(goodbye);
+    expect(await turn('What is your name?')).toBe('');
+    expect(behavior.isComplete()).toBe(true);
+    expect(behavior.completionReason()).toBe('decision:flow:stop_calling');
+    expect(dispositionsOf(behavior)).toEqual(['do_not_call_requested']);
+  });
+});
 
 describe.skipIf(!flowRuntime)('CreditMantri golden conversations, agent runtime', () => {
   for (const conversation of CREDITMANTRI_GOLDEN) {

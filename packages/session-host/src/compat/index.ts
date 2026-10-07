@@ -34,6 +34,7 @@ import { flowVariables } from './flow-variables.ts';
 import { flowMode } from './flow-mode.ts';
 import { flowDecisionLimits } from './flow-decision-limits.ts';
 import { speculativeLlmUnpriced } from './speculative-llm-unpriced.ts';
+import { recordingDisclosure } from './recording-disclosure.ts';
 import { engineFeatureUnsupported } from './engine-feature-unsupported.ts';
 import { handoffCarrierUnsupported } from './handoff-carrier-unsupported.ts';
 import type { CompatInput, CompatRule } from './types.ts';
@@ -58,6 +59,7 @@ const RELEASE_RULES: readonly CompatRule[] = [
   flowVariables,
   flowMode,
   speculativeLlmUnpriced,
+  recordingDisclosure,
   engineFeatureUnsupported,
   handoffCarrierUnsupported,
 ];

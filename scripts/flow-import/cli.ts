@@ -57,10 +57,11 @@ async function run(): Promise<number> {
   const map = values.preset ? CREDITMANTRI_PRESET.map : values.map;
   const out = values.preset ? CREDITMANTRI_PRESET.out : values.out;
   const poc = (await import(pathToFileURL(input).href)) as PocFlowModule;
-  const { config, notes } = importPocFlow(poc, options);
+  const { config, notes, added } = importPocFlow(poc, options);
   for (const note of notes) console.error(`note: ${note}`);
   if (map) {
-    const differences = diffConversationMap(config, await readFile(map, 'utf8'), options.constants);
+    const markdown = await readFile(map, 'utf8');
+    const differences = diffConversationMap(config, markdown, options.constants, added);
     if (differences.length) {
       console.error(`Conversation map disagrees with ${input}:\n  ${differences.join('\n  ')}`);
       return 1;

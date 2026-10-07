@@ -315,7 +315,9 @@ describe('the LLM handoff tools (AGT-15)', () => {
   it('offers neither tool without the flags, so a model that calls one gets an error', async () => {
     const model = llm([tool('transfer_call')]);
     const behavior = build({ handoff: { transfer: { target: phone } } }, { model });
-    await expect(behavior.respond('a person please', call)).rejects.toThrow('transfer_call');
+    expect(await behavior.respond('a person please', call)).toBe(behavior.config.uncertainty);
+    expect(behavior.toolErrors).toMatchObject([{ toolId: 'transfer_call' }]);
+    expect(behavior.isComplete()).toBe(false);
     expect(model.requests[0]!.tools).toEqual([]);
   });
 });

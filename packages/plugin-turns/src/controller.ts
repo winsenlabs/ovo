@@ -7,9 +7,15 @@ import {
 import { isProviderEnd } from './stop-provider.ts';
 import { canInterrupt, confirmationPrompt, speechMuted } from './mute.ts';
 import { vadStartsTurn } from './start-vad.ts';
-import { TurnControllerState } from './controller-state.ts';
+import { TurnControllerSpeech } from './controller-speech.ts';
 
-export class TurnController extends TurnControllerState implements UserTurnController {
+/**
+ * A VAD-only turn (a thump, a cough, noise) with no words this long after its commit ceiling is
+ * reset rather than left open for stopTimeoutMs. Forced finals land within ~650 ms of the commit.
+ */
+const NOISE_GRACE_MS = 1000;
+
+export class TurnController extends TurnControllerSpeech implements UserTurnController {
   observe(event: VoiceEvent): void {
     if (this.disposed) return;
     switch (event.type) {
@@ -24,21 +30,28 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         this.committed = false;
         this.stopTimers.cancel();
         this.commitTimers.speechStarted();
+        this.evidence.vadStarted();
+        this.cutoff.resume();
         this.idle.cancel();
         if (vadStartsTurn(!!this.bot, speechMuted(this.view(), this.rules), this.config)) {
           this.start();
           if (
             this.bot &&
             canInterrupt(this.view(), this.rules) &&
-            this.interruptedEpoch !== this.bot.epoch
+            this.interruptedEpoch !== this.bot.epoch &&
+            // N8: a sound alone never cuts the opening.
+            this.opening.waitMs() === 0
           ) {
             this.interruptedEpoch = this.bot.epoch;
             this.emit({ type: 'interrupt', reason: 'vad' });
           }
         }
+        // Words heard before the VAD caught up now have the caller's voice behind them.
+        if (this.aggregate.view) this.maybeInterrupt();
         break;
       case 'vad.stop':
         this.vadSpeaking = false;
+        this.evidence.vadStopped();
         if (speechMuted(this.view(), this.rules)) break;
         if (this.strategy === 'vad-timeout') {
           this.vadStopPending = true;
@@ -60,7 +73,7 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         } else if (this.strategy === 'commit') {
           this.vadStopPending = true;
           this.vadStopReady = false;
-          this.commitTimers.speechStopped(Boolean(this.aggregate.view));
+          this.commitTimers.speechStopped(this.aggregate.view);
           this.safety();
         } else if (this.deferredStop) this.tryStop();
         break;
@@ -68,10 +81,13 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         if (this.tools && this.rules.includes('during-tools') && !this.config.allowDtmfWhileMuted)
           break;
         this.idle.cancel();
+        // A key press is no speech: a turn the VAD opened on its tone, with no words, is dropped.
+        if (this.turnId && !this.aggregate.view) this.reset('backchannel');
         this.dtmf.digit(event.digit);
         break;
       case 'bot.started':
         this.idle.cancel();
+        if (!this.firstSpeechComplete) this.opening.botStarted(event.atMs);
         this.bot = {
           epoch: event.epoch,
           kind: event.kind,
@@ -85,6 +101,7 @@ export class TurnController extends TurnControllerState implements UserTurnContr
         const wasPrompt = confirmationPrompt(this.view(), this.rules);
         this.bot = undefined;
         this.firstSpeechComplete = true;
+        this.opening.end();
         if (wasPrompt && this.turnId) {
           if (!this.aggregate.hasText) {
             this.awaitingConfirmationFinal = true;
@@ -159,7 +176,15 @@ export class TurnController extends TurnControllerState implements UserTurnContr
 
   /** No final within userSpeechTimeoutMs of the commit: end on the interim text. */
   protected commitCeiling(): void {
-    if (!this.turnId || !this.aggregate.view) return;
+    if (!this.turnId) return;
+    if (!this.aggregate.view) {
+      // Nothing transcribed: noise opened this turn. A late final still lands inside the grace.
+      this.cancelSafety?.();
+      this.cancelSafety = this.input.clock.setTimeout(() => {
+        if (this.turnId && !this.aggregate.view && !this.speaking()) this.reset('backchannel');
+      }, NOISE_GRACE_MS);
+      return;
+    }
     this.aggregate.closeOpenSegments();
     this.commitReady();
   }

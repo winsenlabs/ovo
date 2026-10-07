@@ -3,6 +3,7 @@ import { runPreReplySteps } from './agent-pre-reply.ts';
 import { resumeConfirmation } from './agent-confirmation-step.ts';
 import { firstInferenceRequest, runInferenceSteps } from './agent-inference-step.ts';
 import { AgentSession } from './agent-session.ts';
+import { EndCallGate } from './agent-end-gate.ts';
 import { OPT_OUT_COMPLETION } from './opt-out.ts';
 import type { AgentBehaviorOptions } from './agent-tools.ts';
 import { AgentHandoffs } from './handoff.ts';
@@ -29,6 +30,8 @@ export class AgentBehavior extends AgentSession {
   private readonly handoffs: AgentHandoffs;
   /** Execution with the built-in handoff tools answered in the behaviour. */
   private readonly toolExecution: Execution;
+  /** N1: when the LLM's `end_call` may end the call. */
+  private readonly endGate: EndCallGate;
 
   constructor(
     config: AgentConfig,
@@ -50,6 +53,8 @@ export class AgentBehavior extends AgentSession {
     this.handoffs.offer(this.tools, this.validators);
     this.handoffs.follow(this.flow);
     this.toolExecution = this.handoffs.execution(execution);
+    const now = options.now ?? (() => new Date());
+    this.endGate = new EndCallGate(this.config, () => now().getTime());
   }
 
   /** A flow node that transfers completes with a `transfer:` reason, ending as `transferred`. */
@@ -73,28 +78,46 @@ export class AgentBehavior extends AgentSession {
     variables: Record<string, unknown> = {},
   ): AsyncIterable<string> {
     this.ending.startTurn();
+    // N1: the call is ending for good (a transfer, a flow's end) and the caller spoke meanwhile:
+    // nothing more is said, and the call ends once this turn is over.
+    if (this.ending.complete) return;
     this.lines.startTurn();
     this.ahead.heardTurn(variables);
     if (variables.inputEvent === 'opening') return yield* this.lines.opening(variables, this.flow);
-    if (variables.inputEvent === 'idle') return yield* this.lines.silence(variables);
+    if (variables.inputEvent === 'idle')
+      return yield* this.final ? this.closeFlow('') : this.lines.silence(variables);
     this.lines.heard();
     this.gate?.closePrepared();
     this.active?.abort(new DOMException('superseded by a newer turn', 'AbortError'));
-    // The caller withdrew consent: no decision, LLM or pending confirmation answers this turn.
-    if (this.optOut.heard(input, this.turn + 1)) {
+    // The caller withdrew consent: no decision, LLM or pending confirmation answers this turn, and
+    // the closing line is final like a flow's end (P4): a barge-in on it cannot reopen the call.
+    if (!this.optOut.optedOut && this.optOut.heard(input, this.turn + 1)) {
       this.turn += 1;
       this.confirmation.expire();
       this.conversation.user(input);
-      this.ending.arm(OPT_OUT_COMPLETION);
+      this.ending.arm(OPT_OUT_COMPLETION, { terminal: true });
       yield this.say(this.optOut.closingLine);
       this.ending.seal();
       return;
     }
+    if (this.final) return yield* this.closeFlow(input);
+    // N4: words in none of the agent's languages are not understood. No decision, LLM or end_call
+    // acts on them; the caller is asked, in the agent's language, to say it again.
+    if (this.languages.offLanguage(input)) {
+      this.turn += 1;
+      yield this.say(this.languages.line!);
+      this.ending.seal();
+      return;
+    }
+    // What the agent said last turn, read before this turn says anything (P10).
+    const previous = [...this.lines.recovery.lastSaid];
     const controller = new AbortController();
     const turn = ++this.turn;
+    const endRefused = this.endGate.turn(input, variables);
     this.active = controller;
     const results: OperationRecord[] = [];
     const history = this.conversation.user(input);
+    const replyCut = this.conversation.replyCut;
     let wrote = false;
     // LAT-3: the LLM's first step, asked alongside the decision when the agent speculates.
     const early = this.ahead.llmTurn(this.inference, streaming, controller.signal, (context) =>
@@ -106,10 +129,14 @@ export class AgentBehavior extends AgentSession {
         tools: this.tools,
         results,
         ...(this.flow ? { flow: this.flow } : {}),
+        replyCut,
+        previous,
       }),
     );
 
     try {
+      const disclosure = this.disclosureAgain();
+      if (disclosure !== undefined) yield disclosure;
       if (this.confirmation.waiting) {
         const resumed = await resumeConfirmation({
           confirmation: this.confirmation,
@@ -162,14 +189,22 @@ export class AgentBehavior extends AgentSession {
       if (diverted) return yield* this.lines.speak(diverted, variables);
       if (route.kind === 'recover') return yield* this.lines.speak(route.plan, variables);
       const { prepared } = route;
-      if (route.end !== undefined) this.ending.arm(`decision:${route.end}`);
+      // A flow that has reached its end node is final (P4): a barge-in cannot reopen it.
+      if (route.end !== undefined)
+        this.ending.arm(`decision:${route.end}`, { terminal: this.flow?.state.ended });
       if (route.say !== undefined) {
         // A flow node's lines are separate segments, so each one is cached and played on its own.
-        for (const line of prepared.lines ?? [route.say]) yield this.say(line, turn);
+        for (const [index, line] of (prepared.lines ?? [route.say]).entries()) {
+          const mandatory = prepared.mandatory?.[index];
+          if (mandatory !== undefined) this.mustHear.expect(this.epoch, mandatory, line);
+          yield this.say(line, prepared.replay ? undefined : turn);
+        }
         this.ending.seal();
         return;
       }
       if (!this.inference) return;
+      // N4: a reply that leaves the agent's languages is never spoken, nor its end_call obeyed.
+      const language = this.languages.reply(prepared.guard);
       yield* runInferenceSteps({
         config: this.config,
         inference: early?.inference() ?? this.inference,
@@ -181,7 +216,8 @@ export class AgentBehavior extends AgentSession {
         confirmation: this.confirmation,
         events: this.events,
         publish: (text) => this.say(text, turn),
-        endCall: (reason) => this.ending.arm(reason),
+        endCall: (reason) => this.ending.arm(reason, { terminal: this.flow?.state.ended }),
+        endRefused: () => endRefused,
         operationId: this.operationId,
         turn,
         current: () => turn === this.turn,
@@ -194,13 +230,36 @@ export class AgentBehavior extends AgentSession {
         uncertainWrite: () => this.uncertainWrite,
         wrote,
         ...(this.flow ? { flow: this.flow } : {}),
-        guard: prepared.guard,
+        guard: language ? (segment) => language.check(segment) : prepared.guard,
+        replyCut,
+        previous,
       });
+      if (language?.replaced) this.ending.cancel();
       this.ending.seal();
     } finally {
       early?.finish();
       if (this.active === controller) this.active = undefined;
     }
+  }
+
+  /** The flow has ended or the caller opted out: no later turn can reopen the call (P4). */
+  private get final(): boolean {
+    return this.optOut.optedOut || Boolean(this.flow?.state.ended);
+  }
+
+  /**
+   * P4: the flow has ended, or the caller opted out, so this turn only closes the call. The goodbye
+   * is said once more when the caller barged in before hearing any of it; the call then ends
+   * whatever they say, and no decision or LLM is asked: nothing can reopen a finished call.
+   */
+  private *closeFlow(input: string): Generator<string> {
+    this.turn += 1;
+    if (input) this.conversation.user(input);
+    const reason = this.optOut.optedOut
+      ? OPT_OUT_COMPLETION
+      : `decision:flow:${this.flow?.state.node ?? 'end'}`;
+    for (const line of this.ending.close(reason)) yield this.say(line);
+    this.ending.seal();
   }
 }
 

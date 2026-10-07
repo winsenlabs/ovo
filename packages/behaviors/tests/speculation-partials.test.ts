@@ -55,6 +55,7 @@ describe('a decision on the caller’s partial transcript (LAT-4)', () => {
       reused: 1,
       discarded: 0,
       cancelled: 0,
+      skipped: 0,
     });
   });
 

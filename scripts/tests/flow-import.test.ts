@@ -13,7 +13,7 @@ import {
   type AgentFlow,
 } from '../../packages/plugin-evaluations/src/jev-eval-flow.ts';
 import { diffConversationMap } from '../flow-import/conversation-map.ts';
-import { CREDITMANTRI_PRESET } from '../flow-import/creditmantri.ts';
+import { CREDITMANTRI_PRESET, HOLD_PREFIX_LINE } from '../flow-import/creditmantri.ts';
 import { importPocFlow, type PocFlowModule } from '../flow-import/import-poc-flow.ts';
 import { regexPhrases } from '../flow-import/regex-phrases.ts';
 import { SPAWN_TIMEOUT_MS } from './gate-helpers.ts';
@@ -24,8 +24,11 @@ interface PocModule extends PocFlowModule {
   nextNode(listen: string, intent: string, slots?: Record<string, string>): string | null;
 }
 const poc = (await import(CREDITMANTRI_PRESET.input)) as PocModule;
-const { config: imported, notes } = importPocFlow(poc, CREDITMANTRI_PRESET.options);
-const { flow } = imported.decision;
+const { config: imported, notes, added } = importPocFlow(poc, CREDITMANTRI_PRESET.options);
+// The POC's map as it is, without OVO's adjustments: what the POC router is the oracle for.
+const pocOptions = { ...CREDITMANTRI_PRESET.options, adjust: undefined };
+const { flow } = importPocFlow(poc, pocOptions).config.decision;
+const adjusted = imported.decision.flow;
 const map = await readFile(CREDITMANTRI_PRESET.map, 'utf8');
 const rulesOf = (rule: RegExp | RegExp[] | undefined) =>
   rule === undefined ? [] : Array.isArray(rule) ? rule : [rule];
@@ -114,6 +117,28 @@ describe('importPocFlow on the CreditMantri POC', () => {
     });
   });
 
+  it('applies what the 2026-10-07 live calls changed on top of the POC map', () => {
+    expect(added).toEqual([HOLD_PREFIX_LINE]);
+    expect(flowNode(adjusted, 'disclose')!.mandatory).toEqual(['recording', 'emi_status']);
+    const global = (key: string) => adjusted.globalIntents.find((intent) => intent.key === key)!;
+    expect(global('hold')).toMatchObject({ hold: true });
+    expect(adjusted.lines[adjusted.holdPrefix!]).toBe('Sure, no problem.');
+    expect(global('stop_calling')).toMatchObject({ threshold: 0.8, next: 'stop_calling' });
+    expect(global('abusive').threshold).toBe(0.75);
+    // Call B's own words: waiting is not opting out, and a lone "what?" is not a repeat request.
+    for (const listen of ['identity', 'payment', 'callback']) {
+      expect(matchFlowPhrase(adjusted, listen, 'One minute.')).toBe('hold');
+      expect(matchFlowPhrase(adjusted, listen, 'No, no, one minute.')).toBe('hold');
+      expect(matchFlowPhrase(adjusted, listen, 'what?')).toBeUndefined();
+      expect(matchFlowPhrase(adjusted, listen, 'Sorry?')).toBeUndefined();
+      expect(matchFlowPhrase(adjusted, listen, 'kya?')).toBeUndefined();
+      expect(matchFlowPhrase(adjusted, listen, 'Can you repeat that?')).toBe('repeat');
+    }
+    // Everything else is the POC's map.
+    expect(adjusted.nodes.map((node) => node.id)).toEqual(flow.nodes.map((node) => node.id));
+    expect(adjusted.listens).toEqual(flow.listens);
+  });
+
   it('keeps nodes, dispositions, the identity gate, repeat and clarify', () => {
     expect(flow.start).toBe('greet');
     expect(flowNode(flow, 'disclose')).toEqual({
@@ -168,8 +193,12 @@ describe('importPocFlow on the CreditMantri POC', () => {
 });
 
 describe('diffConversationMap', () => {
-  it('agrees with the POC conversation map', () => {
-    expect(diffConversationMap(imported, map, CREDITMANTRI_PRESET.options.constants)).toEqual([]);
+  it('agrees with the POC conversation map, apart from the lines OVO added', () => {
+    const { constants } = CREDITMANTRI_PRESET.options;
+    expect(diffConversationMap(imported, map, constants, added)).toEqual([]);
+    expect(diffConversationMap(imported, map, constants)).toEqual([
+      `clip missing from map: ${HOLD_PREFIX_LINE}`,
+    ]);
   });
 
   it('reports a stale map edge, node marker and clip text', () => {
@@ -177,7 +206,8 @@ describe('diffConversationMap', () => {
       .replace('  busy -- "this_evening" --> cb_evening\n', '')
       .replace('cb_generic<br/><small>G · END</small>', 'cb_generic<br/><small>G</small>')
       .replace('Thank you for your time. Have a good day!', 'Bye.');
-    expect(diffConversationMap(imported, stale, CREDITMANTRI_PRESET.options.constants)).toEqual([
+    const { constants } = CREDITMANTRI_PRESET.options;
+    expect(diffConversationMap(imported, stale, constants, added)).toEqual([
       'node missing from map: cb_generic END',
       'node not imported: cb_generic',
       'edge missing from map: busy -this_evening-> cb_evening',

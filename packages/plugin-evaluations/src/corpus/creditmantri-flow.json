@@ -47,7 +47,8 @@
         "stop_calling": "Understood. I've noted your request. You can reach us anytime on 1800 123 4567. Goodbye.",
         "abusive": "I understand you're upset. I'll end the call here. You can reach us on 1800 123 4567. Goodbye.",
         "repeat_prefix": "Sure, let me repeat that.",
-        "didnt_catch": "Sorry, I didn't quite catch that. Could you say that again?"
+        "didnt_catch": "Sorry, I didn't quite catch that. Could you say that again?",
+        "hold_prefix": "Sure, no problem."
       },
       "nodes": [
         {
@@ -69,7 +70,8 @@
           "say": ["recording", "emi_status", "charges", "ask_when"],
           "listen": "payment",
           "end": false,
-          "verified": true
+          "verified": true,
+          "mandatory": ["recording", "emi_status"]
         },
         {
           "id": "pay_now",
@@ -2140,20 +2142,51 @@
           "key": "repeat",
           "description": "They did not hear or understand and want the agent to repeat what it just said",
           "phrases": [
-            "sorry",
             "pardon",
-            "what",
             "come again",
             "repeat",
             "repeat that",
             "can you repeat",
             "can you repeat that",
             "say that again",
-            "kya",
-            "sorry what",
             "excuse me"
           ],
           "repeat": true
+        },
+        {
+          "key": "hold",
+          "description": "They ask the agent to wait a moment, or to stop talking and listen (\"one minute\", \"wait\", \"hold on\", \"stop, listen to me\"), without asking to end the call",
+          "phrases": [
+            "wait",
+            "wait wait",
+            "wait please",
+            "okay wait",
+            "one minute",
+            "one minute please",
+            "no no one minute",
+            "wait one minute",
+            "wait wait one minute",
+            "wait a minute",
+            "just a minute",
+            "one second",
+            "just a second",
+            "hold on",
+            "stop listen",
+            "stop listen to me",
+            "listen to me",
+            "please listen",
+            "ek minute",
+            "ek second",
+            "ruko",
+            "ruk jao",
+            "ek minute ruko",
+            "oru nimisham",
+            "konjam iru",
+            "रुको",
+            "एक मिनट",
+            "ஒரு நிமிஷம்"
+          ],
+          "hold": true
         },
         {
           "key": "human_agent",
@@ -2163,21 +2196,24 @@
         },
         {
           "key": "stop_calling",
-          "description": "They ask CreditMantri to stop calling them or to not call again",
+          "description": "They explicitly ask CreditMantri never to call them again or to take their number off the list (\"stop calling me\", \"don't call this number again\"). Not \"stop\" or \"please stop\" said to make the agent stop talking or listen to them",
           "phrases": [],
-          "next": "stop_calling"
+          "next": "stop_calling",
+          "threshold": 0.8
         },
         {
           "key": "abusive",
           "description": "They are abusive, threatening, or using profanity at the agent",
           "phrases": [],
-          "next": "abusive"
+          "next": "abusive",
+          "threshold": 0.75
         }
       ],
       "threshold": 0.55,
       "fallback": "llm",
       "clarify": "didnt_catch",
-      "repeatPrefix": "repeat_prefix"
+      "repeatPrefix": "repeat_prefix",
+      "holdPrefix": "hold_prefix"
     }
   },
   "idle": {

@@ -10,22 +10,19 @@ import {
   type OperationRecord,
   type ToolDefinition,
 } from '@winsendotai/ovo-contracts';
-import { streamAgentReply } from './agent-stream.ts';
+import { streamAgentReply, stripInternalNotes } from './agent-stream.ts';
+import { EndCallRefusal } from './agent-end-refusal.ts';
+import { endCallReason, isEndCall } from './agent-tools.ts';
 import type { AgentTurnLog } from './agent-turn-log.ts';
 import type { ToolConfirmation } from './confirmation.ts';
-import {
-  applyFlowResume,
-  flowGuide,
-  flowResumeTool,
-  interceptLateResume,
-  readFlowResume,
-  type FlowResume,
-} from './flow-rejoin.ts';
+import { applyFlowResume, interceptLateResume, readFlowResume } from './flow-rejoin.ts';
 import type { FlowSession } from './flow-session.ts';
-import type { InferenceCall } from './speculation-llm.ts';
+import { recovered, recoveryLine, repeatGuard, uncertaintyAgain } from './inference-recovery.ts';
+import { inferenceRequest, rejoinOffer, type Rejoin } from './inference-request.ts';
 import type { ToolEvents } from './tool-events.ts';
 
 export * from './flow-rejoin.ts';
+export { firstInferenceRequest } from './inference-request.ts';
 
 export interface InferenceStepInput {
   config: AgentConfig;
@@ -41,6 +38,8 @@ export interface InferenceStepInput {
   publish: (text: string) => string;
   /** The LLM ended the call; its goodbye is this turn's reply. */
   endCall: (reason: string) => void;
+  /** N1: why the LLM may not end the call on this turn (`EndCallGate`); undefined when it may. */
+  endRefused?: () => string | undefined;
   operationId: () => string;
   turn: number;
   /** False once a newer turn has superseded this one. */
@@ -60,77 +59,76 @@ export interface InferenceStepInput {
   flow?: FlowSession;
   /** The reply guardrail from the pre-reply step: the text to speak, or undefined to drop it. */
   guard?: (segment: string) => string | undefined;
-}
-
-/** How the flow is offered to the LLM for one turn. */
-interface RejoinOffer {
-  tool: ToolDefinition;
-  guide: string;
-}
-
-/** ...and what the LLM did with it. */
-interface Rejoin extends RejoinOffer {
-  resume(input: Pick<FlowResume, 'resumeAt' | 'action'>): void;
-}
-
-type RequestInput = Pick<
-  InferenceStepInput,
-  'config' | 'input' | 'history' | 'context' | 'tools' | 'results' | 'flow'
->;
-
-function rejoinOffer({ config, flow }: RequestInput): RejoinOffer | undefined {
-  const endAllowed = Boolean(config.ending?.llmTool);
-  const tool = flow ? flowResumeTool(flow, endAllowed) : undefined;
-  return flow && tool ? { tool, guide: flowGuide(flow, endAllowed) } : undefined;
-}
-
-function inferenceRequest(step: RequestInput, rejoin: RejoinOffer | undefined): InferenceCall {
-  return {
-    input: step.input,
-    history: step.history,
-    context: rejoin ? [step.context, rejoin.guide].filter(Boolean).join('\n\n') : step.context,
-    uncertainty: step.config.uncertainty,
-    tools: rejoin ? [...step.tools, rejoin.tool] : step.tools,
-    results: step.results,
-  };
-}
-
-/**
- * The first request `runInferenceSteps` will send for a turn in the flow state the call is in now.
- * LAT-3 asks it while the decision is still deciding; the step reuses that answer only when its own
- * first request turns out the same.
- */
-export function firstInferenceRequest(step: RequestInput): InferenceCall {
-  return inferenceRequest(step, rejoinOffer(step));
+  /** The caller cut off the agent's previous reply (P7); the LLM is told so in its instructions. */
+  replyCut?: boolean;
+  /** What the agent said in its previous turn, so the uncertainty line is not said twice (P10). */
+  previous?: readonly string[];
 }
 
 /**
  * Ask the LLM, run the read tools it selects, and speak its answer. Bounded by `maxSteps`; a write
  * or a confirmation-gated tool is never executed here, only proposed for the caller to confirm.
+ *
+ * A model that misuses a tool (an unknown tool, input that fails its schema, a tool call after its
+ * text), or on the voice path a provider that fails, is recorded and answered with the uncertainty
+ * line, never thrown to the engine: a turn that fails ends the call (P8, see `recovered`).
  */
 export async function* runInferenceSteps(step: InferenceStepInput): AsyncGenerator<string, void> {
   const flow = step.flow;
   const endAllowed = Boolean(step.config.ending?.llmTool);
   const offer = rejoinOffer(step);
-  if (!flow || !offer) return yield* inferenceSteps(step);
+  let spoke = false;
   let rejoined = false;
-  yield* inferenceSteps(step, {
-    ...offer,
-    resume: (resume) => {
-      rejoined = true;
-      if (applyFlowResume(flow, resume, endAllowed)) step.endCall('llm:resume_flow:end');
+  const counted = {
+    ...step,
+    publish: (text: string) => {
+      spoke = true;
+      return step.publish(text);
     },
-  });
+  };
+  try {
+    yield* inferenceSteps(
+      counted,
+      flow && offer
+        ? {
+            ...offer,
+            resume: (resume) => {
+              rejoined = true;
+              if (applyFlowResume(flow, resume, endAllowed)) step.endCall('llm:resume_flow:end');
+            },
+          }
+        : undefined,
+    );
+  } catch (error) {
+    if (!recovered(step, error)) throw error;
+    if (!spoke) yield step.publish(recoveryLine(step));
+  }
   // Answered in plain text: the flow stays where it was, and the path records that the LLM spoke.
-  if (!rejoined) flow.rejoin(undefined, endAllowed);
+  if (flow && offer && !rejoined) flow.rejoin(undefined, endAllowed);
 }
 
 async function* inferenceSteps(
   step: InferenceStepInput,
   rejoin?: Rejoin,
 ): AsyncGenerator<string, void> {
-  const { config, publish, signal } = step;
-  const checked = (text: string) => (step.guard ? step.guard(text) : text);
+  const { config, signal } = step;
+  const ending = new EndCallRefusal(step);
+  const publish = ending.publish;
+  // A streamed reply drops the repeated sentences; a whole one that is only the uncertainty line
+  // again becomes the clarification.
+  const repeated = repeatGuard(step);
+  const streamGuard =
+    repeated && step.guard
+      ? (text: string) => {
+          const kept = repeated(text);
+          return kept === undefined ? undefined : step.guard!(kept);
+        }
+      : (repeated ?? step.guard);
+  const fresh = (text: string) => (uncertaintyAgain(step, text) ? config.clarification : text);
+  const checked = (text: string) => {
+    const spoken = stripInternalNotes(text);
+    return spoken === undefined || !step.guard ? spoken : step.guard(spoken);
+  };
   const assertCurrent = () => {
     signal.throwIfAborted();
     if (!step.current()) throw new DOMException('stale agent turn', 'AbortError');
@@ -154,11 +152,12 @@ async function* inferenceSteps(
         assertCurrent,
         publish,
         (input) => {
-          const accepted = isEndCall(step, input);
-          if (accepted) step.endCall(endReason(input));
+          const accepted = isEndCall(step.tools, step.validators, input);
+          // A refused goodbye already streamed stays said; the call stays open.
+          if (accepted && !ending.refused(true)) step.endCall(endCallReason(input));
           return accepted;
         },
-        step.guard,
+        streamGuard,
         config.reply?.minFirstWords,
       );
       if (!streamed) return;
@@ -169,7 +168,7 @@ async function* inferenceSteps(
     assertCurrent();
 
     if (reply.kind === 'text') {
-      const text = checked(reply.text.trim() || config.uncertainty);
+      const text = checked(fresh(stripInternalNotes(reply.text) ?? recoveryLine(step)));
       if (text !== undefined) yield publish(text);
       return;
     }
@@ -178,7 +177,9 @@ async function* inferenceSteps(
     // port delivers a tool call whole (`InferenceStreamEvent` has no argument deltas), so it cannot
     // stream. That is why the model is told to say its answer as text first, which streams.
     if (rejoin && reply.toolId === FLOW_RESUME_TOOL_ID) {
-      const resume = readFlowResume(reply.input);
+      // P8: a resume with no reply is taken as the late resume it is; the caller still hears
+      // something, the uncertainty line, rather than silence or a dropped call.
+      const resume = readFlowResume(reply.input, true);
       if (!resume)
         throw step.log.toolError(
           step.turn,
@@ -187,7 +188,8 @@ async function* inferenceSteps(
           `Inference supplied invalid input for ${FLOW_RESUME_TOOL_ID}`,
         );
       rejoin.resume(resume);
-      const spoken = checked(resume.reply);
+      const said = stripInternalNotes(resume.reply);
+      const spoken = said === undefined ? recoveryLine(step) : checked(fresh(said));
       if (spoken !== undefined) yield publish(spoken);
       return;
     }
@@ -214,7 +216,13 @@ async function* inferenceSteps(
       );
     }
     if (tool.id === END_CALL_TOOL_ID) {
-      step.endCall(endReason(reply.input));
+      const why = ending.refused(false);
+      // Refused: the model hears why, and answers the caller instead in its next step.
+      if (why) {
+        step.results.push(ending.record(reply.input, why));
+        continue;
+      }
+      step.endCall(endCallReason(reply.input));
       const goodbye = checked((reply.input as { goodbye: string }).goodbye.trim());
       if (goodbye !== undefined) yield publish(goodbye);
       return;
@@ -262,20 +270,5 @@ async function* inferenceSteps(
       return;
     }
   }
-  yield publish(config.uncertainty);
-}
-
-/** Only an offered `end_call` with valid input ends the call; anything else is a protocol error. */
-function isEndCall(step: InferenceStepInput, input: unknown): boolean {
-  const validate = step.validators.get(END_CALL_TOOL_ID);
-  return Boolean(
-    validate && step.tools.some((tool) => tool.id === END_CALL_TOOL_ID) && validate(input),
-  );
-}
-
-function endReason(input: unknown): string {
-  const reason = (input as { reason?: unknown }).reason;
-  return typeof reason === 'string' && reason.trim()
-    ? `llm:end_call:${reason.trim()}`
-    : 'llm:end_call';
+  yield publish(recoveryLine(step));
 }

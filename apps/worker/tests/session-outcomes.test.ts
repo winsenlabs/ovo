@@ -83,4 +83,18 @@ describe('worker session outcomes (AGT-8)', () => {
     auditGuardrail(composition({ decision, llm }) as never, telemetry);
     expect(audits).toEqual([['speculation.summary', { decision, llm }]]);
   });
+
+  it('audits off-language turns and replaced replies when there were any (N4)', () => {
+    const audits: [string, unknown][] = [];
+    const telemetry = { audit: (type: string, payload: unknown) => !!audits.push([type, payload]) };
+    const composition = (metrics: unknown) => ({
+      ctx: {
+        get: (key: string) => (key === Cap.behavior ? { languageMetrics: metrics } : undefined),
+      },
+    });
+    const quiet = { offTurns: 0, replacedReplies: 0, droppedSegments: 0 };
+    auditGuardrail(composition(quiet) as never, telemetry);
+    auditGuardrail(composition({ ...quiet, offTurns: 2 }) as never, telemetry);
+    expect(audits).toEqual([['language.summary', { ...quiet, offTurns: 2 }]]);
+  });
 });

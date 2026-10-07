@@ -98,6 +98,28 @@ describe('per-turn telemetry', () => {
     expect(latest('turn-1')?.decision?.flow).toEqual({ node: 'greet', listen: 'identity' });
   });
 
+  it('reports the web searches inside the turn (N3)', () => {
+    const { turns, latest } = collector();
+    turns.engine(timing('turn_decision', 'turn-1', 1_000, 0));
+    turns.stage({ stage: 'llm_first_token', durationMs: 3_948, outcome: 'succeeded' });
+    turns.stage({
+      stage: 'web_search',
+      durationMs: 2_310,
+      outcome: 'succeeded',
+      payload: { action: 'search', results: 6 },
+    });
+    turns.stage({ stage: 'web_search', durationMs: 700, outcome: 'unknown', payload: {} });
+    turns.stage({ stage: 'inference', durationMs: 4_225, outcome: 'succeeded' });
+    turns.flush();
+    expect(latest('turn-1')).toMatchObject({
+      searchMs: 3_010,
+      searchCalls: 2,
+      searchResults: 6,
+      llmFirstTokenMs: 3_948,
+      groundingMs: null,
+    });
+  });
+
   it('attributes each stage to its own interval instead of deltas between stages', () => {
     const { turns, latest } = collector();
     speakTurn(turns);
@@ -128,6 +150,9 @@ describe('per-turn telemetry', () => {
       llmFirstTokenMs: 450,
       llmTotalMs: 1_400,
       llmCalls: 1,
+      searchMs: null,
+      searchCalls: 0,
+      searchResults: null,
       firstSegmentMs: 1_170,
       firstAudioMs: 2_130,
       bargeInMs: null,
@@ -247,6 +272,28 @@ describe('per-turn telemetry', () => {
       interrupted: true,
       bargeInMs: 80,
       segments: [{ segmentId: 'speech-1', state: 'interrupted', firstAudioAtMs: null }],
+    });
+  });
+
+  it('does not count a filler cut by its own reply as an interruption (P3)', () => {
+    const { turns, latest } = collector();
+    turns.engine(timing('turn_decision', 'turn-1', 1_000, 0));
+    turns.engine(timing('text_aggregation', 'turn-1', 1_600, 600, 'speech-7'));
+    turns.engine({
+      type: 'speech',
+      evidence: {
+        segmentId: 'speech-7',
+        epoch: 5,
+        kind: 'acknowledgment',
+        text: 'Sure, let me check that.',
+        phase: 'interrupted',
+        evidence: 'estimated',
+        at: 0,
+      } as SpeechEvidence,
+    });
+    expect(latest('turn-1')).toMatchObject({
+      interrupted: false,
+      segments: [{ segmentId: 'speech-7', state: 'interrupted' }],
     });
   });
 });

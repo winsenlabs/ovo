@@ -1,5 +1,6 @@
 export * from './calling-window.ts';
 export * from './campaign.ts';
+export * from './compliance/index.ts';
 export * from './api-schemas.ts';
 export * from './api-presenters.ts';
 export * from './calls.ts';

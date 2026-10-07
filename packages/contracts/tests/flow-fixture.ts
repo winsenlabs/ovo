@@ -4,6 +4,8 @@ type FixtureIntent = {
   phrases?: string[];
   next?: string | { slot: string; cases: Record<string, string>; otherwise: string };
   repeat?: boolean;
+  hold?: boolean;
+  threshold?: number;
 };
 
 /** Loosely typed so a test can break the flow in any way the schema still accepts. */
@@ -18,6 +20,7 @@ export type FlowFixture = {
     end?: boolean;
     disposition?: string;
     verified?: boolean;
+    mandatory?: string[];
   }[];
   listens: {
     id: string;
@@ -27,6 +30,7 @@ export type FlowFixture = {
   }[];
   globalIntents: FixtureIntent[];
   repeatPrefix?: string;
+  holdPrefix?: string;
 };
 
 /** A small slice of the POC collections map (poc/lib/flow.js), as authored flow JSON. */

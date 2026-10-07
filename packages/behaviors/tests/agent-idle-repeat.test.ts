@@ -86,7 +86,7 @@ describe('repeat (AGT-12)', () => {
     const decision = jev(['pay', 0.95]);
     const behavior = jevOnly({ decision: policy(), recovery }, decision.port);
     expect(await behavior.respond('I will pay', call)).toBe('Thank you, Ravi.');
-    expect(await behavior.respond('Sorry?', call)).toBe(
+    expect(await behavior.respond('Pardon?', call)).toBe(
       'Sure, let me repeat that. Thank you, Ravi.',
     );
     expect(await behavior.respond('one more time', call)).toBe(
@@ -106,18 +106,18 @@ describe('repeat (AGT-12)', () => {
     );
     await collect(behavior.respondStream('', { ...call, inputEvent: 'opening' }));
     expect(await behavior.respond('   ', call)).toBe(DEFAULT_DIDNT_CATCH);
-    expect(await behavior.respond('kya?', call)).toBe(
+    expect(await behavior.respond('kya bola?', call)).toBe(
       'Sure, let me repeat that. Hi, this is Asha. Is this Ravi?',
     );
   });
 
   it('is an ordinary reply without a repeat policy, or before anything was said', async () => {
     const decision = jev(['other', 0.9], ['other', 0.9]);
-    expect(await jevOnly({ decision: policy() }, decision.port).respond('sorry?', call)).toBe(
+    expect(await jevOnly({ decision: policy() }, decision.port).respond('pardon?', call)).toBe(
       'Let me note that.',
     );
     expect(
-      await jevOnly({ decision: policy(), recovery }, decision.port).respond('sorry?', call),
+      await jevOnly({ decision: policy(), recovery }, decision.port).respond('pardon?', call),
     ).toBe('Let me note that.');
   });
 });

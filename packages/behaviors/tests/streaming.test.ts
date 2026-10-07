@@ -7,6 +7,7 @@ import {
   type SpeechReceipt,
 } from '@winsendotai/ovo-contracts';
 import { AgentBehavior, ContextBehavior, StreamingTextSegmenter } from '../src/index.ts';
+import { INTERRUPTED_CONTEXT } from '../src/history.ts';
 
 function played(text: string, epoch: number, state: SpeechReceipt['state'] = 'completed') {
   return { id: `${epoch}-${text}`, text, epoch, state, evidence: 'confirmed' as const };
@@ -56,14 +57,13 @@ describe('streaming behaviors', () => {
     behavior.beginTurn(2);
     const next = behavior.respondStream('next')[Symbol.asyncIterator]();
     await next.next();
+    // P7: the cut is told in the instructions, never as an assistant line the model could copy.
     expect(requests[1]?.history).toEqual([
       { role: 'user', content: 'first' },
       { role: 'assistant', content: 'First sentence!' },
-      {
-        role: 'assistant',
-        content: '[The response was interrupted. Do not assume any unconfirmed words were heard.]',
-      },
     ]);
+    expect(requests[1]?.context).toBe(`Known facts.\n\n${INTERRUPTED_CONTEXT}`);
+    expect(requests[0]?.context).toBe('Known facts.');
     behavior.cancel();
   });
 
@@ -123,6 +123,9 @@ describe('streaming behaviors', () => {
   });
 
   it('refuses a tool side effect when a provider mixes it with streamed speech', async () => {
+    // The tool is recorded as a protocol error and never run, and the turn is answered with the
+    // uncertainty line (its text promised a change that will not happen) rather than failing the
+    // call (P8).
     const inference: Inference = {
       generate: async () => ({ kind: 'text', text: 'fallback' }),
       async *stream() {
@@ -158,11 +161,12 @@ describe('streaming behaviors', () => {
       { workspaceId: 'local', sessionId: 'call' },
     );
     behavior.beginTurn(1);
-    const consume = async () => {
-      for await (const _segment of behavior.respondStream('change it')) void _segment;
-    };
-
-    await expect(consume()).rejects.toThrow('Tool call followed streamed response text');
+    const said: string[] = [];
+    for await (const segment of behavior.respondStream('change it')) said.push(segment);
+    expect(said).toEqual([behavior.config.uncertainty]);
     expect(executions).toBe(0);
+    expect(behavior.toolErrors).toMatchObject([
+      { toolId: 'change', kind: 'protocol', message: 'Tool call followed streamed response text' },
+    ]);
   });
 });

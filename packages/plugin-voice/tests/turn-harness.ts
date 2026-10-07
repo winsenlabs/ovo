@@ -3,6 +3,7 @@ import type {
   Clock,
   MediaDuplex,
   SessionInput,
+  SpeechOutput,
   TurnDecision,
   TurnSpeculation,
 } from '@winsendotai/ovo-contracts';
@@ -82,41 +83,56 @@ export function slowAgent(clock: TestClock, { llmMs = 2500, fastMs = 100 } = {})
 export function driverHarness(
   clock: TestClock,
   behavior: Behavior & TurnSpeculation,
-  { ttsMs = 200, playMs = 1500, fillers = [] as string[] } = {},
+  {
+    ttsMs = 200,
+    playMs = 1500,
+    fillers = [] as string[],
+    output,
+  }: { ttsMs?: number; playMs?: number; fillers?: string[]; output?: SpeechOutput } = {},
 ) {
   const bus = new VoiceEventBus();
   /** Each line whose audio reached the carrier, and when. */
   const audio: { text: string; atMs: number; kind: string }[] = [];
-  const scheduler = new BoundedSpeechScheduler({
+  /** Each line cut off after its audio reached the carrier, and when. */
+  const cut: { text: string; atMs: number }[] = [];
+  const fake: SpeechOutput = {
     async play(segment, { signal, report }) {
       await sleep(clock, fillers.includes(segment.text) ? 0 : ttsMs, signal);
       if (signal.aborted) return { state: 'interrupted', evidence: 'estimated' };
       audio.push({ text: segment.text, atMs: clock.now(), kind: segment.kind });
       report?.('sent', 'estimated');
       await sleep(clock, playMs, signal);
+      if (signal.aborted) cut.push({ text: segment.text, atMs: clock.now() });
       return signal.aborted
         ? { state: 'interrupted', evidence: 'estimated' }
         : { state: 'completed', evidence: 'confirmed' };
     },
     async interrupt() {},
-  });
+  };
+  // A real output (`output`) records no `audio` or `cut` here.
+  const scheduler = new BoundedSpeechScheduler(output ?? fake);
   const ended: string[] = [];
+  /** `reason` or `reason:detail`, for each end the driver asked for. */
+  const endings: string[] = [];
   const driver = new TurnDriver(
     behavior,
     scheduler,
     session,
     bus,
     new TurnLatency(clock, () => undefined),
-    (reason) => ended.push(reason),
+    (reason, detail) => {
+      ended.push(reason);
+      endings.push(detail ? `${reason}:${detail}` : reason);
+    },
     4,
     { sessionId: 's-1', playbackEvidence: 'carrier-played' } as MediaDuplex,
     clock,
   );
-  let turn = 0;
+  let callerTurns = 0;
   const caller = (text: string, filler?: { text: string; afterMs: number }) =>
     driver.decide({
       type: 'turn.stopped',
-      turnId: `turn-${++turn}`,
+      turnId: `turn-${++callerTurns}`,
       input: { kind: 'speech', text, segments: 1 },
       ...(filler ? { filler } : {}),
     } satisfies TurnDecision);
@@ -127,5 +143,20 @@ export function driverHarness(
     audio.length = 0;
     return clock.now();
   };
-  return { driver, audio, ended, caller, greet, scheduler, bus };
+  /** The detector's decisions for one caller turn, by id, and the VAD around it. */
+  const turn = {
+    started: (turnId: string) => driver.decide({ type: 'turn.started', turnId }),
+    partial: (turnId: string, text: string) =>
+      driver.decide({ type: 'turn.partial', turnId, text, stable: false }),
+    stopped: (turnId: string, text: string, filler?: { text: string; afterMs: number }) =>
+      driver.decide({
+        type: 'turn.stopped',
+        turnId,
+        input: { kind: 'speech', text, segments: 1 },
+        ...(filler ? { filler } : {}),
+      }),
+    reset: (turnId: string) => driver.decide({ type: 'turn.reset', turnId, reason: 'backchannel' }),
+    vad: (type: 'vad.start' | 'vad.stop') => bus.observe({ type, atMs: clock.now() }),
+  };
+  return { driver, audio, cut, ended, endings, caller, greet, scheduler, bus, turn };
 }

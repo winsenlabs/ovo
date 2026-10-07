@@ -1,15 +1,13 @@
-import {
-  Cap,
-  VadParamsSchema,
-  type VadAnalyzerFactory,
-  type VadParams,
-} from '@winsendotai/ovo-contracts';
+import { Cap, type VadAnalyzerFactory } from '@winsendotai/ovo-contracts';
 import { definePluginV2 } from '@winsendotai/ovo-sdk';
+import { EnergyVadConfigSchema, sharedParams, type EnergyVadConfig } from './config.ts';
 import { EnergyVad } from './energy-vad.ts';
 
+export { EnergyVadConfigSchema, PHONE_VAD_CONFIG, type EnergyVadConfig } from './config.ts';
+
 export function createEnergyVad(row: unknown = {}): VadAnalyzerFactory {
-  const params: VadParams = VadParamsSchema.parse(row);
-  return { params, create: (rate) => new EnergyVad(rate, params) };
+  const config: EnergyVadConfig = EnergyVadConfigSchema.parse(row);
+  return { params: sharedParams(config), create: (rate) => new EnergyVad(rate, config) };
 }
 
 export const energyVadPlugin = definePluginV2(
@@ -20,7 +18,7 @@ export const energyVadPlugin = definePluginV2(
     kind: 'vad',
     provider: 'ovo',
     provides: [Cap.vad],
-    config: VadParamsSchema,
+    config: EnergyVadConfigSchema,
     conformance: ['vad@1'],
   },
   (ctx, config) => {

@@ -6,6 +6,32 @@ import {
 import { AgentToolSelectionError } from './agent-tools.ts';
 import { StreamingTextSegmenter } from './text-segmenter.ts';
 
+/**
+ * P7: square-bracketed text in a reply is a note, never speech ("[The response was interrupted.",
+ * "[Playback evidence: estimated.]"): a model that copies one from its context must not have the
+ * caller hear it. Stateful, because the segmenter splits a note across sentences.
+ */
+export class InternalNotes {
+  private open = false;
+
+  /** The segment without its notes, or undefined when nothing speakable is left. */
+  strip(segment: string): string | undefined {
+    let kept = '';
+    for (const char of segment) {
+      if (char === '[') this.open = true;
+      else if (char === ']' && this.open) this.open = false;
+      else if (!this.open) kept += char;
+    }
+    const text = kept.replace(/\s+/g, ' ').trim();
+    return /[\p{L}\p{N}]/u.test(text) ? text : undefined;
+  }
+}
+
+/** `InternalNotes` for a whole reply. */
+export function stripInternalNotes(text: string): string | undefined {
+  return new InternalNotes().strip(text);
+}
+
 export async function* streamAgentReply(
   events: AsyncIterable<InferenceStreamEvent>,
   language: string,
@@ -31,6 +57,11 @@ export async function* streamAgentReply(
   let toolReply: { kind: 'tool'; toolId: string; input: unknown } | undefined;
   let emittedText = false;
   let receivedText = false;
+  const notes = new InternalNotes();
+  const speakable = (segment: string) => {
+    const text = notes.strip(segment);
+    return text === undefined || !guard ? text : guard(text);
+  };
   for await (const event of events) {
     assertCurrent();
     if (event.kind === 'tool') {
@@ -51,7 +82,7 @@ export async function* streamAgentReply(
         );
       receivedText ||= Boolean(event.delta);
       for (const segment of segmenter.push(event.delta)) {
-        const spoken = guard ? guard(segment) : segment;
+        const spoken = speakable(segment);
         if (spoken === undefined) continue;
         emittedText = true;
         yield publish(spoken);
@@ -59,7 +90,7 @@ export async function* streamAgentReply(
     }
   }
   for (const segment of segmenter.finish()) {
-    const spoken = guard ? guard(segment) : segment;
+    const spoken = speakable(segment);
     if (spoken === undefined) continue;
     emittedText = true;
     yield publish(spoken);

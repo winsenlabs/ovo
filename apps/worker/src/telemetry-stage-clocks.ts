@@ -5,6 +5,7 @@ import {
   type InferenceStreamEvent,
   type SttEvent,
 } from '@winsendotai/ovo-contracts';
+import type { InferenceActivitySource } from '@winsendotai/ovo-plugin-kit';
 
 type Finish = (
   outcome: 'succeeded' | 'failed' | 'timeout' | 'unknown',
@@ -56,6 +57,28 @@ export class EndpointClock {
       audioWrittenMs: Math.round(this.audioMs),
     });
   }
+}
+
+/**
+ * N3: each web search the provider runs inside an inference step, from the provider streaming the
+ * call to its result, as a `web_search` stage with the action and how many sources it returned.
+ * A search its request abandoned ends `unknown`.
+ */
+export function timeWebSearches(source: InferenceActivitySource, begin: () => Finish): () => void {
+  const open = new Map<string, Finish>();
+  return source.observeActivity((activity) => {
+    if (activity.tool !== 'web_search') return;
+    if (activity.phase === 'started') {
+      open.set(activity.id, begin());
+      return;
+    }
+    const finish = open.get(activity.id);
+    open.delete(activity.id);
+    finish?.(activity.outcome === 'cancelled' ? 'unknown' : activity.outcome, {
+      action: activity.action ?? null,
+      results: activity.results ?? null,
+    });
+  });
 }
 
 /** Times the first text or tool call of an inference stream, without changing the stream. */

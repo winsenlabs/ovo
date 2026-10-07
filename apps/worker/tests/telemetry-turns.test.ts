@@ -194,6 +194,52 @@ describe('live per-turn telemetry', () => {
     });
   });
 
+  // Live calls 2026-10-07 (Scribe, no word timings): endpointMs was null on every turn summary.
+  it("takes the engine's endpoint when the provider has no word timings to measure one", async () => {
+    const h = await harness();
+    h.emit({ type: 'user.turn', phase: 'started', turnId: 'turn-1' });
+    h.emit({ type: 'timing', key: 'vad_stop_wait', turnId: 'turn-1', atMs: 2_000, ms: 443 });
+    h.emit({
+      type: 'user.turn',
+      phase: 'stopped',
+      turnId: 'turn-1',
+      input: 'speech',
+      text: 'Yes, sir.',
+      endpointMs: 648,
+    });
+    h.emit({ type: 'timing', key: 'turn_decision', turnId: 'turn-1', atMs: 2_010, ms: 10 });
+    // A provider measure, from its word timings, is the better one when there is one.
+    h.emit({ type: 'user.turn', phase: 'started', turnId: 'turn-2' });
+    h.session.recordStage({ stage: 'stt.endpoint', durationMs: 610 });
+    h.emit({
+      type: 'user.turn',
+      phase: 'stopped',
+      turnId: 'turn-2',
+      input: 'speech',
+      text: 'Tomorrow.',
+      endpointMs: 700,
+    });
+    h.emit({ type: 'timing', key: 'turn_decision', turnId: 'turn-2', atMs: 4_010, ms: 10 });
+    // Keypad digits have no endpoint.
+    h.emit({ type: 'user.turn', phase: 'started', turnId: 'turn-3' });
+    h.emit({
+      type: 'user.turn',
+      phase: 'stopped',
+      turnId: 'turn-3',
+      input: 'dtmf',
+      text: '1',
+      endpointMs: 5,
+    });
+    h.emit({ type: 'timing', key: 'turn_decision', turnId: 'turn-3', atMs: 6_010, ms: 10 });
+    await h.finish();
+    const summary = (turnId: string) =>
+      h.telemetry.filter((event) => event.kind === 'turn.summary' && event.turnId === turnId).at(-1)
+        ?.payload as { summary: { endpointMs: number | null; vadStopToFinalMs?: number | null } };
+    expect(summary('turn-1').summary).toMatchObject({ endpointMs: 648, vadStopToFinalMs: 443 });
+    expect(summary('turn-2').summary.endpointMs).toBe(610);
+    expect(summary('turn-3').summary.endpointMs).toBeNull();
+  });
+
   it('keeps no caller or agent words anywhere when the transcript switch omits them', async () => {
     const h = await harness(
       { default: 'store', agents: { 'agent-private': 'omit' } },

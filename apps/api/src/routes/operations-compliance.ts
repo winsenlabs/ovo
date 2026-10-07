@@ -4,6 +4,9 @@ import {
   operationsApiSchemas as schemas,
   operationsRequestError,
 } from '@winsendotai/ovo-plugin-operations';
+import { registerComplianceConfigRoutes } from './compliance-config.ts';
+import { registerComplianceEvidenceRoutes } from './compliance-evidence.ts';
+import { registerComplianceRecordRoutes } from './compliance-records.ts';
 import type { RealtimeRouteDependencies } from './operations-realtime.ts';
 
 /**
@@ -12,6 +15,9 @@ import type { RealtimeRouteDependencies } from './operations-realtime.ts';
  */
 export function registerOperationsComplianceRoutes(input: RealtimeRouteDependencies): void {
   const { app, requireRole, use, audit } = input;
+  registerComplianceConfigRoutes(input);
+  registerComplianceRecordRoutes(input);
+  registerComplianceEvidenceRoutes(input);
 
   app.get('/v1/operations/suppressions/:phoneNumber', async (request, reply) => {
     const operations = use(reply, requireRole(request, 'viewer'));

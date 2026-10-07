@@ -87,7 +87,9 @@ export class TurnTelemetryCollector {
       if (!turnId || !segment) return;
       segment.state = phase;
       const state = this.turns.get(turnId)!;
-      if (phase === 'interrupted') state.turn.interrupted = true;
+      // A filler cut by its own reply (P3) is no interruption; a barge-in sends 'interrupt'.
+      if (phase === 'interrupted' && event.evidence.kind !== 'acknowledgment')
+        state.turn.interrupted = true;
       state.dirty = true;
       this.publish(turnId);
     }
@@ -111,6 +113,11 @@ export class TurnTelemetryCollector {
     } else if (sample.stage === 'inference') {
       turn.llmTotalMs = (turn.llmTotalMs ?? 0) + sample.durationMs;
       turn.llmCalls += 1;
+    } else if (sample.stage === 'web_search') {
+      turn.searchMs = (turn.searchMs ?? 0) + sample.durationMs;
+      turn.searchCalls += 1;
+      const results = sample.payload?.results;
+      if (typeof results === 'number') turn.searchResults = (turn.searchResults ?? 0) + results;
     } else return;
     state.dirty = true;
   }
@@ -225,6 +232,9 @@ function emptyTurn(turnId: string): TurnState['turn'] {
     llmFirstTokenMs: null,
     llmTotalMs: null,
     llmCalls: 0,
+    searchMs: null,
+    searchCalls: 0,
+    searchResults: null,
     firstSegmentMs: null,
     bargeInMs: null,
     interrupted: false,

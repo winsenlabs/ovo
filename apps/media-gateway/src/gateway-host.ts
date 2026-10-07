@@ -17,6 +17,7 @@ import {
   validateSelections,
   type CarrierBindingRow,
 } from '@winsendotai/ovo-session-host';
+import { campaignAttemptReason, campaignAttemptStatus } from './campaign-attempt.ts';
 import type { GatewayHealth } from './gateway-health.ts';
 import { createInboundAdmission } from './inbound-admission.ts';
 import { projectInboundTerminalStatus } from './inbound-status.ts';
@@ -42,21 +43,6 @@ function callbackStatus(state: NormalizedCallEvent['state']): CallbackStatus {
     case 'canceled':
       return 'cancelled';
   }
-}
-
-/** A completed carrier leg is successful only after a real session opened and no machine answered. */
-export function campaignAttemptStatus(input: {
-  state: NormalizedCallEvent['state'];
-  answeredBy?: NormalizedCallEvent['answeredBy'];
-  sessionOpened: boolean;
-}): 'dialing' | 'connected' | 'succeeded' | 'cancelled' | 'failed' {
-  if (input.state === 'in_progress') return 'connected';
-  if (input.state === 'completed')
-    return input.sessionOpened && input.answeredBy !== 'machine' ? 'succeeded' : 'failed';
-  if (input.state === 'canceled') return 'cancelled';
-  if (input.state === 'busy' || input.state === 'failed' || input.state === 'no_answer')
-    return 'failed';
-  return 'dialing';
 }
 
 export interface GatewayHostOptions {
@@ -225,15 +211,15 @@ export function createGatewayHost(options: GatewayHostOptions) {
                   )
                 : undefined;
             const observed = evidence?.rows[0];
+            const answeredBy = observed?.machine_answered ? 'machine' : event.answeredBy;
+            const sessionOpened = observed?.session_opened === true;
             await options.operations.campaigns.recordAttempt(
               attemptId,
               event.eventId,
-              campaignAttemptStatus({
-                state: event.state,
-                answeredBy: observed?.machine_answered ? 'machine' : event.answeredBy,
-                sessionOpened: observed?.session_opened === true,
-              }),
+              campaignAttemptStatus({ state: event.state, answeredBy, sessionOpened }),
               event.occurredAt,
+              // The compliance retry policy backs off by reason (busy, no answer, voicemail).
+              campaignAttemptReason({ state: event.state, answeredBy, sessionOpened }),
             );
           }
           return result.kind === 'ignored_out_of_order'

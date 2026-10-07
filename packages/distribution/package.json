@@ -9,6 +9,7 @@
     "@winsendotai/ovo-behaviors": "workspace:*",
     "@winsendotai/ovo-contracts": "workspace:*",
     "@winsendotai/ovo-fixture-calls": "workspace:*",
+    "@winsendotai/ovo-plugin-audio-filter": "workspace:*",
     "@winsendotai/ovo-plugin-cache": "workspace:*",
     "@winsendotai/ovo-plugin-carrier-exotel": "workspace:*",
     "@winsendotai/ovo-plugin-carrier-plivo": "workspace:*",

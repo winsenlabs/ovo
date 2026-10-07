@@ -36,7 +36,12 @@ export interface AgentBehaviorOptions {
 export interface AgentToolErrorRecord {
   turn: number;
   toolId: string;
-  kind: 'unknown-or-unapproved' | 'invalid-input';
+  /**
+   * `protocol`: tool and text out of order, or two tool calls in one reply. `inference`: the
+   * provider failed; `toolId` is then empty. `refused`: an `end_call` the call does not allow yet
+   * (N1); the call goes on.
+   */
+  kind: 'unknown-or-unapproved' | 'invalid-input' | 'protocol' | 'inference' | 'refused';
   message: string;
   at: string;
 }
@@ -63,7 +68,8 @@ export const END_CALL_TOOL: ToolDefinition = {
   id: END_CALL_TOOL_ID,
   description:
     'End the phone call. Call this instead of replying, only once the conversation is finished ' +
-    'and the caller has nothing more to ask; put your closing sentence in `goodbye`.',
+    'and the caller has nothing more to ask; put your closing sentence in `goodbye`. Never call ' +
+    'it after asking the caller a question, or when you did not understand what they said.',
   connector: 'native',
   inputSchema: {
     type: 'object',
@@ -78,3 +84,21 @@ export const END_CALL_TOOL: ToolDefinition = {
   confirmation: false,
   timeoutMs: 1_000,
 };
+
+/** Only an offered `end_call` with valid input ends the call; anything else is a protocol error. */
+export function isEndCall(
+  tools: readonly ToolDefinition[],
+  validators: ReadonlyMap<string, ValidateFunction>,
+  input: unknown,
+): boolean {
+  const validate = validators.get(END_CALL_TOOL_ID);
+  return Boolean(validate && tools.some((tool) => tool.id === END_CALL_TOOL_ID) && validate(input));
+}
+
+/** The completion reason of an LLM's `end_call`, with the reason it gave. */
+export function endCallReason(input: unknown): string {
+  const reason = (input as { reason?: unknown }).reason;
+  return typeof reason === 'string' && reason.trim()
+    ? `llm:end_call:${reason.trim()}`
+    : 'llm:end_call';
+}

@@ -111,6 +111,11 @@ export type EngineEvent =
       turnId: string;
       input?: 'speech' | 'dtmf';
       text?: string;
+      /**
+       * stopped, speech only (OBS-5): the caller's last voiced audio (by the VAD) to the turn being
+       * accepted. For speech recognition without word timings, which cannot time its own endpoint.
+       */
+      endpointMs?: number;
     }
   | {
       type: 'agent.transcript';

@@ -15,6 +15,7 @@ import {
 } from '@winsendotai/ovo-plugin-media';
 
 import { PreSessionBuffer } from './pre-session-buffer.ts';
+import { AnsweredByLatch } from './worker-media-verdict.ts';
 
 export { attachWorkerMediaServer } from '@winsendotai/ovo-plugin-media';
 
@@ -39,8 +40,7 @@ export class WorkerMediaLink implements WorkerMediaSession {
   private readonly played = new Set<(name: string) => void>();
   private readonly cleared = new Set<() => void>();
   private readonly dtmf = new Set<(digit: string) => void>();
-  private readonly answeredBy = new Set<(value: 'human' | 'machine' | 'unknown') => void>();
-  private answered?: 'human' | 'machine' | 'unknown';
+  private readonly answeredBy = new AnsweredByLatch();
   private readonly closeListeners = new Set<(reason: string) => void>();
 
   constructor(
@@ -161,8 +161,17 @@ export class WorkerMediaLink implements WorkerMediaSession {
     } else if (message.type === 'media.dtmf') {
       for (const listener of this.dtmf) listener(message.digit);
     } else if (message.type === 'call.answered-by') {
-      this.answer(message.value);
+      this.answeredBy.deliver(message.value);
     } else if (message.type === 'session.close') this.gatewayClosed(message.reason);
+  }
+
+  /**
+   * N2: the worker is ending the call with `reason` (the engine's own ending: the agent's goodbye,
+   * the time limit) and is about to hang up the carrier leg. The stream stop that hang-up causes
+   * then finishes this link with `reason`, not as the caller hanging up.
+   */
+  endingWith(reason: EndReason): void {
+    if (!this.closed) this.ending ??= reason;
   }
 
   /**
@@ -237,14 +246,7 @@ export class WorkerMediaLink implements WorkerMediaSession {
   }
   /** The carrier's answering-machine verdict, once; a subscriber that arrives later still hears it. */
   onAnsweredBy(fn: (value: 'human' | 'machine' | 'unknown') => void): () => void {
-    const known = this.answered;
-    if (known) queueMicrotask(() => this.answeredBy.has(fn) && fn(known));
-    return this.subscribe(this.answeredBy, fn);
-  }
-  private answer(value: 'human' | 'machine' | 'unknown'): void {
-    if (this.answered) return;
-    this.answered = value;
-    for (const listener of this.answeredBy) listener(value);
+    return this.answeredBy.subscribe(fn);
   }
   onClose(fn: (reason: string) => void): () => void {
     return this.subscribe(this.closeListeners, fn);

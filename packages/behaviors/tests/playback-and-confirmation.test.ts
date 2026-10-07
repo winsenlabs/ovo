@@ -6,6 +6,7 @@ import {
   type SpeechReceipt,
 } from '@winsendotai/ovo-contracts';
 import { AgentBehavior, ContextBehavior } from '../src/index.ts';
+import { INTERRUPTED_CONTEXT } from '../src/history.ts';
 const played = (
   text: string,
   epoch: number,
@@ -30,13 +31,9 @@ it('remembers played answers, not unplayed generated answers or interrupted text
   await behavior.respond('First');
   behavior.beginTurn(1);
   const second = await behavior.respond('Second');
-  expect(requests[1].history).toEqual([
-    { role: 'user', content: 'First' },
-    {
-      role: 'assistant',
-      content: '[The response was interrupted. Do not assume any unconfirmed words were heard.]',
-    },
-  ]);
+  // The unplayed answer is not in the history, and the cut is a note in the instructions (P7).
+  expect(requests[1].history).toEqual([{ role: 'user', content: 'First' }]);
+  expect(requests[1].context).toContain(INTERRUPTED_CONTEXT);
   behavior.onPlayback(played(second, 1));
   behavior.beginTurn(2);
   const third = await behavior.respond('Third');
@@ -45,7 +42,9 @@ it('remembers played answers, not unplayed generated answers or interrupted text
   behavior.beginTurn(3);
   await behavior.respond('Fourth');
   expect(JSON.stringify(requests[3].history)).not.toContain('Answer 3');
-  expect(JSON.stringify(requests[3].history)).toContain('interrupted');
+  expect(JSON.stringify(requests[3].history)).not.toContain('interrupted');
+  expect(requests[3].context).toContain(INTERRUPTED_CONTEXT);
+  expect(requests[2].context).not.toContain(INTERRUPTED_CONTEXT);
 });
 
 const agentConfig = () =>

@@ -1,7 +1,10 @@
 import type { Pool } from 'pg';
+import type { PreferenceProvider } from '@winsendotai/ovo-contracts';
 import { CampaignAdminService } from './campaign-admin.ts';
 import { CampaignAdmissionService } from './campaign-admission.ts';
 import { CampaignEventService } from './campaign-events.ts';
+import { ComplianceService } from './compliance/service.ts';
+import { ComplianceSettingsStore } from './compliance/settings.ts';
 import { DoNotCallService } from './do-not-call.ts';
 import type {
   AttemptTerminalStatus,
@@ -22,12 +25,26 @@ export class CampaignService {
   private readonly events: CampaignEventService;
   /** The do-not-call list; `suppress`, `unsuppress` and `listSuppressions` are its older names. */
   readonly doNotCall: DoNotCallService;
+  /** Compliance by configuration: settings, registries, consent, complaints and the dial gate. */
+  readonly compliance: ComplianceService;
 
-  constructor(pool: Pool, organizationId: string) {
+  constructor(
+    pool: Pool,
+    organizationId: string,
+    preferenceProviders: readonly PreferenceProvider[] = [],
+  ) {
+    const settings = new ComplianceSettingsStore(pool, organizationId);
+    this.doNotCall = new DoNotCallService(pool, organizationId, settings);
+    this.compliance = new ComplianceService(
+      pool,
+      organizationId,
+      this.doNotCall,
+      settings,
+      preferenceProviders,
+    );
     this.admin = new CampaignAdminService(pool, organizationId);
-    this.admission = new CampaignAdmissionService(pool, organizationId);
+    this.admission = new CampaignAdmissionService(pool, organizationId, this.compliance.gate);
     this.events = new CampaignEventService(pool, organizationId);
-    this.doNotCall = new DoNotCallService(pool, organizationId);
   }
 
   create(
@@ -77,8 +94,8 @@ export class CampaignService {
     return this.doNotCall.add(phoneNumber, reason);
   }
 
-  unsuppress(phoneNumber: string): Promise<boolean> {
-    return this.doNotCall.remove(phoneNumber);
+  async unsuppress(phoneNumber: string): Promise<boolean> {
+    return !!(await this.doNotCall.remove(phoneNumber));
   }
 
   listSuppressions(limit = 25, afterPhone?: string): Promise<SuppressionRecord[]> {
