@@ -1,11 +1,9 @@
 import {
-  classifyConfirmation,
   defaultMuteRules,
   type Clock,
   type Mode,
   type MuteRule,
   type SpeechCapabilities,
-  type SttEvent,
   type TurnConfig,
   type TurnDecision,
   type VoiceEvent,
@@ -15,12 +13,12 @@ import { TurnAnnouncer } from './announce.ts';
 import { DetectorConfigSchema, type DetectorConfig } from './config.ts';
 import { DtmfCollector } from './dtmf.ts';
 import { IdleTimer } from './idle.ts';
-import { canInterrupt, confirmationPrompt, speechMuted, type MuteView } from './mute.ts';
-import { acknowledges, containsConfirmationPhrase, speechCanInterrupt } from './start-min-words.ts';
-import { transcriptStartsTurn } from './start-transcript.ts';
+import type { MuteView } from './mute.ts';
+import { SpeechEvidence } from './speech-evidence.ts';
 import { CommitTimers } from './stop-commit.ts';
 import { SpeechStopTimers } from './stop-speech-timeout.ts';
 import { stopStrategy, type StopStrategy } from './strategies.ts';
+import { CutoffHold } from './transcript-text.ts';
 
 export interface ControllerInput {
   clock: Clock;
@@ -41,6 +39,8 @@ export abstract class TurnControllerState {
   protected readonly idle: IdleTimer;
   protected readonly stopTimers: SpeechStopTimers;
   protected readonly commitTimers: CommitTimers;
+  protected readonly evidence: SpeechEvidence;
+  protected readonly cutoff: CutoffHold;
   protected cancelSafety?: () => void;
   protected turnId?: string;
   protected sequence = 0;
@@ -61,7 +61,7 @@ export abstract class TurnControllerState {
   protected deferredStop = false;
   protected awaitingConfirmationFinal = false;
   protected disposed = false;
-  private readonly announcer: TurnAnnouncer;
+  protected readonly announcer: TurnAnnouncer;
 
   constructor(
     rowConfig: unknown,
@@ -94,6 +94,8 @@ export abstract class TurnControllerState {
       due: () => this.commitDue(),
       ceiling: () => this.commitCeiling(),
     });
+    this.evidence = new SpeechEvidence(input.clock, this.config.speechEvidence, input.vad);
+    this.cutoff = new CutoffHold(input.clock, this.config.cutoffHoldMs);
   }
 
   on(fn: (decision: TurnDecision) => void): () => void {
@@ -140,6 +142,8 @@ export abstract class TurnControllerState {
     this.cancelSafety = undefined;
     this.stopTimers.cancel();
     this.commitTimers.cancel();
+    this.evidence.cancel();
+    this.cutoff.resume();
     // The endpoint is forced once per utterance; a VAD held open across turns must not carry it.
     this.forceSent = this.committed = false;
     this.announcer.clear();
@@ -161,101 +165,8 @@ export abstract class TurnControllerState {
     });
   }
 
-  protected tryStop(): void {
-    if (speechMuted(this.view(), this.rules)) {
-      this.reset('muted');
-      return;
-    }
-    if (
-      !this.turnId ||
-      (this.committed ? this.providerSpeaking : this.speaking()) ||
-      this.vadStopPending ||
-      this.awaitingConfirmationFinal ||
-      confirmationPrompt(this.view(), this.rules)
-    )
-      return;
-    const text = this.aggregate.text || this.aggregate.view;
-    if (!text) return;
-    if (this.bot && this.interruptedEpoch !== this.bot.epoch) {
-      if (this.confirmationPending && containsConfirmationPhrase(text)) {
-        this.deferredStop = true;
-        return;
-      }
-      if (acknowledges(text, this.input.language, this.config, this.bot.filler)) {
-        // AGT-9: a short reply over a question answers it once the agent stops; otherwise it only
-        // acknowledges the agent and is no turn at all.
-        if (this.bot.question) this.deferredStop = true;
-        else this.reset('backchannel');
-        return;
-      }
-    }
-    this.stop();
-  }
-
-  protected safety(): void {
-    this.cancelSafety?.();
-    if (this.turnId && !this.speaking() && this.config.stopTimeoutMs > 0)
-      this.cancelSafety = this.input.clock.setTimeout(() => {
-        if (!this.turnId || this.speaking()) return;
-        if (this.awaitingConfirmationFinal || (!this.aggregate.text && !this.aggregate.view)) {
-          this.reset(this.awaitingConfirmationFinal ? 'muted' : 'backchannel');
-          return;
-        }
-        this.tryStop();
-      }, this.config.stopTimeoutMs);
-  }
-
-  protected onTranscript(event: Extract<SttEvent, { type: 'transcript' }>): void {
-    const segment = event.segment;
-    if (!segment.text.trim() || this.aggregate.isClosed(segment.segmentId)) return;
-    this.idle.cancel();
-    const view = this.view();
-    if (speechMuted(view, this.rules)) {
-      this.start();
-      this.reset('muted');
-      return;
-    }
-    const prompt = confirmationPrompt(view, this.rules);
-    if (!prompt && !this.bot && !transcriptStartsTurn(segment.text, this.input.language)) return;
-    this.start();
-    this.aggregate.observe(segment);
-    if (this.strategy === 'commit' && segment.stability === 'interim')
-      this.commitTimers.interim(this.aggregate.view);
-    if (
-      this.bot &&
-      !prompt &&
-      canInterrupt(view, this.rules) &&
-      this.interruptedEpoch !== this.bot.epoch &&
-      speechCanInterrupt(
-        this.aggregate.view,
-        this.input.language,
-        this.config,
-        this.confirmationPending,
-      )
-    ) {
-      this.interruptedEpoch = this.bot.epoch;
-      this.emit({ type: 'interrupt', reason: 'transcript' });
-    }
-    // LAT-4: the utterance so far, once it is speech the agent will answer rather than ignore.
-    if (!this.bot || this.bot.filler || this.interruptedEpoch === this.bot.epoch)
-      this.announcer.partial(this.turnId!, this.aggregate.view, this.aggregate.text);
-    if (segment.stability === 'final') {
-      this.finalSeen = true;
-      if (this.awaitingConfirmationFinal) {
-        this.awaitingConfirmationFinal = false;
-        if (classifyConfirmation(this.aggregate.text) === 'unclear') {
-          this.reset('muted');
-          return;
-        }
-        this.deferredStop = true;
-      }
-      this.stopTimers.final();
-      if (this.strategy === 'commit') this.commitFinal();
-    }
-    this.safety();
-    if (this.vadStopReady || this.deferredStop) this.tryStop();
-  }
-
+  /** Ends the open turn once nothing holds it (controller-speech.ts). */
+  protected abstract tryStop(): void;
   protected abstract onDigits(digits: string): void;
   protected abstract commitDue(): void;
   protected abstract commitCeiling(): void;

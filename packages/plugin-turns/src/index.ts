@@ -3,7 +3,13 @@ import { definePluginV2 } from '@winsendotai/ovo-sdk';
 import { DetectorConfigSchema, type DetectorConfig } from './config.ts';
 import { TurnController } from './controller.ts';
 
-export { CommitConfigSchema, DetectorConfigSchema, type DetectorConfig } from './config.ts';
+export {
+  CommitConfigSchema,
+  DetectorConfigSchema,
+  PHONE_TURN_CONFIG,
+  SpeechEvidenceConfigSchema,
+  type DetectorConfig,
+} from './config.ts';
 
 export function createTurnDetector(row: unknown = {}): TurnDetectorFactory {
   const config: DetectorConfig = DetectorConfigSchema.parse(row);
