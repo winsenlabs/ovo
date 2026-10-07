@@ -36,4 +36,16 @@ describe('collections compliance lines in the clip inventory', () => {
       ),
     ).toBe(false);
   });
+
+  it('pre-renders the wrap-up line said before the call time limit', () => {
+    const line = "I'm sorry, we need to end the call now. Thank you, goodbye.";
+    const config = AgentConfig.parse({
+      name: 'Collections',
+      mode: 'agent',
+      ending: { wrapUp: { line } },
+    });
+    expect(
+      staticSpeechInventory({ config }).static.filter((entry) => entry.source === 'wrap-up'),
+    ).toEqual([{ text: line, source: 'wrap-up' }]);
+  });
 });

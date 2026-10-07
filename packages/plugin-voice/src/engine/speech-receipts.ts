@@ -20,6 +20,8 @@ export class SpeechReceipts {
     private readonly session: SessionInput,
     /** A receipt or its delivery failed; called before the pending entry is removed. */
     private readonly failed: (error: unknown) => void,
+    /** A cut line's receipt was delivered: the behaviour may have completed on it (wave 6 P4). */
+    private readonly cut: () => void = () => {},
   ) {}
 
   /** Receipts for `epoch` reach the behaviour as `as`, the epoch its turn began with. */
@@ -32,8 +34,8 @@ export class SpeechReceipts {
   track(receipt: Promise<SpeechReceipt>, said?: string): void {
     let delivery!: Promise<void>;
     delivery = receipt
-      .then((value) =>
-        this.behavior.onPlayback?.({
+      .then(async (value) => {
+        await this.behavior.onPlayback?.({
           ...value,
           ...(said === undefined ? {} : { text: said }),
           ...(this.aliases.has(value.epoch) ? { epoch: this.aliases.get(value.epoch)! } : {}),
@@ -42,9 +44,9 @@ export class SpeechReceipts {
           this.session.acknowledgements.includes('weak-playback-evidence')
             ? { evidenceSource: 'carrier-processed' as const }
             : {}),
-        }),
-      )
-      .then(() => undefined)
+        });
+        if (value.state === 'interrupted') this.cut();
+      })
       // Receipt failures can arrive while respondStream is still awaiting its next item. Observe
       // them immediately, before removing the pending entry.
       .catch((error: unknown) => this.failed(error))

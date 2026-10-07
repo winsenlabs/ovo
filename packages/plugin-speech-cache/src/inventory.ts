@@ -26,7 +26,8 @@ export type FixedLineSource =
   | 'guardrail'
   | 'filler'
   | 'disclosure'
-  | 'opt-out';
+  | 'opt-out'
+  | 'wrap-up';
 
 export interface FixedLine {
   text: string;
@@ -72,6 +73,8 @@ export function staticSpeechInventory(release: SpeechInventoryRelease): SpeechIn
   // ends it; both are fixed lines, so both are clips before the first call.
   if (config.compliance?.disclosure) add(config.compliance.disclosure.text, 'disclosure');
   if (config.compliance?.optOut?.enabled) add(config.compliance.optOut.closingLine, 'opt-out');
+  // The engine's closing line before the call time limit (AgentEnding.wrapUp).
+  add(config.ending?.wrapUp?.line, 'wrap-up');
   const callControl = config as AgentConfig & CallControlLines;
   for (const line of callControl.opening?.lines ?? []) add(line, 'opening');
   // A message is only ever left when the action says so; a hang-up policy never speaks it.

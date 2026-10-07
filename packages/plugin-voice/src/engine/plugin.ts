@@ -4,6 +4,7 @@ import {
   PCM16_8K,
   PCM16_16K,
   SESSION_INPUT_JSON_SCHEMA,
+  type AudioFilter,
   type Behavior,
   type Clock,
   type MediaDuplex,
@@ -19,6 +20,7 @@ import { definePlugin } from '@winsendotai/ovo-runtime';
 import { BoundedSpeechScheduler } from '../scheduler.ts';
 import { STREAMING_VOICE_PLUGIN_IDS } from '../production-plugins.ts';
 import { VOICE_PLUGIN_IDS } from '../types.ts';
+import { filteredMedia } from './ingress-filter.ts';
 import { NativeVoiceSessionEngine, type NativeEnginePorts } from './session-engine.ts';
 
 const engineSchema = {
@@ -69,6 +71,7 @@ export function createNativeVoiceEngineV2Plugin() {
       optional: [
         Cap.stt,
         Cap.vad,
+        Cap.audioFilter,
         Cap.turnDetector,
         Cap.textFilters,
         Cap.clock,
@@ -96,7 +99,11 @@ export function createNativeVoiceEngineV2Plugin() {
       const engine = new NativeVoiceSessionEngine({
         behavior: ctx.get(Cap.behavior) as Behavior,
         scheduler: ctx.get(Cap.scheduler) as BoundedSpeechScheduler,
-        media: ctx.get(Cap.media) as MediaDuplex,
+        // The selected ovo.audio-filter cleans caller audio before the VAD and the STT hear it.
+        media: filteredMedia(
+          ctx.get(Cap.media) as MediaDuplex,
+          ctx.maybe(Cap.audioFilter) as AudioFilter | undefined,
+        ),
         stt: ctx.maybe(Cap.stt) as SpeechToText | undefined,
         vad: ctx.maybe(Cap.vad) as VadAnalyzerFactory | undefined,
         turnDetector: ctx.maybe(Cap.turnDetector) as TurnDetectorFactory | undefined,

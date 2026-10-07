@@ -58,12 +58,23 @@ export abstract class TurnRunner {
     protected readonly media: MediaDuplex,
     protected readonly clock: Pick<Clock, 'setTimeout'> = realClock,
   ) {
-    this.receipts = new SpeechReceipts(behavior, media, session, (error) => {
-      this.log('speech_receipt_failed', error);
-      this.stopped = true;
-      this.turns.abortRunning('speech receipt failed');
-      this.end('error:turn');
-    });
+    this.receipts = new SpeechReceipts(
+      behavior,
+      media,
+      session,
+      (error) => {
+        this.log('speech_receipt_failed', error);
+        this.stopped = true;
+        this.turns.abortRunning('speech receipt failed');
+        this.end('error:turn');
+      },
+      () => {
+        // P4: a final goodbye (a flow's end node, an opt-out) the caller cut after hearing part of
+        // it completes the call on that receipt: hang up now, not after the caller's next turn.
+        if (!this.stopped && !this.closing && this.behavior.isComplete?.())
+          this.end(...completionEnd(this.behavior, {}));
+      },
+    );
     this.idle = IdleWatch.for(behavior, clock, events, {
       quiet: () => !this.stopped && !this.closing && !this.tasks.size,
       run: (turnId) => this.queue(engineTurn(turnId, '', { inputEvent: 'idle' })),

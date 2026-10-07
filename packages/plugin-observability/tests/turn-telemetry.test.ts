@@ -249,4 +249,26 @@ describe('per-turn telemetry', () => {
       segments: [{ segmentId: 'speech-1', state: 'interrupted', firstAudioAtMs: null }],
     });
   });
+
+  it('does not count a filler cut by its own reply as an interruption (P3)', () => {
+    const { turns, latest } = collector();
+    turns.engine(timing('turn_decision', 'turn-1', 1_000, 0));
+    turns.engine(timing('text_aggregation', 'turn-1', 1_600, 600, 'speech-7'));
+    turns.engine({
+      type: 'speech',
+      evidence: {
+        segmentId: 'speech-7',
+        epoch: 5,
+        kind: 'acknowledgment',
+        text: 'Sure, let me check that.',
+        phase: 'interrupted',
+        evidence: 'estimated',
+        at: 0,
+      } as SpeechEvidence,
+    });
+    expect(latest('turn-1')).toMatchObject({
+      interrupted: false,
+      segments: [{ segmentId: 'speech-7', state: 'interrupted' }],
+    });
+  });
 });

@@ -59,6 +59,7 @@ export function flowIssues(flow: Flow): FlowIssue[] {
 /** Where an intent leads, in words, for the read-only map. */
 export function describeRoute(intent: Flow['globalIntents'][number]): string {
   if (intent.repeat) return 'repeats the last lines';
+  if (intent.hold) return 'asks the current question again';
   const next = intent.next;
   if (next === undefined) return 'goes nowhere';
   if (typeof next === 'string') return `→ ${next}`;

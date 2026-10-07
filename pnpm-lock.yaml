@@ -377,6 +377,9 @@ importers:
       '@winsendotai/ovo-fixture-calls':
         specifier: workspace:*
         version: link:../fixture-calls
+      '@winsendotai/ovo-plugin-audio-filter':
+        specifier: workspace:*
+        version: link:../plugin-audio-filter
       '@winsendotai/ovo-plugin-cache':
         specifier: workspace:*
         version: link:../plugin-cache

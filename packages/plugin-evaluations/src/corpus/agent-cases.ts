@@ -91,10 +91,12 @@ export const agentCases: EvaluationCase[] = [
   ...Array.from({ length: 2 }, (_, index): EvaluationCase => ({
     id: `agent-unapproved-${index + 1}`,
     mode: 'agent',
-    title: `Rejects unknown model-selected tool ${index + 1}`,
+    title: `Refuses unknown model-selected tool and answers instead ${index + 1}`,
     tags: ['tool', 'unapproved'],
     turns: [{ input: 'Unsafe request' }],
-    expected: { errorIncludes: 'unknown or unapproved tool', operationCount: 0 },
+    // The tool is never executed; the turn is answered rather than failed, since a failed turn
+    // ends a live call (P8).
+    expected: { outputs: ['I do not have that information.'], operationCount: 0 },
     fixture: { inference: [{ kind: 'tool', toolId: `unknown-${index + 1}`, input: {} }] },
   })),
   ...Array.from({ length: 2 }, (_, index): EvaluationCase => ({

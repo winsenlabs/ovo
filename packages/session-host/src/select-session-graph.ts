@@ -107,7 +107,10 @@ function configFor(
       maxCallSeconds: config.costPolicy?.maxCallSeconds ?? 1800,
       acknowledgements: config.voice?.acknowledgements ?? [],
     };
-    return { session, engine: selection.config };
+    // AgentEnding.wrapUp: the native engine closes the call gracefully before the time limit.
+    const wrapUp =
+      selection.pluginId === STREAMING_VOICE_PLUGIN_IDS.sessionEngine && config.ending?.wrapUp;
+    return { session, engine: wrapUp ? { ...selection.config, wrapUp } : selection.config };
   }
   if (slot === 'turnDetector') return selection.config;
   const binding =
