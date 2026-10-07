@@ -1,5 +1,7 @@
 import { Pool } from 'pg';
+import type { PreferenceProvider } from '@winsendotai/ovo-contracts';
 import { CampaignService } from './campaign.ts';
+import type { ComplianceService } from './compliance/service.ts';
 import { OperationsCallRegistry } from './calls.ts';
 import { normalizePhoneNumber } from './csv.ts';
 import { HandoffService } from './handoff.ts';
@@ -16,6 +18,7 @@ export interface OperationsService {
   readonly config: OperationsServiceConfig;
   readonly campaigns: CampaignService;
   readonly retries: CampaignRetryService;
+  readonly compliance: ComplianceService;
   readonly inbound: InboundService;
   readonly inboundGateway: InboundGatewayAdmissionService;
   readonly inboundRoutes: InboundRouteService;
@@ -31,6 +34,7 @@ export class PostgresOperationsService implements OperationsService {
   readonly config: OperationsServiceConfig;
   readonly campaigns: CampaignService;
   readonly retries: CampaignRetryService;
+  readonly compliance: ComplianceService;
   readonly inbound: InboundService;
   readonly inboundGateway: InboundGatewayAdmissionService;
   readonly inboundRoutes: InboundRouteService;
@@ -49,6 +53,8 @@ export class PostgresOperationsService implements OperationsService {
     connectionString?: string;
     maxConnections?: number;
     config?: OperationsServiceConfig;
+    /** DND scrub providers beside the built-in manual upload (vendor plugins). */
+    preferenceProviders?: readonly PreferenceProvider[];
   }) {
     if (!input.organizationId.trim()) throw new Error('organizationId is required');
     if (!input.pool && !input.connectionString)
@@ -72,8 +78,13 @@ export class PostgresOperationsService implements OperationsService {
       ),
       liveEnabled: input.config?.liveEnabled === true,
     });
-    this.campaigns = new CampaignService(this.pool, input.organizationId);
-    this.retries = new CampaignRetryService(this.pool, input.organizationId);
+    this.campaigns = new CampaignService(
+      this.pool,
+      input.organizationId,
+      input.preferenceProviders,
+    );
+    this.compliance = this.campaigns.compliance;
+    this.retries = new CampaignRetryService(this.pool, input.organizationId, this.compliance.gate);
     this.inbound = new InboundService(this.pool, input.organizationId);
     this.inboundGateway = new InboundGatewayAdmissionService(this.pool, input.organizationId, {
       enabled: this.config.liveEnabled === true,

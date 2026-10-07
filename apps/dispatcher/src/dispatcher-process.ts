@@ -16,12 +16,14 @@ import {
   type PostgresOperationsService,
 } from '@winsendotai/ovo-plugin-operations';
 import { PostgresControlStore, type ControlStore } from '@winsendotai/ovo-plugin-storage';
+import { PostgresCallOutcomeStore } from '@winsendotai/ovo-plugin-storage/outcomes';
 import { compose, definePlugin, type Composition } from '@winsendotai/ovo-runtime';
 import {
   readDispatcherCapacityInput,
   readInboundReadiness,
   positiveInteger,
 } from './dispatcher-capacity.ts';
+import { complianceDispositionTask } from './compliance-dispositions.ts';
 import { DispatcherLoop, type DispatcherTask } from './dispatcher-loop.ts';
 import { publishInboundReadiness } from './inbound-readiness-store.ts';
 import { releaseTerminalCalls } from './terminal-calls.ts';
@@ -124,6 +126,7 @@ export async function openDispatcherProcess(input: {
   const logger = createLogger({ service: 'dispatcher', dispatcherId: identity });
   const composition = await compose(rows, distribution.catalog, { scope: 'process', logger });
   let controlStore: ControlStore | undefined;
+  let outcomes: PostgresCallOutcomeStore | undefined;
   try {
     const store = composition.get(Cap.orchestrationStore) as PostgresOrchestrationStore;
     const queue = composition.get(Cap.orchestrationQueue) as DurableQueue;
@@ -140,6 +143,12 @@ export async function openDispatcherProcess(input: {
       throw new Error('Dispatcher profile is missing a required service');
     controlStore = await PostgresControlStore.open(env.OVO_CONTROL_DATABASE_URL ?? databaseUrl);
     const control = controlStore;
+    // The workers write each call's disposition here; the compliance sweep reads it back.
+    outcomes = await PostgresCallOutcomeStore.open({
+      connectionString: env.OVO_CONTROL_DATABASE_URL ?? databaseUrl,
+      maxConnections: 1,
+    });
+    const callOutcomes = outcomes;
     const outbox = new OutboxPublisher(identity, store, queue);
     const campaignOutbox = new OperationsOutboxDispatcher(identity, operations.outbox, {
       async enqueue(job) {
@@ -174,6 +183,12 @@ export async function openDispatcherProcess(input: {
           ]);
         },
       },
+      complianceDispositionTask({
+        operations,
+        outcomes: callOutcomes,
+        workspaceId: organizationId,
+        logger,
+      }),
     ];
     const ecsReader =
       !input.readProvisionedTasks && profile === 'fargate'
@@ -209,11 +224,13 @@ export async function openDispatcherProcess(input: {
       async close() {
         await loop.stop();
         await control.close();
+        await callOutcomes.close();
         await composition.dispose();
       },
     };
   } catch (error) {
     await controlStore?.close();
+    await outcomes?.close();
     await composition.dispose();
     throw error;
   }

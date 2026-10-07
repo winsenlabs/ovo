@@ -32,9 +32,14 @@ function parseLocal(value: string): LocalParts {
   return parts;
 }
 
+const formats = new Map<string, Intl.DateTimeFormat>();
+
 function formatter(timezone: string): Intl.DateTimeFormat {
+  const cached = formats.get(timezone);
+  if (cached) return cached;
+  let format: Intl.DateTimeFormat;
   try {
-    return new Intl.DateTimeFormat('en-CA', {
+    format = new Intl.DateTimeFormat('en-CA', {
       timeZone: timezone,
       calendar: 'iso8601',
       numberingSystem: 'latn',
@@ -48,6 +53,8 @@ function formatter(timezone: string): Intl.DateTimeFormat {
   } catch {
     throw new ScheduleTimeError('invalid_timezone');
   }
+  if (formats.size < 500) formats.set(timezone, format);
+  return format;
 }
 
 function formattedParts(format: Intl.DateTimeFormat, instant: Date): LocalParts {
@@ -81,13 +88,27 @@ export function resolveScheduledInstant(localDateTime: string, timezone: string)
   const wanted = parseLocal(localDateTime);
   const format = formatter(timezone);
   const center = Date.UTC(wanted.year, wanted.month - 1, wanted.day, wanted.hour, wanted.minute);
-  const matches: number[] = [];
-  // IANA offsets are bounded by ±14 hours. A minute scan is deterministic and capped at 1,801 checks.
-  for (let deltaMinutes = -900; deltaMinutes <= 900; deltaMinutes += 1) {
-    const candidate = center + deltaMinutes * 60_000;
-    if (same(wanted, formattedParts(format, new Date(candidate)))) matches.push(candidate);
-    if (matches.length > 1) break;
+  // IANA offsets are bounded by ±14 hours, so every instant showing this local minute lies within
+  // 15 hours of it and is `center - offset` for an offset the zone uses in that span. Sampling the
+  // offset hourly across the span finds every such offset (zones change offset at most every few
+  // weeks) with 31 lookups instead of a 1,801-minute scan; each candidate is then verified.
+  const offsets = new Set<number>();
+  for (let hour = -15; hour <= 15; hour += 1) {
+    const probe = center + hour * 3_600_000;
+    const local = formattedParts(format, new Date(probe));
+    offsets.add(
+      Date.UTC(local.year, local.month - 1, local.day, local.hour, local.minute) -
+        Math.floor(probe / 60_000) * 60_000,
+    );
   }
+  const matches = [...offsets]
+    .map((offset) => center - offset)
+    .filter(
+      (candidate) =>
+        Math.abs(candidate - center) <= 900 * 60_000 &&
+        same(wanted, formattedParts(format, new Date(candidate))),
+    )
+    .sort((a, b) => a - b);
   if (matches.length === 0) throw new ScheduleTimeError('nonexistent');
   if (matches.length > 1) throw new ScheduleTimeError('ambiguous');
   return new Date(matches[0]!);

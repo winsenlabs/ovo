@@ -1,5 +1,7 @@
 import { z } from 'zod';
+import { CampaignCompliance } from '@winsendotai/ovo-contracts';
 import { callingWindowSchema } from './calling-window.ts';
+import { complianceApiSchemas } from './compliance-api-schemas.ts';
 import { MAX_DO_NOT_CALL_IMPORT } from './do-not-call.ts';
 
 const uuid = z.uuid();
@@ -95,6 +97,9 @@ export const operationsApiSchemas = {
       mapping,
       /** When given, each row's variables are checked against this release's schema. */
       releaseId: uuid.optional(),
+      /** With a release, each row is also judged by the compliance gate as if dialed from here. */
+      fromNumber: phone.optional(),
+      compliance: CampaignCompliance.optional(),
     })
     .strict(),
   campaign: z
@@ -114,8 +119,9 @@ export const operationsApiSchemas = {
       maxAttemptsPerLocalDay: z.number().int().min(1).max(10_000_000),
       maxConcurrency: z.number().int().min(1).max(1_000).default(1),
       activeCallPolicy: z.enum(['continue', 'request_end']),
-      /** Overrides the release's calling hours; judged in the schedule timezone unless it names one. */
+      /** Narrows the release's calling hours; judged in the schedule timezone unless it names one. */
       callingWindow: callingWindowSchema.optional(),
+      compliance: CampaignCompliance.optional(),
       contacts: z.array(contact).min(1).max(100),
     })
     .strict(),
@@ -150,6 +156,7 @@ export const operationsApiSchemas = {
     .object({ phoneNumber: phone, reason: z.string().trim().min(1).max(1_000) })
     .strict(),
   suppressionParams: z.object({ phoneNumber: phone }).strict(),
+  suppressionDelete: z.object({ reason: z.string().trim().min(3).max(1_000) }).strict(),
   doNotCallImport: z
     .object({
       entries: z
@@ -204,4 +211,5 @@ export const operationsApiSchemas = {
     .strict(),
   handoffParams: z.object({ handoffId: uuid }).strict(),
   handoffConfirmation: z.object({ accepted: z.boolean() }).strict(),
+  ...complianceApiSchemas,
 } as const;

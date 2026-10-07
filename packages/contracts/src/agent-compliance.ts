@@ -1,23 +1,27 @@
 import { z } from 'zod';
+import {
+  ComplianceClock,
+  ComplianceCategory,
+  CompliancePurpose,
+  ComplianceWeekdays,
+} from './compliance-primitives.ts';
 
-const Clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'must be HH:MM, 00:00 to 23:59');
+export * from './workspace-compliance.ts';
+export * from './compliance-refusals.ts';
+export type * from './preference-provider.ts';
 
 /**
  * When this agent may be dialed, in local time: campaign admission and manual dials refuse
  * outside it. `days` are ISO weekdays (1 = Monday); absent means every day. `end` is exclusive and
- * follows `start` on the same day. Absent `timezone` means the agent's `timezone`. A campaign may
- * set its own window, which then applies instead.
+ * follows `start` on the same day. Absent `timezone` means the agent's `timezone`; calls to +91
+ * numbers are judged in IST whatever it says. A campaign may narrow this window, never widen it,
+ * and the rule pack's floor (promotional 10:00-21:00, RBI recovery 08:00-19:00) always applies.
  */
 export const AgentCallingHours = z
   .object({
-    start: Clock,
-    end: Clock,
-    days: z
-      .array(z.number().int().min(1).max(7))
-      .min(1)
-      .max(7)
-      .refine((days) => new Set(days).size === days.length, 'days must be unique')
-      .optional(),
+    start: ComplianceClock,
+    end: ComplianceClock,
+    days: ComplianceWeekdays.optional(),
     timezone: z.string().trim().min(1).max(100).optional(),
   })
   .strict()
@@ -51,10 +55,26 @@ export const AgentOptOut = z
   .strict();
 export type AgentOptOut = z.infer<typeof AgentOptOut>;
 
+const Line = z.object({ text: z.string().trim().min(1).max(500) }).strict();
+
+/**
+ * Optional lines spoken before anything else, in this order: who is calling and why, that the
+ * voice is an AI assistant, then the recording `disclosure`. All are off by default (Q9): no TRAI
+ * rule requires them today; the AI line becomes mandatory only if the CCPA draft is notified (R28).
+ */
+export const AgentDisclosures = z
+  .object({ identity: Line.optional(), ai: Line.optional(), optOutHint: Line.optional() })
+  .strict();
+export type AgentDisclosures = z.infer<typeof AgentDisclosures>;
+
 /** Outbound collections compliance, per agent. Every block is optional and off when absent. */
 export const AgentCompliance = z
   .object({
+    /** Required before a +91 number is dialed (TCCCPR categories, R2-R5, R9). */
+    category: ComplianceCategory.optional(),
+    purpose: CompliancePurpose.optional(),
     callingHours: AgentCallingHours.optional(),
+    disclosures: AgentDisclosures.optional(),
     /** Agent mode only. */
     disclosure: AgentDisclosure.optional(),
     /** Agent mode only. */
@@ -63,10 +83,20 @@ export const AgentCompliance = z
   .strict();
 export type AgentCompliance = z.infer<typeof AgentCompliance>;
 
+/** The opening disclosure lines in the order they are spoken: identity, AI, recording, opt-out hint. */
+export function disclosureLines(compliance: AgentCompliance | undefined): string[] {
+  const lines = [
+    compliance?.disclosures?.identity?.text,
+    compliance?.disclosures?.ai?.text,
+    compliance?.disclosure?.text,
+    compliance?.disclosures?.optOutHint?.text,
+  ];
+  return lines.filter((line): line is string => !!line);
+}
+
 /** The fixed lines a compliance block speaks, for the clip inventory. */
 export function complianceLines(compliance: AgentCompliance | undefined): string[] {
-  const lines: string[] = [];
-  if (compliance?.disclosure) lines.push(compliance.disclosure.text);
+  const lines = disclosureLines(compliance);
   if (compliance?.optOut?.enabled) lines.push(compliance.optOut.closingLine);
   return lines;
 }

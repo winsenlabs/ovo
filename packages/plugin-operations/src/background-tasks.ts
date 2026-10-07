@@ -25,6 +25,7 @@ export const plugins = [
         operations.organizationId,
         ctx.get(Cap.orchestrationStore) as CampaignCapacityPort,
         ctx.all(Cap.carrierControl) as ReadonlyMap<string, CarrierControlFactory>,
+        operations.compliance.gate,
       );
       ctx.provide(Cap.backgroundTask, {
         id: 'campaign-driver',

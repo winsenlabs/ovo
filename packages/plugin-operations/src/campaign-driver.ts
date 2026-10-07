@@ -1,6 +1,7 @@
 import type { CarrierControlFactory } from '@winsendotai/ovo-contracts';
 import type { Pool, PoolClient } from 'pg';
 import { CampaignAdmissionService } from './campaign-admission.ts';
+import type { ComplianceGate } from './compliance/gate.ts';
 import { campaignColumns, type CampaignRow } from './campaign-model.ts';
 import { transaction } from './database.ts';
 
@@ -18,8 +19,9 @@ export class CampaignDriver {
     private readonly organizationId: string,
     private readonly capacity: CampaignCapacityPort,
     private readonly controls: ReadonlyMap<string, CarrierControlFactory>,
+    gate?: ComplianceGate,
   ) {
-    this.admission = new CampaignAdmissionService(pool, organizationId);
+    this.admission = new CampaignAdmissionService(pool, organizationId, gate);
   }
 
   async tick(signal: AbortSignal): Promise<number> {

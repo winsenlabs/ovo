@@ -235,21 +235,40 @@ integration('outbound compliance through the operations API', () => {
       },
     });
     expect(JSON.stringify(invalid.json())).not.toContain('"R"');
-    const created = await campaign(
+    // G4 regression: a campaign window may only narrow the agent's. Every day 09:00-18:00 reaches
+    // today, which the release's window leaves out, so the campaign is refused, not widened.
+    const widened = await campaign(
       [{ sourceRow: 2, phoneNumber: '+14155557010', variables: { name: 'Asha' } }],
       { callingWindow: { start: '09:00', end: '18:00' } },
     );
+    expect(widened.statusCode).toBe(422);
+    expect(widened.json()).toMatchObject({
+      error: { code: 'policy_widens_floor', details: { problems: [{ source: 'campaign' }] } },
+    });
+    const created = await campaign(
+      [{ sourceRow: 2, phoneNumber: '+14155557010', variables: { name: 'Asha' } }],
+      { callingWindow: { start: '09:00', end: '18:00', days: CLOSED.days, timezone: 'UTC' } },
+    );
     expect(created.statusCode).toBe(201);
-    // The campaign's own window wins over the release's, in the schedule timezone.
+    // The campaign keeps its own window; both windows are judged together at every dial.
     expect(created.json().callingWindow).toEqual({
       start: '09:00',
       end: '18:00',
-      timezone: 'Asia/Kolkata',
+      days: CLOSED.days,
+      timezone: 'UTC',
+    });
+    expect(created.json().compliance).toMatchObject({
+      agentWindow: {
+        rules: [{ start: '00:00', end: '23:59', days: CLOSED.days }],
+        timezone: 'UTC',
+      },
+      campaignWindow: { rules: [{ start: '09:00', end: '18:00', days: CLOSED.days }] },
     });
     const inherited = await campaign([
       { sourceRow: 2, phoneNumber: '+14155557012', variables: { name: 'Ravi' } },
     ]);
-    expect(inherited.json().callingWindow).toEqual(CLOSED);
+    expect(inherited.json().callingWindow).toBeNull();
+    expect(inherited.json().compliance.agentWindow.rules[0].days).toEqual(CLOSED.days);
     const schema = await operations.pool.query<{ variables_schema: unknown }>(
       'SELECT variables_schema FROM ovo_ops_campaigns WHERE id = $1',
       [created.json().id],
