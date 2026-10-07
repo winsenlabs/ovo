@@ -23,7 +23,8 @@ function suppressionApplies(
 
 type Deferral = { reason: ComplianceRefusalCode; at: Date; details?: Record<string, unknown> };
 
-function rollingDeferrals(input: EvaluationInput): Deferral[] {
+/** The per-recipient limits: attempt and conversation caps, the minimum gap, refusal cool-off. */
+function recipientDeferrals(input: EvaluationInput): Deferral[] {
   const { pack, settings, policy, facts, now } = input;
   const caps = resolveCaps(pack, settings, policy);
   const found: Deferral[] = [];
@@ -65,6 +66,13 @@ function rollingDeferrals(input: EvaluationInput): Deferral[] {
     const until = refused.authorizedAt.getTime() + cooloff * DAY;
     if (until > now.getTime()) found.push({ reason: 'refusal_cooloff', at: new Date(until) });
   }
+  return found;
+}
+
+/** Everything that waits on time: the recipient's limits (unless exempt) and the CLI's pacing. */
+function rollingDeferrals(input: EvaluationInput, capsExempt: boolean): Deferral[] {
+  const { pack, facts, now } = input;
+  const found = capsExempt ? [] : recipientDeferrals(input);
   if (pack.categories && facts.cliBlockedUntil && facts.cliBlockedUntil.getTime() > now.getTime())
     found.push({ reason: 'cli_velocity_limit', at: facts.cliBlockedUntil });
   return found;
@@ -91,9 +99,14 @@ export function evaluateDial(input: EvaluationInput): Verdict {
     if (!(error instanceof Refusal)) throw error;
     return { ...verdict, verdict: 'refuse', reason: error.reason, details: error.details };
   }
+  // The operator's own phones may be called again and again while testing; windows, suppressions,
+  // complaints, CLI pacing and the breaker still apply, and the decision records the exemption.
+  const capsExempt =
+    verdict.bypass === 'test_number' && settings.enforcement.testNumberCaps === 'exempt';
+  if (capsExempt) verdict.capsExempt = true;
   let deferrals: Deferral[];
   try {
-    deferrals = rollingDeferrals(input);
+    deferrals = rollingDeferrals(input, capsExempt);
   } catch (error) {
     if (!(error instanceof Refusal)) throw error;
     return { ...verdict, verdict: 'refuse', reason: error.reason, details: error.details };

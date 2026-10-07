@@ -133,7 +133,12 @@ export class ComplianceGate {
         result.preferenceRef ?? null,
         JSON.stringify(evaluated.window),
         JSON.stringify(evaluated.caps),
-        result.details ? JSON.stringify(result.details) : null,
+        result.details || result.capsExempt
+          ? JSON.stringify({
+              ...result.details,
+              ...(result.capsExempt ? { capsExempt: true } : {}),
+            })
+          : null,
         result.nextEligibleAt ?? null,
       ],
     );

@@ -1,10 +1,6 @@
 'use client';
 import type { AgentConfig } from '../../lib/api';
 import { Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
-import {
-  ComplianceCategoryFields,
-  type ComplianceCategoryBlock,
-} from './compliance-category-fields';
 import { LinesInput } from './lines-input';
 
 /** `AgentConfig.compliance` (contracts agent-compliance.ts), typed here structurally. */
@@ -14,7 +10,7 @@ export interface CallingHours {
   days?: number[];
   timezone?: string;
 }
-export interface AgentCompliance extends ComplianceCategoryBlock {
+export interface AgentCompliance {
   callingHours?: CallingHours;
   disclosure?: { text: string };
   optOut?: { enabled: boolean; phrases: string[]; closingLine: string };
@@ -54,7 +50,6 @@ export function ComplianceEditor({
   const hours = compliance.callingHours;
   const hoursError = hours && hours.start >= hours.end ? 'End must be after start.' : undefined;
   const enabled = [
-    compliance.category,
     hours && 'hours',
     compliance.disclosure && 'disclosure',
     compliance.optOut?.enabled && 'opt-out',
@@ -71,7 +66,6 @@ export function ComplianceEditor({
         }
       />
       <div className="panel-body stack">
-        <ComplianceCategoryFields block={compliance} patch={patch} />
         <label className="toggle-row">
           <input
             type="checkbox"
@@ -83,8 +77,8 @@ export function ComplianceEditor({
           <span>
             <strong>Restrict calling hours</strong>
             <small>
-              Campaign admission and manual dials refuse outside this window. A campaign may only
-              narrow it, and the legal floor for the category always applies.
+              Campaign admission and manual dials refuse outside this window. A campaign may set its
+              own window instead.
             </small>
           </span>
         </label>

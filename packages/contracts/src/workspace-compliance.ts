@@ -59,6 +59,11 @@ export const WorkspaceCompliance = z
         abandonedBreaker: z.enum(['enforce', 'monitor']).default('enforce'),
         /** RBI recovery caps act as a floor that settings and campaigns cannot raise (Q4). */
         recoveryCapsAreFloor: z.boolean().default(true),
+        /**
+         * `exempt` lets the test numbers below be called again without the per-recipient caps
+         * and minimum gap, so founder and QA calls can repeat; `enforce` caps them like anyone.
+         */
+        testNumberCaps: z.enum(['exempt', 'enforce']).default('exempt'),
       })
       .strict()
       .prefault({}),
@@ -91,7 +96,11 @@ export const WorkspaceCompliance = z
       .prefault({}),
     /** What an in-call opt-out stops: every call, or promotional calls only (Q8). */
     optOutScope: z.enum(['all', 'promotional']).default('all'),
-    /** The operator's own phones: consent, scrub, category, series and A2P checks are skipped. */
+    /**
+     * The operator's own phones: consent, scrub, category, series and A2P checks are skipped, and
+     * the per-recipient caps unless `enforcement.testNumberCaps` is `enforce`. Windows, the
+     * do-not-call list, complaints, CLI pacing and the ratio breaker always apply.
+     */
     testNumbers: z.array(CompliancePhone).max(20).default([]),
     complaintSla: z
       .object({

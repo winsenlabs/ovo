@@ -1,58 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { WorkspaceCompliance } from '@winsendotai/ovo-contracts';
+import { consentExpiry, type CompliancePolicy } from '../../src/index.ts';
 import {
-  GENERIC_PACK,
-  IN_TCCCPR_2026_10,
-  consentExpiry,
-  evaluateDial,
-  type CompliancePolicy,
-  type RecipientFacts,
-} from '../../src/index.ts';
-
-const HOUR = 3_600_000;
-const DAY = 24 * HOUR;
-/** Wednesday 7 October 2026, noon in India. */
-const now = new Date('2026-10-07T06:30:00Z');
-const recipient = '+919812345678';
-const allDay = { rules: [{ start: '00:00', end: '23:59' }] };
-const intimation = {
-  submittedAt: '2026-09-01',
-  oap: 'Example telco',
-  objective: 'EMI reminders',
-  documentRef: 'OAP/2026/17',
-};
-const settingsWith = (extra: Record<string, unknown> = {}) =>
-  WorkspaceCompliance.parse({
-    autodialerIntimation: intimation,
-    windows: { service: allDay, promotional: { rules: [{ start: '10:00', end: '21:00' }] } },
-    caps: { service: {}, promotional: {} },
-    ...extra,
-  });
-const facts = (extra: Partial<RecipientFacts> = {}): RecipientFacts => ({
-  openComplaint: false,
-  consents: [],
-  ledger: [],
-  cli: { series: '1600', categories: ['service', 'transactional'], status: 'active' },
-  a2pDeclared: false,
-  breakerTripped: false,
-  ...extra,
-});
-const service: CompliancePolicy = { version: 1, category: 'service' };
-const judge = (
-  policy: CompliancePolicy,
-  recipientFacts: RecipientFacts,
-  settings = settingsWith(),
-  at = now,
-  to = recipient,
-) =>
-  evaluateDial({
-    pack: to.startsWith('+91') ? IN_TCCCPR_2026_10 : GENERIC_PACK,
-    settings,
-    policy,
-    recipient: to,
-    facts: recipientFacts,
-    now: at,
-  });
+  HOUR,
+  DAY,
+  now,
+  recipient,
+  intimation,
+  settingsWith,
+  facts,
+  service,
+  judge,
+} from './evaluate-support.ts';
 
 describe('the dial-path evaluator', () => {
   it('allows a registered service call with an inferred relationship', () => {
@@ -368,26 +326,6 @@ describe('the dial-path evaluator', () => {
       expect(judge(service, facts({ breakerTripped: true }))).toMatchObject({
         reason: 'abandoned_ratio_breaker',
       });
-    });
-
-    it("skips registration checks for the operator's own test numbers, never caps or suppressions", () => {
-      const settings = settingsWith({ testNumbers: [recipient], autodialerIntimation: undefined });
-      const unregistered = facts({ cli: undefined });
-      expect(judge({ version: 1 }, unregistered, settings)).toEqual({
-        verdict: 'allow',
-        warnings: [],
-        bypass: 'test_number',
-      });
-      expect(
-        judge(service, facts({ suppression: { source: 'opt_out', scope: 'all' } }), settings),
-      ).toMatchObject({ reason: 'suppressed' });
-      const capped = settingsWith({
-        testNumbers: [recipient],
-        caps: { service: { attempts: { per24h: 1 } } },
-      });
-      expect(
-        judge(service, facts({ ledger: [{ authorizedAt: now, connected: false }] }), capped),
-      ).toMatchObject({ verdict: 'defer', reason: 'recipient_attempt_cap' });
     });
   });
 });

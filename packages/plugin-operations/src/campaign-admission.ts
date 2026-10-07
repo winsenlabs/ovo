@@ -80,9 +80,12 @@ export class CampaignAdmissionService {
       return { kind: 'capacity_exhausted' };
     const quota = await campaignQuotaState(client, campaign);
     if (quota) return { kind: 'quota_exhausted', quota };
-    const window = campaign.calling_window
-      ? callingWindowState(campaign.calling_window)
-      : undefined;
+    // With a compliance policy the gate judges the campaign window (in IST for +91 numbers), so
+    // reading it again here in the schedule timezone would only close it where the two disagree.
+    const window =
+      campaign.calling_window && !campaign.compliance_policy
+        ? callingWindowState(campaign.calling_window)
+        : undefined;
     if (window && !window.open)
       return { kind: 'outside_calling_hours', nextOpenAt: window.nextOpenAt };
     const gated = await nextCompliantContact(client, campaign, this.organizationId, this.gate);

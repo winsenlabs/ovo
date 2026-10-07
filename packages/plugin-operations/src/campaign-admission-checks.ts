@@ -44,13 +44,16 @@ export async function nextValidContact(
 
 /**
  * A contact admitted inside the calling window but authorized after it closed goes back in the
- * queue until the window opens, instead of being dialed. True when it was requeued.
+ * queue until the window opens, instead of being dialed. True when it was requeued. A campaign
+ * with a compliance policy is left to the gate, which judges the same window in the recipient's
+ * timezone (IST for +91) and would disagree with this schedule-timezone reading.
  */
 export async function requeueOutsideWindow(
   client: PoolClient,
   campaign: CampaignRow,
   contactId: string,
 ): Promise<boolean> {
+  if (campaign.compliance_policy) return false;
   const window = campaign.calling_window ? callingWindowState(campaign.calling_window) : undefined;
   if (!window || window.open) return false;
   await requeueContact(client, contactId, window.nextOpenAt, 'outside_calling_hours');

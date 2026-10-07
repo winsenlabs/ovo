@@ -70,6 +70,7 @@ describe('WorkspaceCompliance', () => {
       a2pDeclarationRequiredFrom: '2026-11-17',
       abandonedBreaker: 'enforce',
       recoveryCapsAreFloor: true,
+      testNumberCaps: 'exempt',
     });
     expect(settings.blackout).toEqual({
       dates: ['01-26', '08-15', '10-02'],

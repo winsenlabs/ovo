@@ -12,6 +12,7 @@ export interface ComplianceSettings {
     a2pDeclarationRequiredFrom: string;
     abandonedBreaker: 'enforce' | 'monitor';
     recoveryCapsAreFloor: boolean;
+    testNumberCaps: 'exempt' | 'enforce';
   };
   optOutScope: 'all' | 'promotional';
   testNumbers: string[];

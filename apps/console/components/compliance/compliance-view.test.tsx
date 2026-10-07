@@ -46,6 +46,7 @@ const record: SettingsRecord = {
       a2pDeclarationRequiredFrom: '2026-11-17',
       abandonedBreaker: 'enforce',
       recoveryCapsAreFloor: true,
+      testNumberCaps: 'exempt',
     },
     optOutScope: 'all',
     testNumbers: [],
@@ -79,6 +80,9 @@ describe('compliance settings', () => {
     fireEvent.change(screen.getByLabelText('Test numbers (one per line)'), {
       target: { value: '+919811100000\n+919811100001' },
     });
+    fireEvent.change(screen.getByLabelText('Caps for test numbers'), {
+      target: { value: 'enforce' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
     const [path, init] = request.mock.calls[0]!;
@@ -90,6 +94,7 @@ describe('compliance settings', () => {
         sender: { regulator: 'rbi' },
         autodialerIntimation: { submittedAt: '2026-09-01', documentRef: 'OAP/17' },
         testNumbers: ['+919811100000', '+919811100001'],
+        enforcement: { testNumberCaps: 'enforce', recoveryCapsAreFloor: true },
         caps: { service: { attempts: { per24h: 2 } } },
       },
     });

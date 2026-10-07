@@ -66,6 +66,8 @@ export interface Verdict {
   consentId?: string;
   preferenceRef?: string;
   bypass?: 'test_number';
+  /** A test number judged without its per-recipient caps (`enforcement.testNumberCaps`). */
+  capsExempt?: true;
 }
 
 export class Refusal {

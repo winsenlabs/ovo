@@ -6,7 +6,8 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 /**
  * The campaign's `callingWindow` from the create form: absent keeps the release's calling hours;
- * set here, it narrows them (never widens them), judged in the campaign's schedule timezone.
+ * set here, it narrows them (never widens them), judged in IST for +91 numbers and in the
+ * campaign's schedule timezone otherwise.
  */
 export function callingWindowBody(values: FormData): {
   callingWindow?: { start: string; end: string; days?: number[] };
@@ -98,7 +99,7 @@ export function CampaignCallingWindow({ disabled }: { disabled: boolean }) {
           <Field
             label="Until (exclusive)"
             htmlFor="campaign-window-end"
-            help="In the campaign's IANA timezone."
+            help="In IST for +91 numbers; otherwise in the campaign's timezone."
             error={start >= end ? 'End must be after start.' : undefined}
           >
             <input

@@ -115,6 +115,84 @@ describe.skipIf(!postgresUrl)('the compliance gate on the dial path (PostgreSQL)
     expect(attempts.rowCount).toBe(0);
   });
 
+  // Wave 7 review: the legacy check also read the campaign window in the schedule timezone, so a
+  // +91 campaign scheduled in New York was open only where the New York and IST readings overlap.
+  it('judges a +91 campaign window in IST only, whatever the schedule timezone', async () => {
+    const { campaign, dial, service } = workspace;
+    const hhmm = (minutes: number) =>
+      `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+    const [hour, minute] = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .format(new Date())
+      .split(':')
+      .map(Number);
+    const nowIst = hour! * 60 + minute!;
+    // Two hours either side of now in IST: New York is 9.5-10.5 hours behind, so the same clock
+    // times read in New York never include now.
+    const start = hhmm(Math.max(0, nowIst - 120));
+    const end = hhmm(Math.min(23 * 60 + 59, nowIst + 120));
+    const window = { start, end, timezone: 'America/New_York' };
+    const policy = {
+      ...SERVICE,
+      campaignWindow: { rules: [{ start, end }], timezone: 'America/New_York' },
+    };
+    const open = await campaign([mobile()], policy, { callingWindow: window });
+    expect((await dial(open.id)).kind).toBe('authorized');
+
+    // The reverse: open now in New York's reading, closed in IST, waits for the IST window.
+    const nowNy = (nowIst - 600 + 1440) % 1440;
+    const nyStart = hhmm(Math.max(0, nowNy - 60));
+    const nyEnd = hhmm(Math.min(23 * 60 + 59, nowNy + 60));
+    const closed = await campaign(
+      [mobile()],
+      {
+        ...SERVICE,
+        campaignWindow: { rules: [{ start: nyStart, end: nyEnd }], timezone: 'America/New_York' },
+      },
+      { callingWindow: { start: nyStart, end: nyEnd, timezone: 'America/New_York' } },
+    );
+    expect(await service.campaigns.admit(closed.id, 'driver', 60_000)).toMatchObject({
+      kind: 'outside_calling_hours',
+    });
+  });
+
+  // Wave 7 review: founder test calls to listed test numbers must be repeatable.
+  it('dials a test number again at once and records the cap exemption', async () => {
+    const number = mobile();
+    const tests = await complianceWorkspace({
+      testNumbers: [number],
+      caps: { service: { attempts: { per24h: 1 }, minGapMinutes: 120 } },
+    });
+    try {
+      const first = await tests.dial((await tests.campaign([number])).id);
+      const second = await tests.dial((await tests.campaign([number])).id);
+      const decisions = await tests.service.pool.query(
+        `SELECT bypass, details FROM ovo_ops_compliance_decisions
+         WHERE attempt_id = ANY($1::uuid[]) ORDER BY decided_at`,
+        [[first.attemptId, second.attemptId]],
+      );
+      expect(decisions.rows).toEqual([
+        { bypass: 'test_number', details: { capsExempt: true } },
+        { bypass: 'test_number', details: { capsExempt: true } },
+      ]);
+      const { settings, version } = await tests.service.compliance.settings.get(tests.service.pool);
+      await tests.service.compliance.settings.put(
+        { ...settings, enforcement: { ...settings.enforcement, testNumberCaps: 'enforce' } },
+        version,
+      );
+      const third = await tests.campaign([number]);
+      expect(await tests.service.campaigns.admit(third.id, 'driver', 60_000)).toEqual({
+        kind: 'empty',
+      });
+    } finally {
+      await tests.close();
+    }
+  });
+
   it('pauses a campaign whose agent has no category instead of dialing +91 numbers', async () => {
     const { campaign, service } = workspace;
     const created = await campaign([mobile()], { version: 1 });

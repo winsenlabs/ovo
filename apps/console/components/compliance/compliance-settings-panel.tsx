@@ -2,56 +2,8 @@
 import { useState, type FormEvent } from 'react';
 import { apiRequest, ApiError } from '../../lib/api';
 import { Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
-import { failureText, type ComplianceSettings, type SettingsRecord } from './compliance-types';
-
-const lines = (value: FormDataEntryValue | null) =>
-  String(value ?? '')
-    .split(/[\n,]/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-/** The settings the form edits, merged over everything else the workspace has set. */
-export function settingsFromForm(
-  current: ComplianceSettings,
-  values: FormData,
-): ComplianceSettings {
-  const text = (name: string) => String(values.get(name) ?? '').trim();
-  const intimation = ['submittedAt', 'oap', 'objective', 'documentRef'].map((key) => text(key));
-  return {
-    ...current,
-    sender: {
-      regulator: text('regulator') || 'other',
-      ...(text('legalName') ? { legalName: text('legalName') } : {}),
-      ...(text('dltPrincipalEntityId')
-        ? { dltPrincipalEntityId: text('dltPrincipalEntityId') }
-        : {}),
-    },
-    ...(intimation.every(Boolean)
-      ? {
-          autodialerIntimation: {
-            submittedAt: intimation[0]!,
-            oap: intimation[1]!,
-            objective: intimation[2]!,
-            documentRef: intimation[3]!,
-          },
-        }
-      : { autodialerIntimation: undefined }),
-    enforcement: {
-      ...current.enforcement,
-      series: text('series') as 'refuse' | 'warn',
-      a2pDeclarationRequiredFrom: text('a2pDeclarationRequiredFrom'),
-      abandonedBreaker: text('abandonedBreaker') as 'enforce' | 'monitor',
-    },
-    optOutScope: text('optOutScope') as 'all' | 'promotional',
-    testNumbers: lines(values.get('testNumbers')),
-    blackout: { ...current.blackout, dates: lines(values.get('blackoutDates')) },
-    complaintSla: {
-      ...current.complaintSla,
-      ackHours: Number(text('ackHours')),
-      resolveDays: Number(text('resolveDays')),
-    },
-  };
-}
+import { settingsFromForm } from './compliance-settings-form';
+import { failureText, type SettingsRecord } from './compliance-types';
 
 /** Who the sender is and how strictly the rule pack is enforced (admins edit, all can read). */
 export function ComplianceSettingsPanel({
@@ -196,7 +148,7 @@ export function ComplianceSettingsPanel({
           <Field
             label="Test numbers (one per line)"
             htmlFor="cs-test"
-            help="Your own phones: category, series, A2P, consent and DND checks are skipped; caps, windows and the do-not-call list still apply."
+            help="Your own phones: category, series, A2P, consent and DND checks are skipped; windows and the do-not-call list still apply."
           >
             <textarea
               id="cs-test"
@@ -204,6 +156,20 @@ export function ComplianceSettingsPanel({
               rows={3}
               defaultValue={settings.testNumbers.join('\n')}
             />
+          </Field>
+          <Field
+            label="Caps for test numbers"
+            htmlFor="cs-test-caps"
+            help="Exempt lets you call your own phones again straight away; every decision records it."
+          >
+            <select
+              id="cs-test-caps"
+              name="testNumberCaps"
+              defaultValue={settings.enforcement.testNumberCaps}
+            >
+              <option value="exempt">No attempt or gap limits</option>
+              <option value="enforce">Same limits as customers</option>
+            </select>
           </Field>
           <Field
             label="Blackout dates"
