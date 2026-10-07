@@ -1,10 +1,11 @@
-import { generateText, isStepCount, streamText, type LanguageModel } from 'ai';
+import { generateText, isStepCount, streamText, type LanguageModel, type Tool } from 'ai';
 import type {
   Inference,
   InferenceReply,
   InferenceRequest,
   InferenceStreamEvent,
   UsageSink,
+  UsageUnit,
 } from '@winsendotai/ovo-contracts';
 import {
   InferenceProtocolError,
@@ -18,6 +19,12 @@ import {
 export { InferenceProtocolError } from './ai-sdk-support.ts';
 
 type ProviderOptions = NonNullable<Parameters<typeof streamText>[0]['providerOptions']>;
+
+/** A tool the provider ran itself inside the step (web search), as the AI SDK reported it. */
+export interface ProviderToolResult {
+  toolName: string;
+  output: unknown;
+}
 
 export interface AiSdkInferenceOptions {
   /** Any AI SDK language model. Plugins pass one built with `fetch = ctx.net.fetch`. */
@@ -36,6 +43,17 @@ export interface AiSdkInferenceOptions {
   }) => void | Promise<void>;
   /** v2 token meters (`<provider>.inference.<unit>`), one emission per step. */
   usage?: UsageSink;
+  /**
+   * Provider-executed tools (`openai.tools.webSearch(...)`), sent alongside the request's OVO tools.
+   * The provider runs them inside the step; they never become an OVO tool reply.
+   */
+  providerTools?: Record<string, Tool>;
+  /** Added to the system prompt's factual sources when provider tools can supply facts. */
+  providerToolSources?: string;
+  /** Per-call meters for the provider tools a step ran, emitted with its token meters. */
+  providerToolUsage?: (
+    results: readonly ProviderToolResult[],
+  ) => readonly { unit: UsageUnit; quantity: number }[];
   /** Used to synthesize a requestId when the provider returns none. */
   sessionId?: string;
   now?: () => number;
@@ -84,25 +102,51 @@ export class AiSdkInference implements Inference {
     requestId: string | undefined,
     modelId: string | undefined,
     usage: Record<string, number> | undefined,
+    providerResults: readonly ProviderToolResult[] = [],
   ): Promise<void> {
-    if (!usage) return;
-    await this.options.onUsage?.({ requestId, modelId, usage });
+    if (usage) await this.options.onUsage?.({ requestId, modelId, usage });
     if (!this.options.usage) return;
+    const toolMeters = providerResults.length
+      ? (this.options.providerToolUsage?.(providerResults) ?? []).filter(
+          (meter) => Number.isFinite(meter.quantity) && meter.quantity > 0,
+        )
+      : [];
+    if (!usage && !toolMeters.length) return;
     const id =
       requestId || `${this.provider}:${this.options.sessionId ?? 'session'}:${++this.requests}`;
-    for (const meter of tokenMeters(this.provider, usage, id, this.now() - startedAt))
-      this.options.usage(meter);
+    const elapsedMs = this.now() - startedAt;
+    if (usage)
+      for (const meter of tokenMeters(this.provider, usage, id, elapsedMs))
+        this.options.usage(meter);
+    for (const { unit, quantity } of toolMeters)
+      this.options.usage({
+        provider: this.provider,
+        operation: 'inference',
+        unit,
+        quantity: String(Math.trunc(quantity)),
+        state: 'reconciled',
+        requestId: id,
+        elapsedMs,
+      });
   }
 
   private stepInput(request: InferenceRequest) {
     const tools = declareTools(request);
+    const providerTools = this.options.providerTools ?? {};
+    for (const name of Object.keys(providerTools))
+      if (Object.hasOwn(tools, name))
+        throw new InferenceProtocolError(`Tool ${name} collides with a provider tool`);
     return {
       tools,
       input: {
         model: this.options.model,
-        system: buildSystemPrompt(request, this.options.instructions),
+        system: buildSystemPrompt(
+          request,
+          this.options.instructions,
+          Object.keys(providerTools).length ? this.options.providerToolSources : undefined,
+        ),
         messages: [...(request.history ?? []), { role: 'user' as const, content: request.input }],
-        tools,
+        tools: { ...tools, ...providerTools },
         abortSignal: request.signal,
         maxRetries: 0,
         stopWhen: isStepCount(1),
@@ -119,7 +163,9 @@ export class AiSdkInference implements Inference {
     const result = await generateText(input);
     request.signal.throwIfAborted();
 
-    if (result.toolCalls.length > 1) {
+    // Provider-executed calls (web search) ran inside the step; only OVO calls are replies.
+    const toolCalls = result.toolCalls.filter((call) => !call.providerExecuted);
+    if (toolCalls.length > 1) {
       throw new InferenceProtocolError(
         'Inference returned multiple tool calls in a single OVO step',
       );
@@ -130,8 +176,11 @@ export class AiSdkInference implements Inference {
       result.response.headers?.['x-request-id'] ?? result.response.id,
       result.response.modelId,
       usage,
+      result.toolResults
+        .filter((entry) => entry.providerExecuted)
+        .map((entry) => ({ toolName: entry.toolName, output: entry.output })),
     );
-    const call = result.toolCalls[0];
+    const call = toolCalls[0];
     if (call) {
       if (!Object.hasOwn(declaredTools, call.toolName)) {
         throw new InferenceProtocolError(`Inference returned undeclared tool: ${call.toolName}`);
@@ -155,6 +204,7 @@ export class AiSdkInference implements Inference {
     let finished = false;
     let requestId: string | undefined;
     let modelId: string | undefined;
+    const providerResults: ProviderToolResult[] = [];
 
     for await (const part of result.fullStream) {
       request.signal.throwIfAborted();
@@ -162,6 +212,11 @@ export class AiSdkInference implements Inference {
         if (call)
           throw new InferenceProtocolError('Inference mixed a tool call with response text');
         yield { kind: 'text-delta', delta: part.text };
+      } else if (part.type === 'tool-call' && part.providerExecuted) {
+        // A provider-executed call (web search) runs inside this step and is never an OVO reply.
+        continue;
+      } else if (part.type === 'tool-result' && part.providerExecuted) {
+        providerResults.push({ toolName: part.toolName, output: part.output });
       } else if (part.type === 'tool-call') {
         // Text then one tool call is a valid step: the agent says its answer and then calls
         // `resume_flow` or `end_call` (AGT-7, AGT-3). The behaviour decides which tool may follow
@@ -182,7 +237,7 @@ export class AiSdkInference implements Inference {
         throw new DOMException('Inference cancelled', 'AbortError');
       } else if (part.type === 'finish') {
         const usage = compactUsage(part.totalUsage);
-        await this.report(startedAt, requestId, modelId, usage);
+        await this.report(startedAt, requestId, modelId, usage, providerResults);
         if (call) yield call;
         yield { kind: 'finish', ...(usage ? { usage } : {}) };
         finished = true;

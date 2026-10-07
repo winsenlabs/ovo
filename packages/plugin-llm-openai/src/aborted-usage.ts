@@ -5,6 +5,7 @@ import type {
   UsageSink,
 } from '@winsendotai/ovo-contracts';
 import { AiSdkInference, type AiSdkInferenceOptions } from '@winsendotai/ovo-plugin-kit';
+import { StreamingCitationStripper, stripCitations } from './web-search.ts';
 
 /** Roughly four characters per token for English and romanised Hindi; an estimate, not a count. */
 const CHARS_PER_TOKEN = 4;
@@ -62,6 +63,33 @@ export class AbortMeteredInference extends AiSdkInference {
           elapsedMs: Math.max(0, this.clock() - startedAt),
         });
     };
+  }
+}
+
+/**
+ * Web search answers arrive with inline citations and links. A caller hears the reply, so they are
+ * removed here, before the agent's segmenter splits the text and before the TTS filter chain.
+ */
+export class SpokenCitationsInference extends AbortMeteredInference {
+  override async generate(request: InferenceRequest): Promise<InferenceReply> {
+    const reply = await super.generate(request);
+    return reply.kind === 'text' ? { ...reply, text: stripCitations(reply.text).trim() } : reply;
+  }
+
+  override async *stream(request: InferenceRequest): AsyncIterable<InferenceStreamEvent> {
+    const stripper = new StreamingCitationStripper();
+    for await (const event of super.stream(request)) {
+      if (event.kind === 'text-delta') {
+        const delta = stripper.push(event.delta);
+        if (delta) yield { kind: 'text-delta', delta };
+        continue;
+      }
+      const rest = stripper.finish();
+      if (rest) yield { kind: 'text-delta', delta: rest };
+      yield event;
+    }
+    const rest = stripper.finish();
+    if (rest) yield { kind: 'text-delta', delta: rest };
   }
 }
 

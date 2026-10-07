@@ -1,4 +1,4 @@
-import { agentLlmPaths } from '@winsendotai/ovo-contracts';
+import { agentLlmPaths, meterApplies } from '@winsendotai/ovo-contracts';
 import { manifestKeys } from '@winsendotai/ovo-runtime';
 import type { CompatRule } from './types.ts';
 import { issue, resolved } from './types.ts';
@@ -35,9 +35,7 @@ export const meterUncovered: CompatRule = (input, stage) => {
         (choice.bindingId ? input.bindings?.[choice.bindingId]?.config : undefined) ??
         {};
       const meters = (manifestKeys(definition.manifest).manifest.meters ?? []).filter(
-        (meter) =>
-          meter.role === slot &&
-          (!meter.when || meter.when.in.includes(String(binding[meter.when.field] ?? ''))),
+        (meter) => meter.role === slot && meterApplies(meter, binding),
       );
       const missing = meters.length
         ? meters.filter((meter) => !input.priceCards?.[meter.key]).map((meter) => meter.key)

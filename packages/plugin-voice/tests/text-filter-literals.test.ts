@@ -39,4 +39,17 @@ describe('speech filter literal fidelity', () => {
       }),
     ).toBe('https://example.com/~alice and _user_@example.com');
   });
+
+  it('drops web search citations whole and keeps ordinary links as their text', () => {
+    expect(
+      markdownFilter.apply(
+        'Sunny today ([weather.com](https://weather.com/a?utm_source=openai), [imd.gov.in](https://imd.gov.in/x)). Rain tonight【3†source】 [1][2]. Ask [the desk](https://a.com/desk).',
+        { language: 'en-US' },
+      ),
+    ).toBe('Sunny today. Rain tonight. Ask the desk.');
+    // Brackets in ordinary speech are left alone.
+    expect(markdownFilter.apply('Two (maybe three) [roughly] came.', { language: 'en-US' })).toBe(
+      'Two (maybe three) [roughly] came.',
+    );
+  });
 });

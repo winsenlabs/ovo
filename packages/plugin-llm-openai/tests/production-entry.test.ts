@@ -43,7 +43,8 @@ it('selects all three v2 providers from distribution and calls OpenAI through th
   );
   if (!selectedDefinition || selectedDefinition.manifest.contractVersion !== 2)
     throw new Error('The distribution did not select the v2 OpenAI provider');
-  expect(selectedDefinition.manifest.meters).toHaveLength(5);
+  // Five token meters, plus the web search meter that applies only when a binding enables it.
+  expect(selectedDefinition.manifest.meters).toHaveLength(6);
 
   const net = createFixtureNet(
     openAiGenerateTemplate({

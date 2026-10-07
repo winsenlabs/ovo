@@ -1,4 +1,4 @@
-import { Cap, type TextFilter } from '@winsendotai/ovo-contracts';
+import { Cap, dropSpokenCitations, type TextFilter } from '@winsendotai/ovo-contracts';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 import {
   INDIAN_VERBALISATION_FILTER_ID,
@@ -14,12 +14,16 @@ export {
 export const MARKDOWN_FILTER_ID = '@winsendotai/ovo-text-filter-markdown';
 export const URL_FILTER_ID = '@winsendotai/ovo-text-filter-url';
 
-/** Strip formatting tokens but retain the words the caller should hear. */
+/**
+ * Strip formatting tokens but retain the words the caller should hear. Source citations (a web
+ * search answer's `([site](url))`, `【4†source】` or `[1]`) are dropped whole: a caller cannot
+ * follow them, and reading their link text aloud would only list domains.
+ */
 export const markdownFilter: TextFilter = {
   id: MARKDOWN_FILTER_ID,
   order: 10,
   apply(text) {
-    return text
+    return dropSpokenCitations(text)
       .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
       .replace(/(?:^|\n)\s{0,3}#{1,6}\s+/g, ' ')

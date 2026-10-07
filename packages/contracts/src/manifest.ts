@@ -117,7 +117,10 @@ export const MeterDeclaration = z
     unit: UsageUnit,
     label: z.string().min(1),
     role: z.enum(['carrier', 'stt', 'tts', 'llm', 'decision']),
-    /** Applies only when `binding.config[field]` is one of `in`. */
+    /**
+     * Applies only when `binding.config[field]` is one of `in`. `field` may be a dotted path into a
+     * nested binding object (`webSearch.enabled`); the value is compared as a string.
+     */
     when: z
       .object({ field: z.string().min(1), in: z.array(z.string()).min(1) })
       .strict()
@@ -125,6 +128,25 @@ export const MeterDeclaration = z
   })
   .strict();
 export type MeterDeclaration = z.infer<typeof MeterDeclaration>;
+
+/**
+ * True when a declared meter applies to a binding: it has no `when`, or the binding value at its
+ * (possibly dotted) `field` path is one of `in`. A missing value compares as the empty string.
+ */
+export function meterApplies(
+  meter: Pick<MeterDeclaration, 'when'>,
+  binding: Readonly<Record<string, unknown>> | undefined,
+): boolean {
+  if (!meter.when) return true;
+  let value: unknown = binding ?? {};
+  for (const segment of meter.when.field.split('.')) {
+    value =
+      value && typeof value === 'object' && Object.hasOwn(value, segment)
+        ? (value as Record<string, unknown>)[segment]
+        : undefined;
+  }
+  return meter.when.in.includes(String(value ?? ''));
+}
 
 const UiField = z
   .object({
