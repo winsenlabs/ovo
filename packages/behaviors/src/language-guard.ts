@@ -44,6 +44,30 @@ function languageName(code: string): string {
 }
 
 /**
+ * The platform's reply-language instruction for the LLM (N4): the agent's language, whatever the
+ * caller speaks. Undefined without a language policy. Fixed for the call, so it never moves the
+ * prompt's cached prefix.
+ */
+export function replyLanguageNote(
+  config: Pick<AgentConfig, 'language' | 'languages'>,
+): string | undefined {
+  if (!config.languages) return undefined;
+  const own = languageName(baseLanguageOf(config.language));
+  const others = config.languages.allowed
+    .filter((code) => code !== baseLanguageOf(config.language))
+    .map(languageName);
+  return [
+    `Always reply in ${own}, the language of this call, whatever language the caller uses.`,
+    others.length
+      ? `Callers may mix in ${others.join(', ')}; understand it, but answer in ${own}.`
+      : '',
+    'Never reply in any other language.',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+/**
  * N4/P9: an agent's `languages` across one call. Inert (every method passes through) for an agent
  * without them.
  *
@@ -68,24 +92,19 @@ export class CallLanguages {
     if (!config.languages || line === undefined) return;
     this.allowed = config.languages.allowed;
     this.line = line;
-    const own = baseLanguageOf(config.language);
-    const others = this.allowed.filter((code) => code !== own).map(languageName);
-    this.note = [
-      `Always reply in ${languageName(own)}, the language of this call, whatever language the caller uses.`,
-      others.length
-        ? `Callers may mix in ${others.join(', ')}; understand it, but answer in ${languageName(own)}.`
-        : '',
-      'Never reply in any other language.',
-    ]
-      .filter(Boolean)
-      .join(' ');
+    this.note = replyLanguageNote(config);
   }
 
   /** True when the caller's words are mostly outside the agent's languages; counts the turn. */
   offLanguage(input: string): boolean {
-    if (!this.allowed || !languageVerdict(input, this.allowed).off) return false;
+    if (this.understands(input)) return false;
     this.metrics.offTurns += 1;
     return true;
+  }
+
+  /** False when the words are mostly outside the agent's languages; counts nothing. */
+  understands(input: string): boolean {
+    return !this.allowed || !languageVerdict(input, this.allowed).off;
   }
 
   /**

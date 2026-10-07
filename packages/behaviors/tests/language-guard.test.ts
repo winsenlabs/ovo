@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CallLanguages } from '../src/language-guard.ts';
+import { CallLanguages, replyLanguageNote } from '../src/language-guard.ts';
 
 const EN_HI = { language: 'en-IN', languages: { allowed: ['en', 'hi'] } };
 const LINE = 'Sorry, I can only speak English or Hindi. Could you say that again?';
@@ -17,6 +17,8 @@ describe('CallLanguages (N4/P9)', () => {
     const languages = new CallLanguages(EN_HI);
     expect(languages.offLanguage('Нет, это всё.')).toBe(true);
     expect(languages.offLanguage('Okay. याद नहीं।')).toBe(false);
+    // A speculative look at partial words counts no turn.
+    expect(languages.understands('Знаете, что?')).toBe(false);
     expect(languages.metrics.snapshot()).toMatchObject({ offTurns: 1 });
     expect(languages.line).toBe(LINE);
   });
@@ -27,7 +29,8 @@ describe('CallLanguages (N4/P9)', () => {
         'Callers may mix in Hindi; understand it, but answer in English. ' +
         'Never reply in any other language.',
     );
-    expect(new CallLanguages({ language: 'en-IN', languages: { allowed: ['en'] } }).note).toBe(
+    expect(replyLanguageNote({ language: 'en-IN' })).toBeUndefined();
+    expect(replyLanguageNote({ language: 'en-IN', languages: { allowed: ['en'] } })).toBe(
       'Always reply in English, the language of this call, whatever language the caller uses. ' +
         'Never reply in any other language.',
     );
