@@ -76,7 +76,20 @@ const BACKCHANNELS = [
   'mhm|hm|yep|sure|alright|got it|i see',
   'han|haa|haan ji|haanji|ji|ji haan|acha|accha|achcha|theek hai|thik hai|theek|thik|sahi|bilkul',
   'हाँ|हां|हाँ जी|हां जी|जी|जी हाँ|अच्छा|ठीक है|हम्म|ओके|बिल्कुल',
+  // Wave 6, from live Indian calls: listening sounds and plain acknowledgements, Hinglish, then
+  // Devanagari, then Tamil, Telugu and Kannada. Runs ("achha ji", "ok ok") need no entry.
+  'mm|mmm|hmmm|mhmm|uh|um|correct|exactly|fine|noted|understood|all right|go on|go ahead|carry on',
+  'ha|hanji|samjha|samajh gaya|samajh gayi|boliye|bolo',
+  'हम|हाँजी|हांजी|सही|सही है|बोलिए|समझ गया|समझ गई',
+  'sari|seri|aama|aamaa|சரி|ஆமா|ஆமாம்|avunu|sare|houdu',
 ].flatMap((group) => group.split('|'));
+/**
+ * Forms of address that ride on an acknowledgement ("ok sir", "yes madam", "ji sir"). Alone they
+ * acknowledge nothing: "madam, madam" over the agent is the caller asking to be heard.
+ */
+const HONORIFICS = ['sir', 'madam', 'maam', 'ma am', 'mam', 'सर', 'मैडम', 'मैम'].map((phrase) =>
+  phrase.split(' '),
+);
 /** A longer utterance is never only a backchannel, whatever its words. */
 const MAX_BACKCHANNEL_WORDS = 6;
 const IDLE_DEFAULT = { timeoutMs: 10000, maxRetries: 1, prompts: ['Are you still there?'] };
@@ -166,8 +179,9 @@ export function turnDetectorLines(config: unknown): { idle: string[]; filler: st
 
 /**
  * True when `text`, said while the agent speaks, only acknowledges it (AGT-9): fewer words than
- * `minWordsWhileBotSpeaking`, one of `backchannels`, or a run of them ("haan haan", "ok theek hai").
- * Always false when `backchannelsEnabled` is off.
+ * `minWordsWhileBotSpeaking`, one of `backchannels`, or a run of them ("haan haan", "ok theek hai"),
+ * optionally with a form of address ("ok sir", "yes madam"). Always false when
+ * `backchannelsEnabled` is off.
  */
 export function isBackchannel(
   text: string,
@@ -181,15 +195,19 @@ export function isBackchannel(
   const phrases = config.backchannels
     .map((entry) => normalizeForMatch(entry).split(' ').filter(Boolean))
     .filter((phrase) => phrase.length);
-  // covered[i]: the first i words are a run of backchannel phrases.
-  const covered = [true, ...words.map(() => false)];
+  const at = (phrase: readonly string[], start: number) =>
+    phrase.every((word, offset) => words[start + offset] === word);
+  // reach[i]: the first i words are a run of phrases; 2 once a backchannel is among them, 1 while
+  // they are only forms of address.
+  const reach = [1, ...words.map(() => 0)];
   for (let start = 0; start < words.length; start += 1) {
-    if (!covered[start]) continue;
-    for (const phrase of phrases)
-      if (phrase.every((word, offset) => words[start + offset] === word))
-        covered[start + phrase.length] = true;
+    if (!reach[start]) continue;
+    for (const phrase of phrases) if (at(phrase, start)) reach[start + phrase.length] = 2;
+    for (const phrase of HONORIFICS)
+      if (at(phrase, start))
+        reach[start + phrase.length] = Math.max(reach[start + phrase.length]!, reach[start]!);
   }
-  return covered[words.length]!;
+  return reach[words.length] === 2;
 }
 
 export interface TurnDetectorFactory {

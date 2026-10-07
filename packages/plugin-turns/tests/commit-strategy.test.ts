@@ -182,6 +182,8 @@ describe("'commit' turn strategy", () => {
   it('parses the commit settings with their POC defaults and rejects unknown keys', () => {
     expect(DetectorConfigSchema.parse({}).commit).toEqual({
       silenceMs: 50,
+      longSilenceMs: 250,
+      longUtteranceMs: 1200,
       minSpeechMs: 180,
       stallMs: 1500,
     });
@@ -191,7 +193,8 @@ describe("'commit' turn strategy", () => {
   });
 
   it('a configured silence and a disabled stall fallback are honoured', () => {
-    const f = fixture({ commit: { silenceMs: 200, stallMs: 0 } });
+    // Ten seconds of speech is a long utterance: its silence is never shorter than silenceMs.
+    const f = fixture({ commit: { silenceMs: 200, longSilenceMs: 0, stallMs: 0 } });
     f.send({ type: 'vad.start' });
     f.transcript('ek', 'interim');
     f.clock.advance(10_000);

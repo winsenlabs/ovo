@@ -1,5 +1,6 @@
 import type { Clock } from '@winsendotai/ovo-contracts';
 import type { CommitConfig, DetectorConfig } from './config.ts';
+import { endsCutOff } from './transcript-text.ts';
 
 export interface CommitHooks {
   /** Time to force the endpoint (or, with the final already in, to end the turn). */
@@ -18,6 +19,8 @@ export class CommitTimers {
   private cancelCeiling?: () => void;
   private cancelStall?: () => void;
   private speechStartedAt?: number;
+  /** VAD speech in this utterance so far, across its runs. */
+  private spokenMs = 0;
   private stalledText = '';
   private readonly config: CommitConfig;
   private readonly ceilingMs: number;
@@ -39,16 +42,24 @@ export class CommitTimers {
     this.speechStartedAt ??= this.clock.now();
   }
 
-  /** A click or a breath shorter than minSpeechMs, with nothing transcribed, is not committed. */
-  speechStopped(transcribed: boolean): void {
+  /**
+   * A click or a breath shorter than minSpeechMs, with nothing transcribed, is not committed. A
+   * long utterance, or one whose interim `view` broke off mid-word, waits `longSilenceMs`.
+   */
+  speechStopped(view: string): void {
     const spokeMs = this.clock.now() - (this.speechStartedAt ?? this.clock.now());
     this.speechStartedAt = undefined;
-    if (!transcribed && spokeMs < this.config.minSpeechMs) return;
+    this.spokenMs += spokeMs;
+    if (!view && spokeMs < this.config.minSpeechMs) return;
+    const long = this.spokenMs >= this.config.longUtteranceMs || endsCutOff(view);
     this.cancelDue?.();
-    this.cancelDue = this.clock.setTimeout(() => {
-      this.cancelDue = undefined;
-      this.hooks.due();
-    }, this.config.silenceMs);
+    this.cancelDue = this.clock.setTimeout(
+      () => {
+        this.cancelDue = undefined;
+        this.hooks.due();
+      },
+      long ? Math.max(this.config.silenceMs, this.config.longSilenceMs) : this.config.silenceMs,
+    );
   }
 
   /** Re-arms the stall fallback whenever the interim view changes. */
@@ -79,6 +90,7 @@ export class CommitTimers {
     this.cancelStall?.();
     this.cancelDue = this.cancelCeiling = this.cancelStall = undefined;
     this.speechStartedAt = undefined;
+    this.spokenMs = 0;
     this.stalledText = '';
   }
 }
