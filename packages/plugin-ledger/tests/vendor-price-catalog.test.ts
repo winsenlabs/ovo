@@ -82,6 +82,27 @@ describe('vendor price catalog (OPS-14)', () => {
     });
   });
 
+  it('prices OpenAI web search at the confirmed $10 per 1K calls for any model', () => {
+    const search = VENDOR_PRICE_CATALOG.find(
+      (entry) => entry.card.id === 'openai-web-search-calls',
+    )!;
+    expect(search.meterKeys).toEqual(['openai.inference.web_search_calls']);
+    expect(search.card).toMatchObject({
+      provider: 'openai',
+      unit: 'web_search_calls',
+      currency: 'USD',
+      minorUnitsPerBlock: '1000',
+      blockQuantity: '1000',
+    });
+    // A wildcard card: the price is the same for every model, so a model swap stays priced.
+    expect(search.card.model).toBeUndefined();
+    expect(priceCardMatchesModel(search.card, 'gpt-6-luna')).toBe(true);
+    expect(search.card.provisional).toBeUndefined();
+    expect(vendorPriceCard(search).provenance).toContain(
+      'https://developers.openai.com/api/docs/pricing (retrieved 2026-10-07)',
+    );
+  });
+
   it('diffs the catalog against stored cards: not imported, imported, or an update available', () => {
     const [first, second, third] = VENDOR_PRICE_CATALOG;
     const diff = diffVendorCatalog(

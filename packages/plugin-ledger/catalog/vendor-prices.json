@@ -234,6 +234,25 @@
         "retrievedAt": "2026-10-06",
         "quote": "Audio output $12 / 1M tokens"
       }
+    },
+    {
+      "card": {
+        "id": "openai-web-search-calls",
+        "version": "2026-10-07-confirmed",
+        "provider": "openai",
+        "unit": "web_search_calls",
+        "currency": "USD",
+        "minorUnitsPerBlock": "1000",
+        "blockQuantity": "1000",
+        "effectiveAt": "2026-10-07T00:00:00.000Z"
+      },
+      "meterKeys": ["openai.inference.web_search_calls"],
+      "source": {
+        "url": "https://developers.openai.com/api/docs/pricing",
+        "retrievedAt": "2026-10-07",
+        "note": "Confirmed on the OpenAI pricing page, built-in tools: the non-preview web_search tool the plugin sends is the same price for every model, so this card names no model. Only the per-call fee: the search content tokens are billed at the model's input rate and already arrive in the token meters. Per the web search guide, search actions are billed; open_page and find_in_page actions are not counted. The preview tool on non-reasoning models is $25 / 1k calls and is not used.",
+        "quote": "Web search (all models) $10.00 / 1k calls + Search content tokens billed at model rates"
+      }
     }
   ]
 }

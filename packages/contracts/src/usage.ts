@@ -11,6 +11,8 @@ export const USAGE_UNITS = [
   'cache_read_input_tokens',
   'cache_write_input_tokens',
   'uncached_input_tokens',
+  /** Provider-executed web search tool calls, billed per call. */
+  'web_search_calls',
 ] as const;
 export const UsageUnit = z.enum(USAGE_UNITS);
 export type UsageUnit = (typeof USAGE_UNITS)[number];

@@ -3,6 +3,7 @@ import { definePlugin } from '@winsendotai/ovo-runtime';
 import { openAiInference, type OpenAiInferenceConfig } from './inference.ts';
 import { fixtures, fixtureTemplates } from './testing.ts';
 import { REASONING_EFFORTS, SERVICE_TIERS, TEXT_VERBOSITIES } from './voice-tuning.ts';
+import { WEB_SEARCH_BINDING_SCHEMA, WEB_SEARCH_METER } from './web-search.ts';
 
 export { openAiInference, type OpenAiInferenceConfig } from './inference.ts';
 export {
@@ -11,6 +12,14 @@ export {
   resolveVoiceTuning,
   type VoiceTuning,
 } from './voice-tuning.ts';
+export {
+  StreamingCitationStripper,
+  stripCitations,
+  WEB_SEARCH_METER,
+  WEB_SEARCH_TOOL,
+  webSearchUsage,
+  type WebSearchConfig,
+} from './web-search.ts';
 export { fixtures, fixtureTemplates };
 
 const INFERENCE_METER_LABELS = {
@@ -28,6 +37,8 @@ const INFERENCE_METERS = (
   label: INFERENCE_METER_LABELS[unit],
   role: 'llm' as const,
 }));
+/** Token meters always apply; the web search meter only to a binding with `webSearch.enabled`. */
+const OPENAI_INFERENCE_METERS = [...INFERENCE_METERS, WEB_SEARCH_METER];
 
 export const openAiInferencePlugin = definePlugin(
   {
@@ -64,12 +75,13 @@ export const openAiInferencePlugin = definePlugin(
         serviceTier: { enum: [...SERVICE_TIERS] },
         promptCacheKey: { type: 'string', minLength: 1, maxLength: 64 },
         store: { type: 'boolean' },
+        webSearch: WEB_SEARCH_BINDING_SCHEMA,
       },
       additionalProperties: false,
     },
     secretFields: [''],
     capabilities: { tools: true, streaming: true },
-    meters: INFERENCE_METERS,
+    meters: OPENAI_INFERENCE_METERS,
     runtime: { egressHosts: ['api.openai.com'], modelLicences: [] },
     conformance: ['llm@1'],
     ui: { label: 'OpenAI Inference', vendor: 'OpenAI', slot: 'llm' },
@@ -77,7 +89,11 @@ export const openAiInferencePlugin = definePlugin(
   async (ctx, row) => {
     const binding = (row.binding ?? {}) as OpenAiInferenceConfig;
     if ('api' in binding && binding.api !== 'responses')
-      throw new TypeError('OpenAI v2 inference supports only the Responses API');
+      throw new TypeError(
+        binding.webSearch?.enabled
+          ? 'OpenAI web search needs the Responses API (binding api: "responses")'
+          : 'OpenAI v2 inference supports only the Responses API',
+      );
     const ref = row.credentialRef;
     const apiKey = await ctx.secret(
       ref && typeof ref === 'object' && 'credentialRef' in ref ? '/credentialRef' : '',

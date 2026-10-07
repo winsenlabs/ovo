@@ -20,10 +20,18 @@ export function declareTools(request: InferenceRequest): Record<string, Tool> {
   );
 }
 
-export function buildSystemPrompt(request: InferenceRequest, instructions?: string): string {
+export function buildSystemPrompt(
+  request: InferenceRequest,
+  instructions?: string,
+  /** Further factual sources the model may use, e.g. a provider's web search results. */
+  extraSources?: string,
+): string {
+  const sources = extraSources?.trim()
+    ? `the supplied context, completed operation results and ${extraSources.trim()}`
+    : 'the supplied context and completed operation results';
   const sections = [
     instructions?.trim(),
-    'Use only the supplied context and completed operation results as factual sources.',
+    `Use only ${sources} as factual sources.`,
     `When the answer is not supported, respond exactly with: ${request.uncertainty}`,
     `Supplied context:\n${request.context}`,
   ];

@@ -1,4 +1,9 @@
-import type { AgentConfig, MeterDeclaration, ReleaseSelections } from '@winsendotai/ovo-contracts';
+import {
+  meterApplies,
+  type AgentConfig,
+  type MeterDeclaration,
+  type ReleaseSelections,
+} from '@winsendotai/ovo-contracts';
 import {
   bindingModel,
   PRICE_UNKNOWN_FOR_MODEL,
@@ -76,9 +81,7 @@ export async function requiredMeterChecklist(input: {
       {};
     const model = bindingModel(binding, manifest.bindingSchema);
     const declared = (manifest.meters ?? []).filter(
-      (meter: MeterDeclaration) =>
-        meter.role === slot &&
-        (!meter.when || meter.when.in.includes(String(binding[meter.when.field] ?? ''))),
+      (meter: MeterDeclaration) => meter.role === slot && meterApplies(meter, binding),
     );
     for (const meter of declared) {
       const reference = priceCards[meter.key];

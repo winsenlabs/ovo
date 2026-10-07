@@ -1,4 +1,8 @@
-import type { MeterDeclaration, ReleaseSelections } from '@winsendotai/ovo-contracts';
+import {
+  meterApplies,
+  type MeterDeclaration,
+  type ReleaseSelections,
+} from '@winsendotai/ovo-contracts';
 import { manifestKeys, PluginRegistry } from '@winsendotai/ovo-runtime';
 
 export interface SelectedMeter {
@@ -27,7 +31,7 @@ export function metersFor(
     );
     let applicable = 0;
     for (const meter of declared) {
-      if (meter.when && !meter.when.in.includes(String(binding[meter.when.field] ?? ''))) continue;
+      if (!meterApplies(meter, binding)) continue;
       out.push({ slot, pluginId: definition.manifest.id, meter });
       applicable++;
     }

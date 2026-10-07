@@ -124,3 +124,19 @@ export function classifyConfirmation(text: string): 'yes' | 'no' | 'unclear' {
   const remainder = words.slice(start, end).join(' ');
   return remainder && YES_PHRASES.has(remainder) ? 'yes' : 'unclear';
 }
+
+/**
+ * Drops the source citations a web search answer carries for a screen, which a caller cannot
+ * follow: a parenthesised run of markdown links or URLs (`([site](url), [b](url))`), `【3†source】`
+ * and numeric markers (`[1]`, `[^2]`, `[1, 2]`), with the spaces before them. An ordinary link
+ * (`[the desk](url)`) and ordinary brackets are left for the caller's own handling.
+ */
+export function dropSpokenCitations(text: string): string {
+  return text
+    .replace(
+      /[ \t]*(?<!\])\((?:\s*(?:\[[^\]\n]*\]\([^)\s]*\)|https?:\/\/[^\s)]+)\s*[,;]?)+\s*\)/g,
+      '',
+    )
+    .replace(/[ \t]*【[^】\n]*】/g, '')
+    .replace(/[ \t]*\[\^?\d+(?:\s*[,–-]\s*\d+)*\]/g, '');
+}

@@ -1,4 +1,4 @@
-import { agentLlmPaths } from '@winsendotai/ovo-contracts';
+import { agentLlmPaths, meterApplies } from '@winsendotai/ovo-contracts';
 import { speculationPolicy } from '@winsendotai/ovo-behaviors';
 import { manifestKeys } from '@winsendotai/ovo-runtime';
 import type { CompatRule } from './types.ts';
@@ -24,9 +24,7 @@ export const speculativeLlmUnpriced: CompatRule = (input, stage) => {
     {};
   const meters = llm
     ? (manifestKeys(llm.definition.manifest).manifest.meters ?? []).filter(
-        (meter) =>
-          meter.role === 'llm' &&
-          (!meter.when || meter.when.in.includes(String(binding[meter.when.field] ?? ''))),
+        (meter) => meter.role === 'llm' && meterApplies(meter, binding),
       )
     : [];
   const unconfirmed = meters
