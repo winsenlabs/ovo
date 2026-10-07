@@ -1,10 +1,11 @@
 import { AgentConfig } from '@winsendotai/ovo-contracts';
 import type { FxVersion, PriceCardVersion } from '@winsendotai/ovo-plugin-ledger';
-import type { AgentDraft, ControlStore } from '@winsendotai/ovo-plugin-storage';
+import type { AgentDraft, ControlStore, ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { describe, expect, it } from 'vitest';
 import { fixture } from '../../../packages/session-host/tests/compat-support.ts';
 import { costAdmissionIssues, type CostAdmissionLedger } from '../src/cost-admission-readiness.ts';
 import { liveReadiness } from '../src/live-readiness.ts';
+import { withLatestRelease } from '../src/release-readiness.ts';
 import type { InfrastructureService } from '../src/infrastructure-types.ts';
 
 const card = (id: string, meter: string, extra: Partial<PriceCardVersion> = {}) =>
@@ -235,5 +236,129 @@ describe('live readiness runs the cost checks admission runs', () => {
         ledger: ledger(stored),
       }),
     ).toEqual([]);
+  });
+});
+
+describe('readiness checks the release that takes calls, not only the draft', () => {
+  const release = (
+    config: AgentDraft['config'],
+    selections: ReturnType<typeof pricedAgent>['selections'],
+  ) => ({
+    id: 'release-1',
+    config,
+    selections: selections as ReleaseRecord['selections'],
+    providerBindings: {},
+  });
+  const readyDraft = async () => {
+    const agent = pricedAgent();
+    const live = await liveReadiness(
+      draft(agent.config),
+      store,
+      agent.registry,
+      agent.selections,
+      readyInfrastructure,
+      undefined,
+      undefined,
+      ledger(stored),
+    );
+    expect(live.liveReady).toBe(true);
+    return { agent, live };
+  };
+
+  // Outage 1 again, after the founder fixes the draft: admission prices the routed release.
+  it('is not live-ready when the latest release references a USD card without FX', async () => {
+    const { agent, live } = await readyDraft();
+    const stale = pricedAgent({});
+    const result = await withLatestRelease(live, {
+      release: release(stale.config, agent.selections),
+      registry: agent.registry,
+      ledger: ledger(stored),
+    });
+    expect(result.liveReady).toBe(false);
+    expect(result.liveBlockers).toEqual([
+      'Latest release release-1: Cost meter requires immutable FX: carrier.usage (the USD price card needs fxId and fxVersion of a USD-INR FX version)',
+    ]);
+  });
+
+  // Outage 2 again: the draft's web-search card was imported, the release's version was not.
+  it('is not live-ready when the latest release references a card version not in the ledger', async () => {
+    const { agent, live } = await readyDraft();
+    const stale = pricedAgent();
+    stale.config.costPolicy!.priceCards['openai.inference.web_search_calls'] = {
+      id: 'openai-web-search-calls',
+      version: '2026-10-06',
+    };
+    const result = await withLatestRelease(live, {
+      release: release(stale.config, agent.selections),
+      registry: agent.registry,
+      ledger: ledger(stored),
+    });
+    expect(result.liveReady).toBe(false);
+    expect(result.liveBlockers).toEqual([
+      'Latest release release-1: Cost price version is unavailable: openai.inference.web_search_calls (price card openai-web-search-calls version 2026-10-06 is not in the ledger; import it or fix the reference)',
+    ]);
+  });
+
+  it('is not live-ready when the latest release has no cost policy', async () => {
+    const { agent, live } = await readyDraft();
+    const { costPolicy: _removed, ...config } = agent.config;
+    const result = await withLatestRelease(live, {
+      release: release(config as AgentDraft['config'], agent.selections),
+      registry: agent.registry,
+      ledger: ledger(stored),
+    });
+    expect(result.liveBlockers).toEqual([
+      'Latest release release-1: A live-call budget and maximum duration policy are required.',
+    ]);
+  });
+
+  it('stays live-ready for a release admission accepts, and without any release', async () => {
+    const { agent, live } = await readyDraft();
+    expect(
+      await withLatestRelease(live, {
+        release: release(agent.config, agent.selections),
+        registry: agent.registry,
+        ledger: ledger(stored),
+      }),
+    ).toEqual(live);
+    expect(await withLatestRelease(live, { registry: agent.registry })).toBe(live);
+  });
+
+  it('does not repeat a problem the draft already reports', async () => {
+    const agent = pricedAgent({});
+    const live = await liveReadiness(
+      draft(agent.config),
+      store,
+      agent.registry,
+      agent.selections,
+      readyInfrastructure,
+      undefined,
+      undefined,
+      ledger(stored),
+    );
+    const result = await withLatestRelease(live, {
+      release: release(agent.config, agent.selections),
+      registry: agent.registry,
+      ledger: ledger(stored),
+    });
+    expect(result.liveBlockers).toEqual(live.liveBlockers);
+  });
+
+  it('names an unreadable ledger reference instead of failing readiness', async () => {
+    const { agent, live } = await readyDraft();
+    const result = await withLatestRelease(live, {
+      release: release(agent.config, agent.selections),
+      registry: agent.registry,
+      ledger: {
+        ...ledger(stored),
+        getPriceCard: async (id, version) => {
+          if (id === 'twilio-voice') throw new Error('connection terminated');
+          return stored.find((row) => row.id === id && row.version === version);
+        },
+      },
+    });
+    expect(result.liveBlockers).toEqual([
+      'Latest release release-1: Cost ledger could not be read: carrier.usage (price card twilio-voice version v1)',
+    ]);
   });
 });

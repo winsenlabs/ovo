@@ -9,6 +9,8 @@ import { manifestKeys, type PluginRegistry } from '@winsendotai/ovo-runtime';
 import { metersFor } from '@winsendotai/ovo-session-host';
 import { sessionRequiresInput } from '@winsendotai/ovo-session-host/input-policy';
 
+const unreadable: unique symbol = Symbol('unreadable');
+
 export type CostAdmissionLedger = Pick<CostLedgerService, 'getPriceCard' | 'getFxVersion'>;
 
 /**
@@ -18,7 +20,8 @@ export type CostAdmissionLedger = Pick<CostLedgerService, 'getPriceCard' | 'getF
  * carrier meter (a USD card referenced without its FX version) and "Cost price version is
  * unavailable" for the LLM web-search meter (a card version the ledger did not hold). Each
  * message starts with the refusal the worker logs. Without a ledger nothing can be checked here,
- * and admission still refuses.
+ * and admission still refuses. A failed ledger read names the reference it could not read rather
+ * than failing the whole readiness answer.
  */
 export async function costAdmissionIssues(input: {
   config: AgentConfig;
@@ -35,7 +38,16 @@ export async function costAdmissionIssues(input: {
   const cards = new Map<string, PriceCardVersion | undefined>();
   // The worker loads every referenced card, required or not, and refuses on any bad one.
   for (const [meterKey, reference] of Object.entries(policy.priceCards)) {
-    const card = await ledger.getPriceCard(reference.id, reference.version);
+    const card = await ledger
+      .getPriceCard(reference.id, reference.version)
+      .catch((): typeof unreadable => unreadable);
+    if (card === unreadable) {
+      add(
+        `Cost ledger could not be read: ${meterKey} (price card ${reference.id} version ${reference.version})`,
+        meterKey,
+      );
+      continue;
+    }
     cards.set(meterKey, card);
     if (!card) {
       add(
@@ -64,7 +76,16 @@ export async function costAdmissionIssues(input: {
       );
       continue;
     }
-    const fx = await ledger.getFxVersion(reference.fxId, reference.fxVersion);
+    const fx = await ledger
+      .getFxVersion(reference.fxId, reference.fxVersion)
+      .catch((): typeof unreadable => unreadable);
+    if (fx === unreadable) {
+      add(
+        `Cost ledger could not be read: ${meterKey} (FX ${reference.fxId} version ${reference.fxVersion})`,
+        meterKey,
+      );
+      continue;
+    }
     if (!fx || fx.baseCurrency !== card.currency || fx.quoteCurrency !== 'INR')
       add(
         `Cost FX version does not match price currency: ${meterKey} (${fx ? `FX ${reference.fxId} version ${reference.fxVersion} converts ${fx.baseCurrency} to ${fx.quoteCurrency}` : `FX ${reference.fxId} version ${reference.fxVersion} is not in the ledger`}; the card is priced in ${card.currency})`,

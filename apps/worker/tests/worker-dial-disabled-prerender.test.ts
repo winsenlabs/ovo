@@ -5,7 +5,7 @@ import {
   type PrerenderOnlyDeps,
 } from '../src/speech-cache-dial-disabled.ts';
 
-function deps(events: string[], failSpeechCache = false) {
+function deps(events: string[], failSpeechCache = false, openStore?: () => Promise<never>) {
   const resource = (name: string) => ({
     close: vi.fn(async () => {
       events.push(`close ${name}`);
@@ -19,7 +19,7 @@ function deps(events: string[], failSpeechCache = false) {
   };
   const secrets = { forAgent: vi.fn() };
   const value: PrerenderOnlyDeps = {
-    openStore: vi.fn(async () => store as never),
+    openStore: vi.fn(openStore ?? (async () => store as never)),
     openLedger: vi.fn(async () => ledger as never),
     openSpeechCache: vi.fn(async () => {
       if (failSpeechCache) throw new Error('clip store unreachable');
@@ -41,7 +41,8 @@ describe('a dial-disabled worker still pre-renders speech', () => {
     const fake = deps(events);
     const composition = await compose([], []);
     const dispose = vi.spyOn(composition, 'dispose');
-    const result = await withDialDisabledPrerender(composition, distribution, env, fake.value);
+    const result = withDialDisabledPrerender(composition, distribution, env, fake.value);
+    expect(await result.prerenderStarted).toBe(true);
 
     expect(fake.value.openStore).toHaveBeenCalledWith('postgres://db/ovo');
     expect(fake.speechCache.startPrerender).toHaveBeenCalledWith(
@@ -67,18 +68,52 @@ describe('a dial-disabled worker still pre-renders speech', () => {
     const events: string[] = [];
     const fake = deps(events, true);
     const composition = await compose([], []);
-    const result = await withDialDisabledPrerender(composition, distribution, env, fake.value);
-    expect(result).toBe(composition);
+    const dispose = vi.spyOn(composition, 'dispose');
+    const result = withDialDisabledPrerender(composition, distribution, env, fake.value);
+    expect(await result.prerenderStarted).toBe(false);
     expect(events).toEqual(['close ledger', 'close store']);
     await result.dispose();
+    expect(events).toEqual(['close ledger', 'close store']);
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  // Review of wave 6: opening Postgres before returning kept an unreachable database's worker in
+  // `starting` until the TCP timeout; it reported dial-disabled at once before this change.
+  it('returns before the stores open, and a stop during opening never starts rendering', async () => {
+    const events: string[] = [];
+    let open!: () => void;
+    const fake = deps(
+      events,
+      false,
+      () =>
+        new Promise<never>(
+          (resolve) =>
+            (open = () =>
+              resolve({
+                close: async () => {
+                  events.push('close store');
+                },
+              } as never)),
+        ),
+    );
+    const composition = await compose([], []);
+    const result = withDialDisabledPrerender(composition, distribution, env, fake.value);
+    expect(result.ctx).toBe(composition.ctx);
+    expect(fake.value.openStore).toHaveBeenCalledOnce();
+    const disposed = result.dispose();
+    open();
+    await disposed;
+    expect(await result.prerenderStarted).toBe(false);
+    expect(fake.speechCache.startPrerender).not.toHaveBeenCalled();
+    expect(events).toEqual(['close speech-cache', 'close ledger', 'close store']);
   });
 
   it('does nothing without a database', async () => {
     const fake = deps([]);
     const composition = await compose([], []);
-    expect(await withDialDisabledPrerender(composition, distribution, {}, fake.value)).toBe(
-      composition,
-    );
+    const result = withDialDisabledPrerender(composition, distribution, {}, fake.value);
+    expect(await result.prerenderStarted).toBe(false);
+    expect(result.ctx).toBe(composition.ctx);
     expect(fake.value.openStore).not.toHaveBeenCalled();
     await composition.dispose();
   });

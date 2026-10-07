@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PostgresCostLedger } from '@winsendotai/ovo-plugin-ledger';
 import { registerCostRoutes } from '../src/routes/cost.ts';
@@ -79,7 +79,11 @@ describe.skipIf(!databaseUrl)('GET /v1/calls/:callId/cost on the PostgreSQL ledg
       app,
       ledger,
       controlStore: { getCall: vi.fn(async () => ({ id: callId }) as never) },
-      requireRole,
+      requireRole: (request) => ({
+        identityId: 'identity-a',
+        workspaceId: 'workspace-a',
+        role: request.headers['x-role'] === 'admin' ? 'admin' : 'viewer',
+      }),
       audit: vi.fn(),
     });
 
@@ -90,18 +94,21 @@ describe.skipIf(!databaseUrl)('GET /v1/calls/:callId/cost on the PostgreSQL ledg
     expect(response.json()).toMatchObject({
       workspaceId: 'workspace-a',
       callId,
-      sessionIds: [sessionId],
       estimatedPaise: '40',
       totalPaise: '40',
     });
+    // The media session id is private below admin (live diagnostics withholds it too).
+    expect(response.json()).not.toHaveProperty('sessionIds');
+    const admin = await app.inject({
+      method: 'GET',
+      url: `/v1/calls/${callId}/cost`,
+      headers: { 'x-role': 'admin' },
+    });
+    expect(admin.json()).toMatchObject({ callId, sessionIds: [sessionId], totalPaise: '40' });
     // What the route used to read: the call id is no ledger session.
     expect((await ledger.getSessionCost('workspace-a', callId)).totalPaise).toBe('0');
   });
 });
-
-function requireRole(_request: FastifyRequest) {
-  return { identityId: 'identity-a', workspaceId: 'workspace-a', role: 'viewer' as const };
-}
 
 function buildApp(): FastifyInstance {
   const app = Fastify({ logger: false });

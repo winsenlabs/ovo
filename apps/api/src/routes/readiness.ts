@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import type { PluginDefinition } from '@winsendotai/ovo-runtime';
-import { behaviorPluginId, validateSelections } from '@winsendotai/ovo-session-host';
+import { behaviorPluginId } from '@winsendotai/ovo-session-host';
 import { z } from 'zod';
 import { requireRole } from '../auth-service.ts';
 import { mergeCatalog, validateRelease } from '../release-runtime.ts';
@@ -9,6 +9,7 @@ import type { ManagementApiOptions } from '../types.ts';
 import { liveDiagnostics, liveReadiness, type LivePathInfrastructure } from '../live-readiness.ts';
 import { PluginRegistry } from '@winsendotai/ovo-runtime';
 import { buildReleaseSelections } from '../release-selections.ts';
+import { withLatestRelease } from '../release-readiness.ts';
 import type { ProviderBinding } from '@winsendotai/ovo-plugin-storage';
 
 export function registerReadinessRoutes(input: {
@@ -96,33 +97,16 @@ export function registerReadinessRoutes(input: {
         recent = page.items.at(-1) ?? recent;
         cursor = page.nextCursor ?? undefined;
       } while (cursor);
-      const immutableIssues = recent
-        ? validateSelections(
-            {
-              config: recent.config,
-              selections: recent.selections,
-              registry,
-              defaults: input.distributionDefaults,
-              legacyProviderBindings: recent.providerBindings,
-            },
-            'live',
-          ).filter(
-            (issue) =>
-              issue.code === 'plugin_version_not_installed' ||
-              issue.code === 'legacy_release_unpinned',
-          )
-        : [];
-      const immutableBlockers = immutableIssues
-        .filter((issue) => issue.severity === 'error')
-        .map((issue) => issue.message);
       return {
         releaseReady: true,
         requiredPluginIds,
         blockers: [],
-        ...live,
-        liveReady: live.liveReady && immutableBlockers.length === 0,
-        liveBlockers: [...live.liveBlockers, ...immutableBlockers],
-        details: [...live.details, ...immutableIssues],
+        ...(await withLatestRelease(live, {
+          release: recent,
+          registry,
+          defaults: input.distributionDefaults,
+          ledger: input.ledger,
+        })),
       };
     } catch (error) {
       return {

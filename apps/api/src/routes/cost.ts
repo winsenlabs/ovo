@@ -167,10 +167,12 @@ export function registerCostRoutes(dependencies: CostRouteDependencies): void {
     const call = await controlStore.getCall(principal.workspaceId, callId);
     if (!call) return failure(reply, 404, 'not_found', 'Call not found');
     // P11: usage is keyed by the worker's media session id, not the call id; the ledger finds the
-    // call's sessions through the call id each usage row carries.
-    return safely(reply, async () =>
-      reply.send(await ledger.getCallCost(principal.workspaceId, callId)),
-    );
+    // call's sessions through the call id each usage row carries. Media session ids stay private
+    // below admin, as in live diagnostics.
+    return safely(reply, async () => {
+      const { sessionIds, ...cost } = await ledger.getCallCost(principal.workspaceId, callId);
+      return reply.send(principal.role === 'admin' ? { ...cost, sessionIds } : cost);
+    });
   });
 
   app.post('/v1/cost/reconciliation', async (request, reply) => {

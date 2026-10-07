@@ -59,7 +59,7 @@ export async function openWorkerProcess() {
     );
     return {
       kind: 'dial-disabled' as const,
-      composition: await withDialDisabledPrerender(composition, distribution),
+      composition: withDialDisabledPrerender(composition, distribution),
     };
   }
   const protectionMode = process.env.OVO_PROTECTION_MODE ?? 'ecs';

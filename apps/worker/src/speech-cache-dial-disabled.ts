@@ -32,49 +32,59 @@ const PRERENDER_ONLY_DEPS: PrerenderOnlyDeps = {
  * so releases published while live dialing was off (setup, a deploy, `ovo-live.sh off`) went live
  * with no clips and synthesized every fixed line on the first calls. It now claims publish jobs and
  * warms routed releases into the durable clip store, metered as pre-render usage; nothing that
- * dials (runner, carrier, protection, cost runtime) is composed. Best effort: a worker that cannot
- * open the clip store or its credentials stays dial-disabled and healthy, as before.
+ * dials (runner, carrier, protection, cost runtime) is composed. Best effort and off the startup
+ * path: the worker reports dial-disabled health at once, as before, while the clip store and its
+ * credentials open in the background; if they cannot, it stays dial-disabled and healthy.
  */
-export async function withDialDisabledPrerender(
+export function withDialDisabledPrerender(
   composition: Composition,
   distribution: Pick<ReleaseSpeechDeps, 'catalog' | 'defaults'>,
   env: Readonly<Record<string, string | undefined>> = process.env,
   deps: PrerenderOnlyDeps = PRERENDER_ONLY_DEPS,
-): Promise<Composition> {
+): Composition & { prerenderStarted: Promise<boolean> } {
   const workerId = env.OVO_WORKER_ID ?? `compact-${process.pid}`;
   const log = createLogger({ service: 'worker', workerId, component: 'speech-prerender' });
   const databaseUrl = env.OVO_CONTROL_DATABASE_URL ?? env.DATABASE_URL;
-  if (!databaseUrl) return composition;
+  if (!databaseUrl) return { ...composition, prerenderStarted: Promise.resolve(false) };
   const opened: { close(): Promise<void> }[] = [];
-  try {
-    const controlStore = await deps.openStore(databaseUrl);
-    opened.push(controlStore);
-    const ledger = await deps.openLedger(databaseUrl);
-    opened.push(ledger);
-    const speechCache = await deps.openSpeechCache(env, databaseUrl);
-    opened.push(speechCache);
-    const service = speechCache.startPrerender({
-      workerId,
-      releases: controlStore,
-      ledger,
-      log,
-      speech: {
-        catalog: distribution.catalog,
-        parent: composition,
-        secrets: deps.secrets(controlStore),
-        defaults: distribution.defaults,
-      },
-    });
-    log.info('speech_prerender_dial_disabled', { running: Boolean(service) });
-  } catch (error) {
-    log.warn('speech_prerender_unavailable', errorFields(error));
-    await closeAll(opened);
-    return composition;
-  }
+  let disposed = false;
+  const prerenderStarted = (async () => {
+    try {
+      const controlStore = await deps.openStore(databaseUrl);
+      opened.push(controlStore);
+      const ledger = await deps.openLedger(databaseUrl);
+      opened.push(ledger);
+      const speechCache = await deps.openSpeechCache(env, databaseUrl);
+      opened.push(speechCache);
+      // A worker stopped while the stores were opening never starts rendering.
+      if (disposed) throw new Error('worker stopped before pre-render started');
+      const service = speechCache.startPrerender({
+        workerId,
+        releases: controlStore,
+        ledger,
+        log,
+        speech: {
+          catalog: distribution.catalog,
+          parent: composition,
+          secrets: deps.secrets(controlStore),
+          defaults: distribution.defaults,
+        },
+      });
+      log.info('speech_prerender_dial_disabled', { running: Boolean(service) });
+      return true;
+    } catch (error) {
+      if (!disposed) log.warn('speech_prerender_unavailable', errorFields(error));
+      await closeAll(opened);
+      return false;
+    }
+  })();
   return {
     ...composition,
+    prerenderStarted,
     // The speech cache closes first: its renders compose under this composition's net.
     dispose: async () => {
+      disposed = true;
+      await prerenderStarted;
       await closeAll(opened);
       await composition.dispose();
     },
