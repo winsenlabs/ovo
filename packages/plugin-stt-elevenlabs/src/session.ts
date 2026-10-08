@@ -51,6 +51,8 @@ export class ScribeSession implements SttSession {
   /** Audio written since the last commit, so a commit without new audio is never sent. */
   private uncommitted = false;
   private pendingCommits = 0;
+  /** When each commit still unanswered was sent, oldest first; a final's wait ends by its deadline. */
+  private readonly commitsSentAt: number[] = [];
   private cancelFinish?: () => void;
 
   constructor(
@@ -132,6 +134,7 @@ export class ScribeSession implements SttSession {
     this.send(tail, true);
     this.uncommitted = false;
     this.pendingCommits++;
+    this.commitsSentAt.push(this.clock.now());
   }
 
   private send(audio: Uint8Array, commit: boolean): void {
@@ -173,7 +176,8 @@ export class ScribeSession implements SttSession {
       );
     if (message.kind === 'notice') this.notice(message.type, message.detail);
     else if (message.kind === 'partial') this.transcripts.partial(message.text);
-    else if (message.kind === 'committed') this.transcripts.committed(message.text);
+    else if (message.kind === 'committed')
+      this.transcripts.committed(message.text, this.commitsSentAt.shift());
     else if (message.kind === 'timestamps') this.transcripts.words(message);
   }
 
@@ -183,6 +187,7 @@ export class ScribeSession implements SttSession {
     // The refused audio is still uncommitted. It gets no transcript, so a finish must not wait
     // out its deadline for one. An earlier commit still held for its confidence goes first.
     this.uncommitted = true;
+    this.commitsSentAt.shift();
     this.transcripts.throttled();
     this.answered();
   }

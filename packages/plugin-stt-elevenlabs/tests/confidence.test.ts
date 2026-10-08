@@ -2,7 +2,7 @@ import { MULAW_8K, type NetFixtureScript, type SttEvent } from '@winsendotai/ovo
 import { FakeClock } from '@winsendotai/ovo-conformance';
 import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CONFIDENCE_MISSES, CONFIDENCE_WAIT_MS } from '../src/confidence.ts';
+import { CONFIDENCE_MISSES, CONFIDENCE_SLOW_MS, CONFIDENCE_WAIT_MS } from '../src/confidence.ts';
 import { wordConfidence } from '../src/protocol.ts';
 import { ElevenLabsStt, type ElevenLabsSttBinding } from '../src/provider.ts';
 import { RETRIEVED, SOURCE, committed, committedWords, sessionStarted } from '../src/testing.ts';
@@ -180,6 +180,131 @@ describe('a final with its confidence', () => {
     await session.forceEndpoint!();
     expect(finals(events)).toEqual([{ text: 'main payment', confidence: undefined }]);
     await session.cancel('done');
+  });
+});
+
+describe('the cost of waiting for confidence (latency)', () => {
+  /** One turn: a commit answered by its word-level message `afterMs` later. */
+  const turn = (text: string, afterMs: number) => [
+    AUDIO,
+    COMMIT,
+    { send: committed(text) },
+    ...(afterMs ? [{ delayMs: afterMs }] : []),
+    { send: committedWords(text) },
+  ];
+  const ended = (events: SttEvent[]) => events.filter((event) => event.type === 'end-of-turn');
+
+  it(`keeps waiting while the messages are prompt (at most ${CONFIDENCE_SLOW_MS} ms a turn)`, async () => {
+    const { clock, events, session } = await open([
+      { send: sessionStarted() },
+      ...Array.from({ length: 5 }, (_, i) => turn(`turn ${i}`, CONFIDENCE_SLOW_MS)).flat(),
+      AUDIO,
+    ]);
+    for (let i = 0; i < 5; i++) {
+      await session.write(frame());
+      await session.forceEndpoint!();
+      await clock.advanceAsync(CONFIDENCE_SLOW_MS);
+    }
+    expect(finals(events).every((final) => final.confidence !== undefined)).toBe(true);
+    expect(finals(events)).toHaveLength(5);
+    await session.cancel('done');
+  });
+
+  it(`counts a slow message as a miss: after ${CONFIDENCE_MISSES} the finals stop waiting`, async () => {
+    // Regression: a message inside the cap reset the count, so a steady 100 ms gap was paid on
+    // every turn of the call.
+    const slow = CONFIDENCE_SLOW_MS + 5;
+    const { clock, events, session } = await open([
+      { send: sessionStarted() },
+      ...Array.from({ length: CONFIDENCE_MISSES }, (_, i) => turn(`slow ${i}`, slow)).flat(),
+      AUDIO,
+      COMMIT,
+      { send: committed('no wait') },
+      AUDIO,
+    ]);
+    for (let i = 0; i < CONFIDENCE_MISSES; i++) {
+      await session.write(frame());
+      await session.forceEndpoint!();
+      await clock.advanceAsync(slow);
+    }
+    await session.write(frame());
+    await session.forceEndpoint!();
+    // Ended on the commit itself, with no wait.
+    expect(finals(events).at(-1)).toEqual({ text: 'no wait', confidence: undefined });
+    expect(ended(events)).toHaveLength(CONFIDENCE_MISSES + 1);
+    await session.cancel('done');
+  });
+
+  it('never holds an empty commit: noise that transcribed to nothing ends at once', async () => {
+    const { events, session } = await open([
+      { send: sessionStarted() },
+      AUDIO,
+      COMMIT,
+      { send: committed('') },
+    ]);
+    await session.write(frame());
+    await session.forceEndpoint!();
+    expect(events).toEqual([{ type: 'end-of-turn' }]);
+    await session.cancel('done');
+  });
+
+  it('ignores a late message for an earlier commit instead of taking its confidence', async () => {
+    const { clock, events, session } = await open([
+      { send: sessionStarted() },
+      AUDIO,
+      COMMIT,
+      { send: committed('first') },
+      { delayMs: CONFIDENCE_WAIT_MS },
+      AUDIO,
+      COMMIT,
+      { send: committed('second') },
+      { send: committedWords('first', [Math.log(0.1)]) },
+      { send: committedWords('second', [Math.log(0.9)]) },
+    ]);
+    await session.write(frame());
+    await session.forceEndpoint!();
+    await clock.advanceAsync(CONFIDENCE_WAIT_MS);
+    await session.write(frame());
+    await session.forceEndpoint!();
+    expect(finals(events)).toEqual([
+      { text: 'first', confidence: undefined },
+      { text: 'second', confidence: expect.closeTo(0.9, 6) },
+    ]);
+    await session.cancel('done');
+  });
+});
+
+describe('a held final when the session ends', () => {
+  it('is delivered when the provider drops the session inside the wait', async () => {
+    // Regression: the drop disposed of the held commit, and the caller's last words were lost.
+    const { clock, events, session } = await open([
+      { send: sessionStarted() },
+      AUDIO,
+      COMMIT,
+      { send: committed('I will pay on Friday.') },
+      { delayMs: 5 },
+      { close: { code: 1011, reason: 'internal' } },
+    ]);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await session.write(frame());
+    await session.forceEndpoint!();
+    await clock.advanceAsync(5);
+    expect(finals(events)).toEqual([{ text: 'I will pay on Friday.', confidence: undefined }]);
+    expect(events.at(-1)).toEqual({ type: 'end-of-turn' });
+    await expect(session.write(frame())).rejects.toMatchObject({ code: 1011, retryable: true });
+  });
+
+  it('is delivered when the session is cancelled inside the wait', async () => {
+    const { events, session } = await open([
+      { send: sessionStarted() },
+      AUDIO,
+      COMMIT,
+      { send: committed('theek hai') },
+    ]);
+    await session.write(frame());
+    await session.forceEndpoint!();
+    await session.cancel('done');
+    expect(finals(events)).toEqual([{ text: 'theek hai', confidence: undefined }]);
   });
 });
 

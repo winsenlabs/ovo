@@ -26,7 +26,12 @@ export {
 export { ElevenLabsSttError } from './protocol.ts';
 export { scribeKeyterms, type ScribeCallKeyterms } from './keyterms.ts';
 export { agentNameRestorer, type AgentNameConfig } from './agent-name.ts';
-export { CONFIDENCE_MISSES, CONFIDENCE_WAIT_MS } from './confidence.ts';
+export {
+  CONFIDENCE_DEADLINE_MS,
+  CONFIDENCE_MISSES,
+  CONFIDENCE_SLOW_MS,
+  CONFIDENCE_WAIT_MS,
+} from './confidence.ts';
 export { fixtures, fixtureTemplates };
 
 export const elevenLabsSttPlugin = definePlugin(

@@ -70,8 +70,15 @@ describe('Scribe language settings (N4/P9)', () => {
   });
 
   it('reads the detected language and ignores the message without one', () => {
-    expect(parseMessage(withLanguage('hi'))).toEqual({ kind: 'timestamps', language: 'hi' });
-    expect(parseMessage(withLanguage(null))).toEqual({ kind: 'timestamps' });
+    expect(parseMessage(withLanguage('hi'))).toEqual({
+      kind: 'timestamps',
+      text: 'haan main kar dunga',
+      language: 'hi',
+    });
+    expect(parseMessage(withLanguage(null))).toEqual({
+      kind: 'timestamps',
+      text: 'haan main kar dunga',
+    });
   });
 });
 

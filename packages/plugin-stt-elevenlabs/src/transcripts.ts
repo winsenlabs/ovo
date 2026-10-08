@@ -1,4 +1,4 @@
-import type { Clock, SpeechToText } from '@winsendotai/ovo-contracts';
+import { normalizeForMatch, type Clock, type SpeechToText } from '@winsendotai/ovo-contracts';
 import { createLogger } from '@winsendotai/ovo-plugin-kit';
 import { CommitConfidence } from './confidence.ts';
 import { ScribeSegments } from './segments.ts';
@@ -40,23 +40,35 @@ export class ScribeTranscripts {
     );
   }
 
+  /**
+   * N5 while a commit is held: a late partial equal to it or a prefix of it is stale, as after the
+   * commit is released. One with new words is the caller speaking again, so the held commit is
+   * released without its confidence first and the partial opens the next segment.
+   */
   partial(text: string): void {
+    const held = this.commits.pending;
+    if (held !== undefined) {
+      const words = normalizeForMatch(text);
+      if (!words || normalizeForMatch(held).startsWith(words)) return;
+      this.commits.flush();
+    }
     this.segments.onPartial(text);
   }
 
-  committed(text: string): void {
-    this.commits.committed(text);
+  /** `sentAtMs`: when the commit this answers was sent, if the session sent it. */
+  committed(text: string, sentAtMs?: number): void {
+    this.commits.committed(text, sentAtMs);
   }
 
   /** The word-level message after a commit: its detected language and word confidence. */
-  words(message: { language?: string; confidence?: number }): void {
+  words(message: { text?: string; language?: string; confidence?: number }): void {
     if (message.language)
       logger.info('stt_language_detected', {
         sessionId: this.input.sessionId,
         language: message.language,
         expected: this.input.language,
       });
-    this.commits.words(message.confidence);
+    this.commits.words(message.text, message.confidence);
   }
 
   /** A refused commit; an earlier commit still held for its confidence goes first. */
@@ -65,7 +77,8 @@ export class ScribeTranscripts {
     this.segments.onThrottled();
   }
 
+  /** The session ended: a commit still held for its confidence is delivered without it. */
   dispose(): void {
-    this.commits.dispose();
+    this.commits.flush();
   }
 }

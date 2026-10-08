@@ -59,7 +59,7 @@ export type ScribeMessage =
   | { kind: 'partial'; text: string }
   | { kind: 'committed'; text: string }
   /** The word-level message that follows a commit: its detected language and word confidence. */
-  | { kind: 'timestamps'; language?: string; confidence?: number }
+  | { kind: 'timestamps'; text?: string; language?: string; confidence?: number }
   | { kind: 'notice'; type: string; detail: string }
   | { kind: 'failure'; error: ElevenLabsSttError }
   | { kind: 'ignored' };
@@ -86,8 +86,8 @@ export function parseMessage(raw: string): ScribeMessage {
     return { kind: type === 'partial_transcript' ? 'partial' : 'committed', text: message.text };
   }
   // Sent after the committed transcript when include_timestamps or include_language_detection is
-  // set; the text is already final, so only the detected language and the words' log
-  // probabilities are read.
+  // set; the text is already final, so it only matches the message to its commit, beside the
+  // detected language and the words' log probabilities.
   if (type === 'committed_transcript_with_timestamps') {
     const language =
       typeof message.language_code === 'string' && message.language_code
@@ -96,6 +96,7 @@ export function parseMessage(raw: string): ScribeMessage {
     const confidence = wordConfidence(message.words);
     return {
       kind: 'timestamps',
+      ...(typeof message.text === 'string' ? { text: message.text } : {}),
       ...(language ? { language } : {}),
       ...(confidence === undefined ? {} : { confidence }),
     };

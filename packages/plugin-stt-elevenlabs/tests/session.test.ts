@@ -10,7 +10,14 @@ import { createFixtureNet, decodeBase64 } from '@winsendotai/ovo-plugin-kit';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ElevenLabsStt } from '../src/provider.ts';
 import { FINISH_TIMEOUT_MS } from '../src/session.ts';
-import { RETRIEVED, SOURCE, committed, partial, sessionStarted } from '../src/testing.ts';
+import {
+  RETRIEVED,
+  SOURCE,
+  committed,
+  committedWords,
+  partial,
+  sessionStarted,
+} from '../src/testing.ts';
 
 const OPEN = { expect: 'ws-open', url: /^wss:\/\/api\.elevenlabs\.io\// } as const;
 const AUDIO = {
@@ -32,15 +39,15 @@ function script(steps: NetFixtureScript['steps']): NetFixtureScript[] {
 }
 
 /**
- * Word confidence off: these tests are about commits, and their scripts send no word-level
- * message after one. confidence.test.ts covers the default, which waits for it.
+ * The default binding, which asks for word confidence: each commit in these scripts is followed by
+ * its word-level message, as the provider sends it.
  */
 async function open(steps: NetFixtureScript['steps'], format = MULAW_8K) {
   const clock = new FakeClock();
   const net = createFixtureNet(script(steps), { clock });
   const events: SttEvent[] = [];
   const usage: UsageMeter[] = [];
-  const session = await new ElevenLabsStt(net, 'fixture-key', { confidence: false }, clock).start({
+  const session = await new ElevenLabsStt(net, 'fixture-key', {}, clock).start({
     sessionId: 'scribe-session',
     format,
     language: 'hi-IN',
@@ -87,6 +94,7 @@ describe('Scribe manual commit', () => {
       { send: partial('mera naam Ravi') },
       COMMIT,
       { send: committed('mera naam Ravi hai') },
+      { send: committedWords('mera naam Ravi hai') },
       AUDIO,
       { send: partial('kal') },
     ]);
@@ -120,6 +128,7 @@ describe('Scribe manual commit', () => {
       AUDIO,
       COMMIT,
       { send: committed('haan') },
+      { send: committedWords('haan') },
     ]);
     await session.write(frame(1, 400));
     await session.forceEndpoint!();
@@ -155,6 +164,7 @@ describe('Scribe manual commit', () => {
       { send: partial('main payment kab tak') },
       COMMIT,
       { send: committed('main payment kab tak hoga') },
+      { send: committedWords('main payment kab tak hoga') },
       AUDIO,
       { send: partial('aur kuch') },
     ]);
@@ -186,6 +196,7 @@ describe('Scribe manual commit', () => {
       AUDIO,
       COMMIT,
       { send: committed('Haan ji') },
+      { send: committedWords('Haan ji') },
     ]);
     await session.write(frame(1, 400));
     await session.forceEndpoint!();
@@ -218,6 +229,7 @@ describe('Scribe finish, failures and usage', () => {
       AUDIO,
       COMMIT,
       { send: committed('theek hai') },
+      { send: committedWords('theek hai') },
     ]);
     await session.write(frame(1, 4_000));
     await session.finish();

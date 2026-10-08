@@ -65,7 +65,8 @@ export interface ElevenLabsSttBinding {
    * Wave 8: asks for `include_timestamps`, whose word-level message gives each commit's
    * confidence (the words' log probabilities) on the final transcript, for judging a garbled
    * turn untrusted. On by default; each final then waits for that message, which follows its
-   * commit, for at most `CONFIDENCE_WAIT_MS` (`confidence.ts`).
+   * commit, for at most `CONFIDENCE_WAIT_MS` and never past `CONFIDENCE_DEADLINE_MS` after the
+   * commit; slow or missing messages turn the wait off for the call (`confidence.ts`).
    */
   confidence?: boolean;
   /**

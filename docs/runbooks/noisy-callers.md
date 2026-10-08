@@ -33,9 +33,15 @@ two earlier calls on quiet lines, it flags one: "What? Okay, are you...".
 - **Word confidence:** a final waits for the word-level message that Scribe sends after each
   commit, so each turn ends that much later. The gap has not been measured on a live call; read
   `stt_confidence_wait.waitMs`.
-  - The wait is capped at 120 ms.
-  - If two commits in a row get no word-level message, the session stops waiting
-    (`stt_confidence_unavailable`). A provider that never sends it costs at most 240 ms per call.
+  - A turn waits at most 40 ms for it, and never past 500 ms after its commit was sent, so the
+    final always reaches the turn detector inside its 600 ms commit ceiling.
+  - A message more than 20 ms behind its commit, or one that never comes, counts as a miss. After
+    two misses in a call (they add up, they do not reset), finals stop waiting
+    (`stt_confidence_unavailable`). So a call pays at most 20 ms per turn while the messages are
+    prompt, plus at most 80 ms in total for the slow or missing ones.
+  - An empty commit (noise that transcribed to nothing) never waits.
+  - The replay in `packages/plugin-stt-elevenlabs/tests/turn-ceiling.test.ts` drives the 'commit'
+    turn detector with the commit timings of call f3363705 and pins these costs.
   - To turn it off, set `voice.stt` binding `confidence: false`.
 
 ## Per agent
@@ -64,8 +70,9 @@ These defaults depend on the agent, so the plugin does not set them:
 Read the worker logs (`service: stt-elevenlabs`) and the turn data:
 
 1. **`stt_confidence_wait`**, one line per commit, gives the gap and the confidence.
-   - The gap should be a few milliseconds. If `stt_confidence_unavailable` appears, the provider
-     sent no word-level messages, and confidence is off for that call.
+   - The gap should be a few milliseconds. If `stt_confidence_unavailable` appears, two
+     word-level messages came late or not at all, and confidence is off for the rest of that call.
+     If it appears on most calls, set `confidence: false` until the gap is understood.
    - Compare the confidence values of clear and garbled turns. If 0.45 does not separate them,
      change `TRANSCRIPT_TRUST_DEFAULTS.minConfidence`. Its unit test pins the boundary.
 2. **`stt_language_detected`** (with `languageDetection: true`) shows whether Hinglish turns stay
