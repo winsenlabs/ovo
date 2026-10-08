@@ -1,5 +1,6 @@
 import {
   END_CALL_TOOL_ID,
+  type AgentReplyPacing,
   type InferenceReply,
   type InferenceStreamEvent,
 } from '@winsendotai/ovo-contracts';
@@ -47,12 +48,19 @@ export async function* streamAgentReply(
    * the text to speak, or undefined to drop the sentence. Never waits for the whole reply.
    */
   guard?: (segment: string) => string | undefined,
-  /** LAT-9 per agent (`reply.minFirstWords`); the segmenter's default when absent. */
-  minFirstWords?: number,
+  /**
+   * LAT-9 per agent (`reply`), or its `minFirstWords` alone; the segmenter's defaults when absent.
+   */
+  pacing?: AgentReplyPacing | number,
 ): AsyncGenerator<string, InferenceReply | undefined> {
+  const { minFirstWords, firstPhraseWords } =
+    typeof pacing === 'number'
+      ? { minFirstWords: pacing, firstPhraseWords: undefined }
+      : (pacing ?? {});
   const segmenter = new StreamingTextSegmenter(undefined, undefined, {
     language: language,
     ...(minFirstWords !== undefined ? { minFirstWords } : {}),
+    ...(firstPhraseWords !== undefined ? { firstPhraseWords } : {}),
   });
   let toolReply: { kind: 'tool'; toolId: string; input: unknown } | undefined;
   let emittedText = false;
