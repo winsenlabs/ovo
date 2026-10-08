@@ -9,7 +9,7 @@ import {
 import { createLogger, decimal, syntheticRequestId, usageOnce } from '@winsendotai/ovo-plugin-kit';
 import { deferred, onAbort } from './lifecycle.ts';
 import { ElevenLabsSttError, audioChunk, parseMessage, retryableClose } from './protocol.ts';
-import { ScribeSegments } from './segments.ts';
+import { ScribeTranscripts, type ScribeTranscriptOptions } from './transcripts.ts';
 
 const logger = createLogger({ service: 'stt-elevenlabs' });
 
@@ -23,7 +23,7 @@ const COMMIT_PAD_MS = 20;
 export const FINISH_TIMEOUT_MS = 3_000;
 
 /**
- * One Scribe v2 realtime session; ScribeSegments maps its transcripts to segments. The provider
+ * One Scribe v2 realtime session; ScribeTranscripts maps its transcripts to segments. The provider
  * sends no termination frame, so a graceful finish commits the trailing audio, waits for its
  * transcript and closes the socket itself.
  *
@@ -42,7 +42,7 @@ export class ScribeSession implements SttSession {
   private readonly once;
   private readonly detach: Array<() => void>;
   private readonly frames: FrameAggregator;
-  private readonly segments: ScribeSegments;
+  private readonly transcripts: ScribeTranscripts;
   private readonly startedAt: number;
   private state: 'connecting' | 'active' | 'finishing' | 'ended' = 'connecting';
   private failure?: Error;
@@ -59,11 +59,12 @@ export class ScribeSession implements SttSession {
     private readonly clock: Clock,
     /** Distinguishes the estimated usage of each connect attempt or reconnect in one call. */
     private readonly attempt = 1,
+    options: ScribeTranscriptOptions = {},
   ) {
     this.startedAt = clock.now();
     this.once = usageOnce(input.onUsage);
     this.frames = new FrameAggregator(input.format, CHUNK_MS);
-    this.segments = new ScribeSegments(input.onEvent, () => clock.now());
+    this.transcripts = new ScribeTranscripts(input, clock, options, () => this.answered());
     this.detach = [
       socket.on('message', (raw, binary) => this.message(raw, binary)),
       socket.on('close', (code, reason) => this.onClose(code, reason)),
@@ -171,28 +172,18 @@ export class ScribeSession implements SttSession {
         new ElevenLabsSttError('ElevenLabs STT message before session_started', 'protocol', false),
       );
     if (message.kind === 'notice') this.notice(message.type, message.detail);
-    else if (message.kind === 'partial') this.segments.onPartial(message.text);
-    else if (message.kind === 'committed') this.onCommitted(message.text);
-    else if (message.kind === 'language')
-      logger.info('stt_language_detected', {
-        sessionId: this.input.sessionId,
-        language: message.language,
-        expected: this.input.language,
-      });
+    else if (message.kind === 'partial') this.transcripts.partial(message.text);
+    else if (message.kind === 'committed') this.transcripts.committed(message.text);
+    else if (message.kind === 'timestamps') this.transcripts.words(message);
   }
 
   private notice(type: string, detail: string): void {
     logger.warn('stt_provider_notice', { sessionId: this.input.sessionId, type, detail });
     if (type !== 'commit_throttled') return;
     // The refused audio is still uncommitted. It gets no transcript, so a finish must not wait
-    // out its deadline for one.
+    // out its deadline for one. An earlier commit still held for its confidence goes first.
     this.uncommitted = true;
-    this.segments.onThrottled();
-    this.answered();
-  }
-
-  private onCommitted(text: string): void {
-    this.segments.onCommitted(text);
+    this.transcripts.throttled();
     this.answered();
   }
 
@@ -235,6 +226,7 @@ export class ScribeSession implements SttSession {
   private settle(): void {
     this.state = 'ended';
     this.cancelFinish?.();
+    this.transcripts.dispose();
     this.once.emit({
       provider: 'elevenlabs',
       operation: 'stt',

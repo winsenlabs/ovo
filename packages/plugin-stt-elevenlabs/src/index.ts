@@ -25,6 +25,8 @@ export {
 } from './provider.ts';
 export { ElevenLabsSttError } from './protocol.ts';
 export { scribeKeyterms, type ScribeCallKeyterms } from './keyterms.ts';
+export { agentNameRestorer, type AgentNameConfig } from './agent-name.ts';
+export { CONFIDENCE_MISSES, CONFIDENCE_WAIT_MS } from './confidence.ts';
 export { fixtures, fixtureTemplates };
 
 export const elevenLabsSttPlugin = definePlugin(
@@ -49,6 +51,14 @@ export const elevenLabsSttPlugin = definePlugin(
         // variables (paths such as `full_name`) whose values that call favours.
         keyterms: { type: 'array', maxItems: SCRIBE_MAX_KEYTERMS, items: { type: 'string' } },
         keytermVariables: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1 } },
+        // Wave 8: the name the agent goes by, favoured as a keyterm, and what STT has written for
+        // it, restored where the caller addresses the agent ("Thank you, Danny." to Maya).
+        agentName: { type: 'string', minLength: 1, maxLength: SCRIBE_MAX_KEYTERM_CHARS },
+        agentNameMishearings: {
+          type: 'array',
+          maxItems: 20,
+          items: { type: 'string', minLength: 1, maxLength: 40 },
+        },
       },
       additionalProperties: false,
     },
@@ -85,6 +95,10 @@ export const elevenLabsSttPlugin = definePlugin(
           maxItems: SCRIBE_MAX_KEYTERMS,
           items: { type: 'string', minLength: 1, maxLength: SCRIBE_MAX_KEYTERM_CHARS },
         },
+        // Wave 8: word confidence on each final (include_timestamps), and the provider's
+        // background-speech filter.
+        confidence: { type: 'boolean', default: true },
+        filterBackgroundAudio: { type: 'boolean', default: false },
         noVerbatim: { type: 'boolean', default: false },
         enableLogging: { type: 'boolean', default: true },
       },
@@ -111,6 +125,8 @@ export const elevenLabsSttPlugin = definePlugin(
       new ElevenLabsStt(ctx.net, key, (row.binding ?? {}) as ElevenLabsSttBinding, undefined, {
         keyterms: row.keyterms as string[] | undefined,
         keytermVariables: row.keytermVariables as string[] | undefined,
+        agentName: row.agentName as string | undefined,
+        agentNameMishearings: row.agentNameMishearings as string[] | undefined,
       }),
     );
   },

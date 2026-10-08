@@ -31,12 +31,16 @@ function script(steps: NetFixtureScript['steps']): NetFixtureScript[] {
   ];
 }
 
+/**
+ * Word confidence off: these tests are about commits, and their scripts send no word-level
+ * message after one. confidence.test.ts covers the default, which waits for it.
+ */
 async function open(steps: NetFixtureScript['steps'], format = MULAW_8K) {
   const clock = new FakeClock();
   const net = createFixtureNet(script(steps), { clock });
   const events: SttEvent[] = [];
   const usage: UsageMeter[] = [];
-  const session = await new ElevenLabsStt(net, 'fixture-key', {}, clock).start({
+  const session = await new ElevenLabsStt(net, 'fixture-key', { confidence: false }, clock).start({
     sessionId: 'scribe-session',
     format,
     language: 'hi-IN',

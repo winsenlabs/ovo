@@ -70,8 +70,8 @@ describe('Scribe language settings (N4/P9)', () => {
   });
 
   it('reads the detected language and ignores the message without one', () => {
-    expect(parseMessage(withLanguage('hi'))).toEqual({ kind: 'language', language: 'hi' });
-    expect(parseMessage(withLanguage(null))).toEqual({ kind: 'ignored' });
+    expect(parseMessage(withLanguage('hi'))).toEqual({ kind: 'timestamps', language: 'hi' });
+    expect(parseMessage(withLanguage(null))).toEqual({ kind: 'timestamps' });
   });
 });
 
@@ -106,7 +106,8 @@ describe('Scribe detected language', () => {
     const session = await new ElevenLabsStt(
       createFixtureNet(script, { clock }),
       'fixture-key',
-      { languageDetection: true },
+      // Language detection alone; word confidence (on by default) holds the final for this message.
+      { languageDetection: true, confidence: false },
       clock,
     ).start({
       sessionId: 'scribe-language',

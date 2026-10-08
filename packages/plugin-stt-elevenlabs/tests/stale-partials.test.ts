@@ -128,7 +128,8 @@ async function session(lateAfterMs: number) {
   ];
   const net = createFixtureNet(script, { clock });
   const events: SttEvent[] = [];
-  const started = await new ElevenLabsStt(net, 'fixture-key', {}, clock).start({
+  // Its script sends no word-level message after the commit.
+  const started = await new ElevenLabsStt(net, 'fixture-key', { confidence: false }, clock).start({
     sessionId: 'scribe-n5',
     format: MULAW_8K,
     language: 'en-IN',

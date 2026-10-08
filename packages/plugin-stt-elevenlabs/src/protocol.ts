@@ -1,7 +1,11 @@
 // Wire details of the Scribe v2 realtime WebSocket. Message and parameter names come from
 // https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime and
 // https://elevenlabs.io/docs/developers/guides/cookbooks/speech-to-text/realtime/transcripts-and-commit-strategies
-// (both retrieved 2026-10-06).
+// (both retrieved 2026-10-06). The word-level message's `words[].logprob` ("Confidence score for
+// this word") and `filter_background_audio` are from the first page, and the order of
+// `committed_transcript_with_timestamps` ("Sent after the committed transcript") from
+// https://elevenlabs.io/docs/eleven-api/guides/how-to/speech-to-text/realtime/event-reference
+// (both retrieved 2026-10-08).
 
 export class ElevenLabsSttError extends Error {
   constructor(
@@ -54,7 +58,8 @@ export type ScribeMessage =
   | { kind: 'started'; sessionId: string }
   | { kind: 'partial'; text: string }
   | { kind: 'committed'; text: string }
-  | { kind: 'language'; language: string }
+  /** The word-level message that follows a commit: its detected language and word confidence. */
+  | { kind: 'timestamps'; language?: string; confidence?: number }
   | { kind: 'notice'; type: string; detail: string }
   | { kind: 'failure'; error: ElevenLabsSttError }
   | { kind: 'ignored' };
@@ -80,12 +85,21 @@ export function parseMessage(raw: string): ScribeMessage {
     if (typeof message.text !== 'string') return protocol(`${type} has no text`);
     return { kind: type === 'partial_transcript' ? 'partial' : 'committed', text: message.text };
   }
-  // Sent after the committed transcript when include_language_detection (or include_timestamps)
-  // is set; only its detected language is read, the text is already final.
-  if (type === 'committed_transcript_with_timestamps')
-    return typeof message.language_code === 'string' && message.language_code
-      ? { kind: 'language', language: message.language_code }
-      : { kind: 'ignored' };
+  // Sent after the committed transcript when include_timestamps or include_language_detection is
+  // set; the text is already final, so only the detected language and the words' log
+  // probabilities are read.
+  if (type === 'committed_transcript_with_timestamps') {
+    const language =
+      typeof message.language_code === 'string' && message.language_code
+        ? message.language_code
+        : undefined;
+    const confidence = wordConfidence(message.words);
+    return {
+      kind: 'timestamps',
+      ...(language ? { language } : {}),
+      ...(confidence === undefined ? {} : { confidence }),
+    };
+  }
   const detail = typeof message.error === 'string' ? message.error : type;
   if (NOTICES.has(type)) return { kind: 'notice', type, detail };
   if (FATAL_ERRORS.has(type))
@@ -100,6 +114,27 @@ export function parseMessage(raw: string): ScribeMessage {
   // Entities and edits follow only opt-in parameters this plugin never sends; the plain committed
   // transcript already carries the final text.
   return { kind: 'ignored' };
+}
+
+/**
+ * A commit's confidence, 0 to 1: the geometric mean of its words' probabilities, from each
+ * `words[]` entry of type `word` and its `logprob` ("Confidence score for this word"). One
+ * misheard word in a short reply ("Hardik?") drags it down; spacing entries carry none.
+ * Undefined when no word has a log probability.
+ */
+export function wordConfidence(words: unknown): number | undefined {
+  if (!Array.isArray(words)) return undefined;
+  let sum = 0;
+  let count = 0;
+  for (const word of words) {
+    if (!word || typeof word !== 'object') continue;
+    const { type, logprob } = word as { type?: unknown; logprob?: unknown };
+    if (type !== undefined && type !== 'word') continue;
+    if (typeof logprob !== 'number' || !Number.isFinite(logprob)) continue;
+    sum += Math.min(0, logprob);
+    count += 1;
+  }
+  return count ? Math.exp(sum / count) : undefined;
 }
 
 function protocol(detail: string): ScribeMessage {
