@@ -1,5 +1,6 @@
 import type { Behavior, Clock } from '@winsendotai/ovo-contracts';
 import type { VoiceEventBus } from './events.ts';
+import type { IdlePacing } from './idle-pacing.ts';
 
 export interface IdleDriver {
   /** True when no turn is running or queued and the call is not ending. */
@@ -12,7 +13,8 @@ export interface IdleDriver {
  * Times caller silence for a behaviour that handles it itself (AGT-11). Armed when the agent has
  * finished speaking and nothing else is running; any sign of the caller (speech activity, a
  * transcript, a key press) disarms it, and the end of their speech arms it again. When it fires,
- * the driver runs an idle turn, whose line the behaviour chooses.
+ * the driver runs an idle turn, whose line the behaviour chooses. After a long answer the silence
+ * it waits for is longer by what is left of the answer's extra silence (call-3 #8, `IdlePacing`).
  */
 export class IdleWatch {
   private cancelTimer?: () => void;
@@ -25,9 +27,12 @@ export class IdleWatch {
     clock: Pick<Clock, 'setTimeout'>,
     events: VoiceEventBus,
     driver: IdleDriver,
+    pacing?: IdlePacing,
   ): IdleWatch | undefined {
     const timeoutMs = behavior.idleTimeoutMs?.();
-    return timeoutMs === undefined ? undefined : new IdleWatch(clock, timeoutMs, events, driver);
+    return timeoutMs === undefined
+      ? undefined
+      : new IdleWatch(clock, timeoutMs, events, driver, pacing);
   }
 
   constructor(
@@ -35,6 +40,7 @@ export class IdleWatch {
     private readonly timeoutMs: number,
     private readonly events: VoiceEventBus,
     private readonly driver: IdleDriver,
+    private readonly pacing?: IdlePacing,
   ) {
     this.unsubscribe = events.onEvent((event) => {
       if (event.type === 'vad.stop') this.arm();
@@ -52,13 +58,16 @@ export class IdleWatch {
   arm(): void {
     this.cancel();
     if (!this.driver.quiet()) return;
-    this.cancelTimer = this.clock.setTimeout(() => {
-      this.cancelTimer = undefined;
-      if (!this.driver.quiet()) return;
-      const turnId = `idle-${++this.silences}`;
-      this.events.emit({ type: 'user.turn', phase: 'idle', turnId });
-      this.driver.run(turnId);
-    }, this.timeoutMs);
+    this.cancelTimer = this.clock.setTimeout(
+      () => {
+        this.cancelTimer = undefined;
+        if (!this.driver.quiet()) return;
+        const turnId = `idle-${++this.silences}`;
+        this.events.emit({ type: 'user.turn', phase: 'idle', turnId });
+        this.driver.run(turnId);
+      },
+      this.timeoutMs + (this.pacing?.remainingMs() ?? 0),
+    );
   }
 
   cancel(): void {
