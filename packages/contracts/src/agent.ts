@@ -88,8 +88,10 @@ export const AgentReplyPacing = z
     /**
      * A long voice answer stops before a sentence once it has said `maxSentences` (default 2; 0
      * never stops) or when that sentence would take it past `maxChars` (default 160), and ends
-     * with `moreLine` (default "Want more detail?" for an English agent; none, and no cap, for any
-     * other) unless it ended on a question. The first sentence is always said, and none is cut.
+     * with `moreLine` (default "Want more detail?" for an agent whose `language` is English; none,
+     * and no cap, for any other) unless it ended on a question. The first sentence is always said,
+     * and none is cut. Applied where the voice path passes the agent's `language` to the reply
+     * stream; a goodbye that ends the call is never capped.
      */
     maxSentences: z.number().int().min(0).max(10).optional(),
     maxChars: z.number().int().min(40).max(2_000).optional(),

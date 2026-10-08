@@ -19,8 +19,9 @@ const QUESTION_END = /[?？؟]["'”’»)\]]*$/u;
  * when it would take the reply past `maxChars` (after the first segment, the segmenter hands over
  * whole sentences, so its length is known). The reply then ends with `moreLine`, unless it already
  * ended on a question, or the sentence is a short question, which is said in its place. The caller
- * who wants the rest says so, and the model sees what was said. Off for a non-English agent with
- * no `moreLine` of its own, and with `maxSentences` 0.
+ * who wants the rest says so, and the model sees what was said. Off for an agent that does not
+ * reply in English (`replyLanguage`, never the locale) and has no `moreLine` of its own, and with
+ * `maxSentences` 0.
  */
 export class ReplyCap {
   private sentences = 0;
@@ -30,9 +31,9 @@ export class ReplyCap {
   private question = false;
   private readonly limits?: { maxSentences: number; maxChars: number; moreLine: string };
 
-  constructor(pacing: AgentReplyPacing = {}, language: string) {
+  constructor(pacing: AgentReplyPacing = {}, replyLanguage: string) {
     const moreLine =
-      pacing.moreLine ?? (/^en\b/iu.test(language) ? DEFAULT_REPLY_CAP.moreLine : undefined);
+      pacing.moreLine ?? (/^en\b/iu.test(replyLanguage) ? DEFAULT_REPLY_CAP.moreLine : undefined);
     const maxSentences = pacing.maxSentences ?? DEFAULT_REPLY_CAP.maxSentences;
     if (moreLine && maxSentences > 0)
       this.limits = {
