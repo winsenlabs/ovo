@@ -52,10 +52,14 @@ export class TurnAggregator {
   }
 }
 
+const ORDINAL = /^(?:st|nd|rd|th)\b/iu;
+
 function joinSegments(parts: readonly string[]): string {
   return parts.reduce((text, part) => {
     const next = part.trim();
     if (!next) return text;
-    return text + (text && !/^[,.;:!?।]/u.test(next) ? ' ' : '') + next;
+    // Punctuation, or an ordinal's suffix split from its number ("…around the 1" + "st.").
+    const glued = /^[,.;:!?।]/u.test(next) || (/\p{N}$/u.test(text) && ORDINAL.test(next));
+    return text + (text && !glued ? ' ' : '') + next;
   }, '');
 }
