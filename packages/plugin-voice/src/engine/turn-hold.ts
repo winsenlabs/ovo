@@ -35,12 +35,15 @@ export class ReplyHold {
   /** The turn holding the reply. */
   private turnId?: string;
   private words = false;
+  /** When the hold began, and when the VAD last went quiet during it, for the release log. */
+  private heldAt = 0;
+  private quietAt?: number;
   private readonly timers: (() => void)[] = [];
   private cancelQuiet?: () => void;
   private readonly unsubscribe: () => void;
 
   constructor(
-    private readonly clock: Pick<Clock, 'setTimeout'>,
+    private readonly clock: Pick<Clock, 'setTimeout' | 'now'>,
     private readonly speech: Pick<BoundedSpeechScheduler, 'hold' | 'release'>,
     events: VoiceEventBus,
     /** True while the caller is owed a reply they have not heard any of. */
@@ -55,9 +58,14 @@ export class ReplyHold {
       } else if (event.type === 'stt' && event.event.type === 'end-of-turn') {
         // The recogniser closed the utterance with nothing in it.
         if (!event.event.eager && !this.words) this.release('no-words');
-      } else if (event.type === 'vad.start') this.quiet();
-      else if (event.type === 'vad.stop' && !this.words)
-        this.quiet(this.clock.setTimeout(() => this.release('no-words'), this.limits.quietMs));
+      } else if (event.type === 'vad.start') {
+        this.quietAt = undefined;
+        this.quiet();
+      } else if (event.type === 'vad.stop') {
+        this.quietAt = this.clock.now();
+        if (!this.words)
+          this.quiet(this.clock.setTimeout(() => this.release('no-words'), this.limits.quietMs));
+      }
     });
   }
 
@@ -92,8 +100,17 @@ export class ReplyHold {
     for (const cancel of this.timers.splice(0)) cancel();
     this.quiet();
     this.speech.release();
-    if (reason === 'no-words' || reason === 'timeout')
-      logVoiceEvent('warn', 'reply_hold_released', { sessionId: this.sessionId, turnId, reason });
+    // Wave 8 fix 3: how long the reply waited, and how long after the caller went quiet it went.
+    const now = this.clock.now();
+    const fields = {
+      sessionId: this.sessionId,
+      turnId,
+      reason,
+      heldMs: now - this.heldAt,
+      ...(this.quietAt === undefined ? {} : { quietMs: now - this.quietAt }),
+    };
+    const level = reason === 'no-words' || reason === 'timeout' ? 'warn' : 'info';
+    logVoiceEvent(level, 'reply_hold_released', fields);
   }
 
   dispose(): void {
@@ -105,6 +122,8 @@ export class ReplyHold {
     if (this.turnId || turnId !== this.openTurn || !this.unheard()) return;
     this.turnId = turnId;
     this.words = false;
+    this.heldAt = this.clock.now();
+    this.quietAt = undefined;
     this.speech.hold();
     this.timers.push(
       this.clock.setTimeout(() => this.release('timeout'), this.limits.maxMs),

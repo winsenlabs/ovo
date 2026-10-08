@@ -4,7 +4,7 @@ const logger = createLogger({ service: 'voice-engine' });
 
 /** One JSON line per engine event, through the shared logger (OVO_LOG_LEVEL, redaction). */
 export function logVoiceEvent(
-  level: 'warn' | 'error',
+  level: 'info' | 'warn' | 'error',
   event: string,
   fields: Record<string, unknown>,
 ): void {

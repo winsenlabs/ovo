@@ -194,6 +194,16 @@ describe('live per-turn telemetry', () => {
     });
   });
 
+  it('records the reply.waits stage, whose parts add up to firstAudioMs (Wave 8 fix 3)', async () => {
+    const h = await harness();
+    callerTurn(h);
+    await h.finish();
+    const waits = h.telemetry.find((event) => event.stage === 'reply.waits');
+    expect(waits).toMatchObject({ turnId: 'turn-1', durationMs: 1_420 });
+    expect(waits?.payload).toMatchObject({ endpointMs: 20, queueMs: 10, composeMs: 870 });
+    expect(waits?.payload).toMatchObject({ ttsFirstByteMs: 500, carrierMs: 20 });
+  });
+
   // Live calls 2026-10-07 (Scribe, no word timings): endpointMs was null on every turn summary.
   it("takes the engine's endpoint when the provider has no word timings to measure one", async () => {
     const h = await harness();

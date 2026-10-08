@@ -12,6 +12,7 @@ import { TurnLatency } from '../src/engine/latency.ts';
 import { SpeechEventProjector } from '../src/engine/speech-events.ts';
 import { TurnDriver } from '../src/engine/turn-driver.ts';
 import { BoundedSpeechScheduler } from '../src/scheduler.ts';
+import type { SpeechTimingSink } from '../src/speech/timing.ts';
 
 /** The conformance kit's FakeClock, structurally (this support file may not import the kit). */
 export interface TestClock extends Clock {
@@ -107,11 +108,16 @@ export function driverHarness(
   const audio: { text: string; atMs: number; kind: string }[] = [];
   /** Each line cut off after its audio reached the carrier, and when. */
   const cut: { text: string; atMs: number }[] = [];
-  const fake: SpeechOutput = {
+  let timed: SpeechTimingSink | undefined;
+  const fake: SpeechOutput & { configureTiming(sink: SpeechTimingSink): void } = {
+    configureTiming: (sink) => (timed = sink),
     async play(segment, { signal, report }) {
-      await sleep(clock, fillers.includes(segment.text) ? 0 : ttsMs, signal);
+      const clip = fillers.includes(segment.text);
+      await sleep(clock, clip ? 0 : ttsMs, signal);
       if (signal.aborted) return { state: 'interrupted', evidence: 'estimated' };
+      if (!clip) timed?.('tts-first-byte', segment);
       audio.push({ text: segment.text, atMs: clock.now(), kind: segment.kind });
+      timed?.('carrier-first-audio', segment);
       report?.('sent', 'estimated');
       await sleep(clock, fillers.includes(segment.text) ? fillerPlayMs : playMs, signal);
       if (signal.aborted) cut.push({ text: segment.text, atMs: clock.now() });
