@@ -76,9 +76,10 @@ describe('speech clip status without a durable clip store (TTS-9)', () => {
         headers,
       });
       expect(status.statusCode, status.body).toBe(200);
-      // Greeting, fixed FAQ answer, default processing/clarification/uncertainty lines and the
-      // default turn detector's idle prompt are fixed; the templated answer is rendered per call.
-      expect(status.json()).toMatchObject({ state: 'unavailable', total: 7, perCall: 1, ready: 0 });
+      // Greeting, fixed FAQ answer, default processing/clarification/uncertainty lines, the two
+      // default ask-again lines (call-3 #3) and the default turn detector's idle prompt are fixed;
+      // the templated answer is rendered per call.
+      expect(status.json()).toMatchObject({ state: 'unavailable', total: 9, perCall: 1, ready: 0 });
       expect(status.json().inventorySha256).toMatch(/^[0-9a-f]{64}$/);
       // The documented fields, exactly: scripts that read `status` got undefined on 2026-10-07.
       expect(Object.keys(status.json()).sort()).toEqual([...SPEECH_CLIP_STATUS_FIELDS].sort());
@@ -88,7 +89,7 @@ describe('speech clip status without a durable clip store (TTS-9)', () => {
         url: `/v1/agents/${disabled.agentId}/releases/${disabled.releaseId}/speech-clips`,
         headers,
       });
-      expect(off.json()).toMatchObject({ state: 'disabled', total: 7, pending: 0 });
+      expect(off.json()).toMatchObject({ state: 'disabled', total: 9, pending: 0 });
       const mismatched = await app.inject({
         method: 'GET',
         url: `/v1/agents/${disabled.agentId}/releases/${enabled.releaseId}/speech-clips`,
@@ -123,7 +124,7 @@ integration('speech clip pre-render queue on publish (TTS-9)', () => {
         `SELECT release_id, state, total FROM ovo_speech_prerender_jobs WHERE workspace_id = $1`,
         [workspaceId],
       );
-      expect(jobs.rows).toEqual([{ release_id: enabled.releaseId, state: 'queued', total: 7 }]);
+      expect(jobs.rows).toEqual([{ release_id: enabled.releaseId, state: 'queued', total: 9 }]);
       const status = await app.inject({
         method: 'GET',
         url: `/v1/agents/${enabled.agentId}/releases/${enabled.releaseId}/speech-clips`,
@@ -131,9 +132,9 @@ integration('speech clip pre-render queue on publish (TTS-9)', () => {
       });
       expect(status.json()).toMatchObject({
         state: 'queued',
-        total: 7,
+        total: 9,
         ready: 0,
-        pending: 7,
+        pending: 9,
         perCall: 1,
       });
       const off = await app.inject({

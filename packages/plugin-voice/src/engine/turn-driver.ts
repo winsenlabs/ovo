@@ -1,7 +1,7 @@
 import type { TurnDecision } from '@winsendotai/ovo-contracts';
 import type { AnsweredBy } from './answered-by-gate.ts';
 import { DetectorIdle } from './idle-pacing.ts';
-import { engineTurn } from './turn-book.ts';
+import { callerTurn, engineTurn } from './turn-book.ts';
 import { TurnRunner } from './turn-runner.ts';
 import { leaveVoicemail } from './turn-voicemail.ts';
 import { closeCall, scheduleWrapUp, type WrapUpConfig } from './turn-wrap-up.ts';
@@ -80,7 +80,7 @@ export class TurnDriver extends TurnRunner {
       });
       this.detectorIdle.answered();
       if (input.kind === 'speech')
-        this.caller(decision.turnId, input.text, decision.filler, decision.untrusted);
+        this.caller(callerTurn(decision.turnId, input.text, decision.filler, decision.untrusted));
       else {
         this.turns.takeCarry();
         const extra = { inputEvent: 'dtmf', digits: input.digits };

@@ -3,7 +3,6 @@ import type {
   Clock,
   MediaDuplex,
   SessionInput,
-  TranscriptDoubt,
   TurnSpeculation,
 } from '@winsendotai/ovo-contracts';
 import type { InferenceActivity } from '@winsendotai/ovo-plugin-kit';
@@ -16,7 +15,7 @@ import { SpeechReceipts } from './speech-receipts.ts';
 import type { TurnLatency } from './latency.ts';
 import { describeError, logVoiceEvent } from './log.ts';
 import { ReplyAudibility } from './turn-audibility.ts';
-import { callerTurn, engineTurn, TurnBook, type Turn } from './turn-book.ts';
+import { engineTurn, TurnBook, type Turn } from './turn-book.ts';
 import { TurnFiller } from './turn-filler.ts';
 import { ReplyHold } from './turn-hold.ts';
 import { ReplyEpoch } from './turn-preempt.ts';
@@ -140,13 +139,8 @@ export abstract class TurnRunner {
    * waiting or being composed for them is abandoned (its decision, LLM and TTS work cancelled, its
    * speech never played) and one reply answers both, newest words last.
    */
-  protected caller(
-    id: string,
-    text: string,
-    filler: Turn['filler'],
-    untrusted?: TranscriptDoubt,
-  ): void {
-    const { queue, supersede } = this.turns.caller(callerTurn(id, text, filler, untrusted));
+  protected caller(turn: Turn): void {
+    const { queue, supersede } = this.turns.caller(turn);
     if (supersede) {
       supersede.controller?.abort(new DOMException('turn superseded', 'AbortError'));
       this.behavior.cancel?.();
