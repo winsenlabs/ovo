@@ -1,13 +1,13 @@
 # Working ahead of the caller: speculation
 
-Wave 4 speculation lane (LAT-4, LAT-3). The runtime is in
-`packages/behaviors/src/speculation{,-policy,-agent,-llm,-history,-turn}.ts`, wired through
+Wave 4 speculation lane (LAT-4, LAT-3), and Wave 8's LLM on partial transcripts. The runtime is in
+`packages/behaviors/src/speculation{,-policy,-agent,-llm,-partial,-history,-turn}.ts`, wired through
 `rules-gate.ts` (the gate holds the speculative decision), `agent-pre-reply.ts` (starts the LLM)
 and `agent-session.ts` (the hooks). The release warning is
 `packages/session-host/src/compat/speculative-llm-unpriced.ts`.
 
 An agent that authors nothing gets decisions on partial transcripts and the LLM asked alongside
-the decision.
+the decision; an agent without a decision model gets the LLM asked on the partial transcript.
 
 ```json
 {
@@ -18,7 +18,11 @@ the decision.
       "partialEnding": "sentence",
       "maxPartialCalls": 2,
       "match": "exact",
-      "llm": false
+      "llm": false,
+      "llmPartials": true,
+      "llmDebounceMs": 250,
+      "llmMinWords": 1,
+      "llmMaxPartialCalls": 1
     }
   }
 }
@@ -68,6 +72,42 @@ shows a `meter_uncovered` warning on `decision.speculation.llm`. The API's live-
 reads each referenced card's `provisional` flag from the ledger, so an agent priced with the
 confirmed catalog cards gets no warning.
 
+## The LLM on partial transcripts (Wave 8, latency fix 4)
+
+For an agent whose decision model is off or absent (Maya: every turn goes straight to the LLM),
+`prepare` asks the LLM itself on the caller's words in progress, so its first token, and any web
+search the model starts, are under way before the turn ends (`speculation-partial.ts`):
+
+1. A revisable partial must hold `llmDebounceMs` (250) unchanged, have `llmMinWords` (1) words and
+   end a sentence (`partialEnding: "sentence"`; an STT that never punctuates partials gets no call
+   on them). Words the STT finalised are asked at once. At most `llmMaxPartialCalls` (1) calls per
+   utterance on revisable partials, and one call in flight per session: newer words abort it.
+2. The request is built when the call starts, with the same function the turn uses
+   (`firstInferenceRequest`, `replyContext`): the words, the played history and its cut flag
+   (`PlaybackConversation.peek`), the briefing and call facts, the tools. Nothing is asked while the
+   agent still has lines to play (`PlaybackConversation.speaking`): they would change the history.
+   Nor for a pending confirmation, a repeat request, words outside the agent's languages, an ended
+   flow or opt-out, or an agent that retrieves passages first.
+3. `finalize` aborts a call asked on other words before the turn starts; the turn takes the call
+   (`takeLlm`) and its inference step uses it only if its first request is the same (the caller's
+   words compared as `normalizeForMatch` reads them). Anything else is aborted: speculation can make
+   a turn faster but never change what it says. `discard` and `cancel` (barge-in, supersede) drop
+   the call; words still waiting out the debounce survive a barge-in, since they are the barge-in.
+4. The request carries the turn's tools, so the OpenAI plugin decides the web search exactly as it
+   would for the turn (`unclearForSearch` on the same words) and a needed search starts early.
+
+Measured (`behaviors/tests/speculation-llm-partials-replay.test.ts`, the three Maya calls of
+2026-10-07 replayed with gpt-6-luna's 1,367 ms first token): 9 of 37 turns get their first token
+0.19–1.37 s sooner, 8.1 s in all as recorded (~380 ms endpointing) and 10.6 s at today's ~1 s
+endpointing; no turn is later. The cost is 14–15 calls thrown away per 37 turns, each billed for its
+input (and a search it had started), metered by the plugin as estimates. Call 6e1a4e3a turn 1
+("हाँ।", held 1.9 s as a possible backchannel): first token 635 ms after the turn instead of 2,321
+(`speculation-llm-partials.test.ts`).
+
+Known gap: the worker stamps a reply stage (`llm_first_token`, `web_search`) with the turn running
+when it starts, so a call started on a partial is timed from its own start and may be stamped on
+the previous turn. `firstAudioMs` from the end of the turn is unaffected.
+
 ## Metering
 
 `AgentBehavior.speculationMetrics`:
@@ -75,7 +115,7 @@ confirmed catalog cards gets no warning.
 | Field      | Counts                                                                                      |
 | ---------- | ------------------------------------------------------------------------------------------- |
 | `decision` | `started`, `modelCalls` (billed round trips), `reused`, `discarded`, `cancelled`, `skipped` |
-| `llm`      | `started`, `used`, `aborted` (the decision answered), `discarded` (asked otherwise)         |
+| `llm`      | `started`, `used`, `aborted` (not asked), `discarded` (asked otherwise), `onPartials`       |
 
 The OpenAI plugin meters an aborted call's input as `estimated` `input_tokens` and
 `uncached_input_tokens` (about four characters a token over everything the request sent), request
