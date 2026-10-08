@@ -3,7 +3,11 @@ import type { InferenceStreamEvent } from '@winsendotai/ovo-contracts';
 import { inferenceActivity, type InferenceActivity } from '@winsendotai/ovo-plugin-kit';
 import { openAiInferencePlugin } from '../src/index.ts';
 import { openAiInference, type OpenAiInferenceConfig } from '../src/inference.ts';
-import { DEFAULT_SEARCH_ANNOUNCEMENT, unclearForSearch } from '../src/search-voice.ts';
+import {
+  DEFAULT_SEARCH_ANNOUNCEMENT,
+  SEARCH_INSTRUCTIONS,
+  unclearForSearch,
+} from '../src/search-voice.ts';
 import { PluginRegistry } from '@winsendotai/ovo-runtime';
 import {
   answer,
@@ -154,11 +158,12 @@ describe('no web search on input too unclear to search on (N3)', () => {
     for (const input of [
       'What would the weather be like?',
       'I am Indian vegetarian. Can I get food there?',
-      'Okay. याद नहीं।',
       'Weather Zagreb',
-      'Chilly. Chilly.',
     ])
       expect(unclearForSearch({ input, history: [] }), input).toBeUndefined();
+    // Wave 8: words that ask nothing, and answer no question, are sent without the tool.
+    for (const input of ['Okay. याद नहीं।', 'Chilly. Chilly.'])
+      expect(unclearForSearch({ input, history: [] }), input).toBe('not-seeking');
   });
 
   it('lets a bare yes search when the agent had offered to look something up', () => {
@@ -204,6 +209,9 @@ describe('no web search on input too unclear to search on (N3)', () => {
     // The prompt only names web search as a source when the tool is there.
     expect(JSON.stringify(bodies[0])).not.toContain('web search tool');
     expect(JSON.stringify(bodies[1])).toContain('web search tool');
+    // Wave 8: one search and a short answer that starts with the key fact, told only with the tool.
+    expect(JSON.stringify(bodies[0])).not.toContain(SEARCH_INSTRUCTIONS);
+    expect(JSON.stringify(bodies[1])).toContain(SEARCH_INSTRUCTIONS);
   });
 
   it('keeps the tool on every turn when the binding says so', async () => {

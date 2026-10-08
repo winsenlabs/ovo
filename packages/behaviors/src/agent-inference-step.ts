@@ -17,7 +17,7 @@ import type { AgentTurnLog } from './agent-turn-log.ts';
 import type { ToolConfirmation } from './confirmation.ts';
 import { applyFlowResume, interceptLateResume, readFlowResume } from './flow-rejoin.ts';
 import type { FlowSession } from './flow-session.ts';
-import { recovered, recoveryLine, repeatGuard, uncertaintyAgain } from './inference-recovery.ts';
+import { recovered, recoveryLine, replyFallbacks } from './inference-recovery.ts';
 import { inferenceRequest, rejoinOffer, type Rejoin } from './inference-request.ts';
 import type { ToolEvents } from './tool-events.ts';
 
@@ -114,17 +114,13 @@ async function* inferenceSteps(
   const { config, signal } = step;
   const ending = new EndCallRefusal(step);
   const publish = ending.publish;
-  // A streamed reply drops the repeated sentences; a whole one that is only the uncertainty line
-  // again becomes the clarification.
-  const repeated = repeatGuard(step);
-  const streamGuard =
-    repeated && step.guard
-      ? (text: string) => {
-          const kept = repeated(text);
-          return kept === undefined ? undefined : step.guard!(kept);
-        }
-      : (repeated ?? step.guard);
-  const fresh = (text: string) => (uncertaintyAgain(step, text) ? config.clarification : text);
+  // Fallback lines the caller should not hear (P10, call-3 #3), sentence by sentence or whole.
+  const fallbacks = replyFallbacks(step);
+  const streamGuard = (text: string) => {
+    const kept = fallbacks.segment(text);
+    return kept === undefined || !step.guard ? kept : step.guard(kept);
+  };
+  const fresh = fallbacks.whole;
   const checked = (text: string) => {
     const spoken = stripInternalNotes(text);
     return spoken === undefined || !step.guard ? spoken : step.guard(spoken);

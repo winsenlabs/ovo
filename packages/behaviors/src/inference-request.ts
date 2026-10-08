@@ -1,4 +1,8 @@
-import type { ToolDefinition } from '@winsendotai/ovo-contracts';
+import {
+  affirmationOnly,
+  normalizeForMatch,
+  type ToolDefinition,
+} from '@winsendotai/ovo-contracts';
 import type { InferenceStepInput } from './agent-inference-step.ts';
 import { flowGuide, flowResumeTool, type FlowResume } from './flow-rejoin.ts';
 import { INTERRUPTED_CONTEXT } from './history.ts';
@@ -50,6 +54,7 @@ export function inferenceRequest(
     replyLanguageNote(step.config) ?? '',
     step.replyCut ? INTERRUPTED_CONTEXT : '',
     saidUncertainty(step) ? uncertaintyNote(step.config.uncertainty) : '',
+    affirmationNote(step) ?? '',
     rejoin?.guide ?? '',
   ].filter(Boolean);
   return {
@@ -60,6 +65,22 @@ export function inferenceRequest(
     tools: rejoin ? [...step.tools, rejoin.tool] : step.tools,
     results: step.results,
   };
+}
+
+/**
+ * call-3 #3: a bare yes ("haan", "हाँ", "ji", "Yes.") answers the agent's last question. In Maya
+ * call 6e1a4e3a the model answered "हाँ।", said to "Where are you thinking of going?", with the
+ * uncertainty line. Quotes the words as `normalizeForMatch` reads them, so a partial and a final
+ * transcript that differ only in punctuation get the same request (Wave 8 speculation).
+ */
+function affirmationNote({ input, previous }: RequestInput): string | undefined {
+  const question = [...(previous ?? [])].reverse().find((line) => /[?？]/u.test(line));
+  if (!question || !affirmationOnly(input)) return undefined;
+  return (
+    `The caller's "${normalizeForMatch(input)}" means yes, in answer to your last question ` +
+    `("${question.trim()}"). Carry on from that answer; if a yes does not answer it, ask the ` +
+    'question again in a few words. Do not say you are unsure.'
+  );
 }
 
 /**

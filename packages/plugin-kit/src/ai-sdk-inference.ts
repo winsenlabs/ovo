@@ -55,6 +55,8 @@ export interface AiSdkInferenceOptions {
   providerTools?: Record<string, Tool>;
   /** Added to the system prompt's factual sources when provider tools can supply facts. */
   providerToolSources?: string;
+  /** Added to the system prompt with `providerToolSources`: how to use the provider tools. */
+  providerToolInstructions?: string;
   /**
    * Whether this request is sent the provider tools; all are by default. A request without them is
    * also asked without `providerToolSources`.
@@ -171,6 +173,7 @@ export class AiSdkInference implements Inference, InferenceActivitySource {
           request,
           this.options.instructions,
           Object.keys(providerTools).length ? this.options.providerToolSources : undefined,
+          this.options.providerToolInstructions,
         ),
         messages: [...(request.history ?? []), { role: 'user' as const, content: request.input }],
         tools: { ...tools, ...providerTools },

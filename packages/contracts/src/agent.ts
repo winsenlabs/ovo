@@ -13,6 +13,7 @@ import { AgentLanguages, agentLanguageIssues } from './agent-language.ts';
 import { AgentKnowledgePolicy } from './agent-knowledge.ts';
 import { AgentDecisionUnavailable, AgentIdle, AgentRecovery } from './agent-recovery.ts';
 import { AgentRules } from './agent-rules.ts';
+import { AgentUnclear } from './agent-unclear.ts';
 import { checkRoutingTargets } from './agent-rule-targets.ts';
 import { ScriptGraph } from './script.ts';
 import { AgentVoice } from './selection.ts';
@@ -23,6 +24,7 @@ export * from './agent-rules.ts';
 export * from './agent-jev-only.ts';
 export * from './agent-compliance.ts';
 export * from './agent-language.ts';
+export * from './agent-unclear.ts';
 
 export const JsonSchema = z.record(z.string(), z.unknown());
 export type JsonSchema = z.infer<typeof JsonSchema>;
@@ -137,6 +139,11 @@ export const AgentConfig = z
     languages: AgentLanguages.optional(),
     faqMargin: z.number().min(0).max(1).default(0.15),
     clarification: z.string().default('Please clarify your question.'),
+    /**
+     * Agent mode only: said instead of the uncertainty line when the caller's words were unclear or
+     * asked for nothing (`agentUnclearLines`: English and Hindi defaults, else `clarification`).
+     */
+    unclear: AgentUnclear.optional(),
     context: z.string().max(100000).default(''),
     contextBudget: z.number().int().min(1).max(100000).default(12000),
     uncertainty: z.string().default('I do not have that information.'),
@@ -239,6 +246,7 @@ export const AgentConfig = z
       'decisionUnavailable',
       'handoff',
       'reply',
+      'unclear',
     ] as const)
       if (config[field] && config.mode !== 'agent')
         ctx.addIssue({ code: 'custom', message: `${field} requires agent mode`, path: [field] });

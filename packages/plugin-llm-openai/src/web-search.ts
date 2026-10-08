@@ -30,7 +30,10 @@ export interface WebSearchConfig {
    * field), or `false` for none.
    */
   announce?: SearchAnnounceConfig;
-  /** N3: leave the search tool out for a cut-off or backchannel-only caller turn. Default true. */
+  /**
+   * N3, Wave 8: send the search tool only with caller words that ask for something (`unclearForSearch`).
+   * Default true.
+   */
   skipUnclearInput?: boolean;
 }
 
