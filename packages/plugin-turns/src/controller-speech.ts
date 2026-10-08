@@ -129,7 +129,6 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
     if (this.aggregate.view !== before) {
       // New words: the VAD run is the caller's (NoiseWatch).
       this.lastWordsAt = this.input.clock.now();
-      this.firstWordsAt ??= this.lastWordsAt;
       this.noise.words();
     }
     this.opening.words(this.aggregate.view);

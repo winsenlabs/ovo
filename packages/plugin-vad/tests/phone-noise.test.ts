@@ -72,6 +72,12 @@ const layered = (ms: number, parts: readonly (readonly [number, Part])[]): Part 
       return j >= 0 && j < Math.round((RATE * part.ms) / 1000) ? sum + part.at(j, j / RATE) : sum;
     }, 0),
 });
+/** `parts` one after another, as one part. */
+const joined = (parts: readonly Part[]): Part => {
+  let at = 0;
+  const placed = parts.map((part) => [(at += part.ms) - part.ms, part] as const);
+  return layered(at, placed);
+};
 /** Several talkers at once, `db` dBFS RMS together. */
 const babble = (ms: number, db: number, talkers = 3, seed = 20): Part =>
   layered(
@@ -338,6 +344,40 @@ describe('energy VAD on phone audio', () => {
       ]);
       expect(transitions(pcm).map((t) => t.type)).toEqual(['vad.start', 'vad.stop']);
     }
+  });
+
+  // Review of Wave 8: the recovery compared every frame with the utterance's loudest moment, so a
+  // cough or a loud first word made the caller's normal speech after it "the room".
+  const cough = (ms: number) => [voice(1000, -24, 9), voice(300, -10, 5), voice(ms, -24, 2)];
+
+  it('a cough mid-utterance or a loud first word does not stop the caller early', () => {
+    // Quiet line: speech ends at 4.7 s and 4.0 s. The peak-based gate stopped the first at 3.56 s.
+    for (const [parts, endsAt] of [
+      [[silence(400), ...cough(3000), silence(800)], 4700],
+      [[silence(400), voice(600, -12, 9), voice(3000, -24, 2), silence(800)], 4000],
+    ] as const) {
+      const list = transitions(call(parts));
+      expect(list.map((t) => t.type)).toEqual(['vad.start', 'vad.stop']);
+      expect(list[1]!.atMs).toBeGreaterThanOrEqual(endsAt);
+    }
+    // The next utterance at the caller's level starts as soon as without the recovery.
+    const next = call([silence(400), ...cough(3000), silence(3000), voice(1500, -24, 4)]);
+    expect(starts(transitions(next))).toEqual(starts(transitions(next, { roomRecoveryMs: null })));
+  });
+
+  it('in the café, a cough does not cut the caller nor deafen the VAD to them afterwards', () => {
+    // -34 dBFS babble; the caller (-24) from 3.0 to 7.3 s with a -10 dBFS cough at 4 s, then again
+    // at 10 s. The room still ends the first utterance within 2 s of the caller.
+    const later: readonly [number, Part] = [10_000, voice(1200, -24, 4)];
+    const list = transitions(cafe(13000, -34, [3000, joined(cough(3000))], later));
+    const stop = stopAfter(list, 3000);
+    expect(stop).toBeGreaterThanOrEqual(7300);
+    expect(stop).toBeLessThanOrEqual(7300 + 2000);
+    // The caller's next utterance starts as it does with no cough: the cough set no level.
+    const plain = transitions(cafe(13000, -34, [3000, voice(4300, -24, 9)], later));
+    const second = (from: VadTransition[]) => starts(from).find((t) => t.atMs > 9000)?.atMs;
+    expect(second(list)).toBeDefined();
+    expect(second(list)).toBe(second(plain));
   });
 
   it('PHONE_VAD_CONFIG is the documented phone row and the factory keeps the §2.7 params', () => {

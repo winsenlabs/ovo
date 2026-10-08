@@ -1,6 +1,6 @@
 import type { Clock } from '@winsendotai/ovo-contracts';
 
-/** Words reached the engine up to 1.76 s after a turn started on the live calls (Scribe). */
+/** Words reached the engine up to 1.76 s after the caller started on the live calls (Scribe). */
 export const WORDS_LAG_MS = 1800;
 
 /**
@@ -38,18 +38,6 @@ export class NoiseWatch {
     this.wordsAt = this.clock.now();
     this.noise = false;
     if (this.runStartedAt !== undefined) this.arm();
-  }
-
-  /**
-   * True while VAD speech may be the caller saying the words that started at `firstWordsAt`: a run
-   * open since no earlier than words take to arrive, and not the room.
-   */
-  timing(firstWordsAt = this.clock.now()): boolean {
-    return (
-      this.runStartedAt !== undefined &&
-      !this.noise &&
-      this.runStartedAt >= firstWordsAt - WORDS_LAG_MS
-    );
   }
 
   cancel(): void {

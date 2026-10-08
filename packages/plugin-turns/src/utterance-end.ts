@@ -105,6 +105,17 @@ export function utteranceEnd(text: string, context: UtteranceContext): Utterance
   return 'open';
 }
 
+/**
+ * A reply that answers by itself: "Yes.", "हाँ।", "Hello?", "No", "15", a backchannel. Only these
+ * end a turn on its interim alone (the `answer` stall). Any other short phrase after a question
+ * ("My name is", "Two adults") may be the start of a longer reply, so it ends a turn only on a
+ * VAD stop, with a real silence behind it.
+ */
+export function answersByItself(text: string, context: UtteranceContext): boolean {
+  const tokens = normalizeForMatch(text.trim()).split(' ').filter(Boolean);
+  return tokens.length > 0 && tokens.length <= SHORT_ANSWER_WORDS && isAnswer(tokens, context);
+}
+
 function numberGoing(text: string, tokens: readonly string[]): boolean {
   if (!/\p{N}$/u.test(text)) return false;
   if (CURRENCY_GOING.test(text)) return true;

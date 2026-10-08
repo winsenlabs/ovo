@@ -37,12 +37,13 @@ export const CommitConfigSchema = z
      */
     stallMs: z.number().int().min(0).max(30000).default(1500),
     /**
-     * Wave 8: the stall for a short complete answer ("Yes.", "हाँ।", "Hello?") no VAD speech is
-     * timing: too short or soft to start the VAD, or said into a VAD the room already held open.
-     * It commits this soon after its interim instead of after `stallMs` (live one-word endpoints of
-     * 1.79–1.89 s were the 1.5 s stall plus the final). Longer words keep `stallMs`: Scribe's
-     * interims change about once a second, so a shorter stall would cut a caller still talking.
-     * 0 uses `stallMs`.
+     * Wave 8: the stall for an answer that ends a turn by itself ("Yes.", "हाँ।", "Hello?", "No",
+     * "15", a backchannel) while no VAD speech is going on: a word too short or soft to start the
+     * VAD. It commits this soon after its interim instead of after `stallMs` (live one-word
+     * endpoints of 1.79–1.89 s were the 1.5 s stall plus the final). Any other words keep
+     * `stallMs`, short or not ("My name is", "Two adults"), and so do words said while a VAD run is
+     * open, even one the room holds: Scribe's interims change about once a second, so a shorter
+     * stall would cut a caller still talking. 0 uses `stallMs`.
      */
     answerStallMs: z.number().int().min(0).max(30000).default(250),
   })

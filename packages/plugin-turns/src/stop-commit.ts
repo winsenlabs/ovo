@@ -13,7 +13,7 @@ export type CommitRule = Extract<
 export interface WordsView {
   view: string;
   ends: UtteranceEnd;
-  /** A short complete answer ("Yes.", "हाँ।") that no VAD speech is timing. */
+  /** An answer that ends the turn by itself ("Yes.", "हाँ।"), with no VAD speech going on. */
   answer: boolean;
 }
 
@@ -152,7 +152,7 @@ export class CommitTimers {
     );
   }
 
-  /** The stall: a short complete answer no VAD is timing commits after `answerStallMs`. */
+  /** The stall: an answer by itself with no VAD speech going on commits after `answerStallMs`. */
   private armStall(words: WordsView): void {
     const { stallMs, answerStallMs } = this.config;
     const [ms, rule]: [number, CommitRule] =

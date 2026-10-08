@@ -155,14 +155,85 @@ describe('Wave 8 latency fix 2: one-word answers end at once', () => {
     }
   });
 
-  it('the same, said into a VAD the room has held open for seconds', () => {
+  it('said into a VAD the room holds open, it keeps the stall: the caller may go on', () => {
     const f = replay(new FakeClock(), MAYA);
     f.send({ type: 'vad.start' });
     f.clock.advance(2000);
     f.commits('Yeah.', 373);
     f.interim('Yeah.');
     f.clock.advance(5000);
-    expect(f.turns).toMatchObject([{ text: 'Yeah.', endpointMs: 623, reason: 'answer' }]);
+    expect(f.turns).toMatchObject([{ text: 'Yeah.', endpointMs: 1873, reason: 'stall' }]);
+  });
+
+  // Review of Wave 8: the 250 ms answer stall ended turns the caller was still saying, as any
+  // three words after a question, or into a VAD run the caller was in. Scribe's interims change
+  // about once a second, so the stall fired before the rest of the reply landed.
+  const question = (row: Record<string, unknown>) => {
+    const f = replay(new FakeClock(), row);
+    f.agentStarts(true);
+    f.clock.advance(2000);
+    f.agentStops();
+    f.clock.advance(400);
+    return f;
+  };
+
+  it.each([
+    ['LIVE', LIVE],
+    ['MAYA', MAYA],
+  ])('%s: a café VAD held open by the room does not split "Two adults" from the rest', (_, row) => {
+    const f = question(row);
+    // The room holds the VAD open from the agent's stop; the caller starts 2 s into it.
+    f.send({ type: 'vad.start' });
+    f.clock.advance(2000);
+    f.interim('Two adults');
+    f.clock.advance(1000);
+    f.interim('Two adults and one child');
+    f.clock.advance(1000);
+    expect(f.forced()).toBe(0);
+    f.final('Two adults and one child, please.');
+    f.clock.advance(5000);
+    expect(f.turns.map((t) => t.text)).toEqual(['Two adults and one child, please.']);
+  });
+
+  it.each([
+    ['LIVE', LIVE],
+    ['MAYA', MAYA],
+  ])('%s: a soft caller the VAD never hears is not committed after "My name is"', (_, row) => {
+    const f = question(row);
+    const said = 'My name is Tejas Sudarshan and I want to book a flight.';
+    f.commits(said, 350);
+    for (const interim of [
+      'My name is',
+      'My name is Tejas Sudarshan',
+      'My name is Tejas Sudarshan and I want to',
+    ]) {
+      f.interim(interim);
+      f.clock.advance(1000);
+    }
+    expect(f.forced()).toBe(0);
+    f.interim(said);
+    f.clock.advance(5000);
+    expect(f.forced()).toBe(1);
+    expect(f.turns.map((t) => t.text)).toEqual([said]);
+  });
+
+  it.each([
+    ['LIVE', LIVE],
+    ['MAYA', MAYA],
+  ])('%s: "Yes." whose words came 1.9 s into the VAD run waits for the stop', (_, row) => {
+    const f = question(row);
+    const said = 'Yes, but can we go on Friday instead?';
+    f.commits(said, 350);
+    f.send({ type: 'vad.start' });
+    f.clock.advance(1900);
+    f.interim('Yes.');
+    f.clock.advance(1000);
+    f.interim(said);
+    f.clock.advance(500);
+    expect(f.forced()).toBe(0);
+    f.send({ type: 'vad.stop' });
+    f.clock.advance(5000);
+    expect(f.turns.map((t) => t.text)).toEqual([said]);
   });
 
   it('a VAD run shorter than minSpeechMs commits once its words arrive', () => {

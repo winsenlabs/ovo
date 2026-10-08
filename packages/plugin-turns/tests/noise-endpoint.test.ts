@@ -8,12 +8,12 @@ describe('call-3 #6: no endpoint held for seconds', () => {
    * answer that ended on a question, its final in 1.85 s later) waited, as AGT-9's answer to that
    * question, until the agent stopped 9.4 s after it.
    */
-  const turn9 = (row: Record<string, unknown>, agentAfterMs: number) => {
+  const turn9 = (row: Record<string, unknown>, agentAfterMs: number, said = 'Hardik?') => {
     const f = replay(new FakeClock(), row);
     f.agentStarts(true);
     f.clock.advance(2400);
-    f.commits('Hardik?', 347);
-    f.interim('Hardik?');
+    f.commits(said, 347);
+    f.interim(said);
     f.clock.advance(agentAfterMs);
     f.agentStops();
     f.clock.advance(5000);
@@ -35,10 +35,16 @@ describe('call-3 #6: no endpoint held for seconds', () => {
 
   it('a short reply said within 6 s of the agent stopping still answers its question', () => {
     // Call 6e1a4e3a turn-1: "हाँ।" 1.8 s before the end of the greeting, which asked something.
-    const f = turn9(MAYA, 1836);
+    const f = turn9(MAYA, 1836, 'हाँ।');
     expect(f.turns).toEqual([
-      expect.objectContaining({ text: 'Hardik?', endpointMs: 1836, reason: 'agent' }),
+      expect.objectContaining({ text: 'हाँ।', endpointMs: 1836, reason: 'agent' }),
     ]);
+    // A name is no answer by itself ("Hardik? Yes, I'm here."): it commits on the 1.5 s stall,
+    // as live, and ends 11 ms after the agent stops.
+    for (const row of [LIVE, MAYA])
+      expect(turn9(row, 1836).turns).toEqual([
+        expect.objectContaining({ text: 'Hardik?', endpointMs: 1847, reason: 'stall' }),
+      ]);
     expect(turn9(MAYA, 6000).turns).toHaveLength(1);
     expect(turn9(MAYA, 6001).turns).toHaveLength(0);
   });

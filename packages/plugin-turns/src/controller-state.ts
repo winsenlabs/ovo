@@ -1,6 +1,5 @@
 import {
   defaultMuteRules,
-  normalizeForMatch,
   type Clock,
   type EndpointRule,
   type Mode,
@@ -23,7 +22,7 @@ import { CommitTimers, type WordsView } from './stop-commit.ts';
 import { SpeechStopTimers } from './stop-speech-timeout.ts';
 import { stopStrategy, type StopStrategy } from './strategies.ts';
 import { CutoffHold } from './transcript-text.ts';
-import { SHORT_ANSWER_WORDS, utteranceEnd, type UtteranceContext } from './utterance-end.ts';
+import { answersByItself, utteranceEnd, type UtteranceContext } from './utterance-end.ts';
 
 export interface ControllerInput {
   clock: Clock;
@@ -73,8 +72,7 @@ export abstract class TurnControllerState {
   protected endRule?: EndpointRule;
   /** The agent's last speech asked the caller something, until the caller's next turn ends. */
   protected answering = false;
-  /** When the open turn's first words arrived, and when its words last changed. */
-  protected firstWordsAt?: number;
+  /** When the open turn's words last changed. */
   protected lastWordsAt?: number;
   /** The open turn is a short reply over the agent's question, waiting for it to stop (AGT-9). */
   protected answersQuestion = false;
@@ -148,7 +146,11 @@ export abstract class TurnControllerState {
     return this.committed ? this.providerSpeaking : this.speaking();
   }
 
-  /** How the words so far end (utterance-end.ts), and whether they are a short answer. */
+  /**
+   * How the words so far end (utterance-end.ts), and whether they are an answer that may end the
+   * turn on its interim: one that answers by itself, with no VAD speech the caller may still be
+   * in. A VAD the room holds open keeps the stall: the caller's next words may be on their way.
+   */
   protected read(view: string): WordsView {
     const context: UtteranceContext = {
       language: this.input.language,
@@ -156,10 +158,8 @@ export abstract class TurnControllerState {
       answering: this.answering,
     };
     const ends = utteranceEnd(view, context);
-    const short =
-      ends === 'complete' &&
-      normalizeForMatch(view).split(' ').filter(Boolean).length <= SHORT_ANSWER_WORDS;
-    return { view, ends, answer: short && !this.noise.timing(this.firstWordsAt) };
+    const answer = ends === 'complete' && answersByItself(view, context) && !this.speaking();
+    return { view, ends, answer };
   }
 
   protected start(): void {
@@ -180,7 +180,7 @@ export abstract class TurnControllerState {
     this.finalSeen = this.heardSinceFinal = false;
     this.deferredStop = false;
     this.awaitingConfirmationFinal = false;
-    this.endRule = this.firstWordsAt = this.lastWordsAt = undefined;
+    this.endRule = this.lastWordsAt = undefined;
     this.answersQuestion = false;
     this.providerEndPending = false;
     this.vadStopPending = false;

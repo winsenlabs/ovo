@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TurnConfigSchema } from '@winsendotai/ovo-contracts';
-import { utteranceEnd, type UtteranceContext } from '../src/utterance-end.ts';
+import { answersByItself, utteranceEnd, type UtteranceContext } from '../src/utterance-end.ts';
 
 const context = (answering = false): UtteranceContext => ({
   language: 'en-IN',
@@ -70,5 +70,13 @@ describe('utteranceEnd: how the words so far end (Wave 8 smart end-of-turn)', ()
     expect(utteranceEnd('we want to go', context(true))).toBe('open');
     expect(utteranceEnd('Zagreb in', context(true))).toBe('unfinished');
     expect(utteranceEnd('', context(true))).toBe('open');
+  });
+
+  it('only the answer lexicon answers by itself; other short replies need a VAD stop', () => {
+    for (const text of ['Yes.', 'haan ji', 'हाँ।', 'Hello?', 'No', 'Oh, my God.', '15', 'okay'])
+      expect(answersByItself(text, context(true))).toBe(true);
+    // Review of Wave 8: each was the start of a longer reply, cut 250 ms after its interim.
+    for (const text of ['My name is', 'Two adults', 'We are', 'Zagreb', 'yes I want to go'])
+      expect(answersByItself(text, context(true))).toBe(false);
   });
 });

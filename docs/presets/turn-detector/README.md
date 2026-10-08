@@ -30,7 +30,7 @@ Wave 8 adds it so endpoint latency can be attributed per turn.
 | `silence`                           | No signal either way, a short utterance                                                   | `silenceMs` (50)                                           |
 | `long`                              | No signal either way, after 1.2 s of speech (`longUtteranceMs`)                           | `longSilenceMs` (250)                                      |
 | `unfinished`                        | Trailing off: "for-", "is a...", "and", "to the", "Paris,", "around the 1", "Rs 500"      | `longSilenceMs`; then the final holds `cutoffHoldMs` (700) |
-| `answer`                            | A short complete answer ("Yes.", "हाँ।", "Hello?") that no VAD speech is timing           | `answerStallMs` (250) after its interim                    |
+| `answer`                            | An answer by itself ("Yes.", "हाँ।", "Hello?"), said with no VAD run open                 | `answerStallMs` (250) after its interim                    |
 | `stall`                             | The interim stopped changing while the VAD still heard sound                              | `stallMs` (1500)                                           |
 | `noise`                             | The VAD kept hearing sound that brought no words: the room, not the caller                | `noiseMs` (2500) after the last words                      |
 | `final`                             | Scribe's final arrived after the VAD went quiet, before the commit                        |                                                            |
@@ -49,15 +49,18 @@ Each wait has a limit:
   committed early still waits `cutoffHoldMs` when its final trails off. Speech the VAD hears after
   the final is committed again before the turn ends, even before its words show.
 - **One-word answers.** A short "yes" is often too short or soft to start the energy VAD. A
-  -30 dBFS word never does. With no VAD stop, the turn used to wait for the 1.5 s stall. Now it
-  commits 250 ms after the interim. While VAD speech is timing the words, the turn waits for the
-  stop instead, because Scribe's interims change only about once a second and the caller may be
-  going on.
+  -30 dBFS word never does. With no VAD stop, the turn used to wait for the 1.5 s stall. Now an
+  answer that ends a turn by itself ("Yes.", "हाँ।", "Hello?", "No", "15", a backchannel) commits
+  250 ms after its interim. Any other words keep the 1.5 s stall, however short ("My name is",
+  "Two adults" may go on), and so does anything said while a VAD run is open, even one the room
+  holds: Scribe's interims change only about once a second and the caller may be going on.
 - **Noise.** Café babble near the phone is modulated like speech. It can hold the energy VAD on
   for as long as it lasts, and it can restart the VAD right after a commit. A VAD run that brings
   no new words for `noiseMs` no longer holds a turn with words open. The energy VAD also recovers
-  by itself: its `roomRecoveryMs` (1500) ends an utterance once nothing in it has come within 9 dB
-  of its loudest moment for that long.
+  by itself: its `roomRecoveryMs` (1500) ends an utterance once its sound has stayed within 4 dB
+  of the room's level between utterances for that long, after a caller at least 8 dB above the
+  room. A cough or a loud first word does not move that reference, so speech softer than it is
+  never taken for the room.
 - **Replies said long before a question.** Over the agent, a reply shorter than
   `minWordsWhileBotSpeaking` answers the agent's question when the agent stops. That holds only if
   the reply came within `questionReplyMs` (6000) of the agent stopping. Said earlier, it came
@@ -77,6 +80,7 @@ own Scribe latency. With the Wave 8 rules turned off, every replay reproduces th
 | Complete interim at the VAD stop, Maya's 450 ms kept                  | ~1013     | 613                      | 400 ms                |
 | One-word answers the VAD never timed (6e1a4e3a 3/21/22, f3363705 6/8) | 1799–1892 | 549–642                  | 1250 ms               |
 | "Yes." with a VAD run under `minSpeechMs`                             | ~2630     | 1130                     | 1500 ms               |
+| "Yeah." said into a VAD the room holds open                           | 1873      | 1873                     | none (kept: no split) |
 | Turn 9, "Hardik?" 9.4 s before the end of a 12 s answer               | 9426      | dropped as a backchannel | no 9.4 s turn         |
 | Turn 17 + 18, "…around the 1" + "st."                                 | two turns | one turn, 965 ms         | one fewer search turn |
 | Café noise restarting the VAD after the commit                        | 11 100    | 4 150 after the words    | 6950 ms               |
