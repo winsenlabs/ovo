@@ -4,8 +4,8 @@ import { baseLanguageOf } from './agent-language.ts';
 /*
  * What a caller's words carry, read without a model (Wave 8, Maya call 6e1a4e3a in a noisy café):
  * whether they ask for anything, only acknowledge ("Yeah.", "Oh, my God.", "Thank you."), say yes,
- * or are cut off. The LLM's web search is offered only to words that ask for something, and the
- * uncertainty line is never the answer to words that asked for nothing.
+ * or are cut off. The LLM's web search is not offered to words that only acknowledge, and the
+ * uncertainty line is never the answer to words too unclear to answer.
  */
 
 const Line = z.string().trim().min(1).max(300);
@@ -131,4 +131,26 @@ export function seeksInformation(text: string): boolean {
   if (words.some((word) => ASKING.has(word))) return true;
   if (!QUESTION_MARK.test(text)) return false;
   return (words.length >= 2 && !acknowledgementOnly(text)) || QUESTION_OPENER.has(words[0] ?? '');
+}
+
+/**
+ * Words too unclear or too thin to answer: cut off, no words, only an acknowledgement, or a lone
+ * word that asks nothing ("Credit. Okay, so...", "हाँ।", "Hardik?"). A statement of two or more
+ * words is not ("And in Split.", "Restaurants near the Colosseum."): it may be a follow-up that
+ * names no question word.
+ */
+export function lowInformation(text: string): boolean {
+  if (cutOffWords(text)) return true;
+  const words = callerWords(text);
+  if (!words.length || acknowledgementOnly(text)) return true;
+  return words.length === 1 && !seeksInformation(text);
+}
+
+/**
+ * What the punctuation of the caller's words says beyond the words: a question mark and a cut-off.
+ * Two transcripts with the same words that differ in these can be answered differently (the
+ * search tool goes to "Is the museum open?" but not to "Is the museum open.").
+ */
+export function callerPunctuation(text: string): [question: boolean, cutOff: boolean] {
+  return [QUESTION_MARK.test(text), cutOffWords(text)];
 }

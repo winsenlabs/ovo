@@ -31,7 +31,7 @@ export interface WebSearchConfig {
    */
   announce?: SearchAnnounceConfig;
   /**
-   * N3, Wave 8: send the search tool only with caller words that ask for something (`unclearForSearch`).
+   * N3, Wave 8: leave the search tool out for words that carry nothing to look up (`unclearForSearch`).
    * Default true.
    */
   skipUnclearInput?: boolean;

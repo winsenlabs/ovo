@@ -78,17 +78,16 @@ How it behaves:
   The search lines are not in the release's pre-rendered clip inventory yet; they are synthesised
   live (about 140 ms to first audio on ElevenLabs flash).
 
-- **Only words that ask get the tool (Wave 8).** With `skipUnclearInput` (the default) the search
-  tool, and the line naming search results as a source, go only to a caller turn that asks for
-  something: a question word, a request verb ("tell me", "check", "batao"), a thing callers have
-  looked up ("weather", "flights", "visa"), a question mark on two or more words, or an answer to a
-  question the agent just asked ("Chennai." after "Which city?"). Sent without it:
+- **No search on words that carry nothing to look up (Wave 8).** With `skipUnclearInput` (the
+  default) the search tool, and the line naming search results as a source, are left out for:
   - a turn cut off mid-word ("tell me about-", "Credit. Okay, so..."), or with no words;
   - only a yes, no, backchannel, greeting, exclamation, ask to wait or thanks ("Yes.", "No, no.",
     "Hello?", "Oh, my God.", "Wait. Hold on.", "Thank you, Danny.", "हाँ।", "சரி"), unless it is a
     yes to the agent's offer to look something up ("Shall I check the options for two?" then
     "Yeah."): the caller asked for that search. "I can't confirm that" is not an offer.
-  - a statement that asks nothing and answers no question ("I'm in a coffee shop.").
+
+  Every other turn gets the tool, a statement too: a follow-up often names no question word ("And
+  in Split.", "Restaurants near the Colosseum.") and needs the search.
 
   In the Maya calls of 2026-10-07 "No, no." and "Yes." each searched for 3.8–3.9 s only to restate
   the previous answer; in call 6e1a4e3a (2026-10-08) "Oh, my God." searched for 2.0 s

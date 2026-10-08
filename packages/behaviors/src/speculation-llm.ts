@@ -1,4 +1,5 @@
 import {
+  callerPunctuation,
   normalizeForMatch,
   type Inference,
   type InferenceReply,
@@ -132,14 +133,20 @@ export class SpeculativeLlm {
 }
 
 /**
- * Everything the LLM is asked, so two requests compare equal only when they ask the same. The
- * caller's words compare as `normalizeForMatch` reads them: a partial and a final transcript that
- * differ only in punctuation or case ask the same.
+ * The caller's words as a speculative call is matched on: as `normalizeForMatch` reads them, so a
+ * partial and a final transcript that differ only in case or a full stop ask the same, plus the
+ * punctuation the inference plugin reads (a question mark or a cut-off decides whether the web
+ * search tool is sent): "Is the museum open." is not "Is the museum open?".
  */
+export function callerMatchKey(input: string): string {
+  return JSON.stringify([normalizeForMatch(input), ...callerPunctuation(input)]);
+}
+
+/** Everything the LLM is asked, so two requests compare equal only when they ask the same. */
 function requestKey(request: InferenceCall): string {
   const { input, history, context, uncertainty, tools, results } = request;
   return JSON.stringify([
-    normalizeForMatch(input),
+    callerMatchKey(input),
     history ?? [],
     context,
     uncertainty,

@@ -1,4 +1,4 @@
-import { agentUnclearLines, seeksInformation } from '@winsendotai/ovo-contracts';
+import { agentUnclearLines, lowInformation } from '@winsendotai/ovo-contracts';
 import type { InferenceStepInput } from './agent-inference-step.ts';
 import { AgentToolSelectionError } from './agent-tools.ts';
 import { normalizeUtterance } from './rules-lexicons.ts';
@@ -42,13 +42,14 @@ export function recoveryLine(step: Said): string {
 }
 
 /**
- * call-3 #3: the caller asked for nothing a fact could answer: a yes, a backchannel, a name, a
- * fragment the noise cut ("हाँ।", "Hardik?", "Credit. Okay, so..."). In Maya call 6e1a4e3a the
- * model answered each with the uncertainty line, "I'm not completely sure about that. Want me to
- * look it up?", four times.
+ * call-3 #3: words too unclear or too thin to answer: a yes, a backchannel, a lone name, a fragment
+ * the noise cut ("हाँ।", "Hardik?", "Credit. Okay, so..."). In Maya call 6e1a4e3a the model
+ * answered each with the uncertainty line, "I'm not completely sure about that. Want me to look it
+ * up?", four times. A statement of two or more words is not unclear: "And in Split." after an
+ * answer about Zagreb is a follow-up, and the uncertainty line can be the right answer to it.
  */
 export function unclearWords(step: Pick<Heard, 'input'>): boolean {
-  return !seeksInformation(step.input);
+  return lowInformation(step.input);
 }
 
 /** The first of `lines` the agent did not say in its previous turn: no fallback twice in a row. */
@@ -69,8 +70,9 @@ function askAgainLines(step: Said): string[] {
 /**
  * One reply's fallback lines, sentence by sentence (`segment`, for a streamed reply) and whole
  * (`whole`):
- * - call-3 #3: on unclear words, the uncertainty line becomes a request to say it again, and its
- *   other sentences are dropped;
+ * - call-3 #3: on unclear words, a reply that opens with the uncertainty line becomes a request to
+ *   say it again, and the line's other sentences are dropped; the line's sentences after other
+ *   words ("Zagreb is magical in December. Want me to look it up?") are left to P10;
  * - P10: a sentence of the uncertainty line the previous turn already said is dropped, and a whole
  *   reply that is only that line becomes the clarification;
  * - an ask-again line the previous turn already said becomes the next one.
@@ -85,17 +87,23 @@ export function replyFallbacks(step: Heard): {
   const before = new Set((step.previous ?? []).map(normalizeUtterance));
   const again = new Set(askAgainLines(step).map(normalizeUtterance));
   let askedAgain = false;
+  // A sentence of this reply was kept: the uncertainty line no longer opens it.
+  let spoke = false;
   const askAgain = () => {
     if (askedAgain) return undefined;
     askedAgain = true;
     return askAgainLine(step);
   };
+  const kept = (segment: string | undefined) => {
+    if (segment !== undefined) spoke = true;
+    return segment;
+  };
   return {
     segment(segment) {
       const said = normalizeUtterance(segment);
-      if (unclear && partOf(said, uncertainty)) return askAgain();
+      if (unclear && partOf(said, uncertainty) && (askedAgain || !spoke)) return askAgain();
       if (again.has(said) && before.has(said)) return askAgain();
-      return repeated ? repeated(segment) : segment;
+      return kept(repeated ? repeated(segment) : segment);
     },
     whole(text) {
       const said = normalizeUtterance(text);

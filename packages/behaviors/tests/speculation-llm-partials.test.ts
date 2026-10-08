@@ -246,6 +246,49 @@ describe('the LLM asked on the caller’s partial transcript (Wave 8, latency fi
     expect(agent.speculationMetrics.llm).toMatchObject({ onPartials: 2, discarded: 2, used: 0 });
   });
 
+  it('keeps a barge-in’s words across cancel, and asks nothing once the engine ends the call', async () => {
+    const { agent, llm } = maya();
+    await greeted(agent);
+    agent.prepare({ turnId: 'turn-1', text: 'Wait, what about Rome?', stable: false });
+    await advance(100);
+    // A barge-in: the engine cancels the reply, and the words that interrupted it are still asked.
+    agent.cancel();
+    await advance(150);
+    expect(llm.requests.map((request) => request.input)).toEqual(['Wait, what about Rome?']);
+    agent.prepare({ turnId: 'turn-2', text: 'Okay, bye.', stable: false });
+    await advance(100);
+    // The caller hangs up: TurnRunner.dispose discards the open utterance, then cancels (with
+    // cancel alone, "Okay, bye." would be asked 150 ms later, with no turn to take it).
+    agent.discard('turn-2', 'reset');
+    agent.cancel();
+    await advance(1_000);
+    expect(llm.requests).toHaveLength(1);
+    expect(llm.requests[0]!.signal.aborted).toBe(true);
+  });
+
+  it('does not use a call asked on a full stop for a final with a question mark', async () => {
+    // The OpenAI plugin sends the web search tool on the question mark, so the two ask differently.
+    const { agent, llm } = maya();
+    await greeted(agent);
+    agent.prepare({ turnId: 'turn-1', text: 'Is the museum open.', stable: false });
+    await advance(300);
+    expect(await turn(agent, 'turn-1', 'Is the museum open?')).toMatchObject({ ms: LLM_MS });
+    expect(llm.requests.map((request) => request.input)).toEqual([
+      'Is the museum open.',
+      'Is the museum open?',
+    ]);
+    expect(llm.requests[0]!.signal.aborted).toBe(true);
+    // Words that differ only in case or a full stop still use the call.
+    const same = maya();
+    await greeted(same.agent);
+    same.agent.prepare({ turnId: 'turn-1', text: 'zagreb in december.', stable: false });
+    await advance(300);
+    expect(await turn(same.agent, 'turn-1', 'Zagreb in December')).toMatchObject({
+      ms: LLM_MS - 50,
+    });
+    expect(same.llm.requests).toHaveLength(1);
+  });
+
   it('aborts a call its turn never asks for (the language line answers it)', async () => {
     const { agent, llm } = maya();
     await greeted(agent);

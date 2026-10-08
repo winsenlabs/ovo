@@ -106,6 +106,34 @@ describe('the uncertainty line is never the answer to unclear words (call-3 #3)'
     expect(await agent.respond('Who runs the Zagreb tram network today?')).toBe(UNSURE);
   });
 
+  it('keeps the uncertainty line for a follow-up statement after an answer that asked nothing', async () => {
+    // Statements of two or more words are follow-ups, not unclear words, whatever word they open on.
+    const answer = 'Zagreb in December averages about 3 degrees.';
+    for (const input of ['And in Split.', 'Restaurants near the Colosseum.']) {
+      const { agent } = maya([answer, UNSURE, UNSURE]);
+      const [, streamed] = await call(agent, ['What is Zagreb like in December?', input]);
+      expect(streamed, input).toEqual([
+        "I'm not completely sure about that.",
+        'Want me to look it up?',
+      ]);
+      agent.beginTurn(9);
+      // Whole: P10 turns a second uncertainty line into the clarification, never an ask-again.
+      expect(await agent.respond(input), input).toBe('Please clarify your question.');
+    }
+  });
+
+  it('keeps the offer after an answer to unclear words: only a reply that opens with the line asks again', async () => {
+    const reply =
+      'Zagreb in December is magical, with Christmas markets everywhere. Want me to look it up?';
+    for (const input of ['Hmm.', 'Zagreb, in December.']) {
+      const { agent } = maya([reply]);
+      const [segments] = await call(agent, [input]);
+      // The whole reply, its own offer last: no ask-again line after a real answer.
+      expect(segments!.join(' '), input).toBe(reply);
+      expect(segments!.at(-1), input).toBe('Want me to look it up?');
+    }
+  });
+
   it('turns a repeated ask-again line of the model into the next one', async () => {
     const { agent } = maya([AGAIN, AGAIN, 'Zagreb is lovely in December.']);
     const replies = await call(agent, ['Hmm.', 'Mm.', 'Zagreb.']);

@@ -31,14 +31,15 @@ describe('the search tool only for words that ask (call 6e1a4e3a, call-3 #2)', (
         undefined,
       'Hmm, okay. So, tell me more about Nuremberg.': undefined,
       'Who are the Nazis?': undefined,
-      "Ma'am, they seem like nice people.": 'not-seeking',
+      // A statement goes to the model with the tool: a follow-up often names no question word.
+      "Ma'am, they seem like nice people.": undefined,
       // Answers the agent's question ("...or the Nazi leaders in history?"): the model decides.
       'Hardik?': undefined,
       'Hello, if madam...': 'cut-off',
       'Credit. Okay, so...': 'cut-off',
       'Wait. Hold on.': 'backchannel',
-      'Listen to me. Listen to me, please.': 'not-seeking',
-      "I'm in a coffee shop.": 'not-seeking',
+      'Listen to me. Listen to me, please.': undefined,
+      "I'm in a coffee shop.": undefined,
       'No. Can you check for flights from Chennai to Frankfurt?': undefined,
       'Sometime during Christmas.': undefined,
       "Yeah. So we'd like to leave on the 20th and be back around the 1": undefined,
@@ -58,6 +59,24 @@ describe('the search tool only for words that ask (call 6e1a4e3a, call-3 #2)', (
     expect(dropped.map((turn) => turn.caller)).toEqual(['Oh, my God.']);
     // 1,963 ms of search, and the first answer sentence that waited on it, no longer spent.
     expect(dropped.reduce((sum, turn) => sum + turn.searchMs!, 0)).toBe(1_963);
+  });
+
+  it('keeps the tool for a follow-up statement after a short search answer, which asks no question', () => {
+    // SEARCH_INSTRUCTIONS ask for one or two sentences that start with the key fact, so the answer
+    // before a follow-up often ends without a question mark.
+    const history = [
+      { role: 'assistant' as const, content: 'Zagreb in December averages about 3 degrees.' },
+    ];
+    for (const input of [
+      'And in Split.',
+      'Same for Rome.',
+      'Euro exchange rate today.',
+      'Museums open on Monday in Florence.',
+      'I would like recommendations for Lisbon.',
+      'Best time to visit Santorini.',
+      'Restaurants near the Colosseum.',
+    ])
+      expect(unclearForSearch({ input, history }), input).toBeUndefined();
   });
 
   it('takes "I can’t confirm" for no offer, so a yes to it does not search', () => {

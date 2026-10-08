@@ -90,9 +90,12 @@ search the model starts, are under way before the turn ends (`speculation-partia
    flow or opt-out, or an agent that retrieves passages first.
 3. `finalize` aborts a call asked on other words before the turn starts; the turn takes the call
    (`takeLlm`) and its inference step uses it only if its first request is the same (the caller's
-   words compared as `normalizeForMatch` reads them). Anything else is aborted: speculation can make
-   a turn faster but never change what it says. `discard` and `cancel` (barge-in, supersede) drop
-   the call; words still waiting out the debounce survive a barge-in, since they are the barge-in.
+   words compared as `normalizeForMatch` reads them, plus a question mark and a cut-off, which decide
+   the web search tool: `callerMatchKey`). Anything else is aborted: speculation can make a turn
+   faster but never change what it says. `discard` and `cancel` (barge-in, supersede) drop the
+   call; words still waiting out the debounce survive a barge-in, since they are the barge-in. On a
+   hang-up the engine discards the open utterance before it cancels, so no call starts after the
+   session ends.
 4. The request carries the turn's tools, so the OpenAI plugin decides the web search exactly as it
    would for the turn (`unclearForSearch` on the same words) and a needed search starts early.
 

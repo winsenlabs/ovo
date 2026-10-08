@@ -4,7 +4,9 @@ import {
   affirmationOnly,
   AgentConfig,
   AgentUnclear,
+  callerPunctuation,
   cutOffWords,
+  lowInformation,
   seeksInformation,
 } from '../src/index.ts';
 
@@ -69,6 +71,34 @@ describe('what a caller’s words carry (call-3 #2, #3)', () => {
       "I'm in a coffee shop.",
     ])
       expect(seeksInformation(text), text).toBe(false);
+  });
+
+  it('reads words too unclear or too thin to answer, and a statement as not', () => {
+    for (const text of [
+      'हाँ।',
+      'Hardik?',
+      'Credit.',
+      'Credit. Okay, so...',
+      'जानकार, जानकार। एक लाख...',
+      'Oh, my God.',
+      '?!',
+    ])
+      expect(lowInformation(text), text).toBe(true);
+    for (const text of [
+      'And in Split.',
+      'Restaurants near the Colosseum.',
+      'Zagreb, in December.',
+      'Two checks, sir, yes. Those dates are correct.',
+      'Weather?',
+      'Who are the Nazis?',
+    ])
+      expect(lowInformation(text), text).toBe(false);
+  });
+
+  it('reads the punctuation that changes how words are answered', () => {
+    expect(callerPunctuation('Is the museum open?')).toEqual([true, false]);
+    expect(callerPunctuation('Is the museum open.')).toEqual([false, false]);
+    expect(callerPunctuation('Tell me about-')).toEqual([false, true]);
   });
 
   it('reads a turn the STT cut off', () => {

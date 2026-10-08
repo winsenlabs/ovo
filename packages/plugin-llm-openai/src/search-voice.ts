@@ -3,7 +3,6 @@ import {
   affirmationOnly,
   callerWords,
   cutOffWords,
-  seeksInformation,
   type InferenceRequest,
 } from '@winsendotai/ovo-contracts';
 import type { ActivityAnnouncement } from '@winsendotai/ovo-plugin-kit';
@@ -65,30 +64,27 @@ export function searchAnnouncement(
  */
 const OFFERED =
   /\b(?:(?:want|like|need) me to|shall i|should i|can i|could i|may i|i can(?!['’]?t\b|not\b)|i could(?!n['’]?t\b)|let me|if you(?:'d)? like|look\w* (?:\w+ )?up|check|search|find out)\b/i;
-const QUESTION = /[?？]/u;
 
 /**
  * Why the caller's words are not worth a web search, or undefined to let the model decide. Cheap
- * and conservative, and the search tool goes only to words that ask for something:
+ * and conservative: only words that carry nothing to look up lose the search tool.
  * - `cut-off`: a fragment the STT cut mid-word or mid-sentence ("Can you change your...");
  * - `no-words`;
  * - `backchannel`: only a yes, no, backchannel, greeting, exclamation or thanks ("Yes.", "No,
  *   no.", "Hey.", "हाँ।", "Oh, my God.", "Thank you, Danny."), unless it is a yes to the agent's
- *   offer to look something up;
- * - `not-seeking`: no question or request in it ("I'm in a coffee shop."), and not an answer to a
- *   question the agent asked ("Chennai." after "Which city?" still goes to the model).
+ *   offer to look something up.
+ * Anything else goes to the model with the tool, a statement too: a follow-up often names no
+ * question word ("And in Split.", "Restaurants near the Colosseum.") and needs the search.
  * In the Maya calls "No, no." and "Yes." each searched for 3.8–3.9 s only to restate the previous
  * answer, and in call 6e1a4e3a "Oh, my God." searched for 2.0 s.
  */
 export function unclearForSearch(
   request: Pick<InferenceRequest, 'input' | 'history'>,
-): 'cut-off' | 'no-words' | 'backchannel' | 'not-seeking' | undefined {
+): 'cut-off' | 'no-words' | 'backchannel' | undefined {
   const input = request.input.trim();
   if (cutOffWords(input)) return 'cut-off';
   if (!callerWords(input).length) return 'no-words';
   const last = [...(request.history ?? [])].reverse().find((entry) => entry.role === 'assistant');
   if (affirmationOnly(input)) return last && OFFERED.test(last.content) ? undefined : 'backchannel';
-  if (acknowledgementOnly(input)) return 'backchannel';
-  if (seeksInformation(input) || (last && QUESTION.test(last.content))) return undefined;
-  return 'not-seeking';
+  return acknowledgementOnly(input) ? 'backchannel' : undefined;
 }

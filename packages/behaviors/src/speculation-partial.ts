@@ -1,6 +1,7 @@
 import { callerWords, normalizeForMatch, type Inference } from '@winsendotai/ovo-contracts';
 import { endsSentence } from './speculation.ts';
 import {
+  callerMatchKey,
   SpeculativeLlm,
   type InferenceCall,
   type LlmSpeculationMetrics,
@@ -54,8 +55,8 @@ export class PartialLlmSpeculation {
    * stands when the debounce ends, or undefined when the turn would not ask the LLM.
    */
   offer(turnId: string, text: string, stable: boolean, request: () => InferenceCall | undefined) {
-    const words = normalizeForMatch(text);
-    if (!words) return;
+    if (!normalizeForMatch(text)) return;
+    const words = callerMatchKey(text);
     this.clearOffer();
     if (this.asked?.words === words && this.asked.call.pending) return;
     if (callerWords(text).length < this.policy.llmMinWords) return;
@@ -76,7 +77,7 @@ export class PartialLlmSpeculation {
   finalize(turnId: string, text: string): void {
     this.clearOffer();
     const asked = this.asked;
-    if (asked && (asked.turnId !== turnId || asked.words !== normalizeForMatch(text)))
+    if (asked && (asked.turnId !== turnId || asked.words !== callerMatchKey(text)))
       this.drop('superseded by the final transcript');
   }
 
@@ -97,7 +98,9 @@ export class PartialLlmSpeculation {
   /**
    * The agent's reply was cut or a turn superseded: a call already asked saw another history. Words
    * still waiting out the debounce are kept: they are the caller's barge-in, and the request is
-   * built from the conversation as it stands when the debounce ends.
+   * built from the conversation as it stands when the debounce ends (dropping them cost 3.2 of the
+   * 8.1 s saved in the Maya replay). The engine ends a call by discarding the open utterance
+   * (`discard`), which drops them, before it cancels.
    */
   cancel(): void {
     this.drop('the call moved on');

@@ -161,9 +161,9 @@ describe('no web search on input too unclear to search on (N3)', () => {
       'Weather Zagreb',
     ])
       expect(unclearForSearch({ input, history: [] }), input).toBeUndefined();
-    // Wave 8: words that ask nothing, and answer no question, are sent without the tool.
-    for (const input of ['Okay. याद नहीं।', 'Chilly. Chilly.'])
-      expect(unclearForSearch({ input, history: [] }), input).toBe('not-seeking');
+    // Wave 8: words beyond an acknowledgement go to the model with the tool, a statement too.
+    for (const input of ['Okay. याद नहीं।', 'Chilly. Chilly.', 'And in Split.'])
+      expect(unclearForSearch({ input, history: [] }), input).toBeUndefined();
   });
 
   it('lets a bare yes search when the agent had offered to look something up', () => {
@@ -212,6 +212,24 @@ describe('no web search on input too unclear to search on (N3)', () => {
     // Wave 8: one search and a short answer that starts with the key fact, told only with the tool.
     expect(JSON.stringify(bodies[0])).not.toContain(SEARCH_INSTRUCTIONS);
     expect(JSON.stringify(bodies[1])).toContain(SEARCH_INSTRUCTIONS);
+  });
+
+  it('sends the tool with a follow-up statement after a statement answer', async () => {
+    const { inference, bodies, push, end } = setup();
+    for (const input of ['And in Split.', 'Restaurants near the Colosseum.']) {
+      const request = {
+        ...tripRequest(input),
+        history: [
+          { role: 'assistant' as const, content: 'Zagreb in December averages about 3 degrees.' },
+        ],
+      };
+      const done = drain(inference.stream(request), []);
+      await settle();
+      push(created('resp') + answer('About 9 degrees.', 0) + completed('resp'));
+      end();
+      await done;
+    }
+    expect(bodies.map(sentTools)).toEqual([['web_search'], ['web_search']]);
   });
 
   it('keeps the tool on every turn when the binding says so', async () => {
