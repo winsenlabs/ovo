@@ -5,6 +5,7 @@ import {
   type InferenceStreamEvent,
 } from '@winsendotai/ovo-contracts';
 import { AgentToolSelectionError } from './agent-tools.ts';
+import { ReplyCap } from './reply-cap.ts';
 import { StreamingTextSegmenter } from './text-segmenter.ts';
 
 /**
@@ -49,19 +50,21 @@ export async function* streamAgentReply(
    */
   guard?: (segment: string) => string | undefined,
   /**
-   * LAT-9 per agent (`reply`), or its `minFirstWords` alone; the segmenter's defaults when absent.
+   * The agent's `reply` pacing (LAT-9, the first phrase and the long-answer cap), or its
+   * `minFirstWords` alone; the defaults when absent.
    */
   pacing?: AgentReplyPacing | number,
 ): AsyncGenerator<string, InferenceReply | undefined> {
-  const { minFirstWords, firstPhraseWords } =
-    typeof pacing === 'number'
-      ? { minFirstWords: pacing, firstPhraseWords: undefined }
-      : (pacing ?? {});
+  const reply: AgentReplyPacing =
+    typeof pacing === 'number' ? { minFirstWords: pacing } : (pacing ?? {});
+  const { minFirstWords, firstPhraseWords } = reply;
   const segmenter = new StreamingTextSegmenter(undefined, undefined, {
     language: language,
     ...(minFirstWords !== undefined ? { minFirstWords } : {}),
     ...(firstPhraseWords !== undefined ? { firstPhraseWords } : {}),
   });
+  // Call-3 #7: a long answer stops after its first sentences and offers the rest.
+  const cap = new ReplyCap(reply, language);
   let toolReply: { kind: 'tool'; toolId: string; input: unknown } | undefined;
   let emittedText = false;
   let receivedText = false;
@@ -92,16 +95,25 @@ export async function* streamAgentReply(
       for (const segment of segmenter.push(event.delta)) {
         const spoken = speakable(segment);
         if (spoken === undefined) continue;
-        emittedText = true;
-        yield publish(spoken);
+        const { say, stop } = cap.next(spoken);
+        if (say !== undefined) {
+          emittedText = true;
+          yield publish(say);
+        }
+        // Leaving the loop closes the provider's stream: the rest is never generated.
+        if (stop) return;
       }
     }
   }
   for (const segment of segmenter.finish()) {
     const spoken = speakable(segment);
     if (spoken === undefined) continue;
-    emittedText = true;
-    yield publish(spoken);
+    const { say, stop } = cap.next(spoken);
+    if (say !== undefined) {
+      emittedText = true;
+      yield publish(say);
+    }
+    if (stop) return;
   }
   if (emittedText) return;
   return toolReply ?? { kind: 'text' as const, text: '' };

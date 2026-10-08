@@ -85,6 +85,15 @@ export const AgentReplyPacing = z
   .object({
     minFirstWords: z.number().int().min(0).max(12).optional(),
     firstPhraseWords: z.number().int().min(0).max(40).optional(),
+    /**
+     * A long voice answer stops before a sentence once it has said `maxSentences` (default 2; 0
+     * never stops) or when that sentence would take it past `maxChars` (default 160), and ends
+     * with `moreLine` (default "Want more detail?" for an English agent; none, and no cap, for any
+     * other) unless it ended on a question. The first sentence is always said, and none is cut.
+     */
+    maxSentences: z.number().int().min(0).max(10).optional(),
+    maxChars: z.number().int().min(40).max(2_000).optional(),
+    moreLine: z.string().trim().min(1).max(200).optional(),
   })
   .strict();
 export type AgentReplyPacing = z.infer<typeof AgentReplyPacing>;
