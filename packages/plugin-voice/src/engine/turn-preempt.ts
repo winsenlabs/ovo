@@ -9,6 +9,8 @@ import type { ReplyAudibility } from './turn-audibility.ts';
  */
 export class ReplyEpoch {
   private moving?: Promise<void>;
+  /** The reply's first line is ready. */
+  spoke = false;
 
   constructor(
     public epoch: number,
@@ -24,6 +26,7 @@ export class ReplyEpoch {
 
   /** The reply's first line is ready. */
   first(): void {
+    this.spoke = true;
     const { speech, audibility } = this.ports;
     if (!audibility.fillerPending(this.epoch)) return;
     const flushed = speech.beginEpoch();

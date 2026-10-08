@@ -75,7 +75,9 @@ describe('call-3 #7: a long voice answer says two short sentences and offers mor
   it('is configured per agent, and off for another language unless it has its own offer', async () => {
     expect((await say(ZAGREB, { maxSentences: 0 })).said).toBe(ZAGREB);
     expect((await say(HAMBURG, { maxChars: 2000, maxSentences: 3 })).said).toBe(HAMBURG);
-    expect((await say(ZAGREB, { moreLine: 'Shall I go on?' })).said).toMatch(/spaces\. Shall I go on\?$/);
+    expect((await say(ZAGREB, { moreLine: 'Shall I go on?' })).said).toMatch(
+      /spaces\. Shall I go on\?$/,
+    );
     expect((await say(ZAGREB, undefined, 'hi-IN')).said).toBe(ZAGREB);
     expect((await say(ZAGREB, { moreLine: 'और बताऊँ?' }, 'hi-IN')).said).toMatch(/और बताऊँ\?$/);
     expect(AgentReplyPacing.safeParse({ maxChars: 20 }).success).toBe(false);

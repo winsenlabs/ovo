@@ -20,6 +20,8 @@ export interface Turn {
    * its outcome, and newer words wait behind it.
    */
   committed: boolean;
+  /** The provider started a web search for its reply (N3): restarting it would search again. */
+  searched?: boolean;
   /** Set when the turn starts running. */
   controller?: AbortController;
   epoch?: number;
@@ -34,11 +36,17 @@ export function callerTurn(id: string, text: string, filler?: Turn['filler']): T
   return { ...engineTurn(id, text, {}), speech: true, ...(filler ? { filler } : {}) };
 }
 
+/** Words this short add nothing a reply already searching for the caller must start over for. */
+const BRIEF_WORDS = 3;
+
 /**
  * The replies the driver owes, in order, and which caller words are still unanswered (AGT-10).
  * When the caller speaks again before hearing any answer to their last words, those words are
  * merged into the newer turn: a turn still queued takes the newer words in place, and a running
- * turn that has made no sound (a filler aside) is superseded, unless it has run a tool.
+ * turn that has made no sound (a filler aside) is superseded, unless it has run a tool, or it is
+ * searching and the newer words are brief (call-3 #1: "Oh, my God." threw away turn 21's search
+ * and its answer, and the merged turn searched again, 5.9 s later). Words not merged queue behind
+ * the reply and are answered after it.
  */
 export class TurnBook {
   running?: Turn;
@@ -87,6 +95,7 @@ export class TurnBook {
       !earlier &&
       running?.speech &&
       !running.committed &&
+      !(running.searched && brief(turn.input)) &&
       !this.tools &&
       !running.controller?.signal.aborted &&
       !this.audibility.answered(running.epoch)
@@ -192,4 +201,8 @@ export class TurnBook {
     // A turn that never ran has no latency of its own to report.
     if (earlier.epoch === undefined) this.latency.clear(earlier.id);
   }
+}
+
+function brief(text: string): boolean {
+  return text.split(/\s+/u).filter(Boolean).length <= BRIEF_WORDS;
 }

@@ -61,7 +61,7 @@ export abstract class TurnRunner {
     protected readonly end: (reason: DriverEndReason, detail?: string) => void,
     private readonly maxConcurrentTurns: number,
     protected readonly media: MediaDuplex,
-    protected readonly clock: Pick<Clock, 'setTimeout'> = realClock,
+    protected readonly clock: Pick<Clock, 'setTimeout' | 'now'> = realClock,
   ) {
     this.receipts = new SpeechReceipts(
       behavior,
@@ -102,6 +102,9 @@ export abstract class TurnRunner {
 
   /** N3: a provider tool's progress inside the reply being composed (a web search starting). */
   inferenceActivity(activity: InferenceActivity): void {
+    const running = this.turns.running;
+    if (activity.phase === 'started' && !activity.signal.aborted && running)
+      running.searched = true;
     this.filler.activity(activity);
   }
 
@@ -218,6 +221,9 @@ export abstract class TurnRunner {
       cancelFiller?.();
       await lines.settled();
       if (abort.signal.aborted) return;
+      // Call-3 #1: the caller heard only "One moment." for their words.
+      if (turn.speech && turn.fillerPlayed && !lines.spoke && lines.current())
+        logVoiceEvent('warn', 'reply_filler_only', { sessionId: this.media.sessionId, turnId });
       await this.receipts.deliver();
       await this.interrupting;
       if (lines.current() && this.behavior.isComplete?.()) this.complete(extra);

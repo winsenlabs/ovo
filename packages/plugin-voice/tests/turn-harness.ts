@@ -9,6 +9,7 @@ import type {
 } from '@winsendotai/ovo-contracts';
 import { VoiceEventBus } from '../src/engine/events.ts';
 import { TurnLatency } from '../src/engine/latency.ts';
+import { SpeechEventProjector } from '../src/engine/speech-events.ts';
 import { TurnDriver } from '../src/engine/turn-driver.ts';
 import { BoundedSpeechScheduler } from '../src/scheduler.ts';
 
@@ -78,7 +79,9 @@ export function slowAgent(clock: TestClock, { llmMs = 2500, fastMs = 100 } = {})
 
 /**
  * The turn driver over a scheduler whose fake output reports first audio after `ttsMs` (0 for a
- * cached filler clip) and plays each line for `playMs`, all on a fake clock.
+ * cached filler clip) and plays each line for `playMs` (a filler clip for `fillerPlayMs`), all on a
+ * fake clock. With `timing`, turn latency and speech timings reach the bus as engine events, as in
+ * the native engine (VAD stop hangover `timing.hangoverMs`), and `latency` is the engine's own.
  */
 export function driverHarness(
   clock: TestClock,
@@ -86,9 +89,18 @@ export function driverHarness(
   {
     ttsMs = 200,
     playMs = 1500,
+    fillerPlayMs = playMs,
     fillers = [] as string[],
     output,
-  }: { ttsMs?: number; playMs?: number; fillers?: string[]; output?: SpeechOutput } = {},
+    timing,
+  }: {
+    ttsMs?: number;
+    playMs?: number;
+    fillerPlayMs?: number;
+    fillers?: string[];
+    output?: SpeechOutput;
+    timing?: { hangoverMs?: number; prefetchSegments?: number };
+  } = {},
 ) {
   const bus = new VoiceEventBus();
   /** Each line whose audio reached the carrier, and when. */
@@ -101,7 +113,7 @@ export function driverHarness(
       if (signal.aborted) return { state: 'interrupted', evidence: 'estimated' };
       audio.push({ text: segment.text, atMs: clock.now(), kind: segment.kind });
       report?.('sent', 'estimated');
-      await sleep(clock, playMs, signal);
+      await sleep(clock, fillers.includes(segment.text) ? fillerPlayMs : playMs, signal);
       if (signal.aborted) cut.push({ text: segment.text, atMs: clock.now() });
       return signal.aborted
         ? { state: 'interrupted', evidence: 'estimated' }
@@ -110,16 +122,21 @@ export function driverHarness(
     async interrupt() {},
   };
   // A real output (`output`) records no `audio` or `cut` here.
-  const scheduler = new BoundedSpeechScheduler(output ?? fake);
+  const scheduler = timing
+    ? new BoundedSpeechScheduler(output ?? fake, {}, () => clock.now())
+    : new BoundedSpeechScheduler(output ?? fake);
   const ended: string[] = [];
   /** `reason` or `reason:detail`, for each end the driver asked for. */
   const endings: string[] = [];
+  const latency = timing
+    ? new TurnLatency(clock, (event) => bus.emit(event), timing.hangoverMs)
+    : new TurnLatency(clock, () => undefined);
   const driver = new TurnDriver(
     behavior,
     scheduler,
     session,
     bus,
-    new TurnLatency(clock, () => undefined),
+    latency,
     (reason, detail) => {
       ended.push(reason);
       endings.push(detail ? `${reason}:${detail}` : reason);
@@ -128,6 +145,21 @@ export function driverHarness(
     { sessionId: 's-1', playbackEvidence: 'carrier-played' } as MediaDuplex,
     clock,
   );
+  if (timing) {
+    const projector = new SpeechEventProjector(
+      bus,
+      latency,
+      (epoch) => driver.turnIdForEpoch(epoch),
+      (event) => bus.emit(event),
+      (id) => driver.isFiller(id),
+    );
+    scheduler.configurePipeline(timing.prefetchSegments ?? 2);
+    scheduler.configureSession(session);
+    scheduler.configureTiming((phase, segment, elapsedMs) =>
+      projector.onTiming(phase, segment, elapsedMs),
+    );
+    scheduler.subscribe((evidence) => projector.onSpeech(evidence));
+  }
   let callerTurns = 0;
   const caller = (text: string, filler?: { text: string; afterMs: number }) =>
     driver.decide({
@@ -158,5 +190,5 @@ export function driverHarness(
     reset: (turnId: string) => driver.decide({ type: 'turn.reset', turnId, reason: 'backchannel' }),
     vad: (type: 'vad.start' | 'vad.stop') => bus.observe({ type, atMs: clock.now() }),
   };
-  return { driver, audio, cut, ended, endings, caller, greet, scheduler, bus, turn };
+  return { driver, audio, cut, ended, endings, caller, greet, scheduler, bus, turn, latency };
 }
