@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { mulawToPcm16 } from '@winsendotai/ovo-audio';
 import { VoiceSelection } from '@winsendotai/ovo-contracts';
 import {
   AUDIO_FILTER_PLUGIN_ID,
   AudioFilterConfigSchema,
   PHONE_AUDIO_FILTER_CONFIG,
 } from '../src/index.ts';
+import { DISTRIBUTION_DEFAULTS } from '../../distribution/src/defaults.ts';
 import { CONDITIONS, FILTERS, type Condition, type FilterName } from './fixtures/phone-noise.ts';
 import { cases, type Measured } from './fixtures/transcript-quality/measure.ts';
 
@@ -30,8 +32,8 @@ function wordErrors(reference: readonly string[], hypothesis: readonly string[])
 }
 
 /**
- * Word error rate per condition and filter, in percent, against what the same ASR heard on the
- * clean line with no filter: it measures what the noise, and the filter, change.
+ * Word error rate per condition and filter, in percent over every take, against what the same ASR
+ * heard on the clean line with no filter: it measures what the noise, and the filter, change.
  */
 function errorRates(): Record<Condition, Record<FilterName, number>> {
   const words = (text: string) => text.split(/\s+/).filter(Boolean);
@@ -78,39 +80,74 @@ describe('the audio filter presets', () => {
   });
 });
 
+/** The ASR's own wobble: about nine words of the 363 in a noisy condition. */
+const TOLERANCE = 2.5;
+const NOISY = (Object.keys(CONDITIONS) as Condition[]).filter((c) => c !== 'clean');
+const total = (rates: Record<Condition, Record<FilterName, number>>, filter: FilterName) =>
+  NOISY.reduce((sum, c) => sum + rates[c][filter], 0);
+
 describe('transcripts with the filter on and off, on noisy 8 kHz phone audio', () => {
   it('were measured on exactly the audio this filter and these fixtures produce', () => {
     // Fails when the filter, a preset, the noise or a clip changes: re-run measure.ts (README.md).
-    const current = cases().map(({ clip, condition, filter, sha256 }) => ({
+    const current = cases().map(({ clip, condition, take, filter, sha256 }) => ({
       clip,
       condition,
+      take,
       filter,
       sha256,
     }));
     expect(
-      MEASURED.measured.map(({ clip, condition, filter, sha256 }) => ({
+      MEASURED.measured.map(({ clip, condition, take, filter, sha256 }) => ({
         clip,
         condition,
+        take,
         filter,
         sha256,
       })),
     ).toEqual(current);
   });
 
-  it('the telephony preset makes no condition worse, and takes mains hum out', () => {
+  it('the presets make no condition worse, and take mains hum out', () => {
     const rates = errorRates();
-    // The ASR's own wobble: two or three words of the 121 in a condition.
-    const tolerance = 2.5;
-    for (const condition of Object.keys(CONDITIONS) as Condition[])
+    for (const condition of NOISY)
       for (const filter of ['telephony', 'telephony-noisy'] as const)
         expect(rates[condition][filter], `${condition}/${filter}`).toBeLessThanOrEqual(
-          rates[condition].off + tolerance,
+          rates[condition].off + TOLERANCE,
         );
     // A clean line is transcribed exactly as without the filter.
-    expect(rates.clean).toEqual({ off: 0, telephony: 0, 'telephony-noisy': 0 });
+    expect(rates.clean).toEqual({ off: 0, telephony: 0, 'telephony-noisy': 0, always: 0 });
     expect(rates.hum.telephony).toBeLessThanOrEqual(rates.hum.off - 5);
-    const sum = (filter: FilterName) =>
-      (Object.keys(CONDITIONS) as Condition[]).reduce((total, c) => total + rates[c][filter], 0);
-    expect(sum('telephony')).toBeLessThan(sum('off'));
+    expect(total(rates, 'telephony')).toBeLessThan(total(rates, 'off'));
+  });
+
+  it('leaves a clean line and a cafe or a crowd untouched, where it would only cost words', () => {
+    // Wave 8, call 6e1a4e3a: with every stage always on (the Wave 7 row), a cafe's babble lost
+    // words; the phone row now engages a stage only on the fault it fixes, so these lines reach
+    // the STT sample for sample as the carrier sent them.
+    const rates = errorRates();
+    expect(rates.cafe.always).toBeGreaterThan(rates.cafe.off + TOLERANCE);
+    expect(rates.babble.always).toBeGreaterThan(rates.babble.off + TOLERANCE);
+    expect(rates.cafe.telephony).toBe(rates.cafe.off);
+    expect(rates.babble.telephony).toBe(rates.babble.off);
+    const all = cases();
+    const audio = new Map(
+      all.map((item) => [`${item.clip}/${item.condition}/${item.take}/${item.filter}`, item.audio]),
+    );
+    for (const item of all)
+      if (['clean', 'cafe', 'babble'].includes(item.condition) && item.filter === 'telephony')
+        expect(mulawToPcm16(item.audio), `${item.clip}/${item.condition}/${item.take}`).toEqual(
+          mulawToPcm16(audio.get(`${item.clip}/${item.condition}/${item.take}/off`)!),
+        );
+  });
+
+  it('is on by default exactly when it is no worse on clean speech and better on noisy speech', () => {
+    const rates = errorRates();
+    const earns =
+      rates.clean.telephony <= rates.clean.off &&
+      total(rates, 'telephony') < total(rates, 'off') &&
+      NOISY.every((c) => rates[c].telephony <= rates[c].off + TOLERANCE);
+    expect(earns).toBe(true);
+    // The distribution preselects the plugin with its defaults, which are the telephony preset.
+    expect(DISTRIBUTION_DEFAULTS.audioFilter).toBe(earns ? AUDIO_FILTER_PLUGIN_ID : undefined);
   });
 });

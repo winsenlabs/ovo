@@ -97,6 +97,105 @@ const beeps: Noise = (length) =>
     i % 12000 < 960 ? Math.sin((2 * Math.PI * 1000 * i) / RATE) : 0,
   );
 
+/** Sound scaled to unit RMS, so the parts of a scene mix at the levels given. */
+function unit(samples: Float64Array): Float64Array {
+  const level = rms(samples);
+  if (level > 0) for (let i = 0; i < samples.length; i++) samples[i] = samples[i]! / level;
+  return samples;
+}
+
+/**
+ * A crowd: `count` other lines at once, each sped up or slowed down (0.8x to 1.25x, so each has
+ * its own pitch) and started at its own point, until no one voice can be followed.
+ */
+function crowd(length: number, seed: number, speech: readonly Int16Array[], count: number) {
+  const random = seededRandom(seed);
+  const out = new Float64Array(length);
+  for (let k = 0; k < count; k++) {
+    const other = speech[(seed + k) % speech.length]!;
+    const speed = 0.8 + random() * 0.45;
+    const offset = Math.floor(random() * other.length);
+    for (let i = 0; i < length; i++) {
+      const at = offset + i * speed;
+      const from = Math.floor(at);
+      const a = other[from % other.length]!;
+      const b = other[(from + 1) % other.length]!;
+      out[i]! += a + (b - a) * (at - from);
+    }
+  }
+  return unit(out);
+}
+
+/** Babble: eight voices of a busy room, none intelligible. */
+const babble: Noise = (length, seed, speech) => crowd(length, seed, speech, 8);
+
+/**
+ * A cafe: six voices a little way off (low-passed), cups and cutlery (short bright clicks every
+ * 0.3 to 1.5 s) and the espresso machine's steam (two-second hiss every ~6 s).
+ */
+const cafe: Noise = (length, seed, speech) => {
+  const random = seededRandom(seed + 100);
+  const out = lowPass(crowd(length, seed, speech, 6), 2500);
+  unit(out);
+  for (let at = Math.floor(random() * 4000); at < length; at += 2400 + Math.floor(random() * 9600))
+    for (let i = 0, last = 0; i < 320 && at + i < length; i++) {
+      // Differenced noise is bright: a clink rather than a thud.
+      const sample = random() - 0.5;
+      out[at + i]! += 6 * Math.exp(-i / 60) * (sample - last);
+      last = sample;
+    }
+  for (
+    let at = Math.floor(random() * 24000);
+    at < length;
+    at += 40000 + Math.floor(random() * 16000)
+  )
+    for (let i = 0, last = 0; i < 16000 && at + i < length; i++) {
+      const sample = random() - 0.5;
+      out[at + i]! += 0.8 * Math.sin((Math.PI * i) / 16000) * (sample - last);
+      last = sample;
+    }
+  return out;
+};
+
+/**
+ * A street: traffic rumble that swells as each vehicle passes (every 2 to 4 s), an engine's
+ * 90 Hz drone with its harmonics, and a horn (420 and 520 Hz, 300 ms) every ~5 s.
+ */
+const street: Noise = (length, seed) => {
+  const random = seededRandom(seed + 200);
+  const out = unit(
+    lowPass(
+      lowPass(
+        Float64Array.from({ length }, () => random() - 0.5),
+        300,
+      ),
+      300,
+    ),
+  );
+  const passes: number[] = [];
+  for (
+    let at = Math.floor(random() * 8000);
+    at < length;
+    at += 16000 + Math.floor(random() * 16000)
+  )
+    passes.push(at);
+  for (let i = 0; i < length; i++) {
+    const swell = passes.reduce((sum, at) => sum + Math.exp(-(((i - at) / 6000) ** 2)), 0.3);
+    const drone = [1, 0.5, 0.3].reduce(
+      (sum, gain, k) => sum + gain * Math.sin((2 * Math.PI * 90 * (k + 1) * i) / RATE),
+      0,
+    );
+    out[i] = out[i]! * swell + 0.4 * swell * drone;
+  }
+  for (let at = 4000 + Math.floor(random() * 16000); at < length; at += 40000)
+    for (let i = 0; i < 2400 && at + i < length; i++)
+      out[at + i]! +=
+        1.5 *
+        (Math.sign(Math.sin((2 * Math.PI * 420 * i) / RATE)) +
+          Math.sign(Math.sin((2 * Math.PI * 520 * i) / RATE)));
+  return out;
+};
+
 /** Each phone-line condition and the speech-to-noise ratio it is mixed at. */
 export const CONDITIONS = {
   clean: undefined,
@@ -106,35 +205,48 @@ export const CONDITIONS = {
   steady: { noise: steady, snrDb: 10 },
   talkers: { noise: talkers, snrDb: 10 },
   beeps: { noise: beeps, snrDb: 5 },
+  // Wave 8, from a live call in a noisy cafe (call 6e1a4e3a): the places callers ring from.
+  cafe: { noise: cafe, snrDb: 5 },
+  babble: { noise: babble, snrDb: 5 },
+  street: { noise: street, snrDb: 0 },
 } as const satisfies Record<string, { noise: Noise; snrDb: number } | undefined>;
 export type Condition = keyof typeof CONDITIONS;
 
-/** The filter rows compared: none, then the presets in `docs/presets/audio-filter/`. */
+/**
+ * Each noisy condition is mixed this many times per clip, each take with its own noise, so a
+ * comparison rests on 363 words rather than 121 and one lucky word moves it less.
+ */
+export const TAKES = 3;
+
+const preset = (name: string) =>
+  JSON.parse(
+    readFileSync(
+      new URL(`../../../../docs/presets/audio-filter/${name}.json`, import.meta.url),
+      'utf8',
+    ),
+  ) as { config: Record<string, unknown> };
+
+/**
+ * The filter rows compared: none, the presets in `docs/presets/audio-filter/`, and the phone
+ * preset with every stage on from the first frame (`engage: 'always'`, the Wave 7 behaviour).
+ */
 export const FILTERS = {
   off: undefined,
-  telephony: JSON.parse(
-    readFileSync(
-      new URL('../../../../docs/presets/audio-filter/telephony.json', import.meta.url),
-      'utf8',
-    ),
-  ) as { config: Record<string, unknown> },
-  'telephony-noisy': JSON.parse(
-    readFileSync(
-      new URL('../../../../docs/presets/audio-filter/telephony-noisy.json', import.meta.url),
-      'utf8',
-    ),
-  ) as { config: Record<string, unknown> },
+  telephony: preset('telephony'),
+  'telephony-noisy': preset('telephony-noisy'),
+  always: { config: { ...preset('telephony').config, engage: 'always' } },
 } as const;
 export type FilterName = keyof typeof FILTERS;
 
-/** `clip` as the line delivers it under `condition`: mu-law, as the carrier sends it. */
-export function noisy(clipIndex: number, condition: Condition): Uint8Array {
+/** `clip` as the line delivers it under `condition`, in `take`: mu-law, as the carrier sends it. */
+export function noisy(clipIndex: number, condition: Condition, take = 0): Uint8Array {
   const clip = SPEECH[clipIndex]!;
   const spec = CONDITIONS[condition];
   if (!spec) return clip.mulaw;
   const speech = mulawToPcm16(clip.mulaw);
   const others = SPEECH.map((other) => mulawToPcm16(other.mulaw)).filter((_, i) => i !== clipIndex);
-  return pcm16ToMulaw(mix(speech, spec.noise(speech.length, clipIndex + 1, others), spec.snrDb));
+  const seed = clipIndex + 1 + 1000 * take;
+  return pcm16ToMulaw(mix(speech, spec.noise(speech.length, seed, others), spec.snrDb));
 }
 
 /** What the STT hears with `filter`: the engine's ingress, 20 ms carrier frames through it. */
