@@ -43,7 +43,14 @@ export function sentenceBoundary(
         (/\d/.test(text[end] ?? '') || (!flush && end === text.length))
       )
         continue;
+      // Wave 8: nor a date, "December 20, 2026", also while its year has not streamed in yet.
+      if (match[0] === ',' && /\d/.test(text[match.index - 1] ?? '')) {
+        const rest = text.slice(end);
+        if (/^\s+\d/u.test(rest) || (!flush && !rest.trim())) continue;
+      }
       if (words(text.slice(0, match.index)) < minFirstWords) continue;
+      // Never inside a quote: "He said “Wait, | I am coming”" would be heard as two utterances.
+      if (quoteOpen(text.slice(0, match.index))) continue;
       return end;
     }
     const next = text.slice(end);
@@ -65,7 +72,7 @@ export function sentenceBoundary(
  * An opening quote or bracket in `text` that nothing has closed yet. ’ is left out of the count:
  * it is also the apostrophe of didn’t, so a curly single quote alone is never open.
  */
-function quoteOpen(text: string): boolean {
+export function quoteOpen(text: string): boolean {
   const count = (pattern: RegExp) => text.match(pattern)?.length ?? 0;
   return (
     count(/[“«(]/gu) > count(/[”»)]/gu) || count(/"/g) % 2 === 1 || count(/‘/gu) > count(/’/gu)

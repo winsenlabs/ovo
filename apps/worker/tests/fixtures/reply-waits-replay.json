@@ -1,0 +1,346 @@
+{
+  "source": "Engine timing and speech events from packages/plugin-voice/tests/reply-wait-replay.test.ts's harness (turn driver, scheduler, speech projector, turn latency on a fake clock). turn3 replays Maya call f3363705 turn 3 (latency-evidence C: vadStop->final 839 ms, first segment 1435 ms, TTS first byte 146 ms); held is a reply held by a cough (P1) behind a 1.5 s filler, released when the recogniser closes the utterance with no words.",
+  "turn3": [
+    {
+      "type": "timing",
+      "key": "vad_stop_wait",
+      "turnId": "turn-3",
+      "atMs": 2986,
+      "ms": 839
+    },
+    {
+      "type": "timing",
+      "key": "stt_finalize",
+      "turnId": "turn-3",
+      "atMs": 2987,
+      "ms": 1
+    },
+    {
+      "type": "timing",
+      "key": "turn_decision",
+      "turnId": "turn-3",
+      "atMs": 2987,
+      "ms": 0
+    },
+    {
+      "type": "timing",
+      "key": "behavior_first_segment",
+      "turnId": "turn-3",
+      "atMs": 4422,
+      "ms": 1435
+    },
+    {
+      "type": "timing",
+      "key": "text_aggregation",
+      "turnId": "turn-3",
+      "segmentId": "speech-2",
+      "atMs": 4422,
+      "ms": 0
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-2",
+        "epoch": 2,
+        "kind": "response",
+        "phase": "generated",
+        "at": 4422,
+        "text": "Answer: Tell me about Zagreb..",
+        "evidence": "generated",
+        "sequence": 6
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-2",
+        "epoch": 2,
+        "kind": "response",
+        "phase": "queued",
+        "at": 4422,
+        "text": "Answer: Tell me about Zagreb..",
+        "evidence": "generated",
+        "sequence": 7
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-2",
+        "epoch": 2,
+        "kind": "response",
+        "phase": "started",
+        "at": 4422,
+        "text": "Answer: Tell me about Zagreb..",
+        "evidence": "generated",
+        "sequence": 8
+      }
+    },
+    {
+      "type": "timing",
+      "key": "tts_ttfb",
+      "turnId": "turn-3",
+      "segmentId": "speech-2",
+      "atMs": 4568,
+      "ms": 146
+    },
+    {
+      "type": "timing",
+      "key": "carrier_first_audio",
+      "turnId": "turn-3",
+      "segmentId": "speech-2",
+      "atMs": 4568,
+      "ms": 0
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-2",
+        "epoch": 2,
+        "kind": "response",
+        "phase": "sent",
+        "at": 4568,
+        "text": "Answer: Tell me about Zagreb..",
+        "evidence": "estimated",
+        "sequence": 9
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-2",
+        "epoch": 2,
+        "kind": "response",
+        "phase": "completed",
+        "at": 6568,
+        "text": "Answer: Tell me about Zagreb..",
+        "evidence": "confirmed",
+        "sequence": 10
+      }
+    },
+    {
+      "type": "timing",
+      "key": "playout_ack",
+      "turnId": "turn-3",
+      "segmentId": "speech-2",
+      "atMs": 6568,
+      "ms": 2000
+    }
+  ],
+  "held": [
+    {
+      "type": "timing",
+      "key": "vad_stop_wait",
+      "turnId": "turn-9",
+      "atMs": 2947,
+      "ms": 800
+    },
+    {
+      "type": "timing",
+      "key": "stt_finalize",
+      "turnId": "turn-9",
+      "atMs": 2947,
+      "ms": 0
+    },
+    {
+      "type": "timing",
+      "key": "turn_decision",
+      "turnId": "turn-9",
+      "atMs": 2947,
+      "ms": 0
+    },
+    {
+      "type": "timing",
+      "key": "text_aggregation",
+      "turnId": "turn-9",
+      "segmentId": "speech-2",
+      "atMs": 4447,
+      "ms": 1500
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-2",
+        "epoch": 2,
+        "kind": "acknowledgment",
+        "phase": "generated",
+        "at": 4447,
+        "text": "One moment.",
+        "evidence": "generated",
+        "sequence": 6
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-2",
+        "epoch": 2,
+        "kind": "acknowledgment",
+        "phase": "queued",
+        "at": 4447,
+        "text": "One moment.",
+        "evidence": "generated",
+        "sequence": 7
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-2",
+        "epoch": 2,
+        "kind": "acknowledgment",
+        "phase": "started",
+        "at": 4447,
+        "text": "One moment.",
+        "evidence": "generated",
+        "sequence": 8
+      }
+    },
+    {
+      "type": "timing",
+      "key": "carrier_first_audio",
+      "turnId": "turn-9",
+      "segmentId": "speech-2",
+      "atMs": 4447,
+      "ms": 0
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-2",
+        "epoch": 2,
+        "kind": "acknowledgment",
+        "phase": "sent",
+        "at": 4447,
+        "text": "One moment.",
+        "evidence": "estimated",
+        "sequence": 9
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-2",
+        "epoch": 2,
+        "kind": "acknowledgment",
+        "phase": "completed",
+        "at": 5247,
+        "text": "One moment.",
+        "evidence": "confirmed",
+        "sequence": 10
+      }
+    },
+    {
+      "type": "timing",
+      "key": "playout_ack",
+      "turnId": "turn-9",
+      "segmentId": "speech-2",
+      "atMs": 5247,
+      "ms": 800
+    },
+    {
+      "type": "timing",
+      "key": "behavior_first_segment",
+      "turnId": "turn-9",
+      "atMs": 5447,
+      "ms": 200
+    },
+    {
+      "type": "timing",
+      "key": "text_aggregation",
+      "turnId": "turn-9",
+      "segmentId": "speech-3",
+      "atMs": 5447,
+      "ms": 0
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-3",
+        "epoch": 2,
+        "kind": "response",
+        "phase": "generated",
+        "at": 5447,
+        "text": "Answer: Hardik?.",
+        "evidence": "generated",
+        "sequence": 11
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-3",
+        "epoch": 2,
+        "kind": "response",
+        "phase": "queued",
+        "at": 5447,
+        "text": "Answer: Hardik?.",
+        "evidence": "generated",
+        "sequence": 12
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-3",
+        "epoch": 2,
+        "kind": "response",
+        "phase": "started",
+        "at": 5947,
+        "text": "Answer: Hardik?.",
+        "evidence": "generated",
+        "sequence": 13
+      }
+    },
+    {
+      "type": "timing",
+      "key": "tts_ttfb",
+      "turnId": "turn-9",
+      "segmentId": "speech-3",
+      "atMs": 6093,
+      "ms": 646
+    },
+    {
+      "type": "timing",
+      "key": "carrier_first_audio",
+      "turnId": "turn-9",
+      "segmentId": "speech-3",
+      "atMs": 6093,
+      "ms": 0
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-3",
+        "epoch": 2,
+        "kind": "response",
+        "phase": "sent",
+        "at": 6093,
+        "text": "Answer: Hardik?.",
+        "evidence": "estimated",
+        "sequence": 14
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "segmentId": "speech-3",
+        "epoch": 2,
+        "kind": "response",
+        "phase": "completed",
+        "at": 8093,
+        "text": "Answer: Hardik?.",
+        "evidence": "confirmed",
+        "sequence": 15
+      }
+    },
+    {
+      "type": "timing",
+      "key": "playout_ack",
+      "turnId": "turn-9",
+      "segmentId": "speech-3",
+      "atMs": 8093,
+      "ms": 2000
+    }
+  ]
+}

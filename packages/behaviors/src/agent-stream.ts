@@ -1,9 +1,11 @@
 import {
   END_CALL_TOOL_ID,
+  type AgentReplyPacing,
   type InferenceReply,
   type InferenceStreamEvent,
 } from '@winsendotai/ovo-contracts';
 import { AgentToolSelectionError } from './agent-tools.ts';
+import { ReplyCap } from './reply-cap.ts';
 import { StreamingTextSegmenter } from './text-segmenter.ts';
 
 /**
@@ -47,12 +49,24 @@ export async function* streamAgentReply(
    * the text to speak, or undefined to drop the sentence. Never waits for the whole reply.
    */
   guard?: (segment: string) => string | undefined,
-  /** LAT-9 per agent (`reply.minFirstWords`); the segmenter's default when absent. */
-  minFirstWords?: number,
+  /**
+   * The agent's `reply` pacing (LAT-9, the first phrase and the long-answer cap), or its
+   * `minFirstWords` alone; the defaults when absent.
+   */
+  pacing?: AgentReplyPacing | number,
+  /**
+   * The language the agent replies in (`config.language`, which can differ from the locale the
+   * segmenter reads): call-3 #7's cap on long answers runs only when it is given.
+   */
+  replyLanguage?: string,
 ): AsyncGenerator<string, InferenceReply | undefined> {
+  const reply: AgentReplyPacing =
+    typeof pacing === 'number' ? { minFirstWords: pacing } : (pacing ?? {});
+  const { minFirstWords, firstPhraseWords } = reply;
   const segmenter = new StreamingTextSegmenter(undefined, undefined, {
     language: language,
     ...(minFirstWords !== undefined ? { minFirstWords } : {}),
+    ...(firstPhraseWords !== undefined ? { firstPhraseWords } : {}),
   });
   let toolReply: { kind: 'tool'; toolId: string; input: unknown } | undefined;
   let emittedText = false;
@@ -62,9 +76,51 @@ export async function* streamAgentReply(
     const text = notes.strip(segment);
     return text === undefined || !guard ? text : guard(text);
   };
+  // Call-3 #7: a long answer stops after its first sentences and offers the rest. Once capped,
+  // the rest is held, neither said nor checked, and the provider's stream is still read to its
+  // end: a goodbye's `end_call` (or a flow's late `resume_flow`, taken upstream by
+  // `interceptLateResume`) can follow the text, and the closing `finish` carries the usage the
+  // request is metered by.
+  let cap = replyLanguage === undefined ? undefined : new ReplyCap(reply, replyLanguage);
+  /** The checked sentence the cap stopped before, then the segments after it, unchecked. */
+  let held: { stopped?: string; rest: string[] } | undefined;
+  let offer: string | undefined;
+  /** What to say now for a segment from the segmenter. */
+  const take = (segment: string): string[] => {
+    if (held) {
+      held.rest.push(segment);
+      return [];
+    }
+    const spoken = speakable(segment);
+    if (spoken === undefined) return [];
+    const { say, stop } = cap ? cap.next(spoken) : { say: spoken, stop: false };
+    if (!stop) return say === undefined ? [] : [say];
+    if (say === spoken) {
+      held = { rest: [] };
+      return [spoken];
+    }
+    held = { stopped: spoken, rest: [] };
+    offer = say;
+    return [];
+  };
+  /** A goodbye is said whole: what the cap held back, and anything after it uncapped. */
+  const release = (): string[] => {
+    const lines = held?.stopped === undefined ? [] : [held.stopped];
+    for (const segment of held?.rest ?? []) {
+      const spoken = speakable(segment);
+      if (spoken !== undefined) lines.push(spoken);
+    }
+    [cap, held, offer] = [undefined, undefined, undefined];
+    return lines;
+  };
   for await (const event of events) {
     assertCurrent();
     if (event.kind === 'tool') {
+      if (receivedText && event.toolId === END_CALL_TOOL_ID)
+        for (const line of release()) {
+          emittedText = true;
+          yield publish(line);
+        }
       if (receivedText && event.toolId === END_CALL_TOOL_ID && endAfterText?.(event.input))
         continue;
       if (receivedText)
@@ -81,19 +137,23 @@ export async function* streamAgentReply(
           'Streamed response text followed a tool call',
         );
       receivedText ||= Boolean(event.delta);
-      for (const segment of segmenter.push(event.delta)) {
-        const spoken = speakable(segment);
-        if (spoken === undefined) continue;
-        emittedText = true;
-        yield publish(spoken);
-      }
+      for (const segment of segmenter.push(event.delta))
+        for (const line of take(segment)) {
+          emittedText = true;
+          yield publish(line);
+        }
     }
   }
-  for (const segment of segmenter.finish()) {
-    const spoken = speakable(segment);
-    if (spoken === undefined) continue;
+  for (const segment of segmenter.finish())
+    for (const line of take(segment)) {
+      emittedText = true;
+      yield publish(line);
+    }
+  // The offer is checked like any other line: the language guard may drop or replace it.
+  const more = offer === undefined || !guard ? offer : guard(offer);
+  if (more !== undefined) {
     emittedText = true;
-    yield publish(spoken);
+    yield publish(more);
   }
   if (emittedText) return;
   return toolReply ?? { kind: 'text' as const, text: '' };

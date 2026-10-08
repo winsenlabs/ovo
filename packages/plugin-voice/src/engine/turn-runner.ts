@@ -9,6 +9,7 @@ import type { InferenceActivity } from '@winsendotai/ovo-plugin-kit';
 import type { BoundedSpeechScheduler } from '../scheduler.ts';
 import { realClock } from './clock.ts';
 import type { VoiceEventBus } from './events.ts';
+import { IdlePacing } from './idle-pacing.ts';
 import { IdleWatch } from './idle-watch.ts';
 import { SpeechReceipts } from './speech-receipts.ts';
 import type { TurnLatency } from './latency.ts';
@@ -39,6 +40,9 @@ export abstract class TurnRunner {
   private readonly filler: TurnFiller;
   /** Set when the behaviour handles silence; the turn detector's idle prompts are then ignored. */
   protected readonly idle?: IdleWatch;
+  /** The agent's last answer, which earns the caller extra silence before an idle prompt. */
+  protected readonly pacing: IdlePacing;
+  private readonly unwatch: () => void;
   private readonly audibility = new ReplyAudibility();
   protected readonly hooks: SpeculationHooks;
   /** P1: holds an unheard reply while the caller speaks again. */
@@ -61,7 +65,7 @@ export abstract class TurnRunner {
     protected readonly end: (reason: DriverEndReason, detail?: string) => void,
     private readonly maxConcurrentTurns: number,
     protected readonly media: MediaDuplex,
-    protected readonly clock: Pick<Clock, 'setTimeout'> = realClock,
+    protected readonly clock: Pick<Clock, 'setTimeout' | 'now'> = realClock,
   ) {
     this.receipts = new SpeechReceipts(
       behavior,
@@ -80,10 +84,18 @@ export abstract class TurnRunner {
           this.end(...completionEnd(this.behavior, {}));
       },
     );
-    this.idle = IdleWatch.for(behavior, clock, events, {
-      quiet: () => !this.stopped && !this.closing && !this.tasks.size,
-      run: (turnId) => this.queue(engineTurn(turnId, '', { inputEvent: 'idle' })),
-    });
+    this.pacing = new IdlePacing(clock);
+    this.unwatch = speech.subscribe((evidence) => this.pacing.observe(evidence));
+    this.idle = IdleWatch.for(
+      behavior,
+      clock,
+      events,
+      {
+        quiet: () => !this.stopped && !this.closing && !this.tasks.size,
+        run: (turnId) => this.queue(engineTurn(turnId, '', { inputEvent: 'idle' })),
+      },
+      this.pacing,
+    );
     // The call's variables ride on each partial, as its turn will get them.
     this.hooks = new SpeculationHooks(withCallVariables(behavior, session), (hook, e) =>
       this.log('speculation_hook_failed', e, { hook }, 'warn'),
@@ -102,12 +114,16 @@ export abstract class TurnRunner {
 
   /** N3: a provider tool's progress inside the reply being composed (a web search starting). */
   inferenceActivity(activity: InferenceActivity): void {
+    const running = this.turns.running;
+    if (activity.phase === 'started' && !activity.signal.aborted && running)
+      running.searched = true;
     this.filler.activity(activity);
   }
 
   async dispose(): Promise<void> {
     this.stopped = true;
     this.hold.dispose();
+    this.unwatch();
     this.idle?.dispose();
     this.turns.dispose();
     this.turns.abortRunning('engine disposed');
@@ -218,6 +234,9 @@ export abstract class TurnRunner {
       cancelFiller?.();
       await lines.settled();
       if (abort.signal.aborted) return;
+      // Call-3 #1: the caller heard only "One moment." for their words.
+      if (turn.speech && turn.fillerPlayed && !lines.spoke && lines.current())
+        logVoiceEvent('warn', 'reply_filler_only', { sessionId: this.media.sessionId, turnId });
       await this.receipts.deliver();
       await this.interrupting;
       if (lines.current() && this.behavior.isComplete?.()) this.complete(extra);

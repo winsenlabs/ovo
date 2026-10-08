@@ -1,5 +1,6 @@
 import type { TurnDecision } from '@winsendotai/ovo-contracts';
 import type { AnsweredBy } from './answered-by-gate.ts';
+import { DetectorIdle } from './idle-pacing.ts';
 import { engineTurn } from './turn-book.ts';
 import { TurnRunner } from './turn-runner.ts';
 import { leaveVoicemail } from './turn-voicemail.ts';
@@ -14,6 +15,19 @@ export type { DriverEndReason } from './turn-completion.ts';
 export class TurnDriver extends TurnRunner {
   private nextTurn = 0;
   private cancelWrapUp?: () => void;
+  /** The turn detector's idle prompts, paced by the last answer (call-3 #8). */
+  private readonly detectorIdle = new DetectorIdle(
+    this.clock,
+    this.events,
+    this.pacing,
+    () =>
+      !this.stopped &&
+      !this.closing &&
+      this.callerOpen === undefined &&
+      !this.tasks.size &&
+      !this.speech.pendingCount,
+    (decision) => this.idlePrompt(decision),
+  );
 
   decide(decision: TurnDecision): void {
     if (this.stopped || this.closing) return;
@@ -30,7 +44,10 @@ export class TurnDriver extends TurnRunner {
       const carry = this.turns.reset(decision.turnId);
       if (carry) this.queue(carry);
       this.endIfQuiet();
-    } else if (decision.type !== 'idle') this.idle?.cancel();
+    } else if (decision.type !== 'idle') {
+      this.idle?.cancel();
+      this.detectorIdle.cancel();
+    }
     if (decision.type === 'interrupt') {
       this.events.emit({ type: 'interrupt', reason: decision.reason });
       this.turns.interrupted();
@@ -60,6 +77,7 @@ export class TurnDriver extends TurnRunner {
         text: input.kind === 'speech' ? input.text : input.digits,
         ...(endpointMs === undefined ? {} : { endpointMs }),
       });
+      this.detectorIdle.answered();
       if (input.kind === 'speech') this.caller(decision.turnId, input.text, decision.filler);
       else {
         this.turns.takeCarry();
@@ -69,12 +87,14 @@ export class TurnDriver extends TurnRunner {
       // AGT-10 superseded the held reply or queued these words behind it: it plays now.
       this.hold.ended(decision.turnId, 'stopped');
     }
-    if (decision.type === 'idle' && !this.idle) {
-      this.events.emit({ type: 'user.turn', phase: 'idle', turnId: 'idle-' + decision.retry });
-      if (decision.final) this.end('caller_idle');
-      else if (decision.prompt)
-        this.receipts.track(this.speech.speak(decision.prompt, { kind: 'idle-prompt' }));
-    }
+    if (decision.type === 'idle' && !this.idle) this.detectorIdle.idle(decision);
+  }
+
+  private idlePrompt(decision: Extract<TurnDecision, { type: 'idle' }>): void {
+    this.events.emit({ type: 'user.turn', phase: 'idle', turnId: 'idle-' + decision.retry });
+    if (decision.final) this.end('caller_idle');
+    else if (decision.prompt)
+      this.receipts.track(this.speech.speak(decision.prompt, { kind: 'idle-prompt' }));
   }
 
   initial(input: string): void {
@@ -90,6 +110,7 @@ export class TurnDriver extends TurnRunner {
 
   override async dispose(): Promise<void> {
     this.cancelWrapUp?.();
+    this.detectorIdle.dispose();
     await super.dispose();
   }
 

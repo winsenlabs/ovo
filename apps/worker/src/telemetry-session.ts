@@ -55,6 +55,7 @@ export class WorkerSessionTelemetry {
     this.turns = new WorkerTurnTelemetry({
       includeText: transcriptText === 'store',
       emit: (turn) => this.adapter.turnSummary(turn),
+      stage: (stage) => this.recordStage(stage),
     });
   }
 
