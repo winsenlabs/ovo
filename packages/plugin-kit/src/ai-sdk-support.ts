@@ -25,6 +25,8 @@ export function buildSystemPrompt(
   instructions?: string,
   /** Further factual sources the model may use, e.g. a provider's web search results. */
   extraSources?: string,
+  /** How to use those sources (a provider tool's instructions); sent only with them. */
+  extraInstructions?: string,
 ): string {
   const sources = extraSources?.trim()
     ? `the supplied context, completed operation results and ${extraSources.trim()}`
@@ -32,7 +34,11 @@ export function buildSystemPrompt(
   const sections = [
     instructions?.trim(),
     `Use only ${sources} as factual sources.`,
-    `When the answer is not supported, respond exactly with: ${request.uncertainty}`,
+    extraSources?.trim() ? extraInstructions?.trim() : undefined,
+    `When the caller asks for something these sources do not support, respond exactly with: ${request.uncertainty}`,
+    // call-3 #3: the uncertainty line was the model's answer to "हाँ।" and to words the noise cut.
+    'Never give that line to words that are unclear, cut off or ask for nothing: ask the caller ' +
+      'to say it again instead.',
     `Supplied context:\n${request.context}`,
   ];
   if (request.results.length)

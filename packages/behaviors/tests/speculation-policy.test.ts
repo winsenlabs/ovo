@@ -32,6 +32,10 @@ describe('the speculation policy', () => {
       maxPartialCalls: 2,
       match: 'exact',
       llm: true,
+      llmPartials: true,
+      llmDebounceMs: 250,
+      llmMinWords: 1,
+      llmMaxPartialCalls: 1,
     });
     expect(speculationPolicy(undefined)).toEqual(DEFAULT_SPECULATION);
     // `decision.speculation`, then the override.

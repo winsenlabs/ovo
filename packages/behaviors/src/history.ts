@@ -36,6 +36,22 @@ export class PlaybackConversation {
     return this.cut;
   }
 
+  /** Lines the agent generated that have not played yet: it is still speaking, or about to. */
+  get speaking(): boolean {
+    return this.pending.length > 0;
+  }
+
+  /**
+   * What `user(next)` would return now, and the `replyCut` it would leave, without recording
+   * anything: what speculation on a partial transcript must see to match the turn (LAT-3, LAT-4).
+   */
+  peek(): { history: Message[]; replyCut: boolean } {
+    return {
+      history: this.entries.map((entry) => ({ ...entry })),
+      replyCut: this.cutSinceUser,
+    };
+  }
+
   beginTurn(epoch: number): void {
     if (
       !Number.isSafeInteger(epoch) ||

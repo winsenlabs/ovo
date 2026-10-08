@@ -2,7 +2,7 @@ import { flowFacts } from './agent-decision-step.ts';
 import { runPreReplySteps } from './agent-pre-reply.ts';
 import { resumeConfirmation } from './agent-confirmation-step.ts';
 import { firstInferenceRequest, runInferenceSteps } from './agent-inference-step.ts';
-import { AgentSession } from './agent-session.ts';
+import { AgentSessionAhead } from './agent-session-ahead.ts';
 import { EndCallGate } from './agent-end-gate.ts';
 import { OPT_OUT_COMPLETION } from './opt-out.ts';
 import type { AgentBehaviorOptions } from './agent-tools.ts';
@@ -25,7 +25,7 @@ export * from './handoff.ts';
 export type { LlmSpeculationMetrics } from './speculation-llm.ts';
 export type { PartialWords } from './speculation-turn.ts';
 
-export class AgentBehavior extends AgentSession {
+export class AgentBehavior extends AgentSessionAhead {
   /** Transfer and callback turns (AGT-15); inert without a `handoff` block. */
   private readonly handoffs: AgentHandoffs;
   /** Execution with the built-in handoff tools answered in the behaviour. */
@@ -72,10 +72,16 @@ export class AgentBehavior extends AgentSession {
     return this.runResponse(input, true, variables);
   }
 
-  private async *runResponse(
+  /** Wave 8: with the LLM call asked on the turn's partial words, used if it asks the same. */
+  private runResponse(input: string, streaming: boolean, variables: Record<string, unknown>) {
+    return this.ahead.withLlm((asked) => this.answer(input, streaming, variables, asked));
+  }
+
+  private async *answer(
     input: string,
     streaming: boolean,
-    variables: Record<string, unknown> = {},
+    variables: Record<string, unknown>,
+    asked: Inference | undefined,
   ): AsyncIterable<string> {
     this.ending.startTurn();
     // N1: the call is ending for good (a transfer, a flow's end) and the caller spoke meanwhile:
@@ -207,7 +213,7 @@ export class AgentBehavior extends AgentSession {
       const language = this.languages.reply(prepared.guard);
       yield* runInferenceSteps({
         config: this.config,
-        inference: early?.inference() ?? this.inference,
+        inference: early?.inference(asked) ?? asked ?? this.inference,
         execution: this.toolExecution,
         identity: { workspaceId: this.options.workspaceId, sessionId: this.options.sessionId },
         tools: this.tools,
@@ -240,26 +246,6 @@ export class AgentBehavior extends AgentSession {
       early?.finish();
       if (this.active === controller) this.active = undefined;
     }
-  }
-
-  /** The flow has ended or the caller opted out: no later turn can reopen the call (P4). */
-  private get final(): boolean {
-    return this.optOut.optedOut || Boolean(this.flow?.state.ended);
-  }
-
-  /**
-   * P4: the flow has ended, or the caller opted out, so this turn only closes the call. The goodbye
-   * is said once more when the caller barged in before hearing any of it; the call then ends
-   * whatever they say, and no decision or LLM is asked: nothing can reopen a finished call.
-   */
-  private *closeFlow(input: string): Generator<string> {
-    this.turn += 1;
-    if (input) this.conversation.user(input);
-    const reason = this.optOut.optedOut
-      ? OPT_OUT_COMPLETION
-      : `decision:flow:${this.flow?.state.node ?? 'end'}`;
-    for (const line of this.ending.close(reason)) yield this.say(line);
-    this.ending.seal();
   }
 }
 

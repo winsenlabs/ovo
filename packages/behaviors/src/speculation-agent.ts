@@ -1,4 +1,4 @@
-import type { AgentConfig, Inference } from '@winsendotai/ovo-contracts';
+import type { AgentConfig, FinalUtterance, Inference } from '@winsendotai/ovo-contracts';
 import type { DecisionTurn } from './decision-gate.ts';
 import type { RuledDecisionGate } from './rules-gate.ts';
 import {
@@ -6,22 +6,34 @@ import {
   type InferenceCall,
   type LlmSpeculationMetrics,
 } from './speculation-llm.ts';
+import { PartialLlmSpeculation } from './speculation-partial.ts';
 import { speculationPolicy, type SpeculationPolicy } from './speculation-policy.ts';
 import { sessionVariables, type PartialWords } from './speculation-turn.ts';
 
 /**
- * An agent's work ahead of the caller: decisions on partial transcripts (LAT-4) and the LLM asked
- * alongside the decision (LAT-3). It holds the policy and the LLM's metering; the decisions
+ * An agent's work ahead of the caller: decisions on partial transcripts (LAT-4), the LLM asked
+ * alongside the decision (LAT-3), and, for an agent without a decision model, the LLM asked on
+ * the partial transcript itself (Wave 8). It holds the policy and the LLM's metering; the decisions
  * themselves live in the gate, which owns the verdicts they stand in for.
  */
 export class AgentSpeculation {
   readonly policy: SpeculationPolicy;
-  readonly llm: LlmSpeculationMetrics = { started: 0, used: 0, aborted: 0, discarded: 0 };
+  readonly llm: LlmSpeculationMetrics = {
+    started: 0,
+    used: 0,
+    aborted: 0,
+    discarded: 0,
+    onPartials: 0,
+  };
   /** The call's variables as the last turn received them, for a partial that brings none. */
   private heard?: Record<string, unknown>;
+  /** Wave 8: the LLM asked on partials; only for an agent whose turns go straight to the LLM. */
+  private readonly partial?: PartialLlmSpeculation;
 
-  constructor(config: AgentConfig, override?: Partial<SpeculationPolicy>) {
+  constructor(config: AgentConfig, override?: Partial<SpeculationPolicy>, llm?: Inference) {
     this.policy = speculationPolicy(config.decision, override);
+    if (llm && this.policy.llmPartials && !config.decision?.enabled)
+      this.partial = new PartialLlmSpeculation(this.policy, llm, this.llm);
   }
 
   /**
@@ -55,6 +67,40 @@ export class AgentSpeculation {
       if (turn) gate.prepare(turnId, turn, stable);
     } catch {
       // swallow-ok: see above; the turn itself reports whatever failed here.
+    }
+  }
+
+  /**
+   * Wave 8: a partial transcript for the LLM. `request` builds the turn's first request for the
+   * words with the call's variables, or returns undefined when the turn would not ask the LLM.
+   */
+  prepareLlm(
+    { turnId, text, stable, variables = this.heard }: PartialWords,
+    request: (text: string, variables: Record<string, unknown>) => InferenceCall | undefined,
+  ): void {
+    if (variables) this.partial?.offer(turnId, text, stable, () => request(text, variables));
+  }
+
+  /** The engine is about to answer `final`: a call asked on other words is aborted now. */
+  finalizeLlm(final: FinalUtterance): void {
+    this.partial?.finalize(final.turnId, final.text);
+  }
+
+  discardLlm(turnId: string): void {
+    this.partial?.discard(turnId);
+  }
+
+  cancelLlm(): void {
+    this.partial?.cancel();
+  }
+
+  /** Runs a turn with the call asked on its words, if any, aborted unless the turn uses it. */
+  async *withLlm<T>(turn: (asked: Inference | undefined) => AsyncIterable<T>): AsyncIterable<T> {
+    const call = this.partial?.take();
+    try {
+      yield* turn(call?.inference());
+    } finally {
+      call?.abort('the turn did not ask the LLM');
     }
   }
 
@@ -92,9 +138,12 @@ export class SpeculativeLlmTurn {
       this.metrics,
     ));
 
-  /** The LLM for the turn's inference step: the call already made, when it asks the same. */
-  inference(): Inference {
-    return this.call?.inference() ?? this.llm;
+  /**
+   * The LLM for the turn's inference step: the call already made, when it asks the same, else
+   * `otherwise` (the call asked on the partial transcript) or the LLM itself.
+   */
+  inference(otherwise?: Inference): Inference {
+    return this.call?.inference() ?? otherwise ?? this.llm;
   }
 
   /** The turn is over; a call it never asked for is aborted. */

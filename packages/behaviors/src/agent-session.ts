@@ -12,7 +12,6 @@ import {
   type AgentConfig,
   type Behavior,
   type Execution,
-  type FinalUtterance,
   type Inference,
   type ToolDefinition,
   type SpeechReceipt,
@@ -32,18 +31,17 @@ import { AgentVariables } from './agent-variables.ts';
 import { AgentReplyGuard } from './agent-guardrail.ts';
 import { CallOutcomeEvents } from './outcome-events.ts';
 import { followFlowEndpointing } from './flow-endpointing.ts';
-import { peekHistory } from './speculation-history.ts';
-import type { PartialWords } from './speculation-turn.ts';
 import { AgentSpeculation } from './speculation-agent.ts';
 import type { AgentSpeculationOptions } from './speculation.ts';
-import { CallOptOut } from './opt-out.ts';
+import { CallOptOut, OPT_OUT_COMPLETION } from './opt-out.ts';
 import { DISCLOSURE_FIELD, disclosureLine, disclosureSpeechKind } from './disclosure.ts';
 import { MustHear } from './must-hear.ts';
 import { CallLanguages } from './language-guard.ts';
 
 /**
- * One agent call's state and the hooks the engine calls between turns: playback, cancellation,
- * completion, and the caller's words in progress (LAT-4). `AgentBehavior` adds the turn itself.
+ * One agent call's state and the hooks the engine calls between turns: playback, cancellation and
+ * completion. `AgentSessionAhead` adds the caller's words in progress (LAT-3, LAT-4, Wave 8) and
+ * `AgentBehavior` the turn itself.
  */
 export abstract class AgentSession implements Behavior {
   readonly config: AgentConfig;
@@ -141,7 +139,7 @@ export abstract class AgentSession implements Behavior {
     const compiled = compileAgentTools(this.config);
     this.tools = compiled.tools;
     this.validators = compiled.validators;
-    this.ahead = new AgentSpeculation(this.config, options.speculation);
+    this.ahead = new AgentSpeculation(this.config, options.speculation, inference);
     this.gate = ruledDecisionGate(
       this.config,
       this.options.decision,
@@ -163,50 +161,24 @@ export abstract class AgentSession implements Behavior {
 
   abstract respond(input: string, variables?: Record<string, unknown>): Promise<string>;
 
+  /** The flow has ended or the caller opted out: no later turn can reopen the call (P4). */
+  protected get final(): boolean {
+    return this.optOut.optedOut || Boolean(this.flow?.state.ended);
+  }
+
   /**
-   * LAT-4, the turn driver's `TurnSpeculation.prepare`: the caller's words so far. The rules tier
-   * and the decision model judge them now, as the gate would at the end of the turn, and `respond`
-   * reuses that verdict when the final words and the call's state are the same. Words the gate
-   * would not be asked about are left alone. Never throws.
+   * P4: the flow has ended, or the caller opted out, so this turn only closes the call. The goodbye
+   * is said once more when the caller barged in before hearing any of it; the call then ends
+   * whatever they say, and no decision or LLM is asked: nothing can reopen a finished call.
    */
-  prepare(partial: PartialWords): void {
-    const { recovery } = this.lines;
-    this.ahead.prepare(partial, this.gate, (input, variables) =>
-      // An ended flow or an opt-out decides nothing more: the next turn only closes the call (P4).
-      this.flow?.state.ended ||
-      this.optOut.optedOut ||
-      // N4: words outside the agent's languages get its language line, never a decision.
-      !this.languages.understands(input) ||
-      this.confirmation.waiting ||
-      recovery.replay(input) ||
-      recovery.skipsDecision(input, this.inference !== undefined)
-        ? undefined
-        : {
-            input,
-            history: peekHistory(this.conversation),
-            variables,
-            today: this.variables.today(),
-            context: this.briefing(variables),
-          },
-    );
-  }
-
-  /** The utterance whose reply started last (`TurnSpeculation.finalize`). */
-  private finalized?: FinalUtterance;
-
-  /** `TurnSpeculation.finalize`: `final.text` is the next `respond` input, on the same tick. */
-  finalize(final: FinalUtterance): void {
-    this.finalized = final;
-  }
-
-  /** `TurnSpeculation.discard`: utterance `turnId` will not be answered as it was heard. */
-  discard(turnId: string, reason?: 'reset' | 'superseded'): void {
-    this.gate?.discardPrepared(turnId);
-    // AGT-10: its words come back inside the merged turn, so they leave the history here.
-    if (reason === 'superseded' && this.finalized?.turnId === turnId) {
-      this.conversation.withdraw(this.finalized.text);
-      this.finalized = undefined;
-    }
+  protected *closeFlow(input: string): Generator<string> {
+    this.turn += 1;
+    if (input) this.conversation.user(input);
+    const reason = this.optOut.optedOut
+      ? OPT_OUT_COMPLETION
+      : `decision:flow:${this.flow?.state.node ?? 'end'}`;
+    for (const line of this.ending.close(reason)) yield this.say(line);
+    this.ending.seal();
   }
 
   /** AGT-5: until a flow confirms identity, the briefing carries none of this call's values. */
@@ -257,6 +229,7 @@ export abstract class AgentSession implements Behavior {
     this.turn += 1;
     // A decision already in flight finishes within its deadline; a pending partial is not started.
     this.gate?.closePrepared();
+    this.ahead.cancelLlm();
     this.active?.abort(new DOMException(reason, 'AbortError'));
     this.active = undefined;
     this.confirmation.expire();

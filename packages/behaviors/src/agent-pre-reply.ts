@@ -56,6 +56,13 @@ export interface PreReply {
   guard?: (segment: string) => string | undefined;
 }
 
+/** The briefing the LLM sees: the agent's own, then this call's facts, then retrieved passages. */
+export function replyContext(briefing: string, facts: string, retrieved = ''): string {
+  return facts || retrieved
+    ? [briefing, facts, retrieved].filter(Boolean).join('\n\n').trim()
+    : briefing;
+}
+
 /**
  * Everything that happens before the LLM is asked: retrieve, then decide.
  *
@@ -91,10 +98,7 @@ export async function runPreReplySteps({
     if (step.refuse !== undefined) return { speak: step.refuse, context: briefing };
     if (step.result.kind === 'grounded') retrieved = step.result.rendered;
   }
-  const context =
-    facts || retrieved
-      ? [briefing, facts, retrieved].filter(Boolean).join('\n\n').trim()
-      : briefing;
+  const context = replyContext(briefing, facts, retrieved);
   // Built before the LLM is asked, so checking its first sentence costs only that sentence.
   const guard =
     guardrail && guardrail.policy.mode !== 'off'

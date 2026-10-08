@@ -1,5 +1,23 @@
-import type { InferenceRequest } from '@winsendotai/ovo-contracts';
+import {
+  acknowledgementOnly,
+  affirmationOnly,
+  callerWords,
+  cutOffWords,
+  type InferenceRequest,
+} from '@winsendotai/ovo-contracts';
 import type { ActivityAnnouncement } from '@winsendotai/ovo-plugin-kit';
+
+/**
+ * Wave 8: how the model is told to use its web search, sent only with the tool. In Maya call
+ * 6e1a4e3a a searched turn's first token came 4.0–7.3 s after the caller stopped (median 4.7 s),
+ * with searches of 1.9–3.5 s: about 2 s went on generating after the search, and the answers that
+ * followed ran to several sentences read over the caller (7 of 23 replies were cut). One search,
+ * and a short answer that starts with the key fact, gives the first sentence sooner.
+ */
+export const SEARCH_INSTRUCTIONS =
+  'Search the web only for facts that change or that you do not know, and at most once per ' +
+  'reply. After searching, answer in one or two short spoken sentences that start with the key ' +
+  'fact; never go through every result or name your sources.';
 
 /** `webSearch.announce`: what the caller hears while a search runs, or `false` for nothing. */
 export type SearchAnnounceConfig = false | Partial<ActivityAnnouncement>;
@@ -39,43 +57,34 @@ export function searchAnnouncement(
   return { ...DEFAULT_SEARCH_ANNOUNCEMENT, ...config };
 }
 
-/** A caller turn cut off mid-word or mid-sentence ("tell me about-", "Can you change your..."). */
-const CUT_OFF = /(?:-|–|—|…|\.\.\.)$/u;
-const WORD = /[\p{L}\p{M}]+/gu;
-/**
- * Words that say yes, no, "go on" or hello and nothing else, in English, Hinglish and Tamil, in
- * Latin, Devanagari and Tamil script. Any other single word ("Chennai.", "Tomorrow.", "Bitcoin?")
- * can be the whole answer to a question, so the model decides.
- */
-const BACKCHANNEL = new Set([
-  ...['yes', 'yeah', 'yep', 'yup', 'ya', 'yah', 'no', 'nope', 'nah', 'ok', 'okay', 'sure'],
-  ...['right', 'alright', 'fine', 'cool', 'thanks', 'hmm', 'hm', 'mm', 'mhm', 'uh', 'um', 'huh'],
-  ...['hey', 'hi', 'hello', 'haan', 'han', 'ha', 'nahi', 'nahin', 'na', 'accha', 'acha', 'achha'],
-  ...['theek', 'thik', 'aama', 'aamaa', 'aamam', 'illa', 'illai', 'seri', 'sari'],
-  ...['हाँ', 'हां', 'हा', 'नहीं', 'नही', 'ना', 'अच्छा', 'ठीक', 'हम्म', 'हेलो'],
-  ...['ஆமா', 'ஆமாம்', 'இல்லை', 'இல்ல', 'சரி', 'ம்ம்', 'ஹலோ'],
-]);
 /**
  * The agent's last line offered to do something, so a bare "yes" or "sure" accepts it and may need
- * the search ("Shall I check the train times?", "Do you want me to see what the news says?").
+ * the search ("Shall I check the train times?", "Do you want me to see what the news says?"). "I
+ * can't confirm that" offers nothing (call 6e1a4e3a).
  */
 const OFFERED =
-  /\b(?:(?:want|like|need) me to|shall i|should i|can i|could i|may i|i can|i could|let me|if you(?:'d)? like|look\w* (?:\w+ )?up|check|search|find out)\b/i;
+  /\b(?:(?:want|like|need) me to|shall i|should i|can i|could i|may i|i can(?!['’]?t\b|not\b)|i could(?!n['’]?t\b)|let me|if you(?:'d)? like|look\w* (?:\w+ )?up|check|search|find out)\b/i;
 
 /**
- * Why the caller's words are too unclear to search on, or undefined to let the model decide.
- * Cheap and conservative: a cut-off fragment, no words at all, or only a backchannel ("Yes.",
- * "No, no.", "Hey.", "हाँ।") that does not accept an offer. In the Maya calls "No, no." and "Yes.",
- * each answering a question, searched for 3.8–3.9 s to restate the previous answer.
+ * Why the caller's words are not worth a web search, or undefined to let the model decide. Cheap
+ * and conservative: only words that carry nothing to look up lose the search tool.
+ * - `cut-off`: a fragment the STT cut mid-word or mid-sentence ("Can you change your...");
+ * - `no-words`;
+ * - `backchannel`: only a yes, no, backchannel, greeting, exclamation or thanks ("Yes.", "No,
+ *   no.", "Hey.", "हाँ।", "Oh, my God.", "Thank you, Danny."), unless it is a yes to the agent's
+ *   offer to look something up.
+ * Anything else goes to the model with the tool, a statement too: a follow-up often names no
+ * question word ("And in Split.", "Restaurants near the Colosseum.") and needs the search.
+ * In the Maya calls "No, no." and "Yes." each searched for 3.8–3.9 s only to restate the previous
+ * answer, and in call 6e1a4e3a "Oh, my God." searched for 2.0 s.
  */
 export function unclearForSearch(
   request: Pick<InferenceRequest, 'input' | 'history'>,
 ): 'cut-off' | 'no-words' | 'backchannel' | undefined {
   const input = request.input.trim();
-  if (CUT_OFF.test(input)) return 'cut-off';
-  const words = new Set(input.toLowerCase().match(WORD) ?? []);
-  if (!words.size) return 'no-words';
-  if (words.size > 1 || !BACKCHANNEL.has([...words][0]!)) return undefined;
+  if (cutOffWords(input)) return 'cut-off';
+  if (!callerWords(input).length) return 'no-words';
   const last = [...(request.history ?? [])].reverse().find((entry) => entry.role === 'assistant');
-  return last && OFFERED.test(last.content) ? undefined : 'backchannel';
+  if (affirmationOnly(input)) return last && OFFERED.test(last.content) ? undefined : 'backchannel';
+  return acknowledgementOnly(input) ? 'backchannel' : undefined;
 }

@@ -209,7 +209,10 @@ export const AgentDecisionPolicy = z
      * 150ms debounce, only on partials that end a sentence once the STT punctuates them
      * (`partialEnding`), at most `maxPartialCalls` (2) per utterance, and on exactly the same
      * words; the LLM asked alongside the decision on (the calls it aborts are still billed;
-     * `llm: false` turns it off).
+     * `llm: false` turns it off). An agent without a decision model asks the LLM itself on the
+     * caller's partial transcript instead (`llmPartials`, Wave 8): after `llmDebounceMs` unchanged,
+     * on at least `llmMinWords` words, under `partialEnding`, at most `llmMaxPartialCalls` per
+     * utterance.
      */
     speculation: z
       .object({
@@ -219,6 +222,10 @@ export const AgentDecisionPolicy = z
         maxPartialCalls: z.number().int().min(0).max(20).optional(),
         match: z.enum(['exact', 'prefix']).optional(),
         llm: z.boolean().optional(),
+        llmPartials: z.boolean().optional(),
+        llmDebounceMs: z.number().int().min(0).max(2_000).optional(),
+        llmMinWords: z.number().int().min(1).max(20).optional(),
+        llmMaxPartialCalls: z.number().int().min(0).max(20).optional(),
       })
       .strict()
       .optional(),
