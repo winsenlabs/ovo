@@ -3,6 +3,7 @@ import type {
   Clock,
   MediaDuplex,
   SessionInput,
+  TranscriptDoubt,
   TurnSpeculation,
 } from '@winsendotai/ovo-contracts';
 import type { InferenceActivity } from '@winsendotai/ovo-plugin-kit';
@@ -122,6 +123,9 @@ export abstract class TurnRunner {
 
   async dispose(): Promise<void> {
     this.stopped = true;
+    // Wave 8: the caller's open words are never answered now, so a behaviour asking the LLM on them
+    // (after a debounce that cancel() keeps for a barge-in) asks nothing after the call ends.
+    if (this.callerOpen !== undefined) this.hooks.discard(this.callerOpen, 'reset');
     this.hold.dispose();
     this.unwatch();
     this.idle?.dispose();
@@ -136,8 +140,13 @@ export abstract class TurnRunner {
    * waiting or being composed for them is abandoned (its decision, LLM and TTS work cancelled, its
    * speech never played) and one reply answers both, newest words last.
    */
-  protected caller(id: string, text: string, filler: Turn['filler']): void {
-    const { queue, supersede } = this.turns.caller(callerTurn(id, text, filler));
+  protected caller(
+    id: string,
+    text: string,
+    filler: Turn['filler'],
+    untrusted?: TranscriptDoubt,
+  ): void {
+    const { queue, supersede } = this.turns.caller(callerTurn(id, text, filler, untrusted));
     if (supersede) {
       supersede.controller?.abort(new DOMException('turn superseded', 'AbortError'));
       this.behavior.cancel?.();

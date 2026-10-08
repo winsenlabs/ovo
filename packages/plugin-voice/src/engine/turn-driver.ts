@@ -76,9 +76,11 @@ export class TurnDriver extends TurnRunner {
         input: input.kind,
         text: input.kind === 'speech' ? input.text : input.digits,
         ...(endpointMs === undefined ? {} : { endpointMs }),
+        ...(decision.reason ? { endpointRule: decision.reason } : {}),
       });
       this.detectorIdle.answered();
-      if (input.kind === 'speech') this.caller(decision.turnId, input.text, decision.filler);
+      if (input.kind === 'speech')
+        this.caller(decision.turnId, input.text, decision.filler, decision.untrusted);
       else {
         this.turns.takeCarry();
         const extra = { inputEvent: 'dtmf', digits: input.digits };

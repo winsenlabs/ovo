@@ -1,4 +1,9 @@
-import type { Behavior, BehaviorEvent } from '@winsendotai/ovo-contracts';
+import {
+  UNTRUSTED_INPUT_VARIABLE,
+  type Behavior,
+  type BehaviorEvent,
+  type TranscriptDoubt,
+} from '@winsendotai/ovo-contracts';
 import type { BoundedSpeechScheduler } from '../scheduler.ts';
 import type { TurnLatency } from './latency.ts';
 import type { ReplyAudibility } from './turn-audibility.ts';
@@ -31,9 +36,19 @@ export function engineTurn(id: string, input: string, extra: Record<string, unkn
   return { id, input, extra, speech: false, merged: false, fillerPlayed: false, committed: false };
 }
 
-/** The caller's words; `filler` is the line the turn detector offers for a slow reply (LAT-6). */
-export function callerTurn(id: string, text: string, filler?: Turn['filler']): Turn {
-  return { ...engineTurn(id, text, {}), speech: true, ...(filler ? { filler } : {}) };
+/**
+ * The caller's words; `filler` is the line the turn detector offers for a slow reply (LAT-6), and
+ * `untrusted` why the detector doubts the words (Wave 8), which the reply's variables carry as
+ * `UNTRUSTED_INPUT_VARIABLE` and `inputDoubt`.
+ */
+export function callerTurn(
+  id: string,
+  text: string,
+  filler?: Turn['filler'],
+  untrusted?: TranscriptDoubt,
+): Turn {
+  const extra = untrusted ? { [UNTRUSTED_INPUT_VARIABLE]: true, inputDoubt: untrusted } : {};
+  return { ...engineTurn(id, text, extra), speech: true, ...(filler ? { filler } : {}) };
 }
 
 /** Words this short add nothing a reply already searching for the caller must start over for. */

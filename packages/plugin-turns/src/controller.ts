@@ -25,6 +25,7 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         break;
       case 'vad.start':
         this.vadSpeaking = true;
+        this.voiceEndMs = undefined;
         this.heardSinceFinal = true;
         this.vadStopPending = false;
         this.vadStopReady = false;
@@ -56,6 +57,7 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         break;
       case 'vad.stop':
         this.vadSpeaking = false;
+        this.voiceEndMs = event.atMs;
         this.noise.vadStopped();
         this.evidence.vadStopped();
         if (speechMuted(this.view(), this.rules)) break;

@@ -154,7 +154,10 @@ async function* inferenceSteps(
           return accepted;
         },
         streamGuard,
-        config.reply?.minFirstWords,
+        config.reply,
+        // Call-3 #7: the long-answer cap reads the reply language, not the locale; a turn the flow
+        // may take back is left uncapped, so no offer of more is said before the flow's question.
+        rejoin ? undefined : config.language,
       );
       if (!streamed) return;
       reply = streamed;

@@ -132,6 +132,45 @@ describe('a search turn says what it is doing (N3)', () => {
     expect(speaking.h.audio.map((line) => line.text)).not.toContain(ANNOUNCE.line);
   });
 
+  it('announces a search the LLM started on the partial transcript once its turn arms (Wave 8)', async () => {
+    const { clock, h, filler } = setup();
+    const t0 = await h.greet();
+    // Speculation asked about the caller's words before they ended; the search started then.
+    filler.activity(started());
+    h.caller('what is the weather in Zagreb in December', NEUTRAL);
+    await clock.advanceAsync(10_000);
+    expect(timeline(h.audio, t0)).toEqual([
+      [ANNOUNCE.line, 0],
+      ['Answer: what is the weather in Zagreb in December.', LLM_MS + 200],
+    ]);
+  });
+
+  it('never announces an early search that was abandoned or already finished (Wave 8)', async () => {
+    const abandoned = setup();
+    let t0 = await abandoned.h.greet();
+    const stale = new AbortController();
+    abandoned.filler.activity(started(stale.signal));
+    stale.abort();
+    abandoned.h.caller('what about Rome', NEUTRAL);
+    await abandoned.clock.advanceAsync(10_000);
+    expect(timeline(abandoned.h.audio, t0)).toEqual([
+      [NEUTRAL.text, NEUTRAL.afterMs],
+      ['Answer: what about Rome.', LLM_MS + 200],
+    ]);
+
+    const finished = setup();
+    t0 = await finished.h.greet();
+    const done = started();
+    finished.filler.activity(done);
+    finished.filler.activity({ ...done, phase: 'finished', outcome: 'succeeded', durationMs: 900 });
+    finished.h.caller('what about Rome', NEUTRAL);
+    await finished.clock.advanceAsync(10_000);
+    expect(timeline(finished.h.audio, t0)).toEqual([
+      [NEUTRAL.text, NEUTRAL.afterMs],
+      ['Answer: what about Rome.', LLM_MS + 200],
+    ]);
+  });
+
   it('says nothing once the reply has started', async () => {
     const { clock, h, filler } = setup(800);
     const t0 = await h.greet();

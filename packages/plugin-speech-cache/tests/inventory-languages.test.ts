@@ -21,3 +21,13 @@ describe('the language line in the clip inventory (N4)', () => {
     expect(lines({}).some((text) => text.startsWith('Sorry, I can only understand'))).toBe(false);
   });
 });
+
+describe('the ask-again lines in the clip inventory (call-3 #3)', () => {
+  it("pre-renders the language's defaults, or the agent's own lines", () => {
+    expect(lines({ language: 'hi-IN' })).toContain('माफ़ कीजिए, क्या आप फिर से बता सकते हैं?');
+    expect(lines({ unclear: { lines: ['Pardon?'] } })).toContain('Pardon?');
+    expect(lines({ unclear: { lines: ['Pardon?'] } })).not.toContain(
+      'Sorry, could you say that again?',
+    );
+  });
+});

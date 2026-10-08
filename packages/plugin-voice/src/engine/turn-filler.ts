@@ -39,6 +39,8 @@ interface Armed {
  */
 export class TurnFiller {
   private armed?: Armed;
+  /** Wave 8: a search the LLM started on the partial transcript, before its turn armed. */
+  private early?: InferenceActivity;
 
   constructor(
     private readonly clock: Pick<Clock, 'setTimeout' | 'now'>,
@@ -63,6 +65,13 @@ export class TurnFiller {
       playing: 0,
     };
     this.armed = armed;
+    const early = this.early;
+    this.early = undefined;
+    // After this tick's `finalize`, which aborts a call asked on other words.
+    if (early)
+      queueMicrotask(() => {
+        if (this.armed === armed && !early.signal.aborted) this.activity(early);
+      });
     const filler = turn.filler;
     if (filler && !turn.fillerPlayed)
       armed.timers.push(
@@ -83,8 +92,13 @@ export class TurnFiller {
   /** A provider tool's progress (N3): a search started for the reply being composed. */
   activity(activity: InferenceActivity): void {
     const armed = this.armed;
+    if (activity.phase === 'finished' && this.early?.id === activity.id) this.early = undefined;
     if (activity.phase !== 'started' || !activity.announce || activity.signal.aborted) return;
-    if (!armed || armed.searchAnnounced || !this.speakable(armed)) return;
+    if (!armed) {
+      this.early = activity;
+      return;
+    }
+    if (armed.searchAnnounced || !this.speakable(armed)) return;
     armed.searchAnnounced = true;
     const { line, stillLine, stillAfterMs } = activity.announce;
     const { turn } = armed;

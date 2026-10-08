@@ -1,5 +1,6 @@
 import {
   defaultMuteRules,
+  transcriptDoubt,
   type Clock,
   type EndpointRule,
   type Mode,
@@ -77,6 +78,9 @@ export abstract class TurnControllerState {
   /** The open turn is a short reply over the agent's question, waiting for it to stop (AGT-9). */
   protected answersQuestion = false;
   protected disposed = false;
+  /** Wave 8: when the open turn started, and when the VAD last heard its voice end. */
+  protected startedAtMs = 0;
+  protected voiceEndMs?: number;
   protected readonly announcer: TurnAnnouncer;
 
   constructor(
@@ -165,6 +169,8 @@ export abstract class TurnControllerState {
   protected start(): void {
     if (this.turnId) return;
     this.idle.reset();
+    this.startedAtMs = this.input.clock.now();
+    this.voiceEndMs = undefined;
     this.turnId = `turn-${++this.sequence}`;
     this.emit({ type: 'turn.started', turnId: this.turnId });
   }
@@ -204,6 +210,13 @@ export abstract class TurnControllerState {
     const id = this.turnId;
     const segments = Math.max(1, this.aggregate.segments);
     const reason = this.endRule ?? this.defaultRule();
+    // Wave 8: words the STT doubted, or seconds of noise that gave a word or two, are not acted on.
+    const untrusted = transcriptDoubt({
+      text,
+      language: this.input.language,
+      confidence: this.aggregate.confidence,
+      spokenMs: (this.voiceEndMs ?? this.input.clock.now()) - this.startedAtMs,
+    });
     this.clear();
     this.answering = false;
     // The caller has had a turn: whatever the agent says from here is no longer the opening.
@@ -215,6 +228,7 @@ export abstract class TurnControllerState {
       input: { kind: 'speech', text, segments },
       ...(filler ? { filler } : {}),
       reason,
+      ...(untrusted ? { untrusted } : {}),
     });
   }
 

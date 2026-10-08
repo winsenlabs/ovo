@@ -94,6 +94,11 @@ describe('static speech inventory (TTS-5)', () => {
       { text: 'The lookup failed.', source: 'processing' },
       { text: 'Could you repeat that?', source: 'clarification' },
       { text: 'I do not have that information.', source: 'uncertainty' },
+      { text: 'Sorry, could you say that again?', source: 'uncertainty' },
+      {
+        text: "Sorry, I still didn't catch that. Could you put it another way?",
+        source: 'uncertainty',
+      },
       { text: 'We are open nine to six.', source: 'faq' },
       { text: 'Thank you, I will note that.', source: 'decision' },
       { text: 'I understand.', source: 'decision' },
@@ -267,6 +272,8 @@ describe('inventory normalization (TTS-6)', () => {
       'Pay one thousand five hundred rupees today.',
       'Please wait while I check that.',
       'I could not complete that check.',
+      'Sorry, could you say that again?',
+      "Sorry, I still didn't catch that. Could you put it another way?",
     ]);
     expect(normalized.sha256).toMatch(/^[0-9a-f]{64}$/);
     const reordered = normalizeSpeechInventory(

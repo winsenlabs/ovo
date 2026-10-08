@@ -40,6 +40,12 @@ function turn(reply: string, config: Record<string, unknown>) {
 }
 
 describe('call-3 #7: the cap as an agent configures it, through the inference step', () => {
+  it('caps a long answer by default', async () => {
+    expect((await turn(LONG, {})).join(' ')).toBe(
+      'Zagreb is the capital of Croatia. It has a lovely upper town with old streets. Want more detail?',
+    );
+  });
+
   it('is off for an agent with maxSentences 0', async () => {
     expect((await turn(LONG, { reply: { maxSentences: 0 } })).join(' ')).toBe(LONG);
   });
