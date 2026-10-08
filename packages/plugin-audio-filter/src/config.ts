@@ -23,6 +23,13 @@ export const AudioFilterConfigSchema = z
       .nullable()
       .default(() => ({ mainsHz: 50 as const, harmonics: 4, q: 30 })),
     /**
+     * Wave 8: 'detect' (the default) runs the high-pass and the hum notches only once the line
+     * shows the fault each fixes (`LineFaults`); until then the audio passes untouched. On a
+     * clean line, or in a cafe's babble, they cost a few words and fix nothing. 'always' runs
+     * them from the first frame. The gate is not affected.
+     */
+    engage: z.enum(['detect', 'always']).default('detect'),
+    /**
      * A downward expander for steady background noise between words: sound within `thresholdDb`
      * of the noise floor is turned down by `rangeDb`, held open `holdMs` after speech. Off by
      * default: STT models are trained on noisy phone audio, so turn it on per agent for noisy
@@ -47,6 +54,7 @@ export const PHONE_AUDIO_FILTER_CONFIG: Readonly<AudioFilterConfig> = Object.fre
   AudioFilterConfigSchema.parse({
     highPassHz: 100,
     hum: { mainsHz: 50, harmonics: 4 },
+    engage: 'detect',
     gate: null,
   }),
 );

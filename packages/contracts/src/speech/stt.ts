@@ -2,6 +2,8 @@ import type { AudioFormat } from '../audio.ts';
 import type { UsageSink } from '../usage.ts';
 import type { SpeechCapabilities } from './capabilities.ts';
 
+export * from './transcript-trust.ts';
+
 /**
  * Interim revisions of one segmentId REPLACE each other; 'final' locks the segment.
  * The turn aggregator appends finals in order, idempotent on segmentId. Never dedupe by text.
@@ -13,6 +15,10 @@ export interface TranscriptSegment {
   text: string;
   stability: 'interim' | 'final';
   formatted?: boolean;
+  /**
+   * The provider's confidence in the segment's words, 0 to 1 (Scribe: the geometric mean of the
+   * commit's word probabilities), on finals when the provider gives one. See `transcriptDoubt`.
+   */
   confidence?: number;
   language?: string;
   startMs?: number;

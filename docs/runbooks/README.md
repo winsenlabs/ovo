@@ -14,6 +14,7 @@ These are operator procedures, not evidence that a live AWS/carrier environment 
 | Deploy, redeploy, roll back, live on/off           | [Deploy ovo-dev](deploy-ovo-dev.md)                         |
 | Worker crash or stale lease                        | [Worker loss reconciliation](worker-loss-reconciliation.md) |
 | Carrier, speech, inference or tool provider outage | [Provider outage](provider-outage.md)                       |
+| Callers in cafes, streets or other noisy places    | [Noisy callers](noisy-callers.md)                           |
 | Control/orchestration database restore             | [Backup restore](backup-restore.md)                         |
 | Nightly offsite backups and the monthly drill      | [Offsite backups](offsite-backups.md)                       |
 | Provider credential exposure or rotation           | [Credential incident](credential-incident.md)               |

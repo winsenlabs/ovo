@@ -1,77 +1,98 @@
 # Audio filter presets for phone calls
 
 The telephony audio filter (`@winsendotai/ovo-audio-filter-telephony`) cleans the caller's audio
-before the VAD and the STT hear it: a 100 Hz high-pass for handling rumble, notches on 50 Hz mains
-hum and its harmonics, and an optional noise gate. It is **off by default**: an agent gets it only
-when its `voice.audioFilter` selects it. The VAD's own 200 Hz high-pass and its tone and vibration
-rejection run on every call either way.
+before the VAD and the STT hear it. It has three parts: a 100 Hz high-pass for handling rumble,
+notches on 50 Hz mains hum and its harmonics, and an optional noise gate.
 
-## Turning it on for one agent
+Since Wave 8 it is **on by default**. The distribution preselects it for every agent that selects
+no filter (`DISTRIBUTION_DEFAULTS.audioFilter`). With its default `engage: 'detect'`, the
+high-pass and the notches stay out until the line shows the fault each one fixes:
 
-Add one line to the agent's `voice` block. The plugin's defaults are the recommended phone row
-(`telephony.json`), so no `config` is needed:
+- **Hum:** the mains harmonics stand 10 dB above the bins between them for a whole second.
+- **Rumble:** a quarter of a quarter-second's power sits below 80 Hz.
 
-```json
-{ "voice": { "audioFilter": { "plugin": "@winsendotai/ovo-audio-filter-telephony" } } }
-```
+Until then the audio passes through sample for sample. A stage that engages stays on for the
+rest of the call and fades in over 20 ms, so the switch makes no click.
 
-To pin the row explicitly, or to use another preset, paste the preset file as the value:
+The VAD's own 200 Hz high-pass and its tone and vibration rejection run on every call either way.
 
-| Preset                 | When                                                                 | Row                                                |
-| ---------------------- | -------------------------------------------------------------------- | -------------------------------------------------- |
-| `telephony.json`       | Recommended for 8 kHz calls from India: rumble and hum, nothing else | high-pass 100 Hz, 50 Hz hum ×4 harmonics, no gate  |
-| `telephony-noisy.json` | Callers in steady noise (fans, traffic), after comparing transcripts | the same, plus a downward expander (10 dB / 12 dB) |
+## Choosing a row for one agent
 
-For mains at 60 Hz (the Americas) set `hum.mainsHz` to 60. Publishing the release is enough; the
-filter adds under 1 ms of delay and no buffering, so turn-taking latency does not change.
+An agent's own `voice.audioFilter` replaces the default. Paste a preset file as the value:
+
+| Preset                 | When                                                                 | Row                                                                 |
+| ---------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `telephony.json`       | The default: 8 kHz calls from India                                  | high-pass 100 Hz, 50 Hz hum ×4 harmonics, `engage: detect`, no gate |
+| `telephony-noisy.json` | Callers in steady noise (fans, traffic), after comparing transcripts | the same, plus a downward expander (10 dB / 12 dB)                  |
+
+- **Mains at 60 Hz** (the Americas): set `hum.mainsHz` to 60.
+- **Every stage from the first frame** (the Wave 7 behaviour): set `engage: 'always'`. It costs
+  words in a cafe, as the table below shows.
+- **Delay:** the filter adds under 1 ms and buffers nothing, so turn-taking latency does not
+  change.
 
 ## What it does to transcripts
 
 `packages/plugin-audio-filter/tests/transcript-quality.test.ts` compares transcripts with the
-filter off and with each preset. The speech is real 8 kHz mu-law: eight agent lines from the live
-CreditMantri release's pre-rendered clips. No caller audio exists to use (live calls were not
-recorded), so the line noise is added on top, seeded and repeatable
-(`tests/fixtures/phone-noise.ts`). The transcripts come from an offline Indian-English ASR (Vosk,
-`vosk-model-small-en-in-0.4`), not from Scribe: no provider key is used in tests. The word error
-rate is against the same ASR's transcript of the clean clip, so it measures only what the noise
-and the filter change. Each condition has 121 reference words, so one word is about 0.8 points.
+filter off, with each preset, and with the phone preset always on.
 
-Measured 2026-10-07:
+- **Speech:** real 8 kHz mu-law. There are eight agent lines from the live CreditMantri release's
+  pre-rendered clips. No caller audio exists to use, because live calls were not recorded.
+- **Noise:** added on top, seeded and repeatable (`tests/fixtures/phone-noise.ts`). Wave 8 added
+  three conditions from call 6e1a4e3a, made from a noisy cafe:
+  - **cafe:** six voices a little way off, cups and cutlery, and espresso steam;
+  - **babble:** eight voices, none intelligible;
+  - **street:** passing traffic, an engine drone and a horn.
+- **Takes:** each noisy condition is mixed three times with different noise, so a noisy
+  condition has 363 reference words and the clean line has 121.
+- **ASR:** an offline Indian-English model (Vosk, `vosk-model-small-en-in-0.4`), not Scribe, so
+  no provider key is used in tests.
+- **Word error rate:** measured against the same ASR's transcript of the clean clip, so it
+  measures only what the noise and the filter change.
 
-| Condition (speech-to-noise)         | Off   | `telephony` | `telephony-noisy` |
-| ----------------------------------- | ----- | ----------- | ----------------- |
-| Clean line                          | 0.0%  | 0.0%        | 0.0%              |
-| Handling rumble and thumps (-5 dB)  | 31.4% | 32.2%       | 32.2%             |
-| 50 Hz mains hum (0 dB)              | 9.1%  | 0.8%        | 0.8%              |
-| Phone vibrating, 175 Hz (5 dB)      | 6.6%  | 8.3%        | 8.3%              |
-| Steady fan or traffic noise (10 dB) | 9.1%  | 7.4%        | 7.4%              |
-| Three background talkers (10 dB)    | 28.9% | 29.8%       | 28.9%             |
-| 1 kHz beeps (5 dB)                  | 0.8%  | 0.0%        | 0.0%              |
+Measured 2026-10-08:
+
+| Condition (speech-to-noise)         | Off   | `telephony` (detect) | `telephony-noisy` | Always on (Wave 7) |
+| ----------------------------------- | ----- | -------------------- | ----------------- | ------------------ |
+| Clean line                          | 0.0%  | 0.0%                 | 0.0%              | 0.0%               |
+| Handling rumble and thumps (-5 dB)  | 28.1% | 27.8%                | 27.8%             | 28.9%              |
+| 50 Hz mains hum (0 dB)              | 9.1%  | 1.7%                 | 1.7%              | 0.8%               |
+| Phone vibrating, 175 Hz (5 dB)      | 6.6%  | 6.6%                 | 6.6%              | 9.1%               |
+| Steady fan or traffic noise (10 dB) | 9.6%  | 9.6%                 | 9.6%              | 8.8%               |
+| Three background talkers (10 dB)    | 25.9% | 25.9%                | 25.9%             | 25.9%              |
+| 1 kHz beeps (5 dB)                  | 0.0%  | 0.0%                 | 0.0%              | 0.0%               |
+| Cafe (5 dB)                         | 39.4% | 39.4%                | 39.4%             | 43.5%              |
+| Babble, eight voices (5 dB)         | 30.6% | 30.6%                | 30.6%             | 35.8%              |
+| Street (0 dB)                       | 18.7% | 19.3%                | 19.3%             | 20.1%              |
 
 What this says:
 
-- **Hum** is where the filter pays: 11 of 121 words lost without it, 1 with it.
-- **Clean lines are untouched**: every transcript is identical with the filter on.
-- **Rumble** loud enough to load the mu-law codec is already lost when it reaches us: the
-  filter removes the rumble but cannot restore the speech the codec quantised under it. Real
-  networks (AMR's own 80 Hz high-pass) usually take most of it out before the carrier does.
-- **Vibration, talkers and beeps** are the VAD's and the turn detector's job (Wave 6): the filter
-  neither helps nor hurts beyond one or two words, which is within the ASR's own variation.
-- The gate changes nothing measurable for this ASR. Keep it for agents whose callers are in steady
-  noise and check their transcripts first.
+- **The filter pays on hum.** It catches most hum within a second: 33 of 363 words are lost
+  without it and 6 with it.
+- **Always on costs words in a cafe and in babble:** 15 and 19 more of 363. Speech-band noise is
+  not something a linear filter can take out, and reshaping the voice under it costs the ASR words.
+  `detect` leaves both lines untouched.
+- **Clean lines are untouched.** The test checks this sample for sample on the clean, cafe and
+  babble lines.
+- **Street traffic engages the high-pass.** That costs 2 words of 363, within the ASR's own
+  variation.
+- **Rumble** loud enough to load the mu-law codec is already lost when it reaches us.
+- **Vibration, talkers and beeps** are the VAD's and the turn detector's job.
 
-The test fails if any condition gets more than 2.5 points worse with a preset, if a clean line
-changes, if hum stops improving, or if the filter, a preset, the noise or a clip changes without
-the transcripts being measured again.
+The default rule is enforced by the test. The distribution preselects the filter only while it is
+no worse on clean speech and better on noisy speech overall (160.9 against 168.0 percentage
+points summed over the nine noisy conditions), with no condition more than 2.5 points worse. The
+test fails if:
 
-## Turning it on by default
+- a condition gets more than 2.5 points worse with a preset;
+- a clean line changes;
+- hum stops improving;
+- the default no longer earns its place;
+- the filter, a preset, the noise or a clip changes without the transcripts being measured again.
 
-Not yet. The Wave 6 decision stands: one live call with `voice.audioFilter` set must show Scribe's
-transcripts are no worse (the Wave 6 post-merge checklist, item 12). This measurement supports
-doing so: no condition gets worse beyond the ASR's noise, and hum, which cheap chargers and
-handsets put on Indian lines, improves sharply. Making it the default is the Wave 6 noise lane's
-cross-lane diff (`DISTRIBUTION_DEFAULTS.audioFilter`, preselected with the energy VAD for a
-manual-commit STT; an agent's own selection still wins), applied once that call passes.
+Recognition in a cafe needs more than this filter: STT word confidence and doubtful-turn handling
+([noisy callers](../../runbooks/noisy-callers.md)), and Scribe's own `filterBackgroundAudio` to
+try on a live call.
 
 ## Measuring again
 
@@ -86,7 +107,8 @@ OVO_ASR_COMMAND="$HOME/vosk/venv/bin/python3 vosk_asr.py $HOME/vosk/vosk-model-s
   pnpm exec tsx packages/plugin-audio-filter/tests/fixtures/transcript-quality/measure.ts
 ```
 
-It rewrites `transcripts.json` (168 transcripts, about 100 s on the Mac mini). Any offline ASR that
+It rewrites `transcripts.json` (896 cases; identical audio is transcribed once, about 5 minutes on
+the Mac mini). Any offline ASR that
 prints `<file name><TAB><transcript>` per mu-law file can stand in for `vosk_asr.py`. Once real
 calls are recorded, add caller audio to `tests/fixtures/phone-speech/` (8 kHz mu-law, inbound
 track of a recording export, with the caller's consent) and measure again.

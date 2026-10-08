@@ -3,6 +3,7 @@
   "config": {
     "highPassHz": 100,
     "hum": { "mainsHz": 50, "harmonics": 4, "q": 30 },
+    "engage": "detect",
     "gate": { "thresholdDb": 10, "rangeDb": 12, "holdMs": 200, "releaseMs": 150 }
   }
 }

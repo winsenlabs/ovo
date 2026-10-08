@@ -24,6 +24,8 @@ export class ScribeSegments {
   constructor(
     private readonly onEvent: (event: SttEvent) => void,
     private readonly now: () => number = () => 0,
+    /** Rewrites each transcript as emitted: the agent's misheard name restored (`agent-name.ts`). */
+    private readonly rewrite: (text: string) => string = (text) => text,
   ) {}
 
   onPartial(raw: string): void {
@@ -35,10 +37,11 @@ export class ScribeSegments {
     this.transcript(text, 'interim');
   }
 
-  onCommitted(raw: string): void {
+  /** `confidence`: the words' confidence, 0 to 1, when the provider gave it (Wave 8). */
+  onCommitted(raw: string, confidence?: number): void {
     const text = this.uncarried(raw);
     this.carried = '';
-    this.lock(text);
+    this.lock(text, confidence);
   }
 
   /**
@@ -55,8 +58,8 @@ export class ScribeSegments {
     this.lock(this.partial);
   }
 
-  private lock(text: string): void {
-    if (text.trim()) this.transcript(text, 'final');
+  private lock(text: string, confidence?: number): void {
+    if (text.trim()) this.transcript(text, 'final', confidence);
     this.onEvent({ type: 'end-of-turn' });
     this.segment++;
     this.partial = '';
@@ -84,10 +87,16 @@ export class ScribeSegments {
     return text.slice(this.carried.length).trimStart();
   }
 
-  private transcript(text: string, stability: 'interim' | 'final'): void {
+  private transcript(text: string, stability: 'interim' | 'final', confidence?: number): void {
     this.onEvent({
       type: 'transcript',
-      segment: { segmentId: String(this.segment), revision: ++this.revision, text, stability },
+      segment: {
+        segmentId: String(this.segment),
+        revision: ++this.revision,
+        text: this.rewrite(text),
+        stability,
+        ...(confidence === undefined ? {} : { confidence }),
+      },
     });
   }
 }

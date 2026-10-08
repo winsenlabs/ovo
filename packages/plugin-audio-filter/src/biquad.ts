@@ -28,6 +28,19 @@ export class Biquad {
     );
   }
 
+  /** A low-pass at `hz` with quality `q`. */
+  static lowPass(rate: number, hz: number, q: number): Biquad {
+    const { cos, alpha } = Biquad.prewarp(rate, hz, q);
+    const a0 = 1 + alpha;
+    return new Biquad(
+      (1 - cos) / 2 / a0,
+      (1 - cos) / a0,
+      (1 - cos) / 2 / a0,
+      (-2 * cos) / a0,
+      (1 - alpha) / a0,
+    );
+  }
+
   /** A notch at `hz`, `hz / q` wide: removes one mains-hum harmonic and nothing around it. */
   static notch(rate: number, hz: number, q: number): Biquad {
     const { cos, alpha } = Biquad.prewarp(rate, hz, q);
@@ -42,13 +55,15 @@ export class Biquad {
 
   /** Filters `samples` in place. */
   run(samples: Float64Array): void {
-    for (let i = 0; i < samples.length; i++) {
-      const x = samples[i]!;
-      const y = this.b0 * x + this.z1;
-      this.z1 = this.b1 * x - this.a1 * y + this.z2;
-      this.z2 = this.b2 * x - this.a2 * y;
-      samples[i] = y;
-    }
+    for (let i = 0; i < samples.length; i++) samples[i] = this.step(samples[i]!);
+  }
+
+  /** Filters one sample. */
+  step(x: number): number {
+    const y = this.b0 * x + this.z1;
+    this.z1 = this.b1 * x - this.a1 * y + this.z2;
+    this.z2 = this.b2 * x - this.a2 * y;
+    return y;
   }
 
   reset(): void {

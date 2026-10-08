@@ -40,7 +40,20 @@ describe('Scribe handshake URL', () => {
       model_id: 'scribe_v2_realtime',
       audio_format: 'ulaw_8000',
       commit_strategy: 'manual',
+      // Wave 8: word confidence on every final.
+      include_timestamps: 'true',
     });
+  });
+
+  it('turns word confidence off and the background-speech filter on when asked', () => {
+    const url = new URL(
+      scribeUrl({ confidence: false, filterBackgroundAudio: true }, MULAW_8K, 'en-IN'),
+    );
+    expect(url.searchParams.has('include_timestamps')).toBe(false);
+    expect(url.searchParams.get('filter_background_audio')).toBe('true');
+    expect(new URL(scribeUrl({}, MULAW_8K, 'en')).searchParams.has('filter_background_audio')).toBe(
+      false,
+    );
   });
 
   it('pins the session language, region, keyterms and provider VAD settings when asked', () => {

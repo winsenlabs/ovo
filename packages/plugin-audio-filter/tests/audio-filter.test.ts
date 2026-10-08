@@ -98,6 +98,39 @@ describe('telephony audio filter', () => {
     expect(db(out, 3600, 3680) - db(filtered(pcm), 3600, 3680)).toBeGreaterThan(-0.5);
   });
 
+  it("passes a clean line through untouched: 'detect' finds no fault in speech", () => {
+    const speech = speechLikePcm16({ seed: 9, ms: 3000, rate: RATE });
+    expect(filtered(speech)).toEqual(speech);
+    // The Wave 7 behaviour, every stage from the first frame, does change it.
+    expect(filtered(speech, { engage: 'always' })).not.toEqual(speech);
+  });
+
+  it('engages the hum notches within about a second of a humming line', () => {
+    const speech = speechLikePcm16({ seed: 10, ms: 4000, rate: RATE });
+    const hum = tone(150, 4000, 2000);
+    const line = Int16Array.from(speech, (sample, i) => sample + hum[i]!);
+    const out = filtered(line);
+    // The first second passes as it came: the detector is still listening.
+    expect(Array.from(out.subarray(0, 7800))).toEqual(Array.from(line.subarray(0, 7800)));
+    // From 1.1 s the 150 Hz harmonic is gone: what is left is the speech, filtered as an
+    // always-on row filters it (the stages are linear, so the difference is the hum's residue).
+    const speechOnly = filtered(speech, { engage: 'always' });
+    const left = Int16Array.from(out.subarray(9000), (sample, i) => sample - speechOnly[9000 + i]!);
+    expect(db(left) - db(hum.subarray(9000))).toBeLessThan(-25);
+  });
+
+  it('engages the high-pass on rumble, and fades it in without a click', () => {
+    const rumble = Int16Array.from(tone(40, 2000, 6000), (sample, i) =>
+      Math.round(sample * (i < 4000 ? 0.05 : 1)),
+    );
+    const out = filtered(rumble);
+    expect(db(out, 12000) - db(rumble, 12000)).toBeLessThan(-30);
+    let jump = 0;
+    for (let i = 1; i < out.length; i++) jump = Math.max(jump, Math.abs(out[i]! - out[i - 1]!));
+    // A 40 Hz tone at full scale moves at most ~190 per sample at 8 kHz.
+    expect(jump).toBeLessThan(250);
+  });
+
   it('is the session audio filter capability, with the phone row as its defaults', async () => {
     expect(AudioFilterConfigSchema.parse({})).toEqual(PHONE_AUDIO_FILTER_CONFIG);
     const graph = await compose([{ id: AUDIO_FILTER_PLUGIN_ID }], [telephonyAudioFilterPlugin]);
