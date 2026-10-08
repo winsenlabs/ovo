@@ -8,17 +8,24 @@ import { z } from 'zod';
 export const CommitConfigSchema = z
   .object({
     /**
-     * Silence after the VAD's stop before the endpoint is forced. The energy VAD already waits
-     * its stopMs (200 ms by default) before it reports a stop, so the default commits about
-     * 250 ms after the caller goes quiet, as the POC did.
+     * Silence after the VAD's stop before the endpoint is forced, for words whose end gives no
+     * signal either way. The energy VAD already waits its stopMs (200 ms by default) before it
+     * reports a stop, so the default commits about 250 ms after the caller goes quiet, as the POC
+     * did. Wave 8: complete words use `completeSilenceMs` instead, so an agent no longer needs a
+     * higher value here to keep sentences whole; 50 (the default) is the recommended value.
      */
     silenceMs: z.number().int().min(0).max(5000).default(50),
     /**
-     * The silence used instead (never shorter than `silenceMs`) once the utterance has run
-     * `longUtteranceMs` of VAD speech, or its interim breaks off mid-word ("tell me for-"):
-     * sentences are where callers pause to think. The default commits ~450 ms after a long
-     * sentence goes quiet; short answers ("haan", "kal") keep `silenceMs`, so Jev and rules
-     * turns lose no time.
+     * Wave 8: the silence for words that read complete (a closing full stop or question mark, a
+     * short answer such as "haan" or "Hello", or three words or fewer after the agent asked
+     * something), used even when `silenceMs` is set higher: the end of the turn is not in doubt.
+     */
+    completeSilenceMs: z.number().int().min(0).max(5000).default(50),
+    /**
+     * The silence used instead (never shorter than `silenceMs`) when the words trail off ("and",
+     * "to the", a comma, "for-", "around the 1"), or once an utterance whose end gives no signal
+     * has run `longUtteranceMs` of VAD speech: that is where callers pause to think. The default
+     * commits ~450 ms after such a sentence goes quiet. Complete words never wait it, however long.
      */
     longSilenceMs: z.number().int().min(0).max(5000).default(250),
     longUtteranceMs: z.number().int().min(0).max(60000).default(1200),
@@ -29,6 +36,15 @@ export const CommitConfigSchema = z
      * open by line noise cannot stall the turn. 0 disables it.
      */
     stallMs: z.number().int().min(0).max(30000).default(1500),
+    /**
+     * Wave 8: the stall for a short complete answer ("Yes.", "हाँ।", "Hello?") no VAD speech is
+     * timing: too short or soft to start the VAD, or said into a VAD the room already held open.
+     * It commits this soon after its interim instead of after `stallMs` (live one-word endpoints of
+     * 1.79–1.89 s were the 1.5 s stall plus the final). Longer words keep `stallMs`: Scribe's
+     * interims change about once a second, so a shorter stall would cut a caller still talking.
+     * 0 uses `stallMs`.
+     */
+    answerStallMs: z.number().int().min(0).max(30000).default(250),
   })
   .strict();
 export type CommitConfig = z.output<typeof CommitConfigSchema>;
@@ -91,11 +107,26 @@ export const DetectorConfigSchema = TurnConfigSchema.extend({
   strategy: z.enum(['auto', 'provider', 'vad-timeout', 'commit']).default('auto'),
   commit: CommitConfigSchema.default(() => CommitConfigSchema.parse({})),
   /**
-   * A turn whose text breaks off mid-word ("…tell me for-", "Do you know the…") waits this long
-   * for the caller to go on before it ends; speech or new words in the wait continue the same
-   * turn. Only such turns pay it. 0 disables it.
+   * A turn whose text trails off ("…tell me for-", "Do you know the…", "Paris, Rome,", "…and",
+   * "around the 1") waits this long for the caller to go on before it ends; speech or new words in
+   * the wait continue the same turn. Only such turns pay it. 0 disables it.
    */
   cutoffHoldMs: z.number().int().min(0).max(10000).default(700),
+  /**
+   * Wave 8: a VAD run that brings no new words from the STT for this long (from its start or the
+   * last words, whichever is later) is the room, not the caller (café babble the VAD cannot tell
+   * from speech): it no longer holds a turn with words open. On the live calls the first words
+   * came up to 1.76 s after a turn started and Scribe's interims changed at most 2 s apart, so the
+   * default leaves a margin. 0 disables it.
+   */
+  noiseMs: z.number().int().min(0).max(30000).default(2500),
+  /**
+   * Wave 8: a short reply said over the agent answers its question (AGT-9) only when the agent
+   * stops within this long of it. Said earlier, it came before the question was heard and only
+   * acknowledged what the agent was saying then, as it would over a line with no question. A
+   * question is one sentence; 6 s allows one of ~18 words. 0 always waits for the agent.
+   */
+  questionReplyMs: z.number().int().min(0).max(60000).default(6000),
   speechEvidence: SpeechEvidenceConfigSchema.default(() => SpeechEvidenceConfigSchema.parse({})),
   opening: OpeningConfigSchema.default(() => OpeningConfigSchema.parse({})),
   /**
@@ -122,7 +153,17 @@ export const PHONE_TURN_CONFIG: Readonly<DetectorConfig> = Object.freeze(
     userSpeechTimeoutMs: 600,
     minWordsWhileBotSpeaking: 2,
     backchannelsEnabled: true,
-    commit: { silenceMs: 50, longSilenceMs: 250, longUtteranceMs: 1200, minSpeechMs: 180 },
+    commit: {
+      silenceMs: 50,
+      completeSilenceMs: 50,
+      longSilenceMs: 250,
+      longUtteranceMs: 1200,
+      minSpeechMs: 180,
+      stallMs: 1500,
+      answerStallMs: 250,
+    },
+    noiseMs: 2500,
+    questionReplyMs: 6000,
     cutoffHoldMs: 700,
     speechEvidence: { bargeIn: true, turns: false, minSpeechMs: 0, windowMs: 1500 },
     opening: { protectMs: 1800, confirmWords: true },

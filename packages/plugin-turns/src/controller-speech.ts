@@ -14,7 +14,7 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
     }
     if (
       !this.turnId ||
-      (this.committed ? this.providerSpeaking : this.speaking()) ||
+      this.holdsOpen() ||
       this.vadStopPending ||
       this.awaitingConfirmationFinal ||
       confirmationPrompt(this.view(), this.rules)
@@ -30,7 +30,7 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
       if (acknowledges(text, this.input.language, this.config, this.bot.filler)) {
         // AGT-9: a short reply over a question answers it once the agent stops; otherwise it only
         // acknowledges the agent and is no turn at all.
-        if (this.bot.question) this.deferredStop = true;
+        if (this.bot.question) this.deferredStop = this.answersQuestion = true;
         else this.reset('backchannel');
         return;
       }
@@ -47,7 +47,13 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
         return;
       }
     }
-    if (this.cutoff.holds(text, () => this.tryStop())) return;
+    // Words that trail off wait for the caller to go on ("…around the 1" + "st.").
+    const unfinished = this.read(text).ends === 'unfinished';
+    const expired = () => {
+      this.endRule = 'hold';
+      this.tryStop();
+    };
+    if (this.cutoff.holds(unfinished, expired)) return;
     this.stop();
   }
 
@@ -90,13 +96,14 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
 
   protected safety(): void {
     this.cancelSafety?.();
-    if (this.turnId && !this.speaking() && this.config.stopTimeoutMs > 0)
+    if (this.turnId && !this.holdsOpen() && this.config.stopTimeoutMs > 0)
       this.cancelSafety = this.input.clock.setTimeout(() => {
-        if (!this.turnId || this.speaking()) return;
+        if (!this.turnId || this.holdsOpen()) return;
         if (this.awaitingConfirmationFinal || (!this.aggregate.text && !this.aggregate.view)) {
           this.reset(this.awaitingConfirmationFinal ? 'muted' : 'backchannel');
           return;
         }
+        this.endRule = 'safety';
         this.tryStop();
       }, this.config.stopTimeoutMs);
   }
@@ -117,7 +124,14 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
     if (!prompt && !this.bot && !transcriptStartsTurn(segment.text, this.input.language)) return;
     if (!prompt && !this.bot && !this.turnId && !this.evidence.startsTurn()) return;
     this.start();
+    const before = this.aggregate.view;
     this.aggregate.observe(segment);
+    if (this.aggregate.view !== before) {
+      // New words: the VAD run is the caller's (NoiseWatch).
+      this.lastWordsAt = this.input.clock.now();
+      this.firstWordsAt ??= this.lastWordsAt;
+      this.noise.words();
+    }
     this.opening.words(this.aggregate.view);
     // New words: a turn held as broken off goes on, and waits again if it breaks off again.
     this.cutoff.resume();
@@ -129,6 +143,7 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
       this.announcer.partial(this.turnId!, this.aggregate.view, this.aggregate.text);
     if (segment.stability === 'final') {
       this.finalSeen = true;
+      this.heardSinceFinal = false;
       if (this.awaitingConfirmationFinal) {
         this.awaitingConfirmationFinal = false;
         if (classifyConfirmation(this.aggregate.text) === 'unclear') {

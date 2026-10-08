@@ -5,7 +5,9 @@ import type { SpeechCapabilities } from '../speech/capabilities.ts';
 import type { SttEvent } from '../speech/stt.ts';
 import { countWords, normalizeForMatch } from '../text.ts';
 import type { SpeechKindV2 } from './evidence.ts';
+import type { EndpointRule } from './turn-endpoint.ts';
 
+export * from './turn-endpoint.ts';
 export * from './turn-speculation.ts';
 
 export type VoiceEvent =
@@ -49,6 +51,8 @@ export type TurnDecision =
       input: { kind: 'speech'; text: string; segments: number } | { kind: 'dtmf'; digits: string };
       /** LAT-6: the cached line to play if the reply has no audio `afterMs` into its turn. */
       filler?: { text: string; afterMs: number };
+      /** Speech only (Wave 8): the endpoint rule that ended the turn, for latency attribution. */
+      reason?: EndpointRule;
     }
   | { type: 'turn.reset'; turnId: string; reason: 'backchannel' | 'muted' }
   | { type: 'force-endpoint' }

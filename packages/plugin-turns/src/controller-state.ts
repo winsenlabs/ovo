@@ -1,6 +1,8 @@
 import {
   defaultMuteRules,
+  normalizeForMatch,
   type Clock,
+  type EndpointRule,
   type Mode,
   type MuteRule,
   type SpeechCapabilities,
@@ -14,12 +16,14 @@ import { DetectorConfigSchema, type DetectorConfig } from './config.ts';
 import { DtmfCollector } from './dtmf.ts';
 import { IdleTimer } from './idle.ts';
 import type { MuteView } from './mute.ts';
+import { NoiseWatch } from './noise-watch.ts';
 import { OpeningGuard } from './opening-guard.ts';
 import { SpeechEvidence } from './speech-evidence.ts';
-import { CommitTimers } from './stop-commit.ts';
+import { CommitTimers, type WordsView } from './stop-commit.ts';
 import { SpeechStopTimers } from './stop-speech-timeout.ts';
 import { stopStrategy, type StopStrategy } from './strategies.ts';
 import { CutoffHold } from './transcript-text.ts';
+import { SHORT_ANSWER_WORDS, utteranceEnd, type UtteranceContext } from './utterance-end.ts';
 
 export interface ControllerInput {
   clock: Clock;
@@ -43,6 +47,7 @@ export abstract class TurnControllerState {
   protected readonly evidence: SpeechEvidence;
   protected readonly cutoff: CutoffHold;
   protected readonly opening: OpeningGuard;
+  protected readonly noise: NoiseWatch;
   protected cancelSafety?: () => void;
   protected turnId?: string;
   protected sequence = 0;
@@ -60,8 +65,19 @@ export abstract class TurnControllerState {
   /** 'commit' decided the utterance is over; a VAD held open by noise no longer blocks the stop. */
   protected committed = false;
   protected finalSeen = false;
+  /** VAD speech since the last final: its words may not have reached even an interim yet. */
+  protected heardSinceFinal = false;
   protected deferredStop = false;
   protected awaitingConfirmationFinal = false;
+  /** The rule that last moved the open turn towards its end (turn.stopped `reason`). */
+  protected endRule?: EndpointRule;
+  /** The agent's last speech asked the caller something, until the caller's next turn ends. */
+  protected answering = false;
+  /** When the open turn's first words arrived, and when its words last changed. */
+  protected firstWordsAt?: number;
+  protected lastWordsAt?: number;
+  /** The open turn is a short reply over the agent's question, waiting for it to stop (AGT-9). */
+  protected answersQuestion = false;
   protected disposed = false;
   protected readonly announcer: TurnAnnouncer;
 
@@ -89,16 +105,19 @@ export abstract class TurnControllerState {
       () => {
         this.vadStopPending = false;
         this.vadStopReady = true;
+        this.endRule = 'vad-timeout';
         this.tryStop();
       },
     );
     this.commitTimers = new CommitTimers(input.clock, this.config, {
-      due: () => this.commitDue(),
+      due: (rule) => this.commitDue(rule),
       ceiling: () => this.commitCeiling(),
+      read: (view) => this.read(view),
     });
     this.evidence = new SpeechEvidence(input.clock, this.config.speechEvidence, input.vad);
     this.cutoff = new CutoffHold(input.clock, this.config.cutoffHoldMs);
     this.opening = new OpeningGuard(input.clock, this.config.opening);
+    this.noise = new NoiseWatch(input.clock, this.config.noiseMs, () => this.onNoise());
   }
 
   on(fn: (decision: TurnDecision) => void): () => void {
@@ -116,8 +135,31 @@ export abstract class TurnControllerState {
       firstSpeechComplete: this.firstSpeechComplete,
     };
   }
+  /** The caller is still talking: VAD speech that is not the room (NoiseWatch), or the STT's. */
   protected speaking(): boolean {
-    return this.vadSpeaking || this.providerSpeaking;
+    return (this.vadSpeaking && !this.noise.noise) || this.providerSpeaking;
+  }
+  /** The final in hand covers everything the caller said: no newer words or speech. */
+  protected finalCovers(): boolean {
+    return this.finalSeen && !this.heardSinceFinal && this.aggregate.view === this.aggregate.text;
+  }
+  /** Speech still holds the open turn: once committed, a VAD held open by noise no longer does. */
+  protected holdsOpen(): boolean {
+    return this.committed ? this.providerSpeaking : this.speaking();
+  }
+
+  /** How the words so far end (utterance-end.ts), and whether they are a short answer. */
+  protected read(view: string): WordsView {
+    const context: UtteranceContext = {
+      language: this.input.language,
+      backchannels: this.config.backchannels,
+      answering: this.answering,
+    };
+    const ends = utteranceEnd(view, context);
+    const short =
+      ends === 'complete' &&
+      normalizeForMatch(view).split(' ').filter(Boolean).length <= SHORT_ANSWER_WORDS;
+    return { view, ends, answer: short && !this.noise.timing(this.firstWordsAt) };
   }
 
   protected start(): void {
@@ -135,9 +177,11 @@ export abstract class TurnControllerState {
   protected clear(): void {
     this.turnId = undefined;
     this.aggregate.clear();
-    this.finalSeen = false;
+    this.finalSeen = this.heardSinceFinal = false;
     this.deferredStop = false;
     this.awaitingConfirmationFinal = false;
+    this.endRule = this.firstWordsAt = this.lastWordsAt = undefined;
+    this.answersQuestion = false;
     this.providerEndPending = false;
     this.vadStopPending = false;
     this.vadStopReady = false;
@@ -159,7 +203,9 @@ export abstract class TurnControllerState {
     if (!text.trim()) return;
     const id = this.turnId;
     const segments = Math.max(1, this.aggregate.segments);
+    const reason = this.endRule ?? this.defaultRule();
     this.clear();
+    this.answering = false;
     // The caller has had a turn: whatever the agent says from here is no longer the opening.
     this.opening.end();
     const filler = this.announcer.nextFiller();
@@ -168,19 +214,27 @@ export abstract class TurnControllerState {
       turnId: id,
       input: { kind: 'speech', text, segments },
       ...(filler ? { filler } : {}),
+      reason,
     });
+  }
+
+  private defaultRule(): EndpointRule {
+    return this.strategy === 'commit' ? 'final' : this.strategy;
   }
 
   /** Ends the open turn once nothing holds it (controller-speech.ts). */
   protected abstract tryStop(): void;
   protected abstract onDigits(digits: string): void;
-  protected abstract commitDue(): void;
+  protected abstract commitDue(rule: EndpointRule): void;
+  /** The VAD's speech turned out to be the room (NoiseWatch). */
+  protected abstract onNoise(): void;
   protected abstract commitCeiling(): void;
   protected abstract commitFinal(): void;
 
   dispose(): void {
     this.disposed = true;
     this.clear();
+    this.noise.cancel();
     this.dtmf.dispose();
     this.idle.cancel();
     this.listeners.clear();
