@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Mode } from '../agent.ts';
 import type { Clock } from '../clock.ts';
 import type { SpeechCapabilities } from '../speech/capabilities.ts';
-import type { SttEvent } from '../speech/stt.ts';
+import type { SttEvent, TranscriptDoubt } from '../speech/stt.ts';
 import { countWords, normalizeForMatch } from '../text.ts';
 import type { SpeechKindV2 } from './evidence.ts';
 
@@ -49,6 +49,12 @@ export type TurnDecision =
       input: { kind: 'speech'; text: string; segments: number } | { kind: 'dtmf'; digits: string };
       /** LAT-6: the cached line to play if the reply has no audio `afterMs` into its turn. */
       filler?: { text: string; afterMs: number };
+      /**
+       * Wave 8: why the words are doubtful (`transcriptDoubt`), when they are. The engine passes
+       * it on as `UNTRUSTED_INPUT_VARIABLE`, so nothing is acted on that the caller may not have
+       * said.
+       */
+      untrusted?: TranscriptDoubt;
     }
   | { type: 'turn.reset'; turnId: string; reason: 'backchannel' | 'muted' }
   | { type: 'force-endpoint' }
