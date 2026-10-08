@@ -31,6 +31,14 @@ export const EnergyVadConfigSchema = VadParamsSchema.extend({
    * than before still starts. null disables it.
    */
   callerGateDb: z.number().min(6).max(60).nullable().default(12),
+  /**
+   * Noise-floor recovery (Wave 8): once nothing in an utterance has come within 9 dB of its
+   * loudest moment for this long, the caller has stopped and the room (café babble near the phone,
+   * within the caller gate) is holding it open. It ends, and that room starts nothing until the
+   * caller is heard at their level again. Call 6e1a4e3a: a café held one turn open 9.4 s. null
+   * disables it.
+   */
+  roomRecoveryMs: z.number().int().min(500).max(30000).nullable().default(1500),
 }).strict();
 export type EnergyVadConfig = z.output<typeof EnergyVadConfigSchema>;
 
@@ -44,6 +52,7 @@ export const PHONE_VAD_CONFIG: Readonly<EnergyVadConfig> = Object.freeze(
     speechFloorTauMs: 15000,
     rejectTones: true,
     callerGateDb: 12,
+    roomRecoveryMs: 1500,
   }),
 );
 
