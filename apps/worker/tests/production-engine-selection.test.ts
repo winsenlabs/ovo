@@ -12,6 +12,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { ProductionVoiceSessionFactory } from '../src/production-session-factory.ts';
 import { selectVoiceSessionEnginePlugin } from '../src/production-session-support.ts';
 
+/** What each session handed telemetry (Wave 9 D7: the media format times the carrier round trip). */
+const telemetryInputs: Record<string, unknown>[] = [];
+
 describe('production worker voice session engine selection', () => {
   it('runs one release-pinned replacement with the unchanged behavior and lifecycle', async () => {
     const events: string[] = [];
@@ -44,6 +47,7 @@ describe('production worker voice session engine selection', () => {
 
     expect(applied).toHaveBeenCalledOnce();
     expect(behaviorOutput).toBe('Welcome from the unchanged behavior');
+    expect(telemetryInputs.at(-1)).toMatchObject({ mediaFormat: MULAW_8K });
     expect(engineConfig).toMatchObject({
       language: release.config.language,
       inputEnabled: false,
@@ -229,18 +233,21 @@ async function createFactory(
     } as never,
     { forAgent: () => ({ resolve: vi.fn() }) } as never,
     {
-      createSession: async () => ({
-        audit: vi.fn(),
-        providerUsage: vi.fn(),
-        inferenceUsage: vi.fn(),
-        transcript: vi.fn(),
-        startStage: vi.fn(),
-        attachScheduler: vi.fn(),
-        withOperationStore: (store: unknown) => store,
-        close: async () => {
-          events.push('telemetry');
-        },
-      }),
+      createSession: async (input: Record<string, unknown>) => {
+        telemetryInputs.push(input);
+        return {
+          audit: vi.fn(),
+          providerUsage: vi.fn(),
+          inferenceUsage: vi.fn(),
+          transcript: vi.fn(),
+          startStage: vi.fn(),
+          attachScheduler: vi.fn(),
+          withOperationStore: (store: unknown) => store,
+          close: async () => {
+            events.push('telemetry');
+          },
+        };
+      },
     } as never,
     undefined,
     undefined,
