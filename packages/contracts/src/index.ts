@@ -13,6 +13,7 @@ export * from './selection.ts';
 export * from './blockers.ts';
 export * from './canonical-json.ts';
 export * from './text.ts';
+export * from './caller-continuation.ts';
 export * from './pricing.ts';
 export * from './inference-evidence.ts';
 export * from './events.ts';

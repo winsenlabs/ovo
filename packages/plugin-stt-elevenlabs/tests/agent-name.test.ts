@@ -14,6 +14,17 @@ describe("restoring the agent's misheard name", () => {
     expect(restore('Haan ji, Mia?')).toBe('Haan ji, Maya?');
   });
 
+  it('Wave 8b: restores it opening a sentence before a comma (call e8a43f65)', () => {
+    const maya = agentNameRestorer({ agentName: 'Maya', agentNameMishearings: ["Ma'am", 'Mam'] })!;
+    expect(maya("Ma'am, create a call.")).toBe('Maya, create a call.');
+    expect(maya('Ma’am, cut the call.')).toBe('Maya, cut the call.');
+    expect(maya('Okay. Mam, one more thing.')).toBe('Okay. Maya, one more thing.');
+    expect(maya("Thank you, ma'am.")).toBe('Thank you, Maya.');
+    // Not in address: mid-sentence, or with no comma after it.
+    for (const text of ["Ma'am said so.", "I told the ma'am, yes.", 'Mammals, mostly.'])
+      expect(maya(text)).toBe(text);
+  });
+
   it('leaves the word alone anywhere else', () => {
     for (const text of [
       'Danny will pay tomorrow.',

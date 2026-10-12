@@ -110,6 +110,15 @@ Russian. Three guards now stand between the LLM and the hang-up:
   then hangs up, the call reads `caller_hangup`. Re-prompting the model or playing an "Anything
   else?" line instead is open.
 
+- **Wave 8b: `end_call` needs a clear goodbye or ask** (Maya call e8a43f65 hung up on "Ma'am,
+  create a call."). Past the minimums it is still refused unless the caller says goodbye or asks to
+  end the call ("cut the call", "end the call", "disconnect", "call band karo", "I'm done"), or
+  says yes to the agent's own "Shall I end the call?". When it is refused because the caller did
+  not clearly ask, or was not heard clearly, an English or Hindi agent says that question ("क्या मैं
+  कॉल खत्म कर दूँ?") instead of the model's goodbye, with no second LLM step, and waits; after a
+  goodbye the model already streamed, it says the question after it. Other languages get the
+  failed operation record ("…ask the caller whether they want to end the call…").
+
   Nothing yet sets `inputUntrusted` from STT confidence: low-confidence English still passes the
   gate. Off-language turns (Dutch, Russian) are kept from the LLM by the agent's language guard
   (N4) before `end_call` can be offered.

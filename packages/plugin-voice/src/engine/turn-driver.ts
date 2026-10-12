@@ -28,12 +28,20 @@ export class TurnDriver extends TurnRunner {
       !this.speech.pendingCount,
     (decision) => this.idlePrompt(decision),
   );
+  /** Wave 8b: a reply given up for the words of a turn the reply hold gave up on runs now. */
+  private readonly unlapse = this.hold.onLapse(() => {
+    const carry = this.turns.lapsed();
+    if (carry && !this.stopped && !this.closing) this.queue(carry);
+  });
 
   decide(decision: TurnDecision): void {
     if (this.stopped || this.closing) return;
     if (decision.type === 'force-endpoint') return;
     if (decision.type === 'turn.partial') {
       this.hold.partial(decision.turnId);
+      // Wave 8b: words that will supersede the reply running stop its work now (TurnBook.preempt).
+      const preempted = this.turns.preempt(decision.text);
+      if (preempted) this.abandon(preempted);
       return this.hooks.prepare(decision);
     }
     // The caller is taking a turn, or a false start ended with nothing to answer.
@@ -88,6 +96,8 @@ export class TurnDriver extends TurnRunner {
       }
       // AGT-10 superseded the held reply or queued these words behind it: it plays now.
       this.hold.ended(decision.turnId, 'stopped');
+      // Wave 8b: unless these words trailed off, when the caller may yet go on.
+      if (input.kind === 'speech' && decision.reason === 'hold') this.hold.trailedOff();
     }
     if (decision.type === 'idle' && !this.idle) this.detectorIdle.idle(decision);
   }
@@ -112,6 +122,7 @@ export class TurnDriver extends TurnRunner {
 
   override async dispose(): Promise<void> {
     this.cancelWrapUp?.();
+    this.unlapse();
     this.detectorIdle.dispose();
     await super.dispose();
   }

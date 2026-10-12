@@ -96,9 +96,12 @@ describe('what a caller’s words carry (call-3 #2, #3)', () => {
   });
 
   it('reads the punctuation that changes how words are answered', () => {
-    expect(callerPunctuation('Is the museum open?')).toEqual([true, false]);
-    expect(callerPunctuation('Is the museum open.')).toEqual([false, false]);
-    expect(callerPunctuation('Tell me about-')).toEqual([false, true]);
+    expect(callerPunctuation('Is the museum open?')).toEqual([true, false, false]);
+    expect(callerPunctuation('Is the museum open.')).toEqual([false, false, false]);
+    expect(callerPunctuation('Tell me about-')).toEqual([false, true, false]);
+    // Wave 8b: the commas of a list, which keep the search tool from a statement.
+    expect(callerPunctuation('Rome, Paris, and Vienna.')).toEqual([false, false, true]);
+    expect(callerPunctuation('Rome Paris and Vienna.')).toEqual([false, false, false]);
   });
 
   it('reads a turn the STT cut off', () => {

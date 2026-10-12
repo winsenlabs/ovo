@@ -48,8 +48,25 @@ describe('utteranceEnd: how the words so far end (Wave 8 smart end-of-turn)', ()
     'I want to go to',
     'leave on December',
     'mera naam ki',
+    // Wave 8b, call e8a43f65 turn 2: a date range with no month yet for its end, full stop or not.
+    'I want 21st of December to the 5th.',
+    'from December 21 till 5',
+    'May 30th through the 2nd.',
   ])('%s is unfinished', (text) => {
     expect(utteranceEnd(text, context())).toBe('unfinished');
+  });
+
+  it('a date range is complete once its end has a month, or when it never named one', () => {
+    for (const text of [
+      'I want 21st of December to the 5th of January.',
+      'From December 21 to January 5.',
+      'From 9 to 5.',
+      'I will be there on the 5th.',
+      // Wave 8b review: a range within its month, and "may" that is no month.
+      'Book it for December 3rd to the 5th.',
+      'I may go from the 3rd to the 5th.',
+    ])
+      expect(utteranceEnd(text, context()), text).toBe('complete');
   });
 
   it.each(['Yes', 'yes', 'haan ji', 'theek hai', 'ok', 'no', 'nahi', 'hello', 'thank you', '15'])(

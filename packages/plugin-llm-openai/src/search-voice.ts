@@ -3,6 +3,7 @@ import {
   affirmationOnly,
   callerWords,
   cutOffWords,
+  statesPlans,
   type InferenceRequest,
 } from '@winsendotai/ovo-contracts';
 import type { ActivityAnnouncement } from '@winsendotai/ovo-plugin-kit';
@@ -73,18 +74,25 @@ const OFFERED =
  * - `backchannel`: only a yes, no, backchannel, greeting, exclamation or thanks ("Yes.", "No,
  *   no.", "Hey.", "हाँ।", "Oh, my God.", "Thank you, Danny."), unless it is a yes to the agent's
  *   offer to look something up.
+ * - `statement`: the caller telling the agent their own plans, dates or a list of places
+ *   (`statesPlans`: "I want 21st of December to the 5th.", "Germany, Berlin, and a few other
+ *   places."), unless the agent's last line offered to look something up, which such words answer
+ *   ("…the dates to check fares. What day would you like to leave?").
  * Anything else goes to the model with the tool, a statement too: a follow-up often names no
  * question word ("And in Split.", "Restaurants near the Colosseum.") and needs the search.
  * In the Maya calls "No, no." and "Yes." each searched for 3.8–3.9 s only to restate the previous
- * answer, and in call 6e1a4e3a "Oh, my God." searched for 2.0 s.
+ * answer, in call 6e1a4e3a "Oh, my God." searched for 2.0 s, and in call e8a43f65 four statements
+ * of dates and cities searched for 1.9–3.0 s each (issue 3).
  */
 export function unclearForSearch(
   request: Pick<InferenceRequest, 'input' | 'history'>,
-): 'cut-off' | 'no-words' | 'backchannel' | undefined {
+): 'cut-off' | 'no-words' | 'backchannel' | 'statement' | undefined {
   const input = request.input.trim();
   if (cutOffWords(input)) return 'cut-off';
   if (!callerWords(input).length) return 'no-words';
   const last = [...(request.history ?? [])].reverse().find((entry) => entry.role === 'assistant');
-  if (affirmationOnly(input)) return last && OFFERED.test(last.content) ? undefined : 'backchannel';
-  return acknowledgementOnly(input) ? 'backchannel' : undefined;
+  const offered = Boolean(last && OFFERED.test(last.content));
+  if (affirmationOnly(input)) return offered ? undefined : 'backchannel';
+  if (acknowledgementOnly(input)) return 'backchannel';
+  return statesPlans(input) && !offered ? 'statement' : undefined;
 }

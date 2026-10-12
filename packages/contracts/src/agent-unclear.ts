@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { baseLanguageOf } from './agent-language.ts';
+import { listsItems, sentences } from './caller-continuation.ts';
+import { normalizeForMatch } from './text.ts';
 
 /*
  * What a caller's words carry, read without a model (Wave 8, Maya call 6e1a4e3a in a noisy café):
@@ -147,10 +149,98 @@ export function lowInformation(text: string): boolean {
 }
 
 /**
- * What the punctuation of the caller's words says beyond the words: a question mark and a cut-off.
- * Two transcripts with the same words that differ in these can be answered differently (the
- * search tool goes to "Is the museum open?" but not to "Is the museum open.").
+ * What the punctuation of the caller's words says beyond the words: a question mark, a cut-off and
+ * a list. Two transcripts with the same words that differ in these can be answered differently
+ * (the search tool goes to "Is the museum open?" but not to "Is the museum open.", nor to "Rome,
+ * Paris, and Vienna.").
  */
-export function callerPunctuation(text: string): [question: boolean, cutOff: boolean] {
-  return [QUESTION_MARK.test(text), cutOffWords(text)];
+export function callerPunctuation(
+  text: string,
+): [question: boolean, cutOff: boolean, list: boolean] {
+  return [QUESTION_MARK.test(text), cutOffWords(text), listsItems(text)];
+}
+
+/** Sentence openers that come before the subject ("Yeah, we're…", "So we'd…", "Then I…"). */
+const OPENING = wordSet('yeah yes yep ok okay so and but um uh hmm actually also then no oh right');
+/** First-person subjects, apostrophes dropped ("we're" is "were", "we'd" is "wed"). */
+const FIRST_PERSON = wordSet('i im ill id ive we were wed weve my our');
+/** The verbs and nouns of the caller's own trip ("we're planning to go", "I'm flying back on…"). */
+const PLANS = wordSet(
+  'plan plans planned planning go going goes went fly flying stay staying leave leaving arrive ' +
+    'arriving travel travelling traveling visit visiting head heading come coming return ' +
+    'returning back trip spend spending drive driving booked moving',
+);
+/** Where the caller is ("I'm in a coffee shop", "we are at the airport"). */
+const BE = wordSet('am are');
+const BEING_AT = wordSet('in at');
+/** What a statement asks for when it names it ("I would like recommendations for Lisbon."). */
+const REQUESTED = wordSet(
+  'recommendation recommendations suggestion suggestions idea ideas option options information ' +
+    'info details tips advice help',
+);
+/** Words a date or a date range is made of ("21st of December to the 5th of January"). */
+const MONTHS = wordSet(
+  'january february march april may june july august september october november december',
+);
+const DATE_WORDS = wordSet(
+  'january february march april may june july august september october november december ' +
+    'monday tuesday wednesday thursday friday saturday sunday the of to from till until and ' +
+    'between next this coming week weekend tomorrow today tonight morning evening night',
+);
+const NUMBER_WORD = /^\d{1,4}(?:st|nd|rd|th)?$/u;
+/** What a yes confirms with ("Yes, that's right.", "Okay, sounds good."). */
+const CONFIRMING = wordSet(
+  'thats that is its it right correct fine good great perfect exactly sounds works',
+);
+
+/** A yes that only confirms what the agent said. */
+function confirms(words: readonly string[]): boolean {
+  return (
+    YES.has(words[0] ?? '') &&
+    words.every((word) => YES.has(word) || ADDRESS.has(word) || CONFIRMING.has(word))
+  );
+}
+
+/**
+ * Wave 8b (Maya call e8a43f65, issue 3): the caller tells the agent about their own plans rather
+ * than asking for anything: a sentence of their own trip (`saysOwnPlans`: "I want 21st of December
+ * to the 5th.", "Yeah, we're planning to do Budapest, Vienna, in Austria."), a list ("Germany, Berlin,
+ * and a few other places."), a confirmation ("Yes, that's right.") or only a date. Never words
+ * that ask (`seeksInformation`) or name what they want ("I would like recommendations for
+ * Lisbon."). A follow-up that names no subject ("And in Split.", "Restaurants near the
+ * Colosseum.") is not a statement of plans.
+ */
+export function statesPlans(text: string): boolean {
+  if (cutOffWords(text) || seeksInformation(text)) return false;
+  const words = callerWords(text);
+  if (!words.length || words.some((word) => REQUESTED.has(word))) return false;
+  if (listsItems(text) || confirms(words)) return true;
+  // A date, named by its month and day ("December 21st to January 5th."); not "Tomorrow.", which
+  // may choose what to look up ("Do you want the forecast for today or tomorrow?").
+  const tokens = normalizeForMatch(text).split(' ');
+  if (
+    tokens.every((token) => DATE_WORDS.has(token) || NUMBER_WORD.test(token)) &&
+    tokens.some((token) => MONTHS.has(token)) &&
+    tokens.some((token) => NUMBER_WORD.test(token))
+  )
+    return true;
+  return sentences(text).some(saysOwnPlans);
+}
+
+/**
+ * A sentence whose first-person subject goes on to the caller's own trip: where they are going or
+ * are ("we're planning to go to Zagreb", "I'm in a coffee shop") or when ("I want 21st of December
+ * to the 5th."). Not what they look for or want ("I'm looking for a good restaurant in Zagreb.",
+ * "I want restaurants near the Colosseum.", "We want to see the Christmas markets"): those ask.
+ */
+function saysOwnPlans(sentence: string): boolean {
+  const said = callerWords(sentence);
+  const at = said.findIndex((word) => !OPENING.has(word));
+  if (at < 0 || !FIRST_PERSON.has(said[at]!)) return false;
+  const rest = said.slice(at + 1);
+  if (rest.some((word) => PLANS.has(word))) return true;
+  if (BEING_AT.has(rest[0] ?? '') || (BE.has(rest[0] ?? '') && BEING_AT.has(rest[1] ?? '')))
+    return true;
+  const tokens = normalizeForMatch(sentence).split(' ');
+  return tokens.some((token) => MONTHS.has(token)) && tokens.some((t) => NUMBER_WORD.test(t));
 }

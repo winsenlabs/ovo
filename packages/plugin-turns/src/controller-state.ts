@@ -1,4 +1,6 @@
 import {
+  continuesUtterance,
+  countWords,
   defaultMuteRules,
   transcriptDoubt,
   type Clock,
@@ -23,7 +25,18 @@ import { CommitTimers, type WordsView } from './stop-commit.ts';
 import { SpeechStopTimers } from './stop-speech-timeout.ts';
 import { stopStrategy, type StopStrategy } from './strategies.ts';
 import { CutoffHold } from './transcript-text.ts';
-import { answersByItself, utteranceEnd, type UtteranceContext } from './utterance-end.ts';
+import {
+  answersByItself,
+  SHORT_ANSWER_WORDS,
+  utteranceEnd,
+  type UtteranceContext,
+} from './utterance-end.ts';
+
+/**
+ * Wave 8b: how long after a turn that trailed off (`hold`) the caller's next words may still be
+ * its end ("…to the 5th." then, 2 s later, "Of January.").
+ */
+const CARRY_ON_MS = 5_000;
 
 export interface ControllerInput {
   clock: Clock;
@@ -81,6 +94,8 @@ export abstract class TurnControllerState {
   /** Wave 8: when the open turn started, and when the VAD last heard its voice end. */
   protected startedAtMs = 0;
   protected voiceEndMs?: number;
+  /** Wave 8b: the last turn's words, when they trailed off and the turn ended on the `hold`. */
+  private trailedOff?: { text: string; atMs: number };
   protected readonly announcer: TurnAnnouncer;
 
   constructor(
@@ -162,8 +177,23 @@ export abstract class TurnControllerState {
       answering: this.answering,
     };
     const ends = utteranceEnd(view, context);
-    const answer = ends === 'complete' && answersByItself(view, context) && !this.speaking();
+    const answer =
+      ends === 'complete' &&
+      (answersByItself(view, context) || this.endsTrailedOff(view)) &&
+      !this.speaking();
     return { view, ends, answer };
+  }
+
+  /**
+   * Wave 8b (call e8a43f65, issue 7): a few complete words that carry on the last turn, which
+   * trailed off, end like a short answer: "Of January." waited 1.8 s for the stall with no VAD
+   * speech timing it.
+   */
+  private endsTrailedOff(view: string): boolean {
+    const before = this.trailedOff;
+    if (!before || this.input.clock.now() - before.atMs > CARRY_ON_MS) return false;
+    if (countWords(view, this.input.language) > SHORT_ANSWER_WORDS) return false;
+    return continuesUtterance(view, before.text);
   }
 
   protected start(): void {
@@ -218,6 +248,7 @@ export abstract class TurnControllerState {
       spokenMs: (this.voiceEndMs ?? this.input.clock.now()) - this.startedAtMs,
     });
     this.clear();
+    this.trailedOff = reason === 'hold' ? { text, atMs: this.input.clock.now() } : undefined;
     this.answering = false;
     // The caller has had a turn: whatever the agent says from here is no longer the opening.
     this.opening.end();

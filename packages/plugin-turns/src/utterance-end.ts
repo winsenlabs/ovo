@@ -61,6 +61,12 @@ const BEFORE_NUMBER = words(
   'the around about on by at till until from before after between to of rs inr',
   MONTHS,
 );
+/** The words that close a date range: "21st of December to the 5th". */
+const RANGE_TO = words('to till until through thru');
+const MONTH_NAMES = words(MONTHS, 'may');
+/** A day of the month as STTs write it: "5", "5th", "21st". */
+const DAY = /^\p{N}{1,2}(?:st|nd|rd|th)?$/u;
+
 /** Short replies that answer by themselves, beyond the agent's backchannel list. */
 const ANSWERS = new Set(
   [
@@ -96,6 +102,8 @@ export function utteranceEnd(text: string, context: UtteranceContext): Utterance
   if (endsCutOff(trimmed) || LIST_GOING.test(trimmed)) return 'unfinished';
   const last = tokens.at(-1)!;
   if (NEVER_LAST.has(last)) return 'unfinished';
+  // Call e8a43f65: "I want 21st of December to the 5th." and, 2 s later, "Of January.".
+  if (rangeAwaitsMonth(tokens)) return 'unfinished';
   if (SENTENCE_END.test(trimmed)) return 'complete';
   if (isAnswer(tokens, context)) return 'complete';
   // Call 6e1a4e3a turn 17: "…be back around the 1" and "st." became two turns.
@@ -114,6 +122,33 @@ export function utteranceEnd(text: string, context: UtteranceContext): Utterance
 export function answersByItself(text: string, context: UtteranceContext): boolean {
   const tokens = normalizeForMatch(text.trim()).split(' ').filter(Boolean);
   return tokens.length > 0 && tokens.length <= SHORT_ANSWER_WORDS && isAnswer(tokens, context);
+}
+
+/**
+ * A date range that named a month for its start and none yet for its end, an end day before its
+ * start day, which runs into the next month ("21st of December to the 5th."), even after a full
+ * stop: the month may well follow. "December 3rd to the 5th." is complete.
+ */
+function rangeAwaitsMonth(tokens: readonly string[]): boolean {
+  const end = dayOf(tokens.at(-1)!);
+  if (end === undefined) return false;
+  const at = tokens.length - (tokens.at(-2) === 'the' ? 3 : 2);
+  if (at < 1 || !RANGE_TO.has(tokens[at]!)) return false;
+  for (let month = at - 1; month >= 0; month -= 1) {
+    if (!MONTH_NAMES.has(tokens[month]!)) continue;
+    // The day the month names: "December 21", "21st December", "21st of December".
+    const near = [tokens[month + 1], tokens[month - 1]];
+    if (tokens[month - 1] === 'of') near.push(tokens[month - 2]);
+    const start = near.map((token) => (token ? dayOf(token) : undefined)).find((d) => d);
+    // "May" is a month only beside its day ("I may go from the 3rd to the 5th.").
+    if (tokens[month] === 'may' && start === undefined) continue;
+    return start === undefined || end < start;
+  }
+  return false;
+}
+
+function dayOf(token: string): number | undefined {
+  return DAY.test(token) ? Number.parseInt(token, 10) : undefined;
 }
 
 function numberGoing(text: string, tokens: readonly string[]): boolean {

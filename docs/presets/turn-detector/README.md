@@ -24,20 +24,20 @@ finals ended in "-"). The detector now holds those itself, from Scribe's final (
 Every speech turn's `turn.stopped` carries the rule that ended it (`reason`, an `EndpointRule`).
 Wave 8 adds it so endpoint latency can be attributed per turn.
 
-| Rule                                | When                                                                                      | Wait after the caller stops                                |
-| ----------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `complete`                          | The words so far read complete: a full stop, a short answer, or ≤3 words after a question | `completeSilenceMs` (50), even when `silenceMs` is higher  |
-| `silence`                           | No signal either way, a short utterance                                                   | `silenceMs` (50)                                           |
-| `long`                              | No signal either way, after 1.2 s of speech (`longUtteranceMs`)                           | `longSilenceMs` (250)                                      |
-| `unfinished`                        | Trailing off: "for-", "is a...", "and", "to the", "Paris,", "around the 1", "Rs 500"      | `longSilenceMs`; then the final holds `cutoffHoldMs` (700) |
-| `answer`                            | An answer by itself ("Yes.", "हाँ।", "Hello?"), said with no VAD run open                 | `answerStallMs` (250) after its interim                    |
-| `stall`                             | The interim stopped changing while the VAD still heard sound                              | `stallMs` (1500)                                           |
-| `noise`                             | The VAD kept hearing sound that brought no words: the room, not the caller                | `noiseMs` (2500) after the last words                      |
-| `final`                             | Scribe's final arrived after the VAD went quiet, before the commit                        |                                                            |
-| `ceiling`                           | No final within `userSpeechTimeoutMs` (600) of the commit; the turn ends on the interim   |                                                            |
-| `hold`                              | Words that trailed off waited `cutoffHoldMs` for more that never came                     |                                                            |
-| `agent`                             | A short reply over the agent's question waited for it to stop (AGT-9)                     |                                                            |
-| `vad-timeout`, `provider`, `safety` | The other stop strategies, and the stop safety timer                                      |                                                            |
+| Rule                                | When                                                                                      | Wait after the caller stops                                 |
+| ----------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `complete`                          | The words so far read complete: a full stop, a short answer, or ≤3 words after a question | `completeSilenceMs` (50), even when `silenceMs` is higher   |
+| `silence`                           | No signal either way, a short utterance                                                   | `silenceMs` (50)                                            |
+| `long`                              | No signal either way, after 1.2 s of speech (`longUtteranceMs`)                           | `longSilenceMs` (250)                                       |
+| `unfinished`                        | Trailing off: "for-", "is a...", "and", "to the", "Paris,", "around the 1", "Rs 500"      | `longSilenceMs`; then the final holds `cutoffHoldMs` (700)  |
+| `answer`                            | An answer by itself ("Yes.", "हाँ।", "Hello?"), said with no VAD run open                 | `answerStallMs` (250) after its interim                     |
+| `stall`                             | The interim stopped changing while the VAD still heard sound                              | `stallMs` (1500)                                            |
+| `noise`                             | The VAD kept hearing sound that brought no words: the room, not the caller                | `noiseMs` (2500) after the last words                       |
+| `final`                             | Scribe's final arrived after the VAD went quiet, before the commit                        |                                                             |
+| `ceiling`                           | No final within `userSpeechTimeoutMs` (600) of the commit; the turn ends on the interim   |                                                             |
+| `hold`                              | Words that trailed off waited `cutoffHoldMs` for more that never came                     | The engine then holds the reply 2 s for the caller to go on |
+| `agent`                             | A short reply over the agent's question waited for it to stop (AGT-9)                     |                                                             |
+| `vad-timeout`, `provider`, `safety` | The other stop strategies, and the stop safety timer                                      |                                                             |
 
 The energy VAD reports a stop 200 ms (`stopMs`) after the caller goes quiet, and Scribe answers a
 commit in about 300–400 ms. So a complete turn ends about 600 ms after the caller's last word.
@@ -48,6 +48,12 @@ Each wait has a limit:
   interim lagged the audio by 0.7–1 s (it was missing at the stop in 45% of turns). A turn that
   committed early still waits `cutoffHoldMs` when its final trails off. Speech the VAD hears after
   the final is committed again before the turn ends, even before its words show.
+- **Words that carry on (Wave 8b, call e8a43f65).** A date range with no month yet for its end
+  ("I want 21st of December to the 5th.") is `unfinished` even after a full stop. A turn that ends
+  on the `hold` has its reply held by the engine for 2 s (`REPLY_HOLD.trailingMs`, overlapping the
+  LLM call), and up to three complete words that carry it on within 5 s ("Of January.": a
+  preposition, a conjunction, a month, a lower-case word or the next list item) end like an answer,
+  250 ms after their interim instead of the 1.5 s stall. The engine merges them into the held reply.
 - **One-word answers.** A short "yes" is often too short or soft to start the energy VAD. A
   -30 dBFS word never does. With no VAD stop, the turn used to wait for the 1.5 s stall. Now an
   answer that ends a turn by itself ("Yes.", "हाँ।", "Hello?", "No", "15", a backchannel) commits

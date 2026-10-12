@@ -77,12 +77,15 @@ describe("the agent asks EndCallGate before the LLM's end_call ends the call (N1
     ]);
   });
 
-  it('lets it end once the caller has had two turns and the call has run 20 s', async () => {
-    const m = maya([{ kind: 'text', text: 'Italy is lovely.' }, END]);
+  it('once the caller has had two turns and the call has run 20 s, asks before ending it', async () => {
+    const m = maya([{ kind: 'text', text: 'Italy is lovely.' }, END, END]);
     m.clock.ms += 8_000;
     await m.turn('Tell me about Italy.');
     m.clock.ms += 12_000;
-    expect(await m.turn('Thanks, that helps.')).toEqual(['Bye!']);
+    // Wave 8b: no goodbye, so the agent asks, deterministically, and a yes ends the call.
+    expect(await m.turn('Thanks, that helps.')).toEqual(['Shall I end the call?']);
+    expect(m.behavior.isComplete()).toBe(false);
+    expect(await m.turn('Yes.')).toEqual(['Bye!']);
     expect(m.behavior.completionReason()).toBe('llm:end_call:done');
   });
 

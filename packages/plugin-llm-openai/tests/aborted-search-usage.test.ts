@@ -89,7 +89,8 @@ describe('an aborted search-enabled call is metered at its real size (N6)', () =
         completed('resp-1', { input: 4827, cached: 4725 }),
     );
     const overhead = 4827 - estimateInputTokens(tripRequest('Ik lieg niet.'));
-    const request = await abortAfter(h, 'Nou, nou, Italy, English, English.');
+    // Asked as a question: a list of words alone is no longer sent the search tool (Wave 8b).
+    const request = await abortAfter(h, 'Nou, nou, Italy, English, English?');
     const input = estimateInputTokens(request) + overhead;
     expect(h.aborted()).toEqual({
       input_tokens: input,

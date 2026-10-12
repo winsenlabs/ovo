@@ -27,9 +27,10 @@ const LIVE = JSON.parse(
  */
 const FIRST_TOKEN_MS = 1_367;
 
-function slowLlm() {
+function slowLlm(sendsProviderTools?: Inference['sendsProviderTools']) {
   const asked: InferenceRequest[] = [];
   const port: Inference = {
+    ...(sendsProviderTools ? { sendsProviderTools } : {}),
     generate: () => Promise.reject(new Error('streamed only')),
     async *stream(request) {
       asked.push(request);
@@ -48,8 +49,8 @@ function slowLlm() {
  * is playing, the agent is speaking and nothing is asked. Returns, per caller turn, how much
  * sooner its first token arrived than asking at the end of the turn.
  */
-async function replay(events: readonly LiveEvent[], speculate: boolean) {
-  const llm = slowLlm();
+async function replay(events: readonly LiveEvent[], speculate: boolean, port?: SearchPort) {
+  const llm = slowLlm(port);
   const metrics: LlmSpeculationMetrics = {
     started: 0,
     used: 0,
@@ -138,12 +139,23 @@ function atWave6Endpoint(events: readonly LiveEvent[]): LiveEvent[] {
   });
 }
 
-async function replayCalls(shift: (events: readonly LiveEvent[]) => readonly LiveEvent[]) {
+/**
+ * Wave 8b: whether the LLM would send a request its web search tool. Maya's guard sends it to any
+ * multi-word turn that is not a backchannel, cut-off or statement of plans; with these calls' words
+ * anonymised, `always` is the bound: every request carries the tool.
+ */
+type SearchPort = Inference['sendsProviderTools'];
+const always: SearchPort = () => true;
+
+async function replayCalls(
+  shift: (events: readonly LiveEvent[]) => readonly LiveEvent[],
+  port?: SearchPort,
+) {
   const total = { turns: 0, saved: 0, sooner: 0, oneWord: 0, oneWordSaved: 0, used: 0, extra: 0 };
   for (const call of LIVE.calls) {
     const events = shift(call.events);
-    const before = await replay(events, false);
-    const after = await replay(events, true);
+    const before = await replay(events, false, port);
+    const after = await replay(events, true, port);
     expect(before.turns.every((turn) => turn.ms === FIRST_TOKEN_MS)).toBe(true);
     expect(after.turns.map((turn) => turn.words)).toEqual(before.turns.map((t) => t.words));
     for (const turn of after.turns) {
@@ -203,6 +215,32 @@ describe('the LLM asked on partial transcripts, replayed on the Maya calls of 20
       oneWordSaved: 2_735,
       used: 28,
       extra: 15,
+    });
+  });
+
+  it('with the web search tool on every request: only questions wait for their final words', async () => {
+    // Wave 8b (issue 4): a revisable partial that asks for something (here, a question mark on two
+    // or more words) is not asked ahead when it would carry the search tool. The other turns keep
+    // their saving: 2 of the 9 turns wait for their final words, 0.62 s of the 8.1 s as recorded
+    // and 1.86 s of the 10.6 s at the Wave 6 endpoint. (Holding back every request sent the tool
+    // kept only 0.66 and 1.90 s.)
+    expect(await replayCalls((events) => events, always)).toEqual({
+      turns: 37,
+      saved: 7_491,
+      sooner: 7,
+      oneWord: 7,
+      oneWordSaved: 2_735,
+      used: 26,
+      extra: 12,
+    });
+    expect(await replayCalls(atWave6Endpoint, always)).toEqual({
+      turns: 37,
+      saved: 8_731,
+      sooner: 7,
+      oneWord: 7,
+      oneWordSaved: 2_735,
+      used: 26,
+      extra: 12,
     });
   });
 });

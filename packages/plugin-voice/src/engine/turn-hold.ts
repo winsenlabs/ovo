@@ -17,6 +17,13 @@ export const REPLY_HOLD = Object.freeze({
   noWordsMs: 1800,
   /** Never wait on one caller turn longer than this. */
   maxMs: 12_000,
+  /**
+   * Wave 8b: the reply to words that trailed off (the turn ended on the detector's `hold`: "…to
+   * the 5th.", "Budapest, Vienna,") waits this long after the turn for the caller to go on. Its
+   * LLM call runs meanwhile, so a reply that takes as long plays no later. In call e8a43f65 "Of
+   * January." came 1.3 s after such a turn ended.
+   */
+  trailingMs: 2_000,
 });
 
 type Release = 'stopped' | 'reset' | 'no-words' | 'timeout' | 'closing';
@@ -40,6 +47,9 @@ export class ReplyHold {
   private quietAt?: number;
   private readonly timers: (() => void)[] = [];
   private cancelQuiet?: () => void;
+  /** Ends the wait after words that trailed off (`trailedOff`). */
+  private cancelTrailing?: () => void;
+  private lapsed?: () => void;
   private readonly unsubscribe: () => void;
 
   constructor(
@@ -80,6 +90,15 @@ export class ReplyHold {
     queueMicrotask(() => this.consider(turnId));
   }
 
+  /**
+   * Wave 8b: `listener` runs when the hold gives up on the caller's turn (`timeout`, `no-words`)
+   * while it is still open, so a reply given up for its words (TurnBook.preempt) is owed now.
+   */
+  onLapse(listener: () => void): () => void {
+    this.lapsed = listener;
+    return () => (this.lapsed = undefined);
+  }
+
   /** The turn's words so far: it is speech, and a reply its VAD start did not hold is held now. */
   partial(turnId: string): void {
     this.consider(turnId);
@@ -91,11 +110,32 @@ export class ReplyHold {
     this.release(reason);
   }
 
+  /**
+   * Wave 8b: the caller's turn ended on words that trailed off. Its reply waits `trailingMs` for
+   * them to go on (a turn they start then holds it as any other), then plays.
+   */
+  trailedOff(): void {
+    if (this.turnId || !this.unheard()) return;
+    this.cancelTrailing?.();
+    this.speech.hold();
+    this.cancelTrailing = this.clock.setTimeout(() => {
+      this.cancelTrailing = undefined;
+      if (!this.turnId) this.speech.release();
+    }, this.limits.trailingMs);
+  }
+
   release(reason: Release): void {
-    // Closing: a turn that started this tick holds nothing either.
-    if (reason === 'closing') this.openTurn = undefined;
+    // Closing: a turn that started this tick holds nothing either; and a turn held `maxMs` holds
+    // nothing again, whatever words it goes on with.
+    if (reason === 'closing' || reason === 'timeout') this.openTurn = undefined;
+    const trailing = this.cancelTrailing;
+    this.cancelTrailing = undefined;
+    trailing?.();
     const turnId = this.turnId;
-    if (turnId === undefined) return;
+    if (turnId === undefined) {
+      if (trailing) this.speech.release();
+      return;
+    }
     this.turnId = undefined;
     for (const cancel of this.timers.splice(0)) cancel();
     this.quiet();
@@ -109,8 +149,9 @@ export class ReplyHold {
       heldMs: now - this.heldAt,
       ...(this.quietAt === undefined ? {} : { quietMs: now - this.quietAt }),
     };
-    const level = reason === 'no-words' || reason === 'timeout' ? 'warn' : 'info';
-    logVoiceEvent(level, 'reply_hold_released', fields);
+    const lapsed = reason === 'no-words' || reason === 'timeout';
+    logVoiceEvent(lapsed ? 'warn' : 'info', 'reply_hold_released', fields);
+    if (lapsed) this.lapsed?.();
   }
 
   dispose(): void {

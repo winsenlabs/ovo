@@ -119,7 +119,7 @@ export class AgentBehavior extends AgentSessionAhead {
     const previous = [...this.lines.recovery.lastSaid];
     const controller = new AbortController();
     const turn = ++this.turn;
-    const endRefused = this.endGate.turn(input, variables);
+    const endRefused = this.endGate.turn(input, variables, previous);
     this.active = controller;
     const results: OperationRecord[] = [];
     const history = this.conversation.user(input);
