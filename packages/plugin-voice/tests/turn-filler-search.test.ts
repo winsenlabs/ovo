@@ -48,22 +48,33 @@ const timeline = (lines: { text: string; atMs: number }[], t0: number) =>
   lines.map((line) => [line.text, line.atMs - t0]);
 
 describe('a search turn says what it is doing (N3)', () => {
-  it('plays the search line when the search starts, and "still checking" after 2.5 s of silence', async () => {
+  it('plays the search line when the search starts, and nothing more however long it takes', async () => {
     const { clock, h, filler } = setup(6000);
     const t0 = await h.greet();
     h.caller('what is the weather in Zagreb in December', NEUTRAL);
     await clock.advanceAsync(SEARCH_MS);
     filler.activity(started());
     await clock.advanceAsync(10_000);
-    // The search line plays 1.2-2.7 s; "still checking" waits for 2.5 s of silence after it.
-    const still = SEARCH_MS + 1500 + ANNOUNCE.stillAfterMs;
+    // Wave 9 (D6): one filler line per turn. Before, "still checking" followed 2.5 s after the
+    // search line ended (5.2 s) and the answer cut it 0.8 s in.
     expect(timeline(h.audio, t0)).toEqual([
       [ANNOUNCE.line, SEARCH_MS],
-      [ANNOUNCE.stillLine, still],
       ['Answer: what is the weather in Zagreb in December.', 6000 + 200],
     ]);
-    // The answer cuts "still checking" the moment its first line is ready (P3).
-    expect(timeline(h.cut, t0)).toEqual([[ANNOUNCE.stillLine, 6000]]);
+    expect(timeline(h.cut, t0)).toEqual([]);
+  });
+
+  it('says "still checking" as the one line of a search that has no line of its own', async () => {
+    const { clock, h, filler } = setup(6000);
+    const t0 = await h.greet();
+    h.caller('what is the weather in Zagreb in December', NEUTRAL);
+    await clock.advanceAsync(SEARCH_MS);
+    filler.activity(started(undefined, { ...ANNOUNCE, line: undefined }));
+    await clock.advanceAsync(10_000);
+    expect(timeline(h.audio, t0)).toEqual([
+      [ANNOUNCE.stillLine, SEARCH_MS + ANNOUNCE.stillAfterMs],
+      ['Answer: what is the weather in Zagreb in December.', 6000 + 200],
+    ]);
   });
 
   it('says nothing more when the answer comes within 2.5 s of the search line ending', async () => {
