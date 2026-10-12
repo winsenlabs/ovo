@@ -13,6 +13,7 @@ import {
   type ByteCache,
 } from '@winsendotai/ovo-plugin-cache';
 import { legacyFromDuplex } from '@winsendotai/ovo-plugin-kit';
+import { speakerTextFilters } from '@winsendotai/ovo-plugin-voice';
 import {
   ReplyStreams,
   warmSessionTts,
@@ -74,7 +75,9 @@ export function createV2SpeechCachePlugin(
       const tts = ctx.get(Cap.tts) as TextToSpeech;
       const media = ctx.get(Cap.media) as MediaDuplex;
       const usage = ctx.get(Cap.usage) as UsageSink;
-      const filters = [...ctx.all(Cap.textFilters).values()] as TextFilter[];
+      // The speaker adds the speech normaliser to every agent's filters (Wave 9 D1); a key built
+      // without it would miss every fixed line it rewrites.
+      const filters = speakerTextFilters([...ctx.all(Cap.textFilters).values()] as TextFilter[]);
       const transport = legacyFromDuplex(media);
       const player = new CachedMediaAudioPlayer(transport, {
         format: media.format,

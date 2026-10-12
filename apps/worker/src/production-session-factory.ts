@@ -107,6 +107,7 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
       inferenceProvider: inference?.provider,
       inferenceModel:
         typeof inference?.config.model === 'string' ? inference.config.model : undefined,
+      mediaFormat: format,
     });
     const cleanup = new SessionCleanupStack();
     let requestedReason: EndReason = 'error:session_setup_failed';
