@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { baseLanguageOf } from './agent-language.ts';
+import { listsItems, sentences } from './caller-continuation.ts';
+import { normalizeForMatch } from './text.ts';
 
 /*
  * What a caller's words carry, read without a model (Wave 8, Maya call 6e1a4e3a in a noisy café):
@@ -147,10 +149,75 @@ export function lowInformation(text: string): boolean {
 }
 
 /**
- * What the punctuation of the caller's words says beyond the words: a question mark and a cut-off.
- * Two transcripts with the same words that differ in these can be answered differently (the
- * search tool goes to "Is the museum open?" but not to "Is the museum open.").
+ * What the punctuation of the caller's words says beyond the words: a question mark, a cut-off and
+ * a list. Two transcripts with the same words that differ in these can be answered differently
+ * (the search tool goes to "Is the museum open?" but not to "Is the museum open.", nor to "Rome,
+ * Paris, and Vienna.").
  */
-export function callerPunctuation(text: string): [question: boolean, cutOff: boolean] {
-  return [QUESTION_MARK.test(text), cutOffWords(text)];
+export function callerPunctuation(
+  text: string,
+): [question: boolean, cutOff: boolean, list: boolean] {
+  return [QUESTION_MARK.test(text), cutOffWords(text), listsItems(text)];
+}
+
+/** Sentence openers that come before the subject ("Yeah, we're…", "So we'd…", "Then I…"). */
+const OPENING = wordSet('yeah yes yep ok okay so and but um uh hmm actually also then no oh right');
+/** First-person subjects, apostrophes dropped ("we're" is "were", "we'd" is "wed"). */
+const FIRST_PERSON = wordSet('i im ill id ive we were wed weve my our');
+/** What a statement asks for when it names it ("I would like recommendations for Lisbon."). */
+const REQUESTED = wordSet(
+  'recommendation recommendations suggestion suggestions idea ideas option options information ' +
+    'info details tips advice help',
+);
+/** Words a date or a date range is made of ("21st of December to the 5th of January"). */
+const MONTHS = wordSet(
+  'january february march april may june july august september october november december',
+);
+const DATE_WORDS = wordSet(
+  'january february march april may june july august september october november december ' +
+    'monday tuesday wednesday thursday friday saturday sunday the of to from till until and ' +
+    'between next this coming week weekend tomorrow today tonight morning evening night',
+);
+const NUMBER_WORD = /^\d{1,4}(?:st|nd|rd|th)?$/u;
+/** What a yes confirms with ("Yes, that's right.", "Okay, sounds good."). */
+const CONFIRMING = wordSet(
+  'thats that is its it right correct fine good great perfect exactly sounds works',
+);
+
+/** A yes that only confirms what the agent said. */
+function confirms(words: readonly string[]): boolean {
+  return (
+    YES.has(words[0] ?? '') &&
+    words.every((word) => YES.has(word) || ADDRESS.has(word) || CONFIRMING.has(word))
+  );
+}
+
+/**
+ * Wave 8b (Maya call e8a43f65, issue 3): the caller tells the agent about their own plans rather
+ * than asking for anything: a sentence with a first-person subject ("I want 21st of December to
+ * the 5th.", "Yeah, we're planning to do Budapest, Vienna, in Austria."), a list ("Germany, Berlin,
+ * and a few other places."), a confirmation ("Yes, that's right.") or only a date. Never words
+ * that ask (`seeksInformation`) or name what they want ("I would like recommendations for
+ * Lisbon."). A follow-up that names no subject ("And in Split.", "Restaurants near the
+ * Colosseum.") is not a statement of plans.
+ */
+export function statesPlans(text: string): boolean {
+  if (cutOffWords(text) || seeksInformation(text)) return false;
+  const words = callerWords(text);
+  if (!words.length || words.some((word) => REQUESTED.has(word))) return false;
+  if (listsItems(text) || confirms(words)) return true;
+  // A date, named by its month and day ("December 21st to January 5th."); not "Tomorrow.", which
+  // may choose what to look up ("Do you want the forecast for today or tomorrow?").
+  const tokens = normalizeForMatch(text).split(' ');
+  if (
+    tokens.every((token) => DATE_WORDS.has(token) || NUMBER_WORD.test(token)) &&
+    tokens.some((token) => MONTHS.has(token)) &&
+    tokens.some((token) => NUMBER_WORD.test(token))
+  )
+    return true;
+  return sentences(text).some((sentence) => {
+    const said = callerWords(sentence);
+    const subject = said.find((word) => !OPENING.has(word));
+    return subject !== undefined && FIRST_PERSON.has(subject);
+  });
 }

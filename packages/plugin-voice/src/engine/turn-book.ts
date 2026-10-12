@@ -1,4 +1,5 @@
 import {
+  continuesUtterance,
   UNTRUSTED_INPUT_VARIABLE,
   type Behavior,
   type BehaviorEvent,
@@ -27,6 +28,8 @@ export interface Turn {
   committed: boolean;
   /** The provider started a web search for its reply (N3): restarting it would search again. */
   searched?: boolean;
+  /** The reply has its first line, held or playing: its LLM call has answered (Wave 8b). */
+  drafted?: boolean;
   /** Set when the turn starts running. */
   controller?: AbortController;
   epoch?: number;
@@ -60,8 +63,9 @@ const BRIEF_WORDS = 3;
  * merged into the newer turn: a turn still queued takes the newer words in place, and a running
  * turn that has made no sound (a filler aside) is superseded, unless it has run a tool, or it is
  * searching and the newer words are brief (call-3 #1: "Oh, my God." threw away turn 21's search
- * and its answer, and the merged turn searched again, 5.9 s later). Words not merged queue behind
- * the reply and are answered after it.
+ * and its answer, and the merged turn searched again, 5.9 s later). Words that carry the earlier
+ * ones on are never brief (Wave 8b, call e8a43f65: "Of January." after "…to the 5th."). Words not
+ * merged queue behind the reply and are answered after it.
  */
 export class TurnBook {
   running?: Turn;
@@ -69,6 +73,8 @@ export class TurnBook {
   private readonly byEpoch = new Map<number, string>();
   /** Caller words whose reply was interrupted while only a filler had played. */
   private carry?: Turn;
+  /** The carry is a reply given up for the caller's words still being spoken (`preempt`). */
+  private preempted = false;
   /** Behaviour tools started and not yet settled. */
   private tools = 0;
   private readonly unsubscribe: (() => void)[];
@@ -106,18 +112,41 @@ export class TurnBook {
     let earlier = this.takeCarry();
     let supersede: Turn | undefined;
     const running = this.running;
-    if (
-      !earlier &&
-      running?.speech &&
+    if (!earlier && running && this.supersedes(turn.input, running)) earlier = supersede = running;
+    if (earlier) this.absorb(turn, earlier);
+    return supersede ? { queue: turn, supersede } : { queue: turn };
+  }
+
+  /**
+   * Wave 8b (call e8a43f65, issue 4): the caller's words so far, while they still speak. When they
+   * will supersede the running reply whatever else they say (they carry its words on, or are more
+   * than a brief remark), a reply still composing is given up now rather than when they end, so
+   * its LLM call and any web search stop at once (live a superseded turn's search ran on for 1.9
+   * and 2.4 s, billed). Its words are carried into the caller's turn, or owed again if that turn
+   * comes to nothing. Returns the turn to cancel.
+   */
+  preempt(words: string): Turn | undefined {
+    const running = this.running;
+    // A reply with its first line has done the work this saves; the caller's words, once they
+    // end, still supersede it (a stuck turn then never holds it past REPLY_HOLD.maxMs).
+    if (!running || running.drafted || this.carry || !this.supersedes(words, running))
+      return undefined;
+    if (brief(words) && !continuesUtterance(words, running.input)) return undefined;
+    this.carry = running;
+    this.preempted = true;
+    return running;
+  }
+
+  /** Words `input` merge into `running`, a reply the caller has heard nothing of (AGT-10). */
+  private supersedes(input: string, running: Turn): boolean {
+    return (
+      running.speech &&
       !running.committed &&
-      !(running.searched && brief(turn.input)) &&
+      !(running.searched && brief(input) && !continuesUtterance(input, running.input)) &&
       !this.tools &&
       !running.controller?.signal.aborted &&
       !this.audibility.answered(running.epoch)
-    )
-      earlier = supersede = running;
-    if (earlier) this.absorb(turn, earlier);
-    return supersede ? { queue: turn, supersede } : { queue: turn };
+    );
   }
 
   /** A barge-in cut the running reply; if only a filler had played, its words stay owed. */
@@ -143,12 +172,18 @@ export class TurnBook {
   /** The caller's speech was dropped; words an interruption left unanswered are owed again. */
   reset(turnId: string): Turn | undefined {
     this.hooks.discard(turnId, 'reset');
-    return this.takeCarry();
+    const preempted = this.preempted;
+    const carry = this.takeCarry();
+    // A reply given up for words that came to nothing runs again on its own words, which leave the
+    // history it recorded them in (as a merged turn's do) so they are recorded once.
+    if (carry && preempted) this.hooks.discard(carry.id, 'superseded');
+    return carry;
   }
 
   takeCarry(): Turn | undefined {
     const carry = this.carry;
     this.carry = undefined;
+    this.preempted = false;
     return carry;
   }
 

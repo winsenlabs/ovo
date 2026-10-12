@@ -63,6 +63,11 @@ export interface Inference {
   readonly model?: string;
   generate(request: InferenceRequest): Promise<InferenceReply>;
   stream?(request: InferenceRequest): AsyncIterable<InferenceStreamEvent>;
+  /**
+   * Wave 8b: whether `request` would be sent the tools the provider runs itself (a web search), so
+   * a call asked ahead of the caller's final words can be left until they are (issue 4).
+   */
+  sendsProviderTools?(request: Omit<InferenceRequest, 'signal'>): boolean;
 }
 
 export interface OperationRecord {

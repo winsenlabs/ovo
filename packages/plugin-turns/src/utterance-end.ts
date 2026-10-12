@@ -61,6 +61,12 @@ const BEFORE_NUMBER = words(
   'the around about on by at till until from before after between to of rs inr',
   MONTHS,
 );
+/** The words that close a date range: "21st of December to the 5th". */
+const RANGE_TO = words('to till until through thru');
+const MONTH_NAMES = words(MONTHS, 'may');
+/** A day of the month as STTs write it: "5", "5th", "21st". */
+const DAY = /^\p{N}{1,2}(?:st|nd|rd|th)?$/u;
+
 /** Short replies that answer by themselves, beyond the agent's backchannel list. */
 const ANSWERS = new Set(
   [
@@ -96,6 +102,8 @@ export function utteranceEnd(text: string, context: UtteranceContext): Utterance
   if (endsCutOff(trimmed) || LIST_GOING.test(trimmed)) return 'unfinished';
   const last = tokens.at(-1)!;
   if (NEVER_LAST.has(last)) return 'unfinished';
+  // Call e8a43f65: "I want 21st of December to the 5th." and, 2 s later, "Of January.".
+  if (rangeAwaitsMonth(tokens)) return 'unfinished';
   if (SENTENCE_END.test(trimmed)) return 'complete';
   if (isAnswer(tokens, context)) return 'complete';
   // Call 6e1a4e3a turn 17: "…be back around the 1" and "st." became two turns.
@@ -114,6 +122,21 @@ export function utteranceEnd(text: string, context: UtteranceContext): Utterance
 export function answersByItself(text: string, context: UtteranceContext): boolean {
   const tokens = normalizeForMatch(text.trim()).split(' ').filter(Boolean);
   return tokens.length > 0 && tokens.length <= SHORT_ANSWER_WORDS && isAnswer(tokens, context);
+}
+
+/**
+ * A date range that named a month for its start and none yet for its end ("21st of December to
+ * the 5th."), even after a full stop: the month may well follow.
+ */
+function rangeAwaitsMonth(tokens: readonly string[]): boolean {
+  if (!DAY.test(tokens.at(-1)!)) return false;
+  const at = tokens.length - (tokens.at(-2) === 'the' ? 3 : 2);
+  const range = tokens[at];
+  return (
+    range !== undefined &&
+    RANGE_TO.has(range) &&
+    tokens.slice(0, at).some((token) => MONTH_NAMES.has(token))
+  );
 }
 
 function numberGoing(text: string, tokens: readonly string[]): boolean {

@@ -1,4 +1,6 @@
 import {
+  affirmationOnly,
+  baseLanguageOf,
   DEFAULT_END_CALL_MIN_CALL_SECONDS,
   DEFAULT_END_CALL_MIN_CALLER_TURNS,
   normalizeForMatch,
@@ -8,14 +10,20 @@ import {
 
 /**
  * What callers say to end a call themselves, as STT writes it: English, Hinglish and Hindi, then
- * Tamil. Matched as whole words anywhere in the turn ("ok thank you bye").
+ * Tamil; then (Wave 8b) asking the agent outright to end it. Matched as whole words anywhere in
+ * the turn ("ok thank you bye", "Maya, cut the call").
  */
 const GOODBYES = [
   'bye|bye bye|goodbye|good bye|ok bye|tata|see you|see you later|talk later|talk to you later',
   "that's all|that is all|nothing else|i have to go|i need to go|gotta go|hang up|i'll hang up",
+  "that's it|i'm done|we're done|no more questions|have a nice day|have a good day|good night",
   'alvida|phone rakh|phone rakhta|rakhta hoon|rakhti hoon|rakhta hu|rakhti hu|baad mein baat',
   'बाय|अलविदा|फोन रख|रखता हूँ|रखती हूँ|बाद में बात',
   'vaikiren|vechudren|poitu varen|poyittu varen|வைக்கிறேன்|போயிட்டு வரேன்|பை',
+  'end the call|end this call|end call|cut the call|cut this call|cut call|close the call',
+  'stop the call|drop the call|disconnect|disconnect the call|you can hang up',
+  'call cut karo|call cut kar do|call band karo|call band kar do|phone band karo|phone kaat do',
+  'कॉल काट दो|कॉल कट करो|कॉल बंद करो|फोन काट दो',
 ]
   .flatMap((group) => group.split('|'))
   .map((phrase) => normalizeForMatch(phrase).split(' '));
@@ -55,7 +63,28 @@ export function foreignScript(text: string, allowed: ReadonlySet<string>): boole
   return letters > 0 && foreign * 2 > letters;
 }
 
-/** True when the caller says goodbye ("ok bye", "phone rakhta hoon"). */
+/**
+ * Wave 8b: what the agent asks when it may want to end the call but the caller has not clearly
+ * asked to, or was not heard clearly (Maya call e8a43f65: "Ma'am, create a call." ended it). A yes
+ * to it ends the call. English and Hindi agents have it; any other the model asks in its words.
+ */
+const ASK_TO_END: Readonly<Record<string, string>> = {
+  en: 'Shall I end the call?',
+  hi: 'क्या मैं कॉल खत्म कर दूँ?',
+};
+
+/** The line an agent speaking `language` asks before ending a call it was not clearly asked to. */
+export function askToEndLine(language: string): string | undefined {
+  return ASK_TO_END[baseLanguageOf(language)];
+}
+
+export const END_REFUSED = {
+  unheard: 'the caller was not heard clearly',
+  early: 'the conversation has only just started',
+  unasked: 'the caller has not clearly asked to end the call',
+} as const;
+
+/** True when the caller says goodbye ("ok bye", "phone rakhta hoon") or asks to end the call. */
 export function saysGoodbye(text: string): boolean {
   const words = normalizeForMatch(text).split(' ').filter(Boolean);
   return GOODBYES.some((phrase) =>
@@ -69,6 +98,8 @@ export function saysGoodbye(text: string): boolean {
  * `minCallerTurns` turns and `minCallSeconds`, unless the caller says goodbye; and it never acts
  * on words that are untrusted: flagged by `UNTRUSTED_INPUT_VARIABLE`, or mostly in a script the
  * agent's language does not use (Russian heard on a Hinglish call). Untrusted turns do not count.
+ * Wave 8b: past the minimums it still ends only on a clear goodbye or ask to end the call, or a
+ * yes to the agent's own `askToEndLine` (call e8a43f65 hung up on "Ma'am, create a call.").
  */
 export class EndCallGate {
   private callerTurns = 0;
@@ -85,10 +116,17 @@ export class EndCallGate {
     this.scripts = scriptsFor([config.language, config.locale]);
   }
 
-  /** A caller turn is being answered. Returns why `end_call` is refused on it, if it is. */
-  turn(input: string, variables: Readonly<Record<string, unknown>>): string | undefined {
+  /**
+   * A caller turn is being answered, after the agent's `previous` lines. Returns why `end_call` is
+   * refused on it, if it is.
+   */
+  turn(
+    input: string,
+    variables: Readonly<Record<string, unknown>>,
+    previous: readonly string[] = [],
+  ): string | undefined {
     if (variables[UNTRUSTED_INPUT_VARIABLE] === true || foreignScript(input, this.scripts))
-      return 'the caller was not heard clearly';
+      return END_REFUSED.unheard;
     // AGT-10: a reply the caller spoke over before hearing any of it is run again on both
     // utterances together, which carry on the words already counted: still one caller turn. (Words
     // said again in a turn of their own count once too; the gate only ever waits longer for it.)
@@ -96,12 +134,20 @@ export class EndCallGate {
     if (!this.last || (words !== this.last && !words.startsWith(`${this.last} `)))
       this.callerTurns += 1;
     this.last = words;
-    if (saysGoodbye(input)) return undefined;
+    if (saysGoodbye(input) || (affirmationOnly(input) && this.askedToEnd(previous)))
+      return undefined;
     const ending = this.config.ending;
     const turns = ending?.minCallerTurns ?? DEFAULT_END_CALL_MIN_CALLER_TURNS;
     const seconds = ending?.minCallSeconds ?? DEFAULT_END_CALL_MIN_CALL_SECONDS;
     if (this.callerTurns < turns || this.now() - this.startedAt < seconds * 1000)
-      return 'the conversation has only just started';
-    return undefined;
+      return END_REFUSED.early;
+    return END_REFUSED.unasked;
+  }
+
+  /** The agent's last line asked whether to end the call. */
+  private askedToEnd(previous: readonly string[]): boolean {
+    const asked = askToEndLine(this.config.language);
+    const last = previous.at(-1);
+    return Boolean(asked && last && normalizeForMatch(last) === normalizeForMatch(asked));
   }
 }

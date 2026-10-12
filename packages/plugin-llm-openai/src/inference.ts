@@ -69,7 +69,10 @@ export function openAiInference(
           providerToolInstructions: SEARCH_INSTRUCTIONS,
           providerToolUsage: webSearchUsage,
           ...(skipUnclear
-            ? { providerToolsFor: (request: InferenceRequest) => !unclearForSearch(request) }
+            ? {
+                providerToolsFor: (request: Omit<InferenceRequest, 'signal'>) =>
+                  !unclearForSearch(request),
+              }
             : {}),
           ...(announce ? { providerToolAnnounce: announce } : {}),
         }

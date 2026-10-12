@@ -34,6 +34,9 @@ export class TurnDriver extends TurnRunner {
     if (decision.type === 'force-endpoint') return;
     if (decision.type === 'turn.partial') {
       this.hold.partial(decision.turnId);
+      // Wave 8b: words that will supersede the reply running stop its work now (TurnBook.preempt).
+      const preempted = this.turns.preempt(decision.text);
+      if (preempted) this.abandon(preempted);
       return this.hooks.prepare(decision);
     }
     // The caller is taking a turn, or a false start ended with nothing to answer.
@@ -88,6 +91,8 @@ export class TurnDriver extends TurnRunner {
       }
       // AGT-10 superseded the held reply or queued these words behind it: it plays now.
       this.hold.ended(decision.turnId, 'stopped');
+      // Wave 8b: unless these words trailed off, when the caller may yet go on.
+      if (input.kind === 'speech' && decision.reason === 'hold') this.hold.trailedOff();
     }
     if (decision.type === 'idle' && !this.idle) this.detectorIdle.idle(decision);
   }

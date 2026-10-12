@@ -141,13 +141,16 @@ export abstract class TurnRunner {
    */
   protected caller(turn: Turn): void {
     const { queue, supersede } = this.turns.caller(turn);
-    if (supersede) {
-      supersede.controller?.abort(new DOMException('turn superseded', 'AbortError'));
-      this.behavior.cancel?.();
-      // Flushes the stale reply's queued lines and its synthesis before any audio reaches the caller.
-      if (supersede.epoch !== undefined) this.interrupting = this.speech.beginEpoch();
-    }
+    if (supersede) this.abandon(supersede);
     if (queue) this.queue(queue);
+  }
+
+  /** Cancels a reply the caller's newer words supersede: its decision, LLM, search and speech. */
+  protected abandon(turn: Turn): void {
+    turn.controller?.abort(new DOMException('turn superseded', 'AbortError'));
+    this.behavior.cancel?.();
+    // Flushes the stale reply's queued lines and its synthesis before any audio reaches the caller.
+    if (turn.epoch !== undefined) this.interrupting = this.speech.beginEpoch();
   }
 
   /** Keeps `task` until it settles, so disposal waits for it. */
@@ -226,6 +229,7 @@ export abstract class TurnRunner {
         signal: abort.signal,
         current: () => lines.current(),
         first: () => {
+          turn.drafted = true;
           cancelFiller?.();
           lines.first();
           // Not llm_ttfb: this interval also holds grounding, the decision and sentence

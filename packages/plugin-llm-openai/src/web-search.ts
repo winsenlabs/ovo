@@ -31,8 +31,8 @@ export interface WebSearchConfig {
    */
   announce?: SearchAnnounceConfig;
   /**
-   * N3, Wave 8: leave the search tool out for words that carry nothing to look up (`unclearForSearch`).
-   * Default true.
+   * N3, Wave 8: leave the search tool out for words that carry nothing to look up, and (Wave 8b)
+   * for statements of the caller's own plans, dates or lists (`unclearForSearch`). Default true.
    */
   skipUnclearInput?: boolean;
 }

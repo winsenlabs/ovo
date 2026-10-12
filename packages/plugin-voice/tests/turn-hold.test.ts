@@ -191,7 +191,8 @@ describe('a reply is held while the caller speaks again before hearing it (P1)',
     await clock.advanceAsync(100);
     h.turn.vad('vad.start');
     h.turn.started('turn-2');
-    h.turn.partial('turn-2', 'and another thing');
+    // Brief words that do not carry turn 1 on: the reply is held, not given up (Wave 8b preempt).
+    h.turn.partial('turn-2', 'another thing');
     await clock.advanceAsync(20_000);
     expect(h.audio.map((line) => [line.text, line.atMs - t0])).toEqual([
       ['Answer: rule yes.', 100 + REPLY_HOLD.maxMs + 100],

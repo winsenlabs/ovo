@@ -21,9 +21,11 @@ interface Asked {
 
 /**
  * Wave 8 (latency fix 4): the LLM asked on the caller's partial transcript, for an agent without
- * a decision model, so the first token (and any web search the model starts, since the request
- * carries the same tools) is under way before the turn ends. In the Maya calls a one-word answer's
- * last partial arrived 1.6-1.9 s before its turn ended, and a sentence's 0.2-1.0 s.
+ * a decision model, so the first token is under way before the turn ends. A request the LLM would
+ * send its web search tool is asked ahead only on words the STT will not revise (Wave 8b): a
+ * search started on words the caller then changed was billed and thrown away. In the Maya calls
+ * a one-word answer's last partial arrived 1.6-1.9 s before its turn ended, and a sentence's
+ * 0.2-1.0 s.
  *
  * A revisable partial must hold `llmDebounceMs` unchanged, carry `llmMinWords` words and end a
  * sentence (`partialEnding: 'sentence'`; unlike a decision, an STT that never punctuates its
@@ -124,6 +126,9 @@ export class PartialLlmSpeculation {
     }
     if (!call) return;
     const llm = this.llm;
+    // Wave 8b (call e8a43f65, issue 4): a web search is not started on words the caller may still
+    // change; the turn starts it on its final words, or on words the STT will not revise.
+    if (revisable && llm.sendsProviderTools?.(call)) return;
     this.metrics.onPartials += 1;
     if (revisable) this.count(turnId);
     this.asked = {

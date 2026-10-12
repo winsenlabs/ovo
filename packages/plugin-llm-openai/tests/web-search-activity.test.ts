@@ -232,6 +232,23 @@ describe('no web search on input too unclear to search on (N3)', () => {
     expect(bodies.map(sentTools)).toEqual([['web_search'], ['web_search']]);
   });
 
+  it('sends no tool to a statement of plans (Wave 8b), and says so before it is asked', async () => {
+    const { inference, bodies, push, end } = setup();
+    for (const input of ['I want 21st of December to the 5th. Of January.', 'Is it cold then?']) {
+      const done = drain(inference.stream(tripRequest(input)), []);
+      await settle();
+      push(created('resp') + answer('Okay.', 0) + completed('resp'));
+      end();
+      await done;
+    }
+    expect(bodies.map(sentTools)).toEqual([[], ['web_search']]);
+    // What a speculative call reads first (behaviors PartialLlmSpeculation).
+    expect(
+      inference.sendsProviderTools(tripRequest('Germany, Berlin, and a few other places.')),
+    ).toBe(false);
+    expect(inference.sendsProviderTools(tripRequest('Is it cold then?'))).toBe(true);
+  });
+
   it('keeps the tool on every turn when the binding says so', async () => {
     const { inference, bodies, push, end } = setup({
       model: 'gpt-6-luna',

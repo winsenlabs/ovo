@@ -39,7 +39,8 @@ describe('the search tool only for words that ask (call 6e1a4e3a, call-3 #2)', (
       'Credit. Okay, so...': 'cut-off',
       'Wait. Hold on.': 'backchannel',
       'Listen to me. Listen to me, please.': undefined,
-      "I'm in a coffee shop.": undefined,
+      // Wave 8b: the caller saying where they are asks nothing to look up (it did not search).
+      "I'm in a coffee shop.": 'statement',
       'No. Can you check for flights from Chennai to Frankfurt?': undefined,
       'Sometime during Christmas.': undefined,
       "Yeah. So we'd like to leave on the 20th and be back around the 1": undefined,

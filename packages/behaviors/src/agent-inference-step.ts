@@ -112,7 +112,7 @@ async function* inferenceSteps(
   rejoin?: Rejoin,
 ): AsyncGenerator<string, void> {
   const { config, signal } = step;
-  const ending = new EndCallRefusal(step);
+  const ending = new EndCallRefusal({ ...step, language: config.language });
   const publish = ending.publish;
   // Fallback lines the caller should not hear (P10, call-3 #3), sentence by sentence or whole.
   const fallbacks = replyFallbacks(step);
@@ -150,7 +150,7 @@ async function* inferenceSteps(
         (input) => {
           const accepted = isEndCall(step.tools, step.validators, input);
           // A refused goodbye already streamed stays said; the call stays open.
-          if (accepted && !ending.refused(true)) step.endCall(endCallReason(input));
+          if (accepted) ending.afterText(() => step.endCall(endCallReason(input)));
           return accepted;
         },
         streamGuard,
@@ -159,7 +159,11 @@ async function* inferenceSteps(
         // may take back is left uncapped, so no offer of more is said before the flow's question.
         rejoin ? undefined : config.language,
       );
-      if (!streamed) return;
+      if (!streamed) {
+        const ask = ending.takeAsk();
+        if (ask !== undefined) yield publish(ask);
+        return;
+      }
       reply = streamed;
     } else {
       reply = await step.inference.generate(request);
@@ -216,6 +220,9 @@ async function* inferenceSteps(
     }
     if (tool.id === END_CALL_TOOL_ID) {
       const why = ending.refused(false);
+      // Wave 8b: an ending the caller did not clearly ask for is asked about, and waits for them.
+      const ask = why && ending.ask(why);
+      if (ask) return yield publish(ask);
       // Refused: the model hears why, and answers the caller instead in its next step.
       if (why) {
         step.results.push(ending.record(reply.input, why));
