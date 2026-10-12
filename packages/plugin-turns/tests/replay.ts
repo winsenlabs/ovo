@@ -59,6 +59,7 @@ export function replay(clock: ReplayClock, row: Record<string, unknown>) {
   });
   const turns: ReplayedTurn[] = [];
   const resets: string[] = [];
+  const resetTexts: (string | undefined)[] = [];
   const commits: { text: string; latencyMs: number }[] = [];
   let forced = 0;
   let segment = 0;
@@ -86,8 +87,10 @@ export function replay(clock: ReplayClock, row: Record<string, unknown>) {
       forced++;
       const next = commits.shift();
       if (next) clock.setTimeout(() => final(next.text), next.latencyMs);
-    } else if (decision.type === 'turn.reset') resets.push(decision.reason);
-    else if (decision.type === 'turn.stopped' && decision.input.kind === 'speech') {
+    } else if (decision.type === 'turn.reset') {
+      resets.push(decision.reason);
+      resetTexts.push(decision.text);
+    } else if (decision.type === 'turn.stopped' && decision.input.kind === 'speech') {
       const atMs = clock.now();
       const endpointMs =
         vadStopAt !== undefined ? atMs - vadStopAt + VAD_STOP_MS : atMs - (wordsAt ?? atMs);
@@ -111,6 +114,8 @@ export function replay(clock: ReplayClock, row: Record<string, unknown>) {
     clock,
     turns,
     resets,
+    /** The words each reset dropped (Wave 9). */
+    resetTexts,
     /** Host commits (force-endpoint) so far. */
     forced: () => forced,
     send,

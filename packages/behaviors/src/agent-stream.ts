@@ -1,7 +1,9 @@
 import {
   END_CALL_TOOL_ID,
   type AgentReplyPacing,
+  type Inference,
   type InferenceReply,
+  type InferenceRequest,
   type InferenceStreamEvent,
 } from '@winsendotai/ovo-contracts';
 import { AgentToolSelectionError } from './agent-tools.ts';
@@ -32,6 +34,36 @@ export class InternalNotes {
 /** `InternalNotes` for a whole reply. */
 export function stripInternalNotes(text: string): string | undefined {
   return new InternalNotes().strip(text);
+}
+
+/** `events`, telling `drafted` once the model's first words arrive (Wave 9, D6). */
+async function* noticeWords(
+  events: AsyncIterable<InferenceStreamEvent>,
+  drafted: (() => void) | undefined,
+): AsyncGenerator<InferenceStreamEvent> {
+  for await (const event of events) {
+    if (drafted && event.kind === 'text-delta' && event.delta.trim()) {
+      drafted();
+      drafted = undefined;
+    }
+    yield event;
+  }
+}
+
+/** `inference`, its streamed replies telling `drafted` once their first words arrive. */
+export function noticingWords(inference: Inference, drafted: () => void): Inference {
+  const stream = inference.stream;
+  return {
+    ...(inference.provider ? { provider: inference.provider } : {}),
+    ...(inference.model ? { model: inference.model } : {}),
+    generate: (request) => inference.generate(request),
+    ...(stream
+      ? {
+          stream: (request: InferenceRequest) =>
+            noticeWords(stream.call(inference, request), drafted),
+        }
+      : {}),
+  };
 }
 
 export async function* streamAgentReply(

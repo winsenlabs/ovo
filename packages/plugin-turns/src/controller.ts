@@ -99,6 +99,8 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         this.idle.cancel();
         if (!this.firstSpeechComplete) this.opening.botStarted(event.atMs);
         this.answering = !!event.question;
+        if (!event.filler && (!this.bot || this.bot.filler))
+          this.replyStartedAt = this.input.clock.now();
         this.bot = {
           epoch: event.epoch,
           kind: event.kind,

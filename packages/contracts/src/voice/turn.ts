@@ -60,7 +60,16 @@ export type TurnDecision =
        */
       untrusted?: TranscriptDoubt;
     }
-  | { type: 'turn.reset'; turnId: string; reason: 'backchannel' | 'muted' }
+  | {
+      type: 'turn.reset';
+      turnId: string;
+      reason: 'backchannel' | 'muted';
+      /**
+       * Wave 9 (call 10d5ef30, D2): the words dropped with the turn, if any, so a caller's request
+       * taken for the room ("Tell me the name.", said over the agent) shows in the call's events.
+       */
+      text?: string;
+    }
   | { type: 'force-endpoint' }
   | { type: 'idle'; retry: number; final: boolean; prompt?: string };
 

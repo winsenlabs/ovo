@@ -207,11 +207,6 @@ export abstract class TurnControllerState {
     this.emit({ type: 'turn.started', turnId: this.turnId });
   }
 
-  protected reset(reason: 'muted' | 'backchannel'): void {
-    if (this.turnId) this.emit({ type: 'turn.reset', turnId: this.turnId, reason });
-    this.clear();
-  }
-
   protected clear(): void {
     this.turnId = undefined;
     this.aggregate.clear();

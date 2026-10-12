@@ -22,6 +22,8 @@ export const SAID5 = {
   turn6: 'Yeah. Also, what more...',
   turn21: 'Yeah, yeah, sure.',
   turn22: 'Never mind. Thank you.',
+  turn10: 'Yeah, yeah.',
+  turn11: 'Tell me the name.',
 };
 
 /** Turns 1–2: "…what places are nice in-" and, 2 s later, "… Europe in December, January times?". */
@@ -148,5 +150,30 @@ export function call5OverAgent(): Step[] {
     { at: 82_747, final: SAID5.turn6 },
     { at: 88_507, agent: 'question' },
     { at: 90_967, agent: 'stop' },
+  ];
+}
+
+/**
+ * Turns 10–11: "Yeah, yeah." (rule silence, 580 ms) to "Want more detail?", then the 11 s answer,
+ * and over its start "Pamita me." / "Tell me the name." with no VAD run behind them (live turn 11
+ * started on its first interim, 87 ms after the answer's first audio reached the carrier, and was
+ * dropped for the room). All measured: turn 10's VAD stop is its final less its vad_stop_wait
+ * (377 ms); the agent's lines start when their audio was sent, the question when "Want more
+ * detail?" joined the reply (sent at 161.081 s), and it stopped when that line's playout ended.
+ */
+export function call5TalkOver(): Step[] {
+  return [
+    { at: 153_309, agent: 'question' },
+    { at: 154_369, agent: 'stop' },
+    // turn-10
+    { at: 158_576, vad: 'vad.start' },
+    { at: 158_915, vad: 'vad.stop' },
+    { at: 159_292, final: SAID5.turn10 },
+    // The answer ("Zagreb's Advent is centered around the main squares…"), and turn 11 over it.
+    { at: 160_336, agent: 'start' },
+    { at: 160_423, interim: 'Pamita me.' },
+    { at: 161_081, agent: 'question' },
+    { at: 161_329, interim: SAID5.turn11 },
+    { at: 171_589, agent: 'stop' },
   ];
 }

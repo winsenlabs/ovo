@@ -66,6 +66,12 @@ Each wait has a limit:
   ("built-in.") end like an answer. A capital "A" closing a sentence ("Plan A.") is a name.
   In the call, all three such turns were the caller going on 0.01–1.6 s later; each got a reply
   made for half a sentence, held, and thrown away unheard.
+- **A request begun as the reply starts (Wave 9, call 10d5ef30 turn 11).** Words over the agent
+  with no VAD speech behind them are the room, unless they began no later than
+  `speechEvidence.replyStartMs` (1000) after the reply started to play and ask for something
+  ("Tell me the name.", its first interim 87 ms into the answer): the caller began them before
+  hearing it. They wait for the agent to stop and end on `agent`. Words that ask nothing stay the
+  room's, however early. A dropped turn's words now ride on `turn.reset` (`text`).
 - **No filler before a goodbye (Wave 9).** A turn that says goodbye or closes the conversation
   ("Never mind. Thank you.") is offered no filler line: its reply is a goodbye ("One moment." played
   180 ms before "Shall I end the call?" on turn 22).

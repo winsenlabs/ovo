@@ -85,13 +85,24 @@ describe('call 10d5ef30 D4: a clear closing ends the call without asking', () =>
     expect(early.behavior.isComplete()).toBe(false);
   });
 
-  it('reads thanks with "need nothing more" as a closing, and nothing less', () => {
+  it('asks before ending on thanks around words that close nothing (Hinglish)', async () => {
+    const m = maya();
+    await m.into();
+    // "Thank you. I didn't understand anything.": end_call here would hang up on a confused caller.
+    expect(await m.turn('Thank you. Mujhe kuch nahi samjha.')).toEqual([ASK]);
+    expect(m.behavior.isComplete()).toBe(false);
+  });
+
+  it('reads thanks with "need nothing more" and nothing else as a closing', () => {
     for (const text of [
       "No, I'm good. Thank you.",
       'Never mind. Thank you.',
       "That's all, thanks.",
       'All set, thank you so much.',
       'Bas, itna hi. Thank you.',
+      'Nahi, bas. Shukriya.',
+      'Aur kuch nahi, thank you so much.',
+      'No, no, I am fine, thanks a lot, sir.',
     ])
       expect(closesConversation(text), text).toBe(true);
     for (const text of [
@@ -102,6 +113,15 @@ describe('call 10d5ef30 D4: a clear closing ends the call without asking', () =>
       "Thanks, that's fine, but what about Rome?",
       "That's fine, thank you.",
       "I'm good, thanks. And Vienna?",
+      // Words around "bas", "kuch nahi" or "I'm okay" that are no closing (review of D4): each would
+      // have let end_call through without asking.
+      'Thank you. Mujhe kuch nahi samjha.',
+      'Thank you, bas ek sawal hai.',
+      "Thanks, but I haven't got anything yet, kuch nahi mila.",
+      "Thank you, I'm okay with that plan, book it",
+      // "How are you?" answered, not a closing.
+      "I'm fine, thank you.",
+      "I'm good, thanks.",
     ])
       expect(closesConversation(text), text).toBe(false);
   });

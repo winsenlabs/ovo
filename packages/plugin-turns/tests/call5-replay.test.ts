@@ -7,6 +7,7 @@ import {
   call5Hesitation,
   call5Opening,
   call5OverAgent,
+  call5TalkOver,
   SAID5,
 } from './call5-timeline.ts';
 import { RECOMMENDED } from './replay.ts';
@@ -89,14 +90,31 @@ describe('call 10d5ef30 D6: no filler before a goodbye', () => {
 });
 
 describe('call 10d5ef30 D2: words over the agent that the VAD never heard', () => {
-  it('turn 6: "Yeah. Also, what more..." is taken for the room, as Wave 8 decided', () => {
-    // Not lost by the reply pipeline: the speech-evidence gate (bargeIn) drops words said over the
-    // agent with no VAD speech behind them once the VAD has heard this caller (turn 5). Live turn
-    // 11 ("Tell me the name.", interims only) went the same way. The VAD missed this caller's soft
-    // speech in silence too (turns 2 and 16 had no VAD run): its caller gate (12 dB under the
-    // learned level) is the likely cause, which only the call's audio can confirm.
+  it('turn 11: "Tell me the name.", begun as the answer started, is answered when it ends', () => {
+    // Live the speech-evidence gate (bargeIn) dropped it for the room: no VAD speech behind it.
+    // Its first interim came 87 ms into the answer, so the caller began it before hearing any:
+    // talk-over at the answer's start. The caller never asked again; the agent went on for 11 s.
+    const { f, start } = replayCall(new FakeClock(), RECOMMENDED, call5TalkOver());
+    expect(f.turns.map(({ text, reason, atMs }) => ({ text, reason, atMs: atMs - start }))).toEqual(
+      [
+        // As live: rule silence, at the final.
+        { text: SAID5.turn10, reason: 'silence', atMs: 159_292 },
+        // Answered once the agent stops, as a short answer to its question would be (AGT-9).
+        { text: SAID5.turn11, reason: 'agent', atMs: 171_589 },
+      ],
+    );
+    expect(f.resets).toEqual([]);
+  });
+
+  it('turn 6: "Yeah. Also, what more..." 6.4 s into the answer is still the room', () => {
+    // The speech-evidence gate (bargeIn) drops words said over the agent with no VAD speech behind
+    // them once the VAD has heard this caller (turn 5), as Wave 8 decided for the café: these began
+    // long after the answer did. The VAD missed this caller's soft speech in silence too (turns 2
+    // and 16 had no VAD run): its caller gate (12 dB under the learned level) is the likely cause,
+    // which only the call's audio can confirm. The dropped words now travel with the reset.
     const { f } = replayCall(new FakeClock(), RECOMMENDED, call5OverAgent());
     expect(f.turns.map((turn) => turn.text)).toEqual([SAID5.turn5]);
     expect(f.resets).toEqual(['backchannel']);
+    expect(f.resetTexts).toEqual([SAID5.turn6]);
   });
 });

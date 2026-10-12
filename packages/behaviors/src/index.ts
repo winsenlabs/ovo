@@ -236,7 +236,10 @@ export function createAgentBehaviorPlugin() {
         },
       );
       ctx.provide(BEHAVIOR_SERVICE_KEYS.behavior, behavior);
-      ctx.effect(() => () => behavior.cancel());
+      ctx.effect(() => () => {
+        behavior.cancel();
+        behavior.dispose();
+      });
     },
   );
 }
