@@ -1,4 +1,9 @@
-import { classifyConfirmation, offLanguage, type SttEvent } from '@winsendotai/ovo-contracts';
+import {
+  classifyConfirmation,
+  offLanguage,
+  pausesMidThought,
+  type SttEvent,
+} from '@winsendotai/ovo-contracts';
 import { TurnControllerState } from './controller-state.ts';
 import { canInterrupt, confirmationPrompt, speechMuted } from './mute.ts';
 import { acknowledges, containsConfirmationPhrase, speechCanInterrupt } from './start-min-words.ts';
@@ -47,13 +52,17 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
         return;
       }
     }
-    // Words that trail off wait for the caller to go on ("…around the 1" + "st.").
+    // Words that trail off wait for the caller to go on ("…around the 1" + "st."); Wave 9: words
+    // that stop mid-thought ("No, umm...", "…it should still be a") wait the longer pause.
     const unfinished = this.read(text).ends === 'unfinished';
+    const { cutoffHoldMs, pauseHoldMs } = this.config;
+    const pause = unfinished && cutoffHoldMs > 0 && pauseHoldMs > 0 && pausesMidThought(text);
     const expired = () => {
-      this.endRule = 'hold';
+      this.endRule = pause ? 'pause' : 'hold';
       this.tryStop();
     };
-    if (this.cutoff.holds(unfinished, expired)) return;
+    const holdMs = pause ? pauseHoldMs : undefined;
+    if (this.cutoff.holds(unfinished, expired, holdMs, text)) return;
     this.stop();
   }
 
@@ -143,6 +152,8 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
     if (segment.stability === 'final') {
       this.finalSeen = true;
       this.heardSinceFinal = false;
+      // Wave 9: the commit is answered; words the caller goes on with need a commit of their own.
+      this.forceSent = false;
       if (this.awaitingConfirmationFinal) {
         this.awaitingConfirmationFinal = false;
         if (classifyConfirmation(this.aggregate.text) === 'unclear') {

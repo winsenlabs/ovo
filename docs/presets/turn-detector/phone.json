@@ -15,6 +15,7 @@
   "noiseMs": 2500,
   "questionReplyMs": 6000,
   "cutoffHoldMs": 700,
+  "pauseHoldMs": 2500,
   "speechEvidence": { "bargeIn": true, "turns": false, "minSpeechMs": 0, "windowMs": 1500 },
   "opening": { "protectMs": 1800, "confirmWords": true }
 }

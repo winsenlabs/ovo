@@ -45,6 +45,8 @@ export interface ReplayedTurn {
   reason?: string;
   /** When the turn ended, from the replay's start. */
   atMs: number;
+  /** The filler line offered with the turn (LAT-6), if any. */
+  filler?: string;
 }
 
 export function replay(clock: ReplayClock, row: Record<string, unknown>) {
@@ -89,7 +91,14 @@ export function replay(clock: ReplayClock, row: Record<string, unknown>) {
       const atMs = clock.now();
       const endpointMs =
         vadStopAt !== undefined ? atMs - vadStopAt + VAD_STOP_MS : atMs - (wordsAt ?? atMs);
-      turns.push({ text: decision.input.text, endpointMs, reason: decision.reason, atMs });
+      const filler = decision.filler?.text;
+      turns.push({
+        text: decision.input.text,
+        endpointMs,
+        reason: decision.reason,
+        atMs,
+        ...(filler ? { filler } : {}),
+      });
       vadStopAt = wordsAt = undefined;
       words = '';
     }

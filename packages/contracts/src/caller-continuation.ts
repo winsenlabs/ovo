@@ -46,6 +46,38 @@ export function continuesUtterance(later: string, earlier = ''): boolean {
   return Boolean(item && !OPENERS.has(item[1]!.toLowerCase()) && /,/u.test(lastSentence(before)));
 }
 
+/** The sounds callers think aloud with, as STTs write them ("umm", "uh", "अम्म"). */
+const HESITATIONS = words('um umm ummm uh uhh uhm er erm अम्म उम्म');
+/** Words no sentence ends on, whatever the STT put after them: articles and possessives. */
+const DETERMINERS = words('a an the my your our their');
+/** Words a sentence goes on after: prepositions and conjunctions ("fly out on", "but"). */
+const LEADING_ON = words(
+  'to of for in on at with from about into onto than and but or nor because',
+);
+/** The last word of `text`, before any punctuation (none when the text ends on a number). */
+const LAST_WORD = /([\p{L}\p{M}'’]+)[^\p{L}\p{M}\p{N}]*$/u;
+const CLOSED = /[.?!।॥？！。]["'”’)\]]*\s*$/u;
+/** The STT's own mark of words breaking off: a trailing "...", "…" or dash. */
+const BROKEN_OFF = /(?:[-–—]|…|\.\.\.)["'”’)\]]*\s*$/u;
+
+/**
+ * Wave 9 (Maya call 10d5ef30, issue D3): the caller stopped mid-thought rather than at the end of
+ * what they meant to say: the words end on a hesitation ("No, umm..."), an article or possessive
+ * ("it should still be a"), or a preposition or conjunction the STT did not close with a full stop
+ * or question mark ("…tell me what places are nice in-", "I expect to fly out on..."; not "Where
+ * are you from?"). A capital "A" closing a sentence names something ("Plan A.").
+ */
+export function pausesMidThought(text: string): boolean {
+  const trimmed = text.trim();
+  const raw = LAST_WORD.exec(trimmed)?.[1];
+  if (!raw) return false;
+  const last = raw.toLowerCase().replace(/['’]/gu, '');
+  if (HESITATIONS.has(last)) return true;
+  const open = !CLOSED.test(trimmed) || BROKEN_OFF.test(trimmed);
+  if (DETERMINERS.has(last)) return raw !== 'A' || open;
+  return LEADING_ON.has(last) && open;
+}
+
 /**
  * True when some sentence of `text` is a list of three or more short items, separated by commas
  * and "and"/"or", at least one a comma: "Germany, Berlin, and a few other places.", "Rome, Paris,

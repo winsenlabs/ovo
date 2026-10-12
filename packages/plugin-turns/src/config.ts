@@ -114,6 +114,15 @@ export const DetectorConfigSchema = TurnConfigSchema.extend({
    */
   cutoffHoldMs: z.number().int().min(0).max(10000).default(700),
   /**
+   * Wave 9: the hold instead for words that stop mid-thought, on a hesitation, an article or a
+   * preposition ("No, umm...", "…it should still be a", contracts `pausesMidThought`): the caller
+   * is thinking, not done. In call 10d5ef30 three such turns ended and the caller went on 0.01–1.6
+   * s later; each got a reply made for half a sentence (two asked the caller to say it again), held
+   * and thrown away unheard, the last by 0.4 s. The reply's own hold after a turn that trailed off
+   * (the engine's 2 s) does not follow it. 0 uses cutoffHoldMs; cutoffHoldMs 0 turns both off.
+   */
+  pauseHoldMs: z.number().int().min(0).max(10000).default(2500),
+  /**
    * Wave 8: a VAD run that brings no new words from the STT for this long (from its start or the
    * last words, whichever is later) is the room, not the caller (café babble the VAD cannot tell
    * from speech): it no longer holds a turn with words open. On the live calls the first words
@@ -166,6 +175,7 @@ export const PHONE_TURN_CONFIG: Readonly<DetectorConfig> = Object.freeze(
     noiseMs: 2500,
     questionReplyMs: 6000,
     cutoffHoldMs: 700,
+    pauseHoldMs: 2500,
     speechEvidence: { bargeIn: true, turns: false, minSpeechMs: 0, windowMs: 1500 },
     opening: { protectMs: 1800, confirmWords: true },
   }),
