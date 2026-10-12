@@ -4,7 +4,15 @@ import {
   INDIAN_VERBALISATION_FILTER_ID,
   indianVerbalisationFilter,
 } from './indian-verbalisation.ts';
+import { SPEECH_NORMALISER_FILTER_ID, speechNormaliserFilter } from './speech-normaliser.ts';
 
+export {
+  createSpeechNormaliserFilter,
+  normaliseSpeechText,
+  SPEECH_NORMALISER_FILTER_ID,
+  speechNormaliserFilter,
+  type SpeechNormaliserOptions,
+} from './speech-normaliser.ts';
 export {
   INDIAN_VERBALISATION_FILTER_ID,
   indianNumberWords,
@@ -65,6 +73,18 @@ export const urlFilter: TextFilter = {
   },
 };
 
+/**
+ * The filters a speaker applies: the agent's, plus the speech normaliser whether or not the agent
+ * selected it (Wave 9 D1). Every agent's replies reach the TTS written for the ear, including
+ * releases pinned before the normaliser existed. A pre-render or cache inventory that mirrors the
+ * speaker must start from this list too, or a fixed line the normaliser changes is keyed apart.
+ */
+export function speakerTextFilters(filters: readonly TextFilter[]): TextFilter[] {
+  return filters.some((filter) => filter.id === SPEECH_NORMALISER_FILTER_ID)
+    ? [...filters]
+    : [...filters, speechNormaliserFilter];
+}
+
 /** The one order every speaker applies filters in: lowest `order` first, then by id. */
 export function orderTextFilters(filters: readonly TextFilter[]): TextFilter[] {
   return [...filters].sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
@@ -113,4 +133,9 @@ export function createUrlTextFilterPlugin() {
 
 export function createIndianVerbalisationTextFilterPlugin() {
   return defineFilter(INDIAN_VERBALISATION_FILTER_ID, indianVerbalisationFilter);
+}
+
+/** Wave 9 D1: dates, ranges, years and symbols written for the ear (`speech-normaliser.ts`). */
+export function createSpeechNormaliserTextFilterPlugin() {
+  return defineFilter(SPEECH_NORMALISER_FILTER_ID, speechNormaliserFilter);
 }
