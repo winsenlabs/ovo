@@ -250,6 +250,36 @@ describe('live per-turn telemetry', () => {
     expect(summary('turn-3').summary.endpointMs).toBeNull();
   });
 
+  // Wave 9 D2: the engine now publishes a dropped turn (`user.turn` reset, call 10d5ef30's
+  // "Tell me the name."). It is not the running turn's start or stop, so it must not discard the
+  // provider's endpoint measure for that turn.
+  it("keeps the provider's endpoint when a dropped turn's reset arrives mid-turn", async () => {
+    const h = await harness();
+    h.emit({ type: 'user.turn', phase: 'started', turnId: 'turn-1' });
+    h.session.recordStage({ stage: 'stt.endpoint', durationMs: 610 });
+    h.emit({
+      type: 'user.turn',
+      phase: 'reset',
+      turnId: 'turn-0',
+      resetReason: 'backchannel',
+      text: 'Tell me the name.',
+    });
+    h.emit({
+      type: 'user.turn',
+      phase: 'stopped',
+      turnId: 'turn-1',
+      input: 'speech',
+      text: 'Tomorrow.',
+      endpointMs: 700,
+    });
+    h.emit({ type: 'timing', key: 'turn_decision', turnId: 'turn-1', atMs: 4_010, ms: 10 });
+    await h.finish();
+    const summary = h.telemetry
+      .filter((event) => event.kind === 'turn.summary' && event.turnId === 'turn-1')
+      .at(-1)?.payload as { summary: { endpointMs: number | null } };
+    expect(summary.summary.endpointMs).toBe(610);
+  });
+
   it('keeps no caller or agent words anywhere when the transcript switch omits them', async () => {
     const h = await harness(
       { default: 'store', agents: { 'agent-private': 'omit' } },

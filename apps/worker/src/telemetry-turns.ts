@@ -43,7 +43,8 @@ export class WorkerTurnTelemetry extends TurnTelemetryCollector {
 
   override engine(event: EngineEvent): void {
     this.waits.engine(event);
-    if (event.type === 'user.turn' && event.phase !== 'idle') {
+    // A reset (Wave 9 D2) is a dropped turn's, not the running turn's start or stop.
+    if (event.type === 'user.turn' && event.phase !== 'idle' && event.phase !== 'reset') {
       // As the collector does, a provider measure from before the turn started is not this turn's.
       const engineMs = event.phase === 'stopped' && event.input !== 'dtmf' && event.endpointMs;
       if (!this.measured && typeof engineMs === 'number')
