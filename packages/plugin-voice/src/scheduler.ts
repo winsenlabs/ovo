@@ -11,7 +11,7 @@ import { SpeechHold } from './scheduler-hold.ts';
 import { playLine, type LinePlayback } from './scheduler-play.ts';
 import { SpeechPlayout } from './scheduler-playout.ts';
 import { SpeechSettlement, type QueueEntry } from './scheduler-settlement.ts';
-import { filterSpeechText, orderTextFilters } from './speech/text-filters.ts';
+import { filterSpeechText, orderTextFilters, speakerTextFilters } from './speech/text-filters.ts';
 import type { SpeechTimingSink } from './speech/timing.ts';
 import {
   SpeechEpochError,
@@ -41,7 +41,7 @@ export class BoundedSpeechScheduler implements Speech {
   private readonly tasks = new Set<Promise<void>>();
   private pumping?: Promise<void>;
   private prefetchSegments = 0;
-  private filters: readonly TextFilter[] = [];
+  private filters: readonly TextFilter[] = speakerTextFilters([]);
   private language = 'en-US';
   private timing?: SpeechTimingSink;
   private nextSegment = 0;
@@ -126,7 +126,7 @@ export class BoundedSpeechScheduler implements Speech {
   }
 
   configureFilters(filters: readonly TextFilter[], language: string): void {
-    this.filters = orderTextFilters(filters);
+    this.filters = orderTextFilters(speakerTextFilters(filters));
     this.language = language;
   }
 

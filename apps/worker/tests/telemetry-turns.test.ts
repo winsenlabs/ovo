@@ -1,69 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EngineEvent, VoiceSessionEngine } from '@winsendotai/ovo-contracts';
-import type { TelemetryEvent, TelemetryRepository } from '@winsendotai/ovo-plugin-observability';
-import type { StoredCallEvent } from '@winsendotai/ovo-plugin-storage';
 import { subscribeEngineTelemetry } from '../src/session-graph-host.ts';
 import { transcriptTextPolicyFromEnv, withoutTranscriptText } from '../src/telemetry-privacy.ts';
-import { WorkerTelemetryRuntime, type TranscriptTextPolicy } from '../src/telemetry-runtime.ts';
-
-async function harness(transcriptText?: TranscriptTextPolicy, agentId = 'agent-1') {
-  const telemetry: TelemetryEvent[] = [];
-  const calls: Pick<StoredCallEvent, 'type' | 'payload'>[] = [];
-  const repository = {
-    ingest: async (events: readonly TelemetryEvent[]) => {
-      telemetry.push(...structuredClone(events));
-      return { inserted: events.length, duplicates: 0, conflicts: 0 };
-    },
-    getCallProjection: async () => undefined,
-    listCallEvents: async () => ({ events: [], nextCursor: 0, gap: null }),
-    queryPerformance: async () => ({
-      from: '',
-      to: '',
-      bucket: 'hour',
-      groups: [],
-      truncated: false,
-    }),
-    prune: async () => 0,
-  } as unknown as TelemetryRepository;
-  const runtime = WorkerTelemetryRuntime.fromRepository(repository, {
-    controlStore: {
-      appendCallEvent: async (_workspaceId, callId, type, payload) => {
-        calls.push({ type, payload: structuredClone(payload) });
-        return {
-          id: String(calls.length),
-          callId,
-          sequence: calls.length,
-          at: '',
-          type,
-          epoch: 0,
-          payload,
-        };
-      },
-    },
-    transcriptText,
-  });
-  const session = await runtime.createSession({
-    workspaceId: 'workspace-1',
-    callId: 'call-1',
-    agentId,
-    releaseId: 'release-1',
-    language: 'en-IN',
-  });
-  let emit!: (event: EngineEvent) => void;
-  const engine = {
-    subscribe(listener: (event: EngineEvent) => void) {
-      emit = listener;
-      return () => undefined;
-    },
-  } as VoiceSessionEngine;
-  const unsubscribe = subscribeEngineTelemetry(engine, session);
-  const finish = async () => {
-    unsubscribe();
-    await session.close('caller_hangup');
-    await runtime.close();
-  };
-  return { telemetry, calls, session, emit: (event: EngineEvent) => emit(event), finish };
-}
+import { harness } from './telemetry-turns-harness.ts';
 
 /** One caller turn as the engine reports it, with the provider stages the worker times. */
 function callerTurn(h: Awaited<ReturnType<typeof harness>>) {
@@ -248,6 +187,36 @@ describe('live per-turn telemetry', () => {
     expect(summary('turn-1').summary).toMatchObject({ endpointMs: 648, vadStopToFinalMs: 443 });
     expect(summary('turn-2').summary.endpointMs).toBe(610);
     expect(summary('turn-3').summary.endpointMs).toBeNull();
+  });
+
+  // Wave 9 D2: the engine now publishes a dropped turn (`user.turn` reset, call 10d5ef30's
+  // "Tell me the name."). It is not the running turn's start or stop, so it must not discard the
+  // provider's endpoint measure for that turn.
+  it("keeps the provider's endpoint when a dropped turn's reset arrives mid-turn", async () => {
+    const h = await harness();
+    h.emit({ type: 'user.turn', phase: 'started', turnId: 'turn-1' });
+    h.session.recordStage({ stage: 'stt.endpoint', durationMs: 610 });
+    h.emit({
+      type: 'user.turn',
+      phase: 'reset',
+      turnId: 'turn-0',
+      resetReason: 'backchannel',
+      text: 'Tell me the name.',
+    });
+    h.emit({
+      type: 'user.turn',
+      phase: 'stopped',
+      turnId: 'turn-1',
+      input: 'speech',
+      text: 'Tomorrow.',
+      endpointMs: 700,
+    });
+    h.emit({ type: 'timing', key: 'turn_decision', turnId: 'turn-1', atMs: 4_010, ms: 10 });
+    await h.finish();
+    const summary = h.telemetry
+      .filter((event) => event.kind === 'turn.summary' && event.turnId === 'turn-1')
+      .at(-1)?.payload as { summary: { endpointMs: number | null } };
+    expect(summary.summary.endpointMs).toBe(610);
   });
 
   it('keeps no caller or agent words anywhere when the transcript switch omits them', async () => {

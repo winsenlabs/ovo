@@ -33,6 +33,9 @@ interface Armed {
  * filler already started or played leaves the search line unsaid ("One moment. Let me look that
  * up. Still checking, one moment." played on turns 4, 6 and 16 of call 6e1a4e3a), and "still
  * checking" waits for `stillAfterMs` of silence after the last filler line ends.
+ * Wave 9 (call 10d5ef30, D6): one filler line per turn in all, "still checking" included: it plays
+ * only on a turn that has heard none ("One moment. Still checking, one moment." on turns 13 and
+ * 17, "Let me look that up. Still checking, one moment." on turn 17).
  * The filler is never handed to the behaviour: it is not part of the conversation it records. Its
  * speaking interval is announced as a filler (`bot.started.filler`), so the caller's words over it
  * are taken as in silence rather than as backchannels (AGT-9).
@@ -49,6 +52,8 @@ export class TurnFiller {
     /** False once the call is ending. */
     private readonly live: () => boolean,
     private readonly failed: (turnId: string, error: unknown) => void,
+    /** Wave 9 (D6): the reply's first words are in (`Behavior.drafting`). */
+    private readonly drafting: () => boolean = () => false,
   ) {}
 
   /**
@@ -76,7 +81,9 @@ export class TurnFiller {
     if (filler && !turn.fillerPlayed)
       armed.timers.push(
         this.clock.setTimeout(() => {
-          if (!this.speakable(armed)) return;
+          // Wave 9 (D6): with the reply's first words in, its first line is a few hundred ms away;
+          // a filler now would be cut as it starts (call 10d5ef30 turn 22: 180 ms of it).
+          if (!this.speakable(armed) || this.drafting()) return;
           turn.fillerPlayed = true;
           this.play(armed, filler.text);
         }, filler.afterMs),
@@ -110,7 +117,12 @@ export class TurnFiller {
       turn.fillerPlayed = true;
       this.play(armed, line);
     }
-    if (stillLine) this.after(armed, stillAfterMs, () => this.play(armed, stillLine));
+    if (stillLine && !turn.fillerPlayed)
+      this.after(armed, stillAfterMs, () => {
+        if (turn.fillerPlayed) return;
+        turn.fillerPlayed = true;
+        this.play(armed, stillLine);
+      });
   }
 
   /**

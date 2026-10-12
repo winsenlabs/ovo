@@ -64,6 +64,7 @@ describe('mute boundaries in the production turn detector', () => {
           type: 'turn.reset',
           turnId: 'turn-1',
           reason: 'muted',
+          text: 'please change my booking',
         });
         run.send({ type: 'bot.stopped', epoch: 1, kind });
         run.final('new request', 'new');

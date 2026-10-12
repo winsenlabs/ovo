@@ -47,6 +47,14 @@ export class TurnDriver extends TurnRunner {
     // The caller is taking a turn, or a false start ended with nothing to answer.
     if (decision.type === 'turn.reset') {
       if (this.callerOpen === decision.turnId) this.callerOpen = undefined;
+      // Wave 9 (D2): words dropped unanswered show in the call's events ("Tell me the name.").
+      this.events.emit({
+        type: 'user.turn',
+        phase: 'reset',
+        turnId: decision.turnId,
+        resetReason: decision.reason,
+        ...(decision.text ? { text: decision.text } : {}),
+      });
       this.hold.ended(decision.turnId, 'reset');
       this.idle?.arm();
       const carry = this.turns.reset(decision.turnId);

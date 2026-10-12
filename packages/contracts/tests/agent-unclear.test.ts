@@ -130,3 +130,14 @@ describe('unclear (agent config)', () => {
     ).toBe(false);
   });
 });
+
+// Wave 9, issue D8: Maya call 10d5ef30 turn 18, whose first partial "Yeah, dude." was asked ahead
+// with the web search (billed, then discarded for the final "Yeah, dude. That's why I'm asking.").
+describe('a yes with a word of address (call 10d5ef30, D8)', () => {
+  it('reads "Yeah, dude." as a bare yes, and the caller going on as more', () => {
+    for (const text of ['Yeah, dude.', 'Haan yaar.', 'Okay bro.', 'Yes, buddy.'])
+      expect(affirmationOnly(text), text).toBe(true);
+    for (const text of ["Yeah, dude. That's why I'm asking.", 'Dude, what time is it there?'])
+      expect(acknowledgementOnly(text), text).toBe(false);
+  });
+});

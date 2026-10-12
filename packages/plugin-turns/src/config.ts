@@ -69,6 +69,15 @@ export const SpeechEvidenceConfigSchema = z
     minSpeechMs: z.number().int().min(0).max(5000).default(0),
     /** How far back VAD speech still backs a transcript: finals land up to ~1 s after the audio. */
     windowMs: z.number().int().min(0).max(10000).default(1500),
+    /**
+     * Wave 9 (call 10d5ef30, D2): words heard no later than this after the agent's reply starts
+     * to play are the caller's even with no VAD speech behind them. The caller began them before
+     * hearing the reply (an interim lands 0.3–1 s after its first word), so they are no background
+     * talk heard over it; the turn waits for the agent to stop and is answered then (`agent`).
+     * Live, "Tell me the name." (its first interim 87 ms into the reply) was dropped for the room.
+     * 0 turns it off.
+     */
+    replyStartMs: z.number().int().min(0).max(5000).default(1000),
   })
   .strict();
 export type SpeechEvidenceConfig = z.output<typeof SpeechEvidenceConfigSchema>;
@@ -113,6 +122,15 @@ export const DetectorConfigSchema = TurnConfigSchema.extend({
    * the wait continue the same turn. Only such turns pay it. 0 disables it.
    */
   cutoffHoldMs: z.number().int().min(0).max(10000).default(700),
+  /**
+   * Wave 9: the hold instead for words that stop mid-thought, on a hesitation, an article or a
+   * preposition ("No, umm...", "…it should still be a", contracts `pausesMidThought`): the caller
+   * is thinking, not done. In call 10d5ef30 three such turns ended and the caller went on 0.01–1.6
+   * s later; each got a reply made for half a sentence (two asked the caller to say it again), held
+   * and thrown away unheard, the last by 0.4 s. The reply's own hold after a turn that trailed off
+   * (the engine's 2 s) does not follow it. 0 uses cutoffHoldMs; cutoffHoldMs 0 turns both off.
+   */
+  pauseHoldMs: z.number().int().min(0).max(10000).default(2500),
   /**
    * Wave 8: a VAD run that brings no new words from the STT for this long (from its start or the
    * last words, whichever is later) is the room, not the caller (café babble the VAD cannot tell
@@ -166,7 +184,14 @@ export const PHONE_TURN_CONFIG: Readonly<DetectorConfig> = Object.freeze(
     noiseMs: 2500,
     questionReplyMs: 6000,
     cutoffHoldMs: 700,
-    speechEvidence: { bargeIn: true, turns: false, minSpeechMs: 0, windowMs: 1500 },
+    pauseHoldMs: 2500,
+    speechEvidence: {
+      bargeIn: true,
+      turns: false,
+      minSpeechMs: 0,
+      windowMs: 1500,
+      replyStartMs: 1000,
+    },
     opening: { protectMs: 1800, confirmWords: true },
   }),
 );

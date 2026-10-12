@@ -36,6 +36,7 @@ Wave 8 adds it so endpoint latency can be attributed per turn.
 | `final`                             | Scribe's final arrived after the VAD went quiet, before the commit                        |                                                             |
 | `ceiling`                           | No final within `userSpeechTimeoutMs` (600) of the commit; the turn ends on the interim   |                                                             |
 | `hold`                              | Words that trailed off waited `cutoffHoldMs` for more that never came                     | The engine then holds the reply 2 s for the caller to go on |
+| `pause`                             | Words that stopped mid-thought waited `pauseHoldMs` (2500) for more that never came       | None more: the turn waited instead of the reply             |
 | `agent`                             | A short reply over the agent's question waited for it to stop (AGT-9)                     |                                                             |
 | `vad-timeout`, `provider`, `safety` | The other stop strategies, and the stop safety timer                                      |                                                             |
 
@@ -54,6 +55,26 @@ Each wait has a limit:
   LLM call), and up to three complete words that carry it on within 5 s ("Of January.": a
   preposition, a conjunction, a month, a lower-case word or the next list item) end like an answer,
   250 ms after their interim instead of the 1.5 s stall. The engine merges them into the held reply.
+- **Words that stop mid-thought (Wave 9, call 10d5ef30).** Words that end on a hesitation ("No,
+  umm..."), an article or possessive ("…it should still be a") or a preposition or conjunction the
+  STT left open ("…what places are nice in-") are the caller thinking, not done. They wait
+  `pauseHoldMs` (2500) after the commit instead of `cutoffHoldMs`, timed from the caller's silence
+  (a hold that ran out while the VAD still heard them no longer ends the turn), and the turn ends on
+  `pause` with no engine hold after it. The LLM is already asked on the final words meanwhile
+  (speculation on stable words), so a caller who has stopped hears the reply about as soon as after
+  the old 0.7 s hold and 2 s reply hold. Up to three complete words that carry the held words on
+  ("built-in.") end like an answer. A capital "A" closing a sentence ("Plan A.") is a name.
+  In the call, all three such turns were the caller going on 0.01–1.6 s later; each got a reply
+  made for half a sentence, held, and thrown away unheard.
+- **A request begun as the reply starts (Wave 9, call 10d5ef30 turn 11).** Words over the agent
+  with no VAD speech behind them are the room, unless they began no later than
+  `speechEvidence.replyStartMs` (1000) after the reply started to play and ask for something
+  ("Tell me the name.", its first interim 87 ms into the answer): the caller began them before
+  hearing it. They wait for the agent to stop and end on `agent`. Words that ask nothing stay the
+  room's, however early. A dropped turn's words now ride on `turn.reset` (`text`).
+- **No filler before a goodbye (Wave 9).** A turn that says goodbye or closes the conversation
+  ("Never mind. Thank you.") is offered no filler line: its reply is a goodbye ("One moment." played
+  180 ms before "Shall I end the call?" on turn 22).
 - **One-word answers.** A short "yes" is often too short or soft to start the energy VAD. A
   -30 dBFS word never does. With no VAD stop, the turn used to wait for the 1.5 s stall. Now an
   answer that ends a turn by itself ("Yes.", "हाँ।", "Hello?", "No", "15", a backchannel) commits

@@ -1,4 +1,10 @@
-import { classifyConfirmation, offLanguage, type SttEvent } from '@winsendotai/ovo-contracts';
+import {
+  classifyConfirmation,
+  offLanguage,
+  pausesMidThought,
+  seeksInformation,
+  type SttEvent,
+} from '@winsendotai/ovo-contracts';
 import { TurnControllerState } from './controller-state.ts';
 import { canInterrupt, confirmationPrompt, speechMuted } from './mute.ts';
 import { acknowledges, containsConfirmationPhrase, speechCanInterrupt } from './start-min-words.ts';
@@ -7,6 +13,28 @@ import { spokenText } from './transcript-text.ts';
 
 /** The caller's words: when they start, barge in on and end a turn. */
 export abstract class TurnControllerSpeech extends TurnControllerState {
+  /** Wave 9: when the agent's reply (not a filler line) last started to play. */
+  protected replyStartedAt?: number;
+
+  protected reset(reason: 'muted' | 'backchannel'): void {
+    const text = this.aggregate.text || this.aggregate.view;
+    if (this.turnId)
+      this.emit({ type: 'turn.reset', turnId: this.turnId, reason, ...(text ? { text } : {}) });
+    this.clear();
+  }
+
+  /**
+   * Wave 9 (call 10d5ef30, D2): the open turn's words began as the agent's reply started to play
+   * (`speechEvidence.replyStartMs`), before the caller could hear it: talk-over at its start, not
+   * the room. Never the opening, which has its own guard (N8).
+   */
+  protected beganWithReply(): boolean {
+    const windowMs = this.config.speechEvidence.replyStartMs;
+    if (windowMs <= 0 || !this.firstSpeechComplete || this.replyStartedAt === undefined)
+      return false;
+    return this.startedAtMs - this.replyStartedAt <= windowMs;
+  }
+
   protected tryStop(): void {
     if (speechMuted(this.view(), this.rules)) {
       this.reset('muted');
@@ -35,9 +63,13 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
         return;
       }
       // Words that could have barged in but that the VAD never heard are the room, not the caller.
-      // Over a filler they count as in silence (LAT-6).
+      // Over a filler they count as in silence (LAT-6). Wave 9 (D2): a request begun as the reply
+      // started is the caller's: it waits for the agent to stop, and is answered then. Words that
+      // ask nothing stay the room's: an answer to café talk is worse than none.
       if (!this.bot.filler && !this.evidence.heardNow()) {
-        this.reset('backchannel');
+        if (this.beganWithReply() && seeksInformation(text) && !this.offLanguage(text))
+          this.deferredStop = true;
+        else this.reset('backchannel');
         return;
       }
       // N4: words outside the agent's languages (an STT that drifted, a background talker) are
@@ -47,13 +79,17 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
         return;
       }
     }
-    // Words that trail off wait for the caller to go on ("…around the 1" + "st.").
+    // Words that trail off wait for the caller to go on ("…around the 1" + "st."); Wave 9: words
+    // that stop mid-thought ("No, umm...", "…it should still be a") wait the longer pause.
     const unfinished = this.read(text).ends === 'unfinished';
+    const { cutoffHoldMs, pauseHoldMs } = this.config;
+    const pause = unfinished && cutoffHoldMs > 0 && pauseHoldMs > 0 && pausesMidThought(text);
     const expired = () => {
-      this.endRule = 'hold';
+      this.endRule = pause ? 'pause' : 'hold';
       this.tryStop();
     };
-    if (this.cutoff.holds(unfinished, expired)) return;
+    const holdMs = pause ? pauseHoldMs : undefined;
+    if (this.cutoff.holds(unfinished, expired, holdMs, text)) return;
     this.stop();
   }
 
@@ -143,6 +179,8 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
     if (segment.stability === 'final') {
       this.finalSeen = true;
       this.heardSinceFinal = false;
+      // Wave 9: the commit is answered; words the caller goes on with need a commit of their own.
+      this.forceSent = false;
       if (this.awaitingConfirmationFinal) {
         this.awaitingConfirmationFinal = false;
         if (classifyConfirmation(this.aggregate.text) === 'unclear') {

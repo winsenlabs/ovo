@@ -94,7 +94,7 @@ export abstract class TurnControllerState {
   /** Wave 8: when the open turn started, and when the VAD last heard its voice end. */
   protected startedAtMs = 0;
   protected voiceEndMs?: number;
-  /** Wave 8b: the last turn's words, when they trailed off and the turn ended on the `hold`. */
+  /** Wave 8b: the last turn's words, when they trailed off and the turn ended on a hold. */
   private trailedOff?: { text: string; atMs: number };
   protected readonly announcer: TurnAnnouncer;
 
@@ -179,7 +179,9 @@ export abstract class TurnControllerState {
     const ends = utteranceEnd(view, context);
     const answer =
       ends === 'complete' &&
-      (answersByItself(view, context) || this.endsTrailedOff(view)) &&
+      (answersByItself(view, context) ||
+        this.endsTrailedOff(view) ||
+        this.cutoff.carriesOn(view, this.input.language, SHORT_ANSWER_WORDS)) &&
       !this.speaking();
     return { view, ends, answer };
   }
@@ -205,11 +207,6 @@ export abstract class TurnControllerState {
     this.emit({ type: 'turn.started', turnId: this.turnId });
   }
 
-  protected reset(reason: 'muted' | 'backchannel'): void {
-    if (this.turnId) this.emit({ type: 'turn.reset', turnId: this.turnId, reason });
-    this.clear();
-  }
-
   protected clear(): void {
     this.turnId = undefined;
     this.aggregate.clear();
@@ -227,7 +224,7 @@ export abstract class TurnControllerState {
     this.commitTimers.cancel();
     this.evidence.cancel();
     this.opening.clear();
-    this.cutoff.resume();
+    this.cutoff.clear();
     // The endpoint is forced once per utterance; a VAD held open across turns must not carry it.
     this.forceSent = this.committed = false;
     this.announcer.clear();
@@ -248,11 +245,12 @@ export abstract class TurnControllerState {
       spokenMs: (this.voiceEndMs ?? this.input.clock.now()) - this.startedAtMs,
     });
     this.clear();
-    this.trailedOff = reason === 'hold' ? { text, atMs: this.input.clock.now() } : undefined;
+    this.trailedOff =
+      reason === 'hold' || reason === 'pause' ? { text, atMs: this.input.clock.now() } : undefined;
     this.answering = false;
     // The caller has had a turn: whatever the agent says from here is no longer the opening.
     this.opening.end();
-    const filler = this.announcer.nextFiller();
+    const filler = this.announcer.nextFiller(text);
     this.emit({
       type: 'turn.stopped',
       turnId: id,

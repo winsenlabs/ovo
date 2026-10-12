@@ -7,9 +7,13 @@ import {
 import { ToolConfirmation } from '../src/confirmation.ts';
 import { ToolEvents } from '../src/tool-events.ts';
 import { runInferenceSteps, type InferenceStepInput } from '../src/agent-inference-step.ts';
+import { voiceStyleNote } from '../src/inference-request.ts';
 import { AgentTurnLog, FlowSession } from '../src/index.ts';
 import { collect, execution, llm } from './agent-call-control-fixture.ts';
 import { collectionsFlow } from './flow-fixture.ts';
+
+/** Every English agent's request carries the write-for-the-ear note (Wave 9 D1). */
+const VOICE = voiceStyleNote({ language: 'en-IN' })!;
 
 const resume = (input: Record<string, unknown>): InferenceReply => ({
   kind: 'tool',
@@ -114,6 +118,8 @@ describe('the LLM fallback rejoins the flow (AGT-7)', () => {
     expect(request.context).toBe(
       [
         'Briefing.',
+        '',
+        VOICE,
         '',
         'Conversation flow: the caller said something the scripted conversation could not place.',
         'The agent was waiting for: The agent asked when they can pay. What does the reply express?',
@@ -262,6 +268,6 @@ describe('the LLM fallback rejoins the flow (AGT-7)', () => {
     const turn = step([{ kind: 'text', text: 'Hi.' }]);
     await turn.run();
     expect(turn.model.requests[0]!.tools).toEqual([]);
-    expect(turn.model.requests[0]!.context).toBe('Briefing.');
+    expect(turn.model.requests[0]!.context).toBe(`Briefing.\n\n${VOICE}`);
   });
 });

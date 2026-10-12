@@ -25,7 +25,7 @@ const ONES = [
   'nineteen',
 ];
 const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
-const MONTHS = [
+export const MONTHS = [
   'January',
   'February',
   'March',
@@ -111,7 +111,7 @@ function currency(text: string): string {
     );
 }
 
-function ordinal(day: number): string {
+export function ordinal(day: number): string {
   const suffix =
     day % 100 >= 11 && day % 100 <= 13
       ? 'th'

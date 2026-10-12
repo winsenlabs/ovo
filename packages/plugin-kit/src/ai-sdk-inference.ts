@@ -117,6 +117,8 @@ export class AiSdkInference implements Inference, InferenceActivitySource {
 
   /** True when this request is sent the provider tools (web search). */
   sendsProviderTools(request: Omit<InferenceRequest, 'signal'>): boolean {
+    // Wave 9 (D8): the behaviour's search budget for the caller's words is spent.
+    if (request.providerTools === false) return false;
     const tools = this.options.providerTools;
     if (!tools || !Object.keys(tools).length) return false;
     return this.options.providerToolsFor?.(request) ?? true;

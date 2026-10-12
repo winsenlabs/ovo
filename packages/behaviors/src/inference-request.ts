@@ -1,5 +1,6 @@
 import {
   affirmationOnly,
+  baseLanguageOf,
   normalizeForMatch,
   type ToolDefinition,
 } from '@winsendotai/ovo-contracts';
@@ -45,6 +46,24 @@ export function rejoinOffer({ config, flow }: RequestInput): RejoinOffer | undef
   return flow && tool ? { tool, guide: flowGuide(flow, endAllowed) } : undefined;
 }
 
+/**
+ * Wave 9 D1 (call 10d5ef30): write for the ear. plugin-voice's speech normaliser guarantees it on
+ * the way to TTS; this asks the model to write that way first. Fixed for the call, so it stays in
+ * the prompt's cached prefix (N4).
+ */
+export function voiceStyleNote(config: { language: string }): string | undefined {
+  if (baseLanguageOf(config.language) !== 'en') return undefined;
+  const dates = /^en-US$/i.test(config.language)
+    ? ''
+    : 'say dates day first ("the 21st of December"); ';
+  return (
+    'Your replies are spoken on a phone call, so write for the ear: no dashes, symbols or ' +
+    'abbreviations; say ranges with "to" ("Chennai to Prague", "the 21st to the 24th of December", ' +
+    `"between seventy thousand and one lakh rupees"); ${dates}leave out the year unless the date ` +
+    'is more than a year away.'
+  );
+}
+
 export function inferenceRequest(
   step: RequestInput,
   rejoin: RejoinOffer | undefined,
@@ -52,6 +71,7 @@ export function inferenceRequest(
   const notes = [
     // First: fixed for the call, so the prompt's cached prefix ends after it (N4).
     replyLanguageNote(step.config) ?? '',
+    voiceStyleNote(step.config) ?? '',
     step.replyCut ? INTERRUPTED_CONTEXT : '',
     saidUncertainty(step) ? uncertaintyNote(step.config.uncertainty) : '',
     affirmationNote(step) ?? '',

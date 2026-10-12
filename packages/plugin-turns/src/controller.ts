@@ -60,6 +60,8 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         this.voiceEndMs = event.atMs;
         this.noise.vadStopped();
         this.evidence.vadStopped();
+        // Wave 9: a hold is timed from the caller's silence, never served under their words.
+        this.cutoff.resume();
         if (speechMuted(this.view(), this.rules)) break;
         if (this.strategy === 'vad-timeout') {
           this.vadStopPending = true;
@@ -97,6 +99,8 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         this.idle.cancel();
         if (!this.firstSpeechComplete) this.opening.botStarted(event.atMs);
         this.answering = !!event.question;
+        if (!event.filler && (!this.bot || this.bot.filler))
+          this.replyStartedAt = this.input.clock.now();
         this.bot = {
           epoch: event.epoch,
           kind: event.kind,

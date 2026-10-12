@@ -6,6 +6,12 @@ import {
   type PluginRow,
 } from '@winsendotai/ovo-runtime';
 
+/**
+ * Wave 9 D1: the speaker (plugin-voice `speakerTextFilters`) applies the speech normaliser to every
+ * agent whether or not the release selects it, so a pre-render keyed without it would miss.
+ */
+const SPEECH_NORMALISER_FILTER_ID = '@winsendotai/ovo-text-filter-speech-normaliser';
+
 export interface ReleaseTextFilters {
   filters: TextFilter[];
   /** Selected filter plugins that are not installed here: the chain is then not the speaker's. */
@@ -51,6 +57,12 @@ export async function composeReleaseTextFilters(
       else unresolved.push(item.id);
     }
   }
+  const normaliser = registry.get(SPEECH_NORMALISER_FILTER_ID);
+  if (
+    normaliser &&
+    !selected.some((item) => item.definition.manifest.id === SPEECH_NORMALISER_FILTER_ID)
+  )
+    selected.push({ definition: normaliser, config: {} });
   if (!selected.length) return { filters: [], unresolved, close: async () => undefined };
   const rows: PluginRow[] = selected.map(({ definition, config }) => ({
     id: definition.manifest.id,

@@ -21,6 +21,7 @@ import type {
   WorkerSessionTelemetryInput,
 } from './telemetry-session-types.ts';
 import { startTurnStage, type StageFinish, type StageInput } from './telemetry-turn-stage.ts';
+import { speechAuditPayload } from './telemetry-speech-audit.ts';
 import { WorkerTurnTelemetry } from './telemetry-turns.ts';
 
 export type {
@@ -225,41 +226,13 @@ export class WorkerSessionTelemetry {
   }
 
   private speechEvent(evidence: SpeechEvidence): void {
-    const terminal = ['completed', 'interrupted', 'dropped', 'failed'].includes(evidence.phase);
-    const includeText = evidence.phase === 'generated' || terminal;
-    const text = includeText
-      ? boundedEvidenceText(evidence.text, this.maxTextCharacters)
-      : undefined;
-    this.audit(
-      `speech.${evidence.phase}`,
-      {
-        speaker: 'agent',
-        role: 'assistant',
-        segmentId: evidence.segmentId,
-        responseId: `${this.callId}:${evidence.epoch}`,
-        turnId: String(evidence.epoch),
-        responseEpoch: evidence.epoch,
-        speechKind: evidence.kind,
-        phase: evidence.phase,
-        text: text?.value ?? null,
-        speechText: text?.value ?? null,
-        textLength: evidence.text.length,
-        textTruncated: text?.truncated ?? false,
-        evidence: evidence.evidence,
-        humanHeard: evidence.phase === 'completed' && evidence.evidence === 'confirmed',
-        reason: evidence.reason ? boundedEvidenceText(evidence.reason, 500).value : null,
-        alignment: {
-          clock: 'worker-wall-clock',
-          occurredAt: new Date(evidence.at).toISOString(),
-          exactAudioAlignment: false,
-          carrierMarkEvidence: evidence.evidence,
-        },
-      },
-      evidence.epoch,
-    );
+    const payload = speechAuditPayload(evidence, this.callId, this.maxTextCharacters);
+    this.audit(`speech.${evidence.phase}`, payload, evidence.epoch);
   }
 
   audit(type: string, payload: Record<string, unknown>, epoch?: number): boolean {
+    // Wave 9 D7: a line's length times the carrier round trip in `reply.waits`.
+    if (type === 'speech.cache') this.turns.speechCache(payload, this.input.mediaFormat);
     return this.events.tryEnqueue({
       workspaceId: this.workspaceId,
       callId: this.callId,

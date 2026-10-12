@@ -16,6 +16,11 @@ export interface ElevenLabsTtsBinding {
   useSpeakerBoost?: boolean;
   /** ISO 639-1; enforces the language on models that support it. Unset lets the model infer it. */
   languageCode?: string;
+  /**
+   * Off by default on Flash v2.5 and settable to `on` only on Enterprise plans
+   * (https://elevenlabs.io/docs/overview/models, retrieved 2026-10-13). OVO writes replies for the
+   * ear before the TTS instead (`speech-normaliser.ts` in plugin-voice), so this stays unset.
+   */
   applyTextNormalization?: 'auto' | 'on' | 'off';
   seed?: number;
   /** At most 3 (`pronunciation_dictionary_locators`). */

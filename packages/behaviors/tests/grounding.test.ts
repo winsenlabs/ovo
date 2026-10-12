@@ -11,6 +11,10 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { AgentBehavior } from '../src/index.ts';
 import { Grounding, groundingMissing } from '../src/grounding.ts';
+import { voiceStyleNote } from '../src/inference-request.ts';
+
+/** Every English agent's request carries the write-for-the-ear note (Wave 9 D1). */
+const VOICE = voiceStyleNote({ language: 'en-IN' })!;
 
 const policy = (over: Record<string, unknown> = {}) =>
   AgentKnowledgePolicy.parse({ enabled: true, minScore: 0.4, topK: 3, ...over });
@@ -236,7 +240,7 @@ describe('an agent turn with a knowledge policy', () => {
       knowledge: port(async () => result()),
     });
     await agent.respond('how long for a refund');
-    expect(requests[0]!.context).toBe('The agent handles collections calls.');
+    expect(requests[0]!.context).toBe(`The agent handles collections calls.\n\n${VOICE}`);
   });
 
   it('keeps the call alive on the LLM when the backend is down', async () => {
@@ -291,7 +295,7 @@ describe('an agent turn with a knowledge policy', () => {
     );
     expect(await agent.respond('hello')).toBe('A composed LLM answer.');
     expect(agent.groundings).toHaveLength(0);
-    expect(requests[0]!.context).toBe('');
+    expect(requests[0]!.context).toBe(VOICE);
   });
 
   it('retrieves once and grounds the decision and the reply from the same passages', async () => {

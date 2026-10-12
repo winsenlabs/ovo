@@ -1,6 +1,7 @@
 import {
   BoundedByteCache,
   PinnedByteStore,
+  type ByteCache,
   type ByteCacheLimits,
 } from '@winsendotai/ovo-plugin-cache';
 import { createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
@@ -199,4 +200,10 @@ export class WorkerSpeechClipCache extends BoundedByteCache {
     this.lifetime.abort(new DOMException('speech cache closed', 'AbortError'));
     this.clear();
   }
+}
+
+/** The process L1 tier's clip for a key, when it holds one. */
+export function l1Hit(cache: ByteCache, key: string, workspaceId: string) {
+  const audio = cache.get(key, workspaceId);
+  return audio ? { audio, tier: 'l1' as const } : undefined;
 }

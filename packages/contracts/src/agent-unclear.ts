@@ -57,9 +57,14 @@ const YES = wordSet(
   'yes yeah yep yup ya yah sure ok okay correct right haan han ha haa ji theek thik aama ' +
     'aamaa aamam seri sari हाँ हां हा जी ठीक ஆமா ஆமாம் சரி',
 );
-/** Words that ride along with a yes or an acknowledgement and add nothing to it. */
+/**
+ * Words that ride along with a yes or an acknowledgement and add nothing to it. Wave 9 (call
+ * 10d5ef30, D8): "dude", "bro", "buddy", "yaar": the LLM asked on the partial "Yeah, dude." was
+ * sent the web search, searched, and was thrown away when the caller went on.
+ */
 const ADDRESS = wordSet(
-  'sir madam maam bhai boss dear friend my please hai है so well and then just very much',
+  'sir madam maam bhai boss dear friend my please hai है so well and then just very much ' +
+    'dude bro buddy yaar',
 );
 const NO = wordSet('no nope nah nahi nahin na illa illai नहीं नही ना இல்லை இல்ல');
 /** Thanks and goodbyes: with one stray word ("Thank you, Danny") still nothing to look up. */

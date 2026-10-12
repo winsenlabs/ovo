@@ -31,6 +31,7 @@ import type { GraphSessionResult } from './session-graph-host.ts';
 import { immutableMcpConnections } from './production-session-support.ts';
 import { instrumentSessionPlugin } from './telemetry-session-plugins.ts';
 import type { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
+import { speakerAddedFilters } from './speech-cache-speaker-filters.ts';
 import { createV2SpeechCachePlugin } from './speech-cache-v2.ts';
 import type { CallClips } from './speech-cache-percall.ts';
 import { sessionSttPlugin, type SttPreconnect } from './session-stt-preconnect.ts';
@@ -154,6 +155,7 @@ export async function composeLiveSessionGraph(input: {
         input.callClips
           ? { clips: input.callClips, options: input.speechCache.options.perCall }
           : undefined,
+        await speakerAddedFilters(registry),
       )
     : undefined;
   const graphRelease: ReleaseRecord =

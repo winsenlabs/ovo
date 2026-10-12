@@ -232,6 +232,18 @@ describe('no web search on input too unclear to search on (N3)', () => {
     expect(bodies.map(sentTools)).toEqual([['web_search'], ['web_search']]);
   });
 
+  it('sends no tool to a request whose words already had their search (Wave 9, D8)', async () => {
+    const { inference, bodies, push, end } = setup();
+    const request = { ...tripRequest('Is it cold then?'), providerTools: false as const };
+    expect(inference.sendsProviderTools(request)).toBe(false);
+    const done = drain(inference.stream(request), []);
+    await settle();
+    push(created('resp') + answer('Okay.', 0) + completed('resp'));
+    end();
+    await done;
+    expect(bodies.map(sentTools)).toEqual([[]]);
+  });
+
   it('sends no tool to a statement of plans (Wave 8b), and says so before it is asked', async () => {
     const { inference, bodies, push, end } = setup();
     for (const input of ['I want 21st of December to the 5th. Of January.', 'Is it cold then?']) {

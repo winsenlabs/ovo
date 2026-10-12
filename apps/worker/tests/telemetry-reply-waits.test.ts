@@ -39,6 +39,7 @@ describe('reply.waits: where the wait for first reply audio went (Wave 8 fix 3)'
       ttsFirstByteMs: 146,
       carrierMs: 0,
       fillerAudioMs: null,
+      carrierRoundTripMs: null,
     });
     expect(parts(turn!)).toBe(turn!.firstAudioMs);
     // Live: firstAudioMs 2424 - firstSegmentMs 1435 = 989 ms, all of it outside the reply.

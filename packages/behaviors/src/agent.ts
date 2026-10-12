@@ -3,6 +3,7 @@ import { runPreReplySteps } from './agent-pre-reply.ts';
 import { resumeConfirmation } from './agent-confirmation-step.ts';
 import { firstInferenceRequest, runInferenceSteps } from './agent-inference-step.ts';
 import { AgentSessionAhead } from './agent-session-ahead.ts';
+import { noticingWords } from './agent-stream.ts';
 import { EndCallGate } from './agent-end-gate.ts';
 import { OPT_OUT_COMPLETION } from './opt-out.ts';
 import type { AgentBehaviorOptions } from './agent-tools.ts';
@@ -213,7 +214,10 @@ export class AgentBehavior extends AgentSessionAhead {
       const language = this.languages.reply(prepared.guard);
       yield* runInferenceSteps({
         config: this.config,
-        inference: early?.inference(asked) ?? asked ?? this.inference,
+        // Wave 9 (D6): the reply's first words mark it as drafting, for the engine's filler.
+        inference: noticingWords(early?.inference(asked) ?? asked ?? this.inference, () => {
+          if (turn === this.turn) this.draftedEpoch = this.epoch;
+        }),
         execution: this.toolExecution,
         identity: { workspaceId: this.options.workspaceId, sessionId: this.options.sessionId },
         tools: this.tools,

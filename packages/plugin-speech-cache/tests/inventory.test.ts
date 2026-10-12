@@ -302,6 +302,7 @@ describe('inventory normalization (TTS-6)', () => {
     );
     expect(pinned.filters.map((filter) => filter.id)).toEqual([
       '@winsendotai/ovo-text-filter-indian-verbalisation',
+      '@winsendotai/ovo-text-filter-speech-normaliser',
     ]);
     expect(pinned.unresolved).toEqual(['@acme/missing-filter']);
     await pinned.close();
@@ -314,6 +315,7 @@ describe('inventory normalization (TTS-6)', () => {
     );
     expect(legacy.filters.map((filter) => filter.id)).toEqual([
       '@winsendotai/ovo-text-filter-markdown',
+      '@winsendotai/ovo-text-filter-speech-normaliser',
     ]);
     await legacy.close();
   });

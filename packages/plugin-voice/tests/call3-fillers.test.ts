@@ -60,17 +60,16 @@ describe('call-3 #1: one filler line per turn, never stacked', () => {
     const lines = heard(h.audio, t0);
     expect(lines).toEqual([
       [FILLER.text, 1500],
-      // 2.5 s into the search, and 2.8 s of silence after "One moment." ended at 2.3 s.
-      [ANNOUNCE.stillLine, 2641 + ANNOUNCE.stillAfterMs],
       ['Answer: I am planning to go to Zagreb. What do you know about this place?.', 5790 + TTS_MS],
     ]);
-    // Three filler lines (two of them back to back) became two, 2.8 s apart.
-    expect(lines.filter(([text]) => CLIPS.includes(text))).toHaveLength(2);
+    // Three filler lines (two of them back to back) became one (Wave 9, D6: no "still checking"
+    // after a filler line; call-3 #1 had left two, 2.8 s apart).
+    expect(lines.filter(([text]) => CLIPS.includes(text))).toHaveLength(1);
   });
 
   // Turn 6 ("tell me more about Nuremberg"): live "One moment." at 1.5 s, "Let me look that up." at
   // 2.35 s (0.85 s later: straight after the clip), "Still checking" at 4.85 s, answer at 6.18 s.
-  it('turn 6: the generic filler is the only line before "still checking"', async () => {
+  it('turn 6: the generic filler is the only line', async () => {
     const { clock, h } = setup(6030);
     const t0 = await h.greet();
     h.caller('Hmm, okay. So, tell me more about Nuremberg.', FILLER);
@@ -79,7 +78,6 @@ describe('call-3 #1: one filler line per turn, never stacked', () => {
     await clock.advanceAsync(10_000);
     expect(heard(h.audio, t0).map(([text]) => text)).toEqual([
       FILLER.text,
-      ANNOUNCE.stillLine,
       'Answer: Hmm, okay. So, tell me more about Nuremberg..',
     ]);
   });

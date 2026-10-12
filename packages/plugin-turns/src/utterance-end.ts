@@ -3,6 +3,7 @@ import {
   countWords,
   isBackchannel,
   normalizeForMatch,
+  pausesMidThought,
   type TurnConfig,
 } from '@winsendotai/ovo-contracts';
 import { endsCutOff } from './transcript-text.ts';
@@ -100,6 +101,8 @@ export function utteranceEnd(text: string, context: UtteranceContext): Utterance
   if (!tokens.length) return 'open';
   // Broken off mid-word or trailing off ("tell me for-", "is a..."), or a list still going.
   if (endsCutOff(trimmed) || LIST_GOING.test(trimmed)) return 'unfinished';
+  // Wave 9: a hesitation, an article or an open preposition ("…still be a", "nice in-\"").
+  if (pausesMidThought(trimmed)) return 'unfinished';
   const last = tokens.at(-1)!;
   if (NEVER_LAST.has(last)) return 'unfinished';
   // Call e8a43f65: "I want 21st of December to the 5th." and, 2 s later, "Of January.".

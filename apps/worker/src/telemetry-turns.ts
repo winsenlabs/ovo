@@ -4,6 +4,8 @@ import {
   type TurnStageSample,
   type TurnTelemetry,
 } from '@winsendotai/ovo-plugin-observability';
+import type { AudioFormat } from '@winsendotai/ovo-contracts';
+import { speechCacheAudio } from './telemetry-carrier-rtt.ts';
 import { ReplyWaitClock } from './telemetry-reply-waits.ts';
 
 /**
@@ -33,9 +35,16 @@ export class WorkerTurnTelemetry extends TurnTelemetryCollector {
     );
   }
 
+  /** Wave 9 D7: a line's `speech.cache` event, whose length times the carrier's round trip. */
+  speechCache(payload: Record<string, unknown>, format: AudioFormat | undefined): void {
+    const audio = speechCacheAudio(payload, format);
+    if (audio) this.waits.lineAudio(audio.segmentId, audio.audioMs);
+  }
+
   override engine(event: EngineEvent): void {
     this.waits.engine(event);
-    if (event.type === 'user.turn' && event.phase !== 'idle') {
+    // A reset (Wave 9 D2) is a dropped turn's, not the running turn's start or stop.
+    if (event.type === 'user.turn' && event.phase !== 'idle' && event.phase !== 'reset') {
       // As the collector does, a provider measure from before the turn started is not this turn's.
       const engineMs = event.phase === 'stopped' && event.input !== 'dtmf' && event.endpointMs;
       if (!this.measured && typeof engineMs === 'number')
