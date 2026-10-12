@@ -4,30 +4,15 @@ import {
   classifyConfirmation,
   DEFAULT_END_CALL_MIN_CALL_SECONDS,
   DEFAULT_END_CALL_MIN_CALLER_TURNS,
+  closesConversation,
   normalizeForMatch,
+  saysGoodbye,
   UNTRUSTED_INPUT_VARIABLE,
   type AgentConfig,
 } from '@winsendotai/ovo-contracts';
 
-/**
- * What callers say to end a call themselves, as STT writes it: English, Hinglish and Hindi, then
- * Tamil; then (Wave 8b) asking the agent outright to end it. Matched as whole words anywhere in
- * the turn ("ok thank you bye", "Maya, cut the call").
- */
-const GOODBYES = [
-  'bye|bye bye|goodbye|good bye|ok bye|tata|see you|see you later|talk later|talk to you later',
-  "that's all|that is all|nothing else|i have to go|i need to go|gotta go|hang up|i'll hang up",
-  "that's it|i'm done|we're done|no more questions|have a nice day|have a good day|good night",
-  'alvida|phone rakh|phone rakhta|rakhta hoon|rakhti hoon|rakhta hu|rakhti hu|baad mein baat',
-  'बाय|अलविदा|फोन रख|रखता हूँ|रखती हूँ|बाद में बात',
-  'vaikiren|vechudren|poitu varen|poyittu varen|வைக்கிறேன்|போயிட்டு வரேன்|பை',
-  'end the call|end this call|end call|cut the call|cut this call|cut call|close the call',
-  'stop the call|drop the call|disconnect|disconnect the call|you can hang up',
-  'call cut karo|call cut kar do|call band karo|call band kar do|phone band karo|phone kaat do',
-  'कॉल काट दो|कॉल कट करो|कॉल बंद करो|फोन काट दो',
-]
-  .flatMap((group) => group.split('|'))
-  .map((phrase) => normalizeForMatch(phrase).split(' '));
+// Read in contracts (caller-closing.ts) since Wave 9: the turn detector reads them too.
+export { closesConversation, saysGoodbye };
 
 /** Indian callers mix English, Hindi and their own language in any of these scripts. */
 const INDIC = ['Deva', 'Taml', 'Telu', 'Knda', 'Mlym', 'Beng', 'Gujr', 'Guru', 'Orya'];
@@ -95,14 +80,6 @@ function saysYes(text: string): boolean {
   return affirmationOnly(text) || affirmationOnly(first);
 }
 
-/** True when the caller says goodbye ("ok bye", "phone rakhta hoon") or asks to end the call. */
-export function saysGoodbye(text: string): boolean {
-  const words = normalizeForMatch(text).split(' ').filter(Boolean);
-  return GOODBYES.some((phrase) =>
-    words.some((_, start) => phrase.every((word, offset) => words[start + offset] === word)),
-  );
-}
-
 /**
  * N1: whether the LLM may end the call on this turn. A model that hangs up on a misheard first
  * turn, or on a caller still finding their words, loses the call, so `end_call` waits for
@@ -111,6 +88,7 @@ export function saysGoodbye(text: string): boolean {
  * agent's language does not use (Russian heard on a Hinglish call). Untrusted turns do not count.
  * Wave 8b: past the minimums it still ends only on a clear goodbye or ask to end the call, or a
  * yes to the agent's own `askToEndLine` (call e8a43f65 hung up on "Ma'am, create a call.").
+ * Wave 9: or on a closing (`closesConversation`), which is asked about only before the minimums.
  */
 export class EndCallGate {
   private callerTurns = 0;
@@ -151,7 +129,7 @@ export class EndCallGate {
     const seconds = ending?.minCallSeconds ?? DEFAULT_END_CALL_MIN_CALL_SECONDS;
     if (this.callerTurns < turns || this.now() - this.startedAt < seconds * 1000)
       return END_REFUSED.early;
-    return END_REFUSED.unasked;
+    return closesConversation(input) ? undefined : END_REFUSED.unasked;
   }
 
   /** The agent's last line asked whether to end the call. */
