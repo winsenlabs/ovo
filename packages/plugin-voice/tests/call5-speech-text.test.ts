@@ -223,6 +223,23 @@ describe('the speech normaliser', () => {
     expect(say('Vienna – the capital – is lovely.')).toBe('Vienna, the capital, is lovely.');
   });
 
+  it('says a spaced en dash between two names as a pause, not "to" (review)', () => {
+    // An opener, a spaced en dash, then a capitalised word: the caller hears a comma.
+    expect(say('Absolutely – Vienna is lovely in December.')).toBe(
+      'Absolutely, Vienna is lovely in December.',
+    );
+    expect(say('Yes – Monday works.')).toBe('Yes, Monday works.');
+    expect(say('Mumbai – Delhi – Goa.')).toBe('Mumbai, Delhi, Goa.');
+    // The call's unspaced pair is still a range.
+    expect(say('Mumbai–Prague and Monday–Friday.')).toBe('Mumbai to Prague and Monday to Friday.');
+  });
+
+  it('keeps a date written "the 21st of December" day first in en-US too (review)', () => {
+    expect(say('The 21st of December 2026 works.', 'en-US')).toBe('The 21st of December works.');
+    expect(say('Fly on the 21st of December 2026.', 'en-US')).toBe('Fly on the 21st of December.');
+    expect(say('December 21, 2026 works.', 'en-US')).toBe('December 21st works.');
+  });
+
   it('leaves what is not a range alone', () => {
     for (const text of [
       'Call 98450-12345 or 1800-123-4567.',

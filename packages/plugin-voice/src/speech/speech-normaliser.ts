@@ -41,6 +41,8 @@ type DateToken = {
    * model wrote it in every English, so only a range or a year around it changes.
    */
   said?: string;
+  /** Written day first with "of" ("the 21st of December 2026"): en-US keeps that order too. */
+  ofForm?: boolean;
 };
 
 function monthIndex(name: string): number {
@@ -72,7 +74,7 @@ function renderDate(token: DateToken, now: Date, dayFirst: boolean, determined: 
   const month = MONTHS[token.month - 1]!;
   const year = spokenYear(token, now);
   if (token.day === undefined) return year === undefined ? month : `${month} ${year}`;
-  if (!dayFirst) {
+  if (!dayFirst && !token.ofForm) {
     const days =
       token.until === undefined
         ? ordinal(token.day)
@@ -128,9 +130,10 @@ function tokenise(text: string, tokens: DateToken[], dayFirst: boolean): string 
       keep({ month: Number(m), day: Number(d), year: Number(y) }, match),
     )
     .replace(DAY_FIRST, (match, d: string, d2: string | undefined, m: string, y?: string) => {
-      const said = !y && !d2 && MONTHS.includes(m) && /\d(?:st|nd|rd|th)\s+of\s/.test(match);
+      const ofForm = /\d(?:st|nd|rd|th)\s+of\s/.test(match);
+      const said = !y && !d2 && MONTHS.includes(m) && ofForm;
       return keep(
-        { month: monthIndex(m), day: Number(d), until: until(d2), year: year(y) },
+        { month: monthIndex(m), day: Number(d), until: until(d2), year: year(y), ofForm },
         match,
         said,
       );

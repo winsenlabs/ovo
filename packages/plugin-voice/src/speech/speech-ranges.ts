@@ -104,9 +104,12 @@ function amountRanges(text: string): string {
   );
 }
 
-/** "Mumbai–Prague", "Monday–Friday": an en dash between two names. Never "Sure—I can". */
-const NAME_RANGE =
-  /(?<=(?:^|[^\p{L}])\p{Lu}[\p{L}\p{M}'’.]*)\s*–\s*(?=\p{Lu}[\p{L}\p{M}])(?!I\b)/gu;
+/**
+ * "Mumbai–Prague", "Monday–Friday": an unspaced en dash between two names. Never "Sure—I can",
+ * and never a spaced en dash: "Absolutely – Vienna is lovely" is a pause after an opener, which
+ * `spokenSymbols` says as a comma.
+ */
+const NAME_RANGE = /(?<=(?:^|[^\p{L}])\p{Lu}[\p{L}\p{M}'’.]*)–(?=\p{Lu}[\p{L}\p{M}])(?!I\b)/gu;
 
 /** Amount ranges, then ranges between names, said with "to" (or "between … and …"). */
 export function spokenRanges(text: string): string {
