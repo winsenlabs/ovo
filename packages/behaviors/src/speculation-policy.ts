@@ -36,6 +36,24 @@ export interface SpeculationPolicy {
    * gpt-6-luna's price is confirmed (the `meter_uncovered` warning flags an LLM without one).
    */
   llm: boolean;
+  /**
+   * Wave 8, for an agent without a decision model (Maya): ask the LLM itself on the caller's
+   * partial transcript, so its first token, and any web search it starts, are under way before the
+   * turn ends. The turn takes the call only when its own first request is exactly the one asked
+   * (the same words, history and briefing); anything else is aborted. At most one is in flight, and
+   * `partialEnding` and `maxPartialCalls` limit them as they limit decisions. An aborted call still
+   * bills its input (and a search it started); its plugin meters that as an estimate.
+   */
+  llmPartials: boolean;
+  /** How long a revisable partial must stay unchanged before the LLM is asked on it. */
+  llmDebounceMs: number;
+  /** Fewer words than this are never asked about before the turn ends. */
+  llmMinWords: number;
+  /**
+   * At most this many LLM calls per utterance on revisable partials. One: on the Maya calls of
+   * 2026-10-07 a second call per utterance hid no more wait and billed four more requests.
+   */
+  llmMaxPartialCalls: number;
 }
 
 export const DEFAULT_SPECULATION: Readonly<SpeculationPolicy> = Object.freeze({
@@ -45,6 +63,10 @@ export const DEFAULT_SPECULATION: Readonly<SpeculationPolicy> = Object.freeze({
   maxPartialCalls: 2,
   match: 'exact',
   llm: true,
+  llmPartials: true,
+  llmDebounceMs: 250,
+  llmMinWords: 1,
+  llmMaxPartialCalls: 1,
 });
 
 export interface AgentSpeculationOptions {

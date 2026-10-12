@@ -1,23 +1,31 @@
-import type {
-  Inference,
-  InferenceReply,
-  InferenceRequest,
-  InferenceStreamEvent,
+import {
+  callerPunctuation,
+  normalizeForMatch,
+  type Inference,
+  type InferenceReply,
+  type InferenceRequest,
+  type InferenceStreamEvent,
 } from '@winsendotai/ovo-contracts';
 
 /** What the speculative LLM (LAT-3) did this call, metered apart from the turns that used it. */
 export interface LlmSpeculationMetrics {
-  /** LLM calls started alongside a decision. */
+  /** LLM calls started ahead of the turn's own request: alongside a decision, or on a partial. */
   started: number;
-  /** Calls whose answer the turn spoke: the decision deferred to the LLM. */
+  /** Calls whose answer the turn spoke: the decision deferred to the LLM, or the words held. */
   used: number;
   /**
-   * Calls aborted because the decision answered the turn (a scripted line, a clarification or a
-   * recovery line). The provider still bills their input; its plugin meters that as an estimate.
+   * Calls aborted because the turn did not ask the LLM (a scripted line, a clarification or a
+   * recovery line answered it). The provider still bills their input; its plugin meters that as an
+   * estimate.
    */
   aborted: number;
-  /** Calls aborted because the turn asked the LLM something else (the flow moved, for example). */
+  /**
+   * Calls aborted because the turn asked the LLM something else: the flow moved, or the caller's
+   * final words or the call's history differed from the partial the call was asked on.
+   */
   discarded: number;
+  /** Of `started`, the calls asked on the caller's partial transcript (Wave 8). */
+  onPartials: number;
 }
 
 export type InferenceCall = Omit<InferenceRequest, 'signal'>;
@@ -42,17 +50,12 @@ export class SpeculativeLlm {
     private readonly llm: Inference,
     call: InferenceCall,
     streaming: boolean,
-    turn: AbortSignal,
+    /** Aborts the call; a call asked on a partial has no turn until one takes it (`inference`). */
+    turn: AbortSignal | undefined,
     private readonly metrics: LlmSpeculationMetrics,
   ) {
     this.key = requestKey(call);
-    const abort = () => this.controller.abort(turn.reason);
-    turn.addEventListener('abort', abort, { once: true });
-    this.controller.signal.addEventListener(
-      'abort',
-      () => turn.removeEventListener('abort', abort),
-      { once: true },
-    );
+    if (turn) this.follow(turn);
     const request = { ...call, signal: this.controller.signal };
     metrics.started += 1;
     if (streaming && llm.stream) this.events = new BufferedStream(llm.stream(request));
@@ -63,12 +66,37 @@ export class SpeculativeLlm {
     }
   }
 
+  /** Still waiting for a turn to take it or abort it. */
+  get pending(): boolean {
+    return this.state === 'pending';
+  }
+
   /** The decision answered the turn, or the turn ended without asking the LLM. */
   abort(reason = 'the decision answered the turn'): void {
     if (this.state !== 'pending') return;
     this.state = 'aborted';
     this.metrics.aborted += 1;
     this.controller.abort(new DOMException(reason, 'AbortError'));
+  }
+
+  /** Thrown away unasked: the words or the call moved on before a turn could take it. */
+  discard(reason: string): void {
+    if (this.state !== 'pending') return;
+    this.state = 'aborted';
+    this.metrics.discarded += 1;
+    this.controller.abort(new DOMException(reason, 'AbortError'));
+  }
+
+  /** `signal` aborting aborts this call. */
+  private follow(signal: AbortSignal): void {
+    const abort = () => this.controller.abort(signal.reason);
+    if (signal.aborted) return abort();
+    signal.addEventListener('abort', abort, { once: true });
+    this.controller.signal.addEventListener(
+      'abort',
+      () => signal.removeEventListener('abort', abort),
+      { once: true },
+    );
   }
 
   /** The LLM as the turn's inference step sees it: its first matching request is this call. */
@@ -93,23 +121,38 @@ export class SpeculativeLlm {
   private claim(request: InferenceRequest, answer: unknown): boolean {
     if (this.state !== 'pending') return false;
     if (answer === undefined || requestKey(request) !== this.key) {
-      this.state = 'aborted';
-      this.metrics.discarded += 1;
-      this.controller.abort(
-        new DOMException('the turn asked the LLM something else', 'AbortError'),
-      );
+      this.discard('the turn asked the LLM something else');
       return false;
     }
     this.state = 'used';
     this.metrics.used += 1;
+    // The turn owns the call now: cancelling the turn cancels it.
+    this.follow(request.signal);
     return true;
   }
+}
+
+/**
+ * The caller's words as a speculative call is matched on: as `normalizeForMatch` reads them, so a
+ * partial and a final transcript that differ only in case or a full stop ask the same, plus the
+ * punctuation the inference plugin reads (a question mark or a cut-off decides whether the web
+ * search tool is sent): "Is the museum open." is not "Is the museum open?".
+ */
+export function callerMatchKey(input: string): string {
+  return JSON.stringify([normalizeForMatch(input), ...callerPunctuation(input)]);
 }
 
 /** Everything the LLM is asked, so two requests compare equal only when they ask the same. */
 function requestKey(request: InferenceCall): string {
   const { input, history, context, uncertainty, tools, results } = request;
-  return JSON.stringify([input, history ?? [], context, uncertainty, tools, results]);
+  return JSON.stringify([
+    callerMatchKey(input),
+    history ?? [],
+    context,
+    uncertainty,
+    tools,
+    results,
+  ]);
 }
 
 /**

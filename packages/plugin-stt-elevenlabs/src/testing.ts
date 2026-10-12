@@ -31,6 +31,35 @@ export function committed(text: string): string {
   return JSON.stringify({ message_type: 'committed_transcript', text });
 }
 
+/**
+ * The word-level message the provider sends after a commit with `include_timestamps` (the
+ * default binding asks for it): each word with its `logprob`, -0.05 unless given. Shape from
+ * https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime (retrieved
+ * 2026-10-08); the log probabilities are illustrative, not recorded.
+ */
+export function committedWords(
+  text: string,
+  logprobs: readonly number[] = [],
+  language: string | null = null,
+): string {
+  const words = text.split(/\s+/).filter(Boolean);
+  return JSON.stringify({
+    message_type: 'committed_transcript_with_timestamps',
+    text,
+    language_code: language,
+    words: words.flatMap((word, i) => [
+      ...(i ? [{ text: ' ', start: i * 0.4, end: i * 0.4, type: 'spacing', logprob: 0 }] : []),
+      {
+        text: word,
+        start: i * 0.4,
+        end: i * 0.4 + 0.35,
+        type: 'word',
+        logprob: logprobs[i] ?? -0.05,
+      },
+    ]),
+  });
+}
+
 const AUDIO: NetFixtureStep = {
   expect: 'ws-send',
   match: 'json',
@@ -55,12 +84,14 @@ function utterance(say: string): NetFixtureStep[] {
       where: { message_type: 'input_audio_chunk', commit: true },
     },
     { send: committed(say) },
+    { send: committedWords(say) },
   ];
 }
 
 /**
  * The documented manual-commit sequence: session_started, audio chunks with partials, then a
- * chunk with `commit: true` answered by the committed transcript. Every audio frame is a JSON
+ * chunk with `commit: true` answered by the committed transcript and its word-level message (the
+ * default binding asks for `include_timestamps`). Every audio frame is a JSON
  * input_audio_chunk, so the trailing repeated step also absorbs a later commit nothing answers.
  */
 export const scribeTemplate: FixtureTemplate = ({ turns }) => [

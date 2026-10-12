@@ -40,6 +40,7 @@ const release = fixtureRelease({
   ],
 });
 
+// Eight fixed lines: the six above, plus the two default ask-again lines (call-3 #3).
 describe('speech clip pre-render (TTS-9)', () => {
   it('renders every fixed line once, then only what is missing', async () => {
     const tts = new RecordingTts();
@@ -50,18 +51,18 @@ describe('speech clip pre-render (TTS-9)', () => {
       { release, tts, filters: [], onUsage: () => undefined, signal },
       { cache, store: durable.value, options },
     );
-    expect(first).toMatchObject({ state: 'done', total: 6, rendered: 6, existing: 0, perCall: 1 });
+    expect(first).toMatchObject({ state: 'done', total: 8, rendered: 8, existing: 0, perCall: 1 });
     expect(tts.calls.map((call) => call.text)).not.toContain('Your EMI of {{emi}} is due.');
-    expect(durable.clips.size).toBe(6);
-    expect(cache.pinned.stats.entries).toBe(6);
+    expect(durable.clips.size).toBe(8);
+    expect(cache.pinned.stats.entries).toBe(8);
     // Another worker: empty memory, shared durable tier, nothing left to render.
     const second = await warmReleaseClips(
       { release, tts, filters: [], onUsage: () => undefined, signal },
       { cache: new WorkerSpeechClipCache(), store: durable.value, options },
     );
-    expect(second).toMatchObject({ state: 'done', existing: 6, rendered: 0 });
-    expect(tts.calls).toHaveLength(6);
-    expect(durable.refs.filter((ref) => ref.status === 'ready')).toHaveLength(12);
+    expect(second).toMatchObject({ state: 'done', existing: 8, rendered: 0 });
+    expect(tts.calls).toHaveLength(8);
+    expect(durable.refs.filter((ref) => ref.status === 'ready')).toHaveLength(16);
   });
 
   it('pre-rendered clips are hits for the live call, with no live synthesis', async () => {
@@ -91,7 +92,7 @@ describe('speech clip pre-render (TTS-9)', () => {
         options: { ...options, concurrency: 1 },
       },
     );
-    expect(result).toMatchObject({ state: 'done', rendered: 6, failed: 0 });
+    expect(result).toMatchObject({ state: 'done', rendered: 8, failed: 0 });
     const broken = new RecordingTts();
     broken.failures = 100;
     const failed = await warmReleaseClips(
@@ -108,8 +109,8 @@ describe('speech clip pre-render (TTS-9)', () => {
       },
       { cache: new WorkerSpeechClipCache(), store: durable.value, options },
     );
-    expect(failed).toMatchObject({ state: 'failed', failed: 6, rendered: 0 });
-    expect(durable.refs.filter((ref) => ref.status === 'failed')).toHaveLength(6);
+    expect(failed).toMatchObject({ state: 'failed', failed: 8, rendered: 0 });
+    expect(durable.refs.filter((ref) => ref.status === 'failed')).toHaveLength(8);
     expect(durable.refs.find((ref) => ref.status === 'failed')?.error).toContain(
       'provider unavailable',
     );
@@ -174,7 +175,7 @@ describe('speech clip pre-render (TTS-9)', () => {
       },
       { cache: new WorkerSpeechClipCache(), options },
     );
-    expect(await meter.flush()).toEqual({ recorded: 6, unpriced: [], failed: 0 });
+    expect(await meter.flush()).toEqual({ recorded: 8, unpriced: [], failed: 0 });
     expect(recordUsage).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceId: 'workspace-a',

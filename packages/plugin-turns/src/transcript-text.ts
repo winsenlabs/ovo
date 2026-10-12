@@ -22,9 +22,10 @@ export function endsCutOff(text: string): boolean {
 }
 
 /**
- * Holds a broken-off turn for `holdMs` (P2): the caller paused mid-sentence, or the VAD let go
- * while they still spoke. Speech or new words in the wait continue the same turn; once the wait
- * is served the turn ends on what it has.
+ * Holds a turn whose words trail off for `holdMs` (P2; Wave 8 adds "and", "to the", a comma,
+ * "around the 1": see utterance-end.ts): the caller paused mid-sentence, or the VAD let go while
+ * they still spoke. Speech or new words in the wait continue the same turn; once the wait is
+ * served the turn ends on what it has.
  */
 export class CutoffHold {
   private cancelTimer?: () => void;
@@ -35,9 +36,9 @@ export class CutoffHold {
     private readonly holdMs: number,
   ) {}
 
-  /** True while `text` must wait; `expired` runs once when the wait is served. */
-  holds(text: string, expired: () => void): boolean {
-    if (this.served || !this.holdMs || !endsCutOff(text)) return false;
+  /** True while unfinished words must wait; `expired` runs once when the wait is served. */
+  holds(unfinished: boolean, expired: () => void): boolean {
+    if (this.served || !this.holdMs || !unfinished) return false;
     this.cancelTimer ??= this.clock.setTimeout(() => {
       this.cancelTimer = undefined;
       this.served = true;

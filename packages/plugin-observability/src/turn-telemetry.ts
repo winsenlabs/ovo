@@ -67,6 +67,7 @@ export class TurnTelemetryCollector {
       state.turn.userText = state.turn.input === 'speech' ? bounded(event.text) : null;
       if (state.turn.input === 'speech') {
         state.turn.endpointMs = this.pendingEndpointMs ?? null;
+        state.turn.endpointRule = event.endpointRule ?? null;
         this.pendingEndpointMs = undefined;
       }
       state.dirty = true;
@@ -224,6 +225,7 @@ function emptyTurn(turnId: string): TurnState['turn'] {
     turnId,
     input: turnId.startsWith('initial-') ? 'initial' : 'agent',
     endpointMs: null,
+    endpointRule: null,
     vadStopToFinalMs: null,
     sttFinalizeMs: null,
     queueMs: null,

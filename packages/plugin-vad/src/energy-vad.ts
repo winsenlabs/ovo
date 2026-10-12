@@ -2,6 +2,7 @@ import type { VadAnalyzer } from '@winsendotai/ovo-contracts';
 import { CallerLevel } from './caller-level.ts';
 import type { EnergyVadConfig } from './config.ts';
 import { HighPass } from './prefilter.ts';
+import { RoomGate } from './room-gate.ts';
 import { ToneDetector } from './tonality.ts';
 
 const FRAME_MS = 20;
@@ -100,6 +101,7 @@ export class EnergyVad implements VadAnalyzer {
   private readonly highPass?: HighPass;
   private readonly tones = new ToneDetector();
   private readonly caller: CallerLevel;
+  private readonly room: RoomGate;
   private readonly run: SpeechRun;
   /** The frame the last confidence() call analysed, and whether its volume is held up. */
   private analysed?: Int16Array;
@@ -119,6 +121,7 @@ export class EnergyVad implements VadAnalyzer {
     if (config.highPassHz > 0)
       this.highPass = new HighPass(sampleRate, config.highPassHz, this.frameSamples);
     this.caller = new CallerLevel(config.callerGateDb);
+    this.room = new RoomGate(config.roomRecoveryMs);
     this.run = new SpeechRun(
       Math.max(1, Math.round(config.startMs / FRAME_MS)),
       Math.max(1, Math.round(config.stopMs / FRAME_MS)),
@@ -136,13 +139,19 @@ export class EnergyVad implements VadAnalyzer {
     this.shortPower += SHORT_ALPHA * (10 ** (db / 10) - this.shortPower);
     // The frame or the last ~100 ms: a talker's loudest syllable, or the room the moment the caller
     // stops, is still the room.
-    this.distant = this.caller.below(db) || this.caller.below(10 * Math.log10(this.shortPower));
+    const shortDb = 10 * Math.log10(this.shortPower);
+    // The room (room-gate.ts) is treated as a far-field sound, and also ends an utterance.
+    const room = this.room.observe(shortDb, this.run.active);
+    this.distant = room || this.caller.below(db) || this.caller.below(shortDb);
     this.aboveFloorMs = db < floor + NEAR_FLOOR_DB ? 0 : this.aboveFloorMs + FRAME_MS;
     const loud = db > floor + MARGIN_DB;
     const tonal = this.tones.observe(samples, delta, loud && this.config.rejectTones);
     this.tonalFrames = tonal ? this.tonalFrames + 1 : 0;
-    // Tones and the caller gate keep sound from starting speech; neither cuts the caller off.
-    const rejected = !this.run.active ? tonal || this.distant : this.tonalFrames >= RUN_TONE_FRAMES;
+    // Tones and the caller gate keep sound from starting speech; neither cuts the caller off. The
+    // room does, once it has held the utterance open with the caller gone.
+    const rejected = !this.run.active
+      ? tonal || this.distant
+      : room || this.tonalFrames >= RUN_TONE_FRAMES;
     const raw = crossings >= 3 && !rejected ? sigmoid((db - floor - MARGIN_DB) / 3) : 0;
     this.confidenceState =
       this.config.smoothing * this.confidenceState + (1 - this.config.smoothing) * raw;
@@ -193,6 +202,7 @@ export class EnergyVad implements VadAnalyzer {
     this.highPass?.reset();
     this.tones.reset();
     this.caller.reset();
+    this.room.reset();
     this.run.reset();
     this.analysed = undefined;
     this.holdVolume = false;

@@ -1,0 +1,166 @@
+{
+  "source": "Maya call 6e1a4e3a (2026-10-08 08:00-08:05 UTC, main 6107125, a noisy café): GET /v1/calls/:id/turns. Per caller turn: the transcript, the agent line the caller heard before it (filler and search lines removed: the LLM never sees them), and the live web search and first-token times in ms (null: none).",
+  "turns": [
+    {
+      "turn": "turn-1",
+      "caller": "हाँ।",
+      "agentBefore": "Hi! I'm Maya, your Europe trip companion. Where are you thinking of going?",
+      "searchMs": null,
+      "llmFirstTokenMs": 2321
+    },
+    {
+      "turn": "turn-2",
+      "caller": "Yeah, yeah, hi, my friend.",
+      "agentBefore": "I'm not completely sure about that. Want me to look it up?",
+      "searchMs": null,
+      "llmFirstTokenMs": 1933
+    },
+    {
+      "turn": "turn-3",
+      "caller": "Hello?",
+      "agentBefore": "Hi! What can I help you with for your Europe trip?",
+      "searchMs": null,
+      "llmFirstTokenMs": 1431
+    },
+    {
+      "turn": "turn-4",
+      "caller": "I'm planning to go to Zagreb in Croatia. What do you know about this place?",
+      "agentBefore": "I’m here! What would you like help with for your Europe trip?",
+      "searchMs": 3166,
+      "llmFirstTokenMs": 5766
+    },
+    {
+      "turn": "turn-5",
+      "caller": "Okay. Wait, wait, wait. Tell me, tell me about Zagreb. Hello? Wait, wait, wait, wait, wait. Tell me about the Hamburg as well.",
+      "agentBefore": "Zagreb is Croatia’s lively inland capital, with a lovely mix of historic streets, cafés, museums, and green spaces. I’d start around Ban Jelačić Square, browse Dolac Market, then wander the Upper Town to see St. Mark’s Church and enjoy the old-town atmosphere. Are you planning a short stop or a few days there?",
+      "searchMs": 2114,
+      "llmFirstTokenMs": 4577
+    },
+    {
+      "turn": "turn-6",
+      "caller": "Hmm, okay. So, tell me more about Nuremberg.",
+      "agentBefore": "Of course. Zagreb has a historic Upper Town and a lively Lower Town, with cafés, museums, and leafy squares to explore. Hamburg has a very different feel: it’s a maritime city known for its harbor, historic Speicherstadt warehouses, and striking Elbphilharmonie concert hall.",
+      "searchMs": 3540,
+      "llmFirstTokenMs": 6032
+    },
+    {
+      "turn": "turn-7",
+      "caller": "Who are the Nazis?",
+      "agentBefore": "Nuremberg is a charming city with a medieval Old Town, the hilltop Imperial Castle, and the Albrecht Dürer House. It also has thoughtful museums on German history, including the Documentation Centre at the former Nazi Party Rally Grounds.",
+      "searchMs": null,
+      "llmFirstTokenMs": 979
+    },
+    {
+      "turn": "turn-8",
+      "caller": "Ma'am, they seem like nice people.",
+      "agentBefore": "The Nazis were members of a German far-right political movement led by Adolf Hitler. They ruled Germany from 1933 to 1945, started World War II in Europe, and carried out the Holocaust, murdering six million Jews and persecuting many other groups.",
+      "searchMs": null,
+      "llmFirstTokenMs": 1220
+    },
+    {
+      "turn": "turn-9",
+      "caller": "Hardik?",
+      "agentBefore": "They may seem polite as individuals, but the Nazi movement was not nice: it promoted racist hatred, dictatorship, and genocide. Are you asking about the people who lived in Nuremberg today, or the Nazi leaders in history?",
+      "searchMs": null,
+      "llmFirstTokenMs": 2321
+    },
+    {
+      "turn": "turn-10",
+      "caller": "Hello, if madam...",
+      "agentBefore": "I'm not completely sure about that. Want me to look it up?",
+      "searchMs": null,
+      "llmFirstTokenMs": 1974
+    },
+    {
+      "turn": "turn-11",
+      "caller": "Credit. Okay, so...",
+      "agentBefore": "I'm not sure what you mean by “Hardik.” Did you mean a person named Hardik, or something else?",
+      "searchMs": null,
+      "llmFirstTokenMs": 1381
+    },
+    {
+      "turn": "turn-12",
+      "caller": "Wait. Hold on.",
+      "agentBefore": "I’m not completely sure about that. Want me to look it up?",
+      "searchMs": null,
+      "llmFirstTokenMs": 876
+    },
+    {
+      "turn": "turn-13",
+      "caller": "Listen to me. Listen to me, please.",
+      "agentBefore": "Of course, take your time.",
+      "searchMs": null,
+      "llmFirstTokenMs": 1302
+    },
+    {
+      "turn": "turn-14",
+      "caller": "I'm in a coffee shop.",
+      "agentBefore": "Of course, take your time.",
+      "searchMs": null,
+      "llmFirstTokenMs": 1504
+    },
+    {
+      "turn": "turn-15",
+      "caller": "No. Can you check for flights from Chennai to Frankfurt?",
+      "agentBefore": "Of course, I’m listening. Take your time—what would you like to tell me?",
+      "searchMs": 2547,
+      "llmFirstTokenMs": 4062
+    },
+    {
+      "turn": "turn-16",
+      "caller": "Sometime during Christmas.",
+      "agentBefore": "Sure. Lufthansa currently lists nonstop flights from Chennai to Frankfurt, about five a week, with a flight time of roughly 10 hours 15 minutes. What dates are you looking at?",
+      "searchMs": 2616,
+      "llmFirstTokenMs": 7309
+    },
+    {
+      "turn": "turn-17",
+      "caller": "Yeah. So we'd like to leave on the 20th and be back around the 1",
+      "agentBefore": "Christmas 2026, then— Lufthansa lists Chennai–Frankfurt service about five times a week, but I’ll need your exact departure and return dates to check available flights and fares. What day would you like to leave? Christmas 2026, then. Lufthansa lists Chennai–Frankfurt flights about five times a week, but I’ll need your travel dates to check specific flights and fares. What day would you like to leave?",
+      "searchMs": null,
+      "llmFirstTokenMs": null
+    },
+    {
+      "turn": "turn-18",
+      "caller": "st.",
+      "agentBefore": "Christmas 2026, then— Lufthansa lists Chennai–Frankfurt service about five times a week, but I’ll need your exact departure and return dates to check available flights and fares. What day would you like to leave? Christmas 2026, then. Lufthansa lists Chennai–Frankfurt flights about five times a week, but I’ll need your travel dates to check specific flights and fares. What day would you like to leave?",
+      "searchMs": 2584,
+      "llmFirstTokenMs": 4006
+    },
+    {
+      "turn": "turn-19",
+      "caller": "जानकार, जानकार। एक लाख...",
+      "agentBefore": "Are you still there?",
+      "searchMs": null,
+      "llmFirstTokenMs": 1493
+    },
+    {
+      "turn": "turn-20",
+      "caller": "Two checks, sir, yes. Those dates are correct.",
+      "agentBefore": "I’m not completely sure about that. Want me to look it up?",
+      "searchMs": 2270,
+      "llmFirstTokenMs": 3403
+    },
+    {
+      "turn": "turn-21",
+      "caller": "Yeah.",
+      "agentBefore": "Got it: December 20, 2026, to January 1, 2027, for two passengers. I can’t confirm live availability or the total fare for those exact dates; shall I check the options for two?",
+      "searchMs": 1853,
+      "llmFirstTokenMs": null
+    },
+    {
+      "turn": "turn-22",
+      "caller": "Oh, my God.",
+      "agentBefore": "Got it: December 20, 2026, to January 1, 2027, for two passengers. I can’t confirm live availability or the total fare for those exact dates; shall I check the options for two?",
+      "searchMs": 1963,
+      "llmFirstTokenMs": 4880
+    },
+    {
+      "turn": "turn-23",
+      "caller": "Okay. Thank you, Danny.",
+      "agentBefore": "I checked Lufthansa’s published fares, but it doesn’t show a fare for your exact dates or two passengers, so I can’t confirm availability or the total price. I can only confirm that Lufthansa lists nonstop Chennai–Frankfurt flights about five times a week.",
+      "searchMs": null,
+      "llmFirstTokenMs": 1930
+    }
+  ]
+}

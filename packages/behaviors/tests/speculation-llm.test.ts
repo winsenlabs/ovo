@@ -101,6 +101,7 @@ describe('the LLM asked alongside the decision (LAT-3)', () => {
       used: 1,
       aborted: 0,
       discarded: 0,
+      onPartials: 0,
     });
   });
 

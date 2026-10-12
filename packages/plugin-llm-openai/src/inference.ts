@@ -3,7 +3,7 @@ import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai';
 import type { InferenceRequest, NetPort, UsageSink } from '@winsendotai/ovo-contracts';
 import { AiSdkInference, type AiSdkInferenceOptions } from '@winsendotai/ovo-plugin-kit';
 import { AbortMeteredInference, SpokenCitationsInference } from './aborted-usage.ts';
-import { searchAnnouncement, unclearForSearch } from './search-voice.ts';
+import { SEARCH_INSTRUCTIONS, searchAnnouncement, unclearForSearch } from './search-voice.ts';
 import { resolveVoiceTuning, type VoiceTuning } from './voice-tuning.ts';
 import { webSearchTools, webSearchUsage, type WebSearchConfig } from './web-search.ts';
 
@@ -66,9 +66,13 @@ export function openAiInference(
       ? {
           providerTools,
           providerToolSources: 'the results of your web search tool',
+          providerToolInstructions: SEARCH_INSTRUCTIONS,
           providerToolUsage: webSearchUsage,
           ...(skipUnclear
-            ? { providerToolsFor: (request: InferenceRequest) => !unclearForSearch(request) }
+            ? {
+                providerToolsFor: (request: Omit<InferenceRequest, 'signal'>) =>
+                  !unclearForSearch(request),
+              }
             : {}),
           ...(announce ? { providerToolAnnounce: announce } : {}),
         }

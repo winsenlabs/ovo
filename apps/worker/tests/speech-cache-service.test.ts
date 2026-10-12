@@ -142,7 +142,7 @@ describe('speech prerender service', () => {
     service.start();
     await vi.waitFor(() => expect(finished).toHaveLength(3));
     expect(finished).toEqual([
-      expect.objectContaining({ releaseId: 'release-pub', state: 'done', total: 4 }),
+      expect.objectContaining({ releaseId: 'release-pub', state: 'done', total: 6 }),
       expect.objectContaining({
         releaseId: 'release-gone',
         state: 'skipped',
@@ -178,7 +178,7 @@ describe('speech prerender service', () => {
       openSpeech: async () => ({ tts, filters: [], close: async () => undefined }),
     })!;
     runtime.cache.sessionStarted(release);
-    await vi.waitFor(() => expect(tts.calls.length).toBe(4));
+    await vi.waitFor(() => expect(tts.calls.length).toBe(6));
     await service.idle();
     await runtime.close();
     expect(runtime.cache.pinned.stats.entries).toBe(0);

@@ -3,6 +3,7 @@ import {
   agentHandoffLines,
   agentLanguageLine,
   agentRecoveryLines,
+  agentUnclearLines,
   canonicalJson,
   disclosureLines,
   flowLineTemplates,
@@ -90,6 +91,8 @@ export function staticSpeechInventory(release: SpeechInventoryRelease): SpeechIn
   // N4: asked of a caller heard outside the agent's languages.
   add(agentLanguageLine(config), 'recovery');
   add(config.uncertainty, 'uncertainty');
+  // Call-3 #3: said instead of the uncertainty line to unclear words.
+  for (const line of agentUnclearLines(config)) add(line, 'uncertainty');
   if (config.guardrail?.mode === 'block') add(config.guardrail.safeLine, 'guardrail');
   for (const entry of config.faq) add(entry.answer, 'faq');
   if (config.decision?.enabled)

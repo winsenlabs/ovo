@@ -158,43 +158,48 @@ describe("'commit' turn strategy", () => {
   });
 
   it('forces the endpoint on every stalled turn without a VAD', () => {
+    // Words that are not a short complete answer ("Yes.", "Hello"), which commits sooner.
     const f = fixture({}, { vad: false });
-    f.transcript('hello', 'interim');
+    f.transcript('I want', 'interim');
     f.clock.advance(1_500);
-    f.transcript('hello there', 'final');
+    f.transcript('I want to pay', 'final');
     f.transcript('second', 'interim', '1');
     f.clock.advance(1_500);
     expect(f.forced()).toBe(2);
     f.transcript('second one', 'final', '1');
-    expect(f.stopped()).toEqual(['hello there', 'second one']);
+    expect(f.stopped()).toEqual(['I want to pay', 'second one']);
   });
 
   it("runs without a VAD under 'auto' instead of refusing a manual-commit STT", () => {
     const f = fixture({}, { vad: false });
-    f.transcript('hello', 'interim');
+    f.transcript('I want', 'interim');
     f.clock.advance(1_500);
     expect(f.forced()).toBe(1);
-    f.transcript('hello there', 'final');
-    expect(f.stopped()).toEqual(['hello there']);
+    f.transcript('I want to pay', 'final');
+    expect(f.stopped()).toEqual(['I want to pay']);
     expect(() => fixture({ strategy: 'provider' }, { vad: false })).toThrow(/end-of-turn/);
   });
 
   it('parses the commit settings with their POC defaults and rejects unknown keys', () => {
     expect(DetectorConfigSchema.parse({}).commit).toEqual({
       silenceMs: 50,
+      completeSilenceMs: 50,
       longSilenceMs: 250,
       longUtteranceMs: 1200,
       minSpeechMs: 180,
       stallMs: 1500,
+      answerStallMs: 250,
     });
+    expect(DetectorConfigSchema.parse({}).noiseMs).toBe(2500);
     expect(DetectorConfigSchema.parse({ strategy: 'commit' }).strategy).toBe('commit');
     expect(() => DetectorConfigSchema.parse({ commit: { silence: 1 } })).toThrow();
     expect(() => DetectorConfigSchema.parse({ unknown: true })).toThrow();
   });
 
   it('a configured silence and a disabled stall fallback are honoured', () => {
-    // Ten seconds of speech is a long utterance: its silence is never shorter than silenceMs.
-    const f = fixture({ commit: { silenceMs: 200, longSilenceMs: 0, stallMs: 0 } });
+    // Ten seconds of speech is a long utterance: its silence is never shorter than silenceMs. The
+    // VAD run brings no new words for 10 s, so the room rule (noiseMs) is off here too.
+    const f = fixture({ commit: { silenceMs: 200, longSilenceMs: 0, stallMs: 0 }, noiseMs: 0 });
     f.send({ type: 'vad.start' });
     f.transcript('ek', 'interim');
     f.clock.advance(10_000);

@@ -3,6 +3,7 @@ import type { AudioFormat } from '../audio.ts';
 import { MODEL_LICENCE_ACKNOWLEDGEMENT_PATTERN, type Acknowledgement } from '../selection.ts';
 import type { CallOutcome, EndReason } from './end-reason.ts';
 import type { SpeechEvidence } from './evidence.ts';
+import type { EndpointRule } from './turn-endpoint.ts';
 
 export interface SessionInput {
   /** Lets turn detectors pick default mute rules. */
@@ -116,6 +117,8 @@ export type EngineEvent =
        * accepted. For speech recognition without word timings, which cannot time its own endpoint.
        */
       endpointMs?: number;
+      /** stopped, speech only (Wave 8): the turn detector's rule that ended the turn. */
+      endpointRule?: EndpointRule;
     }
   | {
       type: 'agent.transcript';

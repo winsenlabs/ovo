@@ -17,7 +17,7 @@ import type { AgentTurnLog } from './agent-turn-log.ts';
 import type { ToolConfirmation } from './confirmation.ts';
 import { applyFlowResume, interceptLateResume, readFlowResume } from './flow-rejoin.ts';
 import type { FlowSession } from './flow-session.ts';
-import { recovered, recoveryLine, repeatGuard, uncertaintyAgain } from './inference-recovery.ts';
+import { recovered, recoveryLine, replyFallbacks } from './inference-recovery.ts';
 import { inferenceRequest, rejoinOffer, type Rejoin } from './inference-request.ts';
 import type { ToolEvents } from './tool-events.ts';
 
@@ -112,19 +112,15 @@ async function* inferenceSteps(
   rejoin?: Rejoin,
 ): AsyncGenerator<string, void> {
   const { config, signal } = step;
-  const ending = new EndCallRefusal(step);
+  const ending = new EndCallRefusal({ ...step, language: config.language });
   const publish = ending.publish;
-  // A streamed reply drops the repeated sentences; a whole one that is only the uncertainty line
-  // again becomes the clarification.
-  const repeated = repeatGuard(step);
-  const streamGuard =
-    repeated && step.guard
-      ? (text: string) => {
-          const kept = repeated(text);
-          return kept === undefined ? undefined : step.guard!(kept);
-        }
-      : (repeated ?? step.guard);
-  const fresh = (text: string) => (uncertaintyAgain(step, text) ? config.clarification : text);
+  // Fallback lines the caller should not hear (P10, call-3 #3), sentence by sentence or whole.
+  const fallbacks = replyFallbacks(step);
+  const streamGuard = (text: string) => {
+    const kept = fallbacks.segment(text);
+    return kept === undefined || !step.guard ? kept : step.guard(kept);
+  };
+  const fresh = fallbacks.whole;
   const checked = (text: string) => {
     const spoken = stripInternalNotes(text);
     return spoken === undefined || !step.guard ? spoken : step.guard(spoken);
@@ -154,13 +150,20 @@ async function* inferenceSteps(
         (input) => {
           const accepted = isEndCall(step.tools, step.validators, input);
           // A refused goodbye already streamed stays said; the call stays open.
-          if (accepted && !ending.refused(true)) step.endCall(endCallReason(input));
+          if (accepted) ending.afterText(() => step.endCall(endCallReason(input)));
           return accepted;
         },
         streamGuard,
-        config.reply?.minFirstWords,
+        config.reply,
+        // Call-3 #7: the long-answer cap reads the reply language, not the locale; a turn the flow
+        // may take back is left uncapped, so no offer of more is said before the flow's question.
+        rejoin ? undefined : config.language,
       );
-      if (!streamed) return;
+      if (!streamed) {
+        const ask = ending.takeAsk();
+        if (ask !== undefined) yield publish(ask);
+        return;
+      }
       reply = streamed;
     } else {
       reply = await step.inference.generate(request);
@@ -217,6 +220,9 @@ async function* inferenceSteps(
     }
     if (tool.id === END_CALL_TOOL_ID) {
       const why = ending.refused(false);
+      // Wave 8b: an ending the caller did not clearly ask for is asked about, and waits for them.
+      const ask = why && ending.ask(why);
+      if (ask) return yield publish(ask);
       // Refused: the model hears why, and answers the caller instead in its next step.
       if (why) {
         step.results.push(ending.record(reply.input, why));

@@ -9,12 +9,13 @@ import type { InferenceActivity } from '@winsendotai/ovo-plugin-kit';
 import type { BoundedSpeechScheduler } from '../scheduler.ts';
 import { realClock } from './clock.ts';
 import type { VoiceEventBus } from './events.ts';
+import { IdlePacing } from './idle-pacing.ts';
 import { IdleWatch } from './idle-watch.ts';
 import { SpeechReceipts } from './speech-receipts.ts';
 import type { TurnLatency } from './latency.ts';
 import { describeError, logVoiceEvent } from './log.ts';
 import { ReplyAudibility } from './turn-audibility.ts';
-import { callerTurn, engineTurn, TurnBook, type Turn } from './turn-book.ts';
+import { engineTurn, TurnBook, type Turn } from './turn-book.ts';
 import { TurnFiller } from './turn-filler.ts';
 import { ReplyHold } from './turn-hold.ts';
 import { ReplyEpoch } from './turn-preempt.ts';
@@ -39,6 +40,9 @@ export abstract class TurnRunner {
   private readonly filler: TurnFiller;
   /** Set when the behaviour handles silence; the turn detector's idle prompts are then ignored. */
   protected readonly idle?: IdleWatch;
+  /** The agent's last answer, which earns the caller extra silence before an idle prompt. */
+  protected readonly pacing: IdlePacing;
+  private readonly unwatch: () => void;
   private readonly audibility = new ReplyAudibility();
   protected readonly hooks: SpeculationHooks;
   /** P1: holds an unheard reply while the caller speaks again. */
@@ -61,7 +65,7 @@ export abstract class TurnRunner {
     protected readonly end: (reason: DriverEndReason, detail?: string) => void,
     private readonly maxConcurrentTurns: number,
     protected readonly media: MediaDuplex,
-    protected readonly clock: Pick<Clock, 'setTimeout'> = realClock,
+    protected readonly clock: Pick<Clock, 'setTimeout' | 'now'> = realClock,
   ) {
     this.receipts = new SpeechReceipts(
       behavior,
@@ -80,10 +84,18 @@ export abstract class TurnRunner {
           this.end(...completionEnd(this.behavior, {}));
       },
     );
-    this.idle = IdleWatch.for(behavior, clock, events, {
-      quiet: () => !this.stopped && !this.closing && !this.tasks.size,
-      run: (turnId) => this.queue(engineTurn(turnId, '', { inputEvent: 'idle' })),
-    });
+    this.pacing = new IdlePacing(clock);
+    this.unwatch = speech.subscribe((evidence) => this.pacing.observe(evidence));
+    this.idle = IdleWatch.for(
+      behavior,
+      clock,
+      events,
+      {
+        quiet: () => !this.stopped && !this.closing && !this.tasks.size,
+        run: (turnId) => this.queue(engineTurn(turnId, '', { inputEvent: 'idle' })),
+      },
+      this.pacing,
+    );
     // The call's variables ride on each partial, as its turn will get them.
     this.hooks = new SpeculationHooks(withCallVariables(behavior, session), (hook, e) =>
       this.log('speculation_hook_failed', e, { hook }, 'warn'),
@@ -102,12 +114,19 @@ export abstract class TurnRunner {
 
   /** N3: a provider tool's progress inside the reply being composed (a web search starting). */
   inferenceActivity(activity: InferenceActivity): void {
+    const running = this.turns.running;
+    if (activity.phase === 'started' && !activity.signal.aborted && running)
+      running.searched = true;
     this.filler.activity(activity);
   }
 
   async dispose(): Promise<void> {
     this.stopped = true;
+    // Wave 8: the caller's open words are never answered now, so a behaviour asking the LLM on them
+    // (after a debounce that cancel() keeps for a barge-in) asks nothing after the call ends.
+    if (this.callerOpen !== undefined) this.hooks.discard(this.callerOpen, 'reset');
     this.hold.dispose();
+    this.unwatch();
     this.idle?.dispose();
     this.turns.dispose();
     this.turns.abortRunning('engine disposed');
@@ -120,15 +139,18 @@ export abstract class TurnRunner {
    * waiting or being composed for them is abandoned (its decision, LLM and TTS work cancelled, its
    * speech never played) and one reply answers both, newest words last.
    */
-  protected caller(id: string, text: string, filler: Turn['filler']): void {
-    const { queue, supersede } = this.turns.caller(callerTurn(id, text, filler));
-    if (supersede) {
-      supersede.controller?.abort(new DOMException('turn superseded', 'AbortError'));
-      this.behavior.cancel?.();
-      // Flushes the stale reply's queued lines and its synthesis before any audio reaches the caller.
-      if (supersede.epoch !== undefined) this.interrupting = this.speech.beginEpoch();
-    }
+  protected caller(turn: Turn): void {
+    const { queue, supersede } = this.turns.caller(turn);
+    if (supersede) this.abandon(supersede);
     if (queue) this.queue(queue);
+  }
+
+  /** Cancels a reply the caller's newer words supersede: its decision, LLM, search and speech. */
+  protected abandon(turn: Turn): void {
+    turn.controller?.abort(new DOMException('turn superseded', 'AbortError'));
+    this.behavior.cancel?.();
+    // Flushes the stale reply's queued lines and its synthesis before any audio reaches the caller.
+    if (turn.epoch !== undefined) this.interrupting = this.speech.beginEpoch();
   }
 
   /** Keeps `task` until it settles, so disposal waits for it. */
@@ -207,6 +229,7 @@ export abstract class TurnRunner {
         signal: abort.signal,
         current: () => lines.current(),
         first: () => {
+          turn.drafted = true;
           cancelFiller?.();
           lines.first();
           // Not llm_ttfb: this interval also holds grounding, the decision and sentence
@@ -218,6 +241,9 @@ export abstract class TurnRunner {
       cancelFiller?.();
       await lines.settled();
       if (abort.signal.aborted) return;
+      // Call-3 #1: the caller heard only "One moment." for their words.
+      if (turn.speech && turn.fillerPlayed && !lines.spoke && lines.current())
+        logVoiceEvent('warn', 'reply_filler_only', { sessionId: this.media.sessionId, turnId });
       await this.receipts.deliver();
       await this.interrupting;
       if (lines.current() && this.behavior.isComplete?.()) this.complete(extra);

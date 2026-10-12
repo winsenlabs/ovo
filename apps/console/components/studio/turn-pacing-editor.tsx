@@ -10,6 +10,18 @@ export const DEFAULT_MIN_FIRST_WORDS = 3;
 const DEFAULT_FILLER = () => ({ lines: ['Hmm, one moment.'], afterMs: 600 });
 
 type Filler = { lines: string[]; afterMs: number };
+type ReplyPacing = NonNullable<AgentConfig['reply']>;
+
+/**
+ * `reply` with its `minFirstWords` set from the field ('' clears it). Only that knob changes:
+ * `reply` also holds the first phrase and the long-answer cap (Wave 8), which this editor must keep.
+ */
+export function withMinFirstWords(reply: ReplyPacing | undefined, raw: string) {
+  const next: ReplyPacing = { ...reply };
+  if (raw === '') delete next.minFirstWords;
+  else next.minFirstWords = Math.min(12, Math.max(0, Math.round(Number(raw))));
+  return Object.keys(next).length ? next : undefined;
+}
 type Speculation = NonNullable<NonNullable<AgentConfig['decision']>['speculation']>;
 
 /**
@@ -197,15 +209,7 @@ export function TurnPacingEditor({
             placeholder={String(DEFAULT_MIN_FIRST_WORDS)}
             value={minFirstWords ?? ''}
             onChange={(event) => {
-              const raw = event.target.value;
-              // The whole of `reply` today is this one knob (contracts AgentReplyPacing).
-              update({
-                ...config,
-                reply:
-                  raw === ''
-                    ? undefined
-                    : { minFirstWords: Math.min(12, Math.max(0, Math.round(Number(raw)))) },
-              });
+              update({ ...config, reply: withMinFirstWords(config.reply, event.target.value) });
             }}
           />
         </Field>

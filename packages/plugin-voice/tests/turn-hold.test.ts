@@ -193,8 +193,51 @@ describe('a reply is held while the caller speaks again before hearing it (P1)',
     h.turn.started('turn-2');
     h.turn.partial('turn-2', 'and another thing');
     await clock.advanceAsync(20_000);
+    // Wave 8b: "and…" carries turn 1 on, so its reply, still composing, was given up at once
+    // (TurnBook.preempt). The hold giving up on the stuck turn owes it again: asked anew at maxMs,
+    // it plays its LLM call (300 ms) and first audio (100 ms) later.
+    expect(agent.asked).toEqual(['rule yes', 'rule yes']);
+    expect(h.audio.map((line) => [line.text, line.atMs - t0])).toEqual([
+      ['Answer: rule yes.', 100 + REPLY_HOLD.maxMs + 300 + 100],
+    ]);
+  });
+
+  it('plays a reply it held, not gave up, at maxMs', async () => {
+    const clock = new FakeClock();
+    const agent = slowAgent(clock, { fastMs: 300 });
+    const h = driverHarness(clock, agent.behavior, { ttsMs: 100, playMs: 1500 });
+    const t0 = await h.greet();
+    h.turn.stopped('turn-1', 'rule yes');
+    await clock.advanceAsync(100);
+    h.turn.vad('vad.start');
+    h.turn.started('turn-2');
+    // Brief words that do not carry turn 1 on: the reply is held, not given up.
+    h.turn.partial('turn-2', 'another thing');
+    await clock.advanceAsync(20_000);
+    expect(agent.asked).toEqual(['rule yes']);
     expect(h.audio.map((line) => [line.text, line.atMs - t0])).toEqual([
       ['Answer: rule yes.', 100 + REPLY_HOLD.maxMs + 100],
+    ]);
+  });
+
+  it('gives up no reply, and holds none, for words a turn held maxMs goes on with', async () => {
+    const clock = new FakeClock();
+    const agent = slowAgent(clock, { fastMs: 300 });
+    const h = driverHarness(clock, agent.behavior, { ttsMs: 100, playMs: 1500 });
+    const t0 = await h.greet();
+    h.turn.stopped('turn-1', 'rule yes');
+    await clock.advanceAsync(100);
+    h.turn.vad('vad.start');
+    h.turn.started('turn-2');
+    h.turn.partial('turn-2', 'and another thing');
+    await clock.advanceAsync(REPLY_HOLD.maxMs + 100);
+    // The reply asked again at maxMs is composing; the stuck turn's next words leave it be.
+    h.turn.partial('turn-2', 'and another thing that I wanted to say');
+    expect(h.scheduler.held).toBe(false);
+    await clock.advanceAsync(5_000);
+    expect(agent.asked).toEqual(['rule yes', 'rule yes']);
+    expect(h.audio.map((line) => [line.text, line.atMs - t0])).toEqual([
+      ['Answer: rule yes.', 100 + REPLY_HOLD.maxMs + 300 + 100],
     ]);
   });
 

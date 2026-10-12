@@ -45,6 +45,7 @@ function speakTurn(turns: TurnTelemetryCollector) {
     turnId: 'turn-1',
     input: 'speech',
     text: 'What is my balance?',
+    endpointRule: 'complete',
   });
   turns.engine(timing('turn_decision', 'turn-1', 10_330, 10));
   turns.stage({ stage: 'grounding', durationMs: 40, outcome: 'succeeded' });
@@ -128,6 +129,7 @@ describe('per-turn telemetry', () => {
       input: 'speech',
       startedAt: new Date(10_000).toISOString(),
       endpointMs: 640,
+      endpointRule: 'complete',
       vadStopToFinalMs: 300,
       sttFinalizeMs: 20,
       queueMs: 10,

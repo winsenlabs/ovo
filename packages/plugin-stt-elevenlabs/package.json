@@ -15,6 +15,7 @@
     "@winsendotai/ovo-sdk": "workspace:*"
   },
   "devDependencies": {
-    "@winsendotai/ovo-conformance": "workspace:*"
+    "@winsendotai/ovo-conformance": "workspace:*",
+    "@winsendotai/ovo-plugin-turns": "workspace:*"
   }
 }

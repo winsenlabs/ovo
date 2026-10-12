@@ -10,6 +10,14 @@ interface Armed {
   epoch: number;
   searchAnnounced: boolean;
   timers: (() => void)[];
+  /** Cancelled: its reply has a line, or ended. */
+  done: boolean;
+  /** Filler lines of this turn still queued or playing. */
+  playing: number;
+  /** When the last of them stopped, or the search started with none playing (call-3 #1). */
+  quietAt?: number;
+  /** Runs once no filler line is playing. */
+  onQuiet?: () => void;
 }
 
 /**
@@ -19,17 +27,23 @@ interface Armed {
  * a reply whose first line is ready while the filler still plays cuts it (P3, TurnDriver.preempt),
  * and no filler starts while the caller is speaking again (P1).
  * N3: when the provider starts a web search for the reply (`activity`), its search line plays at
- * once in place of a generic filler not yet due, and its "still checking" line once
- * `stillAfterMs` pass with no reply line. Only a turn that searches hears them.
+ * once in place of a generic filler not yet due, and its "still checking" line once the caller has
+ * heard nothing for `stillAfterMs`. Only a turn that searches hears them.
+ * Call-3 #1: a turn says at most one filler line up front, never two back to back: a generic
+ * filler already started or played leaves the search line unsaid ("One moment. Let me look that
+ * up. Still checking, one moment." played on turns 4, 6 and 16 of call 6e1a4e3a), and "still
+ * checking" waits for `stillAfterMs` of silence after the last filler line ends.
  * The filler is never handed to the behaviour: it is not part of the conversation it records. Its
  * speaking interval is announced as a filler (`bot.started.filler`), so the caller's words over it
  * are taken as in silence rather than as backchannels (AGT-9).
  */
 export class TurnFiller {
   private armed?: Armed;
+  /** Wave 8: a search the LLM started on the partial transcript, before its turn armed. */
+  private early?: InferenceActivity;
 
   constructor(
-    private readonly clock: Pick<Clock, 'setTimeout'>,
+    private readonly clock: Pick<Clock, 'setTimeout' | 'now'>,
     private readonly speech: BoundedSpeechScheduler,
     private readonly audibility: ReplyAudibility,
     /** False once the call is ending. */
@@ -42,8 +56,22 @@ export class TurnFiller {
    * is ready or it ends: it stops the filler timer and any search line still to come.
    */
   arm(turn: Turn, epoch: number): () => void {
-    const armed: Armed = { turn, epoch, searchAnnounced: false, timers: [] };
+    const armed: Armed = {
+      turn,
+      epoch,
+      searchAnnounced: false,
+      timers: [],
+      done: false,
+      playing: 0,
+    };
     this.armed = armed;
+    const early = this.early;
+    this.early = undefined;
+    // After this tick's `finalize`, which aborts a call asked on other words.
+    if (early)
+      queueMicrotask(() => {
+        if (this.armed === armed && !early.signal.aborted) this.activity(early);
+      });
     const filler = turn.filler;
     if (filler && !turn.fillerPlayed)
       armed.timers.push(
@@ -54,6 +82,8 @@ export class TurnFiller {
         }, filler.afterMs),
       );
     return () => {
+      armed.done = true;
+      armed.onQuiet = undefined;
       for (const cancel of armed.timers.splice(0)) cancel();
       if (this.armed === armed) this.armed = undefined;
     };
@@ -62,23 +92,43 @@ export class TurnFiller {
   /** A provider tool's progress (N3): a search started for the reply being composed. */
   activity(activity: InferenceActivity): void {
     const armed = this.armed;
+    if (activity.phase === 'finished' && this.early?.id === activity.id) this.early = undefined;
     if (activity.phase !== 'started' || !activity.announce || activity.signal.aborted) return;
-    if (!armed || armed.searchAnnounced || !this.speakable(armed)) return;
+    if (!armed) {
+      this.early = activity;
+      return;
+    }
+    if (armed.searchAnnounced || !this.speakable(armed)) return;
     armed.searchAnnounced = true;
     const { line, stillLine, stillAfterMs } = activity.announce;
     const { turn } = armed;
     // The search line says more than a generic filler: it replaces one not yet due.
     for (const cancel of armed.timers.splice(0)) cancel();
-    if (line && !(turn.fillerPlayed && turn.filler?.text === line)) {
+    if (!armed.playing) armed.quietAt ??= this.clock.now();
+    // One filler line per turn: after a generic one (or a merged turn's), the search goes unsaid.
+    if (line && !turn.fillerPlayed) {
       turn.fillerPlayed = true;
       this.play(armed, line);
     }
-    if (stillLine)
-      armed.timers.push(
-        this.clock.setTimeout(() => {
-          if (this.speakable(armed)) this.play(armed, stillLine);
-        }, stillAfterMs),
-      );
+    if (stillLine) this.after(armed, stillAfterMs, () => this.play(armed, stillLine));
+  }
+
+  /**
+   * Runs `say` once the caller has heard nothing from this turn for `quietMs`: a filler line still
+   * playing first ends, and the silence is counted from its end, not from when the search began.
+   */
+  private after(armed: Armed, quietMs: number, say: () => void): void {
+    const check = () => {
+      if (armed.done || !this.speakable(armed)) return;
+      if (armed.playing) {
+        armed.onQuiet = check;
+        return;
+      }
+      const silentMs = this.clock.now() - (armed.quietAt ?? this.clock.now());
+      if (silentMs >= quietMs) return say();
+      armed.timers.push(this.clock.setTimeout(check, quietMs - silentMs));
+    };
+    armed.timers.push(this.clock.setTimeout(check, quietMs));
   }
 
   /** The reply has made no sound, the caller is not speaking, and nothing cancelled it. */
@@ -89,10 +139,23 @@ export class TurnFiller {
     return !this.speech.held;
   }
 
-  private play({ turn, epoch }: Armed, text: string): void {
+  private play(armed: Armed, text: string): void {
+    const { turn, epoch } = armed;
+    armed.playing += 1;
     const receipt = this.audibility.filler(() =>
       this.speech.speak(text, { epoch, kind: 'acknowledgment' }),
     );
-    void receipt.catch((error: unknown) => this.failed(turn.id, error));
+    const ended = () => {
+      armed.playing -= 1;
+      if (armed.playing) return;
+      armed.quietAt = this.clock.now();
+      const quiet = armed.onQuiet;
+      armed.onQuiet = undefined;
+      quiet?.();
+    };
+    void receipt.then(ended, (error: unknown) => {
+      ended();
+      this.failed(turn.id, error);
+    });
   }
 }

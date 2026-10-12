@@ -37,6 +37,8 @@ export interface TurnTelemetry {
   startedAt: string | null;
   /** Caller's last word to the speech provider's end-of-turn signal. */
   endpointMs: number | null;
+  /** Wave 8: the turn detector's rule that ended a speech turn ("complete", "answer", "noise"…). */
+  endpointRule: string | null;
   vadStopToFinalMs: number | null;
   /** Final transcript to the turn being accepted. */
   sttFinalizeMs: number | null;

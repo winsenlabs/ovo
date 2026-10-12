@@ -55,11 +55,13 @@ export interface AiSdkInferenceOptions {
   providerTools?: Record<string, Tool>;
   /** Added to the system prompt's factual sources when provider tools can supply facts. */
   providerToolSources?: string;
+  /** Added to the system prompt with `providerToolSources`: how to use the provider tools. */
+  providerToolInstructions?: string;
   /**
    * Whether this request is sent the provider tools; all are by default. A request without them is
    * also asked without `providerToolSources`.
    */
-  providerToolsFor?: (request: InferenceRequest) => boolean;
+  providerToolsFor?: (request: Omit<InferenceRequest, 'signal'>) => boolean;
   /** Lines a voice engine may say while a provider tool runs, carried on each `started` activity. */
   providerToolAnnounce?: ActivityAnnouncement;
   /** Per-call meters for the provider tools a step ran, emitted with its token meters. */
@@ -114,7 +116,7 @@ export class AiSdkInference implements Inference, InferenceActivitySource {
   }
 
   /** True when this request is sent the provider tools (web search). */
-  protected sendsProviderTools(request: InferenceRequest): boolean {
+  sendsProviderTools(request: Omit<InferenceRequest, 'signal'>): boolean {
     const tools = this.options.providerTools;
     if (!tools || !Object.keys(tools).length) return false;
     return this.options.providerToolsFor?.(request) ?? true;
@@ -171,6 +173,7 @@ export class AiSdkInference implements Inference, InferenceActivitySource {
           request,
           this.options.instructions,
           Object.keys(providerTools).length ? this.options.providerToolSources : undefined,
+          this.options.providerToolInstructions,
         ),
         messages: [...(request.history ?? []), { role: 'user' as const, content: request.input }],
         tools: { ...tools, ...providerTools },

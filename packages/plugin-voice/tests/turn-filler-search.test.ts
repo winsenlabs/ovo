@@ -48,26 +48,36 @@ const timeline = (lines: { text: string; atMs: number }[], t0: number) =>
   lines.map((line) => [line.text, line.atMs - t0]);
 
 describe('a search turn says what it is doing (N3)', () => {
-  it('plays the search line when the search starts and "still checking" 2.5 s later', async () => {
+  it('plays the search line when the search starts, and "still checking" after 2.5 s of silence', async () => {
+    const { clock, h, filler } = setup(6000);
+    const t0 = await h.greet();
+    h.caller('what is the weather in Zagreb in December', NEUTRAL);
+    await clock.advanceAsync(SEARCH_MS);
+    filler.activity(started());
+    await clock.advanceAsync(10_000);
+    // The search line plays 1.2-2.7 s; "still checking" waits for 2.5 s of silence after it.
+    const still = SEARCH_MS + 1500 + ANNOUNCE.stillAfterMs;
+    expect(timeline(h.audio, t0)).toEqual([
+      [ANNOUNCE.line, SEARCH_MS],
+      [ANNOUNCE.stillLine, still],
+      ['Answer: what is the weather in Zagreb in December.', 6000 + 200],
+    ]);
+    // The answer cuts "still checking" the moment its first line is ready (P3).
+    expect(timeline(h.cut, t0)).toEqual([[ANNOUNCE.stillLine, 6000]]);
+  });
+
+  it('says nothing more when the answer comes within 2.5 s of the search line ending', async () => {
     const { clock, h, filler } = setup();
     const t0 = await h.greet();
     h.caller('what is the weather in Zagreb in December', NEUTRAL);
     await clock.advanceAsync(SEARCH_MS);
     filler.activity(started());
     await clock.advanceAsync(10_000);
+    // Before call-3 #1, "still checking" started 1 s after the search line ended (at 3.7 s).
     expect(timeline(h.audio, t0)).toEqual([
       [ANNOUNCE.line, SEARCH_MS],
-      [ANNOUNCE.stillLine, SEARCH_MS + ANNOUNCE.stillAfterMs],
       ['Answer: what is the weather in Zagreb in December.', LLM_MS + 200],
     ]);
-    // The answer cuts "still checking" the moment its first line is ready (P3).
-    expect(timeline(h.cut, t0)).toEqual([[ANNOUNCE.stillLine, LLM_MS]]);
-    // Live the caller sat through ~3 s of silence after the filler; now no gap passes 1 s.
-    const ends = h.audio.map(
-      (line) => h.cut.find((cut) => cut.text === line.text)?.atMs ?? line.atMs + 1500,
-    );
-    const gaps = h.audio.slice(1).map((line, index) => line.atMs - ends[index]!);
-    expect(gaps).toEqual([1000, 200]);
   });
 
   it('never plays the search line on a turn that does not search', async () => {
@@ -81,7 +91,7 @@ describe('a search turn says what it is doing (N3)', () => {
     ]);
   });
 
-  it('follows a generic filler that already started, once', async () => {
+  it('never stacks the search line on a generic filler that already played (call-3 #1)', async () => {
     const { clock, h, filler } = setup();
     const t0 = await h.greet();
     h.caller('is there vegetarian food', { text: NEUTRAL.text, afterMs: 700 });
@@ -89,11 +99,13 @@ describe('a search turn says what it is doing (N3)', () => {
     filler.activity(started());
     filler.activity({ ...started(), id: 'ws-2' });
     await clock.advanceAsync(10_000);
-    expect(timeline(h.audio, t0).slice(0, 2)).toEqual([
+    // Before: "One moment." at 0.7 s, then "Let me look that up." back to back at 2.2 s.
+    // "Still checking" would wait for 2.5 s of silence after the filler ended (4.7 s): the answer
+    // comes first.
+    expect(timeline(h.audio, t0)).toEqual([
       [NEUTRAL.text, 700],
-      [ANNOUNCE.line, 700 + 1500],
+      ['Answer: is there vegetarian food.', LLM_MS + 200],
     ]);
-    expect(h.audio.filter((line) => line.text === ANNOUNCE.line)).toHaveLength(1);
   });
 
   it('says nothing for a search the turn abandoned, an unannounced one, or over the caller', async () => {
@@ -118,6 +130,45 @@ describe('a search turn says what it is doing (N3)', () => {
     speaking.h.scheduler.release();
     await speaking.clock.advanceAsync(10_000);
     expect(speaking.h.audio.map((line) => line.text)).not.toContain(ANNOUNCE.line);
+  });
+
+  it('announces a search the LLM started on the partial transcript once its turn arms (Wave 8)', async () => {
+    const { clock, h, filler } = setup();
+    const t0 = await h.greet();
+    // Speculation asked about the caller's words before they ended; the search started then.
+    filler.activity(started());
+    h.caller('what is the weather in Zagreb in December', NEUTRAL);
+    await clock.advanceAsync(10_000);
+    expect(timeline(h.audio, t0)).toEqual([
+      [ANNOUNCE.line, 0],
+      ['Answer: what is the weather in Zagreb in December.', LLM_MS + 200],
+    ]);
+  });
+
+  it('never announces an early search that was abandoned or already finished (Wave 8)', async () => {
+    const abandoned = setup();
+    let t0 = await abandoned.h.greet();
+    const stale = new AbortController();
+    abandoned.filler.activity(started(stale.signal));
+    stale.abort();
+    abandoned.h.caller('what about Rome', NEUTRAL);
+    await abandoned.clock.advanceAsync(10_000);
+    expect(timeline(abandoned.h.audio, t0)).toEqual([
+      [NEUTRAL.text, NEUTRAL.afterMs],
+      ['Answer: what about Rome.', LLM_MS + 200],
+    ]);
+
+    const finished = setup();
+    t0 = await finished.h.greet();
+    const done = started();
+    finished.filler.activity(done);
+    finished.filler.activity({ ...done, phase: 'finished', outcome: 'succeeded', durationMs: 900 });
+    finished.h.caller('what about Rome', NEUTRAL);
+    await finished.clock.advanceAsync(10_000);
+    expect(timeline(finished.h.audio, t0)).toEqual([
+      [NEUTRAL.text, NEUTRAL.afterMs],
+      ['Answer: what about Rome.', LLM_MS + 200],
+    ]);
   });
 
   it('says nothing once the reply has started', async () => {

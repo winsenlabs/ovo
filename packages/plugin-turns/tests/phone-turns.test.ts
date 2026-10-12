@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { FakeClock } from '@winsendotai/ovo-conformance/drivers';
 import {
@@ -292,6 +293,9 @@ describe('Indian English and Hinglish backchannels', () => {
   });
 });
 
-it('PHONE_TURN_CONFIG is the documented phone row: the defaults', () => {
+it('PHONE_TURN_CONFIG is the documented phone row: the defaults', async () => {
   expect(PHONE_TURN_CONFIG).toEqual(DetectorConfigSchema.parse({}));
+  const preset = new URL('../../../docs/presets/turn-detector/phone.json', import.meta.url);
+  const row: unknown = JSON.parse(await readFile(preset, 'utf8'));
+  expect(DetectorConfigSchema.parse(row)).toEqual(PHONE_TURN_CONFIG);
 });

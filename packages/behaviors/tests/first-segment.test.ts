@@ -59,7 +59,7 @@ describe('LAT-9 first-segment splitting', () => {
  * when the segmenter releases it, its audio starts `ttfbMs` later and lasts `msPerChar` per
  * character, and segments play back to back. The numbers are fixtures, not measurements.
  */
-function timeline(reply: string, options: { minFirstWords?: number }) {
+function timeline(reply: string, options: { minFirstWords?: number; firstPhraseWords?: number }) {
   const wordMs = 40;
   const ttfbMs = 250;
   const msPerChar = 60;
@@ -90,14 +90,17 @@ describe('LAT-9 on a fixed timeline', () => {
     expect(before.segments[0]).toBe('Okay,');
     // "Okay," is 300 ms of audio, then the caller waits for the rest of the sentence to render.
     expect(before).toMatchObject({ firstAudioMs: 290, silenceMs: 180 });
-    expect(after).toMatchObject({ firstAudioMs: 770, silenceMs: 0 });
+    // Wave 8: the first segment no longer waits for "fifth.": it ends before "on" (a phrase opener,
+    // nine words in), 120 ms sooner, still with no gap after it.
+    expect(after).toMatchObject({ firstAudioMs: 650, silenceMs: 0 });
+    expect(after.segments[0]).toBe('Okay, so your EMI of 4,500 rupees is due');
   });
 
   it('starts first audio at the first clause instead of the end of a long sentence', () => {
     const reply =
       'Sure Rahul ji, your EMI of 4,500 rupees is due on the fifth of October. Shall I send a link?';
     const clause = timeline(reply, {});
-    const sentence = timeline(reply, { minFirstWords: 1_000 });
+    const sentence = timeline(reply, { minFirstWords: 1_000, firstPhraseWords: 0 });
     expect(clause.segments[0]).toBe('Sure Rahul ji,');
     expect(clause).toMatchObject({ firstAudioMs: 370, silenceMs: 0 });
     // Without the clause cut the first segment waits for the 60-character cap.

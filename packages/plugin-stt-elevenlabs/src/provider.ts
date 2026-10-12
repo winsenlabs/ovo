@@ -6,6 +6,7 @@ import {
   type SpeechToText,
 } from '@winsendotai/ovo-contracts';
 import { createLogger, errorFields, systemClock } from '@winsendotai/ovo-plugin-kit';
+import { agentNameRestorer, type AgentNameConfig } from './agent-name.ts';
 import { baseLanguage, scribeCapabilitiesFor, scribeSupportsLanguage } from './capabilities.ts';
 import { scribeKeyterms, type ScribeCallKeyterms, type ScribeStart } from './keyterms.ts';
 import { ElevenLabsSttError } from './protocol.ts';
@@ -47,10 +48,10 @@ export interface ElevenLabsSttBinding {
    */
   sessionLanguage?: string;
   /**
-   * Other languages the audio may hold, sent as `secondary_languages`; the provider's language
-   * identification then only considers these and the pinned one. [unconfirmed: the reference lists
-   * the parameter as an array without a description or its query encoding; a repeated parameter
-   * is assumed, as for keyterms. Unset (the default), nothing is sent.]
+   * Other languages the audio may hold ("Additional ISO-639-1 or ISO-639-3 language codes that may
+   * be present in the audio"), sent as repeated `secondary_languages` parameters, as the official
+   * SDK sends them. Unset (the default), nothing is sent. [unconfirmed: how strictly the provider
+   * keeps to these and the pinned one on a live call.]
    */
   secondaryLanguages?: readonly string[];
   /**
@@ -60,6 +61,21 @@ export interface ElevenLabsSttBinding {
    */
   languageDetection?: boolean;
   keyterms?: readonly string[];
+  /**
+   * Wave 8: asks for `include_timestamps`, whose word-level message gives each commit's
+   * confidence (the words' log probabilities) on the final transcript, for judging a garbled
+   * turn untrusted. On by default; each final then waits for that message, which follows its
+   * commit, for at most `CONFIDENCE_WAIT_MS` and never past `CONFIDENCE_DEADLINE_MS` after the
+   * commit; slow or missing messages turn the wait off for the call (`confidence.ts`).
+   */
+  confidence?: boolean;
+  /**
+   * Wave 8: `filter_background_audio`, the provider's "background speech filtering to reduce
+   * false activations from nearby conversations and ambient noise". Off by default: with manual
+   * commit the provider's VAD does not end turns, and what the filter does to a quiet caller's
+   * words is unmeasured. The candidate for agents whose callers ring from cafes and streets.
+   */
+  filterBackgroundAudio?: boolean;
   noVerbatim?: boolean;
   /** False asks for zero retention, which the provider allows on enterprise plans only. */
   enableLogging?: boolean;
@@ -107,9 +123,12 @@ export function scribeUrl(
     for (const [name, value] of vad)
       if (value !== undefined) url.searchParams.set(name, String(value));
   }
-  // [unconfirmed: the reference types `keyterms` as an array without its query encoding; a
-  // repeated parameter is the usual form.]
+  // Repeated parameters, as the official SDK sends keyterms and secondary_languages
+  // (https://github.com/elevenlabs/elevenlabs-js/blob/main/src/wrapper/realtime/scribe.ts,
+  // retrieved 2026-10-08).
   for (const term of binding.keyterms ?? []) url.searchParams.append('keyterms', term);
+  if (binding.confidence !== false) url.searchParams.set('include_timestamps', 'true');
+  if (binding.filterBackgroundAudio) url.searchParams.set('filter_background_audio', 'true');
   if (binding.noVerbatim) url.searchParams.set('no_verbatim', 'true');
   if (binding.enableLogging === false) url.searchParams.set('enable_logging', 'false');
   return url.toString();
@@ -119,17 +138,22 @@ export class ElevenLabsStt implements SpeechToText {
   readonly capabilities;
   readonly binding: Readonly<ElevenLabsSttBinding>;
   private sessions = 0;
+  private readonly rewrite?: (text: string) => string;
 
   constructor(
     private readonly net: NetPort,
     private readonly key: string,
     binding: ElevenLabsSttBinding = {},
     private readonly clock: Clock = systemClock,
-    /** The agent's keyterm settings; the call's variables fill them in at start (STT-11). */
-    private readonly agent: ScribeCallKeyterms = {},
+    /**
+     * The agent's keyterm settings, which the call's variables fill in at start (STT-11), and its
+     * name: favoured as a keyterm and restored where misheard in address (Wave 8).
+     */
+    private readonly agent: ScribeCallKeyterms & AgentNameConfig = {},
   ) {
     this.binding = Object.freeze(structuredClone(binding));
     this.capabilities = scribeCapabilitiesFor(binding);
+    this.rewrite = agentNameRestorer(agent);
   }
 
   async start(input: ScribeStart): Promise<ScribeSession> {
@@ -158,12 +182,20 @@ export class ElevenLabsStt implements SpeechToText {
 
   private async connect(input: ScribeStart, region: ScribeRegion): Promise<ScribeSession> {
     const timeoutMs = this.binding.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
-    const keyterms = scribeKeyterms(this.binding.keyterms, this.agent, input.variables);
+    const { agentName, keyterms: agentTerms = [] } = this.agent;
+    const keyterms = scribeKeyterms(
+      this.binding.keyterms,
+      { ...this.agent, keyterms: agentName ? [agentName, ...agentTerms] : agentTerms },
+      input.variables,
+    );
     const socket = this.net.websocket(
       scribeUrl({ ...this.binding, region, keyterms }, input.format, input.language),
       { headers: { 'xi-api-key': this.key } },
     );
-    const session = new ScribeSession(socket, input, this.clock, ++this.sessions);
+    const session = new ScribeSession(socket, input, this.clock, ++this.sessions, {
+      confidence: this.binding.confidence !== false,
+      ...(this.rewrite ? { rewrite: this.rewrite } : {}),
+    });
     const cancel = this.clock.setTimeout(
       () =>
         session.abandon(

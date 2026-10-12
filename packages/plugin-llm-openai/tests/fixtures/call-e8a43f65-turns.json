@@ -1,0 +1,47 @@
+{
+  "source": "Maya call e8a43f65 (2026-10-12 11:06 UTC, main 6107125), ovo_telemetry_turns summaries: each LLM request input as the engine sent it (AGT-10 merged turn 3 into turn 2 and turn 6 into turn 5, both superseded unheard), the agent line before it (filler lines removed; turn 4 was cut after its first words) and searchMs (null: no search).",
+  "turns": [
+    {
+      "turn": "turn-1",
+      "caller": "\"We're planning to go to Zagreb this...\" No, December.",
+      "agentBefore": "Hi! I'm Maya, your Europe trip companion. Where are you thinking of going?",
+      "searchMs": 2181
+    },
+    {
+      "turn": "turn-2",
+      "caller": "I want 21st of December to the 5th.",
+      "agentBefore": "Ah, Zagreb in December— lovely for a festive winter trip. It’s usually cold, with an average around 2°C, so pack a warm coat and layers. What dates are you considering?",
+      "searchMs": 2389
+    },
+    {
+      "turn": "turn-3",
+      "caller": "I want 21st of December to the 5th. Of January.",
+      "agentBefore": "Ah, Zagreb in December— lovely for a festive winter trip. It’s usually cold, with an average around 2°C, so pack a warm coat and layers. What dates are you considering?",
+      "searchMs": 2676
+    },
+    {
+      "turn": "turn-4",
+      "caller": "Yeah, we're planning to do Budapest, Vienna,",
+      "agentBefore": "Got it—December 21, 2026, to January 5, 2027. That’s right in the middle of Zagreb’s Advent festival, which runs through January 7. Are you planning to stay in Zagreb the whole time, or visit other cities too?",
+      "searchMs": 58
+    },
+    {
+      "turn": "turn-5",
+      "caller": "in Austria. Then we're planning to go to Zagreb, Prague.",
+      "agentBefore": "Budapest and Vienna would fit nicely with Zagreb. Do you want to travel between them by train?",
+      "searchMs": 1896
+    },
+    {
+      "turn": "turn-6",
+      "caller": "in Austria. Then we're planning to go to Zagreb, Prague. Germany, Berlin, and a few other places.",
+      "agentBefore": "Budapest and Vienna would fit nicely with Zagreb. Do you want to travel between them by train?",
+      "searchMs": 2985
+    },
+    {
+      "turn": "turn-7",
+      "caller": "Ma'am, create a call.",
+      "agentBefore": "That’s an exciting route— Budapest, Vienna, Zagreb, Prague, and Berlin will make for a packed trip. With just over two weeks, how many nights would you like to spend in each place?",
+      "searchMs": null
+    }
+  ]
+}

@@ -68,8 +68,9 @@ export const END_CALL_TOOL: ToolDefinition = {
   id: END_CALL_TOOL_ID,
   description:
     'End the phone call. Call this instead of replying, only once the conversation is finished ' +
-    'and the caller has nothing more to ask; put your closing sentence in `goodbye`. Never call ' +
-    'it after asking the caller a question, or when you did not understand what they said.',
+    'and the caller has said goodbye or asked you to end the call; put your closing sentence in ' +
+    '`goodbye`. Never call it after asking the caller a question, or when you did not understand ' +
+    'what they said; if they may want to end the call but did not say so clearly, ask them.',
   connector: 'native',
   inputSchema: {
     type: 'object',

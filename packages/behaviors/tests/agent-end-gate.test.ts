@@ -12,6 +12,8 @@ const END = {
 
 const EARLY = 'the conversation has only just started';
 const UNHEARD = 'the caller was not heard clearly';
+/** Wave 8b: past the minimums, words that neither say goodbye nor ask to end the call. */
+const UNASKED = 'the caller has not clearly asked to end the call';
 
 /** Maya's gate, on a clock the test moves. */
 function gate(ending: Record<string, unknown> = {}) {
@@ -39,14 +41,14 @@ describe("the LLM's end_call is refused until the caller is engaged (N1)", () =>
     g.clock.ms += 4_000;
     expect(g.gate.turn('Tell me about Italy.', {})).toBe(EARLY);
     g.clock.ms += 11_000;
-    expect(g.gate.turn('Thanks, that helps.', {})).toBeUndefined();
+    expect(g.gate.turn('Thanks, that helps.', {})).toBe(UNASKED);
   });
 
   it('refuses before two turns however long the call has run', () => {
     const g = gate();
     g.clock.ms += 60_000;
     expect(g.gate.turn('Hello?', {})).toBe(EARLY);
-    expect(g.gate.turn('Thanks, that helps.', {})).toBeUndefined();
+    expect(g.gate.turn('Thanks, that helps.', {})).toBe(UNASKED);
   });
 
   it('counts a reply rerun on both utterances, after the caller spoke over it, as one turn', () => {
@@ -55,7 +57,7 @@ describe("the LLM's end_call is refused until the caller is engaged (N1)", () =>
     g.clock.ms += 30_000;
     expect(g.gate.turn('Tell me about', {})).toBe(EARLY);
     expect(g.gate.turn('Tell me about Italy', {})).toBe(EARLY);
-    expect(g.gate.turn('Thanks, that helps.', {})).toBeUndefined();
+    expect(g.gate.turn('Thanks, that helps.', {})).toBe(UNASKED);
   });
 
   it('lets a caller who says goodbye end the call at once', () => {
@@ -63,14 +65,14 @@ describe("the LLM's end_call is refused until the caller is engaged (N1)", () =>
   });
 
   it('honours the agent minimums, 0 lifting them', () => {
-    expect(gate({ minCallerTurns: 0, minCallSeconds: 0 }).gate.turn('Hmm.', {})).toBeUndefined();
+    expect(gate({ minCallerTurns: 0, minCallSeconds: 0 }).gate.turn('Hmm.', {})).toBe(UNASKED);
   });
 
   it('never acts on a turn flagged untrusted, even a goodbye, nor counts it', () => {
     const g = gate({ minCallerTurns: 2, minCallSeconds: 0 });
     expect(g.gate.turn('bye', { [UNTRUSTED_INPUT_VARIABLE]: true })).toBe(UNHEARD);
     expect(g.gate.turn('ok', {})).toBe(EARLY);
-    expect(g.gate.turn('sure', {})).toBeUndefined();
+    expect(g.gate.turn('sure', {})).toBe(UNASKED);
   });
 });
 

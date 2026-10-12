@@ -21,6 +21,11 @@ export interface SessionDefaults {
    * signal): its local silence is what lets the 'commit' turn strategy end a turn.
    */
   vad?: string;
+  /**
+   * Wave 8: the caller-audio filter for an agent that selects none. The distribution's engages
+   * its stages only on a line that hums or rumbles, so other calls reach the STT untouched.
+   */
+  audioFilter?: string;
   textFilters?: readonly string[];
 }
 
@@ -72,6 +77,11 @@ export function normalizeAgentConfig(
   if (!voice.vad && defaults.vad && voice.stt && finalisesOnCommit(registry, voice.stt.plugin)) {
     if (registry.get(defaults.vad)) voice.vad = { plugin: defaults.vad, config: {} };
     else warnings.push(`Optional VAD is not installed: ${defaults.vad}`);
+  }
+  if (!voice.audioFilter && defaults.audioFilter) {
+    if (registry.get(defaults.audioFilter))
+      voice.audioFilter = { plugin: defaults.audioFilter, config: {} };
+    else warnings.push(`Optional audio filter is not installed: ${defaults.audioFilter}`);
   }
   if (!voice.textFilters.length)
     for (const id of defaults.textFilters ?? []) {

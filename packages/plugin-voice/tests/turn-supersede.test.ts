@@ -112,6 +112,18 @@ describe('a stale turn is cancelled when the caller speaks again while it thinks
     ]);
   });
 
+  it('discards the caller’s open words when the engine is disposed mid-utterance (Wave 8)', async () => {
+    const clock = new FakeClock();
+    const agent = slowAgent(clock, { llmMs: LLM_MS });
+    const h = driverHarness(clock, agent.behavior, { ttsMs: TTS_MS, playMs: PLAY_MS });
+    await h.greet();
+    h.driver.decide({ type: 'turn.started', turnId: 'turn-1' });
+    h.driver.decide({ type: 'turn.partial', turnId: 'turn-1', text: 'Okay, bye.', stable: false });
+    await h.driver.dispose();
+    expect(agent.hooks).toEqual(['prepare turn-1 Okay, bye.', 'discard turn-1 reset']);
+    expect(agent.cancels()).toBe(1);
+  });
+
   it('ignores a speculation hook that throws', async () => {
     const clock = new FakeClock();
     const agent = slowAgent(clock, { llmMs: 100 });

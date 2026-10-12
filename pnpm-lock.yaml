@@ -1019,6 +1019,9 @@ importers:
       '@winsendotai/ovo-conformance':
         specifier: workspace:*
         version: link:../conformance
+      '@winsendotai/ovo-plugin-turns':
+        specifier: workspace:*
+        version: link:../plugin-turns
 
   packages/plugin-stt-openai-realtime:
     dependencies:

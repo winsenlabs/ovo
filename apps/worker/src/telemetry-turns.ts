@@ -2,7 +2,9 @@ import type { EngineEvent } from '@winsendotai/ovo-contracts';
 import {
   TurnTelemetryCollector,
   type TurnStageSample,
+  type TurnTelemetry,
 } from '@winsendotai/ovo-plugin-observability';
+import { ReplyWaitClock } from './telemetry-reply-waits.ts';
 
 /**
  * OBS-5: a turn's endpoint is the provider's measure, from its word timings, else the engine's (VAD
@@ -11,8 +13,28 @@ import {
  */
 export class WorkerTurnTelemetry extends TurnTelemetryCollector {
   private measured = false;
+  /** Wave 8 fix 3: each turn's wait for its first reply audio, part by part (`reply.waits`). */
+  private readonly waits: ReplyWaitClock;
+
+  constructor(options: {
+    includeText: boolean;
+    emit: (turn: TurnTelemetry) => void;
+    /** Records a stage the worker measured from engine events. */
+    stage?: (stage: {
+      stage: string;
+      turnId: string;
+      durationMs: number;
+      payload: Record<string, unknown>;
+    }) => void;
+  }) {
+    super(options);
+    this.waits = new ReplyWaitClock(({ turnId, firstAudioMs, ...parts }) =>
+      options.stage?.({ stage: 'reply.waits', turnId, durationMs: firstAudioMs, payload: parts }),
+    );
+  }
 
   override engine(event: EngineEvent): void {
+    this.waits.engine(event);
     if (event.type === 'user.turn' && event.phase !== 'idle') {
       // As the collector does, a provider measure from before the turn started is not this turn's.
       const engineMs = event.phase === 'stopped' && event.input !== 'dtmf' && event.endpointMs;

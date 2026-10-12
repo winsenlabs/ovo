@@ -4,7 +4,14 @@ import { createFixtureNet } from '@winsendotai/ovo-plugin-kit';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ElevenLabsStt } from '../src/provider.ts';
 import { STALE_PARTIAL_MS, ScribeSegments } from '../src/segments.ts';
-import { RETRIEVED, SOURCE, committed, partial, sessionStarted } from '../src/testing.ts';
+import {
+  RETRIEVED,
+  SOURCE,
+  committed,
+  committedWords,
+  partial,
+  sessionStarted,
+} from '../src/testing.ts';
 
 const transcripts = (events: SttEvent[]) =>
   events.flatMap((event) =>
@@ -104,7 +111,8 @@ describe('N5: a partial that lands after its commit opens no phantom segment', (
 beforeEach(() => void vi.spyOn(console, 'error').mockImplementation(() => undefined));
 afterEach(() => vi.restoreAllMocks());
 
-async function session(lateAfterMs: number) {
+/** A session on the default binding, whose finals wait for the word-level message. */
+async function session(after: NetFixtureScript['steps'], advanceMs = 0) {
   const clock = new FakeClock();
   const script: NetFixtureScript[] = [
     {
@@ -120,9 +128,7 @@ async function session(lateAfterMs: number) {
           where: { message_type: 'input_audio_chunk', commit: false },
           repeat: 'until-next',
         },
-        { send: committed('I am drunk.') },
-        ...(lateAfterMs ? [{ delayMs: lateAfterMs }] : []),
-        { send: partial('I am drunk.') },
+        ...after,
       ],
     },
   ];
@@ -137,21 +143,61 @@ async function session(lateAfterMs: number) {
     onUsage: () => undefined,
   });
   await started.write(new Uint8Array(400).fill(1));
-  await clock.advanceAsync(lateAfterMs);
+  await clock.advanceAsync(advanceMs);
   await started.cancel('done');
   return transcripts(events);
 }
 
 describe('N5 through a session', () => {
-  it('drops the late partial the provider sends right after its commit', async () => {
-    expect(await session(0)).toEqual(['0:final:I am drunk.', 'end-of-turn']);
+  it('drops the late partial the provider sends right after its final', async () => {
+    expect(
+      await session([
+        { send: committed('I am drunk.') },
+        { send: committedWords('I am drunk.') },
+        { send: partial('I am drunk.') },
+      ]),
+    ).toEqual(['0:final:I am drunk.', 'end-of-turn']);
+  });
+
+  it('drops a late prefix that lands while the final waits for its confidence (turn 20)', async () => {
+    // Regression: the held commit had not locked its segment, so 'Okay. य' went out as a new
+    // interim of it, which resumes the cutoff and re-arms the turn detector's stall timer.
+    expect(
+      await session(
+        [
+          { send: committed('Okay. याद नहीं।') },
+          { delayMs: 12 },
+          { send: partial('Okay. य') },
+          { delayMs: 8 },
+          { send: committedWords('Okay. याद नहीं।') },
+        ],
+        20,
+      ),
+    ).toEqual(['0:final:Okay. याद नहीं।', 'end-of-turn']);
+  });
+
+  it('releases a held final first when a partial brings new words', async () => {
+    expect(
+      await session([
+        { send: committed('haan') },
+        { send: partial('kal milte') },
+        // Belongs to the commit already released: ignored.
+        { send: committedWords('haan') },
+      ]),
+    ).toEqual(['0:final:haan', 'end-of-turn', '1:interim:kal milte']);
   });
 
   it("measures the stale window on the session's clock", async () => {
-    expect(await session(STALE_PARTIAL_MS + 500)).toEqual([
-      '0:final:I am drunk.',
-      'end-of-turn',
-      '1:interim:I am drunk.',
-    ]);
+    expect(
+      await session(
+        [
+          { send: committed('I am drunk.') },
+          { send: committedWords('I am drunk.') },
+          { delayMs: STALE_PARTIAL_MS + 500 },
+          { send: partial('I am drunk.') },
+        ],
+        STALE_PARTIAL_MS + 500,
+      ),
+    ).toEqual(['0:final:I am drunk.', 'end-of-turn', '1:interim:I am drunk.']);
   });
 });

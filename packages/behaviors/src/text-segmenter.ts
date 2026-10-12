@@ -1,3 +1,4 @@
+import { DEFAULT_FIRST_PHRASE_WORDS, lastSafeBreak, phraseBoundary } from './first-phrase.ts';
 import { sentenceBoundary } from './sentence-boundary.ts';
 
 const DEFAULT_MAX_SEGMENT_CHARACTERS = 240;
@@ -18,6 +19,8 @@ export class StreamingTextSegmenter {
       language?: string;
       firstSegmentMaxChars?: number;
       minFirstWords?: number;
+      /** See `phraseBoundary`; 0 waits for a clause mark or the first segment's length cap. */
+      firstPhraseWords?: number;
     } = {},
   ) {
     if (!Number.isInteger(maxSegmentCharacters) || maxSegmentCharacters < 32)
@@ -32,6 +35,9 @@ export class StreamingTextSegmenter {
     const minFirstWords = options.minFirstWords ?? DEFAULT_MIN_FIRST_WORDS;
     if (!Number.isInteger(minFirstWords) || minFirstWords < 0)
       throw new TypeError('minFirstWords must be a non-negative integer');
+    const phraseWords = options.firstPhraseWords ?? DEFAULT_FIRST_PHRASE_WORDS;
+    if (!Number.isInteger(phraseWords) || phraseWords < 0)
+      throw new TypeError('firstPhraseWords must be a non-negative integer');
   }
 
   push(delta: string): string[] {
@@ -53,16 +59,37 @@ export class StreamingTextSegmenter {
       const maximum = this.first
         ? Math.min(this.maxSegmentCharacters, this.options.firstSegmentMaxChars ?? 60)
         : this.maxSegmentCharacters;
-      const boundary = sentenceBoundary(
-        this.buffer,
-        maximum,
-        this.options.language ?? 'en',
-        flush,
-        this.first,
-        this.options.minFirstWords ?? DEFAULT_MIN_FIRST_WORDS,
-      );
+      const minFirstWords = this.options.minFirstWords ?? DEFAULT_MIN_FIRST_WORDS;
+      const boundary =
+        sentenceBoundary(
+          this.buffer,
+          maximum,
+          this.options.language ?? 'en',
+          flush,
+          this.first,
+          minFirstWords,
+        ) ??
+        (this.first && !flush
+          ? phraseBoundary(
+              this.buffer,
+              maximum,
+              this.options.firstPhraseWords ?? DEFAULT_FIRST_PHRASE_WORDS,
+            )
+          : undefined);
       if (boundary === undefined && !flush && this.buffer.length <= maximum) break;
-      const end = boundary ?? boundedBoundary(this.buffer, maximum);
+      let end = boundary;
+      if (end === undefined && this.first) {
+        // The first segment's length cap passed (or the reply ended) with no phrase end in it: it
+        // is cut at its last break that splits no amount, name or quote. With none it is cut as
+        // any later segment is, at a sentence end or the full segment length.
+        const fewest = Math.min(minFirstWords, DEFAULT_MIN_FIRST_WORDS);
+        end = flush ? undefined : lastSafeBreak(this.buffer, maximum, fewest);
+        if (end === undefined) {
+          this.first = false;
+          continue;
+        }
+      }
+      end ??= boundedBoundary(this.buffer, maximum);
       const segment = this.buffer.slice(0, end).trim();
       this.buffer = this.buffer.slice(end).trimStart();
       if (segment) {

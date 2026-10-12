@@ -1,0 +1,20 @@
+{
+  "strategy": "auto",
+  "userSpeechTimeoutMs": 600,
+  "minWordsWhileBotSpeaking": 2,
+  "backchannelsEnabled": true,
+  "commit": {
+    "silenceMs": 50,
+    "completeSilenceMs": 50,
+    "longSilenceMs": 250,
+    "longUtteranceMs": 1200,
+    "minSpeechMs": 180,
+    "stallMs": 1500,
+    "answerStallMs": 250
+  },
+  "noiseMs": 2500,
+  "questionReplyMs": 6000,
+  "cutoffHoldMs": 700,
+  "speechEvidence": { "bargeIn": true, "turns": false, "minSpeechMs": 0, "windowMs": 1500 },
+  "opening": { "protectMs": 1800, "confirmWords": true }
+}

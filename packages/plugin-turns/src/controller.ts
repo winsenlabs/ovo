@@ -1,5 +1,6 @@
 import {
   classifyConfirmation,
+  type EndpointRule,
   type SttEvent,
   type UserTurnController,
   type VoiceEvent,
@@ -24,12 +25,17 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         break;
       case 'vad.start':
         this.vadSpeaking = true;
+        this.voiceEndMs = undefined;
+        this.heardSinceFinal = true;
         this.vadStopPending = false;
         this.vadStopReady = false;
         this.forceSent = false;
         this.committed = false;
         this.stopTimers.cancel();
         this.commitTimers.speechStarted();
+        this.noise.vadStarted();
+        // VAD speech may now be timing the words: a short answer waits for its stop instead.
+        this.commitTimers.reread();
         this.evidence.vadStarted();
         this.cutoff.resume();
         this.idle.cancel();
@@ -51,6 +57,8 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         break;
       case 'vad.stop':
         this.vadSpeaking = false;
+        this.voiceEndMs = event.atMs;
+        this.noise.vadStopped();
         this.evidence.vadStopped();
         if (speechMuted(this.view(), this.rules)) break;
         if (this.strategy === 'vad-timeout') {
@@ -88,6 +96,7 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
       case 'bot.started':
         this.idle.cancel();
         if (!this.firstSpeechComplete) this.opening.botStarted(event.atMs);
+        this.answering = !!event.question;
         this.bot = {
           epoch: event.epoch,
           kind: event.kind,
@@ -102,14 +111,15 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         this.bot = undefined;
         this.firstSpeechComplete = true;
         this.opening.end();
+        if (this.answersQuestion && this.repliedEarly()) this.reset('backchannel');
         if (wasPrompt && this.turnId) {
           if (!this.aggregate.hasText) {
             this.awaitingConfirmationFinal = true;
             if (!this.speaking()) this.safety();
           } else if (classifyConfirmation(this.aggregate.text) === 'unclear') this.reset('muted');
-          else if (this.speaking()) this.deferredStop = true;
-          else this.stop();
-        } else if (this.deferredStop && !this.speaking()) this.stop();
+          else if (this.holdsOpen()) this.deferredStop = true;
+          else this.stopAfterAgent();
+        } else if (this.deferredStop && !this.holdsOpen()) this.stopAfterAgent();
         if (!this.turnId && !this.tools && !this.speaking()) this.idle.arm();
         break;
       case 'tool.started':
@@ -157,8 +167,10 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
   }
 
   /** Local silence or a stalled interim: force the endpoint, or end the turn on a final in hand. */
-  protected commitDue(): void {
-    if (this.finalSeen && this.aggregate.view === this.aggregate.text) return this.commitReady();
+  protected commitDue(rule: EndpointRule): void {
+    this.endRule = rule;
+    // A caller who went on after the final must be committed again, even before their words show.
+    if (this.finalCovers()) return this.commitReady();
     if (!this.forceSent) {
       this.forceSent = true;
       this.emit({ type: 'force-endpoint' });
@@ -170,6 +182,7 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
   /** A final ends the turn once it answers the commit, or arrives after the VAD went quiet. */
   protected commitFinal(): void {
     if (!this.committed && !(this.vadStopPending && !this.vadSpeaking)) return;
+    if (!this.committed) this.endRule = 'final';
     // The caller's onTranscript stops the turn once the flags are set.
     if (this.aggregate.view === this.aggregate.text) this.commitReady(false);
   }
@@ -186,7 +199,45 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
       return;
     }
     this.aggregate.closeOpenSegments();
+    this.endRule = 'ceiling';
     this.commitReady();
+  }
+
+  /**
+   * The VAD's speech brought no words for noiseMs (NoiseWatch): the room. A turn with words ends as
+   * if the VAD had gone quiet; one with none yet waits for them, as before.
+   */
+  protected onNoise(): void {
+    if (!this.turnId || this.speaking() || !this.aggregate.view) return;
+    // The VAD speech since the final was the room: the final covers the caller's words.
+    this.heardSinceFinal = false;
+    const final = this.finalCovers();
+    if (this.strategy === 'commit') {
+      // Committed with its final still to come: that final, or the ceiling, ends the turn.
+      if (!this.committed || final) this.commitDue('noise');
+      return;
+    }
+    // A late final of words the turn ended on would open a phantom turn.
+    if (!final) this.aggregate.closeOpenSegments();
+    this.endRule = 'noise';
+    this.tryStop();
+  }
+
+  /**
+   * Call 6e1a4e3a turn 9: "Hardik?" said 2.4 s into a 12 s answer waited 9.4 s for it, as the
+   * answer to the question it ended on. Said that long before the agent stopped, it came before
+   * the question was heard, and only acknowledged what the agent was saying then.
+   */
+  private repliedEarly(): boolean {
+    const windowMs = this.config.questionReplyMs;
+    const at = this.lastWordsAt ?? this.input.clock.now();
+    return windowMs > 0 && this.input.clock.now() - at > windowMs;
+  }
+
+  /** The agent stopped over words that waited for it (an answer to its question). */
+  private stopAfterAgent(): void {
+    this.endRule = 'agent';
+    this.stop();
   }
 
   private commitReady(stop = true): void {
