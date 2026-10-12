@@ -5,7 +5,7 @@ import {
   type InferenceStreamEvent,
 } from '@winsendotai/ovo-contracts';
 import { AgentToolSelectionError } from './agent-tools.ts';
-import { ReplyCap } from './reply-cap.ts';
+import { ReplyCap, type ReplyCapRecent } from './reply-cap.ts';
 import { StreamingTextSegmenter } from './text-segmenter.ts';
 
 /**
@@ -59,6 +59,8 @@ export async function* streamAgentReply(
    * segmenter reads): call-3 #7's cap on long answers runs only when it is given.
    */
   replyLanguage?: string,
+  /** Wave 9 (D5): what the agent said before, which decides whether the cap offers more. */
+  recent?: ReplyCapRecent,
 ): AsyncGenerator<string, InferenceReply | undefined> {
   const reply: AgentReplyPacing =
     typeof pacing === 'number' ? { minFirstWords: pacing } : (pacing ?? {});
@@ -81,7 +83,7 @@ export async function* streamAgentReply(
   // end: a goodbye's `end_call` (or a flow's late `resume_flow`, taken upstream by
   // `interceptLateResume`) can follow the text, and the closing `finish` carries the usage the
   // request is metered by.
-  let cap = replyLanguage === undefined ? undefined : new ReplyCap(reply, replyLanguage);
+  let cap = replyLanguage === undefined ? undefined : new ReplyCap(reply, replyLanguage, recent);
   /** The checked sentence the cap stopped before, then the segments after it, unchecked. */
   let held: { stopped?: string; rest: string[] } | undefined;
   let offer: string | undefined;
