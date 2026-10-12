@@ -20,6 +20,7 @@ import { createNativeStreamingMediaOutputPlugin } from './speech/plugin.ts';
 import {
   createIndianVerbalisationTextFilterPlugin,
   createMarkdownTextFilterPlugin,
+  createSpeechNormaliserTextFilterPlugin,
   createUrlTextFilterPlugin,
 } from './speech/text-filters.ts';
 
@@ -31,4 +32,5 @@ export const plugins = [
   createMarkdownTextFilterPlugin(),
   createUrlTextFilterPlugin(),
   createIndianVerbalisationTextFilterPlugin(),
+  createSpeechNormaliserTextFilterPlugin(),
 ];

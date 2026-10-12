@@ -67,6 +67,15 @@ const OFFERED =
   /\b(?:(?:want|like|need) me to|shall i|should i|can i|could i|may i|i can(?!['’]?t\b|not\b)|i could(?!n['’]?t\b)|let me|if you(?:'d)? like|look\w* (?:\w+ )?up|check|search|find out)\b/i;
 
 /**
+ * Wave 9 D7: the platform's own question before it ends a call ("Shall I end the call?") offers
+ * nothing to look up. In call 10d5ef30 the yes to it ("Yeah, yeah, please.") went to the model with
+ * the search tool, which adds about 4,300 input tokens to every request; the offer is left out
+ * before the agent's last line is read for one, so a line that also offers a search keeps it.
+ */
+const ENDING_OFFER =
+  /\b(?:shall|should|can|may) i (?:end|close|finish|hang up)(?: (?:the|this|our) call)?\b/gi;
+
+/**
  * Why the caller's words are not worth a web search, or undefined to let the model decide. Cheap
  * and conservative: only words that carry nothing to look up lose the search tool.
  * - `cut-off`: a fragment the STT cut mid-word or mid-sentence ("Can you change your...");
@@ -91,7 +100,7 @@ export function unclearForSearch(
   if (cutOffWords(input)) return 'cut-off';
   if (!callerWords(input).length) return 'no-words';
   const last = [...(request.history ?? [])].reverse().find((entry) => entry.role === 'assistant');
-  const offered = Boolean(last && OFFERED.test(last.content));
+  const offered = Boolean(last && OFFERED.test(last.content.replace(ENDING_OFFER, '')));
   if (affirmationOnly(input)) return offered ? undefined : 'backchannel';
   if (acknowledgementOnly(input)) return 'backchannel';
   return statesPlans(input) && !offered ? 'statement' : undefined;

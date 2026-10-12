@@ -1,4 +1,5 @@
 import type { EngineEvent } from '@winsendotai/ovo-contracts';
+import { CarrierRoundTrip } from './telemetry-carrier-rtt.ts';
 
 /**
  * Where a turn's wait for its first reply audio went (Wave 8 fix 3), recorded as the `reply.waits`
@@ -28,6 +29,12 @@ export interface ReplyWaits {
   carrierMs: number;
   /** A filler's first audio, from the same start, when one played first. */
   fillerAudioMs: number | null;
+  /**
+   * Wave 9 D7: the carrier leg's round trip as this call last measured it from playback marks
+   * (`telemetry-carrier-rtt.ts`), or null before a mark has measured it. Not one of the parts: the
+   * caller hears the first audio about half of it after `firstAudioMs`, plus the phone network.
+   */
+  carrierRoundTripMs: number | null;
 }
 
 interface TurnMarks {
@@ -56,11 +63,15 @@ const KEEP_LINES = 64;
 export class ReplyWaitClock {
   private readonly turns = new Map<string, TurnMarks>();
   private readonly lines = new Map<string, LineMarks>();
+  private readonly carrier = new CarrierRoundTrip();
 
   constructor(private readonly record: (waits: ReplyWaits) => void) {}
 
   engine(event: EngineEvent): void {
-    if (event.type === 'speech') return this.speech(event.evidence);
+    if (event.type === 'speech') {
+      this.carrier.speech(event.evidence);
+      return this.speech(event.evidence);
+    }
     if (event.type !== 'timing' || !event.turnId) return;
     const { key, turnId, segmentId, atMs } = event;
     let turn = this.turns.get(turnId);
@@ -80,6 +91,11 @@ export class ReplyWaitClock {
       const line = this.lines.get(segmentId);
       if (line) line.ttsAt ??= atMs;
     } else if (key === 'carrier_first_audio') this.audio(turn, segmentId, atMs);
+  }
+
+  /** A line's audio length, once its synthesis ended, for the carrier round trip. */
+  lineAudio(segmentId: string, audioMs: number): void {
+    this.carrier.audio(segmentId, audioMs);
   }
 
   private speech(evidence: Extract<EngineEvent, { type: 'speech' }>['evidence']): void {
@@ -118,6 +134,7 @@ export class ReplyWaitClock {
       ttsFirstByteMs: tts - started,
       carrierMs: at - tts,
       fillerAudioMs: turn.fillerAt === undefined ? null : turn.fillerAt - turn.start,
+      carrierRoundTripMs: this.carrier.estimateMs,
     });
   }
 }
