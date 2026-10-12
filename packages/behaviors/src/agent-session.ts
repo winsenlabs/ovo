@@ -37,6 +37,7 @@ import { CallOptOut, OPT_OUT_COMPLETION } from './opt-out.ts';
 import { DISCLOSURE_FIELD, disclosureLine, disclosureSpeechKind } from './disclosure.ts';
 import { MustHear } from './must-hear.ts';
 import { CallLanguages } from './language-guard.ts';
+import { SearchBudget } from './search-budget.ts';
 
 /**
  * One agent call's state and the hooks the engine calls between turns: playback, cancellation and
@@ -75,6 +76,8 @@ export abstract class AgentSession implements Behavior {
   protected readonly mustHear = new MustHear();
   /** The playback epoch of the turn in progress. */
   protected epoch?: number;
+  /** Wave 9 (D6): the epoch whose reply has its first words from the LLM. */
+  protected draftedEpoch?: number;
   /** The disclosure was cut before the caller heard it, and how often it was said again. */
   private disclosureCut = false;
   private disclosureRepeats = 0;
@@ -112,14 +115,20 @@ export abstract class AgentSession implements Behavior {
     return { decision: this.gate?.speculationMetrics, llm: this.ahead.llm };
   }
 
+  /** Absent for a Jev-only agent (AGT-4): a turn that would reach it is recovered instead. */
+  protected readonly inference: Inference | undefined;
+  /** Wave 9 (D8): one web search for the caller's words, however many requests ask on them. */
+  private readonly searches?: SearchBudget;
+
   constructor(
     config: AgentConfig,
-    /** Absent for a Jev-only agent (AGT-4): a turn that would reach it is recovered instead. */
-    protected readonly inference: Inference | undefined,
+    inference: Inference | undefined,
     protected readonly execution: Execution,
     protected readonly options: AgentBehaviorOptions & AgentSpeculationOptions,
   ) {
     this.config = AgentConfigSchema.parse(config);
+    this.searches = inference && new SearchBudget(inference);
+    this.inference = inference && this.searches!.limit(inference);
     if (this.config.mode !== 'agent')
       throw new TypeError(`Agent behavior requires agent mode, received ${this.config.mode}`);
     if (!options.workspaceId || !options.sessionId)
@@ -139,7 +148,11 @@ export abstract class AgentSession implements Behavior {
     const compiled = compileAgentTools(this.config);
     this.tools = compiled.tools;
     this.validators = compiled.validators;
-    this.ahead = new AgentSpeculation(this.config, options.speculation, inference);
+    this.ahead = new AgentSpeculation(
+      this.config,
+      options.speculation,
+      inference && this.searches!.limit(inference, true),
+    );
     this.gate = ruledDecisionGate(
       this.config,
       this.options.decision,
@@ -221,8 +234,17 @@ export abstract class AgentSession implements Behavior {
     return this.ending.complete;
   }
 
+  drafting(): boolean {
+    return this.epoch !== undefined && this.draftedEpoch === this.epoch;
+  }
+
   completionReason(): string | undefined {
     return this.ending.reason;
+  }
+
+  /** The session is over: stops following the inference port's activity. */
+  dispose(): void {
+    this.searches?.dispose();
   }
 
   cancel(reason = 'agent turn cancelled'): void {
@@ -238,6 +260,7 @@ export abstract class AgentSession implements Behavior {
 
   beginTurn(epoch: number): void {
     this.epoch = epoch;
+    this.searches?.beginTurn();
     this.conversation.beginTurn(epoch);
     this.confirmation.beginTurn(epoch);
     this.ending.beginTurn(epoch);

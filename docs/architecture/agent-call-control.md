@@ -119,6 +119,18 @@ Russian. Three guards now stand between the LLM and the hang-up:
   goodbye the model already streamed, it says the question after it. Other languages get the
   failed operation record ("…ask the caller whether they want to end the call…").
 
+- **Wave 9: a clear closing ends the call without asking** (Maya call 10d5ef30 asked "Shall I end
+  the call?" after "No, I'm good. Thank you." and "Never mind. Thank you."). Past the minimums,
+  thanks with words that say the caller needs nothing more ("never mind", "that's all", "all set",
+  "bas, itna hi", or "I'm good" after a no), and nothing else, let `end_call` end the call with
+  the model's goodbye (`closesConversation`, contracts `caller-closing.ts`). Every word must be
+  one of these, a no, or a word that rides along ("so much", "sir", "yaar"): "Thank you. Mujhe
+  kuch nahi samjha." ("I didn't understand anything"), "Thank you, bas ek sawal hai." ("just one
+  question") and "I'm fine, thank you." are no closing. "Thank you." alone, "That's fine, thank
+  you." and untrusted words are still asked about. A goodbye the
+  caller speaks over before hearing it is cancelled with its reply (AGT-10), so the call stays
+  open for what they go on to say.
+
   Nothing yet sets `inputUntrusted` from STT confidence: low-confidence English still passes the
   gate. Off-language turns (Dutch, Russian) are kept from the LLM by the agent's language guard
   (N4) before `end_call` can be offered.

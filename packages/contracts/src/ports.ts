@@ -47,6 +47,11 @@ export interface InferenceRequest {
   tools: ToolDefinition[];
   results: OperationRecord[];
   signal: AbortSignal;
+  /**
+   * Wave 9 (call 10d5ef30, D8): false when the request must not be sent the tools the provider
+   * runs itself (a web search): the caller's words already had one. Absent, the port decides.
+   */
+  providerTools?: false;
 }
 
 export type InferenceReply =
@@ -128,6 +133,13 @@ export interface Behavior {
   cancel?(): void;
   onPlayback?(receipt: SpeechReceipt): void | Promise<void>;
   beginTurn?(epoch: number): void;
+  /**
+   * Wave 9 (call 10d5ef30, D6): the reply to the turn `beginTurn` began is being written: its
+   * first words have arrived from the model, so its first line is a few hundred ms away. An engine
+   * leaves a filler due now unsaid, rather than cut it as it starts (turn 22: "One moment." played
+   * for 180 ms).
+   */
+  drafting?(): boolean;
   isComplete?(): boolean;
   /**
    * Why the behaviour completed, read once `isComplete()` is true, for the call record (for example

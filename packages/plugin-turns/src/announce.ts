@@ -1,4 +1,9 @@
-import type { TurnConfig, TurnDecision } from '@winsendotai/ovo-contracts';
+import {
+  closesConversation,
+  saysGoodbye,
+  type TurnConfig,
+  type TurnDecision,
+} from '@winsendotai/ovo-contracts';
 
 /**
  * What the detector tells the engine beyond turn boundaries: the utterance so far, for speculation
@@ -21,9 +26,13 @@ export class TurnAnnouncer {
     this.emit({ type: 'turn.partial', turnId, text: view, stable: view === final });
   }
 
-  /** The configured filler lines in rotation, one offered per caller turn. */
-  nextFiller(): { text: string; afterMs: number } | undefined {
-    if (!this.filler) return undefined;
+  /**
+   * The configured filler lines in rotation, one offered per caller turn that said `words`. Wave 9
+   * (call 10d5ef30, D6): none for a goodbye or a closing ("Never mind. Thank you."), which is
+   * answered with a goodbye: turn 22 played "One moment." 180 ms before its reply.
+   */
+  nextFiller(words: string): { text: string; afterMs: number } | undefined {
+    if (!this.filler || saysGoodbye(words) || closesConversation(words)) return undefined;
     const lines = this.filler.lines;
     return { text: lines[this.fillers++ % lines.length]!, afterMs: this.filler.afterMs };
   }

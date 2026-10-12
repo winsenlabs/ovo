@@ -108,10 +108,13 @@ export type EngineEvent =
     }
   | {
       type: 'user.turn';
-      phase: 'started' | 'stopped' | 'idle';
+      /** `reset` (Wave 9): the turn detector dropped the turn, its words (`text`) unanswered. */
+      phase: 'started' | 'stopped' | 'idle' | 'reset';
       turnId: string;
       input?: 'speech' | 'dtmf';
       text?: string;
+      /** reset only: why the detector dropped it. */
+      resetReason?: 'backchannel' | 'muted';
       /**
        * stopped, speech only (OBS-5): the caller's last voiced audio (by the VAD) to the turn being
        * accepted. For speech recognition without word timings, which cannot time its own endpoint.

@@ -10,6 +10,8 @@
  * - `final`: the STT's final arrived after the VAD went quiet, before the commit;
  * - `ceiling`: no final arrived within the wait after the commit; the turn ended on the interim;
  * - `hold`: words that trailed off waited for more that never came;
+ * - `pause` (Wave 9): words that stopped mid-thought, on a hesitation, an article or a preposition
+ *   ("No, umm...", "it should still be a"), waited the longer pause for more that never came;
  * - `agent`: words said over the agent waited for it to stop (an answer to its question);
  * - `vad-timeout`, `provider`: the other stop strategies; `safety`: the stop safety timer.
  */
@@ -24,6 +26,7 @@ export const ENDPOINT_RULES = [
   'final',
   'ceiling',
   'hold',
+  'pause',
   'agent',
   'vad-timeout',
   'provider',

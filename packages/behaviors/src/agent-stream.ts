@@ -1,11 +1,13 @@
 import {
   END_CALL_TOOL_ID,
   type AgentReplyPacing,
+  type Inference,
   type InferenceReply,
+  type InferenceRequest,
   type InferenceStreamEvent,
 } from '@winsendotai/ovo-contracts';
 import { AgentToolSelectionError } from './agent-tools.ts';
-import { ReplyCap } from './reply-cap.ts';
+import { ReplyCap, type ReplyCapRecent } from './reply-cap.ts';
 import { StreamingTextSegmenter } from './text-segmenter.ts';
 
 /**
@@ -34,6 +36,36 @@ export function stripInternalNotes(text: string): string | undefined {
   return new InternalNotes().strip(text);
 }
 
+/** `events`, telling `drafted` once the model's first words arrive (Wave 9, D6). */
+async function* noticeWords(
+  events: AsyncIterable<InferenceStreamEvent>,
+  drafted: (() => void) | undefined,
+): AsyncGenerator<InferenceStreamEvent> {
+  for await (const event of events) {
+    if (drafted && event.kind === 'text-delta' && event.delta.trim()) {
+      drafted();
+      drafted = undefined;
+    }
+    yield event;
+  }
+}
+
+/** `inference`, its streamed replies telling `drafted` once their first words arrive. */
+export function noticingWords(inference: Inference, drafted: () => void): Inference {
+  const stream = inference.stream;
+  return {
+    ...(inference.provider ? { provider: inference.provider } : {}),
+    ...(inference.model ? { model: inference.model } : {}),
+    generate: (request) => inference.generate(request),
+    ...(stream
+      ? {
+          stream: (request: InferenceRequest) =>
+            noticeWords(stream.call(inference, request), drafted),
+        }
+      : {}),
+  };
+}
+
 export async function* streamAgentReply(
   events: AsyncIterable<InferenceStreamEvent>,
   language: string,
@@ -59,6 +91,8 @@ export async function* streamAgentReply(
    * segmenter reads): call-3 #7's cap on long answers runs only when it is given.
    */
   replyLanguage?: string,
+  /** Wave 9 (D5): what the agent said before, which decides whether the cap offers more. */
+  recent?: ReplyCapRecent,
 ): AsyncGenerator<string, InferenceReply | undefined> {
   const reply: AgentReplyPacing =
     typeof pacing === 'number' ? { minFirstWords: pacing } : (pacing ?? {});
@@ -81,7 +115,7 @@ export async function* streamAgentReply(
   // end: a goodbye's `end_call` (or a flow's late `resume_flow`, taken upstream by
   // `interceptLateResume`) can follow the text, and the closing `finish` carries the usage the
   // request is metered by.
-  let cap = replyLanguage === undefined ? undefined : new ReplyCap(reply, replyLanguage);
+  let cap = replyLanguage === undefined ? undefined : new ReplyCap(reply, replyLanguage, recent);
   /** The checked sentence the cap stopped before, then the segments after it, unchecked. */
   let held: { stopped?: string; rest: string[] } | undefined;
   let offer: string | undefined;

@@ -149,12 +149,39 @@ describe('background talkers and noise', () => {
     const f = fixture();
     heard(f);
     f.speaking();
+    // Past the reply's start (speechEvidence.replyStartMs): the caller has heard it by now.
+    f.clock.advance(1500);
     f.transcript('who is that on the phone', 'interim', 'tv');
     f.transcript('who is that on the phone', 'final', 'tv');
     f.clock.advance(6000);
     expect(f.of('interrupt')).toEqual([]);
     expect(f.turns()).toEqual(['Haan, bolo.']);
     expect(f.of('turn.reset').map((d) => d.reason)).toEqual(['backchannel']);
+  });
+
+  it('a question begun as the reply starts waits for the agent to stop; other words are the room', () => {
+    // Wave 9 (call 10d5ef30, D2): "Tell me the name." landed 87 ms into the answer, so the caller
+    // began it before hearing any of it, and the VAD missed it.
+    const f = fixture();
+    heard(f);
+    f.speaking();
+    f.clock.advance(300);
+    f.transcript('Tell me the name.', 'interim', 'over');
+    f.clock.advance(6000);
+    expect(f.of('interrupt')).toEqual([]);
+    expect(f.turns()).toEqual(['Haan, bolo.']);
+    f.silent();
+    expect(f.turns()).toEqual(['Haan, bolo.', 'Tell me the name.']);
+    expect(f.of('turn.stopped').at(-1)).toMatchObject({ reason: 'agent' });
+    // Room talk that asks nothing is dropped as before, however early.
+    const room = fixture();
+    heard(room);
+    room.speaking();
+    room.clock.advance(300);
+    room.transcript('the match was great yesterday', 'final', 'tv');
+    room.clock.advance(6000);
+    expect(room.turns()).toEqual(['Haan, bolo.']);
+    expect(room.of('turn.reset').map((d) => d.reason)).toEqual(['backchannel']);
   });
 
   it('the caller barging in, VAD and words together, still interrupts at once', () => {

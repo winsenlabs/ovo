@@ -18,7 +18,10 @@ export const AgentReplyPacing = z
      * with `moreLine` (default "Want more detail?" for an agent whose `language` is English; none,
      * and no cap, for any other) unless it ended on a question. The first sentence is always said,
      * and none is cut. Applied where the voice path passes the agent's `language` to the reply
-     * stream; a goodbye that ends the call is never capped.
+     * stream; a goodbye that ends the call is never capped. Wave 9: the offer is said at most
+     * every other turn (a reply right after one stops where it is capped, with no offer), never
+     * after a short answer (one under 60 characters says its next sentence, up to twice
+     * `maxChars`), and an English agent without its own `moreLine` goes round four wordings.
      */
     maxSentences: z.number().int().min(0).max(10).optional(),
     maxChars: z.number().int().min(40).max(2_000).optional(),

@@ -158,6 +158,7 @@ async function* inferenceSteps(
         // Call-3 #7: the long-answer cap reads the reply language, not the locale; a turn the flow
         // may take back is left uncapped, so no offer of more is said before the flow's question.
         rejoin ? undefined : config.language,
+        { lastSaid: step.previous ?? [], history: step.history ?? [] },
       );
       if (!streamed) {
         const ask = ending.takeAsk();

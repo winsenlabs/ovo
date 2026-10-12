@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { continuesUtterance, listsItems, statesPlans } from '../src/index.ts';
+import { continuesUtterance, listsItems, pausesMidThought, statesPlans } from '../src/index.ts';
 
 // Wave 8b: the caller lines of Maya call e8a43f65 (2026-10-12) and the Wave 8 follow-ups.
 describe('words that carry on the caller’s last utterance', () => {
@@ -78,5 +78,36 @@ describe('statements of the caller’s plans, which ask nothing to look up (issu
       'I need a hotel in Vienna.',
     ])
       expect(statesPlans(text), text).toBe(false);
+  });
+});
+
+// Wave 9, issue D3: the caller lines of Maya call 10d5ef30 (2026-10-12) that stopped mid-thought.
+describe('words that stop mid-thought', () => {
+  it('reads a hesitation, an article or an open preposition as the caller still thinking', () => {
+    for (const text of [
+      'No, umm...',
+      'And stuff like that. I mean, it should still be a',
+      '"Hey, Maya, can you please tell me what places are nice in-"',
+      'Uh, I expect to fly out on...',
+      "Yeah, I don't mind, but, uh,",
+      'It should still be a.',
+      'So, yeah, a...',
+      'अम्म...',
+    ])
+      expect(pausesMidThought(text), text).toBe(true);
+  });
+
+  it('never reads a closed sentence, a letter, a number or a list as one', () => {
+    for (const text of [
+      'Where are you from?',
+      "Yes, I'm in.",
+      'We will take plan A.',
+      'Never mind. Thank you.',
+      'I want to come back around the 1',
+      'Budapest, Vienna,',
+      'built-in.',
+      '',
+    ])
+      expect(pausesMidThought(text), text).toBe(false);
   });
 });

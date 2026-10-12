@@ -105,6 +105,16 @@ export function runCall(
   row: Record<string, unknown>,
   steps: Step[],
 ) {
+  const { f, start } = replayCall(clock, row, steps);
+  return f.turns.map((turn) => ({ ...turn, atMs: turn.atMs - start }));
+}
+
+/** `runCall`'s replay itself, for its resets as well as its turns. */
+export function replayCall(
+  clock: Parameters<typeof replay>[0],
+  row: Record<string, unknown>,
+  steps: Step[],
+) {
   const f = replay(clock, row);
   const start = f.clock.now();
   const ordered = steps
@@ -120,5 +130,5 @@ export function runCall(
     else f.agentStarts(step.agent === 'question');
   }
   f.clock.advance(10_000);
-  return f.turns.map((turn) => ({ ...turn, atMs: turn.atMs - start }));
+  return { f, start };
 }
