@@ -1,0 +1,958 @@
+{
+  "source": "Maya call 10d5ef30 (2026-10-12 15:54:58-16:00:09 UTC), console call-inspector export: the engine timing, user.turn and speech events of the opening, turn 10 and turn 16, and the speech.cache events of their lines, in call sequence. Speech text is cut to 60 characters.",
+  "events": [
+    {
+      "engine": {
+        "ms": 0,
+        "key": "turn_decision",
+        "atMs": 1791820499030,
+        "type": "timing",
+        "turnId": "opening-1"
+      }
+    },
+    {
+      "engine": {
+        "ms": 12,
+        "key": "behavior_first_segment",
+        "atMs": 1791820499042,
+        "type": "timing",
+        "turnId": "opening-1"
+      }
+    },
+    {
+      "engine": {
+        "ms": 1,
+        "key": "text_aggregation",
+        "atMs": 1791820499043,
+        "type": "timing",
+        "turnId": "opening-1",
+        "segmentId": "speech-1"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820499043,
+          "kind": "response",
+          "text": "Hi! I'm Maya, your Europe trip companion. Where are you thin",
+          "epoch": 1,
+          "phase": "generated",
+          "evidence": "generated",
+          "sequence": 1,
+          "segmentId": "speech-1"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820499044,
+          "kind": "response",
+          "text": "Hi! I'm Maya, your Europe trip companion. Where are you thin",
+          "epoch": 1,
+          "phase": "queued",
+          "evidence": "generated",
+          "sequence": 2,
+          "segmentId": "speech-1"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820499044,
+          "kind": "response",
+          "text": "Hi! I'm Maya, your Europe trip companion. Where are you thin",
+          "epoch": 1,
+          "phase": "started",
+          "evidence": "generated",
+          "sequence": 3,
+          "segmentId": "speech-1"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 5,
+        "key": "carrier_first_audio",
+        "atMs": 1791820499048,
+        "type": "timing",
+        "turnId": "opening-1",
+        "segmentId": "speech-1"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820499049,
+          "kind": "response",
+          "text": "Hi! I'm Maya, your Europe trip companion. Where are you thin",
+          "epoch": 1,
+          "phase": "sent",
+          "evidence": "estimated",
+          "sequence": 4,
+          "segmentId": "speech-1"
+        }
+      }
+    },
+    {
+      "speechCache": {
+        "bytes": 37185,
+        "source": "pinned",
+        "outcome": "completed",
+        "segmentId": "speech-1",
+        "speechKind": "response",
+        "msToFirstByte": 1,
+        "responseEpoch": 1
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820503975,
+          "kind": "response",
+          "text": "Hi! I'm Maya, your Europe trip companion. Where are you thin",
+          "epoch": 1,
+          "phase": "acknowledged",
+          "evidence": "confirmed",
+          "sequence": 5,
+          "segmentId": "speech-1"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 4927,
+        "key": "playout_ack",
+        "atMs": 1791820503975,
+        "type": "timing",
+        "turnId": "opening-1",
+        "segmentId": "speech-1"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820503976,
+          "kind": "response",
+          "text": "Hi! I'm Maya, your Europe trip companion. Where are you thin",
+          "epoch": 1,
+          "phase": "completed",
+          "evidence": "confirmed",
+          "sequence": 6,
+          "segmentId": "speech-1"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "user.turn",
+        "phase": "started",
+        "turnId": "turn-10"
+      }
+    },
+    {
+      "engine": {
+        "ms": 377,
+        "key": "vad_stop_wait",
+        "atMs": 1791820658280,
+        "type": "timing",
+        "turnId": "turn-10"
+      }
+    },
+    {
+      "engine": {
+        "ms": 3,
+        "key": "stt_finalize",
+        "atMs": 1791820658283,
+        "type": "timing",
+        "turnId": "turn-10"
+      }
+    },
+    {
+      "engine": {
+        "text": "Yeah, yeah.",
+        "type": "user.turn",
+        "input": "speech",
+        "phase": "stopped",
+        "turnId": "turn-10",
+        "endpointMs": 580,
+        "endpointRule": "silence"
+      }
+    },
+    {
+      "engine": {
+        "ms": 1,
+        "key": "turn_decision",
+        "atMs": 1791820658284,
+        "type": "timing",
+        "turnId": "turn-10"
+      }
+    },
+    {
+      "engine": {
+        "ms": 894,
+        "key": "behavior_first_segment",
+        "atMs": 1791820659178,
+        "type": "timing",
+        "turnId": "turn-10"
+      }
+    },
+    {
+      "engine": {
+        "ms": 0,
+        "key": "text_aggregation",
+        "atMs": 1791820659178,
+        "type": "timing",
+        "turnId": "turn-10",
+        "segmentId": "speech-22"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820659178,
+          "kind": "response",
+          "text": "Zagreb’s Advent is centered around the main squares",
+          "epoch": 13,
+          "phase": "generated",
+          "evidence": "generated",
+          "sequence": 123,
+          "segmentId": "speech-22"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820659178,
+          "kind": "response",
+          "text": "Zagreb’s Advent is centered around the main squares",
+          "epoch": 13,
+          "phase": "queued",
+          "evidence": "generated",
+          "sequence": 124,
+          "segmentId": "speech-22"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820659178,
+          "kind": "response",
+          "text": "Zagreb’s Advent is centered around the main squares",
+          "epoch": 13,
+          "phase": "started",
+          "evidence": "generated",
+          "sequence": 125,
+          "segmentId": "speech-22"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 145,
+        "key": "tts_ttfb",
+        "atMs": 1791820659323,
+        "type": "timing",
+        "turnId": "turn-10",
+        "segmentId": "speech-22"
+      }
+    },
+    {
+      "engine": {
+        "ms": 1,
+        "key": "carrier_first_audio",
+        "atMs": 1791820659324,
+        "type": "timing",
+        "turnId": "turn-10",
+        "segmentId": "speech-22"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820659324,
+          "kind": "response",
+          "text": "Zagreb’s Advent is centered around the main squares",
+          "epoch": 13,
+          "phase": "sent",
+          "evidence": "estimated",
+          "sequence": 126,
+          "segmentId": "speech-22"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 29,
+        "key": "text_aggregation",
+        "atMs": 1791820659353,
+        "type": "timing",
+        "turnId": "turn-10",
+        "segmentId": "speech-23"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820659353,
+          "kind": "response",
+          "text": "and parks, with festive lights, food stalls, and seasonal ev",
+          "epoch": 13,
+          "phase": "generated",
+          "evidence": "generated",
+          "sequence": 127,
+          "segmentId": "speech-23"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820659353,
+          "kind": "response",
+          "text": "and parks, with festive lights, food stalls, and seasonal ev",
+          "epoch": 13,
+          "phase": "queued",
+          "evidence": "generated",
+          "sequence": 128,
+          "segmentId": "speech-23"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820659353,
+          "kind": "response",
+          "text": "and parks, with festive lights, food stalls, and seasonal ev",
+          "epoch": 13,
+          "phase": "started",
+          "evidence": "generated",
+          "sequence": 129,
+          "segmentId": "speech-23"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 152,
+        "key": "tts_ttfb",
+        "atMs": 1791820659505,
+        "type": "timing",
+        "turnId": "turn-10",
+        "segmentId": "speech-23"
+      }
+    },
+    {
+      "speechCache": {
+        "bytes": 21627,
+        "source": "bypass",
+        "outcome": "completed",
+        "segmentId": "speech-22",
+        "speechKind": "response",
+        "msToFirstByte": 144,
+        "responseEpoch": 13
+      }
+    },
+    {
+      "engine": {
+        "ms": 1,
+        "key": "carrier_first_audio",
+        "atMs": 1791820659506,
+        "type": "timing",
+        "turnId": "turn-10",
+        "segmentId": "speech-23"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820659506,
+          "kind": "response",
+          "text": "and parks, with festive lights, food stalls, and seasonal ev",
+          "epoch": 13,
+          "phase": "sent",
+          "evidence": "estimated",
+          "sequence": 130,
+          "segmentId": "speech-23"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 423,
+        "key": "text_aggregation",
+        "atMs": 1791820659929,
+        "type": "timing",
+        "turnId": "turn-10",
+        "segmentId": "speech-24"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820659929,
+          "kind": "response",
+          "text": "Want more detail?",
+          "epoch": 13,
+          "phase": "generated",
+          "evidence": "generated",
+          "sequence": 131,
+          "segmentId": "speech-24"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820659929,
+          "kind": "response",
+          "text": "Want more detail?",
+          "epoch": 13,
+          "phase": "queued",
+          "evidence": "generated",
+          "sequence": 132,
+          "segmentId": "speech-24"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820659929,
+          "kind": "response",
+          "text": "Want more detail?",
+          "epoch": 13,
+          "phase": "started",
+          "evidence": "generated",
+          "sequence": 133,
+          "segmentId": "speech-24"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 139,
+        "key": "tts_ttfb",
+        "atMs": 1791820660068,
+        "type": "timing",
+        "turnId": "turn-10",
+        "segmentId": "speech-24"
+      }
+    },
+    {
+      "speechCache": {
+        "bytes": 57678,
+        "source": "bypass",
+        "outcome": "completed",
+        "segmentId": "speech-23",
+        "speechKind": "response",
+        "msToFirstByte": 152,
+        "responseEpoch": 13
+      }
+    },
+    {
+      "engine": {
+        "ms": 1,
+        "key": "carrier_first_audio",
+        "atMs": 1791820660069,
+        "type": "timing",
+        "turnId": "turn-10",
+        "segmentId": "speech-24"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820660069,
+          "kind": "response",
+          "text": "Want more detail?",
+          "epoch": 13,
+          "phase": "sent",
+          "evidence": "estimated",
+          "sequence": 134,
+          "segmentId": "speech-24"
+        }
+      }
+    },
+    {
+      "speechCache": {
+        "bytes": 8412,
+        "source": "bypass",
+        "outcome": "completed",
+        "segmentId": "speech-24",
+        "speechKind": "response",
+        "msToFirstByte": 139,
+        "responseEpoch": 13
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820662297,
+          "kind": "response",
+          "text": "Zagreb’s Advent is centered around the main squares",
+          "epoch": 13,
+          "phase": "acknowledged",
+          "evidence": "confirmed",
+          "sequence": 135,
+          "segmentId": "speech-22"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 2228,
+        "key": "playout_ack",
+        "atMs": 1791820662297,
+        "type": "timing",
+        "turnId": "turn-10",
+        "segmentId": "speech-22"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820662297,
+          "kind": "response",
+          "text": "Zagreb’s Advent is centered around the main squares",
+          "epoch": 13,
+          "phase": "completed",
+          "evidence": "confirmed",
+          "sequence": 136,
+          "segmentId": "speech-22"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820669517,
+          "kind": "response",
+          "text": "and parks, with festive lights, food stalls, and seasonal ev",
+          "epoch": 13,
+          "phase": "acknowledged",
+          "evidence": "confirmed",
+          "sequence": 137,
+          "segmentId": "speech-23"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 7220,
+        "key": "playout_ack",
+        "atMs": 1791820669517,
+        "type": "timing",
+        "turnId": "turn-10",
+        "segmentId": "speech-23"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820669518,
+          "kind": "response",
+          "text": "and parks, with festive lights, food stalls, and seasonal ev",
+          "epoch": 13,
+          "phase": "completed",
+          "evidence": "confirmed",
+          "sequence": 138,
+          "segmentId": "speech-23"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820670577,
+          "kind": "response",
+          "text": "Want more detail?",
+          "epoch": 13,
+          "phase": "acknowledged",
+          "evidence": "confirmed",
+          "sequence": 139,
+          "segmentId": "speech-24"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 1060,
+        "key": "playout_ack",
+        "atMs": 1791820670577,
+        "type": "timing",
+        "turnId": "turn-10",
+        "segmentId": "speech-24"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820670578,
+          "kind": "response",
+          "text": "Want more detail?",
+          "epoch": 13,
+          "phase": "completed",
+          "evidence": "confirmed",
+          "sequence": 140,
+          "segmentId": "speech-24"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "user.turn",
+        "phase": "started",
+        "turnId": "turn-16"
+      }
+    },
+    {
+      "engine": {
+        "ms": 2,
+        "key": "stt_finalize",
+        "atMs": 1791820721822,
+        "type": "timing",
+        "turnId": "turn-16"
+      }
+    },
+    {
+      "engine": {
+        "text": "built-in.",
+        "type": "user.turn",
+        "input": "speech",
+        "phase": "stopped",
+        "turnId": "turn-16",
+        "endpointMs": 635,
+        "endpointRule": "answer"
+      }
+    },
+    {
+      "engine": {
+        "ms": 1,
+        "key": "turn_decision",
+        "atMs": 1791820721823,
+        "type": "timing",
+        "turnId": "turn-16"
+      }
+    },
+    {
+      "engine": {
+        "ms": 1104,
+        "key": "behavior_first_segment",
+        "atMs": 1791820722927,
+        "type": "timing",
+        "turnId": "turn-16"
+      }
+    },
+    {
+      "engine": {
+        "ms": 0,
+        "key": "text_aggregation",
+        "atMs": 1791820722927,
+        "type": "timing",
+        "turnId": "turn-16",
+        "segmentId": "speech-37"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820722927,
+          "kind": "response",
+          "text": "Do you mean you want a Northern Lights stop",
+          "epoch": 22,
+          "phase": "generated",
+          "evidence": "generated",
+          "sequence": 190,
+          "segmentId": "speech-37"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820722927,
+          "kind": "response",
+          "text": "Do you mean you want a Northern Lights stop",
+          "epoch": 22,
+          "phase": "queued",
+          "evidence": "generated",
+          "sequence": 191,
+          "segmentId": "speech-37"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820722927,
+          "kind": "response",
+          "text": "Do you mean you want a Northern Lights stop",
+          "epoch": 22,
+          "phase": "started",
+          "evidence": "generated",
+          "sequence": 192,
+          "segmentId": "speech-37"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 148,
+        "key": "tts_ttfb",
+        "atMs": 1791820723075,
+        "type": "timing",
+        "turnId": "turn-16",
+        "segmentId": "speech-37"
+      }
+    },
+    {
+      "engine": {
+        "ms": 0,
+        "key": "carrier_first_audio",
+        "atMs": 1791820723075,
+        "type": "timing",
+        "turnId": "turn-16",
+        "segmentId": "speech-37"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820723075,
+          "kind": "response",
+          "text": "Do you mean you want a Northern Lights stop",
+          "epoch": 22,
+          "phase": "sent",
+          "evidence": "estimated",
+          "sequence": 193,
+          "segmentId": "speech-37"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 61,
+        "key": "text_aggregation",
+        "atMs": 1791820723136,
+        "type": "timing",
+        "turnId": "turn-16",
+        "segmentId": "speech-38"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820723136,
+          "kind": "response",
+          "text": "that fits naturally into the same trip and is reasonably eas",
+          "epoch": 22,
+          "phase": "generated",
+          "evidence": "generated",
+          "sequence": 194,
+          "segmentId": "speech-38"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820723136,
+          "kind": "response",
+          "text": "that fits naturally into the same trip and is reasonably eas",
+          "epoch": 22,
+          "phase": "queued",
+          "evidence": "generated",
+          "sequence": 195,
+          "segmentId": "speech-38"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820723136,
+          "kind": "response",
+          "text": "that fits naturally into the same trip and is reasonably eas",
+          "epoch": 22,
+          "phase": "started",
+          "evidence": "generated",
+          "sequence": 196,
+          "segmentId": "speech-38"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 147,
+        "key": "tts_ttfb",
+        "atMs": 1791820723283,
+        "type": "timing",
+        "turnId": "turn-16",
+        "segmentId": "speech-38"
+      }
+    },
+    {
+      "speechCache": {
+        "bytes": 15619,
+        "source": "bypass",
+        "outcome": "completed",
+        "segmentId": "speech-37",
+        "speechKind": "response",
+        "msToFirstByte": 147,
+        "responseEpoch": 22
+      }
+    },
+    {
+      "engine": {
+        "ms": 1,
+        "key": "carrier_first_audio",
+        "atMs": 1791820723284,
+        "type": "timing",
+        "turnId": "turn-16",
+        "segmentId": "speech-38"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820723284,
+          "kind": "response",
+          "text": "that fits naturally into the same trip and is reasonably eas",
+          "epoch": 22,
+          "phase": "sent",
+          "evidence": "estimated",
+          "sequence": 197,
+          "segmentId": "speech-38"
+        }
+      }
+    },
+    {
+      "speechCache": {
+        "bytes": 38452,
+        "source": "bypass",
+        "outcome": "completed",
+        "segmentId": "speech-38",
+        "speechKind": "response",
+        "msToFirstByte": 147,
+        "responseEpoch": 22
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820725297,
+          "kind": "response",
+          "text": "Do you mean you want a Northern Lights stop",
+          "epoch": 22,
+          "phase": "acknowledged",
+          "evidence": "confirmed",
+          "sequence": 198,
+          "segmentId": "speech-37"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 2014,
+        "key": "playout_ack",
+        "atMs": 1791820725298,
+        "type": "timing",
+        "turnId": "turn-16",
+        "segmentId": "speech-37"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820725298,
+          "kind": "response",
+          "text": "Do you mean you want a Northern Lights stop",
+          "epoch": 22,
+          "phase": "completed",
+          "evidence": "confirmed",
+          "sequence": 199,
+          "segmentId": "speech-37"
+        }
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820730117,
+          "kind": "response",
+          "text": "that fits naturally into the same trip and is reasonably eas",
+          "epoch": 22,
+          "phase": "acknowledged",
+          "evidence": "confirmed",
+          "sequence": 200,
+          "segmentId": "speech-38"
+        }
+      }
+    },
+    {
+      "engine": {
+        "ms": 4820,
+        "key": "playout_ack",
+        "atMs": 1791820730118,
+        "type": "timing",
+        "turnId": "turn-16",
+        "segmentId": "speech-38"
+      }
+    },
+    {
+      "engine": {
+        "type": "speech",
+        "evidence": {
+          "at": 1791820730118,
+          "kind": "response",
+          "text": "that fits naturally into the same trip and is reasonably eas",
+          "epoch": 22,
+          "phase": "completed",
+          "evidence": "confirmed",
+          "sequence": 201,
+          "segmentId": "speech-38"
+        }
+      }
+    }
+  ]
+}

@@ -4,6 +4,8 @@ import {
   type TurnStageSample,
   type TurnTelemetry,
 } from '@winsendotai/ovo-plugin-observability';
+import type { AudioFormat } from '@winsendotai/ovo-contracts';
+import { speechCacheAudio } from './telemetry-carrier-rtt.ts';
 import { ReplyWaitClock } from './telemetry-reply-waits.ts';
 
 /**
@@ -31,6 +33,12 @@ export class WorkerTurnTelemetry extends TurnTelemetryCollector {
     this.waits = new ReplyWaitClock(({ turnId, firstAudioMs, ...parts }) =>
       options.stage?.({ stage: 'reply.waits', turnId, durationMs: firstAudioMs, payload: parts }),
     );
+  }
+
+  /** Wave 9 D7: a line's `speech.cache` event, whose length times the carrier's round trip. */
+  speechCache(payload: Record<string, unknown>, format: AudioFormat | undefined): void {
+    const audio = speechCacheAudio(payload, format);
+    if (audio) this.waits.lineAudio(audio.segmentId, audio.audioMs);
   }
 
   override engine(event: EngineEvent): void {
