@@ -13,7 +13,6 @@ import {
   type ByteCache,
 } from '@winsendotai/ovo-plugin-cache';
 import { legacyFromDuplex } from '@winsendotai/ovo-plugin-kit';
-import { speakerTextFilters } from '@winsendotai/ovo-plugin-voice';
 import {
   ReplyStreams,
   warmSessionTts,
@@ -43,7 +42,8 @@ import {
   type SpeechCacheObserver,
   type SpeechCacheSource,
 } from './speech-cache-telemetry.ts';
-import { WorkerSpeechClipCache } from './speech-cache-tiers.ts';
+import { withSpeakerFilters } from './speech-cache-speaker-filters.ts';
+import { l1Hit, WorkerSpeechClipCache } from './speech-cache-tiers.ts';
 
 /** Session host override for the engine's streaming-output companion. */
 export function createV2SpeechCachePlugin(
@@ -52,6 +52,8 @@ export function createV2SpeechCachePlugin(
   observer?: SpeechCacheObserver,
   /** This call's templated lines (TTS-10); checked before any shared tier and never stored there. */
   perCall?: { clips: CallClips; options?: PerCallClipOptions },
+  /** What the speaker adds to the agent's filters (Wave 9 D1, `speakerAddedFilters`). */
+  speakerFilters: readonly TextFilter[] = [],
 ) {
   const policy = release.config.speechCache;
   if (!policy?.enabled) return undefined;
@@ -75,9 +77,7 @@ export function createV2SpeechCachePlugin(
       const tts = ctx.get(Cap.tts) as TextToSpeech;
       const media = ctx.get(Cap.media) as MediaDuplex;
       const usage = ctx.get(Cap.usage) as UsageSink;
-      // The speaker adds the speech normaliser to every agent's filters (Wave 9 D1); a key built
-      // without it would miss every fixed line it rewrites.
-      const filters = speakerTextFilters([...ctx.all(Cap.textFilters).values()] as TextFilter[]);
+      const filters = withSpeakerFilters(ctx.all(Cap.textFilters), speakerFilters);
       const transport = legacyFromDuplex(media);
       const player = new CachedMediaAudioPlayer(transport, {
         format: media.format,
@@ -255,9 +255,4 @@ export function createV2SpeechCachePlugin(
       });
     },
   );
-}
-
-function l1Hit(cache: ByteCache, key: string, workspaceId: string) {
-  const audio = cache.get(key, workspaceId);
-  return audio ? { audio, tier: 'l1' as const } : undefined;
 }

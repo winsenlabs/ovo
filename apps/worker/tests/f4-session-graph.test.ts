@@ -9,6 +9,7 @@ import type { LoadedDistribution } from '@winsendotai/ovo-distribution';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { compose, definePlugin } from '@winsendotai/ovo-runtime';
 import { describe, expect, it, vi } from 'vitest';
+import { createSpeechNormaliserTextFilterPlugin } from '../../../packages/plugin-voice/src/index.ts';
 import { composeLiveSessionGraph, subscribeEngineTelemetry } from '../src/session-graph-runtime.ts';
 import {
   WorkerSpeechCacheRuntime,
@@ -196,12 +197,13 @@ describe('F4 selected worker session graph', () => {
         },
       );
       const parent = await compose([], []);
+      const normaliser = createSpeechNormaliserTextFilterPlugin();
       const config = AgentConfig.parse({
         name: 'Selected',
         mode,
         recording: false,
         ...(mode === 'context'
-          ? { speechCache: { enabled: true }, processing: { initial: 'Static phrase' } }
+          ? { speechCache: { enabled: true }, processing: { initial: 'Static phrase & co' } }
           : {}),
       });
       const release = {
@@ -246,7 +248,8 @@ describe('F4 selected worker session graph', () => {
         const selected = await composeLiveSessionGraph({
           graph: {
             distribution: {
-              catalog: [inference, engine, speech, output, tts],
+              // Wave 9 D1: the speaker normalises every line ("&" -> "and"), so the cache must too.
+              catalog: [inference, engine, speech, output, tts, normaliser],
               defaults: { engine: 'fixture-engine' },
             } as unknown as LoadedDistribution,
             parent,
@@ -289,7 +292,7 @@ describe('F4 selected worker session graph', () => {
           };
           const segment = {
             id: 'static-1',
-            text: 'Static phrase',
+            text: 'Static phrase and co',
             epoch: 1,
             kind: 'acknowledgment' as const,
             generatedAt: 0,

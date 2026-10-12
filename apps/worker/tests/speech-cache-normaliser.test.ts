@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { composeReleaseTextFilters } from '@winsendotai/ovo-plugin-speech-cache';
+import { PluginRegistry } from '@winsendotai/ovo-runtime';
 import {
   markdownFilter,
   plugins as voicePlugins,
 } from '../../../packages/plugin-voice/src/index.ts';
 import { WorkerSpeechCacheRuntime } from '../src/speech-cache-runtime.ts';
+import { speakerAddedFilters, withSpeakerFilters } from '../src/speech-cache-speaker-filters.ts';
 import { composeCacheOutput, fixtureRelease, RecordingTts } from './speech-cache-harness.ts';
 
 /**
@@ -25,6 +27,8 @@ describe('speech cache keys after the speaker normaliser (Wave 9 D1)', () => {
       language: 'en-IN',
       uncertainty: LINE,
     });
+    // As session-graph-runtime takes it: from the distribution's registry, not from plugin-voice.
+    const speakerFilters = await speakerAddedFilters(new PluginRegistry(voicePlugins));
     for (let call = 0; call < 2; call += 1) {
       // The agent selected markdown only; the speaker sent the normalised text.
       const session = await composeCacheOutput({
@@ -32,6 +36,7 @@ describe('speech cache keys after the speaker normaliser (Wave 9 D1)', () => {
         cache: runtime.cache,
         tts,
         filters: [markdownFilter],
+        speakerFilters,
       });
       try {
         await session.play(SPOKEN, 'response');
@@ -41,6 +46,13 @@ describe('speech cache keys after the speaker normaliser (Wave 9 D1)', () => {
     }
     expect(tts.calls.map((call) => call.text)).toEqual([SPOKEN]);
     await runtime.close();
+  });
+
+  it('adds nothing the agent already selected, and nothing a distribution lacks', async () => {
+    const [normaliser] = await speakerAddedFilters(new PluginRegistry(voicePlugins));
+    const own = new Map([[normaliser!.id, normaliser]]);
+    expect(withSpeakerFilters(own, [normaliser!])).toEqual([normaliser]);
+    expect(await speakerAddedFilters(new PluginRegistry([]))).toEqual([]);
   });
 
   it('pre-renders through the normaliser when the release does not select it', async () => {

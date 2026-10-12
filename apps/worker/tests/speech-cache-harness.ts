@@ -179,6 +179,8 @@ export async function composeCacheOutput(input: {
   usage?: (meter: UsageMeter) => void;
   perCall?: { clips: CallClips; options?: PerCallClipOptions };
   frameMs?: number;
+  /** What the speaker adds to the agent's filters (`speakerAddedFilters`). */
+  speakerFilters?: TextFilter[];
 }) {
   const { media, marks, audio, sentAt, clears } = fixtureMedia({ frameMs: input.frameMs });
   const host = definePlugin(
@@ -223,6 +225,7 @@ export async function composeCacheOutput(input: {
     input.cache,
     input.observer,
     input.perCall,
+    input.speakerFilters,
   )!;
   const composition = await compose(
     [host, ...filters, plugin].map((definition) => ({ id: definition.manifest.id })),
