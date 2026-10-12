@@ -1,6 +1,7 @@
 import {
   affirmationOnly,
   baseLanguageOf,
+  classifyConfirmation,
   DEFAULT_END_CALL_MIN_CALL_SECONDS,
   DEFAULT_END_CALL_MIN_CALLER_TURNS,
   normalizeForMatch,
@@ -84,6 +85,16 @@ export const END_REFUSED = {
   unasked: 'the caller has not clearly asked to end the call',
 } as const;
 
+/**
+ * A yes to the agent's question, however it goes on ("Yes.", "Haan ji, end it."): the model still
+ * decides whether to end the call; this only lets it.
+ */
+function saysYes(text: string): boolean {
+  if (classifyConfirmation(text) === 'no') return false;
+  const first = normalizeForMatch(text).split(' ')[0] ?? '';
+  return affirmationOnly(text) || affirmationOnly(first);
+}
+
 /** True when the caller says goodbye ("ok bye", "phone rakhta hoon") or asks to end the call. */
 export function saysGoodbye(text: string): boolean {
   const words = normalizeForMatch(text).split(' ').filter(Boolean);
@@ -134,8 +145,7 @@ export class EndCallGate {
     if (!this.last || (words !== this.last && !words.startsWith(`${this.last} `)))
       this.callerTurns += 1;
     this.last = words;
-    if (saysGoodbye(input) || (affirmationOnly(input) && this.askedToEnd(previous)))
-      return undefined;
+    if (saysGoodbye(input) || (this.askedToEnd(previous) && saysYes(input))) return undefined;
     const ending = this.config.ending;
     const turns = ending?.minCallerTurns ?? DEFAULT_END_CALL_MIN_CALLER_TURNS;
     const seconds = ending?.minCallSeconds ?? DEFAULT_END_CALL_MIN_CALL_SECONDS;

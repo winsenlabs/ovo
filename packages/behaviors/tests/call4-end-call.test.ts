@@ -66,7 +66,7 @@ describe('call e8a43f65 issue 6: end_call only on a clear goodbye or ask', () =>
     // Asked deterministically: no second LLM request for the refused turn.
     expect(m.model.requests).toHaveLength(7);
     m.clock.ms += 3_000;
-    expect(await m.turn('Yes.')).toEqual([GOODBYE]);
+    expect(await m.turn('Yes, end it.')).toEqual([GOODBYE]);
     expect(m.behavior.completionReason()).toBe('llm:end_call:caller');
   });
 
@@ -103,6 +103,14 @@ describe('call e8a43f65 issue 6: end_call only on a clear goodbye or ask', () =>
     expect(await m.turn('bye', { [UNTRUSTED_INPUT_VARIABLE]: true })).toEqual([
       'क्या मैं कॉल खत्म कर दूँ?',
     ]);
+    expect(m.behavior.isComplete()).toBe(false);
+  });
+
+  it('a no to the question ends nothing, even if the model tries', async () => {
+    const m = maya([...Array(6).fill({ kind: 'text', text: 'Lovely.' }), END, END]);
+    await m.into();
+    expect(await m.turn("Ma'am, create a call.")).toEqual([ASK]);
+    await m.turn('No, not yet.');
     expect(m.behavior.isComplete()).toBe(false);
   });
 
