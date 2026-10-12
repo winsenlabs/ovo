@@ -125,18 +125,30 @@ export function answersByItself(text: string, context: UtteranceContext): boolea
 }
 
 /**
- * A date range that named a month for its start and none yet for its end ("21st of December to
- * the 5th."), even after a full stop: the month may well follow.
+ * A date range that named a month for its start and none yet for its end, an end day before its
+ * start day, which runs into the next month ("21st of December to the 5th."), even after a full
+ * stop: the month may well follow. "December 3rd to the 5th." is complete.
  */
 function rangeAwaitsMonth(tokens: readonly string[]): boolean {
-  if (!DAY.test(tokens.at(-1)!)) return false;
+  const end = dayOf(tokens.at(-1)!);
+  if (end === undefined) return false;
   const at = tokens.length - (tokens.at(-2) === 'the' ? 3 : 2);
-  const range = tokens[at];
-  return (
-    range !== undefined &&
-    RANGE_TO.has(range) &&
-    tokens.slice(0, at).some((token) => MONTH_NAMES.has(token))
-  );
+  if (at < 1 || !RANGE_TO.has(tokens[at]!)) return false;
+  for (let month = at - 1; month >= 0; month -= 1) {
+    if (!MONTH_NAMES.has(tokens[month]!)) continue;
+    // The day the month names: "December 21", "21st December", "21st of December".
+    const near = [tokens[month + 1], tokens[month - 1]];
+    if (tokens[month - 1] === 'of') near.push(tokens[month - 2]);
+    const start = near.map((token) => (token ? dayOf(token) : undefined)).find((d) => d);
+    // "May" is a month only beside its day ("I may go from the 3rd to the 5th.").
+    if (tokens[month] === 'may' && start === undefined) continue;
+    return start === undefined || end < start;
+  }
+  return false;
+}
+
+function dayOf(token: string): number | undefined {
+  return DAY.test(token) ? Number.parseInt(token, 10) : undefined;
 }
 
 function numberGoing(text: string, tokens: readonly string[]): boolean {

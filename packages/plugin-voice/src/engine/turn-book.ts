@@ -75,6 +75,8 @@ export class TurnBook {
   private carry?: Turn;
   /** The carry is a reply given up for the caller's words still being spoken (`preempt`). */
   private preempted = false;
+  /** The reply hold gave up on the caller's open turn (`lapsed`): its words give up no reply. */
+  private stuck = false;
   /** Behaviour tools started and not yet settled. */
   private tools = 0;
   private readonly unsubscribe: (() => void)[];
@@ -123,14 +125,14 @@ export class TurnBook {
    * than a brief remark), a reply still composing is given up now rather than when they end, so
    * its LLM call and any web search stop at once (live a superseded turn's search ran on for 1.9
    * and 2.4 s, billed). Its words are carried into the caller's turn, or owed again if that turn
-   * comes to nothing. Returns the turn to cancel.
+   * comes to nothing or the reply hold gives up on it (`lapsed`). Returns the turn to cancel.
    */
   preempt(words: string): Turn | undefined {
     const running = this.running;
     // A reply with its first line has done the work this saves; the caller's words, once they
     // end, still supersede it (a stuck turn then never holds it past REPLY_HOLD.maxMs).
-    if (!running || running.drafted || this.carry || !this.supersedes(words, running))
-      return undefined;
+    if (!running || running.drafted || this.carry || this.stuck) return undefined;
+    if (!this.supersedes(words, running)) return undefined;
     if (brief(words) && !continuesUtterance(words, running.input)) return undefined;
     this.carry = running;
     this.preempted = true;
@@ -172,11 +174,17 @@ export class TurnBook {
   /** The caller's speech was dropped; words an interruption left unanswered are owed again. */
   reset(turnId: string): Turn | undefined {
     this.hooks.discard(turnId, 'reset');
-    const preempted = this.preempted;
-    const carry = this.takeCarry();
-    // A reply given up for words that came to nothing runs again on its own words, which leave the
-    // history it recorded them in (as a merged turn's do) so they are recorded once.
-    if (carry && preempted) this.hooks.discard(carry.id, 'superseded');
+    return this.takePreempted() ?? this.takeCarry();
+  }
+
+  /**
+   * The reply hold gave up on the caller's open turn (REPLY_HOLD `timeout`, `no-words`): a reply
+   * given up for its words (`preempt`) is owed now, as the hold promises (P1: never later than
+   * `maxMs`), and words the turn goes on with give up no other.
+   */
+  lapsed(): Turn | undefined {
+    const carry = this.takePreempted();
+    this.stuck = true;
     return carry;
   }
 
@@ -184,6 +192,18 @@ export class TurnBook {
     const carry = this.carry;
     this.carry = undefined;
     this.preempted = false;
+    this.stuck = false;
+    return carry;
+  }
+
+  /**
+   * A reply given up for words still being spoken, to run again on its own words, which leave the
+   * history it recorded them in (as a merged turn's do) so they are recorded once.
+   */
+  private takePreempted(): Turn | undefined {
+    if (!this.preempted) return undefined;
+    const carry = this.takeCarry();
+    if (carry) this.hooks.discard(carry.id, 'superseded');
     return carry;
   }
 

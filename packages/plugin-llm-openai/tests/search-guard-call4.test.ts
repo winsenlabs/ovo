@@ -58,6 +58,13 @@ describe('no web search on statements of plans, dates or lists (call e8a43f65, i
       'I want to know the train times from Vienna to Budapest.',
       'Is the Christmas market open on the 25th?',
       'Germany, Berlin, and a few other places. Which is cheapest?',
+      // A first-person sentence that says what the caller looks for or wants asks, question word
+      // or not (Wave 8b review).
+      "I'm looking for a good restaurant in Zagreb.",
+      "We're looking for things to do in Prague.",
+      'I want restaurants near the Colosseum.',
+      "I'm curious whether the museums are open on Christmas Day.",
+      'We want to see the Christmas markets in Vienna.',
     ])
       expect(guard({ caller, agentBefore: before }), caller).toBeUndefined();
     expect(

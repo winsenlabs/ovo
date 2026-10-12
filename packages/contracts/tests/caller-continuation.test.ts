@@ -51,6 +51,8 @@ describe('statements of the caller’s plans, which ask nothing to look up (issu
       'December 21st to January 5th.',
       "Yes, that's right.",
       "I'm in a coffee shop.",
+      "We're flying back on the 5th.",
+      'I am at the airport.',
     ])
       expect(statesPlans(text), text).toBe(true);
   });
@@ -67,6 +69,13 @@ describe('statements of the caller’s plans, which ask nothing to look up (issu
       'Listen to me. Listen to me, please.',
       'Credit. Okay, so...',
       '',
+      // First person, but saying what they look for or want, not their plans.
+      "I'm looking for a good restaurant in Zagreb.",
+      "We're looking for things to do in Prague.",
+      'I want restaurants near the Colosseum.',
+      "I'm curious whether the museums are open on Christmas Day.",
+      'We want to see the Christmas markets in Vienna.',
+      'I need a hotel in Vienna.',
     ])
       expect(statesPlans(text), text).toBe(false);
   });

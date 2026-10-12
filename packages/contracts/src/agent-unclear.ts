@@ -164,6 +164,15 @@ export function callerPunctuation(
 const OPENING = wordSet('yeah yes yep ok okay so and but um uh hmm actually also then no oh right');
 /** First-person subjects, apostrophes dropped ("we're" is "were", "we'd" is "wed"). */
 const FIRST_PERSON = wordSet('i im ill id ive we were wed weve my our');
+/** The verbs and nouns of the caller's own trip ("we're planning to go", "I'm flying back on…"). */
+const PLANS = wordSet(
+  'plan plans planned planning go going goes went fly flying stay staying leave leaving arrive ' +
+    'arriving travel travelling traveling visit visiting head heading come coming return ' +
+    'returning back trip spend spending drive driving booked moving',
+);
+/** Where the caller is ("I'm in a coffee shop", "we are at the airport"). */
+const BE = wordSet('am are');
+const BEING_AT = wordSet('in at');
 /** What a statement asks for when it names it ("I would like recommendations for Lisbon."). */
 const REQUESTED = wordSet(
   'recommendation recommendations suggestion suggestions idea ideas option options information ' +
@@ -194,8 +203,8 @@ function confirms(words: readonly string[]): boolean {
 
 /**
  * Wave 8b (Maya call e8a43f65, issue 3): the caller tells the agent about their own plans rather
- * than asking for anything: a sentence with a first-person subject ("I want 21st of December to
- * the 5th.", "Yeah, we're planning to do Budapest, Vienna, in Austria."), a list ("Germany, Berlin,
+ * than asking for anything: a sentence of their own trip (`saysOwnPlans`: "I want 21st of December
+ * to the 5th.", "Yeah, we're planning to do Budapest, Vienna, in Austria."), a list ("Germany, Berlin,
  * and a few other places."), a confirmation ("Yes, that's right.") or only a date. Never words
  * that ask (`seeksInformation`) or name what they want ("I would like recommendations for
  * Lisbon."). A follow-up that names no subject ("And in Split.", "Restaurants near the
@@ -215,9 +224,23 @@ export function statesPlans(text: string): boolean {
     tokens.some((token) => NUMBER_WORD.test(token))
   )
     return true;
-  return sentences(text).some((sentence) => {
-    const said = callerWords(sentence);
-    const subject = said.find((word) => !OPENING.has(word));
-    return subject !== undefined && FIRST_PERSON.has(subject);
-  });
+  return sentences(text).some(saysOwnPlans);
+}
+
+/**
+ * A sentence whose first-person subject goes on to the caller's own trip: where they are going or
+ * are ("we're planning to go to Zagreb", "I'm in a coffee shop") or when ("I want 21st of December
+ * to the 5th."). Not what they look for or want ("I'm looking for a good restaurant in Zagreb.",
+ * "I want restaurants near the Colosseum.", "We want to see the Christmas markets"): those ask.
+ */
+function saysOwnPlans(sentence: string): boolean {
+  const said = callerWords(sentence);
+  const at = said.findIndex((word) => !OPENING.has(word));
+  if (at < 0 || !FIRST_PERSON.has(said[at]!)) return false;
+  const rest = said.slice(at + 1);
+  if (rest.some((word) => PLANS.has(word))) return true;
+  if (BEING_AT.has(rest[0] ?? '') || (BE.has(rest[0] ?? '') && BEING_AT.has(rest[1] ?? '')))
+    return true;
+  const tokens = normalizeForMatch(sentence).split(' ');
+  return tokens.some((token) => MONTHS.has(token)) && tokens.some((t) => NUMBER_WORD.test(t));
 }

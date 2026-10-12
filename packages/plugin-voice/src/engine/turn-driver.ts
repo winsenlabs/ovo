@@ -28,6 +28,11 @@ export class TurnDriver extends TurnRunner {
       !this.speech.pendingCount,
     (decision) => this.idlePrompt(decision),
   );
+  /** Wave 8b: a reply given up for the words of a turn the reply hold gave up on runs now. */
+  private readonly unlapse = this.hold.onLapse(() => {
+    const carry = this.turns.lapsed();
+    if (carry && !this.stopped && !this.closing) this.queue(carry);
+  });
 
   decide(decision: TurnDecision): void {
     if (this.stopped || this.closing) return;
@@ -117,6 +122,7 @@ export class TurnDriver extends TurnRunner {
 
   override async dispose(): Promise<void> {
     this.cancelWrapUp?.();
+    this.unlapse();
     this.detectorIdle.dispose();
     await super.dispose();
   }

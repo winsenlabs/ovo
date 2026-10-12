@@ -1,4 +1,9 @@
-import { callerWords, normalizeForMatch, type Inference } from '@winsendotai/ovo-contracts';
+import {
+  callerWords,
+  normalizeForMatch,
+  seeksInformation,
+  type Inference,
+} from '@winsendotai/ovo-contracts';
 import { endsSentence } from './speculation.ts';
 import {
   callerMatchKey,
@@ -21,7 +26,7 @@ interface Asked {
 
 /**
  * Wave 8 (latency fix 4): the LLM asked on the caller's partial transcript, for an agent without
- * a decision model, so the first token is under way before the turn ends. A request the LLM would
+ * a decision model, so the first token is under way before the turn ends. A question the LLM would
  * send its web search tool is asked ahead only on words the STT will not revise (Wave 8b): a
  * search started on words the caller then changed was billed and thrown away. In the Maya calls
  * a one-word answer's last partial arrived 1.6-1.9 s before its turn ended, and a sentence's
@@ -126,9 +131,12 @@ export class PartialLlmSpeculation {
     }
     if (!call) return;
     const llm = this.llm;
-    // Wave 8b (call e8a43f65, issue 4): a web search is not started on words the caller may still
-    // change; the turn starts it on its final words, or on words the STT will not revise.
-    if (revisable && llm.sendsProviderTools?.(call)) return;
+    // Wave 8b (call e8a43f65, issue 4): a web search is not started on a question the caller may
+    // still change; the turn starts it on its final words, or on words the STT will not revise.
+    // Other words sent the tool are asked ahead as before: most never search, and holding back
+    // every request sent the tool kept only 0.66 of the 8.1 s the Maya replay saves; this keeps
+    // 7.5 s (speculation-llm-partials-replay).
+    if (revisable && seeksInformation(call.input) && llm.sendsProviderTools?.(call)) return;
     this.metrics.onPartials += 1;
     if (revisable) this.count(turnId);
     this.asked = {

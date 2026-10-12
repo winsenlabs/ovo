@@ -49,6 +49,7 @@ export class ReplyHold {
   private cancelQuiet?: () => void;
   /** Ends the wait after words that trailed off (`trailedOff`). */
   private cancelTrailing?: () => void;
+  private lapsed?: () => void;
   private readonly unsubscribe: () => void;
 
   constructor(
@@ -89,6 +90,15 @@ export class ReplyHold {
     queueMicrotask(() => this.consider(turnId));
   }
 
+  /**
+   * Wave 8b: `listener` runs when the hold gives up on the caller's turn (`timeout`, `no-words`)
+   * while it is still open, so a reply given up for its words (TurnBook.preempt) is owed now.
+   */
+  onLapse(listener: () => void): () => void {
+    this.lapsed = listener;
+    return () => (this.lapsed = undefined);
+  }
+
   /** The turn's words so far: it is speech, and a reply its VAD start did not hold is held now. */
   partial(turnId: string): void {
     this.consider(turnId);
@@ -115,8 +125,9 @@ export class ReplyHold {
   }
 
   release(reason: Release): void {
-    // Closing: a turn that started this tick holds nothing either.
-    if (reason === 'closing') this.openTurn = undefined;
+    // Closing: a turn that started this tick holds nothing either; and a turn held `maxMs` holds
+    // nothing again, whatever words it goes on with.
+    if (reason === 'closing' || reason === 'timeout') this.openTurn = undefined;
     const trailing = this.cancelTrailing;
     this.cancelTrailing = undefined;
     trailing?.();
@@ -138,8 +149,9 @@ export class ReplyHold {
       heldMs: now - this.heldAt,
       ...(this.quietAt === undefined ? {} : { quietMs: now - this.quietAt }),
     };
-    const level = reason === 'no-words' || reason === 'timeout' ? 'warn' : 'info';
-    logVoiceEvent(level, 'reply_hold_released', fields);
+    const lapsed = reason === 'no-words' || reason === 'timeout';
+    logVoiceEvent(lapsed ? 'warn' : 'info', 'reply_hold_released', fields);
+    if (lapsed) this.lapsed?.();
   }
 
   dispose(): void {

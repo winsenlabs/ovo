@@ -12,7 +12,7 @@ afterEach(() => {
 });
 
 /** An LLM that sends its web search tool to words with a question mark, as a guard might. */
-function searchingLlm() {
+function searchingLlm(sends: (input: string) => boolean = (input) => input.includes('?')) {
   const asked: InferenceRequest[] = [];
   const port: Inference = {
     generate: () => Promise.reject(new Error('streamed only')),
@@ -20,7 +20,7 @@ function searchingLlm() {
       asked.push(request);
       yield { kind: 'finish' };
     },
-    sendsProviderTools: (request) => request.input.includes('?'),
+    sendsProviderTools: (request) => sends(request.input),
   };
   return { port, asked };
 }
@@ -67,5 +67,15 @@ describe('no web search is started on words the STT may still revise', () => {
     expect((await offer('Is the Christmas market open on the 25th?', true)).asked).toEqual([
       'Is the Christmas market open on the 25th?',
     ]);
+  });
+
+  it('asks ahead on words sent the tool that ask nothing, as most never search (review)', async () => {
+    // Maya's guard sends the tool to most multi-word turns; only a question waits for final words.
+    const port = () => searchingLlm(() => true);
+    expect((await offer('And in Split.', false, port())).asked).toEqual(['And in Split.']);
+    expect((await offer('Tell me about Split.', false, port())).asked).toEqual([]);
+    expect((await offer('Is the Christmas market open on the 25th?', false, port())).asked).toEqual(
+      [],
+    );
   });
 });

@@ -62,6 +62,9 @@ describe('utteranceEnd: how the words so far end (Wave 8 smart end-of-turn)', ()
       'From December 21 to January 5.',
       'From 9 to 5.',
       'I will be there on the 5th.',
+      // Wave 8b review: a range within its month, and "may" that is no month.
+      'Book it for December 3rd to the 5th.',
+      'I may go from the 3rd to the 5th.',
     ])
       expect(utteranceEnd(text, context()), text).toBe('complete');
   });
