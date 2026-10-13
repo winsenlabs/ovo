@@ -1,5 +1,6 @@
 import type { CarrierControlFactory } from '../carrier/control.ts';
 import type { CarrierIngress } from '../carrier/ingress.ts';
+import type { SipRequestVerifier, SipTrunkControlClient } from '../carrier/sip-trunk.ts';
 import type { Clock } from '../clock.ts';
 import type { DecisionPort } from '../decision.ts';
 import type { KnowledgePort } from '../knowledge.ts';
@@ -54,6 +55,8 @@ interface TypedCapabilities {
   [Cap.net]: NetPort;
   [Cap.carrierControl]: CarrierControlFactory;
   [Cap.carrierIngress]: CarrierIngress;
+  [Cap.sipTrunkControl]: SipTrunkControlClient;
+  [Cap.sipTrunkVerifier]: SipRequestVerifier;
   [Cap.backgroundTask]: BackgroundTask;
   [Cap.capacitySignal]: CapacitySignalPublisher;
   [Cap.toolNative]: ToolConnector;
