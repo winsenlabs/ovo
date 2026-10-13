@@ -17,6 +17,11 @@ describe('check-provider-names', () => {
     expect(run.output).toContain(
       `${root}/apps/api/src/legacy-paths.ts: 2 provider-name occurrences`,
     );
+    // Wave 11 vendors (TCN as a SIP trunk, Cartesia and Rumik speech) are gated like the rest, so
+    // apps/sip-gateway/src stays trunk-neutral.
+    expect(run.output).toContain(
+      `${root}/apps/sip-gateway/src/trunk.ts: 3 provider-name occurrences`,
+    );
   });
 
   it('--only limits what it reports', () => {
@@ -25,13 +30,14 @@ describe('check-provider-names', () => {
 
   it('ratchets per-file counts from the baseline and pending files', () => {
     const legacy = `${root}/apps/api/src/legacy-paths.ts`;
+    const trunk = `${root}/apps/sip-gateway/src/trunk.ts`;
     const baseline = (count: number) => ({
-      'provider-names.json': { files: { [carrier]: count, [legacy]: 2 } },
+      'provider-names.json': { files: { [carrier]: count, [legacy]: 2, [trunk]: 3 } },
     });
     expect(gate(['--baseline-dir', baselineDir(baseline(3))]).status).toBe(0);
     expect(gate(['--baseline-dir', baselineDir(baseline(2))]).status).toBe(1);
     const dir = baselineDir({
-      'provider-names.json': { files: { [legacy]: 2 } },
+      'provider-names.json': { files: { [legacy]: 2, [trunk]: 3 } },
       'pending/C1.json': { providerNames: [{ file: carrier, count: 3, ...PENDING }] },
     });
     expect(gate(['--baseline-dir', dir]).status).toBe(0);
