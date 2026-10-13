@@ -6,6 +6,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { loadDistribution } from '@winsendotai/ovo-distribution';
 import { compose, definePlugin } from '@winsendotai/ovo-runtime';
+import { decodeSipSecret } from '@winsendotai/ovo-sip-carrier-kit';
 import { signedSipHttpRequest } from '@winsendotai/ovo-sip-carrier-kit/testing';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
@@ -126,6 +127,39 @@ describe('gateway Cap.sipTrunkVerifier (Wave 11)', () => {
   it('decodes base64 and base64url keys alike', () => {
     expect(sipGatewayKey('K', KEY.toString('base64'))).toEqual(new Uint8Array(KEY));
     expect(sipGatewayKey('K', ` ${KEY.toString('base64url')}\n`)).toEqual(new Uint8Array(KEY));
+    // Regression (3ef83f1): padded base64url, which the sip-gateway accepts, was refused here.
+    const urlSafe = Buffer.alloc(32, 0xfb);
+    expect(sipGatewayKey('K', `${urlSafe.toString('base64url')}=`)).toEqual(
+      new Uint8Array(urlSafe),
+    );
+  });
+
+  it('accepts and refuses exactly the keys the sip-gateway does', () => {
+    const corpus = [Buffer.alloc(32, 0xfb), Buffer.alloc(48, 0x3e), KEY].flatMap((key) => [
+      key.toString('base64'),
+      key.toString('base64').replace(/=+$/, ''),
+      key.toString('base64url'),
+      `${key.toString('base64url')}=`,
+      `\t${key.toString('base64')} \n`,
+    ]);
+    corpus.push(Buffer.alloc(31, 7).toString('base64'), 'not base64 at all!', '');
+    for (const value of corpus) {
+      const sipGateway = (() => {
+        try {
+          return decodeSipSecret(value);
+        } catch {
+          return 'refused';
+        }
+      })();
+      const gateway = (() => {
+        try {
+          return sipGatewayKey('K', value);
+        } catch {
+          return 'refused';
+        }
+      })();
+      expect(gateway, JSON.stringify(value)).toEqual(sipGateway);
+    }
   });
 
   it('stops gateway startup before it touches the database', async () => {

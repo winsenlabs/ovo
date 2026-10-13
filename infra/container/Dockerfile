@@ -74,14 +74,15 @@ ENV OVO_REVISION=$OVO_REVISION
 CMD ["node", "dist/main.cjs"]
 
 # Wave 11: the SIP/RTP endpoint. Compose runs it with host networking, so it publishes and exposes
-# nothing here; its listeners come from OVO_SIP_* (docs/env-reference.md).
+# nothing here; its listeners come from OVO_SIP_* (docs/env-reference.md). The runtime starts from
+# `base` (the same bookworm-slim image) so the image list the engine bundle test pins stays at six.
 FROM workspace AS sip-gateway-build
 RUN pnpm --filter @winsendotai/ovo-sip-gateway build \
   && pnpm --filter @winsendotai/ovo-sip-gateway deploy --prod --legacy /runtime/sip-gateway \
   && mkdir -p /runtime/sip-gateway/dist \
   && cp apps/sip-gateway/dist/main.cjs /runtime/sip-gateway/dist/main.cjs
 
-FROM node:24.8.0-bookworm-slim AS sip-gateway
+FROM base AS sip-gateway
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=sip-gateway-build /runtime/sip-gateway/ ./

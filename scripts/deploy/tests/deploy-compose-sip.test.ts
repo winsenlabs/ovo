@@ -1,5 +1,7 @@
 // deploy-compose.sh with OVO_SIP_ENABLED (Wave 11): the sip-gateway joins the deploy only behind
 // the flag, and only an image change recreates it, because a restart drops every live SIP call.
+// A configuration change (environment, trunk file, secrets) needs --recreate-sip-gateway: the
+// sip-gateway has no reload, and the runbooks name the flag for every such change.
 import { cpSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -71,8 +73,56 @@ describe('deploy-compose.sh with SIP (Wave 11)', () => {
     const run = await deploy('--images', pins(box.dir, 'b2', true), '--skip-verify');
     expect(run.code).toBe(0);
     expect(run.stderr).toContain('sip-gateway image unchanged: left running with its calls');
-    expect(ups()).not.toContain('-d --no-deps --wait sip-gateway');
+    expect(run.stderr).toContain('needs --recreate-sip-gateway');
+    expect(ups().filter((args) => args.endsWith('sip-gateway'))).toEqual([]);
     expect(ups().at(-1)).toBe('-d --wait --remove-orphans --no-recreate');
+  });
+
+  it('--recreate-sip-gateway drains and recreates an unchanged sip-gateway to apply its configuration', async () => {
+    const id = DIGEST('9');
+    const { box, deploy, ups, setDocker } = sipFixture();
+    setDocker({
+      containers: { 'sip-gateway': 'c-sip' },
+      containerImages: { 'c-sip': id },
+      imageIds: { [SIP_IMAGE]: id },
+    });
+    // As in the onboarding runbook's rollback: only .env changed (OVO_SIP_PUBLIC_ENABLED=false),
+    // which an image comparison cannot see.
+    const run = await deploy(
+      '--images',
+      pins(box.dir, 'b2', true),
+      '--recreate-sip-gateway',
+      '--skip-verify',
+    );
+    expect(run.code).toBe(0);
+    expect(run.stderr).not.toContain('image unchanged');
+    expect(ups().slice(-3)).toEqual([
+      '-d --no-deps --wait gateway',
+      '-d --no-deps --wait --force-recreate sip-gateway',
+      '-d --wait --remove-orphans --no-recreate',
+    ]);
+  });
+
+  it('keeps --recreate-sip-gateway across the re-exec of a --ref deploy', async () => {
+    const { box, deploy, ups, second } = sipFixture();
+    const run = await deploy(
+      '--ref',
+      second,
+      '--images',
+      pins(box.dir, 'b2', true),
+      '--recreate-sip-gateway',
+      '--skip-verify',
+    );
+    expect(run.code).toBe(0);
+    expect(ups()).toContain('-d --no-deps --wait --force-recreate sip-gateway');
+  });
+
+  it('refuses --recreate-sip-gateway while SIP is off, before touching docker', async () => {
+    const { box, deploy } = fixture();
+    const run = await deploy('--images', pins(box.dir), '--recreate-sip-gateway', '--skip-verify');
+    expect(run.code).toBe(2);
+    expect(run.stderr).toContain('--recreate-sip-gateway needs OVO_SIP_ENABLED=true');
+    expect(box.dockerLog()).toEqual([]);
   });
 
   it('recreates the sip-gateway, after the gateway, when its image changed', async () => {

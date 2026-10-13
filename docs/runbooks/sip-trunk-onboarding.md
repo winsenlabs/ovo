@@ -54,7 +54,8 @@ default is 200 per minute), and a sample INVITE (pcap or ladder diagram).
    `scripts/deploy/deploy-compose.sh --images <pin file>`. With `OVO_SIP_ENABLED=true` it adds the
    `sip` compose profile and starts the sip-gateway after the gateway; later deploys recreate it only
    when its image changed, because a restart drops live SIP calls (SIGTERM: new INVITEs get
-   `503 Retry-After: 30`, live calls get up to 240 s).
+   `503 Retry-After: 30`, live calls get up to 240 s). The sip-gateway has no reload, so a change
+   that leaves its image alone (step 7) reaches it only with `--recreate-sip-gateway`.
 5. **Control-port check (once per host).** The control API listens on `0.0.0.0:5090` and the
    workers call it at the compose bridge gateway, `http://172.29.240.1:5090`. Binding the bridge
    address itself from a host-network container is **UNCONFIRMED**: Wave 11 checked it on the build
@@ -67,12 +68,26 @@ default is 200 per minute), and a sample INVITE (pcap or ladder diagram).
    away other VMs in the VPC. After step 4, on the VM,
    `docker compose … exec worker-1 node -e "fetch('http://172.29.240.1:5090/v1/health',{headers:{authorization:'Bearer '+process.env.OVO_SIP_CONTROL_TOKEN}}).then(r=>console.log(r.status))"`
    must print `200`. Optional hardening once that works: `OVO_SIP_CONTROL_LISTEN=172.29.240.1:5090`
-   in `.env`, redeploy, and repeat the check (revert if the sip-gateway logs `EADDRNOTAVAIL`).
+   in `.env`, `deploy-compose.sh --images <pin file> --recreate-sip-gateway`, and repeat the check
+   (revert the same way if the sip-gateway logs `EADDRNOTAVAIL`). A plain redeploy would leave the
+   old `0.0.0.0` bind running and the check would pass without testing anything.
    Never add a firewall rule for 5090.
 6. **Turning SIP off again.** Set `OVO_SIP_ENABLED=false` and redeploy (workers refuse sip/tcn
    dials, the gateway answers 503), then stop the service explicitly:
    `docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml --profile sip stop sip-gateway`.
    A deploy with the flag off never touches it.
+7. **Changing the sip-gateway's configuration.** Any change to an `OVO_SIP_*` variable it reads
+   (`OVO_SIP_PUBLIC_ENABLED`, `OVO_SIP_PUBLIC_IP`, `OVO_SIP_CONTROL_LISTEN`, the limits), to
+   `sip-trunks.json`, to `OVO_SIP_CONTROL_TOKEN` or to `OVO_SIP_GATEWAY_SECRET` needs
+   `scripts/deploy/deploy-compose.sh --images <pin file> --recreate-sip-gateway`: it drains the
+   sip-gateway and recreates it last, after the workers and the gateway. Without the flag the
+   deploy says `sip-gateway image unchanged: left running with its calls and its old configuration`.
+   Run it when no SIP call is live; a call still up after the 240 s drain is dropped.
+   - Gateway secret: set `OVO_SIP_GATEWAY_SECRET_PREVIOUS` to the old value and
+     `OVO_SIP_GATEWAY_SECRET` to the new one, deploy with the flag (the gateway accepts both before
+     the sip-gateway switches), then clear `_PREVIOUS` and redeploy without it.
+   - Control token: there is no previous token. Workers use the new one as soon as they restart, so
+     dials get `401` until the sip-gateway is recreated at the end of the same deploy.
 
 ## 4. Network (founder; documented, not run)
 
@@ -104,12 +119,14 @@ addresses, and `OVO_SIP_MAX_CALLS`.
 - [ ] `pnpm test:sip` green on the mini for the release revision.
 - [ ] Price card for the trunk's carrier meter entered; the release checklist no longer shows it `missing`.
 - [ ] Static IP attached, firewall rules created with the trunk's CIDRs only, `OVO_SIP_PUBLIC_IP` set.
-- [ ] `OVO_SIP_PUBLIC_ENABLED=true` deployed; trunk OPTIONS pings answered (`/health?verbose=1` shows the trunk `up`).
+- [ ] `OVO_SIP_PUBLIC_ENABLED=true` deployed with `--recreate-sip-gateway` (section 3 step 7); trunk OPTIONS pings answered (`/health?verbose=1` shows the trunk `up`).
 - [ ] One inbound test call from an owned phone; the call appears with `endReason` and RTP statistics in its final status event.
 - [ ] Outbound stays `enabled: false` in the trunk file until separately approved; then one owned-number test.
 
 ## 6. Rolling back
 
-Set `OVO_SIP_PUBLIC_ENABLED=false` (loopback again) or `OVO_SIP_ENABLED=false` and redeploy; delete
-the two firewall rules. The other carriers are unaffected: the sip-gateway is a separate process
+Either set `OVO_SIP_PUBLIC_ENABLED=false` (loopback again) and redeploy with
+`--recreate-sip-gateway` (without the flag the running sip-gateway keeps its public binds), or set
+`OVO_SIP_ENABLED=false`, redeploy and stop the service as in section 3 step 6. Then delete the two
+firewall rules. The other carriers are unaffected: the sip-gateway is a separate process
 and the gateway only gains two routes that answer 503 without it.

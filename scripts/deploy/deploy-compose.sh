@@ -11,7 +11,8 @@
 #   7. dispatcher and console, then each worker and the gateway one at a time: each worker is
 #      given up to --drain-timeout to finish its call and its SIGTERM drain covers the rest;
 #      with OVO_SIP_ENABLED=true the sip-gateway (profile `sip`) follows, recreated only when its
-#      image changed, because a restart drops every live SIP call;
+#      image changed, because a restart drops every live SIP call; it has no reload, so a change to
+#      its environment, trunk file or secrets reaches it only with --recreate-sip-gateway;
 #   8. verify-compose.sh, plus ops/verify-live.sh when the live flags are on; the history entry
 #      becomes `status=ok` (`unverified` with --skip-verify), or `failed` if any step failed.
 # --rollback redeploys the newest ok or unverified entry whose revision and pins differ from the
@@ -35,6 +36,10 @@ Usage: scripts/deploy/deploy-compose.sh [options]
   --drain-timeout SECS  How long each worker restart waits for its call (default 600).
   --ops-env PATH        Host-side OVO_OPS_* file for the verification (default
                         infra/compose/.env.ops).
+  --recreate-sip-gateway
+                        Drain and recreate the sip-gateway even when its image is unchanged, to
+                        apply a change to its environment, sip-trunks.json or secrets (drops the
+                        live SIP calls left after the drain). Needs OVO_SIP_ENABLED=true.
   --skip-verify         Skip the post-deploy verification.
   --allow-dirty         Deploy a working tree with uncommitted changes.
   --dry-run             Print every mutating command instead of running it.
@@ -49,6 +54,7 @@ ROLLBACK=false
 DRAIN_TIMEOUT=600
 SKIP_VERIFY=false
 ALLOW_DIRTY=false
+RECREATE_SIP=false
 while (($#)); do
   case $1 in
     --env-file) ENV_FILE=$2; shift 2 ;;
@@ -60,6 +66,7 @@ while (($#)); do
     --rollback) ROLLBACK=true; shift ;;
     --drain-timeout) DRAIN_TIMEOUT=$2; shift 2 ;;
     --skip-verify) SKIP_VERIFY=true; shift ;;
+    --recreate-sip-gateway) RECREATE_SIP=true; shift ;;
     --allow-dirty) ALLOW_DIRTY=true; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
     -h | --help) usage; exit 0 ;;
@@ -89,6 +96,8 @@ if [[ $(env_value "$ENV_FILE" OVO_SIP_ENABLED) == true ]]; then
   profiles=${COMPOSE_PROFILES:-$(env_value "$ENV_FILE" COMPOSE_PROFILES)}
   [[ ,$profiles, == *,sip,* ]] || profiles=${profiles:+$profiles,}sip
   export COMPOSE_PROFILES=$profiles
+elif [[ $RECREATE_SIP == true ]]; then
+  die '--recreate-sip-gateway needs OVO_SIP_ENABLED=true; with SIP off, stop the service instead (docs/runbooks/sip-trunk-onboarding.md)' 2
 fi
 
 # History lines: STAMP ref=REVISION images=PIN_FILE|built previous=REVISION status=STATUS
@@ -219,6 +228,7 @@ if [[ -n $REF || $PULL == true ]]; then
     [[ $BUILD != true ]] || forward+=(--build)
     [[ $SKIP_VERIFY != true ]] || forward+=(--skip-verify)
     [[ $ALLOW_DIRTY != true ]] || forward+=(--allow-dirty)
+    [[ $RECREATE_SIP != true ]] || forward+=(--recreate-sip-gateway)
     OVO_DEPLOY_PREVIOUS_REF=$previous_ref exec bash "$OVO_ROOT/scripts/deploy/deploy-compose.sh" "${forward[@]}"
   fi
 fi
@@ -291,14 +301,20 @@ rolling_recreate dispatcher console
 step 'workers and gateway, one at a time with the drain'
 rolling_recreate worker-1 worker-2 gateway
 if [[ $SIP_ENABLED == true ]]; then
-  step 'sip-gateway (recreated only when its image changed: a restart drops live SIP calls)'
-  if [[ $DRY_RUN == true ]]; then
-    say 'dry run: would recreate sip-gateway only if its image changed'
-  elif sip_gateway_image_changed; then
+  if [[ $RECREATE_SIP == true ]]; then
+    step 'sip-gateway (--recreate-sip-gateway: drained, then started with its current configuration)'
     # SIGTERM drains it: new INVITEs get 503 and live dialogs get up to 240s (stop_grace_period).
-    rolling_recreate sip-gateway
+    run compose up -d --no-deps --wait --force-recreate sip-gateway
   else
-    say 'sip-gateway image unchanged: left running with its calls'
+    step 'sip-gateway (recreated only when its image changed: a restart drops live SIP calls)'
+    if [[ $DRY_RUN == true ]]; then
+      say 'dry run: would recreate sip-gateway only if its image changed'
+    elif sip_gateway_image_changed; then
+      rolling_recreate sip-gateway
+    else
+      say 'sip-gateway image unchanged: left running with its calls and its old configuration'
+      say 'a change to its environment, sip-trunks.json or secrets needs --recreate-sip-gateway'
+    fi
   fi
   # Starts anything still missing without recreating the sip-gateway for a configuration change.
   run compose up -d --wait --remove-orphans --no-recreate

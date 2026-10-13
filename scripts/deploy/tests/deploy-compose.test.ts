@@ -263,7 +263,9 @@ describe('Dockerfile layer order (OPS-9)', () => {
   it('builds the sip-gateway image from its own bundle, outside the default bake group', () => {
     expect(dockerfile).toContain('FROM workspace AS sip-gateway-build');
     expect(dockerfile).toContain('pnpm --filter @winsendotai/ovo-sip-gateway build');
-    expect(dockerfile).toContain('FROM node:24.8.0-bookworm-slim AS sip-gateway\n');
+    // Built on `base`, the bookworm-slim stage, keeping six `FROM node:` lines (engine bundle test).
+    expect(dockerfile).toContain('FROM base AS sip-gateway\n');
+    expect(dockerfile).toMatch(/^FROM node:24\.8\.0-bookworm-slim AS base$/m);
     const bake = readFileSync(join(ROOT, 'infra/container/docker-bake.hcl'), 'utf8');
     expect(bake).toMatch(/group "default" \{\n\s+targets = \[[^\]]*\]/);
     expect(/group "default" \{\n\s+targets = (\[[^\]]*\])/.exec(bake)![1]).not.toContain('sip');

@@ -112,7 +112,8 @@ no query on the media URL, Call-ID and stream parameters at dial, CANCEL before 
 
 - Compose profile `sip`: `deploy-compose.sh` adds it, and the service, only when
   `OVO_SIP_ENABLED=true`, and recreates the sip-gateway only when its image changed (a restart drops
-  live SIP calls).
+  live SIP calls). It has no reload: a change to its environment, trunk file or secrets needs
+  `deploy-compose.sh --recreate-sip-gateway` (runbook section 3 step 7).
 - `OVO_SIP_PUBLIC_ENABLED=false` binds SIP and RTP to `127.0.0.1`. No GCP firewall rule exists for
   5060 or the RTP range.
 - Caddy answers 404 for `/carriers/sip/*` and `/carriers/tcn/*` on the public origin.
