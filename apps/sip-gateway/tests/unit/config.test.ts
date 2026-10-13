@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -139,5 +139,17 @@ describe('trunk file (§11.2)', () => {
     expect(trunkForSource([trunk!], '198.51.100.3')?.id).toBe('trunk-a');
     expect(trunkForSource([trunk!], '::ffff:198.51.100.3')?.id).toBe('trunk-a');
     expect(trunkForSource([trunk!], '198.51.100.99')).toBeUndefined();
+  });
+});
+
+describe('the shipped example trunk file', () => {
+  it('parses: an operator who copies it gets past validation, not a startup refusal', () => {
+    const example = JSON.parse(
+      readFileSync(
+        new URL('../../../../infra/compose/sip-trunks.example.json', import.meta.url),
+        'utf8',
+      ),
+    );
+    expect(parseTrunkFile(example).map((trunk) => trunk.carrierId)).toEqual(['tcn', 'sip']);
   });
 });
