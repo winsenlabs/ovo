@@ -106,3 +106,28 @@ export function pcm16ToAlaw(pcm: Int16Array): Uint8Array {
   for (let i = 0; i < pcm.length; i += 1) out[i] = ALAW_ENCODE[pcm[i]! & 0xffff]!;
   return out;
 }
+
+/**
+ * Direct A-law ↔ μ-law transcoding through 16-bit PCM, as 256-entry tables (a SIP trunk leg in
+ * PCMA meets a μ-law-only worker). Each byte maps exactly as decode-then-encode would.
+ */
+const ALAW_TO_MULAW = Uint8Array.from(
+  { length: 256 },
+  (_, code) => MULAW_ENCODE[ALAW_DECODE[code]! & 0xffff]!,
+);
+const MULAW_TO_ALAW = Uint8Array.from(
+  { length: 256 },
+  (_, code) => ALAW_ENCODE[MULAW_DECODE[code]! & 0xffff]!,
+);
+
+export function alawToMulaw(bytes: Uint8Array): Uint8Array {
+  const out = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i += 1) out[i] = ALAW_TO_MULAW[bytes[i]!]!;
+  return out;
+}
+
+export function mulawToAlaw(bytes: Uint8Array): Uint8Array {
+  const out = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i += 1) out[i] = MULAW_TO_ALAW[bytes[i]!]!;
+  return out;
+}
