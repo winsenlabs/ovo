@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Inference, InferenceStreamEvent } from '@winsendotai/ovo-contracts';
+import type { Inference, InferenceRequest, InferenceStreamEvent } from '@winsendotai/ovo-contracts';
 import { ActivityListeners, type InferenceActivity } from '@winsendotai/ovo-plugin-kit';
 import type {
   TurnTelemetryCollector,
@@ -96,6 +96,48 @@ describe('the web_search stage (N3)', () => {
         outcome: 'unknown',
         payload: { action: null, results: null },
       },
+    ]);
+  });
+
+  it('counts a call asked ahead, and its search, on the turn it was asked for (Wave 10, B2)', async () => {
+    // Call 4f1a919d: turn 7 showed searchCalls 2; one was the call asked for turn 8's "Madras."
+    // while turn 7 was being answered. Behaviours mark such a request, and its signal, with the
+    // utterance (behaviors speculation-llm.ts, SPECULATED_UTTERANCE).
+    const asked = Symbol.for('ovo.speculation.utterance');
+    const stages: { stage: string; turnId?: string }[] = [];
+    const adapter = { startStage: () => () => true } as unknown as WorkerTelemetryAdapter;
+    const turns = {
+      activeTurnId: 'turn-7',
+      stage: (sample: { stage: string; turnId?: string }) => stages.push(sample),
+    } as unknown as TurnTelemetryCollector;
+    const telemetry: StageTelemetry = {
+      startStage: (input) => startTurnStage(adapter, turns, input, () => undefined),
+    };
+    const { inference, emit } = searchingInference();
+    instrumentInference(inference, telemetry, { provider: 'openai' });
+    const signal = new AbortController().signal;
+    Object.defineProperty(signal, asked, { value: 'turn-8' });
+    const request = Object.defineProperty({ signal } as never as InferenceRequest, asked, {
+      value: 'turn-8',
+    });
+    for await (const _ of inference.stream!(request));
+    for (const phase of ['started', 'finished'] as const)
+      emit({
+        phase,
+        tool: 'web_search',
+        id: 'ws-8',
+        atMs: 0,
+        signal,
+        ...(phase === 'finished' ? { outcome: 'succeeded' as const, durationMs: 0 } : {}),
+      } as InferenceActivity);
+    // The turn's own call is stamped with the running turn, as before.
+    for await (const _ of inference.stream!({ signal: new AbortController().signal } as never));
+    expect(stages.map(({ stage, turnId }) => [stage, turnId])).toEqual([
+      ['llm_first_token', 'turn-8'],
+      ['inference', 'turn-8'],
+      ['web_search', 'turn-8'],
+      ['llm_first_token', 'turn-7'],
+      ['inference', 'turn-7'],
     ]);
   });
 

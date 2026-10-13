@@ -31,6 +31,21 @@ export interface LlmSpeculationMetrics {
 export type InferenceCall = Omit<InferenceRequest, 'signal'>;
 
 /**
+ * Wave 10 (call 4f1a919d, B2): the caller's utterance a call asked ahead of its turn is for, set on
+ * its request and on the request's signal (which a provider-run web search reports). The worker's
+ * telemetry counts the call and its search on that turn, not on the reply running when it started:
+ * live, turn 7 showed two searches, one of them asked for turn 8's "Madras.". A registered symbol,
+ * so the worker reads it without importing this package's internals.
+ */
+export const SPECULATED_UTTERANCE: unique symbol = Symbol.for('ovo.speculation.utterance');
+
+/** The utterance a call was asked ahead for (`SPECULATED_UTTERANCE`), if it was. */
+export function speculatedUtterance(carrier: object): string | undefined {
+  const value = (carrier as { [SPECULATED_UTTERANCE]?: unknown })[SPECULATED_UTTERANCE];
+  return typeof value === 'string' ? value : undefined;
+}
+
+/**
  * LAT-3: the LLM's first step for a turn, asked while the decision model is still deciding, so a
  * turn the decision hands to the LLM does not wait for the two one after the other.
  *
@@ -53,10 +68,16 @@ export class SpeculativeLlm {
     /** Aborts the call; a call asked on a partial has no turn until one takes it (`inference`). */
     turn: AbortSignal | undefined,
     private readonly metrics: LlmSpeculationMetrics,
+    /** The caller's utterance the call is asked for, ahead of its turn (Wave 10). */
+    utterance?: string,
   ) {
     this.key = requestKey(call);
     if (turn) this.follow(turn);
-    const request = { ...call, signal: this.controller.signal };
+    const signal = this.controller.signal;
+    const request: InferenceRequest = { ...call, signal };
+    if (utterance !== undefined)
+      for (const carrier of [request, signal])
+        Object.defineProperty(carrier, SPECULATED_UTTERANCE, { value: utterance });
     metrics.started += 1;
     if (streaming && llm.stream) this.events = new BufferedStream(llm.stream(request));
     else {

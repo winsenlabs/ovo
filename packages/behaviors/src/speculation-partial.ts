@@ -142,7 +142,7 @@ export class PartialLlmSpeculation {
     this.asked = {
       turnId,
       words,
-      call: new SpeculativeLlm(llm, call, Boolean(llm.stream), undefined, this.metrics),
+      call: new SpeculativeLlm(llm, call, Boolean(llm.stream), undefined, this.metrics, turnId),
     };
   }
 
