@@ -8,6 +8,7 @@ import type {
   StreamingTts,
 } from '@winsendotai/ovo-contracts';
 import { inferenceActivity } from '@winsendotai/ovo-plugin-kit';
+import { speculatedUtterance } from '@winsendotai/ovo-behaviors';
 import type { PluginDefinition } from '@winsendotai/ovo-runtime';
 import { EndpointClock, timeFirstToken, timeWebSearches } from './telemetry-stage-clocks.ts';
 import {
@@ -138,17 +139,12 @@ export function instrumentTtsPlugin(
 
 /**
  * Wave 10 (call 4f1a919d, B2): the caller's utterance a call was asked ahead for, which behaviours
- * set on its request and the request's signal under this registered symbol
- * (`SPECULATED_UTTERANCE`, behaviors speculation-llm.ts). The call, its first token and its web
- * searches count on that turn instead of the reply running when it started.
+ * set on its request and the request's signal (`SPECULATED_UTTERANCE`). The call, its first token
+ * and its web searches count on that turn instead of the reply running when it started.
  */
-const SPECULATED_UTTERANCE = Symbol.for('ovo.speculation.utterance');
-
 function askedFor(carrier: object | undefined): { turnId?: string } {
-  const turnId = (carrier as { [SPECULATED_UTTERANCE]?: unknown } | undefined)?.[
-    SPECULATED_UTTERANCE
-  ];
-  return typeof turnId === 'string' ? { turnId } : {};
+  const turnId = carrier && speculatedUtterance(carrier);
+  return turnId ? { turnId } : {};
 }
 
 /**

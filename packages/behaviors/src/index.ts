@@ -35,6 +35,7 @@ export * from './script.ts';
 export * from './text-segmenter.ts';
 export * from './guardrail.ts';
 export * from './outcome-events.ts';
+export { SPECULATED_UTTERANCE, speculatedUtterance } from './speculation-llm.ts';
 
 /** The capability keys a behaviour plugin touches. Spelled once, in contracts (§0.3). */
 export const BEHAVIOR_SERVICE_KEYS = Object.freeze({
