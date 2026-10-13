@@ -84,12 +84,10 @@ async function post(port: HttpPort, render: HttpRender): Promise<Response> {
       response = await port.net.fetch(SYNTHESIS_URL, init);
     } catch (error) {
       if (render.signal.aborted) throw abortError(render.signal);
-      if (unavailable >= UNAVAILABLE_RETRIES) {
-        const reason = error instanceof Error ? error.name : 'Error';
-        throw new RumikTtsError(`Rumik TTS request failed (${reason})`, true);
-      }
-      await delay(BACKOFF_MS * 2 ** unavailable++, render.signal, port.clock);
-      continue;
+      // Not retried: a connection that failed after the body went out may already have been
+      // rendered and billed, and only 502 and 503 are documented as safe to repeat.
+      const reason = error instanceof Error ? error.name : 'Error';
+      throw new RumikTtsError(`Rumik TTS request failed (${reason})`, true);
     }
     if (response.ok && response.body) return response;
     const error = await responseError(response, 'TTS');

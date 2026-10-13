@@ -74,6 +74,7 @@ All retries happen before the first byte. The rules:
 | `429` (`concurrency_limit_exceeded`, `rate_limited`) | Not retried. Thrown as a retryable `RumikTtsError` with its code and `retryAfterMs` (from `Retry-After`, which only rate limiting sets). |
 | `402` (`insufficient_balance`, `access_blocked`)     | Not retryable.                                                                                                                           |
 | `401`, `403`, `400`, `422`                           | Not retryable. The socket path does not fall back to HTTP for these either, because HTTP would refuse the same way.                      |
+| A connection that fails before any response          | Not retried, because the request may already have been rendered and billed. Thrown as a retryable `RumikTtsError`.                       |
 
 `X-Usage-Cost-Nanos` (the pay-as-you-go charge, in nano units of the account currency, 0 on
 unlimited plans) and `X-Audio-Duration-Ms` are logged as `rumik.tts.http`. They are never used as a

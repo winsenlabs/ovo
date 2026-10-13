@@ -2,6 +2,7 @@ import {
   MULAW_8K,
   PCM16_24K,
   type NetFixtureStep,
+  type NetPort,
   type UsageMeter,
 } from '@winsendotai/ovo-contracts';
 import { FakeClock } from '@winsendotai/ovo-conformance';
@@ -139,6 +140,28 @@ describe('R5: POST /v1/tts', () => {
     expect(await result).toMatchObject({ error: { status: 503, retryable: true } });
     expect(posts(failing)).toBe(3);
     failing.assertComplete();
+  });
+
+  it('does not repeat a request whose connection failed, which may already be billed', async () => {
+    const net = createFixtureNet([]);
+    let calls = 0;
+    const port: NetPort = {
+      fetch: async () => {
+        calls += 1;
+        throw new TypeError('fetch failed');
+      },
+      websocket: (url, opts) => net.websocket(url, opts),
+    };
+    const usage: UsageMeter[] = [];
+    const result = await settle(
+      new RumikTts(port, FIXTURE_KEY, HTTP).synthesize(ttsInput(usage, { text: TEXT })),
+    );
+    expect(result.error).toMatchObject({
+      message: 'Rumik TTS request failed (TypeError)',
+      retryable: true,
+    });
+    expect(calls).toBe(1);
+    expect(usage).toEqual([]);
   });
 
   it('maps 402 to a non-retryable balance error, never retried', async () => {
