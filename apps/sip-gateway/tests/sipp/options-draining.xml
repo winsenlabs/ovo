@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+<!-- W11 17.3 #9: OPTIONS answered with 503 (200 normally, 503 while draining). -->
+<scenario name="options-draining">
+  <send retrans="500">
+    <![CDATA[
+
+      OPTIONS sip:[did]@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch];rport
+      From: <sip:+919876543210@[local_ip]:[local_port]>;tag=[pid]SIPpTag00[call_number]
+      To: <sip:[did]@[remote_ip]:[remote_port]>
+      Call-ID: [call_id]
+      CSeq: 1 OPTIONS
+      Max-Forwards: 70
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="503"/>
+  <ResponseTimeRepartition value="10, 20, 30, 40, 50, 100, 150, 200"/>
+  <CallLengthRepartition value="10, 50, 100, 500, 1000, 5000, 10000"/>
+</scenario>
