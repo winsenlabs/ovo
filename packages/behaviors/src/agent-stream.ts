@@ -1,5 +1,6 @@
 import {
   END_CALL_TOOL_ID,
+  FLOW_RESUME_TOOL_ID,
   type AgentReplyPacing,
   type Inference,
   type InferenceReply,
@@ -36,13 +37,25 @@ export function stripInternalNotes(text: string): string | undefined {
   return new InternalNotes().strip(text);
 }
 
-/** `events`, telling `drafted` once the model's first words arrive (Wave 9, D6). */
+/**
+ * Tools whose call brings its words with it: a goodbye (`end_call`, or the question asked in its
+ * place) or the flow's reply (`resume_flow`) is spoken as soon as the call arrives.
+ */
+const SPEAKING_TOOLS = new Set([END_CALL_TOOL_ID, FLOW_RESUME_TOOL_ID]);
+
+/**
+ * `events`, telling `drafted` once the model's first words arrive (Wave 9, D6), or a tool call
+ * that brings them (Wave 10, L3: call 4f1a919d turn 11's end_call came 0.21 s after its filler).
+ */
 async function* noticeWords(
   events: AsyncIterable<InferenceStreamEvent>,
   drafted: (() => void) | undefined,
 ): AsyncGenerator<InferenceStreamEvent> {
   for await (const event of events) {
-    if (drafted && event.kind === 'text-delta' && event.delta.trim()) {
+    const words =
+      (event.kind === 'text-delta' && event.delta.trim()) ||
+      (event.kind === 'tool' && SPEAKING_TOOLS.has(event.toolId));
+    if (drafted && words) {
       drafted();
       drafted = undefined;
     }
@@ -50,17 +63,67 @@ async function* noticeWords(
   }
 }
 
-/** `inference`, its streamed replies telling `drafted` once their first words arrive. */
-export function noticingWords(inference: Inference, drafted: () => void): Inference {
+/**
+ * How far the reply to each playback epoch has come, for the engine's filler: its first words are
+ * in (Wave 9, D6), and whether its model request was sent the provider's own tools, a web search
+ * (Wave 10, L3).
+ */
+export class ReplyProgress {
+  private drafted?: number;
+  private asked?: { epoch: number; lookingUp: boolean };
+
+  /**
+   * `inference` as the reply composed in `epoch` asks it, while `current()`; `limited` says which
+   * requests go with the provider's tools (`Inference.sendsProviderTools`).
+   */
+  follow(
+    inference: Inference,
+    epoch: number | undefined,
+    current: () => boolean,
+    limited?: Inference,
+  ): Inference {
+    if (epoch === undefined) return inference;
+    return noticingWords(
+      inference,
+      () => {
+        if (current()) this.drafted = epoch;
+      },
+      (request) => {
+        const lookingUp = limited?.sendsProviderTools?.(request) ?? false;
+        if (current()) this.asked = { epoch, lookingUp };
+      },
+    );
+  }
+
+  drafting(epoch: number | undefined): boolean {
+    return epoch !== undefined && this.drafted === epoch;
+  }
+
+  lookingUp(epoch: number | undefined): boolean | undefined {
+    return epoch !== undefined && this.asked?.epoch === epoch ? this.asked.lookingUp : undefined;
+  }
+}
+
+/** `inference`, telling `drafted` once a streamed reply's first words arrive, `sent` each request. */
+function noticingWords(
+  inference: Inference,
+  drafted: () => void,
+  sent: (request: InferenceRequest) => void,
+): Inference {
   const stream = inference.stream;
   return {
     ...(inference.provider ? { provider: inference.provider } : {}),
     ...(inference.model ? { model: inference.model } : {}),
-    generate: (request) => inference.generate(request),
+    generate: (request) => {
+      sent(request);
+      return inference.generate(request);
+    },
     ...(stream
       ? {
-          stream: (request: InferenceRequest) =>
-            noticeWords(stream.call(inference, request), drafted),
+          stream: (request: InferenceRequest) => {
+            sent(request);
+            return noticeWords(stream.call(inference, request), drafted);
+          },
         }
       : {}),
   };

@@ -1,4 +1,5 @@
-import { seeksInformation } from './agent-unclear.ts';
+import { baseLanguageOf } from './agent-language.ts';
+import { acknowledgementOnly, confirmationOnly, seeksInformation } from './agent-unclear.ts';
 import { normalizeForMatch } from './text.ts';
 
 /*
@@ -100,27 +101,159 @@ export function saysGoodbye(text: string): boolean {
  */
 export function closesConversation(text: string): boolean {
   if (seeksInformation(text) || /[?？]/u.test(text)) return false;
-  let thanks = false;
-  let done = false;
-  let declined = false;
-  let well = false;
-  // Phrases never run across the STT's punctuation: "No. I'm good" is a no and "I'm good".
+  const said = readPhrases(text, [THANKS, DONE, WELL, NO, ALONG]);
+  if (!said) return false;
+  const has = (kind: number) => said.includes(kind);
+  return has(0) && (has(1) || (has(2) && has(3)));
+}
+
+/**
+ * Wave 10 (Maya call 4f1a919d, B3): putting off what the agent offered ("I'll take it later",
+ * "maybe later", "not now", "baad mein"). A first-person "I'll … later" of up to four words in
+ * between is one too ("I'll book it later", "we will do that later").
+ */
+const LATER = phrases(
+  [
+    'later|later on|maybe later|some other time|another time|not now|not right now|not today',
+    "next time|i'll think about it|i will think about it|i'll let you know|i will let you know",
+    "i'll get back to you|i will get back to you|let me think about it|i'll see|i will see",
+    'baad mein|baad me|phir kabhi|dekh lunga|dekh lungi|dekh lenge|soch ke bataunga',
+    'soch ke batati hoon|बाद में|फिर कभी|देख लूंगा|देख लूँगा|देख लूंगी',
+  ].join('|'),
+);
+const FUTURE = phrases("i'll|i will|we'll|we will");
+
+/** The "I'll … later" `words` start with at `at`: its length, or 0. */
+function putOffAt(words: readonly string[], at: number): number {
+  const subject = phraseAt(words, at, FUTURE);
+  if (!subject) return 0;
+  const last = Math.min(words.length, at + subject + 5);
+  for (let end = at + subject + 1; end < last; end += 1)
+    if (words[end] === 'later') return end + 1 - at;
+  return 0;
+}
+
+/**
+ * The kind of each phrase `text` is made of, in order, as the index of its list in `lists` (with
+ * `extra` read as the index after them), or undefined when any word is in none of them. Phrases
+ * never run across the STT's punctuation: "No. I'm good" is a no and "I'm good".
+ */
+function readPhrases(
+  text: string,
+  lists: readonly (readonly string[][])[],
+  extra?: (words: readonly string[], at: number) => number,
+): number[] | undefined {
+  const said: number[] = [];
   for (const clause of text.split(/[.,!;:।…—–]+/u)) {
     const words = normalizeForMatch(clause).split(' ').filter(Boolean);
     for (let at = 0; at < words.length;) {
-      const [said, matched] = [THANKS, DONE, WELL, NO, ALONG]
-        .map((list) => phraseAt(words, at, list))
-        .reduce<[number, number]>(
-          (best, length, index) => (length > best[1] ? [index, length] : best),
-          [-1, 0],
-        );
-      if (!matched) return false;
-      thanks ||= said === 0;
-      done ||= said === 1;
-      well ||= said === 2;
-      declined ||= said === 3;
+      const lengths = lists.map((list) => phraseAt(words, at, list));
+      if (extra) lengths.push(extra(words, at));
+      const [kind, matched] = lengths.reduce<[number, number]>(
+        (best, length, index) => (length > best[1] ? [index, length] : best),
+        [-1, 0],
+      );
+      if (!matched) return undefined;
+      said.push(kind);
       at += matched;
     }
   }
-  return thanks && (done || (well && declined));
+  return said;
+}
+
+/**
+ * Wave 10 (Maya call 4f1a919d, B3): the caller declines what the agent offered or asked, puts it
+ * off and thanks them, and says nothing else: a no first, thanks last ("No, okay, I'll take it
+ * later. Thank you so much.", "Nahi, baad mein. Thank you."). A closing when it answers the agent's
+ * offer or question (`EndCallGate`); live, asked "Shall I end the call?" after it, the caller only
+ * said yes. Not a bare "No thanks." (the caller may go on), nor thanks first ("Thank you, I'll book
+ * it later. And hotels?"), nor anything that asks.
+ */
+export function declinesWithThanks(text: string): boolean {
+  if (seeksInformation(text) || /[?？]/u.test(text)) return false;
+  const said = readPhrases(text, [THANKS, DONE, WELL, NO, ALONG, LATER], putOffAt);
+  // What rides along aside ("Okay, no, …", "…thank you so much"): a no first and thanks last.
+  const core = said?.filter((kind) => kind !== 4);
+  if (!core || core[0] !== 3 || core.at(-1) !== 0) return false;
+  return core.some((kind) => kind === 5 || kind === 6);
+}
+
+/**
+ * Wave 10 (Maya call 4f1a919d, L3): words whose reply is a few words with nothing to look up: an
+ * acknowledgement, a yes or no, thanks, a confirmation, a goodbye or a closing. A filler line before
+ * such a reply is cut as it starts (turns 8, 11 and 12 played "One moment." 0.1–0.9 s before
+ * replies of four to eight words), so none is played for them.
+ */
+export function expectsShortReply(text: string): boolean {
+  return acknowledgementOnly(text) || confirmationOnly(text) || endsConversation(text);
+}
+
+/**
+ * The caller says goodbye or closes the conversation (`saysGoodbye`, `closesConversation`,
+ * `declinesWithThanks`): what is said next is a goodbye, or the question whether to end the call.
+ */
+export function endsConversation(text: string): boolean {
+  return saysGoodbye(text) || closesConversation(text) || declinesWithThanks(text);
+}
+
+/**
+ * Wave 10 (Maya call 4f1a919d, L2): the lines around the agent's own question before it ends a
+ * call it was not clearly asked to end: the question, the goodbye a yes gets when the model's own
+ * goodbye is not to hand, and the line a no gets. Fixed, so each is a clip rendered with the
+ * release. English and Hindi; any other agent asks and answers through the model.
+ */
+const ENDING_LINES: Readonly<Record<string, EndingLines>> = {
+  en: {
+    ask: 'Shall I end the call?',
+    goodbye: 'Thank you for your time. Goodbye!',
+    resume: 'Sure. What else can I help you with?',
+  },
+  hi: {
+    ask: 'क्या मैं कॉल खत्म कर दूँ?',
+    goodbye: 'आपके समय के लिए धन्यवाद। नमस्ते!',
+    resume: 'ठीक है। बताइए, और क्या मदद करूँ?',
+  },
+};
+
+export interface EndingLines {
+  ask: string;
+  goodbye: string;
+  resume: string;
+}
+
+export function endingLines(language: string): EndingLines | undefined {
+  return ENDING_LINES[baseLanguageOf(language)];
+}
+
+/** A yes, said alone or with thanks or a goodbye ("Yeah, yeah, please.", "Haan ji, end it."). */
+const YES = phrases(
+  [
+    'yes|yeah|yep|yup|ya|sure|ok|okay|alright|all right|go ahead|please do|do it|end it|you can',
+    'haan|haan ji|ji haan|theek hai|ठीक है|हाँ|हां|जी|हाँ जी|ஆமா|ஆமாம்|சரி',
+  ].join('|'),
+);
+/** A no, said alone ("No.", "No, no, wait.", "Not yet.", "Nahi."). */
+const NOT_YET = phrases(
+  [
+    'no|nope|nah|no no|not yet|not now|not right now|wait|hold on|one second|one sec|one minute',
+    'nahi|nahin|abhi nahi|ruko|नहीं|अभी नहीं|रुको|இல்லை|வேண்டாம்',
+  ].join('|'),
+);
+/** Words a yes or a no is said with that change neither. */
+const ASIDE = phrases(
+  'please|sir|madam|maam|ma am|ji|bhai|boss|dear|oh|um|uh|umm|hmm|actually|so|well|very|much',
+);
+
+/**
+ * Wave 10 (L2): the caller's answer to the agent's "Shall I end the call?" when it is nothing but
+ * a yes (with thanks or a goodbye) or nothing but a no: `yes` ends the call and `no` carries on,
+ * each with a fixed line and no model. Anything more ("Yes, but first the hotels", "No, thank
+ * you.") is the model's to read.
+ */
+export function answersEnding(text: string): 'yes' | 'no' | undefined {
+  if (/[?？]/u.test(text)) return undefined;
+  const yes = readPhrases(text, [YES, THANKS, GOODBYES, ASIDE]);
+  if (yes?.some((kind) => kind === 0 || kind === 2)) return 'yes';
+  const no = readPhrases(text, [NOT_YET, ASIDE]);
+  return no?.includes(0) ? 'no' : undefined;
 }

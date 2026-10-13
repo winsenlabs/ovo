@@ -68,7 +68,9 @@ describe('call 10d5ef30 D4: a clear closing ends the call without asking', () =>
     // "Thank you." alone may be a thank-you for the answer: it is still asked about.
     expect(await m.turn('Thank you.')).toEqual([ASK]);
     expect(m.behavior.isComplete()).toBe(false);
-    expect(await m.turn('Yeah, yeah, please.')).toEqual([GOODBYE]);
+    // Wave 10 (L2): the plain yes gets the fixed goodbye, a clip, with no model request.
+    expect(await m.turn('Yeah, yeah, please.')).toEqual(['Thank you for your time. Goodbye!']);
+    expect(m.model.requests).toHaveLength(19);
     expect(m.behavior.isComplete()).toBe(true);
   });
 

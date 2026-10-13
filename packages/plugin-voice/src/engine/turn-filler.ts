@@ -1,4 +1,10 @@
-import type { Clock } from '@winsendotai/ovo-contracts';
+import {
+  endsConversation,
+  expectsShortReply,
+  SAID_BEFORE_REPLY_VARIABLE,
+  seeksInformation,
+  type Clock,
+} from '@winsendotai/ovo-contracts';
 import type { InferenceActivity } from '@winsendotai/ovo-plugin-kit';
 import type { BoundedSpeechScheduler } from '../scheduler.ts';
 import type { ReplyAudibility } from './turn-audibility.ts';
@@ -36,6 +42,15 @@ interface Armed {
  * Wave 9 (call 10d5ef30, D6): one filler line per turn in all, "still checking" included: it plays
  * only on a turn that has heard none ("One moment. Still checking, one moment." on turns 13 and
  * 17, "Let me look that up. Still checking, one moment." on turn 17).
+ * Wave 10 (call 4f1a919d, L3): no generic filler before a goodbye or a closing, however the reply
+ * is composed (`endsConversation`: turn 11, "No, okay, I'll take it later. Thank you so much.",
+ * cut "One moment." 0.21 s in), nor before a reply of a few words that cannot search
+ * (`Behavior.lookingUp` false): an acknowledgement, a yes or no, thanks or a confirmation
+ * (`expectsShortReply`; turn 12 cut it 0.08 s in), or words that only add to words just answered
+ * (B1: "Madras.", turn 8, cut 0.88 s in). A yes that accepts an offer to look something up is
+ * sent the search, and keeps its filler (call-3 turn 21).
+ * `afterMs` runs from when the reply starts being composed: the turn's endpoint decision, or for
+ * words queued behind a reply, the end of that reply.
  * The filler is never handed to the behaviour: it is not part of the conversation it records. Its
  * speaking interval is announced as a filler (`bot.started.filler`), so the caller's words over it
  * are taken as in silence rather than as backchannels (AGT-9).
@@ -54,6 +69,8 @@ export class TurnFiller {
     private readonly failed: (turnId: string, error: unknown) => void,
     /** Wave 9 (D6): the reply's first words are in (`Behavior.drafting`). */
     private readonly drafting: () => boolean = () => false,
+    /** Wave 10 (L3): the reply may search (`Behavior.lookingUp`); undefined while unknown. */
+    private readonly lookingUp: () => boolean | undefined = () => undefined,
   ) {}
 
   /**
@@ -78,12 +95,13 @@ export class TurnFiller {
         if (this.armed === armed && !early.signal.aborted) this.activity(early);
       });
     const filler = turn.filler;
-    if (filler && !turn.fillerPlayed)
+    if (filler && !turn.fillerPlayed && !endsConversation(turn.input))
       armed.timers.push(
         this.clock.setTimeout(() => {
           // Wave 9 (D6): with the reply's first words in, its first line is a few hundred ms away;
           // a filler now would be cut as it starts (call 10d5ef30 turn 22: 180 ms of it).
           if (!this.speakable(armed) || this.drafting()) return;
+          if (this.lookingUp() === false && shortReply(turn)) return;
           turn.fillerPlayed = true;
           this.play(armed, filler.text);
         }, filler.afterMs),
@@ -170,4 +188,10 @@ export class TurnFiller {
       this.failed(turn.id, error);
     });
   }
+}
+
+/** Wave 10 (L3): the reply to `turn` is predictably a few words, so it needs no filler line. */
+function shortReply({ input, extra }: Turn): boolean {
+  const adds = extra[SAID_BEFORE_REPLY_VARIABLE] !== undefined && !seeksInformation(input);
+  return adds || expectsShortReply(input);
 }

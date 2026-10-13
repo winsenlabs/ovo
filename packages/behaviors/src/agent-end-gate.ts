@@ -1,11 +1,14 @@
 import {
   affirmationOnly,
-  baseLanguageOf,
+  answersEnding,
   classifyConfirmation,
+  declinesWithThanks,
   DEFAULT_END_CALL_MIN_CALL_SECONDS,
   DEFAULT_END_CALL_MIN_CALLER_TURNS,
   closesConversation,
+  endingLines,
   normalizeForMatch,
+  SAID_BEFORE_REPLY_VARIABLE,
   saysGoodbye,
   UNTRUSTED_INPUT_VARIABLE,
   type AgentConfig,
@@ -52,23 +55,26 @@ export function foreignScript(text: string, allowed: ReadonlySet<string>): boole
 /**
  * Wave 8b: what the agent asks when it may want to end the call but the caller has not clearly
  * asked to, or was not heard clearly (Maya call e8a43f65: "Ma'am, create a call." ended it). A yes
- * to it ends the call. English and Hindi agents have it; any other the model asks in its words.
+ * to it ends the call. English and Hindi agents have it (contracts `endingLines`); any other the
+ * model asks in its words.
  */
-const ASK_TO_END: Readonly<Record<string, string>> = {
-  en: 'Shall I end the call?',
-  hi: 'क्या मैं कॉल खत्म कर दूँ?',
-};
-
-/** The line an agent speaking `language` asks before ending a call it was not clearly asked to. */
 export function askToEndLine(language: string): string | undefined {
-  return ASK_TO_END[baseLanguageOf(language)];
+  return endingLines(language)?.ask;
 }
 
 export const END_REFUSED = {
   unheard: 'the caller was not heard clearly',
   early: 'the conversation has only just started',
   unasked: 'the caller has not clearly asked to end the call',
+  // Wave 10 (B1): never asked about; the model answers the words instead.
+  beforeReply: 'the caller said this before hearing your last reply',
 } as const;
+
+/** Words said before the caller heard the agent's last reply (`SAID_BEFORE_REPLY_VARIABLE`). */
+export function saidBeforeReply(variables: Readonly<Record<string, unknown>>): string | undefined {
+  const earlier = variables[SAID_BEFORE_REPLY_VARIABLE];
+  return typeof earlier === 'string' && earlier.trim() ? earlier : undefined;
+}
 
 /**
  * A yes to the agent's question, however it goes on ("Yes.", "Haan ji, end it."): the model still
@@ -89,11 +95,19 @@ function saysYes(text: string): boolean {
  * Wave 8b: past the minimums it still ends only on a clear goodbye or ask to end the call, or a
  * yes to the agent's own `askToEndLine` (call e8a43f65 hung up on "Ma'am, create a call.").
  * Wave 9: or on a closing (`closesConversation`), which is asked about only before the minimums.
+ * Wave 10 (Maya call 4f1a919d): a decline with thanks that answers the agent's question or offer
+ * ("No, okay, I'll take it later. Thank you so much.", B3) is a closing too; and words said before
+ * the caller heard the agent's last reply (B1: "Madras." queued 17.8 s behind the answer to
+ * "Chennai, Chennai.") answer nothing in it, so they end the call only on a goodbye, and a yes
+ * among them is no yes to the agent's question.
  */
 export class EndCallGate {
   private callerTurns = 0;
   /** The words of the last turn counted. */
   private last = '';
+  /** Wave 10 (L2): the reason of the model's `end_call` the agent asked about, this turn and last. */
+  private askedReason?: string;
+  private lastAsked?: string;
   private readonly startedAt: number;
   private readonly scripts: Set<string>;
 
@@ -114,8 +128,9 @@ export class EndCallGate {
     variables: Readonly<Record<string, unknown>>,
     previous: readonly string[] = [],
   ): string | undefined {
-    if (variables[UNTRUSTED_INPUT_VARIABLE] === true || foreignScript(input, this.scripts))
-      return END_REFUSED.unheard;
+    this.lastAsked = this.askedReason;
+    this.askedReason = undefined;
+    if (this.untrusted(input, variables)) return END_REFUSED.unheard;
     // AGT-10: a reply the caller spoke over before hearing any of it is run again on both
     // utterances together, which carry on the words already counted: still one caller turn. (Words
     // said again in a turn of their own count once too; the gate only ever waits longer for it.)
@@ -123,13 +138,57 @@ export class EndCallGate {
     if (!this.last || (words !== this.last && !words.startsWith(`${this.last} `)))
       this.callerTurns += 1;
     this.last = words;
-    if (saysGoodbye(input) || (this.askedToEnd(previous) && saysYes(input))) return undefined;
+    if (saysGoodbye(input)) return undefined;
+    if (saidBeforeReply(variables)) return END_REFUSED.beforeReply;
+    if (this.askedToEnd(previous) && saysYes(input)) return undefined;
     const ending = this.config.ending;
     const turns = ending?.minCallerTurns ?? DEFAULT_END_CALL_MIN_CALLER_TURNS;
     const seconds = ending?.minCallSeconds ?? DEFAULT_END_CALL_MIN_CALL_SECONDS;
     if (this.callerTurns < turns || this.now() - this.startedAt < seconds * 1000)
       return END_REFUSED.early;
-    return closesConversation(input) ? undefined : END_REFUSED.unasked;
+    const closes =
+      closesConversation(input) || (declinesWithThanks(input) && askedOrOffered(previous));
+    return closes ? undefined : END_REFUSED.unasked;
+  }
+
+  /**
+   * Wave 10 (L2): the caller's answer to the agent's own `askToEndLine`, when it is a plain yes or
+   * no (`answersEnding`) the agent can answer without the model: in call 4f1a919d "Yeah, yeah."
+   * waited 1.58 s for the model, and heard "One moment." first, to be told goodbye. Never for
+   * words that are untrusted or were said before the question was heard.
+   */
+  answeredAsk(
+    input: string,
+    variables: Readonly<Record<string, unknown>>,
+    previous: readonly string[],
+  ): 'yes' | 'no' | undefined {
+    if (this.untrusted(input, variables) || saidBeforeReply(variables)) return undefined;
+    return this.askedToEnd(previous) ? answersEnding(input) : undefined;
+  }
+
+  /** The agent asked `askToEndLine` in place of the model's `end_call`, which gave `reason`. */
+  asked(reason: string): void {
+    this.askedReason = reason;
+  }
+
+  /**
+   * The fixed line `answeredAsk` gets, read after `turn`: a yes is told goodbye and ends the call
+   * (`end`, the reason of the model's `end_call` that was asked about); a no carries on.
+   */
+  fixedReply(
+    input: string,
+    variables: Readonly<Record<string, unknown>>,
+    previous: readonly string[],
+  ): { line: string; end?: string } | undefined {
+    const answer = this.answeredAsk(input, variables, previous);
+    const lines = answer && endingLines(this.config.language);
+    if (!lines) return undefined;
+    if (answer === 'no') return { line: lines.resume };
+    return { line: lines.goodbye, end: this.lastAsked ?? 'llm:end_call' };
+  }
+
+  private untrusted(input: string, variables: Readonly<Record<string, unknown>>): boolean {
+    return variables[UNTRUSTED_INPUT_VARIABLE] === true || foreignScript(input, this.scripts);
   }
 
   /** The agent's last line asked whether to end the call. */
@@ -138,4 +197,9 @@ export class EndCallGate {
     const last = previous.at(-1);
     return Boolean(asked && last && normalizeForMatch(last) === normalizeForMatch(asked));
   }
+}
+
+/** The agent's last turn asked the caller something or offered something ("Want more detail?"). */
+function askedOrOffered(previous: readonly string[]): boolean {
+  return previous.some((line) => /[?？]/u.test(line));
 }

@@ -7,6 +7,7 @@ import {
   type KnowledgePort,
   type ToolDefinition,
 } from '@winsendotai/ovo-contracts';
+import type { AgentTurnLog } from './agent-turn-log.ts';
 import { addIsoFormats } from './schema-formats.ts';
 
 export class AgentToolSelectionError extends Error {
@@ -104,4 +105,41 @@ export function endCallReason(input: unknown): string {
   return typeof reason === 'string' && reason.trim()
     ? `llm:end_call:${reason.trim()}`
     : 'llm:end_call';
+}
+
+/**
+ * The approved tool the model's reply selects, its input checked against the tool's schema; a
+ * tool error (`AgentTurnLog.toolError`) thrown when it is unknown or its input is invalid.
+ */
+export function selectedTool(
+  step: {
+    tools: readonly ToolDefinition[];
+    validators: ReadonlyMap<string, ValidateFunction>;
+    log: AgentTurnLog;
+    turn: number;
+  },
+  reply: { toolId: string; input: unknown },
+): ToolDefinition {
+  const tool = step.tools.find((candidate) => candidate.id === reply.toolId);
+  if (!tool) {
+    throw step.log.toolError(
+      step.turn,
+      reply.toolId,
+      'unknown-or-unapproved',
+      `Inference selected unknown or unapproved tool: ${reply.toolId}`,
+    );
+  }
+  const validate = step.validators.get(tool.id)!;
+  if (!validate(reply.input)) {
+    const reason = validate.errors
+      ?.map((error) => `${error.instancePath || '/'} ${error.message ?? 'is invalid'}`)
+      .join('; ');
+    throw step.log.toolError(
+      step.turn,
+      tool.id,
+      'invalid-input',
+      `Inference supplied invalid input for ${tool.id}: ${reason ?? 'schema mismatch'}`,
+    );
+  }
+  return tool;
 }

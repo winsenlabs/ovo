@@ -12,7 +12,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { streamAgentReply, stripInternalNotes } from './agent-stream.ts';
 import { EndCallRefusal } from './agent-end-refusal.ts';
-import { endCallReason, isEndCall } from './agent-tools.ts';
+import { endCallReason, isEndCall, selectedTool } from './agent-tools.ts';
 import type { AgentTurnLog } from './agent-turn-log.ts';
 import type { ToolConfirmation } from './confirmation.ts';
 import { applyFlowResume, interceptLateResume, readFlowResume } from './flow-rejoin.ts';
@@ -40,6 +40,8 @@ export interface InferenceStepInput {
   endCall: (reason: string) => void;
   /** N1: why the LLM may not end the call on this turn (`EndCallGate`); undefined when it may. */
   endRefused?: () => string | undefined;
+  /** Wave 10 (L2): "Shall I end the call?" was said for the model's `end_call` with `reason`. */
+  askedToEnd?: (reason: string) => void;
   operationId: () => string;
   turn: number;
   /** False once a newer turn has superseded this one. */
@@ -63,6 +65,8 @@ export interface InferenceStepInput {
   replyCut?: boolean;
   /** What the agent said in its previous turn, so the uncertainty line is not said twice (P10). */
   previous?: readonly string[];
+  /** Wave 10 (B1): the earlier words this turn's were said after, before their reply was heard. */
+  saidBefore?: string;
 }
 
 /**
@@ -150,7 +154,7 @@ async function* inferenceSteps(
         (input) => {
           const accepted = isEndCall(step.tools, step.validators, input);
           // A refused goodbye already streamed stays said; the call stays open.
-          if (accepted) ending.afterText(() => step.endCall(endCallReason(input)));
+          if (accepted) ending.afterText(input, () => step.endCall(endCallReason(input)));
           return accepted;
         },
         streamGuard,
@@ -198,31 +202,11 @@ async function* inferenceSteps(
       return;
     }
 
-    const tool = step.tools.find((candidate) => candidate.id === reply.toolId);
-    if (!tool) {
-      throw step.log.toolError(
-        step.turn,
-        reply.toolId,
-        'unknown-or-unapproved',
-        `Inference selected unknown or unapproved tool: ${reply.toolId}`,
-      );
-    }
-    const validate = step.validators.get(tool.id)!;
-    if (!validate(reply.input)) {
-      const reason = validate.errors
-        ?.map((error) => `${error.instancePath || '/'} ${error.message ?? 'is invalid'}`)
-        .join('; ');
-      throw step.log.toolError(
-        step.turn,
-        tool.id,
-        'invalid-input',
-        `Inference supplied invalid input for ${tool.id}: ${reason ?? 'schema mismatch'}`,
-      );
-    }
+    const tool = selectedTool(step, reply);
     if (tool.id === END_CALL_TOOL_ID) {
       const why = ending.refused(false);
       // Wave 8b: an ending the caller did not clearly ask for is asked about, and waits for them.
-      const ask = why && ending.ask(why);
+      const ask = why && ending.ask(why, reply.input);
       if (ask) return yield publish(ask);
       // Refused: the model hears why, and answers the caller instead in its next step.
       if (why) {

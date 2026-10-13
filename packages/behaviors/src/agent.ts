@@ -3,8 +3,7 @@ import { runPreReplySteps } from './agent-pre-reply.ts';
 import { resumeConfirmation } from './agent-confirmation-step.ts';
 import { firstInferenceRequest, runInferenceSteps } from './agent-inference-step.ts';
 import { AgentSessionAhead } from './agent-session-ahead.ts';
-import { noticingWords } from './agent-stream.ts';
-import { EndCallGate } from './agent-end-gate.ts';
+import { saidBeforeReply } from './agent-end-gate.ts';
 import { OPT_OUT_COMPLETION } from './opt-out.ts';
 import type { AgentBehaviorOptions } from './agent-tools.ts';
 import { AgentHandoffs } from './handoff.ts';
@@ -31,8 +30,6 @@ export class AgentBehavior extends AgentSessionAhead {
   private readonly handoffs: AgentHandoffs;
   /** Execution with the built-in handoff tools answered in the behaviour. */
   private readonly toolExecution: Execution;
-  /** N1: when the LLM's `end_call` may end the call. */
-  private readonly endGate: EndCallGate;
 
   constructor(
     config: AgentConfig,
@@ -54,8 +51,6 @@ export class AgentBehavior extends AgentSessionAhead {
     this.handoffs.offer(this.tools, this.validators);
     this.handoffs.follow(this.flow);
     this.toolExecution = this.handoffs.execution(execution);
-    const now = options.now ?? (() => new Date());
-    this.endGate = new EndCallGate(this.config, () => now().getTime());
   }
 
   /** A flow node that transfers completes with a `transfer:` reason, ending as `transferred`. */
@@ -63,22 +58,7 @@ export class AgentBehavior extends AgentSessionAhead {
     return this.handoffs.completionReason(super.completionReason());
   }
 
-  async respond(input: string, variables: Record<string, unknown> = {}): Promise<string> {
-    const segments: string[] = [];
-    for await (const segment of this.runResponse(input, false, variables)) segments.push(segment);
-    return segments.join(' ');
-  }
-
-  respondStream(input: string, variables: Record<string, unknown> = {}): AsyncIterable<string> {
-    return this.runResponse(input, true, variables);
-  }
-
-  /** Wave 8: with the LLM call asked on the turn's partial words, used if it asks the same. */
-  private runResponse(input: string, streaming: boolean, variables: Record<string, unknown>) {
-    return this.ahead.withLlm((asked) => this.answer(input, streaming, variables, asked));
-  }
-
-  private async *answer(
+  protected async *answer(
     input: string,
     streaming: boolean,
     variables: Record<string, unknown>,
@@ -121,6 +101,8 @@ export class AgentBehavior extends AgentSessionAhead {
     const controller = new AbortController();
     const turn = ++this.turn;
     const endRefused = this.endGate.turn(input, variables, previous);
+    const fixed = this.endGate.fixedReply(input, variables, previous);
+    const saidBefore = saidBeforeReply(variables);
     this.active = controller;
     const results: OperationRecord[] = [];
     const history = this.conversation.user(input);
@@ -138,12 +120,19 @@ export class AgentBehavior extends AgentSessionAhead {
         ...(this.flow ? { flow: this.flow } : {}),
         replyCut,
         previous,
+        ...(saidBefore ? { saidBefore } : {}),
       }),
     );
 
     try {
       const disclosure = this.disclosureAgain();
       if (disclosure !== undefined) yield disclosure;
+      // Wave 10 (L2): a plain yes or no to "Shall I end the call?" gets its fixed line, a clip.
+      if (fixed) {
+        if (fixed.end) this.ending.arm(fixed.end, { terminal: this.flow?.state.ended });
+        yield this.say(fixed.line, turn);
+        return this.ending.seal();
+      }
       if (this.confirmation.waiting) {
         const resumed = await resumeConfirmation({
           confirmation: this.confirmation,
@@ -215,9 +204,12 @@ export class AgentBehavior extends AgentSessionAhead {
       yield* runInferenceSteps({
         config: this.config,
         // Wave 9 (D6): the reply's first words mark it as drafting, for the engine's filler.
-        inference: noticingWords(early?.inference(asked) ?? asked ?? this.inference, () => {
-          if (turn === this.turn) this.draftedEpoch = this.epoch;
-        }),
+        inference: this.progress.follow(
+          early?.inference(asked) ?? asked ?? this.inference,
+          this.epoch,
+          () => turn === this.turn,
+          this.inference,
+        ),
         execution: this.toolExecution,
         identity: { workspaceId: this.options.workspaceId, sessionId: this.options.sessionId },
         tools: this.tools,
@@ -228,6 +220,7 @@ export class AgentBehavior extends AgentSessionAhead {
         publish: (text) => this.say(text, turn),
         endCall: (reason) => this.ending.arm(reason, { terminal: this.flow?.state.ended }),
         endRefused: () => endRefused,
+        askedToEnd: (reason) => turn === this.turn && this.endGate.asked(reason),
         operationId: this.operationId,
         turn,
         current: () => turn === this.turn,
@@ -243,6 +236,7 @@ export class AgentBehavior extends AgentSessionAhead {
         guard: language ? (segment) => language.check(segment) : prepared.guard,
         replyCut,
         previous,
+        ...(saidBefore ? { saidBefore } : {}),
       });
       if (language?.replaced) this.ending.cancel();
       this.ending.seal();

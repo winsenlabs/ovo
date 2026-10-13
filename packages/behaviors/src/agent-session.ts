@@ -38,6 +38,8 @@ import { DISCLOSURE_FIELD, disclosureLine, disclosureSpeechKind } from './disclo
 import { MustHear } from './must-hear.ts';
 import { CallLanguages } from './language-guard.ts';
 import { SearchBudget } from './search-budget.ts';
+import { EndCallGate } from './agent-end-gate.ts';
+import { ReplyProgress } from './agent-stream.ts';
 
 /**
  * One agent call's state and the hooks the engine calls between turns: playback, cancellation and
@@ -76,8 +78,8 @@ export abstract class AgentSession implements Behavior {
   protected readonly mustHear = new MustHear();
   /** The playback epoch of the turn in progress. */
   protected epoch?: number;
-  /** Wave 9 (D6): the epoch whose reply has its first words from the LLM. */
-  protected draftedEpoch?: number;
+  /** Wave 9 (D6), Wave 10 (L3): how far the reply in progress has come, for the filler. */
+  protected readonly progress = new ReplyProgress();
   /** The disclosure was cut before the caller heard it, and how often it was said again. */
   private disclosureCut = false;
   private disclosureRepeats = 0;
@@ -119,6 +121,8 @@ export abstract class AgentSession implements Behavior {
   protected readonly inference: Inference | undefined;
   /** Wave 9 (D8): one web search for the caller's words, however many requests ask on them. */
   private readonly searches?: SearchBudget;
+  /** N1: when the LLM's `end_call` may end the call. */
+  protected readonly endGate: EndCallGate;
 
   constructor(
     config: AgentConfig,
@@ -163,6 +167,8 @@ export abstract class AgentSession implements Behavior {
     this.optOut = new CallOptOut(this.config, options.events);
     this.languages = new CallLanguages(this.config);
     this.outcomes.follow(this.flow, () => this.turn);
+    const now = options.now ?? (() => new Date());
+    this.endGate = new EndCallGate(this.config, () => now().getTime());
     // Wave 4 request 5: each state's endpointing reaches the STT as an `stt.configure` event.
     if (this.flow)
       followFlowEndpointing(this.flow, (update) =>
@@ -235,7 +241,11 @@ export abstract class AgentSession implements Behavior {
   }
 
   drafting(): boolean {
-    return this.epoch !== undefined && this.draftedEpoch === this.epoch;
+    return this.progress.drafting(this.epoch);
+  }
+
+  lookingUp(): boolean | undefined {
+    return this.progress.lookingUp(this.epoch);
   }
 
   completionReason(): string | undefined {

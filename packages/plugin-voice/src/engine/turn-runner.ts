@@ -108,6 +108,7 @@ export abstract class TurnRunner {
       () => !this.stopped && !this.closing,
       (turnId, error) => this.log('filler_failed', error, { turnId }, 'warn'),
       () => this.behavior.drafting?.() ?? false,
+      () => this.behavior.lookingUp?.(),
     );
     const unheard = () => this.turns.unheard();
     this.hold = new ReplyHold(clock, speech, events, unheard, media.sessionId);
