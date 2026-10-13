@@ -1,7 +1,7 @@
 // scripts/deploy/deploy-compose.sh and build-images.sh against a scratch git repository holding
 // copies of the deploy scripts and the stand-in docker: every Compose command is recorded, none runs.
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ROOT, runScript, sandbox } from '../../ops/tests/fake-stack.ts';
@@ -81,15 +81,16 @@ function fixture(dockerState: Record<string, unknown> = {}) {
 const image = (envFile: string, name: string) =>
   readFileSync(envFile, 'utf8').match(new RegExp(`^OVO_${name}_IMAGE=(.*)$`, 'm'))?.[1];
 
-function pins(dir: string, revision = 'b2') {
+function pins(dir: string, revision = 'b2', sip = false) {
   const file = join(dir, 'images.env');
   const names = ['API', 'CONSOLE', 'GATEWAY', 'DISPATCHER', 'WORKER', 'TOOLS'];
+  if (sip) names.push('SIP_GATEWAY');
   writeFileSync(
     file,
     names
       .map(
         (name, i) =>
-          `OVO_${name}_IMAGE=reg.example/ovo/ovo-${name.toLowerCase()}:${revision}@${DIGEST('abcdef'[i]!)}`,
+          `OVO_${name}_IMAGE=reg.example/ovo/ovo-${name.toLowerCase().replace('_', '-')}:${revision}@${DIGEST('abcdef7'[i]!)}`,
       )
       .join('\n') + '\n',
   );
@@ -264,6 +265,116 @@ describe('deploy-compose.sh (OPS-8)', () => {
   });
 });
 
+describe('deploy-compose.sh with SIP (Wave 11)', () => {
+  const SIP_IMAGE = `reg.example/ovo/ovo-sip-gateway:b2@${DIGEST('7')}`;
+  const LOCAL_PROFILES = 'local-postgres,local-queue';
+
+  function sipFixture(dockerState: Record<string, unknown> = {}) {
+    const fx = fixture(dockerState);
+    const env = readFileSync(fx.envFile, 'utf8').replace(
+      /^OVO_SIP_ENABLED=.*$/m,
+      'OVO_SIP_ENABLED=true',
+    );
+    writeFileSync(fx.envFile, env);
+    cpSync(
+      join(ROOT, 'infra/compose/sip-trunks.example.json'),
+      join(fx.repo, 'infra/compose/sip-trunks.json'),
+    );
+    const profiles = () =>
+      (JSON.parse(readFileSync(fx.box.env.FAKE_DOCKER_STATE, 'utf8')).profiles ?? []) as Array<
+        string | null
+      >;
+    return { ...fx, profiles };
+  }
+
+  it('changes nothing for SIP while the flag is off', async () => {
+    const { box, deploy, envFile, ups } = fixture();
+    expect(readFileSync(envFile, 'utf8')).toContain('OVO_SIP_ENABLED=false\n');
+    expect((await deploy('--images', pins(box.dir), '--skip-verify')).code).toBe(0);
+    expect(box.dockerLog().filter((line) => line.includes('sip'))).toEqual([]);
+    expect(ups().at(-1)).toBe('-d --wait --remove-orphans');
+    const state = JSON.parse(readFileSync(box.env.FAKE_DOCKER_STATE, 'utf8'));
+    expect(new Set(state.profiles)).toEqual(new Set([null]));
+  });
+
+  it('adds the sip profile to the environment profiles and creates the sip-gateway last', async () => {
+    const { box, deploy, ups, profiles, envFile } = sipFixture();
+    const run = await deploy('--images', pins(box.dir, 'b2', true), '--skip-verify');
+    expect(run.code).toBe(0);
+    expect(image(envFile, 'SIP_GATEWAY')).toBe(SIP_IMAGE);
+    expect(
+      box
+        .dockerLog()
+        .some((line) =>
+          line.endsWith('pull api console gateway dispatcher worker-1 worker-2 sip-gateway'),
+        ),
+    ).toBe(true);
+    expect(ups().slice(-3)).toEqual([
+      '-d --no-deps --wait gateway',
+      '-d --no-deps --wait sip-gateway',
+      '-d --wait --remove-orphans --no-recreate',
+    ]);
+    expect(new Set(profiles())).toEqual(new Set([`${LOCAL_PROFILES},sip`]));
+  });
+
+  it('leaves a running sip-gateway alone when its image did not change', async () => {
+    const id = DIGEST('9');
+    const { box, deploy, ups, setDocker } = sipFixture();
+    setDocker({
+      containers: { 'sip-gateway': 'c-sip' },
+      containerImages: { 'c-sip': id },
+      imageIds: { [SIP_IMAGE]: id },
+    });
+    const run = await deploy('--images', pins(box.dir, 'b2', true), '--skip-verify');
+    expect(run.code).toBe(0);
+    expect(run.stderr).toContain('sip-gateway image unchanged: left running with its calls');
+    expect(ups()).not.toContain('-d --no-deps --wait sip-gateway');
+    expect(ups().at(-1)).toBe('-d --wait --remove-orphans --no-recreate');
+  });
+
+  it('recreates the sip-gateway, after the gateway, when its image changed', async () => {
+    const { box, deploy, ups, setDocker } = sipFixture();
+    setDocker({
+      containers: { 'sip-gateway': 'c-sip' },
+      containerImages: { 'c-sip': DIGEST('8') },
+      imageIds: { [SIP_IMAGE]: DIGEST('9') },
+    });
+    expect((await deploy('--images', pins(box.dir, 'b2', true), '--skip-verify')).code).toBe(0);
+    const order = ups();
+    expect(order.indexOf('-d --no-deps --wait sip-gateway')).toBe(
+      order.indexOf('-d --no-deps --wait gateway') + 1,
+    );
+  });
+
+  it('refuses to deploy SIP without a trunk file or a sip-gateway image, before touching docker', async () => {
+    const noTrunks = sipFixture();
+    rmSync(join(noTrunks.repo, 'infra/compose/sip-trunks.json'));
+    const missing = await noTrunks.deploy('--images', pins(noTrunks.box.dir, 'b2', true));
+    expect(missing.code).toBe(2);
+    expect(missing.stderr).toContain('missing SIP trunk file');
+    expect(noTrunks.box.dockerLog()).toEqual([]);
+
+    const noImage = sipFixture();
+    const run = await noImage.deploy('--images', pins(noImage.box.dir), '--skip-verify');
+    expect(run.code).toBe(2);
+    expect(run.stderr).toContain('needs a sip-gateway image: build-images.sh --sip');
+    expect(noImage.box.dockerLog()).toEqual([]);
+  });
+
+  it('builds the sip-gateway with the others on --build', async () => {
+    const { box, deploy, envFile } = sipFixture();
+    expect((await deploy('--build', '--skip-verify')).code).toBe(0);
+    expect(
+      box
+        .dockerLog()
+        .some((line) =>
+          line.endsWith('build api console gateway dispatcher worker-1 worker-2 sip-gateway'),
+        ),
+    ).toBe(true);
+    expect(image(envFile, 'SIP_GATEWAY') ?? 'ovo-sip-gateway:local').toBe('ovo-sip-gateway:local');
+  });
+});
+
 describe('build-images.sh (OPS-9)', () => {
   it('bakes every target for the VM platform and pins the pushed digests', async () => {
     const { repo, box, first } = fixture({ bakeDigests: true });
@@ -287,6 +398,24 @@ describe('build-images.sh (OPS-9)', () => {
       `OVO_WORKER_IMAGE=asia-south1-docker.pkg.dev/p/ovo/ovo-worker:${revision}@${DIGEST('e')}`,
       `OVO_TOOLS_IMAGE=asia-south1-docker.pkg.dev/p/ovo/ovo-tools:${revision}@${DIGEST('f')}`,
     ]);
+  });
+
+  it('bakes and pins the sip-gateway only with --sip', async () => {
+    const { repo, box, first } = fixture({ bakeDigests: true });
+    const out = join(box.dir, 'pins.env');
+    const run = await runScript(
+      join(repo, 'scripts/deploy/build-images.sh'),
+      ['--registry', 'reg.example/ovo', '--push', '--sip', '--out', out],
+      box.env,
+      repo,
+    );
+    expect(run.code).toBe(0);
+    expect(box.dockerLog().find((line) => line.startsWith('buildx bake'))).toMatch(/ default sip$/);
+    const lines = readFileSync(out, 'utf8').trim().split('\n');
+    expect(lines).toHaveLength(7);
+    expect(lines.at(-1)).toBe(
+      `OVO_SIP_GATEWAY_IMAGE=reg.example/ovo/ovo-sip-gateway:${first.slice(0, 12)}@${DIGEST('7')}`,
+    );
   });
 
   it('refuses an uncommitted tree and a missing digest', async () => {
@@ -327,6 +456,15 @@ describe('Dockerfile layer order (OPS-9)', () => {
     for (const line of dockerfile.split('\n').filter((l) => l.startsWith('FROM node')))
       expect(line).toMatch(/^FROM node:24\.8\.0-bookworm-slim AS /);
     expect(dockerfile).not.toContain('alpine');
-    expect(dockerfile.match(/ENV OVO_REVISION=\$OVO_REVISION/g)).toHaveLength(5);
+    expect(dockerfile.match(/ENV OVO_REVISION=\$OVO_REVISION/g)).toHaveLength(6);
+  });
+  it('builds the sip-gateway image from its own bundle, outside the default bake group', () => {
+    expect(dockerfile).toContain('FROM workspace AS sip-gateway-build');
+    expect(dockerfile).toContain('pnpm --filter @winsendotai/ovo-sip-gateway build');
+    expect(dockerfile).toContain('FROM node:24.8.0-bookworm-slim AS sip-gateway\n');
+    const bake = readFileSync(join(ROOT, 'infra/container/docker-bake.hcl'), 'utf8');
+    expect(bake).toMatch(/group "default" \{\n\s+targets = \[[^\]]*\]/);
+    expect(/group "default" \{\n\s+targets = (\[[^\]]*\])/.exec(bake)![1]).not.toContain('sip');
+    expect(bake).toContain('group "sip" {\n  targets = ["sip-gateway"]\n}');
   });
 });
