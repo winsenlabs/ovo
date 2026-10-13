@@ -21,8 +21,8 @@ const manifest = {
 export function sipGatewayKey(name: string, value: string): Uint8Array {
   try {
     return decodeSipSecret(value);
-  } catch {
-    throw new Error(`${name} must be base64 of at least 32 bytes`);
+  } catch (error) {
+    throw new Error(`${name} must be base64 of at least 32 bytes`, { cause: error });
   }
 }
 
