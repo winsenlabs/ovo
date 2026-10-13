@@ -4,8 +4,10 @@
 operator (OVO configuration). **State:** prepared 2026-10-13, **not executed**. Nothing here has
 received or placed a real SIP call. Every command that changes the VM, GCP or a trunk is listed for
 the founder to run; none was run. The engineering proof is on loopback: SIPp scenarios against a
-natively run sip-gateway (`pnpm test:sip` on the mini) and `tests/e2e/sip-path.test.ts` (SIPp →
-sip-gateway → a real `startGateway()` with Postgres → a fixture worker).
+natively run sip-gateway (`pnpm test:sip` on the mini), `tests/e2e/sip-path.test.ts` (SIPp →
+sip-gateway → a real `startGateway()` with Postgres → a fixture worker) and
+`tests/e2e/tcn-sip-path.test.ts` (the same path through a `tcn` trunk entry and binding, with an
+allow-listed X- header arriving as a `tcn.*` key).
 
 How it works: [SIP gateway architecture](../architecture/sip-gateway.md). TCN specifics:
 [TCN over SIP](tcn-sip.md). Variables: [environment reference](../env-reference.md#sip-gateway-and-sip-carriers-wave-11).
@@ -90,6 +92,42 @@ default is 200 per minute), and a sample INVITE (pcap or ladder diagram).
    - Control token: there is no previous token. Workers use the new one as soon as they restart, so
      dials get `401` until the sip-gateway is recreated at the end of the same deploy.
 
+8. **Route the DID to an agent.** Steps 1–2 only let the sip-gateway deliver the call; the gateway
+   answers it only when an inbound route names the binding. Do this after step 1, before any call
+   (the loopback proof `tests/e2e/support/sip-setup.ts` `configureSipAgent` runs exactly these
+   calls for `sip` and `tcn`; the Plivo equivalent is [Indian DID](indian-did.md) sections 4, 5
+   and 7).
+   1. **Price card.** Enter the trunk contract's per-minute price as a card for the carrier meter
+      (`sip.carrier.audio_seconds` or `tcn.carrier.audio_seconds`; provider `sip` or `tcn`):
+      ```bash
+      curl -sS -X POST "$OVO_API/v1/cost/price-cards" -H 'content-type: application/json' -b "$COOKIE" \
+        -d '{"id":"tcn-in-inbound","version":"2026-10","provider":"tcn","unit":"audio_seconds",
+             "currency":"USD","minorUnitsPerBlock":"<cents per block>","blockQuantity":"60",
+             "effectiveAt":"2026-10-01T00:00:00.000Z","provenance":"TCN contract <date>"}'
+      ```
+      A card in any currency other than INR also needs an FX version in the ledger
+      (`POST /v1/cost/fx-versions`, for example `usd-inr`, version `2026-10`); an INR card takes no FX.
+   2. **Agent.** In Studio set the agent's **carrier** slot (`voice.carrier`) to **SIP trunk (OVO
+      sip-gateway)** or **TCN (SIP delivery)** with the binding from step 1, that is
+      `{"plugin":"@winsendotai/ovo-carrier-sip"|"@winsendotai/ovo-carrier-tcn","binding":"<binding id>","config":{}}`,
+      and add the card to `costPolicy.priceCards` under the meter key:
+      `"tcn.carrier.audio_seconds": {"id":"tcn-in-inbound","version":"2026-10","fxId":"usd-inr","fxVersion":"2026-10"}`
+      (drop `fxId`/`fxVersion` for an INR card). Publish a release.
+      `GET /v1/agents/<id>/readiness` must report `liveReady: true` and no `liveBlockers`; a missing
+      card or FX version shows up there.
+   3. **Inbound route.** Route the DID, in E.164 and URL-encoded, to that release on this binding:
+      ```bash
+      curl -sS -X PUT "$OVO_API/v1/operations/inbound/routes/%2B918069450000" -H 'content-type: application/json' -b "$COOKIE" \
+        -d '{"expectedVersion":null,"releaseId":"<release id>","variables":{},"enabled":true,
+             "carrierPluginId":"@winsendotai/ovo-carrier-tcn","carrierBindingId":"<binding id>"}'
+      ```
+      The number must equal one of the trunk entry's `inbound.numbers` after the sip-gateway's
+      `numberFormat` normalisation, and `carrierBindingId` must be the entry's `bindingId`: the
+      gateway refuses an admission whose binding differs from the route's. Routes match on the exact
+      E.164 number ([Indian DID](indian-did.md) section 7 has the same call for Plivo).
+   4. **Check.** `GET /v1/provider-bindings/<binding id>/carrier-urls` returns the admission URL
+      `/carriers/<sip|tcn>/<binding id>/inbound` (loopback only; it goes in no trunk console).
+
 ## 4. Network (founder; documented, not run)
 
 Only after the trunk's CIDRs are known, with the VM tagged `ovo-sip`:
@@ -116,9 +154,9 @@ addresses, and `OVO_SIP_MAX_CALLS`.
 - [ ] Founder decisions in section 1 recorded (trunk, static IP, on-demand VM, firewall CIDRs, legal sign-off).
 - [ ] Trunk interop sheet and a sample INVITE received; number formats checked against section 2.
 - [ ] Binding, credential (if digest) and `sip-trunks.json` entry created; the sip-gateway starts with them.
+- [ ] DID routed (section 3 step 8): agent `voice.carrier` on the `sip`/`tcn` binding, carrier price card (and FX version unless INR) in its `costPolicy.priceCards`, release published, `PUT /v1/operations/inbound/routes/<E.164 DID>` with `carrierPluginId` and `carrierBindingId`; readiness shows `liveReady: true`.
 - [ ] Control-port check of section 3 step 5 passed (workers get `200` from `/v1/health`).
 - [ ] `pnpm test:sip` green on the mini for the release revision.
-- [ ] Price card for the trunk's carrier meter entered; the release checklist no longer shows it `missing`.
 - [ ] Static IP attached, firewall rules created with the trunk's CIDRs only, `OVO_SIP_PUBLIC_IP` set.
 - [ ] `OVO_SIP_PUBLIC_ENABLED=true` deployed with `--recreate-sip-gateway` (section 3 step 7); trunk OPTIONS pings answered (`/health?verbose=1` shows the trunk `up`).
 - [ ] One inbound test call from an owned phone; the call appears with `endReason` and RTP statistics in its final status event.
