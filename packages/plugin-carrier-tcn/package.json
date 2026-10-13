@@ -1,0 +1,18 @@
+{
+  "name": "@winsendotai/ovo-plugin-carrier-tcn",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "dependencies": {
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "@winsendotai/ovo-sip-carrier-kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@winsendotai/ovo-conformance": "workspace:*"
+  }
+}
