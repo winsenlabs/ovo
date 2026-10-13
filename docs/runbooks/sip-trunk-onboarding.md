@@ -55,16 +55,20 @@ default is 200 per minute), and a sample INVITE (pcap or ladder diagram).
    `sip` compose profile and starts the sip-gateway after the gateway; later deploys recreate it only
    when its image changed, because a restart drops live SIP calls (SIGTERM: new INVITEs get
    `503 Retry-After: 30`, live calls get up to 240 s).
-5. **Control-port bind check (once per host).** The control API listens on the compose bridge
-   gateway `172.29.240.1:5090` from a host-network container. That this bind works on the target
-   Linux host is **UNCONFIRMED** (it was not checked on a Linux test host in Wave 11). After step 4,
-   on the VM: `docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml --profile
-sip logs sip-gateway | grep -i -E 'control|EADDRNOTAVAIL'` and
+5. **Control-port check (once per host).** The control API listens on `0.0.0.0:5090` and the
+   workers call it at the compose bridge gateway, `http://172.29.240.1:5090`. Binding the bridge
+   address itself from a host-network container is **UNCONFIRMED**: Wave 11 checked it on the build
+   Mac (2026-10-13), where a private address binds only when an interface holds it (`172.29.240.1`
+   gave `EADDRNOTAVAIL`, the Mac's LAN address and `0.0.0.0` bound) and Docker's bridge lives in a
+   VM, so the Linux behaviour stays open and compose takes the all-interfaces fallback. That is
+   safe because there is no firewall rule for 5090 (GCP's implied deny-ingress applies,
+   https://docs.cloud.google.com/firewall/docs/firewalls) and the control API still requires the
+   bearer token and a source inside `OVO_SIP_CONTROL_SOURCE_CIDRS` (or loopback), which also turns
+   away other VMs in the VPC. After step 4, on the VM,
    `docker compose … exec worker-1 node -e "fetch('http://172.29.240.1:5090/v1/health',{headers:{authorization:'Bearer '+process.env.OVO_SIP_CONTROL_TOKEN}}).then(r=>console.log(r.status))"`
-   must print `200`. If the bind fails, set `OVO_SIP_CONTROL_LISTEN=0.0.0.0:5090` in `.env` and
-   redeploy: there is no firewall rule for 5090 (GCP's implied deny-ingress applies,
-   https://docs.cloud.google.com/firewall/docs/firewalls), and the control API still requires the
-   bearer token and a source inside `OVO_SIP_CONTROL_SOURCE_CIDRS`. Never add a firewall rule for 5090.
+   must print `200`. Optional hardening once that works: `OVO_SIP_CONTROL_LISTEN=172.29.240.1:5090`
+   in `.env`, redeploy, and repeat the check (revert if the sip-gateway logs `EADDRNOTAVAIL`).
+   Never add a firewall rule for 5090.
 6. **Turning SIP off again.** Set `OVO_SIP_ENABLED=false` and redeploy (workers refuse sip/tcn
    dials, the gateway answers 503), then stop the service explicitly:
    `docker compose --env-file infra/compose/.env -f infra/compose/compose.yaml --profile sip stop sip-gateway`.
@@ -96,7 +100,7 @@ addresses, and `OVO_SIP_MAX_CALLS`.
 - [ ] Founder decisions in section 1 recorded (trunk, static IP, on-demand VM, firewall CIDRs, legal sign-off).
 - [ ] Trunk interop sheet and a sample INVITE received; number formats checked against section 2.
 - [ ] Binding, credential (if digest) and `sip-trunks.json` entry created; the sip-gateway starts with them.
-- [ ] Control-port bind check of section 3 step 5 passed (or the `0.0.0.0:5090` fallback applied).
+- [ ] Control-port check of section 3 step 5 passed (workers get `200` from `/v1/health`).
 - [ ] `pnpm test:sip` green on the mini for the release revision.
 - [ ] Price card for the trunk's carrier meter entered; the release checklist no longer shows it `missing`.
 - [ ] Static IP attached, firewall rules created with the trunk's CIDRs only, `OVO_SIP_PUBLIC_IP` set.

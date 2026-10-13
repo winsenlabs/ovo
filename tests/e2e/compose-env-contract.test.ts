@@ -195,7 +195,7 @@ describe('Compose SIP environment (Wave 11)', () => {
     expect(sip).toMatchObject({
       OVO_SIP_PUBLIC_ENABLED: 'false',
       OVO_SIP_PUBLIC_IP: '',
-      OVO_SIP_CONTROL_LISTEN: '172.29.240.1:5090',
+      OVO_SIP_CONTROL_LISTEN: '0.0.0.0:5090',
       OVO_SIP_CONTROL_SOURCE_CIDRS: '172.29.240.0/24',
       OVO_SIP_MEDIA_INTERNAL_URL: 'http://127.0.0.1:4001',
       OVO_SIP_HEALTH_LISTEN: '127.0.0.1:5091',

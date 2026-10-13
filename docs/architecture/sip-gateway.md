@@ -20,7 +20,7 @@ callbacks. Workers see an ordinary `session.open` with `MULAW_8K`; `plugin-media
                                     ├ RTP core: port pool, jitter buffer, PLC, 20 ms pacer, RFC 4733, RTCP
                                     ├ bridge ── signed HTTP ─► http://127.0.0.1:4001/carriers/{sip|tcn}/{binding}/{inbound|status|resume}
                                     │        ── signed WS ───► ws://127.0.0.1:4001/carriers/{sip|tcn}/{binding}/media
-                                    ├ control API  http://172.29.240.1:5090  (bearer + source CIDRs; compose bridge)
+                                    ├ control API  0.0.0.0:5090, called at http://172.29.240.1:5090 (bearer + source CIDRs)
                                     └ health       http://127.0.0.1:5091/health
                                                        │
                       media-gateway: plugin-carrier-sip / plugin-carrier-tcn (installed by the distribution)

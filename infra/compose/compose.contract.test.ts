@@ -193,8 +193,10 @@ describe('sip-gateway (Wave 11, dark by default)', () => {
     expect(sip()).toContain('OVO_SIP_HEALTH_LISTEN: 127.0.0.1:5091');
   });
 
-  it('serves its control API on the compose bridge, to the compose subnet only', () => {
-    expect(sip()).toContain('OVO_SIP_CONTROL_LISTEN: ${OVO_SIP_CONTROL_LISTEN:-172.29.240.1:5090}');
+  it('serves its control API to the compose subnet only, reached through the bridge gateway', () => {
+    // 0.0.0.0, not the bridge address: that bind from a host-network container is unconfirmed.
+    // No firewall rule exists for 5090; the bearer token and the source CIDRs guard it.
+    expect(sip()).toContain('OVO_SIP_CONTROL_LISTEN: ${OVO_SIP_CONTROL_LISTEN:-0.0.0.0:5090}');
     expect(sip()).toContain('OVO_SIP_CONTROL_SOURCE_CIDRS: ${OVO_COMPOSE_SUBNET:-172.29.240.0/24}');
     expect(service('worker-1')).toContain(
       'OVO_SIP_CONTROL_URL: ${OVO_SIP_CONTROL_URL:-http://172.29.240.1:5090}',

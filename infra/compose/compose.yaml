@@ -384,10 +384,11 @@ services:
       OVO_SIP_TRUNKS_FILE: /etc/ovo/sip-trunks.json
       OVO_SIP_MAX_CALLS: ${OVO_SIP_MAX_CALLS:-4}
       OVO_SIP_COUNTRY_ALLOWLIST: ${OVO_SIP_COUNTRY_ALLOWLIST:-+91}
-      # The compose bridge gateway address. If a host-network container cannot bind it on the
-      # target host, set 0.0.0.0:5090: there is no firewall rule for 5090, and the control API
-      # still requires the bearer token and a source inside OVO_SIP_CONTROL_SOURCE_CIDRS.
-      OVO_SIP_CONTROL_LISTEN: ${OVO_SIP_CONTROL_LISTEN:-172.29.240.1:5090}
+      # All interfaces, because binding the compose bridge address (172.29.240.1) from a
+      # host-network container is unconfirmed (docs/runbooks/sip-trunk-onboarding.md). The workers
+      # still call 172.29.240.1:5090; there is no firewall rule for 5090, and the control API
+      # requires the bearer token and a source inside OVO_SIP_CONTROL_SOURCE_CIDRS or loopback.
+      OVO_SIP_CONTROL_LISTEN: ${OVO_SIP_CONTROL_LISTEN:-0.0.0.0:5090}
       OVO_SIP_CONTROL_SOURCE_CIDRS: ${OVO_COMPOSE_SUBNET:-172.29.240.0/24}
       OVO_SIP_CONTROL_TOKEN: ${OVO_SIP_CONTROL_TOKEN:-}
       OVO_SIP_GATEWAY_SECRET: ${OVO_SIP_GATEWAY_SECRET:-}
@@ -403,7 +404,8 @@ services:
       # Non-secret trunk list (infra/compose/sip-trunks.example.json); the real file is ignored.
       - ./sip-trunks.json:/etc/ovo/sip-trunks.json:ro
     depends_on:
-      # Also guarantees the compose bridge (and so 172.29.240.1) exists before the control bind.
+      # Admissions and media go to the gateway; it also brings up the compose bridge the workers
+      # use to reach the control API.
       gateway: { condition: service_healthy }
     healthcheck:
       test:
