@@ -4,7 +4,9 @@
 //   { env: {service: {NAME: value}}, workers: {service: state | [states…]},
 //     fail: [argv substring…], baseVerify: "pass" | "fail", bakeDigests: true,
 //     containers: {service: id}, containerImages: {id: imageId}, imageIds: {ref: imageId} }
-// Every `compose` call records the COMPOSE_PROFILES it ran with under `profiles` in the state.
+// Every `compose` call appends the COMPOSE_PROFILES it ran with (`-` when unset) as one line to
+// $FAKE_DOCKER_STATE.profiles: append-only, because the scripts run compose calls concurrently and
+// rewriting the state file from each of them would race.
 // `exec … node --input-type=module -` with the ops program on stdin runs it with the host node, so
 // the program talks to the tests' fake console, workers and carrier servers.
 import { spawnSync } from 'node:child_process';
@@ -38,8 +40,8 @@ const nodeAt = args.indexOf('node');
 if (args[0] === 'run' && nodeAt > 0) runNode(args.slice(nodeAt + 3));
 
 if (args[0] === 'compose') {
-  state.profiles = [...(state.profiles ?? []), process.env.COMPOSE_PROFILES ?? null];
-  save();
+  if (statePath)
+    appendFileSync(`${statePath}.profiles`, `${process.env.COMPOSE_PROFILES ?? '-'}\n`);
   const execAt = args.indexOf('exec');
   if (execAt > 0) {
     const service = args[execAt + 2];

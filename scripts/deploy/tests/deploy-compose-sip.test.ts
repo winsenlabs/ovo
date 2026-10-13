@@ -8,6 +8,10 @@ import { DIGEST, cleanups, fixture, image, pins } from './deploy-fixture.ts';
 
 afterEach(() => cleanups.splice(0).forEach((cleanup) => cleanup()));
 
+/** The COMPOSE_PROFILES of every compose call, as fake-docker.mjs recorded them (`-`: unset). */
+const composeProfiles = (state: string) =>
+  readFileSync(`${state}.profiles`, 'utf8').split('\n').filter(Boolean);
+
 describe('deploy-compose.sh with SIP (Wave 11)', () => {
   const SIP_IMAGE = `reg.example/ovo/ovo-sip-gateway:b2@${DIGEST('7')}`;
   const LOCAL_PROFILES = 'local-postgres,local-queue';
@@ -23,10 +27,7 @@ describe('deploy-compose.sh with SIP (Wave 11)', () => {
       join(ROOT, 'infra/compose/sip-trunks.example.json'),
       join(fx.repo, 'infra/compose/sip-trunks.json'),
     );
-    const profiles = () =>
-      (JSON.parse(readFileSync(fx.box.env.FAKE_DOCKER_STATE, 'utf8')).profiles ?? []) as Array<
-        string | null
-      >;
+    const profiles = () => composeProfiles(fx.box.env.FAKE_DOCKER_STATE);
     return { ...fx, profiles };
   }
 
@@ -36,8 +37,7 @@ describe('deploy-compose.sh with SIP (Wave 11)', () => {
     expect((await deploy('--images', pins(box.dir), '--skip-verify')).code).toBe(0);
     expect(box.dockerLog().filter((line) => line.includes('sip'))).toEqual([]);
     expect(ups().at(-1)).toBe('-d --wait --remove-orphans');
-    const state = JSON.parse(readFileSync(box.env.FAKE_DOCKER_STATE, 'utf8'));
-    expect(new Set(state.profiles)).toEqual(new Set([null]));
+    expect(new Set(composeProfiles(box.env.FAKE_DOCKER_STATE))).toEqual(new Set(['-']));
   });
 
   it('adds the sip profile to the environment profiles and creates the sip-gateway last', async () => {
