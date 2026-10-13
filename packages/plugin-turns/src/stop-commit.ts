@@ -3,6 +3,13 @@ import type { CommitConfig, DetectorConfig } from './config.ts';
 import { WORDS_LAG_MS } from './noise-watch.ts';
 import type { UtteranceEnd } from './utterance-end.ts';
 
+/**
+ * Wave 10: no final answers a host commit sooner than this. Scribe answered every commit of Maya
+ * calls e8a43f65, 10d5ef30 and 4f1a919d in 286–444 ms (their replays, call-endpoints.ts); call
+ * e8a43f65's turn 2 had a final 255 ms after the VAD stop, with no commit of its own.
+ */
+export const MIN_ANSWER_MS = 280;
+
 /** The rules a commit fires under (see EndpointRule). */
 export type CommitRule = Extract<
   EndpointRule,
@@ -36,6 +43,12 @@ export class CommitTimers {
   private cancelDue?: () => void;
   private cancelCeiling?: () => void;
   private cancelStall?: () => void;
+  private cancelSettle?: () => void;
+  /**
+   * Wave 10 (commitAtStop): the wait a VAD stop's commit made early, timed from that stop, until
+   * the final takes it (`takeOwedMs`).
+   */
+  private owed?: { stoppedAt: number; committedAt: number; waitMs: number; commitMs: number };
   private speechStartedAt?: number;
   /** When the VAD went quiet, until the commit: words that arrive meanwhile re-judge the wait. */
   private stoppedAt?: number;
@@ -60,7 +73,9 @@ export class CommitTimers {
   speechStarted(): void {
     this.cancelDue?.();
     this.cancelCeiling?.();
-    this.cancelDue = this.cancelCeiling = this.stoppedAt = undefined;
+    this.cancelSettle?.();
+    this.cancelDue = this.cancelCeiling = this.cancelSettle = this.stoppedAt = undefined;
+    this.owed = undefined;
     this.speechStartedAt ??= this.clock.now();
   }
 
@@ -111,11 +126,42 @@ export class CommitTimers {
     }, this.ceilingMs);
   }
 
+  /**
+   * Wave 10: the final is in. Takes the silence the stop's commit still owes the turn (undefined
+   * unless it was made early under `commitAtStop`), which the turn waits out unless the final
+   * reads complete: the rest of the wait its words read at the stop. A final that answers the
+   * early commit ends the turn when the answer to the old commit would have come, and one already
+   * in hand (`inHand`) when the old commit would have been made. A final in sooner than Scribe
+   * answers a commit (`MIN_ANSWER_MS`) answered an earlier one, and ended the turn on arrival then
+   * as now.
+   */
+  takeOwedMs(inHand: boolean): number | undefined {
+    const owed = this.owed;
+    this.owed = undefined;
+    if (!owed) return undefined;
+    const now = this.clock.now();
+    if (inHand) return Math.max(0, owed.stoppedAt + owed.waitMs - now);
+    return now - owed.committedAt < MIN_ANSWER_MS ? 0 : owed.waitMs - owed.commitMs;
+  }
+
+  /** Wave 10: waits out `ms` the final owes; the final itself answered the commit's ceiling. */
+  settle(ms: number, done: () => void): void {
+    this.cancelCeiling?.();
+    this.cancelSettle?.();
+    this.cancelCeiling = undefined;
+    this.cancelSettle = this.clock.setTimeout(() => {
+      this.cancelSettle = undefined;
+      done();
+    }, ms);
+  }
+
   cancel(): void {
     this.cancelDue?.();
     this.cancelCeiling?.();
     this.cancelStall?.();
-    this.cancelDue = this.cancelCeiling = this.cancelStall = undefined;
+    this.cancelSettle?.();
+    this.cancelDue = this.cancelCeiling = this.cancelStall = this.cancelSettle = undefined;
+    this.owed = undefined;
     this.speechStartedAt = this.stoppedAt = undefined;
     this.spokenMs = 0;
     this.stalledText = '';
@@ -124,10 +170,13 @@ export class CommitTimers {
   /**
    * Complete words wait `completeSilenceMs` (never longer than silenceMs); words that trail off,
    * and long utterances whose end gives no signal, wait `longSilenceMs`; the rest `silenceMs`.
-   * Timed from the VAD stop, so a re-judged wait never restarts it.
+   * Timed from the VAD stop, so a re-judged wait never restarts it. Wave 10: with `commitAtStop`
+   * every reading commits after the complete words' wait, and the rest of its own is owed to the
+   * final, which ends the turn at once only if it reads complete.
    */
   private armDue(words: WordsView): void {
-    const { silenceMs, completeSilenceMs, longSilenceMs, longUtteranceMs } = this.config;
+    const { silenceMs, completeSilenceMs, longSilenceMs, longUtteranceMs, commitAtStop } =
+      this.config;
     const rule: CommitRule =
       words.ends === 'complete'
         ? 'complete'
@@ -136,19 +185,24 @@ export class CommitTimers {
           : this.spokenMs >= longUtteranceMs
             ? 'long'
             : 'silence';
+    const completeMs = Math.min(silenceMs, completeSilenceMs);
     const waitMs =
       rule === 'complete'
-        ? Math.min(silenceMs, completeSilenceMs)
+        ? completeMs
         : rule === 'silence'
           ? silenceMs
           : Math.max(silenceMs, longSilenceMs);
+    const commitMs = commitAtStop ? completeMs : waitMs;
+    const stoppedAt = this.stoppedAt!;
     this.cancelDue?.();
     this.cancelDue = this.clock.setTimeout(
       () => {
         this.cancelDue = undefined;
+        const committedAt = this.clock.now();
+        this.owed = commitAtStop ? { stoppedAt, committedAt, waitMs, commitMs } : undefined;
         this.hooks.due(rule);
       },
-      Math.max(0, this.stoppedAt! + waitMs - this.clock.now()),
+      Math.max(0, stoppedAt + commitMs - this.clock.now()),
     );
   }
 
@@ -163,6 +217,8 @@ export class CommitTimers {
     this.cancelStall = this.clock.setTimeout(
       () => {
         this.cancelStall = undefined;
+        // A stalled interim commits with no silence behind it to owe.
+        this.owed = undefined;
         this.hooks.due(rule);
       },
       Math.max(0, this.stalledAt + ms - this.clock.now()),

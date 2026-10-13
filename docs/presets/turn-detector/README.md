@@ -26,7 +26,7 @@ Wave 8 adds it so endpoint latency can be attributed per turn.
 
 | Rule                                | When                                                                                      | Wait after the caller stops                                 |
 | ----------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `complete`                          | The words so far read complete: a full stop, a short answer, or ≤3 words after a question | `completeSilenceMs` (50), even when `silenceMs` is higher   |
+| `complete`                          | The words so far read complete: a full stop, a short answer, or ≤3 words after a question | `completeSilenceMs` (0), even when `silenceMs` is higher    |
 | `silence`                           | No signal either way, a short utterance                                                   | `silenceMs` (50)                                            |
 | `long`                              | No signal either way, after 1.2 s of speech (`longUtteranceMs`)                           | `longSilenceMs` (250)                                       |
 | `unfinished`                        | Trailing off: "for-", "is a...", "and", "to the", "Paris,", "around the 1", "Rs 500"      | `longSilenceMs`; then the final holds `cutoffHoldMs` (700)  |
@@ -41,7 +41,36 @@ Wave 8 adds it so endpoint latency can be attributed per turn.
 | `vad-timeout`, `provider`, `safety` | The other stop strategies, and the stop safety timer                                      |                                                             |
 
 The energy VAD reports a stop 200 ms (`stopMs`) after the caller goes quiet, and Scribe answers a
-commit in about 300–400 ms. So a complete turn ends about 600 ms after the caller's last word.
+commit in about 300–400 ms. So a complete turn ends about 500–650 ms after the caller's last word.
+
+## Commit as the VAD stops (Wave 10)
+
+With `commit.commitAtStop` (on by default) every reading commits as the VAD stops, after
+`completeSilenceMs` (0), and Scribe's final decides. A final that reads complete ends the turn at
+once, under the rule `complete`. Any other final first waits out the rest of the wait its words had
+at the stop (`silenceMs` or `longSilenceMs`), then the hold if it trails off, so a caller who goes
+on is held exactly as long as before. A final already in hand at the stop waits until the old
+commit time. A final sooner than 280 ms after the commit (`MIN_ANSWER_MS`) answered an earlier
+commit, and ends the turn on arrival as before. `commitAtStop: false` restores the Wave 8 waits.
+
+The interim the VAD stop is judged on lags the audio by up to a second. In call 4f1a919d, three
+turns waited the 250 ms `longSilenceMs` on a stale "so..." or "Some...", and their finals read
+complete. Every other turn waited the 50 ms that `completeSilenceMs` or `silenceMs` added after the
+VAD's own 200 ms. `packages/plugin-turns/tests/call-endpoints.test.ts` replays every turn of calls
+10d5ef30 and 4f1a919d before and after the change:
+
+- **Before:** the replay reproduces every live `endpointMs` within 10 ms.
+- **After:** each turn ends 50 ms sooner, or 250 ms sooner after a stale interim that trailed off.
+  Every turn has the same words, and no turn ends sooner on words that read unfinished.
+
+The rest of the endpoint has two parts. One is the VAD's 200 ms `stopMs`. The other is Scribe
+answering the commit, 286–444 ms on these calls; `stt_commit_answered` logs it per commit.
+Scribe's own commit signals do not help. In manual mode it sends none. Its `vad` strategy commits
+after `vad_silence_threshold_secs` (1.5 s in the official examples). Its `turn_prediction`
+strategy "additionally commits as soon as the model predicts the speaker has finished their turn
+(only for models that predict turns)". The reference does not say whether `scribe_v2_realtime`, the
+only realtime model, is one of them (unconfirmed, not tried on a live call). Sources: the realtime
+API reference and the commit-strategies guide on elevenlabs.io, both retrieved 2026-10-13.
 
 Each wait has a limit:
 

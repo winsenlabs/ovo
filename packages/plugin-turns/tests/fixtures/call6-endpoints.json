@@ -1,0 +1,426 @@
+{
+  "call": "4f1a919d",
+  "source": "Maya call 4f1a919d (2026-10-13 07:49:51 UTC, main 54fd9ea): engine events",
+  "turns": [
+    {
+      "id": "turn-1",
+      "startedAt": 8254,
+      "endAt": 14622,
+      "text": "\"I'm thinking of going somewhere in middle and central Europe. Can you tell me a few places? Some...\" December and December, January.",
+      "rule": "unfinished",
+      "endpointMs": 869,
+      "reset": null,
+      "vadStopWaitMs": 661,
+      "sttFinalizeMs": 8,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 9177,
+          "seg": "0",
+          "text": "Ainda tem",
+          "final": false
+        },
+        {
+          "at": 9979,
+          "seg": "0",
+          "text": "\"I'm thinking of going somewhere",
+          "final": false
+        },
+        {
+          "at": 11083,
+          "seg": "0",
+          "text": "\"I'm thinking of going somewhere in middle and central",
+          "final": false
+        },
+        {
+          "at": 11988,
+          "seg": "0",
+          "text": "\"I'm thinking of going somewhere in middle and central Europe. Can you tell",
+          "final": false
+        },
+        {
+          "at": 12935,
+          "seg": "0",
+          "text": "\"I'm thinking of going somewhere in middle and central Europe. Can you tell me a few places? Some...\"",
+          "final": true
+        },
+        {
+          "at": 14001,
+          "seg": "1",
+          "text": "December and December",
+          "final": false
+        },
+        {
+          "at": 14614,
+          "seg": "1",
+          "text": "December and December, January.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-2",
+      "startedAt": 28493,
+      "endAt": 33795,
+      "text": "Something like a quieter winter break, but I also want to drink a lot, so something like that.",
+      "rule": "unfinished",
+      "endpointMs": 863,
+      "reset": null,
+      "vadStopWaitMs": 658,
+      "sttFinalizeMs": 5,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 30030,
+          "seg": "2",
+          "text": "Something like a quieter",
+          "final": false
+        },
+        {
+          "at": 31040,
+          "seg": "2",
+          "text": "Something like a quieter winter break, but",
+          "final": false
+        },
+        {
+          "at": 31946,
+          "seg": "2",
+          "text": "Something like a quieter winter break, but I also want to drink",
+          "final": false
+        },
+        {
+          "at": 32851,
+          "seg": "2",
+          "text": "Something like a quieter winter break, but I also want to drink a lot, so...",
+          "final": false
+        },
+        {
+          "at": 33790,
+          "seg": "2",
+          "text": "Something like a quieter winter break, but I also want to drink a lot, so something like that.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-3",
+      "startedAt": 50153,
+      "endAt": 53233,
+      "text": "No, no. What, what are OEN bars? Can you tell me more about that?",
+      "rule": "complete",
+      "endpointMs": 659,
+      "reset": null,
+      "vadStopWaitMs": 455,
+      "sttFinalizeMs": 4,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 51179,
+          "seg": "3",
+          "text": "No, no. What",
+          "final": false
+        },
+        {
+          "at": 52086,
+          "seg": "3",
+          "text": "No, no. What, what are OEN bars?",
+          "final": false
+        },
+        {
+          "at": 53196,
+          "seg": "3",
+          "text": "No, no. What, what are OEN bars? Can you tell me more about them?",
+          "final": false
+        },
+        {
+          "at": 53228,
+          "seg": "3",
+          "text": "No, no. What, what are OEN bars? Can you tell me more about that?",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-4",
+      "startedAt": 68793,
+      "endAt": 71345,
+      "text": "Yeah. Is Instant also a OEN bar?",
+      "rule": "complete",
+      "endpointMs": 572,
+      "reset": null,
+      "vadStopWaitMs": 369,
+      "sttFinalizeMs": 3,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 69665,
+          "seg": "4",
+          "text": "Yeah.",
+          "final": false
+        },
+        {
+          "at": 70571,
+          "seg": "4",
+          "text": "Yeah. Is instant",
+          "final": false
+        },
+        {
+          "at": 71342,
+          "seg": "4",
+          "text": "Yeah. Is Instant also a OEN bar?",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-5",
+      "startedAt": 88779,
+      "endAt": 89381,
+      "text": "Okay.",
+      "rule": "answer",
+      "endpointMs": 603,
+      "reset": null,
+      "vadStopWaitMs": null,
+      "sttFinalizeMs": 1,
+      "answering": false,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 88778,
+          "seg": "5",
+          "text": "Okay.",
+          "final": false
+        },
+        {
+          "at": 89380,
+          "seg": "5",
+          "text": "Okay.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-6",
+      "startedAt": 95333,
+      "endAt": 106077,
+      "text": "Yeah, uh, not about Budapest, but... What is, uh, best way to fly to Europe from...",
+      "rule": "pause",
+      "endpointMs": 3544,
+      "reset": null,
+      "vadStopWaitMs": 0,
+      "sttFinalizeMs": 3344,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 96227,
+          "seg": "6",
+          "text": "या...",
+          "final": false
+        },
+        {
+          "at": 97232,
+          "seg": "6",
+          "text": "Yeah, uh, not",
+          "final": false
+        },
+        {
+          "at": 98074,
+          "seg": "6",
+          "text": "Yeah, uh, not about Budapest, but...",
+          "final": true
+        },
+        {
+          "at": 99143,
+          "seg": "7",
+          "text": "What is,",
+          "final": false
+        },
+        {
+          "at": 100051,
+          "seg": "7",
+          "text": "What is, uh, \"",
+          "final": false
+        },
+        {
+          "at": 101059,
+          "seg": "7",
+          "text": "What is, uh, best way to fly to",
+          "final": false
+        },
+        {
+          "at": 102065,
+          "seg": "7",
+          "text": "What is, uh, best way to fly to Europe?",
+          "final": false
+        },
+        {
+          "at": 102468,
+          "seg": "7",
+          "text": "What is, uh, best way to fly to Europe from...",
+          "final": true
+        },
+        {
+          "at": 103575,
+          "seg": "8",
+          "text": "Chennai.",
+          "final": false
+        }
+      ]
+    },
+    {
+      "id": "turn-7",
+      "startedAt": 111433,
+      "endAt": 112519,
+      "text": "Chennai, Chennai.",
+      "rule": "silence",
+      "endpointMs": 547,
+      "reset": null,
+      "vadStopWaitMs": 344,
+      "sttFinalizeMs": 3,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 112516,
+          "seg": "9",
+          "text": "Chennai, Chennai.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-8",
+      "startedAt": 112793,
+      "endAt": 113542,
+      "text": "Madras.",
+      "rule": "silence",
+      "endpointMs": 609,
+      "reset": null,
+      "vadStopWaitMs": 403,
+      "sttFinalizeMs": 6,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 113536,
+          "seg": "10",
+          "text": "Madras.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-9",
+      "startedAt": 133814,
+      "endAt": 134016,
+      "text": "Hello, Frankfurt.",
+      "rule": "silence",
+      "endpointMs": 602,
+      "reset": null,
+      "vadStopWaitMs": 402,
+      "sttFinalizeMs": 0,
+      "answering": true,
+      "overAgent": true,
+      "transcripts": [
+        {
+          "at": 133813,
+          "seg": "11",
+          "text": "É o Fran",
+          "final": false
+        },
+        {
+          "at": 134015,
+          "seg": "11",
+          "text": "Hello, Frankfurt.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-10",
+      "startedAt": 150274,
+      "endAt": 152617,
+      "text": "20. December 20th or 21st?",
+      "rule": "unfinished",
+      "endpointMs": 844,
+      "reset": null,
+      "vadStopWaitMs": 640,
+      "sttFinalizeMs": 4,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 151498,
+          "seg": "12",
+          "text": "Meine Damen und Herren,",
+          "final": false
+        },
+        {
+          "at": 152613,
+          "seg": "12",
+          "text": "20. December 20th or 21st?",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-11",
+      "startedAt": 170973,
+      "endAt": 173254,
+      "text": "No, okay, I'll take it later. Thank you so much.",
+      "rule": "complete",
+      "endpointMs": 621,
+      "reset": null,
+      "vadStopWaitMs": 416,
+      "sttFinalizeMs": 5,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 171990,
+          "seg": "13",
+          "text": "No, okay,",
+          "final": false
+        },
+        {
+          "at": 172897,
+          "seg": "13",
+          "text": "No, okay, I'll take it later. Thank you.",
+          "final": false
+        },
+        {
+          "at": 173249,
+          "seg": "13",
+          "text": "No, okay, I'll take it later. Thank you so much.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-12",
+      "startedAt": 177413,
+      "endAt": 178149,
+      "text": "Yeah, yeah.",
+      "rule": "silence",
+      "endpointMs": 616,
+      "reset": null,
+      "vadStopWaitMs": 414,
+      "sttFinalizeMs": 2,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 178147,
+          "seg": "14",
+          "text": "Yeah, yeah.",
+          "final": true
+        }
+      ]
+    }
+  ]
+}

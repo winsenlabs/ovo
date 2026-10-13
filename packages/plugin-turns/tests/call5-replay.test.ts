@@ -41,13 +41,15 @@ describe('call 10d5ef30 D3: words that stop mid-thought keep the turn open', () 
   it('turns 12–13: "No, umm..." waits for the caller thinking aloud', () => {
     // Live the hold ended it at 176.140 s; the VAD heard the caller again 14 ms later.
     expect(turnsOf(call5Hesitation())).toEqual([
-      { text: `${SAID5.turn12} ${SAID5.turn13a}`, reason: 'complete', atMs: 180_650 },
+      // Wave 10: committed as the VAD stops, 50 ms sooner.
+      { text: `${SAID5.turn12} ${SAID5.turn13a}`, reason: 'complete', atMs: 180_600 },
     ]);
   });
 
   it('turns 15–16: "…it should still be a" waits, and "built-in." ends it like an answer', () => {
     expect(turnsOf(call5Fragment())).toEqual([
-      { text: SAID5.turn14b, reason: 'unfinished', atMs: 216_279 },
+      // Wave 10: its final reads complete, whatever the interim at the VAD stop ("…far away or").
+      { text: SAID5.turn14b, reason: 'complete', atMs: 216_279 },
       // Live "built-in." was a turn of its own, ended 633 ms after its words (rule answer): one
       // turn now, ended at the same moment.
       { text: `${SAID5.turn15} ${SAID5.turn16}`, reason: 'answer', atMs: 222_790 },
@@ -98,7 +100,8 @@ describe('call 10d5ef30 D2: words over the agent that the VAD never heard', () =
     expect(f.turns.map(({ text, reason, atMs }) => ({ text, reason, atMs: atMs - start }))).toEqual(
       [
         // As live: rule silence, at the final.
-        { text: SAID5.turn10, reason: 'silence', atMs: 159_292 },
+        // As live, at the final; Wave 10 names the rule from the final, which reads complete.
+        { text: SAID5.turn10, reason: 'complete', atMs: 159_292 },
         // Answered once the agent stops, as a short answer to its question would be (AGT-9).
         { text: SAID5.turn11, reason: 'agent', atMs: 171_589 },
       ],

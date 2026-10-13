@@ -22,8 +22,9 @@ describe('call e8a43f65 issues 1, 2 and 7: continuation splits and their endpoin
     ['the recommended row', RECOMMENDED],
   ] as const)
     it(`${name}: a date range waits for its month, and a list stays one turn`, () => {
+      // Wave 10: complete turns commit as the VAD stops, 50 ms sooner than Wave 8.
       expect(turnsOf(row)).toEqual([
-        { text: SAID.turn1, reason: 'complete', endpointMs: 592 },
+        { text: SAID.turn1, reason: 'complete', endpointMs: 542 },
         // Issue 1: the range named December for its start and no month yet for its end, so the
         // turn waits the 700 ms hold (it ended 455 ms after the caller on the final, live) and the
         // engine holds its reply for the caller to go on (plugin-voice call4-engine-replay).
@@ -33,10 +34,10 @@ describe('call e8a43f65 issues 1, 2 and 7: continuation splits and their endpoin
         { text: SAID.turn3, reason: 'answer', endpointMs: 547 },
         // Issues 1 and 2 (already Wave 8's: the trailing comma holds the turn): "Budapest, Vienna,"
         // and "in Austria. Then…" are one turn, so nothing answers the caller mid-list.
-        { text: `${SAID.turn4} ${SAID.turn5}`, reason: 'complete', endpointMs: 583 },
+        { text: `${SAID.turn4} ${SAID.turn5}`, reason: 'complete', endpointMs: 533 },
         // "…Zagreb, Prague." reads complete; the engine merges the next item into its reply.
-        { text: SAID.turn6, reason: 'complete', endpointMs: 612 },
-        { text: SAID.turn7, reason: 'complete', endpointMs: 536 },
+        { text: SAID.turn6, reason: 'complete', endpointMs: 562 },
+        { text: SAID.turn7, reason: 'complete', endpointMs: 486 },
       ]);
     });
 
