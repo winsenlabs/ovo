@@ -41,7 +41,7 @@ that long-lived leg. It does not fit OVO's per-call `dial()`, so it is a separat
 | `metadataHeaders`    | no       | X- header names to surface as `tcn.*` keys, at most 16. Fill in after TCN answers question 12; the trunk entry's `forwardHeaders` must list them too. |
 | `fromNumbers`, `cps` | no       | Only matter once outbound is approved.                                                                                                                |
 | `outboundEnabled`    | no       | Default `false`.                                                                                                                                      |
-| credential           | no       | Only if TCN's side challenges our outbound INVITEs: JSON `{"username","password"}`.                                                                   |
+| credential           | yes      | The API requires one: `{}`, or JSON `{"username","password"}` if TCN's side challenges our outbound INVITEs.                                          |
 
 ## 3. Questions for TCN (send before any engineering)
 

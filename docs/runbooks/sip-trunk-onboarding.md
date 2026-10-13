@@ -35,10 +35,10 @@ default is 200 per minute), and a sample INVITE (pcap or ladder diagram).
 
 1. **Binding.** In the console create a provider binding for **SIP trunk (OVO sip-gateway)**
    (`@winsendotai/ovo-carrier-sip`, provider `sip`) or **TCN (SIP delivery)**
-   (`@winsendotai/ovo-carrier-tcn`, provider `tcn`) with a `trunkId` such as `in-trunk`. A trunk
-   that challenges our outbound INVITEs needs a credential whose value is JSON
-   `{"username":"…","password":"…"}`; IP-authenticated trunks need none. The sip-gateway never
-   stores it: the worker passes it per dial.
+   (`@winsendotai/ovo-carrier-tcn`, provider `tcn`) with a `trunkId` such as `in-trunk`. Every
+   binding needs a credential (the API requires one). A trunk that challenges our outbound
+   INVITEs gets the JSON `{"username":"…","password":"…"}`; an IP-authenticated trunk gets `{}`.
+   The sip-gateway never stores it: the worker passes it per dial.
 2. **Trunk file.** Copy `infra/compose/sip-trunks.example.json` to `infra/compose/sip-trunks.json`
    (git-ignored) and fill one entry per trunk: `id` = the binding's `trunkId`, `carrierId` (`sip` or
    `tcn`), `bindingId` = the binding's id, `transport`, `signallingCidrs`, `mediaCidrs`, `codecs`,
