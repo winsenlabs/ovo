@@ -1,0 +1,21 @@
+{
+  "name": "@winsendotai/ovo-sip-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --format=cjs --outfile=dist/main.cjs --target=node24",
+    "start": "node dist/main.cjs"
+  },
+  "dependencies": {
+    "@winsendotai/ovo-audio": "workspace:*",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
+    "@winsendotai/ovo-sip-carrier-kit": "workspace:*",
+    "ws": "8.21.3",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/ws": "8.18.1"
+  }
+}

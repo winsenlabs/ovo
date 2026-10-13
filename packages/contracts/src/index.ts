@@ -48,6 +48,7 @@ export * from './carrier/capabilities.ts';
 export * from './carrier/control.ts';
 export * from './carrier/media.ts';
 export * from './carrier/ingress.ts';
+export * from './carrier/sip-trunk.ts';
 export * from './ops/background-task.ts';
 export * from './ops/capacity-signal.ts';
 export * from './ops/recording-tap.ts';
