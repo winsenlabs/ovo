@@ -69,6 +69,36 @@ describe('reply.waits: where the wait for first reply audio went (Wave 8 fix 3)'
   });
 });
 
+describe('stages of a call asked ahead of its turn (Wave 10, B2)', () => {
+  it('count on the turn once the engine reports it, though they settled before', () => {
+    // The LLM is asked on the caller's final words while the turn still waits out their silence:
+    // its first token can come before the turn stops, when the collector has no such turn yet.
+    let turn: { llmFirstTokenMs: number | null; llmCalls: number } | undefined;
+    const turns = new WorkerTurnTelemetry({
+      includeText: false,
+      emit: (summary) => (turn = summary),
+    });
+    turns.stage({
+      stage: 'llm_first_token',
+      turnId: 'turn-8',
+      durationMs: 420,
+      outcome: 'succeeded',
+    });
+    turns.engine({ type: 'user.turn', phase: 'started', turnId: 'turn-8', atMs: 0 } as EngineEvent);
+    turns.engine({
+      type: 'user.turn',
+      phase: 'stopped',
+      turnId: 'turn-8',
+      input: 'speech',
+      text: 'Madras.',
+      atMs: 250,
+    } as EngineEvent);
+    turns.stage({ stage: 'inference', turnId: 'turn-8', durationMs: 1300, outcome: 'succeeded' });
+    turns.flush();
+    expect(turn).toMatchObject({ turnId: 'turn-8', llmFirstTokenMs: 420, llmCalls: 1 });
+  });
+});
+
 describe('reply.waits on the worker turn telemetry', () => {
   it('is recorded as a stage next to the turn summary, which it adds up to', () => {
     const stages: { stage: string; turnId: string; durationMs: number }[] = [];

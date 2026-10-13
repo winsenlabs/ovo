@@ -15,10 +15,11 @@ export function spokenText(text: string): string {
 /**
  * True when the STT marked the utterance as broken off mid-word or trailing off: "tell me for-",
  * "Do you-- do I need-", "Promoter of CreditMantri is a...". In call B 15 of 67 finals ended so,
- * each one a forced endpoint while the caller was still talking.
+ * each one a forced endpoint while the caller was still talking. Wave 10: closing quotes or
+ * brackets may follow (call 4f1a919d turn 1, Scribe's `…a few places? Some..."` read complete).
  */
 export function endsCutOff(text: string): boolean {
-  return /(?:[-–—]|…|\.\.\.)\s*$/u.test(text);
+  return /(?:[-–—]|…|\.\.\.)["'”’»)\]]*\s*$/u.test(text);
 }
 
 /**

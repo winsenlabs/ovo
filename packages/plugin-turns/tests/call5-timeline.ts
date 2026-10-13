@@ -91,8 +91,11 @@ export function call5Fragment(): Step[] {
     // turn-14's second sentence: VAD to 215.714 s (565 ms before its final); its start modelled.
     { at: 214_600, vad: 'vad.start' },
     { at: 215_211, interim: "don't make it, like, too far away or" },
+    // Its final came 565 ms after the stop: Scribe's answer, 315 ms after the commit the trailing
+    // "or" sent 250 ms after the stop. Modelled as that answer, so a commit sent sooner (Wave 10)
+    // is answered sooner.
+    { at: 215_714, commit: SAID5.turn14b, latencyMs: 315 },
     { at: 215_714, vad: 'vad.stop' },
-    { at: 216_279, final: SAID5.turn14b },
     // turn-15: VAD from 216.955 s to 219.574 s (endpointMs 1152 at 220.526 s).
     { at: 216_955, vad: 'vad.start' },
     { at: 217_422, interim: 'And stuff' },

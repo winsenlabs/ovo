@@ -1,5 +1,6 @@
 import type {
   Inference,
+  InferenceRequest,
   SpeechToText,
   SttSession,
   StreamingStt,
@@ -135,6 +136,30 @@ export function instrumentTtsPlugin(
   );
 }
 
+/**
+ * Wave 10 (call 4f1a919d, B2): the caller's utterance a call was asked ahead for, which behaviours
+ * set on its request and the request's signal under this registered symbol
+ * (`SPECULATED_UTTERANCE`, behaviors speculation-llm.ts). The call, its first token and its web
+ * searches count on that turn instead of the reply running when it started.
+ */
+const SPECULATED_UTTERANCE = Symbol.for('ovo.speculation.utterance');
+
+function askedFor(carrier: object | undefined): { turnId?: string } {
+  const turnId = (carrier as { [SPECULATED_UTTERANCE]?: unknown } | undefined)?.[
+    SPECULATED_UTTERANCE
+  ];
+  return typeof turnId === 'string' ? { turnId } : {};
+}
+
+/**
+ * A request's mark, or else its signal's: a copy of the request (behaviors SearchBudget turns off
+ * provider tools with `{ ...request, providerTools: false }`) drops the request's own.
+ */
+function requestAskedFor(request: InferenceRequest): { turnId?: string } {
+  const own = askedFor(request);
+  return own.turnId ? own : askedFor(request.signal);
+}
+
 export function instrumentInference(
   inference: Inference,
   telemetry: StageTelemetry,
@@ -142,21 +167,29 @@ export function instrumentInference(
 ): void {
   const activity = inferenceActivity(inference);
   if (activity)
-    timeWebSearches(activity, () => beginStage(telemetry, { stage: 'web_search', ...identity }));
+    timeWebSearches(activity, (search) =>
+      beginStage(telemetry, { stage: 'web_search', ...identity, ...askedFor(search.signal) }),
+    );
   const generate = inference.generate.bind(inference);
   inference.generate = (request) =>
-    timedPromise(() => generate(request), telemetry, { stage: 'inference', ...identity });
+    timedPromise(() => generate(request), telemetry, {
+      stage: 'inference',
+      ...identity,
+      ...requestAskedFor(request),
+    });
   if (!inference.stream) return;
   const stream = inference.stream.bind(inference);
-  inference.stream = (request) =>
-    timedIterable(
+  inference.stream = (request) => {
+    const turn = requestAskedFor(request);
+    return timedIterable(
       () =>
         timeFirstToken(stream(request), () =>
-          beginStage(telemetry, { stage: 'llm_first_token', ...identity }),
+          beginStage(telemetry, { stage: 'llm_first_token', ...identity, ...turn }),
         ),
       telemetry,
-      { stage: 'inference', ...identity },
+      { stage: 'inference', ...identity, ...turn },
     );
+  };
 }
 
 export function instrumentStreamingTts(

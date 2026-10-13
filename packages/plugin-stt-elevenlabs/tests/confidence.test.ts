@@ -98,6 +98,29 @@ describe('a final with its confidence', () => {
     await session.cancel('done');
   });
 
+  it('logs how long Scribe took to answer each commit (Wave 10)', async () => {
+    const lines: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((line: string) => void lines.push(line));
+    const { clock, session } = await open([
+      { send: sessionStarted() },
+      AUDIO,
+      COMMIT,
+      { delayMs: 340 },
+      { send: committed('Chennai, Chennai.') },
+      { send: committedWords('Chennai, Chennai.') },
+    ]);
+    await session.write(frame());
+    await session.forceEndpoint!();
+    await clock.advanceAsync(340);
+    const logged = lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(logged.find((entry) => entry.event === 'stt_commit_answered')).toMatchObject({
+      sessionId: 'scribe-confidence',
+      latencyMs: 340,
+      empty: false,
+    });
+    await session.cancel('done');
+  });
+
   it('a clear reply carries a high confidence', async () => {
     const { events, session } = await open([
       { send: sessionStarted() },

@@ -8,6 +8,9 @@ import type { AudioFormat } from '@winsendotai/ovo-contracts';
 import { speechCacheAudio } from './telemetry-carrier-rtt.ts';
 import { ReplyWaitClock } from './telemetry-reply-waits.ts';
 
+/** Stages held for turns not yet known: a few utterances asked ahead, never answered, at most. */
+const MAX_EARLY_STAGES = 32;
+
 /**
  * OBS-5: a turn's endpoint is the provider's measure, from its word timings, else the engine's (VAD
  * stop to the accepted turn). Scribe has no word timings: on the live calls of 2026-10-07 every
@@ -17,6 +20,14 @@ export class WorkerTurnTelemetry extends TurnTelemetryCollector {
   private measured = false;
   /** Wave 8 fix 3: each turn's wait for its first reply audio, part by part (`reply.waits`). */
   private readonly waits: ReplyWaitClock;
+  /** Turns the engine has reported (a timing, or the turn's stop), the most recent last. */
+  private readonly known = new Set<string>();
+  /**
+   * Wave 10 (B2): stages of a call asked ahead for an utterance (its `turnId`) that settled before
+   * the engine reported that turn. The LLM is asked on the caller's final words while the turn
+   * still waits out their silence, so its first token can come first. Counted once it is reported.
+   */
+  private early: TurnStageSample[] = [];
 
   constructor(options: {
     includeText: boolean;
@@ -52,10 +63,30 @@ export class WorkerTurnTelemetry extends TurnTelemetryCollector {
       this.measured = false;
     }
     super.engine(event);
+    const turnId =
+      event.type === 'timing' || (event.type === 'user.turn' && event.phase === 'stopped')
+        ? event.turnId
+        : undefined;
+    if (turnId) this.reported(turnId);
   }
 
   override stage(sample: TurnStageSample): void {
     if (sample.stage === 'stt.endpoint') this.measured = true;
+    if (sample.turnId !== undefined && !this.known.has(sample.turnId)) {
+      this.early.push(sample);
+      if (this.early.length > MAX_EARLY_STAGES) this.early.shift();
+      return;
+    }
     super.stage(sample);
+  }
+
+  private reported(turnId: string): void {
+    if (this.known.has(turnId)) return;
+    this.known.add(turnId);
+    if (this.known.size > 200) this.known.delete(this.known.values().next().value!);
+    const held = this.early.filter((sample) => sample.turnId === turnId);
+    if (!held.length) return;
+    this.early = this.early.filter((sample) => sample.turnId !== turnId);
+    for (const sample of held) super.stage(sample);
   }
 }

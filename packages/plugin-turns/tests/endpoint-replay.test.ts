@@ -44,19 +44,21 @@ describe('Wave 8 latency fix 1: complete turns end on the short silence', () => 
   );
 
   it.each(normal)(
-    '%s: the recommended row saves 200–400 ms',
+    '%s: the recommended row saves 200–450 ms',
     (_, ms, text, live, lat, interims) => {
       const f = replay(new FakeClock(), RECOMMENDED);
       f.utter(ms, text, lat, interims);
-      // A short utterance commits 50 ms after the VAD stop; a long one with no closing interim
-      // still waits Wave 6's 250 ms (P2), and its final then ends it at once.
-      const saved = ms >= 1200 ? 200 : 400;
+      // Wave 8 committed a short utterance 50 ms after the VAD stop and a long one with no closing
+      // interim after Wave 6's 250 ms (P2). Wave 10 commits each as the VAD stops: a short one's
+      // final, which reads complete, ends it at once, 450 ms sooner than live's 450 ms commit; a long
+      // one's still waits the 250 ms its words were owed, so it ends 200 ms sooner, as in Wave 8.
+      const saved = ms >= 1200 ? 200 : 450;
       expect(f.turns.map((t) => t.text)).toEqual([text]);
       expect(Math.abs(f.turns[0]!.endpointMs - (live - saved))).toBeLessThanOrEqual(1);
     },
   );
 
-  it("with Maya's 450 ms kept, a complete interim at the stop commits after 50 ms: 400 ms saved", () => {
+  it("with Maya's 450 ms kept, a complete interim at the stop commits at once: 450 ms saved", () => {
     const f = replay(new FakeClock(), MAYA);
     f.commits('Sometime during Christmas.', 363);
     f.send({ type: 'vad.start' });
@@ -65,10 +67,10 @@ describe('Wave 8 latency fix 1: complete turns end on the short silence', () => 
     f.clock.advance(100);
     f.send({ type: 'vad.stop' });
     f.clock.advance(5000);
-    expect(f.turns).toMatchObject([{ endpointMs: 613, reason: 'complete' }]);
+    expect(f.turns).toMatchObject([{ endpointMs: 563, reason: 'complete' }]);
   });
 
-  it('after a question, a short reply with no closing punctuation is complete: 400 ms saved', () => {
+  it('after a question, a short reply with no closing punctuation is complete: 450 ms saved', () => {
     const f = replay(new FakeClock(), MAYA);
     f.agentStarts(true);
     f.clock.advance(3000);
@@ -80,7 +82,7 @@ describe('Wave 8 latency fix 1: complete turns end on the short silence', () => 
     f.clock.advance(100);
     f.send({ type: 'vad.stop' });
     f.clock.advance(5000);
-    expect(f.turns).toMatchObject([{ text: 'Zagreb.', endpointMs: 610, reason: 'complete' }]);
+    expect(f.turns).toMatchObject([{ text: 'Zagreb.', endpointMs: 560, reason: 'complete' }]);
   });
 
   it('a final that trails off still waits for the caller: one turn (Wave 6 P2 kept)', () => {
@@ -103,8 +105,10 @@ describe('call-3 #5: a number, date or amount broken off is one turn', () => {
     const f = replay(new FakeClock(), MAYA);
     const said = "Yeah. So we'd like to leave on the 20th and be back around the 1";
     // Live: its final came 474 ms after the VAD stop (675 ms endpoint), and "st." 291 ms after
-    // the turn ended, as a turn of its own that ran a web search.
-    f.commits(said, 24);
+    // the turn ended, as a turn of its own that ran a web search. Wave 10: Scribe's answer comes as
+    // measured, whenever the commit went out.
+    const stopAt = f.clock.now() + 3200;
+    f.commitsAt(said, stopAt + 474);
     f.send({ type: 'vad.start' });
     for (const interim of ["Yeah. So we'd like", "Yeah. So we'd like to leave on the 20th"]) {
       f.clock.advance(1000);

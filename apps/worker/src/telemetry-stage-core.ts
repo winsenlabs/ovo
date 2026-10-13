@@ -10,6 +10,8 @@ export interface StageTelemetry {
     stage: string;
     provider?: string;
     model?: string;
+    /** The turn the stage belongs to, when not the running one (Wave 10: a call asked ahead). */
+    turnId?: string;
   }): (outcome?: StageOutcome, payload?: Record<string, unknown>) => boolean;
   /** A duration measured elsewhere, such as endpointing reconstructed from word timings. */
   recordStage?(input: {
@@ -43,7 +45,7 @@ export function instrumentPlugin(
 export async function timedPromise<T>(
   operation: () => Promise<T>,
   telemetry: StageTelemetry,
-  input: { stage: string } & StageIdentity,
+  input: { stage: string; turnId?: string } & StageIdentity,
 ): Promise<T> {
   const finish = beginStage(telemetry, input);
   try {
@@ -59,7 +61,7 @@ export async function timedPromise<T>(
 export async function* timedIterable<T>(
   operation: () => AsyncIterable<T>,
   telemetry: StageTelemetry,
-  input: { stage: string } & StageIdentity,
+  input: { stage: string; turnId?: string } & StageIdentity,
 ): AsyncIterable<T> {
   const finish = beginStage(telemetry, input);
   try {
@@ -73,7 +75,7 @@ export async function* timedIterable<T>(
 
 export function beginStage(
   telemetry: StageTelemetry,
-  input: { stage: string } & StageIdentity,
+  input: { stage: string; turnId?: string } & StageIdentity,
 ): FinishStage {
   try {
     const finish = telemetry.startStage(input);

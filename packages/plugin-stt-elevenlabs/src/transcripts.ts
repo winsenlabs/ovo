@@ -24,7 +24,7 @@ export class ScribeTranscripts {
 
   constructor(
     private readonly input: Parameters<SpeechToText['start']>[0],
-    clock: Clock,
+    private readonly clock: Clock,
     options: ScribeTranscriptOptions,
     private readonly answered: () => void,
   ) {
@@ -55,8 +55,19 @@ export class ScribeTranscripts {
     this.segments.onPartial(text);
   }
 
-  /** `sentAtMs`: when the commit this answers was sent, if the session sent it. */
+  /**
+   * `sentAtMs`: when the commit this answers was sent, if the session sent it. Wave 10 (call
+   * 4f1a919d, L1): Scribe's answer to a host commit is most of every turn's endpoint (286–444 ms on
+   * Maya's calls, after the VAD's 200 ms); `stt_commit_answered` logs how long each took, so a live
+   * call tells the provider's time from the network's (the `region` binding).
+   */
   committed(text: string, sentAtMs?: number): void {
+    if (sentAtMs !== undefined)
+      logger.info('stt_commit_answered', {
+        sessionId: this.input.sessionId,
+        latencyMs: Math.round(this.clock.now() - sentAtMs),
+        empty: !text.trim(),
+      });
     this.commits.committed(text, sentAtMs);
   }
 

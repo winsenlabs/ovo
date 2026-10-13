@@ -91,8 +91,9 @@ function fixture(row: Record<string, unknown> = {}, { vad = true } = {}) {
   return { clock, decisions, send, transcript, speak, utter, forced, of, turns, speaking, silent };
 }
 
-/** Milliseconds from the VAD stop to the force-endpoint. */
-const commitWait = (ms: number, interim: string) => fixture().speak(ms, interim);
+/** Milliseconds from the VAD stop to the force-endpoint, as Wave 8 timed it (commitAtStop off). */
+const commitWait = (ms: number, interim: string) =>
+  fixture({ commit: { commitAtStop: false, completeSilenceMs: 50 } }).speak(ms, interim);
 
 describe('P2: turns no longer end mid-sentence', () => {
   it('short answers keep the 250 ms commit; long sentences wait ~450 ms', () => {
@@ -122,7 +123,9 @@ describe('P2: turns no longer end mid-sentence', () => {
   it('a broken-off final with no more speech ends after cutoffHoldMs', () => {
     const f = fixture();
     f.utter(1500, 'Do you know', 'Do you know any-');
-    f.clock.advance(699);
+    // Wave 10: committed at the stop, its final first waits out the 250 ms its words were owed,
+    // then the hold: the same moment after the VAD stop as before (250 + 350 + 700 ms).
+    f.clock.advance(949);
     expect(f.turns()).toEqual([]);
     f.clock.advance(1);
     expect(f.turns()).toEqual(['Do you know any-']);
@@ -134,6 +137,7 @@ describe('P2: turns no longer end mid-sentence', () => {
     expect(f.turns()).toEqual(['One minute.']);
     const off = fixture({ cutoffHoldMs: 0 });
     off.utter(1500, 'Promoter of', 'Promoter of CreditMantri is a...');
+    off.clock.advance(250);
     expect(off.turns()).toEqual(['Promoter of CreditMantri is a...']);
   });
 });
@@ -239,8 +243,8 @@ describe('background talkers and noise', () => {
     f.send({ type: 'vad.start' });
     f.clock.advance(400);
     f.send({ type: 'vad.stop' });
-    // 50 ms commit + 600 ms ceiling + 1000 ms grace.
-    f.clock.advance(1649);
+    // The commit as the VAD stops (Wave 10) + 600 ms ceiling + 1000 ms grace.
+    f.clock.advance(1599);
     expect(f.of('turn.reset')).toEqual([]);
     f.clock.advance(1);
     expect(f.of('turn.reset').map((d) => d.reason)).toEqual(['backchannel']);
