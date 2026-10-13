@@ -140,6 +140,13 @@ export interface Behavior {
    * for 180 ms).
    */
   drafting?(): boolean;
+  /**
+   * Wave 10 (call 4f1a919d, L3): whether the reply to the turn `beginTurn` began may look something
+   * up: true once its model request was sent with the provider's own tools (a web search), false
+   * once it was sent without them, undefined until then. A reply of a few words that cannot search
+   * comes in well under two seconds, so an engine plays no filler line before it.
+   */
+  lookingUp?(): boolean | undefined;
   isComplete?(): boolean;
   /**
    * Why the behaviour completed, read once `isComplete()` is true, for the call record (for example

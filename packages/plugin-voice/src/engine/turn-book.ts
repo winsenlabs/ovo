@@ -1,5 +1,6 @@
 import {
   continuesUtterance,
+  SAID_BEFORE_REPLY_VARIABLE,
   UNTRUSTED_INPUT_VARIABLE,
   type Behavior,
   type BehaviorEvent,
@@ -65,7 +66,9 @@ const BRIEF_WORDS = 3;
  * searching and the newer words are brief (call-3 #1: "Oh, my God." threw away turn 21's search
  * and its answer, and the merged turn searched again, 5.9 s later). Words that carry the earlier
  * ones on are never brief (Wave 8b, call e8a43f65: "Of January." after "…to the 5th."). Words not
- * merged queue behind the reply and are answered after it.
+ * merged queue behind the reply and are answered after it; when the caller had heard none of that
+ * reply, their turn carries the earlier words (`SAID_BEFORE_REPLY_VARIABLE`, Wave 10 B1: "Madras."
+ * a second after "Chennai, Chennai.", answered 17.8 s later as if it answered the reply's question).
  */
 export class TurnBook {
   running?: Turn;
@@ -107,8 +110,11 @@ export class TurnBook {
   caller(turn: Turn): { queue?: Turn; supersede?: Turn } {
     const tail = this.waiting.at(-1);
     if (tail?.speech) {
+      const before = tail.extra[SAID_BEFORE_REPLY_VARIABLE];
       this.absorb(turn, tail);
       Object.assign(tail, turn);
+      if (before !== undefined)
+        tail.extra = { ...tail.extra, [SAID_BEFORE_REPLY_VARIABLE]: before };
       return {};
     }
     let earlier = this.takeCarry();
@@ -116,6 +122,8 @@ export class TurnBook {
     const running = this.running;
     if (!earlier && running && this.supersedes(turn.input, running)) earlier = supersede = running;
     if (earlier) this.absorb(turn, earlier);
+    else if (running && this.unanswered(running))
+      turn.extra = { ...turn.extra, [SAID_BEFORE_REPLY_VARIABLE]: running.input };
     return supersede ? { queue: turn, supersede } : { queue: turn };
   }
 
@@ -146,6 +154,15 @@ export class TurnBook {
       !running.committed &&
       !(running.searched && brief(input) && !continuesUtterance(input, running.input)) &&
       !this.tools &&
+      !running.controller?.signal.aborted &&
+      !this.audibility.answered(running.epoch)
+    );
+  }
+
+  /** `running` answers the caller's words, and they have heard none of it yet (a filler aside). */
+  private unanswered(running: Turn): boolean {
+    return (
+      running.speech &&
       !running.controller?.signal.aborted &&
       !this.audibility.answered(running.epoch)
     );

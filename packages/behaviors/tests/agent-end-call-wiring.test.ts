@@ -85,7 +85,9 @@ describe("the agent asks EndCallGate before the LLM's end_call ends the call (N1
     // Wave 8b: no goodbye, so the agent asks, deterministically, and a yes ends the call.
     expect(await m.turn('Thanks, that helps.')).toEqual(['Shall I end the call?']);
     expect(m.behavior.isComplete()).toBe(false);
-    expect(await m.turn('Yes.')).toEqual(['Bye!']);
+    // Wave 10 (L2): with the fixed goodbye, the model not asked again; the ending is its end_call.
+    expect(await m.turn('Yes.')).toEqual(['Thank you for your time. Goodbye!']);
+    expect(m.model.requests).toHaveLength(2);
     expect(m.behavior.completionReason()).toBe('llm:end_call:done');
   });
 

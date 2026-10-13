@@ -66,7 +66,9 @@ describe('call e8a43f65 issue 6: end_call only on a clear goodbye or ask', () =>
     // Asked deterministically: no second LLM request for the refused turn.
     expect(m.model.requests).toHaveLength(7);
     m.clock.ms += 3_000;
-    expect(await m.turn('Yes, end it.')).toEqual([GOODBYE]);
+    // Wave 10 (L2): the yes gets the fixed goodbye at once, with no model request.
+    expect(await m.turn('Yes, end it.')).toEqual(['Thank you for your time. Goodbye!']);
+    expect(m.model.requests).toHaveLength(7);
     expect(m.behavior.completionReason()).toBe('llm:end_call:caller');
   });
 

@@ -246,6 +246,37 @@ describe('the LLM asked on the caller’s partial transcript (Wave 8, latency fi
     expect(agent.speculationMetrics.llm).toMatchObject({ onPartials: 2, discarded: 2, used: 0 });
   });
 
+  it('still asks ahead once a barge-in cut the reply’s only line (Wave 10 review of B1)', async () => {
+    const { agent, llm } = maya();
+    await greeted(agent);
+    agent.finalize({ turnId: 'turn-1', text: 'Tell me about Budapest.', merged: false });
+    agent.beginTurn(2);
+    const reply = agent.respond('Tell me about Budapest.', {});
+    await advance(LLM_MS);
+    // The caller cuts the reply's first and only line: it never enters the history, so the history
+    // still ends with their words, and the engine cancels the turn.
+    agent.onPlayback({ ...played(await reply, 2), state: 'interrupted' });
+    agent.cancel();
+    epochs.set(agent, 2);
+    agent.prepare({ turnId: 'turn-2', text: 'What about Prague?', stable: true });
+    await advance(300);
+    // Before: nothing asked until the turn ended, 300 ms later (the review's probe: first audio
+    // 8,451 ms in place of 7,851 ms, the 600 ms from stable partial to endpoint).
+    expect(llm.requests.map((request) => request.input)).toEqual([
+      'Tell me about Budapest.',
+      'What about Prague?',
+    ]);
+    expect(await turn(agent, 'turn-2', 'What about Prague?')).toEqual({
+      ms: LLM_MS - 300,
+      segment: 'A composed LLM answer.',
+    });
+    expect(llm.requests).toHaveLength(2);
+    expect(llm.requests[1]!.history?.at(-1)).toEqual({
+      role: 'user',
+      content: 'Tell me about Budapest.',
+    });
+  });
+
   it('keeps a barge-in’s words across cancel, and asks nothing once the engine ends the call', async () => {
     const { agent, llm } = maya();
     await greeted(agent);
