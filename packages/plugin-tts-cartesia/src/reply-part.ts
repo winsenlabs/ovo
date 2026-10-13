@@ -31,7 +31,6 @@ export interface Context {
   sink: ContextSink;
   samples: WholeSamples;
   flushes: number;
-  heard: boolean;
   /** When the provider last sent anything for this context (or when it was opened). */
   quietSince: number;
 }

@@ -146,7 +146,6 @@ export class CartesiaReply implements TtsReply {
       sink,
       samples: new WholeSamples(this.init.input.format),
       flushes: 0,
-      heard: false,
       quietSince: this.init.clock.now(),
     };
     socket.attach(id, context.sink);
@@ -179,7 +178,6 @@ export class CartesiaReply implements TtsReply {
 
   private chunk(context: Context, audio: Uint8Array): void {
     if (this.closed) return;
-    context.heard = true;
     context.quietSince = this.init.clock.now();
     const head = this.parts.find((part) => part.context === context && !part.done);
     // A chunk after every flush_done of its context has nowhere to go: dropped.
@@ -211,9 +209,17 @@ export class CartesiaReply implements TtsReply {
     if (this.closed || context !== this.context) return;
     context.socket.detach(context.id, context.sink);
     this.context = undefined;
-    // Segments sent on it that never ended go out again on the next context, unheard ones only.
-    for (const part of this.parts) if (part.context === context && !part.done) part.sent = false;
-    this.retryOrFail(error, context.heard);
+    const open = this.parts.filter((part) => part.context === context && !part.done);
+    // Nothing in flight (a drop between segments, the provider's idle close): the next segment
+    // simply opens a fresh context, reconnecting if the socket went with it.
+    if (!open.length) return;
+    // Segments that ended are never sent again, so only an open one that was heard could repeat
+    // words: then the reply fails; otherwise the open ones go out again on the next context.
+    for (const part of open) part.sent = false;
+    this.retryOrFail(
+      error,
+      open.some((part) => part.heard),
+    );
   }
 
   private retryOrFail(error: CartesiaTtsError | Error, heard: boolean): void {

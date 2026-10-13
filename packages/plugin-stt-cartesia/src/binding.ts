@@ -71,7 +71,11 @@ export interface CartesiaAutoBinding extends Shared {
 
 export interface CartesiaManualBinding extends Shared {
   model?: 'ink-2' | 'ink-whisper';
-  /** ISO 639-1; ink-whisper only, and required there (ink-2 detects the language itself). */
+  /**
+   * ISO 639-1, ink-whisper only. ink-whisper does no detection, so each connection names the
+   * session's language when ink-whisper lists it (the language the compat check approved); this is
+   * sent only for a session whose language it does not list. ink-2 detects the language itself.
+   */
   language?: string;
   /** ink-whisper only: what counts as silence for its automatic finalization, 0–1. */
   minVolume?: number;
@@ -179,15 +183,18 @@ export function autoUrl(
   return `wss://${CARTESIA_HOST}${AUTO_PATH}?${query(params)}`;
 }
 
+/** `language` is the ink-whisper connection's (see `whisperLanguage`); ink-2 sends none. */
 export function manualUrl(
   binding: Readonly<CartesiaManualBinding>,
   format: AudioFormat,
   keyterms: readonly string[],
+  language?: string,
 ): string {
   const model = binding.model ?? 'ink-2';
   const params = base(format, model);
   if (model === 'ink-whisper') {
-    params.push(['language', binding.language!]);
+    if (!language) throw new TypeError('Cartesia ink-whisper needs a language for the connection');
+    params.push(['language', language]);
     if (binding.minVolume !== undefined) params.push(['min_volume', binding.minVolume]);
     if (binding.maxSilenceDurationSecs !== undefined)
       params.push(['max_silence_duration_secs', binding.maxSilenceDurationSecs]);
@@ -198,8 +205,8 @@ export function manualUrl(
 /** The manual binding's model rules, checked again where the schema cannot reach (factory use). */
 export function checkManual(binding: Readonly<CartesiaManualBinding>): void {
   const whisper = binding.model === 'ink-whisper';
-  if (whisper && !(binding.language && WHISPER_LANGUAGES.includes(binding.language)))
-    throw new TypeError('Cartesia ink-whisper needs a supported `language`');
+  if (whisper && binding.language !== undefined && !WHISPER_LANGUAGES.includes(binding.language))
+    throw new TypeError(`Cartesia ink-whisper does not transcribe ${binding.language}`);
   if (whisper && binding.keyterms?.length)
     throw new TypeError('Cartesia keyterms are for ink-2 only');
   if (
@@ -214,3 +221,18 @@ export function checkManual(binding: Readonly<CartesiaManualBinding>): void {
 }
 
 export const baseLanguage = (language: string) => language.split(/[-_]/)[0]!.toLowerCase();
+
+/**
+ * The language an ink-whisper connection transcribes: the session's base language when ink-whisper
+ * lists it, else the binding's. A TypeError when neither applies, since any other language would
+ * be heard as the wrong one.
+ */
+export function whisperLanguage(
+  binding: Readonly<CartesiaManualBinding>,
+  sessionLanguage: string,
+): string {
+  const session = baseLanguage(sessionLanguage);
+  if (WHISPER_LANGUAGES.includes(session)) return session;
+  if (binding.language) return binding.language;
+  throw new TypeError(`Cartesia ink-whisper does not transcribe ${sessionLanguage}`);
+}

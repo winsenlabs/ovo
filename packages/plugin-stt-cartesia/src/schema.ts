@@ -55,11 +55,11 @@ export const CARTESIA_MANUAL_BINDING_SCHEMA = {
     maxSilenceDurationSecs: { type: 'number', exclusiveMinimum: 0, maximum: 30 },
     ...shared,
   },
-  // ink-whisper needs `language` and takes no keyterms; ink-2 takes none of the whisper fields.
+  // ink-whisper takes no keyterms; ink-2 takes none of the whisper fields.
   allOf: [
     {
       if: { properties: { model: { const: 'ink-whisper' } }, required: ['model'] },
-      then: { required: ['language'], not: { required: ['keyterms'] } },
+      then: { not: { required: ['keyterms'] } },
       else: { not: { anyOf: WHISPER_ONLY.map((field) => ({ required: [field] })) } },
     },
   ],
@@ -112,7 +112,11 @@ export const CARTESIA_MANUAL_UI_FIELDS = {
     label: 'Model',
     help: 'ink-whisper covers Tamil, Telugu and other Indic languages.',
   },
-  language: { label: 'Language', help: 'ISO 639-1; ink-whisper only, and required for it.' },
+  language: {
+    label: 'Fallback language',
+    help: "ink-whisper only: used when the call's language is not one ink-whisper transcribes.",
+    advanced: true,
+  },
   minVolume: { advanced: true },
   maxSilenceDurationSecs: { advanced: true },
   ...COMMON_FIELDS,
