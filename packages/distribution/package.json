@@ -13,6 +13,8 @@
     "@winsendotai/ovo-plugin-cache": "workspace:*",
     "@winsendotai/ovo-plugin-carrier-exotel": "workspace:*",
     "@winsendotai/ovo-plugin-carrier-plivo": "workspace:*",
+    "@winsendotai/ovo-plugin-carrier-sip": "workspace:*",
+    "@winsendotai/ovo-plugin-carrier-tcn": "workspace:*",
     "@winsendotai/ovo-plugin-carrier-twilio": "workspace:*",
     "@winsendotai/ovo-plugin-decision-jev": "workspace:*",
     "@winsendotai/ovo-plugin-engine-livekit": "workspace:*",

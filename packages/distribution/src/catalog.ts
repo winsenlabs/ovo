@@ -100,6 +100,18 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
     load: () => import('@winsendotai/ovo-plugin-carrier-plivo'),
   },
   {
+    // Wave 11: OVO's own sip-gateway as a carrier. Inert until the host composes
+    // Cap.sipTrunkControl (worker) / Cap.sipTrunkVerifier (gateway) under OVO_SIP_ENABLED=true.
+    package: '@winsendotai/ovo-plugin-carrier-sip',
+    roles: ['api', 'worker', 'gateway', 'dispatcher'],
+    load: () => import('@winsendotai/ovo-plugin-carrier-sip'),
+  },
+  {
+    package: '@winsendotai/ovo-plugin-carrier-tcn',
+    roles: ['api', 'worker', 'gateway', 'dispatcher'],
+    load: () => import('@winsendotai/ovo-plugin-carrier-tcn'),
+  },
+  {
     package: '@winsendotai/ovo-fixture-calls',
     roles: ['api'],
     load: () => import('@winsendotai/ovo-fixture-calls'),
