@@ -183,3 +183,49 @@ describe('Compose environment contract', () => {
     expect(missingRequiredEnv(withoutVariable(service, name))).toEqual([`${service}: ${name}`]);
   });
 });
+
+describe('Compose SIP environment (Wave 11)', () => {
+  const DATABASE = 'postgresql://ovo:secret@postgres:5432/ovo';
+
+  it('keeps SIP off, and the sip-gateway on loopback, when the .env says nothing about it', () => {
+    const variables = goLiveComposeVariables(DATABASE);
+    for (const service of ['gateway', 'worker-1', 'worker-2'])
+      expect(renderServiceEnv(service, variables).OVO_SIP_ENABLED, service).toBe('false');
+    const sip = renderServiceEnv('sip-gateway', variables);
+    expect(sip).toMatchObject({
+      OVO_SIP_PUBLIC_ENABLED: 'false',
+      OVO_SIP_PUBLIC_IP: '',
+      OVO_SIP_CONTROL_LISTEN: '172.29.240.1:5090',
+      OVO_SIP_CONTROL_SOURCE_CIDRS: '172.29.240.0/24',
+      OVO_SIP_MEDIA_INTERNAL_URL: 'http://127.0.0.1:4001',
+      OVO_SIP_HEALTH_LISTEN: '127.0.0.1:5091',
+      OVO_SIP_TRUNKS_FILE: '/etc/ovo/sip-trunks.json',
+    });
+    expect(renderServiceEnv('worker-1', variables).OVO_SIP_CONTROL_URL).toBe(
+      'http://172.29.240.1:5090',
+    );
+  });
+
+  it('hands the sip-gateway the key the gateway verifies with and the token the workers send', () => {
+    const variables = {
+      ...goLiveComposeVariables(DATABASE),
+      OVO_SIP_ENABLED: 'true',
+      OVO_SIP_CONTROL_TOKEN: 'c'.repeat(64),
+      OVO_SIP_GATEWAY_SECRET: Buffer.alloc(32, 7).toString('base64'),
+      GATEWAY_PORT: '4101',
+    };
+    const sip = renderServiceEnv('sip-gateway', variables);
+    const gateway = renderServiceEnv('gateway', variables);
+    const workers = ['worker-1', 'worker-2'].map((name) => renderServiceEnv(name, variables));
+    expect(gateway.OVO_SIP_ENABLED).toBe('true');
+    expect(sip.OVO_SIP_GATEWAY_SECRET).toBe(variables.OVO_SIP_GATEWAY_SECRET);
+    expect(gateway.OVO_SIP_GATEWAY_SECRET).toBe(sip.OVO_SIP_GATEWAY_SECRET);
+    for (const worker of workers) {
+      expect(worker.OVO_SIP_ENABLED).toBe('true');
+      expect(worker.OVO_SIP_CONTROL_TOKEN).toBe(sip.OVO_SIP_CONTROL_TOKEN);
+    }
+    // Signatures cover the public URL, so both sides must agree on it; the hop itself is loopback.
+    expect(sip.OVO_MEDIA_PUBLIC_BASE_URL).toBe(gateway.OVO_MEDIA_PUBLIC_BASE_URL);
+    expect(sip.OVO_SIP_MEDIA_INTERNAL_URL).toBe('http://127.0.0.1:4101');
+  });
+});

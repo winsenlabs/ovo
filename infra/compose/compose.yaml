@@ -180,6 +180,11 @@ services:
       OVO_INBOUND_ROUTE_SECRET: ${OVO_INBOUND_ROUTE_SECRET:-not-configured}
       OVO_LIVE_DIAL_ENABLED: ${OVO_LIVE_DIAL_ENABLED:-false}
       OVO_PERMITTED_FROM_NUMBERS: ${OVO_PERMITTED_FROM_NUMBERS:-}
+      # Wave 11: the sip/tcn carrier routes verify the sip-gateway's ovo-sip/1 signatures with this
+      # key (and the previous one while rotating). Off, they answer 503 and nothing is admitted.
+      OVO_SIP_ENABLED: ${OVO_SIP_ENABLED:-false}
+      OVO_SIP_GATEWAY_SECRET: ${OVO_SIP_GATEWAY_SECRET:-}
+      OVO_SIP_GATEWAY_SECRET_PREVIOUS: ${OVO_SIP_GATEWAY_SECRET_PREVIOUS:-}
     depends_on:
       postgres: { condition: service_healthy, required: false }
     healthcheck:
@@ -304,6 +309,11 @@ services:
       OVO_TELEMETRY_MAX_QUEUED_EVENTS: ${OVO_TELEMETRY_MAX_QUEUED_EVENTS:-}
       OVO_CALL_EVENT_MAX_QUEUED_EVENTS: ${OVO_CALL_EVENT_MAX_QUEUED_EVENTS:-}
       OVO_OPERATIONS_PG_MAX_CONNECTIONS: ${OVO_OPERATIONS_PG_MAX_CONNECTIONS:-}
+      # Wave 11: sip/tcn dials go to the sip-gateway's control API on the compose bridge. Off, a
+      # sip/tcn dial is refused before anything is sent.
+      OVO_SIP_ENABLED: ${OVO_SIP_ENABLED:-false}
+      OVO_SIP_CONTROL_URL: ${OVO_SIP_CONTROL_URL:-http://172.29.240.1:5090}
+      OVO_SIP_CONTROL_TOKEN: ${OVO_SIP_CONTROL_TOKEN:-}
     depends_on:
       postgres: { condition: service_healthy, required: false }
       queue: { condition: service_healthy, required: false }
@@ -344,6 +354,71 @@ services:
     stop_grace_period: 300s
     mem_limit: 2g
     cpus: 1.5
+    restart: unless-stopped
+    logging: *logging
+
+  # Wave 11: OVO's own SIP/RTP endpoint (docs/architecture/sip-gateway.md). Profile `sip`, so it
+  # starts only when deploy-compose.sh sees OVO_SIP_ENABLED=true. Host networking puts SIP and RTP
+  # on the VM NIC without a docker-proxy per RTP port, so nothing is published here: with
+  # OVO_SIP_PUBLIC_ENABLED=false (the default) SIP and RTP bind 127.0.0.1 whatever OVO_SIP_BIND_IP
+  # says, and no firewall rule exists for OVO_SIP_PORT or the RTP range. The control API listens
+  # on the compose bridge for the workers; health is loopback only.
+  sip-gateway:
+    image: ${OVO_SIP_GATEWAY_IMAGE:-ovo-sip-gateway:local}
+    profiles: [sip]
+    build:
+      context: ../..
+      dockerfile: infra/container/Dockerfile
+      target: sip-gateway
+    network_mode: host
+    environment:
+      OVO_ENVIRONMENT: compact
+      OVO_LOG_LEVEL: ${OVO_LOG_LEVEL:-info}
+      OVO_SIP_PUBLIC_ENABLED: ${OVO_SIP_PUBLIC_ENABLED:-false}
+      OVO_SIP_BIND_IP: ${OVO_SIP_BIND_IP:-0.0.0.0}
+      OVO_SIP_PUBLIC_IP: ${OVO_SIP_PUBLIC_IP:-}
+      OVO_SIP_PORT: ${OVO_SIP_PORT:-5060}
+      OVO_SIP_TRANSPORTS: ${OVO_SIP_TRANSPORTS:-udp,tcp}
+      OVO_SIP_RTP_PORT_MIN: ${OVO_SIP_RTP_PORT_MIN:-40000}
+      OVO_SIP_RTP_PORT_MAX: ${OVO_SIP_RTP_PORT_MAX:-40199}
+      OVO_SIP_TRUNKS_FILE: /etc/ovo/sip-trunks.json
+      OVO_SIP_MAX_CALLS: ${OVO_SIP_MAX_CALLS:-4}
+      OVO_SIP_COUNTRY_ALLOWLIST: ${OVO_SIP_COUNTRY_ALLOWLIST:-+91}
+      # The compose bridge gateway address. If a host-network container cannot bind it on the
+      # target host, set 0.0.0.0:5090: there is no firewall rule for 5090, and the control API
+      # still requires the bearer token and a source inside OVO_SIP_CONTROL_SOURCE_CIDRS.
+      OVO_SIP_CONTROL_LISTEN: ${OVO_SIP_CONTROL_LISTEN:-172.29.240.1:5090}
+      OVO_SIP_CONTROL_SOURCE_CIDRS: ${OVO_COMPOSE_SUBNET:-172.29.240.0/24}
+      OVO_SIP_CONTROL_TOKEN: ${OVO_SIP_CONTROL_TOKEN:-}
+      OVO_SIP_GATEWAY_SECRET: ${OVO_SIP_GATEWAY_SECRET:-}
+      OVO_SIP_MEDIA_INTERNAL_URL: http://127.0.0.1:${GATEWAY_PORT:-4001}
+      OVO_MEDIA_PUBLIC_BASE_URL: ${OVO_MEDIA_PUBLIC_BASE_URL:?set OVO_MEDIA_PUBLIC_BASE_URL}
+      OVO_PERMITTED_FROM_NUMBERS: ${OVO_PERMITTED_FROM_NUMBERS:-}
+      # A restart drops live SIP calls: drain them inside stop_grace_period below.
+      OVO_SIP_DRAIN_TIMEOUT_MS: '240000'
+      OVO_SIP_HEALTH_LISTEN: 127.0.0.1:5091
+      OVO_SIP_INBOUND_WAIT_MAX_MS: ${OVO_SIP_INBOUND_WAIT_MAX_MS:-45000}
+      OVO_HEALTH_TOKEN: ${OVO_HEALTH_TOKEN:-}
+    volumes:
+      # Non-secret trunk list (infra/compose/sip-trunks.example.json); the real file is ignored.
+      - ./sip-trunks.json:/etc/ovo/sip-trunks.json:ro
+    depends_on:
+      # Also guarantees the compose bridge (and so 172.29.240.1) exists before the control bind.
+      gateway: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:5091/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    stop_grace_period: 300s
+    mem_limit: 512m
+    cpus: 1.0
     restart: unless-stopped
     logging: *logging
 
