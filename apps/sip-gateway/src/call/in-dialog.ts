@@ -5,7 +5,7 @@ import type { Flow } from '../sip/flow.ts';
 import { ALLOWED_METHODS, parseCSeq, type SipRequest, type SipResponse } from '../sip/message.ts';
 import { createResponse } from '../sip/serialize.ts';
 import type { ServerTransaction } from '../sip/server-transaction.ts';
-import { uasSessionTimer } from '../sip/session-timer.ts';
+import { parseSessionExpires, uasSessionTimer } from '../sip/session-timer.ts';
 import type { Call } from './call.ts';
 
 const SDP = 'application/sdp';
@@ -160,17 +160,22 @@ export async function refreshSession(call: Call): Promise<void> {
       'INVITE',
       [
         ['Supported', 'timer'],
-        [
-          'Session-Expires',
-          `${call.sessionSeconds};refresher=${call.direction === 'inbound' ? 'uas' : 'uac'}`,
-        ],
+        // We are the UAC of this re-INVITE, so `uac` keeps the refresher role with us (§7.4).
+        ['Session-Expires', `${call.sessionSeconds};refresher=uac`],
         ...(body ? ([['Content-Type', SDP]] as [string, string][]) : []),
       ],
       body,
     );
     if (!response || response.status === 408 || response.status === 481)
       return call.end('session_refresh_failed', { bye: true, stream: 'stream-ended' });
-    call.armSessionTimer(call.sessionSeconds, true);
+    // The 2xx's Session-Expires is binding (§7.2): its interval and its refresher. Without one, or
+    // on a non-2xx that keeps the dialog, we go on refreshing at the interval we already had.
+    const se =
+      response.status < 300
+        ? parseSessionExpires(response.headers.get('session-expires'))
+        : undefined;
+    if (se) call.armSessionTimer(se.seconds, (se.refresher ?? 'uac') === 'uac');
+    else call.armSessionTimer(call.sessionSeconds, true);
   } finally {
     call.refreshing = false;
   }

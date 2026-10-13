@@ -5,7 +5,7 @@ import {
   SipHandoffRequestSchema,
   SipHangupRequestSchema,
 } from '@winsendotai/ovo-sip-carrier-kit';
-import { checkDial, dial } from '../call/dial.ts';
+import { checkDial, dial, repeatedDial } from '../call/dial.ts';
 import { blockListOf, contains } from '../config/trunks.ts';
 import type { SipGateway } from '../gateway.ts';
 
@@ -82,6 +82,8 @@ async function route(
           status: 422,
           body: { kind: 'rejected', reason: 'invalid_request', retryable: false },
         };
+      const repeated = repeatedDial(gateway, parsed.data.requestId);
+      if (repeated) return repeated;
       const checked = checkDial(gateway, parsed.data);
       if (!('id' in checked)) {
         gateway.logger.info('sip.outbound', {

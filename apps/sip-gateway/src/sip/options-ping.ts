@@ -1,7 +1,7 @@
 import type { Clock } from '@winsendotai/ovo-contracts';
 import type { Trunk } from '../config/trunks.ts';
 import type { Logger } from '../log.ts';
-import type { Flow } from './flow.ts';
+import { TimerSet, type Flow } from './flow.ts';
 import { SipHeaders, type SipRequest } from './message.ts';
 import { USER_AGENT, newTag } from './serialize.ts';
 import type { TransactionLayer } from './transactions.ts';
@@ -24,13 +24,15 @@ export interface PingHost {
  */
 export class OptionsPinger {
   private readonly states = new Map<string, TrunkState>();
-  private readonly cancels: (() => void)[] = [];
+  /** One slot per trunk, overwritten on each reschedule, so a long-lived process holds no history. */
+  private readonly timers: TimerSet;
   private seq = 0;
 
   constructor(
     private readonly host: PingHost,
     private readonly trunks: readonly Trunk[],
   ) {
+    this.timers = new TimerSet(host.clock);
     for (const trunk of trunks) this.states.set(trunk.id, 'unknown');
   }
 
@@ -43,14 +45,14 @@ export class OptionsPinger {
       if (!trunk.outbound.proxy || trunk.optionsPingSeconds <= 0) continue;
       const loop = () => {
         void this.ping(trunk);
-        this.cancels.push(this.host.clock.setTimeout(loop, trunk.optionsPingSeconds * 1000));
+        this.timers.start(trunk.id, trunk.optionsPingSeconds * 1000, loop);
       };
       loop();
     }
   }
 
   stop(): void {
-    for (const cancel of this.cancels.splice(0)) cancel();
+    this.timers.stopAll();
   }
 
   async ping(trunk: Trunk): Promise<TrunkState> {

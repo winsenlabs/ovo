@@ -20,6 +20,7 @@ const MAX_AUTH_ROUNDS = 2;
 /** The UAC side of one outbound call: INVITE, digest, ring timeout, CANCEL, answer, forks. */
 export class OutboundLeg {
   private invite?: SipRequest;
+  private transaction?: ClientTransaction;
   private flow?: Flow;
   private provisional = false;
   private cancelWanted = false;
@@ -67,9 +68,9 @@ export class OutboundLeg {
     );
   }
 
-  private send(invite: SipRequest): ClientTransaction {
+  private send(invite: SipRequest): void {
     this.invite = invite;
-    return this.host.transactions.request(invite, this.flow!, {
+    this.transaction = this.host.transactions.request(invite, this.flow!, {
       onResponse: (response) => this.onResponse(invite, response),
       onTimeout: () => {
         if (invite !== this.invite) return;
@@ -237,5 +238,6 @@ export class OutboundLeg {
       onResponse: () => undefined,
       onTimeout: () => undefined,
     });
+    this.transaction?.cancelled();
   }
 }

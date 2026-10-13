@@ -5,10 +5,13 @@ import type {
 } from '@winsendotai/ovo-contracts';
 import { describe, expect, it } from 'vitest';
 import {
+  SIP_MAX_RING_TIMEOUT_SEC,
+  SipDialRequestSchema,
   createSipControlFactory,
   createSipTrunkHttpClient,
   parseSipCredentials,
   sipCarrierCapabilities,
+  type SipDialRequest,
 } from '../src/index.ts';
 
 const binding: ResolvedBinding = {
@@ -96,6 +99,20 @@ describe('SIP TelephonyControl over Cap.sipTrunkControl (§5.4)', () => {
         },
       },
     ]);
+  });
+
+  it('clamps a ring timeout above the gateway cap instead of failing the dial', async () => {
+    const { seen, client } = scripted([
+      {
+        status: 200,
+        body: { kind: 'accepted', carrierCallId: 'cid@ovo', carrierRequestId: 'req-1' },
+      },
+    ]);
+    const result = await control(client).dial({ ...dial, ringTimeoutSec: 600 });
+    expect(result.kind).toBe('accepted');
+    const body = seen[0]!.body as SipDialRequest;
+    expect(body.ringTimeoutSec).toBe(SIP_MAX_RING_TIMEOUT_SEC);
+    expect(SipDialRequestSchema.safeParse(body).success).toBe(true);
   });
 
   it.each([

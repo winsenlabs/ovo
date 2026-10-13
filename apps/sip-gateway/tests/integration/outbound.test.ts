@@ -21,11 +21,16 @@ afterEach(async () => {
 });
 
 /** The gateway dials a loopback "trunk" played by a SipPeer. */
-async function setup(outbound: Record<string, unknown> = {}, trunk: Record<string, unknown> = {}) {
+async function setup(
+  outbound: Record<string, unknown> = {},
+  trunk: Record<string, unknown> = {},
+  options: Pick<Parameters<typeof startHarness>[0] & object, 'timers'> = {},
+) {
   const sip = await SipPeer.open();
   const rtp = await RtpPeer.open();
   peers.push(sip, rtp);
   harness = await startHarness({
+    ...options,
     trunks: [
       loopbackTrunk({
         outbound: {
@@ -226,6 +231,21 @@ describe('outbound calls through the control API (§5.4)', () => {
     await sip.request('ACK');
   });
 
+  it('keeps ringing past 64·T1 and still ends no_answer at the ring timeout, not invite_timeout', async () => {
+    // T1 = 20 ms puts Timer B at 1.28 s, well inside the 2 s ring timeout.
+    const { h, sip } = await setup({}, {}, { timers: { t1: 20, t2: 160, t4: 200 } });
+    await h.control('POST', '/v1/calls', dialBody({ ringTimeoutSec: 2 }));
+    const invite = await sip.request('INVITE');
+    sip.reply(invite, 180, { toTag: 'uas' });
+    const cancel = await sip.request('CANCEL', 4_000);
+    sip.reply(cancel, 200);
+    sip.reply(invite, 487, { toTag: 'uas' });
+    const ended = await h.media.waitFor(() =>
+      h.media.statuses.find((s) => s.state === 'no_answer' || s.state === 'failed'),
+    );
+    expect(ended.state).toBe('no_answer');
+  });
+
   it('a host hangup before answer is a CANCEL and reports canceled', async () => {
     const { h, sip } = await setup();
     const dialed = await h.control('POST', '/v1/calls', dialBody());
@@ -261,6 +281,18 @@ describe('outbound calls through the control API (§5.4)', () => {
 });
 
 describe('control API guards', () => {
+  it('answers a repeated requestId with the original call even at capacity', async () => {
+    const { h, sip } = await setup({}, { maxConcurrent: 1, inviteRatePerSecond: 1 });
+    const body = dialBody();
+    const first = await h.control('POST', '/v1/calls', body);
+    expect(first.body.kind).toBe('accepted');
+    await sip.request('INVITE');
+    const again = await h.control('POST', '/v1/calls', body);
+    expect(again).toEqual({ status: 200, body: first.body });
+    const other = await h.control('POST', '/v1/calls', dialBody());
+    expect(other.body).toMatchObject({ kind: 'rejected', reason: 'at_capacity' });
+  });
+
   it('needs the bearer token and refuses unknown paths', async () => {
     const { h } = await setup();
     expect((await h.control('GET', '/v1/health', undefined, 'wrong')).status).toBe(401);
