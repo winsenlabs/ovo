@@ -9,6 +9,7 @@ import {
   callKeyterms,
   checkManual,
   manualUrl,
+  whisperLanguage,
   type CartesiaManualBinding,
 } from './binding.ts';
 import { INK_FORMATS, INK_FRAME_MS, assertInkFormat, connectSession } from './connect.ts';
@@ -127,13 +128,10 @@ export class CartesiaManualStt implements SpeechToText {
   async start(input: Start): Promise<ManualSession> {
     assertInkFormat(input.format);
     const whisper = this.binding.model === 'ink-whisper';
-    // ink-whisper transcribes only the binding's pinned language (it does no detection), so a
-    // session in another language would be heard as that one: refused. ink-2 detects among its
-    // five, so the session language must be one of them.
-    if (whisper && baseLanguage(input.language) !== this.binding.language)
-      throw new TypeError(
-        `Cartesia ink-whisper is pinned to ${this.binding.language}, not ${input.language}`,
-      );
+    // ink-whisper does no detection: the connection names the session's language (the binding's
+    // only for a session in a language it does not list). ink-2 detects among its five, so the
+    // session language must be one of them.
+    const language = whisper ? whisperLanguage(this.binding, input.language) : undefined;
     if (!whisper && !INK2_LANGUAGES.includes(baseLanguage(input.language)))
       throw new TypeError(`Cartesia ink-2 does not transcribe ${input.language}`);
     input.signal.throwIfAborted();
@@ -145,7 +143,7 @@ export class CartesiaManualStt implements SpeechToText {
     };
     return connectSession(
       this.net,
-      manualUrl(this.binding, input.format, this.keyterms),
+      manualUrl(this.binding, input.format, this.keyterms, language),
       this.key,
       this.clock,
       this.binding.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS,

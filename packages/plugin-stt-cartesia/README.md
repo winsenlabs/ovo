@@ -27,9 +27,12 @@ binding credential (`sk_car_…`), resolved with `ctx.secret('')`; never an env 
   language parameter ([stt/latest](https://docs.cartesia.ai/build-with-cartesia/stt/latest.md)). A
   session in any other language is refused at `start()`.
 - **ink-whisper** (Manual only) covers about 100 languages, including Tamil, Telugu, Kannada,
-  Malayalam, Marathi, Bengali, Gujarati, Punjabi and Urdu, but does no detection: the binding pins
-  `language` (required), and a session in another language is refused rather than heard as the
-  pinned one. Keyterms are ink-2 only.
+  Malayalam, Marathi, Bengali, Gujarati, Punjabi and Urdu, but does no detection, so every
+  connection sends `language=`: the session's base language (`ta-IN` sends `ta`), which is what the
+  host compat check approved. The binding's optional `language` is used only for a session whose
+  language ink-whisper does not list; with neither, `start()` refuses rather than mishear. Design
+  9.2 had `language` required and pinned; a pin the compat check cannot see would fail calls it
+  approved, so the session's language wins. Keyterms are ink-2 only.
 - The Manual definition declares `bindingLanguages` per model, so the host compat check approves
   `ta-IN` only for an ink-whisper binding.
 

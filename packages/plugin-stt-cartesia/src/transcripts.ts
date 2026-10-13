@@ -114,7 +114,7 @@ function wordsOf(event: Record<string, unknown>): Word[] {
     const word = entry as { word?: unknown; start?: unknown; end?: unknown };
     if (typeof word?.word !== 'string' || typeof word.start !== 'number') return [];
     const end = typeof word.end === 'number' ? word.end : word.start;
-    // Seconds to whole milliseconds: 0.55 * 1000 is 550.0000000000001 in floating point.
+    // Seconds to whole milliseconds: 2.01 * 1000 is 2009.9999999999998 in floating point.
     const ms = (seconds: number) => Math.round(seconds * 1000);
     return [{ text: word.word, startMs: ms(word.start), endMs: ms(end), final: true }];
   });

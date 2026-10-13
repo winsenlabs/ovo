@@ -108,19 +108,19 @@ describe('Cartesia keyterms (C5)', () => {
 });
 
 describe('Cartesia Manual STT binding (C6)', () => {
-  it('accepts ink-2 with keyterms and ink-whisper with a language and its silence settings', () => {
+  it('accepts ink-2 with keyterms and ink-whisper with or without a fallback language', () => {
     for (const ok of [
       {},
       { model: 'ink-2', keyterms: ['Fanpit'] },
+      { model: 'ink-whisper' },
       { model: 'ink-whisper', language: 'ta' },
       { model: 'ink-whisper', language: 'hi', minVolume: 0.1, maxSilenceDurationSecs: 2 },
     ])
       expect(valid(MANUAL, ok), JSON.stringify(ok)).toEqual({ ok: true });
   });
 
-  it('rejects whisper without a language or with keyterms, and whisper fields on ink-2', () => {
+  it('rejects whisper with an unlisted language or keyterms, and whisper fields on ink-2', () => {
     for (const bad of [
-      { model: 'ink-whisper' },
       { model: 'ink-whisper', language: 'xx' },
       { model: 'ink-whisper', language: 'ta', keyterms: ['a'] },
       { language: 'hi' },

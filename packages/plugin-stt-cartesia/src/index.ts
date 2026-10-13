@@ -26,6 +26,7 @@ export {
   callKeyterms,
   checkTurn,
   manualUrl,
+  whisperLanguage,
   type CartesiaAutoBinding,
   type CartesiaManualBinding,
   type TurnSettings,

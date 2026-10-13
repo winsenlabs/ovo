@@ -49,7 +49,7 @@ describe('Cartesia Manual STT connection (C6)', () => {
     expect(net.sockets[0]!.headers).toEqual({ 'X-API-Key': 'fixture-key' });
   });
 
-  it('ink-whisper sends its pinned language and silence settings, and no keyterms', async () => {
+  it('ink-whisper sends the session language and its silence settings, and no keyterms', async () => {
     const net = fakeNet();
     const stt = new CartesiaManualStt(
       net,
@@ -65,20 +65,37 @@ describe('Cartesia Manual STT connection (C6)', () => {
     );
   });
 
-  it('ink-whisper rules: language required and pinned, no keyterms; ink-2 takes none of them', async () => {
+  it('ink-whisper hears a language the compat check approved, whatever the binding names', async () => {
+    // The compat rule cannot see the binding's language: an en-IN agent on an ink-whisper binding
+    // naming Tamil passes it, so the call must transcribe English, not fail or hear Tamil.
+    for (const [binding, session, sent] of [
+      [{ model: 'ink-whisper', language: 'ta' }, 'en-IN', 'en'],
+      [{ model: 'ink-whisper', language: 'hi' }, 'ta-IN', 'ta'],
+      [{ model: 'ink-whisper' }, 'te-IN', 'te'],
+      // A session language ink-whisper does not list falls back to the binding's.
+      [{ model: 'ink-whisper', language: 'ta' }, 'xx-IN', 'ta'],
+    ] as const) {
+      const net = fakeNet();
+      const stt = new CartesiaManualStt(net, 'k', binding, new FakeClock());
+      await stt.start(recorder({ language: session }).input);
+      expect(new URL(net.sockets[0]!.url).searchParams.get('language'), session).toBe(sent);
+    }
+  });
+
+  it('ink-whisper rules: a listed language, no keyterms; ink-2 takes none of them', async () => {
     const net = fakeNet();
     const make = (binding: CartesiaManualBinding) =>
       new CartesiaManualStt(net, 'k', binding, new FakeClock());
-    expect(() => make({ model: 'ink-whisper' })).toThrow(/language/);
-    expect(() => make({ model: 'ink-whisper', language: 'xx' })).toThrow(/language/);
+    expect(() => make({ model: 'ink-whisper', language: 'xx' })).toThrow(/xx/);
     expect(() => make({ model: 'ink-whisper', language: 'ta', keyterms: ['a'] })).toThrow(
       /ink-2 only/,
     );
     expect(() => make({ language: 'hi' })).toThrow(/ink-whisper only/);
     expect(() => make({ minVolume: 0.5 })).toThrow(/ink-whisper only/);
-    const whisper = make({ model: 'ink-whisper', language: 'ta' });
-    // A session in another language would be heard as Tamil: refused before connecting.
-    await expect(whisper.start(recorder({ language: 'hi-IN' }).input)).rejects.toThrow(/pinned/);
+    // Neither the session's language nor a binding fallback: refused before connecting.
+    await expect(
+      make({ model: 'ink-whisper' }).start(recorder({ language: 'xx-IN' }).input),
+    ).rejects.toThrow(/ink-whisper does not transcribe xx-IN/);
     await expect(make({}).start(recorder({ language: 'ta-IN' }).input)).rejects.toThrow(/ink-2/);
     expect(net.sockets).toHaveLength(0);
   });
@@ -121,7 +138,7 @@ describe('Cartesia Manual STT finalize (C6)', () => {
         words: [
           { word: 'ing', start: 0.4, end: 0.5 },
           { word: 'the', start: 0.55, end: 0.7 },
-          { word: 'card.', start: 0.75, end: 1.1 },
+          { word: 'card.', start: 0.75, end: 2.01 },
         ],
       }),
     );
@@ -139,12 +156,13 @@ describe('Cartesia Manual STT finalize (C6)', () => {
       segmentId: 'ink-1',
       language: 'en',
       startMs: 100,
-      endMs: 1100,
+      endMs: 2010,
       words: [
         { text: 'Insert', startMs: 100, endMs: 400, final: true },
         { text: 'ing', startMs: 400, endMs: 500, final: true },
         { text: 'the', startMs: 550, endMs: 700, final: true },
-        { text: 'card.', startMs: 750, endMs: 1100, final: true },
+        // 2.01 s is 2009.9999999999998 ms in floating point: rounded to whole milliseconds.
+        { text: 'card.', startMs: 750, endMs: 2010, final: true },
       ],
     });
     // The next utterance is a new segment.
@@ -266,5 +284,19 @@ describe('Cartesia STT silence keeper on a live session (C6)', () => {
       quantity: '0.4',
       requestId: 'cartesia-manual:call-1:1',
     });
+  });
+
+  it('stays quiet while a paced backlog is still going out, then fills the real gap', async () => {
+    const { clock, socket, session } = await started();
+    // One second of pre-session audio at once: the pacer needs about 450 ms to send it at 2x.
+    await session.write(speech(1000));
+    for (let t = 0; t < 1500; t += 10) clock.advance(10);
+    const silent = socket.audio.filter((frame) => frame.every((byte) => byte === 0xff));
+    expect(socket.audio.length - silent.length).toBe(10);
+    // Only the gap after the backlog drained is filled; silence queued behind it would delay
+    // the caller's next words by as much again.
+    const silenceMs = silent.reduce((sum, frame) => sum + frame.byteLength / 8, 0);
+    expect(silenceMs).toBeLessThanOrEqual(1100);
+    await session.cancel('done');
   });
 });
