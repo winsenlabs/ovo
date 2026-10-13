@@ -43,16 +43,20 @@ describe('Wave 8 latency fix 1: complete turns end on the short silence', () => 
     },
   );
 
-  it.each(normal)('%s: the recommended row saves 450 ms', (_, ms, text, live, lat, interims) => {
-    const f = replay(new FakeClock(), RECOMMENDED);
-    f.utter(ms, text, lat, interims);
-    // Wave 8 committed a short utterance 50 ms after the VAD stop and a long one with no closing
-    // interim after Wave 6's 250 ms (P2). Wave 10 commits each as the VAD stops, and its final,
-    // which reads complete, ends it at once: 450 ms sooner than live's 450 ms commit.
-    const saved = 450;
-    expect(f.turns.map((t) => t.text)).toEqual([text]);
-    expect(Math.abs(f.turns[0]!.endpointMs - (live - saved))).toBeLessThanOrEqual(1);
-  });
+  it.each(normal)(
+    '%s: the recommended row saves 200–450 ms',
+    (_, ms, text, live, lat, interims) => {
+      const f = replay(new FakeClock(), RECOMMENDED);
+      f.utter(ms, text, lat, interims);
+      // Wave 8 committed a short utterance 50 ms after the VAD stop and a long one with no closing
+      // interim after Wave 6's 250 ms (P2). Wave 10 commits each as the VAD stops: a short one's
+      // final, which reads complete, ends it at once, 450 ms sooner than live's 450 ms commit; a long
+      // one's still waits the 250 ms its words were owed, so it ends 200 ms sooner, as in Wave 8.
+      const saved = ms >= 1200 ? 200 : 450;
+      expect(f.turns.map((t) => t.text)).toEqual([text]);
+      expect(Math.abs(f.turns[0]!.endpointMs - (live - saved))).toBeLessThanOrEqual(1);
+    },
+  );
 
   it("with Maya's 450 ms kept, a complete interim at the stop commits at once: 450 ms saved", () => {
     const f = replay(new FakeClock(), MAYA);

@@ -48,8 +48,9 @@ describe('call 10d5ef30 D3: words that stop mid-thought keep the turn open', () 
 
   it('turns 15–16: "…it should still be a" waits, and "built-in." ends it like an answer', () => {
     expect(turnsOf(call5Fragment())).toEqual([
-      // Wave 10: its final reads complete, whatever the interim at the VAD stop ("…far away or").
-      { text: SAID5.turn14b, reason: 'complete', atMs: 216_279 },
+      // Wave 10: committed as the VAD stops, so its final comes 250 ms sooner; it reads complete,
+      // but "…far away or" at the stop keeps the 250 ms its words were owed: ended as before.
+      { text: SAID5.turn14b, reason: 'unfinished', atMs: 216_279 },
       // Live "built-in." was a turn of its own, ended 633 ms after its words (rule answer): one
       // turn now, ended at the same moment.
       { text: `${SAID5.turn15} ${SAID5.turn16}`, reason: 'answer', atMs: 222_790 },

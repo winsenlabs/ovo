@@ -12,6 +12,8 @@ import {
 export class TurnAnnouncer {
   /** The last turn.partial text, so an unchanged revision is not announced twice. */
   private announced = '';
+  /** Whether it was announced stable. */
+  private announcedStable = false;
   private fillers = 0;
 
   constructor(
@@ -19,11 +21,18 @@ export class TurnAnnouncer {
     private readonly emit: (decision: TurnDecision) => void,
   ) {}
 
-  /** `view` is the utterance including interims; `final` its finalised part. */
+  /**
+   * `view` is the utterance including interims; `final` its finalised part. Wave 10: words already
+   * announced as an interim are announced again once final, so the LLM is asked on them then, not
+   * after the revisable partial's debounce or at the end of the turn (call 10d5ef30 turns 9 and
+   * 17: Scribe's last interim and its final said the same).
+   */
   partial(turnId: string, view: string, final: string): void {
-    if (!view || view === this.announced) return;
+    const stable = view === final;
+    if (!view || (view === this.announced && (this.announcedStable || !stable))) return;
     this.announced = view;
-    this.emit({ type: 'turn.partial', turnId, text: view, stable: view === final });
+    this.announcedStable = stable;
+    this.emit({ type: 'turn.partial', turnId, text: view, stable });
   }
 
   /**
@@ -40,5 +49,6 @@ export class TurnAnnouncer {
   /** The turn closed: its next utterance is announced afresh. */
   clear(): void {
     this.announced = '';
+    this.announcedStable = false;
   }
 }

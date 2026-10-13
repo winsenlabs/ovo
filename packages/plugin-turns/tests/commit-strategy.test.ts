@@ -70,16 +70,103 @@ describe("'commit' turn strategy", () => {
     const reasons = (f: ReturnType<typeof fixture>) =>
       f.decisions.flatMap((d) => (d.type === 'turn.stopped' ? [d.reason] : []));
 
-    it('an interim that trails off at the stop no longer delays a final that reads complete', () => {
-      // Turn 2: "…I also want to drink a lot, so..." at the VAD stop; Wave 8 committed 250 ms later.
+    it('a final that says what the last interim said is announced stable as it lands', () => {
+      // Call 10d5ef30 turn 9: the interim had the final's words, so the final was never announced
+      // and the LLM was asked only after the revisable partial's debounce, or as the turn ended.
+      const said = 'Uh, what do you think about Zagreb as a place?';
+      const f = fixture();
+      f.send({ type: 'vad.start' });
+      f.transcript(said, 'interim');
+      f.clock.advance(1300);
+      f.send({ type: 'vad.stop' });
+      f.clock.advance(330);
+      f.transcript(said, 'final');
+      expect(
+        f.decisions.flatMap((d) => (d.type === 'turn.partial' ? [[d.text, d.stable]] : [])),
+      ).toEqual([
+        [said, false],
+        [said, true],
+      ]);
+    });
+
+    it('an interim that trails off at the stop: its final is asked about 250 ms sooner', () => {
+      // Turn 2: "…I also want to drink a lot, so..." at the VAD stop; Wave 8 committed 250 ms later,
+      // so Scribe's final, and the LLM's request on it, came 250 ms later too.
+      const said = 'I also want to drink a lot, so something like that.';
+      const asked = (f: ReturnType<typeof fixture>) =>
+        f.decisions.some((d) => d.type === 'turn.partial' && d.stable && d.text === said);
       const f = fixture();
       f.speak(1300, 'I also want to drink a lot, so...');
       f.clock.advance(0);
       expect(f.forced()).toBe(1);
       f.clock.advance(400);
-      f.transcript('I also want to drink a lot, so something like that.', 'final');
-      expect(f.stopped()).toEqual(['I also want to drink a lot, so something like that.']);
-      expect(reasons(f)).toEqual(['complete']);
+      f.transcript(said, 'final');
+      expect(asked(f)).toBe(true);
+      // The turn still ends when Wave 8 ended it: a stale interim and a caller who pauses after a
+      // complete sentence and goes on read the same at the stop (call 10d5ef30 turn 13).
+      f.clock.advance(249);
+      expect(f.stopped()).toEqual([]);
+      f.clock.advance(1);
+      expect(f.stopped()).toEqual([said]);
+      expect(reasons(f)).toEqual(['unfinished']);
+      const before = fixture({ commit: { commitAtStop: false } });
+      before.speak(1300, 'I also want to drink a lot, so...');
+      before.clock.advance(650);
+      expect(asked(before)).toBe(false);
+    });
+
+    it.each([
+      ['a list going on', 'I want to fly to Paris,', 'I want to fly to Paris.'],
+      ['a trail-off', 'I want to fly to Paris, so...', 'I want to fly to Paris, so.'],
+      [
+        'a long utterance with no end signal',
+        'I was thinking we could go',
+        'I was thinking we could go.',
+      ],
+      // Call 10d5ef30 turn 13: the stale interim at the stop, and a final that says more.
+      [
+        'a stale interim',
+        'What about Northern Lights and',
+        'What about Northern Lights and stuff like that?',
+      ],
+    ])(
+      'the same words closed by the early commit keep %s’s wait: a caller who goes on stays in',
+      (_, interim, final) => {
+        // Review of 0de1313: Scribe closes the segment an early commit cuts with a full stop, so its
+        // final read complete and ended the turn ~330 ms after the stop; Wave 8 committed 250 ms
+        // later and held a caller who went on until ~580 ms. The caller goes on at +350…+500.
+        for (const resumeMs of [350, 400, 450, 500]) {
+          const f = fixture();
+          f.speak(1300, interim);
+          f.clock.advance(0);
+          expect(f.forced()).toBe(1);
+          f.clock.advance(330);
+          f.transcript(final, 'final');
+          f.clock.advance(resumeMs - 330);
+          expect(f.stopped()).toEqual([]);
+          f.send({ type: 'vad.start' });
+          f.transcript('and then Rome', 'interim', '1');
+          f.clock.advance(800);
+          f.send({ type: 'vad.stop' });
+          f.clock.advance(330);
+          f.transcript('and then Rome.', 'final', '1');
+          f.clock.advance(1000);
+          expect(f.stopped()).toEqual([`${final} and then Rome.`]);
+        }
+      },
+    );
+
+    it('those words wait out the rest all the same when the caller does not go on', () => {
+      const f = fixture();
+      f.speak(1300, 'I want to fly to Paris,');
+      f.clock.advance(330);
+      f.transcript('I want to fly to Paris.', 'final');
+      // The 250 ms longSilenceMs from the stop, then Scribe's 330 ms: when Wave 8 ended it.
+      f.clock.advance(249);
+      expect(f.stopped()).toEqual([]);
+      f.clock.advance(1);
+      expect(f.stopped()).toEqual(['I want to fly to Paris.']);
+      expect(reasons(f)).toEqual(['unfinished']);
     });
 
     it('a final with no end signal waits out the rest of its words’ silence, as Wave 8 did', () => {
@@ -211,6 +298,28 @@ describe("'commit' turn strategy", () => {
     expect(f.forced()).toBe(1);
     f.transcript('mera naam Ravi hai', 'final');
     expect(f.stopped()).toEqual(['mera naam Ravi hai']);
+  });
+
+  it('keeps one turn when the caller resumes right after the VAD stop', () => {
+    // Wave 10 (commitAtStop): the commit is sent at the stop; its final lands mid-speech and waits.
+    const f = fixture();
+    f.speak(400, 'kal');
+    f.clock.advance(0);
+    expect(f.forced()).toBe(1);
+    f.clock.advance(30);
+    f.send({ type: 'vad.start' });
+    f.transcript('kal subah', 'interim');
+    f.clock.advance(300);
+    f.transcript('kal.', 'final');
+    f.transcript('subah', 'interim', '1');
+    f.clock.advance(100);
+    f.send({ type: 'vad.stop' });
+    f.clock.advance(0);
+    expect(f.forced()).toBe(2);
+    f.clock.advance(330);
+    f.transcript('subah tak.', 'final', '1');
+    f.clock.advance(1000);
+    expect(f.stopped()).toEqual(['kal. subah tak.']);
   });
 
   it('cancels the commit when the caller resumes inside the local silence', () => {

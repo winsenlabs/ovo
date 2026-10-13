@@ -26,12 +26,12 @@ export const CommitConfigSchema = z
     /**
      * Wave 10 (call 4f1a919d, L1): commit as soon as the VAD stops, whatever the words so far read,
      * after `completeSilenceMs` (never longer than `silenceMs`), and let Scribe's final decide. A
-     * final that reads complete ends the turn at once; any other waits out the rest of the silence
-     * its words had at the stop (`silenceMs` or `longSilenceMs`, as before) before it ends, so a
-     * caller who goes on is held exactly as long as before. The interim the stop is judged on lags
-     * the audio by up to a second: in call 4f1a919d three turns waited the 250 ms `longSilenceMs`
-     * on a stale "so..." or "Some..." whose final read complete. false: commit after the wait the
-     * interim reads (Wave 8).
+     * final that reads complete ends the turn at once, unless the words at the stop trailed off or
+     * ran long; any other waits out the rest of the silence its words had at the stop (`silenceMs`
+     * or `longSilenceMs`, as before) before it ends, so a caller who goes on is held exactly as
+     * long as before. Scribe's final, and the LLM's request on it, come as much sooner as the
+     * commit: 250 ms after a stop on words that trailed off or ran long (call 4f1a919d turns 1, 2
+     * and 10), 50 ms after any other. false: commit after the wait the interim reads (Wave 8).
      */
     commitAtStop: z.boolean().default(true),
     /**

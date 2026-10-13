@@ -68,6 +68,13 @@ export interface Replayed {
   texts: string[];
   reason?: string;
   endpointMs?: number;
+  /**
+   * Wave 10: when the LLM is asked for the (last) turn's reply, timed as `endpointMs` is: as its
+   * words are announced stable (AgentSpeculation asks on them), or else as the turn ends. First
+   * audio follows it by the reply's compose and TTS time (compose alone 1.1–1.7 s on call 4f1a919d
+   * without a search), so a 250 ms wait after it does not delay what the caller hears.
+   */
+  askedMs?: number;
   /** When the (last) turn ended, from the live turn's start. */
   atMs?: number;
 }
@@ -96,6 +103,8 @@ export function replayTurn(
   latency?: number | null,
   /** How much sooner than live `row` commits: Scribe's last partials before its answer move too. */
   soonerMs = 0,
+  /** Wave 10: how much sooner than live `row` commits each pause inside the turn (`midCommits`). */
+  midSoonerMs: readonly number[] = [],
 ): Replayed & { forcedAt: number[] } {
   // null: Scribe never answers the commit (calibrating).
   const latencyMs = latency === undefined ? calibrate(newClock, turn) : latency;
@@ -114,6 +123,7 @@ export function replayTurn(
   const vadOpened =
     stop !== undefined && (!first || first.at > turn.startedAt + 5 || first.at >= stop);
   const steps: { at: number; run: () => void }[] = [];
+  let mid = 0;
   if (vadOpened)
     steps.push({
       at: Math.min(turn.startedAt, stop - VAD_LEAD_MS),
@@ -132,8 +142,9 @@ export function replayTurn(
     else {
       // A segment the caller went on after (modelled): the VAD stopped PAUSE_MS before its final and
       // heard the caller again RESUME_MS before it, so the live turn went on; the commit that stop
-      // sent is answered by the final as measured. A turn is compared at its end only.
-      f.commitsAt(entry.text, origin + entry.at);
+      // sent is answered by the final as measured, or as much sooner as `row` sends it. A turn is
+      // compared at its end only.
+      f.commitsAt(entry.text, origin + entry.at - (midSoonerMs[mid++] ?? 0));
       steps.push({ at: entry.at - PAUSE_MS, run: () => f.send({ type: 'vad.stop' }) });
       steps.push({ at: entry.at - RESUME_MS, run: () => f.send({ type: 'vad.start' }) });
     }
@@ -151,11 +162,19 @@ export function replayTurn(
   }
   f.clock.advance(10_000);
   const last = f.turns.at(-1);
+  const asked = last && f.stable().findLast((entry) => entry.text === last.text);
   return {
     id: turn.id,
     texts: f.turns.map((entry) => entry.text),
     ...(last
-      ? { reason: last.reason, endpointMs: Math.round(last.endpointMs), atMs: last.atMs - origin }
+      ? {
+          reason: last.reason,
+          endpointMs: Math.round(last.endpointMs),
+          askedMs: Math.round(
+            last.endpointMs - (last.atMs - Math.min(asked?.atMs ?? last.atMs, last.atMs)),
+          ),
+          atMs: last.atMs - origin,
+        }
       : {}),
     forcedAt: f.forcedAt().map((ms) => ms - origin),
   };
@@ -182,7 +201,30 @@ function commitOf(
   return replayTurn(newClock, row, turn, null).forcedAt.findLast((ms) => ms <= final.at);
 }
 
-/** One live turn through `row`, Scribe answering its commit as it answered the live one. */
+/**
+ * Wave 10 (review of 0de1313): when `row` sends the commit each pause inside the turn (modelled,
+ * see replayTurn) sends, in order: the last one between that pause's VAD stop and its final.
+ */
+export function midCommits(
+  newClock: NewClock,
+  row: Record<string, unknown>,
+  turn: FixtureTurn,
+): (number | undefined)[] {
+  const stop = vadStopOf(turn);
+  if (stop === undefined) return [];
+  const { forcedAt } = replayTurn(newClock, row, turn, null);
+  return turn.transcripts
+    .filter((entry, index) => {
+      const next = turn.transcripts[index + 1];
+      return entry.final && entry !== committedFinal(turn) && next && entry.at < stop;
+    })
+    .map((entry) => forcedAt.findLast((ms) => ms >= entry.at - PAUSE_MS && ms <= entry.at));
+}
+
+/**
+ * One live turn through `row`, Scribe answering each commit (the turn's and its pauses') as long
+ * after it as it answered the live one.
+ */
 export function replayLive(
   newClock: NewClock,
   row: Record<string, unknown>,
@@ -191,7 +233,19 @@ export function replayLive(
   const live = commitOf(newClock, BEFORE, turn);
   const replayed = commitOf(newClock, row, turn);
   const soonerMs = live === undefined || replayed === undefined ? 0 : live - replayed;
+  const liveMid = midCommits(newClock, BEFORE, turn);
+  const midSoonerMs = midCommits(newClock, row, turn).map((at, index) => {
+    const before = liveMid[index];
+    return at === undefined || before === undefined ? 0 : before - at;
+  });
   const latency = calibrate(newClock, turn);
-  const { forcedAt: _, ...result } = replayTurn(newClock, row, turn, latency, soonerMs);
+  const { forcedAt: _, ...result } = replayTurn(
+    newClock,
+    row,
+    turn,
+    latency,
+    soonerMs,
+    midSoonerMs,
+  );
   return result;
 }

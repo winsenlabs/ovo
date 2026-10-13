@@ -141,6 +141,35 @@ describe('the web_search stage (N3)', () => {
     ]);
   });
 
+  it('counts a call asked ahead on its turn when only its signal is marked (Wave 10, B2)', async () => {
+    // behaviors SearchBudget.limit copies a request over its search budget ({ ...request,
+    // providerTools: false }), which drops the request's own non-enumerable mark.
+    const asked = Symbol.for('ovo.speculation.utterance');
+    const stages: { stage: string; turnId?: string }[] = [];
+    const adapter = { startStage: () => () => true } as unknown as WorkerTelemetryAdapter;
+    const turns = {
+      activeTurnId: 'turn-7',
+      stage: (sample: { stage: string; turnId?: string }) => stages.push(sample),
+    } as unknown as TurnTelemetryCollector;
+    const telemetry: StageTelemetry = {
+      startStage: (input) => startTurnStage(adapter, turns, input, () => undefined),
+    };
+    const { inference } = searchingInference();
+    instrumentInference(inference, telemetry, { provider: 'openai' });
+    const signal = new AbortController().signal;
+    Object.defineProperty(signal, asked, { value: 'turn-8' });
+    const request = Object.defineProperty({ signal } as never as InferenceRequest, asked, {
+      value: 'turn-8',
+    });
+    for await (const _ of inference.stream!({ ...request, providerTools: false }));
+    await inference.generate({ ...request, providerTools: false });
+    expect(stages.map(({ stage, turnId }) => [stage, turnId])).toEqual([
+      ['llm_first_token', 'turn-8'],
+      ['inference', 'turn-8'],
+      ['inference', 'turn-8'],
+    ]);
+  });
+
   it('is stamped with the running turn, as the other reply stages are', () => {
     const stages: { stage: string; turnId?: string }[] = [];
     const adapter = { startStage: () => () => true } as unknown as WorkerTelemetryAdapter;

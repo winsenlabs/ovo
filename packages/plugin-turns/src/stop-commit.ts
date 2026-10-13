@@ -24,6 +24,21 @@ export interface WordsView {
   answer: boolean;
 }
 
+/** Wave 10: the silence a VAD stop's early commit still owes the turn once the final is in. */
+export interface Owed {
+  /** The rest of the wait, from now. */
+  ms: number;
+  /**
+   * The words at the stop trailed off or ran long with no end signal ('unfinished', 'long'): the
+   * final waits the rest out even when it reads complete. Scribe closes the segment an early commit
+   * cuts with a full stop ("…to Paris," → "…to Paris."), so its reading is no new signal; and a
+   * final that says more than a stale interim did ("…a lot, so..." → "…so something like that.")
+   * cannot tell a caller who finished from one who goes on after a pause (call 10d5ef30 turn 13).
+   * The LLM is asked on the final as it lands, so the wait delays no reply that is asked ahead.
+   */
+  hold: boolean;
+}
+
 export interface CommitHooks {
   /** Time to force the endpoint (or, with the final already in, to end the turn). */
   due(rule: CommitRule): void;
@@ -46,9 +61,15 @@ export class CommitTimers {
   private cancelSettle?: () => void;
   /**
    * Wave 10 (commitAtStop): the wait a VAD stop's commit made early, timed from that stop, until
-   * the final takes it (`takeOwedMs`).
+   * the final takes it (`takeOwed`).
    */
-  private owed?: { stoppedAt: number; committedAt: number; waitMs: number; commitMs: number };
+  private owed?: {
+    stoppedAt: number;
+    committedAt: number;
+    waitMs: number;
+    commitMs: number;
+    hold: boolean;
+  };
   private speechStartedAt?: number;
   /** When the VAD went quiet, until the commit: words that arrive meanwhile re-judge the wait. */
   private stoppedAt?: number;
@@ -128,20 +149,24 @@ export class CommitTimers {
 
   /**
    * Wave 10: the final is in. Takes the silence the stop's commit still owes the turn (undefined
-   * unless it was made early under `commitAtStop`), which the turn waits out unless the final
-   * reads complete: the rest of the wait its words read at the stop. A final that answers the
-   * early commit ends the turn when the answer to the old commit would have come, and one already
-   * in hand (`inHand`) when the old commit would have been made. A final in sooner than Scribe
-   * answers a commit (`MIN_ANSWER_MS`) answered an earlier one, and ended the turn on arrival then
-   * as now.
+   * unless it was made early under `commitAtStop`): the rest of the wait its words read at the
+   * stop, which the turn waits out unless the final reads complete (see Owed.hold). A final that
+   * answers the early commit ends the turn when the answer to the old commit would have come, and
+   * one already in hand (`inHand`) when the old commit would have been made. A final in sooner
+   * than Scribe answers a commit (`MIN_ANSWER_MS`) answered an earlier one, and ended the turn on
+   * arrival then as now.
    */
-  takeOwedMs(inHand: boolean): number | undefined {
+  takeOwed(inHand: boolean): Owed | undefined {
     const owed = this.owed;
     this.owed = undefined;
     if (!owed) return undefined;
     const now = this.clock.now();
-    if (inHand) return Math.max(0, owed.stoppedAt + owed.waitMs - now);
-    return now - owed.committedAt < MIN_ANSWER_MS ? 0 : owed.waitMs - owed.commitMs;
+    const ms = inHand
+      ? Math.max(0, owed.stoppedAt + owed.waitMs - now)
+      : now - owed.committedAt < MIN_ANSWER_MS
+        ? 0
+        : owed.waitMs - owed.commitMs;
+    return { ms, hold: owed.hold };
   }
 
   /** Wave 10: waits out `ms` the final owes; the final itself answered the commit's ceiling. */
@@ -199,7 +224,8 @@ export class CommitTimers {
       () => {
         this.cancelDue = undefined;
         const committedAt = this.clock.now();
-        this.owed = commitAtStop ? { stoppedAt, committedAt, waitMs, commitMs } : undefined;
+        const hold = rule === 'unfinished' || rule === 'long';
+        this.owed = commitAtStop ? { stoppedAt, committedAt, waitMs, commitMs, hold } : undefined;
         this.hooks.due(rule);
       },
       Math.max(0, stoppedAt + commitMs - this.clock.now()),

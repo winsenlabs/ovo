@@ -1,5 +1,6 @@
 import type {
   Inference,
+  InferenceRequest,
   SpeechToText,
   SttSession,
   StreamingStt,
@@ -150,6 +151,15 @@ function askedFor(carrier: object | undefined): { turnId?: string } {
   return typeof turnId === 'string' ? { turnId } : {};
 }
 
+/**
+ * A request's mark, or else its signal's: a copy of the request (behaviors SearchBudget turns off
+ * provider tools with `{ ...request, providerTools: false }`) drops the request's own.
+ */
+function requestAskedFor(request: InferenceRequest): { turnId?: string } {
+  const own = askedFor(request);
+  return own.turnId ? own : askedFor(request.signal);
+}
+
 export function instrumentInference(
   inference: Inference,
   telemetry: StageTelemetry,
@@ -165,12 +175,12 @@ export function instrumentInference(
     timedPromise(() => generate(request), telemetry, {
       stage: 'inference',
       ...identity,
-      ...askedFor(request),
+      ...requestAskedFor(request),
     });
   if (!inference.stream) return;
   const stream = inference.stream.bind(inference);
   inference.stream = (request) => {
-    const turn = askedFor(request);
+    const turn = requestAskedFor(request);
     return timedIterable(
       () =>
         timeFirstToken(stream(request), () =>

@@ -192,15 +192,15 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
   }
 
   /**
-   * Wave 10 (`commit.commitAtStop`, L1): a final read complete ends the turn now; any other first
-   * waits out the silence its words were owed at the VAD stop, unless the caller goes on.
+   * Wave 10 (`commitAtStop`, L1): a final read complete ends the turn now, unless the words at the
+   * VAD stop trailed off or ran long (Owed.hold); any other first waits out their owed silence.
    */
   private finalReady(inHand: boolean, stop = true): void {
-    const owedMs = this.commitTimers.takeOwedMs(inHand);
-    const complete = owedMs !== undefined && this.read(this.aggregate.text).ends === 'complete';
+    const owed = this.commitTimers.takeOwed(inHand);
+    const complete = owed?.hold === false && this.read(this.aggregate.text).ends === 'complete';
     if (complete) this.endRule = 'complete';
-    if (!owedMs || complete) return this.commitReady(stop);
-    this.commitTimers.settle(owedMs, () => {
+    if (!owed?.ms || complete) return this.commitReady(stop);
+    this.commitTimers.settle(owed.ms, () => {
       if (this.turnId && this.finalCovers() && !this.speaking()) this.commitReady();
     });
   }

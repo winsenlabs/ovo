@@ -64,6 +64,8 @@ export function replay(clock: ReplayClock, row: Record<string, unknown>) {
   const commits: { text: string; latencyMs: number; atMs?: number }[] = [];
   let forced = 0;
   const forcedAt: number[] = [];
+  /** Wave 10: the caller's words each time they were announced stable (the LLM is asked then). */
+  const stable: { text: string; atMs: number }[] = [];
   let segment = 0;
   let revision = 0;
   let vadStopAt: number | undefined;
@@ -93,6 +95,8 @@ export function replay(clock: ReplayClock, row: Record<string, unknown>) {
         const delayMs = next.atMs === undefined ? next.latencyMs : next.atMs - clock.now();
         clock.setTimeout(() => final(next.text), Math.max(0, delayMs));
       }
+    } else if (decision.type === 'turn.partial' && decision.stable) {
+      stable.push({ text: decision.text, atMs: clock.now() });
     } else if (decision.type === 'turn.reset') {
       resets.push(decision.reason);
       resetTexts.push(decision.text);
@@ -126,6 +130,8 @@ export function replay(clock: ReplayClock, row: Record<string, unknown>) {
     forced: () => forced,
     /** When each host commit was sent (Wave 10). */
     forcedAt: () => [...forcedAt],
+    /** The words announced stable, and when (Wave 10). */
+    stable: () => [...stable],
     send,
     interim: (text: string) => transcript(text, 'interim'),
     final,
