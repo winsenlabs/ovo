@@ -132,8 +132,8 @@ UNCONFIRMED items; the price cards follow the Wave 11 design, section 13.
   INR at pay-as-you-go list prices, Mulberry 1.5 ₹0.50 and Muga ₹0.99 per 1K characters. Re-price
   when the founder picks the plans.
 
-Verification (mini, 2026-10-13): `vitest run packages/plugin-tts-cartesia` 40 passed, 2 skipped
-(live); `packages/plugin-stt-cartesia` 52 passed, 3 skipped (live); `packages/plugin-tts-rumik` 66
+Verification (mini, 2026-10-13): `vitest run packages/plugin-tts-cartesia` 43 passed, 2 skipped
+(live); `packages/plugin-stt-cartesia` 54 passed, 3 skipped (live); `packages/plugin-tts-rumik` 66
 passed, 2 skipped (live). Each runs its kit's conformance (`tts@1` / `stt@1`) over fixture scripts
 transcribed from the vendor docs, each script carrying its source URL and retrieval date.
 `packages/distribution/tests/speech-catalog-w11.test.ts` loads all four from the production
