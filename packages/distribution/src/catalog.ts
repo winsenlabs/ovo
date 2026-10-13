@@ -50,6 +50,23 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
     load: () => import('@winsendotai/ovo-plugin-tts-elevenlabs'),
   },
   {
+    // Wave 11: Cartesia Sonic TTS, Cartesia Ink STT (Auto and Manual definitions) and Rumik
+    // Silk TTS. Rumik has no speech-to-text API, so there is no Rumik STT package.
+    package: '@winsendotai/ovo-plugin-tts-cartesia',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-tts-cartesia'),
+  },
+  {
+    package: '@winsendotai/ovo-plugin-stt-cartesia',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-stt-cartesia'),
+  },
+  {
+    package: '@winsendotai/ovo-plugin-tts-rumik',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-tts-rumik'),
+  },
+  {
     package: '@winsendotai/ovo-plugin-llm-openai',
     roles: ['session'],
     load: () => import('@winsendotai/ovo-plugin-llm-openai'),
