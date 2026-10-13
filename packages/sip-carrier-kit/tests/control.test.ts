@@ -246,12 +246,15 @@ describe('SIP TelephonyControl over Cap.sipTrunkControl (§5.4)', () => {
 describe('parseSipCredentials', () => {
   it('treats an empty secret as IP auth and parses digest credentials', () => {
     expect(parseSipCredentials('')).toBeNull();
+    expect(parseSipCredentials('{}')).toBeNull();
+    expect(parseSipCredentials(' { } ')).toBeNull();
     expect(parseSipCredentials('{"username":"u","password":"p"}')).toEqual({
       username: 'u',
       password: 'p',
     });
     expect(() => parseSipCredentials('{"username":"u"}')).toThrow(/username and password/);
     expect(() => parseSipCredentials('x')).toThrow(/JSON/);
+    expect(() => parseSipCredentials('[]')).toThrow(/username and password/);
   });
 });
 

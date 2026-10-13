@@ -38,7 +38,8 @@ default is 200 per minute), and a sample INVITE (pcap or ladder diagram).
    (`@winsendotai/ovo-carrier-tcn`, provider `tcn`) with a `trunkId` such as `in-trunk`. Every
    binding needs a credential (the API requires one). A trunk that challenges our outbound
    INVITEs gets the JSON `{"username":"…","password":"…"}`; an IP-authenticated trunk gets `{}`.
-   The sip-gateway never stores it: the worker passes it per dial. Open item: the sip-carrier-kit still refuses `{}` on a dial ("needs username and password"), so outbound on an IP-authenticated trunk waits for the kit to read `{}` as no credentials; inbound never reads the credential.
+   The sip-gateway never stores it: the worker passes it per dial, and the sip-carrier-kit reads
+   `{}` as no credentials. Inbound never reads the credential.
 2. **Trunk file.** Copy `infra/compose/sip-trunks.example.json` to `infra/compose/sip-trunks.json`
    (git-ignored) and fill one entry per trunk: `id` = the binding's `trunkId`, `carrierId` (`sip` or
    `tcn`), `bindingId` = the binding's id, `transport`, `signallingCidrs`, `mediaCidrs`, `codecs`,

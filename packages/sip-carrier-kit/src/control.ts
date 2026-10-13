@@ -25,7 +25,10 @@ import {
 
 export const SIP_TRUNK_UNAVAILABLE = 'sip_trunk_unavailable';
 
-/** The binding secret is empty (IP-authenticated trunk) or JSON `{username, password}` (digest). */
+/**
+ * The binding secret is empty or `{}` (IP-authenticated trunk; the API requires a credential value,
+ * so `{}` is what an operator stores) or JSON `{username, password}` (digest).
+ */
 export function parseSipCredentials(secret: string): SipCredentials | null {
   if (!secret.trim()) return null;
   let value: unknown;
@@ -34,6 +37,13 @@ export function parseSipCredentials(secret: string): SipCredentials | null {
   } catch {
     throw new TypeError('The SIP binding secret is not JSON');
   }
+  if (
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 0
+  )
+    return null;
   const parsed = SipCredentialsSchema.safeParse(value);
   if (!parsed.success) throw new TypeError('The SIP binding secret needs username and password');
   return parsed.data;
