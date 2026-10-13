@@ -1,5 +1,5 @@
 import type { AudioFormat } from '@winsendotai/ovo-contracts';
-import { abortError, decimal, usageOnce } from '@winsendotai/ovo-plugin-kit';
+import { abortError, decimal, untilAborted, usageOnce } from '@winsendotai/ovo-plugin-kit';
 import { RumikTtsError, httpMayHelp } from './errors.ts';
 import { Generation, runOnSocket, type Submission } from './generation.ts';
 import { renderHttp, type HttpPort } from './http.ts';
@@ -11,15 +11,6 @@ export { CANCEL_ACK_MS, type Submission } from './generation.ts';
 /** After a failed mint or connect, generations use HTTP for this long instead of waiting again. */
 const SOCKET_RETRY_MS = 30_000;
 const DEFAULT_CONNECT_TIMEOUT_MS = 3_000;
-
-function raced<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(abortError(signal));
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(abortError(signal));
-    signal.addEventListener('abort', onAbort, { once: true });
-    work.finally(() => signal.removeEventListener('abort', onAbort)).then(resolve, reject);
-  });
-}
 
 /**
  * The session's generation queue for one output format (R3). Silk renders one generation at a time
@@ -159,7 +150,7 @@ export class GenerationLane {
     const { binding, clock } = this.port;
     if (binding.transport === 'http' || clock.now() < this.downUntil) return undefined;
     try {
-      return await raced(this.open(), job.controller.signal);
+      return await untilAborted(this.open(), job.controller.signal);
     } catch (error) {
       if (job.controller.signal.aborted || binding.httpFallback === false || !httpMayHelp(error))
         throw error;

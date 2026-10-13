@@ -12,7 +12,7 @@ import {
   type TextToSpeech,
   type TtsReply,
 } from '@winsendotai/ovo-contracts';
-import { abortError, syntheticRequestId, systemClock } from '@winsendotai/ovo-plugin-kit';
+import { syntheticRequestId, systemClock, untilAborted } from '@winsendotai/ovo-plugin-kit';
 import {
   DEFAULT_CONNECT_TIMEOUT_MS,
   DEFAULT_MAX_CONTEXTS,
@@ -198,23 +198,4 @@ export class CartesiaTts implements TextToSpeech {
   private native(format: AudioFormat): boolean {
     return this.capabilities.outputFormats.some((candidate) => sameFormat(candidate, format));
   }
-}
-
-/** `promise`, or an AbortError as soon as `signal` aborts (the socket itself keeps connecting). */
-function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(abortError(signal));
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(abortError(signal));
-    signal.addEventListener('abort', onAbort, { once: true });
-    promise.then(
-      (value) => {
-        signal.removeEventListener('abort', onAbort);
-        resolve(value);
-      },
-      (error: unknown) => {
-        signal.removeEventListener('abort', onAbort);
-        reject(error);
-      },
-    );
-  });
 }
