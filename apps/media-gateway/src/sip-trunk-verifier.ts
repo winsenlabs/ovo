@@ -1,9 +1,6 @@
 import { Cap } from '@winsendotai/ovo-contracts';
 import { definePlugin, type PluginDefinition } from '@winsendotai/ovo-runtime';
-import { createSipRequestVerifier } from '@winsendotai/ovo-sip-carrier-kit';
-
-const MIN_KEY_BYTES = 32;
-const BASE64 = /^(?:[A-Za-z0-9+/]+={0,2}|[A-Za-z0-9_-]+)$/;
+import { createSipRequestVerifier, decodeSipSecret } from '@winsendotai/ovo-sip-carrier-kit';
 
 const manifest = {
   id: 'ovo.gateway.sip-trunk-verifier',
@@ -17,13 +14,16 @@ const manifest = {
   secretFields: [],
 } as const;
 
-/** An ovo-sip/1 HMAC key: base64 (or base64url) of at least 32 bytes, nothing else. */
+/**
+ * An ovo-sip/1 HMAC key: base64 (or base64url) of at least 32 bytes. Decoded by the kit, exactly
+ * as the sip-gateway decodes the same variable, so a key one side accepts the other accepts too.
+ */
 export function sipGatewayKey(name: string, value: string): Uint8Array {
-  const trimmed = value.trim();
-  const key = BASE64.test(trimmed) ? Buffer.from(trimmed, 'base64') : Buffer.alloc(0);
-  if (key.byteLength < MIN_KEY_BYTES)
-    throw new Error(`${name} must be base64 of at least ${MIN_KEY_BYTES} bytes`);
-  return new Uint8Array(key);
+  try {
+    return decodeSipSecret(value);
+  } catch {
+    throw new Error(`${name} must be base64 of at least 32 bytes`);
+  }
 }
 
 /**

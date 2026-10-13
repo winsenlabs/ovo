@@ -109,6 +109,9 @@ describe('worker Cap.sipTrunkControl (Wave 11)', () => {
     expect(() =>
       sipTrunkControlPlugins({ OVO_SIP_ENABLED: 'true', OVO_SIP_CONTROL_TOKEN: '' }),
     ).toThrow('OVO_SIP_CONTROL_TOKEN is required');
+    expect(() =>
+      sipTrunkControlPlugins({ OVO_SIP_ENABLED: 'true', OVO_SIP_CONTROL_TOKEN: 'c'.repeat(15) }),
+    ).toThrow('OVO_SIP_CONTROL_TOKEN must be at least 16 characters');
   });
 
   it.each([

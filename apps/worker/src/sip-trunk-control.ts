@@ -4,6 +4,7 @@ import { createSipTrunkHttpClient } from '@winsendotai/ovo-sip-carrier-kit';
 
 /** The compose bridge gateway, where the host-network sip-gateway serves its control API. */
 export const DEFAULT_SIP_CONTROL_URL = 'http://172.29.240.1:5090';
+const MIN_TOKEN_LENGTH = 16;
 
 const manifest = {
   id: 'ovo.worker.sip-trunk-control',
@@ -30,6 +31,9 @@ export function sipTrunkControlPlugins(
   if (env.OVO_SIP_ENABLED !== 'true') return [];
   const token = env.OVO_SIP_CONTROL_TOKEN;
   if (!token) throw new Error('OVO_SIP_CONTROL_TOKEN is required when OVO_SIP_ENABLED=true');
+  // The sip-gateway refuses a shorter token at boot; failing here names the worker's side too.
+  if (token.length < MIN_TOKEN_LENGTH)
+    throw new Error(`OVO_SIP_CONTROL_TOKEN must be at least ${MIN_TOKEN_LENGTH} characters`);
   const baseUrl = env.OVO_SIP_CONTROL_URL || DEFAULT_SIP_CONTROL_URL;
   const url = URL.canParse(baseUrl) ? new URL(baseUrl) : undefined;
   if (
