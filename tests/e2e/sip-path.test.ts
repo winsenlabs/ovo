@@ -36,6 +36,16 @@ const CALLER = 'Namaste, mujhe apne loan ke baare mein baat karni hai';
 const REPLY = 'Namaste, thanks for calling. How can I help you with your loan today?';
 /** Long enough for STT, the reply and its playout; the agent must not hang up in that time. */
 const HOLD_MS = 15_000;
+/** Every object (at any depth) of a JSON response that carries a string `type` or `phase`. */
+function collect(value: unknown, into: Record<string, unknown>[] = []): Record<string, unknown>[] {
+  if (Array.isArray(value)) for (const item of value) collect(item, into);
+  else if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if (typeof record.type === 'string' || typeof record.phase === 'string') into.push(record);
+    for (const item of Object.values(record)) collect(item, into);
+  }
+  return into;
+}
 /** Our own RTP range, away from the sip lane's SIPp suites (41000-41099) and the defaults. */
 const RTP_PORTS = { min: 41300, max: 41399 };
 
@@ -137,7 +147,8 @@ describe.skipIf(!sipp)('SIP path: SIPp -> sip-gateway -> media gateway -> worker
           await stack.db.query<{
             session_id: string;
             job_id: string;
-            to_number: string;
+            carrier_id: string;
+            binding_id: string | null;
             status: string;
             terminal_at: Date | null;
             terminal_reason: string | null;
@@ -147,7 +158,7 @@ describe.skipIf(!sipp)('SIP path: SIPp -> sip-gateway -> media gateway -> worker
       await vi.waitFor(async () => expect((await route())?.session_id).toBeTypeOf('string'), {
         timeout: 10_000,
       });
-      expect((await route())?.to_number).toBe(agent.number);
+      expect(await route()).toMatchObject({ carrier_id: 'sip', binding_id: agent.bindingId });
 
       // session.open was MULAW_8K: the STT receives the caller's mu-law without a transcode.
       await vi.waitFor(() => expect(assemblyAi.transcribed()).toBe(true), {
@@ -177,7 +188,8 @@ describe.skipIf(!sipp)('SIP path: SIPp -> sip-gateway -> media gateway -> worker
           const settled = await route();
           expect(settled?.terminal_at).toBeInstanceOf(Date);
           expect(settled?.status).toBe('completed');
-          expect(settled?.terminal_reason ?? '').not.toMatch(/^error:/);
+          // The caller's BYE reached the gateway as the carrier's stop, not as an agent hangup.
+          expect(settled?.terminal_reason).toBe('caller_hangup');
         },
         { timeout: 15_000 },
       );
@@ -198,6 +210,18 @@ describe.skipIf(!sipp)('SIP path: SIPp -> sip-gateway -> media gateway -> worker
         },
         { timeout: 15_000, interval: 250 },
       );
+
+      // Played marks: the sip-gateway's pacer returned every reply mark, so each reply segment is
+      // `played` on carrier evidence (`confirmed`, playbackEvidence carrier-played), none cut off.
+      const evidence = collect(await api('GET', `/v1/calls/${rows[0]?.call_id ?? jobId}/evidence`));
+      const played = evidence.filter((entry) => entry.type === 'transcript.agent.played');
+      expect(played.map((entry) => entry.text).join(' ')).toContain(REPLY);
+      expect(evidence.filter((entry) => entry.type === 'transcript.agent.interrupted')).toEqual([]);
+      const acknowledged = evidence.filter(
+        (entry) => entry.kind === 'response' && entry.phase === 'acknowledged',
+      );
+      expect(acknowledged.length).toBeGreaterThanOrEqual(2);
+      expect(new Set(acknowledged.map((entry) => entry.evidence))).toEqual(new Set(['confirmed']));
     } finally {
       caller.close();
     }
