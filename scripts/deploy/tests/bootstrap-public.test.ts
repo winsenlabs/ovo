@@ -55,6 +55,17 @@ it('sets the public origin, forbids plain HTTP and renders the reverse proxy for
   expect(proxy).not.toMatch(/__OVO_[A-Z_]+__/);
 });
 
+it('refuses the internal sip and tcn carrier paths on the public origin, before /carriers/*', () => {
+  const { caddyfile } = bootstrap('--public-host', 'voice.ovo.example');
+  const proxy = readFileSync(caddyfile, 'utf8');
+  const carriers = proxy.indexOf('handle /carriers/* {');
+  for (const carrier of ['sip', 'tcn']) {
+    const block = `\thandle /carriers/${carrier}/* {\n\t\trespond 404\n\t}\n`;
+    expect(proxy).toContain(block);
+    expect(proxy.indexOf(block)).toBeLessThan(carriers);
+  }
+});
+
 it('replaces the placeholder origin of an earlier local bootstrap but keeps its secrets', () => {
   const { run, values } = bootstrap();
   const secret = values().match(/^OVO_SECRETS_MASTER_KEY=.*$/m)![0];
