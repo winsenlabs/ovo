@@ -42,7 +42,7 @@ export function hostEnv(
   return { ...rendered, ...addresses };
 }
 
-async function freePort(): Promise<number> {
+export async function freePort(): Promise<number> {
   const server = createServer();
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as { port: number };
@@ -106,13 +106,17 @@ async function managementApiFromEnv(env: Record<string, string>) {
  * NODE_ENV=production) and starts the way its entry point does. The operator signs in as the seeded
  * administrator through the console's forwarded TLS.
  */
-export async function startLiveStack(postgresUrl: string) {
+export async function startLiveStack(
+  postgresUrl: string,
+  /** `.env` additions on top of the go-live variables, rendered by Compose like the rest. */
+  extraVariables: Record<string, string> = {},
+) {
   const schema = `live_path_${randomUUID().replaceAll('-', '')}`;
   const admin = new PostgresOrchestrationStore({ connectionString: postgresUrl, max: 1 });
   await admin.pool.query(`CREATE SCHEMA ${schema}`);
   const databaseUrl = new URL(postgresUrl);
   databaseUrl.searchParams.set('options', `-c search_path=${schema}`);
-  const variables = goLiveComposeVariables(databaseUrl.href);
+  const variables = { ...goLiveComposeVariables(databaseUrl.href), ...extraVariables };
   const cleanups: (() => Promise<unknown>)[] = [
     async () => {
       await admin.pool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
@@ -202,6 +206,8 @@ export async function startLiveStack(postgresUrl: string) {
     cleanups.push(() => db.close());
     return {
       operator,
+      /** The Compose `.env` the services were rendered from. */
+      variables,
       gateway: { origin: gatewayOrigin, publicBaseUrl: variables.OVO_MEDIA_PUBLIC_BASE_URL! },
       worker: { id: workerEnv.OVO_WORKER_ID!, status },
       /** Reads the installation's schema. */

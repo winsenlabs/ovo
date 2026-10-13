@@ -1,100 +1,13 @@
 // scripts/deploy/deploy-compose.sh and build-images.sh against a scratch git repository holding
 // copies of the deploy scripts and the stand-in docker: every Compose command is recorded, none runs.
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ROOT, runScript, sandbox } from '../../ops/tests/fake-stack.ts';
+import { ROOT, runScript } from '../../ops/tests/fake-stack.ts';
+import { DIGEST, cleanups, fixture, git, image, pins } from './deploy-fixture.ts';
 
-const COPIED = [
-  'scripts/deploy',
-  'scripts/ops',
-  'scripts/bootstrap-compose.sh',
-  'scripts/verify-compose.sh',
-  'infra/compose/compose.yaml',
-  'infra/compose/.gitignore',
-  'infra/caddy',
-  'infra/container',
-];
-const DIGEST = (c: string) => `sha256:${c.repeat(64)}`;
-
-const cleanups: Array<() => void> = [];
 afterEach(() => cleanups.splice(0).forEach((cleanup) => cleanup()));
-
-function git(repo: string, ...args: string[]) {
-  return execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
-    cwd: repo,
-    encoding: 'utf8',
-  }).trim();
-}
-
-function fixture(dockerState: Record<string, unknown> = {}) {
-  const box = sandbox({ workers: { 'worker-1': 'ready', 'worker-2': 'ready' }, ...dockerState });
-  cleanups.push(box.cleanup);
-  const repo = join(box.dir, 'repo');
-  for (const path of COPIED) {
-    mkdirSync(dirname(join(repo, path)), { recursive: true });
-    cpSync(join(ROOT, path), join(repo, path), {
-      recursive: true,
-      filter: (source) => !source.includes('/tests'),
-    });
-  }
-  writeFileSync(join(repo, '.gitignore'), '.env*\n');
-  git(repo, 'init', '-q', '-b', 'main');
-  git(repo, 'add', '-A');
-  git(repo, 'commit', '-qm', 'A');
-  const first = git(repo, 'rev-parse', 'HEAD');
-  writeFileSync(join(repo, 'RELEASE'), 'B\n');
-  git(repo, 'add', '-A');
-  git(repo, 'commit', '-qm', 'B');
-  const second = git(repo, 'rev-parse', 'HEAD');
-  git(repo, 'checkout', '-q', '--detach', first);
-  git(repo, 'remote', 'add', 'origin', repo);
-  const envFile = join(repo, 'infra/compose/.env');
-  execFileSync('bash', [join(repo, 'scripts/bootstrap-compose.sh')], {
-    env: { ...process.env, OVO_SEED_ADMIN_EMAIL: 'admin@ovo.test' },
-    stdio: 'pipe',
-  });
-  const deploy = (...args: string[]) =>
-    runScript(
-      join(repo, 'scripts/deploy/deploy-compose.sh'),
-      ['--env-file', envFile, ...args],
-      box.env,
-      repo,
-    );
-  const ups = () =>
-    box
-      .dockerLog()
-      .filter((line) => / up /.test(line))
-      .map((line) => line.split(' --env-file ')[1]!.split(' ').slice(4).join(' '));
-  const history = () =>
-    readFileSync(join(dirname(envFile), '.deploy/history'), 'utf8')
-      .trim()
-      .split('\n');
-  const setDocker = (patch: Record<string, unknown>) => {
-    const file = box.env.FAKE_DOCKER_STATE;
-    writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), ...patch }));
-  };
-  return { box, repo, envFile, first, second, deploy, ups, history, setDocker };
-}
-
-const image = (envFile: string, name: string) =>
-  readFileSync(envFile, 'utf8').match(new RegExp(`^OVO_${name}_IMAGE=(.*)$`, 'm'))?.[1];
-
-function pins(dir: string, revision = 'b2') {
-  const file = join(dir, 'images.env');
-  const names = ['API', 'CONSOLE', 'GATEWAY', 'DISPATCHER', 'WORKER', 'TOOLS'];
-  writeFileSync(
-    file,
-    names
-      .map(
-        (name, i) =>
-          `OVO_${name}_IMAGE=reg.example/ovo/ovo-${name.toLowerCase()}:${revision}@${DIGEST('abcdef'[i]!)}`,
-      )
-      .join('\n') + '\n',
-  );
-  return file;
-}
 
 describe('deploy-compose.sh (OPS-8)', () => {
   it('pins prebuilt images and restarts the API, then each worker and the gateway in turn', async () => {
@@ -289,6 +202,24 @@ describe('build-images.sh (OPS-9)', () => {
     ]);
   });
 
+  it('bakes and pins the sip-gateway only with --sip', async () => {
+    const { repo, box, first } = fixture({ bakeDigests: true });
+    const out = join(box.dir, 'pins.env');
+    const run = await runScript(
+      join(repo, 'scripts/deploy/build-images.sh'),
+      ['--registry', 'reg.example/ovo', '--push', '--sip', '--out', out],
+      box.env,
+      repo,
+    );
+    expect(run.code).toBe(0);
+    expect(box.dockerLog().find((line) => line.startsWith('buildx bake'))).toMatch(/ default sip$/);
+    const lines = readFileSync(out, 'utf8').trim().split('\n');
+    expect(lines).toHaveLength(7);
+    expect(lines.at(-1)).toBe(
+      `OVO_SIP_GATEWAY_IMAGE=reg.example/ovo/ovo-sip-gateway:${first.slice(0, 12)}@${DIGEST('7')}`,
+    );
+  });
+
   it('refuses an uncommitted tree and a missing digest', async () => {
     const { repo, box } = fixture();
     writeFileSync(join(repo, 'RELEASE'), 'dirty\n');
@@ -327,6 +258,17 @@ describe('Dockerfile layer order (OPS-9)', () => {
     for (const line of dockerfile.split('\n').filter((l) => l.startsWith('FROM node')))
       expect(line).toMatch(/^FROM node:24\.8\.0-bookworm-slim AS /);
     expect(dockerfile).not.toContain('alpine');
-    expect(dockerfile.match(/ENV OVO_REVISION=\$OVO_REVISION/g)).toHaveLength(5);
+    expect(dockerfile.match(/ENV OVO_REVISION=\$OVO_REVISION/g)).toHaveLength(6);
+  });
+  it('builds the sip-gateway image from its own bundle, outside the default bake group', () => {
+    expect(dockerfile).toContain('FROM workspace AS sip-gateway-build');
+    expect(dockerfile).toContain('pnpm --filter @winsendotai/ovo-sip-gateway build');
+    // Built on `base`, the bookworm-slim stage, keeping six `FROM node:` lines (engine bundle test).
+    expect(dockerfile).toContain('FROM base AS sip-gateway\n');
+    expect(dockerfile).toMatch(/^FROM node:24\.8\.0-bookworm-slim AS base$/m);
+    const bake = readFileSync(join(ROOT, 'infra/container/docker-bake.hcl'), 'utf8');
+    expect(bake).toMatch(/group "default" \{\n\s+targets = \[[^\]]*\]/);
+    expect(/group "default" \{\n\s+targets = (\[[^\]]*\])/.exec(bake)![1]).not.toContain('sip');
+    expect(bake).toContain('group "sip" {\n  targets = ["sip-gateway"]\n}');
   });
 });

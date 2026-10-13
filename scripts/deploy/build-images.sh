@@ -16,6 +16,7 @@ Usage: scripts/deploy/build-images.sh --registry REGISTRY [options]
   --push                Push and write the pin file (otherwise build into the local cache only).
   --out PATH            Pin file (default infra/compose/.deploy/images-<revision>.env).
   --allow-dirty         Build a working tree with uncommitted changes (tagged <sha>-dirty).
+  --sip                 Also build the sip-gateway (bake group `sip`) and pin OVO_SIP_GATEWAY_IMAGE.
   --dry-run             Print the commands only.
 EOF
 }
@@ -25,6 +26,7 @@ PLATFORM=linux/amd64
 PUSH=false
 OUT=
 ALLOW_DIRTY=false
+SIP=false
 while (($#)); do
   case $1 in
     --registry) REGISTRY=$2; shift 2 ;;
@@ -32,6 +34,7 @@ while (($#)); do
     --push) PUSH=true; shift ;;
     --out) OUT=$2; shift 2 ;;
     --allow-dirty) ALLOW_DIRTY=true; shift ;;
+    --sip) SIP=true; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
     -h | --help) usage; exit 0 ;;
     *) usage >&2; die "unknown option $1" 2 ;;
@@ -53,9 +56,12 @@ trap 'rm -f "$metadata"' EXIT
 step "building $revision for $PLATFORM"
 output=(--load)
 [[ $PUSH == true ]] && output=(--push)
+groups=(default)
+[[ $SIP == true ]] && groups+=(sip)
 # The bake file reads REGISTRY, REVISION and PLATFORM from the environment.
 run env REGISTRY="$REGISTRY" REVISION="$revision" PLATFORM="$PLATFORM" \
-  docker buildx bake -f infra/container/docker-bake.hcl --metadata-file "$metadata" "${output[@]}"
+  docker buildx bake -f infra/container/docker-bake.hcl --metadata-file "$metadata" "${output[@]}" \
+  "${groups[@]}"
 
 [[ $PUSH == true ]] || {
   say 'built into the local image store; pass --push to publish and write a pin file'
@@ -72,13 +78,14 @@ mkdir -p "$(dirname "$OUT")"
 # shellcheck disable=SC2016 # JavaScript template literals, not shell expansions
 node -e '
   const meta = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-  const [registry, revision] = process.argv.slice(2);
+  const [registry, revision, sip] = process.argv.slice(2);
   const names = { api: "API", console: "CONSOLE", gateway: "GATEWAY", dispatcher: "DISPATCHER", worker: "WORKER", tools: "TOOLS" };
+  if (sip === "true") names["sip-gateway"] = "SIP_GATEWAY";
   for (const [target, key] of Object.entries(names)) {
     const digest = meta[target]?.["containerimage.digest"];
     if (!/^sha256:[0-9a-f]{64}$/.test(digest ?? "")) throw new Error(`no pushed digest for ${target}`);
     console.log(`OVO_${key}_IMAGE=${registry}/ovo-${target}:${revision}@${digest}`);
   }
-' "$metadata" "$REGISTRY" "$revision" >"$OUT"
+' "$metadata" "$REGISTRY" "$revision" "$SIP" >"$OUT"
 say "pinned images written to $OUT"
 say "deploy: scripts/deploy/deploy-compose.sh --ref $revision --images <copy of that file on the VM>"

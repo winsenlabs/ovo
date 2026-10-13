@@ -253,6 +253,153 @@
         "note": "Confirmed on the OpenAI pricing page, built-in tools: the non-preview web_search tool the plugin sends is the same price for every model, so this card names no model. Only the per-call fee: the search content tokens are billed at the model's input rate and already arrive in the token meters. Per the web search guide, search actions are billed; open_page and find_in_page actions are not counted. The preview tool on non-reasoning models is $25 / 1k calls and is not used.",
         "quote": "Web search (all models) $10.00 / 1k calls + Search content tokens billed at model rates"
       }
+    },
+    {
+      "card": {
+        "id": "cartesia-tts-sonic-3-6-snapshot",
+        "version": "2026-10-13",
+        "provider": "cartesia",
+        "unit": "characters",
+        "model": "sonic-3.6-2026-08-27",
+        "currency": "USD",
+        "minorUnitsPerBlock": "3.8",
+        "blockQuantity": "1000",
+        "effectiveAt": "2026-10-13T00:00:00.000Z",
+        "provisional": true
+      },
+      "meterKeys": ["cartesia.streaming-tts.characters"],
+      "source": {
+        "url": "https://docs.cartesia.ai/pricing.md",
+        "retrievedAt": "2026-10-13",
+        "quote": "Text-to-Speech: 1 credit equals 1 character",
+        "note": "PROVISIONAL: derived at Scale-plan overage ($38 per 1M credits); Pro is $65 and Startup $45 per 1M (https://cartesia.ai/pricing, retrieved 2026-10-13). Re-price when the plan is chosen."
+      }
+    },
+    {
+      "card": {
+        "id": "cartesia-tts-sonic-3-6",
+        "version": "2026-10-13",
+        "provider": "cartesia",
+        "unit": "characters",
+        "model": "sonic-3.6",
+        "currency": "USD",
+        "minorUnitsPerBlock": "3.8",
+        "blockQuantity": "1000",
+        "effectiveAt": "2026-10-13T00:00:00.000Z",
+        "provisional": true
+      },
+      "meterKeys": ["cartesia.streaming-tts.characters"],
+      "source": {
+        "url": "https://docs.cartesia.ai/pricing.md",
+        "retrievedAt": "2026-10-13",
+        "quote": "Text-to-Speech: 1 credit equals 1 character",
+        "note": "PROVISIONAL: derived at Scale-plan overage ($38 per 1M credits); Pro is $65 and Startup $45 per 1M (https://cartesia.ai/pricing, retrieved 2026-10-13). Re-price when the plan is chosen."
+      }
+    },
+    {
+      "card": {
+        "id": "cartesia-stt-ink-2",
+        "version": "2026-10-13",
+        "provider": "cartesia",
+        "unit": "audio_seconds",
+        "model": "ink-2",
+        "currency": "USD",
+        "minorUnitsPerBlock": "41.04",
+        "blockQuantity": "3600",
+        "effectiveAt": "2026-10-13T00:00:00.000Z",
+        "provisional": true
+      },
+      "meterKeys": ["cartesia.streaming-stt.audio_seconds"],
+      "source": {
+        "url": "https://docs.cartesia.ai/pricing.md",
+        "retrievedAt": "2026-10-13",
+        "quote": "ink-2: 3 credits per second. Silence is also included",
+        "note": "PROVISIONAL: derived at Scale-plan overage ($38 per 1M credits); Pro is $65 and Startup $45 per 1M (https://cartesia.ai/pricing, retrieved 2026-10-13). Re-price when the plan is chosen. Cartesia quotes $0.39/h for ink-2 on Scale. The Auto (turns) endpoint."
+      }
+    },
+    {
+      "card": {
+        "id": "cartesia-manual-stt-ink-2",
+        "version": "2026-10-13",
+        "provider": "cartesia-manual",
+        "unit": "audio_seconds",
+        "model": "ink-2",
+        "currency": "USD",
+        "minorUnitsPerBlock": "41.04",
+        "blockQuantity": "3600",
+        "effectiveAt": "2026-10-13T00:00:00.000Z",
+        "provisional": true
+      },
+      "meterKeys": ["cartesia-manual.streaming-stt.audio_seconds"],
+      "source": {
+        "url": "https://docs.cartesia.ai/pricing.md",
+        "retrievedAt": "2026-10-13",
+        "quote": "ink-2: 3 credits per second. Silence is also included",
+        "note": "PROVISIONAL: derived at Scale-plan overage ($38 per 1M credits); Pro is $65 and Startup $45 per 1M (https://cartesia.ai/pricing, retrieved 2026-10-13). Re-price when the plan is chosen. The Manual endpoint, metered under its own provider cartesia-manual."
+      }
+    },
+    {
+      "card": {
+        "id": "cartesia-manual-stt-ink-whisper",
+        "version": "2026-10-13",
+        "provider": "cartesia-manual",
+        "unit": "audio_seconds",
+        "model": "ink-whisper",
+        "currency": "USD",
+        "minorUnitsPerBlock": "13.68",
+        "blockQuantity": "3600",
+        "effectiveAt": "2026-10-13T00:00:00.000Z",
+        "provisional": true
+      },
+      "meterKeys": ["cartesia-manual.streaming-stt.audio_seconds"],
+      "source": {
+        "url": "https://docs.cartesia.ai/pricing.md",
+        "retrievedAt": "2026-10-13",
+        "quote": "ink-whisper: 1 credit per second. Silence is also included",
+        "note": "PROVISIONAL: derived at Scale-plan overage ($38 per 1M credits); Pro is $65 and Startup $45 per 1M (https://cartesia.ai/pricing, retrieved 2026-10-13). Re-price when the plan is chosen. ink-whisper runs on the Manual endpoint only."
+      }
+    },
+    {
+      "card": {
+        "id": "rumik-tts-mulberry-1-5",
+        "version": "2026-10-13",
+        "provider": "rumik",
+        "unit": "characters",
+        "model": "mulberry",
+        "currency": "INR",
+        "minorUnitsPerBlock": "50",
+        "blockQuantity": "1000",
+        "effectiveAt": "2026-10-13T00:00:00.000Z",
+        "provisional": true
+      },
+      "meterKeys": ["rumik.streaming-tts.characters"],
+      "source": {
+        "url": "https://docs.rumik.ai/pricing/pay-as-you-go",
+        "retrievedAt": "2026-10-13",
+        "quote": "Mulberry 1.5 TTS ₹0.50 / 1k characters",
+        "note": "PROVISIONAL: pay-as-you-go; unlimited plans bill usage at zero (https://docs.rumik.ai/pricing/unlimited). Mulberry description characters are billed per request and metered with the text. The marketing page shows different per-minute prices (UNCONFIRMED)."
+      }
+    },
+    {
+      "card": {
+        "id": "rumik-tts-muga",
+        "version": "2026-10-13",
+        "provider": "rumik",
+        "unit": "characters",
+        "model": "muga",
+        "currency": "INR",
+        "minorUnitsPerBlock": "99",
+        "blockQuantity": "1000",
+        "effectiveAt": "2026-10-13T00:00:00.000Z",
+        "provisional": true
+      },
+      "meterKeys": ["rumik.streaming-tts.characters"],
+      "source": {
+        "url": "https://docs.rumik.ai/pricing/pay-as-you-go",
+        "retrievedAt": "2026-10-13",
+        "quote": "Muga TTS ₹0.99 / 1k characters",
+        "note": "PROVISIONAL: pay-as-you-go; unlimited plans bill usage at zero (https://docs.rumik.ai/pricing/unlimited). The marketing page shows different per-minute prices (UNCONFIRMED)."
+      }
     }
   ]
 }

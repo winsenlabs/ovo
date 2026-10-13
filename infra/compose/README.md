@@ -27,6 +27,12 @@ Every container's log rotates at 5 × 20 MiB (`x-logging`). Every variable is in
 `docs/env-reference.md`; the optional worker tuning variables are forwarded empty when unset, which
 means "use the default".
 
+Wave 11 adds a `sip-gateway` service (OVO's own SIP/RTP endpoint) in compose profile `sip`. It is
+dark by default: `deploy-compose.sh` starts it only when `.env` has `OVO_SIP_ENABLED=true`, it binds
+SIP and RTP to `127.0.0.1` unless `OVO_SIP_PUBLIC_ENABLED=true`, and Caddy refuses its carrier paths
+on the public origin. It needs `infra/compose/sip-trunks.json` (git-ignored; start from
+`sip-trunks.example.json`). See `docs/runbooks/sip-trunk-onboarding.md`.
+
 `OVO_MEDIA_PUBLIC_BASE_URL` must be a public **HTTPS** origin a carrier can reach, with a working WSS
 upgrade — `verify-compose.sh` refuses anything else. On a laptop that means a tunnel; on a host it
 means a domain and a certificate. It is normally the only thing a new deployment is missing.

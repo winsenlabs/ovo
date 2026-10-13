@@ -28,6 +28,7 @@
     "@winsendotai/ovo-plugin-storage": "workspace:*",
     "@winsendotai/ovo-plugin-voice": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*",
-    "ws": "8.21.3"
+    "ws": "8.21.3",
+    "@winsendotai/ovo-sip-carrier-kit": "workspace:*"
   }
 }

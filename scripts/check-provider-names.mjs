@@ -5,7 +5,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { ratchet } from './lib/count-gate.mjs';
 import { finish, isTestFile, parseArgs, rootOf, under, walkFiles } from './lib/gate-support.mjs';
 
-const NAMES = /deepgram|assemblyai|sarvam|openai|twilio|exotel|plivo|livekit/gi;
+const NAMES = /deepgram|assemblyai|sarvam|openai|twilio|exotel|plivo|livekit|cartesia|rumik|tcn/gi;
 const HOST_PACKAGES = [
   'runtime',
   'contracts',

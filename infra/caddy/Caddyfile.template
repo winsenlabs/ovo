@@ -7,6 +7,16 @@
 # No access log on purpose: carrier URLs carry signed query tokens that must not land on disk.
 
 __OVO_PUBLIC_HOST__ {
+	# Internal carriers (Wave 11): only the sip-gateway, over loopback, may reach them. Their routes
+	# are signed (ovo-sip/1), but they are not a public surface, so the public origin refuses them
+	# before the gateway sees them.
+	handle /carriers/sip/* {
+		respond 404
+	}
+	handle /carriers/tcn/* {
+		respond 404
+	}
+
 	# Carrier webhooks and the media WebSocket (WSS upgrade) go to the media gateway.
 	handle /carriers/* {
 		reverse_proxy 127.0.0.1:__OVO_GATEWAY_PORT__ {

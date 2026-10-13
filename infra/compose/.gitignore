@@ -1,3 +1,5 @@
 # Written on the host by bootstrap-compose.sh --public-host and deploy-compose.sh.
 /Caddyfile
 /.deploy/
+# Wave 11: the real SIP trunk list (template: sip-trunks.example.json).
+/sip-trunks.json

@@ -103,6 +103,83 @@ describe('vendor price catalog (OPS-14)', () => {
     );
   });
 
+  it('prices Cartesia (USD) and Rumik (INR) provisionally, one card per binding model (Wave 11)', () => {
+    const cards = Object.fromEntries(
+      VENDOR_PRICE_CATALOG.filter((entry) => /^(cartesia|rumik)/.test(entry.card.provider)).map(
+        (entry) => [
+          entry.card.id,
+          [
+            entry.card.provider,
+            entry.card.model,
+            entry.card.currency,
+            `${entry.card.minorUnitsPerBlock}/${entry.card.blockQuantity}`,
+            entry.meterKeys.join(),
+          ],
+        ],
+      ),
+    );
+    expect(cards).toEqual({
+      // $38 per 1M credits (Scale overage); 1 credit per character.
+      'cartesia-tts-sonic-3-6-snapshot': [
+        'cartesia',
+        'sonic-3.6-2026-08-27',
+        'USD',
+        '3.8/1000',
+        'cartesia.streaming-tts.characters',
+      ],
+      'cartesia-tts-sonic-3-6': [
+        'cartesia',
+        'sonic-3.6',
+        'USD',
+        '3.8/1000',
+        'cartesia.streaming-tts.characters',
+      ],
+      // ink-2: 3 credits/s = $0.4104/h; ink-whisper: 1 credit/s = $0.1368/h.
+      'cartesia-stt-ink-2': [
+        'cartesia',
+        'ink-2',
+        'USD',
+        '41.04/3600',
+        'cartesia.streaming-stt.audio_seconds',
+      ],
+      'cartesia-manual-stt-ink-2': [
+        'cartesia-manual',
+        'ink-2',
+        'USD',
+        '41.04/3600',
+        'cartesia-manual.streaming-stt.audio_seconds',
+      ],
+      'cartesia-manual-stt-ink-whisper': [
+        'cartesia-manual',
+        'ink-whisper',
+        'USD',
+        '13.68/3600',
+        'cartesia-manual.streaming-stt.audio_seconds',
+      ],
+      // ₹0.50 and ₹0.99 per 1K characters, in paise.
+      'rumik-tts-mulberry-1-5': [
+        'rumik',
+        'mulberry',
+        'INR',
+        '50/1000',
+        'rumik.streaming-tts.characters',
+      ],
+      'rumik-tts-muga': ['rumik', 'muga', 'INR', '99/1000', 'rumik.streaming-tts.characters'],
+    });
+    for (const id of Object.keys(cards)) {
+      const entry = VENDOR_PRICE_CATALOG.find((candidate) => candidate.card.id === id)!;
+      // The price depends on a plan the founder has not chosen.
+      expect(entry.card.provisional).toBe(true);
+      expect(vendorPriceCard(entry).provenance).toContain('PROVISIONAL');
+      expect(entry.source.retrievedAt).toBe('2026-10-13');
+    }
+    // The SIP and TCN trunk minutes are priced by the trunk contract, never from the catalog.
+    const carriers = VENDOR_PRICE_CATALOG.flatMap((entry) => entry.meterKeys).filter((key) =>
+      /^(sip|tcn)\./.test(key),
+    );
+    expect(carriers).toEqual([]);
+  });
+
   it('diffs the catalog against stored cards: not imported, imported, or an update available', () => {
     const [first, second, third] = VENDOR_PRICE_CATALOG;
     const diff = diffVendorCatalog(

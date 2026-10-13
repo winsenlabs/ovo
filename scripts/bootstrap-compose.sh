@@ -216,6 +216,12 @@ append OVO_LIVE_DIAL_ENABLED false
 append OVO_TRANSPORT_CERTIFIED false
 append OVO_PROVIDER_EVALUATIONS_ENABLED false
 append OVO_PERMITTED_FROM_NUMBERS ''
+# Wave 11 SIP: off until the founder's go-live checklist (docs/runbooks/sip-trunk-onboarding.md).
+# The internal tokens are generated now so enabling it later needs no new secret.
+append OVO_SIP_ENABLED false
+append OVO_SIP_PUBLIC_ENABLED false
+append OVO_SIP_CONTROL_TOKEN "$(random_hex 32)"
+append OVO_SIP_GATEWAY_SECRET "$(openssl rand -base64 32)"
 append POSTGRES_PORT "${POSTGRES_PORT:-54329}"
 append ELASTICMQ_PORT "${ELASTICMQ_PORT:-9324}"
 append API_PORT "${API_PORT:-4000}"
