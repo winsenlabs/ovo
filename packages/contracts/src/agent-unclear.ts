@@ -206,6 +206,11 @@ function confirms(words: readonly string[]): boolean {
   );
 }
 
+/** Only a yes and what it confirms ("Yes, that's right.", "Okay, sounds good."). */
+export function confirmationOnly(text: string): boolean {
+  return confirms(callerWords(text));
+}
+
 /**
  * Wave 8b (Maya call e8a43f65, issue 3): the caller tells the agent about their own plans rather
  * than asking for anything: a sentence of their own trip (`saysOwnPlans`: "I want 21st of December

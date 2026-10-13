@@ -107,3 +107,12 @@ export function sentences(text: string): string[] {
 function lastSentence(text: string): string {
   return sentences(text).at(-1) ?? '';
 }
+
+/**
+ * Wave 10 (Maya call 4f1a919d, B1): a caller turn's variable, set by the engine to the caller's
+ * earlier words when these were said while the reply to those was still being composed, unheard,
+ * and queued behind it ("Chennai, Chennai." then "Madras." a second later, while the first one's
+ * search ran). They add to those words; they answer nothing the agent says in that reply, which
+ * the caller had not heard when they spoke.
+ */
+export const SAID_BEFORE_REPLY_VARIABLE = 'saidBeforeReply';

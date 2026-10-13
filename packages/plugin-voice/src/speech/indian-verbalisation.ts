@@ -142,8 +142,9 @@ const MONTH_NAME = String.raw`(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|
 const NUMERIC_DATE = /(?<![\d/.-])(\d{1,2})([/.-])(\d{1,2})\2(\d{4}|\d{2})(?![\d/-]|\.\d)/g;
 const ISO_DATE = /(?<![\d-])(\d{4})-(\d{2})-(\d{2})(?![\d-])/g;
 const NAMED_DATE = new RegExp(
-  // Not after "the": that is already the spoken form, including this filter's own output.
-  String.raw`(?<!\d|\bthe )(\d{1,2})(?:st|nd|rd|th)?(?:\s+of)?[\s-]+${MONTH_NAME}\.?(?:,?[\s-]+(\d{4}))?(?![\w])`,
+  // Not after "the": that is already the spoken form, including this filter's own output; nor
+  // the second day of "the 20th or 21st of December" (the speech normaliser's, Wave 10 B4).
+  String.raw`(?<!\d|\bthe |\d(?:st|nd|rd|th) (?:or|and) )(\d{1,2})(?:st|nd|rd|th)?(?:\s+of)?[\s-]+${MONTH_NAME}\.?(?:,?[\s-]+(\d{4}))?(?![\w])`,
   'gi',
 );
 

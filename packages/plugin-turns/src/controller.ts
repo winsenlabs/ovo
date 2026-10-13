@@ -174,7 +174,7 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
   protected commitDue(rule: EndpointRule): void {
     this.endRule = rule;
     // A caller who went on after the final must be committed again, even before their words show.
-    if (this.finalCovers()) return this.commitReady();
+    if (this.finalCovers()) return this.finalReady(true);
     if (!this.forceSent) {
       this.forceSent = true;
       this.emit({ type: 'force-endpoint' });
@@ -188,7 +188,21 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
     if (!this.committed && !(this.vadStopPending && !this.vadSpeaking)) return;
     if (!this.committed) this.endRule = 'final';
     // The caller's onTranscript stops the turn once the flags are set.
-    if (this.aggregate.view === this.aggregate.text) this.commitReady(false);
+    if (this.aggregate.view === this.aggregate.text) this.finalReady(false, false);
+  }
+
+  /**
+   * Wave 10 (`commitAtStop`, L1): a final read complete ends the turn now, unless the words at the
+   * VAD stop trailed off or ran long (Owed.hold); any other first waits out their owed silence.
+   */
+  private finalReady(inHand: boolean, stop = true): void {
+    const owed = this.commitTimers.takeOwed(inHand);
+    const complete = owed?.hold === false && this.read(this.aggregate.text).ends === 'complete';
+    if (complete) this.endRule = 'complete';
+    if (!owed?.ms || complete) return this.commitReady(stop);
+    this.commitTimers.settle(owed.ms, () => {
+      if (this.turnId && this.finalCovers() && !this.speaking()) this.commitReady();
+    });
   }
 
   /** No final within userSpeechTimeoutMs of the commit: end on the interim text. */

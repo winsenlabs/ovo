@@ -2,6 +2,7 @@ import {
   affirmationOnly,
   baseLanguageOf,
   normalizeForMatch,
+  seeksInformation,
   type ToolDefinition,
 } from '@winsendotai/ovo-contracts';
 import type { InferenceStepInput } from './agent-inference-step.ts';
@@ -38,6 +39,7 @@ export type RequestInput = Pick<
   | 'flow'
   | 'replyCut'
   | 'previous'
+  | 'saidBefore'
 >;
 
 export function rejoinOffer({ config, flow }: RequestInput): RejoinOffer | undefined {
@@ -75,6 +77,7 @@ export function inferenceRequest(
     step.replyCut ? INTERRUPTED_CONTEXT : '',
     saidUncertainty(step) ? uncertaintyNote(step.config.uncertainty) : '',
     affirmationNote(step) ?? '',
+    saidBeforeNote(step) ?? '',
     rejoin?.guide ?? '',
   ].filter(Boolean);
   return {
@@ -84,6 +87,9 @@ export function inferenceRequest(
     uncertainty: step.config.uncertainty,
     tools: rejoin ? [...step.tools, rejoin.tool] : step.tools,
     results: step.results,
+    // Wave 10 (B1): words that only add to ones the reply just answered (and searched for) carry
+    // nothing new to look up; words that ask something keep the search.
+    ...(step.saidBefore && !seeksInformation(step.input) ? { providerTools: false as const } : {}),
   };
 }
 
@@ -100,6 +106,22 @@ function affirmationNote({ input, previous }: RequestInput): string | undefined 
     `The caller's "${normalizeForMatch(input)}" means yes, in answer to your last question ` +
     `("${question.trim()}"). Carry on from that answer; if a yes does not answer it, ask the ` +
     'question again in a few words. Do not say you are unsure.'
+  );
+}
+
+/**
+ * Wave 10 (Maya call 4f1a919d, B1): the caller said "Madras." a second after "Chennai, Chennai.",
+ * while the answer to that searched, and heard it only after the whole answer had played (17.8 s
+ * later, ending "Which European city are you heading to, and when?"). Asked then as a turn of its
+ * own, the model took it for an answer and ended the call. Told when the words were said, it reads
+ * them with the earlier ones.
+ */
+function saidBeforeNote({ input, saidBefore }: RequestInput): string | undefined {
+  if (!saidBefore) return undefined;
+  return (
+    `The caller said "${input.trim()}" straight after "${saidBefore.trim()}", before they heard ` +
+    'your reply to that: these words add to what they had said and answer nothing in your reply. ' +
+    'Read them that way; if they change nothing you said, acknowledge them in a few words.'
   );
 }
 

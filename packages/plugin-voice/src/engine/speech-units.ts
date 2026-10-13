@@ -23,7 +23,11 @@ const DASH_AFTER_AMOUNT = new RegExp(
  * on a month ("…markets in December" then "and January…") is a phrase cut and is said at once.
  */
 const CAP_CUT_CHARS = 120;
-const OPEN_DATE = new RegExp(String.raw`(?:\b(?:${MONTHS})|\d(?:st|nd|rd|th)?,?)$`, 'u');
+// Wave 10 (B4): or before the second day of a choice ("…on December 20 or" then "21, 2026").
+const OPEN_DATE = new RegExp(
+  String.raw`(?:\b(?:${MONTHS})|\d(?:st|nd|rd|th)?,?)(?:\s+(?:or|and))?$`,
+  'u',
+);
 
 export function splitsSpeechUnit(line: string): boolean {
   const text = line.trimEnd();

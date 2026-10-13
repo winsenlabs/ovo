@@ -5,7 +5,7 @@ import {
   type InferenceStreamEvent,
   type SttEvent,
 } from '@winsendotai/ovo-contracts';
-import type { InferenceActivitySource } from '@winsendotai/ovo-plugin-kit';
+import type { InferenceActivity, InferenceActivitySource } from '@winsendotai/ovo-plugin-kit';
 
 type Finish = (
   outcome: 'succeeded' | 'failed' | 'timeout' | 'unknown',
@@ -64,12 +64,15 @@ export class EndpointClock {
  * call to its result, as a `web_search` stage with the action and how many sources it returned.
  * A search its request abandoned ends `unknown`.
  */
-export function timeWebSearches(source: InferenceActivitySource, begin: () => Finish): () => void {
+export function timeWebSearches(
+  source: InferenceActivitySource,
+  begin: (activity: InferenceActivity) => Finish,
+): () => void {
   const open = new Map<string, Finish>();
   return source.observeActivity((activity) => {
     if (activity.tool !== 'web_search') return;
     if (activity.phase === 'started') {
-      open.set(activity.id, begin());
+      open.set(activity.id, begin(activity));
       return;
     }
     const finish = open.get(activity.id);

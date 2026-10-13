@@ -31,6 +31,9 @@ describe('utteranceEnd: how the words so far end (Wave 8 smart end-of-turn)', ()
     'Promoter, sir. Promoter of CreditMantri is a...',
     'Credit. Okay, so...',
     'Do you know the…',
+    // Wave 10 (call 4f1a919d turn 1): Scribe closed the quote after the trailing dots.
+    '"I\'m thinking of going somewhere in middle and central Europe. Can you tell me a few places? Some..."',
+    'Paris, Rome-)',
     // Call 6e1a4e3a turn 17: the ordinal's "st." became its own turn.
     "Yeah. So we'd like to leave on the 20th and be back around the 1",
     'be back around 2',

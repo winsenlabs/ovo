@@ -6,6 +6,7 @@ import {
   agentUnclearLines,
   canonicalJson,
   disclosureLines,
+  endingLines,
   flowLineTemplates,
   turnDetectorLines,
   type AgentConfig,
@@ -30,7 +31,8 @@ export type FixedLineSource =
   | 'filler'
   | 'disclosure'
   | 'opt-out'
-  | 'wrap-up';
+  | 'wrap-up'
+  | 'ending';
 
 export interface FixedLine {
   text: string;
@@ -78,6 +80,13 @@ export function staticSpeechInventory(release: SpeechInventoryRelease): SpeechIn
   if (config.compliance?.optOut?.enabled) add(config.compliance.optOut.closingLine, 'opt-out');
   // The engine's closing line before the call time limit (AgentEnding.wrapUp).
   add(config.ending?.wrapUp?.line, 'wrap-up');
+  // Wave 10 (L2): with the LLM's end_call, "Shall I end the call?" and the lines a plain yes or no
+  // to it gets, said without the model: each a clip, so the answer plays at once.
+  if (config.ending?.llmTool) {
+    const ending = endingLines(config.language);
+    for (const line of ending ? [ending.ask, ending.goodbye, ending.resume] : [])
+      add(line, 'ending');
+  }
   const callControl = config as AgentConfig & CallControlLines;
   for (const line of callControl.opening?.lines ?? []) add(line, 'opening');
   // A message is only ever left when the action says so; a hang-up policy never speaks it.

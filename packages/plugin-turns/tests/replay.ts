@@ -32,7 +32,7 @@ export const MAYA = {
 /** The same row with the Wave 8 rules off: the detector as it ran on the live calls. */
 export const LIVE = {
   ...MAYA,
-  commit: { ...MAYA.commit, completeSilenceMs: 450, answerStallMs: 0 },
+  commit: { ...MAYA.commit, completeSilenceMs: 450, answerStallMs: 0, commitAtStop: false },
   noiseMs: 0,
   questionReplyMs: 0,
 };
@@ -60,8 +60,12 @@ export function replay(clock: ReplayClock, row: Record<string, unknown>) {
   const turns: ReplayedTurn[] = [];
   const resets: string[] = [];
   const resetTexts: (string | undefined)[] = [];
-  const commits: { text: string; latencyMs: number }[] = [];
+  /** Scribe's answers to the next host commits: after `latencyMs`, or (Wave 10) at `atMs`. */
+  const commits: { text: string; latencyMs: number; atMs?: number }[] = [];
   let forced = 0;
+  const forcedAt: number[] = [];
+  /** Wave 10: the caller's words each time they were announced stable (the LLM is asked then). */
+  const stable: { text: string; atMs: number }[] = [];
   let segment = 0;
   let revision = 0;
   let vadStopAt: number | undefined;
@@ -85,8 +89,14 @@ export function replay(clock: ReplayClock, row: Record<string, unknown>) {
   controller.on((decision) => {
     if (decision.type === 'force-endpoint') {
       forced++;
+      forcedAt.push(clock.now());
       const next = commits.shift();
-      if (next) clock.setTimeout(() => final(next.text), next.latencyMs);
+      if (next) {
+        const delayMs = next.atMs === undefined ? next.latencyMs : next.atMs - clock.now();
+        clock.setTimeout(() => final(next.text), Math.max(0, delayMs));
+      }
+    } else if (decision.type === 'turn.partial' && decision.stable) {
+      stable.push({ text: decision.text, atMs: clock.now() });
     } else if (decision.type === 'turn.reset') {
       resets.push(decision.reason);
       resetTexts.push(decision.text);
@@ -118,11 +128,17 @@ export function replay(clock: ReplayClock, row: Record<string, unknown>) {
     resetTexts,
     /** Host commits (force-endpoint) so far. */
     forced: () => forced,
+    /** When each host commit was sent (Wave 10). */
+    forcedAt: () => [...forcedAt],
+    /** The words announced stable, and when (Wave 10). */
+    stable: () => [...stable],
     send,
     interim: (text: string) => transcript(text, 'interim'),
     final,
     /** Scribe's answer to the next host commit: `text` (none when empty) after `latencyMs`. */
     commits: (text: string, latencyMs: number) => void commits.push({ text, latencyMs }),
+    /** Scribe's answer to the next host commit: `text` at `atMs` on the clock, or at once if later. */
+    commitsAt: (text: string, atMs: number) => void commits.push({ text, latencyMs: 0, atMs }),
     agentStarts: (question = false) =>
       send({ type: 'bot.started', epoch: ++epoch, kind: 'response', question }),
     agentStops: () => send({ type: 'bot.stopped', epoch, kind: 'response' }),

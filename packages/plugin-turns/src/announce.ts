@@ -1,9 +1,4 @@
-import {
-  closesConversation,
-  saysGoodbye,
-  type TurnConfig,
-  type TurnDecision,
-} from '@winsendotai/ovo-contracts';
+import { endsConversation, type TurnConfig, type TurnDecision } from '@winsendotai/ovo-contracts';
 
 /**
  * What the detector tells the engine beyond turn boundaries: the utterance so far, for speculation
@@ -12,6 +7,8 @@ import {
 export class TurnAnnouncer {
   /** The last turn.partial text, so an unchanged revision is not announced twice. */
   private announced = '';
+  /** Whether it was announced stable. */
+  private announcedStable = false;
   private fillers = 0;
 
   constructor(
@@ -19,20 +16,29 @@ export class TurnAnnouncer {
     private readonly emit: (decision: TurnDecision) => void,
   ) {}
 
-  /** `view` is the utterance including interims; `final` its finalised part. */
+  /**
+   * `view` is the utterance including interims; `final` its finalised part. Wave 10: words already
+   * announced as an interim are announced again once final, so the LLM is asked on them then, not
+   * after the revisable partial's debounce or at the end of the turn (call 10d5ef30 turns 9 and
+   * 17: Scribe's last interim and its final said the same).
+   */
   partial(turnId: string, view: string, final: string): void {
-    if (!view || view === this.announced) return;
+    const stable = view === final;
+    if (!view || (view === this.announced && (this.announcedStable || !stable))) return;
     this.announced = view;
-    this.emit({ type: 'turn.partial', turnId, text: view, stable: view === final });
+    this.announcedStable = stable;
+    this.emit({ type: 'turn.partial', turnId, text: view, stable });
   }
 
   /**
    * The configured filler lines in rotation, one offered per caller turn that said `words`. Wave 9
    * (call 10d5ef30, D6): none for a goodbye or a closing ("Never mind. Thank you."), which is
-   * answered with a goodbye: turn 22 played "One moment." 180 ms before its reply.
+   * answered with a goodbye: turn 22 played "One moment." 180 ms before its reply. Wave 10 (call
+   * 4f1a919d turn 11): nor for a no with thanks that puts it off ("No, okay, I'll take it later.
+   * Thank you so much."), as the engine's filler (`endsConversation`).
    */
   nextFiller(words: string): { text: string; afterMs: number } | undefined {
-    if (!this.filler || saysGoodbye(words) || closesConversation(words)) return undefined;
+    if (!this.filler || endsConversation(words)) return undefined;
     const lines = this.filler.lines;
     return { text: lines[this.fillers++ % lines.length]!, afterMs: this.filler.afterMs };
   }
@@ -40,5 +46,6 @@ export class TurnAnnouncer {
   /** The turn closed: its next utterance is announced afresh. */
   clear(): void {
     this.announced = '';
+    this.announcedStable = false;
   }
 }

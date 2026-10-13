@@ -49,3 +49,31 @@ describe('collections compliance lines in the clip inventory', () => {
     ).toEqual([{ text: line, source: 'wrap-up' }]);
   });
 });
+
+describe('Wave 10 (L2): the lines around "Shall I end the call?" in the clip inventory', () => {
+  it('pre-renders the question and the answers to a plain yes or no, with the LLM’s end_call', () => {
+    const config = AgentConfig.parse({
+      name: 'Maya',
+      mode: 'agent',
+      language: 'en-IN',
+      ending: { llmTool: true },
+    });
+    expect(
+      staticSpeechInventory({ config }).static.filter((line) => line.source === 'ending'),
+    ).toEqual([
+      { text: 'Shall I end the call?', source: 'ending' },
+      { text: 'Thank you for your time. Goodbye!', source: 'ending' },
+      { text: 'Sure. What else can I help you with?', source: 'ending' },
+    ]);
+  });
+
+  it('has none without the end_call tool, or in a language without the lines', () => {
+    for (const config of [
+      AgentConfig.parse({ name: 'Maya', mode: 'agent' }),
+      AgentConfig.parse({ name: 'Maya', mode: 'agent', language: 'ta', ending: { llmTool: true } }),
+    ])
+      expect(
+        staticSpeechInventory({ config }).static.some((line) => line.source === 'ending'),
+      ).toBe(false);
+  });
+});

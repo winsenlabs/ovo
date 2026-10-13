@@ -29,6 +29,8 @@ export class AgentSpeculation {
   private heard?: Record<string, unknown>;
   /** Wave 8: the LLM asked on partials; only for an agent whose turns go straight to the LLM. */
   private readonly partial?: PartialLlmSpeculation;
+  /** Wave 10: the turn whose reply is being composed; the engine runs one at a time. */
+  private replying?: object;
 
   constructor(config: AgentConfig, override?: Partial<SpeculationPolicy>, llm?: Inference) {
     this.policy = speculationPolicy(config.decision, override);
@@ -73,11 +75,18 @@ export class AgentSpeculation {
   /**
    * Wave 8: a partial transcript for the LLM. `request` builds the turn's first request for the
    * words with the call's variables, or returns undefined when the turn would not ask the LLM.
+   *
+   * Wave 10 (call 4f1a919d, B2): nothing is asked while a reply is being composed. Words heard then
+   * are answered after it, with its lines in the history, or merged into a turn that supersedes
+   * it: never as asked now. Live, "Madras." 1 s into the answer to "Chennai, Chennai." asked the LLM
+   * at once; that call ran its web search to the end (5.1 s, ~9.6k tokens) and was thrown away
+   * when the turn, queued behind the answer, asked something else 17.8 s later.
    */
   prepareLlm(
     { turnId, text, stable, variables = this.heard }: PartialWords,
     request: (text: string, variables: Record<string, unknown>) => InferenceCall | undefined,
   ): void {
+    if (this.replying) return;
     if (variables) this.partial?.offer(turnId, text, stable, () => request(text, variables));
   }
 
@@ -90,17 +99,24 @@ export class AgentSpeculation {
     this.partial?.discard(turnId);
   }
 
+  /** The reply was cut or superseded: it is no longer composed, and nothing asked survives. */
   cancelLlm(): void {
+    this.replying = undefined;
     this.partial?.cancel();
   }
 
-  /** Runs a turn with the call asked on its words, if any, aborted unless the turn uses it. */
+  /**
+   * Runs a turn with the call asked on its words, if any, aborted unless the turn uses it. While it
+   * runs, no other words are asked ahead (`prepareLlm`).
+   */
   async *withLlm<T>(turn: (asked: Inference | undefined) => AsyncIterable<T>): AsyncIterable<T> {
+    const replying = (this.replying = {});
     const call = this.partial?.take();
     try {
       yield* turn(call?.inference());
     } finally {
       call?.abort('the turn did not ask the LLM');
+      if (this.replying === replying) this.replying = undefined;
     }
   }
 

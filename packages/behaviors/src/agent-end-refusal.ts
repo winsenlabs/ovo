@@ -1,5 +1,6 @@
 import { END_CALL_TOOL_ID, type OperationRecord } from '@winsendotai/ovo-contracts';
 import { askToEndLine, END_REFUSED } from './agent-end-gate.ts';
+import { endCallReason } from './agent-tools.ts';
 import type { AgentTurnLog } from './agent-turn-log.ts';
 
 /**
@@ -20,6 +21,8 @@ export class EndCallRefusal {
       turn: number;
       /** The agent's language, for the line asking whether to end the call. */
       language: string;
+      /** Wave 10 (L2): "Shall I end the call?" was said for the model's `end_call` with `reason`. */
+      askedToEnd?: (reason: string) => void;
       operationId: () => string;
       identity: { workspaceId: string; sessionId: string };
     },
@@ -45,12 +48,12 @@ export class EndCallRefusal {
   }
 
   /**
-   * The model's valid `end_call` after its streamed text: `end` runs unless it is refused, and a
-   * refusal the caller should settle leaves its question for `takeAsk` (Wave 8b).
+   * The model's valid `end_call` (`input`) after its streamed text: `end` runs unless it is
+   * refused, and a refusal the caller should settle leaves its question for `takeAsk` (Wave 8b).
    */
-  afterText(end: () => void): void {
+  afterText(input: unknown, end: () => void): void {
     const why = this.refused(true);
-    if (why) this.owed = this.ask(why);
+    if (why) this.owed = this.ask(why, input);
     else end();
   }
 
@@ -62,13 +65,16 @@ export class EndCallRefusal {
   }
 
   /**
-   * Wave 8b: the line to say for a refused `end_call` the caller should settle: they may want to
-   * end the call but did not clearly ask, or were not heard clearly. The agent asks and waits; a
-   * yes ends the call (`EndCallGate`). Never after a question of the agent's own.
+   * Wave 8b: the line to say for a refused `end_call` (`input`) the caller should settle: they may
+   * want to end the call but did not clearly ask, or were not heard clearly. The agent asks and
+   * waits; a yes ends the call (`EndCallGate`), with the reason the model gave (Wave 10, L2).
+   * Never after a question of the agent's own.
    */
-  ask(why: string): string | undefined {
+  ask(why: string, input: unknown): string | undefined {
     if (why !== END_REFUSED.unasked && why !== END_REFUSED.unheard) return undefined;
-    return this.askedQuestion() ? undefined : askToEndLine(this.step.language);
+    const line = this.askedQuestion() ? undefined : askToEndLine(this.step.language);
+    if (line !== undefined) this.step.askedToEnd?.(endCallReason(input));
+    return line;
   }
 
   /** The record a refused `end_call` leaves for the model's next step. */

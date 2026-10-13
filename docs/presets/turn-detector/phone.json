@@ -5,7 +5,8 @@
   "backchannelsEnabled": true,
   "commit": {
     "silenceMs": 50,
-    "completeSilenceMs": 50,
+    "completeSilenceMs": 0,
+    "commitAtStop": true,
     "longSilenceMs": 250,
     "longUtteranceMs": 1200,
     "minSpeechMs": 180,

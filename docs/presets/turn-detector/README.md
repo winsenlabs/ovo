@@ -26,7 +26,7 @@ Wave 8 adds it so endpoint latency can be attributed per turn.
 
 | Rule                                | When                                                                                      | Wait after the caller stops                                 |
 | ----------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `complete`                          | The words so far read complete: a full stop, a short answer, or ≤3 words after a question | `completeSilenceMs` (50), even when `silenceMs` is higher   |
+| `complete`                          | The words so far read complete: a full stop, a short answer, or ≤3 words after a question | `completeSilenceMs` (0), even when `silenceMs` is higher    |
 | `silence`                           | No signal either way, a short utterance                                                   | `silenceMs` (50)                                            |
 | `long`                              | No signal either way, after 1.2 s of speech (`longUtteranceMs`)                           | `longSilenceMs` (250)                                       |
 | `unfinished`                        | Trailing off: "for-", "is a...", "and", "to the", "Paris,", "around the 1", "Rs 500"      | `longSilenceMs`; then the final holds `cutoffHoldMs` (700)  |
@@ -41,7 +41,47 @@ Wave 8 adds it so endpoint latency can be attributed per turn.
 | `vad-timeout`, `provider`, `safety` | The other stop strategies, and the stop safety timer                                      |                                                             |
 
 The energy VAD reports a stop 200 ms (`stopMs`) after the caller goes quiet, and Scribe answers a
-commit in about 300–400 ms. So a complete turn ends about 600 ms after the caller's last word.
+commit in about 300–400 ms. So a complete turn ends about 500–650 ms after the caller's last word.
+
+## Commit as the VAD stops (Wave 10)
+
+With `commit.commitAtStop` (on by default) every reading commits as the VAD stops, after
+`completeSilenceMs` (0), and Scribe's final decides. A final that reads complete ends the turn at
+once, under the rule `complete`, when the words at the stop read complete or gave no signal on a
+short utterance. Any other final first waits out the rest of the wait its words had at the stop
+(`silenceMs` or `longSilenceMs`), then the hold if it trails off, so a caller who goes on is held
+exactly as long as before. That includes a final that reads complete after words that trailed off
+or ran long at the stop (`unfinished`, `long`). Scribe closes the segment an early commit cuts with
+a full stop ("…to Paris," → "…to Paris."), so its reading is no new signal. And a final that says
+more than a stale interim did ("…a lot, so..." → "…so something like that.") reads the same as a
+caller who paused after a complete sentence and went on. Call 10d5ef30 turn 13 did that twice. A
+final already in hand at the stop waits until the old commit time. A final sooner than 280 ms after
+the commit (`MIN_ANSWER_MS`) answered an earlier commit, and ends the turn on arrival as before.
+`commitAtStop: false` restores the Wave 8 waits.
+
+The final's words are announced stable (`turn.partial`) as it lands, so the LLM is asked then, even
+while the turn waits. That includes a final that says what the last interim said. What the caller
+hears comes as much sooner as the commit does: the reply's compose time was 1.1–1.7 s on every
+turn of call 4f1a919d without a search, so a wait of 250 ms after the final does not delay it. It
+would when nothing is asked ahead, such as while a reply is still being composed.
+
+`packages/plugin-turns/tests/call-endpoints.test.ts` replays every turn of calls 10d5ef30 and
+4f1a919d before and after the change. A pause inside a turn has its final moved as much sooner as
+its commit:
+
+- **Before:** the replay reproduces every live `endpointMs` within 10 ms.
+- **After:** a turn whose words at the stop read complete, or gave no signal on a short utterance,
+  ends 50 ms sooner. A turn whose words trailed off or ran long ends when it did, but its LLM is
+  asked 250 ms sooner: call 4f1a919d turns 1, 2 and 10, and call 10d5ef30 turns 3, 5, 9, 13, 14 and 17. Every turn has the same words, and no turn ends sooner on words that read unfinished.
+
+The rest of the endpoint has two parts. One is the VAD's 200 ms `stopMs`. The other is Scribe
+answering the commit, 286–444 ms on these calls; `stt_commit_answered` logs it per commit.
+Scribe's own commit signals do not help. In manual mode it sends none. Its `vad` strategy commits
+after `vad_silence_threshold_secs` (1.5 s in the official examples). Its `turn_prediction`
+strategy "additionally commits as soon as the model predicts the speaker has finished their turn
+(only for models that predict turns)". The reference does not say whether `scribe_v2_realtime`, the
+only realtime model, is one of them (unconfirmed, not tried on a live call). Sources: the realtime
+API reference and the commit-strategies guide on elevenlabs.io, both retrieved 2026-10-13.
 
 Each wait has a limit:
 

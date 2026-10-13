@@ -19,8 +19,21 @@ export const CommitConfigSchema = z
      * Wave 8: the silence for words that read complete (a closing full stop or question mark, a
      * short answer such as "haan" or "Hello", or three words or fewer after the agent asked
      * something), used even when `silenceMs` is set higher: the end of the turn is not in doubt.
+     * Wave 10: 0 (was 50). The VAD has already waited out its 200 ms `stopMs`, and a caller who
+     * goes on keeps the turn open until Scribe's final, ~350 ms later: the 50 ms bought nothing.
      */
-    completeSilenceMs: z.number().int().min(0).max(5000).default(50),
+    completeSilenceMs: z.number().int().min(0).max(5000).default(0),
+    /**
+     * Wave 10 (call 4f1a919d, L1): commit as soon as the VAD stops, whatever the words so far read,
+     * after `completeSilenceMs` (never longer than `silenceMs`), and let Scribe's final decide. A
+     * final that reads complete ends the turn at once, unless the words at the stop trailed off or
+     * ran long; any other waits out the rest of the silence its words had at the stop (`silenceMs`
+     * or `longSilenceMs`, as before) before it ends, so a caller who goes on is held exactly as
+     * long as before. Scribe's final, and the LLM's request on it, come as much sooner as the
+     * commit: 250 ms after a stop on words that trailed off or ran long (call 4f1a919d turns 1, 2
+     * and 10), 50 ms after any other. false: commit after the wait the interim reads (Wave 8).
+     */
+    commitAtStop: z.boolean().default(true),
     /**
      * The silence used instead (never shorter than `silenceMs`) when the words trail off ("and",
      * "to the", a comma, "for-", "around the 1"), or once an utterance whose end gives no signal
@@ -174,7 +187,8 @@ export const PHONE_TURN_CONFIG: Readonly<DetectorConfig> = Object.freeze(
     backchannelsEnabled: true,
     commit: {
       silenceMs: 50,
-      completeSilenceMs: 50,
+      completeSilenceMs: 0,
+      commitAtStop: true,
       longSilenceMs: 250,
       longUtteranceMs: 1200,
       minSpeechMs: 180,
