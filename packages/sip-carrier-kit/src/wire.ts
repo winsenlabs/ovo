@@ -34,6 +34,8 @@ export const SIP_CARRIER_ID = /^[a-z0-9-]{1,40}$/;
 export const SIP_HEADER_NAME = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
 export const SIP_MAX_FORWARDED_HEADERS = 16;
 export const SIP_MAX_HEADER_VALUE = 256;
+/** The gateway rings at most this long; the control factory clamps longer host ring timeouts. */
+export const SIP_MAX_RING_TIMEOUT_SEC = 300;
 
 export function isE164(value: string): boolean {
   return E164.test(value);
@@ -146,7 +148,7 @@ export const SipDialRequestSchema = z.strictObject({
     status: httpUrl(['https:']),
     resume: httpUrl(['https:']).optional(),
   }),
-  ringTimeoutSec: z.number().int().min(1).max(300).optional(),
+  ringTimeoutSec: z.number().int().min(1).max(SIP_MAX_RING_TIMEOUT_SEC).optional(),
   maxDurationSec: z
     .number()
     .int()

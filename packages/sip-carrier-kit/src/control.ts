@@ -12,6 +12,7 @@ import type {
   TelephonyControl,
 } from '@winsendotai/ovo-contracts';
 import {
+  SIP_MAX_RING_TIMEOUT_SEC,
   SIP_TRUNK_ID,
   SipCredentialsSchema,
   SipDialResponseSchema,
@@ -106,7 +107,10 @@ class SipTelephonyControl implements TelephonyControl {
         status: request.callbacks.status,
         ...(request.callbacks.resume ? { resume: request.callbacks.resume } : {}),
       },
-      ...(request.ringTimeoutSec !== undefined ? { ringTimeoutSec: request.ringTimeoutSec } : {}),
+      // The worker allows up to 600 s; past the gateway's cap the call simply stops ringing at 300.
+      ...(request.ringTimeoutSec !== undefined
+        ? { ringTimeoutSec: Math.min(request.ringTimeoutSec, SIP_MAX_RING_TIMEOUT_SEC) }
+        : {}),
       maxDurationSec: request.maxDurationSec,
       credentials,
     };

@@ -41,6 +41,23 @@ export function checkDial(host: CallHost, request: SipDialRequest): Trunk | Dial
 }
 
 /**
+ * A requestId the reconcile table already knows gets its original `accepted` again. Checked
+ * before `checkDial`, so a retried POST is never refused by the capacity, rate or drain checks
+ * its own call trips, nor spends a CPS token.
+ */
+export function repeatedDial(
+  host: CallHost,
+  requestId: string,
+): { status: 200; body: SipDialResponse } | undefined {
+  const known = host.registry.reconcile(requestId);
+  if (known.kind !== 'live' && known.kind !== 'ended') return undefined;
+  return {
+    status: 200,
+    body: { kind: 'accepted', carrierCallId: known.carrierCallId, carrierRequestId: requestId },
+  };
+}
+
+/**
  * `POST /v1/calls` once checked: mint the Call-ID, reserve RTP, answer `accepted` at once
  * (`callIdTiming: 'at-dial'`) and send the INVITE in the background. A repeated requestId gets
  * the same answer again.
@@ -50,16 +67,8 @@ export async function dial(
   request: SipDialRequest,
   trunk: Trunk,
 ): Promise<{ status: number; body: SipDialResponse }> {
-  const known = host.registry.reconcile(request.requestId);
-  if (known.kind === 'live' || known.kind === 'ended')
-    return {
-      status: 200,
-      body: {
-        kind: 'accepted',
-        carrierCallId: known.carrierCallId,
-        carrierRequestId: request.requestId,
-      },
-    };
+  const repeated = repeatedDial(host, request.requestId);
+  if (repeated) return repeated;
   const pair = await host.pool.acquire();
   if (!pair)
     return { status: 503, body: { kind: 'rejected', reason: 'at_capacity', retryable: true } };

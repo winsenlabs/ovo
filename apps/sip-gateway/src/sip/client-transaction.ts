@@ -25,9 +25,10 @@ export function ackForFailure(invite: SipRequest, response: SipResponse): SipReq
 }
 
 /**
- * RFC 3261 §17.1 client transactions. INVITE: Timer A doubles without a cap, Timer B gives up;
- * a 2xx moves to RFC 6026 "Accepted" for Timer M so forked 2xx still reach the TU. Non-INVITE:
- * Timer E doubles to T2, Timer F gives up.
+ * RFC 3261 §17.1 client transactions. INVITE: Timer A doubles without a cap, Timer B gives up
+ * while still Calling (a provisional hands the lifetime to the TU's ring timer and CANCEL); a 2xx
+ * moves to RFC 6026 "Accepted" for Timer M so forked 2xx still reach the TU. Non-INVITE: Timer E
+ * doubles to T2, Timer F gives up in Trying or Proceeding.
  */
 export class ClientTransaction {
   state: ClientState;
@@ -49,12 +50,25 @@ export class ClientTransaction {
     ctx.send(request, flow);
     const { t1 } = ctx.timers;
     if (!reliable(flow)) this.scheduleRetransmit();
-    this.timers.start(this.isInvite ? 'B' : 'F', 64 * t1, () => {
-      if (this.state === 'calling' || this.state === 'trying' || this.state === 'proceeding') {
-        this.terminate();
-        handlers.onTimeout();
-      }
-    });
+    this.timers.start(this.isInvite ? 'B' : 'F', 64 * t1, () => this.timeOut());
+  }
+
+  private timeOut(): void {
+    const live = this.isInvite
+      ? this.state === 'calling' || this.state === 'proceeding'
+      : this.state === 'trying' || this.state === 'proceeding';
+    if (!live) return;
+    this.terminate();
+    this.handlers.onTimeout();
+  }
+
+  /**
+   * The TU sent a CANCEL for this INVITE: with no final response 64·T1 later, the transaction is
+   * considered timed out (RFC 3261 §9.1), so a trunk that never answers 487 cannot pin it.
+   */
+  cancelled(): void {
+    if (this.isInvite && this.state === 'proceeding')
+      this.timers.start('cancel', 64 * this.ctx.timers.t1, () => this.timeOut());
   }
 
   get isInvite(): boolean {
@@ -79,8 +93,11 @@ export class ClientTransaction {
     if (response.status < 200) {
       if (this.state === 'calling' || this.state === 'trying') {
         this.state = 'proceeding';
-        if (this.isInvite) this.timers.stop('A');
-        else this.interval = this.ctx.timers.t2;
+        if (this.isInvite) {
+          // Timer B only bounds Calling (§17.1.1.2); a ringing INVITE lives until the TU ends it.
+          this.timers.stop('A');
+          this.timers.stop('B');
+        } else this.interval = this.ctx.timers.t2;
       }
       if (this.state === 'proceeding') this.handlers.onResponse(response);
       return;

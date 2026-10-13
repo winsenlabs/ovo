@@ -1,6 +1,7 @@
 import type { Logger } from '@winsendotai/ovo-contracts';
 import { loadConfig, type GatewayConfig } from '../../src/config/env.ts';
 import { parseTrunkFile } from '../../src/config/trunks.ts';
+import type { SipTimers } from '../../src/sip/flow.ts';
 import { startSipGateway, type RunningGateway } from '../../src/service.ts';
 import { FakeMediaGateway, PUBLIC_BASE, type FakeGatewayOptions } from './fake-media-gateway.ts';
 
@@ -100,6 +101,8 @@ export async function startHarness(
     media?: Omit<FakeGatewayOptions, 'key'>;
     trunks?: Record<string, unknown>[];
     env?: Record<string, string>;
+    /** Shrunk RFC 3261 timers, for a real-clock test that must outlast 64·T1. */
+    timers?: SipTimers;
   } = {},
 ): Promise<Harness> {
   const media = new FakeMediaGateway({ key: KEY, ...options.media });
@@ -109,6 +112,7 @@ export async function startHarness(
     ...(options.trunks ? { trunks: options.trunks } : {}),
     ...(options.env ? { env: options.env } : {}),
   });
+  if (options.timers) config.timers = options.timers;
   const logs: Harness['logs'] = [];
   const running = await startSipGateway({ config, logger: recordingLogger(logs) });
   return {

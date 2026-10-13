@@ -116,6 +116,40 @@ describe('client INVITE transaction (RFC 3261 §17.1.1, RFC 6026)', () => {
     expect(layer.counts.client).toBe(0);
   });
 
+  it('keeps a ringing INVITE past 64·T1: Timer B bounds Calling only (§17.1.1.2)', () => {
+    const { clock, layer } = harness();
+    let timedOut = 0;
+    const invite = request('INVITE');
+    const tx = layer.request(invite, UDP, {
+      onResponse: () => undefined,
+      onTimeout: () => (timedOut += 1),
+    });
+    clock.advance(1_000);
+    layer.receive(response(invite, 180), UDP);
+    clock.advance(60_000);
+    expect(timedOut).toBe(0);
+    expect(tx.state).toBe('proceeding');
+    expect(layer.counts.client).toBe(1);
+  });
+
+  it('times out a CANCELled INVITE 64·T1 after the CANCEL when no final arrives (§9.1)', () => {
+    const { clock, layer } = harness();
+    let timedOut = 0;
+    const invite = request('INVITE');
+    const tx = layer.request(invite, UDP, {
+      onResponse: () => undefined,
+      onTimeout: () => (timedOut += 1),
+    });
+    layer.receive(response(invite, 180), UDP);
+    clock.advance(45_000);
+    tx.cancelled();
+    clock.advance(31_999);
+    expect(timedOut).toBe(0);
+    clock.advance(1);
+    expect(timedOut).toBe(1);
+    expect(layer.counts.client).toBe(0);
+  });
+
   it('does not retransmit over TCP', () => {
     const { clock, sent, layer } = harness();
     layer.request(request('INVITE'), TCP, {
@@ -139,6 +173,16 @@ describe('client non-INVITE transaction', () => {
     expect(times(sent, () => true)).toEqual([
       0, 500, 1500, 3500, 7500, 11500, 15500, 19500, 23500, 27500, 31500,
     ]);
+    expect(timedOut).toBe(true);
+  });
+
+  it('still times out at Timer F once proceeding', () => {
+    const { clock, layer } = harness();
+    let timedOut = false;
+    const bye = request('BYE');
+    layer.request(bye, UDP, { onResponse: () => undefined, onTimeout: () => (timedOut = true) });
+    layer.receive(response(bye, 100), UDP);
+    clock.advance(32_000);
     expect(timedOut).toBe(true);
   });
 
