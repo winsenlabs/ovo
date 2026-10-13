@@ -70,10 +70,19 @@ export class RtpCaller {
 /**
  * One UAC call: INVITE (PCMU + telephone-event, our RTP port) → 100/180 → 200 → ACK, hold for
  * `holdMs`, then the caller's BYE → 200. Any unexpected message (for example a BYE from the
- * sip-gateway because the agent hung up) fails the SIPp run. On the 200 the scenario writes the
+ * sip-gateway because the agent hung up) fails the SIPp run. `headers` go on the INVITE only. On the 200 the scenario writes the
  * answered RTP port and the Call-ID to `answerFile` for the test's RTP leg.
  */
-export function uacScenario(input: { rtpPort: number; holdMs: number; answerFile: string }) {
+export function uacScenario(input: {
+  rtpPort: number;
+  holdMs: number;
+  answerFile: string;
+  /** Extra INVITE headers, as a trunk would add them (for example TCN's X- metadata). */
+  headers?: Record<string, string>;
+}) {
+  const extra = Object.entries(input.headers ?? {})
+    .map(([name, value]) => `\n      ${name}: ${value}`)
+    .join('');
   return `<?xml version="1.0" encoding="ISO-8859-1" ?>
 <!DOCTYPE scenario SYSTEM "sipp.dtd">
 <scenario name="OVO sip-path UAC">
@@ -87,7 +96,7 @@ export function uacScenario(input: { rtpPort: number; holdMs: number; answerFile
       Call-ID: [call_id]
       CSeq: 1 INVITE
       Contact: <sip:+919812345678@[local_ip]:[local_port];transport=[transport]>
-      Max-Forwards: 70
+      Max-Forwards: 70${extra}
       Content-Type: application/sdp
       Content-Length: [len]
 
@@ -175,6 +184,7 @@ export async function runSippCall(input: {
   localPort: number;
   rtpPort: number;
   holdMs: number;
+  headers?: Record<string, string>;
 }): Promise<SippRun> {
   const scenario = join(input.dir, 'uac-call.xml');
   const answerFile = join(input.dir, 'answered.txt');

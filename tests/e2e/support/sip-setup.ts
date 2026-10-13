@@ -7,7 +7,11 @@ import { operatorApi, type InboundAgent, type Operator } from './operator-setup.
 import { freePort, hostEnv } from './stack.ts';
 
 export const SIP = '@winsendotai/ovo-carrier-sip';
+export const TCN = '@winsendotai/ovo-carrier-tcn';
 export const SIP_GATEWAY_MAIN = 'apps/sip-gateway/src/main.ts';
+
+/** The two carriers the sip-gateway delivers through (`/carriers/<carrierId>/…`). */
+export type SipCarrierId = 'sip' | 'tcn';
 
 export interface SipAgent {
   agentId: string;
@@ -16,6 +20,10 @@ export interface SipAgent {
   trunkId: string;
   /** The DID the trunk delivers and the inbound route answers, in E.164. */
   number: string;
+  carrierId: SipCarrierId;
+  pluginId: string;
+  /** X- headers the trunk entry forwards (and, for TCN, the binding's `metadataHeaders`). */
+  forwardHeaders: string[];
 }
 
 /** The Compose `.env` additions that turn SIP on (scripts/bootstrap-compose.sh generates both). */
@@ -28,38 +36,62 @@ export function sipComposeVariables(controlUrl: string): Record<string, string> 
   };
 }
 
+export interface SipAgentOptions {
+  number?: string;
+  trunkId?: string;
+  /** `sip` (generic trunk, the default) or `tcn` (TCN SIP delivery, docs/runbooks/tcn-sip.md). */
+  carrierId?: SipCarrierId;
+  /** X- headers to forward; for TCN also the binding's `metadataHeaders` (surfaced as `tcn.*`). */
+  forwardHeaders?: string[];
+}
+
 /**
- * docs/runbooks/sip-trunk-onboarding.md section 3 as the operator runs it: a SIP trunk binding
- * (its credential would carry digest credentials for outbound; inbound never reads it), the SIP
- * meter's price card, and the base agent re-released on that binding with an inbound route.
+ * docs/runbooks/sip-trunk-onboarding.md section 3 as the operator runs it: a trunk binding for the
+ * `sip` or `tcn` plugin (its credential would carry digest credentials for outbound; inbound never
+ * reads it, so the TCN one is the IP-authenticated `{}`), the carrier meter's price card, the base
+ * agent re-released with `voice.carrier` on that binding and the card in its `costPolicy`, and the
+ * inbound route for the DID.
  */
 export async function configureSipAgent(
   operator: Operator,
   base: InboundAgent,
-  number = '+918000000001',
-  trunkId = 'loop-trunk',
+  options: SipAgentOptions = {},
 ): Promise<SipAgent> {
+  const {
+    number = '+918000000001',
+    trunkId = 'loop-trunk',
+    carrierId = 'sip',
+    forwardHeaders = [],
+  } = options;
+  const pluginId = carrierId === 'tcn' ? TCN : SIP;
   const call = operatorApi(operator);
   const credential = await call<{ id: string }>('POST', '/v1/credentials', {
-    label: 'SIP trunk digest',
-    provider: 'sip',
+    label: carrierId === 'tcn' ? 'TCN trunk (IP-authenticated)' : 'SIP trunk digest',
+    provider: carrierId,
     type: 'api-key',
     environment: 'live',
-    value: JSON.stringify({ username: 'ovo-e2e', password: randomBytes(12).toString('hex') }),
+    value:
+      carrierId === 'tcn'
+        ? '{}'
+        : JSON.stringify({ username: 'ovo-e2e', password: randomBytes(12).toString('hex') }),
   });
   const binding = await call<{ id: string }>('POST', '/v1/provider-bindings', {
-    label: 'SIP loopback trunk',
-    provider: 'sip',
-    pluginId: SIP,
+    label: carrierId === 'tcn' ? 'TCN loopback trunk' : 'SIP loopback trunk',
+    provider: carrierId,
+    pluginId,
     environment: 'live',
     credentialId: credential.id,
-    config: { trunkId },
+    config:
+      carrierId === 'tcn'
+        ? { trunkId, region: 'sg', metadataHeaders: forwardHeaders }
+        : { trunkId },
   });
   const version = '2026-10';
+  const cardId = `${carrierId}-carrier-audio-seconds`;
   await call('POST', '/v1/cost/price-cards', {
-    id: 'sip-carrier-audio-seconds',
+    id: cardId,
     version,
-    provider: 'sip',
+    provider: carrierId,
     unit: 'audio_seconds',
     currency: 'USD',
     minorUnitsPerBlock: '1',
@@ -71,10 +103,10 @@ export async function configureSipAgent(
     'GET',
     `/v1/agents/${base.agentId}`,
   );
-  config.name = 'SIP path';
-  config.voice.carrier = { plugin: SIP, binding: binding.id, config: {} };
-  config.costPolicy.priceCards['sip.carrier.audio_seconds'] = {
-    id: 'sip-carrier-audio-seconds',
+  config.name = carrierId === 'tcn' ? 'TCN SIP path' : 'SIP path';
+  config.voice.carrier = { plugin: pluginId, binding: binding.id, config: {} };
+  config.costPolicy.priceCards[`${carrierId}.carrier.audio_seconds`] = {
+    id: cardId,
     version,
     fxId: 'usd-inr',
     fxVersion: version,
@@ -86,10 +118,19 @@ export async function configureSipAgent(
     releaseId: release.id,
     variables: {},
     enabled: true,
-    carrierPluginId: SIP,
+    carrierPluginId: pluginId,
     carrierBindingId: binding.id,
   });
-  return { agentId: agent.id, releaseId: release.id, bindingId: binding.id, trunkId, number };
+  return {
+    agentId: agent.id,
+    releaseId: release.id,
+    bindingId: binding.id,
+    trunkId,
+    number,
+    carrierId,
+    pluginId,
+    forwardHeaders,
+  };
 }
 
 /** A loopback trunk entry (11.2): SIPp on 127.0.0.1 is the trunk, inbound only, PCMU first. */
@@ -99,7 +140,7 @@ export function loopbackTrunkFile(agent: SipAgent) {
     trunks: [
       {
         id: agent.trunkId,
-        carrierId: 'sip',
+        carrierId: agent.carrierId,
         bindingId: agent.bindingId,
         transport: 'udp',
         signallingCidrs: ['127.0.0.1/32'],
@@ -107,7 +148,7 @@ export function loopbackTrunkFile(agent: SipAgent) {
         codecs: ['PCMU', 'PCMA'],
         dtmf: 'rfc4733',
         numberFormat: { country: 'IN' },
-        forwardHeaders: [],
+        forwardHeaders: agent.forwardHeaders,
         inviteRatePerSecond: 5,
         maxConcurrent: 2,
         optionsPingSeconds: 30,
