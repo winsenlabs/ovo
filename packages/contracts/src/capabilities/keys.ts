@@ -27,6 +27,10 @@ export const Cap = {
   net: 'ovo.net',
   carrierControl: 'ovo.carrier.control',
   carrierIngress: 'ovo.carrier.ingress',
+  /** sip-gateway control API client; composed by the worker host only. */
+  sipTrunkControl: 'ovo.sip-trunk.control',
+  /** ovo-sip/1 signature verifier; composed by the media-gateway host only. */
+  sipTrunkVerifier: 'ovo.sip-trunk.verifier',
   backgroundTask: 'ovo.background-task',
   capacitySignal: 'capacity.signal',
   operations: 'ovo.operations',
@@ -124,6 +128,8 @@ export const CAPABILITY_SPECS = {
   [Cap.net]: EITHER,
   [Cap.carrierControl]: MANY_PROCESS,
   [Cap.carrierIngress]: MANY_PROCESS,
+  [Cap.sipTrunkControl]: PROCESS,
+  [Cap.sipTrunkVerifier]: PROCESS,
   [Cap.backgroundTask]: MANY_PROCESS,
   [Cap.capacitySignal]: PROCESS,
   [Cap.operations]: PROCESS,
