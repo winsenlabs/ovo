@@ -199,6 +199,85 @@ describe('Cartesia TTS reply (C3)', () => {
     net.assertComplete();
   });
 
+  it('a socket drop between segments reconnects for the next one, nothing repeated', async () => {
+    const net = createFixtureNet([
+      wsScript([
+        socketOpen(),
+        ...segment('ovo-1', 'One.'),
+        { send: chunk('ovo-1', [1]) },
+        { send: flushDoneEvent('ovo-1', 1) },
+        { close: { code: 1006 } },
+      ]),
+      wsScript([
+        socketOpen(),
+        ...segment('ovo-1-2', 'Two.'),
+        { send: chunk('ovo-1-2', [2]) },
+        { send: flushDoneEvent('ovo-1-2', 1) },
+      ]),
+    ]);
+    const usage: UsageMeter[] = [];
+    const tts = new CartesiaTts(net, 'fixture-key', { voiceId: VOICE });
+    const reply = await tts.openReply(input(usage));
+    expect(await drain(reply.segment('One.', live()))).toEqual([1]);
+    await settle();
+    expect(await drain(reply.segment('Two.', live()))).toEqual([2]);
+    await reply.close();
+    expect(usage.map((meter) => [meter.requestId, meter.quantity])).toEqual([
+      ['cartesia:call-1:1/1', '5'],
+      ['cartesia:call-1:1/2', '5'],
+    ]);
+    net.assertComplete();
+  });
+
+  it('a 429 on the second segment after the first played resends only the second', async () => {
+    const clock = new FakeClock();
+    const net = createFixtureNet(
+      [
+        wsScript([
+          socketOpen(),
+          ...segment('ovo-1', 'One.'),
+          { send: chunk('ovo-1', [1]) },
+          { send: flushDoneEvent('ovo-1', 1) },
+          ...segment('ovo-1', 'Two.'),
+          { send: errorEvent('ovo-1', 429, 'concurrency_limited') },
+          ...segment('ovo-1-2', 'Two.'),
+          { send: chunk('ovo-1-2', [2]) },
+          { send: flushDoneEvent('ovo-1-2', 1) },
+        ]),
+      ],
+      { clock },
+    );
+    const tts = new CartesiaTts(net, 'fixture-key', { voiceId: VOICE }, clock);
+    const reply = await tts.openReply(input());
+    expect(await drain(reply.segment('One.', live()))).toEqual([1]);
+    let heard: number[] | undefined;
+    void drain(reply.segment('Two.', live())).then((bytes) => (heard = bytes));
+    await settle();
+    expect(heard).toBeUndefined();
+    clock.advance(250);
+    await settle();
+    expect(heard).toEqual([2]);
+    await reply.close();
+    net.assertComplete();
+  });
+
+  it('a drop after a segment was partly heard fails the reply rather than repeat its words', async () => {
+    const net = createFixtureNet([
+      wsScript([
+        socketOpen(),
+        ...segment('ovo-1', 'One.'),
+        { send: chunk('ovo-1', [1]) },
+        { close: { code: 1006 } },
+      ]),
+    ]);
+    const tts = new CartesiaTts(net, 'fixture-key', { voiceId: VOICE });
+    const reply = await tts.openReply(input());
+    await expect(drain(reply.segment('One.', live()))).rejects.toThrow(/1006/);
+    await expect(drain(reply.segment('Two.', live()))).rejects.toThrow(/1006/);
+    await reply.close();
+    net.assertComplete();
+  });
+
   it('a final refusal fails the open segments and every later one', async () => {
     const net = createFixtureNet([
       wsScript([
