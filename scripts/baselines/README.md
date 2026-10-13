@@ -78,3 +78,9 @@ A transitional violation introduced by a wave-2 unit went into that unit's own
 
 Every pending entry needed a `reason` and `removeBy: "I1"`. Module size stayed hard-capped at 400
 lines (tests 500) even for pending entries. I1 deleted `pending/`.
+
+## Wave 11 pending entry
+
+`pending/W11-speech.json` holds one duplication pair from the Wave 11 integration: the Cartesia and
+Rumik TTS lanes each wrote the same abortable wait. `plugin-kit` exports `untilAborted` for it; once
+both plugins import it, the pair disappears and the file must be deleted (a stale entry warns).

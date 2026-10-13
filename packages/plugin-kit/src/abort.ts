@@ -44,6 +44,21 @@ export function isAbortError(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError');
 }
 
+/**
+ * `work`, or the signal's abort error as soon as `signal` aborts, whichever settles first. `work`
+ * itself keeps running (a socket keeps connecting); only the caller stops waiting for it.
+ */
+export function untilAborted<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(abortError(signal));
+  let detach = () => {};
+  const aborted = new Promise<never>((_resolve, reject) => {
+    const onAbort = () => reject(abortError(signal));
+    signal.addEventListener('abort', onAbort, { once: true });
+    detach = () => signal.removeEventListener('abort', onAbort);
+  });
+  return Promise.race([work, aborted]).finally(detach);
+}
+
 /** Resolves after `ms`, or rejects with the signal's reason. */
 export function delay(
   ms: number,
