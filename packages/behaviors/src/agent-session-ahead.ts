@@ -77,21 +77,21 @@ export abstract class AgentSessionAhead extends AgentSession {
    * Wave 8: the turn's first LLM request for these words as the call stands now; undefined while
    * the agent is still speaking (its lines change the history), with passages to retrieve first,
    * or when the turn would not ask the LLM.
-   * Wave 10 (Maya call 4f1a919d, B1/B2): nor while the agent still owes the caller's earlier words
-   * a reply: its lines, or the merge of both utterances, change the history too. Live, "Madras."
-   * was asked ahead while the reply to "Chennai, Chennai." searched; it searched as well (5.1 s,
-   * 9,647 tokens, billed) and was thrown away, and having searched for the words it left their
-   * own turn no search tool.
+   * Wave 10 (Maya call 4f1a919d, B1/B2): nor while the reply to the caller's earlier words is
+   * still being composed (`active`): its lines, or the merge of both utterances, change the history
+   * too. Live, "Madras." was asked ahead while the reply to "Chennai, Chennai." searched; it
+   * searched as well (5.1 s, 9,647 tokens, billed) and was thrown away, and having searched for
+   * the words it left their own turn no search tool. A reply the caller cut off is cancelled
+   * (`cancel`), so the words that cut it are still asked ahead.
    */
   private llmAhead(input: string, variables: Record<string, unknown>): InferenceCall | undefined {
     if (this.ending.complete || this.grounding || this.conversation.speaking) return undefined;
-    const now = this.conversation.peek();
-    if (now.history.at(-1)?.role === 'user' || !this.answersAhead(input)) return undefined;
+    if (this.active || !this.answersAhead(input)) return undefined;
     const facts = flowFacts(this.flow, this.variables.facts(variables));
     return firstInferenceRequest({
       config: this.config,
       input,
-      ...now,
+      ...this.conversation.peek(),
       context: replyContext(this.briefing(variables), facts),
       tools: this.tools,
       results: [],

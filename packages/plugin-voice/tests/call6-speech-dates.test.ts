@@ -73,8 +73,30 @@ describe('call 4f1a919d B4: two days of a month, offered as a choice or named to
     expect(say('On December 20 or 2 nights later.')).toBe(
       'On the 20th of December or 2 nights later.',
     );
-    expect(say('December 20 or 20.')).toBe('December 20 or 20.');
+    expect(say('December 20 or 20.')).toBe('the 20th of December or 20.');
     expect(say('December 20 or 21, 2027.')).toBe('the 20th or 21st of December 2027.');
+  });
+
+  it('leaves amounts, counts of anything and a second month to their own words', () => {
+    // Review of b0b5ae2: each was read as a second day of the month (Wave 9 said them all right).
+    expect(say('Your payment of December 5 and 1,500 rupees is due.')).toBe(
+      'Your payment of the 5th of December and 1,500 rupees is due.',
+    );
+    expect(say('Pay by December 5 and 3 instalments remain.')).toBe(
+      'Pay by the 5th of December and 3 instalments remain.',
+    );
+    expect(say('On December 20 and 3 hotels nearby have rooms.')).toBe(
+      'On the 20th of December and 3 hotels nearby have rooms.',
+    );
+    expect(say('We fly December 31 or 1 January.')).toBe(
+      'We fly the 31st of December or the 1st of January.',
+    );
+    // A bare second day is a day only before a year, the clause's end or a verb taking both.
+    expect(say('December 20 or 3.')).toBe('the 20th of December or 3.');
+    expect(say('December 20 or 21 for the flight.')).toBe(
+      'the 20th of December or 21 for the flight.',
+    );
+    expect(say('December 20 and 21.')).toBe('the 20th and 21st of December.');
   });
 
   it('holds a long line the segmenter cut before the second day', () => {

@@ -36,13 +36,19 @@ const YEAR = String.raw`((?:19|20)\d{2})(?![\d:])`;
 const RANGE_SEPARATOR = String.raw`\s*(?:[–—]|-|\s(?:to|through|thru|until)\s)\s*`;
 /** "or" or "and" between two days of one month ("20 or 21 December"). */
 const CHOICE_SEPARATOR = String.raw`\s+(?:or|and)\s+`;
-/** Words that make a number a count, not a day ("20 and 21 guests", "2 or 3 nights"). */
-const COUNTED = String.raw`(?:days?|nights?|hours?|minutes?|weeks?|months?|years?|people|persons?|guests?|adults?|children|kids|passengers?|tickets?|rooms?|seats?|times|percent|rupees?|dollars?|euros?|pounds?|kilometres?|kilometers?|km|kg|am|pm|a\.m|p\.m|o['’]clock)`;
 /**
- * The second of two days joined by "or"/"and" after its month ("December 20 or 21, 2026"):
- * an ordinal, or a number no count word follows ("December 20 and 21 guests" is left alone).
+ * What may follow a second day written as a bare number: a year, the end of a clause, or a verb
+ * that takes the two days together ("December 20 and 21 are both open"). Any other word may make
+ * it a count or an amount ("December 5 and 3 instalments", "December 5 and 1,500 rupees").
  */
-const CHOSEN_DAY = String.raw`(?:the\s+)?(\d{1,2})(?:st|nd|rd|th|(?!\s+${COUNTED}(?![\p{L}])))(?![\d:])`;
+const CHOICE_END = String.raw`(?=,?\s+(?:19|20)\d{2}(?![\d:])|\s*(?:[.,;:!?)](?!\d)|$)|\s+(?:are|is|both|work|works|suit|suits|would|will|could|look|looks)(?![\p{L}]))`;
+/**
+ * The second of two days joined by "or"/"and" after its month ("December 20 or 21, 2026"): an
+ * ordinal, or a bare number `CHOICE_END` follows; never the start of a longer number ("1,500").
+ */
+const CHOSEN_DAY = String.raw`(?:the\s+)?(\d{1,2})(?:st|nd|rd|th|${CHOICE_END})(?![\d:]|[,.]\d)`;
+/** A month and its day just before: "or" after them starts that date's choice, not another's. */
+const AFTER_MONTH_DAY = String.raw`(?<!(?<![\p{L}])(?:January|February|March|April|May|June|July|August|September|October|November|December|(?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)\.?)\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?)`;
 
 /** A placeholder no reply text contains; the date it stands for is in `tokens`. */
 const MARK = '\u0000';
@@ -52,8 +58,9 @@ const ISO_DATE = /(?<![\d-])(\d{4})-(\d{2})-(\d{2})(?![\d-])/g;
 // "21/12/2026", "21-12-2026": day first, as everywhere but the US (which keeps these as written).
 const NUMERIC_DATE = /(?<![\d/.-])(\d{1,2})([/.-])(\d{1,2})\2((?:19|20)\d{2})(?![\d/-]|\.\d)/g;
 // "the 21st of December 2026", "21–24 December", "20 or 21 December", "5 Jan".
+// "December 31 or 1 January" is two dates: the choice never starts after a month and its day.
 const DAY_FIRST = new RegExp(
-  String.raw`(?<![\d.,:/])(?:\bthe\s+)?${DAY}(?:(${RANGE_SEPARATOR}|${CHOICE_SEPARATOR})(?:the\s+)?${DAY})?(?:\s+of)?\s+${MONTH}(?![\p{L}])(?:,?\s+${YEAR})?`,
+  String.raw`(?<![\d.,:/])(?:\bthe\s+)?${DAY}(?:(${RANGE_SEPARATOR}|${AFTER_MONTH_DAY}${CHOICE_SEPARATOR})(?:the\s+)?${DAY})?(?:\s+of)?\s+${MONTH}(?![\p{L}])(?:,?\s+${YEAR})?`,
   'gu',
 );
 // "December 21, 2026", "December 21st", "November 28–30, 2026", "December 20 or 21, 2026".
@@ -74,8 +81,8 @@ function tokenise(text: string, tokens: DateToken[], dayFirst: boolean): string 
     if (!token.month || !validDay(token.month, token.day) || !validDay(token.month, token.until))
       return match;
     if (token.until !== undefined && token.day !== undefined) {
-      // A range runs forward; a choice ("20 or 21") names two different days.
-      if (token.join ? token.until === token.day : token.until <= token.day) return match;
+      // A range runs forward, and so does a choice ("20 or 21"): "December 20 and 3" is no date.
+      if (token.until <= token.day) return match;
     }
     tokens.push(said ? { ...token, said: match } : token);
     return `${MARK}${tokens.length - 1}${MARK}`;
@@ -130,8 +137,13 @@ function tokenise(text: string, tokens: DateToken[], dayFirst: boolean): string 
         join: 'or' | 'and' | undefined,
         chosen: string | undefined,
         y?: string,
-      ) =>
-        keep(
+      ) => {
+        // An earlier day after "or"/"and" is no choice of dates: the first date stands alone.
+        if (chosen !== undefined && Number(chosen) <= Number(d)) {
+          const head = /^\S+\s+\d{1,2}(?:st|nd|rd|th)?/u.exec(match)![0];
+          return keep({ month: monthIndex(m), day: Number(d) }, head) + match.slice(head.length);
+        }
+        return keep(
           {
             month: monthIndex(m),
             day: Number(d),
@@ -140,7 +152,8 @@ function tokenise(text: string, tokens: DateToken[], dayFirst: boolean): string 
             ...(join ? { join } : {}),
           },
           match,
-        ),
+        );
+      },
     )
     .replace(MONTH_YEAR, (match, m: string, y: string) =>
       keep({ month: monthIndex(m), year: Number(y) }, match),
@@ -152,7 +165,7 @@ function tokenise(text: string, tokens: DateToken[], dayFirst: boolean): string 
         if (token.day === undefined || token.until !== undefined) return match;
         const chosen = { ...token, until: Number(d2), join, year: token.year ?? year(y) };
         delete chosen.said;
-        if (!validDay(chosen.month, chosen.until) || chosen.until === chosen.day) return match;
+        if (!validDay(chosen.month, chosen.until) || chosen.until <= token.day) return match;
         tokens[Number(index)] = chosen;
         return mark;
       },

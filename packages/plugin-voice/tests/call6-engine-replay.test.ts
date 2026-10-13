@@ -227,3 +227,78 @@ describe('call 4f1a919d L2 and L3: turn 12, a yes to "Shall I end the call?"', (
     ]);
   });
 });
+
+describe('review of ec1194c: a short yes whose reply runs one of the agent’s own tools', () => {
+  const ASKED = 'Shall I check the open slots for you?';
+  const SLOTS = 'You have slots at 3 and 5 pm.';
+
+  /** "Yes, please.": the model calls `check_slots` after `toolAtMs`, which runs 3 s; then 900 ms. */
+  async function heard(toolAtMs: number) {
+    const clock = new FakeClock();
+    const model: Inference = {
+      generate: () => Promise.reject(new Error('streamed only')),
+      async *stream(request) {
+        await sleep(clock, request.results.length ? 900 : toolAtMs, request.signal);
+        if (request.signal.aborted) return;
+        if (request.results.length) yield { kind: 'text-delta', delta: SLOTS };
+        else yield { kind: 'tool', toolId: 'check_slots', input: {} };
+        yield { kind: 'finish' };
+      },
+      // No web search for a yes: the reply is not looking anything up until it calls the tool.
+      sendsProviderTools: () => false,
+    };
+    const behavior = new AgentBehavior(
+      AgentConfig.parse({
+        name: 'Maya',
+        mode: 'agent',
+        language: 'en-IN',
+        opening: { lines: [ASKED] },
+        allowedTools: ['check_slots'],
+        tools: [
+          {
+            id: 'check_slots',
+            connector: 'native',
+            effect: 'read',
+            description: 'Check the open slots',
+            inputSchema: { type: 'object', properties: {} },
+          },
+        ],
+        reply: { firstPhraseWords: 0 },
+      }),
+      model,
+      {
+        execute: async (request) => {
+          await sleep(clock, 3000);
+          return { ...request, state: 'succeeded', result: { slots: [3, 5] }, createdAt: 'now' };
+        },
+      },
+      { workspaceId: 'w-1', sessionId: 's-1' },
+    );
+    const h = driverHarness(clock, behavior, {
+      ttsMs: TTS_MS,
+      playMs: PLAY_MS,
+      fillerPlayMs: 1000,
+      fillers: [FILLER.text],
+    });
+    await h.greet();
+    h.turn.stopped('turn-1', 'Yes, please.', FILLER);
+    const from = clock.now();
+    await clock.advanceAsync(10_000);
+    return h.audio.filter((line) => line.atMs >= from).map((line) => [line.text, line.atMs - from]);
+  }
+
+  it('keeps "One moment." for the tool’s 3 s', async () => {
+    // Before: [[SLOTS, 4950]], 4.95 s of silence.
+    expect(await heard(900)).toEqual([
+      [FILLER.text, 1500],
+      [SLOTS, 900 + 3000 + 900 + TTS_MS],
+    ]);
+  });
+
+  it('plays it once the tool is called, when that comes after the filler was due', async () => {
+    expect(await heard(1950)).toEqual([
+      [FILLER.text, 2000],
+      [SLOTS, 1950 + 3000 + 900 + TTS_MS],
+    ]);
+  });
+});

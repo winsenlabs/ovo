@@ -252,6 +252,47 @@ describe('call 4f1a919d L3: the behaviour says whether its reply may search', ()
     expect(behavior.lookingUp()).toBe(true);
   });
 
+  it('counts a call to one of the agent’s own tools as looking something up', async () => {
+    // Review of ec1194c: "Yes, please." to "Shall I check the open slots for you?".
+    const model = llm([
+      { kind: 'tool', toolId: 'check_slots', input: {} },
+      { kind: 'text', text: 'You have slots at 3 and 5 pm.' },
+    ]);
+    const behavior = new AgentBehavior(
+      AgentConfig.parse({
+        name: 'Maya',
+        mode: 'agent',
+        allowedTools: ['check_slots'],
+        tools: [
+          {
+            id: 'check_slots',
+            connector: 'native',
+            effect: 'read',
+            description: 'Check the open slots',
+            inputSchema: { type: 'object', properties: {} },
+          },
+        ],
+      }),
+      { ...model.port, sendsProviderTools: () => false },
+      {
+        execute: async (request) => ({
+          ...request,
+          state: 'succeeded',
+          result: { slots: ['3 pm', '5 pm'] },
+          createdAt: 'now',
+        }),
+      },
+      { workspaceId: 'w-1', sessionId: 's-1' },
+    );
+    behavior.beginTurn(1);
+    expect(await collect(behavior.respondStream('Yes, please.', {}))).toEqual([
+      'You have slots at 3 and 5 pm.',
+    ]);
+    expect(model.requests).toHaveLength(2);
+    // Before: false, as neither request was sent the web search.
+    expect(behavior.lookingUp()).toBe(true);
+  });
+
   it('counts an end_call as the reply’s words being in', async () => {
     const m = maya([END]);
     await m.into(10, ['Lufthansa flies nonstop from Chennai to Frankfurt.']);
