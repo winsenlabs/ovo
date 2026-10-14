@@ -36,11 +36,12 @@ export class TurnAggregator {
   }
   /** Ends every segment that has an interim view and no final yet. */
   closeOpenSegments(): void {
-    for (const id of this.views.keys()) {
-      if (this.finals.has(id)) continue;
-      this.closed.add(id);
-      if (this.closed.size > 64) this.closed.delete(this.closed.values().next().value!);
-    }
+    for (const id of this.views.keys()) if (!this.finals.has(id)) this.close(id);
+  }
+  /** Ends segment `id`: its late interims and final are dropped. */
+  close(id: string): void {
+    this.closed.add(id);
+    if (this.closed.size > 64) this.closed.delete(this.closed.values().next().value!);
   }
   isClosed(segmentId: string): boolean {
     return this.closed.has(segmentId);

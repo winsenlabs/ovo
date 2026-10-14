@@ -15,7 +15,9 @@ export type Step =
   | { at: number; final: string }
   /** Scribe's answer to the utterance's host commit, queued as the utterance starts. */
   | { at: number; commit: string; latencyMs: number }
-  | { at: number; agent: 'start' | 'question' | 'stop' };
+  | { at: number; agent: 'start' | 'question' | 'stop' }
+  /** Wave 12: a filler or search line, or the opening's disclosure. */
+  | { at: number; agent: 'filler' | 'disclosure' };
 
 export const SAID = {
   turn1: '"We\'re planning to go to Zagreb this..." No, December.',
@@ -114,8 +116,9 @@ export function replayCall(
   clock: Parameters<typeof replay>[0],
   row: Record<string, unknown>,
   steps: Step[],
+  options?: Parameters<typeof replay>[2],
 ) {
-  const f = replay(clock, row);
+  const f = replay(clock, row, options);
   const start = f.clock.now();
   const ordered = steps
     .map((step, index) => ({ step, index }))
@@ -127,6 +130,7 @@ export function replayCall(
     else if ('final' in step) f.final(step.final);
     else if ('commit' in step) f.commits(step.commit, step.latencyMs);
     else if (step.agent === 'stop') f.agentStops();
+    else if (step.agent === 'filler' || step.agent === 'disclosure') f.agentSays(step.agent);
     else f.agentStarts(step.agent === 'question');
   }
   f.clock.advance(10_000);
