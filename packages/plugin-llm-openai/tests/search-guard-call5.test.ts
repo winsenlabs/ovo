@@ -49,10 +49,35 @@ describe('no web search on a yes with a word of address (call 10d5ef30, D8)', ()
   ];
 
   it('leaves the search out for turn 18’s first partial, and in for its final words', () => {
-    expect(unclearForSearch({ input: 'Yeah, dude.', history })).toBe('backchannel');
+    const answered = history.slice(0, 1);
+    expect(unclearForSearch({ input: 'Yeah, dude.', history: answered })).toBe('backchannel');
     expect(
-      unclearForSearch({ input: "Yeah, dude. That's why I'm asking.", history }),
+      unclearForSearch({ input: "Yeah, dude. That's why I'm asking.", history: answered }),
     ).toBeUndefined();
+  });
+
+  it('keeps it for a yes to an offer of more (call 8cb76efc turn 29, Wave 12 F1)', () => {
+    // Wave 9 left it out: live, "Yeah." to "Would you like more on that?" went without the tool
+    // and was told "Sorry, could you say that again?".
+    expect(unclearForSearch({ input: 'Yeah, dude.', history })).toBeUndefined();
+    for (const offer of [
+      'Would you like more on that?',
+      'Want to hear more?',
+      'Interested in more detail?',
+    ])
+      expect(
+        unclearForSearch({ input: 'Yeah.', history: [{ role: 'assistant', content: offer }] }),
+        offer,
+      ).toBeUndefined();
+    // A yes to an answer that offers nothing still has nothing to look up.
+    expect(
+      unclearForSearch({
+        input: 'Yeah.',
+        history: [
+          { role: 'assistant', content: 'Berlin has a huge party at the Brandenburg Gate.' },
+        ],
+      }),
+    ).toBe('backchannel');
   });
 
   it('still searches on a yes to an offer to look something up', () => {

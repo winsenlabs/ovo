@@ -50,8 +50,11 @@ export interface InferenceRequest {
   /**
    * Wave 9 (call 10d5ef30, D8): false when the request must not be sent the tools the provider
    * runs itself (a web search): the caller's words already had one. Absent, the port decides.
+   * Wave 12 (call 8cb76efc, F1): true when it must be sent them, whatever the port's own policy for
+   * the words: the model answered a question or a yes to its offer with the uncertainty line,
+   * having had no way to look it up, and is asked again.
    */
-  providerTools?: false;
+  providerTools?: boolean;
 }
 
 export type InferenceReply =

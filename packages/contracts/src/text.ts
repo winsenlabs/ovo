@@ -130,13 +130,35 @@ export function classifyConfirmation(text: string): 'yes' | 'no' | 'unclear' {
  * follow: a parenthesised run of markdown links or URLs (`([site](url), [b](url))`), `【3†source】`
  * and numeric markers (`[1]`, `[^2]`, `[1, 2]`), with the spaces before them. An ordinary link
  * (`[the desk](url)`) and ordinary brackets are left for the caller's own handling.
+ * Wave 12 (Maya call 8cb76efc, F3): a provider's citation markers, private-use characters around
+ * `cite` and source ids (U+E200 starts one, U+E202 separates its fields and U+E201 ends it; the
+ * format's source is recorded with the binding that streams it). Turn 16 ended "…how Yugoslavia
+ * formed?" and then
+ * "\uE200cite\uE202turn0search1\uE202turn0search0\uE202turn0search5\uE201", which the TTS read as
+ * "cite turn zero search one…". Dropped whole, any stray private-use mark of that block too, and
+ * the marker's words once its marks are gone ("citeturn0search1turn0search0" as the transcript
+ * kept it, or a source id a segment boundary left behind).
  */
 export function dropSpokenCitations(text: string): string {
   return text
+    .replace(/[ \t]*\uE200[^\uE201]*(?:\uE201|$)/gu, '')
+    .replace(/[\uE200-\uE2FF]/gu, '')
+    .replace(/[ \t]*\b(?:(?:file)?cite)?(?:turn\d+[a-z]+\d+(?:L\d+(?:-L\d+)?)?)+\b/gu, '')
     .replace(
       /[ \t]*(?<!\])\((?:\s*(?:\[[^\]\n]*\]\([^)\s]*\)|https?:\/\/[^\s)]+)\s*[,;]?)+\s*\)/g,
       '',
     )
     .replace(/[ \t]*【[^】\n]*】/g, '')
     .replace(/[ \t]*\[\^?\d+(?:\s*[,–-]\s*\d+)*\]/g, '');
+}
+
+/**
+ * Wave 12 (Maya call 8cb76efc, F5): a semicolon between two clauses ends a sentence when said
+ * ("…an easy classic addition; for a quieter stop…" is "…addition. For a quieter stop…"). Turn 7's
+ * 184-character segment, one sentence for the TTS, played for 12 s with 0.95 s of dead air after
+ * its semicolon; the caller cut in to ask why it sounded like an AI. Only a semicolon followed by a
+ * space and a lower-case letter: "10;30", lists of numbers and code are left alone.
+ */
+export function semicolonsAsSentences(text: string): string {
+  return text.replace(/;\s+(\p{Ll})/gu, (_match, letter: string) => `. ${letter.toUpperCase()}`);
 }

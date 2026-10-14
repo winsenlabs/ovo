@@ -15,10 +15,22 @@ describe('the system prompt (call-3 #3)', () => {
   it('keeps the uncertainty line for unsupported asks, never for unclear words', () => {
     const prompt = buildSystemPrompt(request);
     expect(prompt).toContain(
-      "When the caller asks for something these sources do not support, respond exactly with: I'm not completely sure about that. Want me to look it up?",
+      "When the caller asks for a fact these sources do not support, respond exactly with: I'm not completely sure about that. Want me to look it up?",
+    );
+    expect(prompt).toContain('Ask them to say it again only when you cannot make out their words.');
+  });
+
+  it('carries on from plans, answers and a yes, and lets cut-off words go on (call 8cb76efc F1)', () => {
+    const prompt = buildSystemPrompt(request);
+    // Before: "…words that are unclear, cut off or ask for nothing: ask the caller to say it again
+    // instead." Live: the line for "Jan 12th, 2024.", "Sorry, could you say that again?" for
+    // "Yeah." and "Could you finish your question?" for "No. Have there been any-".
+    expect(prompt).not.toContain('ask for nothing: ask the caller');
+    expect(prompt).toContain(
+      'When the caller tells you their plans or dates, answers your question, or says yes to what you offered, carry on from what they said.',
     );
     expect(prompt).toContain(
-      'Never give that line to words that are unclear, cut off or ask for nothing: ask the caller to say it again instead.',
+      'When their words break off unfinished, answer what they did ask, or invite them to go on in a few words.',
     );
   });
 

@@ -13,7 +13,7 @@ async function say(
   replyLanguage: string | null = 'en-IN',
   options: {
     after?: InferenceStreamEvent[];
-    endAfterText?: (input: unknown) => boolean;
+    endAfterText?: (input: unknown, last?: string) => boolean | 'refused';
     guard?: (segment: string) => string | undefined;
     wrap?: (events: AsyncIterable<InferenceStreamEvent>) => AsyncIterable<InferenceStreamEvent>;
   } = {},
@@ -57,14 +57,16 @@ const CHRISTMAS =
   'Christmas 2026, then— Lufthansa lists Chennai–Frankfurt service about five times a week, but I’ll need your exact departure and return dates to check available flights and fares. What day would you like to leave? Christmas 2026, then. Lufthansa lists Chennai–Frankfurt flights about five times a week, but I’ll need your travel dates to check specific flights and fares. What day would you like to leave?';
 
 describe('call-3 #7: a long voice answer says two short sentences and offers more', () => {
-  it('turn 4: the Zagreb answer stops after its first sentence and offers the rest', async () => {
+  it('turn 4: the Zagreb answer stops after its first sentence and asks its own question', async () => {
     const { said, finished } = await say(ZAGREB);
+    // Wave 12 (call 8cb76efc F7): the short question the held rest ends on is said in place of
+    // the offer. Before: "…and green spaces. Want more detail?"
     expect(said).toBe(
-      'Zagreb is Croatia’s lively inland capital, with a lovely mix of historic streets, cafés, museums, and green spaces. Want more detail?',
+      'Zagreb is Croatia’s lively inland capital, with a lovely mix of historic streets, cafés, museums, and green spaces. Are you planning a short stop or a few days there?',
     );
-    // ~21 s of speech became ~9 s. The rest is still read, not said: its `finish` meters the call.
+    // ~21 s of speech became ~11 s. The rest is still read, not said: its `finish` meters the call.
     const seconds = (text: string) => Math.round(text.length / CHARS_PER_SECOND);
-    expect([seconds(ZAGREB), seconds(said)]).toEqual([21, 9]);
+    expect([seconds(ZAGREB), seconds(said)]).toEqual([21, 11]);
     expect(finished).toBe(true);
   });
 
@@ -93,14 +95,26 @@ describe('call-3 #7: a long voice answer says two short sentences and offers mor
   it('is configured per agent, and off for another language unless it has its own offer', async () => {
     expect((await say(ZAGREB, { maxSentences: 0 })).said).toBe(ZAGREB);
     expect((await say(HAMBURG, { maxChars: 2000, maxSentences: 3 })).said).toBe(HAMBURG);
-    expect((await say(ZAGREB, { moreLine: 'Shall I go on?' })).said).toMatch(
-      /spaces\. Shall I go on\?$/,
+    expect((await say(HAMBURG, { moreLine: 'Shall I go on?' })).said).toMatch(
+      /explore\. Shall I go on\?$/,
     );
     expect((await say(ZAGREB, undefined, 'hi-IN')).said).toBe(ZAGREB);
-    expect((await say(ZAGREB, { moreLine: 'और बताऊँ?' }, 'hi-IN')).said).toMatch(/और बताऊँ\?$/);
+    expect((await say(HAMBURG, { moreLine: 'और बताऊँ?' }, 'hi-IN')).said).toMatch(/और बताऊँ\?$/);
     expect(AgentReplyPacing.safeParse({ maxChars: 20 }).success).toBe(false);
     // A caller that does not name the reply language (the locale is not it) gets no cap at all.
     expect((await say(ZAGREB, undefined, null)).said).toBe(ZAGREB);
+  });
+
+  it('says a short tail it held instead of offering it (call 8cb76efc F7)', async () => {
+    // Call 10d5ef30 turn 18: the clause after the semicolon, 40 characters, is not worth "Want to
+    // hear more?"; it is said, and the answer ends where the model ended it.
+    const tromso =
+      'Sorry—I should’ve answered that directly: Tromsø is a realistic add-on from Vienna, with a seasonal nonstop flight expected to begin November 28, 2026; otherwise, you can connect through Oslo.';
+    expect((await say(tromso)).lines).toEqual([
+      'Sorry—I should’ve answered that directly:',
+      'Tromsø is a realistic add-on from Vienna, with a seasonal nonstop flight expected to begin November 28, 2026.',
+      'Otherwise, you can connect through Oslo.',
+    ]);
   });
 
   it('runs the offer through the reply guard like any other line', async () => {
@@ -132,10 +146,25 @@ describe('call-3 #7: the cap never loses what follows the text', () => {
     }
   });
 
+  it('keeps a capped answer capped when its end_call is refused (call 8cb76efc turn 16)', async () => {
+    // Live, the model's end_call after a capped answer released every held sentence, though the
+    // call refused it (the answer ended on a question): 20 s of speech and a citation marker.
+    const lasts: (string | undefined)[] = [];
+    const { said } = await say(ZAGREB, undefined, 'en-IN', {
+      after: [{ kind: 'tool', toolId: 'end_call', input: { reason: 'answered' } }],
+      endAfterText: (_input, last) => (lasts.push(last), 'refused'),
+    });
+    expect(said).toBe(
+      'Zagreb is Croatia’s lively inland capital, with a lovely mix of historic streets, cafés, museums, and green spaces. Are you planning a short stop or a few days there?',
+    );
+    // The refusal is judged on the reply's real last line, which the cap held back.
+    expect(lasts).toEqual(['Are you planning a short stop or a few days there?']);
+  });
+
   it('rejoins the flow on a late resume_flow after a capped answer', async () => {
     const resumed: unknown[] = [];
     const answer =
-      'We are open from nine to six on weekdays. On Saturdays we close at one. We are closed on Sundays. Public holidays follow the bank calendar.';
+      'We are open from nine to six on weekdays. On Saturdays we close at one. We are closed on Sundays. Public holidays follow the bank calendar, and we open late the day after.';
     const { said } = await say(answer, undefined, 'en-IN', {
       after: [{ kind: 'tool', toolId: 'resume_flow', input: { resume_at: 'payment' } }],
       wrap: (events) => interceptLateResume(events, (input) => resumed.push(input)),

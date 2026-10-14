@@ -62,9 +62,14 @@ export function searchAnnouncement(
  * The agent's last line offered to do something, so a bare "yes" or "sure" accepts it and may need
  * the search ("Shall I check the train times?", "Do you want me to see what the news says?"). "I
  * can't confirm that" offers nothing (call 6e1a4e3a).
+ * Wave 12 (Maya call 8cb76efc, F1): nor does an offer of more ("Would you like more on that?",
+ * "Want to hear more?", "Interested in more detail?"), which Wave 9 (D5) took for one that needs no
+ * search. Turn 29's "Yeah." to it went without the tool; the model, its sources spent, gave the
+ * uncertainty line, heard as "Sorry, could you say that again?". More detail on an answer that was
+ * looked up is looked up too.
  */
 const OFFERED =
-  /\b(?:(?:want|like|need) me to|shall i|should i|can i|could i|may i|i can(?!['’]?t\b|not\b)|i could(?!n['’]?t\b)|let me|if you(?:'d)? like|look\w* (?:\w+ )?up|check|search|find out)\b/i;
+  /\b(?:(?:want|like|need) me to|shall i|should i|can i|could i|may i|i can(?!['’]?t\b|not\b)|i could(?!n['’]?t\b)|let me|if you(?:'d)? like|look\w* (?:\w+ )?up|check|search|find out|(?:hear|know|learn|like|want) more|more (?:detail|details|info|information|on|about))\b/i;
 
 /**
  * Wave 9 D7: the platform's own question before it ends a call ("Shall I end the call?") offers

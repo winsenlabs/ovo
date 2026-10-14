@@ -7,7 +7,8 @@ import { AgentTurnLog } from '../src/index.ts';
 import { collect, execution, llm } from './agent-call-control-fixture.ts';
 
 const LONG =
-  'Zagreb is the capital of Croatia. It has a lovely upper town with old streets. The market is great. The museums are worth a morning.';
+  'Zagreb is the capital of Croatia. It has a lovely upper town with old streets. The market is great. The museums are worth a morning. The cathedral and the funicular are a short walk from the main square.';
+// Wave 12 (F7): the held rest is longer than a short tail, which would be said instead of the offer.
 
 /** One streamed agent turn whose model says `reply`. */
 function turn(reply: string, config: Record<string, unknown>) {

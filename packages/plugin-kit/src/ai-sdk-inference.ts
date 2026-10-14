@@ -121,6 +121,8 @@ export class AiSdkInference implements Inference, InferenceActivitySource {
     if (request.providerTools === false) return false;
     const tools = this.options.providerTools;
     if (!tools || !Object.keys(tools).length) return false;
+    // Wave 12 (F1): the behaviour asks again with the tools, past the binding's own policy.
+    if (request.providerTools === true) return true;
     return this.options.providerToolsFor?.(request) ?? true;
   }
 

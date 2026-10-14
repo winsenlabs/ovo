@@ -33,9 +33,12 @@ export class EndCallRefusal {
     return this.step.publish(text);
   };
 
-  /** Why `end_call` is refused, `afterText` the step's own; undefined when it may end the call. */
-  refused(afterText: boolean): string | undefined {
-    const asked = afterText && this.askedQuestion();
+  /**
+   * Why `end_call` is refused, `afterText` the step's own; undefined when it may end the call.
+   * `last`: the reply's last line when the cap held it back (Wave 12), else what was said last.
+   */
+  refused(afterText: boolean, last?: string): string | undefined {
+    const asked = afterText && this.askedQuestion(last);
     const why = asked ? 'the agent has just asked a question' : this.step.endRefused?.();
     if (why)
       this.step.log.toolError(
@@ -50,11 +53,13 @@ export class EndCallRefusal {
   /**
    * The model's valid `end_call` (`input`) after its streamed text: `end` runs unless it is
    * refused, and a refusal the caller should settle leaves its question for `takeAsk` (Wave 8b).
+   * True when the call ends. `last`: the reply's last line, said or held back by the cap.
    */
-  afterText(input: unknown, end: () => void): void {
-    const why = this.refused(true);
-    if (why) this.owed = this.ask(why, input);
+  afterText(input: unknown, end: () => void, last?: string): boolean {
+    const why = this.refused(true, last);
+    if (why) this.owed = this.ask(why, input, last);
     else end();
+    return !why;
   }
 
   /** The question a refused streamed goodbye left, said once after it. */
@@ -70,9 +75,9 @@ export class EndCallRefusal {
    * waits; a yes ends the call (`EndCallGate`), with the reason the model gave (Wave 10, L2).
    * Never after a question of the agent's own.
    */
-  ask(why: string, input: unknown): string | undefined {
+  ask(why: string, input: unknown, last?: string): string | undefined {
     if (why !== END_REFUSED.unasked && why !== END_REFUSED.unheard) return undefined;
-    const line = this.askedQuestion() ? undefined : askToEndLine(this.step.language);
+    const line = this.askedQuestion(last) ? undefined : askToEndLine(this.step.language);
     if (line !== undefined) this.step.askedToEnd?.(endCallReason(input));
     return line;
   }
@@ -95,7 +100,7 @@ export class EndCallRefusal {
   }
 
   /** The step's text so far ends on a question. */
-  private askedQuestion(): boolean {
-    return /[?？؟]\s*$/u.test(this.said);
+  private askedQuestion(last?: string): boolean {
+    return /[?？؟]\s*$/u.test(last ?? this.said);
   }
 }
