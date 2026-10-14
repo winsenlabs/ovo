@@ -64,7 +64,7 @@ async function livePorts(
   config.stt = `${chosen.id}: ${chosen.description}`;
   const ports: LivePorts = { stt: () => chosen.create!(net, keys[chosen.keyEnv]!) };
   if (options.llmModel) {
-    const key = keys.OVO_EVAL_OPENAI_API_KEY;
+    const key = keys.OVO_EVAL_OPENAI_API_KEY ?? keys.OPENAI_API_KEY;
     if (!key) throw new Error('a live LLM needs OVO_EVAL_OPENAI_API_KEY in the keys file');
     const instructions = String(
       (await loadCorpus(options.corpus, options.calls))[0]?.profile.agent.message ?? '',
