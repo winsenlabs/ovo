@@ -1,8 +1,8 @@
 // The STT configurations an audio replay can stream a call through, each built from OVO's own
 // production plugin with a telephony binding. A configuration whose key is not in the keys file is
 // `pending key`; one whose plugin is not on this branch (Cartesia Ink-2, Wave 11) is `unavailable`
-// and is listed so the runner names it. Keys are read from the keys file into this process only:
-// never printed, logged or passed on a command line.
+// and is listed so the runner names it. Keys are read from the keys file (or `OVO_EVAL_<name>`
+// variables) into this process only: never printed, logged or passed on a command line.
 import { readFile } from 'node:fs/promises';
 import type { Clock, NetPort, SpeechToText } from '@winsendotai/ovo-contracts';
 import { SarvamStt } from '@winsendotai/ovo-plugin-speech-sarvam';
@@ -121,7 +121,7 @@ export const STT_CONFIGS: readonly SttConfig[] = [
     id: 'openai-realtime',
     provider: 'openai',
     description: 'OpenAI realtime transcription, manual commit',
-    keyEnv: 'OVO_EVAL_OPENAI_API_KEY',
+    keyEnv: 'OPENAI_API_KEY',
     create: (net, key, clock) => new OpenAiRealtimeStt(net, key, {}, clock),
   },
   {
@@ -143,8 +143,23 @@ export function parseKeysFile(text: string): Record<string, string> {
   return keys;
 }
 
-export async function readKeys(path: string): Promise<Record<string, string>> {
-  return parseKeysFile(await readFile(path, 'utf8'));
+/** The key names the configurations and the live LLM use. */
+export const KEY_NAMES = [...new Set([...STT_CONFIGS.map((c) => c.keyEnv), 'OPENAI_API_KEY'])];
+
+/**
+ * The keys file's keys over the environment's: a key may also be set as `OVO_EVAL_` + its name
+ * (the live LLM's OpenAI key too), so a run without a keys file can still have one.
+ */
+export async function readKeys(
+  path: string | undefined,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): Promise<Record<string, string>> {
+  const keys: Record<string, string> = {};
+  for (const name of KEY_NAMES) {
+    const value = env[`OVO_EVAL_${name}`];
+    if (value) keys[name] = value;
+  }
+  return path ? { ...keys, ...parseKeysFile(await readFile(path, 'utf8')) } : keys;
 }
 
 export type SttStatus = 'ready' | 'pending key' | 'unavailable';

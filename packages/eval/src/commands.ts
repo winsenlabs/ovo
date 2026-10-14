@@ -188,7 +188,7 @@ export async function main(argv: string[]): Promise<number> {
     return diff!.regressions.length ? 1 : 0;
   }
   if (command === 'stt-configs') {
-    const keys = values.keys && existsSync(values.keys) ? await readKeys(values.keys) : {};
+    const keys = await readKeys(values.keys && existsSync(values.keys) ? values.keys : undefined);
     for (const config of STT_CONFIGS)
       process.stdout.write(
         `${config.id.padEnd(24)}${sttStatus(config, keys).padEnd(14)}${config.description}\n`,

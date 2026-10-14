@@ -3,9 +3,17 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { parseKeysFile, STT_CONFIGS, sttConfig, sttStatus } from '../src/audio/stt-configs.ts';
+import { fileURLToPath } from 'node:url';
+import {
+  parseKeysFile,
+  readKeys,
+  STT_CONFIGS,
+  sttConfig,
+  sttStatus,
+} from '../src/audio/stt-configs.ts';
 import { diffScorecards } from '../src/report/diff.ts';
 import { markdownReport } from '../src/report/markdown.ts';
+import { runEval } from '../src/run.ts';
 import { emptyRaw, metricsOf, percentile, sumRaw, type RawScore } from '../src/score/metrics.ts';
 import { scorecard, type CallScore, type Scorecard } from '../src/score/scorecard.ts';
 
@@ -153,6 +161,32 @@ describe('STT configurations and keys', () => {
     expect(new Set(STT_CONFIGS.map((c) => c.provider))).toEqual(
       new Set(['elevenlabs', 'assemblyai', 'deepgram', 'sarvam', 'openai', 'cartesia']),
     );
+  });
+});
+
+describe('live runs refuse without their keys', () => {
+  const corpus = fileURLToPath(new URL('./fixtures/tiny', import.meta.url));
+
+  it('reads a key from OVO_EVAL_<name> when there is no keys file', async () => {
+    const env = { OVO_EVAL_OPENAI_API_KEY: 'sk-test', OPENAI_API_KEY: 'not this one' };
+    expect(await readKeys(undefined, env)).toEqual({ OPENAI_API_KEY: 'sk-test' });
+  });
+
+  it('refuses an STT config whose key is missing, and a live LLM with no OpenAI key', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ovo-eval-keys-'));
+    const keysFile = join(dir, 'keys.env');
+    writeFileSync(keysFile, 'ELEVENLABS_API_KEY=el-test\n');
+    try {
+      const run = (options: { stt?: string; llmModel?: string }) =>
+        runEval({ corpus, mode: 'audio', label: 'refused', keysFile, ...options });
+      await expect(run({ stt: 'assemblyai-en' })).rejects.toThrow(/assemblyai-en is pending key/);
+      await expect(run({ stt: 'cartesia-ink2' })).rejects.toThrow(/cartesia-ink2 is unavailable/);
+      await expect(run({ stt: 'scribe-en', llmModel: 'gpt-test' })).rejects.toThrow(
+        /a live LLM needs OPENAI_API_KEY/,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

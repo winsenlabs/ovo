@@ -26,7 +26,7 @@ export interface RunOptions {
   /** Audio mode: an STT config id (`eval:calls stt-configs`). */
   stt?: string;
   keysFile?: string;
-  /** Audio mode only: a live LLM (OVO_EVAL_OPENAI_API_KEY in the keys file) of this model. */
+  /** Audio mode only: a live LLM of this model (OPENAI_API_KEY in the keys file or environment). */
   llmModel?: string;
   /** Transcript mode: another STT's transcripts per call (an audio run's `transcripts/`). */
   transcripts?: Record<string, Transcript[]>;
@@ -58,14 +58,17 @@ async function livePorts(
   config: Record<string, unknown>,
 ): Promise<LivePorts> {
   const chosen = sttConfig(options.stt ?? 'scribe-auto');
-  const keys = options.keysFile ? await readKeys(options.keysFile) : {};
+  const keys = await readKeys(options.keysFile);
   const status = sttStatus(chosen, keys);
   if (status !== 'ready') throw new Error(`STT ${chosen.id} is ${status} (${chosen.keyEnv})`);
   config.stt = `${chosen.id}: ${chosen.description}`;
   const ports: LivePorts = { stt: () => chosen.create!(net, keys[chosen.keyEnv]!) };
   if (options.llmModel) {
-    const key = keys.OVO_EVAL_OPENAI_API_KEY ?? keys.OPENAI_API_KEY;
-    if (!key) throw new Error('a live LLM needs OVO_EVAL_OPENAI_API_KEY in the keys file');
+    const key = keys.OPENAI_API_KEY;
+    if (!key)
+      throw new Error(
+        'a live LLM needs OPENAI_API_KEY in the keys file (or OVO_EVAL_ before it in the environment)',
+      );
     const instructions = String(
       (await loadCorpus(options.corpus, options.calls))[0]?.profile.agent.message ?? '',
     );

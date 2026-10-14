@@ -71,7 +71,8 @@ the conformance kit's fake carrier. Three parts are stand-ins:
   request by its newest words), after the compose time the live request took, searching again
   (and announcing it) when the live turn searched. Platform lines (fillers, offers of more,
   canned replacements) are taken off first: the behaviour adds its own. `--llm-model` puts a live
-  OpenAI model in instead (audio mode only, `OVO_EVAL_OPENAI_API_KEY` in the keys file).
+  OpenAI model in instead (audio mode only, with `OPENAI_API_KEY` in the keys file or
+  `OVO_EVAL_OPENAI_API_KEY` in the environment).
 - **Scribe, in transcript mode.** Interims land when they landed live. Scribe finalises only on
   a commit, so a replayed commit is answered by the live final when the live call made the same
   commit (a final within 0.7 s after it, or one already in hand up to 120 ms before), and
@@ -182,9 +183,9 @@ call in real time (call 8 is 4 minutes of audio), so it is billed; it saves what
 per call under `<out>/<label>/transcripts/`, and `--transcripts` replays any detector over those
 words offline, with no further spend.
 
-**Keys** are read from the keys file (`--keys`, `KEY=value` lines) into the process only: never
-printed, logged, or passed on a command line. Live mode refuses a configuration whose key is
-missing.
+**Keys** are read from the keys file (`--keys`, `KEY=value` lines, as in `~/.ovo-eval/keys.env`),
+or from `OVO_EVAL_<name>` variables, into the process only: never printed, logged, or passed on
+a command line. Live mode refuses a configuration whose key is missing.
 
 ## Adding a call
 
