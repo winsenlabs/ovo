@@ -112,6 +112,7 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         break;
       case 'bot.stopped':
         if (this.bot && this.bot.epoch !== event.epoch) break;
+        this.owed.agentStopped(this.input.clock.now());
         const wasPrompt = confirmationPrompt(this.view(), this.rules);
         this.bot = undefined;
         this.firstSpeechComplete = true;

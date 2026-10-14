@@ -115,11 +115,14 @@ Each wait has a limit:
   0.7 s plus that 2 s before.
 - **Words that add nothing to a reply on its way (Wave 12, call 8cb76efc turn 20).** Once the
   caller's turn has ended and its filler or search line has started, but no line of the reply
-  itself, words that only add a "please" or a yes ("Please.", "Okay.") or are outside the agent's
-  languages end on `turn.reset` (`backchannel`), not as a turn: the reply answers them. Live
-  "Please." was queued behind the search and answered after the reply, 11.8 s later, after the
-  agent had asked "Want to hear more?" and been given no answer. A no, a goodbye or any words that
-  change the request are still a turn, and so is anything said 8 s or more after the turn ended.
+  itself, words begun while that line plays or within 1 s (`FILLER_TAIL_MS`) of its end that only
+  add a "please" or a yes ("Please.", "Okay.", "Yes, please.") or are outside the agent's languages
+  end on `turn.reset` (`backchannel`), not as a turn: the reply answers them. Live "Please." was
+  queued behind the search and answered after the reply, 11.8 s later, after the agent had asked
+  "Want to hear more?" and been given no answer. A question ("Okay?", "Hello?"), a greeting, thanks,
+  a no, a goodbye or any words that change the request are still a turn, and so is anything begun
+  later: a filler with no reply after it must not swallow the caller asking where it went, nor
+  anything said 8 s or more after the turn ended.
 - **Words muted over the agent (Wave 12, call 8cb76efc turn 6).** Words the STT gives while speech
   is muted (a disclosure, the opening, a tool running) are dropped; the detector now also commits a
   manual-commit STT (Scribe) when that speech ends (its VAD stop, or the agent stopping with no VAD

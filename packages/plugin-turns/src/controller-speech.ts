@@ -191,6 +191,9 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
       this.reset('muted');
       return;
     }
+    // A segment begun while muted that the caller carried on into a turn is final now: no longer
+    // open, so the next agent stop commits nothing over the caller's next words.
+    if (segment.stability === 'final') this.muted.heard(segment);
     const prompt = confirmationPrompt(view, this.rules);
     this.evidence.transcript();
     if (!prompt && !this.bot && !transcriptStartsTurn(segment.text, this.input.language)) return;

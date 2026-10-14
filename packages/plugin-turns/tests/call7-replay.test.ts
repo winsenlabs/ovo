@@ -91,6 +91,40 @@ describe('call 8cb76efc F2: words that add nothing to a reply on its way', () =>
     expect(f.turns.map((turn) => turn.text)).toEqual([SAID7.turn19, SAID7.turn20]);
   });
 
+  /** call7Please with the turn-20 words replaced, begun `shiftMs` later. */
+  const saying = (words: string, shiftMs = 0): Step[] =>
+    call7Please().map((step) =>
+      'interim' in step
+        ? { ...step, at: step.at + shiftMs, interim: words }
+        : 'commit' in step
+          ? { ...step, at: step.at + shiftMs, commit: words }
+          : step,
+    );
+
+  it.each(['Hello?', 'Hello? Hello?', 'Okay?', 'Hey.', 'Thank you.', 'Yes?'])(
+    '"%s" just after the search line ended is still a turn: it asks or greets, it adds no yes',
+    (words) => {
+      // The search line ended 22 ms before the words and no reply line ever plays.
+      const { f } = replayCall(new FakeClock(), RECOMMENDED, [
+        ...saying(words),
+        { at: 172_400, agent: 'stop' },
+      ]);
+      expect(f.turns.map((turn) => turn.text)).toEqual([SAID7.turn19, words]);
+    },
+  );
+
+  it.each(['Hello?', 'Okay?', 'Yes, please.'])(
+    'the search line ended and no reply came: "%s" 3 s later is a turn',
+    (words) => {
+      // A filler with no reply after it (reply_filler_only): the caller asks where it went.
+      const steps = [...saying(words, 3_000), { at: 172_400, agent: 'stop' as const }];
+      steps.sort((a, b) => a.at - b.at);
+      const { f } = replayCall(new FakeClock(), RECOMMENDED, steps);
+      expect(f.turns.map((turn) => turn.text)).toEqual([SAID7.turn19, words]);
+      expect(f.resets).toEqual([]);
+    },
+  );
+
   it.each([
     ['"Please."', SAID7.turn20],
     // Turn 26 ("No. I- Bueno, buenas tardes.") superseded the held answer to "In Berlin on New
@@ -194,6 +228,31 @@ describe('call 8cb76efc F6: words muted over the opening never start the next tu
     // One commit, at the muted VAD stop: the turn's final was in hand at its own stop.
     expect(f.forced()).toBe(1);
     expect(f.resets.every((reason) => reason === 'muted')).toBe(true);
+  });
+
+  it('a muted segment the caller carried on into a turn is not committed at a later agent stop', () => {
+    const f = replay(new FakeClock(), RECOMMENDED, { opening: true });
+    f.agentSays('disclosure');
+    f.send({ type: 'vad.start' });
+    f.clock.advance(500);
+    f.interim('Hi,');
+    f.clock.advance(500);
+    // The caller is still speaking as the agent stops: the segment flows on into the turn.
+    f.agentStops();
+    f.clock.advance(800);
+    f.interim('Hi, Maya. We are planning');
+    f.clock.advance(700);
+    f.commits('Hi, Maya. We are planning a trip.', 350);
+    f.send({ type: 'vad.stop' });
+    f.clock.advance(5_000);
+    expect(f.turns.map((turn) => turn.text)).toEqual(['Hi, Maya. We are planning a trip.']);
+    const forced = f.forced();
+    // The reply plays and ends while the caller has begun again, softly.
+    f.agentStarts();
+    f.clock.advance(1_000);
+    f.interim('and also');
+    f.agentStops();
+    expect(f.forced()).toBe(forced);
   });
 
   it('muted words with no VAD run behind them are committed when the agent stops', () => {
