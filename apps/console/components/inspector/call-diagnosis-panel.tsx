@@ -1,6 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { Callout, StatusBadge } from '../ui/feedback';
+import { InlineAlert } from '../ui/feedback-v2';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { RelativeTime } from '../ui/display';
 
 export interface CallDiagnosis {
   endReason: string | null;
@@ -16,7 +18,7 @@ export interface CallDiagnosis {
 }
 
 const ERROR_PAGE = 20;
-const STAGE_NAMES: Record<string, string> = {
+export const STAGE_NAMES: Record<string, string> = {
   carrier_start: 'the carrier never started the media stream',
   route_resolve: 'resolving the call route',
   worker_dial: 'connecting to a worker',
@@ -35,61 +37,70 @@ const counts = (record: Record<string, number> | undefined) =>
     .join(' · ');
 
 /**
- * OBS-7: why the call ended and what went wrong. A timeout names its stage and provider (OBS-9),
- * failures are listed in order, speculation shows how often a partial-transcript decision was
- * reused, and lost evidence (OBS-10) is called out so a thin timeline is not mistaken for a quiet
- * call.
+ * OBS-7: why the call ended and what went wrong — the Conversation tab's right rail. A timeout
+ * names its stage and provider (OBS-9), failures are listed in order, speculation shows how often
+ * a partial-transcript decision was reused, and lost evidence (OBS-10) is called out so a thin
+ * timeline is not mistaken for a quiet call.
  */
 export function CallDiagnosisPanel({ diagnosis }: { diagnosis?: CallDiagnosis }) {
   const [shown, setShown] = useState(ERROR_PAGE);
-  if (!diagnosis) return <p>No diagnosis recorded for this call.</p>;
+  if (!diagnosis) return <p className="muted">No diagnosis recorded for this call.</p>;
   const { timeout, evidence, speculation } = diagnosis;
   const lost = (evidence?.dropped ?? 0) + (evidence?.failed ?? 0);
   return (
-    <div className="ui-stack">
+    <div className="ds-stack">
       <div className="ui-cluster">
-        <span>
+        <span className="muted">
           End reason: <span className="mono">{diagnosis.endReason ?? 'not recorded'}</span>
         </span>
-        <StatusBadge tone={diagnosis.errors.length ? 'danger' : 'good'}>
-          {diagnosis.errors.length
-            ? `${diagnosis.errors.length}${diagnosis.errorsTruncated ? '+' : ''} errors`
-            : 'No errors'}
-        </StatusBadge>
+        <StatusBadgeV2
+          tone={diagnosis.errors.length ? 'danger' : 'ok'}
+          label={
+            diagnosis.errors.length
+              ? `${diagnosis.errors.length}${diagnosis.errorsTruncated ? '+' : ''} errors`
+              : 'No errors'
+          }
+        />
       </div>
       {timeout && (
-        <Callout tone="danger">
+        <InlineAlert tone="danger">
           Timed out in {STAGE_NAMES[timeout.stage] ?? timeout.stage}
           {timeout.provider ? ` (${timeout.provider})` : ''}.
-        </Callout>
+        </InlineAlert>
       )}
       {lost > 0 && (
-        <Callout tone="warning">
+        <InlineAlert tone="warn">
           {lost} evidence events were lost ({evidence?.dropped ?? 0} dropped,{' '}
           {evidence?.failed ?? 0} failed to write); the timeline is incomplete.
-        </Callout>
+        </InlineAlert>
       )}
       {speculation && (
-        <dl aria-label="Speculation">
-          <dt>Decisions on partial transcripts</dt>
-          <dd>{counts(speculation.decision) || '—'}</dd>
-          <dt>Speculative LLM</dt>
-          <dd>{counts(speculation.llm) || '—'}</dd>
+        <dl className="ds-kv">
+          <div>
+            <dt>Decisions on partial transcripts</dt>
+            <dd>{counts(speculation.decision) || '—'}</dd>
+          </div>
+          <div>
+            <dt>Speculative LLM</dt>
+            <dd>{counts(speculation.llm) || '—'}</dd>
+          </div>
         </dl>
       )}
       {diagnosis.errors.length > 0 && (
-        <ol aria-label="Errors">
+        <ol className="ds-stack" aria-label="Errors">
           {diagnosis.errors.slice(0, shown).map((error) => (
             <li key={error.sequence}>
               <span className="mono">{error.type}</span>
               {error.turnId ? ` · turn ${error.turnId}` : ''} · {error.message}{' '}
-              <small>{new Date(error.at).toLocaleTimeString()}</small>
+              <small>
+                <RelativeTime value={error.at} />
+              </small>
             </li>
           ))}
         </ol>
       )}
       {shown < diagnosis.errors.length && (
-        <button className="button small" onClick={() => setShown(shown + ERROR_PAGE)}>
+        <button type="button" className="button small" onClick={() => setShown(shown + ERROR_PAGE)}>
           Show more errors
         </button>
       )}

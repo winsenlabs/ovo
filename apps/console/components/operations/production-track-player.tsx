@@ -1,6 +1,8 @@
 'use client';
 import { useMemo, useRef, useState } from 'react';
-import { Notice, StatusBadge } from '../primitives';
+import { InlineAlert } from '../ui/feedback-v2';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { useAudioBlobUrl } from '../inspector/use-audio-blob-url';
 
 export interface RecordingTrackSegment {
   track: string;
@@ -21,10 +23,13 @@ export interface TrackEvidence {
 
 export function recordingTrackEvidence(
   recordingState: string,
-  segments: RecordingTrackSegment[],
+  segments: RecordingTrackSegment[] | undefined,
   track: string,
 ): TrackEvidence {
-  const selected = segments
+  // An endpoint the fixture harness doesn't model (or a real manifest the API returns bare) can
+  // hand this a payload with no `segments` array at all; treat that as "no segments" rather than
+  // crash the whole tab on `.filter` of `undefined`.
+  const selected = (segments ?? [])
     .filter((segment) => segment.track === track)
     .sort((left, right) => left.sequence - right.sequence);
   const gapSequences: number[] = [];
@@ -61,6 +66,8 @@ const time = (seconds: number) => {
   return `${Math.floor(bounded / 60)}:${String(Math.floor(bounded % 60)).padStart(2, '0')}`;
 };
 
+/** One carrier-captured track (inbound caller / outbound agent) inside `LiveRecordingsPanel`'s
+ * per-track breakdown, with its segment-availability state called out honestly. */
 export function ProductionTrackPlayer({
   source,
   track,
@@ -76,23 +83,25 @@ export function ProductionTrackPlayer({
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
   const [error, setError] = useState<string>();
+  const { url: blobSource, error: blobError } = useAudioBlobUrl(source);
   const evidence = useMemo(
     () => recordingTrackEvidence(recordingState, segments, track),
     [recordingState, segments, track],
   );
   const label = track === 'inbound' ? 'Inbound caller track' : 'Outbound agent track';
   return (
-    <article className="recording-card">
-      <div className="recording-heading">
+    <section className="ds-card" style={{ padding: 'var(--space-4)' }} aria-label={label}>
+      <div className="ui-cluster" style={{ justifyContent: 'space-between' }}>
         <div>
-          <h3>{label}</h3>
-          <small>
+          <h4 style={{ margin: 0 }}>{label}</h4>
+          <small className="muted">
             {evidence.available} of {evidence.total} captured segments available
           </small>
         </div>
-        <StatusBadge tone={evidence.partial ? 'warning' : 'good'}>
-          {evidence.partial ? 'Partial / gaps' : 'Available'}
-        </StatusBadge>
+        <StatusBadgeV2
+          tone={evidence.partial ? 'warn' : 'ok'}
+          label={evidence.partial ? 'Partial / gaps' : 'Available'}
+        />
       </div>
       {evidence.available ? (
         <>
@@ -100,7 +109,7 @@ export function ProductionTrackPlayer({
             ref={audio}
             controls
             preload="metadata"
-            src={source}
+            src={blobSource}
             onLoadedMetadata={(event) => {
               setDuration(
                 Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0,
@@ -142,21 +151,19 @@ export function ProductionTrackPlayer({
           </label>
         </>
       ) : (
-        <Notice tone="warning">No available segments can be assembled for this track.</Notice>
+        <InlineAlert tone="warn">
+          No available segments can be assembled for this track.
+        </InlineAlert>
       )}
       {evidence.partial && evidence.total > 0 && (
-        <Notice tone="warning">
+        <InlineAlert tone="warn">
           Playback is partial evidence.
           {evidence.gapCount
             ? ` Missing or unavailable segment sequences${evidence.gapCount > evidence.gapSequences.length ? ' (first 20)' : ''}: ${evidence.gapSequences.join(', ')}.`
             : ' The recording manifest is marked partial.'}
-        </Notice>
+        </InlineAlert>
       )}
-      {error && (
-        <Notice tone="danger" live>
-          {error}
-        </Notice>
-      )}
-    </article>
+      {(error || blobError) && <InlineAlert tone="danger">{error ?? blobError}</InlineAlert>}
+    </section>
   );
 }

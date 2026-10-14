@@ -1,3 +1,9 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { apiRequest } from '../../lib/api';
+import type { BarSeriesPoint } from '../charts/bar-chart';
+import type { WaterfallRow, WaterfallStage } from '../charts/waterfall';
+
 /** The per-turn breakdown `GET /v1/calls/:id/turns` serves (plugin-observability `TurnTelemetry`). */
 export interface TurnRow {
   turnId: string;
@@ -42,17 +48,21 @@ export interface TurnRow {
 
 /** The stages of a turn in the order they happen; each is its own interval, never a delta. */
 export const STAGES = [
-  { key: 'endpoint', label: 'Endpointing', color: 'var(--color-text-muted)' },
-  { key: 'stt', label: 'STT final', color: '#7a8a80' },
-  { key: 'queue', label: 'Queue', color: 'var(--color-warning)' },
-  { key: 'grounding', label: 'Grounding', color: '#8c6d3f' },
-  { key: 'decision', label: 'Decision', color: '#3f6f8c' },
-  { key: 'llm', label: 'LLM first token', color: '#6b4f8c' },
-  { key: 'text', label: 'First sentence', color: '#a0789a' },
-  { key: 'tts', label: 'TTS first byte', color: 'var(--color-accent)' },
-  { key: 'carrier', label: 'Carrier first audio', color: '#9aa79f' },
+  { key: 'endpoint', label: 'Endpointing', color: 'var(--chart-8)' },
+  { key: 'stt', label: 'STT final', color: 'var(--chart-2)' },
+  { key: 'queue', label: 'Queue', color: 'var(--warn)' },
+  { key: 'grounding', label: 'Grounding', color: 'var(--chart-7)' },
+  { key: 'decision', label: 'Decision', color: 'var(--chart-3)' },
+  { key: 'llm', label: 'LLM first token', color: 'var(--chart-4)' },
+  { key: 'text', label: 'First sentence', color: 'var(--chart-5)' },
+  { key: 'tts', label: 'TTS first byte', color: 'var(--accent)' },
+  { key: 'carrier', label: 'Carrier first audio', color: 'var(--chart-6)' },
 ] as const;
 export type StageKey = (typeof STAGES)[number]['key'];
+export const STAGE_BY_KEY = Object.fromEntries(STAGES.map((item) => [item.key, item])) as Record<
+  StageKey,
+  (typeof STAGES)[number]
+>;
 
 const positive = (value: number | null | undefined) =>
   typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
@@ -147,4 +157,64 @@ export function turnSummary(turns: readonly TurnRow[]) {
     interrupted: turns.filter((turn) => turn.interrupted).length,
     tiers,
   };
+}
+
+/** Rows for the `Waterfall` chart (components/charts/waterfall.tsx), one per turn, on the shared
+ * ms scale the chart itself picks from the data's own p95. */
+export function turnWaterfall(turns: readonly TurnRow[]): {
+  rows: WaterfallRow[];
+  p95CapMs: number;
+} {
+  const withParts = turns.map((turn, index) => ({ index, ...turnParts(turn) }));
+  const totals = withParts.map((item) => item.totalMs).sort((a, b) => a - b);
+  const p95CapMs = Math.max(1, totals[Math.floor(totals.length * 0.95)] ?? totals.at(-1) ?? 1);
+  const rows: WaterfallRow[] = withParts.map(({ index, parts, unattributedMs }) => ({
+    label: `Turn ${index + 1}`,
+    stages: parts.map((part): WaterfallStage => ({
+      stage: STAGE_BY_KEY[part.key].label,
+      ms: part.ms,
+      color: STAGE_BY_KEY[part.key].color,
+    })),
+    unattributedMs,
+  }));
+  return { rows, p95CapMs };
+}
+
+/** Median ms per stage across every turn, for the stage-breakdown bar above the waterfall. */
+export function stageBreakdown(turns: readonly TurnRow[]): BarSeriesPoint[] {
+  const byStage = new Map<StageKey, number[]>(STAGES.map((item) => [item.key, []]));
+  for (const turn of turns)
+    for (const part of turnParts(turn).parts) byStage.get(part.key)!.push(part.ms);
+  return STAGES.map((item) => ({
+    category: item.label,
+    values: { median: percentile(byStage.get(item.key) ?? [], 0.5) ?? 0 },
+  })).filter((point) => point.values.median > 0);
+}
+
+/** First-audio ms per caller turn, in order, plus the p50/p95 reference lines around it. */
+export function firstAudioSeries(turns: readonly TurnRow[]) {
+  const answered = turns.filter((turn) => turn.input === 'speech' || turn.input === 'dtmf');
+  const points = answered
+    .map((turn, index) => ({ x: index + 1, y: turn.firstAudioMs ?? 0 }))
+    .filter((point) => point.y > 0);
+  const values = points.map((point) => point.y).sort((a, b) => a - b);
+  return { points, p50: percentile(values, 0.5), p95: percentile(values, 0.95) };
+}
+
+/** `GET /v1/calls/:id/turns`, fetched independently per caller so one tab's failure never takes
+ * another down with it (brief: "/turns, /outcome and /cost fail independently today and should
+ * keep doing so"). */
+export function useTurns(callId: string) {
+  const [turns, setTurns] = useState<TurnRow[]>();
+  const [error, setError] = useState<string>();
+  useEffect(() => {
+    setTurns(undefined);
+    setError(undefined);
+    void apiRequest<{ turns: TurnRow[] }>(`/calls/${encodeURIComponent(callId)}/turns`)
+      .then(({ data }) => setTurns(data.turns))
+      .catch((failure) =>
+        setError(failure instanceof Error ? failure.message : 'Turn timings unavailable'),
+      );
+  }, [callId]);
+  return { turns, error };
 }

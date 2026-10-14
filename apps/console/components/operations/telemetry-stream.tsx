@@ -1,16 +1,17 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { TelemetryEvent } from '../../lib/operator-api';
-import {
-  EmptyState,
-  JsonEvidence,
-  Notice,
-  Panel,
-  PanelHeader,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
+import { SectionCard } from '../ui/section-card';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { EmptyStateV2, InlineAlert } from '../ui/feedback-v2';
+import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
+import { dataTableRenderKey } from '../../lib/data-table-remount-key';
+import { Duration, RelativeTime } from '../ui/display';
+import { humaniseEnum } from '../../lib/status';
 
+/** The in-call live feed (`GET /v1/calls/:id/stream`): authenticated SSE, resumable by sequence,
+ * for a call still in progress or a user-toggled "Live" view (brief defect #11 — this panel
+ * existed before W14 but was mounted nowhere). */
 export function TelemetryStream({ callId }: { callId?: string }) {
   const [events, setEvents] = useState<TelemetryEvent[]>([]);
   const [state, setState] = useState<'idle' | 'connecting' | 'live' | 'error'>('idle');
@@ -41,65 +42,65 @@ export function TelemetryStream({ callId }: { callId?: string }) {
     stream.addEventListener('error', () => setState('error'));
     return () => stream.close();
   }, [callId]);
+  const columns: ColumnV2<TelemetryEvent>[] = [
+    {
+      id: 'sequence',
+      header: 'Sequence',
+      cell: (event) => (
+        <>
+          {event.sequence} <RelativeTime value={event.occurredAt} />
+        </>
+      ),
+    },
+    {
+      id: 'stage',
+      header: 'Stage / event',
+      cell: (event) => humaniseEnum(event.stage ?? event.kind),
+    },
+    {
+      id: 'outcome',
+      header: 'Outcome',
+      cell: (event) => (event.outcome ? humaniseEnum(event.outcome) : '—'),
+    },
+    {
+      id: 'duration',
+      header: 'Duration',
+      align: 'end',
+      cell: (event) => <Duration ms={event.durationMs} />,
+    },
+    { id: 'evidence', header: 'Evidence', priority: 'low', cell: (event) => event.evidence ?? '—' },
+  ];
   return (
-    <Panel labelledBy="telemetry-stream-title">
-      <PanelHeader
-        id="telemetry-stream-title"
-        title="Stage and playback stream"
-        badge={
-          <StatusBadge tone={state === 'live' ? 'good' : state === 'error' ? 'warning' : 'soft'}>
-            {state}
-          </StatusBadge>
-        }
-      />
-      <div className="panel-body stack">
-        <p className="muted">
-          Authenticated SSE resumes by sequence. Delivery stages, playback evidence and operation
-          outcomes remain separate events.
-        </p>
-        {gap && <Notice tone="warning">A telemetry sequence gap was reported: {gap}</Notice>}
-        {!events.length ? (
-          <EmptyState
-            title={state === 'error' ? 'Telemetry stream unavailable' : 'Waiting for telemetry'}
-          >
-            {state === 'error'
-              ? 'The performance service may be unconfigured. Existing call evidence remains available above.'
-              : 'No stage or playback events have arrived for this call.'}
-          </EmptyState>
-        ) : (
-          <ResponsiveTable label="Live call stage and playback events">
-            <thead>
-              <tr>
-                <th>Sequence</th>
-                <th>Stage / event</th>
-                <th>Outcome</th>
-                <th>Duration</th>
-                <th>Evidence</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.map((event) => (
-                <tr key={event.eventId}>
-                  <td>
-                    {event.sequence}
-                    <small>{new Date(event.occurredAt).toLocaleTimeString()}</small>
-                  </td>
-                  <td>
-                    <strong>{event.stage ?? event.kind}</strong>
-                    <small>{event.kind}</small>
-                  </td>
-                  <td>{event.outcome ?? '—'}</td>
-                  <td>{event.durationMs === undefined ? '—' : `${event.durationMs} ms`}</td>
-                  <td>
-                    {event.evidence ?? '—'}
-                    <JsonEvidence label="Telemetry record" value={event} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </ResponsiveTable>
-        )}
-      </div>
-    </Panel>
+    <SectionCard
+      title="Live telemetry"
+      description="Authenticated SSE, resumable by sequence. Delivery stages, playback evidence and operation outcomes stay separate events."
+      actions={
+        <StatusBadgeV2
+          tone={state === 'live' ? 'ok' : state === 'error' ? 'warn' : 'neutral'}
+          label={humaniseEnum(state)}
+        />
+      }
+      padding="flush"
+    >
+      {gap && <InlineAlert tone="warn">A telemetry sequence gap was reported: {gap}</InlineAlert>}
+      {events.length ? (
+        <DataTableV2
+          key={dataTableRenderKey(false, undefined, events.length)}
+          label="Live call stage and playback events"
+          rows={events}
+          rowKey={(event) => event.eventId}
+          columns={columns}
+        />
+      ) : (
+        <EmptyStateV2
+          variant={state === 'error' ? 'unavailable' : 'first-run'}
+          title={state === 'error' ? 'Telemetry stream unavailable' : 'Waiting for telemetry'}
+        >
+          {state === 'error'
+            ? 'The performance service may be unconfigured. Existing call evidence remains available above.'
+            : 'No stage or playback events have arrived for this call.'}
+        </EmptyStateV2>
+      )}
+    </SectionCard>
   );
 }
