@@ -1,0 +1,13 @@
+{
+  "description": "The founder's Maya test calls (Europe trip companion, Indian English and Hinglish), slimmed with `pnpm eval:calls slim`: the events the harness reads and, for calls 7 and 8, a VAD trace of the caller audio (no audio is committed). Gold transcripts live in gold/.",
+  "calls": {
+    "call4": {
+      "label": "e8a43f65, 2026-10-12, main 6107125 (before Wave 8)",
+      "notes": ["turn summaries only: scored live, never replayed"]
+    },
+    "call5": { "label": "10d5ef30, 2026-10-12 15:54 UTC (Wave 8b)" },
+    "call6": { "label": "4f1a919d, 2026-10-13 07:49 UTC (Wave 9)" },
+    "call7": { "label": "8cb76efc, 2026-10-14 02:54 UTC, main b18b24e (Waves 6–10)" },
+    "call8": { "label": "eb509d62, 2026-10-14 17:58 UTC (Wave 12)" }
+  }
+}
