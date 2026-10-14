@@ -1,0 +1,13 @@
+{
+  "duplication": [
+    {
+      "files": [
+        "apps/console/components/integrations/settings-table.tsx",
+        "apps/console/components/ui/data-table-v2.tsx"
+      ],
+      "windows": 450,
+      "reason": "settings-table.tsx is a deliberate, documented fork of the shared DataTableV2 (components/ui/data-table-v2.tsx) that only reorders its hooks above the early error/loading/empty returns, fixing a Rules-of-Hooks violation (React error #310: hook count changes once a table has rows) that crashes every real page using it. The W14 settings lane cannot edit the design-system file per its brief, so it forked it locally and flagged the exact fix in a foundation request. Remove this pending entry (and delete settings-table.tsx in favour of the shared one) once components/ui/data-table-v2.tsx moves its useRef/useEffect above its early returns.",
+      "removeBy": "I1"
+    }
+  ]
+}

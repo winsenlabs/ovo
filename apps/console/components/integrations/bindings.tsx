@@ -1,27 +1,22 @@
 'use client';
-import { useConfirm } from '../ui/dialog';
 import { useEffect, useState, type FormEvent } from 'react';
+import { useConfirm } from '../ui/dialog';
 import {
   apiRequest,
   type CredentialMetadata,
   type ProviderBinding,
   type SessionIdentity,
 } from '../../lib/api';
-import {
-  EmptyState,
-  Field,
-  JsonEvidence,
-  Panel,
-  PanelHeader,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
-import type { PluginCatalog } from '../plugins/types';
+import { SectionCard } from '../ui/section-card';
+import { FormField } from '../ui/form-field';
+import { Select } from '../ui/inputs';
+import { ErrorState, InlineAlert } from '../ui/feedback-v2';
+import type { PluginCatalog, PluginOption } from '../plugins/types';
 import { schemaDefaults } from '../plugins/schema-defaults';
 import { BindingsTable } from './bindings-table';
+import { BindingEditDrawer } from './binding-edit-drawer';
 
 interface BindingDraft {
-  id?: string;
   label: string;
   provider: string;
   pluginId: string;
@@ -40,27 +35,29 @@ const emptyDraft = (): BindingDraft => ({
 const safeMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
-function bindingDraft(binding: ProviderBinding): BindingDraft {
-  return {
-    ...binding,
-    pluginId: binding.pluginId ?? '',
-    configText: JSON.stringify(binding.config ?? {}, null, 2),
-  };
-}
-
+/**
+ * The Bindings tab of Providers & secrets. The "Create binding" form below is intentionally kept
+ * self-contained (it loads its own `/plugins`) so it works the same standalone, which
+ * `components/plugins/binding-defaults.test.tsx` (owned by the agents/plugins lane) exercises by
+ * mounting `BindingManager` directly.
+ */
 export function BindingManager({
   bindings,
+  bindingsStatus = 'ready',
+  bindingsError,
   credentials,
   reload,
   role,
 }: {
   bindings: ProviderBinding[];
+  bindingsStatus?: 'loading' | 'ready' | 'error';
+  bindingsError?: string;
   credentials: CredentialMetadata[];
   reload: () => Promise<void>;
   role: SessionIdentity['role'];
 }) {
   const confirm = useConfirm();
-  const [plugins, setPlugins] = useState<PluginCatalog['plugins']>([]);
+  const [plugins, setPlugins] = useState<PluginOption[]>([]);
   useEffect(() => {
     void apiRequest<PluginCatalog>('/plugins')
       .then(({ data }) =>
@@ -75,9 +72,7 @@ export function BindingManager({
   const [draft, setDraft] = useState<BindingDraft>(emptyDraft);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    if (draft.id && !bindings.some((binding) => binding.id === draft.id)) setDraft(emptyDraft());
-  }, [bindings, draft.id]);
+  const [editing, setEditing] = useState<ProviderBinding>();
   const patch = (value: Partial<BindingDraft>) => setDraft((current) => ({ ...current, ...value }));
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -95,8 +90,8 @@ export function BindingManager({
     }
     setBusy(true);
     try {
-      await apiRequest(`/provider-bindings${draft.id ? `/${draft.id}` : ''}`, {
-        method: draft.id ? 'PUT' : 'POST',
+      await apiRequest('/provider-bindings', {
+        method: 'POST',
         body: JSON.stringify({
           label: draft.label,
           provider: draft.provider,
@@ -115,11 +110,33 @@ export function BindingManager({
     }
   }
 
+  async function saveEdit(
+    binding: ProviderBinding,
+    label: string,
+    environment: string,
+    credentialId: string,
+    config: Record<string, unknown>,
+  ) {
+    await apiRequest(`/provider-bindings/${binding.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        label,
+        provider: binding.provider,
+        pluginId: binding.pluginId,
+        environment,
+        credentialId,
+        config,
+      }),
+    });
+    setEditing(undefined);
+    await reload();
+  }
+
   async function remove(binding: ProviderBinding) {
     if (
       !(await confirm(
         'Delete binding',
-        `Delete provider binding “${binding.label}”? Agents using it will fail readiness checks.`,
+        `Delete provider binding "${binding.label}"? Agents using it will fail readiness checks.`,
       ))
     )
       return;
@@ -136,125 +153,136 @@ export function BindingManager({
   }
 
   return (
-    <Panel labelledBy="binding-title">
-      <PanelHeader
-        id="binding-title"
-        title="Provider bindings"
-        badge={<StatusBadge>{bindings.length}</StatusBadge>}
-      />
-      <div className="panel-body stack">
-        <p className="muted">
-          Bindings pair non-secret provider configuration with a server-side credential reference.
-          Agent roles use binding IDs for inference, STT, TTS and telephony.
-        </p>
-        {error && (
-          <div className="field-error" role="alert">
-            {error}
+    <div className="stack">
+      <SectionCard id="bindings" title="Bindings" padding="flush">
+        {bindingsStatus === 'error' ? (
+          <div style={{ padding: 'var(--space-5)' }}>
+            <ErrorState
+              message={bindingsError ?? 'Provider bindings unavailable.'}
+              onRetry={reload}
+            />
           </div>
+        ) : (
+          <BindingsTable
+            bindings={bindings}
+            credentials={credentials}
+            plugins={plugins}
+            loading={bindingsStatus === 'loading'}
+            role={role}
+            busy={busy}
+            onEdit={setEditing}
+            onRemove={remove}
+          />
         )}
-        <form className="stack nested-card" onSubmit={submit}>
-          <div className="tool-meta">
-            <h3>{draft.id ? 'Edit binding' : 'Create binding'}</h3>
-            {draft.id && <StatusBadge tone="soft">Editing</StatusBadge>}
-          </div>
+      </SectionCard>
+      <SectionCard
+        id="create-binding"
+        title="Add binding"
+        description="Pairs non-secret provider configuration with a stored credential reference. Agent roles use binding IDs for inference, STT, TTS and telephony."
+      >
+        {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+        <form className="stack" onSubmit={submit}>
           <div className="form-grid">
-            <Field label="Binding label" htmlFor="binding-label">
-              <input
-                id="binding-label"
-                required
-                value={draft.label}
-                onChange={(event) => patch({ label: event.target.value })}
-              />
-            </Field>
-            <Field
+            <FormField id="binding-label" label="Binding label" required>
+              {(props) => (
+                <input
+                  {...props}
+                  value={draft.label}
+                  onChange={(event) => patch({ label: event.target.value })}
+                />
+              )}
+            </FormField>
+            <FormField
+              id="binding-plugin"
               label="Plugin"
-              htmlFor="binding-plugin"
               help="Select the installed adapter for this binding."
             >
-              <select
-                id="binding-plugin"
-                required
-                value={draft.pluginId}
-                onChange={(event) => {
-                  const plugin = plugins.find((item) => item.id === event.target.value);
-                  const defaults = plugin ? schemaDefaults(plugin) : {};
-                  patch({
-                    pluginId: plugin?.id ?? '',
-                    provider: plugin?.provider ?? '',
-                    // A new binding starts from the plugin's recommended values; an edit keeps its own.
-                    ...(!draft.id && Object.keys(defaults).length
-                      ? { configText: JSON.stringify(defaults, null, 2) }
-                      : {}),
-                  });
-                }}
-              >
-                <option value="">Select installed plugin</option>
-                {plugins.map((plugin) => (
-                  <option key={plugin.id} value={plugin.id}>
-                    {plugin.ui?.label ?? plugin.id}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Environment" htmlFor="binding-environment">
-              <select
-                id="binding-environment"
-                value={draft.environment}
-                onChange={(event) => patch({ environment: event.target.value })}
-              >
-                <option value="test">Test</option>
-                <option value="staging">Staging</option>
-                <option value="production">Production</option>
-              </select>
-            </Field>
-            <Field label="Credential" htmlFor="binding-credential">
-              <select
-                id="binding-credential"
-                required
-                value={draft.credentialId}
-                onChange={(event) => patch({ credentialId: event.target.value })}
-              >
-                <option value="">Select metadata reference</option>
-                {credentials.map((credential) => (
-                  <option key={credential.id} value={credential.id}>
-                    {credential.label} · {credential.provider}
-                  </option>
-                ))}
-              </select>
-            </Field>
+              {(props) => (
+                <Select
+                  {...props}
+                  value={draft.pluginId}
+                  onChange={(value) => {
+                    const plugin = plugins.find((item) => item.id === value);
+                    const defaults = plugin ? schemaDefaults(plugin) : {};
+                    patch({
+                      pluginId: plugin?.id ?? '',
+                      provider: plugin?.provider ?? '',
+                      configText: Object.keys(defaults).length
+                        ? JSON.stringify(defaults, null, 2)
+                        : draft.configText,
+                    });
+                  }}
+                  placeholder="Select installed plugin"
+                  options={plugins.map((plugin) => ({
+                    value: plugin.id,
+                    label: plugin.ui?.label ?? plugin.id,
+                  }))}
+                />
+              )}
+            </FormField>
+            <FormField id="binding-environment" label="Environment">
+              {(props) => (
+                <Select
+                  {...props}
+                  value={draft.environment}
+                  onChange={(value) => patch({ environment: value })}
+                  options={[
+                    { value: 'test', label: 'Test' },
+                    { value: 'staging', label: 'Staging' },
+                    { value: 'production', label: 'Production' },
+                  ]}
+                />
+              )}
+            </FormField>
+            <FormField
+              id="binding-credential"
+              label="Credential"
+              help={!credentials.length ? 'Add a credential first.' : undefined}
+            >
+              {(props) => (
+                <Select
+                  {...props}
+                  value={draft.credentialId}
+                  onChange={(value) => patch({ credentialId: value })}
+                  placeholder="Select metadata reference"
+                  options={credentials.map((credential) => ({
+                    value: credential.id,
+                    label: `${credential.label} · ${credential.provider}`,
+                  }))}
+                />
+              )}
+            </FormField>
           </div>
-          <Field
+          <FormField
+            id="binding-config"
             label="Provider configuration JSON"
-            htmlFor="binding-config"
             help="Add model, voice, region, number, endpoint or adapter options. Secret-like keys are rejected by the API."
           >
-            <textarea
-              id="binding-config"
-              className="code-input"
-              value={draft.configText}
-              onChange={(event) => patch({ configText: event.target.value })}
-              spellCheck={false}
-            />
-          </Field>
+            {(props) => (
+              <textarea
+                {...props}
+                className="code-input"
+                value={draft.configText}
+                onChange={(event) => patch({ configText: event.target.value })}
+                spellCheck={false}
+              />
+            )}
+          </FormField>
           <div className="button-row">
             <button className="button primary" disabled={role !== 'admin' || busy}>
-              {busy ? 'Saving…' : draft.id ? 'Update binding' : 'Create binding'}
+              {busy ? 'Saving…' : 'Create binding'}
             </button>
-            {draft.id && (
-              <button className="button" type="button" onClick={() => setDraft(emptyDraft())}>
-                Cancel
-              </button>
-            )}
           </div>
         </form>
-        <BindingsTable
-          bindings={bindings}
-          role={role}
-          busy={busy}
-          onEdit={(binding) => setDraft(bindingDraft(binding))}
-          onRemove={remove}
-        />
-      </div>
-    </Panel>
+      </SectionCard>
+      <BindingEditDrawer
+        binding={editing}
+        plugins={plugins}
+        credentials={credentials}
+        role={role}
+        onClose={() => setEditing(undefined)}
+        onSubmit={saveEdit}
+      />
+    </div>
   );
 }
