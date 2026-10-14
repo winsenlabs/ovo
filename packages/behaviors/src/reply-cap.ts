@@ -30,7 +30,13 @@ const SHORT_ANSWER_CHARS = 60;
  * offer: "Otherwise, you can connect through Oslo." is not worth "Want to hear more?".
  */
 const SHORT_TAIL_CHARS = 80;
-/** A short question the reply ends on instead of the offer: it keeps the conversation going. */
+/**
+ * Wave 12 (F7): a held tail that ends on a question is said whole up to this length, the question
+ * with what it asks about. A question is never said without the held sentences before it: "Which
+ * of the two would you prefer?" after two flights the cap held back cannot be answered.
+ */
+const SHORT_QUESTION_TAIL_CHARS = 120;
+/** A short question the cap stops before is said in place of the offer (call-3 #7). */
 const MAX_CLOSING_QUESTION_CHARS = 120;
 const SENTENCE_END = /[.!?।॥。！？؟۔…]["'”’»)\]]*$/u;
 const QUESTION_END = /[?？؟]["'”’»)\]]*$/u;
@@ -115,20 +121,17 @@ export class ReplyCap {
     return { say: segment, stop: false };
   }
 
-  /** Wave 12 (F7): what the cap held back (`held`) is short enough to say instead of offering. */
-  shortTail(held: readonly string[]): boolean {
-    return held.join(' ').length <= SHORT_TAIL_CHARS;
-  }
-
   /**
-   * Wave 12 (Maya call 8cb76efc, F7): the question the held rest of a capped reply ends on, said in
-   * place of the offer, when it is short and the reply has not already asked one. Turn 7's answer
-   * was capped before "…at some sights." and its own "How many days do you have…?" was lost.
+   * Wave 12 (F7): what the cap held back (`held`, its speakable lines) is short enough to say
+   * instead of offering, all of it. One that ends on a question may be a little longer: the model's
+   * own question keeps the conversation going, but only with what it asks about. Turn 16's "…would
+   * you like to start with how Yugoslavia formed?" came after a held "I can walk you through the
+   * background, the breakup, and the aftermath step by step", so neither is said.
    */
-  closingQuestion(rest: readonly string[]): string | undefined {
-    const last = rest.at(-1)?.trim();
-    if (this.question || !last || last.length > MAX_CLOSING_QUESTION_CHARS) return undefined;
-    return QUESTION_END.test(last) ? last : undefined;
+  shortTail(held: readonly string[]): boolean {
+    const text = held.join(' ').trim();
+    if (text.length <= SHORT_TAIL_CHARS) return true;
+    return QUESTION_END.test(text) && text.length <= SHORT_QUESTION_TAIL_CHARS;
   }
 
   /**

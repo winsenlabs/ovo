@@ -66,10 +66,11 @@ export function searchAnnouncement(
  * "Want to hear more?", "Interested in more detail?"), which Wave 9 (D5) took for one that needs no
  * search. Turn 29's "Yeah." to it went without the tool; the model, its sources spent, gave the
  * uncertainty line, heard as "Sorry, could you say that again?". More detail on an answer that was
- * looked up is looked up too.
+ * looked up is looked up too. Only the offer counts: the agent's own request for "more details"
+ * on the caller's plans offers nothing.
  */
 const OFFERED =
-  /\b(?:(?:want|like|need) me to|shall i|should i|can i|could i|may i|i can(?!['’]?t\b|not\b)|i could(?!n['’]?t\b)|let me|if you(?:'d)? like|look\w* (?:\w+ )?up|check|search|find out|(?:hear|know|learn|like|want) more|more (?:detail|details|info|information|on|about))\b/i;
+  /\b(?:(?:want|like|need) me to|shall i|should i|can i|could i|may i|i can(?!['’]?t\b|not\b)|i could(?!n['’]?t\b)|let me|if you(?:'d)? like|look\w* (?:\w+ )?up|check|search|find out|(?:want|like|interested in) (?:to (?:hear|know|learn) )?more)\b/i;
 
 /**
  * Wave 9 D7: the platform's own question before it ends a call ("Shall I end the call?") offers

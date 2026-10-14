@@ -83,6 +83,11 @@ const SAID = {
   turn16: 'Yeah, please, can you do that?',
   turn16Reply:
     'Croatia’s story is closely tied to Yugoslavia, but the Balkans are a broader region, not one country. Croatia declared independence on the 25th of June 1991; war followed, and fighting there largely ended in 1995, while Bosnia’s war ended with the Dayton agreement that year. I can walk you through the background, the breakup, and the aftermath step by step; would you like to start with how Yugoslavia formed? \uE200cite\uE202turn0search1\uE202turn0search0\uE202turn0search5\uE201',
+  between: [
+    ['turn-17', 'Is it safe to go there now?'],
+    ['turn-22', 'Have there been any- Crime incidents reported in these two places?'],
+    ['turn-25', "In Berlin on New Year's Eve?"],
+  ] as const,
   turn28Reply:
     'Berlin usually has a huge New Year’s Eve celebration, with music, crowds, and fireworks around the Brandenburg Gate. The party mile runs from the Gate to the Victory Column, entry is free, and the fireworks start at midnight.',
   turn29: 'Yeah.',
@@ -255,6 +260,9 @@ async function call() {
   await r.clock.advanceAsync(30_000);
   heard.turn15 = r.heard(turn15);
   heard.turn16 = await say(r, 'turn-16', SAID.turn16);
+  // Turns 17 to 27 elided but for three of the call's questions (MODELLED answers, "Sure."): the
+  // offer of more is said only when none of the last three turns made one.
+  for (const [turnId, words] of SAID.between) await say(r, turnId, words);
   heard.turn28 = await say(r, 'turn-28', 'Berlin on New Year’s Eve?');
   heard.turn29 = await say(r, 'turn-29', SAID.turn29);
   return { r, heard };
@@ -328,7 +336,7 @@ describe('call 8cb76efc, replayed through the engine (Wave 12)', () => {
 
   it('F1 turn 29: a yes to "Would you like more on that?" is looked up, not asked again', async () => {
     const { r, heard } = await call();
-    expect(heard.turn28.at(-1)).toEqual(['Want more detail?', 10050]);
+    expect(heard.turn28.at(-1)).toEqual(['Would you like more on that?', 10050]);
     expect(heard.turn29).not.toEqual(BEFORE.turn29);
     expect(heard.turn29).toEqual([
       ['Let me look that up.', 0],
@@ -343,29 +351,29 @@ describe('call 8cb76efc, replayed through the engine (Wave 12)', () => {
     // Before: every held sentence and the marker ("cite turn zero search one…"), 20 s in all,
     // released by the model's end_call after its text, which the call then refused.
     expect(heard.turn16).not.toEqual(BEFORE.turn16);
+    // Its own closing question asks about the walk-through the cap held back ("I can walk you
+    // through the background, the breakup, and the aftermath…"), so the offer is said instead.
     expect(heard.turn16).toEqual([
       ['Let me look that up.', 0],
       ['Croatia’s story is closely tied to Yugoslavia,', 4190],
       ['but the Balkans are a broader region, not one country.', 7340],
       ['Croatia declared independence on the 25th of June 1991.', 10490],
-      ['Would you like to start with how Yugoslavia formed?', 13640],
+      ['Want to hear more?', 13640],
     ]);
     expect(heard.turn16.flat().join(' ')).not.toMatch(/cite|turn0/u);
   });
 
-  it('F5 turn 7: the semicolon ends a sentence, the cap stops there, its own question closes', async () => {
+  it('F5 turn 7: the semicolon ends a sentence and the cap stops there', async () => {
     const { heard } = await call();
     expect(heard.turn7).not.toEqual(BEFORE.turn7);
     // First audio as before (3,490 ms); the 184-character run-on (12 s live, 0.95 s of dead air
-    // after its semicolon) is now its first clause, and the reply's own question follows.
+    // after its semicolon) is now its first clause. The reply's own question is held with the
+    // quieter stops before it (more than a short tail), so the offer closes.
     expect(heard.turn7).toEqual([
       ['Let me look that up.', 0],
       ['Prague and Budapest make a lovely December starting point,', 3490],
       ['and Vienna is an easy classic addition.', 6640],
-      [
-        'How many days do you have, and are you aiming for Christmas markets or a more relaxed city-and-culture trip?',
-        9790,
-      ],
+      ['Want more detail?', 9790],
     ]);
   });
 

@@ -154,7 +154,7 @@ const ANSWERS: [caller: string, model: string][] = [
 ];
 
 describe('call 8cb76efc F7: "Want more detail?" only now and then', () => {
-  it('offers more on one of the call’s nine answers, not four, and never in place of one', async () => {
+  it('offers more on two of the call’s nine answers, not four, and never in place of one', async () => {
     const replies = ANSWERS.map(([, model]) => model);
     const { port } = searching(() => replies.shift() ?? 'Sure.');
     const agent = maya(port);
@@ -169,9 +169,21 @@ describe('call 8cb76efc F7: "Want more detail?" only now and then', () => {
     const ends = said.map((lines) => (offers.has(lines.at(-1)!) ? lines.at(-1) : '…'));
     // Before (b18b24e): "Want more detail?" after turn 13's "I’m sorry." in place of its answer,
     // then offers on turns 19, 25 and 28: four of nine, as live (13, 19, 25, 28, 30).
-    // After: short tails are said (turns 19, 25, 28 and 30), and the offer comes once, on turn
-    // 22, whose semicolon now ends a sentence the cap stops after.
-    expect(ends).toEqual(['…', '…', '…', '…', 'Want more detail?', '…', '…', '…', '…']);
+    // After: short tails are said (turns 19, 28 and 30), and the offer comes twice. Turn 18's own
+    // question is held behind its precautions, more than a short tail, so it offers instead (a
+    // held question is never said without what it asks about); turn 22, within three turns of
+    // it, stops after its semicolon with nothing after it; turn 25's held tail is too long.
+    expect(ends).toEqual([
+      '…',
+      'Want more detail?',
+      '…',
+      '…',
+      '…',
+      'Want to hear more?',
+      '…',
+      '…',
+      '…',
+    ]);
     expect(said[0]).toEqual([
       'You’re right, you did.',
       'I’m sorry.',

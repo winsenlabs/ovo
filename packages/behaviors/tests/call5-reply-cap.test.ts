@@ -77,10 +77,12 @@ describe('call 10d5ef30 D5: the long-answer offer only now and then', () => {
     const said = await replay();
     // Live: turns 9, 10, 17 and 18 ended "Want more detail?" (14's never played: superseded).
     // Wave 12 (call 8cb76efc F7): a short tail the cap held is said instead of offered (turns 9,
-    // 10 and 17); turn 18's is longer and offered. Before: offers on turns 9 and 17.
+    // 10 and 17). Turn 14's question ("…a few nights in the Arctic?") asks about the Tromsø stop
+    // the cap held back, so it offers instead; turn 18, within three turns of it, does not.
+    // Before: offers on turns 9 and 17.
     expect(
       said.map((lines) => lines.at(-1)).map((last) => (offers.has(last!) ? last : '…')),
-    ).toEqual(['…', '…', '…', '…', '…', 'Want more detail?']);
+    ).toEqual(['…', '…', 'Want more detail?', '…', '…', '…']);
     expect(said[1]!.join(' ')).toBe(
       'Zagreb’s Advent is centered around the main squares and parks, with festive lights, food stalls, and seasonal events, so it’s a pleasant city to explore on foot. Ban Jelačić Square and Zrinjevac Park are the busiest spots.',
     );
@@ -89,7 +91,7 @@ describe('call 10d5ef30 D5: the long-answer offer only now and then', () => {
     expect(said[4]!.join(' ')).toBe(
       'You’re right—you already said that. Tromsø is a realistic add-on from Vienna, with a seasonal nonstop flight expected to begin November 28, 2026. Otherwise, you can connect through Oslo. Flights take about three hours.',
     );
-    expect(said[5]!.join(' ')).toMatch(/expected to begin November 28, 2026\. Want more detail\?$/);
+    expect(said[5]!.join(' ')).toMatch(/expected to begin November 28, 2026\.$/);
   });
 
   it('offers again only once three turns have passed without one, in the next wording', async () => {

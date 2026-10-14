@@ -116,12 +116,11 @@ export async function* streamAgentReply(
     offer = say;
     return [];
   };
-  /** The last speakable line the cap holds back, if any. */
-  const heldLast = () =>
+  /** The speakable lines the cap holds back, unchecked. */
+  const heldLines = () =>
     [held?.stopped, ...(held?.rest ?? [])]
       .map((line) => (line === undefined ? undefined : stripInternalNotes(line)))
-      .filter((line) => line !== undefined)
-      .at(-1);
+      .filter((line) => line !== undefined);
   /** A goodbye is said whole: what the cap held back, and anything after it uncapped. */
   const release = (): string[] => {
     const lines = held?.stopped === undefined ? [] : [held.stopped];
@@ -139,7 +138,7 @@ export async function* streamAgentReply(
         // Wave 12 (Maya call 8cb76efc turn 16): what the cap held is said only for a goodbye that
         // ends the call. Live, an end_call after a capped answer, refused because the answer ended
         // on a question, released all of it: 30 s of speech, its citation marker read out last.
-        const ending = endAfterText?.(event.input, heldLast());
+        const ending = endAfterText?.(event.input, heldLines().at(-1));
         if (ending === 'refused') continue;
         for (const line of release()) {
           emittedText = true;
@@ -173,11 +172,10 @@ export async function* streamAgentReply(
       emittedText = true;
       yield publish(line);
     }
-  // Wave 12 (F7): a short tail the cap held is said in place of the offer, and so is a question
-  // the held rest ends on, each checked as said.
+  // Wave 12 (F7): a short tail the cap held is said in place of the offer, each line checked as
+  // said. A question at its end is said only this way, with everything held before it.
   const stopped = held?.stopped === undefined ? undefined : held;
-  const short = stopped !== undefined && cap?.shortTail([stopped.stopped!, ...stopped.rest]);
-  if (stopped && short) {
+  if (stopped && cap?.shortTail(heldLines())) {
     for (const line of [
       stopped.stopped!,
       ...stopped.rest.flatMap((rest) => speakable(rest) ?? []),
@@ -187,10 +185,8 @@ export async function* streamAgentReply(
     }
     offer = undefined;
   }
-  const asked = stopped && !short ? cap?.closingQuestion(stopped.rest) : undefined;
-  const closing = asked === undefined ? undefined : speakable(asked);
   // The offer is checked like any other line: the language guard may drop or replace it.
-  const more = closing ?? (offer === undefined || !guard ? offer : guard(offer));
+  const more = offer === undefined || !guard ? offer : guard(offer);
   if (more !== undefined) {
     emittedText = true;
     yield publish(more);

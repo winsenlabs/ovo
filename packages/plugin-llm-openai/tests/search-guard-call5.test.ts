@@ -69,6 +69,15 @@ describe('no web search on a yes with a word of address (call 10d5ef30, D8)', ()
         unclearForSearch({ input: 'Yeah.', history: [{ role: 'assistant', content: offer }] }),
         offer,
       ).toBeUndefined();
+    // Nor does the agent's own request for more details offer anything.
+    expect(
+      unclearForSearch({
+        input: 'Yeah.',
+        history: [
+          { role: 'assistant', content: 'Could you give me more details about your dates?' },
+        ],
+      }),
+    ).toBe('backchannel');
     // A yes to an answer that offers nothing still has nothing to look up.
     expect(
       unclearForSearch({
