@@ -1,0 +1,314 @@
+{
+  "call": "e8a43f65",
+  "label": "call 4",
+  "source": "Maya call e8a43f65 (2026-10-12): plugin-turns tests/call4-timeline.ts (rebuilt from turn summaries)",
+  "durationMs": 100000,
+  "transcripts": [
+    {
+      "at": 19400,
+      "type": "transcript",
+      "seg": "0",
+      "text": "We're planning to go",
+      "final": false
+    },
+    {
+      "at": 20400,
+      "type": "transcript",
+      "seg": "0",
+      "text": "\"We're planning to go to Zagreb this...\"",
+      "final": false
+    },
+    {
+      "at": 21400,
+      "type": "transcript",
+      "seg": "0",
+      "text": "\"We're planning to go to Zagreb this...\" No, December.",
+      "final": false
+    },
+    {
+      "at": 22969,
+      "type": "transcript",
+      "seg": "0",
+      "text": "\"We're planning to go to Zagreb this...\" No, December.",
+      "final": true
+    },
+    {
+      "at": 40400,
+      "type": "transcript",
+      "seg": "1",
+      "text": "I want 21st",
+      "final": false
+    },
+    {
+      "at": 41400,
+      "type": "transcript",
+      "seg": "1",
+      "text": "I want 21st of December to the 5th.",
+      "final": false
+    },
+    {
+      "at": 42172,
+      "type": "transcript",
+      "seg": "1",
+      "text": "I want 21st of December to the 5th.",
+      "final": true
+    },
+    {
+      "at": 44178,
+      "type": "transcript",
+      "seg": "2",
+      "text": "Of January.",
+      "final": false
+    },
+    {
+      "at": 45975,
+      "type": "transcript",
+      "seg": "2",
+      "text": "Of January.",
+      "final": true
+    },
+    {
+      "at": 65000,
+      "type": "transcript",
+      "seg": "3",
+      "text": "Yeah, we're planning",
+      "final": false
+    },
+    {
+      "at": 66000,
+      "type": "transcript",
+      "seg": "3",
+      "text": "Yeah, we're planning to do Budapest,",
+      "final": false
+    },
+    {
+      "at": 66900,
+      "type": "transcript",
+      "seg": "3",
+      "text": "Yeah, we're planning to do Budapest, Vienna,",
+      "final": false
+    },
+    {
+      "at": 67933,
+      "type": "transcript",
+      "seg": "3",
+      "text": "Yeah, we're planning to do Budapest, Vienna,",
+      "final": true
+    },
+    {
+      "at": 68958,
+      "type": "transcript",
+      "seg": "4",
+      "text": "in Austria.",
+      "final": false
+    },
+    {
+      "at": 69958,
+      "type": "transcript",
+      "seg": "4",
+      "text": "in Austria. Then we're planning",
+      "final": false
+    },
+    {
+      "at": 70958,
+      "type": "transcript",
+      "seg": "4",
+      "text": "in Austria. Then we're planning to go to Zagreb,",
+      "final": false
+    },
+    {
+      "at": 71657,
+      "type": "transcript",
+      "seg": "4",
+      "text": "in Austria. Then we're planning to go to Zagreb, Prague.",
+      "final": false
+    },
+    {
+      "at": 72640,
+      "type": "transcript",
+      "seg": "4",
+      "text": "in Austria. Then we're planning to go to Zagreb, Prague.",
+      "final": true
+    },
+    {
+      "at": 73357,
+      "type": "transcript",
+      "seg": "5",
+      "text": "Germany, Berlin,",
+      "final": false
+    },
+    {
+      "at": 74500,
+      "type": "transcript",
+      "seg": "5",
+      "text": "Germany, Berlin, and a few other places.",
+      "final": false
+    },
+    {
+      "at": 75589,
+      "type": "transcript",
+      "seg": "5",
+      "text": "Germany, Berlin, and a few other places.",
+      "final": true
+    },
+    {
+      "at": 90900,
+      "type": "transcript",
+      "seg": "6",
+      "text": "Ma'am, create a call.",
+      "final": false
+    },
+    {
+      "at": 92193,
+      "type": "transcript",
+      "seg": "6",
+      "text": "Ma'am, create a call.",
+      "final": true
+    }
+  ],
+  "agent": [
+    {
+      "start": 12398,
+      "stop": 17000,
+      "kind": "response",
+      "text": "What dates are you considering?",
+      "state": "completed"
+    },
+    {
+      "start": 24474,
+      "stop": 38500,
+      "kind": "response",
+      "text": "… What dates are you considering?",
+      "state": "completed"
+    },
+    {
+      "start": 47211,
+      "stop": 62000,
+      "kind": "response",
+      "text": "… What dates are you considering?",
+      "state": "completed"
+    },
+    {
+      "start": 76611,
+      "stop": 88500,
+      "kind": "response",
+      "text": "… What dates are you considering?",
+      "state": "completed"
+    }
+  ],
+  "live": [
+    {
+      "id": "turn-1",
+      "startedAt": 18400,
+      "endAt": 22970,
+      "text": "\"We're planning to go to Zagreb this...\" No, December.",
+      "rule": null,
+      "endpointMs": 993,
+      "reset": null
+    },
+    {
+      "id": "turn-2",
+      "startedAt": 39400,
+      "endAt": 42173,
+      "text": "I want 21st of December to the 5th.",
+      "rule": null,
+      "endpointMs": 456,
+      "reset": null
+    },
+    {
+      "id": "turn-3",
+      "startedAt": 43178,
+      "endAt": 45775,
+      "text": "Of January.",
+      "rule": null,
+      "endpointMs": 1797,
+      "reset": null
+    },
+    {
+      "id": "turn-4",
+      "startedAt": 64000,
+      "endAt": 67933,
+      "text": "Yeah, we're planning to do Budapest, Vienna,",
+      "rule": null,
+      "endpointMs": 1056,
+      "reset": null
+    },
+    {
+      "id": "turn-5",
+      "startedAt": 67958,
+      "endAt": 72641,
+      "text": "in Austria. Then we're planning to go to Zagreb, Prague.",
+      "rule": null,
+      "endpointMs": 984,
+      "reset": null
+    },
+    {
+      "id": "turn-6",
+      "startedAt": 72457,
+      "endAt": 75589,
+      "text": "Germany, Berlin, and a few other places.",
+      "rule": null,
+      "endpointMs": 1012,
+      "reset": null
+    },
+    {
+      "id": "turn-7",
+      "startedAt": 89900,
+      "endAt": 92193,
+      "text": "Ma'am, create a call.",
+      "rule": null,
+      "endpointMs": 936,
+      "reset": null
+    }
+  ],
+  "vad": [
+    {
+      "at": 18400,
+      "type": "vad.start"
+    },
+    {
+      "at": 22177,
+      "type": "vad.stop"
+    },
+    {
+      "at": 39400,
+      "type": "vad.start"
+    },
+    {
+      "at": 41917,
+      "type": "vad.stop"
+    },
+    {
+      "at": 64000,
+      "type": "vad.start"
+    },
+    {
+      "at": 67077,
+      "type": "vad.stop"
+    },
+    {
+      "at": 67958,
+      "type": "vad.start"
+    },
+    {
+      "at": 71857,
+      "type": "vad.stop"
+    },
+    {
+      "at": 72457,
+      "type": "vad.start"
+    },
+    {
+      "at": 74777,
+      "type": "vad.stop"
+    },
+    {
+      "at": 89900,
+      "type": "vad.start"
+    },
+    {
+      "at": 91457,
+      "type": "vad.stop"
+    }
+  ]
+}
