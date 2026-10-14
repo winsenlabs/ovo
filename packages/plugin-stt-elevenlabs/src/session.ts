@@ -7,6 +7,7 @@ import {
   type WebSocketLike,
 } from '@winsendotai/ovo-contracts';
 import { createLogger, decimal, syntheticRequestId, usageOnce } from '@winsendotai/ovo-plugin-kit';
+import { commitTail } from './commit-audio.ts';
 import { deferred, onAbort } from './lifecycle.ts';
 import { ElevenLabsSttError, audioChunk, parseMessage, retryableClose } from './protocol.ts';
 import { ScribeTranscripts, type ScribeTranscriptOptions } from './transcripts.ts';
@@ -50,6 +51,8 @@ export class ScribeSession implements SttSession {
   private bytes = 0;
   /** Audio written since the last commit, so a commit without new audio is never sent. */
   private uncommitted = false;
+  /** Bytes of audio sent since the last commit: what the next commit closes. */
+  private sentSinceCommit = 0;
   private pendingCommits = 0;
   /** When each commit still unanswered was sent, oldest first; a final's wait ends by its deadline. */
   private readonly commitsSentAt: number[] = [];
@@ -131,7 +134,7 @@ export class ScribeSession implements SttSession {
   private commit(): void {
     const tail =
       this.frames.flush({ padToMs: COMMIT_PAD_MS }) ?? silence(this.input.format, COMMIT_PAD_MS);
-    this.send(tail, true);
+    this.send(commitTail(tail, this.sentSinceCommit, this.input.format), true);
     this.uncommitted = false;
     this.pendingCommits++;
     this.commitsSentAt.push(this.clock.now());
@@ -139,6 +142,7 @@ export class ScribeSession implements SttSession {
 
   private send(audio: Uint8Array, commit: boolean): void {
     this.socket.send(audioChunk(audio, this.input.format.sampleRate, commit));
+    this.sentSinceCommit = commit ? 0 : this.sentSinceCommit + audio.byteLength;
   }
 
   private writable(signal?: AbortSignal): void {
@@ -200,11 +204,12 @@ export class ScribeSession implements SttSession {
   private onClose(code: number, reason: string): void {
     if (this.state === 'ended') return;
     if (this.state === 'finishing') return this.end();
+    // A close after a refused commit (1000 `commit_throttled`) loses only that session.
     this.fail(
       new ElevenLabsSttError(
         `ElevenLabs STT closed (${code}): ${reason}`,
         code,
-        retryableClose(code),
+        retryableClose(code) || reason === 'commit_throttled',
       ),
     );
   }

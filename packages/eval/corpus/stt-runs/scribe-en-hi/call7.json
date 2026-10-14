@@ -1,0 +1,999 @@
+{
+  "config": "scribe-en-hi",
+  "call": "call7",
+  "model": "scribe_v2_realtime",
+  "language": "en-IN",
+  "recordedAt": "2026-10-14T18:50:34.961Z",
+  "streamedMs": 146420,
+  "sessionMs": 147517,
+  "usage": [
+    {
+      "unit": "audio_seconds",
+      "quantity": "126.5",
+      "state": "estimated"
+    },
+    {
+      "unit": "audio_seconds",
+      "quantity": "15.54",
+      "state": "estimated"
+    },
+    {
+      "unit": "audio_seconds",
+      "quantity": "4.38",
+      "state": "estimated"
+    }
+  ],
+  "utterances": [
+    {
+      "id": "c7-u01",
+      "startMs": 0,
+      "speechEndMs": 822,
+      "commitsAtMs": [1021],
+      "events": [
+        {
+          "atMs": 1361,
+          "kind": "final",
+          "segmentId": "0",
+          "text": "Happy."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u02",
+      "startMs": 1682,
+      "speechEndMs": 2702,
+      "commitsAtMs": [3001],
+      "events": [
+        {
+          "atMs": 3377,
+          "kind": "final",
+          "segmentId": "1",
+          "text": "हाँ, इस बार आता हूँ।"
+        }
+      ],
+      "languages": ["hi"]
+    },
+    {
+      "id": "c7-u03",
+      "startMs": 3681,
+      "speechEndMs": 7621,
+      "commitsAtMs": [5622, 7782],
+      "events": [
+        {
+          "atMs": 5477,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "Hi, Maya. वैसे पहली बार आ रहा हूँ।"
+        },
+        {
+          "atMs": 5952,
+          "kind": "final",
+          "segmentId": "2",
+          "text": "Hi, Maya. We are planning to take a trip."
+        },
+        {
+          "atMs": 7084,
+          "kind": "partial",
+          "segmentId": "3",
+          "text": "Sometime in"
+        },
+        {
+          "atMs": 7991,
+          "kind": "partial",
+          "segmentId": "3",
+          "text": "Sometime in December to"
+        },
+        {
+          "atMs": 8150,
+          "kind": "final",
+          "segmentId": "3",
+          "text": "Sometime in December to..."
+        }
+      ],
+      "languages": ["hi", "en"]
+    },
+    {
+      "id": "c7-u04",
+      "startMs": 8462,
+      "speechEndMs": 10121,
+      "commitsAtMs": [10202],
+      "events": [
+        {
+          "atMs": 10104,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": "Send her an e-"
+        },
+        {
+          "atMs": 10581,
+          "kind": "final",
+          "segmentId": "4",
+          "text": "Central and Eastern Europe."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u05",
+      "startMs": 10882,
+      "speechEndMs": 15680,
+      "commitsAtMs": [13120, 13901, 15801],
+      "events": [
+        {
+          "atMs": 12597,
+          "kind": "partial",
+          "segmentId": "5",
+          "text": "Um."
+        },
+        {
+          "atMs": 13473,
+          "kind": "final",
+          "segmentId": "5",
+          "text": "Um, we're looking mostly-"
+        },
+        {
+          "atMs": 14244,
+          "kind": "final",
+          "segmentId": "6",
+          "text": "Hi"
+        },
+        {
+          "atMs": 16191,
+          "kind": "final",
+          "segmentId": "7",
+          "text": ". Places like Zagreb, Vienna."
+        }
+      ],
+      "languages": ["en", "en", "en"]
+    },
+    {
+      "id": "c7-u06",
+      "startMs": 16499,
+      "speechEndMs": 22521,
+      "commitsAtMs": [17322, 18062, 22601],
+      "events": [
+        {
+          "atMs": 17708,
+          "kind": "final",
+          "segmentId": "8",
+          "text": "Prague."
+        },
+        {
+          "atMs": 18417,
+          "kind": "final",
+          "segmentId": "9",
+          "text": "Budapest."
+        },
+        {
+          "atMs": 20450,
+          "kind": "partial",
+          "segmentId": "10",
+          "text": "And a few other"
+        },
+        {
+          "atMs": 21358,
+          "kind": "partial",
+          "segmentId": "10",
+          "text": "And a few other lesser-known places."
+        },
+        {
+          "atMs": 22465,
+          "kind": "partial",
+          "segmentId": "10",
+          "text": "And a few other lesser-known places. What do you think about"
+        },
+        {
+          "atMs": 23102,
+          "kind": "final",
+          "segmentId": "10",
+          "text": "And a few other lesser-known places. What do you think about this itinerary?"
+        }
+      ],
+      "languages": ["en", "en", "en"]
+    },
+    {
+      "id": "c7-u07",
+      "startMs": 23420,
+      "speechEndMs": 25021,
+      "commitsAtMs": [25161],
+      "events": [
+        {
+          "atMs": 25005,
+          "kind": "partial",
+          "segmentId": "11",
+          "text": "Why is it so-"
+        },
+        {
+          "atMs": 25551,
+          "kind": "final",
+          "segmentId": "11",
+          "text": "Why did you tell me to hang up?"
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u08",
+      "startMs": 25861,
+      "speechEndMs": 26922,
+      "commitsAtMs": [27121],
+      "events": [
+        {
+          "atMs": 27610,
+          "kind": "final",
+          "segmentId": "12",
+          "text": "'Cause you were talking."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u09",
+      "startMs": 27921,
+      "speechEndMs": 30880,
+      "commitsAtMs": [30081, 30961],
+      "events": [
+        {
+          "atMs": 29567,
+          "kind": "partial",
+          "segmentId": "13",
+          "text": "Sometime around"
+        },
+        {
+          "atMs": 30409,
+          "kind": "final",
+          "segmentId": "13",
+          "text": "Sometime around December to..."
+        },
+        {
+          "atMs": 31289,
+          "kind": "final",
+          "segmentId": "14",
+          "text": "January."
+        }
+      ],
+      "languages": ["en", "hi"]
+    },
+    {
+      "id": "c7-u10",
+      "startMs": 31601,
+      "speechEndMs": 33362,
+      "commitsAtMs": [33560],
+      "events": [
+        {
+          "atMs": 33328,
+          "kind": "partial",
+          "segmentId": "15",
+          "text": "January 2024."
+        },
+        {
+          "atMs": 33862,
+          "kind": "final",
+          "segmentId": "15",
+          "text": "January 2024."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u11",
+      "startMs": 34182,
+      "speechEndMs": 50061,
+      "commitsAtMs": [35201, 38961, 39522, 44102, 45561, 46880, 50082],
+      "events": [
+        {
+          "atMs": 35505,
+          "kind": "final",
+          "segmentId": "16",
+          "text": "No, no, so..."
+        },
+        {
+          "atMs": 36647,
+          "kind": "partial",
+          "segmentId": "17",
+          "text": "Um, basically-"
+        },
+        {
+          "atMs": 37553,
+          "kind": "partial",
+          "segmentId": "17",
+          "text": "Um, basically, uh, can"
+        },
+        {
+          "atMs": 38574,
+          "kind": "partial",
+          "segmentId": "17",
+          "text": "Um, basically, uh, can you tell me a little bit"
+        },
+        {
+          "atMs": 39294,
+          "kind": "final",
+          "segmentId": "17",
+          "text": "Um, basically, uh, can you tell me a little bit about Zagreb's hist-"
+        },
+        {
+          "atMs": 39875,
+          "kind": "final",
+          "segmentId": "18",
+          "text": "38."
+        },
+        {
+          "atMs": 40984,
+          "kind": "partial",
+          "segmentId": "19",
+          "text": "The whole-"
+        },
+        {
+          "atMs": 41912,
+          "kind": "partial",
+          "segmentId": "19",
+          "text": "The whole Croatia."
+        },
+        {
+          "atMs": 42919,
+          "kind": "partial",
+          "segmentId": "19",
+          "text": "The whole Croatia, how it came into"
+        },
+        {
+          "atMs": 43930,
+          "kind": "partial",
+          "segmentId": "19",
+          "text": "The whole Croatia, how it came into existence, the"
+        },
+        {
+          "atMs": 44502,
+          "kind": "final",
+          "segmentId": "19",
+          "text": "The whole Croatia, how it came into existence, the Balkan regions."
+        },
+        {
+          "atMs": 45635,
+          "kind": "partial",
+          "segmentId": "20",
+          "text": "And"
+        },
+        {
+          "atMs": 45956,
+          "kind": "final",
+          "segmentId": "20",
+          "text": "And, uh..."
+        },
+        {
+          "atMs": 47130,
+          "kind": "partial",
+          "segmentId": "21",
+          "text": "You know, how-"
+        },
+        {
+          "atMs": 47243,
+          "kind": "final",
+          "segmentId": "21",
+          "text": "You know, how..."
+        },
+        {
+          "atMs": 48500,
+          "kind": "partial",
+          "segmentId": "22",
+          "text": "Things that I"
+        },
+        {
+          "atMs": 49205,
+          "kind": "partial",
+          "segmentId": "22",
+          "text": "Things that as we go closer to"
+        },
+        {
+          "atMs": 50211,
+          "kind": "partial",
+          "segmentId": "22",
+          "text": "Things that as we go closer to Russia and so on and so forth-"
+        },
+        {
+          "atMs": 50405,
+          "kind": "final",
+          "segmentId": "22",
+          "text": "Things that as we go closer to Russia and so on and so forth."
+        }
+      ],
+      "languages": ["en", "en", "en", "en", "en", "en", "en"]
+    },
+    {
+      "id": "c7-u12",
+      "startMs": 50720,
+      "speechEndMs": 51861,
+      "commitsAtMs": [52060],
+      "events": [
+        {
+          "atMs": 52420,
+          "kind": "final",
+          "segmentId": "23",
+          "text": "It's 18."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u13",
+      "startMs": 52721,
+      "speechEndMs": 54762,
+      "commitsAtMs": [54441, 54960],
+      "events": [
+        {
+          "atMs": 54424,
+          "kind": "partial",
+          "segmentId": "24",
+          "text": "No, I, I"
+        },
+        {
+          "atMs": 54801,
+          "kind": "final",
+          "segmentId": "24",
+          "text": "No, I, I just did."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u14",
+      "startMs": 57280,
+      "speechEndMs": 60622,
+      "commitsAtMs": [60142, 60761],
+      "events": [
+        {
+          "atMs": 58275,
+          "kind": "partial",
+          "segmentId": "26",
+          "text": "Yeah."
+        },
+        {
+          "atMs": 59390,
+          "kind": "partial",
+          "segmentId": "26",
+          "text": "Yeah. So I wanted more"
+        },
+        {
+          "atMs": 60246,
+          "kind": "partial",
+          "segmentId": "26",
+          "text": "Yeah. So I want more details on Croatia."
+        },
+        {
+          "atMs": 60486,
+          "kind": "final",
+          "segmentId": "26",
+          "text": "Yeah. So I want more details on Croatian history."
+        },
+        {
+          "atMs": 61099,
+          "kind": "final",
+          "segmentId": "27",
+          "text": "See-"
+        }
+      ],
+      "languages": ["en", "en"]
+    },
+    {
+      "id": "c7-u15",
+      "startMs": 61402,
+      "speechEndMs": 68939,
+      "commitsAtMs": [62982, 66161, 68961],
+      "events": [
+        {
+          "atMs": 63118,
+          "kind": "partial",
+          "segmentId": "28",
+          "text": "On how-"
+        },
+        {
+          "atMs": 63339,
+          "kind": "final",
+          "segmentId": "28",
+          "text": "On how..."
+        },
+        {
+          "atMs": 64657,
+          "kind": "partial",
+          "segmentId": "29",
+          "text": "The bulk in-"
+        },
+        {
+          "atMs": 65361,
+          "kind": "partial",
+          "segmentId": "29",
+          "text": "The Balkans came into being"
+        },
+        {
+          "atMs": 66368,
+          "kind": "partial",
+          "segmentId": "29",
+          "text": "The Balkans came into being and how the split happened."
+        },
+        {
+          "atMs": 66547,
+          "kind": "final",
+          "segmentId": "29",
+          "text": "The Balkans came into being and how the split happened."
+        },
+        {
+          "atMs": 67573,
+          "kind": "partial",
+          "segmentId": "30",
+          "text": "And"
+        },
+        {
+          "atMs": 68500,
+          "kind": "partial",
+          "segmentId": "30",
+          "text": "And what all happened after"
+        },
+        {
+          "atMs": 69320,
+          "kind": "final",
+          "segmentId": "30",
+          "text": "And what all happened after the war and everything."
+        }
+      ],
+      "languages": ["en", "en", "en"]
+    },
+    {
+      "id": "c7-u16",
+      "startMs": 69621,
+      "speechEndMs": 71221,
+      "commitsAtMs": [70342, 71341],
+      "events": [
+        {
+          "atMs": 70718,
+          "kind": "final",
+          "segmentId": "31",
+          "text": "Yeah."
+        },
+        {
+          "atMs": 71715,
+          "kind": "final",
+          "segmentId": "32",
+          "text": "Can you do that?"
+        }
+      ],
+      "languages": ["en", "en"]
+    },
+    {
+      "id": "c7-u17",
+      "startMs": 72021,
+      "speechEndMs": 75361,
+      "commitsAtMs": [73820, 74422, 74881, 75561],
+      "events": [
+        {
+          "atMs": 73737,
+          "kind": "partial",
+          "segmentId": "33",
+          "text": "Is it safe to"
+        },
+        {
+          "atMs": 74149,
+          "kind": "final",
+          "segmentId": "33",
+          "text": "Is it safe to go there now?"
+        },
+        {
+          "atMs": 74823,
+          "kind": "final",
+          "segmentId": "34",
+          "text": "As a-"
+        }
+      ],
+      "languages": ["en", "en"]
+    },
+    {
+      "id": "c7-u18",
+      "startMs": 77862,
+      "speechEndMs": 79780,
+      "commitsAtMs": [79420, 79982],
+      "events": [
+        {
+          "atMs": 79754,
+          "kind": "final",
+          "segmentId": "37",
+          "text": "Yeah, for both these place."
+        },
+        {
+          "atMs": 80320,
+          "kind": "final",
+          "segmentId": "38",
+          "text": "Please."
+        }
+      ],
+      "languages": ["en", "en"]
+    },
+    {
+      "id": "c7-u19",
+      "startMs": 80622,
+      "speechEndMs": 81122,
+      "commitsAtMs": [81321],
+      "events": [
+        {
+          "atMs": 81670,
+          "kind": "final",
+          "segmentId": "39",
+          "text": "No."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u20",
+      "startMs": 81981,
+      "speechEndMs": 83501,
+      "commitsAtMs": [83262],
+      "events": [
+        {
+          "atMs": 83597,
+          "kind": "final",
+          "segmentId": "40",
+          "text": "Have there been any..."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u21",
+      "startMs": 83900,
+      "speechEndMs": 87521,
+      "commitsAtMs": [85100, 87521],
+      "events": [
+        {
+          "atMs": 85452,
+          "kind": "final",
+          "segmentId": "41",
+          "text": "Have there been any..."
+        },
+        {
+          "atMs": 86573,
+          "kind": "partial",
+          "segmentId": "42",
+          "text": "Crime incidents?"
+        },
+        {
+          "atMs": 87478,
+          "kind": "partial",
+          "segmentId": "42",
+          "text": "Crime incidents reported in the-"
+        },
+        {
+          "atMs": 87840,
+          "kind": "final",
+          "segmentId": "42",
+          "text": "Crime incidents reported in these two places?"
+        }
+      ],
+      "languages": ["en", "en"]
+    },
+    {
+      "id": "c7-u22",
+      "startMs": 88142,
+      "speechEndMs": 89640,
+      "commitsAtMs": [89801],
+      "events": [
+        {
+          "atMs": 89891,
+          "kind": "partial",
+          "segmentId": "43",
+          "text": "In a cartoon?"
+        },
+        {
+          "atMs": 90168,
+          "kind": "final",
+          "segmentId": "43",
+          "text": "In a car,"
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u23",
+      "startMs": 90482,
+      "speechEndMs": 99201,
+      "commitsAtMs": [95762, 96222, 98922],
+      "events": [
+        {
+          "atMs": 93129,
+          "kind": "partial",
+          "segmentId": "44",
+          "text": "please. Okay. So, yeah"
+        },
+        {
+          "atMs": 94181,
+          "kind": "partial",
+          "segmentId": "44",
+          "text": "please. Okay. So, yeah, I think, uh,"
+        },
+        {
+          "atMs": 95092,
+          "kind": "partial",
+          "segmentId": "44",
+          "text": "okay. Okay, so yeah, I think, uh, Zagreb is one place."
+        },
+        {
+          "atMs": 96119,
+          "kind": "partial",
+          "segmentId": "44",
+          "text": "please. Okay. So, yeah, I think, uh, Zagreb is one place. And also talk to me"
+        },
+        {
+          "atMs": 96122,
+          "kind": "final",
+          "segmentId": "44",
+          "text": "please. Okay. So, yeah, I think, uh, Zagreb is one place. And also talk to me about,"
+        },
+        {
+          "atMs": 96538,
+          "kind": "final",
+          "segmentId": "45",
+          "text": "uh,"
+        },
+        {
+          "atMs": 97728,
+          "kind": "partial",
+          "segmentId": "46",
+          "text": "what happ-"
+        },
+        {
+          "atMs": 98634,
+          "kind": "partial",
+          "segmentId": "46",
+          "text": "what happens in Berlin"
+        },
+        {
+          "atMs": 99342,
+          "kind": "final",
+          "segmentId": "46",
+          "text": "what happens in Berlin on New Year's Eve?"
+        }
+      ],
+      "languages": ["en", "en", "en"]
+    },
+    {
+      "id": "c7-u24",
+      "startMs": 99661,
+      "speechEndMs": 100321,
+      "commitsAtMs": [100521],
+      "events": [
+        {
+          "atMs": 100906,
+          "kind": "final",
+          "segmentId": "47",
+          "text": "Oh."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u25",
+      "startMs": 101222,
+      "speechEndMs": 102640,
+      "commitsAtMs": [102681],
+      "events": [
+        {
+          "atMs": 102861,
+          "kind": "partial",
+          "segmentId": "48",
+          "text": "I want them on a"
+        },
+        {
+          "atMs": 103097,
+          "kind": "final",
+          "segmentId": "48",
+          "text": "अक्षय बोल रहा है।"
+        }
+      ],
+      "languages": ["hi"]
+    },
+    {
+      "id": "c7-u26",
+      "startMs": 103401,
+      "speechEndMs": 108841,
+      "commitsAtMs": [105842, 109001],
+      "events": [
+        {
+          "atMs": 105076,
+          "kind": "partial",
+          "segmentId": "49",
+          "text": "Yeah, yeah. Can you"
+        },
+        {
+          "atMs": 106083,
+          "kind": "partial",
+          "segmentId": "49",
+          "text": "Yeah, yeah. Can you tell me what happens"
+        },
+        {
+          "atMs": 106208,
+          "kind": "final",
+          "segmentId": "49",
+          "text": "Yeah, yeah. Can you tell me what happens there?"
+        },
+        {
+          "atMs": 107290,
+          "kind": "partial",
+          "segmentId": "50",
+          "text": "Like, with the brand"
+        },
+        {
+          "atMs": 108295,
+          "kind": "partial",
+          "segmentId": "50",
+          "text": "Like, with the Brandon Baktar and all"
+        },
+        {
+          "atMs": 109173,
+          "kind": "partial",
+          "segmentId": "50",
+          "text": "Like with the Brandon, Bhaktar, and all of those things, look it up."
+        },
+        {
+          "atMs": 109384,
+          "kind": "final",
+          "segmentId": "50",
+          "text": "Like with the Brandon, Bhaktar, and all of those things, look it up, please."
+        }
+      ],
+      "languages": ["hi", "en"]
+    },
+    {
+      "id": "c7-u27",
+      "startMs": 109701,
+      "speechEndMs": 110161,
+      "commitsAtMs": [110361],
+      "events": [],
+      "languages": []
+    },
+    {
+      "id": "c7-u28",
+      "startMs": 112682,
+      "speechEndMs": 113221,
+      "commitsAtMs": [113421],
+      "events": [
+        {
+          "atMs": 113738,
+          "kind": "final",
+          "segmentId": "52",
+          "text": "Yeah."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u29",
+      "startMs": 114041,
+      "speechEndMs": 115721,
+      "commitsAtMs": [115742],
+      "events": [
+        {
+          "atMs": 115822,
+          "kind": "partial",
+          "segmentId": "53",
+          "text": "Yeah, yeah, I'd like to do that."
+        },
+        {
+          "atMs": 116076,
+          "kind": "final",
+          "segmentId": "53",
+          "text": "Yeah, yeah, I'd like to know more."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u30",
+      "startMs": 116380,
+      "speechEndMs": 117102,
+      "commitsAtMs": [117300],
+      "events": [
+        {
+          "atMs": 117664,
+          "kind": "final",
+          "segmentId": "54",
+          "text": "Mm-hmm."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u31",
+      "startMs": 117980,
+      "speechEndMs": 119780,
+      "commitsAtMs": [119822],
+      "events": [
+        {
+          "atMs": 119644,
+          "kind": "partial",
+          "segmentId": "55",
+          "text": "Yeah, let's try it."
+        },
+        {
+          "atMs": 120217,
+          "kind": "final",
+          "segmentId": "55",
+          "text": "Yeah, plus one."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u32",
+      "startMs": 120521,
+      "speechEndMs": 121320,
+      "commitsAtMs": [121521],
+      "events": [
+        {
+          "atMs": 121883,
+          "kind": "final",
+          "segmentId": "56",
+          "text": "Give us a minute."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u33",
+      "startMs": 122201,
+      "speechEndMs": 123242,
+      "commitsAtMs": [123439],
+      "events": [
+        {
+          "atMs": 123830,
+          "kind": "final",
+          "segmentId": "57",
+          "text": "Okay."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-u34",
+      "startMs": 124141,
+      "speechEndMs": 125622,
+      "commitsAtMs": [125822],
+      "events": [
+        {
+          "atMs": 125824,
+          "kind": "partial",
+          "segmentId": "58",
+          "text": "I'm coming-"
+        },
+        {
+          "atMs": 126183,
+          "kind": "final",
+          "segmentId": "58",
+          "text": "I'm coming, I'm going."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c7-n01",
+      "startMs": 0,
+      "speechEndMs": 2979,
+      "commitsAtMs": [3182],
+      "events": [],
+      "languages": []
+    },
+    {
+      "id": "c7-n02",
+      "startMs": 5481,
+      "speechEndMs": 8442,
+      "commitsAtMs": [8641],
+      "events": [],
+      "languages": []
+    },
+    {
+      "id": "c7-n03",
+      "startMs": 0,
+      "speechEndMs": 1862,
+      "commitsAtMs": [2061],
+      "events": [],
+      "languages": []
+    }
+  ]
+}
