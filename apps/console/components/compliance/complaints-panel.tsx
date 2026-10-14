@@ -1,15 +1,13 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import { apiRequest } from '../../lib/api';
-import {
-  EmptyState,
-  Field,
-  Notice,
-  Panel,
-  PanelHeader,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
+import { FormField } from '../ui/form-field';
+import { InlineAlert } from '../ui/feedback-v2';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
+import { EmptyStateV2 } from '../ui/feedback-v2';
+import { formatDateTime } from '../../lib/format';
+import { humaniseEnum } from '../../lib/status';
 import { dueLabel, failureText, type Complaint } from './compliance-types';
 
 const NEXT: Record<Complaint['status'], Complaint['status'][]> = {
@@ -35,6 +33,7 @@ export function ComplaintsPanel({
   onChanged: () => Promise<void>;
 }) {
   const [error, setError] = useState<string>();
+  const [adding, setAdding] = useState(false);
   async function act(write: () => Promise<unknown>) {
     try {
       await write();
@@ -61,6 +60,7 @@ export function ComplaintsPanel({
         }),
       });
       form.reset();
+      setAdding(false);
     });
   }
   const move = (id: string, status: Complaint['status']) =>
@@ -70,100 +70,139 @@ export function ComplaintsPanel({
         body: JSON.stringify({ status }),
       }),
     );
+
+  const overdueCount = complaints.filter((row) => row.overdue).length;
+  const sorted = [...complaints].sort((a, b) => {
+    if (Boolean(a.overdue) !== Boolean(b.overdue)) return a.overdue ? -1 : 1;
+    return Date.parse(a.receivedAt) - Date.parse(b.receivedAt);
+  });
+
+  const columns: ColumnV2<Complaint>[] = [
+    {
+      id: 'received',
+      header: 'Received',
+      cell: (row) => (
+        <>
+          {formatDateTime(row.receivedAt)}
+          {row.phoneNumber && (
+            <>
+              <br />
+              <small className="mono">{row.phoneNumber}</small>
+            </>
+          )}
+          {row.summary && (
+            <>
+              <br />
+              <small className="muted">{row.summary}</small>
+            </>
+          )}
+        </>
+      ),
+      sortValue: (row) => row.receivedAt,
+    },
+    { id: 'kind', header: 'Kind', cell: (row) => humaniseEnum(row.kind) },
+    {
+      id: 'due',
+      header: 'Due',
+      cell: (row) => (
+        <StatusBadgeV2
+          tone={row.overdue ? 'danger' : 'neutral'}
+          label={
+            row.overdue === 'ack' && row.ackDueAt
+              ? `Acknowledgement ${dueLabel(row.ackDueAt)}`
+              : `Resolution ${dueLabel(row.resolveDueAt)}`
+          }
+        />
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: (row) => (
+        <>
+          <StatusBadgeV2 value={row.status} />
+          <div className="button-row">
+            {NEXT[row.status].map((status) => (
+              <button
+                key={status}
+                className="button small"
+                disabled={!canEdit}
+                onClick={() => void move(row.id, status)}
+              >
+                Mark {status}
+              </button>
+            ))}
+          </div>
+        </>
+      ),
+    },
+  ];
+
   return (
-    <Panel labelledBy="complaints-title">
-      <PanelHeader
-        id="complaints-title"
-        title="Complaints and notices"
-        badge={
-          <StatusBadge tone={complaints.some((row) => row.overdue) ? 'danger' : 'soft'}>
-            {complaints.filter((row) => row.overdue).length} overdue
-          </StatusBadge>
+    <div className="stack">
+      <div className="button-row">
+        <StatusBadgeV2
+          tone={overdueCount ? 'danger' : 'neutral'}
+          label={`${overdueCount} overdue`}
+        />
+        <button
+          className="button small primary align-start"
+          type="button"
+          onClick={() => setAdding((v) => !v)}
+          disabled={!canEdit}
+        >
+          {adding ? 'Cancel' : 'Open complaint'}
+        </button>
+      </div>
+      {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+      {adding && (
+        <form className="stack nested-card" onSubmit={open}>
+          <fieldset disabled={!canEdit} className="form-grid">
+            <FormField id="complaint-kind" label="Kind">
+              {(control) => (
+                <select {...control} name="kind" defaultValue="customer">
+                  <option value="customer">Customer complaint</option>
+                  <option value="oap_notice">Telco (OAP) notice</option>
+                  <option value="ai_flag_notice">Spam-flag notice</option>
+                  <option value="appeal">Appeal</option>
+                  <option value="regulator">Regulator</option>
+                </select>
+              )}
+            </FormField>
+            <FormField
+              id="complaint-phone"
+              label="Complainant's number"
+              help="A customer's number is put on the do-not-call list while the complaint is open."
+            >
+              {(control) => <input {...control} name="phoneNumber" type="tel" />}
+            </FormField>
+            <FormField id="complaint-ref" label="Telco reference">
+              {(control) => <input {...control} name="oapRef" />}
+            </FormField>
+            <FormField id="complaint-received" label="Received">
+              {(control) => <input {...control} name="receivedAt" type="datetime-local" required />}
+            </FormField>
+            <FormField id="complaint-summary" label="Summary">
+              {(control) => <input {...control} name="summary" maxLength={2000} />}
+            </FormField>
+            <button className="button primary align-start" style={{ alignSelf: 'start' }}>
+              Submit
+            </button>
+          </fieldset>
+        </form>
+      )}
+      <DataTableV2
+        key={sorted.length === 0 ? 'empty' : 'data'}
+        label="Complaints and notices"
+        rows={sorted}
+        columns={columns}
+        rowKey={(row) => row.id}
+        empty={
+          <EmptyStateV2 title="No open complaints">
+            New complaints and telco notices appear here.
+          </EmptyStateV2>
         }
       />
-      {error && <Notice tone="danger">{error}</Notice>}
-      {!complaints.length ? (
-        <div className="panel-body">
-          <EmptyState title="No open complaints">
-            New complaints and telco notices appear here.
-          </EmptyState>
-        </div>
-      ) : (
-        <ResponsiveTable label="Open complaints">
-          <thead>
-            <tr>
-              <th>Received</th>
-              <th>Kind</th>
-              <th>Due</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {complaints.map((row) => (
-              <tr key={row.id}>
-                <td>
-                  {new Date(row.receivedAt).toLocaleString()}
-                  {row.phoneNumber && <small className="mono">{row.phoneNumber}</small>}
-                  {row.summary && <small>{row.summary}</small>}
-                </td>
-                <td>{row.kind.replace('_', ' ')}</td>
-                <td>
-                  <StatusBadge tone={row.overdue ? 'danger' : 'neutral'}>
-                    {row.overdue === 'ack' && row.ackDueAt
-                      ? `Acknowledgement ${dueLabel(row.ackDueAt)}`
-                      : `Resolution ${dueLabel(row.resolveDueAt)}`}
-                  </StatusBadge>
-                </td>
-                <td>
-                  {row.status}
-                  <div className="button-row">
-                    {NEXT[row.status].map((status) => (
-                      <button
-                        key={status}
-                        className="button small"
-                        disabled={!canEdit}
-                        onClick={() => void move(row.id, status)}
-                      >
-                        Mark {status}
-                      </button>
-                    ))}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </ResponsiveTable>
-      )}
-      <form className="panel-body form-grid" onSubmit={open}>
-        <fieldset disabled={!canEdit} className="form-grid">
-          <Field label="Kind" htmlFor="complaint-kind">
-            <select id="complaint-kind" name="kind" defaultValue="customer">
-              <option value="customer">Customer complaint</option>
-              <option value="oap_notice">Telco (OAP) notice</option>
-              <option value="ai_flag_notice">Spam-flag notice</option>
-              <option value="appeal">Appeal</option>
-              <option value="regulator">Regulator</option>
-            </select>
-          </Field>
-          <Field
-            label="Complainant's number"
-            htmlFor="complaint-phone"
-            help="A customer's number is put on the do-not-call list while the complaint is open."
-          >
-            <input id="complaint-phone" name="phoneNumber" type="tel" />
-          </Field>
-          <Field label="Telco reference" htmlFor="complaint-ref">
-            <input id="complaint-ref" name="oapRef" />
-          </Field>
-          <Field label="Received" htmlFor="complaint-received">
-            <input id="complaint-received" name="receivedAt" type="datetime-local" required />
-          </Field>
-          <Field label="Summary" htmlFor="complaint-summary">
-            <input id="complaint-summary" name="summary" maxLength={2000} />
-          </Field>
-          <button className="button align-start">Open complaint</button>
-        </fieldset>
-      </form>
-    </Panel>
+    </div>
   );
 }

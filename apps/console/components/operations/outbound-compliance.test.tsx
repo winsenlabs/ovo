@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CampaignRecord } from '../../lib/operator-api';
 import { ConfirmDialogProvider } from '../ui/dialog';
 import { callingWindowBody } from './campaign-calling-window';
@@ -47,6 +47,15 @@ beforeEach(() => {
   request.mockReset();
 });
 afterEach(() => cleanup());
+// jsdom has no modal dialogs; the suppressions drawers only need open and close.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
+    this.open = false;
+  };
+});
 
 describe('test call with a customer', () => {
   it('dials the test number with the chosen contact variables, and checks first on request', async () => {
@@ -182,6 +191,7 @@ describe('do-not-call list page', () => {
     );
     expect(await screen.findByText('Caller opted out')).toBeTruthy();
     expect(screen.getByText('call-77')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
     fireEvent.change(screen.getByLabelText('Numbers, one per line or a CSV'), {
       target: { value: '+919800000001\n+919800000002' },
     });

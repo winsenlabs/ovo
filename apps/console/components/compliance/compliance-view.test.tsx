@@ -181,19 +181,22 @@ describe('do-not-call removal', () => {
         <SuppressionsView role="admin" />
       </ConfirmDialogProvider>,
     );
-    expect(await screen.findByText(/Locked until/)).toBeTruthy();
+    expect(await screen.findByText(/Locked/)).toBeTruthy();
     const [locked, manual] = screen.getAllByRole('button', {
       name: 'Remove',
     }) as HTMLButtonElement[];
+    // The lock disables the row action itself; an unlocked row's reason is typed inside the
+    // confirm dialog it opens, not in a page-level field that gates every row at once.
     expect(locked!.disabled).toBe(true);
-    expect(manual!.disabled).toBe(true);
+    expect(manual!.disabled).toBe(false);
+    fireEvent.click(manual!);
+    const confirm = await screen.findByRole('button', { name: 'Confirm removal' });
+    expect((confirm as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByLabelText('Reason for removal'), {
       target: { value: 'Added by mistake' },
     });
-    expect(manual!.disabled).toBe(false);
-    expect(locked!.disabled).toBe(true);
-    fireEvent.click(manual!);
-    fireEvent.click(await screen.findByRole('button', { name: 'Confirm' }));
+    expect((confirm as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(confirm);
     await waitFor(() =>
       expect(request).toHaveBeenCalledWith(
         '/operations/suppressions/%2B919800000010?reason=Added%20by%20mistake',

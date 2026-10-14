@@ -4,13 +4,14 @@ import { apiRequest, items, type Release } from '../../lib/api';
 import type { CampaignRecord } from '../../lib/operator-api';
 import { useFormAction } from '../forms/use-form-action';
 import { useOperationId } from '../../lib/ids';
-import { EmptyState, Field } from '../primitives';
+import { FormField } from '../ui/form-field';
+import { Stepper, type StepState } from '../ui/stepper';
+import { ErrorState } from '../ui/feedback-v2';
+import { EmptyStateV2 } from '../ui/feedback-v2';
+import { formatDateTime } from '../../lib/format';
 import { CampaignContactImport, type CompliancePreview } from './campaign-contact-import';
-import {
-  CampaignCallingWindow,
-  callingWindowBody,
-  campaignComplianceBody,
-} from './campaign-calling-window';
+import { callingWindowBody, campaignComplianceBody } from './campaign-calling-window';
+import { CampaignScheduleFields } from './campaign-schedule-fields';
 import { loadAgentChoices } from './agent-release-options';
 
 export function CampaignCreateForm({
@@ -91,153 +92,81 @@ export function CampaignCreateForm({
       setBusy(false);
     }
   }
+  const step1Done = Boolean(releaseId);
+  const step2Done = Boolean(preview?.rows.length && !preview.errors.length);
+  const steps: { label: string; state: StepState }[] = [
+    { label: 'Agent & release', state: step1Done ? 'done' : 'current' },
+    { label: 'Contacts', state: !step1Done ? 'upcoming' : step2Done ? 'done' : 'current' },
+    { label: 'Schedule & limits', state: step2Done ? 'current' : 'upcoming' },
+  ];
   return (
     <form className="stack" onSubmit={create}>
-      {error && (
-        <div className="field-error" role="alert">
-          {error}
-        </div>
-      )}
-      <fieldset className="nested-card">
-        <legend>1 · Immutable release</legend>
+      <Stepper steps={steps} />
+      {error && <ErrorState message={error} />}
+      <fieldset className="stack">
+        <legend className="eyebrow">1 · Immutable release</legend>
         <div className="form-grid">
-          <Field label="Agent" htmlFor="campaign-agent">
-            <select
-              id="campaign-agent"
-              value={agentId}
-              onChange={(event) => setAgentId(event.target.value)}
-              required
-            >
-              <option value="">Select agent</option>
-              {agents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Release" htmlFor="campaign-release">
-            <select
-              id="campaign-release"
-              value={releaseId}
-              onChange={(event) => setReleaseId(event.target.value)}
-              required
-            >
-              <option value="">Select immutable release</option>
-              {releases.map((release) => (
-                <option key={release.id} value={release.id}>
-                  {release.id} · {new Date(release.createdAt).toLocaleString()}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <FormField id="campaign-agent" label="Agent">
+            {(control) => (
+              <select
+                {...control}
+                value={agentId}
+                onChange={(event) => setAgentId(event.target.value)}
+                required
+              >
+                <option value="">Select agent</option>
+                {agents.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </FormField>
+          <FormField id="campaign-release" label="Release">
+            {(control) => (
+              <select
+                {...control}
+                value={releaseId}
+                onChange={(event) => setReleaseId(event.target.value)}
+                required
+              >
+                <option value="">Select immutable release</option>
+                {releases.map((release) => (
+                  <option key={release.id} value={release.id}>
+                    {release.id} · {formatDateTime(release.createdAt)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </FormField>
         </div>
         {agentId && !releases.length && (
-          <div className="muted">
+          <EmptyStateV2 title="No immutable release">
             This agent has no immutable release. Publish one before creating a campaign.
-          </div>
+          </EmptyStateV2>
         )}
       </fieldset>
-      <CampaignContactImport preview={preview} onPreview={setPreview} releaseId={releaseId} />
-      <fieldset className="nested-card">
-        <legend>3 · Schedule and limits</legend>
+      <fieldset className="stack" disabled={!step1Done}>
+        <legend className="eyebrow">2 · Contacts</legend>
+        <CampaignContactImport preview={preview} onPreview={setPreview} releaseId={releaseId} />
+      </fieldset>
+      <fieldset className="stack" disabled={!step2Done}>
+        <legend className="eyebrow">3 · Schedule and limits</legend>
         {!preview && (
-          <EmptyState title="Validate contacts first">
+          <EmptyStateV2 title="Validate contacts first">
             Campaign controls unlock after the server returns a clean preview.
-          </EmptyState>
+          </EmptyStateV2>
         )}
-        <div className="form-grid">
-          <Field label="Campaign name" htmlFor="campaign-name">
-            <input id="campaign-name" name="name" required disabled={!preview} />
-          </Field>
-          <Field label="Permitted caller number" htmlFor="campaign-from">
-            <input
-              id="campaign-from"
-              name="fromNumber"
-              type="tel"
-              placeholder="+91…"
-              required
-              disabled={!preview}
-            />
-          </Field>
-          <Field label="Local schedule" htmlFor="campaign-at">
-            <input
-              id="campaign-at"
-              name="localDateTime"
-              type="datetime-local"
-              required
-              disabled={!preview}
-            />
-          </Field>
-          <Field label="IANA timezone" htmlFor="campaign-timezone">
-            <input
-              id="campaign-timezone"
-              name="timezone"
-              defaultValue={Intl.DateTimeFormat().resolvedOptions().timeZone}
-              required
-              disabled={!preview}
-            />
-          </Field>
-          <Field label="Attempts per number" htmlFor="campaign-per-number">
-            <input
-              id="campaign-per-number"
-              name="perNumberAttemptLimit"
-              type="number"
-              min={1}
-              max={100}
-              defaultValue={1}
-              required
-              disabled={!preview}
-            />
-          </Field>
-          <Field label="Maximum total attempts" htmlFor="campaign-total">
-            <input
-              id="campaign-total"
-              name="maxAttemptsTotal"
-              type="number"
-              min={1}
-              defaultValue={preview?.rows.length || 1}
-              required
-              disabled={!preview}
-            />
-          </Field>
-          <Field label="Maximum attempts per local day" htmlFor="campaign-daily">
-            <input
-              id="campaign-daily"
-              name="maxAttemptsPerLocalDay"
-              type="number"
-              min={1}
-              defaultValue={preview?.rows.length || 1}
-              required
-              disabled={!preview}
-            />
-          </Field>
-          <Field label="Maximum concurrent calls" htmlFor="campaign-concurrency">
-            <input
-              id="campaign-concurrency"
-              name="maxConcurrency"
-              type="number"
-              min={1}
-              max={1000}
-              defaultValue={1}
-              required
-              disabled={!preview}
-            />
-          </Field>
-          <Field label="Active calls on cancel" htmlFor="campaign-active-policy">
-            <select id="campaign-active-policy" name="activeCallPolicy" disabled={!preview}>
-              <option value="continue">Allow active calls to continue</option>
-              <option value="request_end">Request active calls to end</option>
-            </select>
-          </Field>
+        <CampaignScheduleFields disabled={!preview} defaultAttempts={preview?.rows.length || 1} />
+        <div className="button-row">
+          <button
+            className="button primary"
+            disabled={busy || !preview?.rows.length || Boolean(preview.errors.length) || !releaseId}
+          >
+            {busy ? 'Creating…' : 'Create scheduled campaign'}
+          </button>
         </div>
-        <CampaignCallingWindow disabled={!preview} />
-        <button
-          className="button primary"
-          disabled={busy || !preview?.rows.length || Boolean(preview.errors.length) || !releaseId}
-        >
-          {busy ? 'Creating…' : 'Create scheduled campaign'}
-        </button>
       </fieldset>
     </form>
   );

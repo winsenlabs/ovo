@@ -139,11 +139,18 @@ test('suppression add resets its form after the API resolves', async ({ page }) 
   await signedIn(page);
   await fixtureApi(page);
   await page.goto('/operations/suppressions');
-  const input = page.locator('form input').first();
+  // The add form lives in a drawer opened from the page header (brief: forms in drawers, not
+  // above the data), so it must be opened before its fields are reachable.
+  await page.getByRole('button', { name: 'Add number' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add number' });
+  // A stable id selector, not scoped to the dialog role: the drawer closes on a successful
+  // submit, and a closed <dialog> drops out of the accessibility tree, so re-querying through
+  // `dialog.getByLabel(...)` after that point would find nothing even though the now-reset
+  // input is still sitting in the DOM.
+  const input = page.locator('#suppression-phone');
   await input.fill('+15551234567');
-  await page.getByLabel('Reason').fill('Fixture suppression');
-  const submit = page.getByRole('button', { name: /Add suppression|Suppress|Add number/i }).first();
-  await submit.click();
+  await dialog.getByLabel('Reason').fill('Fixture suppression');
+  await dialog.getByRole('button', { name: 'Add number' }).click();
   await expect(input).toHaveValue('');
 });
 

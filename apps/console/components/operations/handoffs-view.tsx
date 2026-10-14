@@ -1,29 +1,34 @@
 'use client';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { apiRequest, ApiError, items, type CallSummary, type SessionIdentity } from '../../lib/api';
 import type { HandoffRecord } from '../../lib/operator-api';
-import {
-  EmptyState,
-  Field,
-  JsonEvidence,
-  Panel,
-  PanelHeader,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
-import { InboundPolicy } from './inbound-policy';
-import { InboundRoutes } from './inbound-routes';
+import { PageHeader } from '../ui/layout';
+import { KpiCard, KpiStrip } from '../ui/kpi';
+import { SectionCard } from '../ui/section-card';
+import { DataTableV2 } from '../ui/data-table-v2';
+import { Drawer } from '../ui/drawer';
+import { EmptyStateV2, ErrorState } from '../ui/feedback-v2';
+import { liveCallColumns, sessionHandoffColumns } from './handoffs-view-columns';
 import { HandoffRequestPanel } from './handoff-request-panel';
 
+/**
+ * Handoffs: live calls that can be handed to a human or another queue, and the handoffs this
+ * session has requested or looked up. The API has no handoff listing endpoint, so that list is
+ * honestly scoped to "what this session knows about", not "every handoff ever requested".
+ */
 export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
   const [calls, setCalls] = useState<CallSummary[]>([]);
+  const [callsLoading, setCallsLoading] = useState(true);
   const [handoffs, setHandoffs] = useState<HandoffRecord[]>([]);
   const [targetKind, setTargetKind] = useState<'phone' | 'queue'>('phone');
   const [fallbackKind, setFallbackKind] = useState<'resume' | 'end' | 'human'>('resume');
   const [lookupId, setLookupId] = useState('');
+  const [requesting, setRequesting] = useState<CallSummary>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+
   const loadCalls = useCallback(async () => {
+    setCallsLoading(true);
     try {
       setCalls(
         items<CallSummary>((await apiRequest<unknown>('/calls')).data).filter(
@@ -32,13 +37,17 @@ export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
       );
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Live calls unavailable.');
+    } finally {
+      setCallsLoading(false);
     }
   }, []);
   useEffect(() => {
     void loadCalls();
   }, [loadCalls]);
+
   const upsert = (record: HandoffRecord) =>
     setHandoffs((current) => [record, ...current.filter((item) => item.id !== record.id)]);
+
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -67,6 +76,7 @@ export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
           })
         ).data,
       );
+      setRequesting(undefined);
     } catch (failure) {
       setError(
         failure instanceof ApiError && failure.status === 503
@@ -92,7 +102,7 @@ export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
       setBusy(false);
     }
   }
-  async function confirm(record: HandoffRecord, accepted: boolean) {
+  async function confirmHandoff(record: HandoffRecord, accepted: boolean) {
     setBusy(true);
     setError(undefined);
     try {
@@ -110,152 +120,115 @@ export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
       setBusy(false);
     }
   }
+
+  const callColumns = useMemo(() => liveCallColumns({ role, onRequest: setRequesting }), [role]);
+  const handoffColumns = useMemo(
+    () =>
+      sessionHandoffColumns({
+        role,
+        busy,
+        onConfirm: (record, accepted) => void confirmHandoff(record, accepted),
+        onRefresh: (id) => void lookup(id),
+      }),
+    [role, busy],
+  );
+
   return (
-    <div className="stack">
-      <header className="page-heading">
-        <div>
-          <p className="eyebrow">Live call control</p>
-          <h1>Handoffs & inbound</h1>
-          <p className="muted">
-            A handoff is confirmed only by a provider receipt; unknown outcomes remain unknown and
-            are never blindly retried.
-          </p>
-        </div>
-        <button className="button" onClick={() => void loadCalls()}>
-          Refresh calls
-        </button>
-      </header>
-      {error && (
-        <div className="field-error" role="alert">
-          {error}
-        </div>
-      )}
-      <HandoffRequestPanel
-        calls={calls}
-        targetKind={targetKind}
-        setTargetKind={setTargetKind}
-        fallbackKind={fallbackKind}
-        setFallbackKind={setFallbackKind}
-        role={role}
-        busy={busy}
-        create={create}
+    <>
+      <PageHeader
+        eyebrow="Operations"
+        title="Handoffs"
+        description="A handoff is confirmed only by a provider receipt; unknown outcomes remain unknown and are never blindly retried."
+        onRefresh={() => void loadCalls()}
+        refreshing={callsLoading}
       />
-      <Panel labelledBy="handoff-evidence-title">
-        <PanelHeader
-          id="handoff-evidence-title"
-          title="Handoff evidence"
-          badge={<StatusBadge>{handoffs.length} loaded</StatusBadge>}
+      {error && <ErrorState message={error} onRetry={() => void loadCalls()} />}
+      <KpiStrip>
+        <KpiCard
+          label="Live calls"
+          value={callsLoading ? undefined : calls.length}
+          loading={callsLoading}
         />
-        <div className="panel-body stack">
-          <div className="form-grid">
-            <Field label="Load handoff by ID" htmlFor="handoff-lookup">
-              <input
-                id="handoff-lookup"
-                value={lookupId}
-                onChange={(event) => setLookupId(event.target.value)}
-              />
-            </Field>
+        <KpiCard label="Handoffs this session" value={handoffs.length} />
+        <KpiCard
+          label="Awaiting confirmation"
+          value={handoffs.filter((record) => record.status === 'awaiting_confirmation').length}
+        />
+      </KpiStrip>
+      <SectionCard
+        title="Live calls now"
+        description="Only verified carrier-bound live calls can be handed off; simulation calls cannot."
+        padding="flush"
+      >
+        <DataTableV2
+          key={calls.length === 0 ? 'empty' : 'data'}
+          label="Live calls"
+          rows={calls}
+          columns={callColumns}
+          rowKey={(call) => call.id}
+          loading={callsLoading}
+          empty={
+            <EmptyStateV2 title="No active live calls">
+              No verified live call is in progress right now.
+            </EmptyStateV2>
+          }
+        />
+      </SectionCard>
+      <SectionCard
+        title="Session handoffs"
+        description="Requests you make or look up appear here. The API does not expose a broad handoff listing endpoint."
+        padding="flush"
+        actions={
+          <div className="ds-filter-row">
+            <input
+              aria-label="Look up handoff by ID"
+              placeholder="Handoff ID"
+              value={lookupId}
+              onChange={(event) => setLookupId(event.target.value)}
+            />
             <button
-              className="button align-start"
+              className="button small"
               type="button"
               disabled={!lookupId || busy}
               onClick={() => void lookup()}
             >
-              Load evidence
+              Load
             </button>
           </div>
-          {!handoffs.length ? (
-            <EmptyState title="No handoffs loaded">
-              Request a handoff or load its persisted ID. The API does not expose a broad handoff
-              listing endpoint.
-            </EmptyState>
-          ) : (
-            <ResponsiveTable label="Loaded handoff evidence">
-              <thead>
-                <tr>
-                  <th>Handoff</th>
-                  <th>Target</th>
-                  <th>Status</th>
-                  <th>Provider evidence</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {handoffs.map((record) => (
-                  <tr key={record.id}>
-                    <td>
-                      <span className="mono">{record.id}</span>
-                      <small>Call {record.callId}</small>
-                    </td>
-                    <td>
-                      {record.target.kind}: {record.target.value}
-                      <small>Fallback: {record.fallback.kind}</small>
-                    </td>
-                    <td>
-                      <StatusBadge
-                        tone={
-                          record.status === 'confirmed' || record.status === 'fallback_completed'
-                            ? 'good'
-                            : /failed|unknown/.test(record.status)
-                              ? 'danger'
-                              : 'warning'
-                        }
-                      >
-                        {record.status}
-                      </StatusBadge>
-                      <small>
-                        attempt {record.attempt} · fallback {record.fallbackAttempt}
-                      </small>
-                    </td>
-                    <td>
-                      {record.providerReceiptId ? (
-                        <span className="mono">{record.providerReceiptId}</span>
-                      ) : (
-                        'No confirmed receipt'
-                      )}
-                      {record.lastError && (
-                        <small className="danger-text">{record.lastError}</small>
-                      )}
-                      <JsonEvidence label="Persisted handoff record" value={record} />
-                    </td>
-                    <td>
-                      <div className="button-row">
-                        {record.status === 'awaiting_confirmation' && (
-                          <>
-                            <button
-                              className="button small primary"
-                              disabled={role === 'viewer' || busy}
-                              onClick={() => void confirm(record, true)}
-                            >
-                              Accept
-                            </button>
-                            <button
-                              className="button small danger"
-                              disabled={role === 'viewer' || busy}
-                              onClick={() => void confirm(record, false)}
-                            >
-                              Reject
-                            </button>
-                          </>
-                        )}
-                        <button
-                          className="button small"
-                          disabled={busy}
-                          onClick={() => void lookup(record.id)}
-                        >
-                          Refresh
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </ResponsiveTable>
-          )}
-        </div>
-      </Panel>
-      <InboundRoutes role={role} />
-      <InboundPolicy role={role} />
-    </div>
+        }
+      >
+        <DataTableV2
+          key={handoffs.length === 0 ? 'empty' : 'data'}
+          label="Session handoffs"
+          rows={handoffs}
+          columns={handoffColumns}
+          rowKey={(record) => record.id}
+          empty={
+            <EmptyStateV2 title="No handoffs yet">
+              Request a handoff from a live call above, or load one by its persisted ID.
+            </EmptyStateV2>
+          }
+        />
+      </SectionCard>
+      <Drawer
+        open={requesting !== undefined}
+        onClose={() => setRequesting(undefined)}
+        title="Request handoff"
+      >
+        {requesting && (
+          <HandoffRequestPanel
+            call={requesting}
+            targetKind={targetKind}
+            setTargetKind={setTargetKind}
+            fallbackKind={fallbackKind}
+            setFallbackKind={setFallbackKind}
+            role={role}
+            busy={busy}
+            create={create}
+            onCancel={() => setRequesting(undefined)}
+          />
+        )}
+      </Drawer>
+    </>
   );
 }

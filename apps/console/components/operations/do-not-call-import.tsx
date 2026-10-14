@@ -1,7 +1,10 @@
 'use client';
 import { useState } from 'react';
 import { apiRequest, type SessionIdentity } from '../../lib/api';
-import { Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { FormField } from '../ui/form-field';
+import { FileDrop } from '../ui/inputs';
+import { InlineAlert } from '../ui/feedback-v2';
+import { StatusBadgeV2 } from '../ui/status-badge';
 
 /** The API's per-request limit (MAX_DO_NOT_CALL_IMPORT). */
 export const IMPORT_LIMIT = 1000;
@@ -18,7 +21,10 @@ export function parseDoNotCallNumbers(text: string): string[] {
   return [...new Set(numbers)];
 }
 
-/** Bulk import of a do-not-call registry or a client's opt-out export, 1,000 numbers per request. */
+/**
+ * Bulk import of a do-not-call registry or a client's opt-out export, 1,000 numbers per request.
+ * Lives inside a drawer opened from the list's "Import" action.
+ */
 export function DoNotCallImport({
   role,
   onImported,
@@ -29,7 +35,7 @@ export function DoNotCallImport({
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ tone: 'neutral' | 'danger'; text: string }>();
+  const [message, setMessage] = useState<{ tone: 'info' | 'danger'; text: string }>();
   const numbers = parseDoNotCallNumbers(text);
   async function importNumbers() {
     setBusy(true);
@@ -52,7 +58,7 @@ export function DoNotCallImport({
         added += data.added;
         updated += data.updated;
       }
-      setMessage({ tone: 'neutral', text: `${added} added, ${updated} already listed.` });
+      setMessage({ tone: 'info', text: `${added} added, ${updated} already listed.` });
       setText('');
       await onImported();
     } catch (failure) {
@@ -65,63 +71,51 @@ export function DoNotCallImport({
     }
   }
   return (
-    <Panel labelledBy="dnc-import-title">
-      <PanelHeader
-        id="dnc-import-title"
-        title="Import numbers"
-        badge={<StatusBadge>{numbers.length} ready</StatusBadge>}
-      />
-      <div className="panel-body stack">
-        <Field
-          label="Numbers, one per line or a CSV"
-          htmlFor="dnc-import-numbers"
-          help="The first column of each line, in E.164 (+91…). A header line is skipped."
-        >
+    <div className="stack">
+      <StatusBadgeV2 tone="neutral" label={`${numbers.length} ready`} />
+      <FormField
+        id="dnc-import-numbers"
+        label="Numbers, one per line or a CSV"
+        help="The first column of each line, in E.164 (+91…). A header line is skipped."
+      >
+        {(control) => (
           <textarea
-            id="dnc-import-numbers"
+            {...control}
             rows={5}
             value={text}
             onChange={(event) => setText(event.target.value)}
           />
-        </Field>
-        <Field label="CSV file" htmlFor="dnc-import-file">
+        )}
+      </FormField>
+      <FileDrop
+        accept=".csv,.txt,text/csv,text/plain"
+        hint="Or drop a CSV / text file here"
+        onFile={(file) => void file.text().then(setText)}
+      />
+      <FormField id="dnc-import-note" label="Import note" help="Stored as each entry's reason.">
+        {(control) => (
           <input
-            id="dnc-import-file"
-            type="file"
-            accept=".csv,.txt,text/csv,text/plain"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void file.text().then(setText);
-            }}
-          />
-        </Field>
-        <Field label="Import note" htmlFor="dnc-import-note" help="Stored as each entry's reason.">
-          <input
-            id="dnc-import-note"
+            {...control}
             maxLength={1000}
             placeholder="NCPR registry, October"
             value={note}
             onChange={(event) => setNote(event.target.value)}
           />
-        </Field>
-        <button
-          className="button primary align-start"
-          type="button"
-          disabled={role === 'viewer' || busy || !numbers.length || !note.trim()}
-          onClick={() => void importNumbers()}
-        >
-          {busy
-            ? 'Importing…'
-            : numbers.length
-              ? `Import ${numbers.length} numbers`
-              : 'Import numbers'}
-        </button>
-        {message && (
-          <Notice tone={message.tone === 'danger' ? 'danger' : 'neutral'} live>
-            {message.text}
-          </Notice>
         )}
-      </div>
-    </Panel>
+      </FormField>
+      <button
+        className="button primary align-start"
+        type="button"
+        disabled={role === 'viewer' || busy || !numbers.length || !note.trim()}
+        onClick={() => void importNumbers()}
+      >
+        {busy
+          ? 'Importing…'
+          : numbers.length
+            ? `Import ${numbers.length} numbers`
+            : 'Import numbers'}
+      </button>
+      {message && <InlineAlert tone={message.tone}>{message.text}</InlineAlert>}
+    </div>
   );
 }

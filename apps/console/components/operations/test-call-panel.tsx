@@ -3,7 +3,10 @@ import { useEffect, useState } from 'react';
 import { apiRequest, items, type SessionIdentity } from '../../lib/api';
 import type { CampaignRecord } from '../../lib/operator-api';
 import { JsonEditor } from '../forms/json-editor';
-import { Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { SectionCard } from '../ui/section-card';
+import { FormField } from '../ui/form-field';
+import { InlineAlert } from '../ui/feedback-v2';
+import { StatusBadgeV2 } from '../ui/status-badge';
 
 export interface CampaignContact {
   id: string;
@@ -40,15 +43,20 @@ export function maskedNumber(phoneNumber: string): string {
  * "Test call with this customer": a campaign contact's variables (or typed ones) on the campaign's
  * release, dialed to a test number through the same path as a live call, so do-not-call, calling
  * hours, variable validation and carrier checks all apply. "Check" runs them all and dials nothing.
+ * Opened as a row action's drawer from the campaigns list, which pre-selects that campaign via
+ * `initialCampaignId`; the campaign and customer stay changeable in case the operator wants a
+ * different pairing without reopening the drawer.
  */
 export function TestCallPanel({
   role,
   campaigns,
+  initialCampaignId = '',
 }: {
   role: SessionIdentity['role'];
   campaigns: readonly CampaignRecord[];
+  initialCampaignId?: string;
 }) {
-  const [campaignId, setCampaignId] = useState('');
+  const [campaignId, setCampaignId] = useState(initialCampaignId);
   const [contacts, setContacts] = useState<CampaignContact[]>([]);
   const [contactId, setContactId] = useState('');
   const [variables, setVariables] = useState<Record<string, unknown>>({});
@@ -107,22 +115,16 @@ export function TestCallPanel({
 
   if (role !== 'admin') return null;
   return (
-    <Panel labelledBy="test-call-title">
-      <PanelHeader
-        id="test-call-title"
-        title="Test call with a customer's data"
-        badge={<StatusBadge tone="warning">Dials your test number</StatusBadge>}
-      />
-      <div className="panel-body stack">
-        <div className="muted">
-          The agent speaks to your test number exactly as it would to this customer: their
-          variables, the campaign&rsquo;s release, and every compliance check. The customer is never
-          dialed.
-        </div>
-        <div className="form-grid">
-          <Field label="Campaign" htmlFor="test-call-campaign">
+    <SectionCard
+      title="Test call with a customer's data"
+      description="The agent speaks to your test number exactly as it would to this customer: their variables, the campaign's release, and every compliance check. The customer is never dialed."
+      actions={<StatusBadgeV2 tone="warn" label="Dials your test number" />}
+    >
+      <div className="stack">
+        <FormField id="test-call-campaign" label="Campaign">
+          {(control) => (
             <select
-              id="test-call-campaign"
+              {...control}
               value={campaignId}
               onChange={(event) => setCampaignId(event.target.value)}
             >
@@ -133,14 +135,16 @@ export function TestCallPanel({
                 </option>
               ))}
             </select>
-          </Field>
-          <Field
-            label="Customer"
-            htmlFor="test-call-contact"
-            help="Or leave unselected and type the variables below."
-          >
+          )}
+        </FormField>
+        <FormField
+          id="test-call-contact"
+          label="Customer"
+          help="Or leave unselected and type the variables below."
+        >
+          {(control) => (
             <select
-              id="test-call-contact"
+              {...control}
               value={contactId}
               disabled={!contacts.length}
               onChange={(event) => {
@@ -158,39 +162,45 @@ export function TestCallPanel({
                 </option>
               ))}
             </select>
-          </Field>
-          <Field label="Test number to dial" htmlFor="test-call-to">
+          )}
+        </FormField>
+        <FormField id="test-call-to" label="Test number to dial">
+          {(control) => (
             <input
-              id="test-call-to"
+              {...control}
               type="tel"
               placeholder="+91…"
               value={to}
               onChange={(event) => setTo(event.target.value)}
               required
             />
-          </Field>
-          <Field label="Permitted from number" htmlFor="test-call-from">
+          )}
+        </FormField>
+        <FormField id="test-call-from" label="Permitted from number">
+          {(control) => (
             <input
-              id="test-call-from"
+              {...control}
               type="tel"
               value={fromNumber}
               onChange={(event) => setFromNumber(event.target.value)}
               required
             />
-          </Field>
-        </div>
-        <Field
+          )}
+        </FormField>
+        <FormField
+          id="test-call-variables"
           label="Call variables"
-          htmlFor="test-call-variables"
           help="Checked against the release's declared variables before anything is dialed."
         >
-          <JsonEditor
-            key={contactId || 'typed'}
-            id="test-call-variables"
-            value={variables}
-            onValid={(value) => setVariables(value as Record<string, unknown>)}
-          />
-        </Field>
+          {(control) => (
+            <JsonEditor
+              key={contactId || 'typed'}
+              id={control.id}
+              value={variables}
+              onValid={(value) => setVariables(value as Record<string, unknown>)}
+            />
+          )}
+        </FormField>
         <div className="button-row">
           <button
             className="button"
@@ -210,25 +220,25 @@ export function TestCallPanel({
           </button>
         </div>
         <div aria-live="polite">
-          {result?.kind === 'error' && <Notice tone="danger">{result.text}</Notice>}
+          {result?.kind === 'error' && <InlineAlert tone="danger">{result.text}</InlineAlert>}
           {result?.kind === 'dry' && (
-            <Notice>
+            <InlineAlert tone="info">
               Ready: {result.data.fromNumber} would dial {result.data.to} via{' '}
               {result.data.carrierId} with {result.data.variables.length} variable
               {result.data.variables.length === 1 ? '' : 's'}.{' '}
               {result.data.callingWindow
                 ? `Calling hours ${result.data.callingWindow.start}–${result.data.callingWindow.end} ${result.data.callingWindow.timezone} are open.`
                 : 'This release has no calling-hours window.'}
-            </Notice>
+            </InlineAlert>
           )}
           {result?.kind === 'launched' && (
-            <Notice>
+            <InlineAlert tone="info">
               Test call {result.data.callId} was accepted for admission. Follow it on the Calls
               page; acceptance does not mean the carrier dialed.
-            </Notice>
+            </InlineAlert>
           )}
         </div>
       </div>
-    </Panel>
+    </SectionCard>
   );
 }

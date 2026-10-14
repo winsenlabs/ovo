@@ -1,7 +1,10 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import { apiRequest, items } from '../../lib/api';
-import { Field, Notice, Panel, PanelHeader, ResponsiveTable } from '../primitives';
+import { FormField } from '../ui/form-field';
+import { InlineAlert } from '../ui/feedback-v2';
+import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
+import { formatDateTime } from '../../lib/format';
 import { failureText, type ConsentRecord } from './compliance-types';
 
 /** Reads `phone,result` lines exported from a telco or telemarketer DND scrub portal. */
@@ -24,8 +27,8 @@ export function parseScrubRows(text: string) {
 export function ConsentRecordsPanel({ canEdit }: { canEdit: boolean }) {
   const [phone, setPhone] = useState('');
   const [consents, setConsents] = useState<ConsentRecord[]>();
-  const [message, setMessage] = useState<{ tone: 'neutral' | 'danger'; text: string }>();
-  const report = (tone: 'neutral' | 'danger', text: string) => setMessage({ tone, text });
+  const [message, setMessage] = useState<{ tone: 'info' | 'danger'; text: string }>();
+  const report = (tone: 'info' | 'danger', text: string) => setMessage({ tone, text });
   async function lookup() {
     try {
       const { data } = await apiRequest<unknown>(
@@ -54,7 +57,7 @@ export function ConsentRecordsPanel({ canEdit }: { canEdit: boolean }) {
           customerInitiated: values.get('customerInitiated') === 'on',
         }),
       });
-      report('neutral', 'Consent recorded.');
+      report('info', 'Consent recorded.');
       await lookup();
     } catch (failure) {
       report('danger', failureText(failure, 'Consent could not be recorded.'));
@@ -68,123 +71,142 @@ export function ConsentRecordsPanel({ canEdit }: { canEdit: boolean }) {
         '/operations/compliance/preferences/upload',
         { method: 'POST', body: JSON.stringify({ rows }) },
       );
-      report('neutral', `${data.stored} scrub results stored; ${data.ncprListed} fully blocked.`);
+      report('info', `${data.stored} scrub results stored; ${data.ncprListed} fully blocked.`);
     } catch (failure) {
       report('danger', failureText(failure, 'Scrub results could not be stored.'));
     }
   }
+
+  const columns: ColumnV2<ConsentRecord>[] = [
+    {
+      id: 'scope',
+      header: 'Scope',
+      cell: (row) => (
+        <>
+          {row.principalEntity} · {row.purpose}
+          <br />
+          <small className="muted">{row.category}</small>
+        </>
+      ),
+    },
+    {
+      id: 'basis',
+      header: 'Basis',
+      cell: (row) => (
+        <>
+          {row.basis}
+          <br />
+          <small className="mono">{row.evidenceRef}</small>
+        </>
+      ),
+    },
+    {
+      id: 'valid',
+      header: 'Valid',
+      cell: (row) =>
+        row.revokedAt
+          ? `Revoked ${formatDateTime(row.revokedAt)}`
+          : row.expiresAt
+            ? `Until ${formatDateTime(row.expiresAt)}`
+            : 'Until revoked',
+    },
+  ];
+
   return (
-    <Panel labelledBy="consents-title">
-      <PanelHeader id="consents-title" title="Consent and DND scrub" />
-      {message && (
-        <Notice tone={message.tone} live>
-          {message.text}
-        </Notice>
-      )}
-      <div className="panel-body form-grid">
-        <Field label="Phone number" htmlFor="consent-phone">
-          <input
-            id="consent-phone"
-            type="tel"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-          />
-        </Field>
+    <div className="stack">
+      {message && <InlineAlert tone={message.tone}>{message.text}</InlineAlert>}
+      <div className="ds-filter-row">
+        <FormField id="consent-phone" label="Phone number">
+          {(control) => (
+            <input
+              {...control}
+              type="tel"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+            />
+          )}
+        </FormField>
         <button className="button align-start" disabled={!phone} onClick={() => void lookup()}>
           Look up consents
         </button>
       </div>
       {consents && (
-        <ResponsiveTable label="Consents on record">
-          <thead>
-            <tr>
-              <th>Scope</th>
-              <th>Basis</th>
-              <th>Valid</th>
-            </tr>
-          </thead>
-          <tbody>
-            {consents.map((row) => (
-              <tr key={row.id}>
-                <td>
-                  {row.principalEntity} · {row.purpose}
-                  <small>{row.category}</small>
-                </td>
-                <td>
-                  {row.basis}
-                  <small className="mono">{row.evidenceRef}</small>
-                </td>
-                <td>
-                  {row.revokedAt
-                    ? `Revoked ${new Date(row.revokedAt).toLocaleDateString()}`
-                    : row.expiresAt
-                      ? `Until ${new Date(row.expiresAt).toLocaleString()}`
-                      : 'Until revoked'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </ResponsiveTable>
+        <DataTableV2
+          key={consents.length === 0 ? 'empty' : 'data'}
+          label="Consents on record"
+          rows={consents}
+          columns={columns}
+          rowKey={(row) => row.id}
+          empty="No consent on record for this number"
+        />
       )}
-      <form className="panel-body form-grid" onSubmit={record}>
+      <form className="form-grid nested-card" onSubmit={record}>
         <fieldset disabled={!canEdit || !phone} className="form-grid">
-          <Field label="Brand (principal entity)" htmlFor="consent-pe">
-            <input id="consent-pe" name="principalEntity" required />
-          </Field>
-          <Field label="Purpose" htmlFor="consent-purpose">
-            <input id="consent-purpose" name="purpose" required />
-          </Field>
-          <Field label="Category" htmlFor="consent-category">
-            <select id="consent-category" name="category" defaultValue="service">
-              <option value="service">Service</option>
-              <option value="promotional">Promotional</option>
-              <option value="transactional">Transactional</option>
-            </select>
-          </Field>
-          <Field label="Basis" htmlFor="consent-basis">
-            <select id="consent-basis" name="basis" defaultValue="explicit_service_7d">
-              {[
-                'explicit_service_7d',
-                'inquiry_7d',
-                'application_3m',
-                'explicit_registered',
-                'explicit_legacy_registered',
-                'transaction_30min',
-                'inferred_relationship',
-              ].map((basis) => (
-                <option key={basis}>{basis}</option>
-              ))}
-            </select>
-          </Field>
-          <Field
+          <FormField id="consent-pe" label="Brand (principal entity)">
+            {(control) => <input {...control} name="principalEntity" required />}
+          </FormField>
+          <FormField id="consent-purpose" label="Purpose">
+            {(control) => <input {...control} name="purpose" required />}
+          </FormField>
+          <FormField id="consent-category" label="Category">
+            {(control) => (
+              <select {...control} name="category" defaultValue="service">
+                <option value="service">Service</option>
+                <option value="promotional">Promotional</option>
+                <option value="transactional">Transactional</option>
+              </select>
+            )}
+          </FormField>
+          <FormField id="consent-basis" label="Basis">
+            {(control) => (
+              <select {...control} name="basis" defaultValue="explicit_service_7d">
+                {[
+                  'explicit_service_7d',
+                  'inquiry_7d',
+                  'application_3m',
+                  'explicit_registered',
+                  'explicit_legacy_registered',
+                  'transaction_30min',
+                  'inferred_relationship',
+                ].map((basis) => (
+                  <option key={basis}>{basis}</option>
+                ))}
+              </select>
+            )}
+          </FormField>
+          <FormField
+            id="consent-evidence"
             label="Evidence reference"
-            htmlFor="consent-evidence"
             help="DLT consent ID, CRF reference, or your inquiry record."
           >
-            <input id="consent-evidence" name="evidenceRef" required />
-          </Field>
-          <Field label="Obtained" htmlFor="consent-obtained">
-            <input id="consent-obtained" name="obtainedAt" type="datetime-local" required />
-          </Field>
+            {(control) => <input {...control} name="evidenceRef" required />}
+          </FormField>
+          <FormField id="consent-obtained" label="Obtained">
+            {(control) => <input {...control} name="obtainedAt" type="datetime-local" required />}
+          </FormField>
           <label className="toggle-row">
             <input type="checkbox" name="customerInitiated" />
             <span>The customer opted in on their own (allowed inside the 90-day lock)</span>
           </label>
-          <button className="button align-start">Record consent</button>
+          <button className="button align-start" style={{ alignSelf: 'start' }}>
+            Record consent
+          </button>
         </fieldset>
       </form>
-      <form className="panel-body form-grid" onSubmit={upload}>
+      <form className="form-grid nested-card" onSubmit={upload}>
         <fieldset disabled={!canEdit} className="form-grid">
-          <Field
+          <FormField
+            id="scrub-rows"
             label="DND scrub results (phone,result per line)"
-            htmlFor="scrub-rows"
             help="result is allowed, blocked, fully_blocked or unknown, as your telco or RTM portal reports it."
           >
-            <textarea id="scrub-rows" name="rows" rows={4} required />
-          </Field>
-          <button className="button align-start">Upload scrub results</button>
+            {(control) => <textarea {...control} name="rows" rows={4} required />}
+          </FormField>
+          <button className="button align-start" style={{ alignSelf: 'start' }}>
+            Upload scrub results
+          </button>
         </fieldset>
       </form>
-    </Panel>
+    </div>
   );
 }

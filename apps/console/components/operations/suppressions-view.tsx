@@ -1,65 +1,51 @@
 'use client';
-import { useConfirm } from '../ui/dialog';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { apiRequest, ApiError, items, type SessionIdentity } from '../../lib/api';
-import type { SuppressionRecord } from '../../lib/operator-api';
+import { useMemo, useState, type FormEvent } from 'react';
+import { apiRequest, ApiError, type SessionIdentity } from '../../lib/api';
+import { useApiList } from '../../lib/data/use-list';
 import { useFormAction } from '../forms/use-form-action';
-import { EmptyState, Field, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
+import { PageHeader } from '../ui/layout';
+import { KpiCard, KpiStrip } from '../ui/kpi';
+import { SectionCard } from '../ui/section-card';
+import { DataTableV2 } from '../ui/data-table-v2';
+import { Drawer } from '../ui/drawer';
+import { FormField } from '../ui/form-field';
+import { EmptyStateV2, ErrorState, InlineAlert } from '../ui/feedback-v2';
+import { ChartFrame } from '../charts/chart-frame';
+import { Donut } from '../charts/donut';
+import { donutSlices } from '../../lib/derive/operations';
 import { DoNotCallImport } from './do-not-call-import';
 import { DoNotCallLookup } from './do-not-call-lookup';
+import { DoNotCallRemoveDialog } from './do-not-call-remove-dialog';
+import {
+  lockedUntil,
+  suppressionColumns,
+  SOURCE_LABEL,
+  type DoNotCallEntry,
+} from './suppressions-view-columns';
 
-/** A do-not-call entry: who listed it, its scope, and how long an opt-out stays locked. */
-type DoNotCallEntry = SuppressionRecord & {
-  source?: keyof typeof SOURCE_LABEL;
-  callId?: string;
-  scope?: 'all' | 'promotional' | 'purpose';
-  purpose?: string;
-  lockUntil?: string;
-};
-const SOURCE_LABEL = {
-  manual: 'Operator',
-  import: 'Bulk import',
-  opt_out: 'Caller opted out',
-  ncpr: 'DND register',
-  dlt_revocation: 'DLT revocation',
-  complaint: 'Complaint',
-  wrong_number: 'Wrong number',
-  regulator: 'Regulator',
-};
+export { lockedUntil };
 
-/** Whether an entry is still inside its 90-day opt-out lock (TCCCPR R13). */
-export function lockedUntil(row: Pick<DoNotCallEntry, 'lockUntil'>, now = Date.now()) {
-  return row.lockUntil && Date.parse(row.lockUntil) > now ? new Date(row.lockUntil) : undefined;
-}
+const SEVEN_DAYS_MS = 7 * 86_400_000;
 
 export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
   const formAction = useFormAction();
-  const confirm = useConfirm();
-  const [rows, setRows] = useState<DoNotCallEntry[]>([]);
-  const [error, setError] = useState<string>();
+  const {
+    rows,
+    loading,
+    error,
+    setError,
+    reload: load,
+  } = useApiList<DoNotCallEntry>('/operations/suppressions?limit=100', {
+    unavailableMessage: 'The do-not-call list is not configured on this installation.',
+    fallbackMessage: 'Suppressions unavailable.',
+  });
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState('');
+  const [drawer, setDrawer] = useState<'add' | 'import' | null>(null);
+  const [removing, setRemoving] = useState<DoNotCallEntry>();
   const [removalReason, setRemovalReason] = useState('');
-  const load = useCallback(async () => {
-    try {
-      setRows(
-        items<DoNotCallEntry>(
-          (await apiRequest<unknown>('/operations/suppressions?limit=100')).data,
-        ),
-      );
-      setError(undefined);
-    } catch (failure) {
-      setError(
-        failure instanceof ApiError && failure.status === 503
-          ? 'The do-not-call list is not configured on this installation.'
-          : failure instanceof Error
-            ? failure.message
-            : 'Suppressions unavailable.',
-      );
-    }
-  }, []);
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const [removeError, setRemoveError] = useState<string>();
+
   async function add(event: FormEvent<HTMLFormElement>) {
     setBusy(true);
     setError(undefined);
@@ -72,6 +58,7 @@ export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
             reason: values.get('reason'),
           }),
         });
+        setDrawer(null);
         await load();
       });
     } catch (failure) {
@@ -80,27 +67,22 @@ export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
       setBusy(false);
     }
   }
-  async function remove(row: DoNotCallEntry) {
-    if (
-      !(await confirm(
-        'Remove from the do-not-call list',
-        `Remove ${row.phoneNumber}? The number may become eligible immediately. Reason: ${removalReason}`,
-      ))
-    )
-      return;
+  async function remove() {
+    if (!removing) return;
     setBusy(true);
-    setError(undefined);
+    setRemoveError(undefined);
     try {
       await apiRequest(
-        `/operations/suppressions/${encodeURIComponent(row.phoneNumber)}?reason=${encodeURIComponent(removalReason)}`,
+        `/operations/suppressions/${encodeURIComponent(removing.phoneNumber)}?reason=${encodeURIComponent(removalReason)}`,
         { method: 'DELETE' },
       );
+      setRemoving(undefined);
       setRemovalReason('');
       await load();
     } catch (failure) {
-      setError(
+      setRemoveError(
         failure instanceof ApiError && failure.code === 'opt_out_locked'
-          ? `${row.phoneNumber} opted out; it stays listed until ${new Date(String(failure.details?.lockUntil)).toLocaleDateString()}.`
+          ? `${removing.phoneNumber} opted out; it stays listed until ${new Date(String(failure.details?.lockUntil)).toLocaleDateString()}.`
           : failure instanceof Error
             ? failure.message
             : 'Suppression could not be removed.',
@@ -109,132 +91,166 @@ export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
       setBusy(false);
     }
   }
+
+  const filtered = useMemo(() => {
+    const needle = search.trim();
+    return needle ? rows.filter((row) => row.phoneNumber.includes(needle)) : rows;
+  }, [rows, search]);
+
+  const now = Date.now();
+  const lockedCount = rows.filter((row) => lockedUntil(row, now)).length;
+  const addedLast7d = rows.filter((row) => now - Date.parse(row.createdAt) < SEVEN_DAYS_MS).length;
+  const sourceSlices = useMemo(
+    () =>
+      donutSlices(
+        rows,
+        Object.keys(SOURCE_LABEL),
+        (row) => row.source ?? 'manual',
+        (key) => SOURCE_LABEL[key as keyof typeof SOURCE_LABEL],
+      ),
+    [rows],
+  );
+  const columns = useMemo(
+    () =>
+      suppressionColumns({
+        role,
+        busy,
+        now,
+        onRemove: (row) => {
+          setRemoving(row);
+          setRemovalReason('');
+          setRemoveError(undefined);
+        },
+      }),
+    [role, busy, now],
+  );
+
   return (
-    <div className="stack">
-      <header className="page-heading">
-        <div>
-          <p className="eyebrow">Dial safety</p>
-          <h1>Do-not-call list</h1>
-          <p className="muted">
-            Campaign admission, manual and test calls refuse a listed number, and the worker
-            rechecks it immediately before every carrier dial. Callers who say &ldquo;stop calling
-            me&rdquo; are added automatically.
-          </p>
-        </div>
-        <button className="button" onClick={() => void load()}>
-          Refresh
-        </button>
-      </header>
-      {error && (
-        <div className="field-error" role="alert">
-          {error}
-        </div>
-      )}
-      <Panel labelledBy="suppression-add-title">
-        <PanelHeader
-          id="suppression-add-title"
-          title="Add a number"
-          badge={<StatusBadge tone="warning">Immediate gate</StatusBadge>}
+    <>
+      <PageHeader
+        eyebrow="Operations"
+        title="Do-not-call list"
+        description="Campaign admission, manual and test calls refuse a listed number, and the worker rechecks it immediately before every carrier dial. Callers who say “stop calling me” are added automatically."
+        actions={
+          <div className="button-row">
+            <button
+              className="button"
+              type="button"
+              onClick={() => setDrawer('import')}
+              disabled={role === 'viewer'}
+            >
+              Import
+            </button>
+            <button
+              className="button primary"
+              type="button"
+              onClick={() => setDrawer('add')}
+              disabled={role === 'viewer'}
+            >
+              Add number
+            </button>
+          </div>
+        }
+        onRefresh={() => void load()}
+        refreshing={loading}
+      />
+      {error && <ErrorState message={error} onRetry={() => void load()} />}
+      <KpiStrip>
+        <KpiCard label="Listed" value={loading ? undefined : rows.length} loading={loading} />
+        <KpiCard
+          label="In 90-day lock"
+          value={loading ? undefined : lockedCount}
+          loading={loading}
         />
-        <form className="panel-body form-grid" onSubmit={add}>
-          <Field label="E.164 phone number" htmlFor="suppression-phone">
+        <KpiCard
+          label="Added, last 7d"
+          value={loading ? undefined : addedLast7d}
+          loading={loading}
+        />
+      </KpiStrip>
+      <SectionCard title="By source" padding="data">
+        <ChartFrame
+          ariaLabel="Suppressions by source"
+          height={180}
+          loading={loading}
+          empty={!loading && sourceSlices.length === 0}
+          tableRows={sourceSlices.length}
+          tableColumns={[
+            { header: 'Source', cell: (i) => sourceSlices[i]?.label },
+            { header: 'Count', cell: (i) => sourceSlices[i]?.value },
+          ]}
+          renderChart={() => <Donut slices={sourceSlices} size={160} />}
+        />
+      </SectionCard>
+      <SectionCard
+        title="Listed numbers"
+        padding="flush"
+        description={`${filtered.length} of ${rows.length} shown`}
+        actions={
+          <div className="ds-filter-row">
             <input
-              id="suppression-phone"
-              name="phoneNumber"
-              type="tel"
-              placeholder="+91…"
-              required
+              type="search"
+              aria-label="Filter listed numbers"
+              placeholder="Filter by number"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
             />
-          </Field>
-          <Field label="Reason" htmlFor="suppression-reason">
-            <input id="suppression-reason" name="reason" required maxLength={1000} />
-          </Field>
-          <button className="button primary align-start" disabled={role === 'viewer' || busy}>
-            {busy ? 'Saving…' : 'Add number'}
-          </button>
+            <DoNotCallLookup />
+          </div>
+        }
+      >
+        <DataTableV2
+          key={filtered.length === 0 ? 'empty' : 'data'}
+          label="Do-not-call numbers"
+          rows={filtered}
+          columns={columns}
+          rowKey={(row) => row.phoneNumber}
+          loading={loading}
+          empty={
+            <EmptyStateV2
+              variant={search ? 'filtered' : 'first-run'}
+              title={search ? 'No match' : 'No listed numbers'}
+            >
+              {search
+                ? 'No number matches this filter.'
+                : 'The API returned an empty list. This does not bypass campaign-level attempt limits.'}
+            </EmptyStateV2>
+          }
+        />
+      </SectionCard>
+      <Drawer open={drawer === 'add'} onClose={() => setDrawer(null)} title="Add number">
+        <form className="stack" onSubmit={add}>
+          {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+          <FormField id="suppression-phone" label="E.164 phone number">
+            {(control) => (
+              <input {...control} name="phoneNumber" type="tel" placeholder="+91…" required />
+            )}
+          </FormField>
+          <FormField id="suppression-reason" label="Reason">
+            {(control) => <input {...control} name="reason" required maxLength={1000} />}
+          </FormField>
+          <div className="button-row">
+            <button className="button primary" disabled={role === 'viewer' || busy}>
+              {busy ? 'Saving…' : 'Add number'}
+            </button>
+            <button className="button" type="button" onClick={() => setDrawer(null)}>
+              Cancel
+            </button>
+          </div>
         </form>
-      </Panel>
-      <DoNotCallImport role={role} onImported={load} />
-      <DoNotCallLookup />
-      <Panel labelledBy="suppression-list-title">
-        <PanelHeader
-          id="suppression-list-title"
-          title="Listed numbers"
-          badge={<StatusBadge>{rows.length}</StatusBadge>}
-        >
-          <small>
-            Removing a number is an admin action with a reason, recorded in the audit log. A
-            caller&rsquo;s opt-out cannot be removed for 90 days.
-          </small>
-        </PanelHeader>
-        {role === 'admin' && (
-          <div className="panel-body">
-            <Field label="Reason for removal" htmlFor="suppression-removal-reason">
-              <input
-                id="suppression-removal-reason"
-                value={removalReason}
-                minLength={3}
-                maxLength={1000}
-                onChange={(event) => setRemovalReason(event.target.value)}
-              />
-            </Field>
-          </div>
-        )}
-        {!rows.length ? (
-          <div className="panel-body">
-            <EmptyState title="No listed numbers returned">
-              The API returned an empty list. This does not bypass campaign-level attempt limits.
-            </EmptyState>
-          </div>
-        ) : (
-          <ResponsiveTable label="Do-not-call numbers">
-            <thead>
-              <tr>
-                <th>Phone number</th>
-                <th>Reason</th>
-                <th>Source</th>
-                <th>Created</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.phoneNumber}>
-                  <td className="mono">{row.phoneNumber}</td>
-                  <td>{row.reason}</td>
-                  <td>
-                    {row.source ? SOURCE_LABEL[row.source] : SOURCE_LABEL.manual}
-                    {row.callId && <small className="mono">{row.callId}</small>}
-                    {row.scope && row.scope !== 'all' && (
-                      <small>
-                        {row.scope === 'promotional' ? 'Promotional calls' : row.purpose}
-                      </small>
-                    )}
-                    {lockedUntil(row) && (
-                      <small>Locked until {lockedUntil(row)!.toLocaleDateString()}</small>
-                    )}
-                  </td>
-                  <td>{new Date(row.createdAt).toLocaleString()}</td>
-                  <td>
-                    <button
-                      className="button small danger"
-                      disabled={
-                        role !== 'admin' ||
-                        busy ||
-                        Boolean(lockedUntil(row)) ||
-                        removalReason.trim().length < 3
-                      }
-                      onClick={() => void remove(row)}
-                    >
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </ResponsiveTable>
-        )}
-      </Panel>
-    </div>
+      </Drawer>
+      <Drawer open={drawer === 'import'} onClose={() => setDrawer(null)} title="Import numbers">
+        <DoNotCallImport role={role} onImported={load} />
+      </Drawer>
+      <DoNotCallRemoveDialog
+        phoneNumber={removing?.phoneNumber}
+        reason={removalReason}
+        onReasonChange={setRemovalReason}
+        error={removeError}
+        busy={busy}
+        onConfirm={() => void remove()}
+        onClose={() => setRemoving(undefined)}
+      />
+    </>
   );
 }

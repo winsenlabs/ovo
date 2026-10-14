@@ -1,15 +1,12 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import { apiRequest } from '../../lib/api';
-import {
-  EmptyState,
-  Field,
-  Notice,
-  Panel,
-  PanelHeader,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
+import { FormField } from '../ui/form-field';
+import { InlineAlert } from '../ui/feedback-v2';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
+import { EmptyStateV2 } from '../ui/feedback-v2';
+import { formatDate } from '../../lib/format';
 import { failureText, type A2pDeclaration, type CliNumber } from './compliance-types';
 
 const SERIES_LABEL = {
@@ -73,51 +70,62 @@ export function CliRegistryPanel({
         ),
       ),
     });
+
+  const numberColumns: ColumnV2<CliNumber>[] = [
+    {
+      id: 'phoneNumber',
+      header: 'Number',
+      cell: (row) => <span className="mono">{row.phoneNumber}</span>,
+    },
+    { id: 'series', header: 'Series', cell: (row) => SERIES_LABEL[row.series] },
+    { id: 'categories', header: 'Categories', cell: (row) => row.categories.join(', ') },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: (row) => <StatusBadgeV2 value={row.status} />,
+    },
+  ];
+  const declarationColumns: ColumnV2<A2pDeclaration>[] = [
+    {
+      id: 'range',
+      header: 'Range',
+      cell: (row) => (
+        <span className="mono">
+          {row.rangeStart}–{row.rangeEnd}
+        </span>
+      ),
+    },
+    { id: 'oap', header: 'Telco and reference', cell: (row) => `${row.oap} · ${row.reference}` },
+    {
+      id: 'effective',
+      header: 'Effective',
+      cell: (row) => (row.withdrawnAt ? 'Withdrawn' : `From ${formatDate(row.effectiveFrom)}`),
+    },
+  ];
+
   return (
-    <Panel labelledBy="cli-registry-title">
-      <PanelHeader
-        id="cli-registry-title"
-        title="Caller numbers and A2P declarations"
-        badge={<StatusBadge>{numbers.length}</StatusBadge>}
-      />
-      {error && <Notice tone="danger">{error}</Notice>}
-      {!numbers.length ? (
-        <div className="panel-body">
-          <EmptyState title="No caller numbers registered">
+    <div className="stack">
+      {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+      <h3>Caller numbers</h3>
+      <DataTableV2
+        key={numbers.length === 0 ? 'empty' : 'data'}
+        label="Caller numbers"
+        rows={numbers}
+        columns={numberColumns}
+        rowKey={(row) => row.phoneNumber}
+        empty={
+          <EmptyStateV2 title="No caller numbers registered">
             Every +91 call is refused until its caller number is registered here.
-          </EmptyState>
-        </div>
-      ) : (
-        <ResponsiveTable label="Caller numbers">
-          <thead>
-            <tr>
-              <th>Number</th>
-              <th>Series</th>
-              <th>Categories</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {numbers.map((row) => (
-              <tr key={row.phoneNumber}>
-                <td className="mono">{row.phoneNumber}</td>
-                <td>{SERIES_LABEL[row.series]}</td>
-                <td>{row.categories.join(', ')}</td>
-                <td>
-                  <StatusBadge tone={row.status === 'active' ? 'good' : 'danger'}>
-                    {row.status}
-                  </StatusBadge>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </ResponsiveTable>
-      )}
-      <form className="panel-body form-grid" onSubmit={(event) => void submit(event, saveNumber)}>
+          </EmptyStateV2>
+        }
+      />
+      <form className="form-grid nested-card" onSubmit={(event) => void submit(event, saveNumber)}>
         <fieldset disabled={!canEdit} className="form-grid">
-          <Field label="Caller number" htmlFor="cli-number">
-            <input id="cli-number" name="phoneNumber" type="tel" placeholder="+911600…" required />
-          </Field>
+          <FormField id="cli-number" label="Caller number">
+            {(control) => (
+              <input {...control} name="phoneNumber" type="tel" placeholder="+911600…" required />
+            )}
+          </FormField>
           <fieldset className="field">
             <legend>Categories</legend>
             {['service', 'transactional', 'promotional'].map((category) => (
@@ -132,68 +140,61 @@ export function CliRegistryPanel({
               </label>
             ))}
           </fieldset>
-          <Field
+          <FormField
+            id="cli-status"
             label="Status"
-            htmlFor="cli-status"
             help="Flagged or suspended numbers are never dialed and pause their campaigns."
           >
-            <select id="cli-status" name="status" defaultValue="active">
-              {['active', 'flagged', 'suspended', 'retired'].map((status) => (
-                <option key={status}>{status}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Telco (OAP)" htmlFor="cli-oap">
-            <input id="cli-oap" name="oap" />
-          </Field>
-          <button className="button align-start">Save caller number</button>
+            {(control) => (
+              <select {...control} name="status" defaultValue="active">
+                {['active', 'flagged', 'suspended', 'retired'].map((status) => (
+                  <option key={status}>{status}</option>
+                ))}
+              </select>
+            )}
+          </FormField>
+          <FormField id="cli-oap" label="Telco (OAP)">
+            {(control) => <input {...control} name="oap" />}
+          </FormField>
+          <button className="button align-start" style={{ alignSelf: 'start' }}>
+            Save caller number
+          </button>
         </fieldset>
       </form>
-      <ResponsiveTable label="A2P declarations">
-        <thead>
-          <tr>
-            <th>Range</th>
-            <th>Telco and reference</th>
-            <th>Effective</th>
-          </tr>
-        </thead>
-        <tbody>
-          {declarations.map((row) => (
-            <tr key={row.id}>
-              <td className="mono">
-                {row.rangeStart}–{row.rangeEnd}
-              </td>
-              <td>
-                {row.oap} · {row.reference}
-              </td>
-              <td>{row.withdrawnAt ? 'Withdrawn' : `From ${row.effectiveFrom}`}</td>
-            </tr>
-          ))}
-        </tbody>
-      </ResponsiveTable>
-      <form className="panel-body form-grid" onSubmit={(event) => void submit(event, declare)}>
+      <h3>A2P declarations</h3>
+      <DataTableV2
+        key={declarations.length === 0 ? 'empty' : 'data'}
+        label="A2P declarations"
+        rows={declarations}
+        columns={declarationColumns}
+        rowKey={(row) => row.id}
+        empty="No A2P declarations on file"
+      />
+      <form className="form-grid nested-card" onSubmit={(event) => void submit(event, declare)}>
         <fieldset disabled={!canEdit} className="form-grid">
-          <Field label="First number" htmlFor="a2p-start">
-            <input id="a2p-start" name="rangeStart" type="tel" required />
-          </Field>
-          <Field label="Last number" htmlFor="a2p-end">
-            <input id="a2p-end" name="rangeEnd" type="tel" required />
-          </Field>
-          <Field label="Telco (OAP)" htmlFor="a2p-oap">
-            <input id="a2p-oap" name="oap" required />
-          </Field>
-          <Field label="Declaration reference" htmlFor="a2p-ref">
-            <input id="a2p-ref" name="reference" required />
-          </Field>
-          <Field label="Declared on" htmlFor="a2p-declared">
-            <input id="a2p-declared" name="declaredAt" type="date" required />
-          </Field>
-          <Field label="Effective from" htmlFor="a2p-effective">
-            <input id="a2p-effective" name="effectiveFrom" type="date" required />
-          </Field>
-          <button className="button align-start">Record declaration</button>
+          <FormField id="a2p-start" label="First number">
+            {(control) => <input {...control} name="rangeStart" type="tel" required />}
+          </FormField>
+          <FormField id="a2p-end" label="Last number">
+            {(control) => <input {...control} name="rangeEnd" type="tel" required />}
+          </FormField>
+          <FormField id="a2p-oap" label="Telco (OAP)">
+            {(control) => <input {...control} name="oap" required />}
+          </FormField>
+          <FormField id="a2p-ref" label="Declaration reference">
+            {(control) => <input {...control} name="reference" required />}
+          </FormField>
+          <FormField id="a2p-declared" label="Declared on">
+            {(control) => <input {...control} name="declaredAt" type="date" required />}
+          </FormField>
+          <FormField id="a2p-effective" label="Effective from">
+            {(control) => <input {...control} name="effectiveFrom" type="date" required />}
+          </FormField>
+          <button className="button align-start" style={{ alignSelf: 'start' }}>
+            Record declaration
+          </button>
         </fieldset>
       </form>
-    </Panel>
+    </div>
   );
 }

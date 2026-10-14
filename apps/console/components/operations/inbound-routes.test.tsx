@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { emptyAgentConfig } from '../../lib/api';
 import { ConfirmDialogProvider } from '../ui/dialog';
 import { InboundRoutes } from './inbound-routes';
@@ -53,6 +53,15 @@ beforeEach(() => {
   });
 });
 afterEach(() => cleanup());
+// jsdom has no modal dialogs; the route drawer only needs open and close.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
+    this.open = false;
+  };
+});
 
 it('fetches an existing route release beyond page one and allows disabling the route', async () => {
   render(

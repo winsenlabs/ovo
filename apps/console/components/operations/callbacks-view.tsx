@@ -1,7 +1,13 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiRequest, type SessionIdentity } from '../../lib/api';
-import { EmptyState, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
+import { dueBucket, groupByDueBucket } from '../../lib/derive/operations';
+import { PageHeader } from '../ui/layout';
+import { KpiCard, KpiStrip } from '../ui/kpi';
+import { SectionCard } from '../ui/section-card';
+import { DataTableV2 } from '../ui/data-table-v2';
+import { EmptyStateV2, ErrorState } from '../ui/feedback-v2';
+import { callbackColumns } from './callbacks-view-columns';
 
 export interface CallbackRecord {
   id: string;
@@ -26,24 +32,11 @@ interface CallbackPage {
 const STATUSES = ['pending', 'dialing', 'dialed', 'completed', 'cancelled', 'all'] as const;
 type Filter = (typeof STATUSES)[number];
 
-/** The due time in the agent's own timezone, which is the caller's. */
-function due(record: CallbackRecord): string {
-  try {
-    return new Intl.DateTimeFormat('en-IN', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-      timeZone: record.timezone,
-    }).format(new Date(record.dueAt));
-  } catch {
-    // swallow-ok: an unknown timezone shows the instant as it is stored.
-    return record.dueAt;
-  }
-}
-
 /**
- * Callbacks agents promised on calls (AGT-15), soonest due first. Dialling one places a live call
- * to the same number with the same release and its variables; a callback handled another way is
- * marked completed, and one no longer wanted is cancelled.
+ * Callbacks agents promised on calls (AGT-15), grouped by when they are due, soonest and most
+ * overdue first. Dialling one places a live call to the same number with the same release and
+ * its variables; a callback handled another way is marked completed, and one no longer wanted is
+ * cancelled.
  */
 export function CallbacksView({
   role,
@@ -54,15 +47,19 @@ export function CallbacksView({
 }) {
   const [filter, setFilter] = useState<Filter>('pending');
   const [page, setPage] = useState<CallbackPage>();
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState<string>();
   const load = useCallback(async () => {
+    setLoading(true);
     setError(undefined);
     try {
       const query = filter === 'all' ? '' : `?status=${filter}`;
       setPage((await apiRequest<CallbackPage>(`/callbacks${query}`)).data);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Callbacks could not be loaded.');
+    } finally {
+      setLoading(false);
     }
   }, [filter]);
   useEffect(() => {
@@ -83,123 +80,97 @@ export function CallbacksView({
   }
 
   const admin = role === 'admin';
+  const items = page?.items ?? [];
+  const overdueCount = useMemo(
+    () => items.filter((row) => dueBucket(row.dueAt, row.status, now()) === 'overdue').length,
+    [items, now],
+  );
+  const dialingCount = items.filter((row) => row.status === 'dialing').length;
+  const completedTodayCount = items.filter((row) => {
+    if (row.status !== 'completed') return false;
+    const day = (value: Date) => value.toDateString();
+    return day(new Date(row.dueAt)) === day(now());
+  }).length;
+
+  const columns = useMemo(
+    () => callbackColumns({ admin, busy, now, act: (record, action) => void act(record, action) }),
+    [admin, busy, now],
+  );
+  const groups = useMemo(
+    () => groupByDueBucket(items, (row) => dueBucket(row.dueAt, row.status, now())),
+    [items, now],
+  );
+
   return (
-    <Panel labelledBy="callbacks-title">
-      <PanelHeader
-        id="callbacks-title"
+    <>
+      <PageHeader
+        eyebrow="Operations"
         title="Callbacks"
-        badge={<StatusBadge tone="soft">{page?.items.length ?? 0}</StatusBadge>}
+        description="Callbacks the agent promised on a call. Dialling one places a live call to the same number with the same release, subject to the live-call checks."
+        onRefresh={() => void load()}
+        refreshing={loading}
       />
-      <div className="panel-body stack">
-        <p className="muted">
-          Callbacks the agent promised on a call. Dialling one places a live call to the same number
-          with the same release, subject to the live-call checks.
-        </p>
-        <div className="ui-cluster" role="group" aria-label="Callback status">
-          {STATUSES.map((status) => (
-            <button
-              key={status}
-              type="button"
-              className={`button small${filter === status ? ' primary' : ''}`}
-              aria-pressed={filter === status}
-              onClick={() => setFilter(status)}
-            >
-              {status[0]!.toUpperCase() + status.slice(1)}
-            </button>
-          ))}
-        </div>
-        {error && (
-          <div className="field-error" role="alert">
-            {error}
+      {error && <ErrorState message={error} onRetry={() => void load()} />}
+      {page && !page.available ? (
+        <EmptyStateV2 variant="unavailable" title="Callbacks need PostgreSQL storage">
+          This installation keeps no durable call outcomes, so no callback is recorded.
+        </EmptyStateV2>
+      ) : (
+        <>
+          <KpiStrip>
+            <KpiCard label="Shown" value={loading ? undefined : items.length} loading={loading} />
+            <KpiCard
+              label="Overdue"
+              value={loading ? undefined : overdueCount}
+              loading={loading}
+              footnote="Still pending, past due"
+            />
+            {filter === 'all' && (
+              <>
+                <KpiCard label="Dialing" value={dialingCount} />
+                <KpiCard label="Completed today" value={completedTodayCount} />
+              </>
+            )}
+          </KpiStrip>
+          <div className="ds-range-picker" role="group" aria-label="Callback status">
+            {STATUSES.map((status) => (
+              <button
+                key={status}
+                type="button"
+                aria-pressed={filter === status}
+                className={filter === status ? 'selected' : ''}
+                onClick={() => setFilter(status)}
+              >
+                {status[0]!.toUpperCase() + status.slice(1)}
+              </button>
+            ))}
           </div>
-        )}
-        {page && !page.available ? (
-          <EmptyState title="Callbacks need PostgreSQL">
-            This installation keeps no durable call outcomes, so no callback is recorded.
-          </EmptyState>
-        ) : page && !page.items.length ? (
-          <EmptyState title="No callbacks">No callback matches this filter.</EmptyState>
-        ) : page ? (
-          <ResponsiveTable label="Callbacks">
-            <thead>
-              <tr>
-                <th>Due</th>
-                <th>Number</th>
-                <th>Promised by</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {page.items.map((record) => {
-                const overdue =
-                  record.status === 'pending' && new Date(record.dueAt).getTime() < now().getTime();
-                return (
-                  <tr key={record.id}>
-                    <td>
-                      {due(record)}
-                      {overdue && <StatusBadge tone="warning">Overdue</StatusBadge>}
-                    </td>
-                    <td className="mono">{record.phone ?? 'unknown'}</td>
-                    <td>
-                      {record.source === 'llm' ? 'LLM' : `Flow · ${record.node ?? 'node'}`}
-                      <small className="mono">
-                        <a href={`/calls/${record.callId}`}>{record.callId}</a>
-                      </small>
-                    </td>
-                    <td>
-                      <StatusBadge tone={record.status === 'pending' ? 'warning' : 'soft'}>
-                        {record.status}
-                      </StatusBadge>
-                      {record.dialedCallId && (
-                        <small className="mono">
-                          <a href={`/calls/${record.dialedCallId}`}>{record.dialedCallId}</a>
-                        </small>
-                      )}
-                    </td>
-                    <td>
-                      <div className="button-row">
-                        {(record.status === 'pending' || record.status === 'dialing') && (
-                          <button
-                            className="button small primary"
-                            type="button"
-                            disabled={!admin || busy !== undefined || !record.phone}
-                            onClick={() => void act(record, 'dial')}
-                          >
-                            {busy === record.id ? 'Dialling…' : 'Call back now'}
-                          </button>
-                        )}
-                        {record.status !== 'completed' && record.status !== 'cancelled' && (
-                          <button
-                            className="button small"
-                            type="button"
-                            disabled={!admin || busy !== undefined}
-                            onClick={() => void act(record, 'complete')}
-                          >
-                            Mark done
-                          </button>
-                        )}
-                        {(record.status === 'pending' || record.status === 'dialing') && (
-                          <button
-                            className="button small danger"
-                            type="button"
-                            disabled={!admin || busy !== undefined}
-                            onClick={() => void act(record, 'cancel')}
-                          >
-                            Cancel
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </ResponsiveTable>
-        ) : (
-          <p className="muted">Loading callbacks…</p>
-        )}
-      </div>
-    </Panel>
+          {loading ? (
+            <DataTableV2
+              label="Callbacks"
+              rows={[]}
+              columns={columns}
+              rowKey={(record) => record.id}
+              loading
+            />
+          ) : !items.length ? (
+            <EmptyStateV2 variant="filtered" title="No callbacks">
+              No callback matches this filter.
+            </EmptyStateV2>
+          ) : (
+            groups.map((group) => (
+              <SectionCard key={group.bucket} title={group.label} padding="flush">
+                <DataTableV2
+                  label={`Callbacks due ${group.label.toLowerCase()}`}
+                  rows={group.rows}
+                  columns={columns}
+                  rowKey={(record) => record.id}
+                />
+              </SectionCard>
+            ))
+          )}
+        </>
+      )}
+    </>
   );
 }
