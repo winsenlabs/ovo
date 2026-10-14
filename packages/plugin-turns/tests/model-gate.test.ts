@@ -1,117 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { describeTurnDetector } from '@winsendotai/ovo-conformance';
 import { FakeClock } from '@winsendotai/ovo-conformance/drivers';
-import type { SpeechCapabilities, TurnDecision, VoiceEvent } from '@winsendotai/ovo-contracts';
-import {
-  createModelTurnDetector,
-  modelTurnDetectorPlugin,
-  type EndOfTurnModel,
-  type EndOfTurnRequest,
-} from '../src/index.ts';
+import { Cap, type TurnDetectorFactory } from '@winsendotai/ovo-contracts';
+import { compose } from '@winsendotai/ovo-runtime';
+import { modelTurnDetectorPlugin, type EndOfTurnModel } from '../src/index.ts';
+import { fakeModel, gateFixture, scribe } from './model-gate-fixture.ts';
 
-type WithoutTime<T> = T extends unknown ? Omit<T, 'atMs'> : never;
-
-/** Scribe: finalises only on a host commit. */
-const scribe: SpeechCapabilities = {
-  languages: ['en'],
-  interim: true,
-  wordTimestamps: false,
-  forceEndpoint: true,
-  turnSignals: [],
-};
-
-/** A model answering `probability(text)` (a constant by default), recording its requests. */
-function fakeModel(
-  probability: number | ((request: EndOfTurnRequest) => number),
-  input: 'audio' | 'text' = 'text',
-) {
-  const requests: EndOfTurnRequest[] = [];
-  const model: EndOfTurnModel & { requests: EndOfTurnRequest[] } = {
-    name: 'fake',
-    input,
-    requests,
-    threshold: (language) => (language.startsWith('ta') ? undefined : 0.5),
-    predict: async (request) => {
-      requests.push(request);
-      return typeof probability === 'number' ? probability : probability(request);
-    },
-  };
-  return model;
-}
-
-/** The same, answering synchronously (the conformance driver never awaits). */
-function syncModel(probability: number): EndOfTurnModel {
-  return { name: 'sync', input: 'text', threshold: () => 0.5, predict: () => probability };
-}
-
-function fixture(model: EndOfTurnModel, row: Record<string, unknown> = {}, language = 'en-IN') {
-  const clock = new FakeClock();
-  const controller = createModelTurnDetector(row, model).create({
-    clock,
-    vad: true,
-    language,
-    mode: 'agent',
-    stt: scribe,
-  });
-  const decisions: TurnDecision[] = [];
-  let revision = 0;
-  let segment = 0;
-  let pending: string | undefined;
-  const send = (event: WithoutTime<VoiceEvent>) =>
-    controller.observe({ ...event, atMs: clock.now() } as VoiceEvent);
-  const transcript = (text: string, stability: 'interim' | 'final') =>
-    send({
-      type: 'stt',
-      event: {
-        type: 'transcript',
-        segment: { segmentId: String(segment), revision: ++revision, text, stability },
-      },
-    });
-  controller.on((decision) => {
-    decisions.push(decision);
-    // Scribe answers a host commit with its final 300 ms later.
-    if (decision.type === 'force-endpoint' && pending !== undefined) {
-      const text = pending;
-      pending = undefined;
-      clock.setTimeout(() => {
-        transcript(text, 'final');
-        send({ type: 'stt', event: { type: 'end-of-turn' } });
-        segment++;
-      }, 300);
-    }
-  });
-  /** The caller says `text` over `ms` of VAD speech, then goes quiet. */
-  const say = (text: string, ms = 800) => {
-    pending = text;
-    send({ type: 'vad.start' });
-    clock.advance(ms / 2);
-    transcript(text, 'interim');
-    clock.advance(ms / 2);
-    send({ type: 'vad.stop' });
-  };
-  /** Runs the clock `ms` on, letting each prediction resolve as it is made. */
-  const wait = async (ms: number) => {
-    for (let step = 0; step < ms; step += 10) {
-      clock.advance(10);
-      await controller.settled();
-    }
-  };
-  const stops = () =>
-    decisions.flatMap((d) =>
-      d.type === 'turn.stopped' && d.input.kind === 'speech'
-        ? [{ text: d.input.text, reason: d.reason }]
-        : [],
-    );
-  const starts = () => decisions.filter((d) => d.type === 'turn.started').length;
-  // Mid-call: the opening has played.
-  send({ type: 'bot.started', epoch: 0, kind: 'response' });
-  send({ type: 'bot.stopped', epoch: 0, kind: 'response' });
-  return { clock, controller, decisions, send, say, wait, stops, starts };
-}
-
-describeTurnDetector('model gate (a model that reads every turn as finished)', () =>
-  createModelTurnDetector({}, syncModel(1)),
-);
+const fixture = gateFixture(() => new FakeClock());
 
 describe('model gate (Wave 13, T1)', () => {
   it('ends a turn the model reads as finished as the rules do, after reading it', async () => {
@@ -306,6 +200,15 @@ describe('model gate (Wave 13, T1)', () => {
     await tamil.wait(1500);
     expect(tamil.stops()).toHaveLength(1);
     expect(tamil.controller.stats.bypassed.language).toBe(1);
+    // A threshold override does not make the model read a language it does not cover.
+    const overridden = fakeModel(0.1, 'audio');
+    const o = fixture(overridden, { model: { threshold: 0.3 } }, 'ta-IN');
+    o.controller.audio(new Int16Array(8000).fill(500), 8000);
+    o.say('Naan oru kelvi ketkanum.');
+    await o.wait(1500);
+    expect(o.stops()).toHaveLength(1);
+    expect(o.controller.stats.bypassed.language).toBe(1);
+    expect(overridden.requests).toEqual([]);
   });
 
   it('does not wait on a slow model past timeoutMs, nor on one that fails', async () => {
@@ -356,5 +259,16 @@ describe('model gate (Wave 13, T1)', () => {
     expect((plugin.manifest as { kind?: string }).kind).toBe('turn-detector');
     expect(plugin.manifest.id).toBe('@winsendotai/ovo-turn-detector-test-model');
     expect(loads).toBe(0);
+    const input = { clock: new FakeClock(), vad: true, language: 'en', mode: 'agent', stt: scribe };
+    for (let session = 0; session < 2; session++) {
+      const graph = await compose([{ id: plugin.manifest.id }], [plugin], { scope: 'session' });
+      try {
+        const factory = graph.get(Cap.turnDetector) as TurnDetectorFactory;
+        factory.create(input as Parameters<TurnDetectorFactory['create']>[0]).dispose();
+      } finally {
+        await graph.dispose();
+      }
+    }
+    expect(loads).toBe(1);
   });
 });

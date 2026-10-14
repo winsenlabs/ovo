@@ -28,6 +28,30 @@ describe('LiveKit turn-detector-v1-mini (audio, through inference.TurnDetector)'
     }
   });
 
+  it('reads overlapping predictions (the model is shared by every session) as it reads them in turn', async () => {
+    const model = new LiveKitAudioModel();
+    try {
+      const first = signal();
+      // A different turn: the same tone, quieter, and still sounding at the end.
+      const second = Int16Array.from(first, (sample, n) =>
+        Math.round(
+          n < 32_000 - 4_000 ? sample / 3 : 2000 * Math.sin((2 * Math.PI * 220 * n) / 16_000),
+        ),
+      );
+      const request = (audio: Int16Array) => ({ audio, text: '', language: 'en' });
+      const inTurn = [await model.predict(request(first)), await model.predict(request(second))];
+      const atOnce = await Promise.all([
+        model.predict(request(first)),
+        model.predict(request(second)),
+      ]);
+      expect(inTurn[0]).not.toBeCloseTo(inTurn[1]!, 3);
+      expect(atOnce[0]).toBeCloseTo(inTurn[0]!, 5);
+      expect(atOnce[1]).toBeCloseTo(inTurn[1]!, 5);
+    } finally {
+      await model.dispose();
+    }
+  });
+
   it('uses LiveKit Agents’ per-language thresholds and covers Hindi', () => {
     const model = new LiveKitAudioModel();
     expect(model.threshold('hi-IN')).toBe(0.305);

@@ -22,8 +22,11 @@ export function createModelTurnDetector(
 
 /**
  * A turn-detector plugin for one end-of-turn model. The model loads once (on the first session) and
- * is shared by every session after it. Registered by the distribution, which may import the model
- * packages (a plugin may not).
+ * is shared by every session after it, so a model must take overlapping predictions. Registered by
+ * the distribution, which may import the model packages (a plugin may not). Its turn@1 claim is
+ * checked twice (tests/model-gate.test.ts): in full with a model that reads every turn finished, and
+ * with one that holds every turn on all but the five checks that expect a turn to end the moment
+ * the rules end it (the hold delays that by up to holdMs, by design).
  */
 export function modelTurnDetectorPlugin(
   spec: { id: string; provider: string; version?: string },

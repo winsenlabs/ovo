@@ -96,6 +96,8 @@ export class LiveKitAudioModel {
   private readonly executor = new LocalEotExecutor();
   private readonly detector: InstanceType<typeof inference.TurnDetector>;
   private readonly stream: ReturnType<InstanceType<typeof inference.TurnDetector>['stream']>;
+  /** The last prediction queued: the one stream reads one turn at a time. */
+  private queue: Promise<unknown> = Promise.resolve();
 
   constructor(options: { unlikelyThreshold?: number } = {}) {
     ensureLogger();
@@ -122,12 +124,20 @@ export class LiveKitAudioModel {
   /**
    * The detector's stream holds the last 1.2 s it was pushed: the turn's audio is pushed afresh
    * (after a flush) and the stream predicts on it, as AudioRecognition does once 200 ms of silence
-   * has passed.
+   * has passed. The model is shared by every session, so predictions run one after another: two at
+   * once would push both turns into the one stream.
    */
   async predict(request: EndOfTurnRequest): Promise<number> {
     if (!request.audio?.length) throw new Error('turn-detector-v1-mini needs the caller audio');
-    const samples = request.audio.subarray(
-      Math.max(0, request.audio.length - (LIVEKIT_AUDIO.windowMs * 16_000) / 1000),
+    const audio = request.audio;
+    const next = this.queue.then(() => this.read(audio));
+    this.queue = next.catch(() => {});
+    return next;
+  }
+
+  private async read(audio: Int16Array): Promise<number> {
+    const samples = audio.subarray(
+      Math.max(0, audio.length - (LIVEKIT_AUDIO.windowMs * 16_000) / 1000),
     );
     this.stream.flush();
     this.stream.pushAudio(new AudioFrame(Int16Array.from(samples), 16_000, 1, samples.length));

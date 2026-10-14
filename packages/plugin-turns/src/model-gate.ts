@@ -1,4 +1,4 @@
-import type { TurnDecision, VoiceEvent } from '@winsendotai/ovo-contracts';
+import type { TranscriptDoubt, TurnDecision, VoiceEvent } from '@winsendotai/ovo-contracts';
 import { CallerAudio } from './caller-audio.ts';
 import { TurnController } from './controller.ts';
 import type {
@@ -10,9 +10,7 @@ import type {
   ModelGateStats,
   SpeechStop,
 } from './model-gate-config.ts';
-import { emptyStats, predict, safetyRead } from './model-reading.ts';
-
-const join = (a: string, b: string) => (a && b ? `${a} ${b}` : a || b);
+import { emptyStats, join, joinStop, predict, safetyRead } from './model-reading.ts';
 
 /**
  * The model gate (Wave 13, T1) around the rules detector: what it does, and why, is described with
@@ -33,6 +31,8 @@ export class ModelGate implements ModelGatedTurnController {
     /** The words of earlier inner turns it was held on. */
     text: string;
     segments: number;
+    /** The doubt of each of the rules' stops in the turn, in order (undefined: trusted). */
+    doubts: (TranscriptDoubt | undefined)[];
     /** A stop waiting on the model or on the hold. */
     pending?: SpeechStop;
     /** The stop the turn was last held on, while the caller goes on (a reset brings it back). */
@@ -118,6 +118,7 @@ export class ModelGate implements ModelGatedTurnController {
           startedAt: this.input.clock.now(),
           text: '',
           segments: 0,
+          doubts: [],
           phase: 'open',
         };
         return this.emit({ ...decision, turnId: id });
@@ -141,17 +142,8 @@ export class ModelGate implements ModelGatedTurnController {
           this.emit({ type: 'turn.started', turnId: digits });
           return this.emit({ ...decision, turnId: digits });
         }
-        const open = this.open;
-        const stop = {
-          ...decision,
-          turnId: id,
-          input: {
-            kind: 'speech' as const,
-            text: join(open.text, decision.input.text),
-            segments: open.segments + decision.input.segments,
-          },
-        };
-        return this.read(stop);
+        this.open.doubts.push(decision.untrusted);
+        return this.read(joinStop(decision as SpeechStop, id, this.open, this.input.language));
       }
       case 'turn.reset': {
         const id = this.ids.get(decision.turnId) ?? decision.turnId;
@@ -178,20 +170,16 @@ export class ModelGate implements ModelGatedTurnController {
     open.pending = stop;
     this.stats.stops++;
     const text = stop.input.text;
-    const threshold = this.gate.threshold ?? this.model.threshold(this.input.language);
-    if (threshold === undefined) {
-      this.stats.bypassed.language++;
-      return this.finish();
-    }
     const language = this.input.language;
+    // An override moves the model's threshold; it never makes the model read a language it lacks.
+    const covered = this.model.threshold(language);
+    if (covered === undefined) return this.unread('language');
+    const threshold = this.gate.threshold ?? covered;
     const { bypass, brokenOff } = safetyRead(text, this.gate.safety, {
       language,
       answering: this.answering,
     });
-    if (bypass) {
-      this.stats.bypassed[bypass]++;
-      return this.finish();
-    }
+    if (bypass) return this.unread(bypass);
     const audio = this.callerAudio.since(open.startedAt - this.gate.preRollMs);
     if (this.model.input === 'audio' && !audio) {
       this.stats.bypassed.noAudio++;
@@ -229,6 +217,12 @@ export class ModelGate implements ModelGatedTurnController {
       this.release();
       this.finish();
     });
+  }
+
+  /** Ends the turn as the rules did, without the model. */
+  private unread(why: 'shortAnswer' | 'question' | 'language'): void {
+    this.stats.bypassed[why]++;
+    this.finish();
   }
 
   private hold(text: string): void {
