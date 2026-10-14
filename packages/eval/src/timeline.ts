@@ -94,6 +94,7 @@ export function buildTimeline(
 ): CallTimeline {
   const turns = new Map<string, CallerTurn>();
   const lines = new Map<string, AgentLine>();
+  const segmentTurns = new Map<string, string>();
   const timeline: CallTimeline = {
     turns: [],
     agent: [],
@@ -135,11 +136,13 @@ export function buildTimeline(
         onSpeech(lines, atMs, event);
         break;
       case 'timing': {
-        // carrier_first_audio is the first audio of a line at the carrier.
-        const known = event.segmentId ? lines.get(event.segmentId) : undefined;
-        if (!known) break;
-        if (event.turnId && !known.turnId) known.turnId = event.turnId;
-        if (event.key === 'carrier_first_audio') known.audibleAtMs ??= atMs;
+        // A line's timings name its turn (text_aggregation comes before the line's own evidence);
+        // carrier_first_audio is its first audio at the carrier.
+        if (!event.segmentId) break;
+        if (event.turnId && !segmentTurns.has(event.segmentId))
+          segmentTurns.set(event.segmentId, event.turnId);
+        const known = lines.get(event.segmentId);
+        if (known && event.key === 'carrier_first_audio') known.audibleAtMs ??= atMs;
         break;
       }
       case 'interrupt':
@@ -153,6 +156,10 @@ export function buildTimeline(
     }
   }
   timeline.agent = [...lines.values()].sort((a, b) => a.generatedAtMs - b.generatedAtMs);
+  for (const line of timeline.agent) {
+    const turnId = segmentTurns.get(line.segmentId);
+    if (turnId) line.turnId = turnId;
+  }
   return timeline;
 }
 
