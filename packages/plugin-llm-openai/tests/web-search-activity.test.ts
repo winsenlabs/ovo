@@ -244,6 +244,23 @@ describe('no web search on input too unclear to search on (N3)', () => {
     expect(bodies.map(sentTools)).toEqual([[]]);
   });
 
+  it('sends the tool when the behaviour asks again for it (Wave 12, call 8cb76efc F1)', async () => {
+    const { inference, bodies, push, end } = setup();
+    // A statement of plans goes without it by the binding's own policy; asked again with
+    // `providerTools: true` (the model gave the uncertainty line), it is sent.
+    const request = {
+      ...tripRequest('I want 21st of December to the 5th. Of January.'),
+      providerTools: true,
+    };
+    expect(inference.sendsProviderTools(request)).toBe(true);
+    const done = drain(inference.stream(request), []);
+    await settle();
+    push(created('resp') + answer('Okay.', 0) + completed('resp'));
+    end();
+    await done;
+    expect(bodies.map(sentTools)).toEqual([['web_search']]);
+  });
+
   it('sends no tool to a statement of plans (Wave 8b), and says so before it is asked', async () => {
     const { inference, bodies, push, end } = setup();
     for (const input of ['I want 21st of December to the 5th. Of January.', 'Is it cold then?']) {

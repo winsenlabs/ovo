@@ -47,15 +47,16 @@ function beyond(outer: string, inner: string): string | undefined {
 
 /**
  * Wave 9 (Maya call 10d5ef30, D8): at most one web search for the caller's words, unless it found
- * nothing. A request asked on them that searched and was thrown away (asked ahead on a partial
- * the caller went on from, or a reply AGT-10 superseded) was still billed; live, each was followed
- * by a second search for words that held the first's (69.1 and 75.0 s, 104.3 and 109.8 s, 248.9 and
- * 253.7 s). Later requests whose words hold those, in the same turn or the one that takes them
- * over, are sent no provider tools (`InferenceRequest.providerTools`), with one exception: a reply
- * AGT-10 superseded before its search came back found the caller nothing, so the merged turn may
- * search when its newer words ask something new ("Yeah, December 26." then "…Can you tell me about
- * how pricey flights are?"). A partial's words are the turn's own: its search is the turn's. The
- * model is not otherwise restricted: a turn of new words searches as before.
+ * nothing. Later requests in the same turn whose words hold those of a request that searched are
+ * sent no provider tools (`InferenceRequest.providerTools`). The model is not otherwise restricted:
+ * a turn of new words searches as before.
+ * Wave 12 (Maya call 8cb76efc, F1): a search whose request was thrown away (asked ahead on a
+ * partial the caller went on from, or a reply AGT-10 superseded) found the caller nothing, and no
+ * longer counts. D8 had counted it, to save the second search's charge, and the turn's own request
+ * then went without the tool: told to use only its sources, the model answered the clear questions
+ * of turns 12 and 15 ("…tell me a little bit about Zagreb's history…", "…how the split happened")
+ * with the uncertainty line, which turn 12 heard as "Please clarify your question." The search the
+ * caller is waiting for is worth the second charge; OpenAI's results cannot be carried over.
  */
 export class SearchBudget {
   private searches: Search[] = [];
@@ -77,7 +78,9 @@ export class SearchBudget {
    */
   limit(inference: Inference, ahead = false): Inference {
     const limited = <T extends Omit<InferenceRequest, 'signal'>>(request: T): T =>
-      this.allows(request.input) ? request : { ...request, providerTools: false };
+      request.providerTools === true || this.allows(request.input)
+        ? request
+        : { ...request, providerTools: false };
     const ask = (request: InferenceRequest): InferenceRequest => {
       this.asked.set(request.signal, { words: normalizeForMatch(request.input), ahead });
       return limited(request);
@@ -107,14 +110,14 @@ export class SearchBudget {
 
   /**
    * Whether a request on the caller's `input` may still search: no search for words it holds was
-   * started in this turn, or in the turn before by a request since thrown away. One a reply used
-   * is spent with that reply ("Yes." to "Shall I check the flights?" searched; "Yes, and hotels"
-   * may search again).
+   * started in this turn by a request that is still live (Wave 12: a thrown-away request's search
+   * found the caller nothing). One a reply used is spent with that reply ("Yes." to "Shall I check
+   * the flights?" searched; "Yes, and hotels" may search again).
    */
   allows(input: string): boolean {
     const words = normalizeForMatch(input);
     return !this.searches.some((search) => {
-      if (search.empty || (search.turn !== this.turns && !search.signal.aborted)) return false;
+      if (search.empty || search.signal.aborted || search.turn !== this.turns) return false;
       const more = beyond(words, search.words);
       if (more === undefined) return false;
       return search.returned || search.ahead || !seeksInformation(more);

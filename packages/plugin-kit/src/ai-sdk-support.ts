@@ -35,10 +35,15 @@ export function buildSystemPrompt(
     instructions?.trim(),
     `Use only ${sources} as factual sources.`,
     extraSources?.trim() ? extraInstructions?.trim() : undefined,
-    `When the caller asks for something these sources do not support, respond exactly with: ${request.uncertainty}`,
+    `When the caller asks for a fact these sources do not support, respond exactly with: ${request.uncertainty}`,
     // call-3 #3: the uncertainty line was the model's answer to "हाँ।" and to words the noise cut.
-    'Never give that line to words that are unclear, cut off or ask for nothing: ask the caller ' +
-      'to say it again instead.',
+    // Wave 12 (Maya call 8cb76efc, F1): "ask for nothing: ask the caller to say it again" had the
+    // model ask that of "Jan 12th, 2024.", said for the dates it had asked, and of a "Yeah." to
+    // its own offer, and "Could you finish your question?" of words cut off mid-sentence.
+    'Never give that line to words that ask for no fact. When the caller tells you their plans ' +
+      'or dates, answers your question, or says yes to what you offered, carry on from what they ' +
+      'said. When their words break off unfinished, answer what they did ask, or invite them to go ' +
+      'on in a few words. Ask them to say it again only when you cannot make out their words.',
     `Supplied context:\n${request.context}`,
   ];
   if (request.results.length)

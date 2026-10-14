@@ -253,7 +253,8 @@ describe('the LLM fallback rejoins the flow (AGT-7)', () => {
     const uncertainty = config.uncertainty;
     const silent = step([resume({ resume_at: 'wrapup', action: 'none' })], { flow: flowAt() });
     silent.input.previous = [uncertainty];
-    expect(await silent.run()).toEqual([config.clarification]);
+    // Wave 12 (F1): the agent's ask-again line, not the platform's default clarification.
+    expect(await silent.run()).toEqual(['Sorry, could you say that again?']);
     // A model that says it again anyway is cut to what is new.
     const again = step(
       [[{ kind: 'text-delta', delta: `${uncertainty} When can you pay?` }, { kind: 'finish' }]],

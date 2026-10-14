@@ -14,6 +14,9 @@ import { execution, settleMs, sleep } from './speculation-fixture.ts';
  * ahead, `openai:aborted:11`, its search billed, then turn 18's own request searched again 4.9 s
  * later), and the replies to turn 7 ("…December 21st is?", `openai:aborted:8`) and turn 4 ("Yeah,
  * December 26.", `openai:aborted:6`), which AGT-10 superseded with the caller's next words.
+ * Wave 12 (Maya call 8cb76efc, F1): those thrown-away searches no longer count. The second charge
+ * is what the caller's answer costs: counted, they left turns 12 and 15 with no search and the
+ * uncertainty line. Only a live request's search holds back the same words.
  */
 const TURN7 =
   "I'll be flying out of Chennai and I'll return back to Chennai only. Uh, I expect to fly out on... December 21st is?";
@@ -134,25 +137,26 @@ async function turn(agent: AgentBehavior, turnId: string, text: string, merged =
 }
 
 describe('call 10d5ef30 D8: one web search for the caller’s words', () => {
-  it('turn 18: a search asked ahead on "Yeah, dude." is the turn’s search', async () => {
+  it('turn 18: a search asked ahead on a partial the caller went on from is not the turn’s', async () => {
     const { agent, llm } = await maya();
     // The statement partial is asked ahead with the tool, and searches (billed).
     agent.prepare({ turnId: 'turn-18', text: 'Yeah, dude.', stable: false });
     await advance(1_400);
     expect(llm.searched().map((request) => request.input)).toEqual(['Yeah, dude.']);
     // The caller went on: the final words differ, so that call is thrown away, its search not yet
-    // back. The turn's own request on words that hold the partial's is sent no search tool, though
-    // they ask ("why"): the partial's search was the turn's.
+    // back. Wave 12 (call 8cb76efc F1): it found the caller nothing, so the turn's own request may
+    // search. Before: sent no tool ("the partial's search was the turn's"); live in call 8cb76efc,
+    // turns 12 and 15 then heard the uncertainty line, and "Please clarify your question.".
     expect(await turn(agent, 'turn-18', "Yeah, dude. That's why I'm asking.")).toEqual([
       'Here is what I found.',
     ]);
     expect(llm.requests.map((request) => [request.input, request.providerTools])).toEqual([
       ['Yeah, dude.', undefined],
-      ["Yeah, dude. That's why I'm asking.", false],
+      ["Yeah, dude. That's why I'm asking.", undefined],
     ]);
   });
 
-  it('turns 7–8: a reply AGT-10 superseded while it searched leaves the merged turn none', async () => {
+  it('turns 7–8: a reply AGT-10 superseded while it searched leaves the merged turn its own', async () => {
     const { agent, llm } = await maya();
     epoch += 1;
     agent.finalize({ turnId: 'turn-7', text: TURN7, merged: false });
@@ -165,7 +169,8 @@ describe('call 10d5ef30 D8: one web search for the caller’s words', () => {
     await advance(0);
     const merged = `${TURN7} And fly back in on January 5th, please.`;
     expect(await turn(agent, 'turn-8', merged, true)).toEqual(['Here is what I found.']);
-    expect(llm.searched().map((request) => request.input)).toEqual([TURN7]);
+    // Wave 12 (F1): the superseded reply's search was never heard. Before: [TURN7] only.
+    expect(llm.searched().map((request) => request.input)).toEqual([TURN7, merged]);
   });
 
   it('a search thrown away before it came back leaves words that ask something new theirs', async () => {

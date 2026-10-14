@@ -52,6 +52,9 @@ export function rejoinOffer({ config, flow }: RequestInput): RejoinOffer | undef
  * Wave 9 D1 (call 10d5ef30): write for the ear. plugin-voice's speech normaliser guarantees it on
  * the way to TTS; this asks the model to write that way first. Fixed for the call, so it stays in
  * the prompt's cached prefix (N4).
+ * Wave 12 (call 8cb76efc): short sentences without semicolons (F5: turn 7's 184-character sentence
+ * played for 12 s with a second of dead air in it), and no offer of more at the end, which the reply
+ * cap makes now and then (F7: nearly every answer of the call ended "Would you like…?").
  */
 export function voiceStyleNote(config: { language: string }): string | undefined {
   if (baseLanguageOf(config.language) !== 'en') return undefined;
@@ -62,7 +65,9 @@ export function voiceStyleNote(config: { language: string }): string | undefined
     'Your replies are spoken on a phone call, so write for the ear: no dashes, symbols or ' +
     'abbreviations; say ranges with "to" ("Chennai to Prague", "the 21st to the 24th of December", ' +
     `"between seventy thousand and one lakh rupees"); ${dates}leave out the year unless the date ` +
-    'is more than a year away.'
+    'is more than a year away. Keep sentences short, without semicolons. End a reply when it has ' +
+    'answered: do not offer more detail or ask whether the caller wants more, and ask a question ' +
+    'only when you need their answer to go on.'
   );
 }
 
