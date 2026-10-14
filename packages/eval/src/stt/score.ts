@@ -1,5 +1,9 @@
 // Scores the bake-off's recordings against the gold references: accuracy, language drift, how
-// long after the caller stops the final arrives, and what it costs.
+// long after the caller stops the final arrives, and what it costs. Words are compared exactly as
+// the call-eval harness compares them (score/wer.ts on score/hinglish.ts), so one gold gives one WER.
+import { scoringWords } from '../score/hinglish.ts';
+import { percentile } from '../score/metrics.ts';
+import { charErrors, editDistance, wordErrors, type ErrorCount } from '../score/wer.ts';
 import type { SttConfig } from './configs.ts';
 import {
   allRegions,
@@ -12,14 +16,6 @@ import {
 import { misdetections } from './language.ts';
 import { finalText, heardText } from './hypothesis.ts';
 import type { StreamRecording, UtteranceRecording } from './stream.ts';
-import {
-  characterErrors,
-  editDistance,
-  looseWordErrors,
-  normalizeWords,
-  phoneticKey,
-  wordErrors,
-} from './text.ts';
 
 export interface UtteranceScore {
   id: string;
@@ -30,15 +26,14 @@ export interface UtteranceScore {
   confidence?: GoldUtterance['confidence'];
   speech: boolean;
   hypothesis: string;
+  /** On Hinglish-folded words, so "mera naam" and "मेरा नाम" match. */
   wordErrors: number;
   words: number;
-  looseErrors: number;
-  looseWords: number;
   charErrors: number;
   chars: number;
   /** Words transcribed where the caller said nothing. */
   insertions: number;
-  /** The gold rendering the hypothesis came closest to (loosely), for the call-level WER. */
+  /** The gold rendering the hypothesis came closest to, for the call-level WER. */
   reference: string;
   misdetection: string[];
   /** Last final after the speech ended; null when none came after it. */
@@ -49,6 +44,15 @@ export interface UtteranceScore {
 const isUtterance = (region: GoldRegion): region is GoldUtterance =>
   typeof (region as GoldUtterance).text === 'string';
 
+const errorRate = (count: ErrorCount) => count.errors / Math.max(1, count.length);
+
+/** The rendering (romanised, Devanagari, an `accept`) closest to the hypothesis, and its errors. */
+function closestRendering(references: readonly string[], hypothesis: string) {
+  return references
+    .map((reference) => ({ reference, count: wordErrors([reference], hypothesis) }))
+    .reduce((best, next) => (errorRate(next.count) < errorRate(best.count) ? next : best));
+}
+
 /** One region's transcript against the gold: errors for speech, insertions for non-speech. */
 export function scoreUtterance(
   call: string,
@@ -58,11 +62,10 @@ export function scoreUtterance(
   const speech = isUtterance(gold);
   // Speech is scored on what was committed; a region without words on anything shown at all.
   const hypothesis = recording ? (speech ? finalText(recording) : heardText(recording)) : '';
-  const none = { errors: 0, length: 0, reference: '' };
+  const none = { errors: 0, length: 0 };
   const references = speech ? goldReferences(gold) : [];
-  const strict = speech ? wordErrors(references, hypothesis) : none;
-  const loose = speech ? looseWordErrors(references, hypothesis) : none;
-  const chars = speech ? characterErrors(references, hypothesis) : none;
+  const words = speech ? closestRendering(references, hypothesis) : { reference: '', count: none };
+  const chars = speech ? charErrors(references, hypothesis) : none;
   const spoken = speech ? spokenLanguages(gold) : ['en', 'hi'];
   const reasons = new Set(misdetections(hypothesis, spoken));
   for (const language of new Set(recording?.languages ?? []))
@@ -77,14 +80,12 @@ export function scoreUtterance(
     ...(speech ? { language: gold.language, confidence: gold.confidence } : {}),
     speech,
     hypothesis,
-    wordErrors: strict.errors,
-    words: strict.length,
-    looseErrors: loose.errors,
-    looseWords: loose.length,
+    wordErrors: words.count.errors,
+    words: words.count.length,
     charErrors: chars.errors,
     chars: chars.length,
-    insertions: speech ? 0 : normalizeWords(hypothesis).length,
-    reference: loose.reference,
+    insertions: speech ? 0 : scoringWords(hypothesis).length,
+    reference: words.reference,
     misdetection: [...reasons],
     timeToFinalMs:
       recording && last && last.atMs >= recording.speechEndMs
@@ -92,12 +93,6 @@ export function scoreUtterance(
         : null,
     missing: !recording,
   };
-}
-
-export function percentile(values: readonly number[], p: number): number | null {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)]!;
 }
 
 export interface ConfigSummary {
@@ -111,16 +106,16 @@ export interface ConfigSummary {
   missing: number;
   errors: string[];
   wer: number;
-  looseWer: number;
   cer: number;
   /**
-   * Loose WER of each whole call: its utterances' finals joined against their gold joined, which
+   * WER of each whole call: its utterances' finals joined against their gold joined, which
    * no longer cares which utterance a late final landed in (AssemblyAI's lag moves words into the
    * next one). Low-confidence utterances and regions without words are left out on both sides.
    */
-  callLooseWer: number;
+  callWer: number;
   werEnglish: number | null;
-  looseWerHindi: number | null;
+  /** Hindi and Hinglish utterances. */
+  werHindi: number | null;
   /** Speech utterances with an empty transcript. */
   empty: number;
   /** Words transcribed over non-speech utterances (noise, faint background talk). */
@@ -148,7 +143,6 @@ function rates(scores: readonly UtteranceScore[]) {
     scores.reduce((total, score) => total + (score[field] as number), 0);
   return {
     wer: ratio(sum('wordErrors'), sum('words')),
-    looseWer: ratio(sum('looseErrors'), sum('looseWords')),
     cer: ratio(sum('charErrors'), sum('chars')),
   };
 }
@@ -162,8 +156,7 @@ export function summarize(
   const mine = recordings.filter((recording) => recording.config === config.id);
   const scores: UtteranceScore[] = [];
   const call = { errors: 0, length: 0 };
-  const keys = (texts: string[]) =>
-    normalizeWords(texts.join(' ')).map(phoneticKey).filter(Boolean);
+  const words = (texts: string[]) => scoringWords(texts.join(' '));
   for (const recording of mine) {
     const gold = golds.find((candidate) => candidate.call === recording.call);
     if (!gold) continue;
@@ -175,8 +168,8 @@ export function summarize(
     scores.push(...mineScores);
     // Each utterance's closest rendering, so only where words landed differs from the utterance WER.
     const kept = mineScores.filter((score) => score.speech && score.confidence !== 'low');
-    const reference = keys(kept.map((score) => score.reference));
-    call.errors += editDistance(reference, keys(kept.map((score) => score.hypothesis)));
+    const reference = words(kept.map((score) => score.reference));
+    call.errors += editDistance(reference, words(kept.map((score) => score.hypothesis)));
     call.length += reference.length;
   }
   const speech = scores.filter((score) => score.speech && score.confidence !== 'low');
@@ -202,9 +195,9 @@ export function summarize(
       recording.error ? [`${recording.call}: ${recording.error}`] : [],
     ),
     ...all,
-    callLooseWer: ratio(call.errors, call.length),
+    callWer: ratio(call.errors, call.length),
     werEnglish: english.length ? rates(english).wer : null,
-    looseWerHindi: hindi.length ? rates(hindi).looseWer : null,
+    werHindi: hindi.length ? rates(hindi).wer : null,
     empty: speech.filter((score) => !score.missing && !score.hypothesis).length,
     insertions: scores.reduce((sum, score) => sum + score.insertions, 0),
     misdetected: scores.filter((score) =>

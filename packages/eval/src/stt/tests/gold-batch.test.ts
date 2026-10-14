@@ -11,7 +11,6 @@ import {
 } from '../batch.ts';
 import { GOLD_DIR, loadGolds } from '../cli.ts';
 import { allRegions, goldReferences, parseGold, spokenLanguages } from '../gold.ts';
-import { parseKeysFile } from '../keys.ts';
 import type { Pcm } from '../wav.ts';
 
 const pcm = (ms: number, value = 100): Pcm => ({
@@ -223,15 +222,5 @@ describe('batch second opinions', () => {
       words: [{ text: 'haan', startMs: 100, endMs: 300 }],
     });
     net.assertComplete();
-  });
-});
-
-describe('provider keys', () => {
-  it('reads the keys file without echoing anything else', () => {
-    expect(
-      parseKeysFile(
-        '# eval keys\nexport ELEVENLABS_API_KEY="el-1"\nASSEMBLYAI_API_KEY=aa-2\nOTHER=x\nDEEPGRAM_API_KEY=\n',
-      ),
-    ).toEqual({ ELEVENLABS_API_KEY: 'el-1', ASSEMBLYAI_API_KEY: 'aa-2' });
   });
 });

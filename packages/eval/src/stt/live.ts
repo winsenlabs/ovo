@@ -3,6 +3,7 @@
 import { mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { readKeys } from '../audio/stt-configs.ts';
 import { createNodeNet } from '../../../plugin-kit/src/index.ts';
 import {
   assemblyAiBatch,
@@ -14,7 +15,6 @@ import {
 import { TRAVEL_KEYTERMS, configById, configStatus } from './configs.ts';
 import { loadCall, plannedStreamMs, streamWindows } from './corpus.ts';
 import { allRegions } from './gold.ts';
-import { loadKeys } from './keys.ts';
 import {
   RUNS_DIR,
   loadGolds,
@@ -38,7 +38,7 @@ export const BATCH_CONFIGS = {
 type BatchId = keyof typeof BATCH_CONFIGS;
 
 export async function record(values: Options): Promise<void> {
-  const keys = await loadKeys(values.keys as string | undefined);
+  const keys = await readKeys(values.keys as string | undefined);
   const golds = await loadGolds();
   const calls = String(values.calls ?? golds.map((gold) => gold.call).join(',')).split(',');
   const net = createNodeNet();
@@ -102,7 +102,7 @@ export async function record(values: Options): Promise<void> {
 }
 
 export async function batch(values: Options): Promise<void> {
-  const keys = await loadKeys(values.keys as string | undefined);
+  const keys = await readKeys(values.keys as string | undefined);
   const golds = await loadGolds();
   const net = createNodeNet();
   try {

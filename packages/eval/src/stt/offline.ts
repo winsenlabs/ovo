@@ -3,10 +3,10 @@
 import { mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { readKeys } from '../audio/stt-configs.ts';
 import { STT_CONFIGS, configStatus } from './configs.ts';
 import { SEGMENTATION, loadCall } from './corpus.ts';
 import { allRegions, parseGold, type GoldCall } from './gold.ts';
-import { loadKeys } from './keys.ts';
 import { BATCH_CONFIGS } from './live.ts';
 import { liveCallSummary } from './live-call.ts';
 import { formatReport } from './report.ts';
@@ -102,7 +102,7 @@ export async function candidates(): Promise<void> {
 
 export async function score(values: Options): Promise<void> {
   const golds = await loadGolds();
-  const keys = await loadKeys(values.keys as string | undefined);
+  const keys = await readKeys(values.keys as string | undefined);
   const runs = (await loadRuns()).filter(isStream);
   const wanted = values.configs ? String(values.configs).split(',') : STT_CONFIGS.map((c) => c.id);
   const configs = STT_CONFIGS.filter((config) => wanted.includes(config.id));
@@ -130,7 +130,7 @@ export async function score(values: Options): Promise<void> {
 }
 
 export async function status(values: Options): Promise<void> {
-  const keys = await loadKeys(values.keys as string | undefined);
+  const keys = await readKeys(values.keys as string | undefined);
   for (const config of STT_CONFIGS)
     console.log(`${config.id.padEnd(26)} ${configStatus(config, keys).padEnd(15)} ${config.label}`);
   for (const [id, spec] of Object.entries(BATCH_CONFIGS))

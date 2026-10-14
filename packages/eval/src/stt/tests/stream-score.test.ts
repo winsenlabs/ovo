@@ -12,7 +12,7 @@ import {
 import { STT_CONFIGS, configById, configStatus } from '../configs.ts';
 import type { GoldCall, GoldUtterance } from '../gold.ts';
 import { finalText, heardText } from '../hypothesis.ts';
-import { summarize } from '../score.ts';
+import { scoreUtterance, summarize } from '../score.ts';
 import { reportedLanguage, streamCall, tapNet, type StreamUtterance } from '../stream.ts';
 import { formatReport } from '../report.ts';
 
@@ -223,6 +223,66 @@ describe('scoring', () => {
     });
     // AssemblyAI bills the session, not the audio.
     expect(summary.billedSeconds).toBe(120);
+  });
+
+  it('scores Hinglish the way the call-eval harness does, whichever script the STT wrote', () => {
+    const said = gold([
+      {
+        text: 'Mera naam hai Tejas.',
+        devanagari: 'मेरा नाम है तेजस।',
+        language: 'hi',
+      },
+    ]).utterances[0]!;
+    const heard = (text: string) => ({
+      id: said.id,
+      startMs: 0,
+      speechEndMs: 800,
+      commitsAtMs: [1_000],
+      languages: [],
+      events: [{ atMs: 1_200, kind: 'final' as const, segmentId: '0', text }],
+    });
+    // Mixed script, as Scribe pinned to English writes it, is right word for word.
+    expect(scoreUtterance('call9', said, heard('मेरा naam है Tejas'))).toMatchObject({
+      wordErrors: 0,
+      words: 4,
+    });
+    // Call 8's "तेज इजाफा" for "Tejas": one word wrong, one extra.
+    expect(scoreUtterance('call9', said, heard('मेरा नाम है तेज इजाफा'))).toMatchObject({
+      wordErrors: 2,
+      words: 4,
+      timeToFinalMs: 400,
+    });
+  });
+
+  it('pools a call into one WER so a late final is not charged to two utterances', () => {
+    const recording = {
+      config: 'aai-english',
+      call: 'call9',
+      model: 'universal-streaming-english',
+      language: 'en-IN',
+      recordedAt: '',
+      streamedMs: 2_000,
+      sessionMs: 2_000,
+      usage: [],
+      utterances: ['what do you think about', 'this itinerary'].map((text, index) => ({
+        id: `c9-u0${index + 1}`,
+        startMs: index * 10_000,
+        speechEndMs: index * 10_000 + 800,
+        commitsAtMs: [index * 10_000 + 1_000],
+        languages: [],
+        events: [{ atMs: index * 10_000 + 1_100, kind: 'final' as const, segmentId: '0', text }],
+      })),
+    };
+    const summary = summarize(
+      configById('aai-english'),
+      [gold([{ text: 'What do you think about this' }, { text: 'itinerary?' }])],
+      [recording],
+    );
+    // Per utterance, "this" is missing from one and extra in the other; over the call, nothing is.
+    expect(summary.wer).toBeCloseTo(2 / 7);
+    expect(summary.callWer).toBe(0);
+    expect(summary.werEnglish).toBeCloseTo(2 / 7);
+    expect(summary.werHindi).toBeNull();
   });
 
   it('counts a partial that never finalised as heard, for regions without words', () => {

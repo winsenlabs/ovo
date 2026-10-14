@@ -14,8 +14,8 @@ export function formatReport(input: {
   golds: readonly GoldCall[];
 }): string {
   const lines = [
-    '| Config | Utterances | WER | WER (loose) | CER | Call WER (loose) | WER en | loose WER hi | Wrong language (text / reported) | Empty | Noise words | Final after speech p50 / p90 ms | No final | $/min (list) | Streamed s |',
-    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    '| Config | Utterances | WER | CER | Call WER | WER en | WER hi | Wrong language (text / reported) | Empty | Noise words | Final after speech p50 / p90 ms | No final | $/min (list) | Streamed s |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
   ];
   for (const s of input.summaries)
     lines.push(
@@ -23,11 +23,10 @@ export function formatReport(input: {
         `${s.config}${s.errors.length ? ' (errors)' : ''}`,
         `${s.utterances - s.missing}/${s.utterances}`,
         pct(s.wer),
-        pct(s.looseWer),
         pct(s.cer),
-        pct(s.callLooseWer),
+        pct(s.callWer),
         pct(s.werEnglish),
-        pct(s.looseWerHindi),
+        pct(s.werHindi),
         `${s.misdetected} / ${s.reportedForeign}`,
         s.empty,
         s.insertions,

@@ -1,7 +1,8 @@
-// Streams a call's caller utterances through one STT configuration the way a live call does:
+// Streams a call's caller utterances through one STT configuration as a live call frames them:
 // one session for the call, 20 ms frames of 8 kHz μ-law in real time, a host commit wherever the
-// live VAD stopped (Scribe's manual strategy), digital silence between utterances (the carrier
-// track's own gaps are exact silence).
+// live VAD stopped (Scribe's manual strategy). Between utterances it sends digital silence until
+// the final arrives, not the recorded gap: the track there sits at the μ-law codec floor (±8 on
+// 72-73% of samples of calls 7 and 8), which this replay does not reproduce.
 import { MULAW_8K, type NetPort, type SpeechToText } from '../../../contracts/src/index.ts';
 import { silence } from '../../../audio/src/index.ts';
 import { adaptSpeechToText } from '../../../session-host/src/speech-adapters/stt-format.ts';
