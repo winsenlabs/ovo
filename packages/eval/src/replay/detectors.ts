@@ -23,19 +23,17 @@ export async function chooseDetector(
   agentRow: Record<string, unknown>,
   config: Record<string, unknown> = {},
 ): Promise<DetectorChoice> {
-  if (spec === 'rules') {
-    // Idle prompts off: a recorded caller cannot answer them, and the call's timing would be lost
-    // to a hang-up the live call never had. A row (or --detector-config) that sets idle keeps it.
-    const row = { idle: null, ...agentRow, ...config };
-    return { name: 'rules', row, factory: createTurnDetector(row) };
-  }
+  // The agent's row, so a model detector that keeps the default's safety rules gets them too. Idle
+  // prompts off: a recorded caller cannot answer them, and the call's timing would be lost to a
+  // hang-up the live call never had. A row (or --detector-config) that sets idle keeps it.
+  const row = { idle: null, ...agentRow, ...config };
+  if (spec === 'rules') return { name: 'rules', row, factory: createTurnDetector(row) };
   if (!spec.startsWith('module:'))
     throw new Error(`unknown detector ${spec}: use rules or module:<path>[#export]`);
   const [path, name = 'createTurnDetector'] = spec.slice('module:'.length).split('#');
   const url = pathToFileURL(isAbsolute(path!) ? path! : resolve(path!)).href;
   const loaded = (await import(url)) as Record<string, unknown>;
   const exported = loaded[name] ?? loaded.default;
-  const row = { ...config };
   // A model detector may load its model first: the function may return a promise.
   const factory = isFactory(exported)
     ? exported
