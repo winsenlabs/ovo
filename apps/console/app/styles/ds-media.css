@@ -1,0 +1,166 @@
+/* W14 design system: timeline, conversation transcript and the audio player. */
+.ds-timeline-wrap {
+  display: grid;
+  gap: var(--space-3);
+}
+.ds-timeline-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-label-size);
+}
+.ds-timeline {
+  position: relative;
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ds-timeline li {
+  position: relative;
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-2) 0 var(--space-4) var(--space-1);
+}
+.ds-timeline li:not(:last-child)::before {
+  position: absolute;
+  top: 18px;
+  bottom: 0;
+  left: 9px;
+  width: 1px;
+  background: var(--border);
+  content: '';
+}
+.ds-timeline-dot {
+  z-index: 1;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 2px solid var(--neutral);
+  border-radius: 50%;
+  background: var(--surface);
+  font-size: 9px;
+}
+.ds-timeline li.tone-ok .ds-timeline-dot {
+  border-color: var(--ok);
+}
+.ds-timeline li.tone-info .ds-timeline-dot {
+  border-color: var(--info);
+}
+.ds-timeline li.tone-warn .ds-timeline-dot {
+  border-color: var(--warn);
+}
+.ds-timeline li.tone-danger .ds-timeline-dot {
+  border-color: var(--danger);
+}
+.ds-timeline-row {
+  display: grid;
+  flex: 1;
+  grid-template-columns: auto auto 1fr;
+  align-items: start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ds-timeline-offset {
+  color: var(--text-3);
+  font-size: var(--text-micro-size);
+}
+.ds-timeline-type {
+  color: var(--text-2);
+  font-size: var(--text-micro-size);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.ds-conversation {
+  display: grid;
+  gap: var(--space-3);
+}
+.ds-conversation-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ds-conversation-list li {
+  display: flex;
+}
+.ds-conversation-list li.speaker-caller {
+  justify-content: flex-end;
+}
+.ds-conversation-bubble {
+  display: grid;
+  gap: 4px;
+  max-width: min(70%, 520px);
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  text-align: start;
+}
+.ds-conversation-list li.speaker-agent .ds-conversation-bubble {
+  background: var(--accent-soft);
+}
+.ds-conversation-list li.interim .ds-conversation-bubble {
+  opacity: 0.6;
+}
+.ds-conversation-list li.unplayed .ds-conversation-bubble {
+  border: 1px dashed var(--border-strong);
+}
+.ds-conversation-list li.active .ds-conversation-bubble {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.ds-conversation-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  color: var(--text-3);
+  font-size: var(--text-micro-size);
+}
+.ds-audio-player {
+  display: grid;
+  gap: var(--space-3);
+}
+.ds-audio-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.ds-audio-track {
+  position: relative;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.ds-audio-segment {
+  position: absolute;
+  top: 6px;
+  height: 16px;
+  border-radius: 2px;
+}
+.ds-audio-segment.available {
+  background: var(--accent);
+  opacity: 0.5;
+}
+.ds-audio-segment.missing {
+  background: repeating-linear-gradient(45deg, var(--danger-soft) 0 4px, transparent 4px 8px);
+}
+.ds-audio-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+}
+.ds-audio-marker {
+  position: absolute;
+  top: -4px;
+  width: 1px;
+  height: 36px;
+  background: var(--text-3);
+}

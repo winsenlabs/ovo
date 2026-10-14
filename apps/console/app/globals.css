@@ -1,11 +1,15 @@
 @import './styles/tokens.css';
 @import './styles/base.css';
 @import './styles/layout.css';
-@import './styles/layout-more.css';
 @import './styles/components.css';
-@import './styles/components-more.css';
 @import './styles/domain.css';
 @import './styles/domain-more.css';
 @import './styles/operator.css';
 @import './styles/responsive.css';
 @import './styles/ui.css';
+@import './styles/ds-layout.css';
+@import './styles/ds-feedback.css';
+@import './styles/ds-forms.css';
+@import './styles/ds-data.css';
+@import './styles/ds-media.css';
+@import './styles/ds-charts.css';
