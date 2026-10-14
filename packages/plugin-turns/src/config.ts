@@ -142,6 +142,8 @@ export const DetectorConfigSchema = TurnConfigSchema.extend({
    * s later; each got a reply made for half a sentence (two asked the caller to say it again), held
    * and thrown away unheard, the last by 0.4 s. The reply's own hold after a turn that trailed off
    * (the engine's 2 s) does not follow it. 0 uses cutoffHoldMs; cutoffHoldMs 0 turns both off.
+   * Wave 12 (call 8cb76efc): words the STT broke off ("…any-", "…what happens-", "…so...") wait
+   * it too: the caller has not finished the word, let alone the question.
    */
   pauseHoldMs: z.number().int().min(0).max(10000).default(2500),
   /**

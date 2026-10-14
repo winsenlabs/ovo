@@ -1,4 +1,9 @@
-import type { Clock, SpeechCapabilities, VoiceEvent } from '@winsendotai/ovo-contracts';
+import type {
+  Clock,
+  SpeechCapabilities,
+  SpeechKindV2,
+  VoiceEvent,
+} from '@winsendotai/ovo-contracts';
 import { createTurnDetector } from '../src/index.ts';
 
 /**
@@ -49,7 +54,16 @@ export interface ReplayedTurn {
   filler?: string;
 }
 
-export function replay(clock: ReplayClock, row: Record<string, unknown>) {
+/** Wave 12: start the replay before the opening has played (call 8cb76efc turn 6). */
+export interface ReplayOptions {
+  opening?: boolean;
+}
+
+export function replay(
+  clock: ReplayClock,
+  row: Record<string, unknown>,
+  options: ReplayOptions = {},
+) {
   const controller = createTurnDetector(row).create({
     clock,
     vad: true,
@@ -64,6 +78,8 @@ export function replay(clock: ReplayClock, row: Record<string, unknown>) {
   const commits: { text: string; latencyMs: number; atMs?: number }[] = [];
   let forced = 0;
   const forcedAt: number[] = [];
+  /** Wave 12: an STT model of its own, told of each host commit (`onForced`). */
+  const forcedListeners: (() => void)[] = [];
   /** Wave 10: the caller's words each time they were announced stable (the LLM is asked then). */
   const stable: { text: string; atMs: number }[] = [];
   let segment = 0;
@@ -90,6 +106,7 @@ export function replay(clock: ReplayClock, row: Record<string, unknown>) {
     if (decision.type === 'force-endpoint') {
       forced++;
       forcedAt.push(clock.now());
+      for (const listener of forcedListeners) listener();
       const next = commits.shift();
       if (next) {
         const delayMs = next.atMs === undefined ? next.latencyMs : next.atMs - clock.now();
@@ -117,9 +134,12 @@ export function replay(clock: ReplayClock, row: Record<string, unknown>) {
     }
   });
   // Mid-call: the opening has played.
-  send({ type: 'bot.started', epoch: 0, kind: 'response' });
-  send({ type: 'bot.stopped', epoch: 0, kind: 'response' });
+  if (!options.opening) {
+    send({ type: 'bot.started', epoch: 0, kind: 'response' });
+    send({ type: 'bot.stopped', epoch: 0, kind: 'response' });
+  }
   let epoch = 0;
+  let kind: SpeechKindV2 = 'response';
   return {
     clock,
     turns,
@@ -139,9 +159,18 @@ export function replay(clock: ReplayClock, row: Record<string, unknown>) {
     commits: (text: string, latencyMs: number) => void commits.push({ text, latencyMs }),
     /** Scribe's answer to the next host commit: `text` at `atMs` on the clock, or at once if later. */
     commitsAt: (text: string, atMs: number) => void commits.push({ text, latencyMs: 0, atMs }),
-    agentStarts: (question = false) =>
-      send({ type: 'bot.started', epoch: ++epoch, kind: 'response', question }),
-    agentStops: () => send({ type: 'bot.stopped', epoch, kind: 'response' }),
+    agentStarts: (question = false) => {
+      kind = 'response';
+      send({ type: 'bot.started', epoch: ++epoch, kind, question });
+    },
+    /** Wave 12: a filler or search line ("Let me look that up."), or the opening's disclosure. */
+    agentSays: (said: 'filler' | 'disclosure') => {
+      kind = said === 'filler' ? 'acknowledgment' : 'disclosure';
+      send({ type: 'bot.started', epoch: ++epoch, kind, filler: said === 'filler' });
+    },
+    agentStops: () => send({ type: 'bot.stopped', epoch, kind }),
+    /** Wave 12: runs `listener` on each host commit, before any queued answer is scheduled. */
+    onForced: (listener: () => void) => void forcedListeners.push(listener),
     /**
      * A heard utterance of `ms`, Scribe's interims changing once a second as on the live calls
      * (`interims[i]` at (i + 1) s), then the VAD stop and the final `latencyMs` after the commit.

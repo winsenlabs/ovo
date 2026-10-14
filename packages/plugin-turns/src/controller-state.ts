@@ -20,6 +20,7 @@ import { IdleTimer } from './idle.ts';
 import type { MuteView } from './mute.ts';
 import { NoiseWatch } from './noise-watch.ts';
 import { OpeningGuard } from './opening-guard.ts';
+import { OwedReply } from './owed-reply.ts';
 import { SpeechEvidence } from './speech-evidence.ts';
 import { CommitTimers, type WordsView } from './stop-commit.ts';
 import { SpeechStopTimers } from './stop-speech-timeout.ts';
@@ -96,6 +97,8 @@ export abstract class TurnControllerState {
   protected voiceEndMs?: number;
   /** Wave 8b: the last turn's words, when they trailed off and the turn ended on a hold. */
   private trailedOff?: { text: string; atMs: number };
+  /** Wave 12: the reply to the caller's last turn, until a line of it starts. */
+  protected readonly owed = new OwedReply();
   protected readonly announcer: TurnAnnouncer;
 
   constructor(
@@ -247,6 +250,7 @@ export abstract class TurnControllerState {
     this.clear();
     this.trailedOff =
       reason === 'hold' || reason === 'pause' ? { text, atMs: this.input.clock.now() } : undefined;
+    this.owed.turnEnded(this.input.clock.now());
     this.answering = false;
     // The caller has had a turn: whatever the agent says from here is no longer the opening.
     this.opening.end();

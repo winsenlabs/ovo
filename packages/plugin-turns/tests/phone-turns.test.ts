@@ -120,12 +120,13 @@ describe('P2: turns no longer end mid-sentence', () => {
     expect(f.turns()).toEqual(["You didn't go there and tell me for- One minute."]);
   });
 
-  it('a broken-off final with no more speech ends after cutoffHoldMs', () => {
+  it('a broken-off final with no more speech ends after the pause hold', () => {
     const f = fixture();
     f.utter(1500, 'Do you know', 'Do you know any-');
     // Wave 10: committed at the stop, its final first waits out the 250 ms its words were owed,
-    // then the hold: the same moment after the VAD stop as before (250 + 350 + 700 ms).
-    f.clock.advance(949);
+    // then the hold. Wave 12 (call 8cb76efc turns 21 and 24): a word the STT broke off waits the
+    // 2.5 s pause hold, not cutoffHoldMs: 250 + 350 + 2500 ms after the VAD stop.
+    f.clock.advance(2_749);
     expect(f.turns()).toEqual([]);
     f.clock.advance(1);
     expect(f.turns()).toEqual(['Do you know any-']);

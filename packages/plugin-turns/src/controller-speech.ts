@@ -6,15 +6,21 @@ import {
   type SttEvent,
 } from '@winsendotai/ovo-contracts';
 import { TurnControllerState } from './controller-state.ts';
+import { MutedWords } from './muted-words.ts';
 import { canInterrupt, confirmationPrompt, speechMuted } from './mute.ts';
 import { acknowledges, containsConfirmationPhrase, speechCanInterrupt } from './start-min-words.ts';
 import { transcriptStartsTurn } from './start-transcript.ts';
-import { spokenText } from './transcript-text.ts';
+import { endsCutOff, spokenText } from './transcript-text.ts';
 
 /** The caller's words: when they start, barge in on and end a turn. */
 export abstract class TurnControllerSpeech extends TurnControllerState {
   /** Wave 9: when the agent's reply (not a filler line) last started to play. */
   protected replyStartedAt?: number;
+  /** Wave 12: words heard while muted, committed once that speech is over. */
+  protected readonly muted = new MutedWords(
+    this.aggregate,
+    this.input.stt?.forceEndpoint ? () => this.emit({ type: 'force-endpoint' }) : undefined,
+  );
 
   protected reset(reason: 'muted' | 'backchannel'): void {
     const text = this.aggregate.text || this.aggregate.view;
@@ -80,16 +86,27 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
       }
     }
     // Words that trail off wait for the caller to go on ("…around the 1" + "st."); Wave 9: words
-    // that stop mid-thought ("No, umm...", "…it should still be a") wait the longer pause.
+    // that stop mid-thought ("No, umm...", "…it should still be a") wait the longer pause. Wave 12
+    // (call 8cb76efc turns 21 and 24): so do words the STT broke off ("No. Have there been any-",
+    // "…uh, what happens-"): live they waited the 700 ms hold, the caller went on 0.8 s and 0.4 s
+    // later, and in between the LLM wrote "Could you finish your question?" and "Sorry, could you
+    // say that again?", which only the engine's 2 s hold kept from playing over them.
     const unfinished = this.read(text).ends === 'unfinished';
     const { cutoffHoldMs, pauseHoldMs } = this.config;
-    const pause = unfinished && cutoffHoldMs > 0 && pauseHoldMs > 0 && pausesMidThought(text);
+    const pause =
+      unfinished &&
+      cutoffHoldMs > 0 &&
+      pauseHoldMs > 0 &&
+      (pausesMidThought(text) || endsCutOff(text));
     const expired = () => {
       this.endRule = pause ? 'pause' : 'hold';
       this.tryStop();
     };
     const holdMs = pause ? pauseHoldMs : undefined;
     if (this.cutoff.holds(unfinished, expired, holdMs, text)) return;
+    // Wave 12 (call 8cb76efc turn 20): "Please." while its reply is composed is no turn of its own.
+    if (this.owed.answers(text, this.startedAtMs, () => this.offLanguage(text)))
+      return this.reset('backchannel');
     this.stop();
   }
 
@@ -126,6 +143,24 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
     this.emit({ type: 'interrupt', reason: 'transcript' });
   }
 
+  /**
+   * Call 6e1a4e3a turn 9: "Hardik?" said 2.4 s into a 12 s answer waited 9.4 s for it, as the
+   * answer to the question it ended on. Said that long before the agent stopped, it came before
+   * the question was heard, and only acknowledged what the agent was saying then.
+   */
+  protected repliedEarly(): boolean {
+    const windowMs = this.config.questionReplyMs;
+    const at = this.lastWordsAt ?? this.input.clock.now();
+    return windowMs > 0 && this.input.clock.now() - at > windowMs;
+  }
+
+  /** Muted speech ended with the VAD's stop: its words are over (`MutedWords`). */
+  protected mutedStop(): boolean {
+    if (!speechMuted(this.view(), this.rules)) return false;
+    this.muted.over();
+    return true;
+  }
+
   private offLanguage(text: string): boolean {
     return Boolean(this.config.languages && offLanguage(text, this.config.languages));
   }
@@ -151,6 +186,7 @@ export abstract class TurnControllerSpeech extends TurnControllerState {
     this.idle.cancel();
     const view = this.view();
     if (speechMuted(view, this.rules)) {
+      this.muted.heard(segment);
       this.start();
       this.reset('muted');
       return;
