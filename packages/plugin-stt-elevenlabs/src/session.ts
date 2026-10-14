@@ -1,4 +1,4 @@
-import { FrameAggregator, bytesForMs, padWithSilence, silence } from '@winsendotai/ovo-audio';
+import { FrameAggregator, silence } from '@winsendotai/ovo-audio';
 import {
   bytesPerSecond,
   type Clock,
@@ -7,6 +7,7 @@ import {
   type WebSocketLike,
 } from '@winsendotai/ovo-contracts';
 import { createLogger, decimal, syntheticRequestId, usageOnce } from '@winsendotai/ovo-plugin-kit';
+import { commitTail } from './commit-audio.ts';
 import { deferred, onAbort } from './lifecycle.ts';
 import { ElevenLabsSttError, audioChunk, parseMessage, retryableClose } from './protocol.ts';
 import { ScribeTranscripts, type ScribeTranscriptOptions } from './transcripts.ts';
@@ -19,14 +20,6 @@ type Start = Parameters<SpeechToText['start']>[0];
 const CHUNK_MS = 50;
 /** The shortest chunk a commit carries; an empty remainder is sent as this much silence. */
 const COMMIT_PAD_MS = 20;
-/**
- * The least audio a commit may close. With less, Scribe answers `commit_throttled` ("Commit request
- * ignored: only 0.22s of uncommitted audio. You need at least 0.3s of uncommitted audio before
- * committing.") and then closes the socket with 1000 `commit_throttled`, observed live by the
- * Wave 13 STT bake-off (2026-10-14). A shorter commit is padded with silence to this, 20 ms over
- * the limit for the provider's rounding.
- */
-export const MIN_COMMIT_AUDIO_MS = 320;
 /** How long a graceful finish waits for the committed transcript of the trailing audio. */
 export const FINISH_TIMEOUT_MS = 3_000;
 
@@ -141,8 +134,7 @@ export class ScribeSession implements SttSession {
   private commit(): void {
     const tail =
       this.frames.flush({ padToMs: COMMIT_PAD_MS }) ?? silence(this.input.format, COMMIT_PAD_MS);
-    const least = bytesForMs(this.input.format, MIN_COMMIT_AUDIO_MS) - this.sentSinceCommit;
-    this.send(padWithSilence(tail, least, this.input.format), true);
+    this.send(commitTail(tail, this.sentSinceCommit, this.input.format), true);
     this.uncommitted = false;
     this.pendingCommits++;
     this.commitsSentAt.push(this.clock.now());
