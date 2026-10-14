@@ -21,15 +21,23 @@ export function RadioCardGroup({
   onChange,
   choices,
   columns = 2,
+  groupLabel,
 }: {
   name: string;
   value: string;
   onChange: (value: string) => void;
   choices: readonly Choice[];
   columns?: 1 | 2 | 3 | 4;
+  /** Accessible name for the group; required unless an external `<fieldset><legend>` wraps it. */
+  groupLabel?: string;
 }) {
   return (
-    <div className="ds-choice-grid" style={{ '--ds-choice-cols': columns } as CSSProperties}>
+    <div
+      className="ds-choice-grid"
+      role="radiogroup"
+      aria-label={groupLabel}
+      style={{ '--ds-choice-cols': columns } as CSSProperties}
+    >
       {choices.map((choice) => (
         <label
           key={choice.value}

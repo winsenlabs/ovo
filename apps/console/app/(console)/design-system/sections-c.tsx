@@ -32,8 +32,10 @@ export function MediaSection() {
       </SectionCard>
 
       <SectionCard title="Conversation + audio player">
+        {/* Never src="" — the guide's own rule, and real browsers warn on it. A minimal silent
+            WAV data URI stands in for a fixture recording. */}
         <AudioPlayer
-          src=""
+          src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="
           durationMs={60000}
           segments={[
             { startMs: 0, endMs: 40000, available: true },

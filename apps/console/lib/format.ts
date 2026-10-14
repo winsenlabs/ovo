@@ -1,6 +1,13 @@
 // Formatting primitives (design brief §1.3 "Humanise every value"). Every new screen should read
 // a value through one of these, never through `.toLocaleString()` with the browser's default
 // locale or a bare template string of a minor-unit amount.
+// Every screen is served from a single installation's clock (today the GCP VM, UTC), not the
+// operator's own device, so an absolute timestamp must be pinned to one zone rather than left to
+// drift with whatever the server happened to run in — the dashboard showed "12:00 am" for a
+// 05:30 IST call. Change this one constant (or make it .env-configurable) if the installation's
+// operating timezone is ever not India.
+const DEFAULT_TIME_ZONE = 'Asia/Kolkata';
+
 export function formatPaise(value?: string | null): string {
   if (value == null) return 'unpriced';
   const number = Number(value);
@@ -32,6 +39,7 @@ export function formatDateTime(
   return new Intl.DateTimeFormat('en-IN', {
     dateStyle: 'medium',
     timeStyle: 'short',
+    timeZone: DEFAULT_TIME_ZONE,
     ...options,
   }).format(date);
 }
@@ -39,7 +47,10 @@ export function formatDateTime(
 export function formatDate(value?: string | number | Date | null): string {
   const date = parseDate(value);
   if (!date) return 'Unknown';
-  return new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(date);
+  return new Intl.DateTimeFormat('en-IN', {
+    dateStyle: 'medium',
+    timeZone: DEFAULT_TIME_ZONE,
+  }).format(date);
 }
 
 const RELATIVE_UNITS: readonly [Intl.RelativeTimeFormatUnit, number][] = [

@@ -50,6 +50,43 @@ export function niceTicks(domain: readonly [number, number], targetCount = 5): n
   return ticks;
 }
 
+// Duration steps `niceTimeTicks` may choose between, in ms, smallest to largest.
+const TIME_STEPS_MS = [
+  1000,
+  5000,
+  15000,
+  30000, // seconds
+  60000,
+  300000,
+  900000,
+  1800000, // minutes
+  3600000,
+  10800000,
+  21600000,
+  43200000, // hours
+  86400000,
+  604800000, // days / week
+] as const;
+
+/**
+ * Ticks for an epoch-ms domain, aligned to a calendar-friendly step (minute/hour/day) rather than
+ * `niceTicks`'s power-of-ten stepping, which on an epoch-ms domain produces ticks like
+ * "00:00, 00:53, 01:46" instead of hourly marks.
+ */
+export function niceTimeTicks(domain: readonly [number, number], targetCount = 5): number[] {
+  const [min, max] = domain;
+  if (min === max) return [min];
+  const span = max - min;
+  const step =
+    TIME_STEPS_MS.find((candidate) => span / candidate <= targetCount) ??
+    Math.ceil(span / targetCount / 86400000) * 86400000;
+  const start = Math.ceil(min / step) * step;
+  const ticks: number[] = [];
+  for (let value = start; value <= max; value += step) ticks.push(value);
+  if (ticks.length === 0) ticks.push(min);
+  return ticks;
+}
+
 export function formatMsAxis(ms: number): string {
   if (ms >= 60000) return `${(ms / 60000).toFixed(ms % 60000 === 0 ? 0 : 1)}m`;
   if (ms >= 1000) return `${(ms / 1000).toFixed(ms % 1000 === 0 ? 0 : 1)}s`;

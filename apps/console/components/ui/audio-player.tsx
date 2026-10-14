@@ -55,6 +55,7 @@ export function AudioPlayer({
       <div className="ds-audio-controls">
         <button
           type="button"
+          className="button small"
           onClick={() => seekTo(Math.max(0, currentMs - 5000))}
           aria-label="Back 5 seconds"
         >
@@ -63,13 +64,23 @@ export function AudioPlayer({
         <button
           type="button"
           className="button primary small"
-          onClick={() => (playing ? audioRef.current?.pause() : audioRef.current?.play())}
+          onClick={() => {
+            if (playing) {
+              audioRef.current?.pause();
+              return;
+            }
+            // `.play()` returns a promise that rejects when the browser blocks autoplay or the
+            // source errors; an unhandled rejection surfaces as a console error (axe/console
+            // sweeps flag it) for a problem the operator cannot otherwise see.
+            audioRef.current?.play().catch(() => setPlaying(false));
+          }}
           aria-label={playing ? 'Pause' : 'Play'}
         >
           {playing ? '❙❙' : '▶'}
         </button>
         <button
           type="button"
+          className="button small"
           onClick={() => seekTo(Math.min(total, currentMs + 5000))}
           aria-label="Forward 5 seconds"
         >
@@ -79,6 +90,7 @@ export function AudioPlayer({
           {mmss(currentMs / 1000)} / {mmss(total / 1000)}
         </span>
         <select
+          className="ds-audio-speed"
           aria-label="Playback speed"
           value={speed}
           onChange={(event) => {
@@ -99,45 +111,57 @@ export function AudioPlayer({
           </a>
         )}
       </div>
-      <div
-        className="ds-audio-track"
-        role="slider"
-        aria-label="Recording position"
-        aria-valuemin={0}
-        aria-valuemax={total}
-        aria-valuenow={currentMs}
-        tabIndex={0}
-        onClick={(event) => {
-          const rect = event.currentTarget.getBoundingClientRect();
-          seekTo(((event.clientX - rect.left) / rect.width) * total);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowRight') seekTo(Math.min(total, currentMs + 5000));
-          if (event.key === 'ArrowLeft') seekTo(Math.max(0, currentMs - 5000));
-        }}
-      >
-        {segments.map((segment, index) => (
+      <div className="ds-audio-track-wrap">
+        <div
+          className="ds-audio-track"
+          role="slider"
+          aria-label="Recording position"
+          aria-valuemin={0}
+          aria-valuemax={total}
+          aria-valuenow={currentMs}
+          aria-valuetext={`${mmss(currentMs / 1000)} of ${mmss(total / 1000)}`}
+          tabIndex={0}
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            seekTo(((event.clientX - rect.left) / rect.width) * total);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowRight') seekTo(Math.min(total, currentMs + 5000));
+            if (event.key === 'ArrowLeft') seekTo(Math.max(0, currentMs - 5000));
+          }}
+        >
+          {segments.map((segment, index) => (
+            <span
+              key={index}
+              className={`ds-audio-segment ${segment.available ? 'available' : 'missing'}`}
+              style={{
+                insetInlineStart: `${(segment.startMs / total) * 100}%`,
+                width: `${((segment.endMs - segment.startMs) / total) * 100}%`,
+              }}
+            />
+          ))}
           <span
-            key={index}
-            className={`ds-audio-segment ${segment.available ? 'available' : 'missing'}`}
-            style={{
-              insetInlineStart: `${(segment.startMs / total) * 100}%`,
-              width: `${((segment.endMs - segment.startMs) / total) * 100}%`,
-            }}
+            className="ds-audio-cursor"
+            style={{ insetInlineStart: `${(currentMs / total) * 100}%` }}
           />
-        ))}
-        <span
-          className="ds-audio-cursor"
-          style={{ insetInlineStart: `${(currentMs / total) * 100}%` }}
-        />
-        {markers.map((marker) => (
-          <span
-            key={marker.atMs}
-            className="ds-audio-marker"
-            title={marker.label}
-            style={{ insetInlineStart: `${(marker.atMs / total) * 100}%` }}
-          />
-        ))}
+        </div>
+        {/* Markers are a sibling overlay, not a descendant of the `role="slider"` track: a
+            button nested inside another interactive widget is an axe `nested-interactive`
+            violation. The wrapper itself takes no pointer events so clicks still reach the
+            slider everywhere except exactly on a marker. */}
+        <div className="ds-audio-markers" aria-hidden="false">
+          {markers.map((marker) => (
+            <button
+              key={marker.atMs}
+              type="button"
+              className="ds-audio-marker"
+              title={marker.label}
+              aria-label={`Jump to ${marker.label}`}
+              style={{ insetInlineStart: `${(marker.atMs / total) * 100}%` }}
+              onClick={() => seekTo(marker.atMs)}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

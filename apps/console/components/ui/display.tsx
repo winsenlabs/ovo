@@ -9,15 +9,23 @@ import {
   formatRelativeTime,
 } from '../../lib/format';
 
-/** Relative time with the absolute en-IN timestamp as a tooltip; re-renders itself every minute. */
+/**
+ * Relative time with the absolute en-IN timestamp as a tooltip; re-renders itself every minute.
+ * `formatRelativeTime` reads `Date.now()`, which the server and the client never agree on, so
+ * the first render (server and client alike) shows the deterministic absolute time instead and
+ * only switches to the relative label after mount — the hydration hazard `components.md` warns
+ * every caller about.
+ */
 export function RelativeTime({ value }: { value?: string | number | Date | null }) {
-  const [, setTick] = useState(0);
+  const [relative, setRelative] = useState<string | null>(null);
   useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 60000);
+    const update = () => setRelative(formatRelativeTime(value));
+    update();
+    const id = setInterval(update, 60000);
     return () => clearInterval(id);
-  }, []);
+  }, [value]);
   if (value == null) return <span className="ds-unknown">Unknown</span>;
-  return <time title={formatDateTime(value)}>{formatRelativeTime(value)}</time>;
+  return <time title={formatDateTime(value)}>{relative ?? formatDateTime(value)}</time>;
 }
 
 export function Money({

@@ -57,6 +57,11 @@ export function Conversation({
               disabled={!onSeek || line.interim}
             >
               <span className="ds-conversation-meta">
+                {/* Position + colour alone conveyed the speaker before; name it too (brief §1
+                    rule 3 — never colour-only meaning). */}
+                <span className="ds-conversation-speaker">
+                  {line.speaker === 'agent' ? 'Agent' : 'Caller'}
+                </span>
                 <span className="mono">{mmss(line.atMs)}</span>
                 {line.played === false && <span className="ds-chip">Generated, not played</span>}
                 {line.latencyMs != null && (

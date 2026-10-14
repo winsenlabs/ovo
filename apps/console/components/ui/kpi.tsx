@@ -50,6 +50,9 @@ export function KpiCard({
       {!loading && delta && (
         <span className={`ds-kpi-delta tone-${delta.tone ?? (delta.value >= 0 ? 'ok' : 'danger')}`}>
           <span aria-hidden="true">{delta.value >= 0 ? '▲' : '▼'}</span>
+          {/* The glyph above is `aria-hidden`, so direction must survive as real text — without
+              it a screen reader hears a bare "6%" with no up/down (brief defect #9). */}
+          <span className="sr-only">{delta.value >= 0 ? 'Up' : 'Down'}</span>
           {Math.abs(delta.value)}
           {delta.label ? ` ${delta.label}` : '%'}
         </span>
@@ -57,8 +60,11 @@ export function KpiCard({
       {!loading && footnote && <small className="ds-kpi-footnote">{footnote}</small>}
     </article>
   );
+  // No `aria-label` here: it would override the link's whole accessible name with just "<label>:
+  // open detail", dropping the value a screen-reader user came for (brief defect #9 — "Calls
+  // (24h): open detail" with no number). The card's own text content is the accessible name.
   return href ? (
-    <a href={href} className="ds-kpi-link" aria-label={`${label}: open detail`}>
+    <a href={href} className="ds-kpi-link">
       {body}
     </a>
   ) : (

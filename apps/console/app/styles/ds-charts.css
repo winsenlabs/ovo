@@ -3,7 +3,21 @@
    toggle. Chart marks themselves are drawn inline by each `components/charts/*` component. */
 .ds-chart-frame {
   display: grid;
+  /* `minmax(0,1fr)`, not the implicit `auto`: a grid item's min-width defaults to its content's
+     intrinsic width, so a 600px measured SVG held this frame at 600px forever (brief defect #2).
+     The width-measured child below gets the same rule so it can report a true shrunk width to
+     the `ResizeObserver` instead of reporting its own last-rendered SVG width back to itself. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
+  min-width: 0;
+}
+.ds-chart-frame > [role='img'] {
+  min-width: 0;
+  overflow: hidden;
+}
+.ds-chart-frame svg {
+  display: block;
+  max-width: 100%;
 }
 .ds-chart-frame-head {
   display: flex;
@@ -90,12 +104,34 @@
   font-weight: 650;
 }
 .ds-waterfall-unattributed {
-  opacity: 0.5;
+  opacity: 0.85;
 }
 .ds-waterfall-overflow {
   fill: var(--danger-text);
   font-size: var(--text-micro-size);
   font-weight: 600;
+}
+.ds-waterfall-p95-line {
+  stroke: var(--text-3);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+}
+.ds-waterfall-p95-label {
+  fill: var(--text-3);
+  font-size: var(--text-micro-size);
+}
+.ds-waterfall {
+  display: grid;
+  gap: var(--space-2);
+}
+.ds-bar-value-label {
+  fill: var(--text-2);
+  font-size: var(--text-micro-size);
+  font-variant-numeric: tabular-nums;
+}
+.ds-bar-category-label {
+  fill: var(--text-3);
+  font-size: var(--text-micro-size);
 }
 .ds-meter {
   display: grid;
@@ -139,6 +175,9 @@
   bottom: -2px;
   width: 2px;
   background: var(--text);
+}
+.ds-meter-limit {
+  background: var(--danger-text);
 }
 .ds-theme-toggle {
   display: inline-flex;

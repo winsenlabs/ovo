@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { bandScale, formatInrAxis, formatMsAxis, linearScale, niceTicks } from './scale';
+import {
+  bandScale,
+  formatInrAxis,
+  formatMsAxis,
+  linearScale,
+  niceTicks,
+  niceTimeTicks,
+} from './scale';
 
 describe('linearScale', () => {
   it('maps the domain onto the range', () => {
@@ -32,6 +39,23 @@ describe('niceTicks', () => {
     expect(ticks[0]).toBeGreaterThanOrEqual(0);
     expect(ticks.at(-1)).toBeLessThanOrEqual(97);
     expect(ticks.length).toBeGreaterThan(1);
+  });
+});
+
+describe('niceTimeTicks', () => {
+  it('aligns to a calendar-friendly step for a 24-hour epoch-ms domain', () => {
+    const start = Date.UTC(2026, 9, 14, 0, 0, 0);
+    const ticks = niceTimeTicks([start, start + 24 * 3_600_000], 5);
+    // `niceTicks`'s power-of-ten stepping on a domain this large would land on ticks like
+    // "00:53, 01:46" instead of hour marks (brief defect #3's "1970-era" symptom in miniature:
+    // the step itself is never a round time unit).
+    expect(ticks.every((tick) => (tick - start) % 3_600_000 === 0 || tick % 3_600_000 === 0)).toBe(
+      true,
+    );
+    expect(ticks.length).toBeGreaterThan(1);
+  });
+  it('returns the single value for a collapsed domain', () => {
+    expect(niceTimeTicks([5, 5])).toEqual([5]);
   });
 });
 

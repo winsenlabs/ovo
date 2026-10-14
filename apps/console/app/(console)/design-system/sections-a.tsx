@@ -8,7 +8,7 @@ import { PaginationV2 } from '../../../components/ui/pagination-v2';
 import { IdChip, KeyValueGrid, SectionCard } from '../../../components/ui/section-card';
 import { StatusBadgeV2 } from '../../../components/ui/status-badge';
 import { Tabs } from '../../../components/ui/tabs';
-import { DateRangePicker, FilterBar } from '../../../components/ui/toolbar';
+import { DateRangePicker, FilterBar, type CustomRange } from '../../../components/ui/toolbar';
 import { Percent } from '../../../components/ui/display';
 
 const DEMO_UPDATED_AT = '2026-10-15T01:54:00.000Z';
@@ -22,6 +22,8 @@ const DEMO_ROWS = [
 export function TokensAndDataSections() {
   const [tab, setTab] = useState('overview');
   const [range, setRange] = useState<'1h' | '24h' | '7d' | '30d' | 'custom'>('24h');
+  const [customRange, setCustomRange] = useState<CustomRange>({ from: '', to: '' });
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set(['call_1']));
 
   return (
     <>
@@ -76,7 +78,14 @@ export function TokensAndDataSections() {
         <FilterBar
           search=""
           onSearch={() => undefined}
-          filters={<DateRangePicker value={range} onChange={setRange} />}
+          filters={
+            <DateRangePicker
+              value={range}
+              onChange={setRange}
+              custom={customRange}
+              onCustomChange={setCustomRange}
+            />
+          }
           chips={[{ id: 'status', label: 'Status: Failed' }]}
           onClearChip={() => undefined}
           onClearAll={() => undefined}
@@ -89,6 +98,8 @@ export function TokensAndDataSections() {
           rows={DEMO_ROWS}
           rowKey={(row) => row.id}
           rowHref={(row) => `#${row.id}`}
+          selected={selected}
+          onSelectChange={setSelected}
           columns={[
             {
               id: 'agent',

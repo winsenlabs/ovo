@@ -8,6 +8,7 @@ export function ChoiceCardDemo() {
   return (
     <RadioCardGroup
       name="mode-demo"
+      groupLabel="Agent mode"
       value={mode}
       onChange={setMode}
       choices={[

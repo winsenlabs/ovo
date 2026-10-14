@@ -111,6 +111,26 @@ export function TagInput({
   );
 }
 
+const PREVIEW_ROWS = 5;
+
+/** First few rows of a CSV, or the top-level shape of a JSON array/object, for a quick sanity
+ * check before import — never the full file, which may be thousands of rows. */
+function summarisePreview(name: string, text: string): string {
+  if (/\.json$/i.test(name)) {
+    try {
+      const parsed: unknown = JSON.parse(text);
+      const rows = Array.isArray(parsed) ? parsed : [parsed];
+      return rows
+        .slice(0, PREVIEW_ROWS)
+        .map((row) => JSON.stringify(row))
+        .join('\n');
+    } catch {
+      return 'Could not parse as JSON.';
+    }
+  }
+  return text.split(/\r?\n/).slice(0, PREVIEW_ROWS).join('\n');
+}
+
 /** CSV/JSON drop zone with a lightweight parsed-row preview, used by every import drawer. */
 export function FileDrop({
   accept,
@@ -122,35 +142,52 @@ export function FileDrop({
   hint: string;
 }) {
   const [dragging, setDragging] = useState(false);
+  const [preview, setPreview] = useState<{ name: string; rows: string } | null>(null);
+
+  const handleFile = (file: File) => {
+    onFile(file);
+    file
+      .text()
+      .then((text) => setPreview({ name: file.name, rows: summarisePreview(file.name, text) }))
+      .catch(() => setPreview({ name: file.name, rows: 'Could not read a preview.' }));
+  };
   const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     setDragging(false);
     const file = event.dataTransfer.files[0];
-    if (file) onFile(file);
+    if (file) handleFile(file);
   };
   return (
-    // A native `<label>` around the file input is the one drop-zone shape that is clickable
-    // end to end without a second, nested interactive role (axe `nested-interactive`).
-    <label
-      className={`ds-file-drop ${dragging ? 'dragging' : ''}`}
-      onDragOver={(event) => {
-        event.preventDefault();
-        setDragging(true);
-      }}
-      onDragLeave={() => setDragging(false)}
-      onDrop={handleDrop}
-    >
-      <input
-        type="file"
-        accept={accept}
-        className="sr-only"
-        aria-label={hint}
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) onFile(file);
+    <div>
+      {/* A native `<label>` around the file input is the one drop-zone shape that is clickable
+          end to end without a second, nested interactive role (axe `nested-interactive`). */}
+      <label
+        className={`ds-file-drop ${dragging ? 'dragging' : ''}`}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
         }}
-      />
-      <span>{hint}</span>
-    </label>
+        onDragLeave={() => setDragging(false)}
+        onDrop={handleDrop}
+      >
+        <input
+          type="file"
+          accept={accept}
+          className="sr-only"
+          aria-label={hint}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) handleFile(file);
+          }}
+        />
+        <span>{hint}</span>
+      </label>
+      {preview && (
+        <div className="ds-file-drop-preview">
+          <strong>{preview.name}</strong>
+          <pre className="mono ds-code-pre">{preview.rows}</pre>
+        </div>
+      )}
+    </div>
   );
 }

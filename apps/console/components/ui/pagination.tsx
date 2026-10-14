@@ -1,3 +1,5 @@
+/** @deprecated Use `PaginationV2` from `./pagination-v2`, which shows "1–50 of many" and hides
+ * itself entirely on a single page instead of always rendering disabled Prev/Next. */
 export function Pagination({
   previous,
   next,

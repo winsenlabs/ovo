@@ -12,8 +12,10 @@ export function HeatStrip({
 }) {
   const max = Math.max(1, ...cells.map((c) => c.value));
   const lookup = new Map(cells.map((cell) => [`${cell.day}-${cell.hour}`, cell.value]));
-  const width = 24 * cellSize + 36;
-  const height = 7 * cellSize + 8;
+  const rowLabelWidth = 36;
+  const hourLabelHeight = 14;
+  const width = 24 * cellSize + rowLabelWidth;
+  const height = 7 * cellSize + hourLabelHeight;
 
   return (
     <svg
@@ -22,9 +24,23 @@ export function HeatStrip({
       viewBox={`0 0 ${width} ${height}`}
       role="img"
       aria-label="Call volume by hour and day of week"
+      // The brief's fixed 372px (24 * 14 + 36) overflows a 390px viewport once the page gutter
+      // is subtracted; scale the mark down to its container instead of clipping it.
+      style={{ maxWidth: '100%', height: 'auto' }}
     >
+      {Array.from({ length: 8 }, (_, tick) => tick * 3).map((hour) => (
+        <text
+          key={hour}
+          x={rowLabelWidth + hour * cellSize}
+          y={hourLabelHeight - 4}
+          textAnchor="start"
+          className="ds-chart-row-label"
+        >
+          {String(hour).padStart(2, '0')}:00
+        </text>
+      ))}
       {DAYS.map((label, day) => (
-        <g key={label} transform={`translate(0,${day * cellSize})`}>
+        <g key={label} transform={`translate(0,${hourLabelHeight + day * cellSize})`}>
           <text x={0} y={cellSize / 2} dy="0.32em" className="ds-chart-row-label">
             {label}
           </text>
@@ -34,7 +50,7 @@ export function HeatStrip({
             return (
               <rect
                 key={hour}
-                x={36 + hour * cellSize}
+                x={rowLabelWidth + hour * cellSize}
                 y={0}
                 width={cellSize - 1}
                 height={cellSize - 1}

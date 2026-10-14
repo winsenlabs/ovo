@@ -1,5 +1,6 @@
 'use client';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { SkeletonTableRows } from './feedback-v2';
 import { EmptyStateV2, ErrorState } from './feedback-v2';
 
@@ -80,6 +81,13 @@ export function DataTableV2<T>({
     );
   };
   const allSelected = selected && rows.length > 0 && rows.every((row) => selected.has(rowKey(row)));
+  const someSelected = selected && selected.size > 0 && !allSelected;
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  // `indeterminate` is a DOM property, not an HTML attribute React exposes as a prop; it must be
+  // set imperatively or a partial selection renders as a plain unchecked "select all" box.
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = Boolean(someSelected);
+  }, [someSelected]);
 
   return (
     <div className={`ds-table density-${density}`} role="region" aria-label={label} tabIndex={0}>
@@ -89,6 +97,7 @@ export function DataTableV2<T>({
             {onSelectChange && (
               <th scope="col" className="ds-table-select">
                 <input
+                  ref={selectAllRef}
                   type="checkbox"
                   aria-label="Select all rows"
                   checked={Boolean(allSelected)}
@@ -158,9 +167,9 @@ export function DataTableV2<T>({
                     className={`priority-${column.priority ?? 'normal'} align-${column.align ?? 'start'}`}
                   >
                     {href && index === 0 ? (
-                      <a href={href} className="ds-row-link-anchor">
+                      <Link href={href} className="ds-row-link-anchor">
                         {column.cell(row)}
-                      </a>
+                      </Link>
                     ) : (
                       column.cell(row)
                     )}

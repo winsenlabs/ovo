@@ -87,6 +87,24 @@ input[type='radio'] {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
+.ds-file-drop:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-color: var(--accent);
+}
+.ds-file-drop-preview {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  text-align: start;
+}
+.ds-range-picker-custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
 .ds-range-picker {
   display: inline-flex;
   border: 1px solid var(--border);
@@ -203,7 +221,7 @@ input[type='radio'] {
 .ds-stepper li.state-done .ds-stepper-dot {
   border-color: var(--accent);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 .ds-stepper li.state-current {
   color: var(--text);

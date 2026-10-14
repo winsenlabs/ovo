@@ -1,6 +1,8 @@
 .panel {
   min-width: 0;
-  overflow: hidden;
+  /* Never clip a child in overflow: the call cost table and mobile stacked tables both need to
+     scroll inside their own region (brief defect #2), not be cut off by this card. */
+  overflow: visible;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
@@ -83,7 +85,9 @@
 .button.primary {
   border-color: var(--accent);
   background: var(--accent);
-  color: #fff;
+  /* --on-accent, not a literal #fff: --accent is a light mint (#5fbf8a) in dark mode, where
+     white text drops to ~2.25:1 (axe color-contrast, serious). --on-accent flips per theme. */
+  color: var(--on-accent);
 }
 .button.primary:hover:not(:disabled) {
   background: var(--accent-hover);

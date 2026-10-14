@@ -6,6 +6,8 @@ export type Column<T> = {
   cell: (row: T) => ReactNode;
   priority?: 'high' | 'normal' | 'low';
 };
+/** @deprecated Use `DataTableV2` from `./data-table-v2`, which adds sort, selection and a
+ * loading/error state this version does not have. */
 export function DataTable<T>({
   label,
   rows,

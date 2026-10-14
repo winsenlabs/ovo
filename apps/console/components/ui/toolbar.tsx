@@ -3,28 +3,64 @@ import type { ReactNode } from 'react';
 export const RANGE_PRESETS = ['1h', '24h', '7d', '30d', 'custom'] as const;
 export type RangePreset = (typeof RANGE_PRESETS)[number];
 
-/** Presets 1h/24h/7d/30d/custom; URL-syncing is the caller's responsibility via `onChange`. */
+export type CustomRange = { from: string; to: string };
+
+/**
+ * Presets 1h/24h/7d/30d/custom; URL-syncing is the caller's responsibility via `onChange`.
+ * "Custom" shows two date inputs once selected — it used to be a dead end with no way to pick
+ * a range at all.
+ */
 export function DateRangePicker({
   value,
   onChange,
+  custom,
+  onCustomChange,
 }: {
   value: RangePreset;
   onChange: (preset: RangePreset) => void;
+  custom?: CustomRange;
+  onCustomChange?: (range: CustomRange) => void;
 }) {
   return (
-    <div className="ds-range-picker" role="radiogroup" aria-label="Date range">
-      {RANGE_PRESETS.map((preset) => (
-        <button
-          key={preset}
-          type="button"
-          role="radio"
-          aria-checked={value === preset}
-          className={value === preset ? 'selected' : ''}
-          onClick={() => onChange(preset)}
-        >
-          {preset === 'custom' ? 'Custom' : preset}
-        </button>
-      ))}
+    <div>
+      <div className="ds-range-picker" role="radiogroup" aria-label="Date range">
+        {RANGE_PRESETS.map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            role="radio"
+            aria-checked={value === preset}
+            className={value === preset ? 'selected' : ''}
+            onClick={() => onChange(preset)}
+          >
+            {preset === 'custom' ? 'Custom' : preset}
+          </button>
+        ))}
+      </div>
+      {value === 'custom' && onCustomChange && (
+        <div className="ds-range-picker-custom">
+          <label>
+            From
+            <input
+              type="date"
+              value={custom?.from ?? ''}
+              onChange={(event) =>
+                onCustomChange({ from: event.target.value, to: custom?.to ?? '' })
+              }
+            />
+          </label>
+          <label>
+            To
+            <input
+              type="date"
+              value={custom?.to ?? ''}
+              onChange={(event) =>
+                onCustomChange({ from: custom?.from ?? '', to: event.target.value })
+              }
+            />
+          </label>
+        </div>
+      )}
     </div>
   );
 }

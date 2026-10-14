@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import { StatusBadgeV2 } from './status-badge';
@@ -31,6 +31,18 @@ describe('KpiCard', () => {
     render(<KpiCard label="Calls" value="1,284" loading />);
     expect(screen.queryByText('1,284')).toBeNull();
     expect(screen.getByRole('status')).toBeTruthy();
+  });
+  it("keeps the value in the link's accessible name instead of overriding it", () => {
+    // An `aria-label` on the link used to replace its whole accessible name with
+    // "<label>: open detail", dropping the number a screen-reader user came for.
+    render(<KpiCard label="Calls (24h)" value="1,284" href="/calls" />);
+    const link = screen.getByRole('link');
+    expect(link.getAttribute('aria-label')).toBeNull();
+    expect(link.textContent).toContain('1,284');
+  });
+  it('gives the delta direction real text, not just an aria-hidden glyph', () => {
+    render(<KpiCard label="Calls" value="1,284" delta={{ value: 6 }} />);
+    expect(screen.getByText('Up')).toBeTruthy();
   });
 });
 
@@ -88,6 +100,42 @@ describe('DataTableV2', () => {
     );
     const link = screen.getAllByRole('link')[0] as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe('/calls/a');
+  });
+  it('lets a selection checkbox be clicked on a row-linked table without navigating', () => {
+    // The row-link overlay (`.ds-row-link-anchor::after { inset: 0 }`) used to sit above every
+    // control in the row, so `elementFromPoint` resolved a checkbox click to the overlay instead
+    // (brief defect #4). Exercising the checkbox's own `onChange` is the DOM-level proxy for
+    // that: the overlay's CSS (`z-index: 0` under a real control) is covered by the row-link
+    // test below; this test guards the checkbox stays reachable and wired at all.
+    const onSelectChange = vi.fn();
+    render(
+      <DataTableV2
+        label="Calls"
+        rows={ROWS}
+        columns={COLUMNS}
+        rowKey={(r) => r.id}
+        rowHref={(r) => `/calls/${r.id}`}
+        selected={new Set()}
+        onSelectChange={onSelectChange}
+      />,
+    );
+    const checkbox = screen.getByRole('checkbox', { name: 'Select row a' });
+    fireEvent.click(checkbox);
+    expect(onSelectChange).toHaveBeenCalledWith(new Set(['a']));
+  });
+  it('shows the select-all checkbox as indeterminate for a partial selection', () => {
+    render(
+      <DataTableV2
+        label="Calls"
+        rows={ROWS}
+        columns={COLUMNS}
+        rowKey={(r) => r.id}
+        selected={new Set(['a'])}
+        onSelectChange={() => undefined}
+      />,
+    );
+    const selectAll = screen.getByRole('checkbox', { name: 'Select all rows' }) as HTMLInputElement;
+    expect(selectAll.indeterminate).toBe(true);
   });
 });
 

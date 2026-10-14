@@ -51,6 +51,7 @@ export function ThemeToggle() {
           className={preference === option ? 'selected' : ''}
           onClick={() => choose(option)}
           title={`${option.charAt(0).toUpperCase()}${option.slice(1)} theme`}
+          aria-label={`${option.charAt(0).toUpperCase()}${option.slice(1)} theme`}
         >
           {option === 'system' ? '◐' : option === 'light' ? '☀' : '☾'}
         </button>

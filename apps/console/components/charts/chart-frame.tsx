@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { EmptyStateV2, ErrorState, Skeleton } from '../ui/feedback-v2';
 
 export type ChartTableColumn = { header: string; cell: (rowIndex: number) => ReactNode };
@@ -37,18 +37,24 @@ export function ChartFrame({
   renderChart: (width: number) => ReactNode;
 }) {
   const [view, setView] = useState<'chart' | 'table'>('chart');
-  const ref = useRef<HTMLDivElement>(null);
+  const [node, setNode] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(600);
+  // A plain `useRef` only ever sees the element from the render where loading/empty/error was
+  // false for the first time: those states skip mounting the measured div entirely, and a `[]`
+  // effect never re-subscribes once it is finally rendered (brief defect #2 — a chart stuck at
+  // 600px after a loading→ready or Table→Chart transition). A state-backed callback ref re-runs
+  // this effect every time the node itself actually changes, including re-mounts.
+  const setRef = (element: HTMLDivElement | null) => setNode(element);
   useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
+    if (!node || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver((entries) => {
       const next = entries[0]?.contentRect.width;
       if (next) setWidth(next);
     });
-    observer.observe(el);
+    observer.observe(node);
+    setWidth(node.getBoundingClientRect().width || 600);
     return () => observer.disconnect();
-  }, []);
+  }, [node]);
 
   return (
     <div className="ds-chart-frame">
@@ -110,7 +116,7 @@ export function ChartFrame({
           </table>
         </div>
       ) : (
-        <div ref={ref} role="img" aria-label={ariaLabel} style={{ height }}>
+        <div ref={setRef} role="img" aria-label={ariaLabel} style={{ height }}>
           {renderChart(width)}
         </div>
       )}

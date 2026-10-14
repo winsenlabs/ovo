@@ -1,27 +1,47 @@
-import { niceTicks, type Scale } from './scale';
+import { niceTicks, niceTimeTicks, type Scale } from './scale';
 
-/** Horizontal axis along the bottom of a chart's plot area. */
+/**
+ * Horizontal axis along the bottom of a chart's plot area. `mode="time"` aligns ticks to
+ * calendar-friendly steps (minute/hour/day) for an epoch-ms domain instead of `niceTicks`'s
+ * power-of-ten stepping. `width`, when given, right/left-anchors the first and last tick labels
+ * so they stay inside the plot instead of bleeding into the axis margin and colliding with the
+ * y-axis label there (the "0ms y tick overlaps the first x tick" defect).
+ */
 export function XAxis({
   domain,
   scale,
   y,
   format,
   tickCount = 5,
+  mode = 'linear',
+  width,
 }: {
   domain: readonly [number, number];
   scale: Scale;
   y: number;
   format: (value: number) => string;
   tickCount?: number;
+  mode?: 'linear' | 'time';
+  width?: number;
 }) {
-  const ticks = niceTicks(domain, tickCount);
+  const ticks = mode === 'time' ? niceTimeTicks(domain, tickCount) : niceTicks(domain, tickCount);
+  const edgeThreshold = 20;
   return (
     <g className="ds-chart-axis" aria-hidden="true">
-      {ticks.map((tick) => (
-        <text key={tick} x={scale(tick)} y={y} textAnchor="middle" dy="1em">
-          {format(tick)}
-        </text>
-      ))}
+      {ticks.map((tick) => {
+        const x = scale(tick);
+        const anchor =
+          width != null && x <= edgeThreshold
+            ? 'start'
+            : width != null && x >= width - edgeThreshold
+              ? 'end'
+              : 'middle';
+        return (
+          <text key={tick} x={x} y={y} textAnchor={anchor} dy="1em">
+            {format(tick)}
+          </text>
+        );
+      })}
     </g>
   );
 }

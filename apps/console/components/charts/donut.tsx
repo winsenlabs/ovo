@@ -3,7 +3,7 @@ import { CHART_PALETTE } from './scale';
 export type DonutSlice = { label: string; value: number };
 const MAX_SLICES = 6;
 
-function arcPath(
+function singleArc(
   cx: number,
   cy: number,
   r: number,
@@ -21,6 +21,28 @@ function arcPath(
   const [x3, y3] = point(startAngle, innerR);
   const large = endAngle - startAngle > Math.PI ? 1 : 0;
   return `M${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1} L${x2},${y2} A${innerR},${innerR} 0 ${large} 0 ${x3},${y3} Z`;
+}
+
+const FULL_CIRCLE = Math.PI * 2 - 1e-6;
+
+/**
+ * One slice's ring path. A true 360° sweep makes the SVG arc's start and end points coincide, so
+ * the browser draws nothing (a single-category donut — one currency, one tier, every call
+ * completed — rendered blank). Split anything that close to a full circle into two half-sweeps.
+ */
+function arcPath(
+  cx: number,
+  cy: number,
+  r: number,
+  innerR: number,
+  startAngle: number,
+  endAngle: number,
+): string {
+  if (endAngle - startAngle >= FULL_CIRCLE) {
+    const mid = startAngle + Math.PI;
+    return `${singleArc(cx, cy, r, innerR, startAngle, mid)} ${singleArc(cx, cy, r, innerR, mid, startAngle + Math.PI * 2)}`;
+  }
+  return singleArc(cx, cy, r, innerR, startAngle, endAngle);
 }
 
 /** ≤6 slices + "Other", centre total. Collapses extra categories so colour stays legible. */

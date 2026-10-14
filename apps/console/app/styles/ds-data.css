@@ -26,10 +26,10 @@
   top: 0;
   background: var(--surface-2);
   color: var(--text-3);
-  font-size: var(--text-micro-size);
+  /* Sentence case, not letter-spaced caps (brief §1 typography: caps are reserved for the
+     eyebrow only). */
+  font-size: var(--text-label-size);
   font-weight: 600;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
   box-shadow: var(--elev-1);
 }
 .ds-table td,
@@ -68,7 +68,16 @@
 .ds-row-link-anchor::after {
   position: absolute;
   inset: 0;
+  z-index: 0;
   content: '';
+}
+/* The row-link overlay (::after, above) must sit under every real control in the row — the
+   selection checkbox, an IdChip link, a copy button — or `elementFromPoint` resolves clicks on
+   those controls to the overlay instead, silently navigating away from a checkbox click
+   (brief defect #4). */
+.ds-table td :is(a, button, input, select, label):not(.ds-row-link-anchor) {
+  position: relative;
+  z-index: 1;
 }
 .ds-pagination {
   display: flex;

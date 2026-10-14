@@ -15,17 +15,25 @@ export function CodeBlock({
   code,
   language = 'json',
   collapsedLabel,
+  filename,
 }: {
   code: string | (() => string);
   language?: string;
   collapsedLabel?: string;
+  /** Download filename; defaults to `raw.<language>` rather than a hard-coded `evidence.json`
+   * for every call site that is not, in fact, evidence. */
+  filename?: string;
 }) {
   const [open, setOpen] = useState(false);
+  // A plain string is already in memory — sizing it costs nothing, so the collapsed label can
+  // show "Show raw JSON · 2.1 KB" up front. A thunk (large call evidence) stays lazy: it is only
+  // invoked, and only then sized, once the caller actually opens the block.
+  const eagerSize = typeof code === 'string' ? byteSize(code) : null;
   const text = useMemo(
     () => (open ? (typeof code === 'function' ? code() : code) : ''),
     [open, code],
   );
-  const size = useMemo(() => (open ? byteSize(text) : null), [open, text]);
+  const size = eagerSize ?? (open ? byteSize(text) : null);
   return (
     <div className="ds-code-block">
       <button
@@ -45,7 +53,7 @@ export function CodeBlock({
             <CopyButton value={text} label="Copy code" />
             <a
               className="ds-code-download"
-              download={`evidence.${language}`}
+              download={filename ?? `raw.${language}`}
               href={`data:text/plain;charset=utf-8,${encodeURIComponent(text)}`}
             >
               Download
@@ -60,6 +68,20 @@ export function CodeBlock({
   );
 }
 
-export function JsonViewer({ value, label }: { value: unknown; label?: string }) {
-  return <CodeBlock code={() => JSON.stringify(value, null, 2)} collapsedLabel={label} />;
+export function JsonViewer({
+  value,
+  label,
+  filename,
+}: {
+  value: unknown;
+  label?: string;
+  filename?: string;
+}) {
+  return (
+    <CodeBlock
+      code={() => JSON.stringify(value, null, 2)}
+      collapsedLabel={label}
+      filename={filename}
+    />
+  );
 }

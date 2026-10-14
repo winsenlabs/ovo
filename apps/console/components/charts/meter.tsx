@@ -27,7 +27,14 @@ export function ProgressMeter({
   valueLabel?: string;
 }) {
   const resolved = segments ?? (value != null ? [{ label, value, tone: tone ?? 'ok' }] : []);
-  const total = Math.max(max, 1);
+  const spent = resolved.reduce((sum, segment) => sum + Math.max(0, segment.value), 0);
+  const overspend = spent > max;
+  // When the segments add up past `max` (e.g. 120 of a 100 budget), scale the track to the real
+  // total instead of clamping fill width to 100%: a clamped bar silently hides the overspend
+  // (brief defect: "overspend is clipped by the track's overflow:hidden, with no overspend
+  // marker"). The `max` boundary itself is then drawn as a limit line so it stays legible.
+  const total = Math.max(max, spent, 1);
+  const describedValue = valueLabel ?? resolved.map((s) => `${s.label} ${s.value}`).join(', ');
   let offset = 0;
   return (
     <div className="ds-meter">
@@ -38,24 +45,31 @@ export function ProgressMeter({
       <div
         className="ds-meter-track"
         role="img"
-        aria-label={`${label}: ${resolved.map((s) => `${s.label} ${s.value}`).join(', ')} of ${max}`}
+        aria-label={`${label}: ${describedValue} of ${max}${overspend ? ' — over limit' : ''}`}
       >
         {resolved.map((segment, index) => {
           const width = (Math.max(0, segment.value) / total) * 100;
           const style = {
-            width: `${Math.min(100, width)}%`,
+            width: `${width}%`,
             insetInlineStart: `${(offset / total) * 100}%`,
           };
           offset += segment.value;
           return (
             <span
               key={`${segment.label}-${index}`}
-              className={`ds-meter-fill tone-${segment.tone ?? 'ok'}`}
+              className={`ds-meter-fill tone-${overspend ? 'danger' : (segment.tone ?? 'ok')}`}
               style={style}
               title={`${segment.label}: ${segment.value}`}
             />
           );
         })}
+        {overspend && (
+          <span
+            className="ds-meter-threshold ds-meter-limit"
+            style={{ insetInlineStart: `${(max / total) * 100}%` }}
+            title={`Limit: ${max}`}
+          />
+        )}
         {threshold != null && (
           <span
             className="ds-meter-threshold"

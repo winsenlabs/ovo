@@ -9,6 +9,15 @@
   gap: var(--space-2);
   font-size: var(--text-label-size);
 }
+.ds-timeline-group + .ds-timeline-group {
+  margin-top: var(--space-3);
+}
+.ds-timeline-group-heading {
+  margin: 0 0 var(--space-1);
+  color: var(--text-3);
+  font-size: var(--text-label-size);
+  font-weight: 600;
+}
 .ds-timeline {
   position: relative;
   display: grid;
@@ -120,6 +129,10 @@
   color: var(--text-3);
   font-size: var(--text-micro-size);
 }
+.ds-conversation-speaker {
+  font-weight: 600;
+  text-transform: uppercase;
+}
 .ds-audio-player {
   display: grid;
   gap: var(--space-3);
@@ -157,10 +170,44 @@
   width: 2px;
   background: var(--accent);
 }
+.ds-audio-track-wrap {
+  position: relative;
+}
+.ds-audio-markers {
+  position: absolute;
+  inset: -4px 0 -14px;
+  /* The layer takes no pointer events itself, so a click anywhere except exactly on a marker
+     button still reaches the slider track underneath. */
+  pointer-events: none;
+}
 .ds-audio-marker {
   position: absolute;
-  top: -4px;
+  top: 0;
+  /* A 24x24 hit target (WCAG 2.2 target-size), centred on a 1px visual line drawn by the
+     pseudo-element below rather than by the button's own (otherwise unclickable) width. */
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translateX(-50%);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.ds-audio-marker::after {
+  position: absolute;
+  top: 4px;
+  left: 50%;
   width: 1px;
-  height: 36px;
+  height: 16px;
   background: var(--text-3);
+  content: '';
+}
+.ds-audio-marker:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.ds-audio-speed {
+  width: auto;
+  min-width: 56px;
 }

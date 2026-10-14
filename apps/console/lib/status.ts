@@ -31,7 +31,6 @@ const TONE_VALUES: Record<Tone, readonly string[]> = {
     'flagged',
     'warn',
     'reconciling',
-    'unknown',
     'acknowledged',
   ],
   danger: [
@@ -46,7 +45,7 @@ const TONE_VALUES: Record<Tone, readonly string[]> = {
     'revoked',
     'rejected',
   ],
-  neutral: ['cancelled', 'disabled', 'retired', 'not_imported', 'closed', 'draft'],
+  neutral: ['cancelled', 'disabled', 'retired', 'not_imported', 'closed', 'draft', 'unknown'],
 };
 
 const LOOKUP = new Map<string, Tone>();
@@ -72,7 +71,9 @@ export function humaniseEnum(value: string | null | undefined): string {
   if (!value) return 'Unknown';
   const words = value
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_\-]+/g, ' ')
+    // Dotted event types (`call.started`, from the timeline/event stream) humanise the same way
+    // as snake_case and kebab-case.
+    .replace(/[_\-.]+/g, ' ')
     .trim()
     .split(/\s+/)
     .filter(Boolean);

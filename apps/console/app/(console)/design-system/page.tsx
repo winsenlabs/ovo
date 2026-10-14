@@ -14,11 +14,15 @@ import { TokensAndDataSections } from './sections-a';
 export default function DesignSystemPage() {
   return (
     <div className="content">
+      {/* No `breadcrumb` here: this route sits inside the shared console layout, whose topbar
+          already renders its own "OVO / <label>" trail. Passing one duplicated it ("OVO / OVO"
+          plus "Design system" — the topbar's label lookup has no entry for this route and falls
+          back to "OVO"). A real screen adopting `PageHeader`'s breadcrumb needs the topbar's own
+          trail retired first; see components.md. */}
       <PageHeader
         title="Design system"
         eyebrow="Internal"
         description="Every W14 primitive, live. Not part of the product nav."
-        breadcrumb={[{ label: 'Design system' }]}
         actions={<ThemeToggle />}
         meta={<StatusBadgeV2 value="healthy" />}
         onRefresh={() => undefined}

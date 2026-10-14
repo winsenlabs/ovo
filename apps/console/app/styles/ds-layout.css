@@ -58,6 +58,24 @@
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-4);
 }
+/* `.ds-stack`: the one page-level layout rule for stacked SectionCards — 16px between sections
+   per brief §1 spacing (today they butt edge to edge with no gap). */
+.ds-stack {
+  display: grid;
+  gap: var(--space-4);
+}
+/* Fallback for a page that stacks cards without `.ds-stack`: still never edge-to-edge. */
+.ds-card + .ds-card {
+  margin-top: var(--space-4);
+}
+@media (max-width: 480px) {
+  /* auto-fit, minmax(180px,1fr) only fits one column in a ~326px mobile content width; the brief
+     requires 2 columns at 390px. */
+  .ds-kpi-strip {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+  }
+}
 .ds-kpi {
   display: grid;
   gap: var(--space-1);
