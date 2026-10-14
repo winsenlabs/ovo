@@ -1,0 +1,657 @@
+{
+  "source": "Maya call 8cb76efc (2026-10-14, main b18b24e): engine timing and speech events from turn 19 to turn 20's first reply audio, /tmp/ovo/call7-events.jsonl",
+  "events": [
+    {
+      "ms": 404,
+      "key": "vad_stop_wait",
+      "atMs": 1791946617505,
+      "type": "timing",
+      "turnId": "turn-19"
+    },
+    {
+      "ms": 5,
+      "key": "stt_finalize",
+      "atMs": 1791946617510,
+      "type": "timing",
+      "turnId": "turn-19"
+    },
+    {
+      "ms": 1,
+      "key": "turn_decision",
+      "atMs": 1791946617511,
+      "type": "timing",
+      "turnId": "turn-19"
+    },
+    {
+      "ms": 909,
+      "key": "text_aggregation",
+      "atMs": 1791946618420,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-32"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946618420,
+        "kind": "acknowledgment",
+        "text": "Let me look that up.",
+        "epoch": 19,
+        "phase": "generated",
+        "evidence": "generated",
+        "sequence": 176,
+        "segmentId": "speech-32"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946618420,
+        "kind": "acknowledgment",
+        "text": "Let me look that up.",
+        "epoch": 19,
+        "phase": "queued",
+        "evidence": "generated",
+        "sequence": 177,
+        "segmentId": "speech-32"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946618420,
+        "kind": "acknowledgment",
+        "text": "Let me look that up.",
+        "epoch": 19,
+        "phase": "started",
+        "evidence": "generated",
+        "sequence": 178,
+        "segmentId": "speech-32"
+      }
+    },
+    {
+      "ms": 250,
+      "key": "tts_ttfb",
+      "atMs": 1791946618670,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-32"
+    },
+    {
+      "ms": 2,
+      "key": "stt_finalize",
+      "atMs": 1791946620385,
+      "type": "timing",
+      "turnId": "turn-20"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946620385,
+        "kind": "acknowledgment",
+        "text": "Let me look that up.",
+        "epoch": 19,
+        "phase": "started",
+        "evidence": "generated",
+        "sequence": 179,
+        "segmentId": "speech-32"
+      }
+    },
+    {
+      "ms": 1717,
+      "key": "carrier_first_audio",
+      "atMs": 1791946620387,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-32"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946620387,
+        "kind": "acknowledgment",
+        "text": "Let me look that up.",
+        "epoch": 19,
+        "phase": "sent",
+        "evidence": "estimated",
+        "sequence": 180,
+        "segmentId": "speech-32"
+      }
+    },
+    {
+      "ms": 834,
+      "key": "behavior_first_segment",
+      "atMs": 1791946621221,
+      "type": "timing",
+      "turnId": "turn-19"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946621222,
+        "kind": "acknowledgment",
+        "text": "Let me look that up.",
+        "epoch": 19,
+        "phase": "interrupted",
+        "reason": "superseded by a newer response epoch",
+        "evidence": "estimated",
+        "sequence": 181,
+        "segmentId": "speech-32"
+      }
+    },
+    {
+      "ms": 2,
+      "key": "text_aggregation",
+      "atMs": 1791946621223,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-33"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946621223,
+        "kind": "response",
+        "text": "Zagreb and Dubrovnik are generally safe for tourists,",
+        "epoch": 20,
+        "phase": "generated",
+        "evidence": "generated",
+        "sequence": 182,
+        "segmentId": "speech-33"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946621223,
+        "kind": "response",
+        "text": "Zagreb and Dubrovnik are generally safe for tourists,",
+        "epoch": 20,
+        "phase": "queued",
+        "evidence": "generated",
+        "sequence": 183,
+        "segmentId": "speech-33"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946621223,
+        "kind": "response",
+        "text": "Zagreb and Dubrovnik are generally safe for tourists,",
+        "epoch": 20,
+        "phase": "started",
+        "evidence": "generated",
+        "sequence": 184,
+        "segmentId": "speech-33"
+      }
+    },
+    {
+      "ms": 20,
+      "key": "text_aggregation",
+      "atMs": 1791946621243,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-34"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946621243,
+        "kind": "response",
+        "text": "and Croatia has low crime rates, though pickpocketing can happen in busy tourist areas.",
+        "epoch": 20,
+        "phase": "generated",
+        "evidence": "generated",
+        "sequence": 185,
+        "segmentId": "speech-34"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946621243,
+        "kind": "response",
+        "text": "and Croatia has low crime rates, though pickpocketing can happen in busy tourist areas.",
+        "epoch": 20,
+        "phase": "queued",
+        "evidence": "generated",
+        "sequence": 186,
+        "segmentId": "speech-34"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946621244,
+        "kind": "response",
+        "text": "and Croatia has low crime rates, though pickpocketing can happen in busy tourist areas.",
+        "epoch": 20,
+        "phase": "started",
+        "evidence": "generated",
+        "sequence": 187,
+        "segmentId": "speech-34"
+      }
+    },
+    {
+      "ms": 125,
+      "key": "tts_ttfb",
+      "atMs": 1791946621368,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-33"
+    },
+    {
+      "ms": 0,
+      "key": "carrier_first_audio",
+      "atMs": 1791946621368,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-33"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946621369,
+        "kind": "response",
+        "text": "Zagreb and Dubrovnik are generally safe for tourists,",
+        "epoch": 20,
+        "phase": "sent",
+        "evidence": "estimated",
+        "sequence": 188,
+        "segmentId": "speech-33"
+      }
+    },
+    {
+      "ms": 137,
+      "key": "text_aggregation",
+      "atMs": 1791946621505,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-35"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946621505,
+        "kind": "response",
+        "text": "Want to hear more?",
+        "epoch": 20,
+        "phase": "generated",
+        "evidence": "generated",
+        "sequence": 189,
+        "segmentId": "speech-35"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946621505,
+        "kind": "response",
+        "text": "Want to hear more?",
+        "epoch": 20,
+        "phase": "queued",
+        "evidence": "generated",
+        "sequence": 190,
+        "segmentId": "speech-35"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946621505,
+        "kind": "response",
+        "text": "Want to hear more?",
+        "epoch": 20,
+        "phase": "started",
+        "evidence": "generated",
+        "sequence": 191,
+        "segmentId": "speech-35"
+      }
+    },
+    {
+      "ms": 19,
+      "key": "tts_ttfb",
+      "atMs": 1791946621524,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-34"
+    },
+    {
+      "ms": 1,
+      "key": "carrier_first_audio",
+      "atMs": 1791946621525,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-34"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946621525,
+        "kind": "response",
+        "text": "and Croatia has low crime rates, though pickpocketing can happen in busy tourist areas.",
+        "epoch": 20,
+        "phase": "sent",
+        "evidence": "estimated",
+        "sequence": 192,
+        "segmentId": "speech-34"
+      }
+    },
+    {
+      "ms": 162,
+      "key": "tts_ttfb",
+      "atMs": 1791946621687,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-35"
+    },
+    {
+      "ms": 1,
+      "key": "carrier_first_audio",
+      "atMs": 1791946621688,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-35"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946621688,
+        "kind": "response",
+        "text": "Want to hear more?",
+        "epoch": 20,
+        "phase": "sent",
+        "evidence": "estimated",
+        "sequence": 193,
+        "segmentId": "speech-35"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946624482,
+        "kind": "response",
+        "text": "Zagreb and Dubrovnik are generally safe for tourists,",
+        "epoch": 20,
+        "phase": "acknowledged",
+        "evidence": "confirmed",
+        "sequence": 194,
+        "segmentId": "speech-33"
+      }
+    },
+    {
+      "ms": 2794,
+      "key": "playout_ack",
+      "atMs": 1791946624482,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-33"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946624482,
+        "kind": "response",
+        "text": "Zagreb and Dubrovnik are generally safe for tourists,",
+        "epoch": 20,
+        "phase": "completed",
+        "evidence": "confirmed",
+        "sequence": 195,
+        "segmentId": "speech-33"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946629002,
+        "kind": "response",
+        "text": "and Croatia has low crime rates, though pickpocketing can happen in busy tourist areas.",
+        "epoch": 20,
+        "phase": "acknowledged",
+        "evidence": "confirmed",
+        "sequence": 196,
+        "segmentId": "speech-34"
+      }
+    },
+    {
+      "ms": 4520,
+      "key": "playout_ack",
+      "atMs": 1791946629002,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-34"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946629003,
+        "kind": "response",
+        "text": "and Croatia has low crime rates, though pickpocketing can happen in busy tourist areas.",
+        "epoch": 20,
+        "phase": "completed",
+        "evidence": "confirmed",
+        "sequence": 197,
+        "segmentId": "speech-34"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946629922,
+        "kind": "response",
+        "text": "Want to hear more?",
+        "epoch": 20,
+        "phase": "acknowledged",
+        "evidence": "confirmed",
+        "sequence": 198,
+        "segmentId": "speech-35"
+      }
+    },
+    {
+      "ms": 920,
+      "key": "playout_ack",
+      "atMs": 1791946629922,
+      "type": "timing",
+      "turnId": "turn-19",
+      "segmentId": "speech-35"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946629923,
+        "kind": "response",
+        "text": "Want to hear more?",
+        "epoch": 20,
+        "phase": "completed",
+        "evidence": "confirmed",
+        "sequence": 199,
+        "segmentId": "speech-35"
+      }
+    },
+    {
+      "ms": 9538,
+      "key": "turn_decision",
+      "atMs": 1791946629923,
+      "type": "timing",
+      "turnId": "turn-20"
+    },
+    {
+      "ms": 2167,
+      "key": "behavior_first_segment",
+      "atMs": 1791946632090,
+      "type": "timing",
+      "turnId": "turn-20"
+    },
+    {
+      "ms": 0,
+      "key": "text_aggregation",
+      "atMs": 1791946632090,
+      "type": "timing",
+      "turnId": "turn-20",
+      "segmentId": "speech-36"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946632091,
+        "kind": "response",
+        "text": "Sure.",
+        "epoch": 21,
+        "phase": "generated",
+        "evidence": "generated",
+        "sequence": 200,
+        "segmentId": "speech-36"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946632091,
+        "kind": "response",
+        "text": "Sure.",
+        "epoch": 21,
+        "phase": "queued",
+        "evidence": "generated",
+        "sequence": 201,
+        "segmentId": "speech-36"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946632091,
+        "kind": "response",
+        "text": "Sure.",
+        "epoch": 21,
+        "phase": "started",
+        "evidence": "generated",
+        "sequence": 202,
+        "segmentId": "speech-36"
+      }
+    },
+    {
+      "ms": 141,
+      "key": "tts_ttfb",
+      "atMs": 1791946632231,
+      "type": "timing",
+      "turnId": "turn-20",
+      "segmentId": "speech-36"
+    },
+    {
+      "ms": 1,
+      "key": "carrier_first_audio",
+      "atMs": 1791946632232,
+      "type": "timing",
+      "turnId": "turn-20",
+      "segmentId": "speech-36"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946632232,
+        "kind": "response",
+        "text": "Sure.",
+        "epoch": 21,
+        "phase": "sent",
+        "evidence": "estimated",
+        "sequence": 203,
+        "segmentId": "speech-36"
+      }
+    },
+    {
+      "ms": 236,
+      "key": "text_aggregation",
+      "atMs": 1791946632468,
+      "type": "timing",
+      "turnId": "turn-20",
+      "segmentId": "speech-37"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946632468,
+        "kind": "response",
+        "text": "In Zagreb and Dubrovnik, keep your valuables secure in crowded areas, use licensed taxis or trusted ride services, and be cautious on Dubrovnik’s steep, slippery stone streets.",
+        "epoch": 21,
+        "phase": "generated",
+        "evidence": "generated",
+        "sequence": 204,
+        "segmentId": "speech-37"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946632469,
+        "kind": "response",
+        "text": "In Zagreb and Dubrovnik, keep your valuables secure in crowded areas, use licensed taxis or trusted ride services, and be cautious on Dubrovnik’s steep, slippery stone streets.",
+        "epoch": 21,
+        "phase": "queued",
+        "evidence": "generated",
+        "sequence": 205,
+        "segmentId": "speech-37"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946632469,
+        "kind": "response",
+        "text": "In Zagreb and Dubrovnik, keep your valuables secure in crowded areas, use licensed taxis or trusted ride services, and be cautious on Dubrovnik’s steep, slippery stone streets.",
+        "epoch": 21,
+        "phase": "started",
+        "evidence": "generated",
+        "sequence": 206,
+        "segmentId": "speech-37"
+      }
+    },
+    {
+      "ms": 67,
+      "key": "text_aggregation",
+      "atMs": 1791946632535,
+      "type": "timing",
+      "turnId": "turn-20",
+      "segmentId": "speech-38"
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946632535,
+        "kind": "response",
+        "text": "Would you like advice on getting around in either city?",
+        "epoch": 21,
+        "phase": "generated",
+        "evidence": "generated",
+        "sequence": 207,
+        "segmentId": "speech-38"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946632535,
+        "kind": "response",
+        "text": "Would you like advice on getting around in either city?",
+        "epoch": 21,
+        "phase": "queued",
+        "evidence": "generated",
+        "sequence": 208,
+        "segmentId": "speech-38"
+      }
+    },
+    {
+      "type": "speech",
+      "evidence": {
+        "at": 1791946632535,
+        "kind": "response",
+        "text": "Would you like advice on getting around in either city?",
+        "epoch": 21,
+        "phase": "started",
+        "evidence": "generated",
+        "sequence": 209,
+        "segmentId": "speech-38"
+      }
+    }
+  ]
+}

@@ -25,7 +25,18 @@ export const DEFAULT_MORE_LINES: readonly string[] = Object.freeze([
  * right—you already said that." (35 characters) and then only "Want more detail?".
  */
 const SHORT_ANSWER_CHARS = 60;
-/** A short question the reply ends on instead of the offer: it keeps the conversation going. */
+/**
+ * Wave 12 (F7): what the cap held back, when it is no longer than this, is said instead of the
+ * offer: "Otherwise, you can connect through Oslo." is not worth "Want to hear more?".
+ */
+const SHORT_TAIL_CHARS = 80;
+/**
+ * Wave 12 (F7): a held tail that ends on a question is said whole up to this length, the question
+ * with what it asks about. A question is never said without the held sentences before it: "Which
+ * of the two would you prefer?" after two flights the cap held back cannot be answered.
+ */
+const SHORT_QUESTION_TAIL_CHARS = 120;
+/** A short question the cap stops before is said in place of the offer (call-3 #7). */
 const MAX_CLOSING_QUESTION_CHARS = 120;
 const SENTENCE_END = /[.!?।॥。！？؟۔…]["'”’»)\]]*$/u;
 const QUESTION_END = /[?？؟]["'”’»)\]]*$/u;
@@ -35,6 +46,11 @@ const EVIDENCE_NOTE = /^\[Playback evidence: [a-z-]+\.\] /;
 export interface ReplyCapRecent {
   /** The lines of the agent's last turn. */
   lastSaid?: readonly string[];
+  /**
+   * Wave 12 (F7): the lines of its last three turns, the last included; when given, read instead
+   * of `lastSaid` for an offer already made.
+   */
+  recentSaid?: readonly string[];
   /** The conversation so far: the lines that played. */
   history?: readonly { role: string; content: string }[];
 }
@@ -52,6 +68,11 @@ export interface ReplyCapRecent {
  * Wave 9 (D5): the offer is said at most every other turn: a reply right after one that offered
  * more stops at the same place with nothing after it. A short answer is never cut (see
  * `SHORT_ANSWER_CHARS`), and the default offer goes round `DEFAULT_MORE_LINES`.
+ * Wave 12 (Maya call 8cb76efc, F7): "every other turn" counted only the turn before, so with a
+ * reply between that offered nothing (an ask-again, a closing question of the model's own) the
+ * offer came back on turns 13, 19, 25, 28 and 30, and nearly every answer ended on one or on a
+ * question. It is now said only when none of the agent's last three turns offered more
+ * (`ReplyCapRecent.recentSaid`).
  */
 export class ReplyCap {
   private sentences = 0;
@@ -72,7 +93,9 @@ export class ReplyCap {
       this.limits = {
         maxSentences,
         maxChars: pacing.maxChars ?? DEFAULT_REPLY_CAP.maxChars,
-        ...(offered(lines, recent.lastSaid ?? []) ? {} : { moreLine: nextLine(lines, recent) }),
+        ...(offered(lines, recent.recentSaid ?? recent.lastSaid ?? [])
+          ? {}
+          : { moreLine: nextLine(lines, recent) }),
       };
   }
 
@@ -98,9 +121,27 @@ export class ReplyCap {
     return { say: segment, stop: false };
   }
 
-  /** `segment` would take the reply past its limits. */
+  /**
+   * Wave 12 (F7): what the cap held back (`held`, its speakable lines) is short enough to say
+   * instead of offering, all of it. One that ends on a question may be a little longer: the model's
+   * own question keeps the conversation going, but only with what it asks about. Turn 16's "…would
+   * you like to start with how Yugoslavia formed?" came after a held "I can walk you through the
+   * background, the breakup, and the aftermath step by step", so neither is said.
+   */
+  shortTail(held: readonly string[]): boolean {
+    const text = held.join(' ').trim();
+    if (text.length <= SHORT_TAIL_CHARS) return true;
+    return QUESTION_END.test(text) && text.length <= SHORT_QUESTION_TAIL_CHARS;
+  }
+
+  /**
+   * `segment` would take the reply past its limits. Wave 12 (Maya call 8cb76efc, F7): sentences
+   * count only once the reply has said `SHORT_ANSWER_CHARS`. Turn 13 said "You’re right, you did."
+   * and "I’m sorry." (32 characters, two sentences), then "Want more detail?" in place of the
+   * answer it had begun.
+   */
   private full(segment: string, limits: { maxSentences: number; maxChars: number }): boolean {
-    if (this.sentences >= limits.maxSentences) return true;
+    if (this.sentences >= limits.maxSentences && this.chars >= SHORT_ANSWER_CHARS) return true;
     const chars = this.chars + segment.length;
     if (chars <= limits.maxChars) return false;
     return this.chars >= SHORT_ANSWER_CHARS || chars > 2 * limits.maxChars;

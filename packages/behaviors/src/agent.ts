@@ -98,6 +98,7 @@ export class AgentBehavior extends AgentSessionAhead {
     }
     // What the agent said last turn, read before this turn says anything (P10).
     const previous = [...this.lines.recovery.lastSaid];
+    const recentSaid = [...this.lines.recovery.recentSaid];
     const controller = new AbortController();
     const turn = ++this.turn;
     const endRefused = this.endGate.turn(input, variables, previous);
@@ -201,6 +202,7 @@ export class AgentBehavior extends AgentSessionAhead {
       if (!this.inference) return;
       // N4: a reply that leaves the agent's languages is never spoken, nor its end_call obeyed.
       const language = this.languages.reply(prepared.guard);
+      const sends = this.inference.sendsProviderTools;
       yield* runInferenceSteps({
         config: this.config,
         // Wave 9 (D6): the reply's first words mark it as drafting, for the engine's filler.
@@ -236,7 +238,9 @@ export class AgentBehavior extends AgentSessionAhead {
         guard: language ? (segment) => language.check(segment) : prepared.guard,
         replyCut,
         previous,
+        recentSaid,
         ...(saidBefore ? { saidBefore } : {}),
+        ...(sends ? { sendsProviderTools: sends } : {}),
       });
       if (language?.replaced) this.ending.cancel();
       this.ending.seal();

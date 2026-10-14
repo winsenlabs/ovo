@@ -105,9 +105,11 @@ export function replayTurn(
   soonerMs = 0,
   /** Wave 10: how much sooner than live `row` commits each pause inside the turn (`midCommits`). */
   midSoonerMs: readonly number[] = [],
+  /** Wave 12: the row the call ran with live (call 7 ran Wave 10's, `AFTER`). */
+  live: Record<string, unknown> = BEFORE,
 ): Replayed & { forcedAt: number[] } {
   // null: Scribe never answers the commit (calibrating).
-  const latencyMs = latency === undefined ? calibrate(newClock, turn) : latency;
+  const latencyMs = latency === undefined ? calibrate(newClock, turn, live) : latency;
   const f = replay(newClock(), row);
   if (turn.answering) {
     f.agentStarts(true);
@@ -184,9 +186,13 @@ export function replayTurn(
  * Scribe's latency for the turn's commit: from the commit the live row sends (replayed without
  * the final) to the final's measured arrival.
  */
-export function calibrate(newClock: NewClock, turn: FixtureTurn): number | undefined {
+export function calibrate(
+  newClock: NewClock,
+  turn: FixtureTurn,
+  live: Record<string, unknown> = BEFORE,
+): number | undefined {
   const final = committedFinal(turn);
-  const commit = commitOf(newClock, BEFORE, turn);
+  const commit = commitOf(newClock, live, turn);
   return final && commit !== undefined ? final.at - commit : undefined;
 }
 
@@ -223,22 +229,24 @@ export function midCommits(
 
 /**
  * One live turn through `row`, Scribe answering each commit (the turn's and its pauses') as long
- * after it as it answered the live one.
+ * after it as it answered the live one, which the call made with `liveRow` (Wave 9's, `BEFORE`,
+ * for calls 5 and 6; Wave 10's, `AFTER`, for call 7).
  */
 export function replayLive(
   newClock: NewClock,
   row: Record<string, unknown>,
   turn: FixtureTurn,
+  liveRow: Record<string, unknown> = BEFORE,
 ): Replayed {
-  const live = commitOf(newClock, BEFORE, turn);
+  const live = commitOf(newClock, liveRow, turn);
   const replayed = commitOf(newClock, row, turn);
   const soonerMs = live === undefined || replayed === undefined ? 0 : live - replayed;
-  const liveMid = midCommits(newClock, BEFORE, turn);
+  const liveMid = midCommits(newClock, liveRow, turn);
   const midSoonerMs = midCommits(newClock, row, turn).map((at, index) => {
     const before = liveMid[index];
     return at === undefined || before === undefined ? 0 : before - at;
   });
-  const latency = calibrate(newClock, turn);
+  const latency = calibrate(newClock, turn, liveRow);
   const { forcedAt: _, ...result } = replayTurn(
     newClock,
     row,
@@ -246,6 +254,7 @@ export function replayLive(
     latency,
     soonerMs,
     midSoonerMs,
+    liveRow,
   );
   return result;
 }

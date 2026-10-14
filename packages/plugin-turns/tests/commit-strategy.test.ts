@@ -219,7 +219,8 @@ describe("'commit' turn strategy", () => {
         // Scribe answers 350 ms after the commit, which Wave 8 sent 250 ms after the stop.
         f.clock.advance(commitAtStop ? 350 : 600);
         f.transcript('Do you know any-', 'final');
-        f.clock.advance(commitAtStop ? 949 : 699);
+        // Wave 12: a word broken off waits the 2.5 s pause hold (call 8cb76efc turns 21 and 24).
+        f.clock.advance(commitAtStop ? 2_749 : 2_499);
         expect(f.stopped()).toEqual([]);
         f.clock.advance(1);
         expect(f.stopped()).toEqual(['Do you know any-']);

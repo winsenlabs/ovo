@@ -1,0 +1,534 @@
+{
+  "call4": {
+    "callId": "e8a43f65",
+    "turns": [
+      {
+        "turnId": "turn-1",
+        "caller": "\"We're planning to go to Zagreb this...\" No, December.",
+        "agent": "One moment. Let me look that up. Ah, Zagreb in December— lovely for a festive winter trip. It’s usually cold, with an average around 2°C, so pack a warm coat and layers. What dates are you considering?",
+        "searched": true,
+        "firstSegmentMs": 888,
+        "endpointRule": null
+      },
+      {
+        "turnId": "turn-2",
+        "caller": "I want 21st of December to the 5th.",
+        "agent": null,
+        "searched": true,
+        "firstSegmentMs": null,
+        "endpointRule": null
+      },
+      {
+        "turnId": "turn-3",
+        "caller": "Of January.",
+        "agent": "Let me look that up. Still checking, one moment. Got it—December 21, 2026, to January 5, 2027. That’s right in the middle of Zagreb’s Advent festival, which runs through January 7. Are you planning to stay in Zagreb the whole time, or visit other cities too?",
+        "searched": true,
+        "firstSegmentMs": 135,
+        "endpointRule": null
+      },
+      {
+        "turnId": "turn-4",
+        "caller": "Yeah, we're planning to do Budapest, Vienna,",
+        "agent": "Budapest and Vienna would fit nicely with Zagreb. Do you want to travel between them by train?",
+        "searched": true,
+        "firstSegmentMs": 1592,
+        "endpointRule": null
+      },
+      {
+        "turnId": "turn-5",
+        "caller": "in Austria. Then we're planning to go to Zagreb, Prague.",
+        "agent": null,
+        "searched": true,
+        "firstSegmentMs": null,
+        "endpointRule": null
+      },
+      {
+        "turnId": "turn-6",
+        "caller": "Germany, Berlin, and a few other places.",
+        "agent": "Let me look that up. Still checking, one moment. That’s an exciting route— Budapest, Vienna, Zagreb, Prague, and Berlin will make for a packed trip. With just over two weeks, how many nights would you like to spend in each place?",
+        "searched": true,
+        "firstSegmentMs": 506,
+        "endpointRule": null
+      },
+      {
+        "turnId": "turn-7",
+        "caller": "Ma'am, create a call.",
+        "agent": "One moment. Sure—I'll let you go. Have a lovely trip, and call me when you’re ready to plan the route.",
+        "searched": false,
+        "firstSegmentMs": 462,
+        "endpointRule": null
+      }
+    ]
+  },
+  "call5": {
+    "callId": "10d5ef30",
+    "turns": [
+      {
+        "turnId": "turn-1",
+        "caller": "\"Hey, Maya, can you please tell me what places are nice in-\"",
+        "agent": null,
+        "searched": false,
+        "firstSegmentMs": null,
+        "endpointRule": "unfinished"
+      },
+      {
+        "turnId": "turn-2",
+        "caller": "\"... Europe in December, January times?\"",
+        "agent": "Let me look that up. For December, Vienna, Prague, and Salzburg are lovely for festive markets and historic streets; in January, try the Alps for snow or Lisbon for a milder city break. Would your group rather see Christmas markets, snowy scenery, or escape the cold?",
+        "searched": true,
+        "firstSegmentMs": 1016,
+        "endpointRule": "stall"
+      },
+      {
+        "turnId": "turn-3",
+        "caller": "\"No, we are okay with the call. We want...\" Want to see Christmas markets as well.",
+        "agent": "One moment. If Christmas markets are a priority, Vienna and Prague are lovely choices: Vienna’s Rathausplatz market runs November 13 to December 26, 2026, and Prague’s Old Town market is expected to continue into early January. Are you planning to travel in December 2026 or January 2027?",
+        "searched": true,
+        "firstSegmentMs": 1695,
+        "endpointRule": "long"
+      },
+      {
+        "turnId": "turn-4",
+        "caller": "Yeah, December 26.",
+        "agent": null,
+        "searched": true,
+        "firstSegmentMs": null,
+        "endpointRule": "silence"
+      },
+      {
+        "turnId": "turn-5",
+        "caller": "अम्म... Can you tell me about how pricey flights are and things like that?",
+        "agent": "One moment. For December 26, 2026, I’m seeing Mumbai–Prague return fares around sixty-five thousand rupees for travel through January 10; exact prices depend on your departure city and return date, and fares can change quickly. Where in India will you be flying from, and when would you return?",
+        "searched": true,
+        "firstSegmentMs": 1055,
+        "endpointRule": "long"
+      },
+      {
+        "turnId": "turn-7",
+        "caller": "I'll be flying out of Chennai and I'll return back to Chennai only. Uh, I expect to fly out on... December 21st is?",
+        "agent": null,
+        "searched": true,
+        "firstSegmentMs": null,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-8",
+        "caller": "And fly back in on January 5th, please.",
+        "agent": "One moment. For Chennai to Prague, December 21, 2026–January 5, 2027, I can’t confirm an exact fare for those dates, but a rough budget of seventy thousand rupees–one lakh rupees per person return is sensible for peak-season travel; prices vary by airline, stops, and baggage. Would you like to fly into Prague, or start in Vienna for the Christmas markets?",
+        "searched": true,
+        "firstSegmentMs": 1354,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-9",
+        "caller": "Uh, what do you think about Zagreb as a place?",
+        "agent": "One moment. Zagreb could be a lovely fit: its Advent festival is scheduled for November 28, 2026, through January 7, 2027, so it’ll be running during your trip. Want more detail?",
+        "searched": true,
+        "firstSegmentMs": 1687,
+        "endpointRule": "unfinished"
+      },
+      {
+        "turnId": "turn-10",
+        "caller": "Yeah, yeah.",
+        "agent": "Zagreb’s Advent is centered around the main squares and parks, with festive lights, food stalls, and seasonal events, so it’s a pleasant city to explore on foot. Want more detail?",
+        "searched": false,
+        "firstSegmentMs": 894,
+        "endpointRule": "silence"
+      },
+      {
+        "turnId": "turn-12",
+        "caller": "No, umm...",
+        "agent": "Sorry, I didn’t catch what you’d like— could you say that again?",
+        "searched": false,
+        "firstSegmentMs": 272,
+        "endpointRule": "hold"
+      },
+      {
+        "turnId": "turn-13",
+        "caller": "Umm, I'm just thinking of whether we should go this year or next. What about Northern Lights and stuff like that? Will I get to see anything about, like, that?",
+        "agent": "One moment. Still checking, one moment. You could see the Northern Lights in late December, but Zagreb, Vienna, and Prague are too far south for reliable viewing; you’d want to add somewhere like Tromsø in northern Norway, where aurora season runs through winter, though clear skies and sightings aren’t guaranteed. Would you be open to adding a few nights in the Arctic?",
+        "searched": true,
+        "firstSegmentMs": 41,
+        "endpointRule": "long"
+      },
+      {
+        "turnId": "turn-14",
+        "caller": "Yeah, I don't mind, but, uh, don't make it, like, too far away or impossible to reach.",
+        "agent": "A practical option is Tromsø: it’s reachable by flights from major European hubs, though you’d need to connect from your Central Europe itinerary. Want more detail?",
+        "searched": false,
+        "firstSegmentMs": 1005,
+        "endpointRule": "unfinished"
+      },
+      {
+        "turnId": "turn-15",
+        "caller": "And stuff like that. I mean, it should still be a",
+        "agent": "I didn’t catch the end of that— could you say the rest again?",
+        "searched": false,
+        "firstSegmentMs": 866,
+        "endpointRule": "hold"
+      },
+      {
+        "turnId": "turn-16",
+        "caller": "built-in.",
+        "agent": "Do you mean you want a Northern Lights stop that fits naturally into the same trip and is reasonably easy to reach from your other cities?",
+        "searched": false,
+        "firstSegmentMs": 1104,
+        "endpointRule": "answer"
+      },
+      {
+        "turnId": "turn-17",
+        "caller": "Yeah, that's what I said, right?",
+        "agent": "Let me look that up. Still checking, one moment. You’re right—you already said that. Want more detail?",
+        "searched": true,
+        "firstSegmentMs": 42,
+        "endpointRule": "unfinished"
+      },
+      {
+        "turnId": "turn-18",
+        "caller": "Yeah, dude. That's why I'm asking.",
+        "agent": "One moment. Sorry—I should’ve answered that directly: Tromsø is a realistic add-on from Vienna, with a seasonal nonstop flight expected to begin November 28, 2026; otherwise, you can connect through Oslo. Want more detail?",
+        "searched": true,
+        "firstSegmentMs": 2091,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-19",
+        "caller": "No, I'm good. Thank you.",
+        "agent": "Shall I end the call?",
+        "searched": false,
+        "firstSegmentMs": 964,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-20",
+        "caller": "So, yeah, a... Can you email this itinerary to me?",
+        "agent": "One moment. I can’t send emails from this call, but I can put the itinerary into a ready-to-copy email for you. Would you like me to draft it?",
+        "searched": true,
+        "firstSegmentMs": 1123,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-21",
+        "caller": "Yeah, yeah, sure.",
+        "agent": "Sure—I can draft it, but I don’t have your full itinerary or email address in this call. What cities and dates have you settled on so far?",
+        "searched": false,
+        "firstSegmentMs": 1219,
+        "endpointRule": "silence"
+      },
+      {
+        "turnId": "turn-22",
+        "caller": "Never mind. Thank you.",
+        "agent": "One moment. Shall I end the call?",
+        "searched": false,
+        "firstSegmentMs": 174,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-23",
+        "caller": "Yeah, yeah, please.",
+        "agent": "You’re welcome—have a wonderful trip!",
+        "searched": false,
+        "firstSegmentMs": 1294,
+        "endpointRule": "silence"
+      }
+    ]
+  },
+  "call6": {
+    "callId": "4f1a919d",
+    "turns": [
+      {
+        "turnId": "turn-1",
+        "caller": "\"I'm thinking of going somewhere in middle and central Europe. Can you tell me a few places? Some...\" December and December, January.",
+        "agent": "Prague and Vienna are lovely choices for Central Europe in December and January, and Budapest is another possibility. What kind of trip are you hoping for: festive markets, history, or a quieter winter break?",
+        "searched": false,
+        "firstSegmentMs": 1141,
+        "endpointRule": "unfinished"
+      },
+      {
+        "turnId": "turn-2",
+        "caller": "Something like a quieter winter break, but I also want to drink a lot, so something like that.",
+        "agent": "One moment. Budapest sounds like your best fit: you can unwind in its winter thermal baths, then enjoy lively ruin bars in the evening. Would you like me to suggest a quieter area to stay?",
+        "searched": true,
+        "firstSegmentMs": 1948,
+        "endpointRule": "unfinished"
+      },
+      {
+        "turnId": "turn-3",
+        "caller": "No, no. What, what are OEN bars? Can you tell me more about that?",
+        "agent": "Let me look that up. They’re called “ruin bars”: lively bars set in old, run-down buildings, often with mismatched furniture, quirky decorations, and music. Want more detail?",
+        "searched": true,
+        "firstSegmentMs": 879,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-4",
+        "caller": "Yeah. Is Instant also a OEN bar?",
+        "agent": "Let me look that up. Yes, Instant, now part of the Instant-Fogas complex, is a well-known ruin pub in Budapest, with several rooms and dance floors.",
+        "searched": true,
+        "firstSegmentMs": 2793,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-5",
+        "caller": "Okay.",
+        "agent": "Anything else you’d like to know about Budapest?",
+        "searched": false,
+        "firstSegmentMs": 1285,
+        "endpointRule": "answer"
+      },
+      {
+        "turnId": "turn-6",
+        "caller": "Yeah, uh, not about Budapest, but... What is, uh, best way to fly to Europe from...",
+        "agent": "I didn’t catch the departure city. Could you say it again?",
+        "searched": false,
+        "firstSegmentMs": 843,
+        "endpointRule": "pause"
+      },
+      {
+        "turnId": "turn-7",
+        "caller": "Chennai, Chennai.",
+        "agent": "One moment. The easiest option is usually one ticket from Chennai with a single stop, often through Dubai, Doha, or another major hub; for Europe, you can also check whether a seasonal nonstop to Frankfurt is operating on your dates. Which European city are you heading to, and when?",
+        "searched": true,
+        "firstSegmentMs": 1299,
+        "endpointRule": "silence"
+      },
+      {
+        "turnId": "turn-8",
+        "caller": "Madras.",
+        "agent": "One moment. Shall I end the call?",
+        "searched": false,
+        "firstSegmentMs": 876,
+        "endpointRule": "silence"
+      },
+      {
+        "turnId": "turn-9",
+        "caller": "Hello, Frankfurt.",
+        "agent": "From Chennai to Frankfurt, Lufthansa currently offers nonstop flights, so that’s the simplest option; check your travel date, since schedules can vary. What date are you planning to fly?",
+        "searched": true,
+        "firstSegmentMs": 3924,
+        "endpointRule": "silence"
+      },
+      {
+        "turnId": "turn-10",
+        "caller": "20. December 20th or 21st?",
+        "agent": "Let me look that up. For the 20th of December or 21, 2026, Lufthansa’s schedule shows nonstop Chennai to Frankfurt flights, but the exact departure can vary by date, so check both dates before booking. Which day works better for you?",
+        "searched": true,
+        "firstSegmentMs": 715,
+        "endpointRule": "unfinished"
+      },
+      {
+        "turnId": "turn-11",
+        "caller": "No, okay, I'll take it later. Thank you so much.",
+        "agent": "One moment. Shall I end the call?",
+        "searched": false,
+        "firstSegmentMs": 209,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-12",
+        "caller": "Yeah, yeah.",
+        "agent": "One moment. You’re very welcome. Have a lovely trip, and goodbye!",
+        "searched": false,
+        "firstSegmentMs": 75,
+        "endpointRule": "silence"
+      }
+    ]
+  },
+  "call7": {
+    "callId": "8cb76efc",
+    "turns": [
+      {
+        "turnId": "turn-6",
+        "caller": "हाँ, जी। हाँ, इस पर बात करो। Hi, Maya. We are planning to take a trip. Sometime in December to... Central and Eastern Europe. Um, we're looking mostly- Okay ... at places like- Prague, Budapest.",
+        "agent": "That sounds like a lovely December trip. Are you thinking of visiting just Prague and Budapest, or would you like to include another city as well?",
+        "searched": false,
+        "firstSegmentMs": 759,
+        "endpointRule": "long"
+      },
+      {
+        "turnId": "turn-7",
+        "caller": "And a few other lesser known places. What do you think about this itinerary?",
+        "agent": "One moment. Prague and Budapest make a lovely December starting point, and Vienna is an easy classic addition; for a quieter stop, consider Brno or Český Krumlov, keeping in mind that winter can mean shorter opening hours and fewer options at some sights. How many days do you have, and are you aiming for Christmas markets or a more relaxed city-and-culture trip?",
+        "searched": true,
+        "firstSegmentMs": 1441,
+        "endpointRule": "unfinished"
+      },
+      {
+        "turnId": "turn-8",
+        "caller": "Why did it sound like an AI?",
+        "agent": "I’m sorry, that came out clipped and unnatural. Prague and Budapest could be a lovely December trip, and I’d be happy to help shape it around a few quieter stops too. Which dates are you considering?",
+        "searched": false,
+        "firstSegmentMs": 882,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-10",
+        "caller": "Sometime around December to... January.",
+        "agent": "One moment.",
+        "searched": true,
+        "firstSegmentMs": null,
+        "endpointRule": "unfinished"
+      },
+      {
+        "turnId": "turn-11",
+        "caller": "Jan 12th, 2024.",
+        "agent": "I’m not completely sure about that. Want me to look it up?",
+        "searched": false,
+        "firstSegmentMs": 1460,
+        "endpointRule": "stall"
+      },
+      {
+        "turnId": "turn-12",
+        "caller": "No, no, so... Um, basically, uh, can you tell me a little bit about Zagreb's hist- history, the whole Croatia, how it came into existence, the Balkan regions? And, uh... You know, how... Things that as we go closer to Russia and so on and so forth.",
+        "agent": "Please clarify your question.",
+        "searched": true,
+        "firstSegmentMs": 829,
+        "endpointRule": "unfinished"
+      },
+      {
+        "turnId": "turn-13",
+        "caller": "No, I, I just did.",
+        "agent": "You’re right, you did. I’m sorry. Want more detail?",
+        "searched": false,
+        "firstSegmentMs": 1167,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-14",
+        "caller": "Yeah, so I want more details on Croatian history.",
+        "agent": null,
+        "searched": true,
+        "firstSegmentMs": null,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-15",
+        "caller": "On how... The Balkans came into being and how the split happened. And what all happened after the war and everything.",
+        "agent": "I'm not completely sure about that. Want me to look it up?",
+        "searched": true,
+        "firstSegmentMs": 1218,
+        "endpointRule": "long"
+      },
+      {
+        "turnId": "turn-16",
+        "caller": "Yeah, please, can you do that?",
+        "agent": "Let me look that up. Croatia’s story is closely tied to Yugoslavia, but the Balkans are a broader region, not one country. Croatia declared independence on the 25th of June 1991; war followed, and fighting there largely ended in 1995, while Bosnia’s war ended with the Dayton agreement that year. I can walk you through the background, the breakup, and the aftermath step by step; would you like to start with how Yugoslavia formed? citeturn0search1turn0search0turn0search5",
+        "searched": true,
+        "firstSegmentMs": 1833,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-17",
+        "caller": "Is it safe to go there now?",
+        "agent": null,
+        "searched": false,
+        "firstSegmentMs": null,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-18",
+        "caller": "As a tourist?",
+        "agent": "One moment. Yes, Croatia is generally considered safe for tourists, including in popular cities and tourist areas; use normal precautions with valuables, and stay on marked roads and paths in remote countryside. Would you like me to check safety for a particular place, such as Zagreb or Dubrovnik?",
+        "searched": true,
+        "firstSegmentMs": 1233,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-19",
+        "caller": "Yeah, for both these places.",
+        "agent": "Let me look that up. Zagreb and Dubrovnik are generally safe for tourists, and Croatia has low crime rates, though pickpocketing can happen in busy tourist areas. Want to hear more?",
+        "searched": true,
+        "firstSegmentMs": 834,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-20",
+        "caller": "Please.",
+        "agent": "Sure. In Zagreb and Dubrovnik, keep your valuables secure in crowded areas, use licensed taxis or trusted ride services, and be cautious on Dubrovnik’s steep, slippery stone streets. Would you like advice on getting around in either city?",
+        "searched": false,
+        "firstSegmentMs": 2167,
+        "endpointRule": "stall"
+      },
+      {
+        "turnId": "turn-21",
+        "caller": "No. Have there been any-",
+        "agent": "Could you finish your question?",
+        "searched": false,
+        "firstSegmentMs": 268,
+        "endpointRule": "hold"
+      },
+      {
+        "turnId": "turn-22",
+        "caller": "Have there been any- Crime incidents reported in these two places?",
+        "agent": "Let me look that up. Yes. Recent reports include pickpocketing in Dubrovnik, and isolated robbery and violent incidents in Zagreb; these are not evidence that tourists are generally being targeted, but keep valuables secure and take ordinary city precautions.",
+        "searched": true,
+        "firstSegmentMs": 783,
+        "endpointRule": "long"
+      },
+      {
+        "turnId": "turn-24",
+        "caller": "Okay, so yeah, I think, uh, Zagreb is one place and also talk to me about- Okay ... uh, what happens-",
+        "agent": "Sorry, could you say that again?",
+        "searched": false,
+        "firstSegmentMs": 235,
+        "endpointRule": "hold"
+      },
+      {
+        "turnId": "turn-25",
+        "caller": "In Berlin on New Year's Eve?",
+        "agent": "Let me look that up. Berlin is lively on New Year’s Eve, with parties and fireworks across the city, so expect crowds, noise, and busy transport. Would you like more on that?",
+        "searched": true,
+        "firstSegmentMs": 1841,
+        "endpointRule": "unfinished"
+      },
+      {
+        "turnId": "turn-26",
+        "caller": "No. I- Bueno, buenas tardes.",
+        "agent": "I’m not sure what you’d like to know about Berlin on New Year’s Eve. Could you say that again?",
+        "searched": false,
+        "firstSegmentMs": 1011,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-27",
+        "caller": "\"Yeah, yeah, can you tell me what happens there?\"",
+        "agent": null,
+        "searched": false,
+        "firstSegmentMs": null,
+        "endpointRule": "long"
+      },
+      {
+        "turnId": "turn-28",
+        "caller": "Like with the Brandon, Bakhtar, and all of those things, look it up, please.",
+        "agent": "Let me look that up. Berlin usually has a huge New Year’s Eve celebration, with music, crowds, and fireworks around the Brandenburg Gate. Would you like more on that?",
+        "searched": true,
+        "firstSegmentMs": 2443,
+        "endpointRule": "long"
+      },
+      {
+        "turnId": "turn-29",
+        "caller": "Yeah.",
+        "agent": "Sorry, could you say that again?",
+        "searched": false,
+        "firstSegmentMs": 1184,
+        "endpointRule": "answer"
+      },
+      {
+        "turnId": "turn-30",
+        "caller": "Yeah, yeah, I'd like to know more.",
+        "agent": "Let me look that up. For New Year’s Eve on the 31st of December, Berlin’s Brandenburg Gate party is listed, but the full programme and practical details may not be confirmed yet. Interested in more detail?",
+        "searched": true,
+        "firstSegmentMs": 1805,
+        "endpointRule": "complete"
+      },
+      {
+        "turnId": "turn-31",
+        "caller": "Yeah, +1, uh... Yes, Maya.",
+        "agent": "Let me look that up.",
+        "searched": true,
+        "firstSegmentMs": null,
+        "endpointRule": "answer"
+      }
+    ]
+  }
+}

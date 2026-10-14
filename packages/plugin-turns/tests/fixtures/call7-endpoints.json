@@ -1,0 +1,1155 @@
+{
+  "call": "8cb76efc",
+  "source": "Maya call 8cb76efc (2026-10-14 02:54:05 UTC, main b18b24e): engine events",
+  "turns": [
+    {
+      "id": "turn-1",
+      "startedAt": 1334,
+      "endAt": 1335,
+      "text": null,
+      "rule": null,
+      "endpointMs": null,
+      "reset": "muted",
+      "vadStopWaitMs": null,
+      "sttFinalizeMs": null,
+      "answering": false,
+      "overAgent": true,
+      "transcripts": [
+        {
+          "at": 1333,
+          "seg": "0",
+          "text": "Happy.",
+          "final": false
+        }
+      ]
+    },
+    {
+      "id": "turn-2",
+      "startedAt": 2239,
+      "endAt": 2239,
+      "text": null,
+      "rule": null,
+      "endpointMs": null,
+      "reset": "muted",
+      "vadStopWaitMs": null,
+      "sttFinalizeMs": null,
+      "answering": false,
+      "overAgent": true,
+      "transcripts": [
+        {
+          "at": 2239,
+          "seg": "0",
+          "text": "हाँ, ठीक है। आप इसको लगा दो।",
+          "final": false
+        }
+      ]
+    },
+    {
+      "id": "turn-3",
+      "startedAt": 3338,
+      "endAt": 3338,
+      "text": null,
+      "rule": null,
+      "endpointMs": null,
+      "reset": "muted",
+      "vadStopWaitMs": null,
+      "sttFinalizeMs": null,
+      "answering": false,
+      "overAgent": true,
+      "transcripts": [
+        {
+          "at": 3337,
+          "seg": "0",
+          "text": "हाँ, ठीक है। हाँ, इसको लगाता हूँ।",
+          "final": false
+        }
+      ]
+    },
+    {
+      "id": "turn-4",
+      "startedAt": 4241,
+      "endAt": 4241,
+      "text": null,
+      "rule": null,
+      "endpointMs": null,
+      "reset": "muted",
+      "vadStopWaitMs": null,
+      "sttFinalizeMs": null,
+      "answering": false,
+      "overAgent": true,
+      "transcripts": [
+        {
+          "at": 4241,
+          "seg": "0",
+          "text": "हाँ, ठीक है। हाँ, इस पर रखो।",
+          "final": false
+        }
+      ]
+    },
+    {
+      "id": "turn-5",
+      "startedAt": 5178,
+      "endAt": 5178,
+      "text": null,
+      "rule": null,
+      "endpointMs": null,
+      "reset": "muted",
+      "vadStopWaitMs": null,
+      "sttFinalizeMs": null,
+      "answering": false,
+      "overAgent": true,
+      "transcripts": [
+        {
+          "at": 5178,
+          "seg": "0",
+          "text": "हाँ, ठीक है। हाँ, इसको लगाता हूँ।",
+          "final": false
+        }
+      ]
+    },
+    {
+      "id": "turn-6",
+      "startedAt": 8330,
+      "endAt": 20864,
+      "text": "हाँ, जी। हाँ, इस पर बात करो। Hi, Maya. We are planning to take a trip. Sometime in December to... Central and Eastern Europe. Um, we're looking mostly- Okay ... at places like- Prague, Budapest.",
+      "rule": "long",
+      "endpointMs": 833,
+      "reset": null,
+      "vadStopWaitMs": 376,
+      "sttFinalizeMs": 257,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 9002,
+          "seg": "0",
+          "text": "हाँ, ठीक है। हाँ, इस पर रखो। Hi,",
+          "final": false
+        },
+        {
+          "at": 9908,
+          "seg": "0",
+          "text": "हाँ, जी। हाँ, इस पर बात करो। Hi, Maya. We are planning to take",
+          "final": false
+        },
+        {
+          "at": 10135,
+          "seg": "0",
+          "text": "हाँ, जी। हाँ, इस पर बात करो। Hi, Maya. We are planning to take a trip.",
+          "final": true
+        },
+        {
+          "at": 11215,
+          "seg": "1",
+          "text": "Sometime in",
+          "final": false
+        },
+        {
+          "at": 12223,
+          "seg": "1",
+          "text": "Sometime in December",
+          "final": false
+        },
+        {
+          "at": 12315,
+          "seg": "1",
+          "text": "Sometime in December to...",
+          "final": true
+        },
+        {
+          "at": 13431,
+          "seg": "2",
+          "text": "Central and",
+          "final": false
+        },
+        {
+          "at": 14070,
+          "seg": "2",
+          "text": "Central and Eastern Europe.",
+          "final": true
+        },
+        {
+          "at": 15145,
+          "seg": "3",
+          "text": "Um",
+          "final": false
+        },
+        {
+          "at": 16049,
+          "seg": "3",
+          "text": "Um, we're looking",
+          "final": false
+        },
+        {
+          "at": 16322,
+          "seg": "3",
+          "text": "Um, we're looking mostly-",
+          "final": true
+        },
+        {
+          "at": 17496,
+          "seg": "4",
+          "text": "Okay",
+          "final": false
+        },
+        {
+          "at": 17893,
+          "seg": "4",
+          "text": "Okay ... at places like-",
+          "final": true
+        },
+        {
+          "at": 19868,
+          "seg": "5",
+          "text": "Prague,",
+          "final": true
+        },
+        {
+          "at": 19913,
+          "seg": "6",
+          "text": "Okay ... Zagreb, Vienna, Pra",
+          "final": false
+        },
+        {
+          "at": 20606,
+          "seg": "6",
+          "text": "Budapest.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-7",
+      "startedAt": 21070,
+      "endAt": 25396,
+      "text": "And a few other lesser known places. What do you think about this itinerary?",
+      "rule": "unfinished",
+      "endpointMs": 826,
+      "reset": null,
+      "vadStopWaitMs": 375,
+      "sttFinalizeMs": 251,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 21760,
+          "seg": "7",
+          "text": "है",
+          "final": false
+        },
+        {
+          "at": 22609,
+          "seg": "7",
+          "text": "And a few other",
+          "final": false
+        },
+        {
+          "at": 23619,
+          "seg": "7",
+          "text": "And a few other lesser known places.",
+          "final": false
+        },
+        {
+          "at": 24626,
+          "seg": "7",
+          "text": "And a few other lesser known places. What do you think about",
+          "final": false
+        },
+        {
+          "at": 25145,
+          "seg": "7",
+          "text": "And a few other lesser known places. What do you think about this itinerary?",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-8",
+      "startedAt": 37819,
+      "endAt": 37830,
+      "text": "Why did it sound like an AI?",
+      "rule": "complete",
+      "endpointMs": 580,
+      "reset": null,
+      "vadStopWaitMs": 374,
+      "sttFinalizeMs": 6,
+      "answering": false,
+      "overAgent": true,
+      "transcripts": [
+        {
+          "at": 37819,
+          "seg": "8",
+          "text": "Why do you make it sound like an",
+          "final": false
+        },
+        {
+          "at": 37824,
+          "seg": "8",
+          "text": "Why did it sound like an AI?",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-9",
+      "startedAt": 41835,
+      "endAt": 43697,
+      "text": "It's a machine.",
+      "rule": null,
+      "endpointMs": null,
+      "reset": "backchannel",
+      "vadStopWaitMs": null,
+      "sttFinalizeMs": null,
+      "answering": false,
+      "overAgent": true,
+      "transcripts": [
+        {
+          "at": 41835,
+          "seg": "9",
+          "text": "It's a machine.",
+          "final": false
+        }
+      ]
+    },
+    {
+      "id": "turn-10",
+      "startedAt": 50930,
+      "endAt": 53862,
+      "text": "Sometime around December to... January.",
+      "rule": "unfinished",
+      "endpointMs": 832,
+      "reset": null,
+      "vadStopWaitMs": 376,
+      "sttFinalizeMs": 256,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 51591,
+          "seg": "10",
+          "text": "Sometime-",
+          "final": false
+        },
+        {
+          "at": 52498,
+          "seg": "10",
+          "text": "Sometime around December",
+          "final": false
+        },
+        {
+          "at": 52720,
+          "seg": "10",
+          "text": "Sometime around December to...",
+          "final": true
+        },
+        {
+          "at": 53606,
+          "seg": "11",
+          "text": "January.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-11",
+      "startedAt": 56540,
+      "endAt": 59520,
+      "text": "Jan 12th, 2024.",
+      "rule": "stall",
+      "endpointMs": 1875,
+      "reset": null,
+      "vadStopWaitMs": null,
+      "sttFinalizeMs": 4,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 56540,
+          "seg": "12",
+          "text": "January.",
+          "final": false
+        },
+        {
+          "at": 57645,
+          "seg": "12",
+          "text": "Jan 12th, 2024.",
+          "final": false
+        },
+        {
+          "at": 59516,
+          "seg": "12",
+          "text": "Jan 12th, 2024.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-12",
+      "startedAt": 65990,
+      "endAt": 82055,
+      "text": "No, no, so... Um, basically, uh, can you tell me a little bit about Zagreb's hist- history, the whole Croatia, how it came into existence, the Balkan regions? And, uh... You know, how... Things that as we go closer to Russia and so on and so forth.",
+      "rule": "unfinished",
+      "endpointMs": 845,
+      "reset": null,
+      "vadStopWaitMs": 389,
+      "sttFinalizeMs": 256,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 66942,
+          "seg": "13",
+          "text": "No, no, so...",
+          "final": true
+        },
+        {
+          "at": 68072,
+          "seg": "14",
+          "text": "Um, basically",
+          "final": false
+        },
+        {
+          "at": 68978,
+          "seg": "14",
+          "text": "Um, basically, uh, can",
+          "final": false
+        },
+        {
+          "at": 69983,
+          "seg": "14",
+          "text": "Um, basically, uh, can you tell me a little bit",
+          "final": false
+        },
+        {
+          "at": 70655,
+          "seg": "14",
+          "text": "Um, basically, uh, can you tell me a little bit about Zagreb's hist-",
+          "final": true
+        },
+        {
+          "at": 71793,
+          "seg": "15",
+          "text": "Mm-hmm.",
+          "final": false
+        },
+        {
+          "at": 72698,
+          "seg": "15",
+          "text": "history, the whole Cro",
+          "final": false
+        },
+        {
+          "at": 73605,
+          "seg": "15",
+          "text": "history, the whole Croatia, how",
+          "final": false
+        },
+        {
+          "at": 74710,
+          "seg": "15",
+          "text": "history, the whole Croatia, how it came into exist",
+          "final": false
+        },
+        {
+          "at": 75805,
+          "seg": "15",
+          "text": "history, the whole Croatia, how it came into existence, the Balkan regions?",
+          "final": true
+        },
+        {
+          "at": 76917,
+          "seg": "16",
+          "text": "And",
+          "final": false
+        },
+        {
+          "at": 77292,
+          "seg": "16",
+          "text": "And, uh...",
+          "final": true
+        },
+        {
+          "at": 78425,
+          "seg": "17",
+          "text": "You know, how",
+          "final": false
+        },
+        {
+          "at": 78769,
+          "seg": "17",
+          "text": "You know, how...",
+          "final": true
+        },
+        {
+          "at": 80853,
+          "seg": "18",
+          "text": "Things that as we go closer to the",
+          "final": false
+        },
+        {
+          "at": 81758,
+          "seg": "18",
+          "text": "Things that as we go closer to Russia and so on and so",
+          "final": false
+        },
+        {
+          "at": 81799,
+          "seg": "18",
+          "text": "Things that as we go closer to Russia and so on and so forth.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-13",
+      "startedAt": 84785,
+      "endAt": 87733,
+      "text": "No, I, I just did.",
+      "rule": "complete",
+      "endpointMs": 662,
+      "reset": null,
+      "vadStopWaitMs": 458,
+      "sttFinalizeMs": 4,
+      "answering": false,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 84785,
+          "seg": "19",
+          "text": "CreditMantri.",
+          "final": false
+        },
+        {
+          "at": 85807,
+          "seg": "19",
+          "text": "It's different, I think.",
+          "final": false
+        },
+        {
+          "at": 86721,
+          "seg": "19",
+          "text": "It's, it's not available.",
+          "final": false
+        },
+        {
+          "at": 87728,
+          "seg": "19",
+          "text": "No, I, I just did.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-14",
+      "startedAt": 94350,
+      "endAt": 96972,
+      "text": "Yeah, so I want more details on Croatian history.",
+      "rule": "complete",
+      "endpointMs": 202,
+      "reset": null,
+      "vadStopWaitMs": 0,
+      "sttFinalizeMs": 2,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 95501,
+          "seg": "20",
+          "text": "Yeah, so I want more",
+          "final": false
+        },
+        {
+          "at": 96504,
+          "seg": "20",
+          "text": "Yeah, so I want more details on Cru",
+          "final": false
+        },
+        {
+          "at": 96730,
+          "seg": "20",
+          "text": "Yeah, so I want more details on Croatian history.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-15",
+      "startedAt": 97470,
+      "endAt": 105149,
+      "text": "On how... The Balkans came into being and how the split happened. And what all happened after the war and everything.",
+      "rule": "long",
+      "endpointMs": 819,
+      "reset": null,
+      "vadStopWaitMs": 365,
+      "sttFinalizeMs": 254,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 98759,
+          "seg": "21",
+          "text": "On how",
+          "final": false
+        },
+        {
+          "at": 98915,
+          "seg": "21",
+          "text": "On how...",
+          "final": true
+        },
+        {
+          "at": 99969,
+          "seg": "22",
+          "text": "The bulk in-",
+          "final": false
+        },
+        {
+          "at": 100978,
+          "seg": "22",
+          "text": "The Balkans came into being",
+          "final": false
+        },
+        {
+          "at": 101982,
+          "seg": "22",
+          "text": "The bargains came into being and how the split happened.",
+          "final": false
+        },
+        {
+          "at": 102149,
+          "seg": "22",
+          "text": "The Balkans came into being and how the split happened.",
+          "final": true
+        },
+        {
+          "at": 103191,
+          "seg": "23",
+          "text": "And",
+          "final": false
+        },
+        {
+          "at": 104196,
+          "seg": "23",
+          "text": "And what all happened after",
+          "final": false
+        },
+        {
+          "at": 104895,
+          "seg": "23",
+          "text": "And what all happened after the war and everything.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-16",
+      "startedAt": 111530,
+      "endAt": 112379,
+      "text": "Yeah, please, can you do that?",
+      "rule": "complete",
+      "endpointMs": 548,
+      "reset": null,
+      "vadStopWaitMs": 344,
+      "sttFinalizeMs": 4,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 111775,
+          "seg": "24",
+          "text": "Yeah, please.",
+          "final": false
+        },
+        {
+          "at": 112375,
+          "seg": "24",
+          "text": "Yeah, please, can you do that?",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-17",
+      "startedAt": 145450,
+      "endAt": 147331,
+      "text": "Is it safe to go there now?",
+      "rule": "complete",
+      "endpointMs": 201,
+      "reset": null,
+      "vadStopWaitMs": 0,
+      "sttFinalizeMs": 1,
+      "answering": false,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 147178,
+          "seg": "25",
+          "text": "Is it safe to go there now?",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-18",
+      "startedAt": 147610,
+      "endAt": 148226,
+      "text": "As a tourist?",
+      "rule": "complete",
+      "endpointMs": 616,
+      "reset": null,
+      "vadStopWaitMs": 414,
+      "sttFinalizeMs": 2,
+      "answering": false,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 148199,
+          "seg": "26",
+          "text": "Has a",
+          "final": false
+        },
+        {
+          "at": 148224,
+          "seg": "26",
+          "text": "As a tourist?",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-19",
+      "startedAt": 169950,
+      "endAt": 171419,
+      "text": "Yeah, for both these places.",
+      "rule": "complete",
+      "endpointMs": 609,
+      "reset": null,
+      "vadStopWaitMs": 404,
+      "sttFinalizeMs": 5,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 171414,
+          "seg": "27",
+          "text": "Yeah, for both these places.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-20",
+      "startedAt": 172422,
+      "endAt": 174294,
+      "text": "Please.",
+      "rule": "stall",
+      "endpointMs": 1873,
+      "reset": null,
+      "vadStopWaitMs": null,
+      "sttFinalizeMs": 2,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 172422,
+          "seg": "28",
+          "text": "Please.",
+          "final": false
+        },
+        {
+          "at": 174292,
+          "seg": "28",
+          "text": "Please.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-21",
+      "startedAt": 186881,
+      "endAt": 188895,
+      "text": "No. Have there been any-",
+      "rule": "hold",
+      "endpointMs": 1305,
+      "reset": null,
+      "vadStopWaitMs": 402,
+      "sttFinalizeMs": 703,
+      "answering": false,
+      "overAgent": true,
+      "transcripts": [
+        {
+          "at": 186881,
+          "seg": "29",
+          "text": "No.",
+          "final": false
+        },
+        {
+          "at": 187891,
+          "seg": "29",
+          "text": "No. Have there",
+          "final": false
+        },
+        {
+          "at": 188192,
+          "seg": "29",
+          "text": "No. Have there been any-",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-22",
+      "startedAt": 189690,
+      "endAt": 193064,
+      "text": "Have there been any- Crime incidents reported in these two places?",
+      "rule": "long",
+      "endpointMs": 774,
+      "reset": null,
+      "vadStopWaitMs": 323,
+      "sttFinalizeMs": 251,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 190303,
+          "seg": "30",
+          "text": "Have there",
+          "final": false
+        },
+        {
+          "at": 190503,
+          "seg": "30",
+          "text": "Have there been any-",
+          "final": true
+        },
+        {
+          "at": 191700,
+          "seg": "31",
+          "text": "Crime, intr",
+          "final": false
+        },
+        {
+          "at": 192507,
+          "seg": "31",
+          "text": "Crime incidents reported in these",
+          "final": false
+        },
+        {
+          "at": 192813,
+          "seg": "31",
+          "text": "Crime incidents reported in these two places?",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-23",
+      "startedAt": 210375,
+      "endAt": 210817,
+      "text": "நான் கார்த்தி. இப்ப இப்போ இருக்கணும்.",
+      "rule": null,
+      "endpointMs": null,
+      "reset": "backchannel",
+      "vadStopWaitMs": null,
+      "sttFinalizeMs": null,
+      "answering": false,
+      "overAgent": true,
+      "transcripts": [
+        {
+          "at": 210374,
+          "seg": "32",
+          "text": "நான் கார்த்திக் பேசுறேன்.",
+          "final": false
+        },
+        {
+          "at": 210816,
+          "seg": "32",
+          "text": "நான் கார்த்தி. இப்ப இப்போ இருக்கணும்.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-24",
+      "startedAt": 213350,
+      "endAt": 220167,
+      "text": "Okay, so yeah, I think, uh, Zagreb is one place and also talk to me about- Okay ... uh, what happens-",
+      "rule": "hold",
+      "endpointMs": 2297,
+      "reset": null,
+      "vadStopWaitMs": 1393,
+      "sttFinalizeMs": 704,
+      "answering": false,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 214802,
+          "seg": "33",
+          "text": "Okay sir,",
+          "final": false
+        },
+        {
+          "at": 215706,
+          "seg": "33",
+          "text": "Okay, so, yeah, I think,",
+          "final": false
+        },
+        {
+          "at": 216609,
+          "seg": "33",
+          "text": "Okay, so yeah, I think, uh, Zagreb is",
+          "final": false
+        },
+        {
+          "at": 217616,
+          "seg": "33",
+          "text": "Okay, so yeah, I think, uh, Zagreb is one place and also talk",
+          "final": false
+        },
+        {
+          "at": 217958,
+          "seg": "33",
+          "text": "Okay, so yeah, I think, uh, Zagreb is one place and also talk to me about-",
+          "final": true
+        },
+        {
+          "at": 219464,
+          "seg": "34",
+          "text": "Okay ... uh, what happens-",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-25",
+      "startedAt": 220532,
+      "endAt": 221416,
+      "text": "In Berlin on New Year's Eve?",
+      "rule": "unfinished",
+      "endpointMs": 846,
+      "reset": null,
+      "vadStopWaitMs": 394,
+      "sttFinalizeMs": 252,
+      "answering": false,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 220531,
+          "seg": "35",
+          "text": "Berlin, Berlin,",
+          "final": false
+        },
+        {
+          "at": 221164,
+          "seg": "35",
+          "text": "In Berlin on New Year's Eve?",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-26",
+      "startedAt": 224219,
+      "endAt": 227469,
+      "text": "No. I- Bueno, buenas tardes.",
+      "rule": "complete",
+      "endpointMs": 959,
+      "reset": null,
+      "vadStopWaitMs": 758,
+      "sttFinalizeMs": 1,
+      "answering": false,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 224219,
+          "seg": "36",
+          "text": "Boah.",
+          "final": false
+        },
+        {
+          "at": 226089,
+          "seg": "36",
+          "text": "No. I-",
+          "final": true
+        },
+        {
+          "at": 227136,
+          "seg": "37",
+          "text": "Bueno, bueno, ven, ven, ven.",
+          "final": false
+        },
+        {
+          "at": 227468,
+          "seg": "37",
+          "text": "Bueno, buenas tardes.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-27",
+      "startedAt": 234550,
+      "endAt": 237083,
+      "text": "\"Yeah, yeah, can you tell me what happens there?\"",
+      "rule": "long",
+      "endpointMs": 793,
+      "reset": null,
+      "vadStopWaitMs": 339,
+      "sttFinalizeMs": 254,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 235291,
+          "seg": "38",
+          "text": "Ya, ya.",
+          "final": false
+        },
+        {
+          "at": 236316,
+          "seg": "38",
+          "text": "\"Yeah, yeah, can you tell me what",
+          "final": false
+        },
+        {
+          "at": 236829,
+          "seg": "38",
+          "text": "\"Yeah, yeah, can you tell me what happens there?\"",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-28",
+      "startedAt": 237390,
+      "endAt": 240302,
+      "text": "Like with the Brandon, Bakhtar, and all of those things, look it up, please.",
+      "rule": "long",
+      "endpointMs": 851,
+      "reset": null,
+      "vadStopWaitMs": 397,
+      "sttFinalizeMs": 254,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 237970,
+          "seg": "39",
+          "text": "Like, with the brand",
+          "final": false
+        },
+        {
+          "at": 238977,
+          "seg": "39",
+          "text": "Like with the Brandon, Bakhtar, and all",
+          "final": false
+        },
+        {
+          "at": 239882,
+          "seg": "39",
+          "text": "Like with the Brandon, Bakhtar, and all of those things, look it up.",
+          "final": false
+        },
+        {
+          "at": 240047,
+          "seg": "39",
+          "text": "Like with the Brandon, Bakhtar, and all of those things, look it up, please.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-29",
+      "startedAt": 255473,
+      "endAt": 256076,
+      "text": "Yeah.",
+      "rule": "answer",
+      "endpointMs": 602,
+      "reset": null,
+      "vadStopWaitMs": null,
+      "sttFinalizeMs": 0,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 255473,
+          "seg": "40",
+          "text": "Yeah.",
+          "final": false
+        },
+        {
+          "at": 256075,
+          "seg": "40",
+          "text": "Yeah.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-30",
+      "startedAt": 260030,
+      "endAt": 261569,
+      "text": "Yeah, yeah, I'd like to know more.",
+      "rule": "complete",
+      "endpointMs": 539,
+      "reset": null,
+      "vadStopWaitMs": 336,
+      "sttFinalizeMs": 3,
+      "answering": true,
+      "overAgent": false,
+      "transcripts": [
+        {
+          "at": 261002,
+          "seg": "41",
+          "text": "Yeah, yeah.",
+          "final": false
+        },
+        {
+          "at": 261566,
+          "seg": "41",
+          "text": "Yeah, yeah, I'd like to know more.",
+          "final": true
+        }
+      ]
+    },
+    {
+      "id": "turn-31",
+      "startedAt": 266477,
+      "endAt": 268449,
+      "text": "Yeah, +1, uh... Yes, Maya.",
+      "rule": "answer",
+      "endpointMs": 2279,
+      "reset": null,
+      "vadStopWaitMs": 2075,
+      "sttFinalizeMs": 4,
+      "answering": true,
+      "overAgent": true,
+      "transcripts": [
+        {
+          "at": 266477,
+          "seg": "42",
+          "text": "Yeah, plus 1.",
+          "final": false
+        },
+        {
+          "at": 266686,
+          "seg": "42",
+          "text": "Yeah, +1, uh...",
+          "final": true
+        },
+        {
+          "at": 267785,
+          "seg": "43",
+          "text": "Yes.",
+          "final": false
+        },
+        {
+          "at": 268445,
+          "seg": "43",
+          "text": "Yes, Maya.",
+          "final": true
+        }
+      ]
+    }
+  ]
+}

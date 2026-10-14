@@ -8,6 +8,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import type { BoundedSpeechScheduler } from '../scheduler.ts';
 import type { TurnLatency } from './latency.ts';
+import { brief, repeatsEnd } from './turn-brief.ts';
 import type { ReplyAudibility } from './turn-audibility.ts';
 import { mergeUtterances, type SpeculationHooks } from './turn-speculation.ts';
 
@@ -54,9 +55,6 @@ export function callerTurn(
   const extra = untrusted ? { [UNTRUSTED_INPUT_VARIABLE]: true, inputDoubt: untrusted } : {};
   return { ...engineTurn(id, text, extra), speech: true, ...(filler ? { filler } : {}) };
 }
-
-/** Words this short add nothing a reply already searching for the caller must start over for. */
-const BRIEF_WORDS = 3;
 
 /**
  * The replies the driver owes, in order, and which caller words are still unanswered (AGT-10).
@@ -142,6 +140,9 @@ export class TurnBook {
     if (!running || running.drafted || this.carry || this.stuck) return undefined;
     if (!this.supersedes(words, running)) return undefined;
     if (brief(words) && !continuesUtterance(words, running.input)) return undefined;
+    // Wave 12 (call 8cb76efc turn 10): brief words that only repeat the end of the words being
+    // answered ("January." after "…to... January.", soft, no VAD run) give up no search.
+    if (running.searched && brief(words) && repeatsEnd(words, running.input)) return undefined;
     this.carry = running;
     this.preempted = true;
     return running;
@@ -288,8 +289,4 @@ export class TurnBook {
     // A turn that never ran has no latency of its own to report.
     if (earlier.epoch === undefined) this.latency.clear(earlier.id);
   }
-}
-
-function brief(text: string): boolean {
-  return text.split(/\s+/u).filter(Boolean).length <= BRIEF_WORDS;
 }

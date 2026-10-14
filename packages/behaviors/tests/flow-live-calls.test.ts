@@ -335,8 +335,9 @@ describe('no recoverable inference error ends the call (P8)', () => {
         kind: 'inference',
         message: 'upstream 503',
       });
-      // Said twice running, the line becomes the clarification (P10).
-      await expect(turn('which product?')).resolves.toEqual([behavior.config.clarification]);
+      // Said twice running, the line becomes a request to say it again (P10), in the agent's own
+      // words; Wave 12 (F1): never the platform's "Please clarify your question.".
+      await expect(turn('which product?')).resolves.toEqual(['Sorry, could you say that again?']);
       expect(behavior.isComplete()).toBe(false);
     });
 

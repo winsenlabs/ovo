@@ -46,8 +46,17 @@ function fixture() {
         },
       },
     });
-  /** VAD speech of `ms` with interims, then the stop, the forced commit and the final. */
-  const utter = (ms: number, interims: readonly string[], final: string, confidence?: number) => {
+  /**
+   * VAD speech of `ms` with interims, then the stop, the forced commit and the final, and `afterMs`
+   * of silence.
+   */
+  const utter = (
+    ms: number,
+    interims: readonly string[],
+    final: string,
+    confidence?: number,
+    afterMs = 1000,
+  ) => {
     segment++;
     send({ type: 'vad.start' });
     for (const text of interims) {
@@ -58,7 +67,7 @@ function fixture() {
     for (let waited = 0; waited < 5000 && !forced(); waited += 10) clock.advance(10);
     clock.advance(350);
     transcript(final, 'final', confidence);
-    clock.advance(1000);
+    clock.advance(afterMs);
   };
   let commits = 0;
   const forced = () => {
@@ -91,7 +100,8 @@ describe('doubtful caller turns (Wave 8)', () => {
 
   it('a few words trailing off are untrusted, a clear reply is heard', () => {
     const f = fixture();
-    f.utter(900, ['Credit', 'Credit okay'], 'Credit. Okay, so...');
+    // Wave 12: broken off, it waits the 2.5 s pause hold before it ends as a turn of its own.
+    f.utter(900, ['Credit', 'Credit okay'], 'Credit. Okay, so...', undefined, 2_600);
     f.utter(1_800, ['Can you check', 'Can you check flights'], 'Can you check for flights?', 0.93);
     expect(f.stopped().map(([, untrusted]) => untrusted)).toEqual(['fragment', undefined]);
   });

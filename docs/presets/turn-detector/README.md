@@ -36,7 +36,7 @@ Wave 8 adds it so endpoint latency can be attributed per turn.
 | `final`                             | Scribe's final arrived after the VAD went quiet, before the commit                        |                                                             |
 | `ceiling`                           | No final within `userSpeechTimeoutMs` (600) of the commit; the turn ends on the interim   |                                                             |
 | `hold`                              | Words that trailed off waited `cutoffHoldMs` for more that never came                     | The engine then holds the reply 2 s for the caller to go on |
-| `pause`                             | Words that stopped mid-thought waited `pauseHoldMs` (2500) for more that never came       | None more: the turn waited instead of the reply             |
+| `pause`                             | Words that stopped mid-thought or broke off ("any-") waited `pauseHoldMs` (2500)          | None more: the turn waited instead of the reply             |
 | `agent`                             | A short reply over the agent's question waited for it to stop (AGT-9)                     |                                                             |
 | `vad-timeout`, `provider`, `safety` | The other stop strategies, and the stop safety timer                                      |                                                             |
 
@@ -106,6 +106,28 @@ Each wait has a limit:
   ("built-in.") end like an answer. A capital "A" closing a sentence ("Plan A.") is a name.
   In the call, all three such turns were the caller going on 0.01–1.6 s later; each got a reply
   made for half a sentence, held, and thrown away unheard.
+- **Words the STT broke off (Wave 12, call 8cb76efc turns 21 and 24).** A final that ends on a
+  dash or an ellipsis ("No. Have there been any-", "…uh, what happens-", "…so...") waits
+  `pauseHoldMs` like words that stop mid-thought, not `cutoffHoldMs`. Live the 700 ms hold ended
+  both turns 0.8 s and 0.4 s before the caller went on; the LLM wrote "Could you finish your
+  question?" and "Sorry, could you say that again?" for them, which only the engine's 2 s reply
+  hold kept from playing. A caller who has stopped hears the reply 2.5 s after the final, against
+  0.7 s plus that 2 s before.
+- **Words that add nothing to a reply on its way (Wave 12, call 8cb76efc turn 20).** Once the
+  caller's turn has ended and its filler or search line has started, but no line of the reply
+  itself, words begun while that line plays or within 1 s (`FILLER_TAIL_MS`) of its end that only
+  add a "please" or a yes ("Please.", "Okay.", "Yes, please.") or are outside the agent's languages
+  end on `turn.reset` (`backchannel`), not as a turn: the reply answers them. Live "Please." was
+  queued behind the search and answered after the reply, 11.8 s later, after the agent had asked
+  "Want to hear more?" and been given no answer. A question ("Okay?", "Hello?"), a greeting, thanks,
+  a no, a goodbye or any words that change the request are still a turn, and so is anything begun
+  later: a filler with no reply after it must not swallow the caller asking where it went, nor
+  anything said 8 s or more after the turn ended.
+- **Words muted over the agent (Wave 12, call 8cb76efc turn 6).** Words the STT gives while speech
+  is muted (a disclosure, the opening, a tool running) are dropped; the detector now also commits a
+  manual-commit STT (Scribe) when that speech ends (its VAD stop, or the agent stopping with no VAD
+  speech going on) and drops whatever the STT still says in those segments. Live nothing committed
+  them, and the caller's first turn began with the Hindi said over the opening 7 s earlier.
 - **A request begun as the reply starts (Wave 9, call 10d5ef30 turn 11).** Words over the agent
   with no VAD speech behind them are the room, unless they began no later than
   `speechEvidence.replyStartMs` (1000) after the reply started to play and ask for something
