@@ -1,0 +1,82 @@
+{
+  "config": "scribe-v2-batch",
+  "call": "call8",
+  "model": "scribe_v2",
+  "recordedAt": "2026-10-14T18:38:54.448Z",
+  "audioMs": 75960,
+  "utterances": [
+    {
+      "id": "c8-u01",
+      "text": "Hey Maya, what's your real name?"
+    },
+    {
+      "id": "c8-u02",
+      "text": "Nothing. So, uh, we've been thinking about going to Europe in December to a couple of places Budapest, Vienna, Austria, Hungary, Zagreb, Croatia, January"
+    },
+    {
+      "id": "c8-u03",
+      "text": "back to Chennai. So roundtrip to Frankfurt is what we're thinking."
+    },
+    {
+      "id": "c8-u04",
+      "text": "December twenty-second to January fifth."
+    },
+    {
+      "id": "c8-u05",
+      "text": "Yes."
+    },
+    {
+      "id": "c8-u06",
+      "text": "Yeah. Mm,"
+    },
+    {
+      "id": "c8-u07",
+      "text": "yeah, that's right. What is Zagreb special for?"
+    },
+    {
+      "id": "c8-u08",
+      "text": "Yeah, but you didn't answer my question."
+    },
+    {
+      "id": "c8-u09",
+      "text": "What's my name?"
+    },
+    {
+      "id": "c8-u10",
+      "text": ""
+    },
+    {
+      "id": "c8-u11",
+      "text": "My name is Tejas. What is your name? No,"
+    },
+    {
+      "id": "c8-u12",
+      "text": "I am telling you that my name is Tejas."
+    },
+    {
+      "id": "c8-u13",
+      "text": "Who are you?"
+    },
+    {
+      "id": "c8-u14",
+      "text": "Correct. This is the right thing."
+    },
+    {
+      "id": "c8-u15",
+      "text": "So what's the deal with you? Are you single or married,"
+    },
+    {
+      "id": "c8-u16",
+      "text": "or do you have children? How does it work?"
+    },
+    {
+      "id": "c8-u17",
+      "text": "Why? You should have children, no?"
+    },
+    {
+      "id": "c8-u18",
+      "text": "No, Ma, it's okay. You leave it."
+    }
+  ],
+  "language": "eng"
+}
