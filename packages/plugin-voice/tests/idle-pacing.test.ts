@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Behavior, TurnDecision, TurnSpeculation } from '@winsendotai/ovo-contracts';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
 import { IDLE_AFTER_ANSWER } from '../src/engine/idle-pacing.ts';
-import { driverHarness, sleep } from './turn-harness.ts';
+import { driverHarness, sleep } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Call 6e1a4e3a, turn 18 (2026-10-08 08:03:59): the agent's answer, said twice over (~460

@@ -17,6 +17,8 @@
     "packages/distribution": "distribution",
     "packages/plugin-voice": "vendor-plugin",
     "packages/plugin-turns": "vendor-plugin",
+    "packages/plugin-turn-detector-livekit": "kit",
+    "packages/plugin-turn-detector-smart-turn": "host",
     "packages/plugin-vad": "vendor-plugin",
     "packages/plugin-engine-livekit": "vendor-plugin",
     "packages/plugin-carrier-twilio": "vendor-plugin",

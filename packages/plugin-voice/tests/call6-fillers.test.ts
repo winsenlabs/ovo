@@ -5,7 +5,7 @@ import {
   type TurnSpeculation,
 } from '@winsendotai/ovo-contracts';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
-import { driverHarness, sleep } from './turn-harness.ts';
+import { driverHarness, sleep } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Wave 10, L3: Maya call 4f1a919d (2026-10-13). "One moment." played 1.5 s into turns 8, 11 and 12

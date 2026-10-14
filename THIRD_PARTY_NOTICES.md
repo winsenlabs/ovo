@@ -15,3 +15,9 @@ Retain these notices and license files in distributions. Dependencies retain the
 The optional LiveKit engine executes `@livekit/agents@1.9.0` (Apache-2.0) and uses `@livekit/rtc-node` (Apache-2.0). The installed native closure includes `@livekit/av` (package Apache-2.0; platform binary `@livekit/av-darwin-arm64` LGPL-2.1-or-later), `sharp` (Apache-2.0) and its `@img/sharp-libvips-*` native library (LGPL-3.0-or-later). `@livekit/local-inference` is present transitively with `Apache-2.0 AND LicenseRef-LiveKit-Model`; OVO's LiveKit adapter does not configure or load a local model. The exact package and platform records are in `docs/research/dependency-licenses.json`; Linux image/SBOM review remains a deployment gate.
 
 E1 and E2 implemented Pipecat-style scheduling ideas in OVO TypeScript; no Pipecat source was ported line by line and there is no Pipecat runtime dependency. Add its BSD-2-Clause notice if that changes.
+
+## End-of-turn model runtimes (Wave 13)
+
+`packages/plugin-turn-detector-smart-turn` runs the Smart Turn v3.2 model (BSD-2-Clause, Copyright (c) 2024-2025 Daily) through `onnxruntime-node@1.30.0` (MIT). The weights are not stored in git: `packages/plugin-turn-detector-smart-turn/scripts/fetch-model.mjs` downloads them at build time at a pinned revision and checks their SHA-256. Retain the BSD-2-Clause notice wherever the weights ship.
+
+`packages/plugin-turn-detector-livekit` runs LiveKit's end-of-turn models through `@livekit/agents` and `@livekit/local-inference` (Apache-2.0); the model weights are under the LiveKit Model License, which permits use only with the LiveKit Agents framework. It is a bake-off runtime only and is not registered in any distribution. Its dev-only text model pulls `@huggingface/transformers@4.2.0` (Apache-2.0) and, through it, `sharp`'s libvips binaries (LGPL-3.0-or-later).

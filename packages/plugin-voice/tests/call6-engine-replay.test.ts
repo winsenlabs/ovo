@@ -9,7 +9,7 @@ import type { ActivityAnnouncement, InferenceActivity } from '@winsendotai/ovo-p
 import { AgentBehavior } from '../../behaviors/src/index.ts';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
 import { unclearForSearch } from '../../plugin-llm-openai/src/search-voice.ts';
-import { driverHarness, sleep } from './turn-harness.ts';
+import { driverHarness, sleep } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Wave 10: Maya call 4f1a919d (2026-10-13 07:49:51–07:52:55 UTC, main 54fd9ea) through the turn

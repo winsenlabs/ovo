@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FakeClock } from '@winsendotai/ovo-conformance/drivers';
-import { call4, runCall, SAID } from './call4-timeline.ts';
-import { LIVE, MAYA, RECOMMENDED, replay } from './replay.ts';
+import { call4, runCall, SAID } from '../../eval/src/replay-kit/index.ts';
+import { LIVE, MAYA, RECOMMENDED, replay } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Wave 8b: Maya call e8a43f65 (2026-10-12) through the turn detector. Live (main 6107125, before

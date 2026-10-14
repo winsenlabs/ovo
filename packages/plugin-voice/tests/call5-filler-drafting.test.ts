@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Behavior } from '@winsendotai/ovo-contracts';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
-import { driverHarness, slowAgent } from './turn-harness.ts';
+import { driverHarness, slowAgent } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Wave 9, issue D6: Maya call 10d5ef30 (2026-10-12). Turn 22's reply was ready 1.68 s after the

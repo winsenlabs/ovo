@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FakeClock } from '@winsendotai/ovo-conformance/drivers';
-import { replayCall, runCall } from './call4-timeline.ts';
+import { replayCall, runCall } from '../../eval/src/replay-kit/index.ts';
 import {
   call5Closing,
   call5Fragment,
@@ -9,8 +9,8 @@ import {
   call5OverAgent,
   call5TalkOver,
   SAID5,
-} from './call5-timeline.ts';
-import { RECOMMENDED } from './replay.ts';
+} from '../../eval/src/replay-kit/index.ts';
+import { RECOMMENDED } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Wave 9, issue D3: Maya call 10d5ef30 (2026-10-12, main 519966b) through the turn detector. Live,

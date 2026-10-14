@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { FakeClock } from '@winsendotai/ovo-conformance/drivers';
-import { replayCall, runCall, type Step } from './call4-timeline.ts';
-import { call7BrokenOff, call7Please, call7WhatHappens, SAID7 } from './call7-timeline.ts';
-import { RECOMMENDED, replay } from './replay.ts';
+import { replayCall, runCall, type Step } from '../../eval/src/replay-kit/index.ts';
+import {
+  call7BrokenOff,
+  call7Please,
+  call7WhatHappens,
+  SAID7,
+} from '../../eval/src/replay-kit/index.ts';
+import { RECOMMENDED, replay } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Wave 12: Maya call 8cb76efc (2026-10-14, main b18b24e) through the turn detector, with Maya's

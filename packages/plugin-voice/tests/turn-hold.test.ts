@@ -6,7 +6,7 @@ import { TurnLatency } from '../src/engine/latency.ts';
 import { SpeechEventProjector } from '../src/engine/speech-events.ts';
 import { REPLY_HOLD } from '../src/engine/turn-hold.ts';
 import { mergeUtterances } from '../src/engine/turn-speculation.ts';
-import { driverHarness, slowAgent } from './turn-harness.ts';
+import { driverHarness, slowAgent } from '../../eval/src/replay-kit/index.ts';
 
 const FILLER = { text: 'Okay, one moment.', afterMs: 600 };
 

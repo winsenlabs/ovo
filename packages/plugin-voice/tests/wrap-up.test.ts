@@ -5,7 +5,7 @@ import { createFakeCarrier } from '../../conformance/src/drivers/fake-carrier.ts
 import { FakeClock, flushMicrotasks } from '../../conformance/src/drivers/fake-clock.ts';
 import { NativeVoiceSessionEngine } from '../src/engine/session-engine.ts';
 import { BoundedSpeechScheduler } from '../src/scheduler.ts';
-import { driverHarness, sleep, type TestClock } from './turn-harness.ts';
+import { driverHarness, sleep, type TestClock } from '../../eval/src/replay-kit/index.ts';
 
 const GOODBYE = 'We have to end the call here. Thank you for your time, goodbye.';
 

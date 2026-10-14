@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AgentConfig, type Behavior, type BehaviorEvent } from '@winsendotai/ovo-contracts';
 import { AgentBehavior } from '../../behaviors/src/index.ts';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
-import { driverHarness, sleep } from './turn-harness.ts';
+import { driverHarness, sleep } from '../../eval/src/replay-kit/index.ts';
 
 const WRITE_MS = 2000;
 

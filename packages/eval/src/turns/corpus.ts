@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { call4 } from '../../../plugin-turns/tests/call4-timeline.ts';
+import { call4 } from '../replay-kit/call4-timeline.ts';
 import { alignAudio, readWav, vadTransitions } from './audio.ts';
 import {
   fromEngineEvents,
@@ -100,7 +100,7 @@ export function buildCompact(
 
 /**
  * Call 4 (e8a43f65) has only turn summaries: its timeline is plugin-turns' rebuilt one
- * (tests/call4-timeline.ts, measured where the summaries allow and modelled, marked so, where they
+ * (replay-kit/call4-timeline.ts, measured where the summaries allow and modelled, marked so, where they
  * do not), with each host-commit answer placed where it was measured (`FINALS`).
  */
 const CALL4_FINALS = [22_969, 42_172, 45_975, 67_933, 72_640, 75_589, 92_193];

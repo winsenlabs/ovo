@@ -5,7 +5,7 @@ import { AgentBehavior } from '../../behaviors/src/index.ts';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
 import { StreamingCitationStripper } from '../../plugin-llm-openai/src/web-search.ts';
 import { unclearForSearch } from '../../plugin-llm-openai/src/search-voice.ts';
-import { driverHarness, sleep } from './turn-harness.ts';
+import { driverHarness, sleep } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Wave 12: Maya call 8cb76efc (2026-10-14 02:54:05–02:58:39 UTC, main b18b24e, Waves 6–10) through
