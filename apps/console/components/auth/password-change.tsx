@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { apiRequest } from '../../lib/api';
 import { USER_PASSWORD_MAX_LENGTH, USER_PASSWORD_MIN_LENGTH } from '../../lib/user-contract';
-import { Notice } from '../primitives';
+import { InlineAlert } from '../ui/feedback-v2';
 
 export interface PasswordIssue {
   code: string;
@@ -60,21 +60,19 @@ export function PasswordChange({
   }
 
   return (
-    <>
-      <Notice tone="warning">
+    <div className="stack">
+      <InlineAlert tone="warn">
         <strong>Change your password to continue.</strong>
-        <ul>
-          {issues.map((issue) => (
-            <li key={issue.code}>{issue.message}</li>
-          ))}
-        </ul>
-      </Notice>
-      {error && (
-        <Notice tone="danger" live>
-          {error}
-        </Notice>
-      )}
-      <form onSubmit={submit}>
+        {issues.length > 0 && (
+          <ul className="password-issue-list">
+            {issues.map((issue) => (
+              <li key={issue.code}>{issue.message}</li>
+            ))}
+          </ul>
+        )}
+      </InlineAlert>
+      {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+      <form onSubmit={submit} className="stack">
         <label htmlFor="new-password">New password</label>
         <input
           id="new-password"
@@ -99,6 +97,6 @@ export function PasswordChange({
           {submitting ? 'Changing…' : 'Change password and sign in'}
         </button>
       </form>
-    </>
+    </div>
   );
 }

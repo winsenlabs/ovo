@@ -1,14 +1,14 @@
 'use client';
 
 import { useRef, useState, type FormEvent } from 'react';
-import { apiRequest, type SessionIdentity } from '../../lib/api';
+import { ApiError, apiRequest, type SessionIdentity } from '../../lib/api';
 import {
   emailPasswordSession,
   legacyTokenSession,
   USER_PASSWORD_MAX_LENGTH,
   USER_PASSWORD_MIN_LENGTH,
 } from '../../lib/user-contract';
-import { Notice } from '../primitives';
+import { InlineAlert } from '../ui/feedback-v2';
 import { PasswordChange, type PasswordIssue } from './password-change';
 
 type SessionResponse =
@@ -18,6 +18,16 @@ type SessionResponse =
       passwordChangeRequired?: true;
       passwordIssues?: PasswordIssue[];
     };
+
+/** Friendlier wording for the sign-in failures an operator actually hits. */
+function signInErrorMessage(failure: unknown): string {
+  if (failure instanceof ApiError) {
+    if (failure.code === 'invalid_credentials') return 'Email or password is incorrect.';
+    if (failure.code === 'account_disabled') return 'This account has been disabled.';
+    return failure.message;
+  }
+  return failure instanceof Error ? failure.message : 'Sign-in failed.';
+}
 
 export function Login({
   onAuthenticated,
@@ -68,7 +78,7 @@ export function Login({
     try {
       await signIn(body, legacy ? undefined : credentials);
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Sign-in failed.');
+      setError(signInErrorMessage(failure));
     } finally {
       setSubmitting(false);
     }
@@ -85,18 +95,16 @@ export function Login({
             OPERATIONS
           </span>
         </div>
-        <p className="eyebrow">Management console</p>
-        <h1 id="login-title">Sign in</h1>
-        <p className="muted">
-          Use the email and password for this self-hosted organization. Credentials are sent only to
-          the management API and are never stored by the console.
-        </p>
-        {reason && <Notice tone="warning">{reason}</Notice>}
-        {error && (
-          <Notice tone="danger" live>
-            {error}
-          </Notice>
-        )}
+        <div>
+          <p className="eyebrow">Management console</p>
+          <h1 id="login-title">Sign in</h1>
+          <p className="muted">
+            Decide whether voice agents are healthy, cheap and compliant — and why one call went
+            wrong.
+          </p>
+        </div>
+        {reason && <InlineAlert tone="warn">{reason}</InlineAlert>}
+        {error && <InlineAlert tone="danger">{error}</InlineAlert>}
         {change ? (
           <PasswordChange
             issues={change.issues}
@@ -109,7 +117,7 @@ export function Login({
             }
           />
         ) : (
-          <form onSubmit={submit}>
+          <form onSubmit={submit} className="stack">
             {legacy ? (
               <>
                 <label htmlFor="bootstrap-token">Legacy bootstrap token</label>
@@ -153,12 +161,10 @@ export function Login({
             </button>
           </form>
         )}
-        <details>
-          <summary>Legacy local fixture access</summary>
-          <p className="muted">
-            Existing local fixtures may still use a server-configured bootstrap token. New
-            installations should use email and password.
-          </p>
+        <p className="login-footnote">
+          The organization is configured on the server. There is no organization picker or tenant
+          provisioning flow.
+          {' · '}
           <button
             className="text-button"
             type="button"
@@ -169,13 +175,9 @@ export function Login({
               setError(undefined);
             }}
           >
-            {legacy ? 'Use email and password' : 'Use a legacy bootstrap token'}
+            {legacy ? 'Use email and password' : 'Use a legacy fixture token'}
           </button>
-        </details>
-        <small>
-          The organization is configured on the server. This console has no organization picker or
-          tenant provisioning flow.
-        </small>
+        </p>
       </section>
     </main>
   );

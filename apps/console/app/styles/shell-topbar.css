@@ -1,0 +1,178 @@
+/* W14 shell lane, part 2/4: the topbar and the mobile nav drawer (see shell.css for part 1/4). */
+
+/* ---------- topbar ---------- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 0 var(--space-6);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(12px);
+}
+.topbar-location {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.topbar-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  overflow: hidden;
+  font-size: var(--text-label-size);
+  white-space: nowrap;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.topbar .operator {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-label-size);
+}
+.topbar-user {
+  position: relative;
+}
+.topbar-user summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  list-style: none;
+}
+.topbar-user summary::-webkit-details-marker {
+  display: none;
+}
+.topbar-user summary:hover {
+  background: var(--surface-2);
+}
+.topbar-user-menu {
+  position: absolute;
+  inset-inline-end: 0;
+  z-index: var(--z-overlay);
+  display: grid;
+  width: 180px;
+  margin-top: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--elev-2);
+}
+.topbar-user-menu a,
+.topbar-user-menu button {
+  padding: var(--space-2) var(--space-2);
+  border-radius: var(--radius-sm);
+  text-align: start;
+  font-size: var(--text-body-size);
+}
+.topbar-user-menu a:hover,
+.topbar-user-menu button:hover {
+  background: var(--surface-2);
+}
+
+/* ---------- mobile nav ---------- */
+.mobile-nav {
+  display: none;
+}
+.mobile-nav-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--text-label-size);
+}
+.mobile-nav-trigger-bars {
+  display: grid;
+  gap: 3px;
+}
+.mobile-nav-trigger-bars span {
+  display: block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+}
+.mobile-nav-panel {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: var(--z-overlay);
+  width: min(300px, 85vw);
+  height: 100vh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--nav-bg);
+}
+.mobile-nav-panel::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+.mobile-nav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-4) 0;
+}
+.mobile-nav-head .brand strong {
+  color: var(--nav-text);
+}
+.mobile-nav-close {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--nav-text);
+  font-size: 18px;
+}
+.mobile-nav-close:hover {
+  background: color-mix(in srgb, var(--nav-text) 14%, transparent);
+}
+
+@media (max-width: 1023px) {
+  .desktop-nav {
+    display: none;
+  }
+  .mobile-nav {
+    display: block;
+  }
+  .shell {
+    margin-inline-start: 0;
+  }
+  .topbar {
+    padding-inline: var(--space-4);
+  }
+}
+@media (max-width: 600px) {
+  .content {
+    padding: var(--space-4);
+  }
+  .topbar .operator {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell,
+  .sidebar--desktop {
+    transition: none;
+  }
+}

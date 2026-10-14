@@ -13,3 +13,7 @@
 @import './styles/ds-data.css';
 @import './styles/ds-media.css';
 @import './styles/ds-charts.css';
+@import './styles/shell.css';
+@import './styles/shell-topbar.css';
+@import './styles/auth.css';
+@import './styles/home.css';
