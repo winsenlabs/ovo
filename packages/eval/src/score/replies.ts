@@ -133,7 +133,8 @@ export function thoughtReplies(
     answeredBy: new Map(),
   };
   wanted.forEach((thought, index) => {
-    const until = (wanted[index + 1]?.startMs ?? Infinity) + 500;
+    // Until the caller's next thought starts (or 15 s, for the last).
+    const until = Math.min((wanted[index + 1]?.startMs ?? Infinity) + 500, thought.endMs + 15_000);
     const from = thought.endMs - 500;
     const answer = answers.find((line) => line.audibleAtMs! >= from && line.audibleAtMs! < until);
     const any = audible.find((line) => line.audibleAtMs! >= from && line.audibleAtMs! < until);

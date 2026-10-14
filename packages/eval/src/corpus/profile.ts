@@ -38,15 +38,19 @@ const UNSURE = "I'm not completely sure about that. Want me to look it up?";
 const GREETING = "Hi! I'm Maya, your Europe trip companion. Where are you thinking of going?";
 
 export const DEFAULT_CANNED: CannedLine[] = [
-  { category: 'clarification', pattern: /please clarify|could you finish your question/i },
+  {
+    category: 'clarification',
+    pattern:
+      /please clarify|could you finish your question|not sure what you mean|could you explain\?|what do you mean\?/i,
+  },
   {
     category: 'say-again',
-    pattern: /say that again|didn'?t catch|put it another way|could you repeat|say it again/i,
+    pattern:
+      /\bsay\b[^.?!]*\bagain\b|didn'?t catch|put it another way|could you repeat|missed what you meant/i,
   },
   {
     category: 'uncertainty',
-    pattern:
-      /not completely sure about that|do not have that information|i'?m not sure about that/i,
+    pattern: /not completely sure|do not have that information|i'?m not sure about that/i,
   },
 ];
 

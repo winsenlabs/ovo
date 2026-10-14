@@ -2,7 +2,7 @@
 //   pnpm eval:calls [run] [--mode transcript|live|audio] [--corpus dir] [--calls a,b] [--label name]
 //        [--detector rules|module:<path>[#export]] [--detector-config json|@file] [--vad trace|audio]
 //        [--stt id --keys file [--llm-model id]] [--transcripts dir] [--out dir]
-//        [--baseline scorecard.json [--thresholds file]]
+//        [--baseline scorecard.json [--thresholds file]] [--save-baseline file]
 //   pnpm eval:calls diff <baseline.json> <candidate.json> [--thresholds file] [--out dir]
 //   pnpm eval:calls slim --from <raw corpus> --to <dir> [--calls a,b]
 //   pnpm eval:calls stt-configs [--keys file]

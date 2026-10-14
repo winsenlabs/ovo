@@ -114,7 +114,10 @@ export async function loadCall(
     manifest && startedAt !== undefined
       ? manifestOffset(await readJson(manifest), startedAt)
       : undefined;
-  const given = overrides.audioOffsetMs ?? call.gold?.offsetMs ?? call.vad?.offsetMs;
+  // The replay delivers the track on the offset its VAD trace was read with. The gold file's own
+  // offset (the STT lane's alignment, stamped by speech onset rather than by the frame that ends
+  // the VAD's debounce) is only a fallback: gold times are already on the call timeline.
+  const given = overrides.audioOffsetMs ?? call.vad?.offsetMs;
   if (given !== undefined) call.audioOffsetMs = given;
   else if (audio && call.events) {
     // The recording's own alignment is not waveform-synchronized: read the offset off the audio.
@@ -127,14 +130,17 @@ export async function loadCall(
       .filter(({ event }) => event.type === 'user.turn' && event.phase === 'started')
       .map(({ atMs }) => atMs);
     const estimate = estimateOffset(trace, starts);
-    call.audioOffsetMs = estimate?.offsetMs ?? fromManifest ?? 0;
+    call.audioOffsetMs = estimate?.offsetMs ?? call.gold?.offsetMs ?? fromManifest ?? 0;
     call.vad = { ...trace, offsetMs: call.audioOffsetMs };
     call.notes.push(
       estimate
         ? `caller track offset ${estimate.offsetMs} ms, from ${estimate.agreeing} of ${starts.length} turn starts`
-        : `caller track offset ${call.audioOffsetMs} ms from the recording manifest (turn starts disagreed)`,
+        : `caller track offset ${call.audioOffsetMs} ms from the gold file or the recording manifest (turn starts disagreed)`,
     );
-  } else if (fromManifest !== undefined) call.audioOffsetMs = fromManifest;
+  } else {
+    const fallback = call.gold?.offsetMs ?? fromManifest;
+    if (fallback !== undefined) call.audioOffsetMs = fallback;
+  }
   return call;
 }
 

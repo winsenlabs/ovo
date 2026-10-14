@@ -112,23 +112,33 @@ export function callEvents(rows: readonly ExportedEvent[]): CallEvents {
 /** The rows the harness reads, for a corpus small enough to commit (`eval:calls slim`). */
 export function slimExport(rows: readonly ExportedEvent[]): ExportedEvent[] {
   const keep = new Set(['user.transcript', 'user.turn', 'speech', 'timing', 'interrupt', 'end']);
-  return rows
-    .filter((row) => {
-      if (row.type === 'engine.event') {
-        const event = record(row.payload?.event);
-        if (!event || !keep.has(String(event.type))) return false;
-        // Speech evidence: the phases the timeline reads.
-        if (event.type === 'speech') {
-          const phase = record(event.evidence)?.phase;
-          return ['generated', 'sent', 'completed', 'interrupted', 'dropped', 'failed'].includes(
-            String(phase),
-          );
+  // The timings that name a line's turn and its first audio; the rest are latency breakdowns.
+  const timings = new Set(['text_aggregation', 'carrier_first_audio']);
+  return (
+    rows
+      .filter((row) => {
+        if (row.type === 'engine.event') {
+          const event = record(row.payload?.event);
+          if (!event || !keep.has(String(event.type))) return false;
+          if (event.type === 'timing') return timings.has(String(event.key));
+          // Speech evidence: the phases the timeline reads.
+          if (event.type === 'speech') {
+            const phase = record(event.evidence)?.phase;
+            return ['generated', 'sent', 'completed', 'interrupted', 'dropped', 'failed'].includes(
+              String(phase),
+            );
+          }
+          return true;
         }
-        return true;
-      }
-      if (row.type === 'provider.usage')
-        return row.payload?.operation === 'inference' && row.payload?.unit === 'input_tokens';
-      return ['session.started', 'session.ended', 'speculation.summary'].includes(String(row.type));
-    })
-    .map(({ callId, sequence, at, type, payload }) => ({ callId, sequence, at, type, payload }));
+        if (row.type === 'provider.usage')
+          return row.payload?.operation === 'inference' && row.payload?.unit === 'input_tokens';
+        return ['session.started', 'session.ended', 'speculation.summary'].includes(
+          String(row.type),
+        );
+      })
+      // Engine events carry their own time; the stored time and ids only weigh the file down.
+      .map(({ callId, at, type, payload }) =>
+        type === 'engine.event' ? { type, payload } : { callId, at, type, payload },
+      )
+  );
 }

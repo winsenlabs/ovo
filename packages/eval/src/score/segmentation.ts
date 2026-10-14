@@ -58,17 +58,18 @@ export function segment(
     const window = { startMs: span.startMs - SLACK_MS, endMs: span.endMs + SLACK_MS };
     const covered = thoughts
       .map((thought) => ({ thought, ms: overlap(window, thought) }))
-      .filter((entry) => entry.ms > 0)
-      .sort((a, b) => b.ms - a.ms);
-    const best = covered[0]?.thought;
-    const merged = covered
-      .slice(1)
-      .map((entry) => entry.thought)
-      // A thought counts as merged when the turn heard most of it, not its edge.
-      .filter(
-        (thought) =>
-          overlap(window, thought) >= Math.min(400, (thought.endMs - thought.startMs) / 2),
-      );
+      .filter((entry) => entry.ms > 0);
+    // A thought counts as heard by the turn when the turn heard most of it, not its edge. A turn
+    // over several is the last one's (it ended after it); the others merged into it.
+    const heard = covered.filter(
+      (entry) => entry.ms >= Math.min(400, (entry.thought.endMs - entry.thought.startMs) / 2),
+    );
+    const pool = heard.length ? heard : covered.sort((a, b) => b.ms - a.ms).slice(0, 1);
+    const best = pool.reduce<GoldThought | undefined>(
+      (last, entry) => (!last || entry.thought.endMs > last.endMs ? entry.thought : last),
+      undefined,
+    );
+    const merged = heard.map((entry) => entry.thought).filter((thought) => thought !== best);
     const match: TurnMatch = {
       turn,
       ...(best ? { thought: best } : {}),

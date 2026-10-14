@@ -14,7 +14,7 @@ const FOREIGN_LETTERS = /[äöüßıışğçñœæøåãõâêîôûàèìòùá
 const FOREIGN_WORDS = new Set(
   [
     'aber nicht noch und ich ist auch sie wir genau danke bitte nein oder mit für ein eine', // German
-    'pero gracias buenas buenos señor claro sí muy obrigado', // Spanish and Portuguese
+    'pero gracias bueno buenas buenos tardes señor claro sí muy obrigado', // Spanish and Portuguese
     'mais merci oui avec pour grazie ciao', // French and Italian
     'evet hayır çok şey hıhı', // Turkish
   ].flatMap((words) => words.split(' ')),

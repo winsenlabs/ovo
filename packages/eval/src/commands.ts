@@ -2,7 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { readKeys, STT_CONFIGS, sttStatus } from './audio/stt-configs.ts';
@@ -91,8 +91,9 @@ async function run(values: Record<string, string | boolean | undefined>): Promis
   const label = String(
     values.label ?? `${mode}-${detector.replace(/^module:.*\//, '').replace(/[^\w.-]+/g, '_')}`,
   );
+  const corpus = String(values.corpus ?? join(PACKAGE, 'corpus'));
   const { card, transcripts } = await runEval({
-    corpus: String(values.corpus ?? join(PACKAGE, 'corpus')),
+    corpus,
     ...(values.calls ? { calls: String(values.calls).split(',') } : {}),
     mode,
     label,
@@ -107,7 +108,7 @@ async function run(values: Record<string, string | boolean | undefined>): Promis
     ...(values.transcripts
       ? { transcripts: await transcriptsFrom(String(values.transcripts)) }
       : {}),
-    config: { commit: commit() ?? 'unknown' },
+    config: { corpus: relative(process.cwd(), corpus) || '.', commit: commit() ?? 'unknown' },
     log,
   });
   const out = String(values.out ?? join(PACKAGE, 'out'));
@@ -118,6 +119,15 @@ async function run(values: Record<string, string | boolean | undefined>): Promis
   const baseline = values.baseline ? await json<Scorecard>(`@${values.baseline}`) : undefined;
   const thresholds = await thresholdsFrom(values.thresholds as string | undefined);
   const diff = await writeReports(out, card, baseline, thresholds);
+  if (values['save-baseline']) {
+    // The gate reads only the metrics: the per-turn tables stay in the run's own reports.
+    const compact = {
+      ...card,
+      calls: card.calls.map((call) => ({ ...call, turns: [], utterances: [], lines: [] })),
+    };
+    await writeFile(String(values['save-baseline']), `${JSON.stringify(compact, null, 1)}\n`);
+    log(`wrote the baseline ${String(values['save-baseline'])}`);
+  }
   process.stdout.write(`${label}: ${summary(card)}\n`);
   if (!diff) return 0;
   if (!diff.regressions.length) process.stdout.write(`gate: pass against ${diff.baseline}\n`);
@@ -148,6 +158,7 @@ export async function main(argv: string[]): Promise<number> {
         'out',
         'baseline',
         'thresholds',
+        'save-baseline',
         'from',
         'to',
       ].map((name) => [name, { type: 'string' as const }]),

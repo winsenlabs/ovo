@@ -112,7 +112,6 @@ export async function runEval(options: RunOptions): Promise<RunResult> {
   const scores: CallScore[] = [];
   const transcripts: RunResult['transcripts'] = {};
   const config: Record<string, unknown> = {
-    corpus: options.corpus,
     detector: options.mode === 'live' ? 'as recorded' : (options.detector ?? 'rules'),
     ...(options.detectorConfig ? { detectorConfig: options.detectorConfig } : {}),
     vad:
