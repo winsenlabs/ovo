@@ -1,5 +1,6 @@
 import {
   continuesUtterance,
+  normalizeForMatch,
   SAID_BEFORE_REPLY_VARIABLE,
   UNTRUSTED_INPUT_VARIABLE,
   type Behavior,
@@ -142,6 +143,9 @@ export class TurnBook {
     if (!running || running.drafted || this.carry || this.stuck) return undefined;
     if (!this.supersedes(words, running)) return undefined;
     if (brief(words) && !continuesUtterance(words, running.input)) return undefined;
+    // Wave 12 (call 8cb76efc turn 10): brief words that only repeat the end of the words being
+    // answered ("January." after "…to... January.", soft, no VAD run) give up no search.
+    if (running.searched && brief(words) && repeatsEnd(words, running.input)) return undefined;
     this.carry = running;
     this.preempted = true;
     return running;
@@ -292,4 +296,10 @@ export class TurnBook {
 
 function brief(text: string): boolean {
   return text.split(/\s+/u).filter(Boolean).length <= BRIEF_WORDS;
+}
+
+/** `words` say again only the end of `input` (an STT re-emitting its last words). */
+function repeatsEnd(words: string, input: string): boolean {
+  const said = normalizeForMatch(words);
+  return said.length > 0 && normalizeForMatch(input).endsWith(said);
 }

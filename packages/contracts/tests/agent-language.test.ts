@@ -26,6 +26,8 @@ const DRIFTED = [
   '¿Y la gente a mí lo ves en la...?',
   // Call B
   'Ну, ну, а-а-а?',
+  // Wave 12, call 8cb76efc turn 26: a voice under the caller's, transcribed as Spanish.
+  'No. I- Bueno, buenas tardes.',
 ];
 
 const UNDERSTOOD = [
@@ -48,6 +50,10 @@ const UNDERSTOOD = [
   'enna sir, illa sir, naan konjam late',
   'Per EMI.',
   'I am drunk.',
+  // A Spanish greeting or place inside English words.
+  'Good evening, buenas noches to you all',
+  'Buenos Aires, Buenos Aires.',
+  'I want to fly to Buenos Aires in March.',
   '',
 ];
 

@@ -127,9 +127,10 @@ describe('call 8cb76efc F2: words that add nothing to a reply on its way', () =>
 
   it.each([
     ['"Please."', SAID7.turn20],
-    // Turn 26 ("No. I- Bueno, buenas tardes.") superseded the held answer to "In Berlin on New
-    // Year's Eve?" this way; its words read as English to the language guard (cross-lane request).
     ["words outside the agent's languages", 'Bueno, gracias, señor.'],
+    // Turn 26 superseded the held answer to "In Berlin on New Year's Eve?"; its words read as
+    // English to the language guard until "buenas tardes" joined its Spanish words (Wave 12).
+    ["turn 26's words", 'No. I- Bueno, buenas tardes.'],
   ])('%s after the search line has ended, the reply still to come, are dropped too', (_, words) => {
     const steps: Step[] = [
       ...call7Please().map((step) =>
