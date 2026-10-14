@@ -1,0 +1,1150 @@
+{
+  "call": "10d5ef30",
+  "label": "call 5",
+  "durationMs": 311715,
+  "transcripts": [
+    {
+      "at": 8386,
+      "type": "transcript",
+      "seg": "0",
+      "text": "\"Maya\", can you please-",
+      "final": false
+    },
+    {
+      "at": 9289,
+      "type": "transcript",
+      "seg": "0",
+      "text": "\"Hey, Maya, can you please tell me what",
+      "final": false
+    },
+    {
+      "at": 10259,
+      "type": "transcript",
+      "seg": "0",
+      "text": "\"Hey, Maya, can you please tell me what places are",
+      "final": false
+    },
+    {
+      "at": 10591,
+      "type": "transcript",
+      "seg": "0",
+      "text": "\"Hey, Maya, can you please tell me what places are nice in-\"",
+      "final": true
+    },
+    {
+      "at": 12576,
+      "type": "transcript",
+      "seg": "1",
+      "text": "Yeah. \"... Europe in December, January,",
+      "final": false
+    },
+    {
+      "at": 13580,
+      "type": "transcript",
+      "seg": "1",
+      "text": "Yeah. \"... Europe in December, January times?\"",
+      "final": false
+    },
+    {
+      "at": 15427,
+      "type": "transcript",
+      "seg": "1",
+      "text": "\"... Europe in December, January times?\"",
+      "final": true
+    },
+    {
+      "at": 37581,
+      "type": "transcript",
+      "seg": "2",
+      "text": "\"No, we're okay with the call.",
+      "final": false
+    },
+    {
+      "at": 38015,
+      "type": "transcript",
+      "seg": "2",
+      "text": "\"No, we are okay with the call. We want...\"",
+      "final": true
+    },
+    {
+      "at": 38987,
+      "type": "transcript",
+      "seg": "3",
+      "text": "Want to seek",
+      "final": false
+    },
+    {
+      "at": 40000,
+      "type": "transcript",
+      "seg": "3",
+      "text": "Want to see Christmas markets as",
+      "final": false
+    },
+    {
+      "at": 40237,
+      "type": "transcript",
+      "seg": "3",
+      "text": "Want to see Christmas markets as well.",
+      "final": true
+    },
+    {
+      "at": 66313,
+      "type": "transcript",
+      "seg": "4",
+      "text": "Yeah, December 2",
+      "final": false
+    },
+    {
+      "at": 66508,
+      "type": "transcript",
+      "seg": "4",
+      "text": "Yeah, December 26.",
+      "final": true
+    },
+    {
+      "at": 67903,
+      "type": "transcript",
+      "seg": "5",
+      "text": "अम्म...",
+      "final": true
+    },
+    {
+      "at": 69032,
+      "type": "transcript",
+      "seg": "6",
+      "text": "Can you tell me about-",
+      "final": false
+    },
+    {
+      "at": 69937,
+      "type": "transcript",
+      "seg": "6",
+      "text": "Can you tell me about how price is",
+      "final": false
+    },
+    {
+      "at": 70943,
+      "type": "transcript",
+      "seg": "6",
+      "text": "Can you tell me about how pricey flights are and things like",
+      "final": false
+    },
+    {
+      "at": 71101,
+      "type": "transcript",
+      "seg": "6",
+      "text": "Can you tell me about how pricey flights are and things like that?",
+      "final": true
+    },
+    {
+      "at": 78996,
+      "type": "transcript",
+      "seg": "7",
+      "text": "Yeah. Also,",
+      "final": false
+    },
+    {
+      "at": 79903,
+      "type": "transcript",
+      "seg": "7",
+      "text": "Yeah. Also, what more...",
+      "final": false
+    },
+    {
+      "at": 80910,
+      "type": "transcript",
+      "seg": "7",
+      "text": "Yeah. Also, what more ?",
+      "final": false
+    },
+    {
+      "at": 82750,
+      "type": "transcript",
+      "seg": "7",
+      "text": "Yeah. Also, what more...",
+      "final": true
+    },
+    {
+      "at": 94398,
+      "type": "transcript",
+      "seg": "8",
+      "text": "I'll be trying",
+      "final": false
+    },
+    {
+      "at": 95304,
+      "type": "transcript",
+      "seg": "8",
+      "text": "I'll be flying out of Chennai and I'll",
+      "final": false
+    },
+    {
+      "at": 96313,
+      "type": "transcript",
+      "seg": "8",
+      "text": "I'll be flying out of Chennai and I'll return",
+      "final": false
+    },
+    {
+      "at": 97220,
+      "type": "transcript",
+      "seg": "8",
+      "text": "I'll be flying out of Chennai, and I'll return back to Chennai only.",
+      "final": false
+    },
+    {
+      "at": 97671,
+      "type": "transcript",
+      "seg": "8",
+      "text": "I'll be flying out of Chennai and I'll return back to Chennai only.",
+      "final": true
+    },
+    {
+      "at": 98432,
+      "type": "transcript",
+      "seg": "9",
+      "text": "Uh, I",
+      "final": false
+    },
+    {
+      "at": 99436,
+      "type": "transcript",
+      "seg": "9",
+      "text": "Uh, I expect to fly",
+      "final": false
+    },
+    {
+      "at": 100382,
+      "type": "transcript",
+      "seg": "9",
+      "text": "Uh, I expect to fly out on",
+      "final": false
+    },
+    {
+      "at": 100525,
+      "type": "transcript",
+      "seg": "9",
+      "text": "Uh, I expect to fly out on...",
+      "final": true
+    },
+    {
+      "at": 101692,
+      "type": "transcript",
+      "seg": "10",
+      "text": "December 2024.",
+      "final": false
+    },
+    {
+      "at": 102235,
+      "type": "transcript",
+      "seg": "10",
+      "text": "December 21st is?",
+      "final": true
+    },
+    {
+      "at": 103306,
+      "type": "transcript",
+      "seg": "11",
+      "text": "Uh, in 20-",
+      "final": false
+    },
+    {
+      "at": 104210,
+      "type": "transcript",
+      "seg": "11",
+      "text": "And fly back in, uh-",
+      "final": false
+    },
+    {
+      "at": 105114,
+      "type": "transcript",
+      "seg": "11",
+      "text": "And fly back in on January 5th.",
+      "final": false
+    },
+    {
+      "at": 105458,
+      "type": "transcript",
+      "seg": "11",
+      "text": "And fly back in on January 5th, please.",
+      "final": true
+    },
+    {
+      "at": 138135,
+      "type": "transcript",
+      "seg": "12",
+      "text": "Uh, what do you think of the",
+      "final": false
+    },
+    {
+      "at": 139140,
+      "type": "transcript",
+      "seg": "12",
+      "text": "Uh, what do you think about Zagreb as a place?",
+      "final": false
+    },
+    {
+      "at": 139317,
+      "type": "transcript",
+      "seg": "12",
+      "text": "Uh, what do you think about Zagreb as a place?",
+      "final": true
+    },
+    {
+      "at": 159250,
+      "type": "transcript",
+      "seg": "13",
+      "text": "Yeah, yeah.",
+      "final": true
+    },
+    {
+      "at": 160381,
+      "type": "transcript",
+      "seg": "14",
+      "text": "Pamita me.",
+      "final": false
+    },
+    {
+      "at": 161287,
+      "type": "transcript",
+      "seg": "14",
+      "text": "Tell me the name.",
+      "final": false
+    },
+    {
+      "at": 174785,
+      "type": "transcript",
+      "seg": "15",
+      "text": "No,",
+      "final": false
+    },
+    {
+      "at": 175437,
+      "type": "transcript",
+      "seg": "15",
+      "text": "No, umm...",
+      "final": true
+    },
+    {
+      "at": 177505,
+      "type": "transcript",
+      "seg": "16",
+      "text": "Ummm...",
+      "final": false
+    },
+    {
+      "at": 178413,
+      "type": "transcript",
+      "seg": "16",
+      "text": "Umm, I'm just thinking",
+      "final": false
+    },
+    {
+      "at": 179485,
+      "type": "transcript",
+      "seg": "16",
+      "text": "Umm, I'm just thinking of whether we should",
+      "final": false
+    },
+    {
+      "at": 180390,
+      "type": "transcript",
+      "seg": "16",
+      "text": "Umm, I'm just thinking of whether we should go this year or next",
+      "final": false
+    },
+    {
+      "at": 180480,
+      "type": "transcript",
+      "seg": "16",
+      "text": "Umm, I'm just thinking of whether we should go this year or next.",
+      "final": true
+    },
+    {
+      "at": 181498,
+      "type": "transcript",
+      "seg": "17",
+      "text": "What about non",
+      "final": false
+    },
+    {
+      "at": 182508,
+      "type": "transcript",
+      "seg": "17",
+      "text": "What about Northern Lights and",
+      "final": false
+    },
+    {
+      "at": 183217,
+      "type": "transcript",
+      "seg": "17",
+      "text": "What about Northern Lights and stuff like that?",
+      "final": true
+    },
+    {
+      "at": 184424,
+      "type": "transcript",
+      "seg": "18",
+      "text": "Will I get the same",
+      "final": false
+    },
+    {
+      "at": 185330,
+      "type": "transcript",
+      "seg": "18",
+      "text": "Will I get to see anything about, like, that",
+      "final": false
+    },
+    {
+      "at": 185387,
+      "type": "transcript",
+      "seg": "18",
+      "text": "Will I get to see anything about, like, that?",
+      "final": true
+    },
+    {
+      "at": 212395,
+      "type": "transcript",
+      "seg": "19",
+      "text": "Yeah, I don't",
+      "final": false
+    },
+    {
+      "at": 213196,
+      "type": "transcript",
+      "seg": "19",
+      "text": "Yeah, I don't mind, but, uh,",
+      "final": true
+    },
+    {
+      "at": 215211,
+      "type": "transcript",
+      "seg": "20",
+      "text": "don't make it, like, too far away or",
+      "final": false
+    },
+    {
+      "at": 216279,
+      "type": "transcript",
+      "seg": "20",
+      "text": "don't make it, like, too far away or impossible to reach.",
+      "final": true
+    },
+    {
+      "at": 217422,
+      "type": "transcript",
+      "seg": "21",
+      "text": "And stuff",
+      "final": false
+    },
+    {
+      "at": 218428,
+      "type": "transcript",
+      "seg": "21",
+      "text": "And stuff like that. I mean, it's",
+      "final": false
+    },
+    {
+      "at": 219150,
+      "type": "transcript",
+      "seg": "21",
+      "text": "And stuff like that. I mean, it should still be a",
+      "final": true
+    },
+    {
+      "at": 222157,
+      "type": "transcript",
+      "seg": "22",
+      "text": "built-in.",
+      "final": false
+    },
+    {
+      "at": 222790,
+      "type": "transcript",
+      "seg": "22",
+      "text": "built-in.",
+      "final": true
+    },
+    {
+      "at": 233358,
+      "type": "transcript",
+      "seg": "23",
+      "text": "Yeah,",
+      "final": false
+    },
+    {
+      "at": 234464,
+      "type": "transcript",
+      "seg": "23",
+      "text": "Yeah, that's what I said, right?",
+      "final": false
+    },
+    {
+      "at": 234588,
+      "type": "transcript",
+      "seg": "23",
+      "text": "Yeah, that's what I said, right?",
+      "final": true
+    },
+    {
+      "at": 247137,
+      "type": "transcript",
+      "seg": "24",
+      "text": "Yeah, dude.",
+      "final": false
+    },
+    {
+      "at": 248143,
+      "type": "transcript",
+      "seg": "24",
+      "text": "Yeah, dude. तुम्हारा नाम क्या है?",
+      "final": false
+    },
+    {
+      "at": 248752,
+      "type": "transcript",
+      "seg": "24",
+      "text": "Yeah, dude. That's why I'm asking.",
+      "final": true
+    },
+    {
+      "at": 271037,
+      "type": "transcript",
+      "seg": "25",
+      "text": "No, I'm good. Thank you.",
+      "final": false
+    },
+    {
+      "at": 271338,
+      "type": "transcript",
+      "seg": "25",
+      "text": "No, I'm good. Thank you.",
+      "final": true
+    },
+    {
+      "at": 272449,
+      "type": "transcript",
+      "seg": "26",
+      "text": "So,",
+      "final": false
+    },
+    {
+      "at": 273355,
+      "type": "transcript",
+      "seg": "26",
+      "text": "So, yeah, a",
+      "final": false
+    },
+    {
+      "at": 273506,
+      "type": "transcript",
+      "seg": "26",
+      "text": "So, yeah, a...",
+      "final": true
+    },
+    {
+      "at": 274662,
+      "type": "transcript",
+      "seg": "27",
+      "text": "Can you",
+      "final": false
+    },
+    {
+      "at": 275569,
+      "type": "transcript",
+      "seg": "27",
+      "text": "Can you email the itinerary?",
+      "final": false
+    },
+    {
+      "at": 275985,
+      "type": "transcript",
+      "seg": "27",
+      "text": "Can you email this itinerary to me?",
+      "final": true
+    },
+    {
+      "at": 289254,
+      "type": "transcript",
+      "seg": "28",
+      "text": "Yeah, yeah, sure.",
+      "final": true
+    },
+    {
+      "at": 300968,
+      "type": "transcript",
+      "seg": "29",
+      "text": "Never",
+      "final": false
+    },
+    {
+      "at": 301429,
+      "type": "transcript",
+      "seg": "29",
+      "text": "Never mind. Thank you.",
+      "final": true
+    },
+    {
+      "at": 306966,
+      "type": "transcript",
+      "seg": "30",
+      "text": "Yeah, yeah, please.",
+      "final": true
+    }
+  ],
+  "agent": [
+    {
+      "text": "Hi! I'm Maya, your Europe trip companion. Where are you thinking of going?",
+      "kind": "response",
+      "start": 14,
+      "stop": 4946,
+      "state": "completed"
+    },
+    {
+      "text": "Let me look that up.",
+      "kind": "acknowledgment",
+      "start": 16881,
+      "stop": 18205,
+      "state": "completed"
+    },
+    {
+      "text": "For December, Vienna,",
+      "kind": "response",
+      "start": 19222,
+      "stop": 20865,
+      "state": "completed"
+    },
+    {
+      "text": "Prague, and Salzburg are lovely for festive markets and historic streets; in January, try the Alps for snow or Lisbon for a milder city break.",
+      "kind": "response",
+      "start": 19262,
+      "stop": 29206,
+      "state": "completed"
+    },
+    {
+      "text": "Would your group rather see Christmas markets, snowy scenery, or escape the cold?",
+      "kind": "response",
+      "start": 19339,
+      "stop": 33505,
+      "state": "completed"
+    },
+    {
+      "text": "One moment.",
+      "kind": "acknowledgment",
+      "start": 41746,
+      "stop": 42765,
+      "state": "completed"
+    },
+    {
+      "text": "If Christmas markets are a priority,",
+      "kind": "response",
+      "start": 44460,
+      "stop": 46825,
+      "state": "completed"
+    },
+    {
+      "text": "Vienna and Prague are lovely choices: Vienna’s Rathausplatz market runs November 13 to December 26, 2026, and Prague’s Old Town market is expected to continue into early January.",
+      "kind": "response",
+      "start": 44547,
+      "stop": 59366,
+      "state": "completed"
+    },
+    {
+      "text": "Are you planning to travel in December 2026 or January 2027?",
+      "kind": "response",
+      "start": 44549,
+      "stop": 60815,
+      "state": "completed"
+    },
+    {
+      "text": "One moment.",
+      "kind": "acknowledgment",
+      "start": 72608,
+      "stop": 73625,
+      "state": "completed"
+    },
+    {
+      "text": "For December 26, 2026,",
+      "kind": "response",
+      "start": 74681,
+      "stop": 77446,
+      "state": "completed"
+    },
+    {
+      "text": "I’m seeing Mumbai–Prague return fares around sixty-five thousand rupees for travel through January 10; exact prices depend on your departure city and return date, and fares can change quickly.",
+      "kind": "response",
+      "start": 74787,
+      "stop": 88506,
+      "state": "completed"
+    },
+    {
+      "text": "Where in India will you be flying from, and when would you return?",
+      "kind": "response",
+      "start": 74788,
+      "stop": 90962,
+      "state": "completed"
+    },
+    {
+      "text": "One moment.",
+      "kind": "acknowledgment",
+      "start": 106964,
+      "stop": 107986,
+      "state": "completed"
+    },
+    {
+      "text": "For Chennai to Prague,",
+      "kind": "response",
+      "start": 109340,
+      "stop": 110967,
+      "state": "completed"
+    },
+    {
+      "text": "December 21, 2026–January 5, 2027, I can’t confirm an exact fare for those dates, but a rough budget of seventy thousand rupees–one lakh rupees per person return is sensible for peak-season travel; prices vary by airline, stops, and baggage.",
+      "kind": "response",
+      "start": 109467,
+      "stop": 125067,
+      "state": "completed"
+    },
+    {
+      "text": "Would you like to fly into Prague, or start in Vienna for the Christmas markets?",
+      "kind": "response",
+      "start": 109586,
+      "stop": 125751,
+      "state": "completed"
+    },
+    {
+      "text": "One moment.",
+      "kind": "acknowledgment",
+      "start": 140821,
+      "stop": 141847,
+      "state": "completed"
+    },
+    {
+      "text": "Zagreb could be a lovely fit:",
+      "kind": "response",
+      "start": 143534,
+      "stop": 145447,
+      "state": "completed"
+    },
+    {
+      "text": "its Advent festival is scheduled for November 28, 2026, through January 7, 2027, so it’ll be running during your trip.",
+      "kind": "response",
+      "start": 143589,
+      "stop": 153267,
+      "state": "completed"
+    },
+    {
+      "text": "Want more detail?",
+      "kind": "response",
+      "start": 143784,
+      "stop": 154327,
+      "state": "completed"
+    },
+    {
+      "text": "Zagreb’s Advent is centered around the main squares",
+      "kind": "response",
+      "start": 160148,
+      "stop": 163268,
+      "state": "completed"
+    },
+    {
+      "text": "and parks, with festive lights, food stalls, and seasonal events, so it’s a pleasant city to explore on foot.",
+      "kind": "response",
+      "start": 160323,
+      "stop": 170488,
+      "state": "completed"
+    },
+    {
+      "text": "Want more detail?",
+      "kind": "response",
+      "start": 160899,
+      "stop": 171548,
+      "state": "completed"
+    },
+    {
+      "text": "One moment.",
+      "kind": "acknowledgment",
+      "start": 186891,
+      "stop": 187908,
+      "state": "completed"
+    },
+    {
+      "text": "Still checking, one moment.",
+      "kind": "acknowledgment",
+      "start": 190409,
+      "stop": 190602,
+      "state": "interrupted"
+    },
+    {
+      "text": "You could see the Northern Lights in late December,",
+      "kind": "response",
+      "start": 190604,
+      "stop": 193628,
+      "state": "completed"
+    },
+    {
+      "text": "but Zagreb, Vienna, and Prague are too far south for reliable viewing; you’d want to add somewhere like Tromsø in northern Norway, where aurora season runs through winter, though clear skies and sightings aren’t guaranteed.",
+      "kind": "response",
+      "start": 190761,
+      "stop": 206249,
+      "state": "completed"
+    },
+    {
+      "text": "Would you be open to adding a few nights in the Arctic?",
+      "kind": "response",
+      "start": 190765,
+      "stop": 206935,
+      "state": "completed"
+    },
+    {
+      "text": "Do you mean you want a Northern Lights stop",
+      "kind": "response",
+      "start": 223897,
+      "stop": 226268,
+      "state": "completed"
+    },
+    {
+      "text": "that fits naturally into the same trip and is reasonably easy to reach from your other cities?",
+      "kind": "response",
+      "start": 224106,
+      "stop": 231088,
+      "state": "completed"
+    },
+    {
+      "text": "Let me look that up.",
+      "kind": "acknowledgment",
+      "start": 235641,
+      "stop": 237108,
+      "state": "completed"
+    },
+    {
+      "text": "Still checking, one moment.",
+      "kind": "acknowledgment",
+      "start": 239610,
+      "stop": 239651,
+      "state": "interrupted"
+    },
+    {
+      "text": "You’re right—you already said that.",
+      "kind": "response",
+      "start": 239652,
+      "stop": 241869,
+      "state": "completed"
+    },
+    {
+      "text": "Want more detail?",
+      "kind": "response",
+      "start": 239963,
+      "stop": 243091,
+      "state": "completed"
+    },
+    {
+      "text": "One moment.",
+      "kind": "acknowledgment",
+      "start": 250264,
+      "stop": 251328,
+      "state": "completed"
+    },
+    {
+      "text": "Sorry—I should’ve answered that directly:",
+      "kind": "response",
+      "start": 253421,
+      "stop": 255508,
+      "state": "completed"
+    },
+    {
+      "text": "Tromsø is a realistic add-on from Vienna, with a seasonal nonstop flight expected to begin November 28, 2026; otherwise, you can connect through Oslo.",
+      "kind": "response",
+      "start": 253476,
+      "stop": 265128,
+      "state": "completed"
+    },
+    {
+      "text": "Want more detail?",
+      "kind": "response",
+      "start": 253688,
+      "stop": 266348,
+      "state": "completed"
+    },
+    {
+      "text": "One moment.",
+      "kind": "acknowledgment",
+      "start": 277489,
+      "stop": 278508,
+      "state": "completed"
+    },
+    {
+      "text": "I can’t send emails from this call,",
+      "kind": "response",
+      "start": 279632,
+      "stop": 282148,
+      "state": "completed"
+    },
+    {
+      "text": "but I can put the itinerary into a ready-to-copy email for you.",
+      "kind": "response",
+      "start": 279647,
+      "stop": 285308,
+      "state": "completed"
+    },
+    {
+      "text": "Would you like me to draft it?",
+      "kind": "response",
+      "start": 279714,
+      "stop": 286668,
+      "state": "completed"
+    },
+    {
+      "text": "Sure—I can draft it,",
+      "kind": "response",
+      "start": 290477,
+      "stop": 291928,
+      "state": "completed"
+    },
+    {
+      "text": "but I don’t have your full itinerary or email address in this call.",
+      "kind": "response",
+      "start": 290657,
+      "stop": 295248,
+      "state": "completed"
+    },
+    {
+      "text": "What cities and dates have you settled on so far?",
+      "kind": "response",
+      "start": 290746,
+      "stop": 297668,
+      "state": "completed"
+    },
+    {
+      "text": "One moment.",
+      "kind": "acknowledgment",
+      "start": 302934,
+      "stop": 303109,
+      "state": "interrupted"
+    },
+    {
+      "text": "Shall I end the call?",
+      "kind": "response",
+      "start": 303110,
+      "stop": 304428,
+      "state": "completed"
+    },
+    {
+      "text": "You’re welcome—have a wonderful trip!",
+      "kind": "response",
+      "start": 308264,
+      "stop": 310328,
+      "state": "completed"
+    }
+  ],
+  "live": [
+    {
+      "id": "turn-1",
+      "startedAt": 6872,
+      "endAt": 12483,
+      "text": "\"Hey, Maya, can you please tell me what places are nice in-\"",
+      "rule": "unfinished",
+      "endpointMs": 451,
+      "reset": null
+    },
+    {
+      "id": "turn-2",
+      "startedAt": 12577,
+      "endAt": 15431,
+      "text": "\"... Europe in December, January times?\"",
+      "rule": "stall",
+      "endpointMs": 4,
+      "reset": null
+    },
+    {
+      "id": "turn-3",
+      "startedAt": 35890,
+      "endAt": 40242,
+      "text": "\"No, we are okay with the call. We want...\" Want to see Christmas markets as well.",
+      "rule": "long",
+      "endpointMs": 771,
+      "reset": null
+    },
+    {
+      "id": "turn-4",
+      "startedAt": 64971,
+      "endAt": 66512,
+      "text": "Yeah, December 26.",
+      "rule": "silence",
+      "endpointMs": 560,
+      "reset": null
+    },
+    {
+      "id": "turn-5",
+      "startedAt": 66991,
+      "endAt": 71105,
+      "text": "अम्म... Can you tell me about how pricey flights are and things like that?",
+      "rule": "long",
+      "endpointMs": 753,
+      "reset": null
+    },
+    {
+      "id": "turn-6",
+      "startedAt": 78996,
+      "endAt": 78996,
+      "text": null,
+      "rule": null,
+      "endpointMs": null,
+      "reset": null
+    },
+    {
+      "id": "turn-7",
+      "startedAt": 93072,
+      "endAt": 102239,
+      "text": "I'll be flying out of Chennai and I'll return back to Chennai only. Uh, I expect to fly out on... December 21st is?",
+      "rule": "complete",
+      "endpointMs": 627,
+      "reset": null
+    },
+    {
+      "id": "turn-8",
+      "startedAt": 102432,
+      "endAt": 105462,
+      "text": "And fly back in on January 5th, please.",
+      "rule": "complete",
+      "endpointMs": 570,
+      "reset": null
+    },
+    {
+      "id": "turn-9",
+      "startedAt": 136493,
+      "endAt": 139319,
+      "text": "Uh, what do you think about Zagreb as a place?",
+      "rule": "unfinished",
+      "endpointMs": 784,
+      "reset": null
+    },
+    {
+      "id": "turn-10",
+      "startedAt": 158534,
+      "endAt": 159253,
+      "text": "Yeah, yeah.",
+      "rule": "silence",
+      "endpointMs": 580,
+      "reset": null
+    },
+    {
+      "id": "turn-11",
+      "startedAt": 160381,
+      "endAt": 160381,
+      "text": null,
+      "rule": null,
+      "endpointMs": null,
+      "reset": null
+    },
+    {
+      "id": "turn-12",
+      "startedAt": 173694,
+      "endAt": 176140,
+      "text": "No, umm...",
+      "rule": "hold",
+      "endpointMs": 1486,
+      "reset": null
+    },
+    {
+      "id": "turn-13",
+      "startedAt": 176154,
+      "endAt": 185388,
+      "text": "Umm, I'm just thinking of whether we should go this year or next. What about Northern Lights and stuff like that? Will I get to see anything about, like, that?",
+      "rule": "long",
+      "endpointMs": 834,
+      "reset": null
+    },
+    {
+      "id": "turn-14",
+      "startedAt": 211294,
+      "endAt": 216282,
+      "text": "Yeah, I don't mind, but, uh, don't make it, like, too far away or impossible to reach.",
+      "rule": "unfinished",
+      "endpointMs": 768,
+      "reset": null
+    },
+    {
+      "id": "turn-15",
+      "startedAt": 216955,
+      "endAt": 220526,
+      "text": "And stuff like that. I mean, it should still be a",
+      "rule": "hold",
+      "endpointMs": 1152,
+      "reset": null
+    },
+    {
+      "id": "turn-16",
+      "startedAt": 222157,
+      "endAt": 222792,
+      "text": "built-in.",
+      "rule": "answer",
+      "endpointMs": 635,
+      "reset": null
+    },
+    {
+      "id": "turn-17",
+      "startedAt": 232775,
+      "endAt": 234591,
+      "text": "Yeah, that's what I said, right?",
+      "rule": "unfinished",
+      "endpointMs": 834,
+      "reset": null
+    },
+    {
+      "id": "turn-18",
+      "startedAt": 247137,
+      "endAt": 248760,
+      "text": "Yeah, dude. That's why I'm asking.",
+      "rule": "complete",
+      "endpointMs": 565,
+      "reset": null
+    },
+    {
+      "id": "turn-19",
+      "startedAt": 269635,
+      "endAt": 271845,
+      "text": "No, I'm good. Thank you.",
+      "rule": "complete",
+      "endpointMs": 250,
+      "reset": null
+    },
+    {
+      "id": "turn-20",
+      "startedAt": 272035,
+      "endAt": 275986,
+      "text": "So, yeah, a... Can you email this itinerary to me?",
+      "rule": "complete",
+      "endpointMs": 591,
+      "reset": null
+    },
+    {
+      "id": "turn-21",
+      "startedAt": 288295,
+      "endAt": 289256,
+      "text": "Yeah, yeah, sure.",
+      "rule": "silence",
+      "endpointMs": 641,
+      "reset": null
+    },
+    {
+      "id": "turn-22",
+      "startedAt": 299875,
+      "endAt": 301432,
+      "text": "Never mind. Thank you.",
+      "rule": "complete",
+      "endpointMs": 697,
+      "reset": null
+    },
+    {
+      "id": "turn-23",
+      "startedAt": 306075,
+      "endAt": 306969,
+      "text": "Yeah, yeah, please.",
+      "rule": "silence",
+      "endpointMs": 594,
+      "reset": null
+    }
+  ],
+  "source": "Maya call 10d5ef30 (2026-10-12): engine events"
+}

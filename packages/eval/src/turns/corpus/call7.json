@@ -1,0 +1,1470 @@
+{
+  "call": "8cb76efc",
+  "label": "call 7",
+  "durationMs": 273491,
+  "transcripts": [
+    {
+      "at": 1333,
+      "type": "transcript",
+      "seg": "0",
+      "text": "Happy.",
+      "final": false
+    },
+    {
+      "at": 2239,
+      "type": "transcript",
+      "seg": "0",
+      "text": "हाँ, ठीक है। आप इसको लगा दो।",
+      "final": false
+    },
+    {
+      "at": 3337,
+      "type": "transcript",
+      "seg": "0",
+      "text": "हाँ, ठीक है। हाँ, इसको लगाता हूँ।",
+      "final": false
+    },
+    {
+      "at": 4241,
+      "type": "transcript",
+      "seg": "0",
+      "text": "हाँ, ठीक है। हाँ, इस पर रखो।",
+      "final": false
+    },
+    {
+      "at": 5178,
+      "type": "transcript",
+      "seg": "0",
+      "text": "हाँ, ठीक है। हाँ, इसको लगाता हूँ।",
+      "final": false
+    },
+    {
+      "at": 9002,
+      "type": "transcript",
+      "seg": "0",
+      "text": "हाँ, ठीक है। हाँ, इस पर रखो। Hi,",
+      "final": false
+    },
+    {
+      "at": 9908,
+      "type": "transcript",
+      "seg": "0",
+      "text": "हाँ, जी। हाँ, इस पर बात करो। Hi, Maya. We are planning to take",
+      "final": false
+    },
+    {
+      "at": 10135,
+      "type": "transcript",
+      "seg": "0",
+      "text": "हाँ, जी। हाँ, इस पर बात करो। Hi, Maya. We are planning to take a trip.",
+      "final": true
+    },
+    {
+      "at": 11215,
+      "type": "transcript",
+      "seg": "1",
+      "text": "Sometime in",
+      "final": false
+    },
+    {
+      "at": 12223,
+      "type": "transcript",
+      "seg": "1",
+      "text": "Sometime in December",
+      "final": false
+    },
+    {
+      "at": 12315,
+      "type": "transcript",
+      "seg": "1",
+      "text": "Sometime in December to...",
+      "final": true
+    },
+    {
+      "at": 13431,
+      "type": "transcript",
+      "seg": "2",
+      "text": "Central and",
+      "final": false
+    },
+    {
+      "at": 14070,
+      "type": "transcript",
+      "seg": "2",
+      "text": "Central and Eastern Europe.",
+      "final": true
+    },
+    {
+      "at": 15145,
+      "type": "transcript",
+      "seg": "3",
+      "text": "Um",
+      "final": false
+    },
+    {
+      "at": 16049,
+      "type": "transcript",
+      "seg": "3",
+      "text": "Um, we're looking",
+      "final": false
+    },
+    {
+      "at": 16322,
+      "type": "transcript",
+      "seg": "3",
+      "text": "Um, we're looking mostly-",
+      "final": true
+    },
+    {
+      "at": 17496,
+      "type": "transcript",
+      "seg": "4",
+      "text": "Okay",
+      "final": false
+    },
+    {
+      "at": 17893,
+      "type": "transcript",
+      "seg": "4",
+      "text": "Okay ... at places like-",
+      "final": true
+    },
+    {
+      "at": 19868,
+      "type": "transcript",
+      "seg": "5",
+      "text": "Prague,",
+      "final": true
+    },
+    {
+      "at": 19913,
+      "type": "transcript",
+      "seg": "6",
+      "text": "Okay ... Zagreb, Vienna, Pra",
+      "final": false
+    },
+    {
+      "at": 20606,
+      "type": "transcript",
+      "seg": "6",
+      "text": "Budapest.",
+      "final": true
+    },
+    {
+      "at": 21760,
+      "type": "transcript",
+      "seg": "7",
+      "text": "है",
+      "final": false
+    },
+    {
+      "at": 22609,
+      "type": "transcript",
+      "seg": "7",
+      "text": "And a few other",
+      "final": false
+    },
+    {
+      "at": 23619,
+      "type": "transcript",
+      "seg": "7",
+      "text": "And a few other lesser known places.",
+      "final": false
+    },
+    {
+      "at": 24626,
+      "type": "transcript",
+      "seg": "7",
+      "text": "And a few other lesser known places. What do you think about",
+      "final": false
+    },
+    {
+      "at": 25145,
+      "type": "transcript",
+      "seg": "7",
+      "text": "And a few other lesser known places. What do you think about this itinerary?",
+      "final": true
+    },
+    {
+      "at": 37819,
+      "type": "transcript",
+      "seg": "8",
+      "text": "Why do you make it sound like an",
+      "final": false
+    },
+    {
+      "at": 37824,
+      "type": "transcript",
+      "seg": "8",
+      "text": "Why did it sound like an AI?",
+      "final": true
+    },
+    {
+      "at": 41835,
+      "type": "transcript",
+      "seg": "9",
+      "text": "It's a machine.",
+      "final": false
+    },
+    {
+      "at": 51591,
+      "type": "transcript",
+      "seg": "10",
+      "text": "Sometime-",
+      "final": false
+    },
+    {
+      "at": 52498,
+      "type": "transcript",
+      "seg": "10",
+      "text": "Sometime around December",
+      "final": false
+    },
+    {
+      "at": 52720,
+      "type": "transcript",
+      "seg": "10",
+      "text": "Sometime around December to...",
+      "final": true
+    },
+    {
+      "at": 53606,
+      "type": "transcript",
+      "seg": "11",
+      "text": "January.",
+      "final": true
+    },
+    {
+      "at": 56540,
+      "type": "transcript",
+      "seg": "12",
+      "text": "January.",
+      "final": false
+    },
+    {
+      "at": 57645,
+      "type": "transcript",
+      "seg": "12",
+      "text": "Jan 12th, 2024.",
+      "final": false
+    },
+    {
+      "at": 59516,
+      "type": "transcript",
+      "seg": "12",
+      "text": "Jan 12th, 2024.",
+      "final": true
+    },
+    {
+      "at": 66942,
+      "type": "transcript",
+      "seg": "13",
+      "text": "No, no, so...",
+      "final": true
+    },
+    {
+      "at": 68072,
+      "type": "transcript",
+      "seg": "14",
+      "text": "Um, basically",
+      "final": false
+    },
+    {
+      "at": 68978,
+      "type": "transcript",
+      "seg": "14",
+      "text": "Um, basically, uh, can",
+      "final": false
+    },
+    {
+      "at": 69983,
+      "type": "transcript",
+      "seg": "14",
+      "text": "Um, basically, uh, can you tell me a little bit",
+      "final": false
+    },
+    {
+      "at": 70655,
+      "type": "transcript",
+      "seg": "14",
+      "text": "Um, basically, uh, can you tell me a little bit about Zagreb's hist-",
+      "final": true
+    },
+    {
+      "at": 71793,
+      "type": "transcript",
+      "seg": "15",
+      "text": "Mm-hmm.",
+      "final": false
+    },
+    {
+      "at": 72698,
+      "type": "transcript",
+      "seg": "15",
+      "text": "history, the whole Cro",
+      "final": false
+    },
+    {
+      "at": 73605,
+      "type": "transcript",
+      "seg": "15",
+      "text": "history, the whole Croatia, how",
+      "final": false
+    },
+    {
+      "at": 74710,
+      "type": "transcript",
+      "seg": "15",
+      "text": "history, the whole Croatia, how it came into exist",
+      "final": false
+    },
+    {
+      "at": 75805,
+      "type": "transcript",
+      "seg": "15",
+      "text": "history, the whole Croatia, how it came into existence, the Balkan regions?",
+      "final": true
+    },
+    {
+      "at": 76917,
+      "type": "transcript",
+      "seg": "16",
+      "text": "And",
+      "final": false
+    },
+    {
+      "at": 77292,
+      "type": "transcript",
+      "seg": "16",
+      "text": "And, uh...",
+      "final": true
+    },
+    {
+      "at": 78425,
+      "type": "transcript",
+      "seg": "17",
+      "text": "You know, how",
+      "final": false
+    },
+    {
+      "at": 78769,
+      "type": "transcript",
+      "seg": "17",
+      "text": "You know, how...",
+      "final": true
+    },
+    {
+      "at": 80853,
+      "type": "transcript",
+      "seg": "18",
+      "text": "Things that as we go closer to the",
+      "final": false
+    },
+    {
+      "at": 81758,
+      "type": "transcript",
+      "seg": "18",
+      "text": "Things that as we go closer to Russia and so on and so",
+      "final": false
+    },
+    {
+      "at": 81799,
+      "type": "transcript",
+      "seg": "18",
+      "text": "Things that as we go closer to Russia and so on and so forth.",
+      "final": true
+    },
+    {
+      "at": 84785,
+      "type": "transcript",
+      "seg": "19",
+      "text": "CreditMantri.",
+      "final": false
+    },
+    {
+      "at": 85807,
+      "type": "transcript",
+      "seg": "19",
+      "text": "It's different, I think.",
+      "final": false
+    },
+    {
+      "at": 86721,
+      "type": "transcript",
+      "seg": "19",
+      "text": "It's, it's not available.",
+      "final": false
+    },
+    {
+      "at": 87728,
+      "type": "transcript",
+      "seg": "19",
+      "text": "No, I, I just did.",
+      "final": true
+    },
+    {
+      "at": 95501,
+      "type": "transcript",
+      "seg": "20",
+      "text": "Yeah, so I want more",
+      "final": false
+    },
+    {
+      "at": 96504,
+      "type": "transcript",
+      "seg": "20",
+      "text": "Yeah, so I want more details on Cru",
+      "final": false
+    },
+    {
+      "at": 96730,
+      "type": "transcript",
+      "seg": "20",
+      "text": "Yeah, so I want more details on Croatian history.",
+      "final": true
+    },
+    {
+      "at": 98759,
+      "type": "transcript",
+      "seg": "21",
+      "text": "On how",
+      "final": false
+    },
+    {
+      "at": 98915,
+      "type": "transcript",
+      "seg": "21",
+      "text": "On how...",
+      "final": true
+    },
+    {
+      "at": 99969,
+      "type": "transcript",
+      "seg": "22",
+      "text": "The bulk in-",
+      "final": false
+    },
+    {
+      "at": 100978,
+      "type": "transcript",
+      "seg": "22",
+      "text": "The Balkans came into being",
+      "final": false
+    },
+    {
+      "at": 101982,
+      "type": "transcript",
+      "seg": "22",
+      "text": "The bargains came into being and how the split happened.",
+      "final": false
+    },
+    {
+      "at": 102149,
+      "type": "transcript",
+      "seg": "22",
+      "text": "The Balkans came into being and how the split happened.",
+      "final": true
+    },
+    {
+      "at": 103191,
+      "type": "transcript",
+      "seg": "23",
+      "text": "And",
+      "final": false
+    },
+    {
+      "at": 104196,
+      "type": "transcript",
+      "seg": "23",
+      "text": "And what all happened after",
+      "final": false
+    },
+    {
+      "at": 104895,
+      "type": "transcript",
+      "seg": "23",
+      "text": "And what all happened after the war and everything.",
+      "final": true
+    },
+    {
+      "at": 111775,
+      "type": "transcript",
+      "seg": "24",
+      "text": "Yeah, please.",
+      "final": false
+    },
+    {
+      "at": 112375,
+      "type": "transcript",
+      "seg": "24",
+      "text": "Yeah, please, can you do that?",
+      "final": true
+    },
+    {
+      "at": 147178,
+      "type": "transcript",
+      "seg": "25",
+      "text": "Is it safe to go there now?",
+      "final": true
+    },
+    {
+      "at": 148199,
+      "type": "transcript",
+      "seg": "26",
+      "text": "Has a",
+      "final": false
+    },
+    {
+      "at": 148224,
+      "type": "transcript",
+      "seg": "26",
+      "text": "As a tourist?",
+      "final": true
+    },
+    {
+      "at": 171414,
+      "type": "transcript",
+      "seg": "27",
+      "text": "Yeah, for both these places.",
+      "final": true
+    },
+    {
+      "at": 172422,
+      "type": "transcript",
+      "seg": "28",
+      "text": "Please.",
+      "final": false
+    },
+    {
+      "at": 174292,
+      "type": "transcript",
+      "seg": "28",
+      "text": "Please.",
+      "final": true
+    },
+    {
+      "at": 186881,
+      "type": "transcript",
+      "seg": "29",
+      "text": "No.",
+      "final": false
+    },
+    {
+      "at": 187891,
+      "type": "transcript",
+      "seg": "29",
+      "text": "No. Have there",
+      "final": false
+    },
+    {
+      "at": 188192,
+      "type": "transcript",
+      "seg": "29",
+      "text": "No. Have there been any-",
+      "final": true
+    },
+    {
+      "at": 190303,
+      "type": "transcript",
+      "seg": "30",
+      "text": "Have there",
+      "final": false
+    },
+    {
+      "at": 190503,
+      "type": "transcript",
+      "seg": "30",
+      "text": "Have there been any-",
+      "final": true
+    },
+    {
+      "at": 191700,
+      "type": "transcript",
+      "seg": "31",
+      "text": "Crime, intr",
+      "final": false
+    },
+    {
+      "at": 192507,
+      "type": "transcript",
+      "seg": "31",
+      "text": "Crime incidents reported in these",
+      "final": false
+    },
+    {
+      "at": 192813,
+      "type": "transcript",
+      "seg": "31",
+      "text": "Crime incidents reported in these two places?",
+      "final": true
+    },
+    {
+      "at": 210374,
+      "type": "transcript",
+      "seg": "32",
+      "text": "நான் கார்த்திக் பேசுறேன்.",
+      "final": false
+    },
+    {
+      "at": 210816,
+      "type": "transcript",
+      "seg": "32",
+      "text": "நான் கார்த்தி. இப்ப இப்போ இருக்கணும்.",
+      "final": true
+    },
+    {
+      "at": 214802,
+      "type": "transcript",
+      "seg": "33",
+      "text": "Okay sir,",
+      "final": false
+    },
+    {
+      "at": 215706,
+      "type": "transcript",
+      "seg": "33",
+      "text": "Okay, so, yeah, I think,",
+      "final": false
+    },
+    {
+      "at": 216609,
+      "type": "transcript",
+      "seg": "33",
+      "text": "Okay, so yeah, I think, uh, Zagreb is",
+      "final": false
+    },
+    {
+      "at": 217616,
+      "type": "transcript",
+      "seg": "33",
+      "text": "Okay, so yeah, I think, uh, Zagreb is one place and also talk",
+      "final": false
+    },
+    {
+      "at": 217958,
+      "type": "transcript",
+      "seg": "33",
+      "text": "Okay, so yeah, I think, uh, Zagreb is one place and also talk to me about-",
+      "final": true
+    },
+    {
+      "at": 219464,
+      "type": "transcript",
+      "seg": "34",
+      "text": "Okay ... uh, what happens-",
+      "final": true
+    },
+    {
+      "at": 220531,
+      "type": "transcript",
+      "seg": "35",
+      "text": "Berlin, Berlin,",
+      "final": false
+    },
+    {
+      "at": 221164,
+      "type": "transcript",
+      "seg": "35",
+      "text": "In Berlin on New Year's Eve?",
+      "final": true
+    },
+    {
+      "at": 224219,
+      "type": "transcript",
+      "seg": "36",
+      "text": "Boah.",
+      "final": false
+    },
+    {
+      "at": 226089,
+      "type": "transcript",
+      "seg": "36",
+      "text": "No. I-",
+      "final": true
+    },
+    {
+      "at": 227136,
+      "type": "transcript",
+      "seg": "37",
+      "text": "Bueno, bueno, ven, ven, ven.",
+      "final": false
+    },
+    {
+      "at": 227468,
+      "type": "transcript",
+      "seg": "37",
+      "text": "Bueno, buenas tardes.",
+      "final": true
+    },
+    {
+      "at": 235291,
+      "type": "transcript",
+      "seg": "38",
+      "text": "Ya, ya.",
+      "final": false
+    },
+    {
+      "at": 236316,
+      "type": "transcript",
+      "seg": "38",
+      "text": "\"Yeah, yeah, can you tell me what",
+      "final": false
+    },
+    {
+      "at": 236829,
+      "type": "transcript",
+      "seg": "38",
+      "text": "\"Yeah, yeah, can you tell me what happens there?\"",
+      "final": true
+    },
+    {
+      "at": 237970,
+      "type": "transcript",
+      "seg": "39",
+      "text": "Like, with the brand",
+      "final": false
+    },
+    {
+      "at": 238977,
+      "type": "transcript",
+      "seg": "39",
+      "text": "Like with the Brandon, Bakhtar, and all",
+      "final": false
+    },
+    {
+      "at": 239882,
+      "type": "transcript",
+      "seg": "39",
+      "text": "Like with the Brandon, Bakhtar, and all of those things, look it up.",
+      "final": false
+    },
+    {
+      "at": 240047,
+      "type": "transcript",
+      "seg": "39",
+      "text": "Like with the Brandon, Bakhtar, and all of those things, look it up, please.",
+      "final": true
+    },
+    {
+      "at": 255473,
+      "type": "transcript",
+      "seg": "40",
+      "text": "Yeah.",
+      "final": false
+    },
+    {
+      "at": 256075,
+      "type": "transcript",
+      "seg": "40",
+      "text": "Yeah.",
+      "final": true
+    },
+    {
+      "at": 261002,
+      "type": "transcript",
+      "seg": "41",
+      "text": "Yeah, yeah.",
+      "final": false
+    },
+    {
+      "at": 261566,
+      "type": "transcript",
+      "seg": "41",
+      "text": "Yeah, yeah, I'd like to know more.",
+      "final": true
+    },
+    {
+      "at": 266477,
+      "type": "transcript",
+      "seg": "42",
+      "text": "Yeah, plus 1.",
+      "final": false
+    },
+    {
+      "at": 266686,
+      "type": "transcript",
+      "seg": "42",
+      "text": "Yeah, +1, uh...",
+      "final": true
+    },
+    {
+      "at": 267785,
+      "type": "transcript",
+      "seg": "43",
+      "text": "Yes.",
+      "final": false
+    },
+    {
+      "at": 268445,
+      "type": "transcript",
+      "seg": "43",
+      "text": "Yes, Maya.",
+      "final": true
+    }
+  ],
+  "agent": [
+    {
+      "text": "This call is recorded for quality.",
+      "kind": "disclosure",
+      "start": 25,
+      "stop": 2253,
+      "state": "completed"
+    },
+    {
+      "text": "Hi! I'm Maya, your Europe trip companion. Where are you thinking of going?",
+      "kind": "response",
+      "start": 30,
+      "stop": 6912,
+      "state": "completed"
+    },
+    {
+      "text": "One moment.",
+      "kind": "acknowledgment",
+      "start": 26900,
+      "stop": 27912,
+      "state": "completed"
+    },
+    {
+      "text": "Prague and Budapest make a lovely December starting point,",
+      "kind": "response",
+      "start": 29352,
+      "stop": 32772,
+      "state": "completed"
+    },
+    {
+      "text": "and Vienna is an easy classic addition; for a quieter stop, consider Brno or Český Krumlov, keeping in mind that winter can mean shorter opening hours and fewer options at some sights.",
+      "kind": "response",
+      "start": 29395,
+      "stop": 37821,
+      "state": "interrupted"
+    },
+    {
+      "text": "How many days do you have, and are you aiming for Christmas markets or a more relaxed city-and-culture trip?",
+      "kind": "response",
+      "start": 29457,
+      "stop": 37822,
+      "state": "interrupted"
+    },
+    {
+      "text": "I’m sorry, that came out clipped",
+      "kind": "response",
+      "start": 38713,
+      "stop": 40632,
+      "state": "completed"
+    },
+    {
+      "text": "and unnatural.",
+      "kind": "response",
+      "start": 38737,
+      "stop": 41692,
+      "state": "completed"
+    },
+    {
+      "text": "Prague and Budapest could be a lovely December trip, and I’d be happy to help shape it around a few quieter stops too.",
+      "kind": "response",
+      "start": 38942,
+      "stop": 47852,
+      "state": "completed"
+    },
+    {
+      "text": "Which dates are you considering?",
+      "kind": "response",
+      "start": 40633,
+      "stop": 49292,
+      "state": "completed"
+    },
+    {
+      "text": "One moment.",
+      "kind": "acknowledgment",
+      "start": 55364,
+      "stop": 56372,
+      "state": "completed"
+    },
+    {
+      "text": "I’m not completely sure about that.",
+      "kind": "response",
+      "start": 60982,
+      "stop": 63032,
+      "state": "completed"
+    },
+    {
+      "text": "Want me to look it up?",
+      "kind": "response",
+      "start": 61004,
+      "stop": 64092,
+      "state": "completed"
+    },
+    {
+      "text": "Please clarify your question.",
+      "kind": "response",
+      "start": 82886,
+      "stop": 84353,
+      "state": "completed"
+    },
+    {
+      "text": "You’re right, you did.",
+      "kind": "response",
+      "start": 88902,
+      "stop": 90212,
+      "state": "completed"
+    },
+    {
+      "text": "I’m sorry.",
+      "kind": "response",
+      "start": 88943,
+      "stop": 91132,
+      "state": "completed"
+    },
+    {
+      "text": "Want more detail?",
+      "kind": "response",
+      "start": 89363,
+      "stop": 92352,
+      "state": "completed"
+    },
+    {
+      "text": "I'm not completely sure about that.",
+      "kind": "response",
+      "start": 106370,
+      "stop": 108432,
+      "state": "completed"
+    },
+    {
+      "text": "Want me to look it up?",
+      "kind": "response",
+      "start": 106404,
+      "stop": 109652,
+      "state": "completed"
+    },
+    {
+      "text": "Let me look that up.",
+      "kind": "acknowledgment",
+      "start": 113579,
+      "stop": 114932,
+      "state": "completed"
+    },
+    {
+      "text": "Croatia’s story is closely tied to Yugoslavia,",
+      "kind": "response",
+      "start": 116765,
+      "stop": 119732,
+      "state": "completed"
+    },
+    {
+      "text": "but the Balkans are a broader region, not one country.",
+      "kind": "response",
+      "start": 116792,
+      "stop": 122752,
+      "state": "completed"
+    },
+    {
+      "text": "Croatia declared independence on the 25th of June 1991; war followed, and fighting there largely ended in 1995, while Bosnia’s war ended with the Dayton agreement that year.",
+      "kind": "response",
+      "start": 117022,
+      "stop": 132972,
+      "state": "completed"
+    },
+    {
+      "text": "I can walk you through the background, the breakup, and the aftermath step by step; would you like to start with how Yugoslavia formed?",
+      "kind": "response",
+      "start": 119732,
+      "stop": 135671,
+      "state": "completed"
+    },
+    {
+      "text": "citeturn0search1turn0search0turn0search5",
+      "kind": "response",
+      "start": 122752,
+      "stop": 138550,
+      "state": "completed"
+    },
+    {
+      "text": "One moment.",
+      "kind": "acknowledgment",
+      "start": 149730,
+      "stop": 150752,
+      "state": "completed"
+    },
+    {
+      "text": "Yes, Croatia is generally considered safe for tourists,",
+      "kind": "response",
+      "start": 151984,
+      "stop": 155232,
+      "state": "completed"
+    },
+    {
+      "text": "including in popular cities and tourist areas; use normal precautions with valuables, and stay on marked roads and paths in remote countryside.",
+      "kind": "response",
+      "start": 152029,
+      "stop": 163732,
+      "state": "completed"
+    },
+    {
+      "text": "Would you like me to check safety for a particular place, such as Zagreb or Dubrovnik?",
+      "kind": "response",
+      "start": 152054,
+      "stop": 168207,
+      "state": "completed"
+    },
+    {
+      "text": "Let me look that up.",
+      "kind": "acknowledgment",
+      "start": 172329,
+      "stop": 175131,
+      "state": "interrupted"
+    },
+    {
+      "text": "Zagreb and Dubrovnik are generally safe for tourists,",
+      "kind": "response",
+      "start": 175132,
+      "stop": 178391,
+      "state": "completed"
+    },
+    {
+      "text": "and Croatia has low crime rates, though pickpocketing can happen in busy tourist areas.",
+      "kind": "response",
+      "start": 175153,
+      "stop": 182912,
+      "state": "completed"
+    },
+    {
+      "text": "Want to hear more?",
+      "kind": "response",
+      "start": 175414,
+      "stop": 183832,
+      "state": "completed"
+    },
+    {
+      "text": "Sure.",
+      "kind": "response",
+      "start": 186000,
+      "stop": 186805,
+      "state": "completed"
+    },
+    {
+      "text": "In Zagreb and Dubrovnik, keep your valuables secure in crowded areas, use licensed taxis or trusted ride services, and be cautious on Dubrovnik’s steep, slippery stone streets.",
+      "kind": "response",
+      "start": 186378,
+      "stop": 187893,
+      "state": "interrupted"
+    },
+    {
+      "text": "Would you like advice on getting around in either city?",
+      "kind": "response",
+      "start": 186444,
+      "stop": 187894,
+      "state": "interrupted"
+    },
+    {
+      "text": "Let me look that up.",
+      "kind": "acknowledgment",
+      "start": 194100,
+      "stop": 195492,
+      "state": "completed"
+    },
+    {
+      "text": "Yes.",
+      "kind": "response",
+      "start": 196274,
+      "stop": 197271,
+      "state": "completed"
+    },
+    {
+      "text": "Recent reports include pickpocketing in Dubrovnik, and isolated robbery and violent incidents in Zagreb; these are not evidence that tourists are generally being targeted, but keep valuables secure and take ordinary city precautions.",
+      "kind": "response",
+      "start": 196488,
+      "stop": 211091,
+      "state": "completed"
+    },
+    {
+      "text": "Let me look that up.",
+      "kind": "acknowledgment",
+      "start": 222357,
+      "stop": 223671,
+      "state": "completed"
+    },
+    {
+      "text": "I’m not sure what you’d like to know",
+      "kind": "response",
+      "start": 228482,
+      "stop": 230452,
+      "state": "completed"
+    },
+    {
+      "text": "about Berlin on New Year’s Eve.",
+      "kind": "response",
+      "start": 228536,
+      "stop": 232111,
+      "state": "completed"
+    },
+    {
+      "text": "Could you say that again?",
+      "kind": "response",
+      "start": 228601,
+      "stop": 233171,
+      "state": "completed"
+    },
+    {
+      "text": "Let me look that up.",
+      "kind": "acknowledgment",
+      "start": 241342,
+      "stop": 242651,
+      "state": "completed"
+    },
+    {
+      "text": "Berlin usually has a huge New Year’s Eve celebration,",
+      "kind": "response",
+      "start": 245094,
+      "stop": 248052,
+      "state": "completed"
+    },
+    {
+      "text": "with music, crowds, and fireworks around the Brandenburg Gate.",
+      "kind": "response",
+      "start": 245129,
+      "stop": 251432,
+      "state": "completed"
+    },
+    {
+      "text": "Would you like more on that?",
+      "kind": "response",
+      "start": 245426,
+      "stop": 252732,
+      "state": "completed"
+    },
+    {
+      "text": "Sorry, could you say that again?",
+      "kind": "response",
+      "start": 257261,
+      "stop": 259031,
+      "state": "completed"
+    },
+    {
+      "text": "Let me look that up.",
+      "kind": "acknowledgment",
+      "start": 262464,
+      "stop": 264111,
+      "state": "completed"
+    },
+    {
+      "text": "For New Year’s Eve on the 31st of December,",
+      "kind": "response",
+      "start": 265917,
+      "stop": 266479,
+      "state": "interrupted"
+    },
+    {
+      "text": "Berlin’s Brandenburg Gate party is listed, but the full programme and practical details may not be confirmed yet.",
+      "kind": "response",
+      "start": 265930,
+      "stop": 266479,
+      "state": "interrupted"
+    },
+    {
+      "text": "Interested in more detail?",
+      "kind": "response",
+      "start": 266201,
+      "stop": 266480,
+      "state": "interrupted"
+    },
+    {
+      "text": "Let me look that up.",
+      "kind": "acknowledgment",
+      "start": 269673,
+      "stop": 270991,
+      "state": "completed"
+    }
+  ],
+  "live": [
+    {
+      "id": "turn-1",
+      "startedAt": 1334,
+      "endAt": 1335,
+      "text": null,
+      "rule": null,
+      "endpointMs": null,
+      "reset": "muted"
+    },
+    {
+      "id": "turn-2",
+      "startedAt": 2239,
+      "endAt": 2239,
+      "text": null,
+      "rule": null,
+      "endpointMs": null,
+      "reset": "muted"
+    },
+    {
+      "id": "turn-3",
+      "startedAt": 3338,
+      "endAt": 3338,
+      "text": null,
+      "rule": null,
+      "endpointMs": null,
+      "reset": "muted"
+    },
+    {
+      "id": "turn-4",
+      "startedAt": 4241,
+      "endAt": 4241,
+      "text": null,
+      "rule": null,
+      "endpointMs": null,
+      "reset": "muted"
+    },
+    {
+      "id": "turn-5",
+      "startedAt": 5178,
+      "endAt": 5178,
+      "text": null,
+      "rule": null,
+      "endpointMs": null,
+      "reset": "muted"
+    },
+    {
+      "id": "turn-6",
+      "startedAt": 8330,
+      "endAt": 20864,
+      "text": "हाँ, जी। हाँ, इस पर बात करो। Hi, Maya. We are planning to take a trip. Sometime in December to... Central and Eastern Europe. Um, we're looking mostly- Okay ... at places like- Prague, Budapest.",
+      "rule": "long",
+      "endpointMs": 833,
+      "reset": null
+    },
+    {
+      "id": "turn-7",
+      "startedAt": 21070,
+      "endAt": 25396,
+      "text": "And a few other lesser known places. What do you think about this itinerary?",
+      "rule": "unfinished",
+      "endpointMs": 826,
+      "reset": null
+    },
+    {
+      "id": "turn-8",
+      "startedAt": 37819,
+      "endAt": 37830,
+      "text": "Why did it sound like an AI?",
+      "rule": "complete",
+      "endpointMs": 580,
+      "reset": null
+    },
+    {
+      "id": "turn-9",
+      "startedAt": 41835,
+      "endAt": 43697,
+      "text": "It's a machine.",
+      "rule": null,
+      "endpointMs": null,
+      "reset": "backchannel"
+    },
+    {
+      "id": "turn-10",
+      "startedAt": 50930,
+      "endAt": 53862,
+      "text": "Sometime around December to... January.",
+      "rule": "unfinished",
+      "endpointMs": 832,
+      "reset": null
+    },
+    {
+      "id": "turn-11",
+      "startedAt": 56540,
+      "endAt": 59520,
+      "text": "Jan 12th, 2024.",
+      "rule": "stall",
+      "endpointMs": 1875,
+      "reset": null
+    },
+    {
+      "id": "turn-12",
+      "startedAt": 65990,
+      "endAt": 82055,
+      "text": "No, no, so... Um, basically, uh, can you tell me a little bit about Zagreb's hist- history, the whole Croatia, how it came into existence, the Balkan regions? And, uh... You know, how... Things that as we go closer to Russia and so on and so forth.",
+      "rule": "unfinished",
+      "endpointMs": 845,
+      "reset": null
+    },
+    {
+      "id": "turn-13",
+      "startedAt": 84785,
+      "endAt": 87733,
+      "text": "No, I, I just did.",
+      "rule": "complete",
+      "endpointMs": 662,
+      "reset": null
+    },
+    {
+      "id": "turn-14",
+      "startedAt": 94350,
+      "endAt": 96972,
+      "text": "Yeah, so I want more details on Croatian history.",
+      "rule": "complete",
+      "endpointMs": 202,
+      "reset": null
+    },
+    {
+      "id": "turn-15",
+      "startedAt": 97470,
+      "endAt": 105149,
+      "text": "On how... The Balkans came into being and how the split happened. And what all happened after the war and everything.",
+      "rule": "long",
+      "endpointMs": 819,
+      "reset": null
+    },
+    {
+      "id": "turn-16",
+      "startedAt": 111530,
+      "endAt": 112379,
+      "text": "Yeah, please, can you do that?",
+      "rule": "complete",
+      "endpointMs": 548,
+      "reset": null
+    },
+    {
+      "id": "turn-17",
+      "startedAt": 145450,
+      "endAt": 147331,
+      "text": "Is it safe to go there now?",
+      "rule": "complete",
+      "endpointMs": 201,
+      "reset": null
+    },
+    {
+      "id": "turn-18",
+      "startedAt": 147610,
+      "endAt": 148226,
+      "text": "As a tourist?",
+      "rule": "complete",
+      "endpointMs": 616,
+      "reset": null
+    },
+    {
+      "id": "turn-19",
+      "startedAt": 169950,
+      "endAt": 171419,
+      "text": "Yeah, for both these places.",
+      "rule": "complete",
+      "endpointMs": 609,
+      "reset": null
+    },
+    {
+      "id": "turn-20",
+      "startedAt": 172422,
+      "endAt": 174294,
+      "text": "Please.",
+      "rule": "stall",
+      "endpointMs": 1873,
+      "reset": null
+    },
+    {
+      "id": "turn-21",
+      "startedAt": 186881,
+      "endAt": 188895,
+      "text": "No. Have there been any-",
+      "rule": "hold",
+      "endpointMs": 1305,
+      "reset": null
+    },
+    {
+      "id": "turn-22",
+      "startedAt": 189690,
+      "endAt": 193064,
+      "text": "Have there been any- Crime incidents reported in these two places?",
+      "rule": "long",
+      "endpointMs": 774,
+      "reset": null
+    },
+    {
+      "id": "turn-23",
+      "startedAt": 210375,
+      "endAt": 210817,
+      "text": "நான் கார்த்தி. இப்ப இப்போ இருக்கணும்.",
+      "rule": null,
+      "endpointMs": null,
+      "reset": "backchannel"
+    },
+    {
+      "id": "turn-24",
+      "startedAt": 213350,
+      "endAt": 220167,
+      "text": "Okay, so yeah, I think, uh, Zagreb is one place and also talk to me about- Okay ... uh, what happens-",
+      "rule": "hold",
+      "endpointMs": 2297,
+      "reset": null
+    },
+    {
+      "id": "turn-25",
+      "startedAt": 220532,
+      "endAt": 221416,
+      "text": "In Berlin on New Year's Eve?",
+      "rule": "unfinished",
+      "endpointMs": 846,
+      "reset": null
+    },
+    {
+      "id": "turn-26",
+      "startedAt": 224219,
+      "endAt": 227469,
+      "text": "No. I- Bueno, buenas tardes.",
+      "rule": "complete",
+      "endpointMs": 959,
+      "reset": null
+    },
+    {
+      "id": "turn-27",
+      "startedAt": 234550,
+      "endAt": 237083,
+      "text": "\"Yeah, yeah, can you tell me what happens there?\"",
+      "rule": "long",
+      "endpointMs": 793,
+      "reset": null
+    },
+    {
+      "id": "turn-28",
+      "startedAt": 237390,
+      "endAt": 240302,
+      "text": "Like with the Brandon, Bakhtar, and all of those things, look it up, please.",
+      "rule": "long",
+      "endpointMs": 851,
+      "reset": null
+    },
+    {
+      "id": "turn-29",
+      "startedAt": 255473,
+      "endAt": 256076,
+      "text": "Yeah.",
+      "rule": "answer",
+      "endpointMs": 602,
+      "reset": null
+    },
+    {
+      "id": "turn-30",
+      "startedAt": 260030,
+      "endAt": 261569,
+      "text": "Yeah, yeah, I'd like to know more.",
+      "rule": "complete",
+      "endpointMs": 539,
+      "reset": null
+    },
+    {
+      "id": "turn-31",
+      "startedAt": 266477,
+      "endAt": 268449,
+      "text": "Yeah, +1, uh... Yes, Maya.",
+      "rule": "answer",
+      "endpointMs": 2279,
+      "reset": null
+    },
+    {
+      "id": "turn-32",
+      "startedAt": 271210,
+      "endAt": 271210,
+      "text": null,
+      "rule": null,
+      "endpointMs": null,
+      "reset": null
+    }
+  ],
+  "source": "Maya call 8cb76efc (2026-10-14 02:54 UTC, Wave 10): engine events",
+  "audio": "call7-caller.wav"
+}
