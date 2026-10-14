@@ -4,10 +4,11 @@ import type { Gold } from '../corpus/gold.ts';
 import type { AgentProfile } from '../corpus/profile.ts';
 import { speechSpans, type VadTrace } from '../corpus/vad-trace.ts';
 import { speechSpan, type CallTimeline } from '../timeline.ts';
+import { scoringWords } from './hinglish.ts';
 import { emptyRaw, metricsOf, sumRaw, type Metrics, type RawScore } from './metrics.ts';
 import { answerLines, replyStats, thoughtReplies, turnSpeech, type Span } from './replies.ts';
-import { answeredTurns, quickRestarts, segment } from './segmentation.ts';
-import { sttScore, type UtteranceRow } from './stt.ts';
+import { answeredTurns, quickRestarts, segment, uncoveredSegments } from './segmentation.ts';
+import { segmentTexts, sttScore, type UtteranceRow } from './stt.ts';
 
 export interface TurnRow {
   turnId: string;
@@ -101,6 +102,10 @@ export function scoreCall(input: ScoreInput): CallScore {
   const stt = sttScore(timeline.transcripts, gold, profile.languages);
   raw.foreignSegments = stt.foreignSegments;
   raw.foreignInterims = stt.foreignInterims;
+  // Words only: a lone "." final is the STT hearing breath, not the caller saying something.
+  const segments = segmentTexts(timeline.transcripts).filter((s) => scoringWords(s.text).length);
+  raw.callerSegments = segments.length;
+  raw.uncoveredSegments = uncoveredSegments(timeline.turns, segments);
   const flags = new Map<string, string[]>();
   const flag = (turnId: string, name: string) =>
     flags.set(turnId, [...(flags.get(turnId) ?? []), name]);

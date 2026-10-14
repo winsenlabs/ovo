@@ -145,6 +145,42 @@ describe('the regression gate', () => {
     );
     expect(looser.regressions).toEqual([]);
   });
+
+  it('fails a gated metric the candidate no longer measures, and caller words no turn answered', () => {
+    const run = (turns: number, uncovered: number): Partial<RawScore> => ({
+      answeredTurns: turns,
+      llmRequests: turns,
+      callerSegments: 20,
+      uncoveredSegments: uncovered,
+      samples: {
+        endpointMs: [],
+        firstAudioMs: [],
+        firstAnswerMs: turns ? [900] : [],
+        replyLatencyMs: [],
+      },
+    });
+    const before = card('before', [call('call8', run(20, 1))]);
+    // A detector that never ends a turn: fewer counts, latencies and ratios gone, words unanswered.
+    expect(diffScorecards(before, card('deaf', [call('call8', run(0, 20))])).regressions).toEqual([
+      'aggregate uncoveredSegmentRate: 0.05 → 1 (limit +0.05)',
+      'aggregate llmPerTurn: 1 → none (limit +0.15)',
+      'aggregate firstAnswerP50Ms: 900 → none (limit +150)',
+      'aggregate firstAnswerP90Ms: 900 → none (limit +400)',
+    ]);
+    // Fewer turns over the same words (a split thought merged) is no regression; fewer that leave
+    // the caller's words unanswered is.
+    expect(diffScorecards(before, card('merged', [call('call8', run(14, 1))])).regressions).toEqual(
+      [],
+    );
+    expect(diffScorecards(before, card('fewer', [call('call8', run(14, 8))])).regressions).toEqual([
+      'aggregate uncoveredSegmentRate: 0.05 → 0.4 (limit +0.05)',
+    ]);
+    // A metric only the candidate measures (the baseline had no gold) stays out of the gate.
+    const gold = card('gold', [
+      call('call8', { ...run(20, 1), goldThoughts: 15, missedReplies: 3 }),
+    ]);
+    expect(diffScorecards(before, gold).regressions).toEqual([]);
+  });
 });
 
 describe('STT configurations and keys', () => {

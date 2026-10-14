@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -113,6 +113,22 @@ describe('the call-eval harness on a two-turn call', () => {
       ]),
     ).toBe(1);
     expect(await readFile(join(out, 'slow.md'), 'utf8')).toContain('**Gate: FAIL**');
+  });
+
+  it('fails the gate for a detector that never ends a turn, though every count it leaves falls', async () => {
+    const out = await mkdtemp(join(tmpdir(), 'ovo-eval-deaf-'));
+    dirs.push(out);
+    expect(await main(['--corpus', corpus, '--label', 'base', '--out', out])).toBe(0);
+    const deaf = join(out, 'deaf.mjs');
+    await writeFile(
+      deaf,
+      'export const createTurnDetector = { create: () => ({ observe() {}, on() { return () => {}; }, dispose() {} }) };\n',
+    );
+    const run = ['--corpus', corpus, '--label', 'deaf', '--out', out];
+    const gate = ['--baseline', join(out, 'base.json'), '--detector', `module:${deaf}`];
+    expect(await main([...run, ...gate])).toBe(1);
+    const card = JSON.parse(await readFile(join(out, 'deaf.json'), 'utf8')) as Scorecard;
+    expect(card.aggregate).toMatchObject({ answeredTurns: 0, uncoveredSegmentRate: 1 });
   });
 
   it('scores the call as it happened (live mode) without replaying it', async () => {

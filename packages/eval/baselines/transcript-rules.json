@@ -2,13 +2,13 @@
   "version": 1,
   "label": "transcript-rules",
   "mode": "transcript",
-  "createdAt": "2026-10-14T19:03:00.163Z",
+  "createdAt": "2026-10-14T19:59:07.896Z",
   "config": {
     "detector": "rules",
     "vad": "trace",
     "llm": "recorded responder",
     "corpus": "packages/eval/corpus",
-    "commit": "a8ffbe8"
+    "commit": "1759683"
   },
   "calls": [
     {
@@ -60,6 +60,8 @@
         "cer": null,
         "foreignSegments": 0,
         "foreignInterims": 0,
+        "uncoveredSegments": 1,
+        "uncoveredSegmentRate": 0.043478260869565216,
         "languageMismatches": null
       },
       "raw": {
@@ -87,6 +89,8 @@
         "fillers": 8,
         "foreignSegments": 0,
         "foreignInterims": 0,
+        "callerSegments": 23,
+        "uncoveredSegments": 1,
         "languageMismatches": null,
         "sttEdits": null,
         "sttWords": null,
@@ -161,6 +165,8 @@
         "cer": null,
         "foreignSegments": 0,
         "foreignInterims": 1,
+        "uncoveredSegments": 2,
+        "uncoveredSegmentRate": 0.15384615384615385,
         "languageMismatches": null
       },
       "raw": {
@@ -188,6 +194,8 @@
         "fillers": 7,
         "foreignSegments": 0,
         "foreignInterims": 1,
+        "callerSegments": 13,
+        "uncoveredSegments": 2,
         "languageMismatches": null,
         "sttEdits": null,
         "sttWords": null,
@@ -253,6 +261,8 @@
         "cer": null,
         "foreignSegments": 2,
         "foreignInterims": 1,
+        "uncoveredSegments": 2,
+        "uncoveredSegmentRate": 0.043478260869565216,
         "languageMismatches": null
       },
       "raw": {
@@ -280,6 +290,8 @@
         "fillers": 8,
         "foreignSegments": 2,
         "foreignInterims": 1,
+        "callerSegments": 46,
+        "uncoveredSegments": 2,
         "languageMismatches": null,
         "sttEdits": null,
         "sttWords": null,
@@ -354,6 +366,8 @@
         "cer": null,
         "foreignSegments": 2,
         "foreignInterims": 4,
+        "uncoveredSegments": 0,
+        "uncoveredSegmentRate": 0,
         "languageMismatches": null
       },
       "raw": {
@@ -381,6 +395,8 @@
         "fillers": 5,
         "foreignSegments": 2,
         "foreignInterims": 4,
+        "callerSegments": 30,
+        "uncoveredSegments": 0,
         "languageMismatches": null,
         "sttEdits": null,
         "sttWords": null,
@@ -443,6 +459,8 @@
     "cer": null,
     "foreignSegments": 4,
     "foreignInterims": 6,
+    "uncoveredSegments": 5,
+    "uncoveredSegmentRate": 0.044642857142857144,
     "languageMismatches": null
   }
 }

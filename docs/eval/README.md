@@ -133,6 +133,7 @@ Metrics marked _gold_ need a gold transcript and are `null` without one. Thought
 | Wrong-language transcripts       | Segments in a script the caller's languages do not use, with letters English and romanised Hindi never need, or several common European words. |
 | Utterances misdetected _gold_    | Those, plus English heard as Devanagari ("तेज इजाफा" for "Tejas").                                                                             |
 | Turns begun < 1 s after the last | The no-gold proxy for splits.                                                                                                                  |
+| Caller segments no turn answered | STT segments with words written while no answered turn was open and not within 2 s after one ended: coverage without gold.                     |
 
 **Hinglish.** WER and CER compare words after romanising Devanagari (word-final schwa
 dropped) and folding spelling: long vowels, aspirates, doubled letters, `w`/`v`, `z`/`j`,
@@ -148,10 +149,16 @@ overrides them):
 - on the aggregate: split, merge and false-endpoint rates +5 points, endpoint latency p50 +100 ms
   and p90 +250 ms, replies thrown away +1, discarded lines +2, LLM requests per turn or thought
   +0.15, talk-over +1, turns with no reply +1, first answer and reply latency p50 +150 ms and p90
-  +400 ms, WER and CER +2 points, and none at all for missed replies, dropped thoughts, canned
-  lines and wrong-language transcripts;
+  +400 ms, WER and CER +2 points, caller segments no turn answered +5 points, and none at all for
+  missed replies, dropped thoughts, canned lines and wrong-language transcripts;
 - on each call, for the zero-tolerance metrics;
+- when a gated metric the baseline measured is `null` in the run (no turn answered leaves no
+  latency or per-turn ratio to compare);
 - and when a baseline call is missing from the run.
+
+Fewer turns is not itself a regression (merging a split thought is the point of a better
+detector), so turn coverage is gated without gold by the caller's segments no turn answered: a
+detector that stops ending turns lowers every count it leaves behind, but not that one.
 
 `scripts/mini-ci.sh` runs `eval:calls` in transcript mode against
 `packages/eval/baselines/transcript-rules.json`: offline, no network, about 3 s. A change that

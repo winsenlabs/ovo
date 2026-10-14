@@ -28,6 +28,9 @@ export interface RawScore {
   fillers: number;
   foreignSegments: number;
   foreignInterims: number;
+  /** The caller's transcribed segments, and those no answered turn covers. */
+  callerSegments: number;
+  uncoveredSegments: number;
   languageMismatches: number | null;
   sttEdits: number | null;
   sttWords: number | null;
@@ -93,6 +96,8 @@ export function metricsOf(raw: RawScore): Metrics {
     cer: ratio(raw.sttCharEdits, raw.sttChars),
     foreignSegments: raw.foreignSegments,
     foreignInterims: raw.foreignInterims,
+    uncoveredSegments: raw.uncoveredSegments,
+    uncoveredSegmentRate: ratio(raw.uncoveredSegments, raw.callerSegments),
     languageMismatches: raw.languageMismatches,
   };
 }
@@ -138,6 +143,8 @@ export function emptyRaw(): RawScore {
     fillers: 0,
     foreignSegments: 0,
     foreignInterims: 0,
+    callerSegments: 0,
+    uncoveredSegments: 0,
     languageMismatches: null,
     sttEdits: null,
     sttWords: null,

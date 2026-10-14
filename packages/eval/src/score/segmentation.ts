@@ -116,6 +116,24 @@ export function segment(
 }
 
 /** Without gold: turns that began under `withinMs` after the previous turn ended (call 8: 14). */
+/**
+ * The caller's transcribed segments no answered turn covers: written while none was open and not
+ * within `lagMs` after one ended (a final lands a little after the endpoint). Coverage without gold:
+ * a detector that stops answering leaves the caller's words uncovered however few turns it ends,
+ * while one that merges a split thought still covers every segment of it.
+ */
+export function uncoveredSegments(
+  turns: readonly CallerTurn[],
+  segments: readonly { atMs: number }[],
+  lagMs = 2000,
+): number {
+  const answered = answeredTurns(turns);
+  return segments.filter(
+    ({ atMs }) =>
+      !answered.some((turn) => turn.startedAtMs <= atMs && atMs <= turn.endedAtMs! + lagMs),
+  ).length;
+}
+
 export function quickRestarts(turns: readonly CallerTurn[], withinMs = 1000): number {
   const answered = answeredTurns(turns);
   let count = 0;

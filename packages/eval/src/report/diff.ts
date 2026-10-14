@@ -26,6 +26,7 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
   talkOver: 1,
   missedReplies: 0,
   missedTurnReplies: 1,
+  uncoveredSegmentRate: 0.05,
   cannedLines: 0,
   firstAnswerP50Ms: 150,
   firstAnswerP90Ms: 400,
@@ -73,7 +74,10 @@ function row(
       baseline: a,
       candidate: b,
       delta: null,
-      verdict: 'n/a',
+      // A gated metric the baseline measured and the candidate cannot (no turn answered, so no
+      // latency or per-turn ratio) has regressed, not dropped out of the gate.
+      verdict:
+        a !== null && threshold !== undefined && spec.better !== 'info' ? 'regression' : 'n/a',
       ...(threshold === undefined ? {} : { threshold }),
     };
   const delta = b - a;
@@ -119,7 +123,7 @@ export function diffScorecards(
   }
   const regressions: string[] = [];
   const describe = (scope: string, entry: DiffRow) =>
-    `${scope} ${entry.spec.key}: ${entry.baseline} → ${entry.candidate} (limit +${entry.threshold})`;
+    `${scope} ${entry.spec.key}: ${entry.baseline} → ${entry.candidate ?? 'none'} (limit +${entry.threshold})`;
   for (const entry of aggregate)
     if (entry.verdict === 'regression') regressions.push(describe('aggregate', entry));
   for (const call of calls)

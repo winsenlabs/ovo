@@ -15,6 +15,18 @@ export const METRICS: readonly MetricSpec[] = [
   { key: 'answeredTurns', label: 'Caller turns answered', unit: 'count', better: 'info' },
   { key: 'resetTurns', label: 'Turns dropped as backchannels', unit: 'count', better: 'info' },
   {
+    key: 'uncoveredSegments',
+    label: 'Caller segments no turn answered',
+    unit: 'count',
+    better: 'lower',
+  },
+  {
+    key: 'uncoveredSegmentRate',
+    label: 'Caller segments no turn answered (share)',
+    unit: 'rate',
+    better: 'lower',
+  },
+  {
     key: 'quickRestarts',
     label: 'Turns begun <1 s after the last ended',
     unit: 'count',

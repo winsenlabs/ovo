@@ -19,7 +19,7 @@ import { decodeWav, durationMs, mulawFrames } from '../corpus/wav.ts';
 import { buildTimeline } from '../timeline.ts';
 import { replayEngine } from './engine.ts';
 import { outputTiming } from './output.ts';
-import { liveReplies, recordedResponder } from './responder.ts';
+import { liveReplies, recordedResponder, recordingInference } from './responder.ts';
 import type { ReplayResult } from './transcript.ts';
 
 export interface AudioReplayOptions {
@@ -71,6 +71,11 @@ export async function replayAudio(
     sleep,
     () => Date.now() - zero,
   );
+  const liveLlm = options.inference
+    ? recordingInference(options.inference, () => Date.now() - zero)
+    : undefined;
+  // The requests the engine made, to whichever LLM answered them.
+  const requests = liveLlm?.requests ?? responder.requests;
   const run = replayEngine({
     clock: realClock,
     zero,
@@ -78,7 +83,7 @@ export async function replayAudio(
     stt: adaptSpeechToText(options.stt),
     vad: createEnergyVad(call.profile.vad),
     detector: options.detector,
-    inference: options.inference ?? responder,
+    inference: liveLlm ?? responder,
     output: outputTiming(call.profile, live),
     sessionId: `eval-audio-${call.name}`,
     usage: (meter) => usage.push(meter),
@@ -103,19 +108,21 @@ export async function replayAudio(
   await run.engine.ended;
   const timeline = buildTimeline(
     run.events,
-    responder.requests.map((request, n) => ({ atMs: request.atMs, id: `replay-${n + 1}` })),
+    requests.map((request, n) => ({ atMs: request.atMs, id: `replay-${n + 1}` })),
   );
   return {
     timeline,
     vad: { ...traceFromPcm(pcm, call.audioOffsetMs, call.profile.vad) },
-    notes: [`live STT; ${Math.round((sent * FRAME_MS) / 1000)} s of caller audio streamed`],
+    notes: [
+      `live STT${liveLlm ? ' and LLM' : ''}; ${Math.round((sent * FRAME_MS) / 1000)} s of caller audio streamed`,
+    ],
     stats: {
-      requests: responder.requests.length,
-      unmatchedRequests: responder.requests.filter((r) => r.answeredBy === 'unmatched').length,
+      requests: requests.length,
+      unmatchedRequests: requests.filter((r) => r.answeredBy === 'unmatched').length,
       modelledCommits: 0,
       commits: 0,
     },
-    requests: responder.requests,
+    requests,
     audioSeconds: (sent * FRAME_MS) / 1000,
     usage: usage.map(({ unit, quantity, state }) => ({ unit, quantity: String(quantity), state })),
   };

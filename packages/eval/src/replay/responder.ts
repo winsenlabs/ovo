@@ -73,6 +73,33 @@ export interface RecordedResponder extends Inference {
   readonly requests: { atMs: number; input: string; answeredBy: string }[];
 }
 
+/**
+ * A live LLM with its requests recorded as the recorded responder records its own (answered by
+ * `live`), so a live-LLM run is scored on the requests the engine actually made.
+ */
+export function recordingInference(
+  inner: Inference,
+  now: () => number,
+): Inference & { readonly requests: RecordedResponder['requests'] } {
+  const requests: RecordedResponder['requests'] = [];
+  const recorded =
+    (method: (request: InferenceRequest) => unknown) => (request: InferenceRequest) => {
+      requests.push({ atMs: now(), input: request.input, answeredBy: 'live' });
+      return method.call(inner, request);
+    };
+  // A proxy, not a copy: the port's other members (activity observers, provider tools) stay its own.
+  return new Proxy(inner, {
+    get(target, key) {
+      if (key === 'requests') return requests;
+      const value: unknown = Reflect.get(target, key, target);
+      if (typeof value !== 'function') return value;
+      if (key === 'generate' || key === 'stream')
+        return recorded(value as (request: InferenceRequest) => unknown);
+      return (value as (...args: unknown[]) => unknown).bind(target);
+    },
+  }) as Inference & { readonly requests: RecordedResponder['requests'] };
+}
+
 export function recordedResponder(
   replies: readonly LiveReply[],
   profile: AgentProfile,
