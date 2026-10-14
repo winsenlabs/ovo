@@ -486,6 +486,57 @@ importers:
         specifier: workspace:*
         version: link:../session-host
 
+  packages/eval:
+    dependencies:
+      '@winsendotai/ovo-audio':
+        specifier: workspace:*
+        version: link:../audio
+      '@winsendotai/ovo-behaviors':
+        specifier: workspace:*
+        version: link:../behaviors
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
+      '@winsendotai/ovo-plugin-llm-openai':
+        specifier: workspace:*
+        version: link:../plugin-llm-openai
+      '@winsendotai/ovo-plugin-speech-sarvam':
+        specifier: workspace:*
+        version: link:../plugin-speech-sarvam
+      '@winsendotai/ovo-plugin-stt-assemblyai':
+        specifier: workspace:*
+        version: link:../plugin-stt-assemblyai
+      '@winsendotai/ovo-plugin-stt-deepgram':
+        specifier: workspace:*
+        version: link:../plugin-stt-deepgram
+      '@winsendotai/ovo-plugin-stt-elevenlabs':
+        specifier: workspace:*
+        version: link:../plugin-stt-elevenlabs
+      '@winsendotai/ovo-plugin-stt-openai-realtime':
+        specifier: workspace:*
+        version: link:../plugin-stt-openai-realtime
+      '@winsendotai/ovo-plugin-turns':
+        specifier: workspace:*
+        version: link:../plugin-turns
+      '@winsendotai/ovo-plugin-vad':
+        specifier: workspace:*
+        version: link:../plugin-vad
+      '@winsendotai/ovo-plugin-voice':
+        specifier: workspace:*
+        version: link:../plugin-voice
+      '@winsendotai/ovo-session-host':
+        specifier: workspace:*
+        version: link:../session-host
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+
   packages/fixture-calls:
     dependencies:
       '@winsendotai/ovo-audio':

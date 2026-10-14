@@ -30,6 +30,7 @@
     "stt:bakeoff": "tsx scripts/stt-bakeoff/cli.ts",
     "flow:import": "tsx scripts/flow-import/cli.ts",
     "eval:jev": "tsx scripts/jev-eval.ts",
+    "eval:calls": "tsx packages/eval/src/cli.ts",
     "deploy:images": "bash scripts/deploy/build-images.sh",
     "deploy:compose": "bash scripts/deploy/deploy-compose.sh",
     "live": "bash scripts/deploy/ovo-live.sh",
