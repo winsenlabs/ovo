@@ -30,6 +30,14 @@ export interface ReplyWaits {
   /** A filler's first audio, from the same start, when one played first. */
   fillerAudioMs: number | null;
   /**
+   * Wave 12 (call 8cb76efc F2): the silence the caller heard before this reply, from the later of
+   * their last voiced audio and the end of the agent's last line before it (a filler, or an
+   * earlier reply this one queued behind), to its first audio. `firstAudioMs` counts every line
+   * in between: call 8cb76efc turn 20 ("Please.", queued behind the reply to the words before it)
+   * reported 11.8 s, of which the caller heard 2.2 s of silence.
+   */
+  heardSilenceMs: number;
+  /**
    * Wave 9 D7: the carrier leg's round trip as this call last measured it from playback marks
    * (`telemetry-carrier-rtt.ts`), or null before a mark has measured it. Not one of the parts: the
    * caller hears the first audio about half of it after `firstAudioMs`, plus the phone network.
@@ -58,12 +66,18 @@ interface LineMarks {
 /** Turns and lines that never reach audio (superseded, flushed) are dropped past these. */
 const KEEP_TURNS = 16;
 const KEEP_LINES = 64;
+/** Speech evidence that a line's audio ended, played out or cut. */
+const ENDED = new Set(['completed', 'interrupted']);
 
 /** Folds engine timing and speech events into one `ReplyWaits` per turn, at its first reply audio. */
 export class ReplyWaitClock {
   private readonly turns = new Map<string, TurnMarks>();
   private readonly lines = new Map<string, LineMarks>();
   private readonly carrier = new CarrierRoundTrip();
+  /** Lines whose audio has started and not yet ended (Wave 12, `heardSilenceMs`). */
+  private readonly playing = new Set<string>();
+  /** When the agent's last line that played ended. */
+  private heardUntil?: number;
 
   constructor(private readonly record: (waits: ReplyWaits) => void) {}
 
@@ -99,6 +113,11 @@ export class ReplyWaitClock {
   }
 
   private speech(evidence: Extract<EngineEvent, { type: 'speech' }>['evidence']): void {
+    if (evidence.phase === 'sent' || evidence.phase === 'started') {
+      this.playing.add(evidence.segmentId);
+      if (this.playing.size > KEEP_LINES) this.playing.delete(this.playing.values().next().value!);
+    } else if (ENDED.has(evidence.phase) && this.playing.delete(evidence.segmentId))
+      this.heardUntil = Math.max(this.heardUntil ?? evidence.at, evidence.at);
     const line = this.lines.get(evidence.segmentId);
     if (!line) return;
     // A LAT-6 filler, a search line or "still checking": no answer.
@@ -134,6 +153,7 @@ export class ReplyWaitClock {
       ttsFirstByteMs: tts - started,
       carrierMs: at - tts,
       fillerAudioMs: turn.fillerAt === undefined ? null : turn.fillerAt - turn.start,
+      heardSilenceMs: Math.max(0, at - Math.max(turn.start, this.heardUntil ?? turn.start)),
       carrierRoundTripMs: this.carrier.estimateMs,
     });
   }
