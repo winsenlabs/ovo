@@ -1,29 +1,51 @@
 import type { EvaluationCase } from '../../lib/operator-api';
-import { ResponsiveTable } from '../primitives';
-export function EvaluationCasesTable({ cases }: { cases: EvaluationCase[] }) {
+import { humaniseEnum } from '../../lib/status';
+import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
+
+export function EvaluationCasesTable({ cases }: { cases: readonly EvaluationCase[] }) {
+  const columns: ColumnV2<EvaluationCase>[] = [
+    {
+      id: 'case',
+      header: 'Case',
+      cell: (item) => (
+        <>
+          <strong>{item.title}</strong>
+          <br />
+          <small className="mono muted">{item.id}</small>
+        </>
+      ),
+      sortValue: (item) => item.title,
+    },
+    { id: 'mode', header: 'Mode', cell: (item) => humaniseEnum(item.mode) },
+    {
+      id: 'tags',
+      header: 'Tags',
+      cell: (item) => (
+        <span className="ds-choice-chips">
+          {item.tags.map((tag) => (
+            <span key={tag} className="ds-chip">
+              {tag}
+            </span>
+          ))}
+        </span>
+      ),
+      priority: 'low',
+    },
+    {
+      id: 'turns',
+      header: 'Turns',
+      cell: (item) => item.turns.length,
+      sortValue: (item) => item.turns.length,
+      align: 'end',
+    },
+  ];
   return (
-    <ResponsiveTable label="Evaluation dataset cases">
-      <thead>
-        <tr>
-          <th>Case</th>
-          <th>Mode</th>
-          <th>Tags</th>
-          <th>Turns</th>
-        </tr>
-      </thead>
-      <tbody>
-        {cases.map((item) => (
-          <tr key={item.id}>
-            <td>
-              <strong>{item.title}</strong>
-              <small className="mono">{item.id}</small>
-            </td>
-            <td>{item.mode}</td>
-            <td>{item.tags.join(', ') || '—'}</td>
-            <td>{item.turns.length}</td>
-          </tr>
-        ))}
-      </tbody>
-    </ResponsiveTable>
+    <DataTableV2
+      label="Evaluation dataset cases"
+      rows={cases}
+      columns={columns}
+      rowKey={(item) => item.id}
+      empty="No cases in this version."
+    />
   );
 }

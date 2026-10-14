@@ -7,19 +7,30 @@ import type {
   EvaluationDataset,
   EvaluationDatasetVersion,
 } from '../../lib/operator-api';
-import { EmptyState, Field, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { formatRelativeTime } from '../../lib/format';
+import { SectionCard } from '../ui/section-card';
+import { RadioCardGroup } from '../ui/choice-card';
+import { EmptyStateV2 } from '../ui/feedback-v2';
+import { Drawer } from '../ui/drawer';
 import { parseEvaluationCorpus } from './evaluation-import';
 import { EvaluationDatasetImport } from './evaluation-dataset-import';
-import { EvaluationCasesTable } from './evaluation-cases-table';
+import { EvaluationDatasetDetail } from './evaluation-dataset-detail';
 import { loadCases } from './load-evaluation-cases';
 
+const NEW_DATASET = '';
+
+/**
+ * Immutable evaluation datasets as a card grid (one `RadioCardGroup` choice per dataset, plus a
+ * "New dataset" choice), instead of a plain `<select>` with the metadata-edit form always above
+ * the cases table.
+ */
 export function EvaluationDatasetPanel({
   role,
   datasets,
   reload,
 }: {
   role: SessionIdentity['role'];
-  datasets: EvaluationDataset[];
+  datasets: readonly EvaluationDataset[];
   reload: () => Promise<void>;
 }) {
   const confirm = useConfirm();
@@ -29,15 +40,16 @@ export function EvaluationDatasetPanel({
   const [cases, setCases] = useState<EvaluationCase[]>([]);
   const [importCases, setImportCases] = useState<unknown[]>();
   const [importName, setImportName] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const selected = datasets.find((dataset) => dataset.id === selectedId);
 
   useEffect(() => {
     setSelectedId((current) =>
-      current && datasets.some((dataset) => dataset.id === current)
+      current && (current === NEW_DATASET || datasets.some((dataset) => dataset.id === current))
         ? current
-        : datasets[0]?.id || '',
+        : datasets[0]?.id || NEW_DATASET,
     );
   }, [datasets]);
 
@@ -99,7 +111,7 @@ export function EvaluationDatasetPanel({
       !selected ||
       !(await confirm(
         'Archive dataset',
-        `Archive “${selected.name}”? Immutable versions remain evidence.`,
+        `Archive "${selected.name}"? Immutable versions remain evidence.`,
       ))
     )
       return;
@@ -108,7 +120,7 @@ export function EvaluationDatasetPanel({
       await apiRequest(`/evaluation-datasets/${encodeURIComponent(selected.id)}`, {
         method: 'DELETE',
       });
-      setSelectedId('');
+      setSelectedId(NEW_DATASET);
       await reload();
     } catch (failure) {
       setError(message(failure, 'Dataset could not be archived.'));
@@ -128,6 +140,7 @@ export function EvaluationDatasetPanel({
       );
       setImportCases(undefined);
       setImportName('');
+      setImportOpen(false);
       await reload();
       setVersions((current) => [data, ...current]);
       setSelectedVersion(data.version);
@@ -150,83 +163,83 @@ export function EvaluationDatasetPanel({
     }
   }
 
+  const choices = [
+    { value: NEW_DATASET, title: '+ New dataset', description: 'Start a new immutable corpus.' },
+    ...datasets.map((dataset) => ({
+      value: dataset.id,
+      title: dataset.name,
+      description: dataset.description || 'No description.',
+      meta: (
+        <small className="muted">
+          v{dataset.currentVersion} · updated {formatRelativeTime(dataset.updatedAt)}
+        </small>
+      ),
+    })),
+  ];
+
   return (
-    <Panel labelledBy="evaluation-datasets-title">
-      <PanelHeader
-        id="evaluation-datasets-title"
+    <div className="ds-stack">
+      <SectionCard
         title="Immutable evaluation datasets"
-        badge={<StatusBadge tone="soft">{datasets.length} datasets</StatusBadge>}
-      />
-      <div className="panel-body stack">
+        description="Fingerprinted case versions used by durable evaluation jobs."
+      >
         {error && (
           <div className="field-error" role="alert">
             {error}
           </div>
         )}
-        <div className="form-grid">
-          <Field label="Dataset" htmlFor="evaluation-dataset-select">
-            <select
-              id="evaluation-dataset-select"
-              value={selectedId}
-              onChange={(event) => setSelectedId(event.target.value)}
-            >
-              <option value="">Create a new dataset</option>
-              {datasets.map((dataset) => (
-                <option key={dataset.id} value={dataset.id}>
-                  {dataset.name} · v{dataset.currentVersion}
-                </option>
-              ))}
-            </select>
-          </Field>
-          {selected && (
-            <Field label="Immutable version" htmlFor="evaluation-version-select">
-              <select
-                id="evaluation-version-select"
-                value={selectedVersion ?? ''}
-                onChange={(event) => setSelectedVersion(Number(event.target.value))}
-              >
-                {versions.map((version) => (
-                  <option key={version.version} value={version.version}>
-                    v{version.version} · {version.fingerprint.slice(0, 12)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          )}
-        </div>
-        {role !== 'viewer' && (
-          <form className="nested-card stack" key={selected?.id ?? 'new'} onSubmit={saveDataset}>
-            <h4>{selected ? 'Edit dataset metadata' : 'Create dataset'}</h4>
-            <div className="form-grid">
-              <Field label="Name" htmlFor="dataset-name">
-                <input id="dataset-name" name="name" defaultValue={selected?.name} required />
-              </Field>
-              <Field label="Description" htmlFor="dataset-description">
-                <textarea
-                  id="dataset-description"
-                  name="description"
-                  defaultValue={selected?.description}
-                />
-              </Field>
-            </div>
-            <div className="button-row">
-              <button className="button primary" disabled={busy}>
-                {selected ? 'Save metadata' : 'Create dataset'}
+        <RadioCardGroup
+          name="dataset"
+          value={selectedId}
+          onChange={setSelectedId}
+          choices={choices}
+          columns={3}
+          groupLabel="Dataset"
+        />
+      </SectionCard>
+      {selectedId === NEW_DATASET ? (
+        role === 'viewer' ? (
+          <EmptyStateV2 variant="first-run" title="Select a dataset">
+            Datasets hold immutable, fingerprinted case versions used by durable evaluation jobs.
+          </EmptyStateV2>
+        ) : (
+          <SectionCard title="Create dataset" padding="prose">
+            <form className="form-grid" onSubmit={saveDataset}>
+              <div className="field">
+                <label htmlFor="dataset-name">Name</label>
+                <input id="dataset-name" name="name" required />
+              </div>
+              <div className="field">
+                <label htmlFor="dataset-description">Description</label>
+                <textarea id="dataset-description" name="description" />
+              </div>
+              <button className="button primary align-start" disabled={busy}>
+                Create dataset
               </button>
-              {selected && (
-                <button className="button" type="button" onClick={() => setSelectedId('')}>
-                  New dataset
-                </button>
-              )}
-              {selected && role === 'admin' && (
-                <button className="button danger" type="button" onClick={archive} disabled={busy}>
-                  Archive
-                </button>
-              )}
-            </div>
-          </form>
-        )}
-        {selected && role !== 'viewer' && (
+            </form>
+          </SectionCard>
+        )
+      ) : (
+        selected && (
+          <EvaluationDatasetDetail
+            dataset={selected}
+            versions={versions}
+            selectedVersion={selectedVersion}
+            onVersionChange={setSelectedVersion}
+            cases={cases}
+            role={role}
+            busy={busy}
+            onImport={() => setImportOpen(true)}
+            onArchive={() => void archive()}
+          />
+        )
+      )}
+      {selected && role !== 'viewer' && (
+        <Drawer
+          open={importOpen}
+          title={`Import a version into ${selected.name}`}
+          onClose={() => setImportOpen(false)}
+        >
           <EvaluationDatasetImport
             importCases={importCases}
             importName={importName}
@@ -234,20 +247,9 @@ export function EvaluationDatasetPanel({
             readImport={readImport}
             importVersion={importVersion}
           />
-        )}
-        {!selected ? (
-          <EmptyState title="Select or create a dataset">
-            Datasets hold immutable, fingerprinted case versions used by durable evaluation jobs.
-          </EmptyState>
-        ) : cases.length === 0 ? (
-          <EmptyState title="No cases in this version">
-            Import a JSON corpus to create the first immutable version.
-          </EmptyState>
-        ) : (
-          <EvaluationCasesTable cases={cases} />
-        )}
-      </div>
-    </Panel>
+        </Drawer>
+      )}
+    </div>
   );
 }
 

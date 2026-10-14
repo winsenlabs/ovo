@@ -3,7 +3,7 @@ import type { ProviderEvaluationAuthorization } from '../../lib/operator-api';
 export type ProviderEvaluationAvailability = 'unknown' | 'enabled' | 'disabled' | 'admin-only';
 
 export function activeProviderAuthorizations(
-  authorizations: ProviderEvaluationAuthorization[],
+  authorizations: readonly ProviderEvaluationAuthorization[],
   releaseId: string,
 ): ProviderEvaluationAuthorization[] {
   return authorizations.filter(
@@ -12,7 +12,7 @@ export function activeProviderAuthorizations(
 }
 
 export function providerRunAuthorization(
-  authorizations: ProviderEvaluationAuthorization[],
+  authorizations: readonly ProviderEvaluationAuthorization[],
   releaseId: string,
   authorizationId: string,
 ): { providerBindingVersion: string; budgetAuthorizationId: string } {

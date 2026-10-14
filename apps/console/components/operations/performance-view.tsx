@@ -1,273 +1,193 @@
 'use client';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { apiRequest, ApiError } from '../../lib/api';
-import type { PerformanceResult } from '../../lib/operator-api';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  EmptyState,
-  Field,
-  LoadingBlock,
-  Panel,
-  PanelHeader,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
+  compareByBars,
+  distinctCohortValues,
+  dominantStage,
+  latestBucketFor,
+  rangeTotals,
+  resolvePerformanceRange,
+  stageTimeSeries,
+  type CompareDimension,
+  type Percentile,
+} from '../../lib/derive/performance';
+import { humaniseEnum } from '../../lib/status';
+import { formatMsAxis } from '../charts/scale';
+import { PageHeader } from '../ui/layout';
+import { KpiCard, KpiStrip } from '../ui/kpi';
+import { EmptyStateV2, InlineAlert } from '../ui/feedback-v2';
+import {
+  loadAgentChoices,
+  loadAgentReleaseOptions,
+  type ReleaseOption,
+} from './agent-release-options';
+import {
+  PerformanceFilterBar,
+  type PerformanceFilters,
+  type PerformanceSource,
+} from './performance-filters';
+import { PerformanceComparePanel } from './performance-compare-panel';
+import { PerformanceDetailTable } from './performance-detail-table';
+import { PerformanceLatencyChart } from './performance-latency-chart';
+import { usePerformanceQueries } from './use-performance-queries';
+import type { CustomRange, RangePreset } from '../ui/toolbar';
 
-const groups = [
-  'time',
-  'agent',
-  'release',
-  'provider',
-  'model',
-  'language',
-  'stage',
-  'source',
-] as const;
-const localValue = (date: Date) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+const emptyFilters: PerformanceFilters = {
+  agentId: '',
+  releaseId: '',
+  provider: '',
+  model: '',
+  language: '',
+  stage: '',
+};
 
+/**
+ * Performance: one range-and-source toolbar, a KPI strip for the busiest stage, a multi-series
+ * latency line, a stage breakdown, a "compare by" view, and the cohort table — instead of a
+ * truncated 100-row dump with no chart (brief defects #1, #13).
+ */
 export function PerformanceView() {
-  const [from, setFrom] = useState(() => localValue(new Date(Date.now() - 24 * 60 * 60 * 1000)));
-  const [to, setTo] = useState(() => localValue(new Date()));
-  const [bucket, setBucket] = useState<'hour' | 'day'>('hour');
-  const [groupBy, setGroupBy] = useState<string[]>(['time', 'stage']);
-  const [filters, setFilters] = useState({
-    agentId: '',
-    releaseId: '',
-    provider: '',
-    model: '',
-    language: '',
-    stage: '',
-    source: '',
-  });
-  const [result, setResult] = useState<PerformanceResult>();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>();
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(undefined);
-    const query = new URLSearchParams({
-      from: new Date(from).toISOString(),
-      to: new Date(to).toISOString(),
-      bucket,
-      groupBy: groupBy.join(','),
-      maxGroups: '100',
-      callLimit: '25',
-    });
-    Object.entries(filters).forEach(([key, value]) => value && query.set(key, value));
-    try {
-      setResult((await apiRequest<PerformanceResult>(`/performance?${query}`)).data);
-    } catch (failure) {
-      setResult(undefined);
-      setError(
-        failure instanceof ApiError && failure.status === 503
-          ? 'Performance telemetry is not configured on this installation.'
-          : failure instanceof Error
-            ? failure.message
-            : 'Performance evidence unavailable.',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [bucket, filters, from, groupBy, to]);
+  const [preset, setPreset] = useState<RangePreset>('24h');
+  const [custom, setCustom] = useState<CustomRange>({ from: '', to: '' });
+  const [source, setSource] = useState<PerformanceSource>('all');
+  const [filters, setFilters] = useState<PerformanceFilters>(emptyFilters);
+  const [percentile, setPercentile] = useState<Percentile>('p95Ms');
+  const [hiddenStages, setHiddenStages] = useState<ReadonlySet<string>>(new Set());
+  const [compareDimension, setCompareDimension] = useState<CompareDimension>('provider');
+
+  const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
+  const [releases, setReleases] = useState<ReleaseOption[]>([]);
   useEffect(() => {
-    void load();
-  }, []); // initial bounded query only
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    void load();
-  };
-  const patchFilter = (key: keyof typeof filters, value: string) =>
-    setFilters((current) => ({ ...current, [key]: value }));
+    void loadAgentChoices()
+      .then(setAgents)
+      .catch(() => setAgents([]));
+    void loadAgentReleaseOptions()
+      .then(setReleases)
+      .catch(() => setReleases([]));
+  }, []);
+
+  const { fromMs, toMs } = useMemo(() => resolvePerformanceRange(preset, custom), [preset, custom]);
+  const {
+    primary,
+    primaryError,
+    stageOnly,
+    compareGroups,
+    compareError,
+    compareLoading,
+    allGroups,
+    loadPrimary,
+    loadCompare,
+  } = usePerformanceQueries({ fromMs, toMs, filters, source, compareDimension });
+
+  const groups = primary?.groups ?? [];
+  const stage = dominantStage(groups);
+  const latest = latestBucketFor(groups, stage);
+  const totals = rangeTotals(groups, stage);
+  const series = useMemo(() => stageTimeSeries(groups, percentile), [groups, percentile]);
+  const compareBars = useMemo(
+    () => compareByBars(compareGroups, compareDimension),
+    [compareGroups, compareDimension],
+  );
+  const dropped = primary?.ingestion?.dropped ?? 0;
+
+  const toggleStage = (key: string) =>
+    setHiddenStages((current) => {
+      const next = new Set(current);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+
   return (
-    <div className="stack">
-      <header className="page-heading">
-        <div>
-          <p className="eyebrow">Operational evidence</p>
-          <h1>Performance</h1>
-          <p className="muted">
-            Bounded latency cohorts from durable telemetry. Missing samples remain unavailable,
-            never zero.
-          </p>
-        </div>
-      </header>
-      <Panel labelledBy="performance-query-title">
-        <PanelHeader
-          id="performance-query-title"
-          title="Cohort query"
-          badge={<StatusBadge tone="soft">Maximum 100 groups</StatusBadge>}
-        />
-        <form className="panel-body stack" onSubmit={submit}>
-          <div className="form-grid">
-            <Field label="From" htmlFor="perf-from">
-              <input
-                id="perf-from"
-                type="datetime-local"
-                required
-                value={from}
-                onChange={(event) => setFrom(event.target.value)}
-              />
-            </Field>
-            <Field label="To" htmlFor="perf-to">
-              <input
-                id="perf-to"
-                type="datetime-local"
-                required
-                value={to}
-                onChange={(event) => setTo(event.target.value)}
-              />
-            </Field>
-            <Field label="Bucket" htmlFor="perf-bucket">
-              <select
-                id="perf-bucket"
-                value={bucket}
-                onChange={(event) => setBucket(event.target.value as 'hour' | 'day')}
-              >
-                <option value="hour">Hour</option>
-                <option value="day">Day</option>
-              </select>
-            </Field>
-            <Field label="Source" htmlFor="perf-source">
-              <select
-                id="perf-source"
-                value={filters.source}
-                onChange={(event) => patchFilter('source', event.target.value)}
-              >
-                <option value="">All sources</option>
-                <option value="live">Live</option>
-                <option value="simulation">Simulation</option>
-              </select>
-            </Field>
-          </div>
-          <fieldset className="checkbox-group">
-            <legend>Group results by</legend>
-            {groups.map((group) => (
-              <label key={group}>
-                <input
-                  type="checkbox"
-                  checked={groupBy.includes(group)}
-                  onChange={(event) =>
-                    setGroupBy((current) =>
-                      event.target.checked
-                        ? [...current, group]
-                        : current.filter((item) => item !== group),
-                    )
-                  }
-                />{' '}
-                {group}
-              </label>
-            ))}
-          </fieldset>
-          <details className="filter-box">
-            <summary>Exact filters</summary>
-            <div className="form-grid">
-              {(['agentId', 'releaseId', 'provider', 'model', 'language', 'stage'] as const).map(
-                (key) => (
-                  <Field key={key} label={key} htmlFor={`perf-${key}`}>
-                    <input
-                      id={`perf-${key}`}
-                      value={filters[key]}
-                      onChange={(event) => patchFilter(key, event.target.value)}
-                    />
-                  </Field>
-                ),
-              )}
-            </div>
-          </details>
-          <button className="button primary align-start" disabled={!groupBy.length}>
-            Run cohort query
-          </button>
-        </form>
-      </Panel>
-      {loading ? (
-        <LoadingBlock label="Loading performance cohorts" />
-      ) : error ? (
-        <div className="field-error" role="alert">
-          {error}
-        </div>
-      ) : !result?.groups.length ? (
-        <EmptyState title="No telemetry matched">
-          Change the bounded range or filters. This empty result is not a zero-latency claim.
-        </EmptyState>
+    <div className="ds-stack">
+      <PageHeader
+        eyebrow="Operational evidence"
+        title="Performance"
+        description="Bounded latency cohorts from durable telemetry. Missing samples remain unavailable, never zero."
+      />
+      <PerformanceFilterBar
+        range={preset}
+        onRangeChange={setPreset}
+        custom={custom}
+        onCustomChange={setCustom}
+        source={source}
+        onSourceChange={setSource}
+        filters={filters}
+        onFiltersChange={setFilters}
+        agents={agents}
+        releases={releases}
+        providers={distinctCohortValues(allGroups, 'provider')}
+        models={distinctCohortValues(allGroups, 'model')}
+        languages={distinctCohortValues(allGroups, 'language')}
+        stages={distinctCohortValues(allGroups, 'stage')}
+      />
+      {primary?.truncated && (
+        <InlineAlert tone="warn">
+          The query matched more cohorts than fit in one response. Narrow the range or filters to
+          see the rest.
+        </InlineAlert>
+      )}
+      {dropped > 0 && (
+        <InlineAlert tone="warn">
+          {dropped} telemetry events were dropped during ingestion and are not represented below.
+        </InlineAlert>
+      )}
+      {primary?.ingestion?.closed && (
+        <InlineAlert tone="info">Ingestion is closed for this installation.</InlineAlert>
+      )}
+      {primaryError ? (
+        <EmptyStateV2 variant="unavailable" title="Performance telemetry unavailable">
+          {primaryError}
+        </EmptyStateV2>
       ) : (
-        <Panel labelledBy="performance-results-title">
-          <PanelHeader
-            id="performance-results-title"
-            title="Cohort evidence"
-            badge={
-              <StatusBadge tone={result.truncated ? 'warning' : 'good'}>
-                {result.groups.length} groups{result.truncated ? ' · truncated' : ''}
-              </StatusBadge>
-            }
+        <>
+          <KpiStrip>
+            <KpiCard
+              label={stage ? `${humaniseEnum(stage)} · p50` : 'p50'}
+              value={latest?.p50Ms != null ? formatMsAxis(latest.p50Ms) : null}
+              loading={primary === null}
+            />
+            <KpiCard
+              label={stage ? `${humaniseEnum(stage)} · p95` : 'p95'}
+              value={latest?.p95Ms != null ? formatMsAxis(latest.p95Ms) : null}
+              loading={primary === null}
+            />
+            <KpiCard
+              label={stage ? `${humaniseEnum(stage)} · p99` : 'p99'}
+              value={latest?.p99Ms != null ? formatMsAxis(latest.p99Ms) : null}
+              loading={primary === null}
+            />
+            <KpiCard label="Calls in range" value={totals.calls} loading={primary === null} />
+            <KpiCard
+              label="Errors / timeouts"
+              value={`${totals.errors} / ${totals.timeouts}`}
+              loading={primary === null}
+            />
+          </KpiStrip>
+          <PerformanceLatencyChart
+            groups={groups}
+            series={series}
+            hiddenStages={hiddenStages}
+            onToggleStage={toggleStage}
+            percentile={percentile}
+            onPercentileChange={setPercentile}
+            loading={primary === null}
           />
-          <div className="panel-body stack">
-            {result.ingestion && (
-              <div className="metrics">
-                <div>
-                  <span>Accepted</span>
-                  <strong>{result.ingestion.accepted}</strong>
-                  <small>Ingested events</small>
-                </div>
-                <div>
-                  <span>Dropped</span>
-                  <strong>{result.ingestion.dropped}</strong>
-                  <small>Not represented below</small>
-                </div>
-                <div>
-                  <span>Queued</span>
-                  <strong>{result.ingestion.queued}</strong>
-                  <small>
-                    {result.ingestion.closed ? 'Ingestion closed' : 'Current process queue'}
-                  </small>
-                </div>
-              </div>
-            )}
-            <ResponsiveTable label="Performance cohort results">
-              <thead>
-                <tr>
-                  <th>Cohort</th>
-                  <th>Calls / samples</th>
-                  <th>Errors / timeouts</th>
-                  <th>P50</th>
-                  <th>P95</th>
-                  <th>P99</th>
-                  <th>Evidence calls</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.groups.map((row, index) => (
-                  <tr key={`${JSON.stringify(row.cohort)}-${index}`}>
-                    <td>
-                      {Object.entries(row.cohort).map(([key, value]) => (
-                        <small key={key}>
-                          <strong>{key}</strong>: {value ?? 'none'}
-                        </small>
-                      ))}
-                    </td>
-                    <td>
-                      {row.callCount} / {row.sampleCount}
-                      <small>{row.eventCount} events</small>
-                    </td>
-                    <td>
-                      {row.errors} / {row.timeouts}
-                    </td>
-                    <td>{row.p50Ms === null ? '—' : `${row.p50Ms} ms`}</td>
-                    <td>{row.p95Ms === null ? '—' : `${row.p95Ms} ms`}</td>
-                    <td>{row.p99Ms === null ? '—' : `${row.p99Ms} ms`}</td>
-                    <td>
-                      {row.callIds.length
-                        ? row.callIds.map((id) => (
-                            <a className="table-link mono" href="/calls" key={id}>
-                              {id.slice(0, 8)}
-                            </a>
-                          ))
-                        : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </ResponsiveTable>
-          </div>
-        </Panel>
+          <PerformanceDetailTable
+            stageGroups={stageOnly}
+            cohortGroups={groups}
+            loading={primary === null}
+            error={primaryError}
+            onRetry={loadPrimary}
+          />
+          <PerformanceComparePanel
+            dimension={compareDimension}
+            onDimensionChange={setCompareDimension}
+            bars={compareBars}
+            loading={compareLoading}
+            error={compareError}
+            onRetry={loadCompare}
+          />
+        </>
       )}
     </div>
   );

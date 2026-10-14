@@ -3,7 +3,11 @@ import { useConfirm } from '../ui/dialog';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { apiRequest, ApiError, type SessionIdentity } from '../../lib/api';
 import type { ProviderEvaluationAuthorization } from '../../lib/operator-api';
-import { EmptyState, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { SectionCard } from '../ui/section-card';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { EmptyStateV2, InlineAlert } from '../ui/feedback-v2';
+import { Drawer } from '../ui/drawer';
+import { Button } from '../ui/button';
 import type { ProviderEvaluationAvailability } from './evaluation-provider-state';
 import { ProviderAuthorizationsTable } from './provider-authorizations-table';
 import { ProviderAuthorizationForm } from './provider-authorization-form';
@@ -19,6 +23,17 @@ const newKey = () =>
     ? crypto.randomUUID()
     : `provider-authorization-${Date.now()}`;
 
+const AVAILABILITY_LABEL: Record<ProviderEvaluationAvailability, string> = {
+  enabled: 'Enabled',
+  disabled: 'Installation disabled',
+  'admin-only': 'Admin only',
+  unknown: 'Unknown',
+};
+
+/**
+ * Provider evaluation authorizations: a DataTableV2 instead of a raw table, and the create form
+ * behind a drawer button instead of sitting above every row by default.
+ */
 export function EvaluationProviderAuthorizations({
   role,
   onChange,
@@ -38,6 +53,7 @@ export function EvaluationProviderAuthorizations({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const publish = useCallback(
     (next: ProviderEvaluationAuthorization[], status: ProviderEvaluationAvailability) => {
@@ -78,16 +94,12 @@ export function EvaluationProviderAuthorizations({
     [authorizations, onChange, publish],
   );
 
-  const loadReleases = useCallback(async () => {
-    setReleases(await loadAgentReleaseOptions());
-  }, []);
-
   useEffect(() => {
     if (role !== 'admin') {
       publish([], 'admin-only');
       return;
     }
-    void Promise.all([load(), loadReleases()]).catch((failure) =>
+    void Promise.all([load(), loadAgentReleaseOptions().then(setReleases)]).catch((failure) =>
       setError(
         failure instanceof Error ? failure.message : 'Authorization dependencies could not load.',
       ),
@@ -118,15 +130,14 @@ export function EvaluationProviderAuthorizations({
       setNotice(`Authorization ${data.id} created for immutable release ${data.releaseId}.`);
       setIdempotencyKey(newKey());
       form.reset();
+      setDrawerOpen(false);
       await load();
     } catch (failure) {
-      if (failure instanceof ApiError && failure.status === 503) {
-        publish([], 'disabled');
-      } else {
+      if (failure instanceof ApiError && failure.status === 503) publish([], 'disabled');
+      else
         setError(
           failure instanceof Error ? failure.message : 'Authorization could not be created.',
         );
-      }
     } finally {
       setBusy(false);
     }
@@ -158,76 +169,63 @@ export function EvaluationProviderAuthorizations({
   }
 
   return (
-    <Panel labelledBy="provider-evaluation-authorizations-title">
-      <PanelHeader
-        id="provider-evaluation-authorizations-title"
-        title="Provider evaluation authorizations"
-        badge={
-          <StatusBadge tone={availability === 'enabled' ? 'good' : 'warning'}>
-            {availability === 'enabled'
+    <SectionCard
+      title="Provider evaluation authorizations"
+      description="An authorization pins an immutable release, inference binding version, release budget and maximum reservation. It never enables provider evaluations for the installation."
+      padding="flush"
+      actions={
+        <StatusBadgeV2
+          tone={availability === 'enabled' ? 'ok' : 'warn'}
+          label={
+            availability === 'enabled'
               ? `${authorizations.filter((item) => !item.revokedAt).length} active`
-              : availability === 'disabled'
-                ? 'Installation disabled'
-                : availability === 'admin-only'
-                  ? 'Admin only'
-                  : 'Unknown'}
-          </StatusBadge>
-        }
-      />
-      <div className="panel-body stack">
-        <p className="muted">
-          An authorization pins an immutable release, inference binding version, release budget, and
-          maximum reservation. It never enables provider evaluations for the installation.
-        </p>
-        {role !== 'admin' && (
-          <Notice tone="neutral">
-            Only administrators can inspect or change paid provider-evaluation authorizations.
-            Fixture evaluation remains available to editors.
-          </Notice>
-        )}
-        {availability === 'disabled' && (
-          <Notice tone="warning">
-            Provider evaluations are disabled for this installation. Set
-            OVO_PROVIDER_EVALUATIONS_ENABLED on the server and restart intentionally; the browser
-            cannot change this flag. Fixture jobs are unaffected.
-          </Notice>
-        )}
-        {error && (
-          <Notice tone="danger" live>
-            {error}
-          </Notice>
-        )}
-        {notice && (
-          <Notice tone="neutral" live>
-            {notice}
-          </Notice>
-        )}
-        {role === 'admin' && availability === 'enabled' && (
+              : AVAILABILITY_LABEL[availability]
+          }
+        />
+      }
+    >
+      {role !== 'admin' && (
+        <InlineAlert tone="info">
+          Only administrators can inspect or change paid provider-evaluation authorizations. Fixture
+          evaluation remains available to editors.
+        </InlineAlert>
+      )}
+      {availability === 'disabled' && (
+        <InlineAlert tone="warn">
+          Provider evaluations are disabled for this installation. Fixture jobs are unaffected.
+        </InlineAlert>
+      )}
+      {error && <InlineAlert onRetry={() => void load()}>{error}</InlineAlert>}
+      {notice && <InlineAlert tone="info">{notice}</InlineAlert>}
+      {role === 'admin' && availability === 'enabled' && (
+        <div style={{ marginBottom: 'var(--space-3)' }}>
+          <Button variant="primary" type="button" onClick={() => setDrawerOpen(true)}>
+            Create authorization
+          </Button>
+        </div>
+      )}
+      {role === 'admin' && availability === 'enabled' && authorizations.length === 0 ? (
+        <EmptyStateV2 variant="first-run" title="No provider authorizations">
+          Provider-backed jobs remain unavailable until an administrator creates an explicit
+          immutable release and budget reservation authorization.
+        </EmptyStateV2>
+      ) : role === 'admin' && authorizations.length ? (
+        <ProviderAuthorizationsTable authorizations={authorizations} busy={busy} revoke={revoke} />
+      ) : null}
+      {nextCursor && (
+        <Button type="button" disabled={busy} onClick={() => void load(nextCursor)}>
+          Load more authorizations
+        </Button>
+      )}
+      {role === 'admin' && (
+        <Drawer
+          open={drawerOpen}
+          title="Create durable authorization"
+          onClose={() => setDrawerOpen(false)}
+        >
           <ProviderAuthorizationForm releases={releases} busy={busy} create={create} />
-        )}
-        {role === 'admin' && availability === 'enabled' && !authorizations.length ? (
-          <EmptyState title="No provider authorizations">
-            Provider-backed jobs remain unavailable until an administrator creates an explicit
-            immutable release and budget reservation authorization.
-          </EmptyState>
-        ) : role === 'admin' && authorizations.length ? (
-          <ProviderAuthorizationsTable
-            authorizations={authorizations}
-            busy={busy}
-            revoke={revoke}
-          />
-        ) : null}
-        {nextCursor && (
-          <button
-            className="button align-start"
-            type="button"
-            disabled={busy}
-            onClick={() => void load(nextCursor)}
-          >
-            Load more authorizations
-          </button>
-        )}
-      </div>
-    </Panel>
+        </Drawer>
+      )}
+    </SectionCard>
   );
 }

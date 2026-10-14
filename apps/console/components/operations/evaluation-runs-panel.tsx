@@ -1,32 +1,30 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import {
-  apiRequest,
-  items,
-  type AgentDraft,
-  type Release,
-  type SessionIdentity,
-} from '../../lib/api';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { apiRequest, items, type SessionIdentity } from '../../lib/api';
 import type {
   EvaluationDataset,
   EvaluationRunRecord,
   ProviderEvaluationAuthorization,
 } from '../../lib/operator-api';
-import { Panel, PanelHeader, StatusBadge } from '../primitives';
-import { EvaluationRunEvidence } from './evaluation-run-evidence';
-import {
-  activeProviderAuthorizations,
-  providerRunAuthorization,
-  type ProviderEvaluationAvailability,
-} from './evaluation-provider-state';
+import { latestPassRateByDataset, passRateTrend, runsSince } from '../../lib/derive/evaluations';
+import { KpiCard, KpiStrip } from '../ui/kpi';
+import { SectionCard } from '../ui/section-card';
+import { DataTableV2 } from '../ui/data-table-v2';
+import { Drawer } from '../ui/drawer';
+import { Button } from '../ui/button';
+import { EvaluationPassRateChart } from './evaluation-pass-rate-chart';
+import { buildRunColumns } from './evaluation-runs-columns';
 import { EvaluationRunForm } from './evaluation-run-form';
-import { loadAgents } from '../../lib/pagination';
+import { EvaluationRunDetailDrawer, EvaluationRunCompare } from './evaluation-run-evidence';
+import { useRunQueueForm } from './use-run-queue-form';
+import type { ProviderEvaluationAvailability } from './evaluation-provider-state';
 
-const newKey = () =>
-  typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `run-${Date.now()}`;
-
+/**
+ * Durable evaluation jobs: a KPI strip, a pass-rate trend line per dataset, a DataTableV2 with
+ * correct status tones and an inline pass/fail bar, a run-detail drawer, a queue-run drawer, and
+ * the baseline/candidate comparison — replacing a 14-row table where running/queued/cancelled all
+ * rendered the same green as succeeded (brief defect #14).
+ */
 export function EvaluationRunsPanel({
   role,
   datasets,
@@ -34,165 +32,149 @@ export function EvaluationRunsPanel({
   providerAvailability,
 }: {
   role: SessionIdentity['role'];
-  datasets: EvaluationDataset[];
-  providerAuthorizations: ProviderEvaluationAuthorization[];
+  datasets: readonly EvaluationDataset[];
+  providerAuthorizations: readonly ProviderEvaluationAuthorization[];
   providerAvailability: ProviderEvaluationAvailability;
 }) {
-  const [agents, setAgents] = useState<AgentDraft[]>([]);
-  const [runDatasetId, setRunDatasetId] = useState('');
-  const [agentId, setAgentId] = useState('');
-  const [releases, setReleases] = useState<Release[]>([]);
-  const [releaseId, setReleaseId] = useState('');
   const [runs, setRuns] = useState<EvaluationRunRecord[]>([]);
-  const [focusRunId, setFocusRunId] = useState('');
-  const [executorKind, setExecutorKind] = useState<'fixture' | 'provider'>('fixture');
-  const [providerAuthorizationId, setProviderAuthorizationId] = useState('');
-  const [maxAttempts, setMaxAttempts] = useState(3);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const [detailRun, setDetailRun] = useState<EvaluationRunRecord | null>(null);
 
   const loadRuns = useCallback(async () => {
     try {
-      const next = items<EvaluationRunRecord>(
-        (await apiRequest<unknown>('/evaluation-runs?limit=100')).data,
+      setRuns(
+        items<EvaluationRunRecord>((await apiRequest<unknown>('/evaluation-runs?limit=100')).data),
       );
-      setRuns(next);
       setError(undefined);
     } catch (failure) {
-      setError(message(failure, 'Evaluation runs could not be loaded.'));
+      setError(failure instanceof Error ? failure.message : 'Evaluation runs could not be loaded.');
     }
   }, []);
-
   useEffect(() => {
-    void Promise.all([
-      loadAgents<AgentDraft>().then((next) => {
-        setAgents(next);
-        setAgentId(next[0]?.id ?? '');
-      }),
-      loadRuns(),
-    ]).catch((failure) => setError(message(failure, 'Evaluation dependencies unavailable.')));
+    void loadRuns();
   }, [loadRuns]);
 
-  useEffect(() => {
-    setRunDatasetId((current) =>
-      current && datasets.some((dataset) => dataset.id === current && dataset.currentVersion > 0)
-        ? current
-        : datasets.find((dataset) => dataset.currentVersion > 0)?.id || '',
-    );
-  }, [datasets]);
+  const queue = useRunQueueForm({
+    datasets,
+    role,
+    providerAuthorizations,
+    providerAvailability,
+    onQueued: loadRuns,
+    reportError: setError,
+  });
 
-  useEffect(() => {
-    if (!agentId) return setReleases([]);
-    apiRequest<unknown>(`/agents/${encodeURIComponent(agentId)}/releases`)
-      .then(({ data }) => {
-        const next = items<Release>(data);
-        setReleases(next);
-        setReleaseId(next[0]?.id ?? '');
-      })
-      .catch((failure) => setError(message(failure, 'Immutable releases could not be loaded.')));
-  }, [agentId]);
-
-  const matchingAuthorizations = useMemo(
-    () => activeProviderAuthorizations(providerAuthorizations, releaseId),
-    [providerAuthorizations, releaseId],
-  );
-
-  useEffect(() => {
-    setProviderAuthorizationId((current) =>
-      matchingAuthorizations.some((authorization) => authorization.id === current)
-        ? current
-        : (matchingAuthorizations[0]?.id ?? ''),
-    );
-  }, [matchingAuthorizations]);
-
-  useEffect(() => {
-    if (role !== 'admin' || providerAvailability !== 'enabled') setExecutorKind('fixture');
-  }, [providerAvailability, role]);
-
-  async function createRun(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const values = new FormData(event.currentTarget);
+  async function cancel(run: EvaluationRunRecord) {
     setBusy(true);
-    setError(undefined);
     try {
-      const providerAuthorization =
-        executorKind === 'provider'
-          ? providerRunAuthorization(
-              providerAuthorizations,
-              String(values.get('releaseId')),
-              providerAuthorizationId,
-            )
-          : undefined;
-      const { data } = await apiRequest<EvaluationRunRecord>('/evaluation-runs', {
-        method: 'POST',
-        body: JSON.stringify({
-          datasetId: values.get('datasetId'),
-          datasetVersion: Number(values.get('datasetVersion')),
-          releaseId: values.get('releaseId'),
-          idempotencyKey: newKey(),
-          maxAttempts: executorKind === 'provider' ? 1 : Number(values.get('maxAttempts')),
-          executorKind,
-          ...providerAuthorization,
-        }),
-      });
+      await apiRequest(`/evaluation-runs/${encodeURIComponent(run.id)}/cancel`, { method: 'POST' });
       await loadRuns();
-      setFocusRunId(data.id);
     } catch (failure) {
-      setError(message(failure, 'Evaluation run could not be queued.'));
+      setError(
+        failure instanceof Error ? failure.message : 'Evaluation run could not be cancelled.',
+      );
     } finally {
       setBusy(false);
     }
   }
 
+  const recentRuns = runsSince(runs, 7);
+  const latestPassRates = [...latestPassRateByDataset(runs).values()];
+  const avgPassRate = latestPassRates.length
+    ? Math.round(
+        (latestPassRates.reduce((sum, rate) => sum + rate, 0) / latestPassRates.length) * 100,
+      )
+    : null;
+  const trend = useMemo(() => passRateTrend(runs, datasets), [runs, datasets]);
+  const columns = buildRunColumns({
+    datasets,
+    role,
+    busy,
+    onSelect: setDetailRun,
+    onCancel: (run) => void cancel(run),
+  });
+  const inProgress = runs.filter((run) =>
+    ['queued', 'running', 'cancelling'].includes(run.status),
+  ).length;
+
   return (
-    <Panel labelledBy="evaluation-runs-title">
-      <PanelHeader
-        id="evaluation-runs-title"
+    <div className="ds-stack">
+      <KpiStrip>
+        <KpiCard
+          label="Avg. latest pass rate"
+          value={error ? null : avgPassRate != null ? `${avgPassRate}%` : null}
+        />
+        <KpiCard label="Runs · 7d" value={error ? null : recentRuns.length} />
+        <KpiCard
+          label="Failing runs"
+          value={error ? null : runs.filter((run) => run.status === 'failed').length}
+        />
+        <KpiCard label="In progress" value={error ? null : inProgress} />
+      </KpiStrip>
+      <EvaluationPassRateChart trend={error ? [] : trend} />
+      <SectionCard
         title="Durable evaluation jobs"
-        badge={<StatusBadge tone="soft">{runs.length} recent</StatusBadge>}
-      />
-      <div className="panel-body stack">
+        padding="flush"
+        actions={
+          role !== 'viewer' ? (
+            <Button variant="primary" type="button" onClick={() => queue.setOpen(true)}>
+              Queue run
+            </Button>
+          ) : undefined
+        }
+      >
         {error && (
           <div className="field-error" role="alert">
             {error}
           </div>
         )}
-        {role !== 'viewer' && (
+        <DataTableV2
+          // See price-catalog-panel.tsx: remounts across the empty → loaded boundary to avoid
+          // DataTableV2's hook-count mismatch (foundation request in the build report).
+          key={runs.length > 0 ? 'loaded' : 'empty'}
+          label="Evaluation runs"
+          rows={runs}
+          columns={columns}
+          rowKey={(run) => run.id}
+          empty="No durable evaluation runs. Import a corpus version and queue a fixture-only evaluation."
+        />
+      </SectionCard>
+      <EvaluationRunCompare runs={runs} />
+      <EvaluationRunDetailDrawer
+        run={detailRun}
+        open={detailRun !== null}
+        onClose={() => setDetailRun(null)}
+      />
+      {role !== 'viewer' && (
+        <Drawer
+          open={queue.open}
+          title="Queue immutable evaluation run"
+          onClose={() => queue.setOpen(false)}
+        >
           <EvaluationRunForm
             datasets={datasets}
-            runDatasetId={runDatasetId}
-            setRunDatasetId={setRunDatasetId}
-            agents={agents}
-            agentId={agentId}
-            setAgentId={setAgentId}
-            releases={releases}
-            releaseId={releaseId}
-            setReleaseId={setReleaseId}
-            executorKind={executorKind}
-            setExecutorKind={setExecutorKind}
+            runDatasetId={queue.runDatasetId}
+            setRunDatasetId={queue.setRunDatasetId}
+            agents={queue.agents}
+            agentId={queue.agentId}
+            setAgentId={queue.setAgentId}
+            releases={queue.releases}
+            releaseId={queue.releaseId}
+            setReleaseId={queue.setReleaseId}
+            executorKind={queue.executorKind}
+            setExecutorKind={queue.setExecutorKind}
             role={role}
             providerAvailability={providerAvailability}
-            maxAttempts={maxAttempts}
-            setMaxAttempts={setMaxAttempts}
-            providerAuthorizationId={providerAuthorizationId}
-            setProviderAuthorizationId={setProviderAuthorizationId}
-            matchingAuthorizations={matchingAuthorizations}
-            busy={busy}
-            createRun={createRun}
+            maxAttempts={queue.maxAttempts}
+            setMaxAttempts={queue.setMaxAttempts}
+            providerAuthorizationId={queue.providerAuthorizationId}
+            setProviderAuthorizationId={queue.setProviderAuthorizationId}
+            matchingAuthorizations={queue.matchingAuthorizations}
+            busy={queue.busy}
+            createRun={queue.createRun}
           />
-        )}
-        <EvaluationRunEvidence
-          role={role}
-          runs={runs}
-          focusRunId={focusRunId}
-          reload={loadRuns}
-          reportError={setError}
-        />
-      </div>
-    </Panel>
+        </Drawer>
+      )}
+    </div>
   );
-}
-
-function message(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
 }

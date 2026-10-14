@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { PriceCardPanel } from './price-card-panel';
 import { PriceCatalogPanel } from './price-catalog-panel';
 
@@ -10,6 +10,16 @@ vi.mock('../../lib/api', async (original) => ({
   ...(await original<typeof import('../../lib/api')>()),
   apiRequest: request,
 }));
+// jsdom has no modal dialogs; the "Add card" drawer only needs open and close (see
+// compliance-view.test.tsx for the same polyfill).
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
+    this.open = false;
+  };
+});
 afterEach(() => {
   cleanup();
   request.mockReset();
@@ -55,9 +65,11 @@ it('lists dated catalog prices and imports the selected ones as price cards', as
   });
   render(<PriceCatalogPanel role="admin" onImported={onImported} />);
   const table = await screen.findByRole('region', { name: 'Vendor price catalog' });
-  expect(within(table).getByText('gpt-6-luna')).toBeTruthy();
+  // Vendor + model are one humanised card label now, not a bare model-only cell.
+  expect(within(table).getByText('openai · gpt-6-luna')).toBeTruthy();
   expect(within(table).getByText('Provisional')).toBeTruthy();
-  expect(within(table).getAllByText('Retrieved 2026-10-06')).toHaveLength(2);
+  // Humanised per the design brief ("retrieved 6 Oct"), not the raw ISO date string.
+  expect(within(table).getAllByText('Retrieved 6 Oct 2026')).toHaveLength(2);
   expect(screen.getByLabelText('Import twilio')).toHaveProperty('disabled', true);
   fireEvent.click(screen.getByLabelText('Import luna-output'));
   fireEvent.click(screen.getByRole('button', { name: 'Import 1 selected' }));
@@ -114,6 +126,9 @@ it('stores a card’s model and provisional flag and shows them in the list', as
   expect(within(table).getByText('gpt-6-luna')).toBeTruthy();
   expect(within(table).getByText('Any model')).toBeTruthy();
   expect(within(table).getByText('Provisional')).toBeTruthy();
+  // The create form now lives behind an "Add card" drawer (brief: forms in drawers, not above
+  // the data), so open it before interacting with its fields.
+  fireEvent.click(screen.getByRole('button', { name: 'Add card' }));
   await screen.findByRole('option', { name: /openai\.inference\.output_tokens/ });
   fireEvent.change(screen.getByLabelText('Manifest meter key'), {
     target: { value: 'openai.inference.output_tokens' },
@@ -127,8 +142,15 @@ it('stores a card’s model and provisional flag and shows them in the list', as
     ['Provenance', 'docs'],
     ['Model', ' gpt-6-luna '],
   ])
-    fireEvent.change(screen.getByLabelText(label!, { exact: false }), { target: { value } });
-  fireEvent.click(screen.getByLabelText('Provisional price', { exact: false }));
+    // Restricted to form controls: the drawer's own title ("Add immutable card version") is an
+    // `aria-label` on the `<dialog>` itself, and "Version" alone would otherwise match it too.
+    fireEvent.change(
+      screen.getByLabelText(label!, { exact: false, selector: 'input,select,textarea' }),
+      {
+        target: { value },
+      },
+    );
+  fireEvent.click(screen.getByLabelText('Provisional price', { exact: false, selector: 'input' }));
   fireEvent.click(screen.getByRole('button', { name: 'Store immutable card' }));
   await waitFor(() => expect(posted).toHaveLength(1));
   expect(posted[0]).toMatchObject({ id: 'luna-2', model: 'gpt-6-luna', provisional: true });
