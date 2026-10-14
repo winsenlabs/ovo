@@ -49,8 +49,9 @@ const RETRYABLE_ERRORS = new Set([
 
 /**
  * Reported without ending the session; the session finalises a throttled commit's partial itself.
- * [unconfirmed: the reference lists these types but not whether the server closes the socket
- * after them.]
+ * The server does close the socket after `commit_throttled` (1000 `commit_throttled`, observed
+ * live 2026-10-14), so the session pads every commit past the minimum instead
+ * (`MIN_COMMIT_AUDIO_MS`). [unconfirmed: whether it closes after the other two.]
  */
 const NOTICES = new Set(['warning', 'commit_throttled', 'insufficient_audio_activity']);
 

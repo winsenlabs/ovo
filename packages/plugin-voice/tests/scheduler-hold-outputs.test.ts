@@ -12,7 +12,7 @@ import { createFakeCarrier } from '../../conformance/src/drivers/fake-carrier.ts
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
 import { BoundedSpeechScheduler } from '../src/scheduler.ts';
 import { NativeStreamingSpeechOutput } from '../src/speech/media-output-v2.ts';
-import { driverHarness, sleep } from './turn-harness.ts';
+import { driverHarness, sleep } from '../../eval/src/replay-kit/index.ts';
 
 const session: SessionInput = {
   mode: 'agent',

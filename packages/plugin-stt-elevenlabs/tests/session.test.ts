@@ -105,12 +105,12 @@ describe('Scribe manual commit', () => {
     const sent = chunks(net);
     expect(sent.map((chunk) => [chunk.commit, chunk.audio.byteLength, chunk.sample_rate])).toEqual([
       [false, 400, 8000],
-      [true, 160, 8000],
+      [true, 2160, 8000],
       [false, 400, 8000],
     ]);
-    // The commit carries the 80 buffered bytes padded with mu-law silence to 20 ms.
+    // The commit carries the 80 buffered bytes, then mu-law silence: the commit closes 320 ms.
     expect(sent[1]!.audio.slice(0, 80)).toEqual(frame(3, 80));
-    expect(sent[1]!.audio.slice(80)).toEqual(new Uint8Array(80).fill(0xff));
+    expect(sent[1]!.audio.slice(80)).toEqual(new Uint8Array(2080).fill(0xff));
     // A repeated partial is dropped; the commit locks segment 0 and the next partial opens 1.
     expect(transcripts(events)).toEqual([
       '0:interim:mera naam',
@@ -144,8 +144,59 @@ describe('Scribe manual commit', () => {
     await session.forceEndpoint!();
     const commit = chunks(net)[1]!;
     expect(commit.commit).toBe(true);
-    expect(commit.audio).toEqual(new Uint8Array(160).fill(0xff));
+    expect(commit.audio).toEqual(new Uint8Array(2160).fill(0xff));
     await session.cancel('done');
+  });
+
+  it('never commits less audio than the provider accepts', async () => {
+    // Regression (Wave 13 bake-off, live 2026-10-14): a commit 0.2 s after the last one was
+    // refused with commit_throttled ("You need at least 0.3s of uncommitted audio") and Scribe
+    // closed the socket, ending the call's transcription.
+    const { net, session } = await open([
+      { send: sessionStarted() },
+      AUDIO,
+      COMMIT,
+      { send: committed('haan') },
+      { send: committedWords('haan') },
+      AUDIO,
+      COMMIT,
+      AUDIO,
+      COMMIT,
+    ]);
+    await session.write(frame(1, 4000));
+    await session.forceEndpoint!();
+    await session.write(frame(2, 1600));
+    await session.forceEndpoint!();
+    await session.write(frame(3, 4000));
+    await session.forceEndpoint!();
+    const closed: number[] = [];
+    let pending = 0;
+    for (const chunk of chunks(net)) {
+      pending += chunk.audio.byteLength;
+      if (!chunk.commit) continue;
+      closed.push(pending);
+      pending = 0;
+    }
+    // 500 ms closes with its usual 20 ms silent commit chunk; 200 ms is padded to 320 ms.
+    expect(closed).toEqual([4160, 2560, 4160]);
+    await session.cancel('done');
+    net.assertComplete();
+  });
+
+  it('a close after a refused commit is retryable', async () => {
+    const { session } = await open([
+      { send: sessionStarted() },
+      AUDIO,
+      { send: JSON.stringify({ message_type: 'commit_throttled', error: 'only 0.22s' }) },
+      { close: { code: 1000, reason: 'commit_throttled' } },
+    ]);
+    await session.write(frame(1, 400));
+    await Promise.resolve();
+    await expect(session.write(frame(1))).rejects.toMatchObject({
+      name: 'ElevenLabsSttError',
+      code: 1000,
+      retryable: true,
+    });
   });
 
   it('finalises a throttled commit itself so the next utterance opens a new segment', async () => {

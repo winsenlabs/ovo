@@ -11,7 +11,7 @@ import { AgentBehavior } from '../../behaviors/src/index.ts';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
 import { unclearForSearch } from '../../plugin-llm-openai/src/search-voice.ts';
 import calls from './fixtures/calls-4-7-turns.json' with { type: 'json' };
-import { driverHarness, sleep } from './turn-harness.ts';
+import { driverHarness, sleep } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Wave 12: the founder's Maya calls 4–7 (e8a43f65, 10d5ef30, 4f1a919d, 8cb76efc), every caller turn

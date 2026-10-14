@@ -4,7 +4,7 @@ import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
 import { createTurnDetector } from '../../plugin-turns/src/index.ts';
 import { TurnLatency } from '../src/engine/latency.ts';
 import { SpeechEventProjector } from '../src/engine/speech-events.ts';
-import { driverHarness, slowAgent } from './turn-harness.ts';
+import { driverHarness, slowAgent } from '../../eval/src/replay-kit/index.ts';
 
 const FILLER = 'One moment.';
 

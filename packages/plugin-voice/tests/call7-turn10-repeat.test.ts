@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Behavior, TurnSpeculation } from '@winsendotai/ovo-contracts';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
-import { driverHarness, sleep } from './turn-harness.ts';
+import { driverHarness, sleep } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Wave 12 (call 8cb76efc F2, turn 10), ms from turn 10's endpoint at 02:54:59.954 as the call's

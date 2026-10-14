@@ -1,6 +1,7 @@
 {
   "$comment": "Explicit package directory \u2192 kind map for check-architecture (\u00a713). Every current and planned package is listed; directory globs are never used, so plugin-speech-cache stays a plugin.",
   "$notes": {
+    "packages/eval": "The call-eval harness (Wave 13) replays recorded calls through the real turn detector, engine, behaviours and STT plugins, so it may import any package except apps and the console. It never ships: nothing but itself may import it (*.test.ts files stay exempt from the kind table, so plugin tests can use its replay kit).",
     "packages/ui": "\u00a713's kind table has no row for packages/ui (its `console` row names apps/console only). It is the console's shared component library, is imported only by apps/console, and is deliberately given the same `console` kind so it inherits the strictest rule in the table: no plugin-*, app, host, distribution or test-kit imports. If \u00a713 ever gains a row for it, this entry must match it."
   },
   "kinds": {
@@ -12,9 +13,12 @@
     "packages/conformance": "test-kit",
     "packages/session-host": "host",
     "packages/fixture-calls": "host",
+    "packages/eval": "eval",
     "packages/distribution": "distribution",
     "packages/plugin-voice": "vendor-plugin",
     "packages/plugin-turns": "vendor-plugin",
+    "packages/plugin-turn-detector-livekit": "kit",
+    "packages/plugin-turn-detector-smart-turn": "host",
     "packages/plugin-vad": "vendor-plugin",
     "packages/plugin-engine-livekit": "vendor-plugin",
     "packages/plugin-carrier-twilio": "vendor-plugin",

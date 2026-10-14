@@ -1,6 +1,16 @@
 import { Cap, type TurnDetectorFactory } from '@winsendotai/ovo-contracts';
 import { definePluginV2 } from '@winsendotai/ovo-sdk';
 import { DetectorConfigSchema, type DetectorConfig } from './config.ts';
+export { createModelTurnDetector, modelTurnDetectorPlugin } from './model-detector.ts';
+export {
+  ModelDetectorConfigSchema,
+  ModelGateConfigSchema,
+  type EndOfTurnModel,
+  type EndOfTurnRequest,
+  type ModelGateConfig,
+  type ModelGateStats,
+  type ModelGatedTurnController,
+} from './model-gate-config.ts';
 import { TurnController } from './controller.ts';
 
 export {

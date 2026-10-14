@@ -1,0 +1,1705 @@
+{
+  "config": "aai-multilingual",
+  "call": "call8",
+  "model": "universal-streaming-multilingual",
+  "language": "en-IN",
+  "recordedAt": "2026-10-14T18:46:05.535Z",
+  "streamedMs": 133560,
+  "sessionMs": 137049,
+  "usage": [
+    {
+      "unit": "session_seconds",
+      "quantity": "77",
+      "state": "reconciled"
+    },
+    {
+      "unit": "session_seconds",
+      "quantity": "44",
+      "state": "reconciled"
+    },
+    {
+      "unit": "session_seconds",
+      "quantity": "16",
+      "state": "reconciled"
+    }
+  ],
+  "utterances": [
+    {
+      "id": "c8-u01",
+      "startMs": 0,
+      "speechEndMs": 2721,
+      "commitsAtMs": [2841],
+      "events": [
+        {
+          "atMs": 1713,
+          "kind": "partial",
+          "segmentId": "0",
+          "text": ""
+        },
+        {
+          "atMs": 2037,
+          "kind": "partial",
+          "segmentId": "0",
+          "text": "hey"
+        },
+        {
+          "atMs": 2129,
+          "kind": "partial",
+          "segmentId": "0",
+          "text": "hey"
+        },
+        {
+          "atMs": 2515,
+          "kind": "partial",
+          "segmentId": "0",
+          "text": "hey maya"
+        },
+        {
+          "atMs": 2936,
+          "kind": "partial",
+          "segmentId": "0",
+          "text": "hey maya what"
+        },
+        {
+          "atMs": 3016,
+          "kind": "final",
+          "segmentId": "0",
+          "text": "hey maya what are"
+        },
+        {
+          "atMs": 3167,
+          "kind": "partial",
+          "segmentId": "1",
+          "text": "your"
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u02",
+      "startMs": 3321,
+      "speechEndMs": 16681,
+      "commitsAtMs": [9960, 12461, 16380],
+      "events": [
+        {
+          "atMs": 3354,
+          "kind": "partial",
+          "segmentId": "1",
+          "text": "your real"
+        },
+        {
+          "atMs": 3469,
+          "kind": "partial",
+          "segmentId": "1",
+          "text": "your real"
+        },
+        {
+          "atMs": 3556,
+          "kind": "final",
+          "segmentId": "1",
+          "text": "your real name"
+        },
+        {
+          "atMs": 4665,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": ""
+        },
+        {
+          "atMs": 5069,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing"
+        },
+        {
+          "atMs": 5712,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so"
+        },
+        {
+          "atMs": 5756,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've"
+        },
+        {
+          "atMs": 5983,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been"
+        },
+        {
+          "atMs": 6256,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking"
+        },
+        {
+          "atMs": 6344,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about"
+        },
+        {
+          "atMs": 6502,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going"
+        },
+        {
+          "atMs": 6959,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going to"
+        },
+        {
+          "atMs": 7156,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going to"
+        },
+        {
+          "atMs": 7367,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going to europe"
+        },
+        {
+          "atMs": 7454,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going to europe in"
+        },
+        {
+          "atMs": 8169,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going to europe in december"
+        },
+        {
+          "atMs": 8335,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going to europe in december to a"
+        },
+        {
+          "atMs": 8449,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going to europe in december to a couple"
+        },
+        {
+          "atMs": 8663,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going to europe in december to a couple of"
+        },
+        {
+          "atMs": 9286,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going to europe in december to a couple of places"
+        },
+        {
+          "atMs": 9441,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going to europe in december to a couple of places"
+        },
+        {
+          "atMs": 9649,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going to europe in december to a couple of places"
+        },
+        {
+          "atMs": 9895,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going to europe in december to a couple of places budapest"
+        },
+        {
+          "atMs": 10067,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going to europe in december to a couple of places budapest we"
+        },
+        {
+          "atMs": 10134,
+          "kind": "final",
+          "segmentId": "2",
+          "text": "nothing so we've been thinking about going to europe in december to a couple of places budapest we have"
+        },
+        {
+          "atMs": 10276,
+          "kind": "partial",
+          "segmentId": "3",
+          "text": ""
+        },
+        {
+          "atMs": 10416,
+          "kind": "partial",
+          "segmentId": "3",
+          "text": ""
+        },
+        {
+          "atMs": 10461,
+          "kind": "final",
+          "segmentId": "3",
+          "text": "austria"
+        },
+        {
+          "atMs": 11188,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": ""
+        },
+        {
+          "atMs": 11386,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": ""
+        },
+        {
+          "atMs": 11460,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": ""
+        },
+        {
+          "atMs": 11793,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": ""
+        },
+        {
+          "atMs": 11974,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": ""
+        },
+        {
+          "atMs": 12059,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": "hungarians"
+        },
+        {
+          "atMs": 12256,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": "hungarians"
+        },
+        {
+          "atMs": 12293,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": "hungarians"
+        },
+        {
+          "atMs": 12378,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": "hungarians"
+        },
+        {
+          "atMs": 12454,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": "hungarians"
+        },
+        {
+          "atMs": 12577,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": "hungarians agrev"
+        },
+        {
+          "atMs": 12613,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": "hungarians agrev"
+        },
+        {
+          "atMs": 12635,
+          "kind": "final",
+          "segmentId": "4",
+          "text": "hungarians agrev croati"
+        },
+        {
+          "atMs": 14453,
+          "kind": "partial",
+          "segmentId": "5",
+          "text": ""
+        },
+        {
+          "atMs": 14650,
+          "kind": "partial",
+          "segmentId": "5",
+          "text": ""
+        },
+        {
+          "atMs": 15757,
+          "kind": "partial",
+          "segmentId": "5",
+          "text": ""
+        },
+        {
+          "atMs": 15994,
+          "kind": "partial",
+          "segmentId": "5",
+          "text": ""
+        },
+        {
+          "atMs": 16267,
+          "kind": "partial",
+          "segmentId": "5",
+          "text": "balaba"
+        },
+        {
+          "atMs": 16367,
+          "kind": "partial",
+          "segmentId": "5",
+          "text": "balaba"
+        },
+        {
+          "atMs": 16554,
+          "kind": "final",
+          "segmentId": "5",
+          "text": "balaba ham"
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u03",
+      "startMs": 16860,
+      "speechEndMs": 21561,
+      "commitsAtMs": [18662, 21201, 21760],
+      "events": [
+        {
+          "atMs": 17112,
+          "kind": "partial",
+          "segmentId": "6",
+          "text": ""
+        },
+        {
+          "atMs": 17162,
+          "kind": "partial",
+          "segmentId": "6",
+          "text": ""
+        },
+        {
+          "atMs": 17495,
+          "kind": "partial",
+          "segmentId": "6",
+          "text": ""
+        },
+        {
+          "atMs": 17801,
+          "kind": "partial",
+          "segmentId": "6",
+          "text": ""
+        },
+        {
+          "atMs": 17893,
+          "kind": "partial",
+          "segmentId": "6",
+          "text": "montuck"
+        },
+        {
+          "atMs": 18684,
+          "kind": "partial",
+          "segmentId": "6",
+          "text": "montuck"
+        },
+        {
+          "atMs": 18821,
+          "kind": "partial",
+          "segmentId": "6",
+          "text": "montuck ron"
+        },
+        {
+          "atMs": 18837,
+          "kind": "final",
+          "segmentId": "6",
+          "text": "montuck ron the"
+        },
+        {
+          "atMs": 18991,
+          "kind": "partial",
+          "segmentId": "7",
+          "text": ""
+        },
+        {
+          "atMs": 19076,
+          "kind": "partial",
+          "segmentId": "7",
+          "text": "back"
+        },
+        {
+          "atMs": 19273,
+          "kind": "partial",
+          "segmentId": "7",
+          "text": "back to"
+        },
+        {
+          "atMs": 19360,
+          "kind": "partial",
+          "segmentId": "7",
+          "text": "back to"
+        },
+        {
+          "atMs": 19596,
+          "kind": "partial",
+          "segmentId": "7",
+          "text": "back to"
+        },
+        {
+          "atMs": 19958,
+          "kind": "partial",
+          "segmentId": "7",
+          "text": "back to gennai"
+        },
+        {
+          "atMs": 20461,
+          "kind": "partial",
+          "segmentId": "7",
+          "text": "back to gennai so"
+        },
+        {
+          "atMs": 20597,
+          "kind": "partial",
+          "segmentId": "7",
+          "text": "back to gennai so"
+        },
+        {
+          "atMs": 20685,
+          "kind": "partial",
+          "segmentId": "7",
+          "text": "back to gennai so round"
+        },
+        {
+          "atMs": 20774,
+          "kind": "partial",
+          "segmentId": "7",
+          "text": "back to gennai so round"
+        },
+        {
+          "atMs": 20824,
+          "kind": "partial",
+          "segmentId": "7",
+          "text": "back to gennai so round trip"
+        },
+        {
+          "atMs": 21168,
+          "kind": "partial",
+          "segmentId": "7",
+          "text": "back to gennai so round trip to"
+        },
+        {
+          "atMs": 21211,
+          "kind": "partial",
+          "segmentId": "7",
+          "text": "back to gennai so round trip to"
+        },
+        {
+          "atMs": 21258,
+          "kind": "partial",
+          "segmentId": "7",
+          "text": "back to gennai so round trip to"
+        },
+        {
+          "atMs": 21376,
+          "kind": "final",
+          "segmentId": "7",
+          "text": "back to gennai so round trip to frankfurt"
+        },
+        {
+          "atMs": 21638,
+          "kind": "partial",
+          "segmentId": "8",
+          "text": ""
+        },
+        {
+          "atMs": 21838,
+          "kind": "partial",
+          "segmentId": "8",
+          "text": "is"
+        },
+        {
+          "atMs": 21885,
+          "kind": "partial",
+          "segmentId": "8",
+          "text": "is what"
+        },
+        {
+          "atMs": 21930,
+          "kind": "partial",
+          "segmentId": "8",
+          "text": "is what"
+        },
+        {
+          "atMs": 21934,
+          "kind": "final",
+          "segmentId": "8",
+          "text": "is what we're"
+        },
+        {
+          "atMs": 21975,
+          "kind": "partial",
+          "segmentId": "9",
+          "text": ""
+        },
+        {
+          "atMs": 22096,
+          "kind": "final",
+          "segmentId": "9",
+          "text": "thinking"
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u04",
+      "startMs": 22401,
+      "speechEndMs": 26282,
+      "commitsAtMs": [23541, 24819, 26141],
+      "events": [
+        {
+          "atMs": 23716,
+          "kind": "final",
+          "segmentId": "10",
+          "text": ""
+        },
+        {
+          "atMs": 23936,
+          "kind": "partial",
+          "segmentId": "11",
+          "text": ""
+        },
+        {
+          "atMs": 23975,
+          "kind": "partial",
+          "segmentId": "11",
+          "text": ""
+        },
+        {
+          "atMs": 24857,
+          "kind": "partial",
+          "segmentId": "11",
+          "text": "december"
+        },
+        {
+          "atMs": 24948,
+          "kind": "partial",
+          "segmentId": "11",
+          "text": "december"
+        },
+        {
+          "atMs": 24993,
+          "kind": "final",
+          "segmentId": "11",
+          "text": "december 22"
+        },
+        {
+          "atMs": 25835,
+          "kind": "partial",
+          "segmentId": "12",
+          "text": ""
+        },
+        {
+          "atMs": 26041,
+          "kind": "partial",
+          "segmentId": "12",
+          "text": "to"
+        },
+        {
+          "atMs": 26315,
+          "kind": "final",
+          "segmentId": "12",
+          "text": "to january"
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u05",
+      "startMs": 26621,
+      "speechEndMs": 27161,
+      "commitsAtMs": [27361],
+      "events": [
+        {
+          "atMs": 26744,
+          "kind": "partial",
+          "segmentId": "13",
+          "text": ""
+        },
+        {
+          "atMs": 26944,
+          "kind": "final",
+          "segmentId": "13",
+          "text": "5"
+        },
+        {
+          "atMs": 27535,
+          "kind": "final",
+          "segmentId": "14",
+          "text": ""
+        },
+        {
+          "atMs": 28080,
+          "kind": "partial",
+          "segmentId": "15",
+          "text": ""
+        },
+        {
+          "atMs": 28128,
+          "kind": "final",
+          "segmentId": "15",
+          "text": "yes"
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u06",
+      "startMs": 28442,
+      "speechEndMs": 31482,
+      "commitsAtMs": [31420],
+      "events": [
+        {
+          "atMs": 31594,
+          "kind": "final",
+          "segmentId": "16",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u07",
+      "startMs": 34000,
+      "speechEndMs": 37280,
+      "commitsAtMs": [36540, 37481],
+      "events": [
+        {
+          "atMs": 35470,
+          "kind": "partial",
+          "segmentId": "17",
+          "text": ""
+        },
+        {
+          "atMs": 35626,
+          "kind": "partial",
+          "segmentId": "17",
+          "text": ""
+        },
+        {
+          "atMs": 35876,
+          "kind": "partial",
+          "segmentId": "17",
+          "text": "yeah"
+        },
+        {
+          "atMs": 36046,
+          "kind": "partial",
+          "segmentId": "17",
+          "text": "yeah that's"
+        },
+        {
+          "atMs": 36169,
+          "kind": "partial",
+          "segmentId": "17",
+          "text": "yeah that's"
+        },
+        {
+          "atMs": 36648,
+          "kind": "partial",
+          "segmentId": "17",
+          "text": "yeah that's right"
+        },
+        {
+          "atMs": 36714,
+          "kind": "final",
+          "segmentId": "17",
+          "text": "yeah that's right what"
+        },
+        {
+          "atMs": 36772,
+          "kind": "partial",
+          "segmentId": "18",
+          "text": ""
+        },
+        {
+          "atMs": 37149,
+          "kind": "partial",
+          "segmentId": "18",
+          "text": "is"
+        },
+        {
+          "atMs": 37236,
+          "kind": "partial",
+          "segmentId": "18",
+          "text": "is"
+        },
+        {
+          "atMs": 37365,
+          "kind": "partial",
+          "segmentId": "18",
+          "text": "is"
+        },
+        {
+          "atMs": 37532,
+          "kind": "partial",
+          "segmentId": "18",
+          "text": "is aggreth"
+        },
+        {
+          "atMs": 37659,
+          "kind": "final",
+          "segmentId": "18",
+          "text": "is aggreth special"
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u08",
+      "startMs": 37961,
+      "speechEndMs": 39961,
+      "commitsAtMs": [40041],
+      "events": [
+        {
+          "atMs": 38311,
+          "kind": "partial",
+          "segmentId": "19",
+          "text": ""
+        },
+        {
+          "atMs": 38361,
+          "kind": "final",
+          "segmentId": "19",
+          "text": "thought"
+        },
+        {
+          "atMs": 39285,
+          "kind": "partial",
+          "segmentId": "20",
+          "text": ""
+        },
+        {
+          "atMs": 39499,
+          "kind": "partial",
+          "segmentId": "20",
+          "text": ""
+        },
+        {
+          "atMs": 39539,
+          "kind": "partial",
+          "segmentId": "20",
+          "text": "yeah"
+        },
+        {
+          "atMs": 39856,
+          "kind": "partial",
+          "segmentId": "20",
+          "text": "yeah but"
+        },
+        {
+          "atMs": 39899,
+          "kind": "partial",
+          "segmentId": "20",
+          "text": "yeah but it"
+        },
+        {
+          "atMs": 40157,
+          "kind": "partial",
+          "segmentId": "20",
+          "text": "yeah but it is"
+        },
+        {
+          "atMs": 40216,
+          "kind": "final",
+          "segmentId": "20",
+          "text": "yeah but it is answer"
+        },
+        {
+          "atMs": 40332,
+          "kind": "partial",
+          "segmentId": "21",
+          "text": ""
+        },
+        {
+          "atMs": 40370,
+          "kind": "partial",
+          "segmentId": "21",
+          "text": "my"
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u09",
+      "startMs": 40519,
+      "speechEndMs": 41801,
+      "commitsAtMs": [41901],
+      "events": [
+        {
+          "atMs": 40573,
+          "kind": "final",
+          "segmentId": "21",
+          "text": "my question"
+        },
+        {
+          "atMs": 42029,
+          "kind": "partial",
+          "segmentId": "22",
+          "text": ""
+        },
+        {
+          "atMs": 42076,
+          "kind": "final",
+          "segmentId": "22",
+          "text": "what"
+        },
+        {
+          "atMs": 42227,
+          "kind": "partial",
+          "segmentId": "23",
+          "text": ""
+        },
+        {
+          "atMs": 42305,
+          "kind": "partial",
+          "segmentId": "23",
+          "text": "s"
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u10",
+      "startMs": 42382,
+      "speechEndMs": 46002,
+      "commitsAtMs": [45700],
+      "events": [
+        {
+          "atMs": 42426,
+          "kind": "partial",
+          "segmentId": "23",
+          "text": "s my"
+        },
+        {
+          "atMs": 42507,
+          "kind": "final",
+          "segmentId": "23",
+          "text": "s my name"
+        },
+        {
+          "atMs": 45874,
+          "kind": "final",
+          "segmentId": "24",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u11",
+      "startMs": 48520,
+      "speechEndMs": 50981,
+      "commitsAtMs": [51102],
+      "events": [
+        {
+          "atMs": 50141,
+          "kind": "partial",
+          "segmentId": "25",
+          "text": ""
+        },
+        {
+          "atMs": 50229,
+          "kind": "partial",
+          "segmentId": "25",
+          "text": ""
+        },
+        {
+          "atMs": 50319,
+          "kind": "partial",
+          "segmentId": "25",
+          "text": ""
+        },
+        {
+          "atMs": 50408,
+          "kind": "partial",
+          "segmentId": "25",
+          "text": "mira"
+        },
+        {
+          "atMs": 50557,
+          "kind": "partial",
+          "segmentId": "25",
+          "text": "mira i'm"
+        },
+        {
+          "atMs": 50690,
+          "kind": "partial",
+          "segmentId": "25",
+          "text": "mira i'm at"
+        },
+        {
+          "atMs": 50829,
+          "kind": "partial",
+          "segmentId": "25",
+          "text": "mira i'm at the"
+        },
+        {
+          "atMs": 51108,
+          "kind": "partial",
+          "segmentId": "25",
+          "text": "mira i'm at the edges"
+        },
+        {
+          "atMs": 51275,
+          "kind": "final",
+          "segmentId": "25",
+          "text": "mira i'm at the edges of"
+        },
+        {
+          "atMs": 51432,
+          "kind": "partial",
+          "segmentId": "26",
+          "text": ""
+        },
+        {
+          "atMs": 51521,
+          "kind": "partial",
+          "segmentId": "26",
+          "text": ""
+        },
+        {
+          "atMs": 51561,
+          "kind": "partial",
+          "segmentId": "26",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u12",
+      "startMs": 51581,
+      "speechEndMs": 54721,
+      "commitsAtMs": [53282, 54822],
+      "events": [
+        {
+          "atMs": 51778,
+          "kind": "partial",
+          "segmentId": "26",
+          "text": ""
+        },
+        {
+          "atMs": 51825,
+          "kind": "final",
+          "segmentId": "26",
+          "text": "kalamka"
+        },
+        {
+          "atMs": 53095,
+          "kind": "partial",
+          "segmentId": "27",
+          "text": ""
+        },
+        {
+          "atMs": 53208,
+          "kind": "partial",
+          "segmentId": "27",
+          "text": ""
+        },
+        {
+          "atMs": 53456,
+          "kind": "final",
+          "segmentId": "27",
+          "text": "member"
+        },
+        {
+          "atMs": 53607,
+          "kind": "partial",
+          "segmentId": "28",
+          "text": ""
+        },
+        {
+          "atMs": 53893,
+          "kind": "partial",
+          "segmentId": "28",
+          "text": "of"
+        },
+        {
+          "atMs": 54079,
+          "kind": "partial",
+          "segmentId": "28",
+          "text": "of the"
+        },
+        {
+          "atMs": 54500,
+          "kind": "partial",
+          "segmentId": "28",
+          "text": "of the wrong"
+        },
+        {
+          "atMs": 54788,
+          "kind": "partial",
+          "segmentId": "28",
+          "text": "of the wrong key"
+        },
+        {
+          "atMs": 54826,
+          "kind": "partial",
+          "segmentId": "28",
+          "text": "of the wrong key"
+        },
+        {
+          "atMs": 54902,
+          "kind": "partial",
+          "segmentId": "28",
+          "text": "of the wrong key"
+        },
+        {
+          "atMs": 54996,
+          "kind": "final",
+          "segmentId": "28",
+          "text": "of the wrong key meraram"
+        },
+        {
+          "atMs": 55228,
+          "kind": "partial",
+          "segmentId": "29",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u13",
+      "startMs": 55300,
+      "speechEndMs": 56301,
+      "commitsAtMs": [56401],
+      "events": [
+        {
+          "atMs": 55538,
+          "kind": "partial",
+          "segmentId": "29",
+          "text": ""
+        },
+        {
+          "atMs": 55613,
+          "kind": "final",
+          "segmentId": "29",
+          "text": "headages"
+        },
+        {
+          "atMs": 56575,
+          "kind": "final",
+          "segmentId": "30",
+          "text": ""
+        },
+        {
+          "atMs": 56895,
+          "kind": "partial",
+          "segmentId": "31",
+          "text": ""
+        },
+        {
+          "atMs": 57042,
+          "kind": "partial",
+          "segmentId": "31",
+          "text": ""
+        },
+        {
+          "atMs": 57121,
+          "kind": "partial",
+          "segmentId": "31",
+          "text": ""
+        },
+        {
+          "atMs": 57200,
+          "kind": "final",
+          "segmentId": "31",
+          "text": "upcorn"
+        },
+        {
+          "atMs": 57401,
+          "kind": "partial",
+          "segmentId": "32",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u14",
+      "startMs": 57501,
+      "speechEndMs": 60201,
+      "commitsAtMs": [58402, 60341],
+      "events": [
+        {
+          "atMs": 57519,
+          "kind": "final",
+          "segmentId": "32",
+          "text": "off"
+        },
+        {
+          "atMs": 58576,
+          "kind": "final",
+          "segmentId": "33",
+          "text": ""
+        },
+        {
+          "atMs": 59199,
+          "kind": "partial",
+          "segmentId": "34",
+          "text": ""
+        },
+        {
+          "atMs": 59336,
+          "kind": "partial",
+          "segmentId": "34",
+          "text": ""
+        },
+        {
+          "atMs": 59407,
+          "kind": "final",
+          "segmentId": "34",
+          "text": "correct"
+        },
+        {
+          "atMs": 60515,
+          "kind": "final",
+          "segmentId": "35",
+          "text": ""
+        },
+        {
+          "atMs": 60529,
+          "kind": "partial",
+          "segmentId": "36",
+          "text": ""
+        },
+        {
+          "atMs": 60683,
+          "kind": "partial",
+          "segmentId": "36",
+          "text": "yes"
+        },
+        {
+          "atMs": 61032,
+          "kind": "final",
+          "segmentId": "36",
+          "text": "yes i"
+        },
+        {
+          "atMs": 61154,
+          "kind": "partial",
+          "segmentId": "37",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u15",
+      "startMs": 61342,
+      "speechEndMs": 66122,
+      "commitsAtMs": [63161, 66002],
+      "events": [
+        {
+          "atMs": 61352,
+          "kind": "partial",
+          "segmentId": "37",
+          "text": ""
+        },
+        {
+          "atMs": 61430,
+          "kind": "final",
+          "segmentId": "37",
+          "text": "butter"
+        },
+        {
+          "atMs": 62636,
+          "kind": "partial",
+          "segmentId": "38",
+          "text": ""
+        },
+        {
+          "atMs": 63076,
+          "kind": "final",
+          "segmentId": "38",
+          "text": "so"
+        },
+        {
+          "atMs": 63336,
+          "kind": "final",
+          "segmentId": "39",
+          "text": ""
+        },
+        {
+          "atMs": 64162,
+          "kind": "partial",
+          "segmentId": "40",
+          "text": ""
+        },
+        {
+          "atMs": 64372,
+          "kind": "partial",
+          "segmentId": "40",
+          "text": ""
+        },
+        {
+          "atMs": 64413,
+          "kind": "partial",
+          "segmentId": "40",
+          "text": "what's"
+        },
+        {
+          "atMs": 64615,
+          "kind": "partial",
+          "segmentId": "40",
+          "text": "what's the"
+        },
+        {
+          "atMs": 64990,
+          "kind": "partial",
+          "segmentId": "40",
+          "text": "what's the deal"
+        },
+        {
+          "atMs": 65180,
+          "kind": "partial",
+          "segmentId": "40",
+          "text": "what's the deal with"
+        },
+        {
+          "atMs": 65258,
+          "kind": "partial",
+          "segmentId": "40",
+          "text": "what's the deal with"
+        },
+        {
+          "atMs": 65467,
+          "kind": "partial",
+          "segmentId": "40",
+          "text": "what's the deal with you"
+        },
+        {
+          "atMs": 65508,
+          "kind": "partial",
+          "segmentId": "40",
+          "text": "what's the deal with you why are"
+        },
+        {
+          "atMs": 65787,
+          "kind": "partial",
+          "segmentId": "40",
+          "text": "what's the deal with you why are you"
+        },
+        {
+          "atMs": 66148,
+          "kind": "partial",
+          "segmentId": "40",
+          "text": "what's the deal with you why are you single"
+        },
+        {
+          "atMs": 66176,
+          "kind": "final",
+          "segmentId": "40",
+          "text": "what's the deal with you why are you single or"
+        },
+        {
+          "atMs": 66223,
+          "kind": "partial",
+          "segmentId": "41",
+          "text": ""
+        },
+        {
+          "atMs": 66417,
+          "kind": "partial",
+          "segmentId": "41",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u16",
+      "startMs": 66482,
+      "speechEndMs": 68842,
+      "commitsAtMs": [68042, 68781],
+      "events": [
+        {
+          "atMs": 66505,
+          "kind": "final",
+          "segmentId": "41",
+          "text": "married"
+        },
+        {
+          "atMs": 67400,
+          "kind": "partial",
+          "segmentId": "42",
+          "text": ""
+        },
+        {
+          "atMs": 67920,
+          "kind": "partial",
+          "segmentId": "42",
+          "text": "or"
+        },
+        {
+          "atMs": 67959,
+          "kind": "partial",
+          "segmentId": "42",
+          "text": "or do"
+        },
+        {
+          "atMs": 67999,
+          "kind": "partial",
+          "segmentId": "42",
+          "text": "or do you"
+        },
+        {
+          "atMs": 68216,
+          "kind": "final",
+          "segmentId": "42",
+          "text": "or do you have"
+        },
+        {
+          "atMs": 68366,
+          "kind": "partial",
+          "segmentId": "43",
+          "text": ""
+        },
+        {
+          "atMs": 68955,
+          "kind": "final",
+          "segmentId": "43",
+          "text": "children"
+        },
+        {
+          "atMs": 69111,
+          "kind": "partial",
+          "segmentId": "44",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u17",
+      "startMs": 69262,
+      "speechEndMs": 72081,
+      "commitsAtMs": [72141],
+      "events": [
+        {
+          "atMs": 69297,
+          "kind": "partial",
+          "segmentId": "44",
+          "text": "what"
+        },
+        {
+          "atMs": 69419,
+          "kind": "partial",
+          "segmentId": "44",
+          "text": "what is"
+        },
+        {
+          "atMs": 69696,
+          "kind": "partial",
+          "segmentId": "44",
+          "text": "what is"
+        },
+        {
+          "atMs": 69783,
+          "kind": "partial",
+          "segmentId": "44",
+          "text": "what is it"
+        },
+        {
+          "atMs": 69817,
+          "kind": "final",
+          "segmentId": "44",
+          "text": "what is it work"
+        },
+        {
+          "atMs": 71304,
+          "kind": "partial",
+          "segmentId": "45",
+          "text": ""
+        },
+        {
+          "atMs": 71346,
+          "kind": "partial",
+          "segmentId": "45",
+          "text": ""
+        },
+        {
+          "atMs": 71471,
+          "kind": "partial",
+          "segmentId": "45",
+          "text": "way"
+        },
+        {
+          "atMs": 71824,
+          "kind": "partial",
+          "segmentId": "45",
+          "text": "way why"
+        },
+        {
+          "atMs": 71981,
+          "kind": "partial",
+          "segmentId": "45",
+          "text": "way why should"
+        },
+        {
+          "atMs": 72315,
+          "kind": "final",
+          "segmentId": "45",
+          "text": "way why should i"
+        },
+        {
+          "atMs": 72398,
+          "kind": "partial",
+          "segmentId": "46",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-u18",
+      "startMs": 72622,
+      "speechEndMs": 75061,
+      "commitsAtMs": [75101],
+      "events": [
+        {
+          "atMs": 72631,
+          "kind": "final",
+          "segmentId": "46",
+          "text": "children"
+        },
+        {
+          "atMs": 72757,
+          "kind": "partial",
+          "segmentId": "47",
+          "text": ""
+        },
+        {
+          "atMs": 72802,
+          "kind": "final",
+          "segmentId": "47",
+          "text": "no"
+        },
+        {
+          "atMs": 74231,
+          "kind": "partial",
+          "segmentId": "48",
+          "text": ""
+        },
+        {
+          "atMs": 74430,
+          "kind": "partial",
+          "segmentId": "48",
+          "text": ""
+        },
+        {
+          "atMs": 74579,
+          "kind": "partial",
+          "segmentId": "48",
+          "text": "no"
+        },
+        {
+          "atMs": 74957,
+          "kind": "partial",
+          "segmentId": "48",
+          "text": "no it's"
+        },
+        {
+          "atMs": 75036,
+          "kind": "partial",
+          "segmentId": "48",
+          "text": "no it's"
+        },
+        {
+          "atMs": 75149,
+          "kind": "partial",
+          "segmentId": "48",
+          "text": "no it's okay"
+        },
+        {
+          "atMs": 75276,
+          "kind": "final",
+          "segmentId": "48",
+          "text": "no it's okay you"
+        },
+        {
+          "atMs": 75410,
+          "kind": "partial",
+          "segmentId": "49",
+          "text": ""
+        },
+        {
+          "atMs": 75562,
+          "kind": "partial",
+          "segmentId": "49",
+          "text": "leave"
+        },
+        {
+          "atMs": 75603,
+          "kind": "final",
+          "segmentId": "49",
+          "text": "leave it"
+        },
+        {
+          "atMs": 75814,
+          "kind": "partial",
+          "segmentId": "50",
+          "text": ""
+        },
+        {
+          "atMs": 75852,
+          "kind": "final",
+          "segmentId": "50",
+          "text": "there"
+        },
+        {
+          "atMs": 76452,
+          "kind": "final",
+          "segmentId": "51",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-n01",
+      "startMs": 0,
+      "speechEndMs": 5821,
+      "commitsAtMs": [6020],
+      "events": [
+        {
+          "atMs": 6193,
+          "kind": "final",
+          "segmentId": "0",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-n03",
+      "startMs": 12262,
+      "speechEndMs": 16222,
+      "commitsAtMs": [16421],
+      "events": [
+        {
+          "atMs": 16596,
+          "kind": "final",
+          "segmentId": "2",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-n06",
+      "startMs": 30562,
+      "speechEndMs": 34501,
+      "commitsAtMs": [34700],
+      "events": [
+        {
+          "atMs": 34874,
+          "kind": "final",
+          "segmentId": "7",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-n07",
+      "startMs": 37002,
+      "speechEndMs": 40322,
+      "commitsAtMs": [40521],
+      "events": [
+        {
+          "atMs": 40694,
+          "kind": "final",
+          "segmentId": "8",
+          "text": ""
+        },
+        {
+          "atMs": 43671,
+          "kind": "final",
+          "segmentId": "9",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-n02",
+      "startMs": 0,
+      "speechEndMs": 1221,
+      "commitsAtMs": [1420],
+      "events": [
+        {
+          "atMs": 1592,
+          "kind": "final",
+          "segmentId": "0",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-n04",
+      "startMs": 3742,
+      "speechEndMs": 5881,
+      "commitsAtMs": [3780, 6080],
+      "events": [
+        {
+          "atMs": 3949,
+          "kind": "final",
+          "segmentId": "1",
+          "text": ""
+        },
+        {
+          "atMs": 6249,
+          "kind": "final",
+          "segmentId": "2",
+          "text": ""
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-n05",
+      "startMs": 8402,
+      "speechEndMs": 12641,
+      "commitsAtMs": [12841],
+      "events": [
+        {
+          "atMs": 13010,
+          "kind": "final",
+          "segmentId": "3",
+          "text": ""
+        },
+        {
+          "atMs": 15870,
+          "kind": "final",
+          "segmentId": "4",
+          "text": ""
+        }
+      ],
+      "languages": []
+    }
+  ]
+}

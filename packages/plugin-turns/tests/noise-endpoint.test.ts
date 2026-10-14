@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FakeClock } from '@winsendotai/ovo-conformance/drivers';
-import { LIVE, MAYA, replay } from './replay.ts';
+import { LIVE, MAYA, replay } from '../../eval/src/replay-kit/index.ts';
 
 describe('call-3 #6: no endpoint held for seconds', () => {
   /**

@@ -1,0 +1,649 @@
+{
+  "config": "scribe-en",
+  "call": "call8",
+  "model": "scribe_v2_realtime",
+  "language": "en-IN",
+  "recordedAt": "2026-10-14T18:45:03.408Z",
+  "streamedMs": 130480,
+  "sessionMs": 131471,
+  "usage": [
+    {
+      "unit": "audio_seconds",
+      "quantity": "74.22",
+      "state": "estimated"
+    },
+    {
+      "unit": "audio_seconds",
+      "quantity": "41.14",
+      "state": "estimated"
+    },
+    {
+      "unit": "audio_seconds",
+      "quantity": "15.12",
+      "state": "estimated"
+    }
+  ],
+  "utterances": [
+    {
+      "id": "c8-u01",
+      "startMs": 0,
+      "speechEndMs": 2720,
+      "commitsAtMs": [2842],
+      "events": [
+        {
+          "atMs": 2416,
+          "kind": "partial",
+          "segmentId": "0",
+          "text": "Hey, Maya."
+        },
+        {
+          "atMs": 2416,
+          "kind": "partial",
+          "segmentId": "0",
+          "text": "Hey, Maya. How, what's up?"
+        },
+        {
+          "atMs": 3231,
+          "kind": "final",
+          "segmentId": "0",
+          "text": "Hey, Maya. What's your real name?"
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c8-u02",
+      "startMs": 3542,
+      "speechEndMs": 16902,
+      "commitsAtMs": [10180, 12681, 16602],
+      "events": [
+        {
+          "atMs": 5234,
+          "kind": "partial",
+          "segmentId": "1",
+          "text": "Nothing so,"
+        },
+        {
+          "atMs": 6140,
+          "kind": "partial",
+          "segmentId": "1",
+          "text": "Nothing. So, uh, we've been thinking"
+        },
+        {
+          "atMs": 7247,
+          "kind": "partial",
+          "segmentId": "1",
+          "text": "Nothing. So, uh, we've been thinking about going to Europe."
+        },
+        {
+          "atMs": 8053,
+          "kind": "partial",
+          "segmentId": "1",
+          "text": "Nothing. So, uh, we've been thinking about going to Europe in December to"
+        },
+        {
+          "atMs": 9059,
+          "kind": "partial",
+          "segmentId": "1",
+          "text": "Nothing. So, uh, we've been thinking about going to Europe in December to a couple of places."
+        },
+        {
+          "atMs": 10068,
+          "kind": "partial",
+          "segmentId": "1",
+          "text": "Nothing. So, uh, we've been thinking about going to Europe in December to a couple of places, Budapest, Vienna"
+        },
+        {
+          "atMs": 10521,
+          "kind": "final",
+          "segmentId": "1",
+          "text": "Nothing. So, uh, we've been thinking about going to Europe in December to a couple of places, Budapest, Vienna, Austria."
+        },
+        {
+          "atMs": 11579,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "Hungary."
+        },
+        {
+          "atMs": 12607,
+          "kind": "partial",
+          "segmentId": "2",
+          "text": "Hungary, Zagreb, Croatia."
+        },
+        {
+          "atMs": 12997,
+          "kind": "final",
+          "segmentId": "2",
+          "text": "Hungary, Zagreb, Croatia."
+        },
+        {
+          "atMs": 14179,
+          "kind": "partial",
+          "segmentId": "3",
+          "text": "Um-"
+        },
+        {
+          "atMs": 15086,
+          "kind": "partial",
+          "segmentId": "3",
+          "text": "Uh, but, uh, what I'm-"
+        },
+        {
+          "atMs": 16123,
+          "kind": "partial",
+          "segmentId": "3",
+          "text": "Uh, but, uh, what about, uh, about how-"
+        },
+        {
+          "atMs": 16983,
+          "kind": "final",
+          "segmentId": "3",
+          "text": "Uh,"
+        }
+      ],
+      "languages": ["en", "en", "en"]
+    },
+    {
+      "id": "c8-u03",
+      "startMs": 17301,
+      "speechEndMs": 22002,
+      "commitsAtMs": [19101, 21641, 22205],
+      "events": [
+        {
+          "atMs": 18135,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": "hello?"
+        },
+        {
+          "atMs": 19043,
+          "kind": "partial",
+          "segmentId": "4",
+          "text": "huh? It's January"
+        },
+        {
+          "atMs": 19491,
+          "kind": "final",
+          "segmentId": "4",
+          "text": "yes, January back to Chennai."
+        },
+        {
+          "atMs": 20556,
+          "kind": "partial",
+          "segmentId": "5",
+          "text": "So,"
+        },
+        {
+          "atMs": 21462,
+          "kind": "partial",
+          "segmentId": "5",
+          "text": "So round trip to Frankfurt."
+        },
+        {
+          "atMs": 22021,
+          "kind": "final",
+          "segmentId": "5",
+          "text": "So round trip to Frankfurt is what we're thinking."
+        },
+        {
+          "atMs": 22559,
+          "kind": "final",
+          "segmentId": "6",
+          "text": "Okay."
+        }
+      ],
+      "languages": ["en", "en", "en"]
+    },
+    {
+      "id": "c8-u04",
+      "startMs": 22860,
+      "speechEndMs": 26741,
+      "commitsAtMs": [24000, 25280, 26600],
+      "events": [
+        {
+          "atMs": 24361,
+          "kind": "final",
+          "segmentId": "7",
+          "text": "December."
+        },
+        {
+          "atMs": 25388,
+          "kind": "partial",
+          "segmentId": "8",
+          "text": "Blinging"
+        },
+        {
+          "atMs": 25625,
+          "kind": "final",
+          "segmentId": "8",
+          "text": "22nd."
+        },
+        {
+          "atMs": 26697,
+          "kind": "partial",
+          "segmentId": "9",
+          "text": "22 January."
+        },
+        {
+          "atMs": 26985,
+          "kind": "final",
+          "segmentId": "9",
+          "text": "Till January 5th."
+        }
+      ],
+      "languages": ["en", "en", "en"]
+    },
+    {
+      "id": "c8-u05",
+      "startMs": 27301,
+      "speechEndMs": 27842,
+      "commitsAtMs": [28041],
+      "events": [
+        {
+          "atMs": 28368,
+          "kind": "final",
+          "segmentId": "10",
+          "text": "Yes."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c8-u06",
+      "startMs": 28682,
+      "speechEndMs": 31720,
+      "commitsAtMs": [31660],
+      "events": [
+        {
+          "atMs": 30399,
+          "kind": "partial",
+          "segmentId": "11",
+          "text": "Yeah."
+        },
+        {
+          "atMs": 31405,
+          "kind": "partial",
+          "segmentId": "11",
+          "text": "Yeah. Mmm."
+        },
+        {
+          "atMs": 31967,
+          "kind": "final",
+          "segmentId": "11",
+          "text": "Yeah. Mmm."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c8-u07",
+      "startMs": 32280,
+      "speechEndMs": 35561,
+      "commitsAtMs": [34820, 35761],
+      "events": [
+        {
+          "atMs": 34026,
+          "kind": "partial",
+          "segmentId": "12",
+          "text": "Yeah, that's right."
+        },
+        {
+          "atMs": 35036,
+          "kind": "partial",
+          "segmentId": "12",
+          "text": "Yeah, that's right. What is the"
+        },
+        {
+          "atMs": 35235,
+          "kind": "final",
+          "segmentId": "12",
+          "text": "Yeah, that's right. What is Zagreb's-"
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c8-u08",
+      "startMs": 38081,
+      "speechEndMs": 40080,
+      "commitsAtMs": [40162],
+      "events": [
+        {
+          "atMs": 40165,
+          "kind": "partial",
+          "segmentId": "14",
+          "text": "Yeah, but it is, um,"
+        },
+        {
+          "atMs": 40522,
+          "kind": "final",
+          "segmentId": "14",
+          "text": "Yeah, but you didn't answer my question."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c8-u09",
+      "startMs": 40841,
+      "speechEndMs": 42120,
+      "commitsAtMs": [42220],
+      "events": [
+        {
+          "atMs": 42480,
+          "kind": "partial",
+          "segmentId": "15",
+          "text": "What's my name?"
+        },
+        {
+          "atMs": 42531,
+          "kind": "final",
+          "segmentId": "15",
+          "text": "What's my name?"
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c8-u10",
+      "startMs": 42842,
+      "speechEndMs": 46462,
+      "commitsAtMs": [46161],
+      "events": [
+        {
+          "atMs": 44594,
+          "kind": "partial",
+          "segmentId": "16",
+          "text": "Maya."
+        },
+        {
+          "atMs": 45585,
+          "kind": "partial",
+          "segmentId": "16",
+          "text": "Maya Mahaw"
+        },
+        {
+          "atMs": 46512,
+          "kind": "final",
+          "segmentId": "16",
+          "text": "Maya, Maya, Maya, Maya, Maya, Maya, Maya, Maya."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c8-u11",
+      "startMs": 46822,
+      "speechEndMs": 49281,
+      "commitsAtMs": [49401],
+      "events": [
+        {
+          "atMs": 48503,
+          "kind": "partial",
+          "segmentId": "17",
+          "text": "मेरा नाम है तेजस्वी।"
+        },
+        {
+          "atMs": 49510,
+          "kind": "partial",
+          "segmentId": "17",
+          "text": "मेरा नाम है तेज। इसका नाम क्या है?"
+        },
+        {
+          "atMs": 49727,
+          "kind": "final",
+          "segmentId": "17",
+          "text": "मेरा नाम है तेज। इसका नाम क्या है?"
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c8-u12",
+      "startMs": 50042,
+      "speechEndMs": 53181,
+      "commitsAtMs": [51742, 53281],
+      "events": [
+        {
+          "atMs": 51823,
+          "kind": "partial",
+          "segmentId": "18",
+          "text": "मैं मैं बता रहा हूँ।"
+        },
+        {
+          "atMs": 52106,
+          "kind": "final",
+          "segmentId": "18",
+          "text": "मैं मैं बता दे रहा हूँ।"
+        },
+        {
+          "atMs": 53234,
+          "kind": "partial",
+          "segmentId": "19",
+          "text": "ठीक है, मेरा नाम शिवम है।"
+        },
+        {
+          "atMs": 53660,
+          "kind": "final",
+          "segmentId": "19",
+          "text": "ठीक है, मेरा नाम है तेजस।"
+        }
+      ],
+      "languages": ["en", "en"]
+    },
+    {
+      "id": "c8-u13",
+      "startMs": 53962,
+      "speechEndMs": 54960,
+      "commitsAtMs": [55059],
+      "events": [
+        {
+          "atMs": 55405,
+          "kind": "final",
+          "segmentId": "20",
+          "text": "आप कौन हो?"
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c8-u14",
+      "startMs": 55723,
+      "speechEndMs": 58422,
+      "commitsAtMs": [56620, 58562],
+      "events": [
+        {
+          "atMs": 56953,
+          "kind": "final",
+          "segmentId": "21",
+          "text": "Fairly."
+        },
+        {
+          "atMs": 58897,
+          "kind": "final",
+          "segmentId": "22",
+          "text": "Yes, I need that."
+        }
+      ],
+      "languages": ["en", "en"]
+    },
+    {
+      "id": "c8-u15",
+      "startMs": 59200,
+      "speechEndMs": 63982,
+      "commitsAtMs": [61021, 63860],
+      "events": [
+        {
+          "atMs": 60971,
+          "kind": "partial",
+          "segmentId": "23",
+          "text": "Sooo-"
+        },
+        {
+          "atMs": 61399,
+          "kind": "final",
+          "segmentId": "23",
+          "text": "Sooo, what?"
+        },
+        {
+          "atMs": 62480,
+          "kind": "partial",
+          "segmentId": "24",
+          "text": "So, dealing-"
+        },
+        {
+          "atMs": 63385,
+          "kind": "partial",
+          "segmentId": "24",
+          "text": "So, dealing with you, are you a single-"
+        },
+        {
+          "atMs": 64260,
+          "kind": "final",
+          "segmentId": "24",
+          "text": "So, dealing with you, are you single or married or?"
+        }
+      ],
+      "languages": ["en", "en"]
+    },
+    {
+      "id": "c8-u16",
+      "startMs": 64561,
+      "speechEndMs": 66922,
+      "commitsAtMs": [66120, 66861],
+      "events": [
+        {
+          "atMs": 66204,
+          "kind": "partial",
+          "segmentId": "25",
+          "text": "Do you have children?"
+        },
+        {
+          "atMs": 66458,
+          "kind": "final",
+          "segmentId": "25",
+          "text": "Do you have children?"
+        },
+        {
+          "atMs": 67217,
+          "kind": "final",
+          "segmentId": "26",
+          "text": "No, just the dog."
+        }
+      ],
+      "languages": ["en", "en"]
+    },
+    {
+      "id": "c8-u17",
+      "startMs": 67521,
+      "speechEndMs": 70342,
+      "commitsAtMs": [70401],
+      "events": [
+        {
+          "atMs": 69324,
+          "kind": "partial",
+          "segmentId": "27",
+          "text": "Lame."
+        },
+        {
+          "atMs": 70762,
+          "kind": "final",
+          "segmentId": "27",
+          "text": "Laila is a dog children, no?"
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c8-u18",
+      "startMs": 71081,
+      "speechEndMs": 73521,
+      "commitsAtMs": [73560],
+      "events": [
+        {
+          "atMs": 72812,
+          "kind": "partial",
+          "segmentId": "28",
+          "text": "No, Maya is"
+        },
+        {
+          "atMs": 73817,
+          "kind": "partial",
+          "segmentId": "28",
+          "text": "No, Maya. It's okay. You leave it."
+        },
+        {
+          "atMs": 73910,
+          "kind": "final",
+          "segmentId": "28",
+          "text": "No, Maya. It's okay. You leave it."
+        }
+      ],
+      "languages": ["en"]
+    },
+    {
+      "id": "c8-n01",
+      "startMs": 0,
+      "speechEndMs": 5822,
+      "commitsAtMs": [6021],
+      "events": [
+        {
+          "atMs": 2420,
+          "kind": "partial",
+          "segmentId": "0",
+          "text": "Hello?"
+        }
+      ],
+      "languages": []
+    },
+    {
+      "id": "c8-n03",
+      "startMs": 10600,
+      "speechEndMs": 14562,
+      "commitsAtMs": [14759],
+      "events": [],
+      "languages": []
+    },
+    {
+      "id": "c8-n06",
+      "startMs": 28882,
+      "speechEndMs": 32821,
+      "commitsAtMs": [33021],
+      "events": [],
+      "languages": []
+    },
+    {
+      "id": "c8-n07",
+      "startMs": 35322,
+      "speechEndMs": 38641,
+      "commitsAtMs": [38842],
+      "events": [],
+      "languages": []
+    },
+    {
+      "id": "c8-n02",
+      "startMs": 0,
+      "speechEndMs": 1221,
+      "commitsAtMs": [1421],
+      "events": [],
+      "languages": []
+    },
+    {
+      "id": "c8-n04",
+      "startMs": 3721,
+      "speechEndMs": 5860,
+      "commitsAtMs": [3761, 6061],
+      "events": [],
+      "languages": []
+    },
+    {
+      "id": "c8-n05",
+      "startMs": 8362,
+      "speechEndMs": 12601,
+      "commitsAtMs": [12801],
+      "events": [],
+      "languages": []
+    }
+  ]
+}

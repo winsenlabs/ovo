@@ -1,0 +1,20 @@
+{
+  "name": "@winsendotai/ovo-plugin-turn-detector-smart-turn",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "fetch-model": "node scripts/fetch-model.mjs"
+  },
+  "dependencies": {
+    "onnxruntime-node": "1.30.0"
+  },
+  "devDependencies": {
+    "@winsendotai/ovo-conformance": "workspace:*",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-turns": "workspace:*"
+  }
+}

@@ -53,6 +53,8 @@ export function violation(from, target, kindOf) {
   const ws = target.type === 'workspace' && targetKind !== 'vendor';
   if (ws && targetKind === 'experiment' && kind !== 'experiment')
     return 'nothing may import an experiment';
+  if (ws && targetKind === 'eval' && kind !== 'eval')
+    return 'only tests may import the eval harness';
   switch (kind) {
     case 'contracts':
       if (third && target.name === 'zod') return undefined;
@@ -121,6 +123,10 @@ export function violation(from, target, kindOf) {
       if (ws && ['app', 'host', 'distribution', 'test-kit'].includes(targetKind))
         return `the console may not import ${targetKind} packages`;
       return undefined;
+    case 'eval':
+      return ws && ['app', 'console'].includes(targetKind)
+        ? 'the eval harness may not import apps'
+        : undefined;
     case 'experiment':
       return undefined;
     default:

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FakeClock } from '@winsendotai/ovo-conformance/drivers';
-import { LIVE, MAYA, RECOMMENDED, replay } from './replay.ts';
+import { LIVE, MAYA, RECOMMENDED, replay } from '../../eval/src/replay-kit/index.ts';
 
 describe('Wave 8 latency fix 1: complete turns end on the short silence', () => {
   // Call 6e1a4e3a: turn, VAD speech (turn-2 measured, ~250 ms a word otherwise), final, live

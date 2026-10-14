@@ -7,7 +7,7 @@ import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
 import { createNativeVoiceEngineV2Plugin } from '../src/engine/plugin.ts';
 import { NativeVoiceSessionEngine } from '../src/engine/session-engine.ts';
 import { BoundedSpeechScheduler } from '../src/scheduler.ts';
-import { sleep } from './turn-harness.ts';
+import { sleep } from '../../eval/src/replay-kit/index.ts';
 
 const LINE = 'Let me look that up.';
 

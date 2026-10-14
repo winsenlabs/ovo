@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Behavior, TurnSpeculation } from '@winsendotai/ovo-contracts';
 import type { ActivityAnnouncement, InferenceActivity } from '@winsendotai/ovo-plugin-kit';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
-import { driverHarness, sleep, slowAgent } from './turn-harness.ts';
+import { driverHarness, sleep, slowAgent } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Call 6e1a4e3a (Maya, 2026-10-08, noisy café; /tmp/ovo/last-call-turns.json), times from each

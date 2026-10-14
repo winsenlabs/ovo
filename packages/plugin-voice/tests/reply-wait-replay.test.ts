@@ -5,7 +5,7 @@ import {
   TurnTelemetryCollector,
   type TurnTelemetry,
 } from '../../plugin-observability/src/turn-telemetry.ts';
-import { driverHarness, sleep, slowAgent } from './turn-harness.ts';
+import { driverHarness, sleep, slowAgent } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Wave 8 fix 3, latency-evidence C: on Maya call f3363705 (2026-10-07) the turn summaries showed

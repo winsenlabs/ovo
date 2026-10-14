@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { FakeClock } from '@winsendotai/ovo-conformance/drivers';
-import { AFTER, BEFORE, CALLS, replayLive, type FixtureTurn } from './call-endpoints.ts';
+import { AFTER, BEFORE, replayLive, type FixtureTurn } from '../../eval/src/replay-kit/index.ts';
+import call5 from './fixtures/call5-endpoints.json' with { type: 'json' };
+import call6 from './fixtures/call6-endpoints.json' with { type: 'json' };
+
+const CALLS = { call5: call5.turns as FixtureTurn[], call6: call6.turns as FixtureTurn[] };
 
 const clock = () => new FakeClock();
 

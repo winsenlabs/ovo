@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Behavior, TurnSpeculation } from '@winsendotai/ovo-contracts';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
-import { driverHarness, sleep, type TestClock } from './turn-harness.ts';
+import { driverHarness, sleep, type TestClock } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Maya call bcbc7d6a, turn 15: the LLM asked "what were you hoping to find out about Zagreb?" and

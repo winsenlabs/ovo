@@ -185,6 +185,17 @@ service can log at `debug` without touching the others:
 That recreates the container (a worker drains first). Run the same command without the variable to
 return it to `info`. Container logs rotate at 5 × 20 MiB per container (OPS-17).
 
+## Evaluation tooling (Wave 13)
+
+Read only by the offline eval CLIs (`pnpm eval:calls`, `eval:stt`, `eval:turns`; see `docs/eval/README.md`)
+and their tests on a developer or CI machine. No service reads them and Compose never sets them.
+
+| Variable                | Read by                                            | Default | Compose | Notes                                                                                                                                                       |
+| ----------------------- | -------------------------------------------------- | ------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OVO_TURN_MODELS_DIR`   | eval:turns, turn-detector tests, `fetch-model.mjs` | none    | —       | Directory holding the end-of-turn model files (`smart-turn/`, LiveKit). Without it the model bake-off and model tests skip.                                 |
+| `OVO_TURN_LIVEKIT_TEXT` | turn-detector tests                                | unset   | —       | `1` runs the LiveKit text-model test (dev dependencies only).                                                                                               |
+| `OVO_EVAL_<KEY>`        | eval:calls, eval:stt                               | none    | —       | A provider key for live eval runs, e.g. `OVO_EVAL_ELEVENLABS_API_KEY`. Prefer `--keys ~/.ovo-eval/keys.env`, read in-process; never pass keys as arguments. |
+
 ## Compose image pins and host ports
 
 | Variable                                                                                                                 | Default                       | Notes                                                                                       |

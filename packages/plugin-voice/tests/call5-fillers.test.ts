@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ActivityAnnouncement } from '@winsendotai/ovo-plugin-kit';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
-import { driverHarness, slowAgent } from './turn-harness.ts';
+import { driverHarness, slowAgent } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Wave 9, issue D6: Maya call 10d5ef30 (2026-10-12, main 519966b), ms from each turn's stop, when

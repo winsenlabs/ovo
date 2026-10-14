@@ -1,0 +1,21 @@
+{
+  "call": "call1",
+  "callId": "tiny-1",
+  "units": "ms",
+  "utterances": [
+    {
+      "id": "u1",
+      "startMs": 5600,
+      "endMs": 7600,
+      "text": "I want to go to Paris",
+      "language": "en"
+    },
+    {
+      "id": "u2",
+      "startMs": 14000,
+      "endMs": 15000,
+      "text": "in December",
+      "language": "en"
+    }
+  ]
+}
