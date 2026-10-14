@@ -2,15 +2,14 @@
 import type { ConsoleExtension } from '@winsendotai/ovo-ui';
 import { AgentStudio } from '../components/studio';
 import { useSession } from '../components/shell/session-provider';
-export function AgentsFeature({
+
+export function AgentConfigureFeature({
+  agentId,
   extensions,
-  preferredAgentId,
 }: {
+  agentId: string;
   extensions: readonly ConsoleExtension[];
-  preferredAgentId?: string;
 }) {
   const identity = useSession();
-  return (
-    <AgentStudio identity={identity} extensions={extensions} preferredAgentId={preferredAgentId} />
-  );
+  return <AgentStudio agentId={agentId} identity={identity} extensions={extensions} />;
 }

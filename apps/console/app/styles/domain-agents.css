@@ -1,0 +1,171 @@
+/* --- agents lane additions (W14 agents rebuild) --------------------------------------------- */
+
+/* Sticky footer for the new-agent wizard and the plugins page's save bar. */
+.ds-wizard-footer,
+.ds-save-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  margin: 0 calc(var(--space-4) * -1) calc(var(--space-4) * -1);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: var(--elev-1);
+}
+
+/* Sticky in-page section nav for the Configure tab's six groups. */
+.ds-studio-nav {
+  position: sticky;
+  top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.ds-studio-nav a {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  text-decoration: none;
+  font-size: var(--text-label-size);
+}
+.ds-studio-nav a:hover,
+.ds-studio-nav a:focus-visible {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.ds-studio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-2);
+  scroll-margin-top: var(--space-4);
+}
+.ds-studio-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.ds-studio-group-head h2 {
+  font-size: var(--text-h2-size);
+}
+
+/* Voice stack diagram on the agent plugins page: Carrier -> VAD/Turn -> STT -> Decision/LLM ->
+   TTS -> Carrier, each node showing its chosen plugin. */
+.ds-voice-stack {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.ds-voice-stack-node {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  text-decoration: none;
+  color: inherit;
+  min-width: 96px;
+}
+.ds-voice-stack-node strong {
+  font-size: var(--text-label-size);
+}
+.ds-voice-stack-node span {
+  font-size: var(--text-micro-size);
+  color: var(--text-3);
+}
+.ds-voice-stack-node.unset {
+  border-style: dashed;
+  color: var(--text-3);
+}
+.ds-voice-stack-arrow {
+  color: var(--text-3);
+}
+
+/* The agent header's "more actions" disclosure (Duplicate, Export JSON). */
+.ds-overflow-menu {
+  position: relative;
+}
+.ds-overflow-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.ds-overflow-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.ds-overflow-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--space-1));
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: var(--space-1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elev-2);
+}
+.ds-overflow-menu-list button {
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: none;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-data-size);
+}
+.ds-overflow-menu-list button:hover,
+.ds-overflow-menu-list button:focus-visible {
+  background: var(--surface-2);
+}
+
+/* A nested object property inside SchemaForm, collapsible so a deep plugin schema (session,
+   engine, idle, dtmf…) does not dump every field flat (brief defect: object-typed properties
+   rendered as single-line text inputs). */
+.ds-nested-fields {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.ds-nested-fields > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--text-label-size);
+}
+.ds-nested-fields .form-grid {
+  margin-top: var(--space-3);
+}
+
+/* Collapsible per-slot sections and the plugin card body inside a SectionCard. */
+.ds-plugin-slot-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.ds-plugin-slot-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}

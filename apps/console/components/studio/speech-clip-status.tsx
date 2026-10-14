@@ -2,7 +2,9 @@
 import { useEffect, useId, useState } from 'react';
 import { apiRequest, items } from '../../lib/api';
 import type { CampaignRecord, InboundRouteRecord } from '../../lib/operator-api';
-import { Panel, PanelHeader, StatusBadge } from '../primitives';
+import { SectionCard } from '../ui/section-card';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { InlineAlert } from '../ui/feedback-v2';
 
 /** `GET /v1/agents/:agentId/releases/:releaseId/speech-clips`. */
 export interface SpeechClipStatus {
@@ -46,11 +48,11 @@ const LABELS: Record<SpeechClipStatus['state'], string> = {
   skipped: 'Skipped',
 };
 
-function tone(status: SpeechClipStatus): 'good' | 'warning' | 'danger' | 'soft' | 'neutral' {
-  if (status.state === 'done' && !status.failed && !status.pending) return 'good';
+function tone(status: SpeechClipStatus): 'ok' | 'warn' | 'danger' | 'neutral' {
+  if (status.state === 'done' && !status.failed && !status.pending) return 'ok';
   if (status.state === 'failed' || status.failed) return 'danger';
-  if (status.state === 'disabled' || status.state === 'unavailable') return 'soft';
-  return status.state === 'skipped' ? 'warning' : 'neutral';
+  if (status.state === 'disabled' || status.state === 'unavailable') return 'neutral';
+  return status.state === 'skipped' ? 'warn' : 'neutral';
 }
 
 /** Pre-rendered speech for one immutable release: how many fixed lines are ready to play. */
@@ -94,41 +96,36 @@ export function SpeechClipStatusPanel({
     };
   }, [agentId, releaseId, load, pollMs]);
   return (
-    <Panel labelledBy={titleId}>
-      <PanelHeader
-        id={titleId}
-        title="Pre-rendered speech"
-        badge={
-          status ? <StatusBadge tone={tone(status)}>{LABELS[status.state]}</StatusBadge> : null
-        }
-      >
-        {caption && <small className="muted">{caption}</small>}
-      </PanelHeader>
-      <div className="panel-body stack">
-        {error && <div className="notice danger">{error}</div>}
-        {!status && !error && <div className="muted">Checking pre-rendered speech…</div>}
-        {status && (
-          <>
-            <p>
-              <strong>
-                {status.ready} of {status.total}
-              </strong>{' '}
-              fixed lines ready to play without live synthesis
-              {status.failed ? `, ${status.failed} failed` : ''}
-              {status.pending && status.state !== 'disabled' ? `, ${status.pending} pending` : ''}.
-            </p>
-            {status.perCall > 0 && (
-              <small className="muted">
-                {status.perCall} templated line{status.perCall === 1 ? '' : 's'} with caller
-                variables {status.perCall === 1 ? 'is' : 'are'} synthesized per call and never
-                stored.
-              </small>
-            )}
-            {status.detail && <small className="muted">{status.detail}</small>}
-          </>
-        )}
-      </div>
-    </Panel>
+    <SectionCard
+      id={titleId}
+      title="Pre-rendered speech"
+      description={caption}
+      actions={
+        status ? <StatusBadgeV2 tone={tone(status)} label={LABELS[status.state]} /> : undefined
+      }
+    >
+      {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+      {!status && !error && <p className="muted">Checking pre-rendered speech…</p>}
+      {status && (
+        <>
+          <p>
+            <strong>
+              {status.ready} of {status.total}
+            </strong>{' '}
+            fixed lines ready to play without live synthesis
+            {status.failed ? `, ${status.failed} failed` : ''}
+            {status.pending && status.state !== 'disabled' ? `, ${status.pending} pending` : ''}.
+          </p>
+          {status.perCall > 0 && (
+            <small className="muted">
+              {status.perCall} templated line{status.perCall === 1 ? '' : 's'} with caller variables{' '}
+              {status.perCall === 1 ? 'is' : 'are'} synthesized per call and never stored.
+            </small>
+          )}
+          {status.detail && <small className="muted">{status.detail}</small>}
+        </>
+      )}
+    </SectionCard>
   );
 }
 
@@ -138,7 +135,7 @@ export type RoutedReleases = Map<string, string[]>;
 type LoadRouted = () => Promise<RoutedReleases>;
 
 /** Each source is read on its own: an operator without one of them still sees the other. */
-const loadRouted: LoadRouted = async () => {
+export const loadRouted: LoadRouted = async () => {
   const routed: RoutedReleases = new Map();
   const add = (releaseId: string, via: string) =>
     routed.set(releaseId, [...(routed.get(releaseId) ?? []), via]);
@@ -159,7 +156,9 @@ const loadRouted: LoadRouted = async () => {
 /**
  * Clip readiness for the releases calls actually reach: every one of this agent's releases an
  * enabled inbound number or a live campaign points at, newest first. With nothing routed, the
- * newest release is shown, labelled as such. `releases` is oldest first, as the API lists them.
+ * newest release is shown, labelled as such. `releases` must be given oldest first — the
+ * opposite of what `/agents/:id/releases` itself returns (confirmed against the fixture: the
+ * most recent `createdAt` comes back at index 0), so every caller here passes it reversed.
  */
 export function RoutedSpeechClipStatus({
   agentId,

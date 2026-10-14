@@ -1,10 +1,16 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { ApiError, apiRequest, ifMatch, normalizeDraft, type AgentDraft } from '../lib/api';
 import { useEventStream } from '../lib/data/use-event-stream';
 import type { PluginCatalog } from '../components/plugins/types';
 import { PageHeader } from '../components/ui/layout';
-import { EmptyState, Callout, StatusBadge } from '../components/ui/feedback';
+import { SectionCard } from '../components/ui/section-card';
+import { EmptyStateV2, InlineAlert, Skeleton } from '../components/ui/feedback-v2';
+import { StatusBadgeV2 } from '../components/ui/status-badge';
+import { Stepper, type StepState } from '../components/ui/stepper';
+import { Conversation, type ConversationLine } from '../components/ui/conversation';
+import { Money } from '../components/ui/display';
 
 type FixtureEvent = {
   eventId?: string;
@@ -15,6 +21,7 @@ type FixtureEvent = {
   phase?: string;
   speaker?: string;
   costPaise?: string;
+  atMs?: number;
   payload?: Record<string, unknown>;
 };
 function field(event: FixtureEvent, key: keyof FixtureEvent): string | undefined {
@@ -31,6 +38,8 @@ function transcriptPhase(event: FixtureEvent) {
         ? 'interim'
         : 'final';
 }
+const STAGE_ORDER = ['accepted', 'media', 'stt', 'decision', 'tts', 'played'] as const;
+
 export function TestConsoleFeature({ agentId }: { agentId: string }) {
   const [draft, setDraft] = useState<AgentDraft>();
   const [catalog, setCatalog] = useState<PluginCatalog>({ plugins: [] });
@@ -100,6 +109,20 @@ export function TestConsoleFeature({ agentId }: { agentId: string }) {
   const transcript = stream.events.filter((event) => Boolean(field(event, 'text')));
   const stages = stream.events.filter((event) => Boolean(field(event, 'stage')));
   const cost = [...stream.events].reverse().find((event) => field(event, 'costPaise'));
+  const reachedStage = new Set(stages.map((event) => field(event, 'stage')));
+  const lastStageIndex = STAGE_ORDER.reduce(
+    (last, stage, index) => (reachedStage.has(stage) ? index : last),
+    -1,
+  );
+  const lines: ConversationLine[] = transcript.map((event, index) => ({
+    id: event.eventId ?? String(index),
+    speaker: /agent/i.test(field(event, 'speaker') ?? event.kind ?? '') ? 'agent' : 'caller',
+    atMs: event.atMs ?? index * 1000,
+    text: field(event, 'text') ?? '',
+    interim: transcriptPhase(event) === 'interim',
+    played: transcriptPhase(event) !== 'generated',
+  }));
+
   return (
     <div className="ui-stack">
       <PageHeader
@@ -107,95 +130,115 @@ export function TestConsoleFeature({ agentId }: { agentId: string }) {
         title="Test this agent"
         description="Run a fixture call with the current draft and inspect each stage as it arrives."
       />
-      <Callout tone="warning">Live dialing disabled — protocol fixtures</Callout>
-      {error && <Callout tone="danger">{error}</Callout>}
+      <InlineAlert tone="warn">Live dialing disabled — protocol fixtures only.</InlineAlert>
+      {error && <InlineAlert tone="danger">{error}</InlineAlert>}
       {disabled && (
-        <EmptyState title="Fixture calls unavailable">
+        <EmptyStateV2 variant="unavailable" title="Fixture calls unavailable">
           Fixture test calls are disabled on this installation. Ask an administrator to enable
           protocol fixtures.
-        </EmptyState>
+        </EmptyStateV2>
       )}
-      <div className="ui-grid">
-        <label>
-          Engine
-          <select
-            value={draft?.config.voice?.engine?.plugin ?? ''}
-            onChange={(event) => void switchPlugin('engine', event.target.value)}
-          >
-            <option value="">Distribution default</option>
-            {catalog.plugins
-              .filter((plugin) => plugin.kind === 'engine')
-              .map((plugin) => (
-                <option key={plugin.id} value={plugin.id}>
-                  {plugin.ui?.label ?? plugin.id}
-                </option>
-              ))}
-          </select>
-        </label>
-        <label>
-          Carrier
-          <select
-            value={draft?.config.voice?.carrier?.plugin ?? ''}
-            onChange={(event) => void switchPlugin('carrier', event.target.value)}
-          >
-            <option value="">No carrier selected</option>
-            {catalog.plugins
-              .filter((plugin) => plugin.kind === 'carrier')
-              .map((plugin) => (
-                <option key={plugin.id} value={plugin.id}>
-                  {plugin.ui?.label ?? plugin.id}
-                </option>
-              ))}
-          </select>
-        </label>
+      <div className="inspector-grid">
+        <SectionCard title="Run configuration">
+          {!draft ? (
+            <Skeleton shape="block" />
+          ) : (
+            <div className="ui-stack">
+              <label htmlFor="test-engine">
+                Engine
+                <select
+                  id="test-engine"
+                  value={draft.config.voice?.engine?.plugin ?? ''}
+                  onChange={(event) => void switchPlugin('engine', event.target.value)}
+                >
+                  <option value="">Distribution default</option>
+                  {catalog.plugins
+                    .filter((plugin) => plugin.kind === 'engine')
+                    .map((plugin) => (
+                      <option key={plugin.id} value={plugin.id}>
+                        {plugin.ui?.label ?? plugin.id}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label htmlFor="test-carrier">
+                Carrier
+                <select
+                  id="test-carrier"
+                  value={draft.config.voice?.carrier?.plugin ?? ''}
+                  onChange={(event) => void switchPlugin('carrier', event.target.value)}
+                >
+                  <option value="">No carrier selected</option>
+                  {catalog.plugins
+                    .filter((plugin) => plugin.kind === 'carrier')
+                    .map((plugin) => (
+                      <option key={plugin.id} value={plugin.id}>
+                        {plugin.ui?.label ?? plugin.id}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <button
+                className="button primary"
+                type="button"
+                disabled={running || disabled}
+                onClick={() => void runFixture()}
+              >
+                {running ? 'Starting…' : 'Run fixture test call'}
+              </button>
+            </div>
+          )}
+        </SectionCard>
+
+        <div className="ui-stack">
+          {!callId ? (
+            <EmptyStateV2 variant="first-run" title="Nothing running yet">
+              Run a fixture call to hear this draft without dialing anyone.
+            </EmptyStateV2>
+          ) : (
+            <>
+              <SectionCard
+                title="Live run"
+                actions={
+                  <StatusBadgeV2
+                    tone={stream.status === 'live' ? 'ok' : 'warn'}
+                    label={stream.status}
+                  />
+                }
+              >
+                <Stepper
+                  steps={STAGE_ORDER.map((stage, index): { label: string; state: StepState } => ({
+                    label: stage,
+                    state:
+                      index < lastStageIndex
+                        ? 'done'
+                        : index === lastStageIndex
+                          ? 'current'
+                          : 'upcoming',
+                  }))}
+                />
+                <p className="ui-cluster">
+                  <Link className="table-link" href={`/calls/${encodeURIComponent(callId)}`}>
+                    Open in call inspector
+                  </Link>
+                  {cost && (
+                    <span>
+                      Running cost · <Money minorUnits={field(cost, 'costPaise')} />
+                    </span>
+                  )}
+                </p>
+              </SectionCard>
+              <SectionCard title="Transcript">
+                {lines.length ? (
+                  <Conversation lines={lines} />
+                ) : (
+                  <EmptyStateV2 variant="first-run" title="Waiting for the first turn…" />
+                )}
+              </SectionCard>
+            </>
+          )}
+        </div>
       </div>
-      <button
-        className="button primary align-start"
-        type="button"
-        disabled={running || disabled}
-        onClick={() => void runFixture()}
-      >
-        {running ? 'Starting…' : 'Run fixture test call'}
-      </button>
-      {callId && (
-        <>
-          <p>
-            <a className="table-link" href={`/calls/${encodeURIComponent(callId)}`}>
-              Inspect call {callId}
-            </a>{' '}
-            ·{' '}
-            <StatusBadge tone={stream.status === 'live' ? 'good' : 'warning'}>
-              {stream.status}
-            </StatusBadge>
-          </p>
-          <div className="ui-grid">
-            <section className="panel panel-body">
-              <h2>Live transcript</h2>
-              <ol aria-live="polite">
-                {transcript.map((event, index) => (
-                  <li key={event.eventId ?? index}>
-                    <strong>
-                      {field(event, 'speaker') ??
-                        (/agent/i.test(event.kind ?? '') ? 'Agent' : 'User')}{' '}
-                      · {transcriptPhase(event)}
-                    </strong>{' '}
-                    {field(event, 'text')}
-                  </li>
-                ))}
-              </ol>
-            </section>
-            <section className="panel panel-body">
-              <h2>Stage timeline</h2>
-              <ol>
-                {stages.map((event, index) => (
-                  <li key={event.eventId ?? index}>{field(event, 'stage')}</li>
-                ))}
-              </ol>
-              <p>Cost so far: {field(cost ?? {}, 'costPaise') ?? 'unpriced'}</p>
-            </section>
-          </div>
-        </>
-      )}
     </div>
   );
 }

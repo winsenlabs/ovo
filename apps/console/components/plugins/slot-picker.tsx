@@ -1,16 +1,39 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../../lib/api';
+import type { Choice } from '../ui/choice-card';
+import { SlotChoiceCardGroup } from './slot-choice-card';
+import { humaniseKey } from '../../lib/status';
 import type { AgentVoice, CompatIssue, PluginOption, Slot } from './types';
 import { pluginOptionsForSlot } from './types';
 
-const SLOT_LABELS: Partial<Record<Slot, string>> = {
-  turnDetector: 'Turn detector',
+export const SLOT_LABELS: Partial<Record<Slot, string>> = {
+  engine: 'Engine',
+  carrier: 'Carrier',
+  stt: 'Speech to text',
+  tts: 'Text to speech',
+  llm: 'LLM',
   decision: 'Decision model',
   knowledge: 'Knowledge',
+  vad: 'Voice activity detection',
+  turnDetector: 'Turn detector',
   audioFilter: 'Audio filter',
 };
 
+export const REQUIRED_SLOTS: ReadonlySet<Slot> = new Set(['engine', 'carrier', 'stt', 'tts']);
+
+function capabilityChips(plugin: PluginOption): string[] {
+  const keys = Object.keys(plugin.capabilities ?? {});
+  const shown = keys.slice(0, 4).map(humaniseKey);
+  return keys.length > 4 ? [...shown, `+${keys.length - 4}`] : shown;
+}
+
+/**
+ * One slot's choices as radio cards (brief §3 "Agent plugins": fixes the giant centred radio
+ * defect without fighting the global input CSS — `RadioCardGroup` hides the native input but
+ * keeps it focusable). Each card's compatibility reason, if any, disables it with an explanation
+ * instead of letting an operator pick a plugin that will fail at release time.
+ */
 export function SlotPicker({
   slot,
   plugins,
@@ -77,50 +100,27 @@ export function SlotPicker({
   // Picking a decision model before authoring a question selects a metered plugin nothing asks.
   if (slot === 'decision' && !decisionConfigured) return null;
   if (slot === 'knowledge' && !knowledgeConfigured) return null;
+
+  const choices: Choice[] = options.map((plugin) => {
+    const reason = reasons[plugin.id] || (!plugin.available ? plugin.unavailableReason : '');
+    return {
+      value: plugin.id,
+      title: plugin.ui?.label ?? plugin.id,
+      description: `${plugin.ui?.vendor ?? plugin.provider ?? 'OVO'} · v${plugin.version}`,
+      chips: capabilityChips(plugin),
+      disabled: Boolean(reason),
+      disabledReason: reason || undefined,
+    };
+  });
+
   return (
-    <fieldset className="slot-picker">
-      <legend>{SLOT_LABELS[slot] ?? slot.toUpperCase()}</legend>
-      <div className="slot-cards">
-        {options.map((plugin) => {
-          const reason = reasons[plugin.id] || (!plugin.available ? plugin.unavailableReason : '');
-          const reasonId = `reason-${slot}-${plugin.id.replace(/[^a-z0-9-]/gi, '-')}`;
-          return (
-            <label key={plugin.id} className={`slot-card ${reason ? 'incompatible' : ''}`}>
-              <input
-                type="radio"
-                name={`slot-${slot}`}
-                value={plugin.id}
-                checked={value === plugin.id}
-                disabled={Boolean(reason)}
-                aria-describedby={reason ? reasonId : undefined}
-                onChange={() => onChange(plugin.id)}
-              />
-              <span>
-                <strong>{plugin.ui?.label ?? plugin.id}</strong>
-                <small>
-                  {plugin.ui?.vendor ?? plugin.provider ?? 'OVO'} · {plugin.version}
-                </small>
-                {plugin.capabilities && (
-                  <span className="capability-chips">
-                    {Object.keys(plugin.capabilities)
-                      .slice(0, 4)
-                      .map((key) => (
-                        <span className="badge soft" key={key}>
-                          {key}
-                        </span>
-                      ))}
-                  </span>
-                )}
-                {reason && (
-                  <small id={reasonId} className="field-error">
-                    {reason}
-                  </small>
-                )}
-              </span>
-            </label>
-          );
-        })}
-      </div>
-    </fieldset>
+    <SlotChoiceCardGroup
+      name={`slot-${slot}`}
+      groupLabel={SLOT_LABELS[slot] ?? slot}
+      value={value ?? ''}
+      choices={choices}
+      columns={2}
+      onChange={onChange}
+    />
   );
 }
