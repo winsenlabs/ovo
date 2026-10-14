@@ -100,7 +100,7 @@ export function HomeAttentionSection(props: {
   callbacks: readonly HomeCallback[];
   credentials: readonly HomeCredential[];
   recentCalls: readonly HomeCall[];
-  agentNameOf: (agentId?: string) => string;
+  agentNameOf: (call: { agentId?: string; releaseId?: string }) => string;
 }) {
   const attention = buildAttention(props);
   const columns: readonly ColumnV2<HomeCall>[] = [
@@ -108,7 +108,7 @@ export function HomeAttentionSection(props: {
       id: 'agent',
       header: 'Agent',
       priority: 'high',
-      cell: (call) => props.agentNameOf(call.agentId),
+      cell: (call) => props.agentNameOf(call),
     },
     { id: 'status', header: 'Status', cell: (call) => <StatusBadgeV2 value={call.status} /> },
     {
@@ -154,7 +154,15 @@ export function HomeAttentionSection(props: {
         padding="flush"
         footer={<Link href="/calls">View all calls →</Link>}
       >
+        {/* `DataTableV2` calls its first hook (`useState` for sort) before its
+            loading/empty early returns, then calls two more (`useRef`, `useEffect`) only on the
+            branch that renders rows — so the *same* mounted instance crashes with "Rendered
+            more hooks than during the previous render" the moment `loading` or "has any rows"
+            flips (React error #310; foundation request below). Keying on both flags forces a
+            clean remount across that transition instead of letting one instance drift between
+            branches. */}
         <DataTableV2
+          key={`${props.loading}-${props.recentCalls.length > 0}`}
           label="Recent calls"
           rows={props.recentCalls}
           columns={columns}

@@ -4,7 +4,8 @@ import { BarChart } from '../../../components/charts/bar-chart';
 import { ChartFrame } from '../../../components/charts/chart-frame';
 import { SectionCard } from '../../../components/ui/section-card';
 import { callsByBucket } from './derive';
-import type { HomeCall, HomeAgent, Loadable } from './types';
+import { StackedStatusChart } from './stacked-status-chart';
+import type { HomeCall, Loadable } from './types';
 
 const STATUS_LABEL: Record<string, string> = {
   ok: 'Completed',
@@ -19,11 +20,13 @@ const STATUS_COLOR: Record<string, string> = {
   neutral: 'var(--neutral)',
 };
 
-function callsByAgent(calls: readonly HomeCall[], agents: readonly HomeAgent[]) {
-  const nameOf = new Map(agents.map((agent) => [agent.id, agent.config?.name ?? agent.id]));
+function callsByAgent(
+  calls: readonly HomeCall[],
+  agentNameOf: (call: { agentId?: string; releaseId?: string }) => string,
+) {
   const counts = new Map<string, number>();
   for (const call of calls) {
-    const key = call.agentId ? (nameOf.get(call.agentId) ?? call.agentId) : 'Unattributed';
+    const key = agentNameOf(call);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return [...counts.entries()]
@@ -34,18 +37,17 @@ function callsByAgent(calls: readonly HomeCall[], agents: readonly HomeAgent[]) 
 
 export function HomeCallsChartSection({
   callsState,
-  agentsState,
   rangeDays,
+  agentNameOf,
 }: {
   callsState: Loadable<HomeCall[]>;
-  agentsState: Loadable<HomeAgent[]>;
   rangeDays: number;
+  agentNameOf: (call: { agentId?: string; releaseId?: string }) => string;
 }) {
   const [groupByAgent, setGroupByAgent] = useState(false);
   const calls = callsState.status === 'ready' ? callsState.data : [];
-  const agents = agentsState.status === 'ready' ? agentsState.data : [];
   const byBucket = useMemo(() => callsByBucket(calls, rangeDays), [calls, rangeDays]);
-  const byAgent = useMemo(() => callsByAgent(calls, agents), [calls, agents]);
+  const byAgent = useMemo(() => callsByAgent(calls, agentNameOf), [calls, agentNameOf]);
 
   return (
     <SectionCard
@@ -106,10 +108,11 @@ export function HomeCallsChartSection({
               data={byAgent}
             />
           ) : (
-            <BarChart
+            // Not the shared `BarChart` in vertical mode — see stacked-status-chart.tsx for why
+            // (its y-axis draws backwards; foundation request filed there).
+            <StackedStatusChart
               width={width}
               height={240}
-              mode="stacked"
               seriesKeys={Object.keys(STATUS_LABEL)}
               seriesLabel={(key) => STATUS_LABEL[key] ?? key}
               seriesColor={(key) => STATUS_COLOR[key] ?? 'var(--neutral)'}

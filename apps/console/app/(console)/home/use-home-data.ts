@@ -150,3 +150,27 @@ export function useHomeReadiness(agentIds: readonly string[]) {
   }, [capped.join(',')]);
   return useResource(`home-readiness-${capped.join(',')}`, load, 60_000);
 }
+
+/** `CallSummary` carries no agent id (brief §4 "API gaps to respect" — "map `releaseId` → agent
+ * through the agents' release lists"). One `/agents/:id/releases` per agent (same 20-agent cap
+ * as readiness) builds that `releaseId -> agentId` map once; Home resolves every call's agent
+ * name through it instead of leaving every row "Unattributed". */
+export function useHomeReleaseAgentMap(agentIds: readonly string[]) {
+  const capped = agentIds.slice(0, 20);
+  const load = useCallback(async () => {
+    const entries = await Promise.all(
+      capped.map(async (agentId) => {
+        try {
+          const { data } = await apiRequest<{ items: { id: string }[] }>(
+            `/agents/${encodeURIComponent(agentId)}/releases`,
+          );
+          return data.items.map((release) => [release.id, agentId] as const);
+        } catch {
+          return [];
+        }
+      }),
+    );
+    return new Map(entries.flat());
+  }, [capped.join(',')]);
+  return useResource(`home-release-agent-map-${capped.join(',')}`, load, 60_000);
+}

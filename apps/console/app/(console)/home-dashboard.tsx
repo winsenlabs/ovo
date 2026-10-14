@@ -13,6 +13,7 @@ import {
   useHomePerformance,
   useHomeReadiness,
   useHomeRatios,
+  useHomeReleaseAgentMap,
 } from './home/use-home-data';
 import { HomeKpiSection } from './home/kpi-section';
 import { HomeCallsChartSection } from './home/calls-chart-section';
@@ -43,19 +44,30 @@ export function HomeDashboard() {
   const agents = agentsState.status === 'ready' ? agentsState.data : [];
   const agentIds = useMemo(() => agents.map((agent) => agent.id), [agents]);
   const readinessState = useHomeReadiness(agentIds);
+  const releaseAgentMapState = useHomeReleaseAgentMap(agentIds);
 
   const calls = callsState.status === 'ready' ? callsState.data : [];
   const recentCalls = useMemo(() => calls.slice(0, 10), [calls]);
+  // `CallSummary` carries no agent id of its own; resolve it through `releaseId` first (the
+  // fixture, like most installs, never sets `agentId` directly — brief §4 API gap), falling
+  // back to `agentId` when an install does set it.
   const agentNameOf = useMemo(() => {
     const names = new Map(agents.map((agent) => [agent.id, agent.config?.name ?? agent.id]));
-    return (agentId?: string) => (agentId ? (names.get(agentId) ?? agentId) : 'Unattributed');
-  }, [agents]);
+    const releaseAgent =
+      releaseAgentMapState.status === 'ready' ? releaseAgentMapState.data : new Map();
+    return (call: { agentId?: string; releaseId?: string }) => {
+      const agentId =
+        call.agentId ?? (call.releaseId ? releaseAgent.get(call.releaseId) : undefined);
+      return agentId ? (names.get(agentId) ?? agentId) : 'Unattributed';
+    };
+  }, [agents, releaseAgentMapState]);
 
   const anyLoading =
     callsState.status === 'loading' ||
     (isEditorUp && (complaintsState.status === 'loading' || ratiosState.status === 'loading')) ||
     (isAdmin && (budgetsState.status === 'loading' || credentialsState.status === 'loading')) ||
     readinessState.status === 'loading' ||
+    releaseAgentMapState.status === 'loading' ||
     callbacksState.status === 'loading';
 
   return (
@@ -97,8 +109,8 @@ export function HomeDashboard() {
 
       <HomeCallsChartSection
         callsState={callsState}
-        agentsState={agentsState}
         rangeDays={rangeDays}
+        agentNameOf={agentNameOf}
       />
 
       <HomeSecondarySection callsState={callsState} infrastructureState={infrastructureState} />

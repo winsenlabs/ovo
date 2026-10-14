@@ -17,15 +17,13 @@
   background: var(--surface);
   box-shadow: var(--elev-2);
 }
+/* `.brand`'s base rules (shell.css) already set the light-on-dark text colour; this just adds
+   the chip shape for the badge context. */
 .login-card .login-brand {
   width: max-content;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   background: var(--nav-bg);
-}
-.login-card .login-brand strong {
-  color: var(--nav-text);
-  font-size: 20px;
 }
 .login-card form {
   display: grid;

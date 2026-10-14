@@ -81,7 +81,12 @@ export function TeamUsersTable({
     },
   ];
   return (
+    // Keyed on "has any rows": `DataTableV2` calls a hook (`useRef`) only on the branch that
+    // renders rows, not on its `!rows.length` early return, so the same mounted instance would
+    // crash (React error #310) the moment a search narrows the list to zero matches and back —
+    // see the longer note in home/attention-section.tsx. Foundation request filed below.
     <DataTableV2
+      key={String(users.length > 0)}
       label="Organization users"
       rows={users}
       columns={columns}
