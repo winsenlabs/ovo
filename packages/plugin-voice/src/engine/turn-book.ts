@@ -1,6 +1,5 @@
 import {
   continuesUtterance,
-  normalizeForMatch,
   SAID_BEFORE_REPLY_VARIABLE,
   UNTRUSTED_INPUT_VARIABLE,
   type Behavior,
@@ -9,6 +8,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import type { BoundedSpeechScheduler } from '../scheduler.ts';
 import type { TurnLatency } from './latency.ts';
+import { brief, repeatsEnd } from './turn-brief.ts';
 import type { ReplyAudibility } from './turn-audibility.ts';
 import { mergeUtterances, type SpeculationHooks } from './turn-speculation.ts';
 
@@ -55,9 +55,6 @@ export function callerTurn(
   const extra = untrusted ? { [UNTRUSTED_INPUT_VARIABLE]: true, inputDoubt: untrusted } : {};
   return { ...engineTurn(id, text, extra), speech: true, ...(filler ? { filler } : {}) };
 }
-
-/** Words this short add nothing a reply already searching for the caller must start over for. */
-const BRIEF_WORDS = 3;
 
 /**
  * The replies the driver owes, in order, and which caller words are still unanswered (AGT-10).
@@ -292,14 +289,4 @@ export class TurnBook {
     // A turn that never ran has no latency of its own to report.
     if (earlier.epoch === undefined) this.latency.clear(earlier.id);
   }
-}
-
-function brief(text: string): boolean {
-  return text.split(/\s+/u).filter(Boolean).length <= BRIEF_WORDS;
-}
-
-/** `words` say again only the end of `input` (an STT re-emitting its last words). */
-function repeatsEnd(words: string, input: string): boolean {
-  const said = normalizeForMatch(words);
-  return said.length > 0 && normalizeForMatch(input).endsWith(said);
 }
