@@ -54,6 +54,8 @@ export interface SessionGraphInput {
   defaults?: SessionDefaults;
   mcpConnections?: readonly ToolConnection[];
   sessionVariables?: Readonly<Record<string, unknown>>;
+  /** Replaces the release's behaviour row; the host services it needs are resolved as any row's. */
+  behavior?: { definition: PluginDefinition; config: Record<string, unknown> };
 }
 
 export interface SessionGraphResult {
@@ -216,6 +218,7 @@ export function selectSessionGraph(input: SessionGraphInput): SessionGraphResult
         );
     }
   }
+  const behaviorId = behaviorPluginId(release.config);
   for (const definition of createSessionPluginCatalog({
     config: release.config,
     workspaceId: release.workspaceId,
@@ -229,16 +232,14 @@ export function selectSessionGraph(input: SessionGraphInput): SessionGraphResult
       manifestKeys(definition.manifest).provides.some((entry) => entry.key === Cap.inference),
     ),
   }))
-    add(
-      definition,
-      definition.manifest.id === behaviorPluginId(release.config)
-        ? {
-            agent: release.config,
-            workspaceId: release.workspaceId,
-            sessionId: input.media.sessionId,
-          }
-        : {},
-    );
+    if (definition.manifest.id !== behaviorId) add(definition, {});
+    else if (input.behavior) add(input.behavior.definition, input.behavior.config);
+    else
+      add(definition, {
+        agent: release.config,
+        workspaceId: release.workspaceId,
+        sessionId: input.media.sessionId,
+      });
   const selectedIds = new Set(rows.map((row) => row.id));
   const needed = new Set(
     catalog
