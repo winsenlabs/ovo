@@ -14,7 +14,19 @@ import { createRouterBehaviorPlugin } from '@winsendotai/ovo-plugin-router';
 import type { OperationsService } from '@winsendotai/ovo-plugin-operations';
 import { RoutedVoiceSessionFactory } from './routed-session-factory.ts';
 import { operationsOf } from './routed-call-support.ts';
-import { routingWorkerOptions, transferWorkerOptions } from './worker-environment.ts';
+import {
+  humanQueueWorkerOptions,
+  routingWorkerOptions,
+  transferWorkerOptions,
+} from './worker-environment.ts';
+import { carrierHandoffFor, type TransferTargets } from './worker-carrier-handoff.ts';
+import type { HumanQueuePort, MediaRoomProvider } from './human-contract.ts';
+import {
+  humanQueueOptions,
+  humanServiceOf,
+  roomsOf,
+  type HumanQueueOptions,
+} from './human-wiring.ts';
 import { HoldClipCache } from './hold-clips.ts';
 import type { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
 import type { WorkerTelemetryRuntime } from './telemetry-runtime.ts';
@@ -49,6 +61,11 @@ export function createProductionWorkerMediaRuntime(input: {
   /** Wave 15 routing; by default the worker's environment and the graph's operations service. */
   routing?: { externalEnabled: boolean; prepareTimeoutMs?: number; transferEnabled?: boolean };
   operations?: Pick<OperationsService, 'routing'>;
+  /** Wave 17 human queues; by default the worker's environment, the operations service's ticket store. */
+  humanQueue?: Partial<Pick<HumanQueueOptions, 'enabled' | 'webhookEnabled' | 'pollMs'>> &
+    Partial<Pick<HumanQueueOptions, 'callbackBaseUrl' | 'contextRetentionHours' | 'network'>>;
+  humanQueues?: HumanQueuePort;
+  rooms?: MediaRoomProvider;
 }): WorkerMediaRuntime {
   const routing: {
     externalEnabled: boolean;
@@ -58,24 +75,37 @@ export function createProductionWorkerMediaRuntime(input: {
   const routingService = (input.operations ?? operationsOf(input.graph))?.routing;
   // R2 options only when transfers are on: off, routed calls are composed exactly as in Wave 15.
   const holdClips = holdClipCache(routingService);
-  const transfers =
-    (routing.transferEnabled ?? transferWorkerOptions().transferEnabled)
-      ? {
-          transferEnabled: true,
-          ...(holdClips ? { holdClips } : {}),
-          // Ledger 005: the segment's usage rows carry its index (RecordUsageInput.segment).
-          usageForSegment: (jobId: string, segment: number) => {
-            const sink = input.costs.usageForJob(jobId);
-            return sink && ((usage: ProviderUsage) => sink(usage, segment));
-          },
-        }
-      : {};
+  const transferEnabled = routing.transferEnabled ?? transferWorkerOptions().transferEnabled;
+  const transfers = transferEnabled
+    ? {
+        transferEnabled: true,
+        ...(holdClips ? { holdClips } : {}),
+        // Ledger 005: the segment's usage rows carry its index (RecordUsageInput.segment).
+        usageForSegment: (jobId: string, segment: number) => {
+          const sink = input.costs.usageForJob(jobId);
+          return sink && ((usage: ProviderUsage) => sink(usage, segment));
+        },
+      }
+    : {};
+  // R3 human queues, only with transfers on; where a `transferred` session goes is per session.
+  const transferTargets: TransferTargets = new Map();
+  const humanQueue = transferEnabled
+    ? humanQueueOptions({
+        env: { ...humanQueueWorkerOptions(), ...input.humanQueue },
+        service: input.humanQueues ?? humanServiceOf(input.operations ?? operationsOf(input.graph)),
+        rooms: input.rooms ?? roomsOf(input.graph),
+        transferTargets,
+        ...(input.carriers
+          ? { carrierHandoff: carrierHandoffFor({ carriers: input.carriers, store: input.store }) }
+          : {}),
+      })
+    : undefined;
   let runtime!: WorkerMediaRuntime;
   const terminate = async (
     route: SessionRoute,
     reason: EndReason,
     closingFromEngine = false,
-    transfer?: HandoffTarget,
+    transfer?: HandoffTarget | { handedOff: true },
   ) => {
     const current = await input.store.getSessionRoute(route.jobId);
     if (!current || current.terminalAt || current.releasedAt || current.status === 'terminating')
@@ -125,12 +155,15 @@ export function createProductionWorkerMediaRuntime(input: {
       async (job, route, reason) => {
         // N2: before the hang-up, whose stream stop would otherwise read as the caller's.
         links.get(route.sessionId)?.endingWith(reason);
+        // A human queue's destination already took the leg, or names its own target; else AGT-15.
+        const dynamic = reason === 'transferred' ? transferTargets.get(route.sessionId) : undefined;
+        transferTargets.delete(route.sessionId);
         await terminate(
           route,
           reason,
           true,
           reason === 'transferred'
-            ? await releaseTransferTarget(input.controlStore, job)
+            ? (dynamic ?? (await releaseTransferTarget(input.controlStore, job)))
             : undefined,
         );
       },
@@ -140,6 +173,7 @@ export function createProductionWorkerMediaRuntime(input: {
       routing: routingService,
       routerBehavior: createRouterBehaviorPlugin,
       ...transfers,
+      ...(humanQueue ? { humanQueue } : {}),
     }),
   );
   runtime = new WorkerMediaRuntime(

@@ -21,6 +21,12 @@ export interface TargetContext {
 
 type Resolution = ResolvedTarget | { refusal: AgentTransferRefusal };
 
+/** The queue key of a `human` destination (the contracts carry the shape from R3). */
+function humanDestination(destination: TransferTarget['destination']): string | undefined {
+  const raw = destination as { kind: string; queueId?: string };
+  return raw.kind === 'human' ? raw.queueId : undefined;
+}
+
 /** A target is granted to a segment by its pool, its member or its agent; absent `from`: to all. */
 export function granted(target: TransferTarget, from: SegmentHistoryEntry): boolean {
   if (!target.from) return from.role === 'agent';
@@ -57,6 +63,15 @@ export async function resolveTransfer(
       ? memory.leftReleases(from.index)
       : new Set<string>();
   const destination = target.destination;
+  // R3: a catalogue target may name a human queue (`destination.kind: 'human'`). It is gated like
+  // any target (granted sources, limits, confirm); the queue's own gates run when it is begun.
+  const human = humanDestination(destination);
+  if (human)
+    return {
+      request: { kind: 'human', reason: 'transfer', queueId: human, variables, transfer },
+      target,
+      claimed: false,
+    };
   if (destination.kind === 'node')
     return {
       request: { kind: 'node', reason: 'transfer', node: destination.node, variables, transfer },

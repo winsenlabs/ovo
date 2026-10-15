@@ -6,14 +6,15 @@ import type {
   HandoffTransferMeta,
   HoldPolicy,
   RoutingTransferPolicy,
-  SegmentHandoffRequest,
   TransferTarget,
 } from '@winsendotai/ovo-contracts';
 import type { CallMemory, SegmentHistoryEntry } from './call-memory.ts';
 import type { CallSegment } from './call-segment.ts';
+import type { QueueSnapshot, WideHandoffRequest } from './human-contract.ts';
+import type { HumanRuntime } from './human-runtime.ts';
 import type { HoldClock, HoldPlayer } from './hold-player.ts';
 import type { SegmentMediaLease } from './segment-media.ts';
-import type { AttemptTarget, SegmentAttempt } from './transfer-attempt.ts';
+import type { AttemptTarget, StartableSegment, TransferAttempt } from './transfer-attempt.ts';
 
 /** Claim retries while a queued transfer holds for capacity (transfer design 7.4). */
 export const TRANSFER_CLAIM_RETRY_MS = 3_000;
@@ -26,24 +27,24 @@ export const MAX_SEGMENT_INDEX = 63;
 
 /** A catalogue target resolved into a handoff request (its member claimed when it names a pool). */
 export interface ResolvedTarget {
-  request: SegmentHandoffRequest;
+  request: WideHandoffRequest;
   target: TransferTarget;
   claimed: boolean;
 }
 
 /** A segment attached to the call's link, or one starting. */
 export interface LiveSegment {
-  segment: CallSegment;
+  segment: StartableSegment;
   lease: SegmentMediaLease;
   entry: SegmentHistoryEntry;
 }
 
-export type HoldSource = 'target' | 'point' | 'default';
+export type HoldSource = 'target' | 'point' | 'default' | 'queue';
 
 /** A transfer (or the router's handoff) from `begin` until it connects or the chain ends it. */
 export interface TransferRun {
   id: string;
-  request: SegmentHandoffRequest;
+  request: WideHandoffRequest;
   /** 1-based per call; absent for the router's start-of-call handoff. */
   transfer?: number;
   meta?: HandoffTransferMeta;
@@ -51,7 +52,13 @@ export interface TransferRun {
   committed: boolean;
   begunAt: number;
   hold: { policy: HoldPolicy; source: HoldSource };
-  attempt?: SegmentAttempt;
+  attempt?: TransferAttempt;
+  /** A human handoff: the queue it asks for (R3). Its attempt creates the ticket when committed. */
+  human?: { queue: QueueSnapshot; source: 'router' | 'llm' | 'flow' | 'fallback' | 'chain' };
+  /** Queue keys this run has already tried (an overflow chain never revisits one). */
+  queuesTried?: string[];
+  /** Why the last start failed, when the segment said (`carrier_refused:<reason>`). */
+  startError?: string;
   queue?: { poolId: string; tiers: RoutingMemberCandidate[][]; since: number };
   /** The catalogue target the request named, for its label and handover. */
   target?: TransferTarget;
@@ -70,6 +77,8 @@ export interface TransferControllerDeps {
   router?: { agentId: string; releaseId: string };
   policy?: RoutingTransferPolicy;
   memory: CallMemory;
+  /** R3: human queues (hours, breaker, tickets, webhook, room); absent, `human` steps are skipped. */
+  human?: HumanRuntime;
   /** Composes an attempt's target (an agent release, or the router with an entry) on `lease`. */
   compose(target: AttemptTarget, index: number, lease: SegmentMediaLease): Promise<CallSegment>;
   /** Session events of the call (`route.segment`, `transfer.*`, `segment.ended`, `disposition`). */
@@ -105,10 +114,15 @@ export interface ConnectHost {
   readonly clock: HoldClock;
   readonly ended: boolean;
   readonly endedSignal: AbortSignal;
-  attempt(run: TransferRun, target: AttemptTarget): SegmentAttempt | undefined;
+  attempt(run: TransferRun, target: AttemptTarget): TransferAttempt | undefined;
+  /** R3: a human queue's attempt on a fresh held lease as the next segment index. */
+  humanAttempt(
+    run: TransferRun,
+    make: (index: number, lease: SegmentMediaLease) => TransferAttempt,
+  ): TransferAttempt | undefined;
   start(
     run: TransferRun,
-    attempt: SegmentAttempt,
+    attempt: TransferAttempt,
     gapFrom: number,
     hold: HoldPlayer,
   ): Promise<boolean>;

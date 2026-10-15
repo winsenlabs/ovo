@@ -7,12 +7,12 @@ import {
   type AgentTransferPort,
   type AgentTransferRefusal,
   type AgentTransferResult,
-  type HandoffBeginFailure,
   type RouteLines,
   type RoutingTransferPolicy,
   type TransferTarget,
 } from '@winsendotai/ovo-contracts';
 import type { SegmentHistoryEntry } from './call-memory.ts';
+import type { QueueSnapshot } from './human-contract.ts';
 import { lineFor } from './hold-player.ts';
 import { memberCandidate } from './transfer-begin.ts';
 import type { TransferController } from './transfer-controller.ts';
@@ -47,7 +47,19 @@ export function agentTransferService(port: AgentTransferPort): PluginDefinition 
  */
 export type TransferPort = AgentTransferPort & { readonly summary: boolean };
 
-const REFUSALS: Partial<Record<HandoffBeginFailure, AgentTransferRefusal>> = {
+/** R3: a human queue's gates, refused before anything was announced (human queue design 9.1). */
+const HUMAN_REFUSALS = [
+  'queue_unknown',
+  'queue_closed',
+  'queue_unavailable',
+  'queue_full',
+  'no_operators',
+] as const;
+
+const REFUSALS: Partial<Record<string, AgentTransferRefusal>> = {
+  ...Object.fromEntries(HUMAN_REFUSALS.map((code) => [code, code as AgentTransferRefusal])),
+  // Queues bound but the feature composed off: the tool sees an unreachable team.
+  human_queue_unavailable: 'queue_unavailable' as AgentTransferRefusal,
   busy: 'busy',
   call_ended: 'call_ended',
   pool_full: 'pool_full',
@@ -71,6 +83,8 @@ export function createAgentTransferPort(input: {
   release: { config: Pick<AgentConfig, 'language' | 'variables' | 'handoff'> };
   policy?: RoutingTransferPolicy;
   targets: Omit<TargetContext, 'policy'>;
+  /** R3: a bound human queue by key, for its own announcement. */
+  humanQueue?(key: string): QueueSnapshot | undefined;
   record(type: string, payload: Record<string, unknown>): void;
   log(event: string, fields: Record<string, unknown>): void;
 }): TransferPort {
@@ -167,7 +181,13 @@ export function createAgentTransferPort(input: {
       return {
         ok: true,
         transferId: begun.handoffId,
-        announcement: announce(target, queued),
+        announcement: announce(
+          target,
+          queued,
+          resolved.request.kind === 'human'
+            ? input.humanQueue?.(resolved.request.queueId)?.definition.announcement
+            : undefined,
+        ),
         queued,
       };
     },
@@ -191,10 +211,13 @@ export function createAgentTransferPort(input: {
     const member = memberCandidate(entry);
     if (member) await input.targets.claims.claim([[member]]);
   }
-  /** The target's line, else the point's (its queue line when queued), in this agent's language. */
-  function announce(target: TransferTarget, queued: boolean): string {
+  /**
+   * The target's line, else (a human queue) the queue's own, else the point's (its queue line when
+   * queued), in this agent's language.
+   */
+  function announce(target: TransferTarget, queued: boolean, queue?: RouteLines): string {
     const authored: RouteLines | undefined =
-      target.announcement ?? (queued ? policy?.queueAnnouncement : policy?.announcement);
+      target.announcement ?? queue ?? (queued ? policy?.queueAnnouncement : policy?.announcement);
     if (authored?.[language]) return authored[language];
     const own = config.handoff?.agents?.line;
     if (own) return own;
@@ -204,6 +227,7 @@ export function createAgentTransferPort(input: {
   return port;
 }
 
-function kindOf(target: TransferTarget): 'agent' | 'queue' | 'node' {
-  return target.destination.kind === 'node' ? 'node' : 'agent';
+function kindOf(target: TransferTarget): 'agent' | 'queue' | 'node' | 'human' {
+  const kind: string = target.destination.kind;
+  return kind === 'node' ? 'node' : kind === 'human' ? 'human' : 'agent';
 }

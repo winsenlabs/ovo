@@ -1,10 +1,12 @@
 import type {
+  HandoffBeginFailure,
   HandoffBeginResult,
   HandoffPrepareFailure,
   HandoffPrepareResult,
   SegmentHandoffPort,
   SegmentHandoffRequest,
 } from '@winsendotai/ovo-contracts';
+import type { WideHandoffRequest } from './human-contract.ts';
 import { beginRun, type BeginOptions } from './transfer-begin.ts';
 import { TransferSegments } from './transfer-segments.ts';
 import type { TransferRun } from './transfer-types.ts';
@@ -17,13 +19,13 @@ import type { TransferRun } from './transfer-types.ts';
  * all come through here; the segments and the swap are `TransferSegments`'.
  */
 export class TransferController extends TransferSegments implements SegmentHandoffPort {
-  begin(request: SegmentHandoffRequest, signal: AbortSignal): Promise<HandoffBeginResult> {
+  begin(request: WideHandoffRequest, signal: AbortSignal): Promise<HandoffBeginResult> {
     return this.beginWith(request, signal, {});
   }
 
   /** `begin` with what an agent's transfer port knows: the catalogue target and the LLM's words. */
   async beginWith(
-    request: SegmentHandoffRequest,
+    request: WideHandoffRequest,
     signal: AbortSignal,
     options: BeginOptions,
   ): Promise<HandoffBeginResult> {
@@ -31,7 +33,7 @@ export class TransferController extends TransferSegments implements SegmentHando
     if (this.isEnded || signal.aborted || !from) return this.refuse(request, 'call_ended');
     if (this.busy) return this.refuse(request, 'busy');
     const begun = await beginRun(this, request, from, options);
-    if (!begun.ok) return this.refuse(request, begun.reason);
+    if (!begun.ok) return this.refuse(request, begun.reason as HandoffBeginFailure);
     this.run = begun.run;
     return { ok: true, handoffId: begun.run.id, state: begun.state };
   }
@@ -66,6 +68,8 @@ export class TransferController extends TransferSegments implements SegmentHando
     if (this.isEnded || this.run?.id !== handoffId)
       return this.deps.audit('route.handoff.failed', { handoffId, reason: 'commit_unknown' });
     this.run.committed = true;
+    // A human queue's attempt begins now (ticket, webhook) while the requester announces.
+    this.run.attempt?.commit?.();
   }
 
   /** The begun, uncommitted run `handoffId` names (what a transfer port may still cancel). */
@@ -81,7 +85,7 @@ export class TransferController extends TransferSegments implements SegmentHando
   }
 
   private refuse(
-    request: SegmentHandoffRequest,
+    request: WideHandoffRequest,
     reason: Exclude<HandoffBeginResult, { ok: true }>['reason'],
   ): Promise<HandoffBeginResult> | HandoffBeginResult {
     this.deps.audit('route.handoff.failed', {

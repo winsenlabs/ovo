@@ -94,3 +94,32 @@ export function routingWorkerOptions(): { externalEnabled: boolean; prepareTimeo
       optionalInteger('OVO_ROUTING_PREPARE_TIMEOUT_MS', 500, 10_000) ?? ROUTING_PREPARE_TIMEOUT_MS,
   };
 }
+
+/**
+ * Wave 17 (R3) human queues in the worker (all off or default unless set):
+ * `OVO_HUMAN_QUEUE_ENABLED` is the master switch (only the exact value `true`; it acts only with
+ * `OVO_ROUTING_TRANSFER_ENABLED`), `OVO_HUMAN_QUEUE_WEBHOOK_ENABLED` lets third-party queues call
+ * out, `OVO_HUMAN_QUEUE_CALLBACK_BASE_URL` (default `OVO_MEDIA_PUBLIC_BASE_URL`) is the origin of
+ * the callback and context links, `OVO_HUMAN_QUEUE_POLL_MS` (100-2000, default 400) the ticket
+ * poll, and `OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS` (0-720, default 24) how long a ticket's
+ * context is kept after it ends.
+ */
+export function humanQueueWorkerOptions(): {
+  enabled: boolean;
+  webhookEnabled: boolean;
+  callbackBaseUrl: string;
+  pollMs: number;
+  contextRetentionHours: number;
+} {
+  return {
+    enabled: process.env.OVO_HUMAN_QUEUE_ENABLED === 'true',
+    webhookEnabled: process.env.OVO_HUMAN_QUEUE_WEBHOOK_ENABLED === 'true',
+    callbackBaseUrl: (
+      process.env.OVO_HUMAN_QUEUE_CALLBACK_BASE_URL ||
+      process.env.OVO_MEDIA_PUBLIC_BASE_URL ||
+      ''
+    ).replace(/\/+$/, ''),
+    pollMs: optionalInteger('OVO_HUMAN_QUEUE_POLL_MS', 100, 2_000) ?? 400,
+    contextRetentionHours: optionalInteger('OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS', 0, 720) ?? 24,
+  };
+}

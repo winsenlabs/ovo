@@ -10,9 +10,15 @@ import {
   settleWithin,
   whenLinkCloses,
 } from './segment-prepare.ts';
-import { SegmentAttempt, type AttemptTarget } from './transfer-attempt.ts';
+import {
+  SegmentAttempt,
+  type AttemptTarget,
+  type StartableSegment,
+  type TransferAttempt,
+} from './transfer-attempt.ts';
 import { connectTransfer } from './transfer-connect.ts';
-import { segmentEnded, segmentStarted } from './transfer-events.ts';
+import { endedMidTransfer, historyEntry, segmentEnded, segmentStarted } from './transfer-events.ts';
+import { failStart } from './transfer-start.ts';
 import { runHandover } from './transfer-handover.ts';
 import {
   HOLD_AFTER_START_MS,
@@ -43,7 +49,7 @@ export class TransferSegments extends SegmentLinkOwner implements ConnectHost {
   private startedCount = 0;
   protected isEnded = false;
   private readonly endedController = new AbortController();
-  private readonly pending = new Set<SegmentAttempt>();
+  private readonly pending = new Set<TransferAttempt>();
   private readonly handovers = new Map<
     number,
     (target: Pick<AgentConfig, 'variables'>) => TransferHandover
@@ -84,7 +90,7 @@ export class TransferSegments extends SegmentLinkOwner implements ConnectHost {
 
   /** Makes `segment` the call's attached segment (segment 0: the router, or a degraded default). */
   attach(
-    segment: CallSegment,
+    segment: StartableSegment,
     lease: SegmentMediaLease,
     info: Pick<SegmentHistoryEntry, 'role'> & Partial<SegmentHistoryEntry> = { role: 'router' },
   ): void {
@@ -119,16 +125,7 @@ export class TransferSegments extends SegmentLinkOwner implements ConnectHost {
       this.run = undefined;
       // A committed transfer whose announcement never finished: the call ended first.
       if (run.committed && run.transfer !== undefined)
-        this.deps.record('transfer.completed', {
-          transfer: run.transfer,
-          ...(reason === 'caller_hangup'
-            ? { outcome: 'caller_hangup' }
-            : {
-                outcome: 'failed',
-                reason: reason === 'max_duration' ? 'time_exhausted' : 'call_ended',
-              }),
-          ...{ holdMs: 0, holdPolicy: run.hold.source, steps: [] },
-        });
+        this.deps.record('transfer.completed', endedMidTransfer(run, reason));
     }
     let failure: unknown;
     for (const item of live) {
@@ -146,7 +143,7 @@ export class TransferSegments extends SegmentLinkOwner implements ConnectHost {
   }
 
   /** ConnectHost: composes `target` on a fresh held lease as the next segment index. */
-  attempt(run: TransferRun, target: AttemptTarget): SegmentAttempt | undefined {
+  attempt(run: TransferRun, target: AttemptTarget): TransferAttempt | undefined {
     if (this.attempts >= MAX_SEGMENT_INDEX) return undefined;
     const index = ++this.attempts;
     const lease = this.lease(false);
@@ -158,6 +155,20 @@ export class TransferSegments extends SegmentLinkOwner implements ConnectHost {
       now: () => this.clock.now(),
       dispose: (segment, reason) => segment.close(reason),
     });
+    return this.track(attempt);
+  }
+
+  /** ConnectHost: a human queue's attempt as the next segment index, on a fresh held lease. */
+  humanAttempt(
+    run: TransferRun,
+    make: (index: number, lease: SegmentMediaLease) => TransferAttempt,
+  ): TransferAttempt | undefined {
+    if (this.attempts >= MAX_SEGMENT_INDEX) return undefined;
+    const index = ++this.attempts;
+    return this.track(make(index, this.lease(false)));
+  }
+
+  private track(attempt: TransferAttempt): TransferAttempt {
     this.pending.add(attempt);
     void attempt.done.finally(() => this.pending.delete(attempt));
     return attempt;
@@ -166,46 +177,40 @@ export class TransferSegments extends SegmentLinkOwner implements ConnectHost {
   /** ConnectHost: starts an attempt's segment and attaches it; false (and disposed) on failure. */
   async start(
     run: TransferRun,
-    attempt: SegmentAttempt,
+    attempt: TransferAttempt,
     gapFrom: number,
     hold: HoldPlayer,
   ): Promise<boolean> {
     const segment = attempt.take();
     if (!segment) return false;
-    const { target, index, lease } = attempt;
-    const frozen = this.handovers.get(index)?.(segment.release.config);
+    const { target, lease } = attempt;
+    const { index } = attempt;
+    const human = target.role === 'human';
+    const frozen = human
+      ? undefined
+      : this.handovers.get(index)?.(segment.release.config as Pick<AgentConfig, 'variables'>);
     if (frozen) this.handovers.set(index, () => frozen);
-    const entry: SegmentHistoryEntry = {
-      ...{ index, role: target.role, agentId: segment.release.agentId },
-      ...{ releaseId: segment.release.id, language: segment.release.config.language },
-      ...(target.poolId ? { poolId: target.poolId } : {}),
-      ...(target.memberId ? { memberId: target.memberId } : {}),
-      ...(target.claimId ? { claimId: target.claimId } : {}),
-      ...(run.transfer !== undefined ? { transfer: run.transfer } : {}),
-      startedAt: this.clock.now(),
-    };
+    const entry = historyEntry(run, attempt, segment, this.clock.now());
     const live: LiveSegment = { segment, lease, entry };
     this.incoming = live;
-    lease.beforeFirstAudio(() => hold.stop('target_audio'));
-    lease.buffer();
+    // A human segment hears nothing from the hold: its operator never meets music (design 7.5).
+    if (!human) {
+      lease.beforeFirstAudio(() => hold.stop('target_audio'));
+      lease.buffer();
+    }
     try {
       if (this.isEnded) throw new Error('call ended');
       await segment.start();
-      if (this.isEnded) throw new Error('call ended');
-    } catch {
+      // A leg handed on to its destination may close the link before `start` returns: no failure.
+      if (this.isEnded && !segment.handedOff) throw new Error('call ended');
+    } catch (error) {
       this.incoming = undefined;
-      if (!this.isEnded)
-        this.deps.audit('route.handoff.failed', {
-          ...{ reason: 'start_failed', releaseId: segment.release.id },
-        });
-      await disposeAttached(live, 'error:route-handoff-failed');
-      this.deps.record(
-        'segment.ended',
-        segmentEnded(live, 'start_failed', 'start_failed', entry.startedAt),
-      );
+      await failStart({ deps: this.deps, live, run, error, ended: this.isEnded });
       return false;
     }
     this.incoming = undefined;
+    // The operator is in the room: the hold ends now, with its carrier buffer cleared.
+    if (human) await hold.stop('operator_joined');
     // Connected: the run is over before anything else can end this segment into it again.
     this.settle(run);
     this.current = live;
@@ -215,9 +220,10 @@ export class TransferSegments extends SegmentLinkOwner implements ConnectHost {
     this.deps.memory.started(entry);
     // A target with no member of its own frees the capacity the call held for the previous one.
     if (!entry.poolId && (run.from.poolId || run.claimed)) await this.deps.claims.release();
-    void this.clock
-      .sleep(HOLD_AFTER_START_MS, this.endedSignal)
-      .then(() => hold.stop(this.isEnded ? 'call_ended' : 'target_silent'));
+    if (!human)
+      void this.clock
+        .sleep(HOLD_AFTER_START_MS, this.endedSignal)
+        .then(() => hold.stop(this.isEnded ? 'call_ended' : 'target_silent'));
     this.deps.record(
       'route.segment',
       segmentStarted(entry, target.reason, {
@@ -227,6 +233,7 @@ export class TransferSegments extends SegmentLinkOwner implements ConnectHost {
         fromIndex: run.from.index,
       }),
     );
+    segment.attached?.();
     return true;
   }
 

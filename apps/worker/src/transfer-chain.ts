@@ -1,19 +1,21 @@
 import type { HoldTimeoutStep } from '@winsendotai/ovo-contracts';
 import type { SegmentReason } from './transfer-attempt.ts';
 import { agentTarget, memberCandidate, memberTarget, routerTarget } from './transfer-begin.ts';
+import { humanStep } from './transfer-human.ts';
 import { capturedFor } from './transfer-handover.ts';
 import { TRANSFER_CLAIM_RETRY_MS, type ConnectHost, type TransferRun } from './transfer-types.ts';
 
 /** What waiting for a candidate came to: `ready`, the call or the hold ending, or a failure code. */
 export type Waited = 'ready' | 'ended' | 'call_limit' | 'hold_timeout' | string;
 
-/** A `target`, `default` or `return` step's candidate, or why it could not be begun. */
+/** A `target`, `default`, `return` or `human` step's candidate, or why it could not be begun. */
 export async function chainStep(
   host: ConnectHost,
   run: TransferRun,
-  step: Extract<HoldTimeoutStep, { kind: 'target' | 'default' | 'return' }>,
-): Promise<{ attempt: TransferRun['attempt'] } | string> {
+  step: Extract<HoldTimeoutStep, { kind: 'target' | 'default' | 'return' | 'human' }>,
+): Promise<{ attempt: TransferRun['attempt']; seconds?: number } | string> {
   const { deps } = host;
+  if (step.kind === 'human') return humanStep(host, run, step.queueId);
   if (step.kind === 'default') return { attempt: host.attempt(run, fallbackTarget(host, run)) };
   if (step.kind === 'return') {
     const member = memberCandidate(run.from);
@@ -37,6 +39,8 @@ export async function chainStep(
   run.claimed = resolved.claimed || run.claimed;
   // The router's own handoff that falls back to another target is still a route fallback.
   const reason: SegmentReason = run.transfer !== undefined ? 'transfer' : 'fallback';
+  // A catalogue target that is a human queue joins the chain like a `human` step.
+  if (request.kind === 'human') return humanStep(host, run, request.queueId);
   if (request.kind === 'agent')
     return { attempt: host.attempt(run, agentTarget(host, request, reason)) };
   if (request.kind === 'node')

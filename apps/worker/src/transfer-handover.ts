@@ -112,7 +112,12 @@ export function runHandover(
     buildHandover({
       kind,
       ...(run.transfer !== undefined ? { transfer: run.transfer } : {}),
-      from: { role: run.from.role, agentId: run.from.agentId, releaseId: run.from.releaseId },
+      // A caller sent back by an operator arrives "from" the queue, which reads as an agent.
+      from: {
+        role: run.from.role === 'human' ? 'agent' : run.from.role,
+        agentId: run.from.agentId,
+        releaseId: run.from.releaseId,
+      },
       ...(run.target ? { targetKey: run.target.key } : {}),
       ...(run.meta ? { meta: run.meta } : {}),
       ...(deps.policy ? { policy: deps.policy.handover } : {}),

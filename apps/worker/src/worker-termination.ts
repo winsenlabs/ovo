@@ -20,8 +20,11 @@ export interface OwnedTermination {
   media: Pick<WorkerMediaRuntime, 'terminate' | 'closeSession'>;
   /** Asks the carrier for the final status when its terminal callback does not arrive (OBS-11). */
   reconcile?: TerminalReconcile;
-  /** AGT-15: the agent's transfer target, for a call it ended `transferred`. */
-  transfer?: HandoffTarget;
+  /**
+   * AGT-15: the agent's transfer target, for a call it ended `transferred`. R3: `handedOff` when
+   * a human queue's destination already took the leg (nothing is handed on or hung up).
+   */
+  transfer?: HandoffTarget | { handedOff: true };
 }
 
 type EndedState = Extract<Reconciliation, { kind: 'ended' }>['state'];
@@ -110,7 +113,12 @@ export async function terminateOwnedJob(input: OwnedTermination): Promise<boolea
     },
     reason,
     ...(input.transfer
-      ? { transfer: { target: input.transfer, workspaceId: job.workspaceId } }
+      ? {
+          transfer:
+            'handedOff' in input.transfer
+              ? input.transfer
+              : { target: input.transfer, workspaceId: job.workspaceId },
+        }
       : {}),
   });
   if (input.reconcile) {
