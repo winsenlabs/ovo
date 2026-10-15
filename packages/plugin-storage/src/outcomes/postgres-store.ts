@@ -7,7 +7,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { toIso, transaction, type Row } from '../postgres/shared.ts';
 import { runCallOutcomeMigrations } from './migrations.ts';
-import { applySessionEvent, emptyCallOutcome } from './projection.ts';
+import { applySessionEvent, emptyCallOutcome, noTransfers } from './projection.ts';
 import {
   eventCursor,
   eventPageLimit,
@@ -160,14 +160,16 @@ async function upsertOutcome(
   await client.query(
     `INSERT INTO ovo_call_outcomes (workspace_id,call_id,outcome,end_reason,disposition,
        disposition_source,final_node,state_path,variables,tiers,guardrail_flagged,guardrail_blocked,
-       events,updated_at,route)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11,$12,$13,$14,$15::jsonb)
+       events,updated_at,route,segments,transfers)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11,$12,$13,$14,$15::jsonb,
+       $16::jsonb,$17::jsonb)
      ON CONFLICT (workspace_id,call_id) DO UPDATE SET outcome=EXCLUDED.outcome,
        end_reason=EXCLUDED.end_reason, disposition=EXCLUDED.disposition,
        disposition_source=EXCLUDED.disposition_source, final_node=EXCLUDED.final_node,
        state_path=EXCLUDED.state_path, variables=EXCLUDED.variables, tiers=EXCLUDED.tiers,
        guardrail_flagged=EXCLUDED.guardrail_flagged, guardrail_blocked=EXCLUDED.guardrail_blocked,
-       events=EXCLUDED.events, updated_at=EXCLUDED.updated_at, route=EXCLUDED.route`,
+       events=EXCLUDED.events, updated_at=EXCLUDED.updated_at, route=EXCLUDED.route,
+       segments=EXCLUDED.segments, transfers=EXCLUDED.transfers`,
     [
       workspaceId,
       summary.callId,
@@ -184,6 +186,8 @@ async function upsertOutcome(
       summary.events,
       summary.updatedAt,
       summary.route === null ? null : JSON.stringify(summary.route),
+      JSON.stringify(summary.segments),
+      Object.values(summary.transfers).some(Boolean) ? JSON.stringify(summary.transfers) : null,
     ],
   );
 }
@@ -216,6 +220,8 @@ function mapOutcome(row: Row): CallOutcomeSummary {
     tiers: row.tiers as CallOutcomeSummary['tiers'],
     guardrail: { flagged: Number(row.guardrail_flagged), blocked: Number(row.guardrail_blocked) },
     route: (row.route as CallOutcomeSummary['route'] | undefined) ?? null,
+    segments: (row.segments as CallOutcomeSummary['segments'] | undefined) ?? [],
+    transfers: { ...noTransfers(), ...(row.transfers as CallOutcomeSummary['transfers'] | null) },
     events: Number(row.events),
     updatedAt: toIso(row.updated_at),
   };

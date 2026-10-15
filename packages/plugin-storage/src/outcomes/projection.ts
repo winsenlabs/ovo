@@ -1,7 +1,10 @@
 import {
   CALL_OUTCOME_MAX_PATH,
+  TRANSFER_LIMITS,
   type CallOutcomeRoute,
+  type CallOutcomeSegment,
   type CallOutcomeSummary,
+  type CallOutcomeTransfers,
   type RouteDecisionPayload,
   type RouteSegmentPayload,
   type SessionEvent,
@@ -19,6 +22,10 @@ export interface StoredSessionEvent {
 /** Captured variables are merged per key; past this many keys, new ones are dropped. */
 export const CALL_OUTCOME_MAX_VARIABLES = 100;
 
+export function noTransfers(): CallOutcomeTransfers {
+  return { requested: 0, refused: 0, connected: 0, failed: 0 };
+}
+
 export function emptyCallOutcome(callId: string, at: string): CallOutcomeSummary {
   return {
     callId,
@@ -32,6 +39,8 @@ export function emptyCallOutcome(callId: string, at: string): CallOutcomeSummary
     tiers: {},
     guardrail: { flagged: 0, blocked: 0 },
     route: null,
+    segments: [],
+    transfers: noTransfers(),
     events: 0,
     updatedAt: at,
   };
@@ -54,6 +63,8 @@ export function applySessionEvent(
     tiers: { ...summary.tiers },
     guardrail: { ...summary.guardrail },
     route: summary.route && { ...summary.route, path: [...summary.route.path] },
+    segments: summary.segments.map((segment) => ({ ...segment })),
+    transfers: { ...summary.transfers },
     events: summary.events + 1,
     updatedAt: at,
   };
@@ -95,9 +106,44 @@ export function applySessionEvent(
       break;
     case 'route.segment':
       next.route = segmented(next.route, event.payload);
+      if (next.segments.length < TRANSFER_LIMITS.segmentsPerCall)
+        next.segments.push(segmentOf(event.payload, at));
+      break;
+    case 'segment.ended': {
+      const segment = next.segments.findLast((found) => found.index === event.payload.index);
+      if (segment) {
+        segment.durationMs = event.payload.durationMs;
+        segment.ended = event.payload.ended;
+      }
+      break;
+    }
+    case 'transfer.requested':
+      next.transfers.requested += 1;
+      if (event.payload.result === 'refused') next.transfers.refused += 1;
+      break;
+    case 'transfer.completed':
+      if (event.payload.outcome === 'connected') next.transfers.connected += 1;
+      else if (event.payload.outcome !== 'caller_hangup') next.transfers.failed += 1;
       break;
   }
   return next;
+}
+
+function segmentOf(segment: RouteSegmentPayload, at: string): CallOutcomeSegment {
+  return {
+    index: segment.index,
+    role: segment.role,
+    agentId: segment.agentId,
+    releaseId: segment.releaseId,
+    reason: segment.reason,
+    poolId: segment.poolId ?? null,
+    memberId: segment.memberId ?? null,
+    language: segment.language ?? null,
+    transfer: segment.transfer ?? null,
+    startedAt: at,
+    durationMs: null,
+    ended: null,
+  };
 }
 
 /**
@@ -138,10 +184,27 @@ function decided(route: CallOutcomeRoute | null, decision: RouteDecisionPayload)
   };
 }
 
-/** Counts the segment; an agent segment names the agent if the decision has not. */
+/**
+ * Counts the segment. The agent that answered after routing (`route`, or `fallback` when the
+ * chosen one failed to start) names the route's agent: after a failed start the summary names the
+ * fallback agent that took the call, not the one that never answered (R1 audit 3). Transfers,
+ * returns and re-routes never change the route; any other agent segment (`degraded`) names the
+ * agent only if the decision has not.
+ */
 function segmented(route: CallOutcomeRoute | null, segment: RouteSegmentPayload): CallOutcomeRoute {
   const next = { ...(route ?? undecided()), segments: (route?.segments ?? 0) + 1 };
-  if (segment.role === 'agent' && next.releaseId === null) {
+  if (segment.role !== 'agent') return next;
+  if (segment.reason === 'route' || segment.reason === 'fallback') {
+    // The decided agent's own segment keeps the decision's pool and member if it does not repeat them.
+    const same = next.releaseId === segment.releaseId;
+    next.agentId = segment.agentId;
+    next.releaseId = segment.releaseId;
+    next.poolId = segment.poolId ?? (same ? next.poolId : null);
+    next.memberId = segment.memberId ?? (same ? next.memberId : null);
+    if (segment.reason === 'fallback') next.degraded ??= 'target_start_failed';
+    return next;
+  }
+  if (segment.reason === 'degraded' && next.releaseId === null) {
     next.agentId = segment.agentId;
     next.releaseId = segment.releaseId;
     next.poolId ??= segment.poolId ?? null;
