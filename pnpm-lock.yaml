@@ -288,6 +288,9 @@ importers:
       '@winsendotai/ovo-plugin-recordings':
         specifier: workspace:*
         version: link:../../packages/plugin-recordings
+      '@winsendotai/ovo-plugin-router':
+        specifier: workspace:*
+        version: link:../../packages/plugin-router
       '@winsendotai/ovo-plugin-secrets':
         specifier: workspace:*
         version: link:../../packages/plugin-secrets
@@ -297,6 +300,9 @@ importers:
       '@winsendotai/ovo-plugin-storage':
         specifier: workspace:*
         version: link:../../packages/plugin-storage
+      '@winsendotai/ovo-plugin-tools-http':
+        specifier: workspace:*
+        version: link:../../packages/plugin-tools-http
       '@winsendotai/ovo-plugin-voice':
         specifier: workspace:*
         version: link:../../packages/plugin-voice
@@ -1029,9 +1035,6 @@ importers:
       '@winsendotai/ovo-runtime':
         specifier: workspace:*
         version: link:../runtime
-      '@winsendotai/ovo-sdk':
-        specifier: workspace:*
-        version: link:../sdk
       zod:
         specifier: 4.6.5
         version: 4.6.5
