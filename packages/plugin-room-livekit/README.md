@@ -17,8 +17,9 @@ pair the previous one is used (once per call, then remembered), so either side c
 
 - `sendAudio(frame)` accepts any chunking of the `format` given to `join`; it re-frames to 20 ms,
   resamples to 16 kHz mono PCM for the room and never blocks. Audio queued toward the room beyond
-  300 ms is dropped, and `stats().droppedIn` counts each dropped 20 ms frame (so does a send after
-  `close()`).
+  300 ms is dropped. `stats().framesIn` is every 20 ms of audio offered, `droppedIn` the part shed
+  (so is audio sent after `close()`); `framesOut` is every operator frame that arrived and
+  `droppedOut` the part nobody was listening for.
 - `onOperatorAudio` delivers frames of exactly 20 ms in `format` (160 bytes for μ-law 8 kHz), in
   order, only from participants whose identity starts `op:`. A monitor, a guest or the caller's own
   track are never played. Frames that arrive while nobody listens are counted in `droppedOut`. A

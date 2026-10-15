@@ -11,7 +11,13 @@ import {
   type RemoteParticipant,
   type RemoteTrack,
 } from '@livekit/rtc-node';
-import { bytesToPcm16, createReframer, pcm16ToBytes, type Reframer } from '@winsendotai/ovo-audio';
+import {
+  bytesForMs,
+  bytesToPcm16,
+  createReframer,
+  pcm16ToBytes,
+  type Reframer,
+} from '@winsendotai/ovo-audio';
 import type {
   AudioFormat,
   RoomParticipantEvent,
@@ -52,10 +58,12 @@ export class LiveKitSeat implements RoomSeat {
   private readonly connectedAt: number;
   private closedAt?: number;
   private closing?: Promise<void>;
-  private framesIn = 0;
+  /** Caller audio offered, in 20 ms units of `format` (a measure of audio, not of calls). */
+  private offeredIn = 0;
   private framesOut = 0;
   private droppedIn = 0;
   private droppedOut = 0;
+  private readonly frameBytes: number;
 
   constructor(
     private readonly room: Room,
@@ -64,6 +72,7 @@ export class LiveKitSeat implements RoomSeat {
     private readonly logger?: SeatLogger,
   ) {
     this.uplink = createReframer(format, ROOM_FORMAT, FRAME_MS);
+    this.frameBytes = bytesForMs(format, FRAME_MS);
     this.connectedAt = now();
     room.on(RoomEvent.ParticipantConnected, (p) => this.joined(p));
     room.on(RoomEvent.ParticipantDisconnected, (p) => this.left(p.identity));
@@ -112,13 +121,15 @@ export class LiveKitSeat implements RoomSeat {
   }
 
   private async pump(track: RemoteTrack, downlink: Reframer): Promise<void> {
-    const reader = new AudioStream(track, {
-      sampleRate: ROOM_FORMAT.sampleRate,
-      numChannels: 1,
-      frameSizeMs: FRAME_MS,
-    }).getReader();
-    this.readers.add(reader);
+    let reader: ReadableStreamDefaultReader<AudioFrame> | undefined;
     try {
+      // Opening the stream is a native call that fails when the track is already gone.
+      reader = new AudioStream(track, {
+        sampleRate: ROOM_FORMAT.sampleRate,
+        numChannels: 1,
+        frameSizeMs: FRAME_MS,
+      }).getReader();
+      this.readers.add(reader);
       for (;;) {
         const { done, value } = await reader.read();
         if (done) return;
@@ -128,23 +139,24 @@ export class LiveKitSeat implements RoomSeat {
       if (!this.closing)
         this.logger?.warn('room_audio_read_failed', { error: (error as Error).message });
     } finally {
-      this.readers.delete(reader);
+      if (reader) this.readers.delete(reader);
     }
   }
 
   private deliver(frame: Uint8Array): void {
     if (this.closing) return;
+    this.framesOut += 1;
     if (!this.audioListeners.size) {
       this.droppedOut += 1;
       return;
     }
-    this.framesOut += 1;
     for (const listener of this.audioListeners) this.guard(() => listener(frame));
   }
 
   sendAudio(frame: Uint8Array): void {
+    this.offeredIn += frame.byteLength / this.frameBytes;
     if (this.closing) {
-      this.droppedIn += 1;
+      this.droppedIn += Math.ceil(frame.byteLength / this.frameBytes);
       return;
     }
     for (const bytes of this.uplink.push(frame)) {
@@ -153,11 +165,9 @@ export class LiveKitSeat implements RoomSeat {
         continue;
       }
       const pcm = bytesToPcm16(bytes);
-      this.framesIn += 1;
       this.source
         .captureFrame(new AudioFrame(pcm, ROOM_FORMAT.sampleRate, 1, pcm.length))
         .catch((error: Error) => {
-          this.framesIn -= 1;
           this.droppedIn += 1;
           if (!this.closing) this.logger?.warn('room_capture_failed', { error: error.message });
         });
@@ -197,11 +207,17 @@ export class LiveKitSeat implements RoomSeat {
       );
   }
 
+  /**
+   * `framesIn` is every 20 ms of caller audio offered and `droppedIn` the part of it shed, so the
+   * difference went into the room. `framesOut` is every operator frame that arrived and
+   * `droppedOut` the part nobody was listening for.
+   */
   stats(): RoomSeatStats {
+    const framesIn = Math.ceil(this.offeredIn - 1e-9);
     return {
-      framesIn: this.framesIn,
+      framesIn,
       framesOut: this.framesOut,
-      droppedIn: this.droppedIn,
+      droppedIn: Math.min(this.droppedIn, framesIn),
       droppedOut: this.droppedOut,
       connectedMs: (this.closedAt ?? this.now()) - this.connectedAt,
     };

@@ -216,9 +216,10 @@ describe.skipIf(!server)('RoomSeat against a real server', () => {
     for (let i = 0; i < 200; i += 1) seat.sendAudio(mulawFrame(i, BETA));
     expect(performance.now() - started).toBeLessThan(500);
     const stats = seat.stats();
+    // framesIn is everything offered; droppedIn is the part shed; the rest went into the room.
+    expect(stats.framesIn).toBe(200);
     expect(stats.droppedIn).toBeGreaterThan(100);
-    expect(stats.framesIn + stats.droppedIn).toBeGreaterThanOrEqual(190);
-    expect(stats.framesIn).toBeLessThan(40);
+    expect(stats.framesIn - stats.droppedIn).toBeLessThan(40);
     await seat.close();
     await provider.deleteRoom(name);
   });
@@ -228,11 +229,12 @@ describe.skipIf(!server)('RoomSeat against a real server', () => {
     const operator = await HeadlessParticipant.join(server!.url, token);
     await operator.publishTone(ALPHA);
     await until(() => seat.stats().droppedOut > 10, 5_000, 'dropped frames');
-    expect(seat.stats().framesOut).toBe(0);
+    expect(seat.stats().framesOut).toBe(seat.stats().droppedOut);
     const heard: Uint8Array[] = [];
     seat.onOperatorAudio((frame) => heard.push(frame));
     await until(() => heard.length > 5, 5_000, 'frames once someone listens');
-    expect(seat.stats().framesOut).toBe(heard.length);
+    const { framesOut, droppedOut } = seat.stats();
+    expect(framesOut - droppedOut).toBeGreaterThanOrEqual(heard.length);
     await operator.disconnect();
     await seat.close();
     await provider.deleteRoom(name);
