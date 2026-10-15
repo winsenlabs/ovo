@@ -11,104 +11,76 @@
 .skip-link:focus {
   top: 8px;
 }
-.sidebar {
-  position: fixed;
-  inset: 0 auto 0 0;
-  z-index: 10;
+/* `.sidebar`, `.brand`, `.workspace-switcher`, `.nav-group*`, `.sidebar-status`, `.shell`,
+   `.topbar*`, `.operator`, `.content`, `.centered`/`.login-page`/`.login-card*` moved to
+   `shell.css` (W14 shell rebuild) — nothing outside `components/shell/**` and
+   `components/auth/**` reads these selectors (verified by a repo-wide grep before the move), so
+   they are defined exactly once. */
+.page-heading {
   display: flex;
-  width: 216px;
-  flex-direction: column;
-  padding: 26px 16px 18px;
-  overflow-y: auto;
-  background: var(--nav);
-  color: var(--nav-text);
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
 }
-.brand {
+.page-heading > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+.title-row,
+.heading-actions,
+.button-row {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 0 12px;
-  color: #fff;
+  gap: 10px;
+  flex-wrap: wrap;
 }
-.brand strong {
-  font-size: 27px;
-  line-height: 1;
-  letter-spacing: -2px;
+.studio-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 302px;
+  gap: 20px;
+  align-items: start;
 }
-.brand span {
-  padding-left: 11px;
-  border-left: 1px solid #506057;
-  font-size: 12px;
-  letter-spacing: 1.3px;
-  line-height: 1.35;
+.studio-editors {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
-.workspace-switcher {
-  margin: 28px 4px 18px;
-  padding: 10px 11px;
-  border: 1px solid #425248;
-  border-radius: 7px;
-  color: #f3f7f3;
+.studio-rail {
+  position: sticky;
+  top: 86px;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
 }
-.workspace-switcher span,
-.workspace-switcher small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.call-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.7fr) minmax(0, 1.6fr);
+  gap: 20px;
+  align-items: start;
 }
-.workspace-switcher small {
-  color: #aebdb2;
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
 }
-.nav-group > p {
-  margin: 16px 13px 6px;
-  color: #91a296;
-  font-size: 12px;
-  letter-spacing: 1.3px;
-  text-transform: uppercase;
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
-.nav-group nav {
+.metrics > :is(div, article) {
   display: grid;
   gap: 3px;
+  padding: 15px 17px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
-.nav-group a {
-  min-height: 37px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 12px;
+.metrics strong {
+  font-size: 22px;
 }
-.nav-group a:hover {
-  background: #26372c;
-  color: #fff;
-}
-.nav-group a.active {
-  background: #31503c;
-  color: #fff;
-  font-weight: 650;
-}
-.sidebar-status {
-  display: grid;
-  gap: 8px;
-  margin-top: auto;
-  padding: 24px 9px 2px;
-}
-.sidebar-status small {
-  color: #9faf9f;
-}
-.shell {
-  min-height: 100vh;
-  margin-left: 216px;
-}
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 8;
-  display: flex;
-  min-height: 66px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 0 32px;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  backdrop-filter: blur(12px);
-  font-size: 12px;
+.wide {
+  margin-top: 20px;
 }

@@ -7,7 +7,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import type { ActivityAnnouncement, InferenceActivity } from '@winsendotai/ovo-plugin-kit';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
-import { driverHarness, sleep, slowAgent } from './turn-harness.ts';
+import { driverHarness, sleep, slowAgent } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * Wave 8b: Maya call e8a43f65 (2026-10-12) through the turn driver. The caller turns are the turn

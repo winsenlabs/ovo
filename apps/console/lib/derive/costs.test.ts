@@ -1,0 +1,111 @@
+import { expect, it } from 'vitest';
+import {
+  budgetMeter,
+  catalogStatusSlices,
+  humanisePrice,
+  scenarioBreakdownBars,
+  scenarioMeter,
+} from './costs';
+import type { BudgetSnapshot, ScenarioResult } from '../operator-api';
+import type { PriceCatalogItem } from '../types/price-catalog';
+
+const budget: BudgetSnapshot = {
+  id: 'b1',
+  workspaceId: 'w1',
+  limitPaise: '100000',
+  admissionOverspendPaise: '0',
+  spentPaise: '40000',
+  reservedPaise: '10000',
+  availableForAdmissionPaise: '50000',
+  overLimit: false,
+};
+
+it('converts a budget into spent/reserved/available meter segments in rupees', () => {
+  expect(budgetMeter(budget)).toEqual({
+    segments: [
+      { label: 'Spent', value: 400, tone: 'ok' },
+      { label: 'Reserved', value: 100, tone: 'warn' },
+      { label: 'Available', value: 500, tone: 'neutral' },
+    ],
+    max: 1000,
+  });
+});
+
+it('groups catalog entries by status for the coverage donut', () => {
+  const catalog = [
+    { status: 'imported' },
+    { status: 'imported' },
+    { status: 'not_imported' },
+  ] as unknown as PriceCatalogItem[];
+  expect(catalogStatusSlices(catalog)).toEqual([
+    { label: 'Imported', value: 2 },
+    { label: 'Not imported', value: 1 },
+  ]);
+});
+
+const scenario: ScenarioResult = {
+  targetRevenuePaise: '100000',
+  durationSeconds: '60',
+  totalCostPaise: '60000',
+  marginPaise: '40000',
+  withinTarget: true,
+  marginScope: 'Per completed call',
+  components: [
+    {
+      id: 'telephony',
+      category: 'telephony',
+      amountPaise: '20000',
+      currency: 'INR',
+      assumption: 'x',
+    },
+    { id: 'tax', category: 'tax', amountPaise: '40000', currency: 'INR', assumption: 'y' },
+  ],
+};
+
+it('builds one breakdown bar per cost component, humanised', () => {
+  expect(scenarioBreakdownBars(scenario)).toEqual([
+    { category: 'Telephony', values: { amount: 200 } },
+    { category: 'Tax', values: { amount: 400 } },
+  ]);
+});
+
+it('builds a scenario meter against the target revenue', () => {
+  expect(scenarioMeter(scenario)).toEqual({
+    segments: [
+      { label: 'Telephony', value: 200 },
+      { label: 'Tax', value: 400 },
+    ],
+    max: 1000,
+  });
+});
+
+const card = (overrides: Partial<PriceCatalogItem['card']>): PriceCatalogItem['card'] =>
+  ({
+    id: 'c1',
+    version: 'v1',
+    provider: 'sarvam',
+    unit: 'audio_seconds',
+    currency: 'USD',
+    minorUnitsPerBlock: '54',
+    blockQuantity: '60',
+    effectiveAt: '2026-10-01T00:00:00.000Z',
+    ...overrides,
+  }) as PriceCatalogItem['card'];
+
+it('prices a 60-second duration block per minute, not rescaled to per-second', () => {
+  expect(humanisePrice(card({}))).toBe('$0.54 per minute');
+});
+
+it('prices a multi-minute duration block as "per N minutes"', () => {
+  expect(humanisePrice(card({ minorUnitsPerBlock: '108', blockQuantity: '120' }))).toBe(
+    '$1.08 per 2 minutes',
+  );
+});
+
+it('still scales a count-based block to 1K/1M as before', () => {
+  expect(
+    humanisePrice(
+      card({ unit: 'output_tokens', minorUnitsPerBlock: '50', blockQuantity: '1000000' }),
+    ),
+  ).toBe('$0.50 per 1M output tokens');
+});

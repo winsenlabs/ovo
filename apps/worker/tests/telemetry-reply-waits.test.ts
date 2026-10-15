@@ -39,6 +39,8 @@ describe('reply.waits: where the wait for first reply audio went (Wave 8 fix 3)'
       ttsFirstByteMs: 146,
       carrierMs: 0,
       fillerAudioMs: null,
+      // Nothing played between the caller's words and the reply.
+      heardSilenceMs: 2421,
       carrierRoundTripMs: null,
     });
     expect(parts(turn!)).toBe(turn!.firstAudioMs);
@@ -56,6 +58,8 @@ describe('reply.waits: where the wait for first reply audio went (Wave 8 fix 3)'
       startWaitMs: 500,
       ttsFirstByteMs: 146,
       fillerAudioMs: 2300,
+      // The silence after the filler.
+      heardSilenceMs: 846,
     });
     expect(parts(turn!)).toBe(turn!.firstAudioMs);
   });
@@ -66,6 +70,33 @@ describe('reply.waits: where the wait for first reply audio went (Wave 8 fix 3)'
     );
     expect(waits(fillerOnly)).toEqual([]);
     expect(waits([...replay.turn3, ...replay.turn3])).toHaveLength(1);
+  });
+});
+
+describe('call 8cb76efc F2: the silence the caller heard (Wave 12)', () => {
+  const call7 = JSON.parse(
+    readFileSync(new URL('./fixtures/call7-reply-waits.json', import.meta.url), 'utf8'),
+  ) as { events: EngineEvent[] };
+
+  it('turn 20: 11.8 s to "Sure. In Zagreb…", of which 2.3 s was silence after the answer it queued behind', () => {
+    // "Please." was queued behind the reply to "Yeah, for both these places." (queueMs 9538): the
+    // caller heard that reply play out, "Want to hear more?", and then 2.3 s of silence.
+    const [turn19, turn20] = waits(call7.events);
+    expect(turn19).toMatchObject({
+      turnId: 'turn-19',
+      firstAudioMs: 4267,
+      fillerAudioMs: 3286,
+      // The search line ("Let me look that up.") was cut for the answer 146 ms before it played.
+      heardSilenceMs: 146,
+    });
+    expect(turn20).toMatchObject({
+      turnId: 'turn-20',
+      firstAudioMs: 11849,
+      queueMs: 9538,
+      composeMs: 2167,
+      heardSilenceMs: 2309,
+    });
+    expect(parts(turn20!)).toBe(turn20!.firstAudioMs);
   });
 });
 

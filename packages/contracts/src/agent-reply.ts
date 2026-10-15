@@ -22,6 +22,9 @@ export const AgentReplyPacing = z
      * every other turn (a reply right after one stops where it is capped, with no offer), never
      * after a short answer (one under 60 characters says its next sentence, up to twice
      * `maxChars`), and an English agent without its own `moreLine` goes round four wordings.
+     * Wave 12: an English reply's semicolons end its sentences; the offer is said only when none of
+     * the agent's last three turns offered more, a held tail of up to 80 characters is said instead
+     * of it, and a short question the held rest ends on is said in its place.
      */
     maxSentences: z.number().int().min(0).max(10).optional(),
     maxChars: z.number().int().min(40).max(2_000).optional(),

@@ -66,6 +66,19 @@ postgres_suites() {
   return $status
 }
 
+# Wave 13: the call-eval harness replays the committed corpus (packages/eval/corpus) offline, with no
+# network, through the production engine, detector and behaviour, and fails when a metric is worse
+# than the committed baseline beyond its threshold (docs/eval/README.md).
+eval_gate() {
+  local out status
+  out=$(mktemp -d)
+  pnpm -s eval:calls --mode transcript --label mini-ci --out "$out" \
+    --baseline packages/eval/baselines/transcript-rules.json
+  status=$?
+  rm -rf "$out"
+  return $status
+}
+
 echo '::: install (frozen lockfile)'
 pnpm install --frozen-lockfile || { echo '::: install FAILED'; exit 1; }
 
@@ -77,6 +90,7 @@ step 'format check' pnpm format:check
 # OVO_TEST_SIPP the SIPp suites skip themselves too; they run last, in their own step.
 step 'unit tests' env "${postgres_vars[@]/#/-u}" -u OVO_TEST_SIPP pnpm test
 step 'postgres suites' postgres_suites
+step 'eval offline gate' eval_gate
 step 'live-path e2e' env -u OVO_TEST_SIPP OVO_TEST_POSTGRES_URL="$ci_url" pnpm test:live-path
 # Wave 11: SIPp against the native sip-gateway on loopback (its scenarios, then the full SIP path
 # through the media gateway and a worker). The build host may not have SIPp (brew install sipp).

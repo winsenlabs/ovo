@@ -8,12 +8,10 @@
 }
 
 @media (max-width: 1050px) {
-  .sidebar {
-    width: 190px;
-  }
-  .shell {
-    margin-left: 190px;
-  }
+  /* The old fixed 190px `.sidebar`/`.shell` squeeze was dropped: the rail now only narrows
+     through its own collapse toggle (`--ovo-nav-w` in shell.css), so it no longer fights that
+     variable with a hardcoded width (brief defect #5 — "Team" cut off at 1440×900 came from two
+     width systems disagreeing, not just a tall nav). */
   .content,
   .topbar {
     padding-right: 22px;
@@ -26,35 +24,11 @@
 }
 
 @media (max-width: 850px) {
-  .sidebar {
-    position: relative;
-    width: 100%;
-    padding: 14px 16px;
-  }
-  .workspace-switcher,
-  .sidebar-status,
-  .nav-group > p {
-    display: none;
-  }
-  .nav-group {
-    margin-top: 10px;
-  }
-  .nav-group nav {
-    display: flex;
-    max-width: 100%;
-    overflow-x: auto;
-  }
-  .nav-group a {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-  .shell {
-    margin-left: 0;
-  }
-  .topbar {
-    position: relative;
-    min-height: 56px;
-  }
+  /* The sidebar is not rendered as `.desktop-nav` below 1024px at all (see shell.css's
+     `@media (max-width: 1023px)`), so the old rules squeezing `.sidebar`/`.workspace-switcher`/
+     `.nav-group`/`.shell`/`.topbar` for a "narrow desktop" here only ever fired *inside* the
+     mobile drawer — turning its nav horizontal and dropping the group headings (brief defect
+     #4). Removed; the drawer gets its own layout from `shell.css`. */
   .studio-layout,
   .call-layout {
     grid-template-columns: 1fr;

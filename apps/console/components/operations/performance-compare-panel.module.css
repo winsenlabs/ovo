@@ -1,0 +1,53 @@
+/* Local to the Performance "compare by" panel — a hand-rolled horizontal bar list, scoped so it
+   never touches app/styles/*.css. See performance-compare-panel.tsx for why this isn't BarChart. */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(80px, 160px) 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.row.lowSample {
+  opacity: 0.55;
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.track {
+  position: relative;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.fill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+}
+
+.row.lowSample .fill {
+  background: var(--neutral);
+}
+
+.value {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ActivityAnnouncement, InferenceActivity } from '@winsendotai/ovo-plugin-kit';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
 import type { TurnFiller } from '../src/engine/turn-filler.ts';
-import { driverHarness, slowAgent } from './turn-harness.ts';
+import { driverHarness, slowAgent } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * N3, from Maya call bcbc7d6a (2026-10-07), turn 1, times from the caller stopping: the generic

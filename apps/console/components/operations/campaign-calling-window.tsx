@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Field } from '../primitives';
+import { FormField } from '../ui/form-field';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -54,63 +54,71 @@ export function CampaignCallingWindow({ disabled }: { disabled: boolean }) {
   const [start, setStart] = useState('08:00');
   const [end, setEnd] = useState('19:00');
   return (
-    <fieldset className="nested-card" disabled={disabled}>
-      <legend>Calling hours and consent</legend>
-      <Field
+    <fieldset className="stack" disabled={disabled}>
+      <legend className="eyebrow">Calling hours and consent</legend>
+      <FormField
+        id="campaign-window-mode"
         label="Window"
-        htmlFor="campaign-window-mode"
         help="Calls to +91 numbers are judged in IST against the agent's hours and the legal floor (promotional 10:00–21:00, RBI recovery 08:00–19:00). Admission waits outside them."
       >
-        <select
-          id="campaign-window-mode"
-          name="callingWindowMode"
-          value={mode}
-          onChange={(event) => setMode(event.target.value as 'release' | 'campaign')}
-        >
-          <option value="release">Use the agent&rsquo;s calling hours</option>
-          <option value="campaign">Narrow the hours for this campaign</option>
-        </select>
-      </Field>
-      <Field
+        {(control) => (
+          <select
+            {...control}
+            name="callingWindowMode"
+            value={mode}
+            onChange={(event) => setMode(event.target.value as 'release' | 'campaign')}
+          >
+            <option value="release">Use the agent&rsquo;s calling hours</option>
+            <option value="campaign">Narrow the hours for this campaign</option>
+          </select>
+        )}
+      </FormField>
+      <FormField
+        id="campaign-consent-basis"
         label="Consent basis"
-        htmlFor="campaign-consent-basis"
         help="What makes these calls lawful (TCCCPR). Explicit consent and inquiries need records on the Compliance page."
       >
-        <select id="campaign-consent-basis" name="consentBasis" defaultValue="">
-          {CONSENT_BASES.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </Field>
+        {(control) => (
+          <select {...control} name="consentBasis" defaultValue="">
+            {CONSENT_BASES.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        )}
+      </FormField>
       {mode === 'campaign' && (
         <div className="form-grid">
-          <Field label="From" htmlFor="campaign-window-start">
-            <input
-              id="campaign-window-start"
-              name="callingWindowStart"
-              type="time"
-              value={start}
-              onChange={(event) => setStart(event.target.value)}
-              required
-            />
-          </Field>
-          <Field
+          <FormField id="campaign-window-start" label="From">
+            {(control) => (
+              <input
+                {...control}
+                name="callingWindowStart"
+                type="time"
+                value={start}
+                onChange={(event) => setStart(event.target.value)}
+                required
+              />
+            )}
+          </FormField>
+          <FormField
+            id="campaign-window-end"
             label="Until (exclusive)"
-            htmlFor="campaign-window-end"
             help="In IST for +91 numbers; otherwise in the campaign's timezone."
             error={start >= end ? 'End must be after start.' : undefined}
           >
-            <input
-              id="campaign-window-end"
-              name="callingWindowEnd"
-              type="time"
-              value={end}
-              onChange={(event) => setEnd(event.target.value)}
-              required
-            />
-          </Field>
+            {(control) => (
+              <input
+                {...control}
+                name="callingWindowEnd"
+                type="time"
+                value={end}
+                onChange={(event) => setEnd(event.target.value)}
+                required
+              />
+            )}
+          </FormField>
           <fieldset className="field">
             <legend>Days</legend>
             <div className="button-row">

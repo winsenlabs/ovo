@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { UNTRUSTED_INPUT_VARIABLE, type Behavior } from '@winsendotai/ovo-contracts';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
-import { driverHarness } from './turn-harness.ts';
+import { driverHarness } from '../../eval/src/replay-kit/index.ts';
 
 // Wave 8, call 6e1a4e3a: the turn detector now says when a caller turn's words are doubtful; the
 // reply's variables carry it, so the end-call gate and the behaviour can ask again instead of

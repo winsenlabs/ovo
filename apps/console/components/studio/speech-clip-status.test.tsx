@@ -86,7 +86,7 @@ describe('RoutedSpeechClipStatus', () => {
     expect(
       await screen.findByText('Release release-mid, routed from campaign June EMI.'),
     ).toBeTruthy();
-    expect(screen.getByText('Release release-old, routed from +918000000001.')).toBeTruthy();
+    expect(screen.getByText('Release release-old, routed from +91 80000 00001.')).toBeTruthy();
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     expect(load).toHaveBeenCalledWith('agent-1', 'release-old');
     expect(load).toHaveBeenCalledWith('agent-1', 'release-mid');

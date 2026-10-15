@@ -76,31 +76,39 @@ describe('call 10d5ef30 D5: the long-answer offer only now and then', () => {
   it('never offers on consecutive turns, never after a short answer, and varies the wording', async () => {
     const said = await replay();
     // Live: turns 9, 10, 17 and 18 ended "Want more detail?" (14's never played: superseded).
+    // Wave 12 (call 8cb76efc F7): a short tail the cap held is said instead of offered (turns 9,
+    // 10 and 17). Turn 14's question ("…a few nights in the Arctic?") asks about the Tromsø stop
+    // the cap held back, so it offers instead; turn 18, within three turns of it, does not.
+    // Before: offers on turns 9 and 17.
     expect(
       said.map((lines) => lines.at(-1)).map((last) => (offers.has(last!) ? last : '…')),
-    ).toEqual(['Want more detail?', '…', '…', '…', 'Want to hear more?', '…']);
-    // Turn 10 answers a yes to the offer: it stops where the cap stops it, with no second offer.
+    ).toEqual(['…', '…', 'Want more detail?', '…', '…', '…']);
     expect(said[1]!.join(' ')).toBe(
-      'Zagreb’s Advent is centered around the main squares and parks, with festive lights, food stalls, and seasonal events, so it’s a pleasant city to explore on foot.',
+      'Zagreb’s Advent is centered around the main squares and parks, with festive lights, food stalls, and seasonal events, so it’s a pleasant city to explore on foot. Ban Jelačić Square and Zrinjevac Park are the busiest spots.',
     );
     // Turn 17: its 35-character first sentence is a short answer, so the answer that follows it is
-    // said, and the offer comes after both, never in place of the answer.
+    // said, never an offer in its place. Wave 12 (F5): its semicolon ends a sentence.
     expect(said[4]!.join(' ')).toBe(
-      'You’re right—you already said that. Tromsø is a realistic add-on from Vienna, with a seasonal nonstop flight expected to begin November 28, 2026; otherwise, you can connect through Oslo. Want to hear more?',
+      'You’re right—you already said that. Tromsø is a realistic add-on from Vienna, with a seasonal nonstop flight expected to begin November 28, 2026. Otherwise, you can connect through Oslo. Flights take about three hours.',
     );
-    // Turn 18, right after an offer: the answer alone.
-    expect(said[5]!.join(' ')).toMatch(/connect through Oslo\.$/);
+    expect(said[5]!.join(' ')).toMatch(/expected to begin November 28, 2026\.$/);
   });
 
-  it('offers again once a turn has passed without one, in the next wording', async () => {
-    const zagreb = ANSWERS[0]!;
+  it('offers again only once three turns have passed without one, in the next wording', async () => {
+    // Turn 9's answer with more held back than a short tail.
+    const zagreb = {
+      ...ANSWERS[0]!,
+      model: `${ANSWERS[0]!.model} The Christmas market on Zrinjevac runs every day until the 7th of January.`,
+    };
     const said = await replay([zagreb, ANSWERS[3]!, zagreb, ANSWERS[3]!, zagreb]);
+    // Wave 12 (call 8cb76efc F7): "every other turn" offered on turns 13, 19, 25, 28 and 30. Before:
+    // offers on the 1st, 3rd and 5th answers.
     expect(said.map((lines) => lines.at(-1))).toEqual([
       'Want more detail?',
       expect.stringMatching(/other cities\?$/),
-      'Want to hear more?',
+      expect.stringMatching(/during your trip\.$/),
       expect.stringMatching(/other cities\?$/),
-      'Would you like more on that?',
+      'Want to hear more?',
     ]);
   });
 });

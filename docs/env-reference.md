@@ -220,6 +220,17 @@ The sip-gateway also reads `OVO_MEDIA_PUBLIC_BASE_URL`, `OVO_PERMITTED_FROM_NUMB
 `OVO_HEALTH_TOKEN` and `OVO_LOG_LEVEL` like the other services. Trunk digest credentials are never
 env: they are the sip/tcn binding's credential (JSON `{"username","password"}`), passed per dial.
 
+## Evaluation tooling (Wave 13)
+
+Read only by the offline eval CLIs (`pnpm eval:calls`, `eval:stt`, `eval:turns`; see `docs/eval/README.md`)
+and their tests on a developer or CI machine. No service reads them and Compose never sets them.
+
+| Variable                | Read by                                            | Default | Compose | Notes                                                                                                                                                       |
+| ----------------------- | -------------------------------------------------- | ------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OVO_TURN_MODELS_DIR`   | eval:turns, turn-detector tests, `fetch-model.mjs` | none    | —       | Directory holding the end-of-turn model files (`smart-turn/`, LiveKit). Without it the model bake-off and model tests skip.                                 |
+| `OVO_TURN_LIVEKIT_TEXT` | turn-detector tests                                | unset   | —       | `1` runs the LiveKit text-model test (dev dependencies only).                                                                                               |
+| `OVO_EVAL_<KEY>`        | eval:calls, eval:stt                               | none    | —       | A provider key for live eval runs, e.g. `OVO_EVAL_ELEVENLABS_API_KEY`. Prefer `--keys ~/.ovo-eval/keys.env`, read in-process; never pass keys as arguments. |
+
 ## Compose image pins and host ports
 
 | Variable                                                                                                                                          | Default                       | Notes                                                                                                                              |

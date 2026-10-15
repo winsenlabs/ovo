@@ -2,15 +2,11 @@
 import { useConfirm } from '../ui/dialog';
 import { useCallback, useEffect, useState } from 'react';
 import { apiRequest, ApiError, items, type CallSummary, type SessionIdentity } from '../../lib/api';
-import {
-  EmptyState,
-  JsonEvidence,
-  LoadingBlock,
-  Notice,
-  Panel,
-  PanelHeader,
-  StatusBadge,
-} from '../primitives';
+import { SectionCard } from '../ui/section-card';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { EmptyStateV2, InlineAlert, Skeleton } from '../ui/feedback-v2';
+import { CodeBlock } from '../ui/code-block';
+import { Select } from '../ui/inputs';
 import { RecordingExportPanel } from './recording-export-panel';
 import { RecordingSegmentsTable } from './recording-segments-table';
 import { RecordingManifestMetadata } from './recording-manifest-metadata';
@@ -24,6 +20,9 @@ const messageFor = (error: unknown, fallback: string) =>
       ? error.message
       : fallback;
 
+/** The Recording files tab for a live call: manifest metadata, per-track players, the segment
+ * table, a redacted export, replay/retention actions — `LiveRecordingsPanel` existed before W14
+ * but was mounted nowhere (brief defect #11). */
 export function LiveRecordingsPanel({
   call,
   role,
@@ -37,7 +36,7 @@ export function LiveRecordingsPanel({
   const [detail, setDetail] = useState<DetailState>();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ tone: 'neutral' | 'danger'; text: string }>();
+  const [message, setMessage] = useState<{ tone: 'ok' | 'danger'; text: string }>();
   const [replay, setReplay] = useState<unknown>();
   const callBase = `/calls/${encodeURIComponent(call.id)}/live-recordings`;
 
@@ -97,10 +96,7 @@ export function LiveRecordingsPanel({
     setBusy(true);
     try {
       await apiRequest(`${callBase}/${encodeURIComponent(selectedId)}`, { method: 'DELETE' });
-      setMessage({
-        tone: 'neutral',
-        text: 'Recording tombstoned; physical cleanup is asynchronous.',
-      });
+      setMessage({ tone: 'ok', text: 'Recording tombstoned; physical cleanup is asynchronous.' });
       await load();
     } catch (error) {
       setMessage({ tone: 'danger', text: messageFor(error, 'Recording could not be tombstoned.') });
@@ -132,10 +128,7 @@ export function LiveRecordingsPanel({
         method: 'POST',
         body: JSON.stringify({ limit: 100 }),
       });
-      setMessage({
-        tone: 'neutral',
-        text: 'Bounded retention sweep completed. Inspect the receipt.',
-      });
+      setMessage({ tone: 'ok', text: 'Bounded retention sweep completed. Inspect the receipt.' });
       setReplay(data);
       await load();
     } catch (error) {
@@ -145,70 +138,69 @@ export function LiveRecordingsPanel({
     }
   }
 
-  if (loading) return <LoadingBlock label="Loading production recording manifests" />;
+  if (loading) return <Skeleton shape="block" width="100%" />;
   return (
-    <Panel labelledBy="live-recordings-title">
-      <PanelHeader
-        id="live-recordings-title"
-        title="Production recording lifecycle"
-        badge={<StatusBadge tone="warning">Carrier media</StatusBadge>}
-      />
-      <div className="panel-body stack">
-        <Notice tone="warning">
-          Recording evidence is authenticated and segmented. Alignment uses call-event wall clock
-          and does not prove the caller heard a waveform at an exact transcript offset.
-        </Notice>
-        {message && <Notice tone={message.tone}>{message.text}</Notice>}
+    <SectionCard
+      title="Production recording lifecycle"
+      description="Recording evidence is authenticated and segmented. Alignment uses call-event wall clock and does not prove the caller heard a waveform at an exact transcript offset."
+      actions={<StatusBadgeV2 tone="warn" label="Carrier media" />}
+    >
+      <div className="ds-stack">
+        {message && (
+          <InlineAlert tone={message.tone === 'ok' ? 'info' : 'danger'}>{message.text}</InlineAlert>
+        )}
         {recordings.length === 0 ? (
-          <EmptyState title="No live recording manifest">
+          <EmptyStateV2 variant="unavailable" title="No live recording manifest">
             The recording service returned no carrier artifact. Simulation fixture WAVs are stored
             separately and are never shown as live evidence.
-          </EmptyState>
+          </EmptyStateV2>
         ) : (
           <>
-            <label className="field">
-              <span>Recording</span>
-              <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-                {recordings.map((recording) => (
-                  <option key={recording.id} value={recording.id}>
-                    {recording.state} · {recording.id}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              aria-label="Recording"
+              value={selectedId}
+              onChange={setSelectedId}
+              options={recordings.map((recording) => ({
+                value: recording.id,
+                label: `${recording.state} · ${recording.id}`,
+              }))}
+            />
             {detail && (
               <>
                 <RecordingManifestMetadata manifest={detail.manifest} />
-                <div className="stack">
-                  <Notice tone="neutral">
-                    The server assembles each captured μ-law track into authenticated PCM WAV for
-                    browser playback and seeking. Gaps remain explicit, and seek position is not
-                    exact transcript alignment.
-                  </Notice>
+                <InlineAlert tone="info">
+                  The server assembles each captured μ-law track into authenticated PCM WAV for
+                  browser playback and seeking. Gaps remain explicit, and seek position is not exact
+                  transcript alignment.
+                </InlineAlert>
+                <div className="ds-stack">
                   {(['inbound', 'outbound'] as const).map((track) => (
                     <ProductionTrackPlayer
                       key={`${selectedId}-${track}`}
                       track={track}
                       recordingState={detail.manifest.state}
-                      segments={detail.manifest.segments}
+                      segments={detail.manifest.segments ?? []}
                       source={`/api/v1${callBase}/${encodeURIComponent(selectedId)}/audio/${track}`}
                     />
                   ))}
                 </div>
                 <RecordingSegmentsTable
-                  segments={detail.manifest.segments}
+                  segments={detail.manifest.segments ?? []}
                   callBase={callBase}
                   selectedId={selectedId}
                 />
-                <JsonEvidence label="Alignment and transcript evidence" value={detail.alignment} />
-                <div className="button-row">
-                  <button className="button" type="button" onClick={loadReplay} disabled={busy}>
+                <CodeBlock
+                  code={() => JSON.stringify(detail.alignment, null, 2)}
+                  collapsedLabel="Alignment and transcript evidence"
+                />
+                <div className="ui-cluster">
+                  <button type="button" className="button" onClick={loadReplay} disabled={busy}>
                     Inspect safe replay contract
                   </button>
                   {role !== 'viewer' && (
                     <button
-                      className="button danger"
                       type="button"
+                      className="button danger"
                       onClick={tombstone}
                       disabled={busy}
                     >
@@ -217,8 +209,8 @@ export function LiveRecordingsPanel({
                   )}
                   {role === 'admin' && (
                     <button
-                      className="button"
                       type="button"
+                      className="button"
                       onClick={sweepRetention}
                       disabled={busy}
                     >
@@ -226,13 +218,18 @@ export function LiveRecordingsPanel({
                     </button>
                   )}
                 </div>
-                {replay && <JsonEvidence label="Replay or retention receipt" value={replay} />}
+                {replay != null && (
+                  <CodeBlock
+                    code={() => JSON.stringify(replay, null, 2)}
+                    collapsedLabel="Replay or retention receipt"
+                  />
+                )}
                 <RecordingExportPanel call={call} recordingId={selectedId} role={role} />
               </>
             )}
           </>
         )}
       </div>
-    </Panel>
+    </SectionCard>
   );
 }

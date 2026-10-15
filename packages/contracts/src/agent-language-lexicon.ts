@@ -97,7 +97,9 @@ export const FUNCTION_WORDS: Readonly<Record<string, ReadonlySet<string>>> = {
     (
       'que qué por con pero muy está estoy estás sí gracias hola bueno usted tengo quiero ' +
       'puedo vamos voy entonces porque también donde dónde cuando cuándo eso esto esta una los ' +
-      'las del el ahí aquí gente ves cómo señor pasar hacer hay estamos claro tiene'
+      'las del el ahí aquí gente ves cómo señor pasar hacer hay estamos claro tiene ' +
+      // Wave 12 (call 8cb76efc turn 26): greetings. Not "buenos" ("Buenos Aires" is a place).
+      'buenas tardes noches'
     ).split(' '),
   ),
   nl: new Set(

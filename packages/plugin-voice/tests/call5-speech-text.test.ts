@@ -18,7 +18,8 @@ import {
  * Wave 9 D1: Maya call 10d5ef30 (2026-10-12 15:54–16:00 UTC, en-IN). The lines are the call's
  * `speech.generated` segments exactly as the LLM wrote them and the segmenter cut them; the TTS
  * read each one as written. Before Wave 9 the speaker's filters (markdown, URL, Indian
- * verbalisation) left every one of these unchanged.
+ * verbalisation) left every one of these unchanged. Wave 12 (call 8cb76efc F5): a semicolon
+ * between clauses is said as the end of a sentence.
  */
 const CALL_DAY = Date.parse('2026-10-12T15:55:00Z');
 const SAID: readonly [segment: string, written: string, heard: string][] = [
@@ -36,12 +37,12 @@ const SAID: readonly [segment: string, written: string, heard: string][] = [
   [
     'speech-12 (turn-5)',
     'I’m seeing Mumbai–Prague return fares around sixty-five thousand rupees for travel through January 10; exact prices depend on your departure city and return date, and fares can change quickly.',
-    'I’m seeing Mumbai to Prague return fares around sixty-five thousand rupees for travel through the 10th of January; exact prices depend on your departure city and return date, and fares can change quickly.',
+    'I’m seeing Mumbai to Prague return fares around sixty-five thousand rupees for travel through the 10th of January. Exact prices depend on your departure city and return date, and fares can change quickly.',
   ],
   [
     'speech-16 (turn-8)',
     'December 21, 2026–January 5, 2027, I can’t confirm an exact fare for those dates, but a rough budget of seventy thousand rupees–one lakh rupees per person return is sensible for peak-season travel; prices vary by airline, stops, and baggage.',
-    'the 21st of December to the 5th of January, I can’t confirm an exact fare for those dates, but a rough budget of between seventy thousand and one lakh rupees per person return is sensible for peak-season travel; prices vary by airline, stops, and baggage.',
+    'the 21st of December to the 5th of January, I can’t confirm an exact fare for those dates, but a rough budget of between seventy thousand and one lakh rupees per person return is sensible for peak-season travel. Prices vary by airline, stops, and baggage.',
   ],
   [
     'speech-20 (turn-9)',
@@ -51,7 +52,7 @@ const SAID: readonly [segment: string, written: string, heard: string][] = [
   [
     'speech-45 (turn-18)',
     'Tromsø is a realistic add-on from Vienna, with a seasonal nonstop flight expected to begin November 28, 2026; otherwise, you can connect through Oslo.',
-    'Tromsø is a realistic add-on from Vienna, with a seasonal nonstop flight expected to begin the 28th of November; otherwise, you can connect through Oslo.',
+    'Tromsø is a realistic add-on from Vienna, with a seasonal nonstop flight expected to begin the 28th of November. Otherwise, you can connect through Oslo.',
   ],
 ];
 /** Lines of the call the normaliser must leave as they are. */

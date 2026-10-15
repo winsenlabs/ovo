@@ -1,3 +1,5 @@
+import { humaniseEnum } from '../../lib/status';
+
 /** The compliance API's records (contracts workspace-compliance.ts), typed structurally. */
 export interface ComplianceSettings {
   sender: { legalName?: string; dltPrincipalEntityId?: string; regulator: string };
@@ -85,6 +87,18 @@ export interface ConsentRecord {
 /** An API failure as one line for the operator. */
 export function failureText(failure: unknown, fallback: string): string {
   return failure instanceof Error ? failure.message : fallback;
+}
+
+// `humaniseEnum` title-cases a short all-lowercase token as a word ("Ucc"), not an acronym,
+// because its acronym heuristic only fires on already-uppercase input. Complaint kinds carry a
+// couple of real acronyms (TRAI's "UCC" - unsolicited commercial communication), so this keeps
+// those distinct from the generic snake_case humaniser instead of patching the shared one for
+// every other screen that calls it.
+const KIND_ACRONYMS: Record<string, string> = { ucc: 'UCC' };
+
+/** A complaint `kind` for display: humanised, with known regulatory acronyms kept upper-case. */
+export function complaintKindLabel(kind: string): string {
+  return KIND_ACRONYMS[kind.toLowerCase()] ?? humaniseEnum(kind);
 }
 
 /** The time left until a deadline, or how late it is, in hours or days. */

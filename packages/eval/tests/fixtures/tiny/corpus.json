@@ -1,0 +1,8 @@
+{
+  "description": "A synthetic two-turn call for the harness's end-to-end test. Not a real call: its numbers measure nothing.",
+  "calls": {
+    "call1": {
+      "label": "synthetic"
+    }
+  }
+}

@@ -1,10 +1,13 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+// Single-agent draft editing (brief §3 "Agent detail / studio": remove the agent switcher, it
+// duplicates the Agents list). Loading, saving, conflicts and release readiness are all scoped to
+// the one `agentId` the Configure route is mounted with — exactly like the plugins/test/releases
+// tabs already load by `agentId`, instead of the old page's own `/agents` list + switcher.
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ConsoleExtension } from '@winsendotai/ovo-ui';
 import {
   apiRequest,
   ApiError,
-  emptyAgentConfig,
   ifMatch,
   items,
   normalizeDraft,
@@ -15,11 +18,11 @@ import {
   type Release,
 } from '../../lib/api';
 import { describeError } from '../../lib/errors';
-import { loadAgents } from '../../lib/pagination';
+
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'conflict';
-export function useAgentStudio(extensions: readonly ConsoleExtension[], preferredAgentId?: string) {
-  const [agents, setAgents] = useState<AgentDraft[]>([]);
-  const [selected, setSelected] = useState<AgentDraft>();
+
+export function useAgentStudio(agentId: string, extensions: readonly ConsoleExtension[]) {
+  const [draft, setDraft] = useState<AgentDraft>();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string>();
   const [saveState, setSaveState] = useState<SaveState>('idle');
@@ -30,190 +33,106 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[], preferre
   const [releaseError, setReleaseError] = useState<string>();
   const [readiness, setReadiness] = useState<AgentReadiness>();
   const [readinessError, setReadinessError] = useState<string>();
-  const [publishing, setPublishing] = useState(false);
   const generation = useRef(0);
   const saving = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(undefined);
-    setSelected(undefined);
     try {
-      const [agentPayload, bindingResult, preferredResult] = await Promise.all([
-        loadAgents<Record<string, unknown>>(),
+      const [agentResult, bindingResult] = await Promise.all([
+        apiRequest<unknown>(`/agents/${encodeURIComponent(agentId)}`),
         apiRequest<unknown>('/provider-bindings').catch(() => ({ data: { items: [] } })),
-        preferredAgentId
-          ? apiRequest<unknown>(`/agents/${encodeURIComponent(preferredAgentId)}`)
-          : Promise.resolve(undefined),
       ]);
-      const summaries = agentPayload;
-      const drafts = summaries.filter((item) => item.config).map((item) => normalizeDraft(item));
-      const preferred = preferredResult
-        ? normalizeDraft(preferredResult.data, preferredResult.etag)
-        : undefined;
-      if (summaries.length && !drafts.length) {
-        const details = await Promise.all(
-          summaries.map(async (item) => {
-            const result = await apiRequest<unknown>(`/agents/${String(item.id ?? item.agentId)}`);
-            return normalizeDraft(result.data, result.etag);
-          }),
-        );
-        setAgents(
-          preferred && !details.some((item) => item.id === preferred.id)
-            ? [preferred, ...details]
-            : details,
-        );
-        setSelected(preferred ?? details[0]);
-      } else {
-        setAgents(
-          preferred && !drafts.some((item) => item.id === preferred.id)
-            ? [preferred, ...drafts]
-            : drafts,
-        );
-        setSelected(preferred ?? drafts[0]);
-      }
+      setDraft(normalizeDraft(agentResult.data, agentResult.etag));
       setBindings(items<ProviderBinding>(bindingResult.data));
+      setSaveState('idle');
     } catch (error) {
       setLoadError(describeError(error));
     } finally {
       setLoading(false);
     }
-  }, [preferredAgentId]);
-
+  }, [agentId]);
   useEffect(() => {
     void load();
   }, [load]);
+
   useEffect(() => {
-    if (!selected) {
-      setReleases([]);
-      setReadiness(undefined);
-      return;
-    }
+    if (!draft) return;
     setReadinessError(undefined);
     void Promise.all([
-      apiRequest<unknown>(`/agents/${selected.id}/releases`)
+      apiRequest<unknown>(`/agents/${encodeURIComponent(agentId)}/releases`)
         .then(({ data }) => setReleases(items<Release>(data)))
         .catch((error) => setReleaseError(describeError(error))),
-      apiRequest<AgentReadiness>(`/agents/${selected.id}/readiness`)
+      apiRequest<AgentReadiness>(`/agents/${encodeURIComponent(agentId)}/readiness`)
         .then(({ data }) => setReadiness(data))
         .catch((error) => setReadinessError(describeError(error))),
     ]);
-  }, [selected?.id, selected?.draftVersion]);
+  }, [agentId, draft?.draftVersion]);
 
-  const save = useCallback(async (draft: AgentDraft, editGeneration: number) => {
-    if (saving.current) return;
-    saving.current = true;
-    setSaveState('saving');
-    setSaveError(undefined);
-    setConflict(undefined);
-    try {
-      const result = await apiRequest<unknown>(`/agents/${draft.id}`, {
-        method: 'PUT',
-        headers: { 'if-match': ifMatch(draft.draftVersion) },
-        body: JSON.stringify({ config: draft.config }),
-      });
-      const saved = normalizeDraft(result.data, result.etag);
-      setSelected((current) =>
-        current && current.id === draft.id
-          ? {
-              ...current,
-              draftVersion: saved.draftVersion,
-              ...(generation.current === editGeneration
-                ? { config: saved.config ?? current.config }
-                : {}),
-            }
-          : current,
-      );
-      setAgents((current) =>
-        current.map((item) =>
-          item.id === draft.id
+  const save = useCallback(
+    async (next: AgentDraft, editGeneration: number) => {
+      if (saving.current) return;
+      saving.current = true;
+      setSaveState('saving');
+      setSaveError(undefined);
+      setConflict(undefined);
+      try {
+        const result = await apiRequest<unknown>(`/agents/${agentId}`, {
+          method: 'PUT',
+          headers: { 'if-match': ifMatch(next.draftVersion) },
+          body: JSON.stringify({ config: next.config }),
+        });
+        const saved = normalizeDraft(result.data, result.etag);
+        setDraft((current) =>
+          current
             ? {
-                ...item,
+                ...current,
                 draftVersion: saved.draftVersion,
                 ...(generation.current === editGeneration
-                  ? { config: saved.config ?? item.config }
+                  ? { config: saved.config ?? current.config }
                   : {}),
               }
-            : item,
-        ),
-      );
-      setSaveState(generation.current === editGeneration ? 'saved' : 'dirty');
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 409) {
-        setSaveState('conflict');
-        setConflict(error.details?.current);
-      } else {
-        setSaveState('error');
-        setSaveError(describeError(error));
+            : current,
+        );
+        setSaveState(generation.current === editGeneration ? 'saved' : 'dirty');
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          setSaveState('conflict');
+          setConflict(error.details?.current);
+        } else {
+          setSaveState('error');
+          setSaveError(describeError(error));
+        }
+      } finally {
+        saving.current = false;
       }
-    } finally {
-      saving.current = false;
-    }
-  }, []);
+    },
+    [agentId],
+  );
 
   useEffect(() => {
-    if (!selected || saveState !== 'dirty') return;
-    const snapshot = selected;
+    if (!draft || saveState !== 'dirty') return;
+    const snapshot = draft;
     const editGeneration = generation.current;
     const timer = window.setTimeout(() => void save(snapshot, editGeneration), 700);
     return () => window.clearTimeout(timer);
-  }, [selected, save, saveState]);
+  }, [draft, save, saveState]);
 
   function update(next: AgentConfig) {
     generation.current += 1;
-    setSelected((current) => (current ? { ...current, config: next } : current));
-    setAgents((current) =>
-      current.map((item) => (item.id === selected?.id ? { ...item, config: next } : item)),
-    );
+    setDraft((current) => (current ? { ...current, config: next } : current));
     setSaveState('dirty');
   }
 
-  async function createAgent() {
-    setLoadError(undefined);
-    try {
-      const result = await apiRequest<unknown>('/agents', {
-        method: 'POST',
-        body: JSON.stringify({ config: emptyAgentConfig() }),
-      });
-      const created = normalizeDraft(result.data, result.etag);
-      setAgents((current) => [...current, created]);
-      setSelected(created);
-      setSaveState('saved');
-    } catch (error) {
-      setLoadError(describeError(error));
-    }
-  }
+  const activeForms = draft
+    ? extensions
+        .flatMap((extension) => extension.forms)
+        .filter((form) => form.modes.includes(draft.config.mode))
+    : [];
 
-  async function publish() {
-    if (!selected) return;
-    setPublishing(true);
-    setReleaseError(undefined);
-    try {
-      const { data } = await apiRequest<Release>(`/agents/${selected.id}/releases`, {
-        method: 'POST',
-        body: JSON.stringify({}),
-      });
-      setReleases((current) => [data, ...current]);
-    } catch (error) {
-      setReleaseError(describeError(error));
-    } finally {
-      setPublishing(false);
-    }
-  }
-
-  const activeForms = useMemo(
-    () =>
-      selected
-        ? extensions
-            .flatMap((extension) => extension.forms)
-            .filter((form) => form.modes.includes(selected.config.mode))
-        : [],
-    [extensions, selected],
-  );
   return {
-    agents,
-    setSelected,
-    selected,
+    draft,
     loading,
     loadError,
     load,
@@ -225,10 +144,7 @@ export function useAgentStudio(extensions: readonly ConsoleExtension[], preferre
     readiness,
     readinessError,
     releaseError,
-    publishing,
     update,
-    createAgent,
-    publish,
     activeForms,
   };
 }

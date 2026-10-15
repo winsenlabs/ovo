@@ -1,16 +1,14 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import { apiRequest } from '../../lib/api';
-import {
-  EmptyState,
-  Field,
-  Notice,
-  Panel,
-  PanelHeader,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
+import { InlineAlert } from '../ui/feedback-v2';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
+import { EmptyStateV2 } from '../ui/feedback-v2';
+import { SectionCard } from '../ui/section-card';
+import { formatDate, formatPhoneNumber } from '../../lib/format';
 import { failureText, type A2pDeclaration, type CliNumber } from './compliance-types';
+import { AddCliNumberDrawer, RecordA2pDeclarationDrawer } from './cli-registry-forms';
 
 const SERIES_LABEL = {
   '140': '140 · promotional',
@@ -21,7 +19,8 @@ const SERIES_LABEL = {
 
 /**
  * The caller numbers this workspace dials from, their series (derived from the digits, R2-R4),
- * and the A2P declarations filed with the telco (R7).
+ * and the A2P declarations filed with the telco (R7). Add/record forms open in a drawer so the
+ * two tables stay the page, not a stack of always-open forms under them.
  */
 export function CliRegistryPanel({
   numbers,
@@ -35,6 +34,7 @@ export function CliRegistryPanel({
   onChanged: () => Promise<void>;
 }) {
   const [error, setError] = useState<string>();
+  const [drawer, setDrawer] = useState<'number' | 'declaration' | null>(null);
   async function submit(
     event: FormEvent<HTMLFormElement>,
     write: (values: FormData) => Promise<unknown>,
@@ -45,6 +45,7 @@ export function CliRegistryPanel({
       await write(new FormData(form));
       form.reset();
       setError(undefined);
+      setDrawer(null);
       await onChanged();
     } catch (failure) {
       setError(failureText(failure, 'The registry could not be updated.'));
@@ -73,127 +74,104 @@ export function CliRegistryPanel({
         ),
       ),
     });
+
+  const numberColumns: ColumnV2<CliNumber>[] = [
+    {
+      id: 'phoneNumber',
+      header: 'Number',
+      cell: (row) => <span className="mono">{formatPhoneNumber(row.phoneNumber)}</span>,
+    },
+    { id: 'series', header: 'Series', cell: (row) => SERIES_LABEL[row.series] },
+    { id: 'categories', header: 'Categories', cell: (row) => row.categories.join(', ') },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: (row) => <StatusBadgeV2 value={row.status} />,
+    },
+  ];
+  const declarationColumns: ColumnV2<A2pDeclaration>[] = [
+    {
+      id: 'range',
+      header: 'Range',
+      cell: (row) => (
+        <span className="mono">
+          {formatPhoneNumber(row.rangeStart)}–{formatPhoneNumber(row.rangeEnd)}
+        </span>
+      ),
+    },
+    { id: 'oap', header: 'Telco and reference', cell: (row) => `${row.oap} · ${row.reference}` },
+    {
+      id: 'effective',
+      header: 'Effective',
+      cell: (row) => (row.withdrawnAt ? 'Withdrawn' : `From ${formatDate(row.effectiveFrom)}`),
+    },
+  ];
+
   return (
-    <Panel labelledBy="cli-registry-title">
-      <PanelHeader
-        id="cli-registry-title"
-        title="Caller numbers and A2P declarations"
-        badge={<StatusBadge>{numbers.length}</StatusBadge>}
-      />
-      {error && <Notice tone="danger">{error}</Notice>}
-      {!numbers.length ? (
-        <div className="panel-body">
-          <EmptyState title="No caller numbers registered">
-            Every +91 call is refused until its caller number is registered here.
-          </EmptyState>
-        </div>
-      ) : (
-        <ResponsiveTable label="Caller numbers">
-          <thead>
-            <tr>
-              <th>Number</th>
-              <th>Series</th>
-              <th>Categories</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {numbers.map((row) => (
-              <tr key={row.phoneNumber}>
-                <td className="mono">{row.phoneNumber}</td>
-                <td>{SERIES_LABEL[row.series]}</td>
-                <td>{row.categories.join(', ')}</td>
-                <td>
-                  <StatusBadge tone={row.status === 'active' ? 'good' : 'danger'}>
-                    {row.status}
-                  </StatusBadge>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </ResponsiveTable>
-      )}
-      <form className="panel-body form-grid" onSubmit={(event) => void submit(event, saveNumber)}>
-        <fieldset disabled={!canEdit} className="form-grid">
-          <Field label="Caller number" htmlFor="cli-number">
-            <input id="cli-number" name="phoneNumber" type="tel" placeholder="+911600…" required />
-          </Field>
-          <fieldset className="field">
-            <legend>Categories</legend>
-            {['service', 'transactional', 'promotional'].map((category) => (
-              <label key={category} className="toggle-row">
-                <input
-                  type="checkbox"
-                  name="categories"
-                  value={category}
-                  defaultChecked={category === 'service'}
-                />
-                <span>{category}</span>
-              </label>
-            ))}
-          </fieldset>
-          <Field
-            label="Status"
-            htmlFor="cli-status"
-            help="Flagged or suspended numbers are never dialed and pause their campaigns."
+    <div className="stack">
+      {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+      <SectionCard
+        title="Caller numbers"
+        padding="flush"
+        actions={
+          <button
+            className="button small primary"
+            type="button"
+            disabled={!canEdit}
+            onClick={() => setDrawer('number')}
           >
-            <select id="cli-status" name="status" defaultValue="active">
-              {['active', 'flagged', 'suspended', 'retired'].map((status) => (
-                <option key={status}>{status}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Telco (OAP)" htmlFor="cli-oap">
-            <input id="cli-oap" name="oap" />
-          </Field>
-          <button className="button align-start">Save caller number</button>
-        </fieldset>
-      </form>
-      <ResponsiveTable label="A2P declarations">
-        <thead>
-          <tr>
-            <th>Range</th>
-            <th>Telco and reference</th>
-            <th>Effective</th>
-          </tr>
-        </thead>
-        <tbody>
-          {declarations.map((row) => (
-            <tr key={row.id}>
-              <td className="mono">
-                {row.rangeStart}–{row.rangeEnd}
-              </td>
-              <td>
-                {row.oap} · {row.reference}
-              </td>
-              <td>{row.withdrawnAt ? 'Withdrawn' : `From ${row.effectiveFrom}`}</td>
-            </tr>
-          ))}
-        </tbody>
-      </ResponsiveTable>
-      <form className="panel-body form-grid" onSubmit={(event) => void submit(event, declare)}>
-        <fieldset disabled={!canEdit} className="form-grid">
-          <Field label="First number" htmlFor="a2p-start">
-            <input id="a2p-start" name="rangeStart" type="tel" required />
-          </Field>
-          <Field label="Last number" htmlFor="a2p-end">
-            <input id="a2p-end" name="rangeEnd" type="tel" required />
-          </Field>
-          <Field label="Telco (OAP)" htmlFor="a2p-oap">
-            <input id="a2p-oap" name="oap" required />
-          </Field>
-          <Field label="Declaration reference" htmlFor="a2p-ref">
-            <input id="a2p-ref" name="reference" required />
-          </Field>
-          <Field label="Declared on" htmlFor="a2p-declared">
-            <input id="a2p-declared" name="declaredAt" type="date" required />
-          </Field>
-          <Field label="Effective from" htmlFor="a2p-effective">
-            <input id="a2p-effective" name="effectiveFrom" type="date" required />
-          </Field>
-          <button className="button align-start">Record declaration</button>
-        </fieldset>
-      </form>
-    </Panel>
+            Add number
+          </button>
+        }
+      >
+        <DataTableV2
+          key={numbers.length === 0 ? 'empty' : 'data'}
+          label="Caller numbers"
+          rows={numbers}
+          columns={numberColumns}
+          rowKey={(row) => row.phoneNumber}
+          empty={
+            <EmptyStateV2 title="No caller numbers registered">
+              Every +91 call is refused until its caller number is registered here.
+            </EmptyStateV2>
+          }
+        />
+      </SectionCard>
+      <SectionCard
+        title="A2P declarations"
+        padding="flush"
+        actions={
+          <button
+            className="button small primary"
+            type="button"
+            disabled={!canEdit}
+            onClick={() => setDrawer('declaration')}
+          >
+            Record declaration
+          </button>
+        }
+      >
+        <DataTableV2
+          key={declarations.length === 0 ? 'empty' : 'data'}
+          label="A2P declarations"
+          rows={declarations}
+          columns={declarationColumns}
+          rowKey={(row) => row.id}
+          empty="No A2P declarations on file"
+        />
+      </SectionCard>
+      <AddCliNumberDrawer
+        open={drawer === 'number'}
+        canEdit={canEdit}
+        onClose={() => setDrawer(null)}
+        onSubmit={(event) => void submit(event, saveNumber)}
+      />
+      <RecordA2pDeclarationDrawer
+        open={drawer === 'declaration'}
+        canEdit={canEdit}
+        onClose={() => setDrawer(null)}
+        onSubmit={(event) => void submit(event, declare)}
+      />
+    </div>
   );
 }

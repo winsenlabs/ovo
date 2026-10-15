@@ -1,7 +1,8 @@
 'use client';
 import type { AgentConfig } from '../../lib/api';
-import { EmptyState, Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
 import { ListTextInput } from '../forms/list-text-input';
+import { UnconfiguredPanel } from './unconfigured-panel';
 
 type Policy = NonNullable<AgentConfig['knowledge']>;
 
@@ -35,27 +36,24 @@ export function KnowledgeEditor({
 
   if (!policy)
     return (
-      <Panel labelledBy="knowledge-title">
-        <PanelHeader
-          id="knowledge-title"
-          title="Grounding"
-          badge={<StatusBadge tone="soft">Not configured</StatusBadge>}
-        />
-        <div className="panel-body stack">
-          <EmptyState title="The agent is not grounded">
-            Without grounding, an agent knows only its briefing text — which is pasted into every
-            request whole, and fails publication above its budget rather than being searched. With
-            it, each turn retrieves only the passages that match, with a citation for each.
-            <button
-              className="button primary"
-              type="button"
-              onClick={() => update({ ...config, knowledge: DEFAULT_POLICY() })}
-            >
-              Ground this agent
-            </button>
-          </EmptyState>
-        </div>
-      </Panel>
+      <UnconfiguredPanel
+        labelledBy="knowledge-title"
+        title="Grounding"
+        emptyTitle="The agent is not grounded"
+        action={
+          <button
+            className="button primary"
+            type="button"
+            onClick={() => update({ ...config, knowledge: DEFAULT_POLICY() })}
+          >
+            Ground this agent
+          </button>
+        }
+      >
+        Without grounding, an agent knows only its briefing text — which is pasted into every
+        request whole, and fails publication above its budget rather than being searched. With it,
+        each turn retrieves only the passages that match, with a citation for each.
+      </UnconfiguredPanel>
     );
 
   return (

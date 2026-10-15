@@ -1,73 +1,21 @@
-import type { ValidateFunction } from 'ajv';
 import {
   END_CALL_TOOL_ID,
   FLOW_RESUME_TOOL_ID,
-  type AgentConfig,
-  type Execution,
-  type Inference,
   type InferenceReply,
-  type InferenceRequest,
-  type OperationRecord,
-  type ToolDefinition,
 } from '@winsendotai/ovo-contracts';
 import { streamAgentReply, stripInternalNotes } from './agent-stream.ts';
 import { EndCallRefusal } from './agent-end-refusal.ts';
 import { endCallReason, isEndCall, selectedTool } from './agent-tools.ts';
-import type { AgentTurnLog } from './agent-turn-log.ts';
-import type { ToolConfirmation } from './confirmation.ts';
 import { applyFlowResume, interceptLateResume, readFlowResume } from './flow-rejoin.ts';
-import type { FlowSession } from './flow-session.ts';
-import { recovered, recoveryLine, replyFallbacks } from './inference-recovery.ts';
+import { recovered, recoveryLine, replyFallbacks, uncertaintyRetry } from './inference-recovery.ts';
+import { normalizeUtterance } from './rules-lexicons.ts';
 import { inferenceRequest, rejoinOffer, type Rejoin } from './inference-request.ts';
-import type { ToolEvents } from './tool-events.ts';
+import type { InferenceStepInput } from './inference-step-input.ts';
 
 export * from './flow-rejoin.ts';
 export { firstInferenceRequest } from './inference-request.ts';
 
-export interface InferenceStepInput {
-  config: AgentConfig;
-  inference: Inference;
-  execution: Execution;
-  identity: { workspaceId: string; sessionId: string };
-  tools: ToolDefinition[];
-  validators: ReadonlyMap<string, ValidateFunction>;
-  log: AgentTurnLog;
-  confirmation: ToolConfirmation;
-  events: ToolEvents;
-  /** Records a line as generated and returns it for speaking. */
-  publish: (text: string) => string;
-  /** The LLM ended the call; its goodbye is this turn's reply. */
-  endCall: (reason: string) => void;
-  /** N1: why the LLM may not end the call on this turn (`EndCallGate`); undefined when it may. */
-  endRefused?: () => string | undefined;
-  /** Wave 10 (L2): "Shall I end the call?" was said for the model's `end_call` with `reason`. */
-  askedToEnd?: (reason: string) => void;
-  operationId: () => string;
-  turn: number;
-  /** False once a newer turn has superseded this one. */
-  current: () => boolean;
-  input: string;
-  history: InferenceRequest['history'];
-  context: string;
-  /** Records settled this turn; appended to as tools run. */
-  results: OperationRecord[];
-  streaming: boolean;
-  signal: AbortSignal;
-  /** A previous write's outcome was never confirmed. */
-  uncertainWrite: () => boolean;
-  /** This turn already executed a confirmed write. */
-  wrote: boolean;
-  /** The session's flow, when the agent routes by one: the LLM may hand the call back to it. */
-  flow?: FlowSession;
-  /** The reply guardrail from the pre-reply step: the text to speak, or undefined to drop it. */
-  guard?: (segment: string) => string | undefined;
-  /** The caller cut off the agent's previous reply (P7); the LLM is told so in its instructions. */
-  replyCut?: boolean;
-  /** What the agent said in its previous turn, so the uncertainty line is not said twice (P10). */
-  previous?: readonly string[];
-  /** Wave 10 (B1): the earlier words this turn's were said after, before their reply was heard. */
-  saidBefore?: string;
-}
+export type { InferenceStepInput } from './inference-step-input.ts';
 
 /**
  * Ask the LLM, run the read tools it selects, and speak its answer. Bounded by `maxSteps`; a write
@@ -133,9 +81,20 @@ async function* inferenceSteps(
     signal.throwIfAborted();
     if (!step.current()) throw new DOMException('stale agent turn', 'AbortError');
   };
-  for (let index = 0; index < config.maxSteps; index += 1) {
+  // Wave 12 (F1): a reply that was only the uncertainty line, asked once more (`uncertaintyRetry`).
+  let again: { providerTools: true; note: string } | undefined;
+  let retried = false;
+  for (let index = 0; index < config.maxSteps + Number(retried); index += 1) {
     signal.throwIfAborted();
-    const request = { ...inferenceRequest(step, rejoin), signal };
+    const asked = inferenceRequest(step, rejoin);
+    const request = {
+      ...asked,
+      ...(again
+        ? { context: `${asked.context}\n\n${again.note}`, providerTools: again.providerTools }
+        : {}),
+      signal,
+    };
+    again = undefined;
     let reply: InferenceReply;
     if (step.streaming && step.inference.stream) {
       const events = step.inference.stream(request);
@@ -151,18 +110,23 @@ async function* inferenceSteps(
         config.locale,
         assertCurrent,
         publish,
-        (input) => {
-          const accepted = isEndCall(step.tools, step.validators, input);
+        (input, last) => {
+          if (!isEndCall(step.tools, step.validators, input)) return false;
           // A refused goodbye already streamed stays said; the call stays open.
-          if (accepted) ending.afterText(input, () => step.endCall(endCallReason(input)));
-          return accepted;
+          return (
+            ending.afterText(input, () => step.endCall(endCallReason(input)), last) || 'refused'
+          );
         },
         streamGuard,
         config.reply,
         // Call-3 #7: the long-answer cap reads the reply language, not the locale; a turn the flow
         // may take back is left uncapped, so no offer of more is said before the flow's question.
         rejoin ? undefined : config.language,
-        { lastSaid: step.previous ?? [], history: step.history ?? [] },
+        {
+          lastSaid: step.previous ?? [],
+          ...(step.recentSaid ? { recentSaid: step.recentSaid } : {}),
+          history: step.history ?? [],
+        },
       );
       if (!streamed) {
         const ask = ending.takeAsk();
@@ -176,7 +140,17 @@ async function* inferenceSteps(
     assertCurrent();
 
     if (reply.kind === 'text') {
-      const text = checked(fresh(stripInternalNotes(reply.text) ?? recoveryLine(step)));
+      const unsure = fallbacks.held();
+      const said = unsure ?? stripInternalNotes(reply.text);
+      const uncertain =
+        unsure !== undefined ||
+        (said !== undefined && normalizeUtterance(said) === normalizeUtterance(config.uncertainty));
+      again = uncertain && !retried ? uncertaintyRetry(step, request) : undefined;
+      if (again) {
+        retried = true;
+        continue;
+      }
+      const text = checked(fresh(said ?? recoveryLine(step)));
       if (text !== undefined) yield publish(text);
       return;
     }

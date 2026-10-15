@@ -94,9 +94,12 @@ describe('the uncertainty line is never the answer to unclear words (call-3 #3)'
       'Who won the Zagreb half marathon this year?',
       'And what was the winning time?',
     ]);
-    expect(first).toEqual(["I'm not completely sure about that.", 'Want me to look it up?']);
-    // P10: not twice in a row, even for a real question: the clarification instead.
-    expect(second).toEqual(['Please clarify your question.']);
+    // Wave 12 (F1): the line that opens a reply to a clear question is held until the reply shows
+    // it is all there is (it may be asked again), then said whole.
+    expect(first).toEqual([UNSURE]);
+    // Before Wave 12, P10 made the second "Please clarify your question.": call 8cb76efc turn 12
+    // heard it as the answer to a clear question. With no way to look it up, the line stays.
+    expect(second).toEqual([UNSURE]);
   });
 
   it('asks again for a whole reply too, and for words cut off or garbled', async () => {
@@ -112,13 +115,10 @@ describe('the uncertainty line is never the answer to unclear words (call-3 #3)'
     for (const input of ['And in Split.', 'Restaurants near the Colosseum.']) {
       const { agent } = maya([answer, UNSURE, UNSURE]);
       const [, streamed] = await call(agent, ['What is Zagreb like in December?', input]);
-      expect(streamed, input).toEqual([
-        "I'm not completely sure about that.",
-        'Want me to look it up?',
-      ]);
+      expect(streamed, input).toEqual([UNSURE]);
       agent.beginTurn(9);
-      // Whole: P10 turns a second uncertainty line into the clarification, never an ask-again.
-      expect(await agent.respond(input), input).toBe('Please clarify your question.');
+      // Whole, said again: never the clarification (Wave 12 F1), never an ask-again.
+      expect(await agent.respond(input), input).toBe(UNSURE);
     }
   });
 

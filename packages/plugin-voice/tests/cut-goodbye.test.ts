@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Behavior, TurnSpeculation } from '@winsendotai/ovo-contracts';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
-import { driverHarness, sleep, type TestClock } from './turn-harness.ts';
+import { driverHarness, sleep, type TestClock } from '../../eval/src/replay-kit/index.ts';
 
 /**
  * A flow's two-line do-not-call goodbye. Like the behaviors package's CallEnding, it completes

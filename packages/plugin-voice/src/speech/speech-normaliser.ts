@@ -1,4 +1,8 @@
-import type { TextFilter } from '@winsendotai/ovo-contracts';
+import {
+  dropSpokenCitations,
+  semicolonsAsSentences,
+  type TextFilter,
+} from '@winsendotai/ovo-contracts';
 import { MONTHS } from './indian-verbalisation.ts';
 import { DETERMINED, monthIndex, renderDate, validDay, type DateToken } from './speech-dates.ts';
 import { spokenRanges, spokenSymbols } from './speech-ranges.ts';
@@ -179,17 +183,21 @@ const DATE_RANGE = new RegExp(
 );
 
 export function normaliseSpeechText(
-  text: string,
+  written: string,
   language: string,
   options: SpeechNormaliserOptions = {},
 ): string {
+  // Wave 12 (Maya call 8cb76efc, F3): a source citation is never speech, in any language. The
+  // inference binding strips them as they stream; this is the guarantee for every speaker.
+  const text = dropSpokenCitations(written);
   if (!/^en(?:-|$)/i.test(language) || !text) return text;
   const now = new Date((options.now ?? Date.now)());
   const dayFirst = !/^en-US$/i.test(language);
   const tokens: DateToken[] = [];
   let spoken = tokenise(text, tokens, dayFirst);
   if (tokens.length) spoken = spoken.replace(DATE_RANGE, '$1 to $2');
-  spoken = spokenSymbols(spokenRanges(spoken));
+  // Wave 12 (F5): the agent's stream already ends sentences at semicolons; a fixed line may not.
+  spoken = semicolonsAsSentences(spokenSymbols(spokenRanges(spoken)));
   if (tokens.length)
     spoken = spoken.replace(PLACEHOLDER, (_match, index: string, offset: number, whole: string) =>
       renderDate(tokens[Number(index)]!, now, dayFirst, DETERMINED.test(whole.slice(0, offset))),

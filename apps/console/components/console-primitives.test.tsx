@@ -128,7 +128,7 @@ describe('console form and plugin primitives', () => {
     );
     const attestation = screen.getByRole('checkbox') as HTMLInputElement;
     expect(attestation.required).toBe(true);
-    const secret = screen.getByLabelText('token') as HTMLInputElement;
+    const secret = screen.getByLabelText('Token') as HTMLInputElement;
     expect(secret.type).toBe('password');
     expect(secret.autocomplete).toBe('off');
     expect(screen.getByText(/Stored · fingerprint abc123/)).toBeDefined();

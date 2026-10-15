@@ -1,0 +1,24 @@
+{
+  "name": "@winsendotai/ovo-plugin-turn-detector-livekit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "fetch-model": "node scripts/fetch-model.mjs"
+  },
+  "dependencies": {
+    "@livekit/agents": "1.9.0",
+    "@livekit/local-inference": "0.2.7",
+    "@livekit/rtc-node": "0.13.34"
+  },
+  "devDependencies": {
+    "@huggingface/transformers": "4.2.0",
+    "@livekit/agents-plugin-livekit": "1.9.0",
+    "@winsendotai/ovo-conformance": "workspace:*",
+    "@winsendotai/ovo-contracts": "workspace:*",
+    "@winsendotai/ovo-plugin-turns": "workspace:*"
+  }
+}

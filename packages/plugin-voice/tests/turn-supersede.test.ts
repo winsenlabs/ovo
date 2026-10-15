@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FakeClock } from '../../conformance/src/drivers/fake-clock.ts';
 import { mergeUtterances } from '../src/engine/turn-speculation.ts';
-import { driverHarness, slowAgent } from './turn-harness.ts';
+import { driverHarness, slowAgent } from '../../eval/src/replay-kit/index.ts';
 
 const LLM_MS = 2500;
 const TTS_MS = 200;

@@ -39,6 +39,9 @@ export type TurnRoute =
   /** `say` answers the turn; without it the LLM composes the reply. `end`: `<question>=<answer>`. */
   | { kind: 'answer'; say?: string; end?: string };
 
+/** Wave 12 (F7): a reply offers more only when none of the agent's last three turns did. */
+const RECENT_TURNS = 3;
+
 /**
  * Repeat, didn't-catch and re-ask lines (AGT-12), the decision-unavailable line (AGT-4), and the
  * bound on them: `maxAttempts` misses in a row, then `exhausted`. Without a `recovery` block only a
@@ -51,6 +54,8 @@ export class RecoveryState {
   private misses = 0;
   private lastTurn?: number;
   private lastLines: string[] = [];
+  /** Wave 12 (F7): the lines of the conversational turns before the last, oldest first. */
+  private earlierLines: string[][] = [];
 
   /** Validates every recovery and idle line against the declared variables up front. */
   constructor(
@@ -67,9 +72,19 @@ export class RecoveryState {
     return this.lastLines;
   }
 
+  /**
+   * The lines of the agent's last `RECENT_TURNS` conversational turns, oldest first: how often a
+   * reply has offered more (Wave 12, F7).
+   */
+  get recentSaid(): readonly string[] {
+    return [...this.earlierLines.flat(), ...this.lastLines];
+  }
+
   /** A line the conversation said (not a recovery or idle line): what a repeat replays. */
   remember(turn: number, line: string): void {
     if (turn !== this.lastTurn) {
+      if (this.lastTurn !== undefined)
+        this.earlierLines = [...this.earlierLines, this.lastLines].slice(1 - RECENT_TURNS);
       this.lastTurn = turn;
       this.lastLines = [];
     }

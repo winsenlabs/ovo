@@ -8,13 +8,30 @@ vi.mock('../lib/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/api')>()),
   apiRequest: request,
 }));
+vi.mock('../components/shell/session-provider', () => ({
+  useSession: () => ({ role: 'admin' }),
+}));
+// The tab-in-URL sync (minor #12) reads/writes the router, which this render tree has none of.
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ replace: vi.fn() }),
+  usePathname: () => '/calls/call-1',
+}));
 afterEach(() => {
   cleanup();
   request.mockReset();
 });
 
 const evidence = {
-  call: { id: 'call-1', status: 'completed' },
+  call: {
+    id: 'call-1',
+    agentId: 'agt_1',
+    kind: 'live',
+    status: 'completed',
+    createdAt: '2026-10-06T10:00:00.000Z',
+    completedAt: '2026-10-06T10:03:48.000Z',
+    durationMs: 228000,
+  },
   events: Array.from({ length: 250 }, (_, index) => ({
     id: `e${index}`,
     type: 'engine.event',
@@ -31,7 +48,7 @@ const evidence = {
         id: 'u1',
         provider: 'llm',
         quantity: '900',
-        unit: 'tokens',
+        unit: 'output_tokens',
         amountMinor: '7',
         currency: 'USD',
         state: 'estimated',
@@ -62,9 +79,10 @@ const evidence = {
 function respond(turns: unknown[]) {
   request.mockImplementation(async (path: string) => {
     if (path === '/calls/call-1/evidence') return { data: evidence };
+    if (path === '/agents/agt_1') return { data: { config: { name: 'EMI reminder' } } };
     if (path === '/calls/call-1/outcome?limit=500')
       return { data: { available: false, summary: null, events: [] } };
-    if (path === '/calls/call-1/turns') return { data: { callId: 'call-1', turns } };
+    if (path === '/calls/call-1/turns') return { data: { turns } };
     if (path === '/calls/call-1/cost')
       return {
         data: { provisional: true, provisionalPriceCards: [{ id: 'llm-card', version: '1' }] },
@@ -73,50 +91,60 @@ function respond(turns: unknown[]) {
   });
 }
 
-describe('call inspector diagnosis (OBS-7)', () => {
-  it('shows each turn with its route, utterance, reply and stage waterfall', async () => {
-    respond([turn(), turn({ turnId: 't2', llmCalls: 1, userText: 'kitna hai?' })]);
+async function openTab(name: string) {
+  await screen.findByRole('heading', { name: 'EMI reminder call' });
+  fireEvent.click(screen.getByRole('tab', { name }));
+}
+
+describe('call inspector latency + diagnosis (OBS-7, W14 relogic)', () => {
+  it('charts the waterfall, stage breakdown and first-audio series for the turns', async () => {
+    respond([turn(), turn({ turnId: 't2', llmCalls: 1, firstAudioMs: 900 })]);
     render(<CallInspectorFeature callId="call-1" />);
-    const turns = await screen.findByRole('list', { name: 'Turns' });
-    const first = within(turns).getByRole('listitem', { name: 'Turn 1' });
-    expect(within(first).getByText('Jev → promise_to_pay 91% · 240 ms')).toBeTruthy();
-    expect(within(first).getByText('kal de dunga')).toBeTruthy();
-    expect(within(first).getByText('Theek hai, kal tak.')).toBeTruthy();
-    expect(within(first).getByRole('img').getAttribute('aria-label')).toContain('Decision 240 ms');
-    expect(within(turns).getByText('promise_to_pay 91% → LLM ×1')).toBeTruthy();
-    expect(screen.getByLabelText('Turn summary').textContent).toContain('First audio p50 700 ms');
+    await openTab('Latency');
+    expect(
+      await screen.findByRole('img', { name: 'Median latency per stage across turns' }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('img', {
+        name: 'First audio time per answered turn, with the p50 and p95 reference lines',
+      }),
+    ).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Per-turn latency breakdown by stage' })).toBeTruthy();
   });
 
-  it('names the timeout, the errors, speculation reuse and lost evidence', async () => {
+  it('names the timeout, the errors, speculation reuse and lost evidence in the diagnosis rail', async () => {
     respond([]);
     render(<CallInspectorFeature callId="call-1" />);
+    await openTab('Conversation');
     expect(await screen.findByText(/Timed out in text to speech \(tts\/acme\)/)).toBeTruthy();
     expect(screen.getByText(/tts socket closed/)).toBeTruthy();
     expect(screen.getByText('started 4 · reused 3')).toBeTruthy();
     expect(screen.getByText(/5 evidence events were lost/)).toBeTruthy();
   });
 
-  it('shows cost in every currency with provisional and unpriced warnings', async () => {
+  it('shows cost in every currency, humanised, with provisional and unpriced warnings', async () => {
     respond([]);
     render(<CallInspectorFeature callId="call-1" />);
-    await screen.findByLabelText('Cost totals');
-    expect(screen.getByLabelText('Cost totals').textContent).toContain('₹12.50 estimated');
-    expect(screen.getByLabelText('Cost totals').textContent).toContain('$0.07 estimated');
+    await openTab('Cost');
+    // Once in the header's "Cost" KPI (shared across tabs) and once in the Cost tab's own total.
+    expect(await screen.findAllByText('₹12.50')).toHaveLength(2);
+    // M1/M2: the header KPI's "other currency" footnote and the USD donut's centre now go
+    // through the same `formatMoney` total as the tab's own USD KpiCard, so this currency's
+    // amount reads identically in all four spots instead of only two.
+    expect(screen.getAllByText('$0.07')).toHaveLength(4);
     expect(await screen.findByText(/Provisional: priced partly/)).toBeTruthy();
     expect(screen.getByText('Unpriced meters: acme.stt.seconds')).toBeTruthy();
     expect(
-      within(screen.getByRole('table', { name: 'Cost lines' })).getByText('$0.07'),
+      within(screen.getByRole('region', { name: 'Cost lines' })).getByText('900 output tokens'),
     ).toBeTruthy();
   });
 
-  it('renders a long call a page at a time', async () => {
-    respond(Array.from({ length: 300 }, (_, index) => turn({ turnId: `t${index}` })));
+  it('groups and pages a long event timeline instead of dumping a bare list', async () => {
+    respond([]);
     render(<CallInspectorFeature callId="call-1" />);
-    const turns = await screen.findByRole('list', { name: 'Turns' });
-    expect(within(turns).getAllByRole('listitem')).toHaveLength(40);
-    fireEvent.click(screen.getByRole('button', { name: 'Show 40 more of 260 turns' }));
-    expect(within(turns).getAllByRole('listitem')).toHaveLength(80);
-    expect(screen.getByRole('button', { name: 'Show more of 150 events' })).toBeTruthy();
+    await openTab('Events');
+    expect(await screen.findByText('250 recorded events')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /more/ })).toBeTruthy();
     expect(document.querySelector('pre')).toBeNull();
   });
 });

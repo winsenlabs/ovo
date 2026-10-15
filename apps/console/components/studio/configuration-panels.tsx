@@ -1,8 +1,10 @@
 'use client';
 import type { ConsoleField } from '@winsendotai/ovo-ui';
-import type { AgentConfig } from '../../lib/api';
-import type { ProviderBinding } from '../../lib/api';
-import { Field, Panel, PanelHeader, StatusBadge } from '../primitives';
+import type { AgentConfig, ProviderBinding } from '../../lib/api';
+import { FormField } from '../ui/form-field';
+import { SectionCard } from '../ui/section-card';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { Switch } from '../ui/display';
 import { JsonEditor } from '../forms/json-editor';
 
 function getPath(config: AgentConfig, path: ConsoleField['path']): unknown {
@@ -33,53 +35,55 @@ export function PluginField({
   const value = getPath(config, field.path);
   if (field.kind === 'json')
     return (
-      <Field label={field.label} htmlFor={id} help={field.help}>
-        <JsonEditor
-          id={id}
-          value={value}
-          objectOnly={false}
-          onValid={(next) => update(setPath(config, field.path, next))}
-        />
-      </Field>
+      <FormField id={id} label={field.label} help={field.help}>
+        {() => (
+          <JsonEditor
+            id={id}
+            value={value}
+            objectOnly={false}
+            onValid={(next) => update(setPath(config, field.path, next))}
+          />
+        )}
+      </FormField>
     );
   if (field.kind === 'switch')
     return (
-      <label className="toggle-row" htmlFor={id}>
-        <input
-          id={id}
-          type="checkbox"
-          checked={Boolean(value)}
-          onChange={(event) => update(setPath(config, field.path, event.target.checked))}
-        />
-        <span>{field.label}</span>
-      </label>
+      <Switch
+        label={field.label}
+        checked={Boolean(value)}
+        onChange={(checked) => update(setPath(config, field.path, checked))}
+      />
     );
-  const common = {
-    id,
-    value: String(value ?? ''),
-    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      update(
-        setPath(
-          config,
-          field.path,
-          field.kind === 'number' ? Number(event.target.value) : event.target.value,
-        ),
-      ),
-  };
   return (
-    <Field label={field.label} htmlFor={id} help={field.help}>
-      {field.kind === 'textarea' ? (
-        <textarea {...common} />
-      ) : (
-        <input
-          {...common}
-          type={field.kind === 'number' ? 'number' : 'text'}
-          min={field.min}
-          max={field.max}
-          step={field.max === 1 ? '0.01' : undefined}
-        />
-      )}
-    </Field>
+    <FormField id={id} label={field.label} help={field.help}>
+      {(controlProps) =>
+        field.kind === 'textarea' ? (
+          <textarea
+            {...controlProps}
+            value={String(value ?? '')}
+            onChange={(event) => update(setPath(config, field.path, event.target.value))}
+          />
+        ) : (
+          <input
+            {...controlProps}
+            type={field.kind === 'number' ? 'number' : 'text'}
+            min={field.min}
+            max={field.max}
+            step={field.max === 1 ? '0.01' : undefined}
+            value={String(value ?? '')}
+            onChange={(event) =>
+              update(
+                setPath(
+                  config,
+                  field.path,
+                  field.kind === 'number' ? Number(event.target.value) : event.target.value,
+                ),
+              )
+            }
+          />
+        )
+      }
+    </FormField>
   );
 }
 
@@ -107,6 +111,14 @@ export function bindingsForSlot(
   );
 }
 
+/**
+ * The pre-plugin `config.providers` map, shown only while a draft still has one (brief §3
+ * "Advanced: legacy provider bindings, only shown if `config.providers` is non-empty"). The
+ * caller (`studio.tsx`) gates this on that condition; this component just renders it, relabelled
+ * "Legacy bindings" so it no longer reads as the live, current binding surface — the Voice &
+ * plugins tab's `config.voice` selections are that, and this used to contradict it by showing
+ * "Not bound" for slots the plugins tab had already configured.
+ */
 export function ProviderMap({
   config,
   bindings,
@@ -121,44 +133,46 @@ export function ProviderMap({
       ? ['stt', 'tts', 'telephony']
       : ['stt', 'tts', 'inference', 'telephony'];
   return (
-    <Panel labelledBy="provider-map-title">
-      <PanelHeader
-        id="provider-map-title"
-        title="Provider bindings"
-        badge={
-          <StatusBadge tone={bindings.length ? 'soft' : 'warning'}>
-            {bindings.length ? 'Metadata loaded' : 'Not configured'}
-          </StatusBadge>
-        }
-      />
-      <div className="panel-body form-grid">
+    <SectionCard
+      title="Legacy bindings"
+      description="Superseded by the Voice & plugins tab's per-slot selections; kept only until this draft's providers map is empty."
+      actions={
+        <StatusBadgeV2
+          tone={bindings.length ? 'neutral' : 'warn'}
+          label={bindings.length ? 'Metadata loaded' : 'Not configured'}
+        />
+      }
+    >
+      <div className="form-grid">
         {slots.map((slot) => (
-          <Field
+          <FormField
             key={slot}
+            id={`provider-${slot}`}
             label={`${slot.toUpperCase()} binding`}
-            htmlFor={`provider-${slot}`}
             help="Only API-returned binding references are stored in the draft."
           >
-            <select
-              id={`provider-${slot}`}
-              value={config.providers[slot] ?? ''}
-              onChange={(event) =>
-                update({
-                  ...config,
-                  providers: { ...config.providers, [slot]: event.target.value },
-                })
-              }
-            >
-              <option value="">Not bound</option>
-              {bindingsForSlot(bindings, slot, config.providers[slot]).map((binding) => (
-                <option key={binding.id} value={binding.id}>
-                  {binding.label} · {binding.environment}
-                </option>
-              ))}
-            </select>
-          </Field>
+            {(controlProps) => (
+              <select
+                {...controlProps}
+                value={config.providers[slot] ?? ''}
+                onChange={(event) =>
+                  update({
+                    ...config,
+                    providers: { ...config.providers, [slot]: event.target.value },
+                  })
+                }
+              >
+                <option value="">Not bound</option>
+                {bindingsForSlot(bindings, slot, config.providers[slot]).map((binding) => (
+                  <option key={binding.id} value={binding.id}>
+                    {binding.label} · {binding.environment}
+                  </option>
+                ))}
+              </select>
+            )}
+          </FormField>
         ))}
       </div>
-    </Panel>
+    </SectionCard>
   );
 }

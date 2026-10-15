@@ -62,7 +62,7 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         this.evidence.vadStopped();
         // Wave 9: a hold is timed from the caller's silence, never served under their words.
         this.cutoff.resume();
-        if (speechMuted(this.view(), this.rules)) break;
+        if (this.mutedStop()) break;
         if (this.strategy === 'vad-timeout') {
           this.vadStopPending = true;
           this.vadStopReady = false;
@@ -101,6 +101,7 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         this.answering = !!event.question;
         if (!event.filler && (!this.bot || this.bot.filler))
           this.replyStartedAt = this.input.clock.now();
+        this.owed.agentStarted(!!event.filler);
         this.bot = {
           epoch: event.epoch,
           kind: event.kind,
@@ -111,10 +112,12 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         break;
       case 'bot.stopped':
         if (this.bot && this.bot.epoch !== event.epoch) break;
+        this.owed.agentStopped(this.input.clock.now());
         const wasPrompt = confirmationPrompt(this.view(), this.rules);
         this.bot = undefined;
         this.firstSpeechComplete = true;
         this.opening.end();
+        if (!this.speaking()) this.muted.over();
         if (this.answersQuestion && this.repliedEarly()) this.reset('backchannel');
         if (wasPrompt && this.turnId) {
           if (!this.aggregate.hasText) {
@@ -133,6 +136,7 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
         break;
       case 'tool.settled':
         this.tools = Math.max(0, this.tools - 1);
+        if (!this.tools && !this.bot && !this.speaking()) this.muted.over();
         break;
       case 'confirmation.pending':
         this.confirmationPending = true;
@@ -239,17 +243,6 @@ export class TurnController extends TurnControllerSpeech implements UserTurnCont
     if (!final) this.aggregate.closeOpenSegments();
     this.endRule = 'noise';
     this.tryStop();
-  }
-
-  /**
-   * Call 6e1a4e3a turn 9: "Hardik?" said 2.4 s into a 12 s answer waited 9.4 s for it, as the
-   * answer to the question it ended on. Said that long before the agent stopped, it came before
-   * the question was heard, and only acknowledged what the agent was saying then.
-   */
-  private repliedEarly(): boolean {
-    const windowMs = this.config.questionReplyMs;
-    const at = this.lastWordsAt ?? this.input.clock.now();
-    return windowMs > 0 && this.input.clock.now() - at > windowMs;
   }
 
   /** The agent stopped over words that waited for it (an answer to its question). */

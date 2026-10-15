@@ -1,0 +1,89 @@
+/* W14 shell lane, part 3/4: login and the session-expiry card (see shell.css for part 1/4). */
+
+/* ---------- login ---------- */
+.login-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: var(--space-6);
+  background: var(--bg);
+}
+.login-card {
+  display: grid;
+  width: min(100%, 420px);
+  gap: var(--space-4);
+  padding: var(--space-8);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--elev-2);
+}
+/* `.brand`'s base rules (shell.css) already set the light-on-dark text colour; this just adds
+   the chip shape for the badge context. Unscoped from `.login-card .login-brand` — the
+   session-expiry card below reuses this exact class outside a `.login-card`, and without its
+   own `--nav-bg` chip the "ovo" wordmark was rendering light-on-light at a 1.19:1 contrast
+   ratio (axe colour-contrast, brief defect #10). */
+.login-brand {
+  width: max-content;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--nav-bg);
+}
+.login-card form {
+  display: grid;
+  gap: var(--space-2);
+}
+.login-card form .button {
+  margin-top: var(--space-2);
+}
+.login-footnote {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--text-micro-size);
+}
+.password-issue-list {
+  margin: var(--space-1) 0 0;
+  padding-inline-start: var(--space-4);
+}
+/* Shared by the login password-change card and the Account page's change-password form — both
+   had no way to check what you typed and no hint of the policy until the server rejected it
+   (brief defect #18). */
+.password-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.password-field input {
+  flex: 1;
+}
+.password-field .text-button {
+  flex-shrink: 0;
+  font-size: var(--text-micro-size);
+  white-space: nowrap;
+}
+.password-hint {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--text-micro-size);
+}
+
+/* ---------- session expiry ---------- */
+.session-expiry-screen {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: var(--space-6);
+}
+.session-expiry-card {
+  display: grid;
+  width: min(100%, 380px);
+  gap: var(--space-2);
+  padding: var(--space-8);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--elev-2);
+  text-align: center;
+  justify-items: center;
+}
+.session-expiry-card .button {
+  margin-top: var(--space-2);
+}

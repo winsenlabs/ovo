@@ -111,8 +111,9 @@ export function webSearchUsage(results: readonly ProviderToolResult[]) {
 
 /**
  * Removes what a web search answer carries for a screen and not for a caller's ear: inline
- * citations (`([site](url))`, `【4†source】`, `[1]`), markdown links (kept as their text) and bare
- * URLs (kept as their host). Applied before text reaches the segmenter and the TTS filter chain.
+ * citations (`([site](url))`, `【4†source】`, `[1]`, OpenAI's private-use `cite` markers),
+ * markdown links (kept as their text) and bare URLs (kept as their host). Applied before text
+ * reaches the segmenter and the TTS filter chain.
  */
 export function stripCitations(text: string): string {
   return dropSpokenCitations(text)
@@ -120,8 +121,18 @@ export function stripCitations(text: string): string {
     .replace(/\bhttps?:\/\/(?:www\.)?([^\s/?#)]+)[^\s)]*/g, '$1');
 }
 
-/** Characters that may open a citation the next delta closes. */
-const OPENERS: Readonly<Record<string, string>> = { '(': ')', '[': ']', '【': '】' };
+/**
+ * Characters that may open a citation the next delta closes. Wave 12 (F3): OpenAI's private-use
+ * citation marker streams over several deltas, like the brackets: `CITATION_START` U+E200, fields
+ * split by `CITATION_DELIMITER` U+E202, `CITATION_STOP` U+E201
+ * (https://developers.openai.com/api/docs/guides/citation-formatting, retrieved 2026-10-14).
+ */
+const OPENERS: Readonly<Record<string, string>> = {
+  '(': ')',
+  '[': ']',
+  '【': '】',
+  '\uE200': '\uE201',
+};
 /** A held span longer than this is released as is, so a stray bracket cannot mute a reply. */
 const MAX_HELD = 600;
 

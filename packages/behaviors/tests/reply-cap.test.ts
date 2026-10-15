@@ -13,7 +13,7 @@ async function say(
   replyLanguage: string | null = 'en-IN',
   options: {
     after?: InferenceStreamEvent[];
-    endAfterText?: (input: unknown) => boolean;
+    endAfterText?: (input: unknown, last?: string) => boolean | 'refused';
     guard?: (segment: string) => string | undefined;
     wrap?: (events: AsyncIterable<InferenceStreamEvent>) => AsyncIterable<InferenceStreamEvent>;
   } = {},
@@ -41,6 +41,29 @@ async function say(
   );
   for await (const line of stream) said.push(line);
   return { said: said.join(' '), lines: said, finished };
+}
+
+/** `reply` through the voice path right after a turn that offered more. */
+async function collectAfterOffer(reply: string) {
+  const events = (async function* (): AsyncGenerator<InferenceStreamEvent> {
+    yield { kind: 'text-delta', delta: reply };
+    yield { kind: 'finish' };
+  })();
+  const said: string[] = [];
+  const recent = { lastSaid: ['Want more detail?'] };
+  for await (const line of streamAgentReply(
+    events,
+    'en-IN',
+    () => undefined,
+    (text) => text,
+    undefined,
+    undefined,
+    undefined,
+    'en-IN',
+    recent,
+  ))
+    said.push(line);
+  return said;
 }
 
 /**
@@ -93,14 +116,48 @@ describe('call-3 #7: a long voice answer says two short sentences and offers mor
   it('is configured per agent, and off for another language unless it has its own offer', async () => {
     expect((await say(ZAGREB, { maxSentences: 0 })).said).toBe(ZAGREB);
     expect((await say(HAMBURG, { maxChars: 2000, maxSentences: 3 })).said).toBe(HAMBURG);
+    expect((await say(HAMBURG, { moreLine: 'Shall I go on?' })).said).toMatch(
+      /explore\. Shall I go on\?$/,
+    );
+    // The agent's own offer, never the model's held question in its place.
     expect((await say(ZAGREB, { moreLine: 'Shall I go on?' })).said).toMatch(
       /spaces\. Shall I go on\?$/,
     );
     expect((await say(ZAGREB, undefined, 'hi-IN')).said).toBe(ZAGREB);
-    expect((await say(ZAGREB, { moreLine: 'और बताऊँ?' }, 'hi-IN')).said).toMatch(/और बताऊँ\?$/);
+    expect((await say(HAMBURG, { moreLine: 'और बताऊँ?' }, 'hi-IN')).said).toMatch(/और बताऊँ\?$/);
     expect(AgentReplyPacing.safeParse({ maxChars: 20 }).success).toBe(false);
     // A caller that does not name the reply language (the locale is not it) gets no cap at all.
     expect((await say(ZAGREB, undefined, null)).said).toBe(ZAGREB);
+  });
+
+  it('says a short tail it held instead of offering it (call 8cb76efc F7)', async () => {
+    // Call 10d5ef30 turn 18: the clause after the semicolon, 40 characters, is not worth "Want to
+    // hear more?"; it is said, and the answer ends where the model ended it.
+    const tromso =
+      'Sorry—I should’ve answered that directly: Tromsø is a realistic add-on from Vienna, with a seasonal nonstop flight expected to begin November 28, 2026; otherwise, you can connect through Oslo.';
+    expect((await say(tromso)).lines).toEqual([
+      'Sorry—I should’ve answered that directly:',
+      'Tromsø is a realistic add-on from Vienna, with a seasonal nonstop flight expected to begin November 28, 2026.',
+      'Otherwise, you can connect through Oslo.',
+    ]);
+  });
+
+  it('says a held question only with what it asks about (call 8cb76efc F7)', async () => {
+    // The model's closing question, said without the two flights the cap held back, could not be
+    // answered: the caller would hear neither flight.
+    const flights =
+      'There are two good flights from Chennai to Prague on the 21st of December for your dates. The first leaves at nine in the morning with Emirates through Dubai and costs about forty thousand rupees. The second leaves at eleven at night with Qatar through Doha and costs fifty-two thousand rupees, with a free checked bag. Which of the two would you prefer?';
+    const { lines } = await say(flights);
+    expect(lines.join(' ')).not.toContain('Which of the two');
+    expect(lines.at(-1)).toBe('Want more detail?');
+    // After an offer, nothing follows the cap: still no question about what was held.
+    const after = await collectAfterOffer(flights);
+    expect(after.join(' ')).not.toContain('Which of the two');
+    expect(after.at(-1)).toMatch(/for your dates\.$/);
+    // A short tail that ends on a question is said whole, the question with what it asks about.
+    const zagreb =
+      'Zagreb is Croatia’s lively inland capital, with a lovely mix of historic streets, cafés, museums, and green spaces. Its Upper Town glows with Advent lights every evening in December. Are you planning a short stop or a few days there?';
+    expect((await say(zagreb)).said).toBe(zagreb);
   });
 
   it('runs the offer through the reply guard like any other line', async () => {
@@ -132,10 +189,25 @@ describe('call-3 #7: the cap never loses what follows the text', () => {
     }
   });
 
+  it('keeps a capped answer capped when its end_call is refused (call 8cb76efc turn 16)', async () => {
+    // Live, the model's end_call after a capped answer released every held sentence, though the
+    // call refused it (the answer ended on a question): 20 s of speech and a citation marker.
+    const lasts: (string | undefined)[] = [];
+    const { said } = await say(ZAGREB, undefined, 'en-IN', {
+      after: [{ kind: 'tool', toolId: 'end_call', input: { reason: 'answered' } }],
+      endAfterText: (_input, last) => (lasts.push(last), 'refused'),
+    });
+    expect(said).toBe(
+      'Zagreb is Croatia’s lively inland capital, with a lovely mix of historic streets, cafés, museums, and green spaces. Want more detail?',
+    );
+    // The refusal is judged on the reply's real last line, which the cap held back.
+    expect(lasts).toEqual(['Are you planning a short stop or a few days there?']);
+  });
+
   it('rejoins the flow on a late resume_flow after a capped answer', async () => {
     const resumed: unknown[] = [];
     const answer =
-      'We are open from nine to six on weekdays. On Saturdays we close at one. We are closed on Sundays. Public holidays follow the bank calendar.';
+      'We are open from nine to six on weekdays. On Saturdays we close at one. We are closed on Sundays. Public holidays follow the bank calendar, and we open late the day after.';
     const { said } = await say(answer, undefined, 'en-IN', {
       after: [{ kind: 'tool', toolId: 'resume_flow', input: { resume_at: 'payment' } }],
       wrap: (events) => interceptLateResume(events, (input) => resumed.push(input)),

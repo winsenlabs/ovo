@@ -43,7 +43,8 @@ describe('call-3 #7: a capped answer is still metered', () => {
         searchDone() +
         answer(
           'Zagreb is the capital of Croatia. It has a lovely upper town with old streets. ' +
-            'The market is great. The museums are worth a morning.',
+            'The market is great. The museums are worth a morning.' +
+            ' The cathedral and the funicular are a short walk from the main square.',
         ) +
         completed('resp-1', { input: 4827, cached: 4725, output: 40 }),
     );

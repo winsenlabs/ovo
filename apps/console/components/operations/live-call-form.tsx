@@ -7,7 +7,9 @@ import {
   type Release,
   type SessionIdentity,
 } from '../../lib/api';
-import { Field, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { FormField } from '../ui/form-field';
+import { Select } from '../ui/inputs';
+import { InlineAlert } from '../ui/feedback-v2';
 import { JsonEditor } from '../forms/json-editor';
 import { loadAgents } from '../../lib/pagination';
 
@@ -24,6 +26,9 @@ const newOperationId = () =>
     ? crypto.randomUUID()
     : `call-${Date.now()}`;
 
+/** The "Launch live call" drawer, opened from the Calls list PageHeader (admin only). Submission
+ * enters durable admission and pre-dial policy checks — an accepted request is not evidence that
+ * a carrier call started. */
 export function LiveCallForm({
   role,
   onLaunched,
@@ -39,7 +44,7 @@ export function LiveCallForm({
   const [operationId, setOperationId] = useState(newOperationId);
   const [loading, setLoading] = useState(role === 'admin');
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ tone: 'neutral' | 'danger'; text: string }>();
+  const [message, setMessage] = useState<{ tone: 'info' | 'danger'; text: string }>();
 
   useEffect(() => {
     if (role !== 'admin') return;
@@ -96,7 +101,7 @@ export function LiveCallForm({
         }),
       });
       setMessage({
-        tone: 'neutral',
+        tone: 'info',
         text: `Call ${data.callId} was accepted for durable admission. This does not assert that the carrier dialed.`,
       });
       setOperationId(newOperationId());
@@ -113,86 +118,69 @@ export function LiveCallForm({
 
   if (role !== 'admin') return null;
   return (
-    <Panel labelledBy="live-call-title">
-      <PanelHeader
-        id="live-call-title"
-        title="Start live call"
-        badge={<StatusBadge tone="warning">Carrier path</StatusBadge>}
-      />
-      <form className="panel-body stack" onSubmit={launch}>
-        <div className="muted">
-          Submission enters durable admission and pre-dial policy checks. An accepted request is not
-          evidence that a carrier call started.
-        </div>
-        <div className="form-grid">
-          <Field label="Agent" htmlFor="live-agent">
-            <select
-              id="live-agent"
-              value={agentId}
-              onChange={(event) => setAgentId(event.target.value)}
-              disabled={loading}
-              required
-            >
-              {agents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.config.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Immutable release" htmlFor="live-release">
-            <select
-              id="live-release"
-              value={releaseId}
-              onChange={(event) => setReleaseId(event.target.value)}
-              required
-            >
-              {releases.map((release) => (
-                <option key={release.id} value={release.id}>
-                  {release.id}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Permitted from number" htmlFor="live-from">
-            <input id="live-from" name="fromNumber" type="tel" placeholder="+91…" required />
-          </Field>
-          <Field label="Recipient" htmlFor="live-to">
-            <input id="live-to" name="to" type="tel" placeholder="+91…" required />
-          </Field>
-          <Field label="Operation ID" htmlFor="live-operation">
-            <input
-              id="live-operation"
-              className="mono"
-              value={operationId}
-              onChange={(event) => setOperationId(event.target.value)}
-              required
-            />
-          </Field>
-        </div>
-        <Field
-          label="Release variables"
-          htmlFor="live-call-variables"
-          help="Must satisfy the immutable release variable schema."
-        >
+    <form className="ds-stack" onSubmit={launch}>
+      <p className="muted">
+        Submission enters durable admission and pre-dial policy checks. An accepted request is not
+        evidence that a carrier call started.
+      </p>
+      <FormField id="live-agent" label="Agent" required>
+        {({ id }) => (
+          <Select
+            id={id}
+            value={agentId}
+            onChange={setAgentId}
+            options={agents.map((agent) => ({ value: agent.id, label: agent.config.name }))}
+          />
+        )}
+      </FormField>
+      <FormField id="live-release" label="Immutable release" required>
+        {({ id }) => (
+          <Select
+            id={id}
+            value={releaseId}
+            onChange={setReleaseId}
+            options={releases.map((release) => ({ value: release.id, label: release.id }))}
+          />
+        )}
+      </FormField>
+      <FormField id="live-from" label="Permitted from number" required>
+        {(control) => <input {...control} name="fromNumber" type="tel" placeholder="+91…" />}
+      </FormField>
+      <FormField id="live-to" label="Recipient" required>
+        {(control) => <input {...control} name="to" type="tel" placeholder="+91…" />}
+      </FormField>
+      <FormField id="live-operation" label="Operation ID" required>
+        {(control) => (
+          <input
+            {...control}
+            className="mono"
+            value={operationId}
+            onChange={(event) => setOperationId(event.target.value)}
+          />
+        )}
+      </FormField>
+      <FormField
+        id="live-call-variables"
+        label="Release variables"
+        help="Must satisfy the immutable release variable schema."
+      >
+        {() => (
           <JsonEditor
             id="live-call-variables"
             value={variables}
             onValid={(value) => setVariables(value as Record<string, unknown>)}
           />
-        </Field>
-        {releases.length === 0 && !loading && (
-          <div className="muted">Publish an immutable release before starting a live call.</div>
         )}
-        <button className="button primary align-start" disabled={submitting || !releaseId}>
-          {submitting ? 'Submitting admission…' : 'Submit live call'}
-        </button>
-        {message && (
-          <div className="field-error" role="alert">
-            {message.text}
-          </div>
-        )}
-      </form>
-    </Panel>
+      </FormField>
+      {releases.length === 0 && !loading && (
+        <p className="muted">Publish an immutable release before starting a live call.</p>
+      )}
+      <button type="submit" className="button primary" disabled={submitting || !releaseId}>
+        {submitting ? 'Submitting admission…' : 'Submit live call'}
+      </button>
+      {message && (
+        <InlineAlert tone={message.tone === 'info' ? 'info' : 'danger'}>{message.text}</InlineAlert>
+      )}
+    </form>
   );
 }
