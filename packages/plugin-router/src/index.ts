@@ -1,7 +1,22 @@
 import type { PluginDefinition } from '@winsendotai/ovo-runtime';
+import { createRouterBehaviorPlugin } from './plugin.ts';
 
-/**
- * Wave 15 (R1) router behaviour, `@winsendotai/ovo-behavior-router`. Registered in the distribution
- * catalog by the core lane (milestone M1); the router lane fills this package.
- */
-export const plugins: PluginDefinition[] = [];
+export {
+  createRouterBehaviorPlugin,
+  parseRouterConfig,
+  routerConfigSchema,
+  ROUTER_BEHAVIOR_PLUGIN_ID,
+  type RouterPluginConfig,
+} from './plugin.ts';
+export { RouterCore, type RouterPhase, type RouterPorts, type RouterReply } from './core.ts';
+export { RouterBehavior } from './behavior.ts';
+export { RouteRecorder, type RecordedRouteEvent } from './events.ts';
+export { isOpen, localTime } from './hours.ts';
+export { normalizeText, scriptShare, words, LANGUAGE_SCRIPTS } from './text.ts';
+export { BUILT_IN_LINES, pickLine } from './lines.ts';
+export { eligibleTiers, pickMember, type MemberPick } from './members.ts';
+export { routeVariables, type Resolution, type RouteOutcome } from './targets.ts';
+export * from './engines/index.ts';
+
+/** The distribution catalog's view of this package (milestone M1 registered it): the router behaviour. */
+export const plugins: PluginDefinition[] = [createRouterBehaviorPlugin()];
