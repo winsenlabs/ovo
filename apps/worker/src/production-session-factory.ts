@@ -1,42 +1,32 @@
-import {
-  MULAW_8K,
-  outcomeFor,
-  sameFormat,
-  type AudioFormat,
-  type EndReason,
-  type InferenceUsageEvidence,
-} from '@winsendotai/ovo-contracts';
-import { asEndReason } from '@winsendotai/ovo-plugin-kit';
+import type { EndReason, InferenceUsageEvidence } from '@winsendotai/ovo-contracts';
 import type { ProviderUsage } from './cost-policy-types.ts';
-import type { ControlStore, ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
+import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import type { DurableJob, SessionRoute } from '@winsendotai/ovo-plugin-orchestration';
 import type { SecretManager } from '@winsendotai/ovo-plugin-secrets';
 import type { LiveRecordingService } from '@winsendotai/ovo-plugin-recordings';
 import type { InstalledSessionExtensions } from '@winsendotai/ovo-runtime';
-import type { VoiceSessionFactory } from './media-runtime.ts';
+import type { ManagedVoiceSession, VoiceSessionFactory } from './media-runtime.ts';
 import type { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
 import { startEarlyCallWork, type EarlyCallWork } from './session-early-start.ts';
 import type { WorkerTelemetryRuntime } from './telemetry-runtime.ts';
-import type { WorkerSessionTelemetry } from './telemetry-runtime.ts';
-import { SessionCleanupStack, throwFailure } from './session-lifecycle.ts';
-import { prepareSessionRecording } from './session-recording.ts';
-import { optionalPayloadString, requiredPayloadString } from './production-session-support.ts';
-import {
-  composeLiveSessionGraph,
-  subscribeEngineTelemetry,
-  type LiveGraphOptions,
-} from './session-graph-runtime.ts';
+import { requiredPayloadString } from './production-session-support.ts';
+import type { LiveGraphOptions } from './session-graph-runtime.ts';
 import { composeLegacySessionGraph } from './legacy-session-compat.ts';
-import { auditGuardrail, closeSessionEvents, openSessionEvents } from './session-outcomes.ts';
-import { optOutRecorder } from './opt-out-dnc.ts';
+import type { AnsweredByWatch } from './answering-machine.ts';
 import {
-  answeringMachineFor,
-  AnsweredByVerdicts,
-  watchAnsweredBy,
-  type AnsweredByWatch,
-} from './answering-machine.ts';
+  openCallScope,
+  type CallScope,
+  type SessionDeps,
+  type SessionOpenInput,
+} from './call-scope.ts';
+import { composeCallSegment, type CallSegment } from './call-segment.ts';
+
+export { recordSessionOutcome } from './call-scope.ts';
 
 export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
+  /** The constructor's arguments by name: what a routed call opens its scope and segments from. */
+  protected readonly deps: SessionDeps;
+
   constructor(
     private readonly store: ControlStore,
     private readonly secrets: SecretManager,
@@ -59,17 +49,22 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
     ) => Promise<void>,
     /** Where the carrier's answering-machine callback is recorded, read for outbound calls. */
     private readonly answeredBy?: Pick<AnsweredByWatch, 'pool'>,
-  ) {}
+  ) {
+    this.deps = {
+      ...{ store, secrets, telemetry, costUsageForJob, extensions, recordings },
+      ...{ recordingRetentionDays, speechCache, graph, beforeEngineMediaClose, answeredBy },
+    };
+  }
 
-  async create(input: Parameters<VoiceSessionFactory['create']>[0]) {
+  async create(input: SessionOpenInput): Promise<ManagedVoiceSession> {
     const { job, media } = input;
+    const { store, graph, speechCache, extensions, secrets } = this.deps;
     const releaseId = requiredPayloadString(job.payload, 'releaseId');
-    const release = await this.store.getRelease(job.workspaceId, releaseId);
+    const release = await store.getRelease(job.workspaceId, releaseId);
     if (!release) throw new Error('immutable release not found');
     const early = startEarlyCallWork({
-      ...{ job, media, release, graph: this.graph, speechCache: this.speechCache },
-      ...{ extensions: this.extensions, secrets: this.secrets },
-      usage: (meter) => this.costUsageForJob?.(job.id)?.(meter),
+      ...{ job, media, release, graph, speechCache, extensions, secrets },
+      usage: (meter) => this.deps.costUsageForJob?.(job.id)?.(meter),
     });
     try {
       return await this.createSession(input, early);
@@ -79,179 +74,42 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
     }
   }
 
-  private async createSession(
-    { job, route, media }: Parameters<VoiceSessionFactory['create']>[0],
-    early: EarlyCallWork,
-  ) {
+  private async createSession(input: SessionOpenInput, early: EarlyCallWork) {
+    const { job, route } = input;
     const { release, variables, format, callClips, sttPreconnect } = early;
-    const callId = optionalPayloadString(job.payload, 'callId') ?? job.id;
-    const existingCall = await this.store.getCall(job.workspaceId, callId);
-    const call =
-      existingCall ??
-      (await this.store.createCall({
-        id: callId,
-        workspaceId: job.workspaceId,
-        releaseId: release.id,
-        kind: 'live',
-        status: 'active',
-      }));
-    if (call.releaseId !== release.id || call.kind !== 'live')
-      throw new Error('live call audit record does not match release');
-    const inference = release.providerBindings.inference;
-    const telemetry = await this.telemetry.createSession({
-      workspaceId: job.workspaceId,
-      callId,
-      agentId: release.agentId,
-      releaseId: release.id,
-      language: release.config.language,
-      inferenceProvider: inference?.provider,
-      inferenceModel:
-        typeof inference?.config.model === 'string' ? inference.config.model : undefined,
-      mediaFormat: format,
-    });
-    const cleanup = new SessionCleanupStack();
-    let requestedReason: EndReason = 'error:session_setup_failed';
-    cleanup.defer((failure) =>
-      telemetry.close(failure === undefined ? requestedReason : 'error:session_cleanup_failed'),
-    );
-    if (sttPreconnect)
-      cleanup.defer(async () => {
-        await sttPreconnect.dispose();
-        telemetry.audit('stt.preconnect', sttPreconnect.summary());
-      });
+    const scope = await openCallScope(this.deps, input, { release, format, sttPreconnect });
     try {
-      const recording = await prepareSessionRecording({
-        enabled: release.config.recording,
-        service: this.recordings,
-        media,
-        workspaceId: job.workspaceId,
-        callId,
-        retentionDays: release.config.recordingRetentionDays ?? this.recordingRetentionDays,
-        audit: (type, payload) => telemetry.audit(type, payload),
-      });
-      cleanup.defer(() => recording.finish());
-
-      if (this.graph) {
-        if (!this.graph.carriers)
-          throw new Error('Selected carrier runtime is required for live graph');
-        const carrier = await this.graph.carriers.forJob(job, false);
-        if (route.carrierId && route.carrierId !== carrier.carrier.carrierId)
-          throw new Error('Session route carrier differs from selected carrier');
-        if (!format || typeof format !== 'object')
-          throw new Error('Worker media format is missing');
-        if (
-          !carrier.carrier.capabilities.media.formats.some((supported) =>
-            sameFormat(supported, format),
-          )
-        )
-          throw new Error('Selected carrier does not support negotiated worker media format');
-        const events = openSessionEvents(
-          this.graph.outcomes,
-          { workspaceId: job.workspaceId, callId },
-          telemetry,
-        );
-        // Deferred first, so it runs last: after the engine, and every event it records, is gone.
-        if (events) cleanup.defer(() => closeSessionEvents(events, requestedReason));
-        const amd = answeringMachineFor(release.config, job.payload, carrier.carrier.capabilities);
-        const verdicts = amd ? new AnsweredByVerdicts() : undefined;
-        if (amd && verdicts) {
-          const unsubscribe =
-            media.onAnsweredBy?.((value) => verdicts.deliver(value)) ?? (() => undefined);
-          cleanup.defer(() => unsubscribe());
-          if (this.answeredBy) {
-            const stop = watchAnsweredBy({
-              pool: this.answeredBy.pool,
-              route,
-              deliver: (value) => verdicts.deliver(value),
-              fastForMs: amd.timeoutMs,
-            });
-            cleanup.defer(() => stop());
-          }
-        }
-        const graph = await composeLiveSessionGraph({
-          graph: this.graph,
-          release,
-          routeSessionId: route.sessionId,
-          variables,
-          media: recording.media,
-          operationStore: telemetry.withOperationStore(this.store.operationStore),
-          secrets: this.secrets.forAgent(release.agentId),
-          telemetry,
-          extensions: this.extensions,
-          usage: (meter) => this.costUsageForJob?.(job.id)?.(meter),
-          speechCache: this.speechCache,
-          callClips,
-          sttPreconnect,
-          carrierMedia: {
-            carrierId: carrier.carrier.carrierId,
-            format,
-            playbackEvidence: carrier.carrier.capabilities.media.playbackEvidence,
-            clearFlushesMarkers: carrier.carrier.capabilities.media.clearFlushesMarkers,
-          },
-          beforeMediaClose: this.beforeEngineMediaClose
-            ? (reason) => this.beforeEngineMediaClose!(job, route, reason)
+      const { graph, beforeEngineMediaClose } = this.deps;
+      if (graph) {
+        const segment = await composeCallSegment({ ...this.deps, graph }, scope, {
+          ...{ release, variables, callKey: job.id, callClips, sttPreconnect },
+          beforeMediaClose: beforeEngineMediaClose
+            ? (reason) => beforeEngineMediaClose(job, route, reason)
             : undefined,
-          ...(amd && verdicts
-            ? { amd, answeredBy: (listener) => verdicts.subscribe(listener) }
-            : {}),
-          ...(events ? { events } : {}),
         });
-        cleanup.defer(() => graph.composition.dispose());
-        if (callClips) cleanup.defer(() => this.speechCache?.perCall.release(job.id));
-        cleanup.defer(() => auditGuardrail(graph.composition, telemetry));
-        cleanup.defer(optOutRecorder(this.graph, graph, job, telemetry));
-        const unsubscribe = subscribeEngineTelemetry(graph.engine, telemetry);
-        cleanup.defer(() => unsubscribe());
-        cleanup.defer(recording.attachEvidence(graph.engine));
-        cleanup.defer(async () => {
-          await graph.engine.dispose(requestedReason);
-        });
-        await graph.engine.start();
-        return {
-          dispose: async (reason?: string) => {
-            const endReason = asEndReason(reason ?? 'behavior_completed');
-            recordSessionOutcome(telemetry, endReason);
-            requestedReason = endReason;
-            const failure = await cleanup.close();
-            if (failure !== undefined) throwFailure(failure);
-          },
-        };
+        scopeOwns(scope, segment);
+        await segment.start();
+        return { dispose: (reason?: string) => scope.dispose(reason) };
       }
-
       const legacy = await composeLegacySessionGraph({
-        job,
-        route,
-        release,
-        media: recording.media,
-        telemetry,
-        store: this.store,
-        extensions: this.extensions,
+        ...{ job, route, release, media: scope.media, telemetry: scope.telemetry },
+        ...{ store: this.deps.store, extensions: this.deps.extensions },
       });
-      cleanup.defer(() => legacy.composition.dispose());
-      cleanup.defer(async () => {
-        await legacy.engine.dispose(requestedReason);
+      scope.cleanup.defer(() => legacy.composition.dispose());
+      scope.cleanup.defer(async () => {
+        await legacy.engine.dispose(scope.reason);
       });
-      return {
-        dispose: async (reason?: string) => {
-          const endReason = asEndReason(reason ?? 'behavior_completed');
-          recordSessionOutcome(telemetry, endReason);
-          requestedReason = endReason;
-          const failure = await cleanup.close();
-          if (failure !== undefined) throwFailure(failure);
-        },
-      };
+      return { dispose: (reason?: string) => scope.dispose(reason) };
     } catch (error) {
-      const failure = await cleanup.close(error);
-      throwFailure(failure);
+      return scope.fail(error);
     }
   }
 }
 
-export function recordSessionOutcome(
-  telemetry: Pick<WorkerSessionTelemetry, 'audit'>,
-  reason: EndReason,
-): 'ended' | 'failed' {
-  const outcome = outcomeFor(reason);
-  telemetry.audit('session.outcome', { outcome, reason });
-  return outcome === 'failed' || outcome === 'canceled' ? 'failed' : 'ended';
+/** The call disposes the segment, with the call's ending, before anything else it holds. */
+export function scopeOwns(scope: CallScope, segment: Pick<CallSegment, 'close'>): void {
+  scope.cleanup.defer(async () => {
+    const failure = await segment.close(scope.reason);
+    if (failure !== undefined) throw failure;
+  });
 }

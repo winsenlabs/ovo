@@ -19,6 +19,7 @@ import { workerHealth } from './worker-health.ts';
 import {
   transcriptTextFor,
   transcriptTextPolicyFromEnv,
+  type TranscriptText,
   type TranscriptTextPolicy,
 } from './telemetry-privacy.ts';
 
@@ -133,6 +134,16 @@ export class WorkerTelemetryRuntime {
     this.sessions.add(session);
     session.started();
     return session;
+  }
+
+  /**
+   * The strictest transcript policy across `agentIds`: a routed call keeps words only if every
+   * agent it can reach keeps them (routing design 7.4).
+   */
+  strictestTranscriptText(agentIds: readonly string[]): TranscriptText {
+    return agentIds.some((agentId) => transcriptTextFor(this.transcriptText, agentId) === 'omit')
+      ? 'omit'
+      : 'store';
   }
 
   stats(): { telemetry: TelemetryIngestionStats; callEvents: CallEventWriterStats } {

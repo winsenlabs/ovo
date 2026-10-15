@@ -1,4 +1,5 @@
 import { seedAdminFromEnv } from './user-plugin.ts';
+import { routingFlagsFromEnv } from './operations-runtime.ts';
 import { buildManagementApi, bootstrapIdentitiesFromEnv, sessionSecretFromEnv } from './server.ts';
 
 import { loadInstalledSessionExtensions } from '@winsendotai/ovo-session-host';
@@ -64,6 +65,7 @@ if (process.argv.includes('--ovo-fixture-call-child')) {
     requireTlsForSecrets: production && !allowLocalHttp,
     secureSessionCookies: production && !allowLocalHttp,
     trustedProxy: trustedProxy?.length ? trustedProxy : undefined,
+    ...routingFlagsFromEnv(process.env),
     logger: true,
   });
 

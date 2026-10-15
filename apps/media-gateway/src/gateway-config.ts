@@ -42,3 +42,19 @@ export function gatewayMediaConfig(env: Readonly<Record<string, string | undefin
     drainTimeoutMs: drainTimeoutMs(env),
   };
 }
+
+/**
+ * The operations settings the gateway's admission reads. OVO_ROUTING_ENABLED (Wave 15, default
+ * off): on, a number bound to a routing release is admitted to its router release; off, to the
+ * release's default agent, so turning it off never drops a routed number's calls.
+ */
+export function gatewayOperationsConfig(env: Readonly<Record<string, string | undefined>>) {
+  return {
+    liveEnabled: env.OVO_LIVE_DIAL_ENABLED === 'true',
+    permittedFromNumbers: (env.OVO_PERMITTED_FROM_NUMBERS ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
+    routingEnabled: env.OVO_ROUTING_ENABLED === 'true',
+  };
+}

@@ -103,10 +103,20 @@ export interface HandoffRecord {
   providerReceiptId?: string;
   lastError?: string;
 }
+/** The routing point and version a routed number is pinned to (Wave 15, routing). */
+export interface InboundRouteRouting {
+  pointId: string;
+  pointName: string;
+  version: number;
+}
 export interface InboundRouteRecord {
   organizationId: string;
   phoneNumber: string;
-  releaseId: string;
+  /** The agent release a direct number answers with; null when the number is routed. */
+  releaseId: string | null;
+  /** The routing release a routed number is pinned to; absent from APIs before routing. */
+  routingReleaseId?: string | null;
+  routing?: InboundRouteRouting | null;
   carrierPluginId?: string | null;
   carrierBindingId?: string | null;
   variables: Record<string, string>;

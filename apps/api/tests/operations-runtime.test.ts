@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { compose } from '@winsendotai/ovo-runtime';
-import { createOperationsRuntime, type OperationsRuntime } from '../src/operations-runtime.ts';
+import {
+  createOperationsRuntime,
+  routingFlagsFromEnv,
+  type OperationsRuntime,
+} from '../src/operations-runtime.ts';
 
 const databaseUrl = process.env.OVO_TEST_POSTGRES_URL;
 const databaseTest = databaseUrl ? it : it.skip;
@@ -29,7 +33,11 @@ describe('operations runtime', () => {
       expect(runtime.config).toEqual({
         organizationId,
         maxConnections: 3,
-        operations: { permittedFromNumbers: ['+14155550101'], liveEnabled: false },
+        operations: {
+          permittedFromNumbers: ['+14155550101'],
+          liveEnabled: false,
+          routingEnabled: false,
+        },
         handoffProvider: 'unavailable',
       });
       expect(runtime.service.pool.options.max).toBe(3);
@@ -81,4 +89,41 @@ describe('operations runtime', () => {
       expect(runtime.service.handoffs.available).toBe(true);
     },
   );
+
+  databaseTest(
+    'reads OVO_ROUTING_ENABLED into the service config unless the API overrides it',
+    async () => {
+      const organizationId = randomUUID();
+      runtime = await createOperationsRuntime({
+        organizationId,
+        databaseUrl,
+        environment: { OVO_ROUTING_ENABLED: 'true' },
+      });
+      expect(runtime.config.operations.routingEnabled).toBe(true);
+      expect(runtime.service.config).toMatchObject({ routingEnabled: true });
+      await runtime.close();
+      runtime = await createOperationsRuntime({
+        organizationId,
+        databaseUrl,
+        routingEnabled: false,
+        environment: { OVO_ROUTING_ENABLED: 'true' },
+      });
+      expect(runtime.service.config).toMatchObject({ routingEnabled: false });
+    },
+  );
+});
+
+describe('routingFlagsFromEnv', () => {
+  it('is off unless each flag is exactly true', () => {
+    expect(routingFlagsFromEnv({})).toEqual({
+      routingEnabled: false,
+      routingExternalEnabled: false,
+    });
+    expect(
+      routingFlagsFromEnv({ OVO_ROUTING_ENABLED: 'TRUE', OVO_ROUTING_EXTERNAL_ENABLED: '1' }),
+    ).toEqual({ routingEnabled: false, routingExternalEnabled: false });
+    expect(
+      routingFlagsFromEnv({ OVO_ROUTING_ENABLED: 'true', OVO_ROUTING_EXTERNAL_ENABLED: 'true' }),
+    ).toEqual({ routingEnabled: true, routingExternalEnabled: true });
+  });
 });

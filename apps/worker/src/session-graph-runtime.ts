@@ -14,7 +14,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import type { LoadedDistribution } from '@winsendotai/ovo-distribution';
 import { duplexFromLegacy } from '@winsendotai/ovo-plugin-kit';
-import { deriveLegacySelections, type ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
+import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { selectEngine, selectSessionGraph } from '@winsendotai/ovo-session-host';
 import {
   compose,
@@ -22,6 +22,7 @@ import {
   PluginRegistry,
   type Composition,
   type InstalledSessionExtensions,
+  type PluginDefinition,
 } from '@winsendotai/ovo-runtime';
 import type { WorkerSessionTelemetry } from './telemetry-runtime.ts';
 import { sessionHostServices } from './session-graph-host.ts';
@@ -35,11 +36,18 @@ import { speakerAddedFilters } from './speech-cache-speaker-filters.ts';
 import { createV2SpeechCachePlugin } from './speech-cache-v2.ts';
 import type { CallClips } from './speech-cache-percall.ts';
 import { sessionSttPlugin, type SttPreconnect } from './session-stt-preconnect.ts';
-import { stampBindingIdentity } from './session-graph-bindings.ts';
+import { stampBindingIdentity, withDerivedSelections } from './session-graph-bindings.ts';
 import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
 import { adaptV1Engine } from './v1-engine-adapter.ts';
 import { holdOpeningForAnsweringMachine } from './answering-machine.ts';
 import type { CallOutcomeStore } from '@winsendotai/ovo-plugin-storage/outcomes';
+import {
+  limitCallSeconds,
+  prefixEngineEvent,
+  withSegmentIds,
+  type SegmentGraphShape,
+} from './segment-ids.ts';
+export type { SegmentGraphShape } from './segment-ids.ts';
 
 export interface LiveGraphOptions {
   distribution: LoadedDistribution;
@@ -81,8 +89,10 @@ export async function composeLiveSessionGraph(input: {
   answeredBy?: NonNullable<MediaDuplex['onAnsweredBy']>;
   /** The call's outcome event sink, offered to the behaviour as `ovo.event-sink`. */
   events?: EventSink;
+  segment?: SegmentGraphShape;
 }): Promise<GraphSessionResult> {
-  const { release, graph, telemetry } = input;
+  const { release, graph, telemetry, segment } = input;
+  const prefix = segment?.idPrefix;
   const registry = new PluginRegistry([
     ...graph.distribution.catalog,
     ...input.extensions.plugins,
@@ -123,7 +133,8 @@ export async function composeLiveSessionGraph(input: {
     operationStore: input.operationStore,
     secrets: input.secrets,
     usage,
-    transcripts: (event) => {
+    transcripts: (raw) => {
+      const event = prefix ? prefixEngineEvent(raw, prefix) : raw;
       if (event.type === 'user.transcript' && event.stability === 'final')
         telemetry.audit('transcript.accepted', { text: event.text, turnId: event.turnId });
       if (event.type === 'agent.transcript')
@@ -158,43 +169,23 @@ export async function composeLiveSessionGraph(input: {
         await speakerAddedFilters(registry),
       )
     : undefined;
-  const graphRelease: ReleaseRecord =
-    !release.selections?.engine && selected.definition.manifest.contractVersion === 1
-      ? {
-          ...release,
-          selections: {
-            ...Object.fromEntries(
-              Object.entries(
-                deriveLegacySelections(release, registry, {
-                  engine: graph.distribution.defaults.engine,
-                  turnDetector: graph.distribution.defaults.turnDetector,
-                }),
-              ).map(([slot, choice]) => [
-                slot,
-                {
-                  ...choice,
-                  version: registry.get(choice.pluginId)!.manifest.version,
-                },
-              ]),
-            ),
-            engine: {
-              pluginId: selected.definition.manifest.id,
-              version: selected.definition.manifest.version,
-              config: selected.rowConfig,
-            },
-          },
-        }
-      : release;
+  const graphRelease = withDerivedSelections(
+    release,
+    registry,
+    graph.distribution.defaults,
+    selected,
+  );
   const result = selectSessionGraph({
     release: graphRelease,
     registry,
-    hostServices: cachedOutput ? [host, cachedOutput] : [host],
+    hostServices: [host, ...(cachedOutput ? [cachedOutput] : []), ...(segment?.services ?? [])],
     parent: graph.parent.keys,
     media,
     installedExtensions: input.extensions,
     defaults: graph.distribution.defaults,
     mcpConnections: immutableMcpConnections(release, mcpTools),
     sessionVariables: input.variables,
+    ...(segment?.behavior ? { behavior: segment.behavior } : {}),
   });
   const allowedNativeIds = new Set(
     release.config.tools
@@ -230,6 +221,8 @@ export async function composeLiveSessionGraph(input: {
   }
   stampBindingIdentity(result.rows, release);
   if (input.amd) holdOpeningForAnsweringMachine(result.rows, selected.definition, input.amd);
+  if (segment?.maxCallSeconds !== undefined)
+    limitCallSeconds(result.rows, selected.definition, segment.maxCallSeconds);
   const sttPlugin = release.selections?.stt?.pluginId;
   const catalog = result.catalog.map((definition) =>
     instrumentSessionPlugin(
@@ -253,5 +246,5 @@ export async function composeLiveSessionGraph(input: {
     await composition.dispose();
     throw new Error('Selected live engine does not expose the v2 session contract');
   }
-  return { composition, engine, media };
+  return { composition, engine: prefix ? withSegmentIds(engine, prefix) : engine, media };
 }

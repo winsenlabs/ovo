@@ -3,6 +3,7 @@ import type { PreferenceProvider } from '@winsendotai/ovo-contracts';
 import { CampaignService } from './campaign.ts';
 import type { ComplianceService } from './compliance/service.ts';
 import { OperationsCallRegistry } from './calls.ts';
+import { PostgresRoutingService, type RoutingService } from './routing/service.ts';
 import { normalizePhoneNumber } from './csv.ts';
 import { HandoffService } from './handoff.ts';
 import { InboundGatewayAdmissionService } from './inbound-gateway.ts';
@@ -25,6 +26,8 @@ export interface OperationsService {
   readonly handoffs: HandoffService;
   readonly outbox: OperationsOutbox;
   readonly calls: OperationsCallRegistry;
+  /** Wave 15 pools, points, releases and member claims. */
+  readonly routing: RoutingService;
   migrate(): Promise<void>;
   close(): Promise<void>;
 }
@@ -41,6 +44,7 @@ export class PostgresOperationsService implements OperationsService {
   readonly handoffs: HandoffService;
   readonly outbox: OperationsOutbox;
   readonly calls: OperationsCallRegistry;
+  readonly routing: PostgresRoutingService;
 
   private readonly ownsPool: boolean;
   private closePromise?: Promise<void>;
@@ -77,6 +81,7 @@ export class PostgresOperationsService implements OperationsService {
         [...new Set((input.config?.permittedFromNumbers ?? []).map(normalizePhoneNumber))].sort(),
       ),
       liveEnabled: input.config?.liveEnabled === true,
+      routingEnabled: input.config?.routingEnabled === true,
     });
     this.campaigns = new CampaignService(
       this.pool,
@@ -86,14 +91,24 @@ export class PostgresOperationsService implements OperationsService {
     this.compliance = this.campaigns.compliance;
     this.retries = new CampaignRetryService(this.pool, input.organizationId, this.compliance.gate);
     this.inbound = new InboundService(this.pool, input.organizationId);
-    this.inboundGateway = new InboundGatewayAdmissionService(this.pool, input.organizationId, {
-      enabled: this.config.liveEnabled === true,
-      permittedFromNumbers: this.config.permittedFromNumbers,
-    });
+    this.inboundGateway = new InboundGatewayAdmissionService(
+      this.pool,
+      input.organizationId,
+      {
+        enabled: this.config.liveEnabled === true,
+        permittedFromNumbers: this.config.permittedFromNumbers,
+      },
+      this.config.routingEnabled === true,
+    );
     this.inboundRoutes = new InboundRouteService(this.pool, input.organizationId);
     this.handoffs = new HandoffService(this.pool, input.organizationId, input.handoffProvider);
     this.outbox = new OperationsOutbox(this.pool);
     this.calls = new OperationsCallRegistry(this.pool, input.organizationId);
+    this.routing = new PostgresRoutingService(
+      this.pool,
+      input.organizationId,
+      this.config.routingEnabled === true,
+    );
   }
 
   migrate(): Promise<void> {

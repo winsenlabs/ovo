@@ -42,6 +42,7 @@ it.each([
       } as never,
       operations: {
         organizationId: 'org',
+        config: { routingEnabled: false },
         pool: { query: async () => ({ rows: [selected] }) },
         inboundGateway: { admit },
       } as never,

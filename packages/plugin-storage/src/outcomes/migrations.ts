@@ -38,8 +38,14 @@ CREATE TABLE IF NOT EXISTS ovo_call_outcomes (
 );
 `;
 
+/** v2 (Wave 15): a routed call's route, folded from `route.decision` and `route.segment`. */
+export const callOutcomesV2 = `
+ALTER TABLE ovo_call_outcomes ADD COLUMN IF NOT EXISTS route jsonb
+  CHECK (route IS NULL OR jsonb_typeof(route) = 'object');
+`;
+
 /** Applied in order; a migration's version is its position, starting at 1. */
-const MIGRATIONS: readonly string[] = [callOutcomesV1];
+const MIGRATIONS: readonly string[] = [callOutcomesV1, callOutcomesV2];
 
 /** Idempotent and safe to race: the API and every worker run it on startup. */
 export async function runCallOutcomeMigrations(pool: Pool): Promise<void> {

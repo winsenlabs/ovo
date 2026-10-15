@@ -172,9 +172,13 @@ export const CallbackRequest = z
   .object({
     dueAt: z.iso.datetime({ offset: true }),
     timezone: z.string().min(1).max(100),
-    source: z.enum(['flow', 'llm']),
-    /** The node that promised it, for a flow callback. */
+    /** `route`: a routing point's callback target or fallback step (Wave 15). */
+    source: z.enum(['flow', 'llm', 'route']),
+    /** The node that promised it, for a flow or route callback. */
     node: NodeKey.optional(),
+    /** The agent release to dial back; stamped by the worker so a routed call's callback dials
+     * the agent that promised it, not the router. Absent: the call's own release. */
+    releaseId: z.string().uuid().optional(),
     /** What the caller asked for, as configured or as the LLM passed it. */
     requested: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
     reason: z.string().max(200).optional(),

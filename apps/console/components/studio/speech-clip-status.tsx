@@ -160,7 +160,8 @@ export const loadRouted: LoadRouted = async () => {
   ]);
   if (routes.status === 'fulfilled')
     for (const route of items<InboundRouteRecord>(routes.value.data))
-      if (route.enabled) add(route.releaseId, route.phoneNumber);
+      // A routed number has no agent release of its own: its calls reach the router first.
+      if (route.enabled && route.releaseId) add(route.releaseId, route.phoneNumber);
   if (campaigns.status === 'fulfilled')
     for (const campaign of items<CampaignRecord>(campaigns.value.data))
       if (campaign.status === 'scheduled' || campaign.status === 'running')

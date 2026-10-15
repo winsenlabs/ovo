@@ -48,6 +48,7 @@ describe('callsKpis', () => {
           tiers: {},
           guardrail: { flagged: 0, blocked: 0 },
           events: 0,
+          route: null,
           updatedAt: row().createdAt!,
         },
       }),

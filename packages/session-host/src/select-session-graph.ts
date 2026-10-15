@@ -17,7 +17,7 @@ import {
   type PluginDefinition,
   type PluginRow,
 } from '@winsendotai/ovo-runtime';
-import { behaviorPluginId, createSessionPluginCatalog } from './session-catalog.ts';
+import { createSessionPluginCatalog, sessionCatalogRow } from './session-catalog.ts';
 import { legacySelections } from './legacy-session-selections.ts';
 import type { NormalizationBinding, SessionDefaults } from './normalize.ts';
 import { adaptDefinitionFormats } from './speech-adapters/decorate.ts';
@@ -54,6 +54,8 @@ export interface SessionGraphInput {
   defaults?: SessionDefaults;
   mcpConnections?: readonly ToolConnection[];
   sessionVariables?: Readonly<Record<string, unknown>>;
+  /** Replaces the release's behaviour row; the host services it needs are resolved as any row's. */
+  behavior?: { definition: PluginDefinition; config: Record<string, unknown> };
 }
 
 export interface SessionGraphResult {
@@ -229,16 +231,7 @@ export function selectSessionGraph(input: SessionGraphInput): SessionGraphResult
       manifestKeys(definition.manifest).provides.some((entry) => entry.key === Cap.inference),
     ),
   }))
-    add(
-      definition,
-      definition.manifest.id === behaviorPluginId(release.config)
-        ? {
-            agent: release.config,
-            workspaceId: release.workspaceId,
-            sessionId: input.media.sessionId,
-          }
-        : {},
-    );
+    add(...sessionCatalogRow(definition, release, input.media.sessionId, input.behavior));
   const selectedIds = new Set(rows.map((row) => row.id));
   const needed = new Set(
     catalog

@@ -8,6 +8,7 @@ import {
   sessionSecretFromEnv,
 } from '../../../apps/api/src/auth-env.ts';
 import { buildManagementApi } from '../../../apps/api/src/bootstrap.ts';
+import { routingFlagsFromEnv } from '../../../apps/api/src/operations-runtime.ts';
 import { seedAdminFromEnv } from '../../../apps/api/src/user-plugin.ts';
 import { startDispatcher } from '../../../apps/dispatcher/src/main.ts';
 import { startGateway } from '../../../apps/media-gateway/src/startup.ts';
@@ -90,6 +91,7 @@ async function managementApiFromEnv(env: Record<string, string>) {
     requireTlsForSecrets: production && !allowLocalHttp,
     secureSessionCookies: production && !allowLocalHttp,
     trustedProxy: trustedProxy?.length ? trustedProxy : undefined,
+    ...routingFlagsFromEnv(env),
     // The credentials route falls back to process.env, which here holds the worker's variables;
     // '' keeps a variable Compose does not give the api missing.
     carrierPublicBaseUrl: env.OVO_MEDIA_PUBLIC_BASE_URL ?? '',

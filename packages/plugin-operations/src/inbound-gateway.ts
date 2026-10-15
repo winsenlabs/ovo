@@ -2,11 +2,12 @@ import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import { transaction } from './database.ts';
 import { confirmInboundCallback } from './inbound-callback.ts';
 import { existingDecision, recordBusy, type ExistingRow } from './inbound-existing.ts';
+import { InstalledInboundCarrierPlugins } from './inbound-carrier.ts';
 import {
-  InstalledInboundCarrierPlugins,
-  selectInboundCarrierRoute,
-  type InboundCarrierRoute,
-} from './inbound-carrier.ts';
+  effectiveInboundRoute,
+  routedRelease,
+  selectRoutingRelease,
+} from './routing/effective-route.ts';
 import { provisionInboundSession } from './inbound-session.ts';
 import { inboundOverflow } from './inbound-overflow.ts';
 import type { InboundGatewayCall, InboundGatewayDecision } from './types.ts';
@@ -20,7 +21,8 @@ interface CapacityRow extends QueryResultRow {
 }
 
 const existingColumns = `a.id, a.call_id, a.decision, a.detail, a.job_id, a.session_id,
-  a.release_id, a.route_version, a.variables, a.carrier_plugin_id, a.carrier_binding_id,
+  a.release_id, a.routing_release_id, a.route_version, a.variables, a.carrier_plugin_id,
+  a.carrier_binding_id,
   a.from_number, a.to_number, a.wait_expires_at,
   a.callback_campaign_id, a.callback_contact_id, a.callback_job_id,
   c.worker_id, c.worker_endpoint`;
@@ -35,6 +37,8 @@ export class InboundGatewayAdmissionService {
       enabled: boolean;
       permittedFromNumbers: readonly string[];
     } = { enabled: false, permittedFromNumbers: [] },
+    /** OVO_ROUTING_ENABLED: off, a routed number is admitted to its default agent. */
+    private readonly routingEnabled = false,
   ) {}
 
   /** The host supplies controls it actually composed; an unknown explicit route never admits. */
@@ -59,7 +63,12 @@ export class InboundGatewayAdmissionService {
     this.assertArmed();
     // Resolve the route and carrier before the write transaction. Configuration
     // failures become durable refusals instead of rolling back the admission row.
-    const route = await selectInboundCarrierRoute(this.pool, this.organizationId, input.toNumber);
+    const route = await effectiveInboundRoute(
+      this.pool,
+      this.organizationId,
+      input.toNumber,
+      this.routingEnabled,
+    );
     const carrier = route
       ? this.installedCarrierPlugins.resolve(route.carrier_plugin_id)
       : undefined;
@@ -138,6 +147,13 @@ export class InboundGatewayAdmissionService {
     }
     if (!prior.release_id || !prior.route_version || !prior.variables)
       throw new Error('Persisted inbound wait route is incomplete');
+    // A routed wait re-resolves its routing release now, so the kill switch applies on resume too.
+    const routingRelease = prior.routing_release_id
+      ? await selectRoutingRelease(client, this.organizationId, prior.routing_release_id)
+      : undefined;
+    if (prior.routing_release_id && !routingRelease)
+      throw new Error('Persisted inbound wait routing release is missing');
+    const routed = routingRelease ? routedRelease(routingRelease, this.routingEnabled) : undefined;
     const carrier = this.installedCarrierPlugins.resolve(prior.carrier_plugin_id);
     if (carrier.kind === 'refused') {
       await client.query(
@@ -154,7 +170,10 @@ export class InboundGatewayAdmissionService {
       this.organizationId,
       input,
       {
-        release_id: prior.release_id,
+        release_id: routed?.releaseId ?? prior.release_id,
+        routing_release_id: prior.routing_release_id,
+        routing: routed?.routing ?? null,
+        routing_disabled: routed !== undefined && !this.routingEnabled,
         variables: prior.variables,
         version: prior.route_version,
         carrier_plugin_id: prior.carrier_plugin_id,

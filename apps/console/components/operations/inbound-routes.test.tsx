@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { emptyAgentConfig } from '../../lib/api';
 import { ConfirmDialogProvider } from '../ui/dialog';
@@ -10,7 +10,7 @@ vi.mock('../../lib/api', async (original) => ({
   apiRequest: request,
 }));
 
-const route = {
+const route: Record<string, unknown> = {
   organizationId: 'workspace-1',
   phoneNumber: '+15551234567',
   releaseId: 'release-060',
@@ -23,10 +23,21 @@ const route = {
   updatedAt: '2026-09-25T10:00:00Z',
 };
 
+// A number pinned to a routing release (Wave 15): no agent release of its own.
+const routed = {
+  ...route,
+  phoneNumber: '+15557654321',
+  releaseId: null,
+  routingReleaseId: '7d3c1a52-9b0e-4c55-8a4f-1f2e3d4c5b6a',
+  routing: { pointId: 'point-1', pointName: 'Main line', version: 3 },
+};
+let listed: Record<string, unknown>[] = [route];
+
 beforeEach(() => {
+  listed = [route];
   request.mockReset();
   request.mockImplementation(async (path: string, init?: RequestInit) => {
-    if (path.startsWith('/operations/inbound/routes?')) return { data: { items: [route] } };
+    if (path.startsWith('/operations/inbound/routes?')) return { data: { items: listed } };
     if (path.startsWith('/operations/inbound/routes/') && init?.method === 'PUT')
       return { data: { ...route, ...JSON.parse(String(init.body)), version: 2 } };
     if (path === '/agents')
@@ -106,4 +117,50 @@ it('fails closed when an existing route release cannot be loaded', async () => {
   expect(
     (screen.getByRole('button', { name: 'Save route version' }) as HTMLButtonElement).disabled,
   ).toBe(true);
+});
+
+it('renders a routed number with its routing point and release, never crashing on a null release', async () => {
+  listed = [routed, { ...routed, phoneNumber: '+15550000000', routing: null }];
+  render(
+    <ConfirmDialogProvider>
+      <InboundRoutes role="admin" />
+    </ConfirmDialogProvider>,
+  );
+  const row = (await screen.findByText('Routing point Main line · v3')).closest('tr')!;
+  expect(within(row).getByTitle(routed.routingReleaseId)).toBeDefined();
+  expect(within(row).queryByText('Unknown agent')).toBeNull();
+  // An API that names no point still shows the number as routed.
+  expect(screen.getByText('Routing point')).toBeDefined();
+});
+
+it('warns that saving an agent release switches a routed number to that agent', async () => {
+  listed = [routed];
+  render(
+    <ConfirmDialogProvider>
+      <InboundRoutes role="admin" />
+    </ConfirmDialogProvider>,
+  );
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+  expect(
+    (await screen.findByText(/Saving an agent release here switches the number to that agent/))
+      .textContent,
+  ).toContain('Routing point Main line · v3');
+  const release = screen.getByRole('combobox', { name: 'Immutable release' }) as HTMLSelectElement;
+  expect(release.value).toBe('');
+  expect(
+    (screen.getByRole('button', { name: 'Save route version' }) as HTMLButtonElement).disabled,
+  ).toBe(false);
+  // No bound-release lookup for a routed number: it has no agent release to load.
+  expect(request.mock.calls.some(([path]) => String(path).startsWith('/releases/'))).toBe(false);
+});
+
+it('shows no routing warning when editing a direct number', async () => {
+  render(
+    <ConfirmDialogProvider>
+      <InboundRoutes role="admin" />
+    </ConfirmDialogProvider>,
+  );
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+  await screen.findByRole('option', { name: /Bound agent 060 · release-060/ });
+  expect(screen.queryByText(/switches the number to that agent/)).toBeNull();
 });

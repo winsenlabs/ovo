@@ -8,7 +8,10 @@ import type {
   SecretResolver,
 } from '@winsendotai/ovo-contracts';
 import { legacyEnvBindings, type LoadedDistribution } from '@winsendotai/ovo-distribution';
-import type { PostgresOperationsService } from '@winsendotai/ovo-plugin-operations';
+import {
+  effectiveInboundRoute,
+  type PostgresOperationsService,
+} from '@winsendotai/ovo-plugin-operations';
 import type { PostgresOrchestrationStore } from '@winsendotai/ovo-plugin-orchestration';
 import { PluginRegistry } from '@winsendotai/ovo-runtime';
 import {
@@ -90,17 +93,14 @@ export function createGatewayHost(options: GatewayHostOptions) {
   });
   const ingressById = new Map(options.ingresses.map((ingress) => [ingress.carrierId, ingress]));
   const validateBeforeAdmission = async (inbound: InboundAdmission): Promise<void> => {
-    const selected = await options.operations.pool.query<{
-      release_id: string;
-      carrier_plugin_id: string | null;
-      carrier_binding_id: string | null;
-    }>(
-      `SELECT release_id, carrier_plugin_id, carrier_binding_id
-       FROM ovo_ops_inbound_routes
-       WHERE organization_id = $1 AND phone_number = $2 AND enabled = true`,
-      [options.operations.organizationId, inbound.to],
+    // The same lookup admission makes, so a routed number is checked against the release that
+    // will answer: the router release with routing on, the default agent with it off.
+    const route = await effectiveInboundRoute(
+      options.operations.pool,
+      options.operations.organizationId,
+      inbound.to,
+      options.operations.config.routingEnabled === true,
     );
-    const route = selected.rows[0];
     if (!route) return; // Operations records the normal unrouted refusal.
     if (route.carrier_plugin_id && !registry.get(route.carrier_plugin_id)) return; // Operations records its durable uninstalled-plugin refusal.
     const bindingId = route.carrier_binding_id ?? 'env';

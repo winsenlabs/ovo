@@ -229,3 +229,39 @@ describe('Compose SIP environment (Wave 11)', () => {
     expect(sip.OVO_SIP_MEDIA_INTERNAL_URL).toBe('http://127.0.0.1:4101');
   });
 });
+
+describe('Compose routing environment (Wave 15)', () => {
+  const DATABASE = 'postgresql://ovo:secret@postgres:5432/ovo';
+
+  it('keeps routing and its external engine off when the .env says nothing about them', () => {
+    const variables = goLiveComposeVariables(DATABASE);
+    for (const service of ['api', 'gateway'])
+      expect(renderServiceEnv(service, variables).OVO_ROUTING_ENABLED, service).toBe('false');
+    for (const service of ['api', 'worker-1', 'worker-2'])
+      expect(renderServiceEnv(service, variables).OVO_ROUTING_EXTERNAL_ENABLED, service).toBe(
+        'false',
+      );
+    for (const service of ['worker-1', 'worker-2'])
+      expect(renderServiceEnv(service, variables).OVO_ROUTING_PREPARE_TIMEOUT_MS, service).toBe('');
+    for (const service of ['dispatcher', 'worker-1'])
+      expect(renderServiceEnv(service, variables), service).not.toHaveProperty(
+        'OVO_ROUTING_ENABLED',
+      );
+  });
+
+  it('hands the switch to the api and the gateway together, and the worker settings to both workers', () => {
+    const variables = {
+      ...goLiveComposeVariables(DATABASE),
+      OVO_ROUTING_ENABLED: 'true',
+      OVO_ROUTING_EXTERNAL_ENABLED: 'true',
+      OVO_ROUTING_PREPARE_TIMEOUT_MS: '4000',
+    };
+    expect(renderServiceEnv('api', variables).OVO_ROUTING_ENABLED).toBe('true');
+    expect(renderServiceEnv('gateway', variables).OVO_ROUTING_ENABLED).toBe('true');
+    for (const service of ['worker-1', 'worker-2'])
+      expect(renderServiceEnv(service, variables)).toMatchObject({
+        OVO_ROUTING_EXTERNAL_ENABLED: 'true',
+        OVO_ROUTING_PREPARE_TIMEOUT_MS: '4000',
+      });
+  });
+});
