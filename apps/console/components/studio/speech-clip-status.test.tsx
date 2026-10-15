@@ -1,10 +1,17 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  loadRouted,
   RoutedSpeechClipStatus,
   SpeechClipStatusPanel,
   type SpeechClipStatus,
 } from './speech-clip-status';
+
+const request = vi.hoisted(() => vi.fn());
+vi.mock('../../lib/api', async (original) => ({
+  ...(await original<typeof import('../../lib/api')>()),
+  apiRequest: request,
+}));
 
 afterEach(() => cleanup());
 
@@ -116,5 +123,23 @@ describe('RoutedSpeechClipStatus', () => {
     ).toBeTruthy();
     await waitFor(() => expect(load).toHaveBeenCalledWith('agent-1', 'release-new'));
     expect(load).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('loadRouted', () => {
+  it('skips a number pinned to a routing release, which has no agent release (Wave 15)', async () => {
+    request.mockImplementation(async (path: string) =>
+      path.startsWith('/operations/inbound/routes')
+        ? {
+            data: {
+              items: [
+                { phoneNumber: '+1', releaseId: 'release-a', enabled: true },
+                { phoneNumber: '+2', releaseId: null, routingReleaseId: 'rr-1', enabled: true },
+              ],
+            },
+          }
+        : { data: { items: [] } },
+    );
+    expect([...(await loadRouted())]).toEqual([['release-a', ['+1']]]);
   });
 });

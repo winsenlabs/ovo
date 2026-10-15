@@ -10,7 +10,7 @@ import { SectionCard } from '../ui/section-card';
 import { Drawer } from '../ui/drawer';
 import { ErrorState, InlineAlert } from '../ui/feedback-v2';
 import { InboundRouteForm } from './inbound-route-form';
-import { InboundRoutesTable } from './inbound-routes-table';
+import { InboundRoutesTable, routingLabel } from './inbound-routes-table';
 import { useInboundRouteEditor } from './inbound-route-editor';
 import { useBoundRouteRelease } from './inbound-route-releases';
 import { loadAgentReleaseOptions, type ReleaseOption } from './agent-release-options';
@@ -63,7 +63,9 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
   const listedRelease = Boolean(
     editing && releases.some((release) => release.id === editing.releaseId),
   );
-  const bound = useBoundRouteRelease(editing?.releaseId, listedRelease);
+  const bound = useBoundRouteRelease(editing?.releaseId ?? undefined, listedRelease);
+  // A routed number is pinned to a routing release, never to one of the listed agent releases.
+  const editingRouted = editing ? routingLabel(editing) : undefined;
   const boundRelease = bound?.release;
 
   const load = useCallback(async () => {
@@ -201,6 +203,12 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
         onClose={closeDrawer}
         title={editing ? `Edit route v${editing.version}` : 'Add inbound route'}
       >
+        {editingRouted && (
+          <InlineAlert tone="warn">
+            This number is routed through {editingRouted}. Saving an agent release here switches the
+            number to that agent, and its calls stop going through the routing point.
+          </InlineAlert>
+        )}
         <InboundRouteForm
           editing={editing}
           phoneNumber={draft.phoneNumber}
@@ -225,7 +233,12 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
               : []),
             ...releases,
           ]}
-          releaseReady={!editing || listedRelease || boundRelease?.id === editing.releaseId}
+          releaseReady={
+            !editing ||
+            Boolean(editingRouted) ||
+            listedRelease ||
+            boundRelease?.id === editing.releaseId
+          }
           carriers={carriers}
           bindings={bindings}
           role={role}

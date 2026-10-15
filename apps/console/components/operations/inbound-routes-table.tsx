@@ -14,7 +14,41 @@ export function releaseAgentName(
   route: InboundRouteRecord,
   releases: readonly ReleaseOption[],
 ): string | undefined {
-  return releases.find((release) => release.id === route.releaseId)?.agentName;
+  return route.releaseId
+    ? releases.find((release) => release.id === route.releaseId)?.agentName
+    : undefined;
+}
+
+/** A routed number answers with its routing point first; the label names the point and version. */
+export function routingLabel(route: InboundRouteRecord): string | undefined {
+  if (!route.routingReleaseId) return undefined;
+  return route.routing
+    ? `Routing point ${route.routing.pointName} · v${route.routing.version}`
+    : 'Routing point';
+}
+
+function RouteTarget({
+  route,
+  releases,
+}: {
+  route: InboundRouteRecord;
+  releases: readonly ReleaseOption[];
+}) {
+  const routed = routingLabel(route);
+  const id = route.routingReleaseId ?? route.releaseId;
+  return (
+    <>
+      {routed ?? releaseAgentName(route, releases) ?? (
+        <span className="ds-unknown">Unknown agent</span>
+      )}
+      {id && (
+        <>
+          <br />
+          <IdChip id={id} short={id.slice(0, 12)} />
+        </>
+      )}
+    </>
+  );
 }
 
 /** Maps `carrierPluginId`/`carrierBindingId` to the labels an operator actually recognises,
@@ -66,13 +100,7 @@ export function InboundRoutesTable({
     {
       id: 'release',
       header: 'Agent & release',
-      cell: (route) => (
-        <>
-          {releaseAgentName(route, releases) ?? <span className="ds-unknown">Unknown agent</span>}
-          <br />
-          <IdChip id={route.releaseId} short={route.releaseId.slice(0, 12)} />
-        </>
-      ),
+      cell: (route) => <RouteTarget route={route} releases={releases} />,
     },
     {
       id: 'carrier',

@@ -20,7 +20,11 @@ export function due(record: CallbackRecord): string {
 }
 
 export const sourceLabel = (record: CallbackRecord): string =>
-  record.source === 'llm' ? 'LLM' : `Flow · ${record.node ?? 'node'}`;
+  record.source === 'llm'
+    ? 'LLM'
+    : record.source === 'route'
+      ? `Route · ${record.node ?? 'node'}`
+      : `Flow · ${record.node ?? 'node'}`;
 
 /** The callbacks table's column set, built fresh per render so each action closes over the
  * current `busy`/`now` without the view needing to pass them through a generic cell callback. */
