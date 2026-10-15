@@ -118,7 +118,9 @@ describe.skipIf(!postgresUrl)('callback dials pass only declared variables (R1 a
     await pool.end();
   });
 
-  it('dials routed, overflow and direct callbacks with what each release declares', async () => {
+  // Busy-number overflow callbacks never reach this route: confirmInboundCallback turns them
+  // into campaign contacts (plugin-operations), so their filtering is not covered here.
+  it('dials routed, default-agent fallback and direct callbacks with what each release declares', async () => {
     const { items } = (await app.inject({ method: 'GET', url: '/v1/callbacks' })).json();
     expect(items).toHaveLength(3);
     for (const item of items) {
@@ -128,7 +130,7 @@ describe.skipIf(!postgresUrl)('callback dials pass only declared variables (R1 a
     expect(placed.map((body) => [body.releaseId, body.variables])).toEqual([
       // Routed: the member declares only the name; the router's own variables never reach it.
       [memberRelease, { customer_name: 'Asha' }],
-      // Overflow to the default agent: its declared variables, as the strings a call carries.
+      // Route fallback to the default agent: its declared variables, as the strings a call carries.
       [defaultRelease, { customer_name: 'Asha', account: '42' }],
       // Direct: the call's own release, its variables unchanged.
       [directRelease, { customer_name: 'Ravi', account: 'A-7' }],
