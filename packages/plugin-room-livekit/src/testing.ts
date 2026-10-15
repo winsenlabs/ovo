@@ -53,6 +53,14 @@ export function findLiveKitBinary(
   return undefined;
 }
 
+/** Runs `$1 --config $2`, prints its pid, and kills it when this shell's parent goes away. */
+const GUARD = [
+  '"$1" --config "$2" & lk=$!',
+  'echo $lk',
+  "trap 'kill $lk 2>/dev/null' TERM INT EXIT",
+  'while kill -0 $PPID 2>/dev/null && kill -0 $lk 2>/dev/null; do sleep 1; done',
+].join('\n');
+
 async function waitReady(port: number, child: ChildProcess, stderr: () => string): Promise<void> {
   let exited = false;
   child.once('exit', () => (exited = true));
@@ -98,12 +106,24 @@ export async function startLiveKitServer(
       '',
     ].join('\n'),
   );
-  const child = spawn(binary, ['--config', join(dir, 'livekit.yaml')], {
-    stdio: ['ignore', 'ignore', 'pipe'],
+  // A shell stands between the test process and the server: it prints the server's pid and ends the
+  // server within a second of the test process dying, however it died (a killed vitest worker never
+  // runs its exit handlers, and an orphaned room server would hold its ports for good).
+  const child = spawn('/bin/sh', ['-c', GUARD, 'sh', binary, join(dir, 'livekit.yaml')], {
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
+  let serverPid: number | undefined;
+  child.stdout!.once('data', (chunk: Buffer) => (serverPid = Number(chunk.toString().trim())));
   let stderr = '';
   child.stderr!.on('data', (chunk: Buffer) => (stderr = (stderr + chunk.toString()).slice(-4000)));
-  const kill = () => child.kill('SIGKILL');
+  const kill = () => {
+    try {
+      if (serverPid) process.kill(serverPid, 'SIGKILL');
+    } catch {
+      // swallow-ok: it already exited.
+    }
+    child.kill('SIGKILL');
+  };
   process.once('exit', kill);
   try {
     await waitReady(http!, child, () => stderr);
