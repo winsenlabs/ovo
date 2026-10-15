@@ -189,18 +189,19 @@ export async function* observeFirstByte(
   }
 }
 
-export function waitForSendSlot(prior: Promise<void>, signal: AbortSignal): Promise<void> {
+/** `prior`'s value, unless `signal` aborts first (a send slot; a hold line's bounded render). */
+export function waitForSendSlot<T>(prior: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) return Promise.reject(signal.reason);
-  return new Promise((resolve, reject) => {
+  return new Promise<T>((resolve, reject) => {
     const abort = () => {
       signal.removeEventListener('abort', abort);
       reject(signal.reason);
     };
     signal.addEventListener('abort', abort, { once: true });
     void prior.then(
-      () => {
+      (value) => {
         signal.removeEventListener('abort', abort);
-        resolve();
+        resolve(value);
       },
       (error) => {
         signal.removeEventListener('abort', abort);

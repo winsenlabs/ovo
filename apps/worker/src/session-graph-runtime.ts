@@ -36,7 +36,11 @@ import { speakerAddedFilters } from './speech-cache-speaker-filters.ts';
 import { createV2SpeechCachePlugin } from './speech-cache-v2.ts';
 import type { CallClips } from './speech-cache-percall.ts';
 import { sessionSttPlugin, type SttPreconnect } from './session-stt-preconnect.ts';
-import { stampBindingIdentity, withDerivedSelections } from './session-graph-bindings.ts';
+import {
+  stampBindingIdentity,
+  withDerivedSelections,
+  withMediaHooks,
+} from './session-graph-bindings.ts';
 import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
 import { adaptV1Engine } from './v1-engine-adapter.ts';
 import { holdOpeningForAnsweringMachine } from './answering-machine.ts';
@@ -107,22 +111,7 @@ export async function composeLiveSessionGraph(input: {
       clearFlushesMarkers: input.carrierMedia.clearFlushesMarkers,
     },
   );
-  let closing: Promise<void> | undefined;
-  const overrides: Partial<Pick<MediaDuplex, 'close' | 'onAnsweredBy'>> = {};
-  if (input.beforeMediaClose)
-    overrides.close = async (reason: EndReason) => {
-      closing ??= input.beforeMediaClose!(reason);
-      try {
-        await closing;
-      } finally {
-        await legacyMedia.close(reason);
-      }
-    };
-  // The legacy transport shim has no answering-machine channel; the engine reads it from here.
-  if (input.answeredBy) overrides.onAnsweredBy = input.answeredBy;
-  const media: MediaDuplex = Object.keys(overrides).length
-    ? Object.assign(Object.create(legacyMedia) as MediaDuplex, overrides)
-    : legacyMedia;
+  const media = withMediaHooks(legacyMedia, input.beforeMediaClose, input.answeredBy);
   const usage: UsageSink = (event) => {
     input.usage?.(event);
     telemetry.providerUsage(event);
@@ -139,6 +128,7 @@ export async function composeLiveSessionGraph(input: {
         telemetry.audit('transcript.accepted', { text: event.text, turnId: event.turnId });
       if (event.type === 'agent.transcript')
         telemetry.audit('transcript.agent', { text: event.text, state: event.state });
+      segment?.transcripts?.(event);
     },
     ...(input.events ? { events: input.events } : {}),
   });
@@ -167,6 +157,7 @@ export async function composeLiveSessionGraph(input: {
           ? { clips: input.callClips, options: input.speechCache.options.perCall }
           : undefined,
         await speakerAddedFilters(registry),
+        segment?.approvedLines,
       )
     : undefined;
   const graphRelease = withDerivedSelections(

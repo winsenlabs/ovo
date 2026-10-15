@@ -75,6 +75,8 @@ export async function routedCall(input: {
   getRouting?: () => Promise<unknown>;
   routerBehavior?: () => PluginDefinition;
   transcriptOmitted?: string[];
+  /** R2: in-call transfers on (`OVO_ROUTING_TRANSFER_ENABLED`). */
+  transfer?: boolean;
 }) {
   const engines: FixtureEngine[] = [];
   const routers: FixtureRouter[] = [];
@@ -105,6 +107,11 @@ export async function routedCall(input: {
   );
   const claims = { claim: vi.fn(), release: vi.fn(async () => 1) };
   const getRouting = vi.fn(input.getRouting ?? (async () => undefined));
+  const segmentUsage: [string, number, unknown][] = [];
+  const usageForSegment = vi.fn(
+    (jobId: string, segment: number) => (event: unknown) =>
+      void segmentUsage.push([jobId, segment, event]),
+  );
   const factory = new RoutedVoiceSessionFactory(
     {
       getRelease: async (_workspace: string, id: string) => input.releases.find((r) => r.id === id),
@@ -152,6 +159,7 @@ export async function routedCall(input: {
     routerBehavior: input.routerBehavior ?? (() => plugins.router),
     externalEnabled: false,
     snapshotTimeoutMs: 50,
+    ...(input.transfer ? { transferEnabled: true, usageForSegment } : {}),
   });
   const job = {
     id: 'job-1',
@@ -185,7 +193,7 @@ export async function routedCall(input: {
       createSession,
       createCall,
     },
-    ...{ beforeClose, claims, getRouting, events, parent },
+    ...{ beforeClose, claims, getRouting, events, parent, segmentUsage },
     open: () => factory.create({ job, route, media: link as never }),
   };
 }

@@ -27,6 +27,8 @@ export interface NormalizedUsage {
   quantity: string;
   unit: string;
   occurredAt: string;
+  /** The routed call segment that used it; absent for call-level usage. */
+  segment?: number;
 }
 
 export function durableReservationFields(options: WorkerCostPolicyOptions, maxCallSeconds: number) {

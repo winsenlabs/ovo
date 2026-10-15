@@ -1,6 +1,7 @@
 import {
   Cap,
   type EndReason,
+  type RouterEntry,
   type RoutingHost,
   type RoutingReleaseSnapshot,
   type SegmentHandoffPort,
@@ -48,6 +49,8 @@ export function routerSegmentShape(input: {
   sessionId: string;
   host: RoutingHost;
   handoff: SegmentHandoffPort;
+  /** R2 re-route: where the router resumes in its tree (it does not greet again). */
+  entry?: RouterEntry;
 }): SegmentGraphShape {
   const { routerRelease } = input;
   return {
@@ -58,6 +61,7 @@ export function routerSegmentShape(input: {
         workspaceId: routerRelease.workspaceId,
         sessionId: input.sessionId,
         routing: input.snapshot,
+        ...(input.entry ? { entry: input.entry } : {}),
       },
     },
     services: [routingHostService(input.host, input.handoff)],
@@ -65,10 +69,11 @@ export function routerSegmentShape(input: {
 }
 
 /**
- * Segment 0's hang-up (or carrier transfer) with the router release, except while the call is
- * handing off: then the router's engine ending must leave the carrier leg to the next segment.
+ * A segment's hang-up (or AGT-15 carrier transfer) with its own release, except while the call is
+ * handing off: then its engine ending must leave the carrier leg to the next segment. Every
+ * segment of a routed call is wrapped, the router and each agent (transfer design 7.1).
  */
-export function routerMediaClose(
+export function handoffMediaClose(
   handingOff: () => boolean,
   close: ((reason: EndReason) => Promise<void>) | undefined,
 ): (reason: EndReason) => Promise<void> {
@@ -76,3 +81,6 @@ export function routerMediaClose(
     if (!handingOff()) await close?.(reason);
   };
 }
+
+/** Segment 0's name for `handoffMediaClose` (routing design 7.3). */
+export const routerMediaClose = handoffMediaClose;

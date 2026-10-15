@@ -8,12 +8,18 @@ import type {
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import type { SpeechPrerenderOptions } from './speech-cache-env.ts';
 import { createPrerenderMeter, type PrerenderLedger } from './speech-cache-meter.ts';
-import { warmReleaseClips, type WarmResult } from './speech-cache-prerender.ts';
+import {
+  skippedWarm,
+  warmCounts,
+  warmReleaseClips,
+  type WarmResult,
+} from './speech-cache-prerender.ts';
 import { PrerenderSkipError, type ReleaseSpeech } from './speech-cache-release-tts.ts';
-import { releaseKey, ROUTED_REFRESH_MS, syncRoutedReleases } from './speech-cache-routed.ts';
+import { ROUTED_REFRESH_MS, syncRoutedReleases, warmKey } from './speech-cache-routed.ts';
 import type { SpeechClipStore, WorkerSpeechClipCache } from './speech-cache-tiers.ts';
 
-type Queue = Pick<PostgresSpeechPrerenderQueue, 'claim' | 'finish' | 'routedReleases'>;
+type Queue = Pick<PostgresSpeechPrerenderQueue, 'claim' | 'finish' | 'routedReleases'> &
+  Partial<Pick<PostgresSpeechPrerenderQueue, 'routedVoiceLines'>>;
 
 export interface PrerenderServiceInput {
   cache: WorkerSpeechClipCache;
@@ -37,7 +43,10 @@ const GC_INTERVAL_MS = 6 * 60 * 60 * 1000;
  */
 export class SpeechPrerenderService {
   private readonly controller = new AbortController();
-  private readonly local = new Map<string, { release: ReleaseRecord; reason: PrerenderReason }>();
+  private readonly local = new Map<
+    string,
+    { release: ReleaseRecord; reason: PrerenderReason; lines?: readonly string[] }
+  >();
   private readonly warmed = new Set<string>();
   private readonly log: Logger;
   private wake?: () => void;
@@ -61,10 +70,10 @@ export class SpeechPrerenderService {
     );
   }
 
-  requestWarm(release: ReleaseRecord, reason: PrerenderReason): void {
-    const key = releaseKey(release);
+  requestWarm(release: ReleaseRecord, reason: PrerenderReason, lines?: readonly string[]): void {
+    const key = warmKey(release, lines);
     if (!release.config.speechCache?.enabled || this.warmed.has(key) || this.local.has(key)) return;
-    this.local.set(key, { release, reason });
+    this.local.set(key, { release, reason, ...(lines?.length ? { lines } : {}) });
     this.wake?.();
   }
 
@@ -93,7 +102,7 @@ export class SpeechPrerenderService {
         if (next) {
           this.local.delete(next[0]);
           this.warmed.add(next[0]);
-          await this.warm(next[1].release, next[1].reason).catch((error: unknown) =>
+          await this.warm(next[1].release, next[1].reason, next[1].lines).catch((error: unknown) =>
             this.failed(next[1].release, error),
           );
           continue;
@@ -120,7 +129,7 @@ export class SpeechPrerenderService {
       cache: this.input.cache,
       releases: this.input.releases,
       warmed: this.warmed,
-      requestWarm: (release) => this.requestWarm(release, 'worker-start'),
+      requestWarm: (release, lines) => this.requestWarm(release, 'worker-start', lines),
     }).catch((error: unknown) =>
       this.log.warn('speech_prerender_routed_lookup_failed', errorFields(error)),
     );
@@ -156,7 +165,7 @@ export class SpeechPrerenderService {
       const release = await this.input.releases.getRelease(job.workspaceId, job.releaseId);
       if (!release) return await finish({ state: 'skipped', detail: 'release not found' });
       const result = await this.warm(release, job.reason);
-      this.warmed.add(releaseKey(release));
+      this.warmed.add(warmKey(release));
       await finish(result);
     } catch (error) {
       // An interrupted job keeps its lease; another worker reclaims it once the lease expires.
@@ -172,15 +181,19 @@ export class SpeechPrerenderService {
     }
   }
 
-  private async warm(release: ReleaseRecord, reason: PrerenderReason): Promise<WarmResult> {
+  private async warm(
+    release: ReleaseRecord,
+    reason: PrerenderReason,
+    lines?: readonly string[],
+  ): Promise<WarmResult> {
     if (!release.config.speechCache?.enabled)
-      return skipped('speech cache is not enabled for this release');
+      return skippedWarm('speech cache is not enabled for this release');
     const meter = createPrerenderMeter(release, this.input.ledger, this.log);
     let speech: ReleaseSpeech;
     try {
       speech = await this.input.openSpeech(release, meter.sink);
     } catch (error) {
-      if (error instanceof PrerenderSkipError) return skipped(error.message);
+      if (error instanceof PrerenderSkipError) return skippedWarm(error.message);
       throw error;
     }
     let result: WarmResult;
@@ -192,6 +205,7 @@ export class SpeechPrerenderService {
           filters: speech.filters,
           onUsage: meter.sink,
           signal: this.signal,
+          ...(lines ? { lines } : {}),
         },
         { cache: this.input.cache, store: this.input.clips, options: this.input.options },
       );
@@ -200,16 +214,8 @@ export class SpeechPrerenderService {
     }
     const metered = await meter.flush();
     this.log.info('speech_prerender_finished', {
-      releaseId: release.id,
-      reason,
-      state: result.state,
-      total: result.total,
-      existing: result.existing,
-      rendered: result.rendered,
-      failed: result.failed,
-      deferred: result.deferred,
-      usageRecorded: metered.recorded,
-      usageUnpriced: metered.unpriced,
+      ...{ releaseId: release.id, reason, ...warmCounts(result) },
+      ...{ usageRecorded: metered.recorded, usageUnpriced: metered.unpriced },
     });
     return result;
   }
@@ -240,17 +246,4 @@ export class SpeechPrerenderService {
       this.wake = done;
     });
   }
-}
-
-function skipped(detail: string): WarmResult {
-  return {
-    state: 'skipped',
-    total: 0,
-    existing: 0,
-    rendered: 0,
-    failed: 0,
-    deferred: 0,
-    perCall: 0,
-    detail,
-  };
 }

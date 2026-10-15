@@ -8,6 +8,8 @@ import {
   type MediaDuplex,
   type RoutingHost,
   type SegmentHandoffPort,
+  type AgentTransferPort,
+  type UsageSink,
 } from '@winsendotai/ovo-contracts';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 
@@ -17,6 +19,9 @@ export interface FixtureEngine {
   config: Record<string, unknown>;
   media: MediaDuplex;
   behavior: unknown;
+  /** R2: the segment's transfer port, when the host offered one. */
+  transfer?: AgentTransferPort;
+  usage?: UsageSink;
   started: boolean;
   disposed?: EndReason;
   emit(event: EngineEvent): void;
@@ -64,6 +69,7 @@ export function fixturePlugins(engines: FixtureEngine[], routers: FixtureRouter[
       provider: 'fixture',
       provides: [`${Cap.engine}@2`],
       requires: [Cap.behavior, Cap.media],
+      optional: [Cap.agentTransfer, Cap.usage],
       configSchema: { type: 'object' },
       secretFields: [],
       capabilities: {
@@ -96,6 +102,8 @@ export function fixturePlugins(engines: FixtureEngine[], routers: FixtureRouter[
         config,
         media,
         behavior: ctx.get(Cap.behavior),
+        transfer: ctx.maybe(Cap.agentTransfer) as AgentTransferPort | undefined,
+        usage: ctx.maybe(Cap.usage) as UsageSink | undefined,
         started: false,
         emit: (event) => listeners.forEach((listener) => listener(event)),
         complete: async (reason = 'behavior_completed') => void (await dispose(reason)),

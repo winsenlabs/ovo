@@ -49,7 +49,7 @@ export class WorkerCostPolicyController extends WorkerCostPolicyCore {
     });
   }
 
-  observeProviderUsage(usage: ProviderUsage): boolean {
+  observeProviderUsage(usage: ProviderUsage, segment?: number): boolean {
     const meterKey = providerMeterKey(usage);
     if (this.closing || this.terminal) {
       this.missingMeters.add(`${meterKey}:after-meter-close`);
@@ -77,6 +77,7 @@ export class WorkerCostPolicyController extends WorkerCostPolicyCore {
       quantity: usage.quantity,
       unit: usage.unit,
       occurredAt: this.options.sessionStartedAt,
+      ...(segment !== undefined ? { segment } : {}),
     });
   }
 
@@ -207,8 +208,8 @@ export function createWorkerCostPolicyAttachment(
   return {
     controller,
     reserveBeforeAdmission: () => controller.reserveBeforeAdmission(),
-    providerUsage: (usage) => {
-      controller.observeProviderUsage(usage);
+    providerUsage: (usage, segment) => {
+      controller.observeProviderUsage(usage, segment);
     },
     inferenceUsage: (evidence) => {
       controller.observeInferenceUsage(evidence);

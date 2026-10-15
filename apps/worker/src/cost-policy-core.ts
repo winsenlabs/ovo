@@ -140,6 +140,8 @@ export class WorkerCostPolicyCore {
         reference.fxId && reference.fxVersion
           ? { id: reference.fxId, version: reference.fxVersion }
           : undefined,
+      // Ledger 005: usage of a routed call carries its segment (RecordUsageInput.segment).
+      ...(input.segment !== undefined ? { segment: input.segment } : {}),
     });
     const summary = await this.options.ledger.getSessionCost(
       this.options.workspaceId,

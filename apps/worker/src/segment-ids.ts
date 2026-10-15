@@ -12,6 +12,12 @@ export interface SegmentGraphShape {
   idPrefix?: string;
   /** What is left of the call's time limit when the segment starts. */
   maxCallSeconds?: number;
+  /** The segment's final caller words and heard agent lines, ids prefixed (R2 call memory). */
+  transcripts?: (
+    event: Extract<EngineEvent, { type: 'user.transcript' | 'agent.transcript' }>,
+  ) => void;
+  /** Fixed lines the routing point has this release speak (announcements): cacheable as scripted. */
+  approvedLines?: readonly string[];
 }
 
 /**
