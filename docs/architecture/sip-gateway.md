@@ -165,6 +165,12 @@ gateway ─▶ in-dialog REFER (Refer-To, Referred-By: <sip:ovo@public-ip>)
 One transfer is in flight per call (`refer_in_progress`). A rejected handoff leaves the caller on the
 line and the human queue's timeout chain continues.
 
+The `stop` the gateway sends after a confirmed REFER reaches the worker as the reason `transferred`
+(`CarrierMediaEvent` stop reason `transferred`; the media layer closes the session with it, so the
+call ends `transferred` and not as a caller hang-up). The REFER can win the race with the control
+call's own answer: a human queue's segment therefore keeps its ticket while the carrier is moving
+the leg. Proved by `tests/e2e/sip-refer-path.test.ts` (SIPp as the trunk, `pnpm test:sip`).
+
 **Twilio** takes the same targets as markup: `<Dial><Number>` for a phone, `<Dial><Sip>` for a SIP
 URI (scheme `sip:`/`sips:` only, XML-escaped, header values percent-encoded, at most 16 headers).
 
