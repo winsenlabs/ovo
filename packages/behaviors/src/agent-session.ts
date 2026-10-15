@@ -20,7 +20,6 @@ import {
 import { PlaybackConversation } from './history.ts';
 import { ToolConfirmation } from './confirmation.ts';
 import { ToolEvents } from './tool-events.ts';
-import { assembleBoundedContext } from './context.ts';
 import { ruledDecisionGate, type RuledDecisionGate } from './rules-gate.ts';
 import type { FlowSession } from './decision-gate.ts';
 import { flowBriefing } from './agent-decision-step.ts';
@@ -35,6 +34,7 @@ import { AgentSpeculation } from './speculation-agent.ts';
 import type { AgentSpeculationOptions } from './speculation.ts';
 import { CallOptOut, OPT_OUT_COMPLETION } from './opt-out.ts';
 import { DISCLOSURE_FIELD, disclosureLine, disclosureSpeechKind } from './disclosure.ts';
+import { handoverContext, inboundConfig } from './transfer-handover.ts';
 import { MustHear } from './must-hear.ts';
 import { CallLanguages } from './language-guard.ts';
 import { SearchBudget } from './search-budget.ts';
@@ -130,14 +130,14 @@ export abstract class AgentSession implements Behavior {
     protected readonly execution: Execution,
     protected readonly options: AgentBehaviorOptions & AgentSpeculationOptions,
   ) {
-    this.config = AgentConfigSchema.parse(config);
+    this.config = inboundConfig(AgentConfigSchema.parse(config), options.transfer?.inbound);
     this.searches = inference && new SearchBudget(inference);
     this.inference = inference && this.searches!.limit(inference);
     if (this.config.mode !== 'agent')
       throw new TypeError(`Agent behavior requires agent mode, received ${this.config.mode}`);
     if (!options.workspaceId || !options.sessionId)
       throw new TypeError('Agent behavior requires workspaceId and sessionId');
-    this.assembledContext = assembleBoundedContext(this.config.context, this.config.contextBudget);
+    this.assembledContext = handoverContext(this.config, options.transfer?.inbound);
     this.operationId = options.operationId ?? (() => crypto.randomUUID());
     // Validates every authored line against the declared variables before the first call.
     this.variables = new AgentVariables(this.config, options.now);
@@ -190,12 +190,14 @@ export abstract class AgentSession implements Behavior {
    * is said once more when the caller barged in before hearing any of it; the call then ends
    * whatever they say, and no decision or LLM is asked: nothing can reopen a finished call.
    */
-  protected *closeFlow(input: string): Generator<string> {
+  protected *closeFlow(input: string, handoff?: string): Generator<string> {
     this.turn += 1;
     if (input) this.conversation.user(input);
-    const reason = this.optOut.optedOut
-      ? OPT_OUT_COMPLETION
-      : `decision:flow:${this.flow?.state.node ?? 'end'}`;
+    const reason =
+      handoff ??
+      (this.optOut.optedOut
+        ? OPT_OUT_COMPLETION
+        : `decision:flow:${this.flow?.state.node ?? 'end'}`);
     for (const line of this.ending.close(reason)) yield this.say(line);
     this.ending.seal();
   }
@@ -222,10 +224,16 @@ export abstract class AgentSession implements Behavior {
    * it before hearing it in full. Twice at most, so a caller who keeps talking over it is answered.
    */
   protected disclosureAgain(): string | undefined {
-    const text = disclosureLine(this.config);
-    if (text === undefined || !this.disclosureCut || this.disclosureRepeats >= 2) return undefined;
+    if (!this.disclosureCut || this.disclosureRepeats >= 2) return undefined;
     this.disclosureCut = false;
     this.disclosureRepeats += 1;
+    return this.sayDisclosure();
+  }
+
+  /** The disclosure, said now and to be heard in full (P5); undefined when the agent has none. */
+  protected sayDisclosure(): string | undefined {
+    const text = disclosureLine(this.config);
+    if (text === undefined) return undefined;
     this.mustHear.expect(this.epoch, DISCLOSURE_FIELD, text);
     return this.say(text);
   }
@@ -280,7 +288,12 @@ export abstract class AgentSession implements Behavior {
     this.confirmation.played(receipt);
     this.ending.played(receipt);
     const settled = this.mustHear.played(receipt);
-    if (settled?.id === DISCLOSURE_FIELD) this.disclosureCut = !settled.heard;
-    else if (settled?.heard) this.flow?.heard(settled.id, receipt.text);
+    if (settled?.id === DISCLOSURE_FIELD) {
+      this.disclosureCut = !settled.heard;
+      if (settled.heard) this.heardDisclosure();
+    } else if (settled?.heard) this.flow?.heard(settled.id, receipt.text);
   }
+
+  /** The disclosure was heard in full (R2 records it on a segmented call). */
+  protected heardDisclosure(): void {}
 }

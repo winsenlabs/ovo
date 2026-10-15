@@ -1,5 +1,6 @@
 import type {
   ExternalDecisionResponse,
+  HandoffBeginResult,
   HandoffPrepareResult,
   MemberClaim,
   RoutingEngine,
@@ -70,9 +71,13 @@ export function fakeRoutingHost(
   };
 }
 
-/** A `SegmentHandoffPort` for tests: scripted prepare results; every call recorded. */
+/**
+ * A `SegmentHandoffPort` for tests: scripted prepare results; every call recorded. With `begin`
+ * (`true` or a script) it also offers R2's `begin`, which answers `preparing` by default.
+ */
 export interface FakeSegmentHandoffPort extends SegmentHandoffPort {
   readonly prepared: SegmentHandoffRequest[];
+  readonly begun: SegmentHandoffRequest[];
   readonly committed: string[];
   readonly abandoned: string[];
 }
@@ -83,13 +88,22 @@ export function fakeSegmentHandoffPort(
       request: SegmentHandoffRequest,
       signal: AbortSignal,
     ) => HandoffPrepareResult | Promise<HandoffPrepareResult>;
+    begin?:
+      | true
+      | ((
+          request: SegmentHandoffRequest,
+          signal: AbortSignal,
+        ) => HandoffBeginResult | Promise<HandoffBeginResult>);
   } = {},
 ): FakeSegmentHandoffPort {
   const prepared: SegmentHandoffRequest[] = [];
+  const begun: SegmentHandoffRequest[] = [];
+  const script = options.begin;
   const committed: string[] = [];
   const abandoned: string[] = [];
   return {
     prepared,
+    begun,
     committed,
     abandoned,
     async prepare(request, signal) {
@@ -97,6 +111,16 @@ export function fakeSegmentHandoffPort(
       if (options.prepare) return options.prepare(request, signal);
       return { ok: true, handoffId: `handoff-${prepared.length}` };
     },
+    ...(script
+      ? {
+          async begin(request: SegmentHandoffRequest, signal: AbortSignal) {
+            begun.push(request);
+            if (script !== true) return script(request, signal);
+            const state = request.kind === 'queue' ? ('queued' as const) : ('preparing' as const);
+            return { ok: true as const, handoffId: `begin-${begun.length}`, state };
+          },
+        }
+      : {}),
     commit: (handoffId) => void committed.push(handoffId),
     async abandon(handoffId) {
       abandoned.push(handoffId);

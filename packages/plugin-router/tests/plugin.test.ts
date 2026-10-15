@@ -206,8 +206,8 @@ describe('parseRouterConfig', () => {
     ['no routing snapshot', { agent, workspaceId: 'w', sessionId: 's' }],
     ['no session id', { agent, workspaceId: 'w', routing: exampleRoutingSnapshot() }],
     [
-      'a draft instead of a release snapshot',
-      { ...config(), routing: { ...exampleRoutingSnapshot(), schemaVersion: 2 } },
+      'an unknown snapshot schema version',
+      { ...config(), routing: { ...exampleRoutingSnapshot(), schemaVersion: 3 } },
     ],
     [
       'an unpinned router',

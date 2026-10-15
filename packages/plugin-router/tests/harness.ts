@@ -5,6 +5,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { RouterBehavior } from '../src/behavior.ts';
 import { RouterCore } from '../src/core.ts';
+import type { RouterPorts } from '../src/ports.ts';
 import { createRulesRunner } from '../src/engines/index.ts';
 import {
   exampleRoutingSnapshot,
@@ -14,13 +15,17 @@ import {
   type EngineScript,
 } from '../src/testing.ts';
 
-/** An event sink that checks every event is storable (`readSessionEvent`, §4.9 and AGT-8). */
-export function checkedSink() {
+/**
+ * An event sink that checks every event is storable (`readSessionEvent`, §4.9 and AGT-8); `seen`
+ * runs as each event is appended, before the router goes on.
+ */
+export function checkedSink(seen?: (type: string, payload: Record<string, unknown>) => void) {
   const events: { type: string; payload: Record<string, unknown> }[] = [];
   const sink: EventSink = {
     append: async (type, payload) => {
       readSessionEvent(type, payload);
       events.push({ type, payload });
+      seen?.(type, payload);
     },
   };
   return { sink, events };
@@ -40,19 +45,24 @@ export function routerHarness(
     script?: EngineScript;
     host?: Parameters<typeof fakeRoutingHost>[0];
     handoff?: Parameters<typeof fakeSegmentHandoffPort>[0];
+    /** R2: the router release's disclosure parts, and a re-route's entry. */
+    ports?: Pick<RouterPorts, 'disclosure' | 'entry'>;
+    /** Runs as each event is recorded (`checkedSink`). */
+    seen?: Parameters<typeof checkedSink>[0];
   } = {},
 ) {
   const snapshot = options.snapshot ?? exampleRoutingSnapshot(options.patch);
   const host = fakeRoutingHost({ start: Date.UTC(2026, 9, 15, 6, 30), ...options.host });
   const handoff = fakeSegmentHandoffPort(options.handoff);
   const engines = scriptedEngines(options.script ?? {}, { rules: createRulesRunner(host) });
-  const { sink, events } = checkedSink();
+  const { sink, events } = checkedSink(options.seen);
   const core = new RouterCore(snapshot, {
     host,
     handoff,
     runners: engines.runners,
     events: sink,
     timezone: 'Asia/Kolkata',
+    ...options.ports,
   });
   const behavior = new RouterBehavior(core);
   let epoch = 0;

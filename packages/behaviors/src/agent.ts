@@ -2,7 +2,7 @@ import { flowFacts } from './agent-decision-step.ts';
 import { runPreReplySteps } from './agent-pre-reply.ts';
 import { resumeConfirmation } from './agent-confirmation-step.ts';
 import { firstInferenceRequest, runInferenceSteps } from './agent-inference-step.ts';
-import { AgentSessionAhead } from './agent-session-ahead.ts';
+import { AgentSegment } from './agent-segment.ts';
 import { saidBeforeReply } from './agent-end-gate.ts';
 import { OPT_OUT_COMPLETION } from './opt-out.ts';
 import type { AgentBehaviorOptions } from './agent-tools.ts';
@@ -22,10 +22,13 @@ export {
 export { AgentSession } from './agent-session.ts';
 export * from './speculation.ts';
 export * from './handoff.ts';
+export * from './agent-transfer.ts';
+export * from './agent-transfer-tool.ts';
+export * from './transfer-handover.ts';
 export type { LlmSpeculationMetrics } from './speculation-llm.ts';
 export type { PartialWords } from './speculation-turn.ts';
 
-export class AgentBehavior extends AgentSessionAhead {
+export class AgentBehavior extends AgentSegment {
   /** Transfer and callback turns (AGT-15); inert without a `handoff` block. */
   private readonly handoffs: AgentHandoffs;
   /** Execution with the built-in handoff tools answered in the behaviour. */
@@ -68,9 +71,11 @@ export class AgentBehavior extends AgentSessionAhead {
     // N1: the call is ending for good (a transfer, a flow's end) and the caller spoke meanwhile:
     // nothing more is said, and the call ends once this turn is over.
     if (this.ending.complete) return;
+    const handedOff = this.handedOff(input);
+    if (handedOff) return yield* handedOff;
     this.lines.startTurn();
     this.ahead.heardTurn(variables);
-    if (variables.inputEvent === 'opening') return yield* this.lines.opening(variables, this.flow);
+    if (variables.inputEvent === 'opening') return yield* this.opening(variables);
     if (variables.inputEvent === 'idle')
       return yield* this.final ? this.closeFlow('') : this.lines.silence(variables);
     this.lines.heard();
@@ -170,6 +175,7 @@ export class AgentBehavior extends AgentSessionAhead {
             gate: this.gate,
             // AGT-5: until a flow confirms identity, neither carries this call's variable values.
             briefing: this.briefing(variables),
+            ...this.guardrailSources(variables),
             facts: flowFacts(this.flow, this.variables.facts(variables)),
             turnInput: { input, history, variables, today: this.variables.today() },
             signal: controller.signal,
@@ -186,9 +192,13 @@ export class AgentBehavior extends AgentSessionAhead {
       if (diverted) return yield* this.lines.speak(diverted, variables);
       if (route.kind === 'recover') return yield* this.lines.speak(route.plan, variables);
       const { prepared } = route;
+      const live = { signal: controller.signal, current: () => turn === this.turn };
+      // R2: an end node that transfers to another agent ends into it once it has played.
+      const announce = await this.flowHandoff(route.end, route.say !== undefined, live);
       // A flow that has reached its end node is final (P4): a barge-in cannot reopen it.
-      if (route.end !== undefined)
+      if (route.end !== undefined && announce === undefined)
         this.ending.arm(`decision:${route.end}`, { terminal: this.flow?.state.ended });
+      if (announce) return yield* this.announce(announce, turn);
       if (route.say !== undefined) {
         // A flow node's lines are separate segments, so each one is cached and played on its own.
         for (const [index, line] of (prepared.lines ?? [route.say]).entries()) {
@@ -221,6 +231,7 @@ export class AgentBehavior extends AgentSessionAhead {
         events: this.events,
         publish: (text) => this.say(text, turn),
         endCall: (reason) => this.ending.arm(reason, { terminal: this.flow?.state.ended }),
+        transferToAgent: this.transferTool(input, previous, live),
         endRefused: () => endRefused,
         askedToEnd: (reason) => turn === this.turn && this.endGate.asked(reason),
         operationId: this.operationId,

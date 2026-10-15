@@ -30,6 +30,14 @@ export interface PreReplyInput {
   /** Checks the LLM's reply for values nobody declared; absent or `off` checks nothing. */
   guardrail?: ReplyGuardrailInput;
   /**
+   * R2: on a segment that took over a call, the briefing without its handover section, as the
+   * text whose values the reply may state (`briefing` otherwise). The transferring model's summary
+   * is never such a source.
+   */
+  declared?: string;
+  /** R2: what the caller said before the handover, read back like their words on this call. */
+  heard?: readonly string[];
+  /**
    * LAT-3: asks the LLM with this turn's context while the decision is still deciding; undefined
    * when the agent does not speculate.
    */
@@ -64,6 +72,24 @@ export function replyContext(briefing: string, facts: string, retrieved = ''): s
 }
 
 /**
+ * One reply's guardrail, or undefined for an agent without one or with it `off`. `texts` declare
+ * the values the reply may state (with everything the agent authored); `heard` is what the caller
+ * said, whose own amounts and dates may be read back ("so ₹2,000 on the 20th").
+ */
+export function replyGuardrail(
+  config: AgentConfig,
+  guardrail: ReplyGuardrailInput | undefined,
+  texts: readonly string[],
+  variables: Readonly<Record<string, unknown>>,
+  turn: number,
+  heard: readonly string[],
+): ReplyGuardrail | undefined {
+  if (!guardrail || guardrail.policy.mode === 'off') return undefined;
+  const declared = [...texts, ...authoredGuardrailTexts(config)];
+  return new ReplyGuardrail(guardrail, declared, variables, turn, heard);
+}
+
+/**
  * Everything that happens before the LLM is asked: retrieve, then decide.
  *
  * The order is the point. Retrieval runs ONCE and its passages ground both the decision and the
@@ -83,6 +109,8 @@ export async function runPreReplySteps({
   stale,
   render,
   guardrail,
+  declared = briefing,
+  heard = [],
   speculateLlm,
 }: PreReplyInput): Promise<PreReply> {
   let retrieved = '';
@@ -100,20 +128,18 @@ export async function runPreReplySteps({
   }
   const context = replyContext(briefing, facts, retrieved);
   // Built before the LLM is asked, so checking its first sentence costs only that sentence.
-  const guard =
-    guardrail && guardrail.policy.mode !== 'off'
-      ? new ReplyGuardrail(
-          guardrail,
-          [briefing, facts, retrieved, ...authoredGuardrailTexts(config)],
-          turnInput.variables,
-          turn,
-          // The caller's own amounts and dates may be read back ("so ₹2,000 on the 20th").
-          [
-            turnInput.input,
-            ...turnInput.history.flatMap((entry) => (entry.role === 'user' ? [entry.content] : [])),
-          ],
-        )
-      : undefined;
+  const guard = replyGuardrail(
+    config,
+    guardrail,
+    [declared, facts, retrieved],
+    turnInput.variables,
+    turn,
+    [
+      turnInput.input,
+      ...heard,
+      ...turnInput.history.flatMap((entry) => (entry.role === 'user' ? [entry.content] : [])),
+    ],
+  );
   const checked = guard ? { guard: (segment: string) => guard.check(segment) } : {};
   if (gate) {
     // LAT-3: the LLM is asked only once the turn has to wait for the decision model, never for a

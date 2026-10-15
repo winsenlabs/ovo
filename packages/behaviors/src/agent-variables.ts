@@ -1,6 +1,7 @@
 import {
   AGENT_BUILTIN_VARIABLES,
   agentHandoffLines,
+  agentTransferLines,
   agentRecoveryLines,
   type AgentBuiltinVariable,
   type AgentConfig,
@@ -150,6 +151,7 @@ export function agentTemplates(config: AgentConfig): AgentTemplate[] {
   });
   for (const line of agentRecoveryLines(config)) spoken(line.field, line.text);
   for (const line of agentHandoffLines(config)) spoken(line.field, line.text);
+  for (const line of agentTransferLines(config)) spoken(line.field, line.text);
   if (config.context) found.push({ field: 'context', template: config.context, spoken: false });
   return found;
 }

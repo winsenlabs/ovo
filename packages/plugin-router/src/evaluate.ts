@@ -22,6 +22,8 @@ export interface EvaluateEnv {
   recorder: RouteRecorder;
   now: () => number;
   signal: AbortSignal;
+  /** A re-route's entry node (R2 §7.5): asked again, so its carried context value does not decide it. */
+  reentered?: string;
 }
 
 /**
@@ -87,7 +89,10 @@ async function decide(
 ): Promise<Verdict> {
   const allowed = env.snapshot.language.allowed;
   const branches = new Map(node.branches.map((branch) => [branch.key, branch]));
-  const prefilled = node.sets === undefined ? undefined : contextValue(state, node.sets);
+  const prefilled =
+    node.sets === undefined || node.id === env.reentered
+      ? undefined
+      : contextValue(state, node.sets);
   if (prefilled !== undefined && branches.has(prefilled)) {
     const result: EngineResult = { outcome: 'matched', branch: prefilled, confidence: 1 };
     env.recorder.node(nodeEvent(state.turns, node.id, 'context', result));

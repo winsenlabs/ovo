@@ -30,7 +30,7 @@ export interface FallbackInput {
   attempt: (target: RoutingTarget) => Promise<Attempt>;
 }
 
-function event(
+export function fallbackEvent(
   input: Pick<FallbackInput, 'turn' | 'node' | 'recorder'>,
   step: RouteFallbackPayload['step'],
   result: RouteFallbackPayload['result'],
@@ -69,15 +69,15 @@ export async function runFallback(input: FallbackInput): Promise<FallbackResult>
     const step = node.fallback[cursor.index]!;
     if (step.kind === 'reask') {
       if (input.noReask !== undefined) {
-        event(input, 'reask', 'skipped', cursor.reasks + 1, input.noReask);
+        fallbackEvent(input, 'reask', 'skipped', cursor.reasks + 1, input.noReask);
       } else if (cursor.reasks < step.times) {
         const line = input.reaskLine(step);
         if (line) {
           cursor.reasks += 1;
-          event(input, 'reask', 'taken', cursor.reasks);
+          fallbackEvent(input, 'reask', 'taken', cursor.reasks);
           return { kind: 'reask', line };
         }
-        event(input, 'reask', 'skipped', cursor.reasks + 1, 'no_line');
+        fallbackEvent(input, 'reask', 'skipped', cursor.reasks + 1, 'no_line');
       }
       cursor.index += 1;
       cursor.reasks = 0;
@@ -86,13 +86,25 @@ export async function runFallback(input: FallbackInput): Promise<FallbackResult>
     cursor.index += 1;
     const result = await input.attempt(asTarget(step, input));
     if (result.ok) {
-      event(input, step.kind, 'taken', 1);
+      fallbackEvent(input, step.kind, 'taken', 1);
       return { kind: 'resolved', resolution: result.resolution };
     }
     const skipped = result.reason === 'human_queue_unavailable';
-    event(input, step.kind, skipped ? 'skipped' : 'failed', 1, result.reason);
+    fallbackEvent(input, step.kind, skipped ? 'skipped' : 'failed', 1, result.reason);
   }
   return releaseDefault(input);
+}
+
+/**
+ * A branch target failed (R1 audit 4a). With a re-ask still ahead its skip records why; with none,
+ * nothing would, so a `target` step is recorded failed with the reason (`pool_full`, say).
+ */
+export function recordTargetFailure(
+  input: Pick<FallbackInput, 'node' | 'cursor' | 'turn' | 'recorder'>,
+  reason: string,
+): void {
+  if (input.node.fallback.slice(input.cursor.index).some((step) => step.kind === 'reask')) return;
+  fallbackEvent(input, 'target', 'failed', 1, reason);
 }
 
 /** The last resort: the release's direct default agent, else the built-in goodbye. */
@@ -104,10 +116,10 @@ export async function releaseDefault(
 ): Promise<FallbackResult> {
   const result = await input.attempt(input.defaultTarget);
   if (result.ok) {
-    event(input, 'release_default', 'taken', 1);
+    fallbackEvent(input, 'release_default', 'taken', 1);
     return { kind: 'resolved', resolution: result.resolution };
   }
-  event(input, 'release_default', 'failed', 1, result.reason);
+  fallbackEvent(input, 'release_default', 'failed', 1, result.reason);
   return {
     kind: 'resolved',
     resolution: { kind: 'end', line: input.finalLine, degraded: 'release_default_failed' },

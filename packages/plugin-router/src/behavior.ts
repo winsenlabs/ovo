@@ -1,5 +1,6 @@
 import type { Behavior, SpeechReceipt } from '@winsendotai/ovo-contracts';
-import type { RouterCore, RouterReply } from './core.ts';
+import type { RouterCore } from './core.ts';
+import type { RouterReply } from './ports.ts';
 
 /**
  * The router as the voice engine's `Behavior` (§7.5). It speaks first; each opening, caller (speech
@@ -40,6 +41,7 @@ export class RouterBehavior implements Behavior {
   }
 
   onPlayback(receipt: SpeechReceipt): void {
+    this.core.disclosure?.played(receipt);
     const final = this.final;
     if (!final || this.completed) return;
     if (final.epoch === undefined || receipt.epoch === final.epoch) this.completed = true;
@@ -71,6 +73,7 @@ export class RouterBehavior implements Behavior {
     this.active = controller;
     try {
       const reply = await this.dispatch(input, variables, controller.signal);
+      this.core.disclosure?.bind(this.epoch);
       if (reply.phase !== 'routing') this.decided(reply.say);
       return reply.say;
     } catch (error) {

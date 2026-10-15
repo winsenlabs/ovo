@@ -1,6 +1,7 @@
 import {
   END_CALL_TOOL_ID,
   FLOW_RESUME_TOOL_ID,
+  TRANSFER_TO_AGENT_TOOL_ID,
   type InferenceReply,
 } from '@winsendotai/ovo-contracts';
 import { streamAgentReply, stripInternalNotes } from './agent-stream.ts';
@@ -193,6 +194,15 @@ async function* inferenceSteps(
       return;
     }
 
+    // R2: an accepted transfer's announcement or the confirm question is the whole reply, said by
+    // the behaviour; a refusal is a record the model reads in its next step.
+    if (tool.id === TRANSFER_TO_AGENT_TOOL_ID && step.transferToAgent) {
+      const answer = await step.transferToAgent(reply.input);
+      if (answer.kind === 'say') return yield publish(answer.text);
+      step.results.push(failedRecord(step, tool.id, reply.input, answer.error));
+      continue;
+    }
+
     if (tool.effect === 'write' && step.uncertainWrite()) {
       yield publish(
         'A previous change has an unconfirmed outcome. An operator must reconcile it before another change.',
@@ -236,4 +246,16 @@ async function* inferenceSteps(
     }
   }
   yield publish(recoveryLine(step));
+}
+
+function failedRecord(step: InferenceStepInput, toolId: string, input: unknown, error: string) {
+  return {
+    id: step.operationId(),
+    ...step.identity,
+    toolId,
+    input,
+    state: 'failed' as const,
+    error,
+    createdAt: new Date().toISOString(),
+  };
 }
