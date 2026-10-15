@@ -34,11 +34,14 @@ export function pickPorts(count: number): Promise<number[]> {
   );
 }
 
-/** `OVO_E2E_LIVEKIT_BIN`, else `livekit-server` on PATH (brew install livekit, Apache-2.0). */
-export function findLiveKitBinary(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  const candidates = env.OVO_E2E_LIVEKIT_BIN
-    ? [env.OVO_E2E_LIVEKIT_BIN]
-    : (env.PATH ?? '').split(delimiter).map((dir) => join(dir, 'livekit-server'));
+/** `binary` if it is executable, else `livekit-server` on PATH (brew install livekit, Apache-2.0). */
+export function findLiveKitBinary(
+  binary?: string,
+  path: string = process.env.PATH ?? '',
+): string | undefined {
+  const candidates = binary
+    ? [binary]
+    : path.split(delimiter).map((dir) => join(dir, 'livekit-server'));
   for (const candidate of candidates) {
     try {
       accessSync(candidate, constants.X_OK);
@@ -69,7 +72,7 @@ async function waitReady(port: number, child: ChildProcess, stderr: () => string
 export async function startLiveKitServer(
   options: { binary?: string; apiKey?: string; apiSecret?: string } = {},
 ): Promise<TestServer> {
-  const binary = options.binary ?? findLiveKitBinary();
+  const binary = findLiveKitBinary(options.binary);
   if (!binary) throw new Error('livekit-server is not installed (brew install livekit)');
   const apiKey = options.apiKey ?? TEST_API_KEY;
   const apiSecret = options.apiSecret ?? TEST_API_SECRET;
@@ -114,7 +117,14 @@ export async function startLiveKitServer(
     url,
     apiKey,
     apiSecret,
-    config: (overrides = {}) => ({ url, publicUrl: url, apiKey, apiSecret, ...overrides }),
+    config: (overrides = {}) => ({
+      url,
+      publicUrl: url,
+      apiKey,
+      apiSecret,
+      tokenTtlSeconds: 600,
+      ...overrides,
+    }),
     async stop() {
       process.off('exit', kill);
       if (child.exitCode === null) {
@@ -128,32 +138,34 @@ export async function startLiveKitServer(
   };
 }
 
+/** A server somebody else runs (the e2e ensure script, a container); `stop` leaves it alone. */
+export function externalServer(input: {
+  url: string;
+  apiKey: string;
+  apiSecret: string;
+}): TestServer {
+  return {
+    ...input,
+    config: (overrides = {}) => ({
+      url: input.url,
+      publicUrl: input.url,
+      apiKey: input.apiKey,
+      apiSecret: input.apiSecret,
+      tokenTtlSeconds: 600,
+      ...overrides,
+    }),
+    stop: async () => undefined,
+  };
+}
+
 /**
- * A server for tests, or undefined (the test then skips with its reason): one the environment
- * names (`OVO_LIVEKIT_TEST_URL` + `_API_KEY` + `_API_SECRET`, e.g. from the e2e ensure script), else
- * a local binary started on loopback.
+ * A server for tests, or undefined (the test then skips with its reason): `external` if the
+ * caller was given one, else a local binary started on loopback.
  */
 export async function availableLiveKit(
-  env: NodeJS.ProcessEnv = process.env,
+  options: { external?: Parameters<typeof externalServer>[0]; binary?: string } = {},
 ): Promise<TestServer | undefined> {
-  const {
-    OVO_LIVEKIT_TEST_URL: url,
-    OVO_LIVEKIT_TEST_API_KEY: key,
-    OVO_LIVEKIT_TEST_API_SECRET: secret,
-  } = env;
-  if (url && key && secret)
-    return {
-      url,
-      apiKey: key,
-      apiSecret: secret,
-      config: (overrides = {}) => ({
-        url,
-        publicUrl: url,
-        apiKey: key,
-        apiSecret: secret,
-        ...overrides,
-      }),
-      stop: async () => undefined,
-    };
-  return findLiveKitBinary(env) ? startLiveKitServer() : undefined;
+  if (options.external) return externalServer(options.external);
+  const binary = findLiveKitBinary(options.binary);
+  return binary ? startLiveKitServer({ binary }) : undefined;
 }

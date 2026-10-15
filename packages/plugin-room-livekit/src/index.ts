@@ -1,7 +1,7 @@
 export { ROOM_LIVEKIT_PLUGIN_ID, plugins, roomLivekitPlugin } from './plugin.ts';
 export { LiveKitRoomProvider, type ProviderDeps } from './provider.ts';
 export { LiveKitSeat, ROOM_FORMAT, connectSeat, roleOf, type SeatLogger } from './seat.ts';
-export { MIN_SECRET_LENGTH, parseRoomConfig, type RoomConfig } from './config.ts';
+export { MIN_SECRET_LENGTH, TOKEN_TTL_BOUNDS, parseRoomConfig, type RoomConfig } from './config.ts';
 export {
   KeyRing,
   TOKEN_TTL_MAX_SECONDS,

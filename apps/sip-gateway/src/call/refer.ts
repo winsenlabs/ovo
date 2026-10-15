@@ -139,8 +139,10 @@ export function requestRefer(
  */
 export function referNotify(call: Call, request: SipRequest): number {
   const state = call.refer;
-  const event = /^refer(?:\s*;\s*id\s*=\s*(\d+))?\s*$/i.exec(request.headers.get('event') ?? '');
-  if (!state || state.settled || !event || (event[1] && Number(event[1]) !== state.cseq))
+  // `Event: refer;id=<CSeq of the REFER>`, other parameters allowed in any order.
+  const event = /^refer\s*((?:;[^;]*)*)$/i.exec(request.headers.get('event') ?? '');
+  const id = /;\s*id\s*=\s*(\d+)\s*(?:;|$)/i.exec(event?.[1] ?? '')?.[1];
+  if (!state || state.settled || !event || (id !== undefined && Number(id) !== state.cseq))
     return 481;
   const type = (request.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
   const status = SIPFRAG_STATUS.exec(Buffer.from(request.body).toString('utf8').trimStart())?.[1];

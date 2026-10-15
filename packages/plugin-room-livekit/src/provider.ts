@@ -98,8 +98,10 @@ export class LiveKitRoomProvider implements MediaRoomProvider {
     }
   }
 
-  mintToken(input: Parameters<MediaRoomProvider['mintToken']>[0]) {
-    return mintOperatorToken(this.ring.active, input, this.now());
+  async mintToken(input: Parameters<MediaRoomProvider['mintToken']>[0]) {
+    if (input.ttlSeconds > this.config.tokenTtlSeconds)
+      throw new RangeError(`ttlSeconds is capped at ${this.config.tokenTtlSeconds} here`);
+    return await mintOperatorToken(this.ring.active, input, this.now());
   }
 
   async join(input: {

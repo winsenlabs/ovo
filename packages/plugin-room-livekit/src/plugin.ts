@@ -7,8 +7,8 @@ export const ROOM_LIVEKIT_PLUGIN_ID = '@winsendotai/ovo-plugin-room-livekit';
 
 /**
  * Capability `ovo.media-room` over a self-hosted LiveKit server (Apache-2.0). Process scope,
- * composed by the api (rooms, operator tokens) and the worker (the caller's seat) only when
- * `OVO_LIVEKIT_ENABLED=true`; with it off the capability is absent and managed queues refuse.
+ * composed by the api (rooms, operator tokens) and the worker (the caller's seat) only when the
+ * room feature is enabled; with it off the capability is absent and managed queues refuse.
  * The keys are plain config here (the distribution reads `OVO_LIVEKIT_*`), never part of a release.
  */
 export const roomLivekitPlugin = definePlugin(
@@ -33,6 +33,12 @@ export const roomLivekitPlugin = definePlugin(
         apiSecret: { type: 'string', minLength: 32 },
         previousApiKey: { type: 'string', minLength: 1 },
         previousApiSecret: { type: 'string', minLength: 32 },
+        tokenTtlSeconds: {
+          type: 'integer',
+          minimum: 30,
+          maximum: 600,
+          description: 'Ceiling for operator join tokens; absent means 600.',
+        },
       },
     },
     secretFields: [],

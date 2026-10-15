@@ -77,6 +77,47 @@ describe.skipIf(!server)('RoomSeat against a real server', () => {
     await provider.deleteRoom(name);
   });
 
+  it('serves any format the audio package can convert: PCM16 16 kHz frames in and out', async () => {
+    const provider = providerFor(server!);
+    const name = roomName();
+    await provider.ensureRoom({ name, maxParticipants: 3, emptyTimeoutSeconds: 30 });
+    const seat = await provider.join({
+      room: name,
+      identity: 'caller',
+      format: PCM16_16K,
+      signal: idle(),
+    });
+    const { token } = await provider.mintToken({
+      room: name,
+      identity: 'op:u1',
+      name: 'U',
+      role: 'operator',
+      ttlSeconds: 60,
+    });
+    const operator = await HeadlessParticipant.join(server!.url, token);
+    const heard: Uint8Array[] = [];
+    seat.onOperatorAudio((frame) => heard.push(frame));
+    await operator.publishTone(ALPHA);
+    const started = performance.now();
+    for (let i = 0; i < 100; i += 1) {
+      const pcm = new Int16Array(320);
+      for (let n = 0; n < 320; n += 1)
+        pcm[n] = Math.round(10_000 * Math.sin((2 * Math.PI * BETA * (i * 320 + n)) / 16_000));
+      seat.sendAudio(new Uint8Array(pcm.buffer));
+      const wait = started + (i + 1) * 20 - performance.now();
+      if (wait > 0) await sleep(wait);
+    }
+    await until(() => heard.length > 60, 5_000, 'operator audio');
+    // 20 ms of PCM16 at 16 kHz is 640 bytes; the tones keep their identity.
+    expect(heard.every((frame) => frame.byteLength === 640)).toBe(true);
+    const atCaller = new Int16Array(Buffer.concat(heard.slice(25)).buffer.slice(0));
+    expect(toneShare(atCaller, 16_000, ALPHA)).toBeGreaterThan(0.9);
+    expect(operator.share('caller', BETA)).toBeGreaterThan(0.9);
+    await operator.disconnect();
+    await seat.close();
+    await provider.deleteRoom(name);
+  });
+
   it('reports participants joined and left, replays who is already there, and tracks operatorPresent', async () => {
     const { provider, name, seat, token } = await setup();
     const early: RoomParticipantEvent[] = [];

@@ -10,7 +10,11 @@ const parent: ParentView = { keys: new Set(), get: () => undefined, all: () => n
 
 describe('parseRoomConfig', () => {
   it('defaults the public URL to the internal one', () => {
-    expect(parseRoomConfig(good)).toEqual({ ...good, publicUrl: 'ws://127.0.0.1:7880' });
+    expect(parseRoomConfig(good)).toEqual({
+      ...good,
+      publicUrl: 'ws://127.0.0.1:7880',
+      tokenTtlSeconds: 600,
+    });
   });
 
   it('keeps a distinct public URL and a previous key pair', () => {
@@ -41,6 +45,9 @@ describe('parseRoomConfig', () => {
     ['no key', { ...good, apiKey: '' }, 'apiKey is required'],
     ['a short secret', { ...good, apiSecret: 'short' }, 'apiSecret must be at least 32'],
     ['a previous key without its secret', { ...good, previousApiKey: 'old' }, 'go together'],
+    ['a token ttl under the floor', { ...good, tokenTtlSeconds: 10 }, 'tokenTtlSeconds must be'],
+    ['a token ttl over the ceiling', { ...good, tokenTtlSeconds: 601 }, 'tokenTtlSeconds must be'],
+    ['a fractional token ttl', { ...good, tokenTtlSeconds: 90.5 }, 'tokenTtlSeconds must be'],
     [
       'a short previous secret',
       { ...good, previousApiKey: 'old', previousApiSecret: 'x' },

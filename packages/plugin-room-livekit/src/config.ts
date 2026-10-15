@@ -9,7 +9,11 @@ export interface RoomConfig {
   /** The key pair being rotated out; used only when the server rejects the current one. */
   previousApiKey?: string;
   previousApiSecret?: string;
+  /** The longest an operator join token may live (30 to 600 s); `mintToken` refuses more. */
+  tokenTtlSeconds: number;
 }
+
+export const TOKEN_TTL_BOUNDS = Object.freeze({ min: 30, max: 600 });
 
 const SCHEMES = new Set(['ws:', 'wss:', 'http:', 'https:']);
 /** LiveKit's own floor: shorter secrets are warned about at server start. */
@@ -46,6 +50,12 @@ export function parseRoomConfig(raw: Record<string, unknown>): RoomConfig {
     raw.previousApiSecret === undefined
       ? undefined
       : secretProblem('previousApiSecret', raw.previousApiSecret),
+    raw.tokenTtlSeconds === undefined ||
+    (Number.isInteger(raw.tokenTtlSeconds) &&
+      (raw.tokenTtlSeconds as number) >= TOKEN_TTL_BOUNDS.min &&
+      (raw.tokenTtlSeconds as number) <= TOKEN_TTL_BOUNDS.max)
+      ? undefined
+      : `tokenTtlSeconds must be an integer from ${TOKEN_TTL_BOUNDS.min} to ${TOKEN_TTL_BOUNDS.max}`,
   ].filter((problem): problem is string => problem !== undefined);
   if (problems.length) throw new TypeError(`Invalid room plugin config: ${problems.join('; ')}`);
   return {
@@ -53,6 +63,7 @@ export function parseRoomConfig(raw: Record<string, unknown>): RoomConfig {
     publicUrl: (raw.publicUrl as string | undefined) ?? (raw.url as string),
     apiKey: raw.apiKey as string,
     apiSecret: raw.apiSecret as string,
+    tokenTtlSeconds: (raw.tokenTtlSeconds as number | undefined) ?? TOKEN_TTL_BOUNDS.max,
     ...(raw.previousApiKey !== undefined
       ? {
           previousApiKey: raw.previousApiKey as string,

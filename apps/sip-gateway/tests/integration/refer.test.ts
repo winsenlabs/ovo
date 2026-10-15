@@ -322,6 +322,19 @@ describe('SIP REFER handoff (R3)', () => {
       expect((await pending).body.kind).toBe('confirmed');
     });
 
+    it('reads the subscription id among other Event parameters, in any order', async () => {
+      const c = await setup();
+      const pending = handoff(c, SIP_TARGET);
+      const refer = await c.sip.request('REFER');
+      c.sip.reply(refer, 202);
+      const id = Number(/^(\d+)/.exec(refer.headers.get('cseq')!)![1]);
+      const wrongId = notify(c, refer, frag(100), 'active', `refer;id=${id + 7};x=1`);
+      expect((await send(c, wrongId)).status).toBe(481);
+      const reordered = notify(c, refer, frag(200), 'terminated', `refer;x=1;id=${id}`);
+      expect((await send(c, reordered)).status).toBe(200);
+      expect((await pending).body.kind).toBe('confirmed');
+    });
+
     it('a NOTIFY that is not a sipfrag gets 400 and the transfer keeps waiting', async () => {
       const c = await setup();
       const pending = handoff(c, SIP_TARGET);
