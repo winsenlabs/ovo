@@ -1,8 +1,8 @@
-import type { ServerResponse } from 'node:http';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { streamEventName, type PerformanceService } from '@winsendotai/ovo-plugin-observability';
 import type { Page, StoredCallEvent } from '@winsendotai/ovo-plugin-storage';
+import { delay, parseCursor, writeSse } from './sse.ts';
 
 interface ScopedPrincipal {
   workspaceId: string;
@@ -187,61 +187,6 @@ function parseGroups(value?: string) {
   if (!value) return undefined;
   const groups = [...new Set(value.split(',').filter(Boolean))];
   return z.array(performanceGroup).min(1).max(8).parse(groups);
-}
-
-function parseCursor(value: string | string[] | undefined): number | undefined {
-  if (value === undefined || Array.isArray(value) || !/^\d+$/.test(value)) return undefined;
-  const cursor = Number(value);
-  return Number.isSafeInteger(cursor) ? cursor : undefined;
-}
-
-async function writeSse(
-  response: ServerResponse,
-  chunk: string,
-  maxBuffered: number,
-  signal: AbortSignal,
-): Promise<void> {
-  if (response.destroyed || signal.aborted) throw new DOMException('SSE closed', 'AbortError');
-  if (response.writableLength + Buffer.byteLength(chunk) > maxBuffered)
-    throw new Error('SSE client is too slow');
-  if (response.write(chunk)) return;
-  await new Promise<void>((resolve, reject) => {
-    const cleanup = () => {
-      response.off('drain', drained);
-      response.off('close', closed);
-      signal.removeEventListener('abort', closed);
-      clearTimeout(timer);
-    };
-    const drained = () => {
-      cleanup();
-      resolve();
-    };
-    const closed = () => {
-      cleanup();
-      reject(new DOMException('SSE closed', 'AbortError'));
-    };
-    const timer = setTimeout(() => {
-      cleanup();
-      reject(new Error('SSE backpressure deadline exceeded'));
-    }, 5_000);
-    response.once('drain', drained);
-    response.once('close', closed);
-    signal.addEventListener('abort', closed, { once: true });
-  });
-}
-
-function delay(milliseconds: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal.aborted) return resolve();
-    const timer = setTimeout(done, milliseconds);
-    const abort = () => done();
-    function done() {
-      clearTimeout(timer);
-      signal.removeEventListener('abort', abort);
-      resolve();
-    }
-    signal.addEventListener('abort', abort, { once: true });
-  });
 }
 
 function unavailable(reply: FastifyReply) {

@@ -13,6 +13,7 @@ import { parseApprovedEndpoint } from '@winsendotai/ovo-plugin-tools-http';
 import type { PluginRegistry } from '@winsendotai/ovo-runtime';
 import { requiredMeterChecklist } from './required-meters.ts';
 import { livePool, routerRef, type RoutingResolution } from './routing-publish-resolve.ts';
+import { queueIssues, type HumanQueueCheckEnvironment } from './routing-publish-queues.ts';
 import { transferIssues } from './routing-publish-transfer.ts';
 import { credentialReady } from './session-factory.ts';
 
@@ -33,6 +34,8 @@ export interface RoutingCheckInput {
   /** `OVO_ROUTING_TRANSFER_ENABLED`; off, a transfer catalogue publishes with a warning. */
   transferEnabled: boolean;
   requireCostPolicy: boolean;
+  /** Wave 17: what the installation offers a human queue; absent, every part reads as off. */
+  humanQueues?: HumanQueueCheckEnvironment;
 }
 
 export type Add = (
@@ -256,5 +259,6 @@ export async function routingResolutionIssues(input: RoutingCheckInput): Promise
   await engineIssues(input, add);
   coverageIssues(input, add);
   transferIssues(input, add);
+  await queueIssues(input, add);
   return issues;
 }

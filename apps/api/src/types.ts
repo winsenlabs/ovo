@@ -47,6 +47,20 @@ export interface ManagementApiOptions {
   routingExternalEnabled?: boolean;
   /** `OVO_ROUTING_TRANSFER_ENABLED`, read by the worker; the API reports it and warns at publish. */
   routingTransferEnabled?: boolean;
+  /** `OVO_HUMAN_QUEUE_ENABLED`: `/v1/human-queues|desk|human-queue/*` and the operator desk (off). */
+  humanQueueEnabled?: boolean;
+  /** `OVO_HUMAN_QUEUE_WEBHOOK_ENABLED`: webhook queues may post and `test-webhook` may run (off). */
+  humanQueueWebhookEnabled?: boolean;
+  /** A room server plugin is composed in this API (set by `buildManagementApi`, not by env). */
+  roomEnabled?: boolean;
+  /** `OVO_LIVEKIT_TOKEN_TTL_SECONDS`: how long an operator's room grant lives (120). */
+  roomTokenTtlSeconds?: number;
+  /** `OVO_HUMAN_QUEUE_PRESENCE_TTL_SECONDS`, reported to the desk (30). */
+  humanQueuePresenceTtlSeconds?: number;
+  /** `OVO_HUMAN_QUEUE_CALLBACK_BASE_URL`: the origin in a test request's links. */
+  humanQueueCallbackBaseUrl?: string;
+  /** Test seam: the signed webhook client and signature check (production: the session host's). */
+  humanQueueEgress?: import('./human-queue-ports.ts').HumanQueueEgress;
   createReleasePlugins?: (input: {
     agent: AgentDraft;
     sessionId: string;

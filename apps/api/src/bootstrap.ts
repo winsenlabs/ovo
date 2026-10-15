@@ -92,6 +92,19 @@ export async function buildManagementApi(
             id: definition.manifest.id,
           },
       ),
+    // The room feature's capability (a room server plugin), composed beside the carriers.
+    roomProcess = installedCatalog
+      .filter(
+        (definition) =>
+          definition.manifest.scope === 'process' &&
+          manifestKeys(definition.manifest).provides.some((entry) => entry.key === Cap.mediaRoom),
+      )
+      .map(
+        (definition) =>
+          distribution.processRows.find((row) => row.id === definition.manifest.id) ?? {
+            id: definition.manifest.id,
+          },
+      ),
     productionRecordings = options.productionRecordings
       ? createRecordingRuntimePlugin(options.productionRecordings)
       : undefined,
@@ -104,6 +117,7 @@ export async function buildManagementApi(
       fixtureRecordingsEnabled: storageAdapter === 'sqlite',
       productionRecordingsEnabled: !!productionRecordings,
       operationsEnabled: storageAdapter === 'postgres',
+      roomEnabled: options.humanQueueEnabled === true && roomProcess.length > 0,
       infrastructureEnabled: storageAdapter === 'postgres',
       pluginCatalog: installedCatalog,
       distributionDefaults: options.distributionDefaults ?? distribution.defaults,
@@ -139,6 +153,7 @@ export async function buildManagementApi(
             createOperationsRuntimePlugin({
               ...options.operations,
               routingEnabled: options.routingEnabled === true,
+              humanQueueEnabled: options.humanQueueEnabled === true,
               databaseUrl: options.controlDatabaseUrl,
               organizationId: options.identities[0]!.defaultWorkspaceId,
               pluginCatalog: installedCatalog,
@@ -200,6 +215,7 @@ export async function buildManagementApi(
       { id: apiPlugin.manifest.id },
       { id: API_NET_PLUGIN_ID },
       ...carrierProcess,
+      ...(options.humanQueueEnabled === true ? roomProcess : []),
       ...(storageAdapter === 'postgres' ? [{ id: USER_PLUGIN_ID }] : []),
       ...(storageAdapter === 'postgres' ? [{ id: INFRASTRUCTURE_RUNTIME_PLUGIN_ID }] : []),
       ...(storageAdapter === 'postgres' ? [{ id: OPERATIONS_RUNTIME_PLUGIN_ID }] : []),

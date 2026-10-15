@@ -48,6 +48,12 @@ export type {
 } from './types.ts';
 
 const etag = (version: number) => `"${version}"`;
+/**
+ * The two endpoints a human queue's third party calls (Wave 17, design 6.3): they authenticate
+ * with a signed callback or a ticket-scoped link token, not a session, and say 404 while off.
+ */
+const isThirdPartyPath = (path: string) =>
+  path.startsWith('/v1/human-queue/callbacks/') || path.startsWith('/v1/human-queue/context/');
 function expectedVersion(request: FastifyRequest) {
   const value = request.headers['if-match'];
   if (typeof value !== 'string')
@@ -93,6 +99,8 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
         ...(options.evaluationsEnabled ? ['ovo.evaluations'] : []),
         ...(options.operationsEnabled ? ['ovo.operations'] : []),
         ...(options.infrastructureEnabled ? ['ovo.infrastructure'] : []),
+        // The room server's capability exists only when the room feature is composed.
+        ...(options.roomEnabled ? [Cap.mediaRoom] : []),
         Cap.carrierControl,
         Cap.carrierIngress,
       ],
@@ -137,7 +145,7 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
       });
       app.addHook('onRequest', async (request, reply) => {
         const path = request.url.split('?')[0];
-        if (path === '/health' || path === '/v1/auth/session') return;
+        if (path === '/health' || path === '/v1/auth/session' || isThirdPartyPath(path)) return;
         const principal = await auth.authenticateWithUsers(request, users);
         if (!principal) return error(reply, 401, 'unauthorized', 'Authentication required');
         (request as FastifyRequest & { principal?: Principal }).principal = principal;
