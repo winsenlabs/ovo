@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { apiRequest, type SessionIdentity } from '../../lib/api';
 import type { CampaignRecord } from '../../lib/operator-api';
 import { useApiList } from '../../lib/data/use-list';
@@ -14,6 +14,7 @@ import { RelativeTime } from '../ui/display';
 import { campaignColumns } from './campaign-columns';
 import { CampaignCreateForm } from './campaign-create-form';
 import { TestCallPanel } from './test-call-panel';
+import { loadAgentReleaseOptions, type ReleaseOption } from './agent-release-options';
 
 export { campaignAttemptLabel, callingHoursLabel };
 
@@ -32,6 +33,14 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
   const [busyId, setBusyId] = useState<string>();
   const [drawer, setDrawer] = useState<'new' | null>(null);
   const [testCampaign, setTestCampaign] = useState<CampaignRecord>();
+  const [releases, setReleases] = useState<ReleaseOption[]>([]);
+  useEffect(() => {
+    // Best-effort: the agent name is a label enhancement, not something a failed lookup should
+    // block the campaigns list on.
+    void loadAgentReleaseOptions()
+      .then(setReleases)
+      .catch(() => undefined);
+  }, []);
 
   async function command(campaign: CampaignRecord, action: 'pause' | 'resume' | 'cancel') {
     setBusyId(campaign.id);
@@ -68,14 +77,15 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
       campaignColumns({
         role,
         busyId,
+        releases,
         command: (campaign, action) => void command(campaign, action),
         onTest: setTestCampaign,
       }),
-    [role, busyId],
+    [role, busyId, releases],
   );
 
   return (
-    <>
+    <div className="ds-stack">
       <PageHeader
         eyebrow="Outbound"
         title="Campaigns"
@@ -94,34 +104,46 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
         refreshing={loading}
       />
       {error && <ErrorState message={error} onRetry={() => void load()} />}
-      <KpiStrip>
-        <KpiCard label="Running" value={loading ? undefined : kpis.running} loading={loading} />
-        <KpiCard
-          label="Scheduled"
-          value={loading ? undefined : kpis.scheduled}
-          loading={loading}
-          footnote={
-            kpis.nextScheduled ? <RelativeTime value={kpis.nextScheduled.scheduleAt} /> : undefined
-          }
-        />
-        <KpiCard label="Paused" value={loading ? undefined : kpis.paused} loading={loading} />
-        <KpiCard
-          label="Completed, 30d"
-          value={loading ? undefined : kpis.completed30d}
-          loading={loading}
-        />
-      </KpiStrip>
-      <SectionCard title="Campaigns" padding="flush" description={`${campaigns.length} persisted`}>
-        <DataTableV2
-          key={campaigns.length === 0 ? 'empty' : 'data'}
-          label="Campaigns"
-          rows={campaigns}
-          columns={columns}
-          rowKey={(campaign) => campaign.id}
-          loading={loading}
-          empty="No campaigns returned"
-        />
-      </SectionCard>
+      {!(error && campaigns.length === 0 && !loading) && (
+        <>
+          <KpiStrip>
+            <KpiCard label="Running" value={loading ? undefined : kpis.running} loading={loading} />
+            <KpiCard
+              label="Scheduled"
+              value={loading ? undefined : kpis.scheduled}
+              loading={loading}
+              footnote={
+                kpis.nextScheduled ? (
+                  <RelativeTime value={kpis.nextScheduled.scheduleAt} />
+                ) : undefined
+              }
+            />
+            <KpiCard label="Paused" value={loading ? undefined : kpis.paused} loading={loading} />
+            <KpiCard
+              label="Completed, 30d"
+              value={loading ? undefined : kpis.completed30d}
+              loading={loading}
+            />
+          </KpiStrip>
+          <SectionCard
+            title="Campaigns"
+            padding="flush"
+            description={loading ? undefined : `${campaigns.length} persisted`}
+          >
+            <DataTableV2
+              // See data-table-v2.tsx / inbound-routes-table.tsx: loading needs its own key too,
+              // not just empty vs. populated, or reloading a populated table crashes.
+              key={loading ? 'loading' : campaigns.length === 0 ? 'empty' : 'data'}
+              label="Campaigns"
+              rows={campaigns}
+              columns={columns}
+              rowKey={(campaign) => campaign.id}
+              loading={loading}
+              empty="No campaigns returned"
+            />
+          </SectionCard>
+        </>
+      )}
       <Drawer open={drawer === 'new'} onClose={() => setDrawer(null)} title="New campaign">
         <CampaignCreateForm
           onCreated={(campaign) => {
@@ -139,6 +161,6 @@ export function CampaignsView({ role }: { role: SessionIdentity['role'] }) {
           <TestCallPanel role={role} campaigns={campaigns} initialCampaignId={testCampaign.id} />
         )}
       </Drawer>
-    </>
+    </div>
   );
 }

@@ -1,13 +1,15 @@
 'use client';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { apiRequest, ApiError, type SessionIdentity } from '../../lib/api';
+import { apiRequest, type SessionIdentity } from '../../lib/api';
+import { apiFailureMessage } from '../../lib/data/use-list';
 import { RadioCardGroup } from '../ui/choice-card';
 import { FormField } from '../ui/form-field';
 import { StatusBadgeV2 } from '../ui/status-badge';
 import { JsonViewer } from '../ui/code-block';
-import { ErrorState } from '../ui/feedback-v2';
+import { ErrorState, SkeletonTableRows } from '../ui/feedback-v2';
 import { SectionCard } from '../ui/section-card';
 import { ReadinessCard, type Capacity, type InboundReadiness } from './inbound-readiness-card';
+import { formatDuration } from '../../lib/format';
 
 export type { Capacity, InboundReadiness };
 
@@ -55,7 +57,9 @@ export function InboundPolicy({
   const [readiness, setReadiness] = useState<InboundReadiness | null>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const [policy, ready] = await Promise.all([
         apiRequest<{ policy: PolicyRecord | null }>('/operations/inbound/policy'),
@@ -82,12 +86,14 @@ export function InboundPolicy({
       }
     } catch (failure) {
       setError(
-        failure instanceof ApiError && failure.status === 503
-          ? 'Inbound operations are not configured.'
-          : failure instanceof Error
-            ? failure.message
-            : 'Inbound policy unavailable.',
+        apiFailureMessage(
+          failure,
+          'Inbound operations are not configured.',
+          'Inbound policy unavailable.',
+        ),
       );
+    } finally {
+      setLoading(false);
     }
     // `onReadiness` is a fresh closure on every parent render; re-running load from it would
     // refetch on every keystroke upstream, so it is intentionally left out of the deps below.
@@ -125,84 +131,98 @@ export function InboundPolicy({
       title="Overflow policy"
       description="What happens to a caller when no ready, protected worker can answer."
       actions={
-        <StatusBadgeV2
-          tone={capacity ? 'ok' : 'warn'}
-          label={capacity === undefined ? 'Unknown capacity' : `${capacity} protected ready`}
-        />
+        !loading && (
+          <StatusBadgeV2
+            tone={capacity ? 'ok' : 'warn'}
+            label={capacity === undefined ? 'Unknown capacity' : `${capacity} protected ready`}
+          />
+        )
       }
     >
-      <form className="stack" onSubmit={save}>
-        {error && <ErrorState message={error} onRetry={() => void load()} />}
-        <p className="muted">
-          Only ready, reserved and task-protected capacity is counted. Zero capacity executes this
-          policy rather than claiming readiness. Wait uses bounded signed carrier polls and hangs up
-          when its persisted deadline expires. Callback requires signed caller DTMF consent and
-          enters the normal suppression, quota and outbox path; it fails closed unless live outbound
-          calling is enabled for the called number.
-        </p>
-        <ReadinessCard readiness={readiness} />
-        <RadioCardGroup
-          name="inbound-overflow-kind"
-          groupLabel="Overflow action"
-          value={kind}
-          onChange={(value) => setKind(value as PolicyKind)}
-          choices={KIND_CHOICES}
-          columns={2}
-        />
-        {kind === 'wait' && (
-          <FormField id="inbound-wait" label="Maximum wait (ms)">
-            {(control) => (
-              <input
-                {...control}
-                type="number"
-                min={1000}
-                max={300000}
-                value={maxWaitMs}
-                onChange={(event) => setMaxWaitMs(event.target.value)}
-              />
-            )}
-          </FormField>
-        )}
-        {(kind === 'callback' || kind === 'human') && (
+      {error && <ErrorState message={error} onRetry={() => void load()} />}
+      {loading ? (
+        <SkeletonTableRows rows={4} columns={1} />
+      ) : (
+        <form className="stack" onSubmit={save}>
+          <p className="muted">
+            Only ready, reserved and task-protected capacity is counted. Zero capacity executes this
+            policy rather than claiming readiness. Wait uses bounded signed carrier polls and hangs
+            up when its persisted deadline expires. Callback requires signed caller DTMF consent and
+            enters the normal suppression, quota and outbox path; it fails closed unless live
+            outbound calling is enabled for the called number.
+          </p>
+          <ReadinessCard readiness={readiness} />
+          <RadioCardGroup
+            name="inbound-overflow-kind"
+            groupLabel="Overflow action"
+            value={kind}
+            onChange={(value) => setKind(value as PolicyKind)}
+            choices={KIND_CHOICES}
+            columns={2}
+          />
+          {kind === 'wait' && (
+            <FormField
+              id="inbound-wait"
+              label="Maximum wait (ms)"
+              help={
+                Number.isFinite(Number(maxWaitMs))
+                  ? `${formatDuration(Number(maxWaitMs))} before giving up`
+                  : undefined
+              }
+            >
+              {(control) => (
+                <input
+                  {...control}
+                  type="number"
+                  min={1000}
+                  max={300000}
+                  value={maxWaitMs}
+                  onChange={(event) => setMaxWaitMs(event.target.value)}
+                />
+              )}
+            </FormField>
+          )}
+          {(kind === 'callback' || kind === 'human') && (
+            <FormField
+              id="inbound-target"
+              label={kind === 'callback' ? 'Callback queue' : 'Human target'}
+            >
+              {(control) => (
+                <input
+                  {...control}
+                  required
+                  value={target}
+                  onChange={(event) => setTarget(event.target.value)}
+                />
+              )}
+            </FormField>
+          )}
           <FormField
-            id="inbound-target"
-            label={kind === 'callback' ? 'Callback queue' : 'Human target'}
+            id="inbound-message"
+            label={kind === 'busy' ? 'Busy reason' : 'Caller announcement'}
           >
             {(control) => (
-              <input
+              <textarea
                 {...control}
                 required
-                value={target}
-                onChange={(event) => setTarget(event.target.value)}
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
               />
             )}
           </FormField>
-        )}
-        <FormField
-          id="inbound-message"
-          label={kind === 'busy' ? 'Busy reason' : 'Caller announcement'}
-        >
-          {(control) => (
-            <textarea
-              {...control}
-              required
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-            />
+          <div className="button-row">
+            <button className="button primary" disabled={role !== 'admin' || busy}>
+              {busy ? 'Saving…' : 'Save policy'}
+            </button>
+            <button className="button" type="button" onClick={() => void load()}>
+              Reload
+            </button>
+          </div>
+          {record && (
+            <JsonViewer label={`Persisted policy v${record.version}`} value={record.policy} />
           )}
-        </FormField>
-        <div className="button-row">
-          <button className="button primary" disabled={role !== 'admin' || busy}>
-            {busy ? 'Saving…' : 'Save policy'}
-          </button>
-          <button className="button" type="button" onClick={() => void load()}>
-            Reload
-          </button>
-        </div>
-        {record && (
-          <JsonViewer label={`Persisted policy v${record.version}`} value={record.policy} />
-        )}
-      </form>
+        </form>
+      )}
     </SectionCard>
   );
 }

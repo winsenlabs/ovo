@@ -147,9 +147,9 @@ describe('calling hours and do-not-call helpers', () => {
   });
 
   it('labels a campaign window and a campaign without one', () => {
-    expect(callingHoursLabel(campaign)).toBe(
-      'Calls 08:00–19:00 Mon,Tue,Wed,Thu,Fri,Sat Asia/Kolkata',
-    );
+    // Consecutive days collapse into a range, and the one zone this product dials from gets its
+    // familiar abbreviation instead of the raw IANA name (brief defect in the Campaigns list).
+    expect(callingHoursLabel(campaign)).toBe('Calls 08:00–19:00 Mon–Sat IST');
     expect(callingHoursLabel({ ...campaign, callingWindow: null } as CampaignRecord)).toBe(
       'Any hour',
     );

@@ -105,7 +105,7 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
   const readiness = capacity?.readiness;
 
   return (
-    <>
+    <div className="ds-stack">
       <PageHeader
         eyebrow="Operations"
         title="Inbound"
@@ -116,6 +116,10 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
             type="button"
             onClick={openAdd}
             disabled={role !== 'admin'}
+            // The header's flex row can squeeze this button narrower than its own text at small
+            // widths, wrapping "Add route" onto two lines; keep it one line and let the row wrap
+            // around it instead.
+            style={{ whiteSpace: 'nowrap' }}
           >
             Add route
           </button>
@@ -155,12 +159,19 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
           footnote={readiness?.stale ? 'Stale' : readiness ? 'Fresh' : undefined}
         />
       </KpiStrip>
-      <SectionCard title="Routes" padding="flush" description={`${routes.length} configured`}>
+      <SectionCard
+        title="Routes"
+        padding="flush"
+        description={loading ? undefined : `${routes.length} configured`}
+      >
         <InboundRoutesTable
           routes={routes}
           releases={releases}
+          carriers={carriers}
+          bindings={bindings}
           role={role}
           busy={busy}
+          loading={loading}
           onEdit={openEdit}
           onRemove={remove}
         />
@@ -216,6 +227,6 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
           onCancel={closeDrawer}
         />
       </Drawer>
-    </>
+    </div>
   );
 }

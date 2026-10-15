@@ -1,5 +1,6 @@
-import type { SessionIdentity } from '../../lib/api';
+import type { SessionIdentity, ProviderBinding } from '../../lib/api';
 import type { InboundRouteRecord } from '../../lib/operator-api';
+import type { PluginOption } from '../plugins/types';
 import type { ReleaseOption } from './agent-release-options';
 import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
 import { StatusBadgeV2 } from '../ui/status-badge';
@@ -16,18 +17,42 @@ export function releaseAgentName(
   return releases.find((release) => release.id === route.releaseId)?.agentName;
 }
 
+/** Maps `carrierPluginId`/`carrierBindingId` to the labels an operator actually recognises,
+ * instead of the package id or the raw binding id (brief defect #8). */
+function carrierLabel(
+  route: InboundRouteRecord,
+  carriers: readonly PluginOption[],
+  bindings: readonly ProviderBinding[],
+): { plugin: string; binding?: string } {
+  if (!route.carrierPluginId) return { plugin: 'Environment' };
+  const plugin = carriers.find((candidate) => candidate.id === route.carrierPluginId);
+  const binding = route.carrierBindingId
+    ? bindings.find((candidate) => candidate.id === route.carrierBindingId)
+    : undefined;
+  return {
+    plugin: plugin?.ui?.label ?? route.carrierPluginId,
+    binding: route.carrierBindingId ? (binding?.label ?? route.carrierBindingId) : undefined,
+  };
+}
+
 export function InboundRoutesTable({
   routes,
   releases,
+  carriers,
+  bindings,
   role,
   busy,
+  loading = false,
   onEdit,
   onRemove,
 }: {
   routes: InboundRouteRecord[];
   releases: readonly ReleaseOption[];
+  carriers: readonly PluginOption[];
+  bindings: readonly ProviderBinding[];
   role: SessionIdentity['role'];
   busy: boolean;
+  loading?: boolean;
   onEdit: (route: InboundRouteRecord) => void;
   onRemove: (route: InboundRouteRecord) => Promise<void>;
 }) {
@@ -52,17 +77,20 @@ export function InboundRoutesTable({
     {
       id: 'carrier',
       header: 'Carrier',
-      cell: (route) => (
-        <>
-          {route.carrierPluginId ?? 'Environment'}
-          {route.carrierBindingId && (
-            <>
-              <br />
-              <small className="muted">{route.carrierBindingId}</small>
-            </>
-          )}
-        </>
-      ),
+      cell: (route) => {
+        const label = carrierLabel(route, carriers, bindings);
+        return (
+          <>
+            {label.plugin}
+            {label.binding && (
+              <>
+                <br />
+                <small className="muted">{label.binding}</small>
+              </>
+            )}
+          </>
+        );
+      },
     },
     {
       id: 'variables',
@@ -122,16 +150,18 @@ export function InboundRoutesTable({
   ];
   return (
     <DataTableV2
-      // `key` forces a fresh mount on the empty <-> populated transition: DataTableV2 calls
-      // `useRef`/`useEffect` only on its non-empty branch (after the empty/loading/error early
-      // returns), so reusing the same fiber across that transition throws "Rendered more hooks
-      // than during the previous render" the moment the first page of routes arrives. Logged as
-      // a foundation defect; this is the local workaround until it is fixed upstream.
-      key={routes.length === 0 ? 'empty' : 'data'}
+      // `key` forces a fresh mount across any loading/empty/populated transition: DataTableV2
+      // calls `useRef`/`useEffect` only on its fully-rendered branch (after the empty/loading/
+      // error early returns), so reusing the same fiber across one of those transitions throws
+      // "Rendered fewer/more hooks than during the previous render". Logged as a foundation
+      // defect; this is the local workaround until it is fixed upstream. Every state that can
+      // follow another must get its own key, not just empty vs. populated.
+      key={loading ? 'loading' : routes.length === 0 ? 'empty' : 'data'}
       label="Configured inbound number routes"
       rows={routes}
       columns={columns}
       rowKey={(route) => route.phoneNumber}
+      loading={loading}
       empty={
         <EmptyStateV2 title="No inbound number routes">
           An administrator must bind a carrier number to an immutable release before inbound

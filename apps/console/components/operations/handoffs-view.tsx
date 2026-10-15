@@ -10,6 +10,7 @@ import { Drawer } from '../ui/drawer';
 import { EmptyStateV2, ErrorState } from '../ui/feedback-v2';
 import { liveCallColumns, sessionHandoffColumns } from './handoffs-view-columns';
 import { HandoffRequestPanel } from './handoff-request-panel';
+import { loadAgentReleaseOptions, type ReleaseOption } from './agent-release-options';
 
 /**
  * Handoffs: live calls that can be handed to a human or another queue, and the handoffs this
@@ -19,6 +20,7 @@ import { HandoffRequestPanel } from './handoff-request-panel';
 export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
   const [calls, setCalls] = useState<CallSummary[]>([]);
   const [callsLoading, setCallsLoading] = useState(true);
+  const [releases, setReleases] = useState<ReleaseOption[]>([]);
   const [handoffs, setHandoffs] = useState<HandoffRecord[]>([]);
   const [targetKind, setTargetKind] = useState<'phone' | 'queue'>('phone');
   const [fallbackKind, setFallbackKind] = useState<'resume' | 'end' | 'human'>('resume');
@@ -30,11 +32,18 @@ export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
   const loadCalls = useCallback(async () => {
     setCallsLoading(true);
     try {
+      const [callsResponse, releaseOptions] = await Promise.all([
+        apiRequest<unknown>('/calls'),
+        // Resolving agent names for the Agent column is best-effort: a release lookup failure
+        // should not take down the live-calls table itself.
+        loadAgentReleaseOptions().catch(() => []),
+      ]);
       setCalls(
-        items<CallSummary>((await apiRequest<unknown>('/calls')).data).filter(
+        items<CallSummary>(callsResponse.data).filter(
           (call) => call.kind === 'live' && !call.completedAt,
         ),
       );
+      setReleases(releaseOptions);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Live calls unavailable.');
     } finally {
@@ -121,7 +130,10 @@ export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
     }
   }
 
-  const callColumns = useMemo(() => liveCallColumns({ role, onRequest: setRequesting }), [role]);
+  const callColumns = useMemo(
+    () => liveCallColumns({ role, releases, onRequest: setRequesting }),
+    [role, releases],
+  );
   const handoffColumns = useMemo(
     () =>
       sessionHandoffColumns({
@@ -134,7 +146,7 @@ export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
   );
 
   return (
-    <>
+    <div className="ds-stack">
       <PageHeader
         eyebrow="Operations"
         title="Handoffs"
@@ -155,25 +167,32 @@ export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
           value={handoffs.filter((record) => record.status === 'awaiting_confirmation').length}
         />
       </KpiStrip>
-      <SectionCard
-        title="Live calls now"
-        description="Only verified carrier-bound live calls can be handed off; simulation calls cannot."
-        padding="flush"
-      >
-        <DataTableV2
-          key={calls.length === 0 ? 'empty' : 'data'}
-          label="Live calls"
-          rows={calls}
-          columns={callColumns}
-          rowKey={(call) => call.id}
-          loading={callsLoading}
-          empty={
-            <EmptyStateV2 title="No active live calls">
-              No verified live call is in progress right now.
-            </EmptyStateV2>
-          }
-        />
-      </SectionCard>
+      {/* A real error with no calls already on screen has nothing honest to show; a background
+          error on a later refresh still leaves the last good list up instead of claiming there
+          is no live call at all. */}
+      {!(error && calls.length === 0 && !callsLoading) && (
+        <SectionCard
+          title="Live calls now"
+          description="Only verified carrier-bound live calls can be handed off; simulation calls cannot."
+          padding="flush"
+        >
+          <DataTableV2
+            // Loading must get its own key too, not just empty vs. populated: see data-table-v2.tsx
+            // and inbound-routes-table.tsx for why reusing the key across that transition crashes.
+            key={callsLoading ? 'loading' : calls.length === 0 ? 'empty' : 'data'}
+            label="Live calls"
+            rows={calls}
+            columns={callColumns}
+            rowKey={(call) => call.id}
+            loading={callsLoading}
+            empty={
+              <EmptyStateV2 title="No active live calls">
+                No verified live call is in progress right now.
+              </EmptyStateV2>
+            }
+          />
+        </SectionCard>
+      )}
       <SectionCard
         title="Session handoffs"
         description="Requests you make or look up appear here. The API does not expose a broad handoff listing endpoint."
@@ -185,6 +204,9 @@ export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
               placeholder="Handoff ID"
               value={lookupId}
               onChange={(event) => setLookupId(event.target.value)}
+              // A bare flex child shrinks to a sliver next to the "Load" button at narrow
+              // widths, truncating anything typed; give it room to be the thing that wraps.
+              style={{ flex: '1 1 160px', minWidth: 0 }}
             />
             <button
               className="button small"
@@ -229,6 +251,6 @@ export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
           />
         )}
       </Drawer>
-    </>
+    </div>
   );
 }

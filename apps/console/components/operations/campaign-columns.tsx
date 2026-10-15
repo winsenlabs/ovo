@@ -7,20 +7,25 @@ import type { CampaignRecord } from '../../lib/operator-api';
 import { callingHoursLabel, campaignAttemptCounts } from '../../lib/derive/operations';
 import { formatDateTime } from '../../lib/format';
 import { AttemptOutcomeBar } from './campaign-attempt-bar';
+import type { ReleaseOption } from './agent-release-options';
 
 /** The campaigns table's column set. Split out of `CampaignsView` purely to keep that module
  * under the size gate; each action closes over the view's own `command`/`setTestCampaign`. */
 export function campaignColumns({
   role,
   busyId,
+  releases,
   command,
   onTest,
 }: {
   role: SessionIdentity['role'];
   busyId: string | undefined;
+  releases: readonly ReleaseOption[];
   command: (campaign: CampaignRecord, action: 'pause' | 'resume' | 'cancel') => void;
   onTest: (campaign: CampaignRecord) => void;
 }): ColumnV2<CampaignRecord>[] {
+  const agentName = (campaign: CampaignRecord) =>
+    releases.find((release) => release.id === campaign.agentReleaseId)?.agentName;
   return [
     {
       id: 'name',
@@ -28,6 +33,8 @@ export function campaignColumns({
       cell: (campaign) => (
         <>
           <strong>{campaign.name}</strong>
+          <br />
+          {agentName(campaign) ?? <span className="ds-unknown">Unknown agent</span>}
           <br />
           <IdChip id={campaign.id} short={campaign.id} />
         </>

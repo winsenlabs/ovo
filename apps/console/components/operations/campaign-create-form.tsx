@@ -132,9 +132,10 @@ export function CampaignCreateForm({
                 required
               >
                 <option value="">Select immutable release</option>
-                {releases.map((release) => (
+                {releases.map((release, index) => (
                   <option key={release.id} value={release.id}>
-                    {release.id} · {formatDateTime(release.createdAt)}
+                    Release {releases.length - index} of {releases.length} ·{' '}
+                    {formatDateTime(release.createdAt)}
                   </option>
                 ))}
               </select>

@@ -126,7 +126,7 @@ export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
   );
 
   return (
-    <>
+    <div className="ds-stack">
       <PageHeader
         eyebrow="Operations"
         title="Do-not-call list"
@@ -155,69 +155,80 @@ export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
         refreshing={loading}
       />
       {error && <ErrorState message={error} onRetry={() => void load()} />}
-      <KpiStrip>
-        <KpiCard label="Listed" value={loading ? undefined : rows.length} loading={loading} />
-        <KpiCard
-          label="In 90-day lock"
-          value={loading ? undefined : lockedCount}
-          loading={loading}
-        />
-        <KpiCard
-          label="Added, last 7d"
-          value={loading ? undefined : addedLast7d}
-          loading={loading}
-        />
-      </KpiStrip>
-      <SectionCard title="By source" padding="data">
-        <ChartFrame
-          ariaLabel="Suppressions by source"
-          height={180}
-          loading={loading}
-          empty={!loading && sourceSlices.length === 0}
-          tableRows={sourceSlices.length}
-          tableColumns={[
-            { header: 'Source', cell: (i) => sourceSlices[i]?.label },
-            { header: 'Count', cell: (i) => sourceSlices[i]?.value },
-          ]}
-          renderChart={() => <Donut slices={sourceSlices} size={160} />}
-        />
-      </SectionCard>
-      <SectionCard
-        title="Listed numbers"
-        padding="flush"
-        description={`${filtered.length} of ${rows.length} shown`}
-        actions={
-          <div className="ds-filter-row">
-            <input
-              type="search"
-              aria-label="Filter listed numbers"
-              placeholder="Filter by number"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
+      {!error && (
+        <div className="ds-stack">
+          <KpiStrip>
+            <KpiCard label="Listed" value={loading ? undefined : rows.length} loading={loading} />
+            <KpiCard
+              label="In 90-day lock"
+              value={loading ? undefined : lockedCount}
+              loading={loading}
             />
-            <DoNotCallLookup />
-          </div>
-        }
-      >
-        <DataTableV2
-          key={filtered.length === 0 ? 'empty' : 'data'}
-          label="Do-not-call numbers"
-          rows={filtered}
-          columns={columns}
-          rowKey={(row) => row.phoneNumber}
-          loading={loading}
-          empty={
-            <EmptyStateV2
-              variant={search ? 'filtered' : 'first-run'}
-              title={search ? 'No match' : 'No listed numbers'}
-            >
-              {search
-                ? 'No number matches this filter.'
-                : 'The API returned an empty list. This does not bypass campaign-level attempt limits.'}
-            </EmptyStateV2>
+            <KpiCard
+              label="Added, last 7d"
+              value={loading ? undefined : addedLast7d}
+              loading={loading}
+            />
+          </KpiStrip>
+          <SectionCard title="By source" padding="data">
+            <ChartFrame
+              ariaLabel="Suppressions by source"
+              // Taller than the donut itself: at narrow widths the legend wraps below the ring,
+              // and the frame's measured wrapper clips anything past its fixed height.
+              height={280}
+              loading={loading}
+              empty={!loading && sourceSlices.length === 0}
+              tableRows={sourceSlices.length}
+              tableColumns={[
+                { header: 'Source', cell: (i) => sourceSlices[i]?.label },
+                { header: 'Count', cell: (i) => sourceSlices[i]?.value },
+              ]}
+              renderChart={() => <Donut slices={sourceSlices} size={160} />}
+            />
+          </SectionCard>
+        </div>
+      )}
+      {/* A real error with nothing already on screen has nothing honest to show below the
+          banner above; once rows are loaded, a later background error still leaves the last
+          good list up rather than replacing it with a false "no numbers" claim. */}
+      {!(error && rows.length === 0) && (
+        <SectionCard
+          title="Listed numbers"
+          padding="flush"
+          description={loading ? undefined : `${filtered.length} of ${rows.length} shown`}
+          actions={
+            <div className="ds-filter-row">
+              <input
+                type="search"
+                aria-label="Filter listed numbers"
+                placeholder="Filter by number"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <DoNotCallLookup />
+            </div>
           }
-        />
-      </SectionCard>
+        >
+          <DataTableV2
+            key={loading ? 'loading' : filtered.length === 0 ? 'empty' : 'data'}
+            label="Do-not-call numbers"
+            rows={filtered}
+            columns={columns}
+            rowKey={(row) => row.phoneNumber}
+            loading={loading}
+            empty={
+              <EmptyStateV2
+                variant={search ? 'filtered' : 'first-run'}
+                title={search ? 'No match' : 'No listed numbers'}
+              >
+                {search
+                  ? 'No number matches this filter.'
+                  : 'The API returned an empty list. This does not bypass campaign-level attempt limits.'}
+              </EmptyStateV2>
+            }
+          />
+        </SectionCard>
+      )}
       <Drawer open={drawer === 'add'} onClose={() => setDrawer(null)} title="Add number">
         <form className="stack" onSubmit={add}>
           {error && <InlineAlert tone="danger">{error}</InlineAlert>}
@@ -251,6 +262,6 @@ export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
         onConfirm={() => void remove()}
         onClose={() => setRemoving(undefined)}
       />
-    </>
+    </div>
   );
 }

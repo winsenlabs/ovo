@@ -24,7 +24,6 @@ export function CampaignContactImport({
   releaseId?: string;
 }) {
   const [csv, setCsv] = useState('');
-  const [fileName, setFileName] = useState('');
   const [phoneColumn, setPhoneColumn] = useState('');
   const [externalIdColumn, setExternalIdColumn] = useState('');
   const [variablesText, setVariablesText] = useState('{}');
@@ -85,14 +84,14 @@ export function CampaignContactImport({
         accept=".csv,text/csv"
         hint="Drop a CSV file here, or click to choose one"
         onFile={(file) => {
-          setFileName(file.name);
           void file.text().then((text) => {
             setCsv(text);
             onPreview(undefined);
           });
         }}
       />
-      {fileName && csv && <p className="muted">{fileName}</p>}
+      {/* No filename line here: FileDrop (`../ui/inputs.tsx`) already shows the chosen file's
+          name above its own raw-text preview; repeating it duplicated the filename on screen. */}
       {csv && (
         <div className="form-grid">
           <FormField id="campaign-phone-column" label="Phone column">

@@ -82,14 +82,20 @@ export function CallbacksView({
   const admin = role === 'admin';
   const items = page?.items ?? [];
   const overdueCount = useMemo(
-    () => items.filter((row) => dueBucket(row.dueAt, row.status, now()) === 'overdue').length,
+    () =>
+      items.filter((row) => dueBucket(row.dueAt, row.status, now(), row.timezone) === 'overdue')
+        .length,
     [items, now],
   );
   const dialingCount = items.filter((row) => row.status === 'dialing').length;
   const completedTodayCount = items.filter((row) => {
     if (row.status !== 'completed') return false;
-    const day = (value: Date) => value.toDateString();
-    return day(new Date(row.dueAt)) === day(now());
+    // The callback's own timezone, not the browser's or server's: `toDateString()` reads the
+    // host's local zone, which can disagree with the operator's day near a day boundary (the
+    // same class of bug as `dueBucket`'s — see lib/derive/operations.ts).
+    const day = (value: Date, timeZone: string) =>
+      new Intl.DateTimeFormat('en-CA', { timeZone }).format(value);
+    return day(new Date(row.dueAt), row.timezone) === day(now(), row.timezone);
   }).length;
 
   const columns = useMemo(
@@ -97,12 +103,12 @@ export function CallbacksView({
     [admin, busy, now],
   );
   const groups = useMemo(
-    () => groupByDueBucket(items, (row) => dueBucket(row.dueAt, row.status, now())),
+    () => groupByDueBucket(items, (row) => dueBucket(row.dueAt, row.status, now(), row.timezone)),
     [items, now],
   );
 
   return (
-    <>
+    <div className="ds-stack">
       <PageHeader
         eyebrow="Operations"
         title="Callbacks"
@@ -115,8 +121,8 @@ export function CallbacksView({
         <EmptyStateV2 variant="unavailable" title="Callbacks need PostgreSQL storage">
           This installation keeps no durable call outcomes, so no callback is recorded.
         </EmptyStateV2>
-      ) : (
-        <>
+      ) : error && items.length === 0 && !loading ? null : (
+        <div className="ds-stack">
           <KpiStrip>
             <KpiCard label="Shown" value={loading ? undefined : items.length} loading={loading} />
             <KpiCard
@@ -132,7 +138,15 @@ export function CallbacksView({
               </>
             )}
           </KpiStrip>
-          <div className="ds-range-picker" role="group" aria-label="Callback status">
+          <div
+            className="ds-range-picker"
+            role="group"
+            aria-label="Callback status"
+            // Six buttons ("All" among them) don't fit 390px; scroll the picker itself instead
+            // of letting it overflow into the page and drag the whole content column sideways
+            // when a hidden button is focused.
+            style={{ maxWidth: '100%', overflowX: 'auto' }}
+          >
             {STATUSES.map((status) => (
               <button
                 key={status}
@@ -169,8 +183,8 @@ export function CallbacksView({
               </SectionCard>
             ))
           )}
-        </>
+        </div>
       )}
-    </>
+    </div>
   );
 }

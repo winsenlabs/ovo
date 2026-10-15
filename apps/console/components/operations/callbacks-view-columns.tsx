@@ -2,7 +2,7 @@ import type { ColumnV2 } from '../ui/data-table-v2';
 import { StatusBadgeV2 } from '../ui/status-badge';
 import { IdChip } from '../ui/section-card';
 import { dueBucket } from '../../lib/derive/operations';
-import { formatPhoneNumber } from '../../lib/format';
+import { formatPhoneNumber, formatRelativeTime } from '../../lib/format';
 import type { CallbackRecord } from './callbacks-view';
 
 /** The due time in the agent's own timezone, which is the caller's. */
@@ -42,7 +42,9 @@ export function callbackColumns({
       cell: (record) => (
         <>
           {due(record)}
-          {dueBucket(record.dueAt, record.status, now()) === 'overdue' && (
+          <br />
+          <small className="muted">{formatRelativeTime(record.dueAt, now())}</small>
+          {dueBucket(record.dueAt, record.status, now(), record.timezone) === 'overdue' && (
             <>
               {' '}
               <StatusBadgeV2 tone="warn" label="Overdue" />

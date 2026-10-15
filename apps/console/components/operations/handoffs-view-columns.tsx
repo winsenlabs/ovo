@@ -5,6 +5,13 @@ import { StatusBadgeV2 } from '../ui/status-badge';
 import { IdChip } from '../ui/section-card';
 import { JsonViewer } from '../ui/code-block';
 import { Duration } from '../ui/display';
+import type { ReleaseOption } from './agent-release-options';
+
+/** Maps a live call's `releaseId` to the agent that owns it, the same lookup Inbound uses —
+ * call rows never carry a populated `agentId` even though the type allows one. */
+function callAgentName(call: CallSummary, releases: readonly ReleaseOption[]): string | undefined {
+  return releases.find((release) => release.id === call.releaseId)?.agentName;
+}
 
 /** Still running right now, live (not simulation). */
 function liveDuration(call: CallSummary): number | undefined {
@@ -24,9 +31,11 @@ function InlineError({ text }: { text: string }) {
  * under the size gate. */
 export function liveCallColumns({
   role,
+  releases,
   onRequest,
 }: {
   role: SessionIdentity['role'];
+  releases: readonly ReleaseOption[];
   onRequest: (call: CallSummary) => void;
 }): ColumnV2<CallSummary>[] {
   return [
@@ -40,7 +49,7 @@ export function liveCallColumns({
     {
       id: 'agent',
       header: 'Agent',
-      cell: (call) => call.agentId ?? <span className="ds-unknown">Unknown</span>,
+      cell: (call) => callAgentName(call, releases) ?? <span className="ds-unknown">Unknown</span>,
     },
     { id: 'status', header: 'Status', cell: (call) => <StatusBadgeV2 value={call.status} /> },
     {
@@ -94,11 +103,15 @@ export function sessionHandoffColumns({
     {
       id: 'target',
       header: 'Target',
+      // Optional chaining, not a direct read: some server responses to a handoff action (e.g. a
+      // bare 202/204) carry no `target`/`fallback` at all, and `record.target.kind` on a missing
+      // target crashed the whole table (brief defect #15) instead of just this one cell.
       cell: (record) => (
         <>
-          {record.target.kind}: {record.target.value}
+          {record.target?.kind ?? 'Unknown target'}
+          {record.target?.value ? `: ${record.target.value}` : ''}
           <br />
-          <small className="muted">Fallback: {record.fallback.kind}</small>
+          <small className="muted">Fallback: {record.fallback?.kind ?? 'Unknown'}</small>
         </>
       ),
     },

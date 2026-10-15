@@ -6,19 +6,31 @@ import type { CampaignRecord } from '../operator-api';
 /** A callback's day bucket for the grouped table (brief: "Overdue", "Today", "Tomorrow", "Later"). */
 export type DueBucket = 'overdue' | 'today' | 'tomorrow' | 'later';
 
-// Calendar day in UTC, never the test runner's or the operator's local host timezone: each
-// callback can carry its own `timezone` (the agent's), so there is no single "local day" to pick
-// for grouping — UTC is the one zone every instant agrees on. The exact due time shown to the
-// operator is still formatted in the record's own timezone by `due()`, below.
-const dayKey = (value: Date): string => value.toISOString().slice(0, 10);
+// Calendar day as the operator actually reads it: in the callback's own `timezone`, not UTC.
+// A callback is still grouped with "today"/"tomorrow" by what day it falls on where it is due,
+// never the host server's zone or a UTC date that can land on the wrong side of the day boundary
+// from IST (brief defect #2 — UTC's day rolls over 5.5 hours before IST's does, so a callback
+// due in the evening IST, or a "now" read just after local midnight, could each get the wrong
+// bucket). The exact due time shown to the operator is formatted the same way by `due()`, below.
+const dayKey = (value: Date, timeZone: string): string => {
+  try {
+    // en-CA renders as YYYY-MM-DD, directly comparable and parseable as a UTC midnight below.
+    return new Intl.DateTimeFormat('en-CA', { timeZone }).format(value);
+  } catch {
+    // swallow-ok: an unrecognised timezone falls back to UTC rather than throwing.
+    return value.toISOString().slice(0, 10);
+  }
+};
 const MS_PER_DAY = 86_400_000;
 
 /** A pending callback already past due is "overdue" regardless of which day it fell on. */
-export function dueBucket(dueAt: string, status: string, now: Date): DueBucket {
+export function dueBucket(dueAt: string, status: string, now: Date, timezone: string): DueBucket {
   const due = new Date(dueAt);
   if (status === 'pending' && due.getTime() < now.getTime()) return 'overdue';
   const dayDiff = Math.round(
-    (Date.parse(`${dayKey(due)}T00:00:00Z`) - Date.parse(`${dayKey(now)}T00:00:00Z`)) / MS_PER_DAY,
+    (Date.parse(`${dayKey(due, timezone)}T00:00:00Z`) -
+      Date.parse(`${dayKey(now, timezone)}T00:00:00Z`)) /
+      MS_PER_DAY,
   );
   if (dayDiff <= 0) return 'today';
   if (dayDiff === 1) return 'tomorrow';
@@ -102,6 +114,33 @@ export function campaignAttemptLabel(status: string): string {
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+// `Intl` has no clean short abbreviation for most IANA zone names (`Asia/Kolkata` formats as
+// "GMT+5:30", not "IST"); this app dials only from India (see lib/format.ts's one operating
+// zone), so a small explicit lookup beats guessing one from the offset, with the IANA name
+// itself as an honest fallback for anything this product does not yet operate from.
+const TIMEZONE_ABBREVIATION: Record<string, string> = { 'Asia/Kolkata': 'IST' };
+
+/** [1,2,3,5,6] (Mon-Wed, Fri-Sat) -> "Mon–Wed, Fri–Sat"; a run of one day prints just that day. */
+function dayRangesLabel(days: readonly number[]): string {
+  const sorted = [...days].sort((a, b) => a - b);
+  const ranges: string[] = [];
+  let start = sorted[0];
+  let prev = sorted[0];
+  for (let i = 1; i <= sorted.length; i++) {
+    const day = sorted[i];
+    if (day === prev! + 1) {
+      prev = day;
+      continue;
+    }
+    ranges.push(
+      start === prev ? DAY_NAMES[start! - 1]! : `${DAY_NAMES[start! - 1]}–${DAY_NAMES[prev! - 1]}`,
+    );
+    start = day;
+    prev = day;
+  }
+  return ranges.join(', ');
+}
+
 /** The campaign's calling-hours snapshot, as the list shows it. */
 export function callingHoursLabel(campaign: CampaignRecord): string {
   const window = (
@@ -112,6 +151,7 @@ export function callingHoursLabel(campaign: CampaignRecord): string {
   // A campaign with a compliance policy keeps the agent's hours and the legal floor.
   if (!window)
     return (campaign as { compliance?: unknown }).compliance ? 'Agent hours' : 'Any hour';
-  const days = window.days ? ` ${window.days.map((day) => DAY_NAMES[day - 1]).join(',')}` : '';
-  return `Calls ${window.start}–${window.end}${days} ${window.timezone}`;
+  const days = window.days?.length ? ` ${dayRangesLabel(window.days)}` : '';
+  const zone = TIMEZONE_ABBREVIATION[window.timezone] ?? window.timezone;
+  return `Calls ${window.start}–${window.end}${days} ${zone}`;
 }

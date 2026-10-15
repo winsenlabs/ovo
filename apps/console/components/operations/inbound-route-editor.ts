@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { apiRequest, ApiError } from '../../lib/api';
 import type { InboundRouteRecord } from '../../lib/operator-api';
 import { useConfirm } from '../ui/dialog';
+import { formatPhoneNumber } from '../../lib/format';
 import { inboundRoutePath } from './inbound-route-state';
 import { variableRowsFromRecord, variablesFromRows, type VariableRow } from './inbound-route-form';
 
@@ -92,7 +93,9 @@ export function useInboundRouteEditor({
           carrierBindingId: draft.carrierBindingId || null,
         }),
       });
-      setNotice(`Inbound route ${data.phoneNumber} saved as version ${data.version}.`);
+      setNotice(
+        `Inbound route ${formatPhoneNumber(data.phoneNumber)} saved as version ${data.version}.`,
+      );
       closeDrawer();
       await loadRoutes();
     } catch (failure) {
@@ -107,7 +110,12 @@ export function useInboundRouteEditor({
   }
 
   async function remove(route: InboundRouteRecord) {
-    if (!(await confirm('Delete inbound route', `Delete inbound route ${route.phoneNumber}?`)))
+    if (
+      !(await confirm(
+        'Delete inbound route',
+        `Delete inbound route ${formatPhoneNumber(route.phoneNumber)}?`,
+      ))
+    )
       return;
     setBusy(true);
     setError(undefined);
@@ -117,7 +125,7 @@ export function useInboundRouteEditor({
         method: 'DELETE',
       });
       if (editing?.phoneNumber === route.phoneNumber) closeDrawer();
-      setNotice(`Inbound route ${route.phoneNumber} was deleted.`);
+      setNotice(`Inbound route ${formatPhoneNumber(route.phoneNumber)} was deleted.`);
       await loadRoutes();
     } catch (failure) {
       if (failure instanceof ApiError && failure.status === 409) {

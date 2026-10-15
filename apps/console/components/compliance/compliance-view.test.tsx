@@ -205,6 +205,28 @@ describe('do-not-call removal', () => {
     );
   });
 
+  it('reloads a populated table without crashing (DataTableV2 hooks-order defect)', async () => {
+    // `useApiList.reload()` sets `loading=true` while `rows` is still the previous, populated
+    // array, so DataTableV2 flips from its fully-rendered branch to its early-return loading
+    // branch on the SAME mounted instance. Without a key that changes across that transition,
+    // React throws "Rendered fewer hooks than during the previous render" (brief defect #1).
+    request.mockImplementation(async (path?: string) =>
+      path?.startsWith('/operations/suppressions?')
+        ? { data: { items: entries } }
+        : { data: undefined },
+    );
+    render(
+      <ConfirmDialogProvider>
+        <SuppressionsView role="admin" />
+      </ConfirmDialogProvider>,
+    );
+    expect(await screen.findByText('Caller asked')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Refreshing' })).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(2));
+    expect(screen.getByText('Caller asked')).toBeTruthy();
+  });
+
   it('knows when a lock has run out', () => {
     expect(lockedUntil({ lockUntil: '2020-01-01T00:00:00Z' })).toBeUndefined();
     expect(lockedUntil({})).toBeUndefined();

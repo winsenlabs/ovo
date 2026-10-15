@@ -5,7 +5,7 @@ import { PageHeader } from '../ui/layout';
 import { KpiCard, KpiStrip } from '../ui/kpi';
 import { SectionCard } from '../ui/section-card';
 import { Tabs, type TabItem } from '../ui/tabs';
-import { ErrorState, EmptyStateV2 } from '../ui/feedback-v2';
+import { ErrorState, EmptyStateV2, SkeletonTableRows } from '../ui/feedback-v2';
 import { formatPercent } from '../../lib/format';
 import { CliRegistryPanel } from './cli-registry-panel';
 import { ComplaintsPanel } from './complaints-panel';
@@ -123,7 +123,7 @@ export function ComplianceView({ role }: { role: SessionIdentity['role'] }) {
   );
 
   return (
-    <>
+    <div className="ds-stack">
       <PageHeader
         eyebrow="Dial safety"
         title="Compliance"
@@ -167,10 +167,11 @@ export function ComplianceView({ role }: { role: SessionIdentity['role'] }) {
       <SectionCard padding="flush">
         <Tabs items={TABS} current={tab} onSelect={setTab} panelId="compliance-tab-panel" />
         <div id="compliance-tab-panel" className="ds-card-body pad-data">
-          {!loaded && !error && <p className="muted">Loading compliance…</p>}
+          {!loaded && !error && <SkeletonTableRows rows={6} columns={4} />}
           {loaded && tab === 'overview' && (
             <ComplianceOverviewTab
               ratioChartData={ratioChartData}
+              ratios={loaded.ratios}
               slaQueue={slaQueue}
               settings={loaded.settings}
             />
@@ -209,6 +210,6 @@ export function ComplianceView({ role }: { role: SessionIdentity['role'] }) {
           )}
         </div>
       </SectionCard>
-    </>
+    </div>
   );
 }

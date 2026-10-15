@@ -4,8 +4,11 @@ import { apiRequest, items } from '../../lib/api';
 import { FormField } from '../ui/form-field';
 import { InlineAlert } from '../ui/feedback-v2';
 import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
+import { SectionCard } from '../ui/section-card';
 import { formatDateTime } from '../../lib/format';
+import { humaniseEnum } from '../../lib/status';
 import { failureText, type ConsentRecord } from './compliance-types';
+import { RecordConsentDrawer, UploadScrubResultsDrawer } from './consent-records-forms';
 
 /** Reads `phone,result` lines exported from a telco or telemarketer DND scrub portal. */
 export function parseScrubRows(text: string) {
@@ -22,12 +25,14 @@ export function parseScrubRows(text: string) {
 
 /**
  * Consent records per number (explicit, 7-day service, inquiry) and the DND scrub upload that
- * promotional calls need (fail-closed without a fresh `allowed`).
+ * promotional calls need (fail-closed without a fresh `allowed`). Recording a consent or
+ * uploading a scrub file opens in a drawer rather than sitting open as a form under the table.
  */
 export function ConsentRecordsPanel({ canEdit }: { canEdit: boolean }) {
   const [phone, setPhone] = useState('');
   const [consents, setConsents] = useState<ConsentRecord[]>();
   const [message, setMessage] = useState<{ tone: 'info' | 'danger'; text: string }>();
+  const [drawer, setDrawer] = useState<'consent' | 'upload' | null>(null);
   const report = (tone: 'info' | 'danger', text: string) => setMessage({ tone, text });
   async function lookup() {
     try {
@@ -58,6 +63,7 @@ export function ConsentRecordsPanel({ canEdit }: { canEdit: boolean }) {
         }),
       });
       report('info', 'Consent recorded.');
+      setDrawer(null);
       await lookup();
     } catch (failure) {
       report('danger', failureText(failure, 'Consent could not be recorded.'));
@@ -72,6 +78,7 @@ export function ConsentRecordsPanel({ canEdit }: { canEdit: boolean }) {
         { method: 'POST', body: JSON.stringify({ rows }) },
       );
       report('info', `${data.stored} scrub results stored; ${data.ncprListed} fully blocked.`);
+      setDrawer(null);
     } catch (failure) {
       report('danger', failureText(failure, 'Scrub results could not be stored.'));
     }
@@ -85,7 +92,7 @@ export function ConsentRecordsPanel({ canEdit }: { canEdit: boolean }) {
         <>
           {row.principalEntity} · {row.purpose}
           <br />
-          <small className="muted">{row.category}</small>
+          <small className="muted">{humaniseEnum(row.category)}</small>
         </>
       ),
     },
@@ -94,7 +101,7 @@ export function ConsentRecordsPanel({ canEdit }: { canEdit: boolean }) {
       header: 'Basis',
       cell: (row) => (
         <>
-          {row.basis}
+          {humaniseEnum(row.basis)}
           <br />
           <small className="mono">{row.evidenceRef}</small>
         </>
@@ -115,98 +122,70 @@ export function ConsentRecordsPanel({ canEdit }: { canEdit: boolean }) {
   return (
     <div className="stack">
       {message && <InlineAlert tone={message.tone}>{message.text}</InlineAlert>}
-      <div className="ds-filter-row">
-        <FormField id="consent-phone" label="Phone number">
-          {(control) => (
-            <input
-              {...control}
-              type="tel"
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-            />
-          )}
-        </FormField>
-        <button className="button align-start" disabled={!phone} onClick={() => void lookup()}>
-          Look up consents
-        </button>
-      </div>
-      {consents && (
-        <DataTableV2
-          key={consents.length === 0 ? 'empty' : 'data'}
-          label="Consents on record"
-          rows={consents}
-          columns={columns}
-          rowKey={(row) => row.id}
-          empty="No consent on record for this number"
-        />
-      )}
-      <form className="form-grid nested-card" onSubmit={record}>
-        <fieldset disabled={!canEdit || !phone} className="form-grid">
-          <FormField id="consent-pe" label="Brand (principal entity)">
-            {(control) => <input {...control} name="principalEntity" required />}
-          </FormField>
-          <FormField id="consent-purpose" label="Purpose">
-            {(control) => <input {...control} name="purpose" required />}
-          </FormField>
-          <FormField id="consent-category" label="Category">
+      <SectionCard
+        title="Consent on record"
+        padding="flush"
+        description="Look up a number, then record a consent against it."
+        actions={
+          <div className="button-row">
+            <button
+              className="button small"
+              type="button"
+              disabled={!canEdit}
+              onClick={() => setDrawer('upload')}
+            >
+              Upload scrub results
+            </button>
+            <button
+              className="button small primary"
+              type="button"
+              disabled={!canEdit || !phone}
+              onClick={() => setDrawer('consent')}
+            >
+              Record consent
+            </button>
+          </div>
+        }
+      >
+        <div className="ds-filter-row">
+          <FormField id="consent-phone" label="Phone number">
             {(control) => (
-              <select {...control} name="category" defaultValue="service">
-                <option value="service">Service</option>
-                <option value="promotional">Promotional</option>
-                <option value="transactional">Transactional</option>
-              </select>
+              <input
+                {...control}
+                type="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+              />
             )}
           </FormField>
-          <FormField id="consent-basis" label="Basis">
-            {(control) => (
-              <select {...control} name="basis" defaultValue="explicit_service_7d">
-                {[
-                  'explicit_service_7d',
-                  'inquiry_7d',
-                  'application_3m',
-                  'explicit_registered',
-                  'explicit_legacy_registered',
-                  'transaction_30min',
-                  'inferred_relationship',
-                ].map((basis) => (
-                  <option key={basis}>{basis}</option>
-                ))}
-              </select>
-            )}
-          </FormField>
-          <FormField
-            id="consent-evidence"
-            label="Evidence reference"
-            help="DLT consent ID, CRF reference, or your inquiry record."
-          >
-            {(control) => <input {...control} name="evidenceRef" required />}
-          </FormField>
-          <FormField id="consent-obtained" label="Obtained">
-            {(control) => <input {...control} name="obtainedAt" type="datetime-local" required />}
-          </FormField>
-          <label className="toggle-row">
-            <input type="checkbox" name="customerInitiated" />
-            <span>The customer opted in on their own (allowed inside the 90-day lock)</span>
-          </label>
-          <button className="button align-start" style={{ alignSelf: 'start' }}>
-            Record consent
+          <button className="button align-start" disabled={!phone} onClick={() => void lookup()}>
+            Look up consents
           </button>
-        </fieldset>
-      </form>
-      <form className="form-grid nested-card" onSubmit={upload}>
-        <fieldset disabled={!canEdit} className="form-grid">
-          <FormField
-            id="scrub-rows"
-            label="DND scrub results (phone,result per line)"
-            help="result is allowed, blocked, fully_blocked or unknown, as your telco or RTM portal reports it."
-          >
-            {(control) => <textarea {...control} name="rows" rows={4} required />}
-          </FormField>
-          <button className="button align-start" style={{ alignSelf: 'start' }}>
-            Upload scrub results
-          </button>
-        </fieldset>
-      </form>
+        </div>
+        {consents && (
+          <DataTableV2
+            key={consents.length === 0 ? 'empty' : 'data'}
+            label="Consents on record"
+            rows={consents}
+            columns={columns}
+            rowKey={(row) => row.id}
+            empty="No consent on record for this number"
+          />
+        )}
+      </SectionCard>
+      <RecordConsentDrawer
+        open={drawer === 'consent'}
+        phone={phone}
+        canEdit={canEdit}
+        onClose={() => setDrawer(null)}
+        onSubmit={(event) => void record(event)}
+      />
+      <UploadScrubResultsDrawer
+        open={drawer === 'upload'}
+        canEdit={canEdit}
+        onClose={() => setDrawer(null)}
+        onSubmit={(event) => void upload(event)}
+      />
     </div>
   );
 }

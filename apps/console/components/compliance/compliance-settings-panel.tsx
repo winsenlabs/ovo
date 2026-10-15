@@ -6,6 +6,7 @@ import { InlineAlert } from '../ui/feedback-v2';
 import { settingsFromForm } from './compliance-settings-form';
 import { ComplianceSettingsEnforcementFields } from './compliance-settings-fields-enforcement';
 import { failureText, type SettingsRecord } from './compliance-types';
+import { FLAT_FIELDSET } from './drawer-form';
 
 const REGULATORS = [
   'rbi',
@@ -67,8 +68,8 @@ export function ComplianceSettingsPanel({
       {/* One outer `disabled` fieldset: HTML cascades it to every nested fieldset and control, so
           neither this file nor the enforcement-fields split needs to repeat the check. */}
       <form className="stack" onSubmit={save} key={record.version}>
-        <fieldset disabled={!canEdit} className="stack">
-          <fieldset className="stack">
+        <fieldset disabled={!canEdit} className="stack" style={FLAT_FIELDSET}>
+          <fieldset className="stack" style={FLAT_FIELDSET}>
             <legend className="eyebrow">Sender</legend>
             <div className="form-grid">
               <FormField id="cs-legal-name" label="Legal name">
@@ -102,7 +103,7 @@ export function ComplianceSettingsPanel({
               </FormField>
             </div>
           </fieldset>
-          <fieldset className="stack">
+          <fieldset className="stack" style={FLAT_FIELDSET}>
             <legend className="eyebrow">Autodialer intimation</legend>
             <div className="form-grid">
               <FormField id="cs-int-date" label="Intimation submitted">

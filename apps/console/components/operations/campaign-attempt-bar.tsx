@@ -26,7 +26,7 @@ export function AttemptOutcomeBar({
     .join(', ');
   let offset = 0;
   return (
-    <span title={summary} style={{ display: 'inline-block' }}>
+    <span style={{ display: 'inline-grid', gap: 2 }}>
       <svg
         width={width}
         height={height}
@@ -51,6 +51,9 @@ export function AttemptOutcomeBar({
           );
         })}
       </svg>
+      <small className="muted" title={summary}>
+        {entries.map(([status, value]) => `${campaignAttemptLabel(status)} ${value}`).join(' · ')}
+      </small>
     </span>
   );
 }

@@ -1,5 +1,6 @@
 import { FormField } from '../ui/form-field';
 import type { ComplianceSettings } from './compliance-types';
+import { FLAT_FIELDSET } from './drawer-form';
 
 const SERIES_OPTIONS = ['refuse', 'warn'] as const;
 
@@ -15,7 +16,7 @@ export function ComplianceSettingsEnforcementFields({
 }) {
   return (
     <>
-      <fieldset className="stack">
+      <fieldset className="stack" style={FLAT_FIELDSET}>
         <legend className="eyebrow">Enforcement</legend>
         <div className="form-grid">
           <FormField
@@ -85,7 +86,7 @@ export function ComplianceSettingsEnforcementFields({
           </FormField>
         </div>
       </fieldset>
-      <fieldset className="stack">
+      <fieldset className="stack" style={FLAT_FIELDSET}>
         <legend className="eyebrow">Test numbers &amp; blackout</legend>
         <div className="form-grid">
           <FormField
@@ -118,7 +119,7 @@ export function ComplianceSettingsEnforcementFields({
           </FormField>
         </div>
       </fieldset>
-      <fieldset className="stack">
+      <fieldset className="stack" style={FLAT_FIELDSET}>
         <legend className="eyebrow">Complaint SLA</legend>
         <div className="form-grid">
           <FormField id="cs-ack" label="Acknowledge complaints within (hours)">

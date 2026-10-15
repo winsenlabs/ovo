@@ -1,14 +1,15 @@
 'use client';
-import { useState, type FormEvent } from 'react';
+import { useState, type CSSProperties, type FormEvent } from 'react';
 import { apiRequest } from '../../lib/api';
 import { FormField } from '../ui/form-field';
 import { InlineAlert } from '../ui/feedback-v2';
 import { StatusBadgeV2 } from '../ui/status-badge';
 import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
 import { EmptyStateV2 } from '../ui/feedback-v2';
+import { SectionCard } from '../ui/section-card';
+import { Drawer } from '../ui/drawer';
 import { formatDateTime } from '../../lib/format';
-import { humaniseEnum } from '../../lib/status';
-import { dueLabel, failureText, type Complaint } from './compliance-types';
+import { complaintKindLabel, dueLabel, failureText, type Complaint } from './compliance-types';
 
 const NEXT: Record<Complaint['status'], Complaint['status'][]> = {
   open: ['acknowledged', 'represented', 'resolved'],
@@ -18,10 +19,14 @@ const NEXT: Record<Complaint['status'], Complaint['status'][]> = {
   closed: [],
 };
 
+// See cli-registry-panel.tsx: flattens the browser's native fieldset chrome.
+const FLAT_FIELDSET: CSSProperties = { border: 0, margin: 0, padding: 0 };
+
 /**
  * Customer complaints and telco notices with their SLA timers: a customer complaint is
  * acknowledged within 24 hours and resolved within 7 days, a telco notice answered within 5
- * business days (defaults; see the runbook).
+ * business days (defaults; see the runbook). Opening one puts it in a drawer, not an always-open
+ * form above the table.
  */
 export function ComplaintsPanel({
   complaints,
@@ -100,7 +105,7 @@ export function ComplaintsPanel({
       ),
       sortValue: (row) => row.receivedAt,
     },
-    { id: 'kind', header: 'Kind', cell: (row) => humaniseEnum(row.kind) },
+    { id: 'kind', header: 'Kind', cell: (row) => complaintKindLabel(row.kind) },
     {
       id: 'due',
       header: 'Due',
@@ -140,24 +145,43 @@ export function ComplaintsPanel({
 
   return (
     <div className="stack">
-      <div className="button-row">
-        <StatusBadgeV2
-          tone={overdueCount ? 'danger' : 'neutral'}
-          label={`${overdueCount} overdue`}
+      <SectionCard
+        title="Complaints and notices"
+        padding="flush"
+        actions={
+          <div className="button-row">
+            <StatusBadgeV2
+              tone={overdueCount ? 'danger' : 'neutral'}
+              label={`${overdueCount} overdue`}
+            />
+            <button
+              className="button small primary"
+              type="button"
+              onClick={() => setAdding(true)}
+              disabled={!canEdit}
+            >
+              Open complaint
+            </button>
+          </div>
+        }
+      >
+        {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+        <DataTableV2
+          key={sorted.length === 0 ? 'empty' : 'data'}
+          label="Complaints and notices"
+          rows={sorted}
+          columns={columns}
+          rowKey={(row) => row.id}
+          empty={
+            <EmptyStateV2 title="No open complaints">
+              New complaints and telco notices appear here.
+            </EmptyStateV2>
+          }
         />
-        <button
-          className="button small primary align-start"
-          type="button"
-          onClick={() => setAdding((v) => !v)}
-          disabled={!canEdit}
-        >
-          {adding ? 'Cancel' : 'Open complaint'}
-        </button>
-      </div>
-      {error && <InlineAlert tone="danger">{error}</InlineAlert>}
-      {adding && (
-        <form className="stack nested-card" onSubmit={open}>
-          <fieldset disabled={!canEdit} className="form-grid">
+      </SectionCard>
+      <Drawer open={adding} onClose={() => setAdding(false)} title="Open complaint">
+        <form className="form-grid" onSubmit={open}>
+          <fieldset disabled={!canEdit} className="form-grid" style={FLAT_FIELDSET}>
             <FormField id="complaint-kind" label="Kind">
               {(control) => (
                 <select {...control} name="kind" defaultValue="customer">
@@ -190,19 +214,7 @@ export function ComplaintsPanel({
             </button>
           </fieldset>
         </form>
-      )}
-      <DataTableV2
-        key={sorted.length === 0 ? 'empty' : 'data'}
-        label="Complaints and notices"
-        rows={sorted}
-        columns={columns}
-        rowKey={(row) => row.id}
-        empty={
-          <EmptyStateV2 title="No open complaints">
-            New complaints and telco notices appear here.
-          </EmptyStateV2>
-        }
-      />
+      </Drawer>
     </div>
   );
 }
