@@ -178,6 +178,53 @@ describe('CallSegmentController (routing design 7.4)', () => {
       ok: false,
       reason: 'compose_failed',
     });
+    // No member was claimed for these targets, so there is nothing to release.
+    expect(h.releaseClaim).not.toHaveBeenCalled();
+  });
+
+  it('releases the claimed member when its prepare fails, as abandon would', async () => {
+    const claimed = (releaseId?: string): SegmentHandoffRequest => {
+      const base = request(releaseId);
+      return {
+        ...base,
+        route: { ...base.route!, claimId: '11111111-1111-4111-8111-111111111111' },
+      };
+    };
+    let failure: Error | undefined = new Error('graph refused');
+    let hold: Promise<never> | undefined;
+    const h = await harness({
+      timeoutMs: 20,
+      compose: async (_target, _index, lease) => {
+        if (hold) return hold;
+        if (failure) throw failure;
+        return fakeSegment('agent', new SegmentJournal(), lease);
+      },
+    });
+    expect(await h.controller.prepare(claimed(), signal())).toEqual({
+      ok: false,
+      reason: 'compose_failed',
+    });
+    expect(h.releaseClaim).toHaveBeenCalledTimes(1);
+    failure = new SegmentReleaseMissingError('release-agent');
+    expect(await h.controller.prepare(claimed(), signal())).toMatchObject({
+      reason: 'release_missing',
+    });
+    expect(h.releaseClaim).toHaveBeenCalledTimes(2);
+    hold = new Promise<never>(() => undefined);
+    expect(await h.controller.prepare(claimed(), signal())).toMatchObject({ reason: 'timeout' });
+    expect(h.releaseClaim).toHaveBeenCalledTimes(3);
+    hold = undefined;
+    expect(await h.controller.prepare(claimed('release-elsewhere'), signal())).toMatchObject({
+      reason: 'release_not_allowed',
+    });
+    expect(h.releaseClaim).toHaveBeenCalledTimes(4);
+    // A refusal while another handoff is committed leaves that handoff's claim alone.
+    failure = undefined;
+    h.controller.commit(prepared(await h.controller.prepare(claimed(), signal())));
+    expect(await h.controller.prepare(claimed('release-default'), signal())).toMatchObject({
+      reason: 'busy',
+    });
+    expect(h.releaseClaim).toHaveBeenCalledTimes(4);
   });
 
   it('gives up a slow composition at the bound and disposes it when it arrives', async () => {

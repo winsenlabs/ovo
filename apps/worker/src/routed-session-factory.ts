@@ -20,6 +20,7 @@ import { routedSegmentComposer, type LiveSessionDeps } from './routed-segments.t
 import { routerMediaClose, routerSegmentShape } from './router-graph.ts';
 import { routedAgentIds, routeEventSink } from './routing-events.ts';
 import { startEarlyCallWork, type EarlyCallWork } from './session-early-start.ts';
+import type { TranscriptText } from './telemetry-runtime.ts';
 
 export {
   ROUTING_SNAPSHOT_TIMEOUT_MS,
@@ -72,11 +73,12 @@ async function openRoutedCall(
   });
   try {
     const snapshot = await loadSnapshot(options, routing, releaseId);
-    const agentIds = snapshot ? routedAgentIds(snapshot) : [routerRelease.agentId];
     const scope = await openCallScope(deps, input, {
       release: routerRelease,
       format: early.format,
-      transcriptText: deps.telemetry.strictestTranscriptText(agentIds),
+      transcriptText: snapshot
+        ? deps.telemetry.strictestTranscriptText(routedAgentIds(snapshot))
+        : await degradedTranscriptText(deps, job.workspaceId, routerRelease, routing),
     });
     return await runRoutedCall(deps, options, scope, routerRelease, routing, snapshot, () => {
       const taken = early;
@@ -87,6 +89,23 @@ async function openRoutedCall(
     await early?.abandon();
     throw error;
   }
+}
+
+/**
+ * Without its snapshot the call degrades to the routing release's default target, so that agent's
+ * transcript policy counts as well; a default that cannot be read omits (design 7.4, 11).
+ */
+async function degradedTranscriptText(
+  deps: LiveSessionDeps,
+  workspaceId: string,
+  routerRelease: ReleaseRecord,
+  routing: RoutedJob,
+): Promise<TranscriptText> {
+  const fallback = await deps.store
+    .getRelease(workspaceId, routing.defaultReleaseId)
+    .catch(() => undefined);
+  if (!fallback) return 'omit';
+  return deps.telemetry.strictestTranscriptText([routerRelease.agentId, fallback.agentId]);
 }
 
 /** A routed call that falls back to its default target as segment 0 (design 7.2, 8.2). */

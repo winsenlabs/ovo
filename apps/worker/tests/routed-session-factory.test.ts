@@ -173,6 +173,36 @@ describe('routed jobs (routing design 7.2)', () => {
     expect(open.createSession.mock.calls[0]![0]).toMatchObject({ transcriptText: 'store' });
   });
 
+  it.each([
+    [['sales-en'], 'omit'],
+    [['someone-else'], 'store'],
+  ])(
+    'counts the default agent when the snapshot cannot load (omitted %j: %s)',
+    async (transcriptOmitted, transcriptText) => {
+      const call = await routedCall({
+        releases: releases(),
+        routerReleaseId: ROUTER_RELEASE,
+        routing,
+        getRouting: async () => Promise.reject(new Error('operations down')),
+        transcriptOmitted,
+      });
+      await (await call.open()).dispose('caller_hangup');
+      expect(call.engines.map((engine) => engine.releaseId)).toEqual([DEFAULT_RELEASE]);
+      expect(call.createSession.mock.calls[0]![0]).toMatchObject({ transcriptText });
+    },
+  );
+
+  it('omits transcript text when neither the snapshot nor the default release can be read', async () => {
+    const call = await routedCall({
+      releases: releases().filter((release) => release.id !== DEFAULT_RELEASE),
+      routerReleaseId: ROUTER_RELEASE,
+      routing,
+      getRouting: async () => undefined,
+    });
+    await call.open().catch(() => undefined);
+    expect(call.createSession.mock.calls[0]![0]).toMatchObject({ transcriptText: 'omit' });
+  });
+
   it('runs the router, then hands the call to the chosen agent on the same link', async () => {
     const call = await routedCall({
       releases: releases(),

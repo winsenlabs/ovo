@@ -79,6 +79,19 @@ export class CallSegmentController implements SegmentHandoffPort {
     request: SegmentHandoffRequest,
     signal: AbortSignal,
   ): Promise<HandoffPrepareResult> {
+    const result = await this.prepareTarget(request, signal);
+    // A failed prepare returns no handoff to abandon, so the member the router claimed for it is
+    // released here (design 8.2); a later pool step claims again. `busy` leaves the claim to the
+    // handoff already in progress.
+    if (!result.ok && result.reason !== 'busy' && request.route?.claimId)
+      await this.deps.releaseClaim();
+    return result;
+  }
+
+  private async prepareTarget(
+    request: SegmentHandoffRequest,
+    signal: AbortSignal,
+  ): Promise<HandoffPrepareResult> {
     if (this.ended || signal.aborted) return this.refuse(request, 'call_ended');
     if (this.preparing || this.prepared?.committed || this.swapping)
       return this.refuse(request, 'busy');
