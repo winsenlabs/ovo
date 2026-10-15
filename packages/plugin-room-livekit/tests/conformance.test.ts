@@ -19,16 +19,11 @@ import {
   type RoomTokenClaims,
 } from '@winsendotai/ovo-conformance';
 import { PCM16_16K, type AudioFormat } from '@winsendotai/ovo-contracts';
-import { afterAll, it, vi } from 'vitest';
+import { afterAll, describe, it } from 'vitest';
 import { LiveKitRoomProvider } from '../src/provider.ts';
 import { ROOM_FORMAT } from '../src/seat.ts';
 import type { TestServer } from '../src/testing.ts';
 import { verifyToken } from '../src/tokens.ts';
-
-// Real-time audio over a real WebRTC session, driven by the kit's wall-clock send loops. On a busy
-// shared build machine an event-loop stall turns a 1.2 s tone into a gappy one and the kit
-// rightly calls it not heard, so a failure is retried; a genuine fault fails every attempt.
-vi.setConfig({ retry: 2 });
 
 const RATE = ROOM_FORMAT.sampleRate;
 
@@ -179,15 +174,14 @@ describeMediaRoom('fakeMediaRoom (reference)', () => fakeMediaRoom());
 const server = await serverOrSkip('conformance.test.ts');
 afterAll(() => server?.stop());
 
+// Real-time audio over a real WebRTC session, driven by the kit's wall-clock send loops. On a busy
+// shared build machine an event-loop stall turns a 1.2 s tone into a gappy one and the kit rightly
+// calls it not heard, so a failed check is retried twice; a genuine fault fails every attempt.
 if (server) {
-  describeMediaRoom('LiveKit room plugin, mu-law 8 kHz (real server)', () =>
-    livekitUnderTest(server),
-  );
-  describeMediaRoom(
-    'LiveKit room plugin, PCM16 16 kHz (real server)',
-    () => livekitUnderTest(server),
-    {
+  describe('real server', { retry: 2 }, () => {
+    describeMediaRoom('LiveKit room plugin, mu-law 8 kHz', () => livekitUnderTest(server));
+    describeMediaRoom('LiveKit room plugin, PCM16 16 kHz', () => livekitUnderTest(server), {
       format: PCM16_16K,
-    },
-  );
+    });
+  });
 } else it.skip('LiveKit room plugin conformance: no LiveKit server available', () => undefined);

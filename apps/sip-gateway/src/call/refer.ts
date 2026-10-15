@@ -66,6 +66,8 @@ export class ReferState {
 
   /** A NOTIFY for this subscription; the caller has validated the Event header. */
   progress(status: number, terminated: boolean): void {
+    // A NOTIFY for our subscription proves the REFER was accepted, even if its 202 has not arrived.
+    this.accepted = true;
     if (status >= 200 && status < 300)
       this.settle(
         {

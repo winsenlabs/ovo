@@ -23,14 +23,16 @@ export class CachedHealth {
     this.inflight ??= this.run().finally(() => (this.inflight = undefined));
     // A caller giving up does not cancel the shared probe; it just stops waiting for it.
     if (signal.aborted) return { ok: false, reason: 'aborted' };
-    return Promise.race([
-      this.inflight,
-      new Promise<Health>((resolve) =>
-        signal.addEventListener('abort', () => resolve({ ok: false, reason: 'aborted' }), {
-          once: true,
-        }),
-      ),
-    ]);
+    let onAbort!: () => void;
+    const aborted = new Promise<Health>((resolve) => {
+      onAbort = () => resolve({ ok: false, reason: 'aborted' });
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+    try {
+      return await Promise.race([this.inflight, aborted]);
+    } finally {
+      signal.removeEventListener('abort', onAbort);
+    }
   }
 
   private async run(): Promise<Health> {

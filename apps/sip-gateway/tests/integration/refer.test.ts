@@ -358,6 +358,15 @@ describe('SIP REFER handoff (R3)', () => {
       expect((await pending).body.kind).toBe('confirmed');
     });
 
+    it('a terminated subscription seen before the 202 is still unknown and hangs up the leg', async () => {
+      const c = await setup();
+      const pending = handoff(c, SIP_TARGET);
+      const refer = await c.sip.request('REFER');
+      await send(c, notify(c, refer, frag(100), 'terminated;reason=timeout'));
+      expect((await pending).body).toEqual({ kind: 'unknown', reason: 'refer_subscription_ended' });
+      c.sip.reply(await c.sip.request('BYE'), 200);
+    });
+
     it('a terminated subscription that never reached a final status is unknown', async () => {
       const c = await setup();
       const pending = handoff(c, SIP_TARGET);

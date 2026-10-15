@@ -177,10 +177,10 @@ describe('KeyRing', () => {
     expect(ring.active).toBe(previous);
   });
 
-  it('does not switch for a pair that is no longer the active one (a racing second failure)', () => {
+  it('a racing second failure on the same pair retries with the new one and does not switch back', () => {
     const ring = new KeyRing(PAIR, previous);
-    ring.rotate(PAIR);
-    expect(ring.rotate(PAIR)).toBe(false);
+    expect(ring.rotate(PAIR)).toBe(true);
+    expect(ring.rotate(PAIR)).toBe(true);
     expect(ring.active).toBe(previous);
   });
 

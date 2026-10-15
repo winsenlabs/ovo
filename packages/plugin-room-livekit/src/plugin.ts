@@ -3,7 +3,7 @@ import { definePlugin } from '@winsendotai/ovo-runtime';
 import { parseRoomConfig } from './config.ts';
 import { LiveKitRoomProvider } from './provider.ts';
 
-export const ROOM_LIVEKIT_PLUGIN_ID = '@winsendotai/ovo-plugin-room-livekit';
+export const ROOM_PLUGIN_ID = '@winsendotai/ovo-plugin-room-livekit';
 
 /**
  * Capability `ovo.media-room` over a self-hosted LiveKit server (Apache-2.0). Process scope,
@@ -13,7 +13,7 @@ export const ROOM_LIVEKIT_PLUGIN_ID = '@winsendotai/ovo-plugin-room-livekit';
  */
 export const roomLivekitPlugin = definePlugin(
   {
-    id: ROOM_LIVEKIT_PLUGIN_ID,
+    id: ROOM_PLUGIN_ID,
     version: '0.1.0',
     contractVersion: 2,
     kind: 'infra',

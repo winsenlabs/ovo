@@ -26,10 +26,14 @@ export class KeyRing {
     return this.pairs[this.index]!;
   }
 
-  /** After `tried` was rejected: switches to the other pair, false when there is none. */
+  /**
+   * After `tried` was rejected: true when another pair is now (or already was) active, so the call
+   * should retry with it; false when there is none. A second call that failed on the same pair
+   * while the first was switching finds the switch done and does not switch back.
+   */
   rotate(tried: ApiKeyPair): boolean {
-    if (tried !== this.active || this.pairs.length < 2) return false;
-    this.index = (this.index + 1) % this.pairs.length;
+    if (this.pairs.length < 2) return false;
+    if (tried === this.active) this.index = (this.index + 1) % this.pairs.length;
     return true;
   }
 }

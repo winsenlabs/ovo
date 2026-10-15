@@ -97,7 +97,7 @@ describe('room plugin manifest and composition', () => {
       [
         {
           id: roomLivekitPlugin.manifest.id,
-          config: { ...good, publicUrl: 'wss://rooms.example.net' },
+          config: { ...good, publicUrl: 'wss://rooms.example.net', tokenTtlSeconds: 120 },
         },
       ],
       [roomLivekitPlugin],
