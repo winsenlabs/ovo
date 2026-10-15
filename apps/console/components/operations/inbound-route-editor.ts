@@ -52,7 +52,8 @@ export function useInboundRouteEditor({
     setEditing(route);
     setDraft({
       phoneNumber: route.phoneNumber,
-      releaseId: route.releaseId,
+      // A routed number has no agent release: the operator picks one to switch it to an agent.
+      releaseId: route.releaseId ?? '',
       carrierPluginId: route.carrierPluginId ?? '',
       carrierBindingId: route.carrierBindingId ?? '',
       enabled: route.enabled,

@@ -80,6 +80,18 @@ describe('the callbacks list (AGT-15)', () => {
       expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it('labels a callback a routing point promised as Route (Wave 15)', async () => {
+    request.mockResolvedValue({
+      data: {
+        available: true,
+        items: [callback({ source: 'route', node: 'intent' })],
+        nextCursor: null,
+      },
+    });
+    render(<CallbacksView role="admin" />);
+    expect(await screen.findByText('Route · intent')).toBeTruthy();
+  });
+
   it('explains an installation without durable callbacks, and shows an API error', async () => {
     request.mockResolvedValueOnce({ data: { available: false, items: [], nextCursor: null } });
     render(<CallbacksView role="admin" />);

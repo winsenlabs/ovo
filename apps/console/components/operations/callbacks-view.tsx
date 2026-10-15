@@ -14,7 +14,7 @@ export interface CallbackRecord {
   callId: string;
   dueAt: string;
   timezone: string;
-  source: 'flow' | 'llm';
+  source: 'flow' | 'llm' | 'route';
   node: string | null;
   disposition: string | null;
   reason: string | null;

@@ -41,6 +41,10 @@ export interface ManagementApiOptions {
   productionRecordingsEnabled?: boolean;
   operationsEnabled?: boolean;
   infrastructureEnabled?: boolean;
+  /** `OVO_ROUTING_ENABLED`: `/v1/routing/*` and binding numbers to routing releases (off). */
+  routingEnabled?: boolean;
+  /** `OVO_ROUTING_EXTERNAL_ENABLED`, read by the worker; the API reports it and warns at publish. */
+  routingExternalEnabled?: boolean;
   createReleasePlugins?: (input: {
     agent: AgentDraft;
     sessionId: string;

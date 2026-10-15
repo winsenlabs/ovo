@@ -12,6 +12,7 @@ export const CALLBACK_STATUSES = [
   'cancelled',
 ] as const;
 export type CallbackStatus = (typeof CALLBACK_STATUSES)[number];
+export type CallbackSource = 'flow' | 'llm' | 'route';
 
 /**
  * How long a dial may hold a callback in `dialing`. Placing a live call is only its durable
@@ -24,11 +25,13 @@ export interface CallbackRecord {
   callId: string;
   dueAt: string;
   timezone: string;
-  source: 'flow' | 'llm';
+  source: CallbackSource;
   node: string | null;
   disposition: string | null;
   reason: string | null;
   status: CallbackStatus;
+  /** The agent release that promised it (a routed call); null dials the call's own release. */
+  releaseId: string | null;
   /** The live call that dialled it back, once dialled. */
   dialedCallId: string | null;
   /** The number to call, masked to its last four digits; null when the call record is gone. */
@@ -55,11 +58,12 @@ interface Row {
   call_id: string;
   due_at: Date;
   timezone: string;
-  source: 'flow' | 'llm';
+  source: CallbackSource;
   node: string | null;
   disposition: string | null;
   reason: string | null;
   status: CallbackStatus;
+  release_id: string | null;
   dialed_call_id: string | null;
   created_at: Date;
   updated_at: Date;
@@ -98,17 +102,20 @@ export class PostgresCallbackStore {
   async sync(workspaceId: string): Promise<void> {
     await this.pool.query(
       `INSERT INTO ovo_callbacks (id, workspace_id, call_id, event_id, due_at, timezone, source,
-         node, disposition, reason)
+         node, disposition, reason, release_id)
        SELECT gen_random_uuid(), e.workspace_id, e.call_id, e.id,
          (e.payload->'callback'->>'dueAt')::timestamptz,
          e.payload->'callback'->>'timezone',
          e.payload->'callback'->>'source',
          e.payload->'callback'->>'node',
          e.payload->>'disposition',
-         e.payload->'callback'->>'reason'
+         e.payload->'callback'->>'reason',
+         -- The release a routed call stamped; anything but a uuid dials the call's own release.
+         CASE WHEN e.payload->'callback'->>'releaseId' ~ '${UUID}'
+           THEN (e.payload->'callback'->>'releaseId')::uuid END
        FROM ovo_session_events e
        WHERE e.workspace_id = $1 AND e.type = 'disposition' AND e.payload ? 'callback'
-         AND e.payload->'callback'->>'source' IN ('flow', 'llm')
+         AND e.payload->'callback'->>'source' IN ('flow', 'llm', 'route')
          AND e.payload->'callback'->>'timezone' IS NOT NULL
          -- An event that does not carry an ISO instant is skipped, never allowed to fail the sync.
          AND e.payload->'callback'->>'dueAt' ~ '${ISO_INSTANT}'
@@ -170,18 +177,22 @@ export class PostgresCallbackStore {
     workspaceId: string,
     id: string,
   ): Promise<CallbackDial | 'conflict' | 'unreachable' | undefined> {
-    const claimed = await this.pool.query<{ dial_operation_id: string; call_id: string }>(
+    const claimed = await this.pool.query<{
+      dial_operation_id: string;
+      call_id: string;
+      release_id: string | null;
+    }>(
       `UPDATE ovo_callbacks SET status = 'dialing', updated_at = now(),
          dial_operation_id = COALESCE(dial_operation_id, $3::uuid)
        WHERE workspace_id = $1 AND id = $2 AND (status = 'pending'
          OR (status = 'dialing' AND updated_at < now() - make_interval(secs => $4)))
-       RETURNING dial_operation_id, call_id`,
+       RETURNING dial_operation_id, call_id, release_id`,
       [workspaceId, id, randomUUID(), DIAL_LEASE_SECONDS],
     );
     const row = claimed.rows[0];
     if (!row) return (await this.get(workspaceId, id)) ? 'conflict' : undefined;
     const job = await this.job(row.call_id);
-    const dial = job ? dialFromJob(job) : undefined;
+    const dial = job ? dialFromJob(job, row.release_id) : undefined;
     if (!dial) {
       await this.transition(workspaceId, id, ['dialing'], 'pending');
       return 'unreachable';
@@ -197,7 +208,7 @@ export class PostgresCallbackStore {
     const jobs = await this.hasJobs();
     const result = await this.pool.query<Row>(
       `SELECT c.id, c.call_id, c.due_at, c.timezone, c.source, c.node, c.disposition, c.reason,
-         c.status, c.dialed_call_id, c.created_at, c.updated_at,
+         c.status, c.release_id, c.dialed_call_id, c.created_at, c.updated_at,
          ${jobs ? 'j.payload' : 'NULL::jsonb'} AS job
        FROM ovo_callbacks c
        ${jobs ? `LEFT JOIN ovo_jobs j ON j.id = (CASE WHEN c.call_id ~ '${UUID}' THEN c.call_id::uuid END)` : ''}
@@ -226,12 +237,17 @@ export class PostgresCallbackStore {
   }
 }
 
-/** The caller of an inbound call is called back from the number they dialled; outbound repeats. */
+/**
+ * The caller of an inbound call is called back from the number they dialled; outbound repeats.
+ * The release is the one that promised the callback when it was stamped (a routed call's agent),
+ * else the call's own (`COALESCE(callback.release_id, call.release_id)`).
+ */
 export function dialFromJob(
   job: Record<string, unknown>,
+  callbackReleaseId?: string | null,
 ): Omit<CallbackDial, 'operationId'> | undefined {
   const text = (key: string) => (typeof job[key] === 'string' && job[key] ? job[key] : undefined);
-  const releaseId = text('releaseId');
+  const releaseId = callbackReleaseId ?? text('releaseId');
   const inbound = job.kind === 'inbound_call';
   const to = inbound ? text('from') : text('to');
   const fromNumber = inbound ? text('to') : text('from');
@@ -257,6 +273,7 @@ function present(row: Row): CallbackRecord {
     disposition: row.disposition,
     reason: row.reason,
     status: row.status,
+    releaseId: row.release_id,
     dialedCallId: row.dialed_call_id,
     phone: dial ? `••••${dial.to.slice(-4)}` : null,
     createdAt: row.created_at.toISOString(),

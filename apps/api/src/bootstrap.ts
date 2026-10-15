@@ -138,6 +138,7 @@ export async function buildManagementApi(
         ? [
             createOperationsRuntimePlugin({
               ...options.operations,
+              routingEnabled: options.routingEnabled === true,
               databaseUrl: options.controlDatabaseUrl,
               organizationId: options.identities[0]!.defaultWorkspaceId,
               pluginCatalog: installedCatalog,

@@ -162,6 +162,19 @@ export async function fixtureApi(page: Page, options?: { firstAgentId?: string }
         body,
       });
     }
+    // One direct and one routed number (Wave 15), so the sweep checks a routed row at every width.
+    if (path === '/operations/inbound/routes' && request.method() === 'GET')
+      return send({
+        items: [
+          inboundRoute('+918040000001', { releaseId: 'release-001' }),
+          inboundRoute('+918040000002', {
+            releaseId: null,
+            routingReleaseId: '7d3c1a52-9b0e-4c55-8a4f-1f2e3d4c5b6a',
+            routing: { pointId: 'point-1', pointName: 'Main line', version: 3 },
+          }),
+        ],
+        nextCursor: null,
+      });
     if (path === '/operations/suppressions' && request.method() === 'POST')
       return send({ id: 'suppression-1' }, 201);
     if (path === '/performance')
@@ -177,6 +190,21 @@ export async function fixtureApi(page: Page, options?: { firstAgentId?: string }
     return send({ items: [] });
   });
 }
+
+const inboundRoute = (phoneNumber: string, target: Record<string, unknown>) => ({
+  organizationId: 'workspace-1',
+  phoneNumber,
+  routingReleaseId: null,
+  routing: null,
+  ...target,
+  carrierPluginId: null,
+  carrierBindingId: null,
+  variables: {},
+  enabled: true,
+  version: 1,
+  createdAt: '2026-09-25T10:00:00Z',
+  updatedAt: '2026-09-25T10:00:00Z',
+});
 
 export async function noOverflowOrAxe(page: Page) {
   const width = await page.evaluate(() => ({

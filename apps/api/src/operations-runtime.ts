@@ -15,6 +15,7 @@ export interface OperationsRuntimeConfig {
   operations: Readonly<{
     permittedFromNumbers: readonly string[];
     liveEnabled: boolean;
+    routingEnabled: boolean;
   }>;
   handoffProvider: 'carrier' | 'unavailable';
 }
@@ -35,6 +36,23 @@ export interface CreateOperationsRuntimeOptions {
   liveEnabled?: boolean;
   permittedFromNumbers?: readonly string[];
   handoffProvider?: HandoffProviderPort;
+  /** Overrides `OVO_ROUTING_ENABLED`; the API passes its own flag so both always agree. */
+  routingEnabled?: boolean;
+}
+
+/**
+ * The two Wave 15 routing flags, both off unless set to exactly `true`. With routing off the
+ * `/v1/routing/*` API answers `routing_disabled` and admission sends a routed number to its
+ * routing release's default agent; the external flag lets the worker's external engine call out.
+ */
+export function routingFlagsFromEnv(environment: Environment): {
+  routingEnabled: boolean;
+  routingExternalEnabled: boolean;
+} {
+  return {
+    routingEnabled: environment.OVO_ROUTING_ENABLED === 'true',
+    routingExternalEnabled: environment.OVO_ROUTING_EXTERNAL_ENABLED === 'true',
+  };
 }
 
 function required(value: string | undefined, name: string): string {
@@ -84,6 +102,7 @@ export async function createOperationsRuntime(
     liveEnabled:
       options.liveEnabled === true ||
       (options.liveEnabled === undefined && environment.OVO_LIVE_DIAL_ENABLED === 'true'),
+    routingEnabled: options.routingEnabled ?? routingFlagsFromEnv(environment).routingEnabled,
   });
 
   const configuredProvider = environment.OVO_HANDOFF_PROVIDER?.trim();
