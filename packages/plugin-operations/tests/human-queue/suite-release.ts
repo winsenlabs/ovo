@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   useHarness,
   ticketKit,
-  ORG,
   context,
   externalDefinition,
   next,
@@ -22,7 +21,7 @@ export function describeRelease(make: () => Promise<HqHarness>) {
       outcome?: 'ended',
     ) =>
       tickets().release({
-        workspaceId: ORG,
+        workspaceId: h.org,
         ticketId: ticket.id,
         expectedVersion: ticket.version,
         reason: 'completed',
@@ -115,7 +114,7 @@ export function describeRelease(make: () => Promise<HqHarness>) {
       const drop = await open(queue, { contextRetentionHours: 0 });
       const one = (await accept(keep, 'asha')) as Ticket;
       await tickets().release({
-        workspaceId: ORG,
+        workspaceId: h.org,
         ticketId: one.id,
         expectedVersion: 2,
         reason: 'completed',
@@ -124,7 +123,7 @@ export function describeRelease(make: () => Promise<HqHarness>) {
         by: 'worker',
       });
       await tickets().release({
-        workspaceId: ORG,
+        workspaceId: h.org,
         ticketId: drop.id,
         expectedVersion: 1,
         reason: 'completed',

@@ -6,6 +6,7 @@ describeHumanQueueService('human queues on the in-memory service', async () => {
   const service = new InMemoryHumanQueueService();
   service.clock.set(T0);
   return {
+    org: 'org',
     service,
     clock: service.clock,
     bindPoint: async (pointId, queueIds) => service.bindPoint(pointId, queueIds),

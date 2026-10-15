@@ -125,7 +125,7 @@ export function describeOperators(make: () => Promise<HqHarness>) {
       const ticket = await h.service.tickets.create(ticketFor(queue));
       if (ticket === 'queue_full') throw new Error('unexpected');
       await h.service.tickets.accept({
-        workspaceId: 'org',
+        workspaceId: h.org,
         ticketId: ticket.id,
         operatorId: 'asha',
         expectedVersion: 1,
@@ -141,7 +141,7 @@ export function describeOperators(make: () => Promise<HqHarness>) {
       await h.service.operators.upsert(profile('ben', { teamIds: ['sales'] }));
       await h.service.operators.heartbeat('asha', 'AVAILABLE');
       const presence = await h.service.operators.presence({
-        workspaceId: 'org',
+        workspaceId: h.org,
         queueId: queue.id,
       });
       expect(presence).toEqual([

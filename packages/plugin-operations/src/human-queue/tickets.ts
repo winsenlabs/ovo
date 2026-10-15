@@ -37,6 +37,7 @@ export class TicketLifecycle {
   }
 
   private async createIn(tx: HqTx, input: NewTicket): Promise<Ticket | 'queue_full'> {
+    await tx.lockCall(input.callId);
     const now = this.ctx.now();
     const [existing] = await tx.scan({ idempotencyKey: input.idempotencyKey, limit: 1 });
     if (existing) return { ...this.view(existing), duplicate: true };

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   useHarness,
   ticketKit,
-  ORG,
   T0,
   context,
   externalDefinition,
@@ -27,7 +26,7 @@ export function describeCreate(make: () => Promise<HqHarness>) {
         queueId: queue.id,
         queueKey: 'floor',
         language: 'en',
-        workspaceId: ORG,
+        workspaceId: h.org,
         routerAgentId: 'front-desk',
         callbackUntil: '2026-10-16T09:00:00.000Z',
         createdAt: T0.toISOString(),
@@ -49,7 +48,7 @@ export function describeCreate(make: () => Promise<HqHarness>) {
       expect(again).toMatchObject({ id: first.id, priority: 0, duplicate: true });
       expect(await states(first.id)).toEqual(['waiting']);
       await tickets().release({
-        workspaceId: ORG,
+        workspaceId: h.org,
         ticketId: first.id,
         expectedVersion: 1,
         reason: 'completed',
@@ -75,7 +74,7 @@ export function describeCreate(make: () => Promise<HqHarness>) {
       const first = await open(queue);
       expect(await tickets().create(ticketFor(queue))).toBe('queue_full');
       await tickets().release({
-        workspaceId: ORG,
+        workspaceId: h.org,
         ticketId: first.id,
         expectedVersion: 1,
         reason: 'call_ended',

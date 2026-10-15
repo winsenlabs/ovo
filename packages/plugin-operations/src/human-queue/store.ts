@@ -38,6 +38,8 @@ export class HqConflictError extends Error {
 export interface HqTx {
   /** Serialises accepts and offers for one operator (the capacity race). */
   lockOperator(userId: string): Promise<void>;
+  /** Serialises ticket creation for one call, so a call's tickets never race each other. */
+  lockCall(callId: string): Promise<void>;
   operator(userId: string): Promise<OperatorRecord | undefined>;
   operators(): Promise<OperatorRecord[]>;
   putOperator(record: OperatorRecord): Promise<void>;

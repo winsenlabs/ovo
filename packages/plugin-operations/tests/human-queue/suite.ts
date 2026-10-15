@@ -5,6 +5,7 @@ import { describeAssign } from './suite-assign.ts';
 import { describeContext } from './suite-context.ts';
 import { describeCreate } from './suite-create.ts';
 import { describeOperators } from './suite-operators.ts';
+import { describePort } from './suite-port.ts';
 import { describeQueues } from './suite-queues.ts';
 import { describeRelease } from './suite-release.ts';
 import { describeSupport } from './suite-support.ts';
@@ -20,5 +21,6 @@ export function describeHumanQueueService(name: string, make: () => Promise<HqHa
     describeRelease(make);
     describeSupport(make);
     describeContext(make);
+    describePort(make);
   });
 }

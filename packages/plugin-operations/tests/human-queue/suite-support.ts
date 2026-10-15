@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { useHarness, ticketKit, ORG, T0, context, type HqHarness } from './harness.ts';
+import { useHarness, ticketKit, T0, context, type HqHarness } from './harness.ts';
 import type { Ticket } from '../../src/human-queue/service.ts';
 
 export function describeSupport(make: () => Promise<HqHarness>) {
@@ -98,7 +98,7 @@ export function describeSupport(make: () => Promise<HqHarness>) {
       ).toBe(true);
       expect((await get(ticket.id)).wrapUp).toEqual({ disposition: 'resolved', note: 'ok' });
       await tickets().release({
-        workspaceId: ORG,
+        workspaceId: h.org,
         ticketId: ticket.id,
         expectedVersion: 2,
         reason: 'completed',

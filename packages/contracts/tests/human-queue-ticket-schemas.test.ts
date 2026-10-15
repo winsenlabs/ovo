@@ -7,6 +7,9 @@ import {
   DeskAcceptResult,
   DeskCommand,
   HUMAN_METER_KEYS,
+  HUMAN_METER_PROVIDER,
+  HUMAN_METER_UNIT,
+  isHumanMeterKey,
   HumanCompletedPayload,
   HumanRequestedPayload,
   HumanStatePayload,
@@ -202,6 +205,11 @@ describe('runtime contracts the lanes build on', () => {
   });
 
   it('names the two human meters as unit-seconds host meters', () => {
+    expect(HUMAN_METER_PROVIDER).toBe('ovo');
+    expect(HUMAN_METER_UNIT).toBe('seconds');
+    expect(isHumanMeterKey('ovo.human.room_seconds')).toBe(true);
+    expect(isHumanMeterKey('ovo.human.operator_seconds')).toBe(true);
+    expect(isHumanMeterKey('deepgram.streaming-stt.audio_seconds')).toBe(false);
     expect(HUMAN_METER_KEYS).toEqual({
       operatorSeconds: 'ovo.human.operator_seconds',
       roomSeconds: 'ovo.human.room_seconds',

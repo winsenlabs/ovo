@@ -1,12 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  useHarness,
-  ticketKit,
-  ORG,
-  context,
-  externalDefinition,
-  type HqHarness,
-} from './harness.ts';
+import { useHarness, ticketKit, context, externalDefinition, type HqHarness } from './harness.ts';
 
 export function describeContext(make: () => Promise<HqHarness>) {
   const h = useHarness(make);
@@ -118,7 +111,7 @@ export function describeContext(make: () => Promise<HqHarness>) {
       ]);
       expect(second.cursor).toBeGreaterThan(first.cursor);
       await tickets().release({
-        workspaceId: ORG,
+        workspaceId: h.org,
         ticketId: a.id,
         expectedVersion: 2,
         reason: 'completed',

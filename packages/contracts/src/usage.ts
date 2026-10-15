@@ -65,3 +65,7 @@ export const HUMAN_METER_KEYS = Object.freeze({
   roomSeconds: 'ovo.human.room_seconds',
 } as const);
 export type HumanMeterKey = (typeof HUMAN_METER_KEYS)[keyof typeof HUMAN_METER_KEYS];
+
+const HUMAN_METER_KEY_SET: ReadonlySet<string> = new Set(Object.values(HUMAN_METER_KEYS));
+/** Whether a meter key is one of the human queue's host meters (those may be left unpriced). */
+export const isHumanMeterKey = (key: string): key is HumanMeterKey => HUMAN_METER_KEY_SET.has(key);

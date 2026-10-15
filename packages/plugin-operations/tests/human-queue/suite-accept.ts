@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  useHarness,
-  ticketKit,
-  ORG,
-  T0,
-  externalDefinition,
-  next,
-  type HqHarness,
-} from './harness.ts';
+import { useHarness, ticketKit, T0, externalDefinition, next, type HqHarness } from './harness.ts';
 import type { Ticket } from '../../src/human-queue/service.ts';
 
 export function describeAccept(make: () => Promise<HqHarness>) {
@@ -108,7 +100,7 @@ export function describeAccept(make: () => Promise<HqHarness>) {
       expect(await accept(b, 'asha')).toMatchObject({ status: 'accepted' });
       expect(await accept(c, 'asha')).toEqual({ kind: 'at_capacity' });
       await tickets().release({
-        workspaceId: ORG,
+        workspaceId: h.org,
         ticketId: a.id,
         expectedVersion: 2,
         reason: 'completed',

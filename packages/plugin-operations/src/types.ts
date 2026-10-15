@@ -131,6 +131,10 @@ export interface OperationsServiceConfig {
   liveEnabled?: boolean;
   /** OVO_ROUTING_ENABLED (Wave 15). Off: a routed number is admitted to its default agent. */
   routingEnabled?: boolean;
+  /** OVO_HUMAN_QUEUE_ENABLED (Wave 17). Off: the human queue tables stay empty and unread. */
+  humanQueueEnabled?: boolean;
+  /** OVO_HUMAN_QUEUE_PRESENCE_TTL_SECONDS: an operator heartbeat older than this reads OFFLINE. */
+  humanQueuePresenceTtlSeconds?: number;
 }
 
 export interface DispatchRecord {

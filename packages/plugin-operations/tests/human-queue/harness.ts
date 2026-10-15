@@ -11,6 +11,8 @@ export const T0 = new Date('2026-10-15T09:00:00.000Z');
 
 /** What a store under test offers the shared suite. */
 export interface HqHarness {
+  /** The organization the service is scoped to (workspace id of its tickets). */
+  org: string;
   service: HumanQueueService;
   clock: { now(): Date; advance(ms: number): void; set(date: Date): void };
   /** A live routing point whose draft binds these queues (undefined: the point is gone). */
@@ -81,8 +83,6 @@ export function ticketFor(queue: HumanQueue, patch: Partial<NewTicket> = {}): Ne
   };
 }
 
-export const ORG = 'org';
-
 export const profile = (userId: string, patch: Partial<OperatorProfile> = {}): OperatorProfile => ({
   userId,
   displayName: userId.toUpperCase(),
@@ -127,7 +127,7 @@ export function ticketKit(h: HqHarness) {
     },
     accept: (ticket: Pick<Ticket, 'id' | 'version'>, operatorId: string, key = `k-${next()}`) =>
       tickets().accept({
-        workspaceId: ORG,
+        workspaceId: h.org,
         ticketId: ticket.id,
         operatorId,
         expectedVersion: ticket.version,

@@ -90,7 +90,7 @@ describe.skipIf(!postgresUrl)('operations migration 011 and routing transfer sto
       'SELECT version FROM ovo_ops_schema_migrations ORDER BY version',
     );
     expect(versions.rows.map((row) => row.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
     ]);
   });
 

@@ -141,6 +141,7 @@ export class MemoryHqStore implements HqStore {
     const state = () => this.state;
     return {
       lockOperator: async () => undefined,
+      lockCall: async () => undefined,
       operator: async (userId) => state().operators.get(userId),
       operators: async () =>
         [...state().operators.values()].sort((a, b) => a.userId.localeCompare(b.userId)),

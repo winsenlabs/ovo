@@ -122,7 +122,7 @@ export function describeQueues(make: () => Promise<HqHarness>) {
         online: 1,
       });
       const accepted = await h.service.tickets.accept({
-        workspaceId: 'org',
+        workspaceId: h.org,
         ticketId: a.id,
         operatorId: 'asha',
         expectedVersion: a.version,
