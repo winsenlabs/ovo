@@ -34,7 +34,8 @@ export async function chainStep(
   const { request } = resolved;
   run.target = resolved.target;
   run.claimed = resolved.claimed || run.claimed;
-  const reason: SegmentReason = 'transfer';
+  // The router's own handoff that falls back to another target is still a route fallback.
+  const reason: SegmentReason = run.transfer !== undefined ? 'transfer' : 'fallback';
   if (request.kind === 'agent')
     return { attempt: host.attempt(run, agentTarget(host, request, reason)) };
   if (request.kind === 'node')

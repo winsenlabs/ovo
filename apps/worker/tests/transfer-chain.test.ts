@@ -126,6 +126,22 @@ describe('the hold timeout chain (transfer design 7.7)', () => {
     });
   });
 
+  it("names a target step of the router's own handoff a route fallback", async () => {
+    const resolveTarget = vi.fn(async (key: string) => ({
+      request: agentRequest('release-c'),
+      target: { key, description: 'Desk', destination: { kind: 'node' as const, node: 'x' } },
+      claimed: false,
+    }));
+    const h = await transferring([{ kind: 'target', key: 'desk' }, { kind: 'default' }], {
+      compose: { 'release-a': 'fail' },
+      releaseId: 'release-a',
+      reason: 'route',
+      resolveTarget,
+    });
+    await vi.waitFor(() => expect(h.journal.entries).toContain('s2.start'));
+    expect(h.event('route.segment')).toMatchObject({ releaseId: 'release-c', reason: 'fallback' });
+  });
+
   it('return re-claims the member the caller left and says so in the handover', async () => {
     const h = await transferring([{ kind: 'return' }, { kind: 'end', line: { en: 'Bye.' } }], {
       compose: { 'release-b': 'fail' },
