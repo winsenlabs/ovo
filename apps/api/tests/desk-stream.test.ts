@@ -228,6 +228,31 @@ describe('GET /v1/desk/stream', () => {
     }
   });
 
+  it('finds the end of the change feed past many other teams’ tickets, at the production poll rate', async () => {
+    const hq = await make({ sse: { pollMs: 500, heartbeatMs: 10_000 } });
+    const queue = await floor(hq);
+    const billing = await makeQueue(
+      hq,
+      managed({ name: 'Billing', teamIds: ['billing'], limits: { maxWaiting: 500 } }),
+    );
+    // More than two pages of the change feed, none of it visible to the support operators.
+    for (let index = 0; index < 450; index += 1) await openTicket(hq, billing);
+    const stream = await open(hq, 'asha');
+    try {
+      await stream.until((frames) => frames.some((f) => f.event === 'me'));
+      // The stream starts at the true head, not at the end of the first page it scanned.
+      expect(Number(stream.frames.at(-1)!.id)).toBeGreaterThanOrEqual(450);
+      const mine = await openTicket(hq, queue);
+      await stream.until(
+        (frames) =>
+          frames.some((f) => f.event === 'ticket' && (f.data as { id: string }).id === mine.id),
+        900,
+      );
+    } finally {
+      stream.close();
+    }
+  });
+
   it('resumes from Last-Event-ID without repeating what the client has', async () => {
     const hq = await make();
     const queue = await floor(hq);

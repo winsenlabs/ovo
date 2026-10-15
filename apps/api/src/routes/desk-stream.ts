@@ -10,23 +10,25 @@ import { sendError, type RoutingAudit } from './routing-support.ts';
 import { delay, openSse, parseCursor, writeSse } from './sse.ts';
 
 const StreamQuery = z.object({ cursor: z.coerce.number().int().min(0).optional() });
-/** `changes` returns at most this many rows a call; a full page means there may be more. */
-const PAGE = 200;
 const PER_OPERATOR = 4;
 const ME_EVERY_MS = 5_000;
 
 const bound = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
 
-/** The newest change id: the service's own, else the end of a walk through its change feed. */
-async function headOf(queues: ApiHumanQueueService, userId: string): Promise<number> {
+/**
+ * The newest change id: the service's own, else the end of a walk through its change feed from
+ * `from` (a lower bound, since change ids only grow). `changes` scans a page of every team's
+ * tickets and returns only the operator's, so how far the cursor moved, never how many items came
+ * back, says whether the feed went on.
+ */
+async function headOf(queues: ApiHumanQueueService, userId: string, from: number): Promise<number> {
   if (queues.tickets.head) return queues.tickets.head();
-  let cursor = 0;
-  for (let page = 0; page < 100; page += 1) {
+  let cursor = from;
+  for (;;) {
     const next = await queues.tickets.changes(cursor, userId);
+    if (next.cursor <= cursor) return cursor;
     cursor = next.cursor;
-    if (next.items.length < PAGE) break;
   }
-  return cursor;
 }
 
 /**
@@ -49,6 +51,8 @@ export function registerDeskStreamRoute(
   // Real time: a stream's heartbeats and lifetime are wall-clock, whatever clock the domain uses.
   const now = Date.now;
   let active = 0;
+  // Where the last walk of the change feed ended, so a new stream only walks what came after.
+  let knownHead = 0;
   const perUser = new Map<string, number>();
 
   input.app.get(
@@ -59,7 +63,8 @@ export function registerDeskStreamRoute(
         return sendError(reply, 429, 'stream_capacity', 'SSE connection limit reached');
       const resume =
         parseCursor(request.headers['last-event-id']) ?? StreamQuery.parse(request.query).cursor;
-      const head = await headOf(queues, userId);
+      const head = await headOf(queues, userId, knownHead);
+      knownHead = Math.max(knownHead, head);
       let cursor = resume !== undefined && resume <= head ? resume : head;
       const stale = resume !== undefined && resume > head;
       const snapshot = resume === undefined || stale;
@@ -113,8 +118,11 @@ export function registerDeskStreamRoute(
               lastWrite = now();
             }
           }
+          const advanced = next.cursor > cursor;
           cursor = next.cursor;
-          if (next.items.length >= PAGE) continue;
+          knownHead = Math.max(knownHead, cursor);
+          // The cursor moved, so the page may not have been the last: read on without waiting.
+          if (advanced) continue;
           if (now() - lastMeAt >= ME_EVERY_MS) {
             lastMeAt = now();
             const me = await meEvent();
