@@ -37,6 +37,9 @@ export async function transferStack(
   const stack = await startLiveStack(postgresUrl, {
     OVO_ROUTING_ENABLED: 'true',
     OVO_ROUTING_TRANSFER_ENABLED: String(flags.transfer),
+    // Every composition attempt is bounded by the prepare timeout (transfer design 9, default
+    // 2.5 s); the scenarios' slow knob composes in 4 s and must land within it.
+    OVO_ROUTING_PREPARE_TIMEOUT_MS: '6000',
   });
   const agent = await configureInboundAgent(stack.operator);
   const line = await configureTransferLine(stack.operator, agent, options);
@@ -47,16 +50,7 @@ export async function transferStack(
     },
     { timeout: 30_000, interval: 100 },
   );
-  await vi.waitFor(
-    async () => {
-      const capacity = await operatorApi(stack.operator)<{ readyProtected: number }>(
-        'GET',
-        '/v1/operations/inbound/capacity',
-      );
-      expect(capacity.readyProtected).toBeGreaterThanOrEqual(1);
-    },
-    { timeout: 15_000, interval: 250 },
-  );
+  await capacityReady(stack);
   return {
     stack,
     agent,
@@ -72,16 +66,47 @@ export async function transferStack(
 }
 export type TransferStack = Awaited<ReturnType<typeof transferStack>>;
 
+/** Waits until the worker can take an inbound call again (the previous call has let go of it). */
+async function capacityReady(stack: LiveStack) {
+  await vi.waitFor(
+    async () => {
+      const capacity = await operatorApi(stack.operator)<{ readyProtected: number }>(
+        'GET',
+        '/v1/operations/inbound/capacity',
+      );
+      expect(capacity.readyProtected).toBeGreaterThanOrEqual(1);
+    },
+    { timeout: 15_000, interval: 250 },
+  );
+}
+
+/** Where each call's speech starts in the fake's log, which a stack's calls share. */
+const spokenFrom = new WeakMap<FakeTwilioCall, number>();
+
 export async function count(stack: LiveStack, sql: string, values: unknown[] = []) {
   return Number((await stack.db.query<{ count: string }>(sql, values)).rows[0]!.count);
 }
 
+/**
+ * Waits until `line` was synthesised, alone or within a longer utterance (the router says its
+ * disclosure and greeting as one). A line said during a hold is followed by more hold audio, so
+ * its audio never settles while the caller is held: wait for that with `heard` only after a hold.
+ */
+export async function said(env: TransferStack, call: FakeTwilioCall, line: string) {
+  const spoken = () =>
+    env.openAi.speech.slice(spokenFrom.get(call) ?? 0).filter((text) => text.includes(line));
+  await vi.waitFor(
+    () => expect(spoken(), `"${line}" in ${JSON.stringify(env.openAi.speech)}`).not.toEqual([]),
+    {
+      timeout: 30_000,
+      interval: 100,
+    },
+  );
+}
+
 /** Waits until `line` was synthesised and its audio has finished reaching the caller. */
 export async function heard(env: TransferStack, call: FakeTwilioCall, line: string) {
-  await vi.waitFor(() => expect(env.openAi.speech).toContain(line), {
-    timeout: 30_000,
-    interval: 100,
-  });
+  await said(env, call, line);
   let bytes = -1;
   await vi.waitFor(
     () => {
@@ -91,6 +116,21 @@ export async function heard(env: TransferStack, call: FakeTwilioCall, line: stri
       expect(settled, 'the line is still playing').toBe(true);
     },
     { timeout: 15_000, interval: 700 },
+  );
+}
+
+/**
+ * Waits until the hold clip (its byte `pattern`) reaches the caller after the first `from` bytes.
+ * A hold line is rendered once and then played from the speech cache, so a later call's hold never
+ * reaches the fake TTS again. The router's own handoff may start a hold for its first frames too.
+ */
+export async function holding(call: FakeTwilioCall, pattern: Buffer, from = 0) {
+  await vi.waitFor(
+    () =>
+      expect(receivedAudio(call).subarray(from).includes(pattern), 'the hold clip is playing').toBe(
+        true,
+      ),
+    { timeout: 30_000, interval: 100 },
   );
 }
 
@@ -129,10 +169,12 @@ export async function transferCall(
   const { stack, agent } = env;
   const reservationsBefore = await count(stack, 'SELECT count(*) FROM ovo_cost_reservations');
   const urls = await carrierUrls(stack.operator, agent.twilioBindingId);
+  await capacityReady(stack);
   const call = new FakeTwilioCall(stack.gateway, agent, {
     from: '+919800000001',
     to: agent.number,
   });
+  spokenFrom.set(call, env.openAi.speech.length);
   let hungUp = false;
   const hangUp = async () => {
     hungUp = true;

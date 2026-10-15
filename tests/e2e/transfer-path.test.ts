@@ -5,6 +5,9 @@ import { LINES } from './support/routing-setup.ts';
 import {
   at,
   heard,
+  holding,
+  receivedAudio,
+  said,
   transferCall,
   transferStack,
   type SessionEvent,
@@ -158,7 +161,7 @@ describe.skipIf(!transferRuntime)('in-call agent transfer on one carrier leg (R2
     const queued = await transferCall(env, async (call) => {
       await toSalesEn(env, call);
       env.stt.say('I need billing please');
-      await heard(env, call, TRANSFER_LINES.queue);
+      await said(env, call, TRANSFER_LINES.queue);
       await operations.routing.claims.release('blocker-1');
       await heard(env, call, TRANSFER_LINES.billing);
     });
@@ -171,7 +174,7 @@ describe.skipIf(!transferRuntime)('in-call agent transfer on one carrier leg (R2
     const returned = await transferCall(env, async (call) => {
       await toSalesEn(env, call);
       env.stt.say('I need billing please');
-      await heard(env, call, TRANSFER_LINES.queue);
+      await said(env, call, TRANSFER_LINES.queue);
       await heard(env, call, TRANSFER_LINES.returned);
     });
     await operations.routing.claims.release('blocker-2');
@@ -237,7 +240,7 @@ describe.skipIf(!transferRuntime)('in-call agent transfer on one carrier leg (R2
       env.openAi.answer({ branch: 'sales', confidence: 0.9, language: 'en' });
       await heard(env, call, LINES.greeting);
       env.stt.say('I want to buy a card');
-      await heard(env, call, TRANSFER_LINES.holdLine);
+      await holding(call, line.pattern);
       await heard(env, call, LINES.salesEn);
     });
     expect(count(held.audio, line.pattern)).toBeGreaterThan(0);
@@ -262,8 +265,9 @@ describe.skipIf(!transferRuntime)('in-call agent transfer on one carrier leg (R2
     env.openAi.transfer('sales-en', { target: 'billing', summary: SUMMARY });
     const result = await transferCall(env, async (call, hangUp) => {
       await toSalesEn(env, call);
+      const before = receivedAudio(call).length;
       env.stt.say('billing please');
-      await heard(env, call, TRANSFER_LINES.holdLine);
+      await holding(call, line.pattern, before);
       await hangUp();
     });
     at(result.events, 'transfer.completed', { outcome: 'caller_hangup' });
@@ -307,11 +311,12 @@ describe.skipIf(!transferRuntime)('transfer limits and disclosure once per call 
       expect.objectContaining({ kinds: ['recording'], segment: 0 }),
       expect.objectContaining({ kinds: ['ai'], segment: 1 }),
     ]);
-    at(result.events, 'transfer.requested', {
-      key: 'senior',
-      result: 'refused',
-      refusal: 'limit_reached',
-    });
+    // maxTransfers 1 is used up: billing is no longer offered transfer_to_agent (the worker's
+    // port grants no targets once the call is exhausted), so the LLM carries on talking.
+    const billing = env.openAi.requests.filter((request) => request.agent === 'billing');
+    expect(billing.length).toBeGreaterThan(0);
+    expect(billing.some((request) => request.tools.includes('transfer_to_agent'))).toBe(false);
+    expect(of(result.events, 'transfer.requested')).toHaveLength(1);
   }, 180_000);
 });
 
