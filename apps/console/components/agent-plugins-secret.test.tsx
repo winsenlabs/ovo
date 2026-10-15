@@ -68,7 +68,7 @@ describe('agent plugin credential writing', () => {
         <AgentPluginsFeature agentId="agent-1" />
       </SessionProvider>,
     );
-    const secret = (await screen.findByLabelText('Api key')) as HTMLInputElement;
+    const secret = (await screen.findByLabelText('API key')) as HTMLInputElement;
     expect(secret.type).toBe('password');
     fireEvent.change(secret, { target: { value: 'private-key' } });
     fireEvent.blur(secret);

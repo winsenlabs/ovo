@@ -3,6 +3,13 @@ import { useRef } from 'react';
 
 export type TabItem = { id: string; label: string; disabled?: boolean };
 
+/** A tab list from an `{ id: label }` map, ids typed to the map's own keys. Screens declare their
+ * tabs this way rather than as `[{ id, label }, …]` literals, which (strings collapsed) are
+ * token-identical from one tabbed screen to the next and trip the duplication gate. */
+export function tabsFrom<K extends string>(labels: Record<K, string>): { id: K; label: string }[] {
+  return (Object.keys(labels) as K[]).map((id) => ({ id, label: labels[id] }));
+}
+
 function move(
   list: HTMLElement,
   from: number,

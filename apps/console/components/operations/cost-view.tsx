@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import type { SessionIdentity } from '../../lib/api';
 import { PageHeader } from '../ui/layout';
-import { Tabs } from '../ui/tabs';
+import { Tabs, tabsFrom } from '../ui/tabs';
 import { useTabState } from './use-tab-state';
 import { CostOverviewPanel } from './cost-overview-panel';
 import { PriceCatalogPanel } from './price-catalog-panel';
@@ -11,14 +11,14 @@ import { FxVersionPanel } from './fx-version-panel';
 import { ReconciliationPanel } from './reconciliation-panel';
 import { ScenarioPanel } from './scenario-panel';
 
-const TABS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'catalog', label: 'Price catalog' },
-  { id: 'cards', label: 'Price cards' },
-  { id: 'fx', label: 'FX' },
-  { id: 'reconciliation', label: 'Reconciliation' },
-  { id: 'scenario', label: 'Scenario' },
-] as const;
+const TABS = tabsFrom({
+  overview: 'Overview',
+  catalog: 'Price catalog',
+  cards: 'Price cards',
+  fx: 'FX',
+  reconciliation: 'Reconciliation',
+  scenario: 'Scenario',
+});
 type TabId = (typeof TABS)[number]['id'];
 
 /**

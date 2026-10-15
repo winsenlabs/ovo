@@ -81,8 +81,8 @@ it('builds stage breakdown bars with p50 and p95', () => {
   expect(
     stageBreakdownBars(groups.filter((g) => g.cohort.time === '2026-10-13T20:00:00.000Z')),
   ).toEqual([
-    { category: 'Stt', values: { p50: 200, p95: 400 } },
-    { category: 'Llm', values: { p50: 900, p95: 1400 } },
+    { category: 'STT', values: { p50: 200, p95: 400 } },
+    { category: 'LLM', values: { p50: 900, p95: 1400 } },
   ]);
 });
 

@@ -7,7 +7,6 @@ import {
   failureCount,
   medianCompletedDurationMs,
   timeoutShareOfFailures,
-  topFailureReasons,
   type CallRow,
 } from './agent-calls';
 
@@ -80,17 +79,6 @@ describe('dispositionBreakdown', () => {
     const breakdown = dispositionBreakdown(rows);
     expect(breakdown).toContainEqual({ label: 'promised_to_pay', value: 1 });
     expect(breakdown).toContainEqual({ label: 'No disposition', value: 1 });
-  });
-});
-
-describe('topFailureReasons', () => {
-  it('labels a timeout by stage and provider, and sorts most frequent first', () => {
-    const rows = [
-      call({ status: 'failed', outcome: { endReason: 'error:timeout:stt:deepgram' } as never }),
-      call({ status: 'failed', outcome: { endReason: 'error:timeout:stt:deepgram' } as never }),
-      call({ status: 'failed', outcome: { endReason: 'caller_hangup' } as never }),
-    ];
-    expect(topFailureReasons(rows)[0]).toEqual({ label: 'stt (deepgram)', count: 2 });
   });
 });
 

@@ -189,11 +189,11 @@ describe('manifest-driven console controls', () => {
         ]}
       />,
     );
-    fireEvent.change(screen.getByLabelText('Api key'), { target: { value: 'credential-1' } });
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'credential-1' } });
     expect(onChange).toHaveBeenCalledWith({
       apiKey: { credentialRef: { credentialId: 'credential-1' } },
     });
-    expect(screen.queryByLabelText('Api key', { selector: 'input[type=password]' })).toBeNull();
+    expect(screen.queryByLabelText('API key', { selector: 'input[type=password]' })).toBeNull();
   });
 
   it('makes a newly saved binding credential available to the sibling config selector', async () => {
@@ -247,7 +247,7 @@ describe('manifest-driven console controls', () => {
       );
     }
     render(<PluginControls />);
-    const field = screen.getByLabelText('Api key') as HTMLSelectElement;
+    const field = screen.getByLabelText('API key') as HTMLSelectElement;
     expect(field.options.length).toBe(1);
     fireEvent.change(screen.getByLabelText('New credential value'), {
       target: { value: 'private-key' },

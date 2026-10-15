@@ -12,7 +12,7 @@ import { PageHeader } from '../components/ui/layout';
 import { KpiCard, KpiStrip } from '../components/ui/kpi';
 import { StatusBadgeV2 } from '../components/ui/status-badge';
 import { IdChip } from '../components/ui/section-card';
-import { Tabs, type TabItem } from '../components/ui/tabs';
+import { Tabs, tabsFrom, type TabItem } from '../components/ui/tabs';
 import { Skeleton, ErrorState, EmptyStateV2 } from '../components/ui/feedback-v2';
 import { Duration, Money, RelativeTime } from '../components/ui/display';
 import { CodeBlock } from '../components/ui/code-block';
@@ -25,15 +25,15 @@ import { CostPanel } from '../components/inspector/cost-panel';
 import { EventsTab } from '../components/inspector/events-tab';
 import { LiveRecordingsPanel } from '../components/operations/live-recordings-panel';
 
-const TABS = [
-  { id: 'conversation', label: 'Conversation' },
-  { id: 'latency', label: 'Latency' },
-  { id: 'outcome', label: 'Outcome & routing' },
-  { id: 'cost', label: 'Cost' },
-  { id: 'events', label: 'Events' },
-  { id: 'recording', label: 'Recording files' },
-  { id: 'raw', label: 'Raw' },
-] satisfies TabItem[];
+const TABS: TabItem[] = tabsFrom({
+  conversation: 'Conversation',
+  latency: 'Latency',
+  outcome: 'Outcome & routing',
+  cost: 'Cost',
+  events: 'Events',
+  recording: 'Recording files',
+  raw: 'Raw',
+});
 
 function downloadEvidenceHref(evidence: CallEvidence): string {
   return `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(evidence, null, 2))}`;

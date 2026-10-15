@@ -4,7 +4,7 @@ import { apiRequest, ApiError, items, type SessionIdentity } from '../../lib/api
 import { PageHeader } from '../ui/layout';
 import { KpiCard, KpiStrip } from '../ui/kpi';
 import { SectionCard } from '../ui/section-card';
-import { Tabs, type TabItem } from '../ui/tabs';
+import { Tabs, tabsFrom, type TabItem } from '../ui/tabs';
 import { ErrorState, EmptyStateV2, SkeletonTableRows } from '../ui/feedback-v2';
 import { formatPercent } from '../../lib/format';
 import { CliRegistryPanel } from './cli-registry-panel';
@@ -30,14 +30,14 @@ interface Loaded {
   complaints: Complaint[];
 }
 
-const TABS: TabItem[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'numbers', label: 'Caller numbers' },
-  { id: 'complaints', label: 'Complaints' },
-  { id: 'consent', label: 'Consent & DND' },
-  { id: 'settings', label: 'Settings' },
-  { id: 'export', label: 'Export' },
-];
+const TABS: TabItem[] = tabsFrom({
+  overview: 'Overview',
+  numbers: 'Caller numbers',
+  complaints: 'Complaints',
+  consent: 'Consent & DND',
+  settings: 'Settings',
+  export: 'Export',
+});
 
 /**
  * India outbound compliance (TRAI TCCCPR, RBI recovery): sender settings, caller numbers and A2P

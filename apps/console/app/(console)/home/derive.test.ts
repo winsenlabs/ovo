@@ -80,7 +80,7 @@ describe('failureReasonBars', () => {
       call({ outcome: { endReason: 'caller_hangup' } as never }),
     ]);
     expect(bars).toHaveLength(1);
-    expect(bars[0]!.category).toBe('Stt');
+    expect(bars[0]!.category).toBe('STT');
   });
 });
 

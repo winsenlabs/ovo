@@ -102,7 +102,7 @@ describe('binding forms start from the plugin defaults', () => {
     fireEvent.change(select, { target: { value: elevenLabs.id } });
     // The create drawer renders the plugin's `bindingSchema` through `SchemaForm`, the same
     // field-per-property form `BindingEditDrawer` uses, instead of a raw-JSON textarea.
-    expect(((await screen.findByLabelText('model')) as HTMLSelectElement).value).toBe(
+    expect(((await screen.findByLabelText('Model')) as HTMLSelectElement).value).toBe(
       'eleven_flash_v2_5',
     );
     expect((screen.getByLabelText('Voice ID') as HTMLInputElement).value).toBe(

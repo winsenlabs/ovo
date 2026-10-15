@@ -74,28 +74,6 @@ export function dispositionBreakdown(rows: readonly CallRow[]): DispositionSlice
   return [...counts.entries()].map(([label, value]) => ({ label, value }));
 }
 
-export type FailureReason = { label: string; count: number };
-
-/** Top failure reasons as "<stage>[ (<provider>)]" for timeouts, else the raw end reason,
- * sorted most frequent first. */
-export function topFailureReasons(rows: readonly CallRow[], limit = 5): FailureReason[] {
-  const counts = new Map<string, number>();
-  for (const row of rows) {
-    if (row.status !== 'failed') continue;
-    const reason = row.outcome?.endReason;
-    if (!reason) continue;
-    const timeout = timeoutOf(reason);
-    const label = timeout
-      ? `${timeout.stage}${timeout.provider ? ` (${timeout.provider})` : ''}`
-      : reason;
-    counts.set(label, (counts.get(label) ?? 0) + 1);
-  }
-  return [...counts.entries()]
-    .map(([label, count]) => ({ label, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, limit);
-}
-
 export type DayBucket = { dayStart: number; count: number };
 
 /** One count per calendar day (UTC) from `days` ago through today, oldest first — a sparkline
