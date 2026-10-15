@@ -23,6 +23,7 @@ const LEGACY_END_REASONS: Readonly<Record<string, EndReason>> = Object.freeze({
   // stream. Twilio and Plivo report every hang-up as stream-ended; none of these is a failure.
   'carrier stream-ended': 'caller_hangup',
   'carrier caller-hangup': 'caller_hangup',
+  'carrier transferred': 'transferred',
   'carrier unknown': 'caller_hangup',
   // The carrier's status callback said the answered call completed before the stream stop
   // reached the worker: the worker then closes with the route's terminal status. A completed

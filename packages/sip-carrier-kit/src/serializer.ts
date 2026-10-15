@@ -15,7 +15,7 @@ export const SIP_MAX_AUDIO_FRAME = 8192;
 /** Downstream audio is split into frames of at most this many bytes. */
 export const SIP_MAX_DOWNSTREAM_FRAME = 32 * 1024;
 
-const STOP_REASONS = new Set(['caller-hangup', 'stream-ended']);
+const STOP_REASONS = new Set(['caller-hangup', 'stream-ended', 'transferred']);
 
 function frameOf(text: string) {
   let value: unknown;
@@ -97,7 +97,7 @@ export class SipMediaCodecSession implements MediaCodecSession {
           {
             type: 'stop',
             reason: STOP_REASONS.has(frame.reason)
-              ? (frame.reason as 'caller-hangup' | 'stream-ended')
+              ? (frame.reason as 'caller-hangup' | 'stream-ended' | 'transferred')
               : 'unknown',
           },
         ];

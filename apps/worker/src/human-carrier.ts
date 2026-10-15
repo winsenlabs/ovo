@@ -77,6 +77,8 @@ export class ExternalHandoffSegment implements StartableSegment {
   readonly entryInfo: NonNullable<StartableSegment['entryInfo']>;
   ending?: 'carrier_transfer';
   handedOff = false;
+  /** The carrier was asked to move the leg; its answer may arrive after the session has closed. */
+  private moving = false;
 
   constructor(
     private readonly attempt: HumanExternalAttempt,
@@ -101,9 +103,15 @@ export class ExternalHandoffSegment implements StartableSegment {
   async start(): Promise<void> {
     const { input } = this;
     const target = handoffTarget(input.destination, input.headers);
-    const result = await input.handoff(target, input.ticketId);
-    if (result.kind === 'rejected')
+    this.moving = true;
+    const result = await input.handoff(target, input.ticketId).catch((error: unknown) => {
+      this.moving = false;
+      throw error;
+    });
+    if (result.kind === 'rejected') {
+      this.moving = false;
       throw new Error(`carrier_refused:${refusalCode(result.reason)}`);
+    }
     this.handedOff = true;
     this.ending = 'carrier_transfer';
     input.record(
@@ -125,7 +133,7 @@ export class ExternalHandoffSegment implements StartableSegment {
   }
 
   async close(): Promise<undefined> {
-    if (!this.handedOff) await this.attempt.dispose('abandoned', 'failed');
+    if (!this.handedOff && !this.moving) await this.attempt.dispose('abandoned', 'failed');
     return undefined;
   }
 }
