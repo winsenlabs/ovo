@@ -24,6 +24,7 @@ import {
   positiveInteger,
 } from './dispatcher-capacity.ts';
 import { complianceDispositionTask } from './compliance-dispositions.ts';
+import { humanQueueOperationsConfig } from './human-queue-config.ts';
 import { DispatcherLoop, type DispatcherTask } from './dispatcher-loop.ts';
 import { publishInboundReadiness } from './inbound-readiness-store.ts';
 import { releaseTerminalCalls } from './terminal-calls.ts';
@@ -97,9 +98,7 @@ export async function openDispatcherProcess(input: {
         .split(',')
         .map((x) => x.trim())
         .filter(Boolean),
-      // Wave 17: the human queue sweeper is a no-op unless the service is enabled here too.
-      humanQueueEnabled: env.OVO_HUMAN_QUEUE_ENABLED === 'true',
-      ...humanQueuePresenceTtl(env.OVO_HUMAN_QUEUE_PRESENCE_TTL_SECONDS),
+      ...humanQueueOperationsConfig(env),
     },
   });
   const ledgerPlugin = createCostLedgerPlugin();
@@ -237,14 +236,4 @@ export async function openDispatcherProcess(input: {
     await composition.dispose();
     throw error;
   }
-}
-
-/** The presence TTL when `OVO_HUMAN_QUEUE_PRESENCE_TTL_SECONDS` is set to 10 to 300; else the default. */
-function humanQueuePresenceTtl(value: string | undefined): {
-  humanQueuePresenceTtlSeconds?: number;
-} {
-  const seconds = Number(value);
-  return Number.isInteger(seconds) && seconds >= 10 && seconds <= 300
-    ? { humanQueuePresenceTtlSeconds: seconds }
-    : {};
 }

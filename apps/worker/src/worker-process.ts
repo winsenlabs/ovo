@@ -124,7 +124,7 @@ export async function openWorkerProcess() {
     );
   });
   // Wave 17: the room server plugin (`ovo.media-room`) is composed beside the carriers, and only
-  // while human queues are on; the distribution loads it only under OVO_LIVEKIT_ENABLED=true.
+  // while human queues are on; the distribution loads it only when the room feature is enabled.
   const roomRows =
     process.env.OVO_HUMAN_QUEUE_ENABLED === 'true'
       ? distribution.processRows.filter((row) => {
