@@ -113,6 +113,11 @@ export class FakeTwilioCall {
     }, 20);
   }
 
+  /** The caller presses a key: Twilio's `dtmf` stream message on the inbound track. */
+  pressDigit(digit: string): void {
+    this.send({ event: 'dtmf', dtmf: { track: 'inbound_track', digit } });
+  }
+
   /** The caller stops talking; Twilio keeps streaming silence. */
   fallSilent(): void {
     this.speaking = false;

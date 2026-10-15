@@ -18,6 +18,8 @@ export interface InboundAgent {
   accountSid: string;
   authToken: string;
   number: string;
+  /** The agent config the release was published from; routed tests clone it for more agents. */
+  config: Record<string, unknown>;
 }
 
 /** A signed-in console session against the in-process management API. */
@@ -153,30 +155,29 @@ export async function configureInboundAgent(operator: Operator): Promise<Inbound
     admissionOverspendPaise: '0',
   });
 
-  const agent = await call<{ id: string }>('POST', '/v1/agents', {
-    config: {
-      name: 'Live path',
-      mode: 'agent',
-      language: 'en-IN',
-      locale: 'en-IN',
-      timezone: 'Asia/Kolkata',
-      context: 'You are a polite support agent on a phone call. Reply in short spoken sentences.',
-      recording: false,
-      voice: {
-        engine: { plugin: '@winsendotai/ovo-plugin-voice-session-engine', config: {} },
-        carrier: { plugin: TWILIO, binding: twilio, config: {} },
-        stt: { plugin: '@winsendotai/ovo-stt-assemblyai', binding: stt, config: {} },
-        tts: { plugin: '@winsendotai/ovo-provider-openai-tts', binding: tts, config: {} },
-        llm: { plugin: '@winsendotai/ovo-provider-openai-inference', binding: llm, config: {} },
-      },
-      costPolicy: {
-        budgetId: 'live-path',
-        reservationPaise: '5000',
-        maxCallSeconds: 300,
-        priceCards,
-      },
+  const config = {
+    name: 'Live path',
+    mode: 'agent',
+    language: 'en-IN',
+    locale: 'en-IN',
+    timezone: 'Asia/Kolkata',
+    context: 'You are a polite support agent on a phone call. Reply in short spoken sentences.',
+    recording: false,
+    voice: {
+      engine: { plugin: '@winsendotai/ovo-plugin-voice-session-engine', config: {} },
+      carrier: { plugin: TWILIO, binding: twilio, config: {} },
+      stt: { plugin: '@winsendotai/ovo-stt-assemblyai', binding: stt, config: {} },
+      tts: { plugin: '@winsendotai/ovo-provider-openai-tts', binding: tts, config: {} },
+      llm: { plugin: '@winsendotai/ovo-provider-openai-inference', binding: llm, config: {} },
     },
-  });
+    costPolicy: {
+      budgetId: 'live-path',
+      reservationPaise: '5000',
+      maxCallSeconds: 300,
+      priceCards,
+    },
+  };
+  const agent = await call<{ id: string }>('POST', '/v1/agents', { config });
   const release = await call<{ id: string }>('POST', `/v1/agents/${agent.id}/releases`, {});
 
   const number = '+12515550142';
@@ -199,6 +200,7 @@ export async function configureInboundAgent(operator: Operator): Promise<Inbound
     accountSid,
     authToken,
     number,
+    config,
   };
 }
 
