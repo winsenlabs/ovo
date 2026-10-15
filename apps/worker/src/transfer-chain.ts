@@ -1,6 +1,7 @@
 import type { HoldTimeoutStep } from '@winsendotai/ovo-contracts';
 import type { SegmentReason } from './transfer-attempt.ts';
 import { agentTarget, memberCandidate, memberTarget, routerTarget } from './transfer-begin.ts';
+import { capturedFor } from './transfer-handover.ts';
 import { TRANSFER_CLAIM_RETRY_MS, type ConnectHost, type TransferRun } from './transfer-types.ts';
 
 /** What waiting for a candidate came to: `ready`, the call or the hold ending, or a failure code. */
@@ -23,7 +24,7 @@ export async function chainStep(
       ...{ variables: run.request.variables, role: 'agent' as const, reason: 'return' as const },
       ...(member ? { poolId: member.poolId, memberId: member.memberId } : {}),
       ...(claim?.kind === 'claimed' ? { claimId: claim.claimId } : {}),
-      captured: { ...deps.memory.captured },
+      ...capturedFor(deps),
     };
     return { attempt: host.attempt(run, target) };
   }
@@ -50,12 +51,12 @@ export async function chainStep(
 
 /** The routing release's default target: direct, with no member claim. */
 export function fallbackTarget(host: ConnectHost, run: TransferRun) {
-  const { fallback, memory } = host.deps;
+  const { fallback } = host.deps;
   return {
     ...{ agentId: fallback.agentId, releaseId: fallback.releaseId },
     ...{ variables: run.request.variables, role: 'agent' as const },
     reason: (run.transfer !== undefined ? 'transfer' : 'fallback') as SegmentReason,
-    captured: { ...memory.captured },
+    ...capturedFor(host.deps),
   };
 }
 

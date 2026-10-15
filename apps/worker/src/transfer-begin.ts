@@ -11,6 +11,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import type { SegmentHistoryEntry } from './call-memory.ts';
 import type { AttemptTarget, SegmentReason } from './transfer-attempt.ts';
+import { capturedFor } from './transfer-handover.ts';
 import {
   MAX_SEGMENT_INDEX,
   type ConnectHost,
@@ -118,7 +119,7 @@ export function agentTarget(
 ): AttemptTarget {
   return {
     ...{ agentId: request.agentId, releaseId: request.releaseId, variables: request.variables },
-    ...{ role: 'agent', reason, captured: { ...host.deps.memory.captured } },
+    ...{ role: 'agent', reason, ...capturedFor(host.deps) },
     ...(request.route?.poolId ? { poolId: request.route.poolId } : {}),
     ...(request.route?.memberId ? { memberId: request.route.memberId } : {}),
     ...(request.route?.claimId ? { claimId: request.route.claimId } : {}),
@@ -138,7 +139,7 @@ export function memberTarget(
     ...{ variables: run.request.variables, role: 'agent', reason },
     ...{ poolId: candidate.poolId, memberId: candidate.memberId },
     ...(claim.kind === 'claimed' ? { claimId: claim.claimId } : {}),
-    captured: { ...host.deps.memory.captured },
+    ...capturedFor(host.deps),
   };
 }
 

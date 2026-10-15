@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CallMemory } from '../src/call-memory.ts';
 import { buildHandover, recentTurns } from '../src/transfer-handover.ts';
+import {
+  agentRequest,
+  holdPolicy,
+  signal,
+  transferHarness,
+  transferPolicy,
+} from './transfer-fixtures.ts';
 
 const strict = {
   variables: {
@@ -198,5 +205,42 @@ describe('the handover (transfer design 7.9)', () => {
     expect(kept.length).toBe(12);
     expect(kept.at(-1)!.text.startsWith('29')).toBe(true);
     expect(recentTurns(lines, 0)).toEqual([]);
+  });
+});
+
+describe('handover.capturedVariables: false (transfer design 7.9, 11)', () => {
+  /** A transfer whose target fails, then whose `default` fails, then which returns the caller. */
+  async function composed(capturedVariables: boolean) {
+    const policy = transferPolicy({
+      handover: { summary: true, transcriptTurns: 6, capturedVariables },
+      hold: holdPolicy({ onTimeout: [{ kind: 'default' }, { kind: 'return' }] }),
+    });
+    const h = transferHarness({
+      first: 'agent',
+      policy,
+      compose: { 'release-b': 'fail', 'release-default': 'fail' },
+    });
+    h.memory.observe('variables.captured', { variables: { account: 'A-17' } });
+    const agent = await h.started();
+    const begun = await h.controller.begin(agentRequest('release-b'), signal());
+    if (!begun.ok) throw new Error(begun.reason);
+    h.controller.commit(begun.handoffId);
+    await agent.complete();
+    await vi.waitFor(() => expect(h.journal.entries).toContain('s3.start'));
+    return h.targets.map(({ target }) => [target.releaseId, target.captured]);
+  }
+
+  it("keeps the call's captured values from every target's variables, not only its handover", async () => {
+    expect(await composed(false)).toEqual([
+      ['release-b', undefined],
+      ['release-default', undefined],
+      ['release-a', undefined],
+    ]);
+    const captured = { account: 'A-17' };
+    expect(await composed(true)).toEqual([
+      ['release-b', captured],
+      ['release-default', captured],
+      ['release-a', captured],
+    ]);
   });
 });

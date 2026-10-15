@@ -37,9 +37,10 @@ export interface SegmentHooks {
  *
  * - its early work (STT pre-connect, per-call clips) runs under `<job id>:s<index>`, and the
  *   segment disposes its own STT;
- * - its variables are the call's, the values the call captured (R2), and the route's
- *   `ovo_route_*` context, as far as its release's variables schema declares and accepts them (a
- *   strict agent refuses any other);
+ * - its variables are the call's, the values the call captured (R2: only those a transfer target
+ *   carries, none when the point's handover withholds them), and the route's `ovo_route_*`
+ *   context, as far as its release's variables schema declares and accepts them (a strict agent
+ *   refuses any other);
  * - from segment 1 its ids carry `s<index>:` and its time limit is what is left of the router
  *   policy's;
  * - it hangs up, or hands the carrier leg on, with its own release's transfer target (only while

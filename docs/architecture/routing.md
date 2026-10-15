@@ -297,7 +297,8 @@ announcement). It receives a `TransferHandover`: who transferred and why, the su
 transferring LLM wrote (a required tool argument when `handover.summary` is on), the last
 `handover.transcriptTurns` turns (at most 6000 characters), the route context, the call's captured
 variables **filtered to what its variable schema declares and accepts** (`filterDeclaredVariables`),
-and the disclosure kinds already heard. The handover reaches its LLM as a fenced data section, never
+and the disclosure kinds already heard. The same captured values seed the incoming agent's call
+variables (its prompt and tools); with `handover.capturedVariables: false` they reach neither. The handover reaches its LLM as a fenced data section, never
 as instructions, and is never logged, evented or stored. Disclosure parts (identity, AI, recording,
 opt-out hint) are said once per call: a later segment skips the kinds already heard in full.
 

@@ -89,6 +89,18 @@ export function recentTurns(
   return kept;
 }
 
+/**
+ * The call's captured values for a composed target's variables (design 7.9, 11): none when the
+ * point's handover withholds them (`capturedVariables: false`), so they reach neither the target's
+ * handover nor its prompt and tools. The composer keeps those the target's schema accepts.
+ */
+export function capturedFor(deps: Pick<TransferControllerDeps, 'policy' | 'memory'>): {
+  captured?: Record<string, unknown>;
+} {
+  const policy = deps.policy?.handover ?? DEFAULT_HANDOVER;
+  return policy.capturedVariables ? { captured: { ...deps.memory.captured } } : {};
+}
+
 /** What a run's attempt at `target` hands over, built for the target's schema when asked. */
 export function runHandover(
   run: TransferRun,
