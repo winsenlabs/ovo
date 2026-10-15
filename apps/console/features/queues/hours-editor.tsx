@@ -36,10 +36,7 @@ export function HoursEditor({
           onChange({
             timezone: 'Asia/Kolkata',
             weekly: Object.fromEntries(
-              (['mon', 'tue', 'wed', 'thu', 'fri'] as const).map((day) => [
-                day,
-                [{ ...DEFAULT_WINDOW }],
-              ]),
+              (['mon', 'tue', 'wed', 'thu', 'fri'] as const).map((day) => [day, [{ ...DEFAULT_WINDOW }]]),
             ),
             closed: [],
           })
@@ -55,11 +52,7 @@ export function HoursEditor({
   };
   return (
     <div className="queue-hours">
-      <SwitchField
-        label="Only open during set hours"
-        checked
-        onChange={() => onChange(undefined)}
-      />
+      <SwitchField label="Only open during set hours" checked onChange={() => onChange(undefined)} />
       <TextField
         id="queue-hours-zone"
         label="Time zone"

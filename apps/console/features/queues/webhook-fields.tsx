@@ -38,27 +38,15 @@ function HeadersEditor({
             type="button"
             className="text-button"
             aria-label={`Remove header ${key}`}
-            onClick={() =>
-              onChange(Object.fromEntries(Object.entries(headers).filter(([k]) => k !== key)))
-            }
+            onClick={() => onChange(Object.fromEntries(Object.entries(headers).filter(([k]) => k !== key)))}
           >
             Remove
           </button>
         </div>
       ))}
       <div className="queue-lines-row">
-        <input
-          aria-label="New header name"
-          placeholder="Header name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          aria-label="New header value"
-          placeholder="Value"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-        />
+        <input aria-label="New header name" placeholder="Header name" value={name} onChange={(e) => setName(e.target.value)} />
+        <input aria-label="New header value" placeholder="Value" value={value} onChange={(e) => setValue(e.target.value)} />
         <button
           type="button"
           className="button"
@@ -170,9 +158,7 @@ export function WebhookFields({
           placeholder="Choose a credential…"
           options={credentials}
           error={errors['webhook.auth.credentialId']}
-          onChange={(credentialId) =>
-            set('auth', { ...spec.auth, credentialId } as WebhookSpec['auth'])
-          }
+          onChange={(credentialId) => set('auth', { ...spec.auth, credentialId } as WebhookSpec['auth'])}
         />
       )}
       {spec.auth.kind === 'header' && (

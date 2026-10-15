@@ -1,22 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import {
-  applyCaption,
-  handoverConversation,
-  liveConversation,
-  MAX_CAPTION_LINES,
-} from './captions';
+import { applyCaption, handoverConversation, liveConversation, MAX_CAPTION_LINES } from './captions';
 
 describe('applyCaption', () => {
   it('replaces a speaker’s interim caption until it finalises', () => {
     let lines = applyCaption([], { role: 'caller', text: 'I want', final: false, at: 1_000 });
     lines = applyCaption(lines, { role: 'caller', text: 'I want to pay', final: false, at: 1_200 });
     expect(lines).toHaveLength(1);
-    lines = applyCaption(lines, {
-      role: 'caller',
-      text: 'I want to pay my bill.',
-      final: true,
-      at: 1_800,
-    });
+    lines = applyCaption(lines, { role: 'caller', text: 'I want to pay my bill.', final: true, at: 1_800 });
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatchObject({ text: 'I want to pay my bill.', final: true });
     lines = applyCaption(lines, { role: 'caller', text: 'Today', final: false, at: 2_000 });

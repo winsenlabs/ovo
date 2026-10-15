@@ -1,18 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../lib/api';
-import {
-  externalRecord,
-  managedRecord,
-  queuesApi,
-  resetQueues,
-  roomStatus,
-} from './queues-test-support';
+import { externalRecord, managedRecord, queuesApi, resetQueues, roomStatus } from './queues-test-support';
 import { QueuesView } from './queues-view';
 
-vi.mock('../../lib/data/queues-api', async () =>
-  (await import('./queues-test-support')).queuesApiModule(),
-);
+vi.mock('../../lib/data/queues-api', async () => (await import('./queues-test-support')).queuesApiModule());
 vi.mock('../../lib/api', async (original) => ({
   ...(await original<typeof import('../../lib/api')>()),
   apiRequest: vi.fn(async () => ({ data: { items: [] } })),
@@ -65,9 +57,7 @@ describe('Human queues list', () => {
     queuesApi.list.mockResolvedValue([]);
     render(<QueuesView role="editor" />);
     expect(await screen.findByText('No queues yet')).toBeTruthy();
-    expect(
-      screen.getAllByRole('button', { name: 'New operator desk queue' }).length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'New operator desk queue' }).length).toBeGreaterThan(0);
   });
 
   it('hides create, edit, delete and tests from a viewer', async () => {
@@ -82,11 +72,7 @@ describe('Human queues list', () => {
 
   it('lets only an admin send a test webhook, and shows each attempt', async () => {
     queuesApi.testWebhook.mockResolvedValue({
-      request: {
-        url: 'https://acd.example.com/ovo/handoff',
-        headers: { 'x-ovo-signature': 'v1=…' },
-        body: { test: true },
-      },
+      request: { url: 'https://acd.example.com/ovo/handoff', headers: { 'x-ovo-signature': 'v1=…' }, body: { test: true } },
       attempts: [
         { attempt: 1, outcome: 'retry', status: 503, ms: 120 },
         { attempt: 2, outcome: 'delivered', status: 200, ms: 80 },
@@ -103,9 +89,7 @@ describe('Human queues list', () => {
   });
 
   it('reports a failed test without a stack of internals', async () => {
-    queuesApi.testWebhook.mockRejectedValue(
-      new ApiError(503, 'webhook_disabled', 'Webhooks are off'),
-    );
+    queuesApi.testWebhook.mockRejectedValue(new ApiError(503, 'webhook_disabled', 'Webhooks are off'));
     render(<QueuesView role="admin" />);
     fireEvent.click(await screen.findByRole('button', { name: 'Send test webhook for Acme ACD' }));
     expect(await screen.findByText('Webhooks are off')).toBeTruthy();
@@ -130,20 +114,14 @@ describe('deleting a queue', () => {
     );
     render(<QueuesView role="editor" />);
     fireEvent.click(await screen.findByRole('button', { name: 'Delete Support desk' }));
-    fireEvent.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Confirm' }),
-    );
-    expect(
-      await screen.findByText(/still bound by routing points: Sales line, Support line/),
-    ).toBeTruthy();
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Confirm' }));
+    expect(await screen.findByText(/still bound by routing points: Sales line, Support line/)).toBeTruthy();
   });
 
   it('does nothing when the confirmation is cancelled', async () => {
     render(<QueuesView role="editor" />);
     fireEvent.click(await screen.findByRole('button', { name: 'Delete Support desk' }));
-    fireEvent.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),
-    );
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }));
     expect(queuesApi.remove).not.toHaveBeenCalled();
   });
 });

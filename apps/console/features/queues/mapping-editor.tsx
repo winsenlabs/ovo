@@ -57,10 +57,7 @@ export function MappingEditor({
               id="queue-field-picker"
               value={picked}
               placeholder="Insert a call field…"
-              options={fields.map((field) => ({
-                value: field.path,
-                label: `${field.label} (${field.path})`,
-              }))}
+              options={fields.map((field) => ({ value: field.path, label: `${field.label} (${field.path})` }))}
               onChange={setPicked}
             />
             <button type="button" className="button" disabled={!picked} onClick={insert}>
@@ -80,9 +77,7 @@ export function MappingEditor({
           <div aria-live="polite" className="queue-preview">
             <h4>Preview</h4>
             {preview.status === 'loading' && <p className="muted">Rendering…</p>}
-            {preview.status === 'error' && (
-              <InlineAlert tone="danger">{preview.message}</InlineAlert>
-            )}
+            {preview.status === 'error' && <InlineAlert tone="danger">{preview.message}</InlineAlert>}
             {preview.status === 'ready' && (
               <>
                 {preview.result.issues.map((issue, index) => (

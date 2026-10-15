@@ -39,9 +39,7 @@ export function Conversation({
 }) {
   const [showInterim, setShowInterim] = useState(false);
   const visible = showInterim || liveInterim ? lines : lines.filter((line) => !line.interim);
-  const interimCount = liveInterim
-    ? 0
-    : lines.length - lines.filter((line) => !line.interim).length;
+  const interimCount = liveInterim ? 0 : lines.length - lines.filter((line) => !line.interim).length;
 
   return (
     <div className="ds-conversation">
@@ -67,7 +65,9 @@ export function Conversation({
               <span className="ds-conversation-meta">
                 {/* Position + colour alone conveyed the speaker before; name it too (brief §1
                     rule 3 — never colour-only meaning). */}
-                <span className="ds-conversation-speaker">{SPEAKER_LABEL[line.speaker]}</span>
+                <span className="ds-conversation-speaker">
+                  {SPEAKER_LABEL[line.speaker]}
+                </span>
                 {line.atMs !== undefined && <span className="mono">{mmss(line.atMs)}</span>}
                 {line.played === false && <span className="ds-chip">Generated, not played</span>}
                 {line.latencyMs != null && (

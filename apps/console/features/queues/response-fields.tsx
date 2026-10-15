@@ -38,24 +38,9 @@ export function ResponseFields({
       description="Leave the paths blank if the third party replies in OVO's standard format ({ status, destination })."
     >
       {pointer('statusPath', 'Status field', '/result')}
-      <TagsField
-        id="queue-accepted"
-        label="Values meaning accepted"
-        values={value.acceptedValues}
-        onChange={(acceptedValues) => onChange({ ...value, acceptedValues })}
-      />
-      <TagsField
-        id="queue-queued"
-        label="Values meaning queued"
-        values={value.queuedValues}
-        onChange={(queuedValues) => onChange({ ...value, queuedValues })}
-      />
-      <TagsField
-        id="queue-rejected"
-        label="Values meaning rejected"
-        values={value.rejectedValues}
-        onChange={(rejectedValues) => onChange({ ...value, rejectedValues })}
-      />
+      <TagsField id="queue-accepted" label="Values meaning accepted" values={value.acceptedValues} onChange={(acceptedValues) => onChange({ ...value, acceptedValues })} />
+      <TagsField id="queue-queued" label="Values meaning queued" values={value.queuedValues} onChange={(queuedValues) => onChange({ ...value, queuedValues })} />
+      <TagsField id="queue-rejected" label="Values meaning rejected" values={value.rejectedValues} onChange={(rejectedValues) => onChange({ ...value, rejectedValues })} />
       {pointer('ticketRefPath', 'Their reference field', '/ticket/id')}
       {pointer('destinationE164Path', 'Phone number field', '/dial/number')}
       {pointer('destinationSipUriPath', 'SIP address field', '/dial/uri')}

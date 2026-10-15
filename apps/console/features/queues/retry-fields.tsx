@@ -33,33 +33,9 @@ export function RetryFields({
         value={spec.timeoutMs}
         onChange={(timeoutMs) => onChange({ ...spec, timeoutMs })}
       />
-      <NumberField
-        id="queue-attempts"
-        label="Attempts"
-        min={1}
-        max={5}
-        error={errors['webhook.retry.attempts']}
-        value={spec.retry.attempts}
-        onChange={(v) => retry('attempts', v)}
-      />
-      <NumberField
-        id="queue-base"
-        label="First retry after"
-        unit="ms"
-        min={100}
-        max={5000}
-        value={spec.retry.baseMs}
-        onChange={(v) => retry('baseMs', v)}
-      />
-      <NumberField
-        id="queue-max-delay"
-        label="Longest pause"
-        unit="ms"
-        min={100}
-        max={10000}
-        value={spec.retry.maxMs}
-        onChange={(v) => retry('maxMs', v)}
-      />
+      <NumberField id="queue-attempts" label="Attempts" min={1} max={5} error={errors['webhook.retry.attempts']} value={spec.retry.attempts} onChange={(v) => retry('attempts', v)} />
+      <NumberField id="queue-base" label="First retry after" unit="ms" min={100} max={5000} value={spec.retry.baseMs} onChange={(v) => retry('baseMs', v)} />
+      <NumberField id="queue-max-delay" label="Longest pause" unit="ms" min={100} max={10000} value={spec.retry.maxMs} onChange={(v) => retry('maxMs', v)} />
       <NumberField
         id="queue-deadline"
         label="Give up after"

@@ -68,18 +68,12 @@ export function QueueDrawer({
     if (!open) return;
     void apiRequest<unknown>('/routing/audio?limit=100').then(
       ({ data }) =>
-        setAudio(
-          items<{ id: string; name: string }>(data).map((row) => ({
-            value: row.id,
-            label: row.name,
-          })),
-        ),
+        setAudio(items<{ id: string; name: string }>(data).map((row) => ({ value: row.id, label: row.name }))),
       () => setAudio([]),
     );
   }, [open]);
 
-  const patch = (path: string, value: unknown) =>
-    setDraft((current) => setIn(current, path, value));
+  const patch = (path: string, value: unknown) => setDraft((current) => setIn(current, path, value));
   const errors = Object.fromEntries(issues.map((issue) => [issue.path.join('.'), issue.message]));
 
   async function save(event: FormEvent) {
@@ -97,11 +91,8 @@ export function QueueDrawer({
       if (failure instanceof ApiError && failure.code === 'queue_name_taken')
         setIssues([{ path: ['name'], message: 'Another queue already has this name.' }]);
       else if (failure instanceof ApiError && failure.status === 409)
-        setError(
-          'Someone else changed this queue. Close this panel and open it again to see their changes.',
-        );
-      else if (!found)
-        setError(failure instanceof Error ? failure.message : 'The queue could not be saved.');
+        setError('Someone else changed this queue. Close this panel and open it again to see their changes.');
+      else if (!found) setError(failure instanceof Error ? failure.message : 'The queue could not be saved.');
     } finally {
       setBusy(false);
     }
@@ -125,28 +116,18 @@ export function QueueDrawer({
     }
   }
 
-  const title = record
-    ? `Edit ${record.definition.name}`
-    : `New ${kindLabel(kind).toLowerCase()} queue`;
+  const title = record ? `Edit ${record.definition.name}` : `New ${kindLabel(kind).toLowerCase()} queue`;
   return (
     <Drawer open={open} title={title} onClose={onClose}>
       <form className="queue-form" onSubmit={save} noValidate>
         {issues.length > 0 && (
           <InlineAlert tone="danger">
             {issues.length} {issues.length === 1 ? 'problem' : 'problems'} to fix:{' '}
-            {issues
-              .map((issue) => `${issue.path.join('.') || 'queue'}: ${issue.message}`)
-              .join('; ')}
+            {issues.map((issue) => `${issue.path.join('.') || 'queue'}: ${issue.message}`).join('; ')}
           </InlineAlert>
         )}
         {error && <InlineAlert tone="danger">{error}</InlineAlert>}
-        <CommonFields
-          draft={draft}
-          patch={patch}
-          errors={errors}
-          audio={audio}
-          creating={!record}
-        />
+        <CommonFields draft={draft} patch={patch} errors={errors} audio={audio} creating={!record} />
         {draft.kind === 'external' ? (
           <>
             <WebhookFields
@@ -155,11 +136,7 @@ export function QueueDrawer({
               errors={errors}
               onChange={(spec) => patch('webhook', spec)}
             />
-            <MappingEditor
-              spec={draft.webhook}
-              policy={draft.context}
-              onChange={(spec) => patch('webhook', spec)}
-            />
+            <MappingEditor spec={draft.webhook} policy={draft.context} onChange={(spec) => patch('webhook', spec)} />
             <ResponseFields
               value={draft.webhook.response}
               errors={errors}
@@ -181,19 +158,10 @@ export function QueueDrawer({
         ) : (
           <DeskFields draft={draft} patch={patch} errors={errors} />
         )}
-        <ContextFields
-          value={draft.context}
-          kind={draft.kind}
-          onChange={(value) => patch('context', value)}
-        />
+        <ContextFields value={draft.context} kind={draft.kind} onChange={(value) => patch('context', value)} />
         {record && draft.kind === 'external' && canTest && (
           <div className="queue-test-box">
-            <button
-              type="button"
-              className="button"
-              onClick={() => void sendTest()}
-              disabled={test.status === 'running'}
-            >
+            <button type="button" className="button" onClick={() => void sendTest()} disabled={test.status === 'running'}>
               Send test webhook
             </button>
             <small className="muted"> Tests the saved version with a synthetic call.</small>

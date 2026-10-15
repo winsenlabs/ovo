@@ -37,11 +37,7 @@ const stats = { waiting: 2, offered: 1, oldestWaitMs: 95_000, online: 3, handled
 export const managedRecord = (patch: Partial<QueueRecord> = {}): QueueRecord => ({
   id: 'q-desk',
   version: 3,
-  definition: {
-    ...(blankQueue('managed') as ManagedQueueDefinition),
-    name: 'Support desk',
-    teamIds: ['support'],
-  },
+  definition: { ...(blankQueue('managed') as ManagedQueueDefinition), name: 'Support desk', teamIds: ['support'] },
   stats,
   usedBy: ['point-1'],
   updatedAt: '2026-10-15T09:00:00.000Z',

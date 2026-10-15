@@ -1,12 +1,7 @@
 'use client';
 import { useCallback, useState } from 'react';
 import { useConfirmDialog } from '../../components/ui/dialog';
-import {
-  EmptyStateV2,
-  ErrorState,
-  InlineAlert,
-  SkeletonTableRows,
-} from '../../components/ui/feedback-v2';
+import { EmptyStateV2, ErrorState, InlineAlert, SkeletonTableRows } from '../../components/ui/feedback-v2';
 import { Duration } from '../../components/ui/display';
 import { KpiCard, KpiStrip } from '../../components/ui/kpi';
 import { PageHeader } from '../../components/ui/layout';
@@ -72,11 +67,7 @@ export function DeskView() {
     [desk, api, deviceId],
   );
   const hangUp = async () => {
-    if (
-      call &&
-      call.phase !== 'ended' &&
-      (await confirm('Hang up', 'End this call for the caller too?'))
-    )
+    if (call && call.phase !== 'ended' && (await confirm('Hang up', 'End this call for the caller too?')))
       await api.hangUp();
   };
   const sendBack = async (key: string, label: string) => {
@@ -102,9 +93,7 @@ export function DeskView() {
     <PageHeader
       eyebrow="Calls"
       title="Operator desk"
-      description={
-        desk.me ? `Answering calls for ${teams}.` : 'Answer callers handed over by the AI agents.'
-      }
+      description={desk.me ? `Answering calls for ${teams}.` : 'Answer callers handed over by the AI agents.'}
       actions={
         desk.me && (
           <PresenceControl
@@ -128,11 +117,9 @@ export function DeskView() {
       <div className="ds-stack">
         {header}
         <KpiStrip>
-          {['Waiting now', 'Longest wait', 'My calls', 'Online operators', 'Handled (24 h)'].map(
-            (label) => (
-              <KpiCard key={label} label={label} loading />
-            ),
-          )}
+          {['Waiting now', 'Longest wait', 'My calls', 'Online operators', 'Handled (24 h)'].map((label) => (
+            <KpiCard key={label} label={label} loading />
+          ))}
         </KpiStrip>
         <SkeletonTableRows rows={4} columns={6} />
       </div>
@@ -159,10 +146,7 @@ export function DeskView() {
     return (
       <div className="ds-stack">
         {header}
-        <ErrorState
-          message={desk.error ?? 'The operator desk could not be loaded.'}
-          onRetry={() => void desk.reload()}
-        />
+        <ErrorState message={desk.error ?? 'The operator desk could not be loaded.'} onRetry={() => void desk.reload()} />
       </div>
     );
 
@@ -187,9 +171,7 @@ export function DeskView() {
         <KpiCard
           label="Waiting now"
           value={kpis.waiting}
-          footnote={
-            kpis.waiting !== null && kpis.waiting > 5 ? 'Above 5, callers are queuing' : undefined
-          }
+          footnote={kpis.waiting !== null && kpis.waiting > 5 ? 'Above 5, callers are queuing' : undefined}
         />
         <KpiCard
           label="Longest wait"
@@ -199,7 +181,7 @@ export function DeskView() {
         <KpiCard label="Online operators" value={kpis.online} />
         <KpiCard label="Handled (24 h)" value={kpis.handledToday} />
       </KpiStrip>
-      <div className="desk-layout">
+      <div className={`desk-layout${call || desk.mine[0] ? ' has-active' : ''}`}>
         <div className="desk-active">
           {call ? (
             <ActiveCall
@@ -213,11 +195,7 @@ export function DeskView() {
           ) : desk.mine[0] ? (
             <InlineAlert tone="info">
               You have a call in progress.{' '}
-              <button
-                type="button"
-                className="text-button"
-                onClick={() => void api.resume(desk.mine[0]!)}
-              >
+              <button type="button" className="text-button" onClick={() => void api.resume(desk.mine[0]!)}>
                 Rejoin call
               </button>
             </InlineAlert>

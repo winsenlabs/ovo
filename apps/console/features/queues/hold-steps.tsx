@@ -57,12 +57,7 @@ function Row({
     <li className="queue-row">
       <Select aria-label={`${label} type`} value={kind} options={kinds} onChange={onKind} />
       <div className="queue-row-body">{children}</div>
-      <button
-        type="button"
-        className="text-button"
-        aria-label={`Remove ${label}`}
-        onClick={onRemove}
-      >
+      <button type="button" className="text-button" aria-label={`Remove ${label}`} onClick={onRemove}>
         Remove
       </button>
     </li>

@@ -43,10 +43,7 @@ export function QueuesView({ role }: { role: SessionIdentity['role'] }) {
       setLoad(
         failure instanceof ApiError && failure.code === 'human_queue_disabled'
           ? { status: 'disabled' }
-          : {
-              status: 'error',
-              message: failure instanceof Error ? failure.message : 'Queues could not be loaded.',
-            },
+          : { status: 'error', message: failure instanceof Error ? failure.message : 'Queues could not be loaded.' },
       );
     }
   }, []);
@@ -66,20 +63,12 @@ export function QueuesView({ role }: { role: SessionIdentity['role'] }) {
     } catch (failure) {
       setTesting({
         record,
-        state: {
-          status: 'error',
-          message: failure instanceof Error ? failure.message : 'The test failed.',
-        },
+        state: { status: 'error', message: failure instanceof Error ? failure.message : 'The test failed.' },
       });
     }
   };
   const remove = async (record: QueueRecord) => {
-    if (
-      !(await confirm(
-        'Delete queue',
-        `Delete “${record.definition.name}”? Calls already in it are not affected.`,
-      ))
-    )
+    if (!(await confirm('Delete queue', `Delete “${record.definition.name}”? Calls already in it are not affected.`)))
       return;
     try {
       await queuesApi.remove(record.id, record.version);
@@ -119,18 +108,10 @@ export function QueuesView({ role }: { role: SessionIdentity['role'] }) {
       actions={
         canEdit && load.status === 'ready' ? (
           <span className="button-row">
-            <button
-              type="button"
-              className="button primary"
-              onClick={() => setEditing({ kind: 'managed' })}
-            >
+            <button type="button" className="button primary" onClick={() => setEditing({ kind: 'managed' })}>
               New operator desk queue
             </button>
-            <button
-              type="button"
-              className="button"
-              onClick={() => setEditing({ kind: 'external' })}
-            >
+            <button type="button" className="button" onClick={() => setEditing({ kind: 'external' })}>
               New webhook queue
             </button>
           </span>
@@ -175,9 +156,7 @@ export function QueuesView({ role }: { role: SessionIdentity['role'] }) {
         <KpiCard
           label="Webhooks"
           value={load.room.webhookEnabled ? 'On' : 'Off'}
-          footnote={
-            load.room.webhookEnabled ? undefined : 'Outbound webhooks are switched off here'
-          }
+          footnote={load.room.webhookEnabled ? undefined : 'Outbound webhooks are switched off here'}
         />
       </KpiStrip>
       {!load.room.managedAvailable && (
@@ -187,14 +166,7 @@ export function QueuesView({ role }: { role: SessionIdentity['role'] }) {
         </InlineAlert>
       )}
       {notice && <InlineAlert tone="danger">{notice}</InlineAlert>}
-      <SectionCard
-        padding="flush"
-        tabs={
-          role === 'admin' ? (
-            <Tabs items={TABS} current={tab} onSelect={setTab} panelId="queues-panel" />
-          ) : undefined
-        }
-      >
+      <SectionCard padding="flush" tabs={role === 'admin' ? <Tabs items={TABS} current={tab} onSelect={setTab} panelId="queues-panel" /> : undefined}>
         <div id="queues-panel" role={role === 'admin' ? 'tabpanel' : undefined}>
           {tab === 'operators' && role === 'admin' ? (
             <OperatorsTab />
@@ -209,11 +181,7 @@ export function QueuesView({ role }: { role: SessionIdentity['role'] }) {
                   title="No queues yet"
                   action={
                     canEdit ? (
-                      <button
-                        type="button"
-                        className="button primary"
-                        onClick={() => setEditing({ kind: 'managed' })}
-                      >
+                      <button type="button" className="button primary" onClick={() => setEditing({ kind: 'managed' })}>
                         New operator desk queue
                       </button>
                     ) : undefined
@@ -237,11 +205,7 @@ export function QueuesView({ role }: { role: SessionIdentity['role'] }) {
           void reload();
         }}
       />
-      <Dialog
-        open={testing !== undefined}
-        onClose={() => setTesting(undefined)}
-        title={`Test webhook: ${testing?.record.definition.name ?? ''}`}
-      >
+      <Dialog open={testing !== undefined} onClose={() => setTesting(undefined)} title={`Test webhook: ${testing?.record.definition.name ?? ''}`}>
         {testing && <TestWebhookResult test={testing.state} />}
         <button type="button" className="button" onClick={() => setTesting(undefined)}>
           Close

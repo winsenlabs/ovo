@@ -60,11 +60,7 @@ export function OperatorDrawer({
     }
   }
   return (
-    <Drawer
-      open={open}
-      title={operator ? `Edit ${operator.displayName}` : 'Add operator'}
-      onClose={onClose}
-    >
+    <Drawer open={open} title={operator ? `Edit ${operator.displayName}` : 'Add operator'} onClose={onClose}>
       <form className="queue-form" onSubmit={save}>
         {error && <InlineAlert tone="danger">{error}</InlineAlert>}
         {operator ? (
@@ -78,41 +74,17 @@ export function OperatorDrawer({
             label="Team member"
             value={draft.userId}
             placeholder="Choose a person…"
-            options={users.map((user) => ({
-              value: user.id,
-              label: `${user.label} (${user.email})`,
-            }))}
+            options={users.map((user) => ({ value: user.id, label: `${user.label} (${user.email})` }))}
             help="Operators are existing team members. Add people under Team first."
             onChange={(userId) => {
               const user = users.find((candidate) => candidate.id === userId);
-              setDraft((current) => ({
-                ...current,
-                userId,
-                displayName: current.displayName || user?.label || '',
-              }));
+              setDraft((current) => ({ ...current, userId, displayName: current.displayName || user?.label || '' }));
             }}
           />
         )}
-        <TextField
-          id="operator-name"
-          label="Name shown to callers' colleagues"
-          value={draft.displayName}
-          onChange={(v) => set('displayName', v)}
-        />
-        <TagsField
-          id="operator-teams"
-          label="Teams"
-          values={draft.teamIds}
-          placeholder="support"
-          onChange={(v) => set('teamIds', v)}
-        />
-        <TagsField
-          id="operator-languages"
-          label="Languages spoken"
-          values={draft.languages}
-          placeholder="en"
-          onChange={(v) => set('languages', v)}
-        />
+        <TextField id="operator-name" label="Name shown to callers' colleagues" value={draft.displayName} onChange={(v) => set('displayName', v)} />
+        <TagsField id="operator-teams" label="Teams" values={draft.teamIds} placeholder="support" onChange={(v) => set('teamIds', v)} />
+        <TagsField id="operator-languages" label="Languages spoken" values={draft.languages} placeholder="en" onChange={(v) => set('languages', v)} />
         <NumberField
           id="operator-capacity"
           label="Calls at once"
@@ -122,11 +94,7 @@ export function OperatorDrawer({
           value={draft.capacity}
           onChange={(v) => set('capacity', v)}
         />
-        <SwitchField
-          label="Can answer calls"
-          checked={draft.enabled}
-          onChange={(v) => set('enabled', v)}
-        />
+        <SwitchField label="Can answer calls" checked={draft.enabled} onChange={(v) => set('enabled', v)} />
         <div className="button-row queue-form-actions">
           <button type="button" className="button" onClick={onClose}>
             Cancel

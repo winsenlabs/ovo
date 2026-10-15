@@ -30,12 +30,7 @@ test('the operator answers in the browser: the microphone is published and the c
 }) => {
   const url = new URL(process.env.OVO_E2E_DESK_BASE_URL ?? 'http://127.0.0.1:3000');
   await context.addCookies([
-    {
-      name: 'ovo_session',
-      value: process.env.OVO_E2E_DESK_SESSION ?? '',
-      domain: url.hostname,
-      path: '/',
-    },
+    { name: 'ovo_session', value: process.env.OVO_E2E_DESK_SESSION ?? '', domain: url.hostname, path: '/' },
   ]);
   // Keep every peer connection the page opens, so the test can read the audio statistics.
   await page.addInitScript(() => {
@@ -50,10 +45,7 @@ test('the operator answers in the browser: the microphone is published and the c
     };
   });
   await page.goto('/desk');
-  await page
-    .getByRole('button', { name: /^Accept call/ })
-    .first()
-    .click();
+  await page.getByRole('button', { name: /^Accept call/ }).first().click();
   await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 20_000 });
 
   await expect
@@ -65,10 +57,8 @@ test('the operator answers in the browser: the microphone is published and the c
           let level = 0;
           for (const peer of peers)
             for (const report of (await peer.getStats()).values()) {
-              if (report.type === 'outbound-rtp' && report.kind === 'audio')
-                sent += report.bytesSent ?? 0;
-              if (report.type === 'inbound-rtp' && report.kind === 'audio')
-                level = Math.max(level, report.audioLevel ?? 0);
+              if (report.type === 'outbound-rtp' && report.kind === 'audio') sent += report.bytesSent ?? 0;
+              if (report.type === 'inbound-rtp' && report.kind === 'audio') level = Math.max(level, report.audioLevel ?? 0);
             }
           return { sent: sent > 0, heard: level > 0 };
         }),

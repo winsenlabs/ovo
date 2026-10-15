@@ -7,11 +7,7 @@ import { Tabs, tabsFrom } from '../../components/ui/tabs';
 import { PhoneNumber } from '../../components/ui/display';
 import { shortenId } from '../../lib/format';
 import { humaniseEnum } from '../../lib/status';
-import {
-  handoverConversation,
-  liveConversation,
-  type CaptionLine,
-} from '../../lib/derive/captions';
+import { handoverConversation, liveConversation, type CaptionLine } from '../../lib/derive/captions';
 import type { TicketContext } from '../../lib/types/desk';
 
 const TABS = tabsFrom({ transcript: 'Transcript', summary: 'Summary', details: 'Details' });
@@ -76,10 +72,7 @@ function Details({ context }: { context?: TicketContext }) {
         { label: 'Route', value: context.routePath.map(humaniseEnum).join(' › ') || undefined },
         { label: 'Language', value: context.language },
         { label: 'Intent', value: context.intent ? humaniseEnum(context.intent) : undefined },
-        {
-          label: 'Caller',
-          value: context.caller.number && <PhoneNumber value={context.caller.number} />,
-        },
+        { label: 'Caller', value: context.caller.number && <PhoneNumber value={context.caller.number} /> },
         {
           label: 'Dialled number',
           value: context.caller.calledNumber && <PhoneNumber value={context.caller.calledNumber} />,

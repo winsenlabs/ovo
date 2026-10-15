@@ -7,8 +7,7 @@ import { playChime } from './chime';
 export function newOffers(seen: ReadonlySet<string>, rows: readonly DeskTicket[]): DeskTicket[] {
   return rows.filter(
     (entry) =>
-      !seen.has(entry.ticket.id) &&
-      (entry.ticket.offeredToMe || entry.ticket.mode === 'OPEN_PICKUP'),
+      !seen.has(entry.ticket.id) && (entry.ticket.offeredToMe || entry.ticket.mode === 'OPEN_PICKUP'),
   );
 }
 

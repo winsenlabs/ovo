@@ -37,11 +37,7 @@ export function HoldEditor({
         onChange={(maxSeconds) => onChange({ ...value, maxSeconds })}
       />
       <h4>While the caller waits</h4>
-      <StepList
-        steps={value.steps}
-        audio={audio}
-        onChange={(steps) => onChange({ ...value, steps })}
-      />
+      <StepList steps={value.steps} audio={audio} onChange={(steps) => onChange({ ...value, steps })} />
       <NumberField
         id="queue-hold-loop"
         label="Repeat from step"
@@ -52,10 +48,7 @@ export function HoldEditor({
         onChange={(loopFrom) => onChange({ ...value, loopFrom })}
       />
       <h4>If the wait runs out</h4>
-      <p className="muted">
-        Tried in order. The last step must release the default agent, offer a callback or end the
-        call.
-      </p>
+      <p className="muted">Tried in order. The last step must release the default agent, offer a callback or end the call.</p>
       <TimeoutList
         steps={value.onTimeout}
         onChange={(onTimeout) => onChange({ ...value, onTimeout })}

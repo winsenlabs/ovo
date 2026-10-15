@@ -89,11 +89,7 @@ export function blankQueue(kind: QueueDefinition['kind']): QueueDefinition {
 }
 
 /** Fields the mapping editor offers, by what the context policy lets through. */
-export const CONTEXT_FIELDS: readonly {
-  path: string;
-  label: string;
-  policy?: keyof ContextPolicy;
-}[] = [
+export const CONTEXT_FIELDS: readonly { path: string; label: string; policy?: keyof ContextPolicy }[] = [
   { path: 'call.id', label: 'Call id' },
   { path: 'call.direction', label: 'Call direction' },
   { path: 'call.startedAt', label: 'Call start time' },
@@ -150,17 +146,7 @@ export function isReservedHeader(name: string): boolean {
   const lower = name.toLowerCase();
   return (
     lower.startsWith('x-ovo-') ||
-    [
-      'host',
-      'content-length',
-      'content-type',
-      'transfer-encoding',
-      'connection',
-      'authorization',
-      'cookie',
-      'idempotency-key',
-      'user-agent',
-    ].includes(lower)
+    ['host', 'content-length', 'content-type', 'transfer-encoding', 'connection', 'authorization', 'cookie', 'idempotency-key', 'user-agent'].includes(lower)
   );
 }
 

@@ -51,23 +51,19 @@
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
 }
-@media (min-width: 1024px) {
-  .desk-layout {
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+/* The queue is a table only where its column is 700px or wider, so the call and the queue stack
+   until the screen can give both that much. */
+@media (min-width: 1800px) {
+  .desk-layout.has-active {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas: 'queue active';
   }
-  .desk-queue {
+  .desk-layout.has-active .desk-queue {
     grid-area: queue;
   }
-  .desk-active {
+  .desk-layout.has-active .desk-active {
     grid-area: active;
   }
-  .desk-active:empty {
-    display: none;
-  }
-}
-.desk-active:empty {
-  display: none;
 }
 .desk-reason {
   margin: 0;

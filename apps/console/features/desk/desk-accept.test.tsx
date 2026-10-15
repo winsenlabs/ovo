@@ -15,9 +15,7 @@ import {
 } from './desk-test-support';
 import { DeskView } from './desk-view';
 
-vi.mock('../../lib/data/desk-api', async () =>
-  (await import('./desk-test-support')).deskApiModule(),
-);
+vi.mock('../../lib/data/desk-api', async () => (await import('./desk-test-support')).deskApiModule());
 vi.mock('../../lib/data/desk-stream', async (original) =>
   (await import('./desk-test-support')).deskStreamModule(await original()),
 );
@@ -46,9 +44,7 @@ describe('accepting a call', () => {
   });
 
   it('waits on Connecting caller until the caller seat is in the room', async () => {
-    room.client = (
-      await vi.importActual<typeof import('@winsendotai/ovo-ui/room')>('@winsendotai/ovo-ui/room')
-    ).createFakeRoomClient({
+    room.client = (await vi.importActual<typeof import('@winsendotai/ovo-ui/room')>('@winsendotai/ovo-ui/room')).createFakeRoomClient({
       callerJoins: false,
     });
     api.accept.mockResolvedValue(accepted());
@@ -80,15 +76,7 @@ describe('accepting a call', () => {
 
   it('declines an offered call', async () => {
     api.decline.mockResolvedValue(undefined);
-    await setup({
-      tickets: [
-        ticket('t1', {
-          status: 'offered',
-          offeredToMe: true,
-          offerExpiresAt: new Date(Date.now() + 14_000).toISOString(),
-        }),
-      ],
-    });
+    await setup({ tickets: [ticket('t1', { status: 'offered', offeredToMe: true, offerExpiresAt: new Date(Date.now() + 14_000).toISOString() })] });
     fireEvent.click(await screen.findByRole('button', { name: /Decline call/ }));
     await waitFor(() => expect(api.decline).toHaveBeenCalledWith('t1', 1));
     expect(await screen.findByText('No callers waiting')).toBeTruthy();
@@ -103,3 +91,4 @@ describe('accepting a call', () => {
     expect(await screen.findByText('Connected')).toBeTruthy();
   });
 });
+

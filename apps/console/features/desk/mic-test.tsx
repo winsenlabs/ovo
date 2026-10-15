@@ -91,11 +91,7 @@ export function MicTestDialog({
             />
           </div>
         )}
-        <LevelMeter
-          label="Microphone level"
-          level={() => probe.current?.level() ?? 0}
-          active={testing}
-        />
+        <LevelMeter label="Microphone level" level={() => probe.current?.level() ?? 0} active={testing} />
         <div className="button-row">
           <button type="button" className="button" onClick={onCancel}>
             Cancel

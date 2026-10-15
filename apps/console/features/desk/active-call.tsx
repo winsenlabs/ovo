@@ -15,10 +15,7 @@ import { WrapUpForm } from './wrap-up-form';
 
 type CallApi = ReturnType<typeof useActiveCall>;
 
-function connectionText(call: ActiveCallState): {
-  text: string;
-  tone: 'ok' | 'info' | 'warn' | 'danger';
-} {
+function connectionText(call: ActiveCallState): { text: string; tone: 'ok' | 'info' | 'warn' | 'danger' } {
   if (call.phase === 'ended') return { text: 'Call ended', tone: 'warn' };
   if (call.connection === 'reconnecting') return { text: 'Reconnecting…', tone: 'warn' };
   if (call.connection === 'disconnected') return { text: 'Disconnected', tone: 'danger' };
@@ -117,7 +114,9 @@ export function ActiveCall({
       )}
       {ended ? (
         <div className="desk-ended">
-          <p>This call has ended ({humaniseEnum(call.ended?.reason).toLowerCase()}).</p>
+          <p>
+            This call has ended ({humaniseEnum(call.ended?.reason).toLowerCase()}).
+          </p>
           <WrapUpForm
             queue={queue}
             done={call.ended?.wrapUpDone ?? false}
