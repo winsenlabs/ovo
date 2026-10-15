@@ -22,6 +22,7 @@ export function HomeSecondarySection({
   const slices = dispositionSlices(calls);
   const failures = failureReasonBars(calls);
   const infra = infrastructureState.status === 'ready' ? infrastructureState.data : undefined;
+  const callsError = callsState.status === 'error' ? callsState.error : undefined;
 
   return (
     <div className="ds-kpi-strip home-secondary-row">
@@ -30,6 +31,12 @@ export function HomeSecondarySection({
           ariaLabel="Calls by disposition"
           height={190}
           loading={callsState.status === 'loading'}
+          error={callsError}
+          tableRows={slices.length}
+          tableColumns={[
+            { header: 'Disposition', cell: (i) => slices[i]?.label },
+            { header: 'Calls', cell: (i) => slices[i]?.value },
+          ]}
           empty={callsState.status === 'ready' && slices.every((slice) => slice.value === 0)}
           renderChart={() => <Donut slices={slices} centerLabel={String(calls.length)} />}
         />
@@ -40,6 +47,12 @@ export function HomeSecondarySection({
           ariaLabel="Top failure reasons by stage"
           height={190}
           loading={callsState.status === 'loading'}
+          error={callsError}
+          tableRows={failures.length}
+          tableColumns={[
+            { header: 'Stage', cell: (i) => failures[i]?.category },
+            { header: 'Timed-out calls', cell: (i) => failures[i]?.values.count },
+          ]}
           empty={callsState.status === 'ready' && failures.length === 0}
           emptyLabel="No timeouts in this range"
           renderChart={(width) => (

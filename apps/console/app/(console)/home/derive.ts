@@ -4,6 +4,9 @@ import type { HomeCall } from './types';
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
+// Labels below are rendered in Asia/Kolkata (UTC+05:30, no DST), so buckets are cut on IST
+// boundaries too — cutting on UTC put 00:00-05:30 IST calls on the previous day's bar.
+const IST_OFFSET_MS = 330 * 60_000;
 
 export interface CallKpis {
   total: number;
@@ -49,7 +52,7 @@ export function callsByBucket(
   for (const call of calls) {
     const at = Date.parse(call.createdAt ?? '');
     if (!Number.isFinite(at)) continue;
-    const key = Math.floor(at / bucketMs) * bucketMs;
+    const key = Math.floor((at + IST_OFFSET_MS) / bucketMs) * bucketMs - IST_OFFSET_MS;
     const tone = statusTone(call.status);
     const bucket = buckets.get(key) ?? { ok: 0, danger: 0, info: 0, neutral: 0 };
     bucket[tone === 'warn' ? 'info' : tone] = (bucket[tone === 'warn' ? 'info' : tone] ?? 0) + 1;

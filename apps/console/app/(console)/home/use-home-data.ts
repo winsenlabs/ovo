@@ -60,7 +60,9 @@ export function useHomePerformance() {
       from: from.toISOString(),
       to: to.toISOString(),
       bucket: 'hour',
-      groupBy: 'time,stage',
+      // One group per stage across the whole 24h window. `time,stage` returned one group per
+      // hour, and the KPI then labelled the *oldest* hour's p95 as the 24h p95.
+      groupBy: 'stage',
       maxGroups: '200',
     });
     const { data } = await apiRequest<PerformanceResult>(`/performance?${params}`);

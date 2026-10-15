@@ -70,6 +70,17 @@ export function HomeDashboard() {
     releaseAgentMapState.status === 'loading' ||
     callbacksState.status === 'loading';
 
+  // Sources the attention list could not check: an empty list is only reassuring when every
+  // source it reads actually answered.
+  const unchecked = [
+    callbacksState.status === 'error' && 'callbacks',
+    agentsState.status === 'error' && 'agents',
+    isEditorUp && complaintsState.status === 'error' && 'complaints',
+    isEditorUp && ratiosState.status === 'error' && 'caller-number ratios',
+    isAdmin && budgetsState.status === 'error' && 'budgets',
+    isAdmin && credentialsState.status === 'error' && 'credentials',
+  ].filter((value): value is string => Boolean(value));
+
   return (
     <div className="stack">
       <PageHeader
@@ -125,6 +136,8 @@ export function HomeDashboard() {
         callbacks={callbacksState.status === 'ready' ? callbacksState.data : []}
         credentials={isAdmin && credentialsState.status === 'ready' ? credentialsState.data : []}
         recentCalls={recentCalls}
+        recentCallsError={callsState.status === 'error' ? callsState.error : undefined}
+        unchecked={unchecked}
         agentNameOf={agentNameOf}
       />
     </div>

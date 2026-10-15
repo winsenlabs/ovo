@@ -17,6 +17,7 @@ import type {
 import type { AgentReadiness } from '../../../lib/api';
 import type { BudgetSnapshot } from '../../../lib/types/operations';
 import { formatMoney } from '../../../lib/format';
+import { humaniseEnum } from '../../../lib/status';
 
 const EXPIRY_WARN_DAYS = 14;
 
@@ -100,6 +101,8 @@ export function HomeAttentionSection(props: {
   callbacks: readonly HomeCallback[];
   credentials: readonly HomeCredential[];
   recentCalls: readonly HomeCall[];
+  recentCallsError?: string;
+  unchecked: readonly string[];
   agentNameOf: (call: { agentId?: string; releaseId?: string }) => string;
 }) {
   const attention = buildAttention(props);
@@ -115,7 +118,7 @@ export function HomeAttentionSection(props: {
       id: 'disposition',
       header: 'Disposition',
       priority: 'low',
-      cell: (call) => (call.outcome?.disposition ? call.outcome.disposition : 'None'),
+      cell: (call) => (call.outcome?.disposition ? humaniseEnum(call.outcome.disposition) : 'None'),
     },
     {
       id: 'started',
@@ -133,6 +136,10 @@ export function HomeAttentionSection(props: {
             <Skeleton shape="line" width="60%" />
             <Skeleton shape="line" width="70%" />
           </div>
+        ) : attention.length === 0 && props.unchecked.length ? (
+          <EmptyStateV2 variant="unavailable" title="Couldn't check everything">
+            No answer from: {props.unchecked.join(', ')}.
+          </EmptyStateV2>
         ) : attention.length === 0 ? (
           <EmptyStateV2 variant="first-run" title="Nothing needs attention right now" />
         ) : (
@@ -169,6 +176,7 @@ export function HomeAttentionSection(props: {
           rowKey={(call) => call.id}
           rowHref={(call) => `/calls/${encodeURIComponent(call.id)}`}
           loading={props.loading}
+          error={props.recentCallsError}
           empty="No calls yet"
         />
       </SectionCard>

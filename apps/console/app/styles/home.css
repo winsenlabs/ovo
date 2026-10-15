@@ -52,6 +52,9 @@
 .home-secondary-row {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
+.home-attention-row > .ds-card + .ds-card {
+  margin-top: 0;
+}
 .home-attention-row {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) minmax(0, 1.6fr);
