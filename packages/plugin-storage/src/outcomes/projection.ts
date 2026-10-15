@@ -1,6 +1,9 @@
 import {
   CALL_OUTCOME_MAX_PATH,
+  type CallOutcomeRoute,
   type CallOutcomeSummary,
+  type RouteDecisionPayload,
+  type RouteSegmentPayload,
   type SessionEvent,
 } from '@winsendotai/ovo-contracts';
 
@@ -50,6 +53,7 @@ export function applySessionEvent(
     variables: { ...summary.variables },
     tiers: { ...summary.tiers },
     guardrail: { ...summary.guardrail },
+    route: summary.route && { ...summary.route, path: [...summary.route.path] },
     events: summary.events + 1,
     updatedAt: at,
   };
@@ -86,6 +90,62 @@ export function applySessionEvent(
       next.endReason = event.payload.reason;
       if (event.payload.finalNode) next.finalNode = event.payload.finalNode;
       break;
+    case 'route.decision':
+      next.route = decided(next.route, event.payload);
+      break;
+    case 'route.segment':
+      next.route = segmented(next.route, event.payload);
+      break;
+  }
+  return next;
+}
+
+/**
+ * Segment 0 (the router) is recorded before any decision, so a route can exist before its
+ * decision: its ids are empty strings until `route.decision` arrives, which also tells a call
+ * that hung up while routing apart from a routed one.
+ */
+function undecided(): CallOutcomeRoute {
+  return {
+    routingPointId: '',
+    routingReleaseId: '',
+    path: [],
+    target: 'agent',
+    agentId: null,
+    releaseId: null,
+    poolId: null,
+    memberId: null,
+    language: null,
+    degraded: null,
+    segments: 0,
+  };
+}
+
+/** The decision replaces the route and keeps the segment count. */
+function decided(route: CallOutcomeRoute | null, decision: RouteDecisionPayload): CallOutcomeRoute {
+  return {
+    routingPointId: decision.routingPointId,
+    routingReleaseId: decision.routingReleaseId,
+    path: [...decision.path],
+    target: decision.target,
+    agentId: decision.agentId ?? route?.agentId ?? null,
+    releaseId: decision.releaseId ?? route?.releaseId ?? null,
+    poolId: decision.poolId ?? route?.poolId ?? null,
+    memberId: decision.memberId ?? route?.memberId ?? null,
+    language: decision.language ?? null,
+    degraded: decision.degraded ?? null,
+    segments: route?.segments ?? 0,
+  };
+}
+
+/** Counts the segment; an agent segment names the agent if the decision has not. */
+function segmented(route: CallOutcomeRoute | null, segment: RouteSegmentPayload): CallOutcomeRoute {
+  const next = { ...(route ?? undecided()), segments: (route?.segments ?? 0) + 1 };
+  if (segment.role === 'agent' && next.releaseId === null) {
+    next.agentId = segment.agentId;
+    next.releaseId = segment.releaseId;
+    next.poolId ??= segment.poolId ?? null;
+    next.memberId ??= segment.memberId ?? null;
   }
   return next;
 }

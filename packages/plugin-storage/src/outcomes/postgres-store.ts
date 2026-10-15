@@ -160,14 +160,14 @@ async function upsertOutcome(
   await client.query(
     `INSERT INTO ovo_call_outcomes (workspace_id,call_id,outcome,end_reason,disposition,
        disposition_source,final_node,state_path,variables,tiers,guardrail_flagged,guardrail_blocked,
-       events,updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11,$12,$13,$14)
+       events,updated_at,route)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11,$12,$13,$14,$15::jsonb)
      ON CONFLICT (workspace_id,call_id) DO UPDATE SET outcome=EXCLUDED.outcome,
        end_reason=EXCLUDED.end_reason, disposition=EXCLUDED.disposition,
        disposition_source=EXCLUDED.disposition_source, final_node=EXCLUDED.final_node,
        state_path=EXCLUDED.state_path, variables=EXCLUDED.variables, tiers=EXCLUDED.tiers,
        guardrail_flagged=EXCLUDED.guardrail_flagged, guardrail_blocked=EXCLUDED.guardrail_blocked,
-       events=EXCLUDED.events, updated_at=EXCLUDED.updated_at`,
+       events=EXCLUDED.events, updated_at=EXCLUDED.updated_at, route=EXCLUDED.route`,
     [
       workspaceId,
       summary.callId,
@@ -183,6 +183,7 @@ async function upsertOutcome(
       summary.guardrail.blocked,
       summary.events,
       summary.updatedAt,
+      summary.route === null ? null : JSON.stringify(summary.route),
     ],
   );
 }
@@ -214,7 +215,7 @@ function mapOutcome(row: Row): CallOutcomeSummary {
     variables: row.variables as Record<string, unknown>,
     tiers: row.tiers as CallOutcomeSummary['tiers'],
     guardrail: { flagged: Number(row.guardrail_flagged), blocked: Number(row.guardrail_blocked) },
-    route: null,
+    route: (row.route as CallOutcomeSummary['route'] | undefined) ?? null,
     events: Number(row.events),
     updatedAt: toIso(row.updated_at),
   };
