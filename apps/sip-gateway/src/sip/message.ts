@@ -173,7 +173,17 @@ export const REASONS: Readonly<Record<number, string>> = {
   603: 'Decline',
 };
 
-export const ALLOWED_METHODS = ['INVITE', 'ACK', 'BYE', 'CANCEL', 'OPTIONS', 'UPDATE', 'INFO'];
+/** NOTIFY is accepted only as the progress of a REFER we sent (`call/refer.ts`). */
+export const ALLOWED_METHODS = [
+  'INVITE',
+  'ACK',
+  'BYE',
+  'CANCEL',
+  'OPTIONS',
+  'UPDATE',
+  'INFO',
+  'NOTIFY',
+];
 
 /** `CSeq: 4711 INVITE` */
 export function parseCSeq(value: string | undefined): { seq: number; method: string } | undefined {

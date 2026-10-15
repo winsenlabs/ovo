@@ -1,0 +1,43 @@
+import type { SipHandoffTarget } from '@winsendotai/ovo-sip-carrier-kit';
+import type { Trunk } from '../config/trunks.ts';
+import { parseUri } from '../sip/address.ts';
+
+export type ReferTarget =
+  { ok: true; referTo: string; host: string } | { ok: false; reason: string };
+
+/** `a.b.example` is allowed by `a.b.example` (exact) and `.b.example` or `.example` (any subdomain). */
+export function hostAllowed(host: string, allowed: readonly string[]): boolean {
+  const name = host.toLowerCase();
+  return allowed.some((entry) =>
+    entry.startsWith('.') ? name.endsWith(entry) && name.length > entry.length : name === entry,
+  );
+}
+
+/**
+ * Header values are percent-encoded whole (`encodeURIComponent` leaves only RFC 3261 unreserved
+ * characters), so a value can never end a header, start another or leave the URI.
+ */
+function withHeaders(uri: string, headers: Record<string, string> | undefined): string {
+  const entries = Object.entries(headers ?? {});
+  if (!entries.length) return uri;
+  return `${uri}?${entries.map(([name, value]) => `${name}=${encodeURIComponent(value)}`).join('&')}`;
+}
+
+/**
+ * The Refer-To URI for a handoff target on `trunk`. A phone target needs the trunk's template; a
+ * sip target needs its host on the trunk's allow-list (the allow-list is the only thing between a
+ * third party's answer and a toll-fraud destination). `X-` names are the kit schema's job.
+ */
+export function referTarget(trunk: Trunk, target: SipHandoffTarget): ReferTarget {
+  if (target.kind === 'phone') {
+    const template = trunk.refer.phoneUriTemplate;
+    if (!template) return { ok: false, reason: 'refer_phone_template_missing' };
+    const referTo = template.replace('{e164}', target.e164);
+    return { ok: true, referTo, host: parseUri(referTo)?.host ?? '' };
+  }
+  const uri = parseUri(target.uri);
+  if (!uri || uri.scheme === 'tel' || !uri.host) return { ok: false, reason: 'refer_uri_invalid' };
+  if (!hostAllowed(uri.host, trunk.refer.allowedHosts))
+    return { ok: false, reason: 'refer_host_not_allowed' };
+  return { ok: true, referTo: withHeaders(target.uri, target.headers), host: uri.host };
+}

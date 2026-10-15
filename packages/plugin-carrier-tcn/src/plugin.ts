@@ -20,8 +20,10 @@ import { TCN_MAX_METADATA_HEADERS, tcnHostPorts } from './metadata.ts';
 
 /**
  * TCN delivers calls to OVO's sip-gateway as an ordinary SIP trunk (W11 §8, option A). Every
- * SIP-level TCN fact is UNCONFIRMED, so v1 declares no handoff: neither REFER nor TCN's REST
- * transfer path (CallerRequeue, TransferColdToOutbound) is confirmed for this delivery model.
+ * SIP-level TCN fact is UNCONFIRMED. Handoff is SIP REFER through the sip-gateway, and whether
+ * TCN's SBC accepts REFER is unconfirmed, so it only works on a trunk whose sip-trunks.json entry
+ * sets `refer.enabled` (false by default; a TCN trunk keeps it off until TCN confirms). TCN's REST
+ * transfer path (CallerRequeue, TransferColdToOutbound) is not used for this delivery model.
  */
 export const tcnCapabilities = sipCarrierCapabilities('tcn');
 

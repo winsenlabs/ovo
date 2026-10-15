@@ -223,7 +223,7 @@ export class CallMedia {
   }
 
   /** Stops pacing, tells the gateway (`stop`) unless it ended the stream, closes RTP. */
-  stop(reason: 'caller-hangup' | 'stream-ended' | 'gateway'): RtpStats {
+  stop(reason: 'caller-hangup' | 'stream-ended' | 'gateway' | 'transferred'): RtpStats {
     if (!this.stopped) {
       this.stopped = true;
       this.pacer.stop();

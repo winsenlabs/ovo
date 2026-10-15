@@ -1,10 +1,12 @@
 import type { Clock } from '@winsendotai/ovo-contracts';
-import type { SipReconcileResponse } from '@winsendotai/ovo-sip-carrier-kit';
+import type { SipHandoffResponse, SipReconcileResponse } from '@winsendotai/ovo-sip-carrier-kit';
 import type { Call } from './call.ts';
 
 /** How long an outbound request stays answerable by `GET /v1/calls?requestId` (§5.4). */
 export const RECONCILE_TTL_MS = 60 * 60 * 1000;
 const MAX_RECONCILE = 10_000;
+const HANDOFF_TTL_MS = 5 * 60 * 1000;
+const MAX_HANDOFFS = 1_000;
 
 type Entry = { response: SipReconcileResponse; expires: number };
 
@@ -15,6 +17,7 @@ type Entry = { response: SipReconcileResponse; expires: number };
 export class CallRegistry {
   private readonly calls = new Map<string, Call>();
   private readonly requests = new Map<string, Entry>();
+  private readonly handoffs = new Map<string, { response: SipHandoffResponse; expires: number }>();
 
   constructor(private readonly clock: Clock) {}
 
@@ -59,6 +62,21 @@ export class CallRegistry {
     }
     this.requests.delete(requestId);
     this.requests.set(requestId, { response, expires: now + RECONCILE_TTL_MS });
+  }
+
+  /** A handoff that left the call (confirmed or unknown), kept so a retried request gets the same answer. */
+  rememberHandoff(requestId: string, response: SipHandoffResponse): void {
+    const now = this.clock.now();
+    for (const [key, entry] of this.handoffs) {
+      if (entry.expires > now && this.handoffs.size < MAX_HANDOFFS) break;
+      this.handoffs.delete(key);
+    }
+    this.handoffs.set(requestId, { response, expires: now + HANDOFF_TTL_MS });
+  }
+
+  handoffFor(requestId: string): SipHandoffResponse | undefined {
+    const entry = this.handoffs.get(requestId);
+    return entry && entry.expires > this.clock.now() ? entry.response : undefined;
   }
 
   reconcile(requestId: string): SipReconcileResponse {

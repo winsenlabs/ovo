@@ -347,18 +347,14 @@ describe('control API guards', () => {
     expect(draining).toMatchObject({ status: 503, body: { reason: 'draining', retryable: true } });
   });
 
-  it('refuses handoff in v1', async () => {
+  it('refuses a handoff for a call it does not hold (REFER itself is covered in refer.test.ts)', async () => {
     const { h } = await setup();
     const reply = await h.control('POST', '/v1/calls/handoff', {
       carrierCallId: 'c',
       requestId: 'r',
       target: { kind: 'phone', e164: TO },
     });
-    expect(reply.body).toEqual({
-      kind: 'rejected',
-      retryable: false,
-      reason: 'handoff_unsupported',
-    });
+    expect(reply.body).toEqual({ kind: 'rejected', retryable: false, reason: 'call_not_found' });
   });
 
   it('serves /health and the token-protected verbose counters', async () => {

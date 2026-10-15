@@ -119,7 +119,7 @@ export class MediaLink {
   }
 
   /** `stop` then a normal close: the call is over on the SIP side. */
-  stop(reason: 'caller-hangup' | 'stream-ended'): void {
+  stop(reason: 'caller-hangup' | 'stream-ended' | 'transferred'): void {
     this.send({ event: 'stop', reason });
     this.close();
   }

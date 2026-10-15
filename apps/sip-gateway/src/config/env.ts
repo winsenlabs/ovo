@@ -111,6 +111,7 @@ const EnvSchema = z.object({
   OVO_SIP_DRAIN_TIMEOUT_MS: int(240_000, 0, 3_600_000),
   OVO_SIP_HEALTH_LISTEN: listen('127.0.0.1:5091'),
   OVO_SIP_INBOUND_WAIT_MAX_MS: int(45_000, 0, 600_000),
+  OVO_SIP_REFER_TIMEOUT_MS: int(15_000, 2_000, 60_000),
   OVO_HEALTH_TOKEN: z.string().optional().default(''),
 });
 
@@ -135,6 +136,8 @@ export interface GatewayConfig {
   drainTimeoutMs: number;
   health: { host: string; port: number; token: string };
   inboundWaitMaxMs: number;
+  /** REFER sent to its final sipfrag NOTIFY. */
+  referTimeoutMs: number;
   /** RFC 3261 T1/T2/T4; fixed in production, overridable in tests. */
   timers: SipTimers;
 }
@@ -182,6 +185,7 @@ export function loadConfig(
     drainTimeoutMs: e.OVO_SIP_DRAIN_TIMEOUT_MS,
     health: { ...e.OVO_SIP_HEALTH_LISTEN, token: e.OVO_HEALTH_TOKEN },
     inboundWaitMaxMs: e.OVO_SIP_INBOUND_WAIT_MAX_MS,
+    referTimeoutMs: e.OVO_SIP_REFER_TIMEOUT_MS,
     timers: DEFAULT_TIMERS,
   };
 }
