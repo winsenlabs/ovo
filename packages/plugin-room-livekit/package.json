@@ -4,15 +4,14 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
   },
   "dependencies": {
     "@livekit/rtc-node": "0.13.34",
     "@winsendotai/ovo-audio": "workspace:*",
     "@winsendotai/ovo-contracts": "workspace:*",
-    "@winsendotai/ovo-plugin-kit": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*",
-    "@winsendotai/ovo-sdk": "workspace:*",
     "livekit-server-sdk": "2.19.0"
   },
   "devDependencies": {

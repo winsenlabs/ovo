@@ -6,6 +6,7 @@ import {
   SipHangupRequestSchema,
 } from '@winsendotai/ovo-sip-carrier-kit';
 import { checkDial, dial, repeatedDial } from '../call/dial.ts';
+import { handoff } from './handoff.ts';
 import { blockListOf, contains } from '../config/trunks.ts';
 import type { SipGateway } from '../gateway.ts';
 
@@ -46,7 +47,7 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
 
 /**
  * The control API workers reach through `Cap.sipTrunkControl` (§5.4): bearer token and source
- * CIDRs first, then dial, reconcile, hangup, handoff (refused in v1) and health. JSON in and out.
+ * CIDRs first, then dial, reconcile, hangup, handoff (SIP REFER, per trunk) and health. JSON in and out.
  */
 export function createControlServer(gateway: SipGateway): Server {
   const { control } = gateway.config;
@@ -115,10 +116,7 @@ async function route(
     case 'POST /v1/calls/handoff': {
       const parsed = SipHandoffRequestSchema.safeParse(await readJson(req));
       if (!parsed.success) return { status: 400, body: { error: 'bad_request' } };
-      return {
-        status: 200,
-        body: { kind: 'rejected', retryable: false, reason: 'handoff_unsupported' },
-      };
+      return { status: 200, body: await handoff(gateway, parsed.data) };
     }
     case 'GET /v1/health':
       return {

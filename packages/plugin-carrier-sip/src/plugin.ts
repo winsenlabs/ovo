@@ -16,7 +16,7 @@ import {
 } from '@winsendotai/ovo-sip-carrier-kit';
 import { createSipFixtureFrameEncoder } from '@winsendotai/ovo-sip-carrier-kit/testing';
 
-/** v1 declares no handoff: no trunk confirmed REFER, and the B2BUA path is a stretch (§5.6). */
+/** Handoff is SIP REFER, gated per trunk by `refer.enabled` in sip-trunks.json (off by default). */
 export const sipCapabilities = sipCarrierCapabilities('sip');
 
 /** `outboundEnabled: false` on the binding keeps a trunk inbound-only. */

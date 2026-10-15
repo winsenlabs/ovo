@@ -198,7 +198,10 @@ class SipTelephonyControl implements TelephonyControl {
   }
 
   async handoff(carrierCallId: string, target: HandoffTarget, requestId: string) {
-    if (target.kind !== 'phone' || !this.input.capabilities.control.handoff.includes('phone'))
+    if (
+      (target.kind !== 'phone' && target.kind !== 'sip') ||
+      !this.input.capabilities.control.handoff.includes(target.kind)
+    )
       return {
         kind: 'rejected' as const,
         retryable: false,

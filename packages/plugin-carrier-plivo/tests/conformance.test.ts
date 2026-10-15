@@ -6,6 +6,7 @@ import {
 } from '@winsendotai/ovo-conformance';
 import type {
   CarrierHttpRequest,
+  HandoffTarget,
   NetFixtureScript,
   ResolvedBinding,
   UpgradeRequest,
@@ -178,23 +179,33 @@ describeCarrier('Plivo', ({ net }) => plivoForTest(net), {
 });
 
 describe('Plivo fail-closed handoff before a host transfer URL is available', () => {
-  it.each(['phone', 'resume'] as const)('rejects %s without a network call', async (kind) => {
-    const { createFixtureNet } = await import('@winsendotai/ovo-plugin-kit');
-    const net = createFixtureNet([]);
-    const control = plivoForTest(net).control.create(binding);
-    const target =
-      kind === 'phone'
-        ? ({ kind, e164: '+15550123' } as const)
-        : ({
-            kind,
-            resumeUrl:
-              'https://fixture.example.test/carriers/plivo/binding/resume?r=call&t=fixture',
-          } as const);
-    expect(await control.handoff('call-1', target, 'request-1')).toMatchObject({
-      kind: 'rejected',
-      retryable: false,
-    });
-    expect(net.log).toHaveLength(0);
-    expect(net.mismatches).toHaveLength(0);
+  it('declares only the end handoff, so the host never offers it a phone or sip transfer', () => {
+    const { control } = plivoForTest(undefined as never);
+    expect(control.capabilities.control.handoff).toEqual(['end']);
   });
+
+  it.each(['phone', 'sip', 'queue', 'resume'] as const)(
+    'rejects %s without a network call',
+    async (kind) => {
+      const { createFixtureNet } = await import('@winsendotai/ovo-plugin-kit');
+      const net = createFixtureNet([]);
+      const control = plivoForTest(net).control.create(binding);
+      const targets: Record<typeof kind, HandoffTarget> = {
+        phone: { kind: 'phone', e164: '+15550123' },
+        sip: { kind: 'sip', uri: 'sips:acd@sbc.example.net', headers: { 'X-OVO-Ticket': 't-1' } },
+        queue: { kind: 'queue', name: 'support' },
+        resume: {
+          kind: 'resume',
+          resumeUrl: 'https://fixture.example.test/carriers/plivo/binding/resume?r=call&t=fixture',
+        },
+      };
+      const target = targets[kind];
+      expect(await control.handoff('call-1', target, 'request-1')).toMatchObject({
+        kind: 'rejected',
+        retryable: false,
+      });
+      expect(net.log).toHaveLength(0);
+      expect(net.mismatches).toHaveLength(0);
+    },
+  );
 });

@@ -14,6 +14,10 @@ export function initialInvite(input: {
   via: string;
   contact: string;
   sdp: string;
+  /** The Request-URI when it is not `sip:<to>@<proxy>` (a bridge to a SIP URI); still routed via `proxy`. */
+  requestUri?: string;
+  /** Extra headers, e.g. the `X-OVO-*` context of a bridged handoff. */
+  extraHeaders?: [string, string][];
 }): SipRequest {
   const target = parseUri(input.proxy)!;
   const hostPort = `${target.host}${target.port ? `:${target.port}` : ''}`;
@@ -21,7 +25,7 @@ export function initialInvite(input: {
     .append('via', input.via)
     .append('max-forwards', '70')
     .append('from', `<sip:${input.from}@${input.advertisedHost}>;tag=${newTag()}`)
-    .append('to', `<sip:${input.to}@${hostPort}>`)
+    .append('to', `<${input.requestUri ?? `sip:${input.to}@${hostPort}`}>`)
     .append('call-id', input.callId)
     .append('cseq', '1 INVITE')
     .append('contact', input.contact)
@@ -29,11 +33,12 @@ export function initialInvite(input: {
     .append('supported', 'timer')
     .append('user-agent', USER_AGENT);
   for (const [name, value] of uacTimerHeaders()) headers.append(name, value);
+  for (const [name, value] of input.extraHeaders ?? []) headers.append(name, value);
   headers.append('content-type', 'application/sdp');
   return {
     kind: 'request',
     method: 'INVITE',
-    uri: `sip:${input.to}@${hostPort}`,
+    uri: input.requestUri ?? `sip:${input.to}@${hostPort}`,
     headers,
     body: Buffer.from(input.sdp),
   };

@@ -7,6 +7,7 @@ import { createResponse } from '../sip/serialize.ts';
 import type { ServerTransaction } from '../sip/server-transaction.ts';
 import { parseSessionExpires, uasSessionTimer } from '../sip/session-timer.ts';
 import type { Call } from './call.ts';
+import { referNotify } from './refer.ts';
 
 const SDP = 'application/sdp';
 const DTMF_RELAY = /^Signal\s*=\s*([0-9*#A-D])\s*$/im;
@@ -135,6 +136,8 @@ export function inDialog(
       call.media?.dtmf(digit, duration ? Number(duration) : undefined);
       return respond(tx, request, 200, call);
     }
+    case 'NOTIFY':
+      return respond(tx, request, referNotify(call, request), call);
     case 'OPTIONS':
       return respond(tx, request, 200, call, [
         ['Allow', ALLOWED_METHODS.join(', ')],

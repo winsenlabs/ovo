@@ -3,7 +3,9 @@ import { MULAW_8K, type CarrierCapabilities, type HandoffTarget } from '@winsend
 /**
  * The carrier declaration every SIP-delivered carrier shares (W11 §5.6). The sip-gateway transcodes
  * A-law, reframes to 20 ms and paces playout itself, so the worker sees a Twilio-like μ-law stream
- * with carrier-played marks. Handoff stays empty unless the B2BUA path is proven for a carrier.
+ * with carrier-played marks. Handoff is SIP REFER to a phone or SIP target; a trunk's
+ * `refer.enabled` (off by default) in sip-trunks.json is the real gate, and a trunk that has not
+ * enabled it answers `refer_not_enabled`.
  */
 export function sipCarrierCapabilities(
   carrierId: string,
@@ -24,7 +26,7 @@ export function sipCarrierCapabilities(
       streamParams: 'at-dial',
       streamCallIdMatchesDial: true,
       cancelBeforeAnswer: true,
-      handoff: Object.freeze([...(overrides.handoff ?? [])]),
+      handoff: Object.freeze([...(overrides.handoff ?? ['phone', 'sip'])]),
       amd: 'none',
       maxDuration: true,
       reconcile: 'by-request-id',

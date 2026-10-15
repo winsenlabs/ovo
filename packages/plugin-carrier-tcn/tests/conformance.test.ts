@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest';
 import { createTcnCarrierIngress, createTcnControl } from '../src/index.ts';
 
 // carrier@1 over ovo-sip/1. TCN publishes nothing SIP-level (docs/runbooks/tcn-sip.md), so the wire
-// here is OVO's own protocol; the TCN-specific parts are the profile: no handoff, outbound opt-in.
+// here is OVO's own protocol; the TCN-specific parts are the profile: REFER handoff (off at the trunk), outbound opt-in.
 const KEY = new Uint8Array(32).fill(0x3c);
 const PREVIOUS = new Uint8Array(32).fill(0x3d);
 const NOW = 1_760_349_600_000;
@@ -138,6 +138,45 @@ describeCarrier('TCN (SIP delivery)', factory, {
       expect: 'live',
       state: 'ringing',
     },
+    handoff: [
+      {
+        scripts: sipControlScript({
+          method: 'POST',
+          path: '/v1/calls/handoff',
+          where: {
+            carrierCallId: 'cid@ovo',
+            requestId: 'handoff-1',
+            target: { kind: 'phone', e164: '+15550123' },
+          },
+          reply: { status: 200, body: { kind: 'confirmed', receiptId: 'refer:cid@ovo:handoff-1' } },
+        }),
+        carrierCallId: 'cid@ovo',
+        target: { kind: 'phone', e164: '+15550123' },
+      },
+      {
+        scripts: sipControlScript({
+          method: 'POST',
+          path: '/v1/calls/handoff',
+          where: {
+            carrierCallId: 'cid@ovo',
+            requestId: 'handoff-1',
+            target: {
+              kind: 'sip',
+              uri: 'sips:acd@sbc.example.net',
+              headers: { 'X-OVO-Ticket': 't-1' },
+            },
+          },
+          reply: { status: 200, body: { kind: 'unknown', reason: 'refer_no_notify' } },
+        }),
+        carrierCallId: 'cid@ovo',
+        target: {
+          kind: 'sip',
+          uri: 'sips:acd@sbc.example.net',
+          headers: { 'X-OVO-Ticket': 't-1' },
+        },
+        expect: 'unknown',
+      },
+    ],
   },
   vectors: {
     http: [

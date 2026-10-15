@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { BlockList, isIPv4 } from 'node:net';
 import { z } from 'zod';
+import { parseUri } from '../sip/address.ts';
 
 const E164 = /^\+[1-9]\d{6,14}$/;
 
@@ -49,6 +50,60 @@ function proxyInsideSignalling(proxy: string | undefined, cidrs: readonly string
   }
 }
 
+const referHost = z
+  .string()
+  .regex(/^\.?[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/)
+  .refine((value) => !value.includes('..'), 'empty DNS label')
+  .transform((value) => value.toLowerCase());
+
+/**
+ * `{e164}` once, in the user part, of a `sip:`/`sips:` URI with a host: `sip:{e164}@sbc.example.net;user=phone`.
+ * Checked by substituting a sample number, so a template can never produce a URI the Refer-To
+ * builder would not accept.
+ */
+export function phoneTemplateProblem(template: string): string | undefined {
+  if (template.split('{e164}').length !== 2) return 'phoneUriTemplate needs {e164} exactly once';
+  if (/[\s<>"?#]/.test(template))
+    return 'phoneUriTemplate may not contain whitespace, <>, ?, # or "';
+  const uri = parseUri(template.replace('{e164}', '+919000000000'));
+  if (!uri || uri.scheme === 'tel' || !uri.host)
+    return 'phoneUriTemplate must be a sip: or sips: URI';
+  if (uri.user !== '+919000000000')
+    return 'phoneUriTemplate must carry {e164} as the whole user part';
+  return undefined;
+}
+
+/**
+ * SIP REFER transfer (R3). Off by default per trunk: a carrier's SBC either accepts REFER from us
+ * or it does not, and only the operator knows. `phoneUriTemplate` turns a phone target into the
+ * Refer-To URI; `allowedHosts` (exact host, or `.suffix` for subdomains) is the toll-fraud guard
+ * for `sip` targets, which come from a third party's answer.
+ */
+const ReferSchema = z
+  .strictObject({
+    enabled: z.boolean().default(false),
+    /** `bridge`: for a trunk that refuses REFER, relay the call through the gateway (stretch S1). */
+    mode: z.enum(['refer', 'bridge']).default('refer'),
+    phoneUriTemplate: z.string().max(512).optional(),
+    allowedHosts: z.array(referHost).max(64).default([]),
+  })
+  .superRefine((refer, ctx) => {
+    const problem = refer.phoneUriTemplate
+      ? phoneTemplateProblem(refer.phoneUriTemplate)
+      : undefined;
+    if (problem) ctx.addIssue({ code: 'custom', path: ['phoneUriTemplate'], message: problem });
+    if (
+      refer.enabled &&
+      refer.mode === 'refer' &&
+      !refer.phoneUriTemplate &&
+      !refer.allowedHosts.length
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message: 'refer.enabled needs phoneUriTemplate, allowedHosts or both',
+      });
+  });
+
 const TrunkSchema = z
   .strictObject({
     id: z.string().regex(/^[a-z0-9-]{1,40}$/),
@@ -72,6 +127,7 @@ const TrunkSchema = z
     inviteRatePerSecond: z.number().positive().max(100).default(5),
     maxConcurrent: z.number().int().positive().max(1000).default(2),
     optionsPingSeconds: z.number().int().min(0).max(3600).default(30),
+    refer: ReferSchema.default({ enabled: false, mode: 'refer', allowedHosts: [] }),
     inbound: z
       .strictObject({
         enabled: z.boolean(),
@@ -90,6 +146,14 @@ const TrunkSchema = z
   .refine((trunk) => !trunk.outbound.enabled || trunk.outbound.proxy, {
     message: 'outbound.enabled needs outbound.proxy',
   })
+  .refine(
+    (trunk) =>
+      trunk.refer.mode !== 'bridge' || (trunk.outbound.enabled && trunk.outbound.auth === 'ip'),
+    {
+      // The bridge dials out on this trunk with no credentials of its own.
+      message: 'refer.mode bridge needs outbound.enabled with auth ip',
+    },
+  )
   .refine((trunk) => proxyInsideSignalling(trunk.outbound.proxy, trunk.signallingCidrs), {
     // Its responses would be dropped by the pre-parse allow-list.
     message: 'outbound.proxy must be inside signallingCidrs',

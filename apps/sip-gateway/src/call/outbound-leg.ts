@@ -17,6 +17,18 @@ export const DEFAULT_RING_TIMEOUT_SEC = 60;
 /** A trunk gets at most this many digest rounds per call (a stale nonce allows the second). */
 const MAX_AUTH_ROUNDS = 2;
 
+/**
+ * What a leg needs to dial. A worker's dial is the whole `SipDialRequest`; a bridged handoff has no
+ * media socket or status callback, so it names only these fields plus how to address the INVITE.
+ */
+export type LegRequest = Pick<
+  SipDialRequest,
+  'requestId' | 'ringTimeoutSec' | 'maxDurationSec' | 'credentials'
+> &
+  Partial<Pick<SipDialRequest, 'media' | 'callbacks'>> & {
+    invite?: { requestUri?: string; headers?: [string, string][] };
+  };
+
 /** The UAC side of one outbound call: INVITE, digest, ring timeout, CANCEL, answer, forks. */
 export class OutboundLeg {
   private invite?: SipRequest;
@@ -32,7 +44,9 @@ export class OutboundLeg {
   constructor(
     private readonly host: CallHost,
     private readonly call: Call,
-    private readonly request: SipDialRequest,
+    private readonly request: LegRequest,
+    /** Set for a bridged leg: told when it is answered instead of opening a media socket. */
+    private readonly onAnswered?: (choice: MediaChoice, response: SipResponse) => void,
   ) {}
 
   async start(): Promise<void> {
@@ -64,6 +78,8 @@ export class OutboundLeg {
         via: host.via(this.flow.transport),
         contact: host.contact(this.flow.transport),
         sdp: call.answer,
+        ...(this.request.invite?.requestUri ? { requestUri: this.request.invite.requestUri } : {}),
+        ...(this.request.invite?.headers ? { extraHeaders: this.request.invite.headers } : {}),
       }),
     );
   }
@@ -203,6 +219,7 @@ export class OutboundLeg {
     call.timers.start('max', request.maxDurationSec * 1000, () =>
       call.end('max_duration', { bye: true, stream: 'stream-ended' }),
     );
+    if (this.onAnswered) return this.onAnswered(choice, response);
     host.registry.record(request.requestId, {
       kind: 'live',
       carrierCallId: call.callId,
@@ -210,10 +227,10 @@ export class OutboundLeg {
     });
     void call.postStatus('in_progress', { sipCode: response.status });
     call.media = mediaForCall(host, call, choice, {
-      mediaUrl: request.media.url,
-      routeParams: request.media.routeParams,
-      statusUrl: request.callbacks.status,
-      ...(request.callbacks.resume ? { resumeUrl: request.callbacks.resume } : {}),
+      mediaUrl: request.media!.url,
+      routeParams: request.media!.routeParams,
+      statusUrl: request.callbacks!.status,
+      ...(request.callbacks!.resume ? { resumeUrl: request.callbacks!.resume } : {}),
     });
     const media = call.media;
     media.start();
