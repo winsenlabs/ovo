@@ -47,8 +47,10 @@ export class ReferState {
       reason: result.kind === 'confirmed' ? undefined : result.reason,
       source,
     });
-    // A rejection keeps the dialog and frees the slot for another attempt.
-    if (result.kind === 'rejected') call.refer = undefined;
+    // A rejection keeps the dialog and frees the slot for another attempt. So does an unknown that
+    // the far end never accepted: the dialog stays, and a late 202 or NOTIFY is answered 481.
+    if (result.kind === 'rejected' || (result.kind === 'unknown' && !this.accepted))
+      call.refer = undefined;
     this.resolve(result);
     if (result.kind === 'confirmed' || (result.kind === 'unknown' && this.accepted))
       call.end('transferred', { bye: true, stream: 'transferred' });

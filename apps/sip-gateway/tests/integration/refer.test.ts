@@ -196,9 +196,21 @@ describe('SIP REFER handoff (R3)', () => {
   it('no answer at all to the REFER: unknown refer_no_response and the dialog is left alone', async () => {
     const c = await setup();
     const pending = handoff(c, SIP_TARGET);
-    await c.sip.request('REFER');
+    const first = await c.sip.request('REFER');
     expect((await pending).body).toEqual({ kind: 'unknown', reason: 'refer_no_response' });
     expect(c.h.running.gateway.registry.size).toBe(1);
+    // The unanswered REFER does not hold the slot: a different request can try again.
+    const second = handoff(c, SIP_TARGET, 'h-second');
+    // (the first REFER may be retransmitted meanwhile; only a new CSeq is the second attempt)
+    const again = (await c.sip.next(
+      (m) =>
+        m.kind === 'request' &&
+        m.method === 'REFER' &&
+        m.headers.get('cseq') !== first.headers.get('cseq'),
+    )) as SipRequest;
+    c.sip.reply(again, 202);
+    await send(c, notify(c, again, frag(200), 'terminated'));
+    expect((await second).body.kind).toBe('confirmed');
   });
 
   it('the far end hanging up before the last NOTIFY is unknown, not rejected', async () => {
@@ -266,6 +278,18 @@ describe('SIP REFER handoff (R3)', () => {
         { ...REFER, allowedHosts: [] },
         SIP_TARGET,
         'refer_host_not_allowed',
+      ],
+      [
+        'a phone number outside the country allow-list',
+        REFER,
+        { kind: 'phone', e164: '+14155550100' },
+        'destination_not_permitted',
+      ],
+      [
+        'a sip uri with a second @ in its user part',
+        REFER,
+        { ...SIP_TARGET, uri: 'sip:a@evil.example.com@transfer.example.net' },
+        'refer_uri_invalid',
       ],
       [
         'a phone target without a template',
