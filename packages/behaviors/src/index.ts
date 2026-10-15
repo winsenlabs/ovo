@@ -8,6 +8,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { definePlugin } from '@winsendotai/ovo-runtime';
 import { createAgentBehavior } from './agent.ts';
+import type { TransferPort } from './agent-transfer.ts';
 import { createAnnouncementBehavior } from './announcement.ts';
 import { createContextBehavior } from './context.ts';
 import { createFaqBehavior } from './faq.ts';
@@ -45,6 +46,7 @@ export const BEHAVIOR_SERVICE_KEYS = Object.freeze({
   decision: Cap.decision,
   knowledge: Cap.knowledge,
   events: Cap.events,
+  agentTransfer: Cap.agentTransfer,
 });
 
 export const BEHAVIOR_PLUGIN_IDS = Object.freeze({
@@ -196,6 +198,8 @@ export function createAgentBehaviorPlugin() {
         BEHAVIOR_SERVICE_KEYS.decision,
         BEHAVIOR_SERVICE_KEYS.knowledge,
         BEHAVIOR_SERVICE_KEYS.events,
+        // R2: present only on a routed call with transfers on, so a direct call composes as before.
+        BEHAVIOR_SERVICE_KEYS.agentTransfer,
       ],
       provides: [BEHAVIOR_SERVICE_KEYS.behavior],
       configSchema: {
@@ -214,6 +218,7 @@ export function createAgentBehaviorPlugin() {
       const decision = ctx.maybe(BEHAVIOR_SERVICE_KEYS.decision) as DecisionPort | undefined;
       const knowledge = ctx.maybe(BEHAVIOR_SERVICE_KEYS.knowledge) as KnowledgePort | undefined;
       const events = ctx.maybe(BEHAVIOR_SERVICE_KEYS.events) as EventSink | undefined;
+      const transfer = ctx.maybe(BEHAVIOR_SERVICE_KEYS.agentTransfer) as TransferPort | undefined;
       // A policy without a plugin is a release-validation error (`decision_plugin_missing`); fail
       // here too, so a graph assembled by any other path cannot silently run an unjudged call.
       if (config.agent.decision?.enabled && !decision)
@@ -234,6 +239,7 @@ export function createAgentBehaviorPlugin() {
           ...(decision ? { decision } : {}),
           ...(knowledge ? { knowledge } : {}),
           ...(events ? { events } : {}),
+          ...(transfer ? { transfer } : {}),
         },
       );
       ctx.provide(BEHAVIOR_SERVICE_KEYS.behavior, behavior);
