@@ -115,10 +115,9 @@ export function createProductionWorkerMediaRuntime(input: {
       },
       { pool: input.store.pool },
     ).route({
-      routing: input.operations?.routing,
+      ...routing,
+      routing: (input.operations ?? operationsOf(input.graph))?.routing,
       routerBehavior: createRouterBehaviorPlugin,
-      externalEnabled: input.routing?.externalEnabled ?? false,
-      prepareTimeoutMs: input.routing?.prepareTimeoutMs,
     }),
   );
   runtime = new WorkerMediaRuntime(
