@@ -155,6 +155,70 @@ describe('routed calls with in-call transfers on (transfer design 7.1-7.3)', () 
     expect(JSON.stringify(events)).not.toContain('refund');
   });
 
+  it('re-routes through the tree: the router comes back with its entry, then hands on', async () => {
+    const { call, session, router } = await routedToSales(true);
+    const begun = await router.handoff.begin!(
+      {
+        kind: 'agent',
+        reason: 'route',
+        agentId: 'sales-en',
+        releaseId: SALES_EN_RELEASE,
+        variables: {},
+        route: { path: ['intent'], poolId: POOL_SALES, memberId: 'sales-en' },
+      },
+      signal(),
+    );
+    if (!begun.ok) throw new Error(begun.reason);
+    router.handoff.commit(begun.handoffId);
+    await call.engines[0]!.complete();
+    await vi.waitFor(() => expect(call.engines[1]?.started).toBe(true));
+    const sales = call.engines[1]!;
+    const requested = await sales.transfer!.request(
+      { key: 'another_language', source: 'llm', confirmed: false },
+      signal(),
+    );
+    if (!requested.ok) throw new Error(requested.reason);
+    sales.transfer!.commit(requested.transferId);
+    await sales.complete();
+    await vi.waitFor(() => expect(call.routers).toHaveLength(2));
+    const reroute = call.routers[1]!;
+    expect(reroute.config).toMatchObject({
+      entry: { node: 'intent', path: [], disclosed: [], transfer: 1 },
+    });
+    await vi.waitFor(() => expect(call.engines[2]?.started).toBe(true));
+    expect(call.engines[2]!.transfer).toBeUndefined();
+    const handoff = await reroute.handoff.begin!(
+      {
+        kind: 'agent',
+        reason: 'transfer',
+        agentId: 'support',
+        releaseId: SUPPORT_RELEASE,
+        variables: {},
+        transfer: { source: 'router' },
+      },
+      signal(),
+    );
+    if (!handoff.ok) throw new Error(handoff.reason);
+    reroute.handoff.commit(handoff.handoffId);
+    await call.engines[2]!.complete();
+    await vi.waitFor(() => expect(call.engines[3]?.started).toBe(true));
+    expect(call.engines[3]!.transfer!.inbound).toMatchObject({ kind: 'transfer', transfer: 1 });
+    await session.dispose('caller_hangup');
+    const events = (await call.events()) as [string, Record<string, unknown>][];
+    const segments = events.filter(([type]) => type === 'route.segment');
+    expect(segments.map(([, payload]) => [payload.index, payload.role, payload.reason])).toEqual([
+      [0, 'router', 'start'],
+      [1, 'agent', 'route'],
+      [2, 'router', 'reroute'],
+      [3, 'agent', 'transfer'],
+    ]);
+    const completed = events.filter(([type]) => type === 'transfer.completed');
+    expect(completed.map(([, payload]) => [payload.transfer, payload.outcome])).toEqual([
+      [1, 'connected'],
+      [1, 'connected'],
+    ]);
+  });
+
   it('keeps Wave 15 routing exactly when the flag is off: no begin, no transfer port', async () => {
     const { call, router } = await routedToSales(false, r1Snapshot());
     expect(router.handoff.begin).toBeUndefined();

@@ -203,6 +203,69 @@ describe('TransferController: begin, commit and swap (transfer design 7.1, 7.2)'
   });
 });
 
+describe('TransferController: re-routes and the hold after start (transfer design 7.5, 7.6)', () => {
+  it('re-routes through a node: the router comes back with its entry, under the same transfer', async () => {
+    const h = transferHarness({ first: 'agent' });
+    const agent = await h.started();
+    h.memory.observe('route.decision', {
+      path: ['intent'],
+      language: 'hi',
+      context: { intent: 'sales' },
+    });
+    h.memory.observe('disclosure', { kinds: ['recording'] });
+    const node = {
+      kind: 'node' as const,
+      reason: 'transfer' as const,
+      node: 'language',
+      variables: {},
+      transfer: { source: 'llm' as const, key: 'another_language' },
+    };
+    const begun = await h.controller.begin(node, signal());
+    if (!begun.ok) throw new Error(begun.reason);
+    expect(h.targets[0]!.target).toMatchObject({
+      role: 'router',
+      reason: 'reroute',
+      releaseId: 'release-router',
+      entry: {
+        node: 'language',
+        path: ['intent'],
+        context: { language: 'hi', values: { intent: 'sales' } },
+        disclosed: ['recording'],
+        transfer: 1,
+      },
+    });
+    h.controller.commit(begun.handoffId);
+    await agent.complete();
+    await vi.waitFor(() => expect(h.journal.entries).toContain('s1.start'));
+    expect(h.event('route.segment')).toMatchObject({
+      role: 'router',
+      reason: 'reroute',
+      transfer: 1,
+    });
+    // The router's own handoff from the re-route counts under the same transfer.
+    const handoff = await h.controller.begin(agentRequest('release-b'), signal());
+    expect(handoff).toMatchObject({ ok: true });
+    expect(h.controller.transfers).toBe(1);
+  });
+
+  it('stops the hold once a started target has stayed silent for five seconds', async () => {
+    let ready!: () => void;
+    const composing = new Promise<void>((resolve) => (ready = resolve));
+    const h = transferHarness({ first: 'agent', compose: { 'release-b': composing } });
+    const agent = await h.started();
+    const begun = await h.controller.begin(agentRequest('release-b'), signal());
+    if (!begun.ok) throw new Error(begun.reason);
+    h.controller.commit(begun.handoffId);
+    await agent.complete();
+    ready();
+    await vi.waitFor(() => expect(h.journal.entries).toContain('s1.start'));
+    await h.clock.advance(4_999);
+    expect(h.holds[0]!.log).toEqual(['start:default']);
+    await h.clock.advance(1);
+    expect(h.holds[0]!.log).toEqual(['start:default', 'stop:target_silent']);
+  });
+});
+
 describe('TransferController: queued transfers (transfer design 7.4)', () => {
   const tiers = [[{ poolId: POOL, memberId: 'b', agentId: 'agent-b', releaseId: 'release-b' }]];
   const queue = {

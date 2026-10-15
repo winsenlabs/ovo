@@ -10,6 +10,7 @@ import {
   createSpeechCacheKey,
   normalizeSpeechInventory,
   staticSpeechInventory,
+  type SpeechInventory,
 } from '@winsendotai/ovo-plugin-speech-cache';
 import type { SpeechClipRef } from '@winsendotai/ovo-plugin-speech-cache/postgres';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
@@ -60,10 +61,8 @@ export async function warmReleaseClips(
 ): Promise<WarmResult> {
   const { release, tts } = input;
   const format = input.format ?? MULAW_8K;
-  const own = staticSpeechInventory(release);
-  const routed = (input.lines ?? []).map((text) => ({ text, source: 'script' as const }));
   const inventory = normalizeSpeechInventory(
-    { ...own, static: [...own.static, ...routed] },
+    withRoutedLines(staticSpeechInventory(release), input.lines),
     input.filters,
     release.config.language,
   );
@@ -232,4 +231,16 @@ export function skippedWarm(detail: string): WarmResult {
 export function warmCounts(result: WarmResult): Record<string, unknown> {
   const { state, total, existing, rendered, failed, deferred } = result;
   return { state, total, existing, rendered, failed, deferred };
+}
+
+/** A release's own fixed lines plus the routing points' for it (R2); a templated line never. */
+export function withRoutedLines(
+  inventory: SpeechInventory,
+  lines: readonly string[] = [],
+): SpeechInventory {
+  const fixed = lines.filter((text) => !/{{|}}/.test(text));
+  return {
+    ...inventory,
+    static: [...inventory.static, ...fixed.map((text) => ({ text, source: 'script' as const }))],
+  };
 }

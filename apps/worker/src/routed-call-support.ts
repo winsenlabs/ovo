@@ -70,8 +70,11 @@ export function routingHost(
   routerRelease: ReleaseRecord,
   routing: RoutedJob,
   variables: Readonly<Record<string, unknown>>,
+  /** Where its audits go: the call's telemetry, unless a transfer names them its own. */
+  audit: (type: string, payload: Record<string, unknown>) => void = (type, payload) =>
+    void scope.telemetry.audit(type, payload),
 ) {
-  const { job, telemetry } = scope;
+  const { job } = scope;
   const claims = options.routing?.claims;
   return createRoutingHost({
     call: {
@@ -90,7 +93,7 @@ export function routingHost(
       workspaceId: job.workspaceId,
       secrets: deps.secrets.forAgent(routerRelease.agentId),
     },
-    audit: (type, payload) => telemetry.audit(type, payload),
+    audit,
   });
 }
 

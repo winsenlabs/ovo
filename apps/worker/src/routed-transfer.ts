@@ -68,7 +68,10 @@ export function transferControl(
     void sink.append(type, payload);
   const transferLog = (event: string, fields: Record<string, unknown>) =>
     log.info(event, { ...call, ...fields });
-  const host = routingHost(deps, options, scope, routerRelease, routing, variables);
+  // A transfer's claim that finds storage down proceeds unclaimed (fail-open, design 8.1).
+  const host = routingHost(deps, options, scope, routerRelease, routing, variables, (type, p) =>
+    telemetry.audit(type === 'route.claims.unavailable' ? 'transfer.claims.unavailable' : type, p),
+  );
   const claims = {
     claim: (tiers: Parameters<typeof host.claim>[0]) =>
       host.claim(tiers, new AbortController().signal),

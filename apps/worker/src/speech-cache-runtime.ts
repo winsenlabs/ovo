@@ -15,6 +15,7 @@ import type { WorkerSpeechCacheOptions } from './speech-cache-env.ts';
 import { PerCallClipService, type PrepareCallInput } from './speech-cache-percall-service.ts';
 import type { CallClips } from './speech-cache-percall.ts';
 import { openReleaseSpeech, type ReleaseSpeechDeps } from './speech-cache-release-tts.ts';
+import { withRoutedLines } from './speech-cache-prerender.ts';
 import { SpeechPrerenderService, type PrerenderServiceInput } from './speech-cache-service.ts';
 import { WorkerSpeechClipCache } from './speech-cache-tiers.ts';
 
@@ -210,8 +211,7 @@ export function sessionSpeechApprovals(
     ...phrase,
     text: normalizeSpeechText(filters, phrase.text, language),
   }));
-  const inventory = staticSpeechInventory(release);
-  inventory.static.push(...routed.map((text) => ({ text, source: 'script' as const })));
+  const inventory = withRoutedLines(staticSpeechInventory(release), routed);
   const scripted = normalizeSpeechInventory(inventory, filters, language).texts.map(
     (text): ApprovedSpeechPhrase => ({ text, purpose: 'scripted' }),
   );
