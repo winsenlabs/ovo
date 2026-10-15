@@ -5,7 +5,7 @@ import type { DurableJob, SessionRoute } from '@winsendotai/ovo-plugin-orchestra
 import type { SecretManager } from '@winsendotai/ovo-plugin-secrets';
 import type { LiveRecordingService } from '@winsendotai/ovo-plugin-recordings';
 import type { InstalledSessionExtensions } from '@winsendotai/ovo-runtime';
-import type { VoiceSessionFactory } from './media-runtime.ts';
+import type { ManagedVoiceSession, VoiceSessionFactory } from './media-runtime.ts';
 import type { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
 import { startEarlyCallWork, type EarlyCallWork } from './session-early-start.ts';
 import type { WorkerTelemetryRuntime } from './telemetry-runtime.ts';
@@ -56,7 +56,7 @@ export class ProductionVoiceSessionFactory implements VoiceSessionFactory {
     };
   }
 
-  async create(input: SessionOpenInput) {
+  async create(input: SessionOpenInput): Promise<ManagedVoiceSession> {
     const { job, media } = input;
     const { store, graph, speechCache, extensions, secrets } = this.deps;
     const releaseId = requiredPayloadString(job.payload, 'releaseId');
