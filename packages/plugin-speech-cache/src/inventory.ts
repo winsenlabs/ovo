@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
   agentHandoffLines,
+  agentTransferLines,
   agentLanguageLine,
   agentRecoveryLines,
   agentUnclearLines,
@@ -115,6 +116,8 @@ export function staticSpeechInventory(release: SpeechInventoryRelease): SpeechIn
     add(line.text, line.field.startsWith('idle.') ? 'idle-prompt' : 'recovery');
   // The line a fallback speaks before handing the caller to a person (AGT-15).
   for (const line of agentHandoffLines(config)) add(line.text, 'recovery');
+  // R2: this agent's own transfer line and how it greets a transferred or returned caller.
+  for (const line of agentTransferLines(config)) add(line.text, 'recovery');
   const turns = release.selections?.turnDetector;
   const detector = turns ? turnDetectorLines(turns.config) : { idle: [], filler: [] };
   for (const prompt of detector.idle) add(prompt, 'idle-prompt');

@@ -24,3 +24,42 @@ describe('the transfer line in the clip inventory (AGT-15)', () => {
     expect(inventory.static.map((line) => line.text)).not.toContain('Connecting you now.');
   });
 });
+
+describe('agent-to-agent transfer lines in the clip inventory (R2)', () => {
+  const config = (agents: Record<string, unknown>) =>
+    AgentConfig.parse({
+      name: 'Sales',
+      mode: 'agent',
+      variables: {
+        type: 'object',
+        properties: { name: { type: 'string' } },
+        additionalProperties: false,
+      },
+      handoff: { agents },
+    });
+
+  it('pre-renders the transfer and return lines and keeps a templated greeting per call', () => {
+    const inventory = staticSpeechInventory({
+      config: config({
+        llmTool: true,
+        line: 'Let me move you to the right colleague.',
+        inbound: { greeting: 'line', line: 'Hi {{name}}, billing here.', returnLine: "I'm back." },
+      }),
+    });
+    expect(inventory.static).toContainEqual({
+      text: 'Let me move you to the right colleague.',
+      source: 'recovery',
+    });
+    expect(inventory.static).toContainEqual({ text: "I'm back.", source: 'recovery' });
+    expect(inventory.perCall).toContainEqual({
+      text: 'Hi {{name}}, billing here.',
+      source: 'recovery',
+    });
+  });
+
+  it('adds nothing for an agent without transfer lines', () => {
+    const before = staticSpeechInventory({ config: config({}) });
+    expect(before.static.map((line) => line.source)).not.toContain('transfer');
+    expect(staticSpeechInventory({ config: config({ llmTool: true }) })).toEqual(before);
+  });
+});
