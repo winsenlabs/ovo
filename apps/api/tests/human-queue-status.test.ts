@@ -24,13 +24,13 @@ describe('humanQueueFlagsFromEnv', () => {
 
   it('keeps the room token TTL and the presence TTL inside their documented bounds', () => {
     expect(humanQueueFlagsFromEnv({}).roomTokenTtlSeconds).toBe(120);
-    expect(
-      humanQueueFlagsFromEnv({ OVO_LIVEKIT_TOKEN_TTL_SECONDS: '45' }).roomTokenTtlSeconds,
-    ).toBe(45);
+    expect(humanQueueFlagsFromEnv({ OVO_ROOM_TOKEN_TTL_SECONDS: '45' }).roomTokenTtlSeconds).toBe(
+      45,
+    );
     for (const bad of ['5', '601', 'abc', '', '1.5'])
-      expect(
-        humanQueueFlagsFromEnv({ OVO_LIVEKIT_TOKEN_TTL_SECONDS: bad }).roomTokenTtlSeconds,
-      ).toBe(120);
+      expect(humanQueueFlagsFromEnv({ OVO_ROOM_TOKEN_TTL_SECONDS: bad }).roomTokenTtlSeconds).toBe(
+        120,
+      );
     expect(humanQueueFlagsFromEnv({}).humanQueuePresenceTtlSeconds).toBe(30);
     expect(
       humanQueueFlagsFromEnv({ OVO_HUMAN_QUEUE_PRESENCE_TTL_SECONDS: '60' })

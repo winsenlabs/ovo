@@ -112,7 +112,7 @@ export interface HqAppOptions {
   secret?: string;
   /** Routing points by id, for the labels the desk gives send-back targets. */
   points?: Record<string, unknown>;
-  /** `OVO_LIVEKIT_TOKEN_TTL_SECONDS`. */
+  /** `OVO_ROOM_TOKEN_TTL_SECONDS`. */
   tokenTtlSeconds?: number;
   /** The secret store refuses every credential. */
   secretError?: boolean;
