@@ -69,16 +69,18 @@ export function routerSegmentShape(input: {
 }
 
 /**
- * A segment's hang-up (or AGT-15 carrier transfer) with its own release, except while the call is
- * handing off: then its engine ending must leave the carrier leg to the next segment. Every
- * segment of a routed call is wrapped, the router and each agent (transfer design 7.1).
+ * A segment's hang-up (or AGT-15 carrier transfer) with its own release, only when `mayEndCall`:
+ * while the call is handing off its engine ending must leave the carrier leg to the next segment,
+ * and a graph that was never attached (composed, then dropped, superseded or late) must never hang
+ * up the call another segment is serving. Every segment of a routed call is wrapped, the router
+ * and each agent (transfer design 7.1).
  */
 export function handoffMediaClose(
-  handingOff: () => boolean,
+  mayEndCall: () => boolean,
   close: ((reason: EndReason) => Promise<void>) | undefined,
 ): (reason: EndReason) => Promise<void> {
   return async (reason) => {
-    if (!handingOff()) await close?.(reason);
+    if (mayEndCall()) await close?.(reason);
   };
 }
 

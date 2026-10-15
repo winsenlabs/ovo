@@ -20,8 +20,11 @@ export function routedCallSeconds(routerRelease: ReleaseRecord): number {
 
 /** What a routed call adds to every segment it composes. */
 export interface SegmentHooks {
-  /** The call is handing on: no segment's hang-up or carrier transfer runs (transfer design 7.1). */
-  handingOff(): boolean;
+  /**
+   * Whether the segment on `lease` may hang up (or hand the carrier leg on): only the attached
+   * one, and not while the call hands on (transfer design 7.1).
+   */
+  mayEndCall(lease: SegmentMediaLease): boolean;
   /** R2: a transfer's per-segment additions (sink, telemetry, usage, services, shape). */
   decorate?(
     input: SegmentInput,
@@ -39,8 +42,8 @@ export interface SegmentHooks {
  *   strict agent refuses any other);
  * - from segment 1 its ids carry `s<index>:` and its time limit is what is left of the router
  *   policy's;
- * - it hangs up, or hands the carrier leg on, with its own release's transfer target (never while
- *   the call is handing on), and its callbacks dial its own release.
+ * - it hangs up, or hands the carrier leg on, with its own release's transfer target (only while
+ *   attached, never while the call is handing on), and its callbacks dial its own release.
  *
  * Segment 0 of a degraded call (the default target, the router unavailable) is composed the same
  * way under the job id itself, with its own limit and unprefixed ids.
@@ -89,8 +92,9 @@ export function routedSegmentComposer(
       ...{ sttPreconnect: early.sttPreconnect, ownsStt: true, media: lease },
       events: routeEventSink(scope.events, { releaseId: release.id, telemetry: scope.telemetry }),
       beforeMediaClose: close
-        ? handoffMediaClose(hooks?.handingOff ?? (() => false), (reason: EndReason) =>
-            close({ ...job, payload }, route, reason),
+        ? handoffMediaClose(
+            () => hooks?.mayEndCall(lease) ?? true,
+            (reason: EndReason) => close({ ...job, payload }, route, reason),
           )
         : undefined,
       ...(shape ? { shape } : {}),

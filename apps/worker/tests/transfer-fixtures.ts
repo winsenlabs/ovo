@@ -15,7 +15,7 @@ import { SegmentReleaseMissingError } from '../src/segment-prepare.ts';
 import type { AttemptTarget } from '../src/transfer-attempt.ts';
 import { TransferController } from '../src/transfer-controller.ts';
 import type { ResolvedTarget, TransferControllerDeps } from '../src/transfer-types.ts';
-import { fakeMediaLink, fakeSegment, SegmentJournal } from './segment-fixtures.ts';
+import { agentSegment, fakeMediaLink, nativeEngine, SegmentJournal } from './segment-fixtures.ts';
 
 export const POOL = '11111111-1111-4111-8111-111111111111';
 export const CLAIM = '22222222-2222-4222-8222-222222222222';
@@ -127,6 +127,10 @@ export function transferHarness(options: HarnessOptions = {}) {
     release: vi.fn(async () => undefined),
   };
   const endCall = vi.fn((reason: string) => link.close(reason));
+  // Segments dispose as the native engine does: their hang-up (into `hangUps`), then their media.
+  const hangUps: string[] = [];
+  const native = (lease: SegmentMediaLease) =>
+    nativeEngine(() => controller.mayEndCall(lease), hangUps);
   const compose = async (target: AttemptTarget, index: number, lease: SegmentMediaLease) => {
     targets.push({ target, index });
     const behaviour = options.compose?.[target.releaseId] ?? 'ok';
@@ -138,6 +142,7 @@ export function transferHarness(options: HarnessOptions = {}) {
       releaseId: target.releaseId,
       agentId: target.agentId || `agent-of-${target.releaseId}`,
       fail: behaviour === 'start_fail',
+      ...native(lease),
     });
     const gate = options.startGate?.[target.releaseId];
     if (gate) {
@@ -182,6 +187,7 @@ export function transferHarness(options: HarnessOptions = {}) {
   const first = agentSegment(agent ? 'a' : 'router', journal, lease, {
     releaseId: agent ? 'release-a' : 'release-router',
     agentId: agent ? 'agent-a' : 'front',
+    ...native(lease),
   });
   controller.attach(
     first as unknown as CallSegment,
@@ -192,28 +198,12 @@ export function transferHarness(options: HarnessOptions = {}) {
   const event = (type: string) => recorded.find(([name]) => name === type)?.[1];
   return {
     ...{ link, journal, clock, memory, recorded, audits, logs, holds, segments, targets },
-    ...{ claims, endCall, controller, first, types, event },
+    ...{ claims, endCall, controller, first, types, event, hangUps, firstLease: lease },
     started: async () => {
       await first.start();
       return first;
     },
   };
-}
-
-/** `fakeSegment` with a release config and a voice: `speak` sends audio as its engine would. */
-export function agentSegment(
-  name: string,
-  journal: SegmentJournal,
-  lease: SegmentMediaLease,
-  options: { releaseId: string; agentId: string; fail?: boolean },
-) {
-  const segment = fakeSegment(name, journal, lease, options);
-  Object.assign(segment.release, {
-    config: { language: 'en', variables: { type: 'object', additionalProperties: true } },
-  });
-  return Object.assign(segment, {
-    speak: () => lease.sendAudio(new Uint8Array(160).fill(7)),
-  });
 }
 
 /** An agent request for the controller's `begin`. */

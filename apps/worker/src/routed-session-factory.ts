@@ -124,7 +124,9 @@ async function runRoutedCall(
       : undefined;
   const compose =
     transfers?.compose ??
-    routedSegmentComposer(deps, scope, routerRelease, { handingOff: () => controller.handingOff });
+    routedSegmentComposer(deps, scope, routerRelease, {
+      mayEndCall: (lease) => controller.mayEndCall(lease),
+    });
   const controller: CallSegmentController | TransferController =
     transfers?.controller ??
     new CallSegmentController({
@@ -158,7 +160,7 @@ async function runRoutedCall(
         call,
       }),
       beforeMediaClose: handoffMediaClose(
-        () => controller.handingOff,
+        () => controller.mayEndCall(lease),
         deps.beforeEngineMediaClose &&
           ((reason) => deps.beforeEngineMediaClose!(job, scope.route, reason)),
       ),

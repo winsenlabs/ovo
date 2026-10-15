@@ -10,8 +10,9 @@ import type { CallSegment } from './call-segment.ts';
 import type { SegmentMediaLease } from './segment-media.ts';
 import {
   composeWithin,
+  discardUnattached,
   disposeAttached,
-  interceptedLease,
+  SegmentLinkOwner,
   whenLinkCloses,
   ROUTING_PREPARE_TIMEOUT_MS,
   segmentStarted,
@@ -36,12 +37,11 @@ export {
  * close kept the link open, because the handoff was committed) is the router graph disposed and
  * the target engine started, with the caller's words from the gap replayed into it.
  */
-export class CallSegmentController implements SegmentHandoffPort {
+export class CallSegmentController extends SegmentLinkOwner implements SegmentHandoffPort {
   private current?: Attached;
   private prepared?: Prepared;
   /** A committed target between the router's end and its own start. */
   private incoming?: Attached;
-  private swapping?: Promise<void>;
   private preparing = false;
   private ended = false;
   private attempts = 0;
@@ -51,6 +51,7 @@ export class CallSegmentController implements SegmentHandoffPort {
   private readonly timeoutMs: number;
 
   constructor(private readonly deps: CallSegmentControllerDeps) {
+    super(deps);
     this.now = deps.now ?? Date.now;
     this.timeoutMs = deps.prepareTimeoutMs ?? ROUTING_PREPARE_TIMEOUT_MS;
     whenLinkCloses(deps.media, () => this.end());
@@ -59,11 +60,6 @@ export class CallSegmentController implements SegmentHandoffPort {
   /** True once the current segment's engine will end into a committed handoff. */
   get handingOff(): boolean {
     return !this.ended && Boolean(this.prepared?.committed);
-  }
-
-  /** A lease of the call's media for a segment; `live: false` for one not yet started. */
-  lease(live: boolean): SegmentMediaLease {
-    return interceptedLease(this.deps, live, (lease, reason) => this.intercept(lease, reason));
   }
 
   /** Makes `segment` the call's attached segment (segment 0, or a degraded default). */
@@ -96,7 +92,7 @@ export class CallSegmentController implements SegmentHandoffPort {
     if (!this.deps.allowed.has(request.releaseId))
       return this.refuse(request, 'release_not_allowed');
     // One prepared graph at most. Its claim stays: the new request may already hold the call's.
-    if (this.prepared) await disposeAttached(this.takePrepared(), 'behavior_completed');
+    if (this.prepared) await discardUnattached(this.takePrepared(), 'behavior_completed');
     const index = ++this.attempts;
     const startedAt = this.now();
     const lease = this.lease(false);
@@ -128,7 +124,7 @@ export class CallSegmentController implements SegmentHandoffPort {
 
   async abandon(handoffId: string): Promise<void> {
     if (this.prepared?.id !== handoffId || this.prepared.committed) return;
-    await disposeAttached(this.takePrepared(), 'behavior_completed');
+    await discardUnattached(this.takePrepared(), 'behavior_completed');
     await this.deps.releaseClaim();
   }
 
@@ -155,16 +151,11 @@ export class CallSegmentController implements SegmentHandoffPort {
     this.endedSignal.abort();
   }
 
-  private intercept(lease: SegmentMediaLease, reason: string): boolean {
-    if (lease !== this.current?.lease || !this.handingOff) return false;
-    this.swapping = this.swap(reason as EndReason)
-      // swallow-ok: logged by code only; the call ends through its media link either way.
-      .catch(() => this.deps.audit('route.handoff.failed', { reason: 'swap_failed' }))
-      .finally(() => (this.swapping = undefined));
-    return true;
+  protected get ownership() {
+    return { ended: this.ended, attached: this.current?.lease, handingOff: this.handingOff };
   }
 
-  private async swap(reason: EndReason): Promise<void> {
+  protected async handOn(reason: EndReason): Promise<void> {
     const target = this.takePrepared();
     const previous = this.current!;
     this.current = undefined;
@@ -234,7 +225,7 @@ export class CallSegmentController implements SegmentHandoffPort {
     const late = composed.then(async (segment) => {
       if (typeof segment === 'string') return lease.release();
       if (segment !== taken || this.ended)
-        await disposeAttached({ segment, lease }, 'error:route-handoff-failed');
+        await discardUnattached({ segment, lease }, 'error:route-handoff-failed');
     });
     this.inflight.add(late);
     // swallow-ok: a late composition's disposal failure has no call left to fail.

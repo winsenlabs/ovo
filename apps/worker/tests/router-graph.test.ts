@@ -58,16 +58,16 @@ describe('the router segment (routing design 7.3)', () => {
     ]);
   });
 
-  it('hangs up with the router release unless the call is handing off', async () => {
+  it('hangs up with the router release only while it may end the call', async () => {
     const close = vi.fn(async () => undefined);
-    let handingOff = false;
-    const hook = routerMediaClose(() => handingOff, close);
+    let mayEndCall = true;
+    const hook = routerMediaClose(() => mayEndCall, close);
     await hook('behavior_completed');
     expect(close).toHaveBeenCalledWith('behavior_completed');
-    handingOff = true;
+    mayEndCall = false;
     await hook('behavior_completed');
     expect(close).toHaveBeenCalledOnce();
-    await routerMediaClose(() => false, undefined)('caller_hangup');
+    await routerMediaClose(() => true, undefined)('caller_hangup');
   });
 });
 

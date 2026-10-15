@@ -24,9 +24,14 @@ vi.mock('../../packages/plugin-kit/src/index.ts', async (importOriginal) => {
 
 /**
  * The fake composition knob (design 13.3): a release listed in `slow` composes that much later,
- * one in `broken` fails to compose, so a test can force a hold or a timeout chain.
+ * one in `broken` fails to compose, so a test can force a hold or a timeout chain. `landed` lists
+ * the releases whose composition has finished.
  */
-const knob = vi.hoisted(() => ({ slow: new Map<string, number>(), broken: new Set<string>() }));
+const knob = vi.hoisted(() => ({
+  slow: new Map<string, number>(),
+  broken: new Set<string>(),
+  landed: new Set<string>(),
+}));
 vi.mock('../../apps/worker/src/routed-segments.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../apps/worker/src/routed-segments.ts')>();
   return {
@@ -37,7 +42,9 @@ vi.mock('../../apps/worker/src/routed-segments.ts', async (importOriginal) => {
         const releaseId = call[0].releaseId;
         await new Promise((resolve) => setTimeout(resolve, knob.slow.get(releaseId) ?? 0));
         if (knob.broken.has(releaseId)) throw new Error(`e2e knob: ${releaseId} fails to compose`);
-        return compose(...call);
+        const segment = await compose(...call);
+        knob.landed.add(releaseId);
+        return segment;
       };
     },
   };
@@ -51,6 +58,7 @@ const transferRuntime = existsSync(
   new URL('../../apps/worker/src/transfer-controller.ts', import.meta.url),
 );
 
+const clearKnob = () => [knob.slow, knob.broken, knob.landed].forEach((set) => set.clear());
 const of = (events: SessionEvent[], type: string) => events.filter((event) => event.type === type);
 const count = (haystack: Buffer, needle: Buffer) => {
   let found = 0;
@@ -76,10 +84,7 @@ describe.skipIf(!transferRuntime)('in-call agent transfer on one carrier leg (R2
     env = await transferStack(postgresUrl!, net.routes, { transfer: true }, { billingCapacity: 1 });
   }, 180_000);
   afterAll(async () => env?.close());
-  afterEach(() => {
-    knob.slow.clear();
-    knob.broken.clear();
-  });
+  afterEach(clearKnob);
 
   it('1. warm transfer with hold: announcement, clip and line, then billing greets with the summary', async () => {
     const { line } = env;
@@ -346,4 +351,55 @@ describe.skipIf(!transferRuntime)('OVO_ROUTING_TRANSFER_ENABLED=false (R2 ships 
     expect(result.usageSegments).toEqual([null]);
     expect(count(result.audio, env.line.pattern)).toBe(0);
   }, 180_000);
+});
+
+/**
+ * At the production prepare bound (2.5 s), the router picks sales-en, whose graph composes in 4 s:
+ * the default agent answers, and the sales graph landing later is disposed without ending the
+ * call the default agent is serving (R2 audit gap 1; R1's late path too, transfers off).
+ */
+describe.each([
+  ['transfers on', true],
+  ['transfers off (R1)', false],
+])('a graph landing after the default prepare bound (%s)', (_name, transfer) => {
+  let env: TransferStack;
+
+  beforeAll(async () => {
+    env = await transferStack(postgresUrl!, net.routes, { transfer, defaultBound: true });
+  }, 180_000);
+  afterAll(async () => env?.close());
+  afterEach(clearKnob);
+
+  it.skipIf(!transferRuntime)(
+    'leaves the call to the agent that answered',
+    async () => {
+      const { line } = env;
+      knob.slow.set(line.salesEn.releaseId, 4_000);
+      const result = await transferCall(env, async (call) => {
+        env.openAi.answer({ branch: 'sales', confidence: 0.9, language: 'en' });
+        await heard(env, call, LINES.greeting);
+        env.stt.say('I want to buy a card');
+        await said(env, call, LINES.fallback);
+        await vi.waitFor(() => expect(knob.landed).toContain(line.salesEn.releaseId), {
+          timeout: 15_000,
+        });
+        // The default agent still hears the caller and answers after the late graph is gone.
+        const asked = env.openAi.requests.length;
+        env.stt.say('Are you still there?');
+        await vi.waitFor(
+          () =>
+            expect(
+              env.openAi.requests.slice(asked).some((request) => request.agent === 'fallback'),
+            ).toBe(true),
+          { timeout: 20_000 },
+        );
+      });
+      expect(of(result.events, 'session.failed')).toEqual([]);
+      expect(result.summary.route).toMatchObject({
+        agentId: line.fallback.agentId,
+        releaseId: line.fallback.releaseId,
+      });
+    },
+    180_000,
+  );
 });

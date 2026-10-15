@@ -21,7 +21,8 @@ export type SessionEvent = { type: string; payload: Record<string, unknown> };
 export async function transferStack(
   postgresUrl: string,
   routes: Map<string, string>,
-  flags: { transfer: boolean },
+  /** `defaultBound` leaves the prepare timeout at its production default (2.5 s). */
+  flags: { transfer: boolean; defaultBound?: boolean },
   options: TransferLineOptions = {},
 ) {
   const openAi = await startTransferOpenAi({
@@ -38,8 +39,9 @@ export async function transferStack(
     OVO_ROUTING_ENABLED: 'true',
     OVO_ROUTING_TRANSFER_ENABLED: String(flags.transfer),
     // Every composition attempt is bounded by the prepare timeout (transfer design 9, default
-    // 2.5 s); the scenarios' slow knob composes in 4 s and must land within it.
-    OVO_ROUTING_PREPARE_TIMEOUT_MS: '6000',
+    // 2.5 s); the scenarios' slow knob composes in 4 s and must land within it, except where a
+    // scenario lands it after the default bound on purpose.
+    ...(flags.defaultBound ? {} : { OVO_ROUTING_PREPARE_TIMEOUT_MS: '6000' }),
   });
   const agent = await configureInboundAgent(stack.operator);
   const line = await configureTransferLine(stack.operator, agent, options);

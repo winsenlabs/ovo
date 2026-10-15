@@ -54,10 +54,11 @@ export class SegmentAttempt {
       if (typeof settled !== 'string') this.prepareMs = input.now() - startedAt;
       return settled;
     });
-    this.dispose = (segment) =>
-      (this.disposal ??= input
-        .dispose(segment, 'error:route-handoff-failed')
-        .finally(() => this.lease.release()));
+    // Its lease goes first: the graph never held the link, so its engine closing reaches nothing.
+    this.dispose = (segment) => {
+      this.lease.release();
+      return (this.disposal ??= input.dispose(segment, 'error:route-handoff-failed'));
+    };
     this.done = composed.then(async (segment) => {
       const taken = await this.result;
       if (typeof segment === 'string') {

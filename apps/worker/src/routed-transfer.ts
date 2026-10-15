@@ -191,7 +191,7 @@ export function transferControl(
     };
   };
   const compose = routedSegmentComposer(deps, scope, routerRelease, {
-    handingOff: () => controller.handingOff,
+    mayEndCall: (lease) => controller.mayEndCall(lease),
     decorate: (input, { index, target }) =>
       decorate(input, index, 'role' in target ? target : undefined),
   });

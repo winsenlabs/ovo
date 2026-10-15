@@ -5,7 +5,7 @@ import { realHoldClock, type HoldClock, type HoldPlayer } from './hold-player.ts
 import type { SegmentMediaLease } from './segment-media.ts';
 import {
   disposeAttached,
-  interceptedLease,
+  SegmentLinkOwner,
   ROUTING_PREPARE_TIMEOUT_MS,
   settleWithin,
   whenLinkCloses,
@@ -32,14 +32,13 @@ import {
  * buffer only from its start) and attaches it, or runs the hold's timeout chain. Hang-up ends it
  * all: every segment, starting or composing, is disposed.
  */
-export class TransferSegments implements ConnectHost {
+export class TransferSegments extends SegmentLinkOwner implements ConnectHost {
   readonly clock: HoldClock;
   /** Transfers accepted on this call so far (the router's own handoff is not one). */
   transfers = 0;
   protected current?: LiveSegment;
   private incoming?: LiveSegment;
   protected run?: TransferRun;
-  protected swapping?: Promise<void>;
   private attempts = 0;
   private startedCount = 0;
   protected isEnded = false;
@@ -52,6 +51,7 @@ export class TransferSegments implements ConnectHost {
   private readonly timeoutMs: number;
 
   constructor(readonly deps: TransferControllerDeps) {
+    super(deps);
     this.clock = deps.clock ?? realHoldClock;
     this.timeoutMs = deps.prepareTimeoutMs ?? ROUTING_PREPARE_TIMEOUT_MS;
     whenLinkCloses(deps.media, () => this.end());
@@ -80,10 +80,6 @@ export class TransferSegments implements ConnectHost {
   }
   get composedSegments(): number {
     return this.attempts;
-  }
-
-  lease(live: boolean): SegmentMediaLease {
-    return interceptedLease(this.deps, live, (lease, reason) => this.intercept(lease, reason));
   }
 
   /** Makes `segment` the call's attached segment (segment 0: the router, or a degraded default). */
@@ -243,17 +239,12 @@ export class TransferSegments implements ConnectHost {
     this.endedController.abort();
   }
 
-  private intercept(lease: SegmentMediaLease, reason: string): boolean {
-    if (lease !== this.current?.lease || !this.handingOff) return false;
-    const run = this.run!;
-    this.swapping = this.swap(run, reason as EndReason)
-      // swallow-ok: logged by code only; the call ends through its media link either way.
-      .catch(() => this.deps.audit('route.handoff.failed', { reason: 'swap_failed' }))
-      .finally(() => (this.swapping = undefined));
-    return true;
+  protected get ownership() {
+    return { ended: this.isEnded, attached: this.current?.lease, handingOff: this.handingOff };
   }
 
-  private async swap(run: TransferRun, reason: EndReason): Promise<void> {
+  protected async handOn(reason: EndReason): Promise<void> {
+    const run = this.run!;
     const previous = this.current!;
     this.current = undefined;
     const gapFrom = this.clock.now();

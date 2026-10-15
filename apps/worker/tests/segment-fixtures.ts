@@ -1,5 +1,6 @@
 import type { VoiceMediaTransport } from '@winsendotai/ovo-contracts';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
+import { handoffMediaClose } from '../src/router-graph.ts';
 import type { SegmentMediaLease } from '../src/segment-media.ts';
 
 type Listener<Args extends unknown[]> = (...args: Args) => void;
@@ -56,6 +57,15 @@ export function fakeMediaLink(sessionId = 'session-1') {
 
 export type FakeMediaLink = ReturnType<typeof fakeMediaLink>;
 
+/**
+ * `fakeSegment`'s `native` option for a routed call: its hang-up wrapped as the routed composer
+ * wraps it (it runs only when `mayEndCall`), recorded in `hangUps`.
+ */
+export function nativeEngine(mayEndCall: () => boolean, hangUps: string[]) {
+  const hangUp = handoffMediaClose(mayEndCall, async (reason) => void hangUps.push(reason));
+  return { native: { hangUp } };
+}
+
 /** What the fake segments did, in order, and how many engines were attached at once. */
 export class SegmentJournal {
   readonly entries: string[] = [];
@@ -78,18 +88,36 @@ export class SegmentJournal {
 /**
  * A composed segment whose engine, once started, hears its lease and can end like the native
  * engine: by closing its media first (`complete`). `close` disposes it (journaled once started);
- * `fail` makes start throw.
+ * `fail` makes start throw. With `native`, disposing it closes its media as the native engine's
+ * dispose always does, started or not, unless it already ended itself: its hang-up first, then its
+ * lease, however the hang-up went.
  */
 export function fakeSegment(
   name: string,
   journal: SegmentJournal,
   lease: Pick<SegmentMediaLease, 'onAudio' | 'onDtmf' | 'close'>,
-  options: { releaseId?: string; agentId?: string; fail?: boolean } = {},
+  options: {
+    releaseId?: string;
+    agentId?: string;
+    fail?: boolean;
+    native?: { hangUp(reason: string): Promise<void> };
+  } = {},
 ) {
   let unsubscribe: (() => void)[] = [];
   let started = false;
+  // The engine closes its media once: when it ends itself (`complete`) or when it is disposed.
+  let mediaClosed = false;
   const heard: string[] = [];
   const closeReasons: string[] = [];
+  const closeMedia = async (reason: string) => {
+    mediaClosed = true;
+    if (!options.native) return lease.close(reason);
+    try {
+      await options.native.hangUp(reason);
+    } finally {
+      await lease.close(reason);
+    }
+  };
   const segment = {
     release: {
       id: options.releaseId ?? `release-${name}`,
@@ -110,6 +138,7 @@ export function fakeSegment(
     },
     close: async (reason: string) => {
       closeReasons.push(reason);
+      if (options.native && !mediaClosed) await closeMedia(reason);
       if (closeReasons.length > 1 || !started) return undefined;
       journal.log(`${name}.close:${reason}`);
       for (const stop of unsubscribe.splice(0)) stop();
@@ -117,7 +146,23 @@ export function fakeSegment(
       return undefined;
     },
     /** The engine's behaviour completed: it closes its media, as the native engine's stop does. */
-    complete: (reason = 'behavior_completed') => lease.close(reason),
+    complete: (reason = 'behavior_completed') => closeMedia(reason),
   };
   return segment;
+}
+
+/** `fakeSegment` with a release config and a voice: `speak` sends audio as its engine would. */
+export function agentSegment(
+  name: string,
+  journal: SegmentJournal,
+  lease: SegmentMediaLease,
+  options: Parameters<typeof fakeSegment>[3] & { releaseId: string; agentId: string },
+) {
+  const segment = fakeSegment(name, journal, lease, options);
+  Object.assign(segment.release, {
+    config: { language: 'en', variables: { type: 'object', additionalProperties: true } },
+  });
+  return Object.assign(segment, {
+    speak: () => lease.sendAudio(new Uint8Array(160).fill(7)),
+  });
 }

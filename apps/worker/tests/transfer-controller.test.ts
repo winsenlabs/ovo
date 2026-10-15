@@ -79,11 +79,11 @@ describe('TransferController: begin, commit and swap (transfer design 7.1, 7.2)'
     expect(h.logs.map(([name]) => name)).toContain('transfer_connected');
   });
 
-  it("suppresses every segment's hang-up only while the call hands on", async () => {
+  it("runs a segment's hang-up only while it is attached and the call does not hand on", async () => {
     const h = transferHarness({ first: 'agent' });
     const agent = await h.started();
     const close = vi.fn(async () => undefined);
-    const hook = handoffMediaClose(() => h.controller.handingOff, close);
+    const hook = handoffMediaClose(() => h.controller.mayEndCall(h.firstLease), close);
     await hook('behavior_completed');
     expect(close).toHaveBeenCalledOnce();
     const begun = await h.controller.begin(agentRequest('release-b'), signal());
@@ -95,10 +95,13 @@ describe('TransferController: begin, commit and swap (transfer design 7.1, 7.2)'
     expect(close).toHaveBeenCalledTimes(2);
     await agent.complete();
     await vi.waitFor(() => expect(h.journal.entries).toContain('s1.start'));
+    // The agent that handed on is no longer attached: its hang-up never runs again.
     await hook('caller_hangup');
-    expect(close).toHaveBeenCalledTimes(3);
+    expect(close).toHaveBeenCalledTimes(2);
+    expect(h.hangUps).toEqual([]);
     // The target's own ending hangs up as any segment's does.
     await h.segments.get(1)!.complete();
+    expect(h.hangUps).toEqual(['behavior_completed']);
     expect(h.link.closed).toEqual(['behavior_completed']);
   });
 
