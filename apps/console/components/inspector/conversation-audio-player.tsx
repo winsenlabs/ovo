@@ -20,6 +20,31 @@ function clockFace(totalSeconds: number): string {
   return `${pad(Math.trunc(whole / 60))}:${pad(whole % 60)}`;
 }
 
+const MARKER_HIT_PX = 24;
+
+/** M5: a call with many short turns packs markers closer together than their own 24px hit
+ * target (axe `target-size`, worst on the 390px capture) — once two neighbours would overlap at
+ * the track's *actual rendered* width, the later one is dropped rather than left interactive and
+ * indistinguishable from its neighbour. Kept markers always include the first. */
+function thinMarkers(
+  markers: readonly ConversationAudioMarker[],
+  totalMs: number,
+  trackWidthPx: number,
+): ConversationAudioMarker[] {
+  if (!trackWidthPx || totalMs <= 0) return [...markers];
+  const minGapMs = (MARKER_HIT_PX / trackWidthPx) * totalMs;
+  const sorted = [...markers].sort((a, b) => a.atMs - b.atMs);
+  const kept: ConversationAudioMarker[] = [];
+  let lastKeptAtMs = -Infinity;
+  for (const marker of sorted) {
+    if (marker.atMs - lastKeptAtMs >= minGapMs) {
+      kept.push(marker);
+      lastKeptAtMs = marker.atMs;
+    }
+  }
+  return kept;
+}
+
 function Transport({
   playing,
   disabled,
@@ -150,8 +175,21 @@ export function ConversationAudioPlayer({
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
+  const [trackWidthPx, setTrackWidthPx] = useState(0);
+  const [trackNode, setTrackNode] = useState<HTMLDivElement | null>(null);
   const totalMs = Math.max(durationMs, 1);
   const { url: blobSrc, error: blobError } = useAudioBlobUrl(src);
+
+  useEffect(() => {
+    if (!trackNode || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width) setTrackWidthPx(width);
+    });
+    observer.observe(trackNode);
+    setTrackWidthPx(trackNode.getBoundingClientRect().width || 0);
+    return () => observer.disconnect();
+  }, [trackNode]);
 
   function seekTo(targetMs: number) {
     const bounded = Math.min(totalMs, Math.max(0, targetMs));
@@ -215,7 +253,7 @@ export function ConversationAudioPlayer({
           </a>
         )}
       </div>
-      <div className="ds-audio-track-wrap">
+      <div className="ds-audio-track-wrap" ref={setTrackNode}>
         <div
           className="ds-audio-track"
           role="slider"
@@ -236,7 +274,11 @@ export function ConversationAudioPlayer({
         >
           <TrackFill totalMs={totalMs} segments={segments} positionMs={positionMs} />
         </div>
-        <TrackMarkers totalMs={totalMs} markers={markers} onMarkerClick={seekTo} />
+        <TrackMarkers
+          totalMs={totalMs}
+          markers={thinMarkers(markers, totalMs, trackWidthPx)}
+          onMarkerClick={seekTo}
+        />
       </div>
     </div>
   );

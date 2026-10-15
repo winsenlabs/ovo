@@ -11,6 +11,12 @@ vi.mock('../lib/api', async (importOriginal) => ({
 vi.mock('../components/shell/session-provider', () => ({
   useSession: () => ({ role: 'admin' }),
 }));
+// The tab-in-URL sync (minor #12) reads/writes the router, which this render tree has none of.
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ replace: vi.fn() }),
+  usePathname: () => '/calls/call-1',
+}));
 afterEach(() => {
   cleanup();
   request.mockReset();
@@ -122,7 +128,10 @@ describe('call inspector latency + diagnosis (OBS-7, W14 relogic)', () => {
     await openTab('Cost');
     // Once in the header's "Cost" KPI (shared across tabs) and once in the Cost tab's own total.
     expect(await screen.findAllByText('₹12.50')).toHaveLength(2);
-    expect(screen.getAllByText('$0.07')).toHaveLength(2); // the tab's USD total and the one cost line
+    // M1/M2: the header KPI's "other currency" footnote and the USD donut's centre now go
+    // through the same `formatMoney` total as the tab's own USD KpiCard, so this currency's
+    // amount reads identically in all four spots instead of only two.
+    expect(screen.getAllByText('$0.07')).toHaveLength(4);
     expect(await screen.findByText(/Provisional: priced partly/)).toBeTruthy();
     expect(screen.getByText('Unpriced meters: acme.stt.seconds')).toBeTruthy();
     expect(

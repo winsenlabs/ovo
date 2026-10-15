@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TelemetryEvent } from '../../lib/operator-api';
 import { SectionCard } from '../ui/section-card';
 import { StatusBadgeV2 } from '../ui/status-badge';
@@ -14,18 +14,28 @@ import { humaniseEnum } from '../../lib/status';
  * existed before W14 but was mounted nowhere). */
 export function TelemetryStream({ callId }: { callId?: string }) {
   const [events, setEvents] = useState<TelemetryEvent[]>([]);
-  const [state, setState] = useState<'idle' | 'connecting' | 'live' | 'error'>('idle');
+  const [state, setState] = useState<'idle' | 'connecting' | 'live' | 'error' | 'ended'>('idle');
   const [gap, setGap] = useState<string>();
+  // Whether this connection ever actually opened. `EventSource`'s generic `error` event fires
+  // both for "never connected at all" (worth an amber warning) and for "connected fine, then the
+  // server ended the response" (by spec `readyState` goes back to `CONNECTING` for an automatic
+  // retry either way, so it can't tell the two apart) — a normal stream close after a real `open`
+  // read as the same scary "Error" badge as a misconfigured endpoint (minor #10).
+  const reachedLive = useRef(false);
   useEffect(() => {
     setEvents([]);
     setGap(undefined);
+    reachedLive.current = false;
     if (!callId) {
       setState('idle');
       return;
     }
     setState('connecting');
     const stream = new EventSource(`/api/v1/calls/${encodeURIComponent(callId)}/stream`);
-    stream.addEventListener('open', () => setState('live'));
+    stream.addEventListener('open', () => {
+      reachedLive.current = true;
+      setState('live');
+    });
     stream.addEventListener('telemetry', (message) => {
       try {
         const event = JSON.parse((message as MessageEvent<string>).data) as TelemetryEvent;
@@ -39,7 +49,9 @@ export function TelemetryStream({ callId }: { callId?: string }) {
       }
     });
     stream.addEventListener('gap', (message) => setGap((message as MessageEvent<string>).data));
-    stream.addEventListener('error', () => setState('error'));
+    stream.addEventListener('error', () => {
+      setState(reachedLive.current ? 'ended' : 'error');
+    });
     return () => stream.close();
   }, [callId]);
   const columns: ColumnV2<TelemetryEvent>[] = [
@@ -94,11 +106,19 @@ export function TelemetryStream({ callId }: { callId?: string }) {
       ) : (
         <EmptyStateV2
           variant={state === 'error' ? 'unavailable' : 'first-run'}
-          title={state === 'error' ? 'Telemetry stream unavailable' : 'Waiting for telemetry'}
+          title={
+            state === 'error'
+              ? 'Telemetry stream unavailable'
+              : state === 'ended'
+                ? 'Telemetry stream ended'
+                : 'Waiting for telemetry'
+          }
         >
           {state === 'error'
             ? 'The performance service may be unconfigured. Existing call evidence remains available above.'
-            : 'No stage or playback events have arrived for this call.'}
+            : state === 'ended'
+              ? 'This call has ended; no further telemetry will arrive.'
+              : 'No stage or playback events have arrived for this call.'}
         </EmptyStateV2>
       )}
     </SectionCard>

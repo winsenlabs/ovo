@@ -38,32 +38,47 @@ export function CallsOverview({
   error?: string;
   onRetry: () => void;
 }) {
+  // Minor #3: a 503'd window has nothing to summarise — the KPI strip read as a real "0 / 0 / 0"
+  // instead of the honest "—" every other failed KPI on this screen already shows.
+  const failed = Boolean(error);
   return (
     <>
       <KpiStrip>
-        <KpiCard label="Calls (window)" value={kpis.total} loading={loading} />
+        <KpiCard label="Calls (window)" value={failed ? null : kpis.total} loading={loading} />
         <KpiCard
           label="Completion rate"
-          value={kpis.completionRate != null ? <Percent value={kpis.completionRate} /> : null}
-          footnote={`${kpis.completed} of ${kpis.total - kpis.liveNow} finished`}
+          value={
+            !failed && kpis.completionRate != null ? <Percent value={kpis.completionRate} /> : null
+          }
+          footnote={
+            failed ? undefined : `${kpis.completed} of ${kpis.total - kpis.liveNow} finished`
+          }
           loading={loading}
         />
         <KpiCard
           label="Failed"
-          value={kpis.failed}
+          value={failed ? null : kpis.failed}
           footnote={
-            kpis.failedTimeoutShare != null ? (
-              <Percent value={kpis.failedTimeoutShare} digits={0} />
+            // Minor #4: a bare "100%" footnote on the Failed KPI read as a stray percentage with
+            // nothing to anchor it to.
+            !failed && kpis.failedTimeoutShare != null ? (
+              <>
+                <Percent value={kpis.failedTimeoutShare} digits={0} /> timeouts
+              </>
             ) : undefined
           }
           loading={loading}
         />
         <KpiCard
           label="Median duration"
-          value={kpis.medianDurationMs != null ? <Duration ms={kpis.medianDurationMs} /> : null}
+          value={
+            !failed && kpis.medianDurationMs != null ? (
+              <Duration ms={kpis.medianDurationMs} />
+            ) : null
+          }
           loading={loading}
         />
-        <KpiCard label="Live now" value={kpis.liveNow} loading={loading} />
+        <KpiCard label="Live now" value={failed ? null : kpis.liveNow} loading={loading} />
       </KpiStrip>
       <div className="ui-grid">
         <ChartFrame

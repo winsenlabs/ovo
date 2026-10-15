@@ -15,9 +15,21 @@ export function callColumns(agents: Map<string, string>): ColumnV2<CallRow>[] {
       id: 'started',
       header: 'Started',
       priority: 'high',
+      // Minor #2: a vertical `ds-stack` of the relative time over the ID chip wrapped to 3-4
+      // lines (~100px rows) at the widths this column actually gets — one nowrap row, chip
+      // inline, plus a width floor so the two never get squeezed into wrapping again.
+      width: '200px',
       sortValue: (call) => (call.createdAt ? Date.parse(call.createdAt) : 0),
       cell: (call) => (
-        <span className="ds-stack" style={{ gap: 2 }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 8,
+            flexWrap: 'nowrap',
+            whiteSpace: 'nowrap',
+          }}
+        >
           <RelativeTime value={call.createdAt} />
           <IdChip id={call.id} short={shortenId(call.id)} />
         </span>
@@ -32,7 +44,11 @@ export function callColumns(agents: Map<string, string>): ColumnV2<CallRow>[] {
     {
       id: 'kind',
       header: 'Kind',
-      priority: 'normal',
+      // Minor #5 (partial): the mobile card showed all 6 visible fields end to end — "kind" is
+      // the one the brief's own mobile summary ("agent + status / started · duration /
+      // disposition") drops, so it goes to `low` to actually shrink the card instead of just
+      // relying on a future custom card renderer for all of it.
+      priority: 'low',
       cell: (call) => <span className="ds-chip">{humaniseEnum(call.kind)}</span>,
     },
     {
@@ -46,7 +62,11 @@ export function callColumns(agents: Map<string, string>): ColumnV2<CallRow>[] {
       header: 'Duration',
       priority: 'normal',
       align: 'end',
-      sortValue: (call) => callDurationMs(call) ?? -1,
+      // Minor #13: `-1` for an in-progress call's unknown duration sorted it as the *shortest*
+      // call, so "Duration ascending" put every live call first. `Infinity` keeps unknown
+      // durations last ascending (and first descending, where "longest first" already reads as
+      // "still running" in that position).
+      sortValue: (call) => callDurationMs(call) ?? Number.POSITIVE_INFINITY,
       cell: (call) => <Duration ms={callDurationMs(call)} />,
     },
     {

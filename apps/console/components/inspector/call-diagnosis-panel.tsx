@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { InlineAlert } from '../ui/feedback-v2';
 import { StatusBadgeV2 } from '../ui/status-badge';
 import { RelativeTime } from '../ui/display';
+import { endReasonLabel } from '../../lib/derive/calls';
 
 export interface CallDiagnosis {
   endReason: string | null;
@@ -51,7 +52,7 @@ export function CallDiagnosisPanel({ diagnosis }: { diagnosis?: CallDiagnosis })
     <div className="ds-stack">
       <div className="ui-cluster">
         <span className="muted">
-          End reason: <span className="mono">{diagnosis.endReason ?? 'not recorded'}</span>
+          End reason: {diagnosis.endReason ? endReasonLabel(diagnosis.endReason) : 'Not recorded'}
         </span>
         <StatusBadgeV2
           tone={diagnosis.errors.length ? 'danger' : 'ok'}

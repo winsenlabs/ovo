@@ -3,8 +3,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { apiRequest, ApiError } from '../lib/api';
 import { useSession } from '../components/shell/session-provider';
+import { useTabParam } from '../lib/use-tab-param';
+import { usePluginLabels } from '../lib/use-plugin-labels';
 import type { CallEvidence } from '../lib/derive/call-detail';
-import { primaryCost } from '../lib/derive/call-detail';
+import { primaryCost, engineLatencyBreakdown } from '../lib/derive/call-detail';
 import { useTurns, turnSummary } from '../components/inspector/turn-model';
 import { PageHeader } from '../components/ui/layout';
 import { KpiCard, KpiStrip } from '../components/ui/kpi';
@@ -12,7 +14,7 @@ import { StatusBadgeV2 } from '../components/ui/status-badge';
 import { IdChip } from '../components/ui/section-card';
 import { Tabs, type TabItem } from '../components/ui/tabs';
 import { Skeleton, ErrorState, EmptyStateV2 } from '../components/ui/feedback-v2';
-import { Duration, Money } from '../components/ui/display';
+import { Duration, Money, RelativeTime } from '../components/ui/display';
 import { CodeBlock } from '../components/ui/code-block';
 import { humaniseEnum } from '../lib/status';
 import { formatDateTime, shortenId } from '../lib/format';
@@ -46,8 +48,9 @@ export function CallInspectorFeature({ callId }: { callId: string }) {
   const identity = useSession();
   const [evidence, setEvidence] = useState<CallEvidence>();
   const [error, setError] = useState<ApiError | Error>();
-  const [tab, setTab] = useState<string>('conversation');
+  const { tab, setTab, resetTab } = useTabParam('conversation');
   const [agentName, setAgentName] = useState<string>();
+  const pluginLabels = usePluginLabels();
 
   const load = useCallback(() => {
     setEvidence(undefined);
@@ -75,6 +78,9 @@ export function CallInspectorFeature({ callId }: { callId: string }) {
     () => TABS.filter((item) => item.id !== 'recording' || evidence?.call.kind === 'live'),
     [evidence?.call.kind],
   );
+  useEffect(() => {
+    if (evidence && !availableTabs.some((item) => item.id === tab)) resetTab('conversation');
+  }, [evidence, availableTabs, tab, resetTab]);
 
   if (error) {
     const notFound = error instanceof ApiError && error.status === 404;
@@ -127,6 +133,11 @@ export function CallInspectorFeature({ callId }: { callId: string }) {
         meta={
           <div className="ui-cluster">
             <StatusBadgeV2 value={call.status} />
+            {/* Minor #12: the header had no relative time at all, only the absolute
+                `formatDateTime` in the description above it. */}
+            <span className="ds-chip">
+              <RelativeTime value={call.createdAt} />
+            </span>
             <span className="ds-chip">{humaniseEnum(call.kind)}</span>
             <span className="ds-chip">
               <Duration ms={call.durationMs} />
@@ -199,8 +210,7 @@ export function CallInspectorFeature({ callId }: { callId: string }) {
               className="ds-chip"
               title={`${slot}: ${selection.pluginId}@${selection.resolvedVersion ?? selection.version}`}
             >
-              {humaniseEnum(slot)}: {selection.pluginId}@
-              {selection.resolvedVersion ?? selection.version}
+              {humaniseEnum(slot)}: {pluginLabels.get(selection.pluginId) ?? selection.pluginId}
             </span>
           ))}
         </div>
@@ -215,7 +225,13 @@ export function CallInspectorFeature({ callId }: { callId: string }) {
             turnsError={turnsError}
           />
         )}
-        {tab === 'latency' && <LatencyTab turns={turns} error={turnsError} />}
+        {tab === 'latency' && (
+          <LatencyTab
+            turns={turns}
+            error={turnsError}
+            engineLatency={engineLatencyBreakdown(evidence.latency)}
+          />
+        )}
         {tab === 'outcome' && <CallOutcomePanel callId={callId} />}
         {tab === 'cost' && <CostPanel callId={callId} cost={evidence.cost} />}
         {tab === 'events' && <EventsTab callId={callId} evidence={evidence} />}

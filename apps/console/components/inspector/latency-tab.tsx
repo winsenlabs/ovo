@@ -1,32 +1,50 @@
 'use client';
 import { ChartFrame } from '../charts/chart-frame';
 import { Waterfall } from '../charts/waterfall';
-import { BarChart } from '../charts/bar-chart';
+import { BarChart, type BarSeriesPoint } from '../charts/bar-chart';
 import { LineChart } from '../charts/line-chart';
 import { CHART_PALETTE, formatMsAxis } from '../charts/scale';
 import { EmptyStateV2 } from '../ui/feedback-v2';
-import { firstAudioSeries, stageBreakdown, turnWaterfall, type TurnRow } from './turn-model';
+import {
+  firstAudioSeries,
+  stageBreakdown,
+  turnWaterfall,
+  STAGES,
+  type TurnRow,
+} from './turn-model';
 
 /**
  * The Latency tab: one shared-axis waterfall of every turn's stages (capped at the p95, same as
  * the brief's original per-turn bars but with a real axis, legend and overflow gutter now), a
- * stage-breakdown bar of the median per stage, and first-audio per turn against its own p50/p95.
+ * stage-breakdown bar of the median per stage, first-audio per turn against its own p50/p95, and
+ * (minor #11) the evidence payload's own engine-side latency breakdown, which survives even when
+ * `/turns` itself fails.
  */
 export function LatencyTab({
   turns,
   error,
   onRetry,
+  engineLatency,
 }: {
   turns: readonly TurnRow[] | undefined;
   error?: string;
   onRetry?: () => void;
+  engineLatency?: readonly BarSeriesPoint[];
 }) {
   const loading = !error && !turns;
   const waterfall = turns ? turnWaterfall(turns) : undefined;
   const stages = turns ? stageBreakdown(turns) : [];
   const firstAudio = turns ? firstAudioSeries(turns) : undefined;
+  // Minor #9: a legend built from `STAGES`' own fixed hues, rendered by `ChartFrame` outside the
+  // chart's `role="img"` box (same spot the first-audio chart's legend already uses) rather than
+  // only inside the SVG, where it rendered but was invisible to assistive tech and easy to miss
+  // visually next to a fixed-height chart frame.
+  const presentStageKeys = new Set(
+    waterfall?.rows.flatMap((row) => row.stages.map((stage) => stage.stage)) ?? [],
+  );
+  const waterfallLegendStages = STAGES.filter((stage) => presentStageKeys.has(stage.label));
 
-  if (!loading && !error && turns && turns.length === 0)
+  if (!loading && !error && turns && turns.length === 0 && !engineLatency?.length)
     return (
       <EmptyStateV2 variant="first-run" title="No turn timings recorded">
         This call has no turn telemetry.
@@ -35,6 +53,28 @@ export function LatencyTab({
 
   return (
     <div className="ds-stack">
+      {engineLatency && engineLatency.length > 0 && (
+        <ChartFrame
+          title="Engine latency (evidence)"
+          ariaLabel="Latency breakdown reported directly in the call's evidence payload"
+          height={200}
+          empty={!engineLatency.length}
+          tableRows={engineLatency.length}
+          tableColumns={[
+            { header: 'Stage', cell: (i) => engineLatency[i]!.category },
+            { header: 'Duration', cell: (i) => formatMsAxis(engineLatency[i]!.values.ms!) },
+          ]}
+          renderChart={(width) => (
+            <BarChart
+              width={width}
+              height={200}
+              data={engineLatency}
+              seriesKeys={['ms']}
+              valueFormat={formatMsAxis}
+            />
+          )}
+        />
+      )}
       <ChartFrame
         title="Stage breakdown"
         ariaLabel="Median latency per stage across turns"
@@ -135,7 +175,23 @@ export function LatencyTab({
         error={error}
         onRetry={onRetry}
         empty={!waterfall?.rows.length}
-        height={(waterfall?.rows.length ?? 0) * 28 + 48}
+        height={(waterfall?.rows.length ?? 0) * 28 + 60}
+        legend={
+          waterfallLegendStages.length > 0 ? (
+            <ul className="ds-chart-legend">
+              {waterfallLegendStages.map((stage) => (
+                <li key={stage.key}>
+                  <span className="ds-legend-swatch" style={{ background: stage.color }} />
+                  {stage.label}
+                </li>
+              ))}
+              <li>
+                <span className="ds-legend-swatch" style={{ background: 'var(--surface-2)' }} />
+                Unattributed
+              </li>
+            </ul>
+          ) : undefined
+        }
         tableRows={waterfall?.rows.length ?? 0}
         tableColumns={[
           { header: 'Turn', cell: (i) => waterfall!.rows[i]!.label },

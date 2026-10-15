@@ -129,7 +129,14 @@ export function CallOutcomePanel({ callId }: { callId: string }) {
               role="img"
               aria-label={`Confidence ${Math.round(value * 100)}%`}
             >
-              <span className="ds-meter-fill tone-ok" style={{ width: `${value * 100}%` }} />
+              {/* M7: `.ds-meter-fill`'s base rule is `position: absolute` with no `left`, so
+                  with nothing else setting it the browser falls back to the fill's static
+                  position — inside this right-aligned cell that is the track's right edge, and
+                  `overflow: hidden` on the track then hides the whole bar. */}
+              <span
+                className="ds-meter-fill tone-ok"
+                style={{ left: 0, width: `${value * 100}%` }}
+              />
             </span>
             <Percent value={value} digits={0} />
           </span>
@@ -140,7 +147,7 @@ export function CallOutcomePanel({ callId }: { callId: string }) {
       id: 'fallback',
       header: 'Fallback',
       priority: 'low',
-      cell: (row) => text(row.fallbackReason),
+      cell: (row) => (row.fallbackReason == null ? '—' : humaniseEnum(text(row.fallbackReason))),
     },
   ];
   return (

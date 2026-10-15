@@ -34,6 +34,10 @@ export function EventsTab({ callId, evidence }: { callId: string; evidence: Call
   const live = evidence.call.status === 'in_progress' || liveToggled;
   return (
     <div className="ds-stack">
+      {/* Minor #10: for a call still in progress this was mounted below the full recorded-event
+          timeline — thousands of pixels down on a long call — instead of being the first thing
+          on the tab. */}
+      {live && <TelemetryStream callId={callId} />}
       <SectionCard
         title="Event timeline"
         description={`${events.length} recorded events`}
@@ -49,7 +53,6 @@ export function EventsTab({ callId, evidence }: { callId: string; evidence: Call
           <EmptyStateV2 variant="first-run" title="No events recorded" />
         )}
       </SectionCard>
-      {live && <TelemetryStream callId={callId} />}
     </div>
   );
 }

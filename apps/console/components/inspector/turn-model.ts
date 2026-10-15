@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../../lib/api';
+import { humaniseEnum } from '../../lib/status';
 import type { BarSeriesPoint } from '../charts/bar-chart';
 import type { WaterfallRow, WaterfallStage } from '../charts/waterfall';
 
@@ -107,8 +108,10 @@ const RULES_MODEL_ID = 'ovo.rules';
 export function routeLabel(turn: TurnRow): { tier: string; text: string } | undefined {
   const decision = turn.decision;
   const chosen = decision?.answers.find((answer) => answer.choice) ?? decision?.answers[0];
+  // The brief's "never raw snake_case" rule reaches here too: a route-decision chip is where a
+  // caller-facing intent like `wrong_person` surfaced un-humanised in the transcript before.
   const verdict = chosen?.choice
-    ? `${chosen.choice} ${Math.round(chosen.confidence * 100)}%`
+    ? `${humaniseEnum(chosen.choice)} ${Math.round(chosen.confidence * 100)}%`
     : chosen?.value != null
       ? `${chosen.questionId} ${chosen.value.toFixed(2)}`
       : undefined;

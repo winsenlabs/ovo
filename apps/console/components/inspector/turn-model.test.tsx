@@ -32,17 +32,18 @@ describe('turn waterfall model (OBS-7)', () => {
   });
 
   it('labels the tier that answered, the way the POC does', () => {
-    expect(routeLabel(turn())).toEqual({ tier: 'jev', text: 'Jev → promise_to_pay 91% · 240 ms' });
+    // The verdict's choice is humanised too (brief: never raw snake_case, even in a route chip).
+    expect(routeLabel(turn())).toEqual({ tier: 'jev', text: 'Jev → Promise to pay 91% · 240 ms' });
     expect(routeLabel(turn({ decision: { ...turn().decision!, ms: 2 } }))?.text).toBe(
-      'Jev → promise_to_pay 91% · ready from partials',
+      'Jev → Promise to pay 91% · ready from partials',
     );
     expect(routeLabel(turn({ decision: { ...turn().decision!, modelId: 'ovo.rules' } }))).toEqual({
       tier: 'rule',
-      text: 'rule → promise_to_pay 91%',
+      text: 'rule → Promise to pay 91%',
     });
     expect(routeLabel(turn({ llmCalls: 2 }))).toEqual({
       tier: 'llm',
-      text: 'promise_to_pay 91% → LLM ×2',
+      text: 'Promise to pay 91% → LLM ×2',
     });
     expect(
       routeLabel(

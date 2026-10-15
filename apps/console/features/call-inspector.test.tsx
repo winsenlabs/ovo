@@ -10,6 +10,12 @@ vi.mock('../lib/api', async (importOriginal) => ({
 vi.mock('../components/shell/session-provider', () => ({
   useSession: () => ({ role: 'admin' }),
 }));
+// The tab-in-URL sync (minor #12) reads/writes the router, which this render tree has none of.
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ replace: vi.fn() }),
+  usePathname: () => '/calls/call-1',
+}));
 afterEach(() => {
   cleanup();
   request.mockReset();

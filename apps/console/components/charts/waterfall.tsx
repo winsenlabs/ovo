@@ -10,8 +10,10 @@ export type WaterfallRow = {
 
 const ROW_HEIGHT = 28;
 // `right` reserves a gutter for the "+Nms" overflow marker so it never sits on top of a stage
-// bar that runs to the plot edge underneath it (brief defect #7).
-const MARGIN = { top: 4, right: 56, bottom: 24, left: 88 };
+// bar that runs to the plot edge underneath it (brief defect #7). `top` reserves room for the
+// "p95" label drawn above the axis line — at the old 4px it sat 2px inside the viewBox, close
+// enough to the top edge to clip (minor #9).
+const MARGIN = { top: 16, right: 56, bottom: 24, left: 88 };
 
 /**
  * One shared ms x-axis, rows = turns, stacked stage segments, with a p95 cap marker, an overflow

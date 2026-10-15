@@ -8,17 +8,26 @@ import {
 } from '../../../components/ui/toolbar';
 import { Select } from '../../../components/ui/inputs';
 import { CALL_STATUS_KEYS } from '../../../lib/derive/calls';
-import { humaniseEnum } from '../../../lib/status';
+import { humaniseEnum, humaniseKey } from '../../../lib/status';
 import { KindSegmented, type CallKind } from './calls-controls';
 import type { PluginOption } from './plugin-options';
 
 export const SERVER_FILTERS = ['agentId', 'kind', 'status', 'engine', 'carrier'] as const;
+
+const FILTER_KEY_LABELS: Record<string, string> = {
+  agentId: 'Agent',
+  kind: 'Kind',
+  status: 'Status',
+  engine: 'Engine',
+  carrier: 'Carrier',
+};
 
 /** The Calls list filter row: agent/kind/status/engine/carrier hit the API (URL-synced), search
  * and the date range are client-side over the loaded page. */
 export function CallsFilterBar({
   search,
   setFilter,
+  onClearAll,
   queryText,
   setQueryText,
   agents,
@@ -31,6 +40,7 @@ export function CallsFilterBar({
 }: {
   search: ReadonlyURLSearchParams;
   setFilter: (key: string, value: string) => void;
+  onClearAll: () => void;
   queryText: string;
   setQueryText: (value: string) => void;
   agents: Map<string, string>;
@@ -44,6 +54,20 @@ export function CallsFilterBar({
   const activeChips = [...SERVER_FILTERS, 'q'].filter((key) =>
     key === 'q' ? queryText : search.get(key),
   );
+  // M3: raw `agentId: rel_003_emi_re` chips — a humanised key label plus the agent name/plugin
+  // label/humanised enum each filter actually renders elsewhere in the row.
+  const chipValueLabel = (key: string, value: string): string => {
+    switch (key) {
+      case 'agentId':
+        return agents.get(value) ?? value;
+      case 'engine':
+        return engines.find((option) => option.id === value)?.label ?? value;
+      case 'carrier':
+        return carriers.find((option) => option.id === value)?.label ?? value;
+      default:
+        return humaniseEnum(value);
+    }
+  };
   return (
     <FilterBar
       search={queryText}
@@ -51,12 +75,15 @@ export function CallsFilterBar({
       searchPlaceholder="Search call ID"
       chips={activeChips.map((key) => ({
         id: key,
-        label: key === 'q' ? `ID: ${queryText}` : `${key}: ${search.get(key)}`,
+        label:
+          key === 'q'
+            ? `ID: ${queryText}`
+            : `${FILTER_KEY_LABELS[key] ?? humaniseKey(key)}: ${chipValueLabel(key, search.get(key)!)}`,
       }))}
       onClearChip={(id) => (id === 'q' ? setQueryText('') : setFilter(id, ''))}
       onClearAll={() => {
         setQueryText('');
-        for (const key of SERVER_FILTERS) setFilter(key, '');
+        onClearAll();
       }}
       filters={
         <>

@@ -4,8 +4,11 @@
 import type { CallDiagnosis } from '../../components/inspector/call-diagnosis-panel';
 import { routeLabel, type TurnRow } from '../../components/inspector/turn-model';
 import type { DonutSlice } from '../../components/charts/donut';
+import type { BarSeriesPoint } from '../../components/charts/bar-chart';
 import type { ConversationLine } from '../../components/ui/conversation';
 import type { RecordingTrackSegment } from '../../components/operations/production-track-player';
+import { formatMoney } from '../format';
+import { humaniseEnum } from '../status';
 
 export interface CostLine {
   id: string;
@@ -161,9 +164,11 @@ export function primaryCost(cost: CostEvidence | undefined): PrimaryCost | null 
     currency: primary!.currency,
     totalMinor: Number(primary!.estimatedMinor) + Number(primary!.reconciledMinor),
     provisional: (cost?.unpriced?.length ?? 0) > 0,
-    others: rest.map(
-      (total) =>
-        `${total.currency} ${(Number(total.estimatedMinor) + Number(total.reconciledMinor)).toLocaleString('en-IN')}`,
+    // M1: these are minor units (paise/cents), same as `totalMinor` above — `.toLocaleString()`
+    // on the raw minor-unit number read as "INR 224" (100x too high next to the Cost tab's own
+    // ₹2.24), so this goes through the same `formatMoney` as everything else.
+    others: rest.map((total) =>
+      formatMoney(Number(total.estimatedMinor) + Number(total.reconciledMinor), total.currency),
     ),
   };
 }
@@ -179,4 +184,17 @@ export function costByProvider(
     totals.set(line.provider, (totals.get(line.provider) ?? 0) + Number(line.amountMinor));
   }
   return [...totals.entries()].map(([label, value]) => ({ label, value }));
+}
+
+/** Minor #11: the evidence payload's own `latency[]` (the engine's view, independent of
+ * `GET /v1/calls/:id/turns`) folded into the same bar-chart shape the Latency tab's stage
+ * breakdown already renders — it survives on its own when `/turns` fails, where it used to be
+ * visible only by opening the Raw tab. */
+export function engineLatencyBreakdown(
+  latency: CallEvidence['latency'] | undefined,
+): BarSeriesPoint[] {
+  return (latency ?? []).map((entry) => ({
+    category: entry.name ?? (entry.stage ? humaniseEnum(entry.stage) : 'Latency'),
+    values: { ms: entry.durationMs },
+  }));
 }

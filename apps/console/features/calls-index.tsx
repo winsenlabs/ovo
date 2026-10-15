@@ -3,7 +3,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useCursorList } from '../lib/data/use-cursor-list';
 import { callsKpis, callsOverTime, endReasonTop, type CallRow } from '../lib/derive/calls';
-import { loadAgentReleaseOptions } from '../components/operations/agent-release-options';
+import {
+  loadAgentChoices,
+  loadAgentReleaseOptions,
+} from '../components/operations/agent-release-options';
 import { useSession } from '../components/shell/session-provider';
 import { LiveCallForm } from '../components/operations/live-call-form';
 import { Drawer } from '../components/ui/drawer';
@@ -54,7 +57,12 @@ export function CallsIndexFeature() {
   const router = useRouter();
   const pathname = usePathname();
   const [launchOpen, setLaunchOpen] = useState(false);
-  const [agents, setAgents] = useState<Map<string, string>>(new Map());
+  // Two different keys for the same agent, never conflated: the filter Select sends a real
+  // `agentId` to the API (B1 — `loadAgentReleaseOptions` is keyed by release id, which the API
+  // doesn't accept as `agentId` and returns zero rows for), while the table's Agent column still
+  // resolves a row's `releaseId` the only way it can.
+  const [agentChoices, setAgentChoices] = useState<Map<string, string>>(new Map());
+  const [agentsByRelease, setAgentsByRelease] = useState<Map<string, string>>(new Map());
   const [engines, setEngines] = useState<PluginOption[]>([]);
   const [carriers, setCarriers] = useState<PluginOption[]>([]);
   const [queryText, setQueryText] = useState(search.get('q') ?? '');
@@ -65,9 +73,16 @@ export function CallsIndexFeature() {
   });
 
   useEffect(() => {
+    void loadAgentChoices()
+      .then((choices) =>
+        setAgentChoices(new Map(choices.map((choice) => [choice.id, choice.name]))),
+      )
+      .catch(() => setAgentChoices(new Map()));
     void loadAgentReleaseOptions()
-      .then((options) => setAgents(new Map(options.map((option) => [option.id, option.agentName]))))
-      .catch(() => setAgents(new Map()));
+      .then((options) =>
+        setAgentsByRelease(new Map(options.map((option) => [option.id, option.agentName]))),
+      )
+      .catch(() => setAgentsByRelease(new Map()));
     void loadPluginOptions('engine')
       .then(setEngines)
       .catch(() => setEngines([]));
@@ -92,6 +107,16 @@ export function CallsIndexFeature() {
     router.push(`${pathname}?${next}`);
   };
 
+  // M3: `setFilter` called once per key in a loop always reads the same `search` snapshot from
+  // this render, so only the last call's deletion survives — one push built from every filter at
+  // once is the only way "Clear all" actually clears all of them.
+  const clearAllFilters = () => {
+    const next = new URLSearchParams(search.toString());
+    for (const key of SERVER_FILTERS) next.delete(key);
+    next.delete('cursor');
+    router.push(`${pathname}?${next}`);
+  };
+
   const windowRows = useMemo(
     () =>
       page.items.filter(
@@ -104,7 +129,7 @@ export function CallsIndexFeature() {
   const kpis = useMemo(() => callsKpis(windowRows), [windowRows]);
   const overTime = useMemo(() => callsOverTime(windowRows), [windowRows]);
   const endReasons = useMemo(() => endReasonTop(windowRows), [windowRows]);
-  const columns = useMemo(() => callColumns(agents), [agents]);
+  const columns = useMemo(() => callColumns(agentsByRelease), [agentsByRelease]);
   const filtered = activeChipCount(search, queryText) > 0;
 
   return (
@@ -125,9 +150,10 @@ export function CallsIndexFeature() {
       <CallsFilterBar
         search={search}
         setFilter={setFilter}
+        onClearAll={clearAllFilters}
         queryText={queryText}
         setQueryText={setQueryText}
-        agents={agents}
+        agents={agentChoices}
         engines={engines}
         carriers={carriers}
         range={range}

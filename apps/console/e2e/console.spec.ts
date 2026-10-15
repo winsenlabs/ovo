@@ -53,9 +53,16 @@ test('wizard, plugin review, fixture stream, and evidence inspector', async ({ p
   await expect(page.getByText('Hello caller').first()).toBeVisible();
   await expect(page.getByText('Cost so far: 3')).toBeVisible();
   await page.getByRole('link', { name: /Inspect call fixture-call/ }).click();
-  await expect(page.getByRole('heading', { name: 'Call fixture-call' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Latency waterfall' })).toBeVisible();
-  await expect(page.getByText('carrier.stream.minute', { exact: true })).toBeVisible();
+  // W14 relogic: the inspector heading is "<agent> call", not the raw call id (B2) — the detail
+  // split into tabs, so "Latency waterfall" and the cost ledger's unpriced-meter text are each
+  // one tab click away now, rather than both visible on a single untabbed page.
+  await expect(page.getByRole('heading', { name: / call$/ })).toBeVisible();
+  await page.getByRole('tab', { name: 'Latency' }).click();
+  await expect(page.getByRole('heading', { name: 'Engine latency (evidence)' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Cost' }).click();
+  // The unpriced-meter alert reads as one sentence ("Unpriced meters: carrier.stream.minute"),
+  // not an isolated element around the meter name, so this is a substring match, not `exact`.
+  await expect(page.getByText('carrier.stream.minute')).toBeVisible();
 });
 
 test('calls cursor pagination and deep link', async ({ page }) => {
@@ -68,7 +75,10 @@ test('calls cursor pagination and deep link', async ({ page }) => {
   await expect(page).toHaveURL(/cursor=50/);
   await expect(page.getByRole('link', { name: 'call-051' })).toBeVisible();
   await page.getByRole('link', { name: 'call-051' }).click();
-  await expect(page.getByRole('heading', { name: 'Call call-051' })).toBeVisible();
+  // B2/new markup: the heading is "<agent> call" — this fixture has no agent config for the
+  // evidence's `agentId`, so it falls back to "Agent call" (never the raw call id); the call id
+  // itself still shows as the header's IdChip.
+  await expect(page.getByRole('heading', { name: 'Agent call' })).toBeVisible();
 });
 
 test('carrier binding exposes operator URLs and the 12 px typography floor', async ({ page }) => {

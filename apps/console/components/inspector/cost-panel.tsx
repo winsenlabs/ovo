@@ -136,7 +136,13 @@ export function CostPanel({ callId, cost }: { callId: string; cost?: CostEvidenc
               renderChart={() => (
                 <Donut
                   slices={slices}
-                  centerLabel={formatMoney(total.reconciledMinor, total.currency)}
+                  // M2: the reconciled amount alone read as the "total" next to a bigger slice
+                  // sum ($0.03 centre against a $0.06 ring) — the centre is the same
+                  // estimated+reconciled total the slices themselves add up to.
+                  centerLabel={formatMoney(
+                    Number(total.estimatedMinor) + Number(total.reconciledMinor),
+                    total.currency,
+                  )}
                   formatValue={(value) => formatMoney(value, total.currency)}
                 />
               )}

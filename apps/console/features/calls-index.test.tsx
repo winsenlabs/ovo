@@ -12,6 +12,7 @@ vi.mock('../components/shell/session-provider', () => ({
 }));
 vi.mock('../components/operations/agent-release-options', () => ({
   loadAgentReleaseOptions: () => Promise.resolve([{ id: 'rel_1', agentName: 'EMI reminder' }]),
+  loadAgentChoices: () => Promise.resolve([{ id: 'agt_1', name: 'EMI reminder' }]),
 }));
 vi.mock('../lib/api', async () => {
   const actual = await vi.importActual<typeof import('../lib/api')>('../lib/api');

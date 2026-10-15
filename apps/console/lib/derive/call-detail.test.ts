@@ -96,11 +96,14 @@ describe('primaryCost', () => {
         { currency: 'INR', estimatedMinor: '10', reconciledMinor: '90', lines: 4 },
       ],
     });
+    // M1: `others` is minor units, same as `totalMinor` — it goes through `formatMoney` now
+    // instead of `.toLocaleString()` on the raw minor-unit number (which read as "USD 5" for
+    // what is actually 5 cents, a 100x overstatement next to the Cost tab's own figures).
     expect(cost).toEqual({
       currency: 'INR',
       totalMinor: 100,
       provisional: true,
-      others: ['USD 5'],
+      others: ['$0.05'],
     });
   });
   it('is null with nothing priced yet', () => {
