@@ -22,8 +22,10 @@ const variables = (properties: Record<string, unknown>, required: string[] = [])
 /** The inbound route store as design 5.3 has it: put writes one target and NULLs the other. */
 function fakeInboundRoutes() {
   const rows = new Map<string, InboundRoute>();
+  const inputs: InboundRouteInput[] = [];
   return {
     rows,
+    inputs,
     async get(phoneNumber: string) {
       return rows.get(phoneNumber);
     },
@@ -31,6 +33,7 @@ function fakeInboundRoutes() {
       return [...rows.values()];
     },
     async put(input: InboundRouteInput) {
+      inputs.push(input);
       const current = rows.get(input.phoneNumber);
       if ((current?.version ?? null) !== input.expectedVersion) return undefined;
       const now = new Date();
@@ -71,6 +74,7 @@ async function setup(routingEnabled = true) {
     draftVersion: 1,
     snapshot: {
       router: { agentId: 'front-desk', release: { kind: 'pinned', releaseId: ROUTER_RELEASE } },
+      defaultTarget: { agentId: 'sales-en', release: { kind: 'pinned', releaseId: AGENT_RELEASE } },
     } as never,
     digest: 'a'.repeat(64),
     createdBy: 'test',
@@ -169,6 +173,19 @@ describe('the inbound route PUT target union (A6)', () => {
     ]);
     expect((await put({ releaseId: AGENT_RELEASE, routingReleaseId })).statusCode).toBe(400);
     expect((await put({})).statusCode).toBe(400);
+  });
+
+  it("binds a routed number with its default agent's variable schema, a direct one without", async () => {
+    // R1 audit gap 2: operations filters an overflow callback's variables by this schema.
+    const { put, inboundRoutes, routingReleaseId } = await setup();
+    expect((await put({ routingReleaseId, variables: { campaign: 'diwali' } })).statusCode).toBe(
+      200,
+    );
+    expect((await put({ releaseId: AGENT_RELEASE })).statusCode).toBe(200);
+    expect(inboundRoutes.inputs.map((input) => input.defaultVariablesSchema)).toEqual([
+      variables({ region: { type: 'string' } }).variables,
+      undefined,
+    ]);
   });
 
   it("validates variables against the router release's schema", async () => {

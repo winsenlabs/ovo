@@ -2,8 +2,14 @@ import { ROUTE_VARIABLE_PREFIX } from '@winsendotai/ovo-contracts';
 import type { InboundRoute, OperationsService } from '@winsendotai/ovo-plugin-operations';
 import type { ControlStore, ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 
-/** Exactly one of the two, as `operationsApiSchemas.inboundRoute` refines it. */
-export type InboundTarget = { releaseId: string } | { routingReleaseId: string };
+/**
+ * Exactly one of the two, as `operationsApiSchemas.inboundRoute` refines it. A routing target also
+ * carries the default agent's variable schema, so an overflow callback (which dials the default
+ * agent) passes on only the variables that agent declares (R1 audit gap 2).
+ */
+export type InboundTarget =
+  | { releaseId: string }
+  | { routingReleaseId: string; defaultVariablesSchema?: Record<string, unknown> };
 
 export type InboundTargetResult =
   | {
@@ -64,8 +70,19 @@ export async function resolveInboundTarget(input: {
     input.workspaceId,
     routing.snapshot.router.release.releaseId,
   );
+  const defaultRelease = await input.store.getRelease(
+    input.workspaceId,
+    routing.snapshot.defaultTarget.release.releaseId,
+  );
   return release
-    ? { ok: true, target: { routingReleaseId: routing.id }, release }
+    ? {
+        ok: true,
+        target: {
+          routingReleaseId: routing.id,
+          ...(defaultRelease ? { defaultVariablesSchema: defaultRelease.config.variables } : {}),
+        },
+        release,
+      }
     : {
         ok: false,
         status: 404,
