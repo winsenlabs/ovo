@@ -173,6 +173,7 @@ export function transferHarness(options: HarnessOptions = {}) {
     endCall,
     callEndsAt: clock.now() + (options.callSeconds ?? 600) * 1000,
     defaultLanguage: 'en',
+    timezone: 'Asia/Kolkata',
     prepareTimeoutMs: options.timeoutMs ?? 200,
     clock,
   });

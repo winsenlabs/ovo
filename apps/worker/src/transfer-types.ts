@@ -93,6 +93,8 @@ export interface TransferControllerDeps {
   /** When the call's time limit (the router policy's) is reached, epoch ms. */
   callEndsAt: number;
   defaultLanguage: string;
+  /** The router release's timezone: a callback promise is kept in it (the API requires one). */
+  timezone: string;
   prepareTimeoutMs?: number;
   clock?: HoldClock;
 }

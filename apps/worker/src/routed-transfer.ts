@@ -125,6 +125,7 @@ export function transferControl(
     endCall: (reason) => endRoutedCall(deps, scope, reason),
     callEndsAt: scope.openedAt + routedCallSeconds(routerRelease) * 1000,
     defaultLanguage: snapshot.language.default,
+    timezone: routerRelease.config.timezone,
     ...(options.prepareTimeoutMs !== undefined
       ? { prepareTimeoutMs: options.prepareTimeoutMs }
       : {}),

@@ -165,7 +165,7 @@ describe('the hold timeout chain (transfer design 7.7)', () => {
     const disposition = h.event('disposition')!;
     expect(disposition).toMatchObject({
       disposition: 'callback',
-      callback: { source: 'route', releaseId: 'release-default' },
+      callback: { source: 'route', timezone: 'Asia/Kolkata', releaseId: 'release-default' },
     });
     const due = Date.parse((disposition.callback as { dueAt: string }).dueAt);
     expect(due - h.clock.now()).toBe(60 * 60_000);

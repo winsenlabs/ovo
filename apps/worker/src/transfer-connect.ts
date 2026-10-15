@@ -76,7 +76,10 @@ export async function connectTransfer(
       const dueAt = new Date(clock.now() + step.inMinutes * 60_000).toISOString();
       deps.record('disposition', {
         ...{ disposition: 'callback', reason: 'callback' },
-        callback: { dueAt, source: 'route', releaseId: deps.fallback.releaseId },
+        callback: {
+          ...{ dueAt, timezone: deps.timezone, source: 'route' },
+          ...{ reason: 'hold_timeout', releaseId: deps.fallback.releaseId },
+        },
       });
     }
     steps.push({ step: step.kind, result: 'taken' });
