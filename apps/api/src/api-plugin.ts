@@ -2,6 +2,7 @@ import type { UserDirectory } from './user-directory.ts';
 import { type OperationStore } from '@winsendotai/ovo-contracts';
 import { Cap } from '@winsendotai/ovo-contracts';
 import { parseLogLevel } from '@winsendotai/ovo-plugin-kit';
+import { apiLogger } from './log-redaction.ts';
 import { priceUsage, summarizeUsage } from '@winsendotai/ovo-plugin-observability';
 import { type SecretManager } from '@winsendotai/ovo-plugin-secrets';
 import {
@@ -123,23 +124,7 @@ export function createManagementApiPlugin(options: ManagementApiOptions): Plugin
         for (const workspaceId of Object.keys(identity.workspaces))
           await store.ensureWorkspace(workspaceId, workspaceId);
       const app = Fastify({
-        logger: options.logger
-          ? {
-              level: parseLogLevel(process.env.OVO_LOG_LEVEL),
-              redact: {
-                paths: [
-                  'req.headers.authorization',
-                  'req.headers.cookie',
-                  'req.body.token',
-                  'req.body.password',
-                  'req.body.currentPassword',
-                  'req.body.newPassword',
-                  'req.body.value',
-                ],
-                censor: '[REDACTED]',
-              },
-            }
-          : false,
+        logger: options.logger ? apiLogger(parseLogLevel(process.env.OVO_LOG_LEVEL)) : false,
         trustProxy: options.trustedProxy ?? false,
         bodyLimit: 256_000,
       });
