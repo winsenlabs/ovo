@@ -22,6 +22,7 @@ import {
   PluginRegistry,
   type Composition,
   type InstalledSessionExtensions,
+  type PluginDefinition,
 } from '@winsendotai/ovo-runtime';
 import type { WorkerSessionTelemetry } from './telemetry-runtime.ts';
 import { sessionHostServices } from './session-graph-host.ts';
@@ -40,6 +41,7 @@ import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
 import { adaptV1Engine } from './v1-engine-adapter.ts';
 import { holdOpeningForAnsweringMachine } from './answering-machine.ts';
 import type { CallOutcomeStore } from '@winsendotai/ovo-plugin-storage/outcomes';
+import { limitCallSeconds, prefixEngineEvent, withSegmentIds } from './segment-ids.ts';
 
 export interface LiveGraphOptions {
   distribution: LoadedDistribution;
@@ -47,6 +49,18 @@ export interface LiveGraphOptions {
   carriers?: WorkerCarrierRuntime;
   /** Where each call's outcome events are stored (AGT-8); closed with the worker. */
   outcomes?: Pick<CallOutcomeStore, 'append' | 'close'>;
+}
+
+/** How a routed call's segment differs from its release's own graph (design 7.3, 7.4). */
+export interface SegmentGraphShape {
+  /** Replaces the release's behaviour: the router's, on segment 0. */
+  behavior?: { definition: PluginDefinition; config: Record<string, unknown> };
+  /** Host services the replacement needs (routing, segment handoff). */
+  services?: readonly PluginDefinition[];
+  /** `s1:` on segment 1: its turn and segment ids never collide with an earlier segment's. */
+  idPrefix?: string;
+  /** What is left of the call's time limit when the segment starts. */
+  maxCallSeconds?: number;
 }
 
 export interface LiveCarrierMedia {
@@ -81,8 +95,10 @@ export async function composeLiveSessionGraph(input: {
   answeredBy?: NonNullable<MediaDuplex['onAnsweredBy']>;
   /** The call's outcome event sink, offered to the behaviour as `ovo.event-sink`. */
   events?: EventSink;
+  segment?: SegmentGraphShape;
 }): Promise<GraphSessionResult> {
-  const { release, graph, telemetry } = input;
+  const { release, graph, telemetry, segment } = input;
+  const prefix = segment?.idPrefix;
   const registry = new PluginRegistry([
     ...graph.distribution.catalog,
     ...input.extensions.plugins,
@@ -123,7 +139,8 @@ export async function composeLiveSessionGraph(input: {
     operationStore: input.operationStore,
     secrets: input.secrets,
     usage,
-    transcripts: (event) => {
+    transcripts: (raw) => {
+      const event = prefix ? prefixEngineEvent(raw, prefix) : raw;
       if (event.type === 'user.transcript' && event.stability === 'final')
         telemetry.audit('transcript.accepted', { text: event.text, turnId: event.turnId });
       if (event.type === 'agent.transcript')
@@ -188,13 +205,14 @@ export async function composeLiveSessionGraph(input: {
   const result = selectSessionGraph({
     release: graphRelease,
     registry,
-    hostServices: cachedOutput ? [host, cachedOutput] : [host],
+    hostServices: [host, ...(cachedOutput ? [cachedOutput] : []), ...(segment?.services ?? [])],
     parent: graph.parent.keys,
     media,
     installedExtensions: input.extensions,
     defaults: graph.distribution.defaults,
     mcpConnections: immutableMcpConnections(release, mcpTools),
     sessionVariables: input.variables,
+    ...(segment?.behavior ? { behavior: segment.behavior } : {}),
   });
   const allowedNativeIds = new Set(
     release.config.tools
@@ -230,6 +248,8 @@ export async function composeLiveSessionGraph(input: {
   }
   stampBindingIdentity(result.rows, release);
   if (input.amd) holdOpeningForAnsweringMachine(result.rows, selected.definition, input.amd);
+  if (segment?.maxCallSeconds !== undefined)
+    limitCallSeconds(result.rows, selected.definition, segment.maxCallSeconds);
   const sttPlugin = release.selections?.stt?.pluginId;
   const catalog = result.catalog.map((definition) =>
     instrumentSessionPlugin(
@@ -253,5 +273,5 @@ export async function composeLiveSessionGraph(input: {
     await composition.dispose();
     throw new Error('Selected live engine does not expose the v2 session contract');
   }
-  return { composition, engine, media };
+  return { composition, engine: prefix ? withSegmentIds(engine, prefix) : engine, media };
 }
