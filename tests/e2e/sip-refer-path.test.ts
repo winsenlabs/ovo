@@ -127,6 +127,8 @@ describe.skipIf(!sipp)('SIP REFER of a human queue handoff (R3)', () => {
       async () => {
         outcome = await outcomeOf(env, jobId);
         expect(outcome.events.some((event) => event.type === 'call.outcome')).toBe(true);
+        // The summary is folded from the events a moment after the event is stored.
+        expect(outcome.summary.outcome).not.toBeNull();
       },
       { timeout: 30_000, interval: 250 },
     );
