@@ -9,10 +9,10 @@ rtc:
   tcp_port: __TCP_PORT__
   # One UDP port (mux) keeps the firewall rule to a single line.
   udp_port: __UDP_PORT__
-  # Until public, the only candidate offered is loopback: a remote client cannot complete ICE.
+  # Until public, the only candidate offered is the compose bridge address (workers reach it, a
+  # remote client cannot complete ICE); public, it is the static IP.
   use_external_ip: false
   node_ip: __NODE_IP__
-__RTC_INTERFACES__
 room:
   # Rooms are made by the API at accept, never by a joining client.
   auto_create: false

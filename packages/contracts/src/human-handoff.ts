@@ -66,6 +66,8 @@ export const HumanHandoffAccept = z
     operatorId: Id,
     expectedVersion: z.number().int().positive(),
     idempotencyKey: Id,
+    /** The room this accept minted its grant for: `humanRoomName(ticketId, expectedVersion + 1)`. Absent: the ticket's first-design room. */
+    roomName: z.string().min(1).max(128).optional(),
   })
   .strict();
 export type HumanHandoffAccept = z.infer<typeof HumanHandoffAccept>;

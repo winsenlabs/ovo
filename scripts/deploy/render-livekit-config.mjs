@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Renders infra/compose/livekit.yaml from the Compose environment and infra/compose/livekit.yaml.template.
 //   node scripts/deploy/render-livekit-config.mjs --env-file infra/compose/.env [--out PATH]
-// Library: renderLivekitConfig(env, { template, loopbackInterface }). Fails with a message naming the
+// Library: renderLivekitConfig(env, { template }). Fails with a message naming the
 // variable when the room server cannot be configured safely; nothing is guessed.
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -46,7 +46,6 @@ export function parseEnvFile(text) {
 
 export function renderLivekitConfig(env, options = {}) {
   const template = options.template ?? readFileSync(DEFAULT_TEMPLATE, 'utf8');
-  const loopback = options.loopbackInterface ?? 'lo';
   const publicOn = env.OVO_LIVEKIT_PUBLIC_ENABLED === 'true';
   const signal = port(env, 'OVO_LIVEKIT_SIGNAL_PORT', 7880);
   const tcp = port(env, 'OVO_LIVEKIT_RTC_TCP_PORT', 7881);
@@ -74,7 +73,6 @@ export function renderLivekitConfig(env, options = {}) {
   const bridge = address(env, 'OVO_LIVEKIT_BRIDGE_IP', '172.29.240.1');
   let binds;
   let nodeIp;
-  let interfaces = '';
   if (publicOn) {
     nodeIp = env.OVO_LIVEKIT_NODE_IP?.trim();
     if (!nodeIp)
@@ -85,10 +83,11 @@ export function renderLivekitConfig(env, options = {}) {
     const bind = address(env, 'OVO_LIVEKIT_BIND_IP', '0.0.0.0');
     binds = [...new Set([bind, '127.0.0.1', bridge])];
   } else {
-    nodeIp = '127.0.0.1';
+    // The one candidate offered is the compose bridge address: the worker containers that bridge a
+    // caller into a room reach the host there (their own 127.0.0.1 is not the host's), and a client
+    // outside the host cannot reach a private address. Nothing is advertised on a public interface.
+    nodeIp = bridge;
     binds = [...new Set(['127.0.0.1', bridge])];
-    // ICE binds the loopback interface only: no media port is reachable from outside.
-    interfaces = `  interfaces:\n    includes:\n      - ${loopback}`;
   }
 
   let turn = 'turn:\n  enabled: false';
@@ -122,7 +121,6 @@ export function renderLivekitConfig(env, options = {}) {
     UDP_PORT: String(udp),
     NODE_IP: quote(nodeIp),
     BIND_ADDRESSES: binds.map((bind) => `  - ${quote(bind)}`).join('\n'),
-    RTC_INTERFACES: interfaces,
     KEYS: keys.join('\n'),
     TURN: turn,
   };
@@ -150,11 +148,7 @@ if (
       ...(args.includes('--process-env') ? process.env : {}),
     };
     const out = arg('--out') ?? path.join(root, 'infra/compose/livekit.yaml');
-    writeFileSync(
-      out,
-      renderLivekitConfig(env, { loopbackInterface: arg('--loopback-interface') }),
-      { mode: 0o600 },
-    );
+    writeFileSync(out, renderLivekitConfig(env), { mode: 0o600 });
     console.log(`rendered ${path.relative(process.cwd(), out)}`);
   } catch (error) {
     console.error(`render-livekit-config: ${error.message}`);

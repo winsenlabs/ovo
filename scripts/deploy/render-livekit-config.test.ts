@@ -10,14 +10,16 @@ const SECRET = 'a'.repeat(64);
 const base = { OVO_LIVEKIT_API_KEY: KEY, OVO_LIVEKIT_API_SECRET: SECRET };
 
 describe('render-livekit-config (dark by default)', () => {
-  it('binds loopback and the compose bridge and offers only loopback ICE until public', () => {
+  it('binds loopback and the compose bridge and offers only the bridge address as ICE until public', () => {
     const text = renderLivekitConfig(base);
     expect(text).toContain('port: 7880\n');
     expect(text).toContain('bind_addresses:\n  - "127.0.0.1"\n  - "172.29.240.1"\n');
     expect(text).toContain('  tcp_port: 7881\n  # One UDP port (mux)');
     expect(text).toContain('  udp_port: 7882\n');
-    expect(text).toContain('  use_external_ip: false\n  node_ip: "127.0.0.1"\n');
-    expect(text).toContain('  interfaces:\n    includes:\n      - lo\n');
+    // Workers are bridged containers: a loopback candidate would be their own loopback, not the host's.
+    expect(text).toContain('  use_external_ip: false\n  node_ip: "172.29.240.1"\n');
+    expect(text).not.toContain('interfaces:');
+    expect(text).not.toContain('node_ip: "127.0.0.1"');
     expect(text).toContain('auto_create: false');
     expect(text).toContain(`keys:\n  "${KEY}": "${SECRET}"\n`);
     expect(text).toContain('turn:\n  enabled: false\n');
@@ -25,13 +27,10 @@ describe('render-livekit-config (dark by default)', () => {
     expect(text).not.toMatch(/__[A-Z_]+__/);
   });
 
-  it('uses the loopback interface name of the host (lo0 on macOS) and a bridge address override', () => {
-    const text = renderLivekitConfig(
-      { ...base, OVO_LIVEKIT_BRIDGE_IP: '10.9.8.1' },
-      { loopbackInterface: 'lo0' },
-    );
-    expect(text).toContain('      - lo0\n');
+  it('follows a bridge address override for both the bind and the one candidate', () => {
+    const text = renderLivekitConfig({ ...base, OVO_LIVEKIT_BRIDGE_IP: '10.9.8.1' });
     expect(text).toContain('  - "10.9.8.1"\n');
+    expect(text).toContain('  node_ip: "10.9.8.1"\n');
     const same = renderLivekitConfig({ ...base, OVO_LIVEKIT_BRIDGE_IP: '127.0.0.1' });
     expect(same.match(/- "127\.0\.0\.1"/g)).toHaveLength(1);
   });
@@ -65,7 +64,7 @@ describe('render-livekit-config (dark by default)', () => {
           OVO_LIVEKIT_NODE_IP: '203.0.113.7',
         }),
         flag,
-      ).toContain('node_ip: "127.0.0.1"');
+      ).toContain('node_ip: "172.29.240.1"');
   });
 
   it('requires the static IP when public, and refuses TURN while not public', () => {

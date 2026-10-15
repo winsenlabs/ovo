@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
+  humanRoomName,
   TicketContext,
   type HumanHandoffAccept,
   type HumanHandoffRelease,
@@ -38,6 +39,8 @@ export class TicketLifecycle {
 
   private async createIn(tx: HqTx, input: NewTicket): Promise<Ticket | 'queue_full'> {
     await tx.lockCall(input.callId);
+    // The queue count and the offer below read other tickets' state: one creator at a time.
+    await tx.lockAssignment();
     const now = this.ctx.now();
     const [existing] = await tx.scan({ idempotencyKey: input.idempotencyKey, limit: 1 });
     if (existing) return { ...this.view(existing), duplicate: true };
@@ -99,6 +102,11 @@ export class TicketLifecycle {
   async accept(input: HumanHandoffAccept) {
     return this.store.run(async (tx) => {
       if (input.workspaceId !== this.ctx.organizationId) return CONFLICT;
+      // The grant was minted for this name before the compare-and-set: it must be this ticket's own.
+      const base = humanRoomName(input.ticketId);
+      if (input.roomName && input.roomName !== base && !input.roomName.startsWith(`${base}-`))
+        throw new RangeError('The room of an accept belongs to its own ticket');
+      await tx.lockAssignment();
       await tx.lockOperator(input.operatorId);
       const row = await tx.ticket(input.ticketId, true);
       if (!row) return CONFLICT;
@@ -129,7 +137,7 @@ export class TicketLifecycle {
         assignedOperatorId: operator.userId,
         offerExpiresAt: null,
         acceptedAt: now,
-        roomName: roomNameFor(row.id),
+        roomName: input.roomName ?? roomNameFor(row.id),
       });
       await tx.putOperator({ ...operator, lastAssignedAt: now });
       await record(tx, accepted, now, {
@@ -144,6 +152,7 @@ export class TicketLifecycle {
 
   async decline(input: { ticketId: string; operatorId: string; expectedVersion: number }) {
     return this.store.run(async (tx) => {
+      await tx.lockAssignment();
       const row = await tx.ticket(input.ticketId, true);
       const operator = await tx.operator(input.operatorId);
       if (!row || !operator || row.kind !== 'managed') return CONFLICT;
@@ -197,6 +206,7 @@ export class TicketLifecycle {
 
   async reoffer(id: string, expectedVersion: number, code: 'operator_no_show') {
     return this.store.run(async (tx) => {
+      await tx.lockAssignment();
       const row = await tx.ticket(id, true);
       if (!row || row.status !== 'accepted' || row.version !== expectedVersion) return CONFLICT;
       const now = this.ctx.now();

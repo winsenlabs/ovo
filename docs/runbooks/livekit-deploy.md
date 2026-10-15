@@ -29,8 +29,14 @@ How it works: [human queues](../architecture/human-queues.md). Variables:
 2. For a **loopback rehearsal** set only `OVO_LIVEKIT_ENABLED=true` (and `OVO_HUMAN_QUEUE_ENABLED=true`
    with the two routing flags). `deploy-compose.sh` renders `infra/compose/livekit.yaml` from the
    environment (owner-only, git-ignored), adds the `livekit` profile and starts the server. Signalling
-   binds `127.0.0.1` and the compose bridge, the only ICE candidate advertised is loopback, and no
-   firewall rule exists: the API and workers use it, a browser on another machine cannot.
+   binds `127.0.0.1` and the compose bridge, the only ICE candidate advertised is the bridge address
+   (`172.29.240.1`, or `OVO_LIVEKIT_BRIDGE_IP`) because the workers are bridged containers and their
+   own `127.0.0.1` is not the host, and no firewall rule exists: the API and workers use it, a browser
+   on another machine cannot. The media port itself is bound on the host's addresses; what keeps it
+   closed is the absence of a firewall rule, so check it stays closed (section 3, step 4 lists the ports).
+   This path was exercised with the processes native on the host, not with the worker container
+   (Docker is not run on the build machine): the go-live check includes one real call that is
+   bridged from a worker container.
 3. Verify from the VM: `curl -s http://127.0.0.1:7880/` prints `OK`, and
    `GET /v1/human-queues/status` shows `room.reachable: true`.
 4. The image is pinned (`livekit/livekit-server:v1.13.9`, Apache-2.0) and pulled by `compose pull`; to

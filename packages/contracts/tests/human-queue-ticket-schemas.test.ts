@@ -11,6 +11,8 @@ import {
   HUMAN_METER_UNIT,
   isHumanMeterKey,
   HumanCompletedPayload,
+  HumanHandoffAccept,
+  humanRoomName,
   HumanRequestedPayload,
   HumanStatePayload,
   HumanTicketView,
@@ -115,6 +117,24 @@ describe('ticket, operator and desk shapes', () => {
       { ...profile, role: 'admin' },
     ])
       expect(OperatorProfile.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+  });
+
+  it('names a room per accept generation, and keeps the first design name without one', () => {
+    expect(humanRoomName('t1')).toBe('ovo-hq-t1');
+    expect(humanRoomName('t1', 2)).toBe('ovo-hq-t1-2');
+    expect(humanRoomName('t1', 2)).not.toBe(humanRoomName('t1', 4));
+    const accept = {
+      workspaceId: 'w',
+      ticketId: 't1',
+      operatorId: 'u',
+      expectedVersion: 1,
+      idempotencyKey: 'k',
+    };
+    expect(HumanHandoffAccept.safeParse(accept).success).toBe(true);
+    expect(
+      HumanHandoffAccept.safeParse({ ...accept, roomName: humanRoomName('t1', 2) }).success,
+    ).toBe(true);
+    expect(HumanHandoffAccept.safeParse({ ...accept, roomName: '' }).success).toBe(false);
   });
 
   it('validates a room grant and the accept result that carries it', () => {

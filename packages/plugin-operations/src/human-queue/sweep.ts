@@ -20,6 +20,7 @@ export async function sweepOnce(
 ): Promise<SweepResult> {
   const result: SweepResult = { assigned: 0, expired: 0, reoffered: 0, scrubbed: 0, stale: 0 };
   const swept = await store.singleFlight(NAME, async (tx) => {
+    await tx.lockAssignment();
     const lostBefore = at.getTime() - WORKER_LOST_MS;
     for (const row of await tx.scan({ statuses: ACTIVE, lock: true })) {
       const beat = (row.workerHeartbeatAt ?? row.createdAt).getTime();

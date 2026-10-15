@@ -245,6 +245,17 @@ describe.skipIf(!postgresUrl)('human queues on PostgreSQL: rules only a database
     expect(byStatus.released).toBe(7);
   });
 
+  it('refuses an event the table would refuse as a RangeError, not a raw check error', async () => {
+    fresh();
+    const { ticket } = await open({ callId: 'call-big-event' });
+    // 600 small elements: 1.2 KB of JSON text, but over 4 KiB once stored as jsonb.
+    const payload = { digits: Array.from({ length: 600 }, (_, i) => i % 10) };
+    expect(new TextEncoder().encode(JSON.stringify(payload)).byteLength).toBeLessThan(4_096);
+    await expect(service.tickets.appendEvent(ticket.id, { kind: 'dtmf', payload })).rejects.toThrow(
+      RangeError,
+    );
+  });
+
   it('rolls a failed unit back whole', async () => {
     fresh();
     const { queue, ticket } = await open({ callId: 'call-rb' });

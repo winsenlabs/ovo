@@ -38,7 +38,14 @@ export class HqConflictError extends Error {
  * store runs it synchronously. The rules live once, in `HumanQueueEngine`.
  */
 export interface HqTx {
-  /** Serialises accepts and offers for one operator (the capacity race). */
+  /**
+   * Serialises everything that picks an operator for a ticket or counts the queue (create, accept,
+   * decline, re-offer, the sweeper's offers) across one organization: an offer is chosen from the
+   * operators' loads, so two units choosing at once would over-offer one operator and overshoot
+   * `maxWaiting`. Taken first in every such unit, so the lock order is the same everywhere.
+   */
+  lockAssignment(): Promise<void>;
+  /** Serialises accepts for one operator (the capacity race). */
   lockOperator(userId: string): Promise<void>;
   /** Serialises ticket creation for one call, so a call's tickets never race each other. */
   lockCall(callId: string): Promise<void>;

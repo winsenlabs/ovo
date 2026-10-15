@@ -42,7 +42,10 @@ describe('livekit room server (Wave 17, dark by default)', () => {
   });
 
   it('checks health on the loopback signalling port and restarts without dropping calls on a deploy', () => {
-    expect(room()).toContain("'wget', '-q', '--spider', 'http://127.0.0.1:7880/'");
+    // The port the config is rendered with (OVO_LIVEKIT_SIGNAL_PORT), or `compose up --wait` fails.
+    expect(room()).toContain(
+      "'wget', '-q', '--spider', 'http://127.0.0.1:${OVO_LIVEKIT_SIGNAL_PORT:-7880}/'",
+    );
     expect(room()).toContain('restart: unless-stopped');
     expect(room()).toContain('logging: *logging');
   });
@@ -64,6 +67,13 @@ describe('livekit room server (Wave 17, dark by default)', () => {
       expect(service(name)).not.toContain('OVO_LIVEKIT_NODE_IP');
     }
     expect(service('api')).toContain('OVO_LIVEKIT_PUBLIC_URL: ${OVO_LIVEKIT_PUBLIC_URL:-}');
+    // The room plugin reads OVO_ROOM_TOKEN_TTL_SECONDS; the deployment sets one name, the LiveKit one.
+    expect(service('api')).toContain(
+      'OVO_ROOM_TOKEN_TTL_SECONDS: ${OVO_LIVEKIT_TOKEN_TTL_SECONDS:-}',
+    );
+    expect(service('api')).toContain(
+      'OVO_LIVEKIT_TOKEN_TTL_SECONDS: ${OVO_LIVEKIT_TOKEN_TTL_SECONDS:-}',
+    );
     expect(service('worker-1')).not.toContain('OVO_LIVEKIT_PUBLIC_URL');
     for (const name of ['gateway', 'dispatcher', 'console'])
       expect(service(name), name).not.toContain('OVO_LIVEKIT');

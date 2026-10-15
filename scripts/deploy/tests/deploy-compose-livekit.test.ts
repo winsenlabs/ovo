@@ -67,7 +67,7 @@ describe('deploy-compose.sh with the room server (Wave 17)', () => {
     expect(statSync(config).mode & 0o777).toBe(0o600);
     const rendered = readFileSync(config, 'utf8');
     expect(rendered).toContain('bind_addresses:\n  - "127.0.0.1"\n  - "172.29.240.1"\n');
-    expect(rendered).toContain('node_ip: "127.0.0.1"');
+    expect(rendered).toContain('node_ip: "172.29.240.1"');
     expect(box.dockerLog().some((line) => line.endsWith('pull livekit'))).toBe(true);
     expect(ups().slice(-3)).toEqual([
       '-d --no-deps --wait gateway',
