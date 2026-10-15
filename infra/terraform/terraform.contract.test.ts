@@ -180,7 +180,8 @@ describe('Fargate scaling contract', () => {
       expect(task(name), name).toContain(transfer);
     }
     expect(task('worker')).toContain(prepare);
-    for (const name of ['worker', 'dispatcher', 'console']) expect(task(name)).not.toContain(routing);
+    for (const name of ['worker', 'dispatcher', 'console'])
+      expect(task(name)).not.toContain(routing);
     for (const name of ['gateway', 'dispatcher', 'console'])
       expect(task(name), name).not.toContain('OVO_ROUTING_TRANSFER_ENABLED');
     const vars = tf('variables.tf');
