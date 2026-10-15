@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Finds a LiveKit room server the human-room e2e can run against (Wave 17). Prints one line:
 #   bin <path>        a livekit-server binary: OVO_E2E_LIVEKIT_BIN, else the one on PATH
-#   docker <image>    the pinned server image, pulled (only with OVO_E2E_LIVEKIT_DOCKER=true)
 #   skip <reason>     nothing usable (exit 3): the e2e then skips with that reason
 # --install runs `brew install livekit` (Apache-2.0 bottle) when no binary is found; the mini-ci uses it.
 # The server is only ever started by the test, on loopback and free ports, never by this script.
@@ -60,14 +59,6 @@ if [[ $INSTALL == true ]] && command -v brew >/dev/null 2>&1; then
   brew install livekit >&2
   if found=$(command -v livekit-server) && usable "$found"; then
     report "$found"
-    exit 0
-  fi
-fi
-if [[ ${OVO_E2E_LIVEKIT_DOCKER:-false} == true ]] && command -v docker >/dev/null 2>&1 &&
-  docker info >/dev/null 2>&1; then
-  image=$(pinned_image)
-  if [[ -n $image ]] && docker pull -q "$image" >/dev/null 2>&1; then
-    echo "docker $image"
     exit 0
   fi
 fi

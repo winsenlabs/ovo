@@ -3,10 +3,11 @@
 **Owner:** founder (where it runs, DNS and certificate, the firewall, first real call), platform
 operator (OVO configuration). **State:** prepared 2026-10-15, **not executed**. No firewall rule, DNS
 record or deploy was made. Every command that changes the VM or GCP is listed for the founder to run.
-The engineering proof is on loopback: the media-room conformance kit against an in-memory room and
-against a real `livekit-server` on the build Mac, and `tests/e2e/human-room-path.test.ts` (a call, an
-operator session accepting, a headless operator publishing a tone and receiving the caller's, in both
-directions, on a real room server). A real browser on a real network was **not** exercised.
+The engineering proof is on loopback, listed under [How it is verified](../architecture/human-queues.md#how-it-is-verified):
+the media-room conformance kit against an in-memory room and against a real `livekit-server`, and
+the human-room end to end files (a call, an operator session accepting, a headless operator and the
+caller exchanging tones in both directions, the waiting paths, captions, the dark case). A real
+browser on a real network was **not** exercised.
 
 How it works: [human queues](../architecture/human-queues.md). Variables:
 [environment reference](../env-reference.md#human-queues-and-the-room-server-wave-17).
@@ -87,3 +88,16 @@ Set `OVO_LIVEKIT_PUBLIC_ENABLED=false`, deploy with `--recreate-livekit`, and de
 The server returns to loopback; managed queues keep working only for sessions on that host. To stop
 using it entirely, turn it off as above; callers who reach a managed queue then fall to the hold's
 timeout chain. Migrations 013 and outcomes v4 stay (take a backup before the first deploy).
+
+## 6. What was and was not run before you start
+
+Run (build Mac, 2026-10-15): the rendered `livekit.yaml` against `livekit-server` 1.13.9 (signalling
+bound to `127.0.0.1`, `GET /` answers `OK`); the whole operator-desk flow against that server; the
+room feature off (nothing extra listens); an empty `OVO_LIVEKIT_TOKEN_TTL_SECONDS` (Compose renders
+an unset variable as an empty string; the distribution now reads it as the default).
+
+**Not** run, and yours to check on the VM: `docker compose --profile livekit up` (the pinned image,
+its `wget` healthcheck, host networking); the firewall rule; the certificate and the Caddy site;
+TURN; an operator's browser on a real network; capacity beyond a few calls; a restart of the server
+with a live call (it ends through `onOperatorLeave`, tested by closing the tab, not by killing the
+server).

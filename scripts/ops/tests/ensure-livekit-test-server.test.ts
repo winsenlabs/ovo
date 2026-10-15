@@ -99,18 +99,15 @@ describe('ensure-livekit-test-server.sh', () => {
     expect(result.stdout.trim()).toBe(`bin ${join(probe.bin, 'livekit-server')}`);
   });
 
-  it('pulls the pinned image only when asked to use docker', () => {
+  it('never offers docker: the e2e starts a local binary, so a container would be unusable', () => {
     const probe = run({});
-    stub(probe.bin, 'docker', '[[ $1 == info ]] && exit 0; echo "docker $*" >> "$0.log"; exit 0');
-    const env = { PATH: `${probe.bin}:/usr/bin:/bin`, HOME: probe.bin };
-    const off = spawnSync('bash', [script], { env, encoding: 'utf8' });
-    expect(off.status).toBe(3);
-    const on = spawnSync('bash', [script], {
-      env: { ...env, OVO_E2E_LIVEKIT_DOCKER: 'true' },
+    stub(probe.bin, 'docker', 'exit 0');
+    const result = spawnSync('bash', [script], {
+      env: { PATH: `${probe.bin}:/usr/bin:/bin`, HOME: probe.bin, OVO_E2E_LIVEKIT_DOCKER: 'true' },
       encoding: 'utf8',
     });
-    expect(on.status).toBe(0);
-    expect(on.stdout.trim()).toBe('docker livekit/livekit-server:v1.13.9');
+    expect(result.status).toBe(3);
+    expect(result.stdout).toMatch(/^skip /);
   });
 
   it('is executable and prints its usage', () => {

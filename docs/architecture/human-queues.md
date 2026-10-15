@@ -269,6 +269,31 @@ the in-memory and PostgreSQL stores, the sweeper task, the `HumanHandoffPort` ad
 (`describeMediaRoom`, `fakeMediaRoom`); `packages/plugin-room-livekit` (the only code that names the
 room server); `packages/distribution` (the profile rows); `infra/compose` (the `livekit` service).
 
+## How it is verified
+
+Run on the build Mac (2026-10-15), all on loopback, with fake providers and a real PostgreSQL, a
+real `livekit-server` 1.13.9 (Apache-2.0, `brew install livekit`) and, for SIP, real SIPp. The
+files live in `tests/e2e/`; `pnpm test:live-path` runs them (the room files skip with a stated
+reason when no `livekit-server` is found, and `scripts/mini-ci.sh` fails instead of skipping).
+
+| File                    | What it proves                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `human-queue-path`      | A third-party queue end to end: one signed delivery carrying only what the policy allows, the carrier asked to move the leg (never to hang up), `transferred`; the async answer by signed callback to a SIP URI with context headers; later callbacks folded into the finished call; replay, forged signature, old timestamp, unknown ticket and closed window refused (401, 401, 404, 410). |
+| `human-queue-fallback`  | Three 503s retried with backoff and one idempotency key, then the hold chain returns the caller to its agent; a queued call nobody calls back about times out, the third party is sent a signed cancel and the callback promise ends the call; an answer outside the allow-list is never dialled; a carrier that refuses the handoff leaves the caller on the line.                          |
+| `human-queue-prechecks` | Closed hours, the breaker after five failed deliveries, the webhook switch and a worker without `OVO_HUMAN_QUEUE_ENABLED` each move the router on with nothing announced and nothing sent (the last behaves as Wave 16).                                                                                                                                                                     |
+| `human-room-path`       | The operator desk against a real room server: offer on the list and the event stream, accept, the grant's claims, **two-way audio** (the operator's tone reaches the caller and the caller's tone reaches the operator), operator and room seconds metered, both tones in the call recording, the room deleted, and return to an agent.                                                      |
+| `human-room-waiting`    | No operator online (callback step), an offer nobody takes (hold timeout, default agent), decline then rotate, accept without joining (`operator_no_show`, offered again), two operators racing (one 200, one 409), a caller who hangs up while waiting (no room made), a tab closed mid call (end or return after the grace), a worker that stops reporting (swept, room reaped).            |
+| `human-room-captions`   | Captions of both sides with `ai.mode: transcribe`; none, and no speech-to-text session, with `out`.                                                                                                                                                                                                                                                                                          |
+| `human-room-dark`       | With the room feature off the capability is absent, a managed queue refuses `queue_unavailable`, the status says so, and the process listens on exactly what it did with the feature off.                                                                                                                                                                                                    |
+| `sip-refer-path`        | An inbound SIP call handed to a third party's `sips:` URI: the gateway's REFER carries the encoded `X-OVO-*` and allow-listed headers and `Referred-By`; confirmed ends `transferred`; NOTIFY 503 and a trunk with REFER off keep the caller; no NOTIFY counts as handed off (unknown receipt).                                                                                              |
+
+**Not covered, said plainly.** No real browser (the console's Playwright smoke is the console
+lane's and needs the room server); no network between operator and server other than loopback
+(NAT, TURN and TLS are the founder's go-live checks in the LiveKit runbook); no Docker run of the
+compose `livekit` service on this host; the conformance fake room is not wired into these scenarios
+(`OVO_E2E_ROOM=fake` does not exist: they need the real server); a worker that dies is simulated
+by freezing its ticket heartbeat, not by killing a process.
+
 ## What later waves add
 
 The routing designer and the call simulator (R4) edit `humanQueues` and the `human` targets with the
