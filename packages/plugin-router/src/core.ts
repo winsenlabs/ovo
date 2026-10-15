@@ -1,16 +1,21 @@
-import type { EventSink } from '@winsendotai/ovo-contracts';
 import type {
   RouteLines,
-  RoutingHost,
   RoutingNode,
   RoutingReleaseSnapshot,
   RoutingTarget,
-  SegmentHandoffPort,
 } from '@winsendotai/ovo-contracts';
-import type { EngineRunners, RouteTurn } from './engines/index.ts';
+import type { RouteTurn } from './engines/index.ts';
 import { evaluateTurn, type EvaluateEnv } from './evaluate.ts';
 import { RouteRecorder } from './events.ts';
-import { releaseDefault, runFallback, type FallbackResult } from './fallback.ts';
+import { handoffMode, type HandoffMode } from './begin.ts';
+import { RouterDisclosure } from './disclosure.ts';
+import {
+  fallbackEvent,
+  recordTargetFailure,
+  releaseDefault,
+  runFallback,
+  type FallbackResult,
+} from './fallback.ts';
 import { BUILT_IN_LINES, pickLine } from './lines.ts';
 import {
   cursorOf,
@@ -22,24 +27,7 @@ import {
 } from './state.ts';
 import { attemptTarget, type Attempt, type RouteOutcome } from './targets.ts';
 import { completionReasonOf, finishLine, recordFinish } from './finish.ts';
-
-export interface RouterPorts {
-  host: RoutingHost;
-  handoff: SegmentHandoffPort;
-  /** One runner per engine kind: `createEngineRunners` in production, scripted in a simulator. */
-  runners: EngineRunners;
-  events?: EventSink;
-  /** The router agent's IANA zone, which a promised callback's due time is recorded in. */
-  timezone?: string;
-}
-
-/** `routing` until the route is decided; then `announcing` (a handoff) or `ended` (end, callback). */
-export type RouterPhase = 'routing' | 'announcing' | 'ended';
-
-export interface RouterReply {
-  say: string;
-  phase: RouterPhase;
-}
+import type { RouterPhase, RouterPorts, RouterReply } from './ports.ts';
 
 /**
  * The router's whole conversation logic (§7.5), free of IO: the host, the handoff port and the
@@ -55,14 +43,20 @@ export class RouterCore {
   private outcomeValue?: RouteOutcome;
   /** A prepared handoff not yet committed: abandoned if the turn is cancelled. */
   private pending?: string;
+  private readonly mode?: HandoffMode;
+  /** R2 (begin path only): what is left to disclose, said once before the greeting. */
+  readonly disclosure?: RouterDisclosure;
 
   constructor(
     readonly snapshot: RoutingReleaseSnapshot,
     private readonly ports: RouterPorts,
   ) {
     this.recorder = new RouteRecorder(ports.events);
-    this.state = initialState(snapshot);
+    this.state = initialState(snapshot, ports.entry);
     this.nodes = nodeMap(snapshot);
+    this.mode = handoffMode(ports, snapshot);
+    const parts = ports.handoff.begin ? ports.disclosure : undefined;
+    this.disclosure = RouterDisclosure.of(parts, ports.entry?.disclosed ?? [], this.recorder);
   }
 
   get phase(): RouterPhase {
@@ -78,7 +72,10 @@ export class RouterCore {
     return this.outcomeValue && completionReasonOf(this.outcomeValue);
   }
 
-  /** The opening turn: instant engines may decide at once; otherwise the greeting. */
+  /**
+   * The opening turn: instant engines may decide at once; otherwise the greeting, after what is
+   * left to disclose. A re-routed router asks its node (no question: the node's fallback) instead.
+   */
   opening(signal: AbortSignal): Promise<RouterReply> {
     return this.guard(async () => {
       if (this.phaseValue !== 'routing') return this.reply('');
@@ -86,9 +83,11 @@ export class RouterCore {
       const evaluation = await evaluateTurn(this.state, undefined, this.env(signal));
       if (evaluation.kind === 'target')
         return this.route(evaluation.node, evaluation.target, signal);
-      const greeting = this.line(this.snapshot.greeting);
-      const ask = evaluation.kind === 'ask' && evaluation.node.ask;
-      return this.say(ask ? `${greeting} ${this.line(ask)}` : greeting);
+      const ask = (evaluation.kind === 'ask' || this.ports.entry) && evaluation.node.ask;
+      if (this.ports.entry && !ask) return this.fallback(evaluation.node, signal, {});
+      const greeting = this.ports.entry ? '' : this.line(this.snapshot.greeting);
+      const line = [greeting, ask ? this.line(ask) : ''].filter(Boolean).join(' ');
+      return this.say(this.disclosure?.before(line) ?? line);
     });
   }
 
@@ -150,7 +149,9 @@ export class RouterCore {
 
   private env(signal: AbortSignal): EvaluateEnv {
     const { snapshot, nodes, recorder } = this;
-    return { snapshot, nodes, recorder, runners: this.ports.runners, now: this.now, signal };
+    const reentered = this.ports.entry?.node;
+    const env = { snapshot, nodes, recorder, runners: this.ports.runners, now: this.now, signal };
+    return reentered ? { ...env, reentered } : env;
   }
 
   private readonly now = () => this.ports.host.now();
@@ -165,6 +166,7 @@ export class RouterCore {
         snapshot: this.snapshot,
         host: this.ports.host,
         handoff: this.ports.handoff,
+        ...(this.mode ? { mode: this.mode } : {}),
         context: this.state.context,
         path: this.state.path,
         prepared: (handoffId) => (this.pending = handoffId),
@@ -189,22 +191,17 @@ export class RouterCore {
     const reason = limitReason(this.state, this.snapshot.limits, this.ports.host.now());
     if (!reason) return undefined;
     const node = this.nodes.get(this.state.node)!;
-    const turn = this.state.turns;
-    this.recorder.fallback({
-      turn,
-      node: node.id,
-      step: 'limit',
-      result: 'taken',
-      attempt: 1,
-      reason,
-    });
-    return this.finish(node, await releaseDefault(this.chainInput(node, signal)), signal);
+    const input = this.chainInput(node, signal);
+    fallbackEvent(input, 'limit', 'taken', 1, reason);
+    return this.finish(node, await releaseDefault(input), signal);
   }
 
   private async route(node: RoutingNode, target: RoutingTarget, signal: AbortSignal) {
     const attempt = await this.attempt(signal)(target);
     if (attempt.ok)
       return this.finish(node, { kind: 'resolved', resolution: attempt.resolution }, signal);
+    const cursor = cursorOf(this.state, node.id);
+    recordTargetFailure({ ...this.chainInput(node, signal), cursor }, attempt.reason);
     return this.fallback(node, signal, { noReask: attempt.reason });
   }
 
@@ -227,13 +224,14 @@ export class RouterCore {
   private finish(node: RoutingNode, result: FallbackResult, signal: AbortSignal): RouterReply {
     if (result.kind === 'reask') return this.say(result.line);
     const { resolution } = result;
-    if (resolution.kind === 'agent') {
+    const handsOn = resolution.kind === 'agent' || resolution.kind === 'queue';
+    if (handsOn) {
       signal.throwIfAborted();
       this.ports.handoff.commit(resolution.handoffId);
       this.pending = undefined;
     }
     this.outcomeValue = { ...resolution, path: [...this.state.path], node: node.id };
-    this.phaseValue = resolution.kind === 'agent' ? 'announcing' : 'ended';
+    this.phaseValue = handsOn ? 'announcing' : 'ended';
     recordFinish(this.recorder, {
       call: this.ports.host.call,
       outcome: this.outcomeValue,

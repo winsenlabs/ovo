@@ -5,6 +5,7 @@ import {
   type RoutingHost,
   type RoutingReleaseSnapshot,
 } from '@winsendotai/ovo-contracts';
+import { queueLine } from './begin.ts';
 import type { RouteRecorder } from './events.ts';
 import { BUILT_IN_LINES, pickLine } from './lines.ts';
 import type { Resolution, RouteOutcome as Outcome } from './targets.ts';
@@ -14,7 +15,9 @@ const COMPLETION_MAX = 200;
 
 /** `route:<agent|end|callback>:<path joined by '>'>`, at most 200 characters. */
 export function completionReasonOf(outcome: Outcome): string {
-  return `${ROUTE_REASON_PREFIX}${outcome.kind}:${outcome.path.join('>')}`.slice(0, COMPLETION_MAX);
+  // A queued pool hands on to an agent like any other; which one is the host's to record.
+  const kind = outcome.kind === 'queue' ? 'agent' : outcome.kind;
+  return `${ROUTE_REASON_PREFIX}${kind}:${outcome.path.join('>')}`.slice(0, COMPLETION_MAX);
 }
 
 /** The `route.decision` event (§4.9): ids, keys and timings only, never the caller's words. */
@@ -28,17 +31,22 @@ export function decisionPayload(input: {
   const { outcome, context } = input;
   const values = Object.entries(context.values).slice(0, CONTEXT_KEYS);
   const agent =
-    outcome.kind === 'end' ? undefined : { agentId: outcome.agentId, releaseId: outcome.releaseId };
+    outcome.kind === 'end' || outcome.kind === 'queue'
+      ? undefined
+      : { agentId: outcome.agentId, releaseId: outcome.releaseId };
   const member =
     outcome.kind === 'agent' && outcome.poolId && outcome.memberId
       ? { poolId: outcome.poolId, memberId: outcome.memberId }
-      : undefined;
-  const degraded = outcome.kind === 'callback' ? undefined : outcome.degraded;
+      : outcome.kind === 'queue'
+        ? { poolId: outcome.poolId }
+        : undefined;
+  const degraded =
+    outcome.kind === 'callback' || outcome.kind === 'queue' ? undefined : outcome.degraded;
   return {
     routingPointId: input.call.routingPointId,
     routingReleaseId: input.call.routingReleaseId,
     path: outcome.path.slice(-32),
-    target: outcome.kind,
+    target: outcome.kind === 'queue' ? 'agent' : outcome.kind,
     ...agent,
     ...member,
     ...(context.language ? { language: context.language } : {}),
@@ -94,12 +102,16 @@ export function recordFinish(
     });
 }
 
-/** What the router says as it finishes: the connecting line before a handoff, else the end line. */
+/**
+ * What the router says as it finishes: the connecting line before a handoff, the queue line before
+ * a queued one, else the end line.
+ */
 export function finishLine(
   resolution: Resolution,
   snapshot: RoutingReleaseSnapshot,
   language: string | undefined,
 ): string {
+  if (resolution.kind === 'queue') return queueLine(snapshot, language);
   if (resolution.kind !== 'agent') return resolution.line;
   const lines = snapshot.connecting ?? BUILT_IN_LINES.connecting;
   return pickLine(lines, language, snapshot.language.default);

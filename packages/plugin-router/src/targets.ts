@@ -5,8 +5,8 @@ import {
   type RoutingHost,
   type RoutingReleaseSnapshot,
   type RoutingTarget,
-  type SegmentHandoffPort,
 } from '@winsendotai/ovo-contracts';
+import { queueHandoff, requestHandoff, requestMode, type HandoffEnv } from './begin.ts';
 import { pickLine } from './lines.ts';
 import { pickMember } from './members.ts';
 
@@ -23,6 +23,8 @@ export type Resolution =
       /** Why the route went ahead in a weaker form (`claims_unavailable`). */
       degraded?: string;
     }
+  /** R2: every eligible member of the pool is full; the host holds the caller and keeps claiming. */
+  | { kind: 'queue'; poolId: string; handoffId: string }
   | { kind: 'end'; line: string; disposition?: string; degraded?: string }
   | { kind: 'callback'; line: string; inMinutes: number; agentId: string; releaseId: string };
 
@@ -31,15 +33,11 @@ export type RouteOutcome = Resolution & { path: readonly string[]; node: string 
 
 export type Attempt = { ok: true; resolution: Resolution } | { ok: false; reason: string };
 
-export interface TargetEnv {
+export interface TargetEnv extends HandoffEnv {
   snapshot: RoutingReleaseSnapshot;
   host: Pick<RoutingHost, 'claim' | 'now'>;
-  handoff: Pick<SegmentHandoffPort, 'prepare'>;
   context: RouteContext;
   path: readonly string[];
-  /** A prepared handoff, the moment it exists, so a cancelled turn can abandon it. */
-  prepared: (handoffId: string) => void;
-  signal: AbortSignal;
 }
 
 /** The `ovo_route_*` call variables the target agent receives: the language and each context value. */
@@ -68,9 +66,9 @@ async function prepare(
 ): Promise<Attempt> {
   if (!env.snapshot.releaseIds.includes(agent.releaseId))
     return { ok: false, reason: 'release_not_allowed' };
-  const request = {
-    kind: 'agent' as const,
-    reason: 'route' as const,
+  const answer = await requestHandoff(env, {
+    kind: 'agent',
+    ...requestMode(env.mode),
     ...agent,
     variables: routeVariables(env.context),
     route: {
@@ -78,23 +76,14 @@ async function prepare(
       ...(member ? { poolId: member.poolId, memberId: member.memberId } : {}),
       ...(member?.claimId ? { claimId: member.claimId } : {}),
     },
-  };
-  let result: Awaited<ReturnType<SegmentHandoffPort['prepare']>>;
-  try {
-    result = await env.handoff.prepare(request, env.signal);
-  } catch {
-    env.signal.throwIfAborted();
-    return { ok: false, reason: 'compose_failed' };
-  }
-  if (!result.ok) return { ok: false, reason: result.reason };
-  env.prepared(result.handoffId);
-  env.signal.throwIfAborted();
+  });
+  if (!answer.ok) return answer;
   return {
     ok: true,
     resolution: {
       kind: 'agent',
       ...agent,
-      handoffId: result.handoffId,
+      handoffId: answer.handoffId,
       ...(member ? { poolId: member.poolId, memberId: member.memberId } : {}),
       ...(member?.claimId ? { claimId: member.claimId } : {}),
       ...(member?.degraded ? { degraded: member.degraded } : {}),
@@ -102,9 +91,31 @@ async function prepare(
   };
 }
 
+/** A full pool, queued on hold when the point waits for capacity (R2 §7.3), else `pool_full`. */
+async function queue(
+  env: TargetEnv,
+  target: Extract<RoutingTarget, { kind: 'pool' }>,
+): Promise<Attempt> {
+  const answer = await queueHandoff(
+    {
+      ...env,
+      variables: routeVariables(env.context),
+      now: env.host.now(),
+    },
+    target,
+  );
+  if (!answer) return { ok: false, reason: 'pool_full' };
+  if (!answer.ok) return answer;
+  return {
+    ok: true,
+    resolution: { kind: 'queue', poolId: target.poolId, handoffId: answer.handoffId },
+  };
+}
+
 /**
  * Resolves one target (§7.5 step 4). A pool picks and claims a member, an agent is direct; both are
- * then prepared through the handoff port, which composes the target graph without starting it. An
+ * then prepared (or, R2, begun) through the handoff port, which composes the target graph without
+ * starting it; a pool whose members are all full may be queued instead (`queue`). An
  * end or a callback resolves to its line. A human queue is R3: it fails `human_queue_unavailable`,
  * and so does every other failure, by reason, for the caller's fallback chain to move on.
  */
@@ -142,7 +153,10 @@ export async function attemptTarget(target: RoutingTarget, env: TargetEnv): Prom
         host: env.host,
         signal: env.signal,
       });
-      if (pick.kind === 'failed') return { ok: false, reason: pick.reason };
+      if (pick.kind === 'failed')
+        return pick.reason === 'pool_full'
+          ? queue(env, target)
+          : { ok: false, reason: pick.reason };
       const { candidate } = pick;
       return prepare(
         env,

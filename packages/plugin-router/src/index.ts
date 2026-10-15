@@ -8,7 +8,8 @@ export {
   ROUTER_BEHAVIOR_PLUGIN_ID,
   type RouterPluginConfig,
 } from './plugin.ts';
-export { RouterCore, type RouterPhase, type RouterPorts, type RouterReply } from './core.ts';
+export { RouterCore } from './core.ts';
+export type { RouterPhase, RouterPorts, RouterReply } from './ports.ts';
 export { RouterBehavior } from './behavior.ts';
 export { RouteRecorder, type RecordedRouteEvent } from './events.ts';
 export { isOpen, localTime } from './hours.ts';

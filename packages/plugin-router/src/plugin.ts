@@ -1,6 +1,8 @@
 import {
   AgentConfig,
   Cap,
+  disclosureParts,
+  RouterEntry,
   RoutingReleaseSnapshot,
   type DecisionPort,
   type EventSink,
@@ -17,11 +19,16 @@ export const ROUTER_BEHAVIOR_PLUGIN_ID = '@winsendotai/ovo-behavior-router';
 
 /** What the worker composes the router behaviour with (§7.3): the router release and the snapshot. */
 export interface RouterPluginConfig {
-  /** The router release's agent config. Only its timezone is read; its prompt, opening and tools are not. */
+  /**
+   * The router release's agent config. Only its timezone and (R2, with `begin`) its disclosure
+   * lines are read; its prompt, opening and tools are not.
+   */
   agent: AgentConfig;
   workspaceId: string;
   sessionId: string;
   routing: RoutingReleaseSnapshot;
+  /** R2 §7.5: set when the worker composes the router again to re-route a transferred call. */
+  entry?: RouterEntry;
 }
 
 export const routerConfigSchema = {
@@ -32,6 +39,7 @@ export const routerConfigSchema = {
     workspaceId: { type: 'string', minLength: 1 },
     sessionId: { type: 'string', minLength: 1 },
     routing: { type: 'object' },
+    entry: { type: 'object' },
   },
   additionalProperties: false,
 } as const;
@@ -47,6 +55,7 @@ export function parseRouterConfig(config: Record<string, unknown>): RouterPlugin
     workspaceId: config.workspaceId as string,
     sessionId: config.sessionId as string,
     routing: RoutingReleaseSnapshot.parse(config.routing),
+    ...(config.entry !== undefined ? { entry: RouterEntry.parse(config.entry) } : {}),
   };
 }
 
@@ -87,6 +96,8 @@ export function createRouterBehaviorPlugin() {
         }),
         ...(events ? { events } : {}),
         timezone: config.agent.timezone,
+        disclosure: disclosureParts(config.agent.compliance),
+        ...(config.entry ? { entry: config.entry } : {}),
       });
       const behavior = new RouterBehavior(core);
       ctx.provide(Cap.behavior, behavior);
