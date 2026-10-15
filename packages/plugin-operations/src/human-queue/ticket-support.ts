@@ -14,6 +14,22 @@ export class TicketSupport {
     private readonly ctx: EngineContext,
   ) {}
 
+  async roomsToClose(limit: number) {
+    const rows = await this.store.run((tx) =>
+      tx.scan({
+        statuses: ['released', 'expired'],
+        kind: 'managed',
+        roomOpen: true,
+        limit: Math.max(1, Math.trunc(limit)),
+      }),
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      roomName: row.roomName!,
+      ...(row.assignedOperatorId ? { operatorId: row.assignedOperatorId } : {}),
+    }));
+  }
+
   async workerBeat(id: string): Promise<void> {
     await this.store.run(async (tx) => {
       const row = await tx.ticket(id);

@@ -148,12 +148,19 @@ export class MemoryHqStore implements HqStore {
       putOperator: async (record) => void state().operators.set(record.userId, record),
       ticket: async (id) => state().tickets.get(id),
       scan: async (filter) => {
-        const found = [...state().tickets.values()].filter((row) => matches(row, filter));
+        const found = [...state().tickets.values()].filter(
+          (row) =>
+            matches(row, filter) &&
+            (!filter.roomOpen ||
+              (row.roomName !== undefined &&
+                !(state().events.get(row.id) ?? []).some((e) => e.kind === 'room_closed'))),
+        );
         found.sort(
           filter.sinceChangeId === undefined ? byService : (a, b) => a.changeId - b.changeId,
         );
         return filter.limit === undefined ? found : found.slice(0, filter.limit);
       },
+      headChangeId: async () => state().changeSeq,
       insertTicket: async (row) => {
         for (const other of state().tickets.values()) {
           if (other.idempotencyKey === row.idempotencyKey) throw new HqConflictError();

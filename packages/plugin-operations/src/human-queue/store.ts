@@ -14,6 +14,8 @@ export interface TicketFilter {
   releasedSince?: Date;
   /** Tickets whose context is due for scrubbing at this time. */
   scrubDue?: Date;
+  /** Tickets with a room that no `room_closed` event has recorded as closed yet. */
+  roomOpen?: boolean;
   limit?: number;
   /** Lock the rows for update, skipping any another unit holds (the sweeper). */
   lock?: boolean;
@@ -46,6 +48,8 @@ export interface HqTx {
   /** A ticket, locked for update when the unit goes on to change it. */
   ticket(id: string, lock?: boolean): Promise<TicketRow | undefined>;
   scan(filter: TicketFilter): Promise<TicketRow[]>;
+  /** The newest change id of the organization's tickets (0 when there are none). */
+  headChangeId(): Promise<number>;
   /** Writes a new ticket and assigns `changeId`. Throws HqConflictError on a duplicate key or a second active ticket for the call. */
   insertTicket(row: Omit<TicketRow, 'changeId'>): Promise<TicketRow>;
   /** Writes the changed fields, bumping `updatedAt` and `changeId`; never `version` (the engine does). */
