@@ -137,57 +137,64 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
         <InlineAlert tone="danger">Bound release unavailable: {bound.error}</InlineAlert>
       )}
       {notice && <InlineAlert tone="info">{notice}</InlineAlert>}
-      <KpiStrip>
-        <KpiCard
-          label="Routes"
-          value={loading ? undefined : `${enabledCount}/${routes.length}`}
-          loading={loading}
-          footnote="enabled of total"
-        />
-        <KpiCard
-          label="Ready workers"
-          value={readiness ? readiness.readyWorkers : null}
-          footnote={readiness ? `warm floor ${readiness.warmFloor}` : 'No readiness report'}
-        />
-        <KpiCard
-          label="Admission"
-          value={readiness ? (readiness.admissionEnabled ? 'Enabled' : 'Disabled') : null}
-        />
-        <KpiCard
-          label="Readiness age"
-          value={readiness ? `${Math.round(readiness.ageMs / 1000)}s` : null}
-          footnote={readiness?.stale ? 'Stale' : readiness ? 'Fresh' : undefined}
-        />
-      </KpiStrip>
-      <SectionCard
-        title="Routes"
-        padding="flush"
-        description={loading ? undefined : `${routes.length} configured`}
-      >
-        <InboundRoutesTable
-          routes={routes}
-          releases={releases}
-          carriers={carriers}
-          bindings={bindings}
-          role={role}
-          busy={busy}
-          loading={loading}
-          onEdit={openEdit}
-          onRemove={remove}
-        />
-        {nextCursor && (
-          <div className="ds-card-footer">
-            <button
-              className="button small"
-              type="button"
-              disabled={busy}
-              onClick={() => void loadRoutes(nextCursor)}
-            >
-              Load more routes
-            </button>
-          </div>
-        )}
-      </SectionCard>
+      {/* A real error with nothing already on screen has nothing honest to show below the
+          banner above; once routes are loaded, a later background error still leaves the last
+          good list up rather than replacing it with a false "no routes" claim. */}
+      {!(error && routes.length === 0 && !loading) && (
+        <>
+          <KpiStrip>
+            <KpiCard
+              label="Routes"
+              value={loading ? undefined : `${enabledCount}/${routes.length}`}
+              loading={loading}
+              footnote="enabled of total"
+            />
+            <KpiCard
+              label="Ready workers"
+              value={readiness ? readiness.readyWorkers : null}
+              footnote={readiness ? `warm floor ${readiness.warmFloor}` : 'No readiness report'}
+            />
+            <KpiCard
+              label="Admission"
+              value={readiness ? (readiness.admissionEnabled ? 'Enabled' : 'Disabled') : null}
+            />
+            <KpiCard
+              label="Readiness age"
+              value={readiness ? `${Math.round(readiness.ageMs / 1000)}s` : null}
+              footnote={readiness?.stale ? 'Stale' : readiness ? 'Fresh' : undefined}
+            />
+          </KpiStrip>
+          <SectionCard
+            title="Routes"
+            padding="flush"
+            description={loading ? undefined : `${routes.length} configured`}
+          >
+            <InboundRoutesTable
+              routes={routes}
+              releases={releases}
+              carriers={carriers}
+              bindings={bindings}
+              role={role}
+              busy={busy}
+              loading={loading}
+              onEdit={openEdit}
+              onRemove={remove}
+            />
+            {nextCursor && (
+              <div className="ds-card-footer">
+                <button
+                  className="button small"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void loadRoutes(nextCursor)}
+                >
+                  Load more routes
+                </button>
+              </div>
+            )}
+          </SectionCard>
+        </>
+      )}
       <InboundPolicy role={role} onReadiness={setCapacity} />
       <Drawer
         open={drawer !== null}

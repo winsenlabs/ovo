@@ -154,7 +154,15 @@ export function ComplianceView({ role }: { role: SessionIdentity['role'] }) {
           />
           <KpiCard
             label="Worst abandoned ratio"
-            value={formatPercent(posture.worstRatio)}
+            value={
+              // A plain number here reads as fine either side of the breaker; colour it the
+              // moment it crosses 3% so the KPI itself carries the warning, not just the chart.
+              posture.worstRatio >= 0.03 ? (
+                <span className="danger-text">{formatPercent(posture.worstRatio)}</span>
+              ) : (
+                formatPercent(posture.worstRatio)
+              )
+            }
             footnote="3% breaker"
           />
           <KpiCard

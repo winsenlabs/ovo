@@ -131,18 +131,18 @@ export function InboundPolicy({
       title="Overflow policy"
       description="What happens to a caller when no ready, protected worker can answer."
       actions={
-        !loading && (
-          <StatusBadgeV2
-            tone={capacity ? 'ok' : 'warn'}
-            label={capacity === undefined ? 'Unknown capacity' : `${capacity} protected ready`}
-          />
+        !loading &&
+        capacity !== undefined && (
+          <StatusBadgeV2 tone={capacity ? 'ok' : 'warn'} label={`${capacity} protected ready`} />
         )
       }
     >
       {error && <ErrorState message={error} onRetry={() => void load()} />}
       {loading ? (
         <SkeletonTableRows rows={4} columns={1} />
-      ) : (
+      ) : // `capacity` only stays `undefined` when no load has ever succeeded; an error on a
+      // later background reload still leaves the form showing the last good state.
+      error && capacity === undefined ? null : (
         <form className="stack" onSubmit={save}>
           <p className="muted">
             Only ready, reserved and task-protected capacity is counted. Zero capacity executes this
