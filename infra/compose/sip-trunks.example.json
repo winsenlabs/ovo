@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "trunks": [
+    {
+      "id": "tcn-sg",
+      "carrierId": "tcn",
+      "bindingId": "replace-with-the-ovo-provider-binding-id",
+      "transport": "udp",
+      "signallingCidrs": ["203.0.113.0/28"],
+      "mediaCidrs": ["203.0.113.0/26"],
+      "codecs": ["PCMU", "PCMA"],
+      "dtmf": "rfc4733",
+      "numberFormat": { "country": "IN" },
+      "forwardHeaders": [],
+      "inviteRatePerSecond": 5,
+      "maxConcurrent": 2,
+      "optionsPingSeconds": 30,
+      "inbound": { "enabled": true, "numbers": ["+918000000000"] },
+      "outbound": {
+        "enabled": false,
+        "proxy": "sip:203.0.113.5:5060;transport=udp",
+        "fromNumbers": [],
+        "auth": "ip"
+      }
+    },
+    {
+      "id": "in-trunk",
+      "carrierId": "sip",
+      "bindingId": "replace-with-the-ovo-provider-binding-id",
+      "transport": "tcp",
+      "signallingCidrs": ["192.0.2.10/32"],
+      "mediaCidrs": ["192.0.2.0/27"],
+      "codecs": ["PCMA", "PCMU"],
+      "dtmf": "rfc4733",
+      "numberFormat": { "country": "IN" },
+      "forwardHeaders": [],
+      "inviteRatePerSecond": 5,
+      "maxConcurrent": 2,
+      "optionsPingSeconds": 30,
+      "inbound": { "enabled": true, "numbers": ["+918000000001"] },
+      "outbound": {
+        "enabled": false,
+        "proxy": "sip:192.0.2.10:5070;transport=tcp",
+        "fromNumbers": ["+918000000001"],
+        "auth": "digest"
+      }
+    }
+  ]
+}

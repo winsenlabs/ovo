@@ -214,6 +214,38 @@ importers:
       '@winsendotai/ovo-session-host':
         specifier: workspace:*
         version: link:../../packages/session-host
+      '@winsendotai/ovo-sip-carrier-kit':
+        specifier: workspace:*
+        version: link:../../packages/sip-carrier-kit
+    devDependencies:
+      '@winsendotai/ovo-plugin-carrier-tcn':
+        specifier: workspace:*
+        version: link:../../packages/plugin-carrier-tcn
+
+  apps/sip-gateway:
+    dependencies:
+      '@winsendotai/ovo-audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../../packages/plugin-kit
+      '@winsendotai/ovo-sip-carrier-kit':
+        specifier: workspace:*
+        version: link:../../packages/sip-carrier-kit
+      ws:
+        specifier: 8.21.3
+        version: 8.21.3
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@types/ws':
+        specifier: 8.18.1
+        version: 8.18.1
 
   apps/worker:
     dependencies:
@@ -274,6 +306,9 @@ importers:
       '@winsendotai/ovo-session-host':
         specifier: workspace:*
         version: link:../../packages/session-host
+      '@winsendotai/ovo-sip-carrier-kit':
+        specifier: workspace:*
+        version: link:../../packages/sip-carrier-kit
       ws:
         specifier: 8.21.3
         version: 8.21.3
@@ -389,6 +424,12 @@ importers:
       '@winsendotai/ovo-plugin-carrier-plivo':
         specifier: workspace:*
         version: link:../plugin-carrier-plivo
+      '@winsendotai/ovo-plugin-carrier-sip':
+        specifier: workspace:*
+        version: link:../plugin-carrier-sip
+      '@winsendotai/ovo-plugin-carrier-tcn':
+        specifier: workspace:*
+        version: link:../plugin-carrier-tcn
       '@winsendotai/ovo-plugin-carrier-twilio':
         specifier: workspace:*
         version: link:../plugin-carrier-twilio
@@ -446,6 +487,9 @@ importers:
       '@winsendotai/ovo-plugin-stt-assemblyai':
         specifier: workspace:*
         version: link:../plugin-stt-assemblyai
+      '@winsendotai/ovo-plugin-stt-cartesia':
+        specifier: workspace:*
+        version: link:../plugin-stt-cartesia
       '@winsendotai/ovo-plugin-stt-deepgram':
         specifier: workspace:*
         version: link:../plugin-stt-deepgram
@@ -464,12 +508,18 @@ importers:
       '@winsendotai/ovo-plugin-tools-mcp':
         specifier: workspace:*
         version: link:../plugin-tools-mcp
+      '@winsendotai/ovo-plugin-tts-cartesia':
+        specifier: workspace:*
+        version: link:../plugin-tts-cartesia
       '@winsendotai/ovo-plugin-tts-elevenlabs':
         specifier: workspace:*
         version: link:../plugin-tts-elevenlabs
       '@winsendotai/ovo-plugin-tts-openai':
         specifier: workspace:*
         version: link:../plugin-tts-openai
+      '@winsendotai/ovo-plugin-tts-rumik':
+        specifier: workspace:*
+        version: link:../plugin-tts-rumik
       '@winsendotai/ovo-plugin-turns':
         specifier: workspace:*
         version: link:../plugin-turns
@@ -625,6 +675,38 @@ importers:
       '@winsendotai/ovo-sdk':
         specifier: workspace:*
         version: link:../sdk
+    devDependencies:
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
+
+  packages/plugin-carrier-sip:
+    dependencies:
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@winsendotai/ovo-sip-carrier-kit':
+        specifier: workspace:*
+        version: link:../sip-carrier-kit
+    devDependencies:
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
+
+  packages/plugin-carrier-tcn:
+    dependencies:
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@winsendotai/ovo-sip-carrier-kit':
+        specifier: workspace:*
+        version: link:../sip-carrier-kit
     devDependencies:
       '@winsendotai/ovo-conformance':
         specifier: workspace:*
@@ -1027,6 +1109,25 @@ importers:
         specifier: workspace:*
         version: link:../conformance
 
+  packages/plugin-stt-cartesia:
+    dependencies:
+      '@winsendotai/ovo-audio':
+        specifier: workspace:*
+        version: link:../audio
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+    devDependencies:
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
+
   packages/plugin-stt-deepgram:
     dependencies:
       '@winsendotai/ovo-audio':
@@ -1156,6 +1257,25 @@ importers:
         specifier: 4.6.5
         version: 4.6.5
 
+  packages/plugin-tts-cartesia:
+    dependencies:
+      '@winsendotai/ovo-audio':
+        specifier: workspace:*
+        version: link:../audio
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+    devDependencies:
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
+
   packages/plugin-tts-elevenlabs:
     dependencies:
       '@winsendotai/ovo-audio':
@@ -1192,6 +1312,25 @@ importers:
       '@winsendotai/ovo-sdk':
         specifier: workspace:*
         version: link:../sdk
+    devDependencies:
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
+
+  packages/plugin-tts-rumik:
+    dependencies:
+      '@winsendotai/ovo-audio':
+        specifier: workspace:*
+        version: link:../audio
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@winsendotai/ovo-plugin-kit':
+        specifier: workspace:*
+        version: link:../plugin-kit
+      '@winsendotai/ovo-runtime':
+        specifier: workspace:*
+        version: link:../runtime
     devDependencies:
       '@winsendotai/ovo-conformance':
         specifier: workspace:*
@@ -1369,6 +1508,19 @@ importers:
       '@winsendotai/ovo-sdk':
         specifier: workspace:*
         version: link:../sdk
+
+  packages/sip-carrier-kit:
+    dependencies:
+      '@winsendotai/ovo-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
 
   packages/ui:
     dependencies:

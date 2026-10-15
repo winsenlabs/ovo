@@ -86,11 +86,19 @@ step typecheck pnpm typecheck
 step 'typecheck tests/e2e' pnpm exec tsc -p tests/e2e/tsconfig.json
 step lint pnpm lint
 step 'format check' pnpm format:check
-# Without a database URL the Postgres suites skip themselves; they run next, serially.
-step 'unit tests' env "${postgres_vars[@]/#/-u}" pnpm test
+# Without a database URL the Postgres suites skip themselves; they run next, serially. Without
+# OVO_TEST_SIPP the SIPp suites skip themselves too; they run last, in their own step.
+step 'unit tests' env "${postgres_vars[@]/#/-u}" -u OVO_TEST_SIPP pnpm test
 step 'postgres suites' postgres_suites
 step 'eval offline gate' eval_gate
-step 'live-path e2e' env OVO_TEST_POSTGRES_URL="$ci_url" pnpm test:live-path
+step 'live-path e2e' env -u OVO_TEST_SIPP OVO_TEST_POSTGRES_URL="$ci_url" pnpm test:live-path
+# Wave 11: SIPp against the native sip-gateway on loopback (its scenarios, then the full SIP path
+# through the media gateway and a worker). The build host may not have SIPp (brew install sipp).
+if sipp_bin=$(command -v sipp); then
+  step 'sip (SIPp)' env OVO_TEST_SIPP="$sipp_bin" OVO_TEST_POSTGRES_URL="$ci_url" pnpm test:sip
+else
+  echo '::: sip (SIPp) skipped: sipp missing (brew install sipp)'
+fi
 
 if ((${#failed[@]})); then
   echo "mini-ci failed: ${failed[*]}"

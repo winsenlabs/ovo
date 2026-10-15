@@ -10,6 +10,9 @@
 #      the API reaching healthy means the control, orchestration and telemetry migrations ran;
 #   7. dispatcher and console, then each worker and the gateway one at a time: each worker is
 #      given up to --drain-timeout to finish its call and its SIGTERM drain covers the rest;
+#      with OVO_SIP_ENABLED=true the sip-gateway (profile `sip`) follows, recreated only when its
+#      image changed, because a restart drops every live SIP call; it has no reload, so a change to
+#      its environment, trunk file or secrets reaches it only with --recreate-sip-gateway;
 #   8. verify-compose.sh, plus ops/verify-live.sh when the live flags are on; the history entry
 #      becomes `status=ok` (`unverified` with --skip-verify), or `failed` if any step failed.
 # --rollback redeploys the newest ok or unverified entry whose revision and pins differ from the
@@ -33,6 +36,10 @@ Usage: scripts/deploy/deploy-compose.sh [options]
   --drain-timeout SECS  How long each worker restart waits for its call (default 600).
   --ops-env PATH        Host-side OVO_OPS_* file for the verification (default
                         infra/compose/.env.ops).
+  --recreate-sip-gateway
+                        Drain and recreate the sip-gateway even when its image is unchanged, to
+                        apply a change to its environment, sip-trunks.json or secrets (drops the
+                        live SIP calls left after the drain). Needs OVO_SIP_ENABLED=true.
   --skip-verify         Skip the post-deploy verification.
   --allow-dirty         Deploy a working tree with uncommitted changes.
   --dry-run             Print every mutating command instead of running it.
@@ -47,6 +54,7 @@ ROLLBACK=false
 DRAIN_TIMEOUT=600
 SKIP_VERIFY=false
 ALLOW_DIRTY=false
+RECREATE_SIP=false
 while (($#)); do
   case $1 in
     --env-file) ENV_FILE=$2; shift 2 ;;
@@ -58,6 +66,7 @@ while (($#)); do
     --rollback) ROLLBACK=true; shift ;;
     --drain-timeout) DRAIN_TIMEOUT=$2; shift 2 ;;
     --skip-verify) SKIP_VERIFY=true; shift ;;
+    --recreate-sip-gateway) RECREATE_SIP=true; shift ;;
     --allow-dirty) ALLOW_DIRTY=true; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
     -h | --help) usage; exit 0 ;;
@@ -75,6 +84,21 @@ DEPLOY_DIR=$(dirname "$ENV_FILE")/.deploy
 HISTORY=$DEPLOY_DIR/history
 IMAGE_KEYS='OVO_API_IMAGE OVO_CONSOLE_IMAGE OVO_GATEWAY_IMAGE OVO_DISPATCHER_IMAGE OVO_WORKER_IMAGE OVO_TOOLS_IMAGE'
 APP_SERVICES=(api console gateway dispatcher worker-1 worker-2)
+SIP_TRUNKS_FILE=$(dirname "$COMPOSE_FILE")/sip-trunks.json
+
+# Wave 11: the sip-gateway is deployed only when the environment enables SIP. The `sip` profile is
+# added to the ones the environment (or the caller) already selects, never in place of them.
+SIP_ENABLED=false
+if [[ $(env_value "$ENV_FILE" OVO_SIP_ENABLED) == true ]]; then
+  SIP_ENABLED=true
+  APP_SERVICES+=(sip-gateway)
+  IMAGE_KEYS="$IMAGE_KEYS OVO_SIP_GATEWAY_IMAGE"
+  profiles=${COMPOSE_PROFILES:-$(env_value "$ENV_FILE" COMPOSE_PROFILES)}
+  [[ ,$profiles, == *,sip,* ]] || profiles=${profiles:+$profiles,}sip
+  export COMPOSE_PROFILES=$profiles
+elif [[ $RECREATE_SIP == true ]]; then
+  die '--recreate-sip-gateway needs OVO_SIP_ENABLED=true; with SIP off, stop the service instead (docs/runbooks/sip-trunk-onboarding.md)' 2
+fi
 
 # History lines: STAMP ref=REVISION images=PIN_FILE|built previous=REVISION status=STATUS
 history_field() { sed -n "s/.* $1=\([^ ]*\).*/\1/p" <<<"$2"; }
@@ -132,6 +156,19 @@ release_pins() {
   done
 }
 
+# True when the sip-gateway must be (re)created: it is not running yet, or its container runs an
+# image other than the one the environment now pins. Image IDs are compared, so a new tag of the
+# same image is no change; an image that cannot be inspected counts as a change.
+sip_gateway_image_changed() {
+  local container running wanted
+  container=$(compose ps -q sip-gateway 2>/dev/null || true)
+  [[ -n $container ]] || return 0
+  wanted=$(env_value "$ENV_FILE" OVO_SIP_GATEWAY_IMAGE)
+  running=$(docker inspect --format '{{.Image}}' "$container" 2>/dev/null || true)
+  wanted=$(docker image inspect --format '{{.Id}}' "${wanted:-ovo-sip-gateway:local}" 2>/dev/null || true)
+  [[ -z $running || -z $wanted || $running != "$wanted" ]]
+}
+
 mark_history() {
   local tmp=$HISTORY.tmp.$$
   awk -v id="$stamp" -v status="$1" '$1 == id { sub(/ status=[^ ]*$/, " status=" status) } { print }' \
@@ -149,12 +186,24 @@ if [[ -n $IMAGES ]]; then
   require_file "$IMAGES" 'image pin file'
   while IFS= read -r line || [[ -n $line ]]; do
     [[ -z $line || $line == \#* ]] && continue
-    [[ $line =~ ^OVO_(API|CONSOLE|GATEWAY|DISPATCHER|WORKER|TOOLS)_IMAGE=[a-z0-9./:_-]+(@sha256:[0-9a-f]{64})?$ ]] ||
+    [[ $line =~ ^OVO_(API|CONSOLE|GATEWAY|DISPATCHER|WORKER|TOOLS|SIP_GATEWAY)_IMAGE=[a-z0-9./:_-]+(@sha256:[0-9a-f]{64})?$ ]] ||
       die "unexpected line in $IMAGES: $line" 2
   done <"$IMAGES"
 elif [[ $BUILD != true ]]; then
   [[ $(env_value "$ENV_FILE" OVO_API_IMAGE) == *:local || -z $(env_value "$ENV_FILE" OVO_API_IMAGE) ]] &&
     die 'the images are local builds: pass --images FILE from build-images.sh, or --build to build here' 2
+fi
+
+if [[ $SIP_ENABLED == true ]]; then
+  # Docker would create a directory in place of a missing bind-mounted file.
+  require_file "$SIP_TRUNKS_FILE" 'SIP trunk file (start from infra/compose/sip-trunks.example.json)'
+  if [[ $BUILD != true ]]; then
+    sip_image=
+    [[ -z $IMAGES ]] || sip_image=$(env_value "$IMAGES" OVO_SIP_GATEWAY_IMAGE)
+    [[ -n $sip_image ]] || sip_image=$(env_value "$ENV_FILE" OVO_SIP_GATEWAY_IMAGE)
+    [[ -n $sip_image && $sip_image != *:local ]] ||
+      die 'OVO_SIP_ENABLED=true needs a sip-gateway image: build-images.sh --sip, then --images FILE' 2
+  fi
 fi
 
 if [[ $SKIP_VERIFY != true && $(env_value "$ENV_FILE" OVO_INBOUND_ENABLED) == true ]]; then
@@ -179,6 +228,7 @@ if [[ -n $REF || $PULL == true ]]; then
     [[ $BUILD != true ]] || forward+=(--build)
     [[ $SKIP_VERIFY != true ]] || forward+=(--skip-verify)
     [[ $ALLOW_DIRTY != true ]] || forward+=(--allow-dirty)
+    [[ $RECREATE_SIP != true ]] || forward+=(--recreate-sip-gateway)
     OVO_DEPLOY_PREVIOUS_REF=$previous_ref exec bash "$OVO_ROOT/scripts/deploy/deploy-compose.sh" "${forward[@]}"
   fi
 fi
@@ -208,6 +258,12 @@ fi
 
 step 'environment'
 run "$OVO_ROOT/scripts/bootstrap-compose.sh" --env-file "$ENV_FILE"
+if [[ $SIP_ENABLED == true && $DRY_RUN != true ]]; then
+  for key in OVO_SIP_CONTROL_TOKEN OVO_SIP_GATEWAY_SECRET; do
+    [[ -n $(env_value "$ENV_FILE" "$key") ]] ||
+      die "OVO_SIP_ENABLED=true needs $key; scripts/bootstrap-compose.sh generates it when absent" 2
+  done
+fi
 run compose config --quiet
 
 step 'images'
@@ -244,7 +300,27 @@ rolling_recreate dispatcher console
 
 step 'workers and gateway, one at a time with the drain'
 rolling_recreate worker-1 worker-2 gateway
-run compose up -d --wait --remove-orphans
+if [[ $SIP_ENABLED == true ]]; then
+  if [[ $RECREATE_SIP == true ]]; then
+    step 'sip-gateway (--recreate-sip-gateway: drained, then started with its current configuration)'
+    # SIGTERM drains it: new INVITEs get 503 and live dialogs get up to 240s (stop_grace_period).
+    run compose up -d --no-deps --wait --force-recreate sip-gateway
+  else
+    step 'sip-gateway (recreated only when its image changed: a restart drops live SIP calls)'
+    if [[ $DRY_RUN == true ]]; then
+      say 'dry run: would recreate sip-gateway only if its image changed'
+    elif sip_gateway_image_changed; then
+      rolling_recreate sip-gateway
+    else
+      say 'sip-gateway image unchanged: left running with its calls and its old configuration'
+      say 'a change to its environment, sip-trunks.json or secrets needs --recreate-sip-gateway'
+    fi
+  fi
+  # Starts anything still missing without recreating the sip-gateway for a configuration change.
+  run compose up -d --wait --remove-orphans --no-recreate
+else
+  run compose up -d --wait --remove-orphans
+fi
 
 status=unverified
 if [[ $SKIP_VERIFY != true ]]; then

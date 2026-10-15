@@ -223,6 +223,35 @@ describe('FixtureNet over WebSocket', () => {
     expect(() => socket.send('{"type":"KeepAlive"}')).toThrow(FixtureMismatchError);
   });
 
+  it("matches a bare text frame exactly with match 'any' and where.text, never a binary one", async () => {
+    const net = createFixtureNet([
+      script(
+        [
+          { expect: 'ws-open', url: 'wss://stt.example.com/listen' },
+          { expect: 'ws-send', match: 'binary', repeat: 'until-next' },
+          { expect: 'ws-send', match: 'any', where: { text: 'finalize' } },
+          { send: 'flushed' },
+          { expect: 'ws-send', match: 'any', where: { text: /^(?:close|finalize)$/ } },
+        ],
+        'stt.example.com',
+      ),
+    ]);
+    const socket = net.websocket('wss://stt.example.com/listen');
+    const received: unknown[] = [];
+    socket.on('message', (data) => received.push(data));
+    await new Promise<void>((resolve) => socket.on('open', () => resolve()));
+    socket.send(new Uint8Array(160));
+    // Audio while the text step waits goes to the background repeat, not to the text step.
+    socket.send(new Uint8Array(160));
+    expect(() => socket.send('{"type":"finalize"}')).toThrow(FixtureMismatchError);
+    socket.send('finalize');
+    await tick();
+    expect(received).toEqual(['flushed']);
+    socket.send('close');
+    expect(net.mismatches).toHaveLength(1);
+    expect(net.pending()).toEqual([]);
+  });
+
   it('treats a client close as consuming a pending server close', async () => {
     const net = createFixtureNet([
       script([

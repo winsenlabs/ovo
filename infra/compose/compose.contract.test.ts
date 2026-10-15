@@ -142,6 +142,117 @@ describe('bootstrap Twilio values', () => {
   });
 });
 
+describe('bootstrap SIP values (Wave 11)', () => {
+  it('writes SIP off with generated internal secrets, and keeps them on a rerun', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ovo-bootstrap-'));
+    try {
+      const envFile = join(directory, '.env');
+      const run = () =>
+        execFileSync('bash', [script('bootstrap-compose.sh').pathname, '--env-file', envFile], {
+          env: { ...process.env, OVO_SEED_ADMIN_EMAIL: 'admin@ovo.test' },
+          stdio: 'pipe',
+        });
+      const value = (key: string) =>
+        readFileSync(envFile, 'utf8')
+          .split('\n')
+          .filter((line) => line.startsWith(`${key}=`))
+          .map((line) => line.slice(key.length + 1));
+      run();
+      expect(value('OVO_SIP_ENABLED')).toEqual(['false']);
+      expect(value('OVO_SIP_PUBLIC_ENABLED')).toEqual(['false']);
+      const [token] = value('OVO_SIP_CONTROL_TOKEN');
+      const [secret] = value('OVO_SIP_GATEWAY_SECRET');
+      expect(token).toMatch(/^[0-9a-f]{64}$/);
+      // The gateway's verifier needs base64 of at least 32 bytes (ovo-sip/1 signing key).
+      expect(Buffer.from(secret!, 'base64')).toHaveLength(32);
+      run();
+      expect(value('OVO_SIP_CONTROL_TOKEN')).toEqual([token]);
+      expect(value('OVO_SIP_GATEWAY_SECRET')).toEqual([secret]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('sip-gateway (Wave 11, dark by default)', () => {
+  const sip = () => service('sip-gateway');
+
+  it('runs only in the sip profile, on the host network, publishing no port', () => {
+    expect(sip()).toContain('    profiles: [sip]\n');
+    expect(sip()).toContain('    network_mode: host\n');
+    expect(sip()).not.toContain('ports:');
+    expect(sip()).toContain('image: ${OVO_SIP_GATEWAY_IMAGE:-ovo-sip-gateway:local}');
+    expect(sip()).toContain('target: sip-gateway');
+  });
+
+  it('keeps SIP and RTP on loopback unless the public flag is set', () => {
+    expect(sip()).toContain('OVO_SIP_PUBLIC_ENABLED: ${OVO_SIP_PUBLIC_ENABLED:-false}');
+    expect(sip()).toContain('OVO_SIP_PUBLIC_IP: ${OVO_SIP_PUBLIC_IP:-}');
+    expect(sip()).toContain('OVO_SIP_RTP_PORT_MIN: ${OVO_SIP_RTP_PORT_MIN:-40000}');
+    expect(sip()).toContain('OVO_SIP_RTP_PORT_MAX: ${OVO_SIP_RTP_PORT_MAX:-40199}');
+    expect(sip()).toContain('OVO_SIP_HEALTH_LISTEN: 127.0.0.1:5091');
+  });
+
+  it('serves its control API to the compose subnet only, reached through the bridge gateway', () => {
+    // 0.0.0.0, not the bridge address: that bind from a host-network container is unconfirmed.
+    // No firewall rule exists for 5090; the bearer token and the source CIDRs guard it.
+    expect(sip()).toContain('OVO_SIP_CONTROL_LISTEN: ${OVO_SIP_CONTROL_LISTEN:-0.0.0.0:5090}');
+    expect(sip()).toContain('OVO_SIP_CONTROL_SOURCE_CIDRS: ${OVO_COMPOSE_SUBNET:-172.29.240.0/24}');
+    expect(service('worker-1')).toContain(
+      'OVO_SIP_CONTROL_URL: ${OVO_SIP_CONTROL_URL:-http://172.29.240.1:5090}',
+    );
+    expect(sip()).toContain('gateway: { condition: service_healthy }');
+  });
+
+  it('reaches the gateway over loopback with the same public base URL the gateway signs', () => {
+    expect(sip()).toContain('OVO_SIP_MEDIA_INTERNAL_URL: http://127.0.0.1:${GATEWAY_PORT:-4001}');
+    expect(sip()).toContain(
+      'OVO_MEDIA_PUBLIC_BASE_URL: ${OVO_MEDIA_PUBLIC_BASE_URL:?set OVO_MEDIA_PUBLIC_BASE_URL}',
+    );
+    expect(service('gateway')).toContain("      - '127.0.0.1:${GATEWAY_PORT:-4001}:4001'\n");
+  });
+
+  it('mounts the trunk file read-only and ignores the real one in git', () => {
+    expect(sip()).toContain('OVO_SIP_TRUNKS_FILE: /etc/ovo/sip-trunks.json');
+    expect(sip()).toContain('- ./sip-trunks.json:/etc/ovo/sip-trunks.json:ro');
+    const ignore = readFileSync(new URL('./.gitignore', import.meta.url), 'utf8');
+    expect(ignore.split('\n')).toContain('/sip-trunks.json');
+  });
+
+  it('ships an example trunk file with documentation addresses only (RFC 5737)', () => {
+    const example = JSON.parse(
+      readFileSync(new URL('./sip-trunks.example.json', import.meta.url), 'utf8'),
+    ) as { version: number; trunks: Array<Record<string, unknown>> };
+    expect(example.version).toBe(1);
+    const text = JSON.stringify(example);
+    const addresses = text.match(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g) ?? [];
+    expect(addresses.length).toBeGreaterThan(0);
+    for (const address of addresses)
+      expect(address).toMatch(/^(?:192\.0\.2|198\.51\.100|203\.0\.113)\./);
+    for (const trunk of example.trunks) {
+      expect(['sip', 'tcn']).toContain(trunk.carrierId);
+      expect((trunk.outbound as { enabled: boolean }).enabled).toBe(false);
+    }
+  });
+
+  it('drains live SIP calls inside the stop grace period', () => {
+    expect(sip()).toContain('stop_grace_period: 300s');
+    const drain = /OVO_SIP_DRAIN_TIMEOUT_MS: '(\d+)'/.exec(sip());
+    expect(Number(drain![1])).toBeLessThanOrEqual(300_000 - 30_000);
+    expect(sip()).toContain("fetch('http://127.0.0.1:5091/health')");
+  });
+
+  it('gives the gateway and workers the SIP flag, off when unset', () => {
+    for (const name of ['gateway', 'worker-1'])
+      expect(service(name)).toContain('OVO_SIP_ENABLED: ${OVO_SIP_ENABLED:-false}');
+    expect(service('gateway')).toContain(
+      'OVO_SIP_GATEWAY_SECRET_PREVIOUS: ${OVO_SIP_GATEWAY_SECRET_PREVIOUS:-}',
+    );
+    expect(service('worker-1')).toContain('OVO_SIP_CONTROL_TOKEN: ${OVO_SIP_CONTROL_TOKEN:-}');
+    expect(service('worker-2')).toContain('<<: *worker');
+  });
+});
+
 it('keeps inbound admission tied to the flag and reports readiness from the dispatcher', () => {
   expect(service('worker-1')).toContain(
     'OVO_INBOUND_CAPACITY_ENABLED: ${OVO_INBOUND_ENABLED:-false}',

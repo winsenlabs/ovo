@@ -50,6 +50,23 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
     load: () => import('@winsendotai/ovo-plugin-tts-elevenlabs'),
   },
   {
+    // Wave 11: Cartesia Sonic TTS, Cartesia Ink STT (Auto and Manual definitions) and Rumik
+    // Silk TTS. Rumik has no speech-to-text API, so there is no Rumik STT package.
+    package: '@winsendotai/ovo-plugin-tts-cartesia',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-tts-cartesia'),
+  },
+  {
+    package: '@winsendotai/ovo-plugin-stt-cartesia',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-stt-cartesia'),
+  },
+  {
+    package: '@winsendotai/ovo-plugin-tts-rumik',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-tts-rumik'),
+  },
+  {
     package: '@winsendotai/ovo-plugin-llm-openai',
     roles: ['session'],
     load: () => import('@winsendotai/ovo-plugin-llm-openai'),
@@ -98,6 +115,18 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
     package: '@winsendotai/ovo-plugin-carrier-plivo',
     roles: ['api', 'worker', 'gateway', 'dispatcher'],
     load: () => import('@winsendotai/ovo-plugin-carrier-plivo'),
+  },
+  {
+    // Wave 11: OVO's own sip-gateway as a carrier. Inert until the host composes
+    // Cap.sipTrunkControl (worker) / Cap.sipTrunkVerifier (gateway) under OVO_SIP_ENABLED=true.
+    package: '@winsendotai/ovo-plugin-carrier-sip',
+    roles: ['api', 'worker', 'gateway', 'dispatcher'],
+    load: () => import('@winsendotai/ovo-plugin-carrier-sip'),
+  },
+  {
+    package: '@winsendotai/ovo-plugin-carrier-tcn',
+    roles: ['api', 'worker', 'gateway', 'dispatcher'],
+    load: () => import('@winsendotai/ovo-plugin-carrier-tcn'),
   },
   {
     package: '@winsendotai/ovo-fixture-calls',

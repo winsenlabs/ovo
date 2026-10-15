@@ -166,7 +166,10 @@ export function matchesFrame(
   data: string | Uint8Array,
 ): boolean {
   if (step.match === 'binary') return typeof data !== 'string';
-  if (step.match === 'any') return true;
+  // `any` with `where: {text}` is an exact (or RegExp) bare text frame, such as Cartesia's
+  // `finalize`, which is not JSON; a binary frame never matches it.
+  if (step.match === 'any')
+    return !step.where || (typeof data === 'string' && matchesWhere({ text: data }, step.where));
   if (typeof data !== 'string') return false;
   const parsed = parseJson(data);
   return parsed.ok && matchesWhere(parsed.value, step.where);

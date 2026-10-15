@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+<!-- W11 17.3 #10, #11: a request the gateway must drop: silence for 2 s is the pass. -->
+<scenario name="uac-no-via">
+  <send>
+    <![CDATA[
+
+      INVITE sip:[did]@[remote_ip]:[remote_port] SIP/2.0
+      From: <sip:+919876543210@[local_ip]:[local_port]>;tag=[pid]SIPpTag00[call_number]
+      To: <sip:[did]@[remote_ip]:[remote_port]>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Max-Forwards: 70
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <!-- Any response is an unexpected message and fails the call: silence is the pass. -->
+  <pause milliseconds="2000"/>
+  <ResponseTimeRepartition value="10, 20, 30, 40, 50, 100, 150, 200"/>
+  <CallLengthRepartition value="10, 50, 100, 500, 1000, 5000, 10000"/>
+</scenario>

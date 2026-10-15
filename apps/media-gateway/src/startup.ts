@@ -26,6 +26,7 @@ import { createGatewayHost, type GatewayHostOptions } from './gateway-host.ts';
 import { gatewayMediaConfig } from './gateway-config.ts';
 import { GatewayHealth } from './gateway-health.ts';
 import { installInboundCarriers } from './inbound-carrier-installation.ts';
+import { sipTrunkVerifierPlugins } from './sip-trunk-verifier.ts';
 
 const GATEWAY_NET_PLUGIN_ID = 'ovo.gateway.node-net';
 const GATEWAY_INFRA_PACKAGES = [
@@ -102,6 +103,8 @@ export async function startGateway(
   const routeSecret = required(env, 'OVO_INBOUND_ROUTE_SECRET');
   const workerToken = required(env, 'OVO_MEDIA_WORKER_TOKEN');
   const organizationId = required(env, 'OVO_ORGANIZATION_ID');
+  // Wave 11: refuses SIP enabled without a usable signing key before anything connects.
+  const sipVerifier = sipTrunkVerifierPlugins(env);
   const distribution =
     input.distribution ?? (await loadDistribution({ role: 'gateway', profile, env }));
   const [storagePlugin, secretsPlugin] = await gatewayInfrastructureDefinitions();
@@ -164,7 +167,14 @@ export async function startGateway(
         },
       },
     );
-    const extra = [storagePlugin, secretsPlugin, netPlugin, resolverPlugin, gatewayPlugin];
+    const extra = [
+      storagePlugin,
+      secretsPlugin,
+      netPlugin,
+      resolverPlugin,
+      gatewayPlugin,
+      ...sipVerifier,
+    ];
     const catalog = [
       ...distribution.catalog.filter(
         (definition) => !extra.some((entry) => entry.manifest.id === definition.manifest.id),
@@ -188,6 +198,7 @@ export async function startGateway(
           },
         },
         { id: netPlugin.manifest.id },
+        ...sipVerifier.map((plugin) => ({ id: plugin.manifest.id })),
         { id: MEDIA_PLUGIN_IDS.routeResolver },
         {
           id: MEDIA_PLUGIN_IDS.gateway,

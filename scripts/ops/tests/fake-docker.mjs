@@ -2,7 +2,11 @@
 // A stand-in `docker` for the deploy/ops script tests: no container is ever touched. It logs each
 // invocation to $FAKE_DOCKER_LOG and answers from the JSON state in $FAKE_DOCKER_STATE:
 //   { env: {service: {NAME: value}}, workers: {service: state | [states…]},
-//     fail: [argv substring…], baseVerify: "pass" | "fail", bakeDigests: true }
+//     fail: [argv substring…], baseVerify: "pass" | "fail", bakeDigests: true,
+//     containers: {service: id}, containerImages: {id: imageId}, imageIds: {ref: imageId} }
+// Every `compose` call appends the COMPOSE_PROFILES it ran with (`-` when unset) as one line to
+// $FAKE_DOCKER_STATE.profiles: append-only, because the scripts run compose calls concurrently and
+// rewriting the state file from each of them would race.
 // `exec … node --input-type=module -` with the ops program on stdin runs it with the host node, so
 // the program talks to the tests' fake console, workers and carrier servers.
 import { spawnSync } from 'node:child_process';
@@ -36,6 +40,8 @@ const nodeAt = args.indexOf('node');
 if (args[0] === 'run' && nodeAt > 0) runNode(args.slice(nodeAt + 3));
 
 if (args[0] === 'compose') {
+  if (statePath)
+    appendFileSync(`${statePath}.profiles`, `${process.env.COMPOSE_PROFILES ?? '-'}\n`);
   const execAt = args.indexOf('exec');
   if (execAt > 0) {
     const service = args[execAt + 2];
@@ -69,11 +75,25 @@ if (args[0] === 'compose') {
       process.exit(0);
     }
   }
+  if (args.includes('ps') && args.includes('-q')) {
+    const id = state.containers?.[args.at(-1)];
+    if (id) process.stdout.write(`${id}\n`);
+    process.exit(0);
+  }
   if (args.includes('ps')) {
     for (const service of state.services ?? [])
       process.stdout.write(`${service}\trunning\thealthy\n`);
     process.exit(0);
   }
+  process.exit(0);
+}
+
+// `docker inspect --format '{{.Image}}' ID` and `docker image inspect --format '{{.Id}}' REF`.
+if (args[0] === 'inspect' || (args[0] === 'image' && args[1] === 'inspect')) {
+  const id =
+    args[0] === 'inspect' ? state.containerImages?.[args.at(-1)] : state.imageIds?.[args.at(-1)];
+  if (!id) process.exit(1);
+  process.stdout.write(`${id}\n`);
   process.exit(0);
 }
 
@@ -85,10 +105,13 @@ if (args[0] === 'buildx' && args[1] === 'bake') {
       metadata,
       JSON.stringify(
         Object.fromEntries(
-          ['api', 'console', 'gateway', 'dispatcher', 'worker', 'tools'].map((target, index) => [
-            target,
-            { 'containerimage.digest': digest('abcdef'[index]) },
-          ]),
+          ['api', 'console', 'gateway', 'dispatcher', 'worker', 'tools', 'sip-gateway']
+            // The `sip` group is baked only when named.
+            .filter((target) => target !== 'sip-gateway' || args.includes('sip'))
+            .map((target, index) => [
+              target,
+              { 'containerimage.digest': digest('abcdef7'[index]) },
+            ]),
         ),
       ),
     );

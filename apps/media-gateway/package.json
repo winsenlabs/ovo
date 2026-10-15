@@ -17,6 +17,10 @@
     "@winsendotai/ovo-plugin-media": "workspace:*",
     "@winsendotai/ovo-plugin-operations": "workspace:*",
     "@winsendotai/ovo-plugin-orchestration": "workspace:*",
-    "@winsendotai/ovo-runtime": "workspace:*"
+    "@winsendotai/ovo-runtime": "workspace:*",
+    "@winsendotai/ovo-sip-carrier-kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@winsendotai/ovo-plugin-carrier-tcn": "workspace:*"
   }
 }

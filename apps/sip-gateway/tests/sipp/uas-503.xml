@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+<!-- W11 17.3 #14: SIPp is the trunk and refuses the INVITE with 503 Service Unavailable. -->
+<scenario name="uas-503">
+  <recv request="INVITE"/>
+  <send>
+    <![CDATA[
+
+      SIP/2.0 503 Service Unavailable
+      [last_Via:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag01[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:trunk@[local_ip]:[local_port];transport=[transport]>
+      Retry-After: 30
+      Content-Length: [len]
+
+    ]]>
+  </send>
+  <recv request="ACK"/>
+  <ResponseTimeRepartition value="10, 20, 30, 40, 50, 100, 150, 200"/>
+  <CallLengthRepartition value="10, 50, 100, 500, 1000, 5000, 10000"/>
+</scenario>

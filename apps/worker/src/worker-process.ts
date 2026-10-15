@@ -36,6 +36,7 @@ import { workerSecretManager } from './worker-secrets.ts';
 import { prewarmJobProviders } from './provider-prewarm.ts';
 import { createWorkerRunnerPlugin } from './worker-plugin.ts';
 import { netPlugin } from './worker-net.ts';
+import { sipTrunkControlPlugins } from './sip-trunk-control.ts';
 import type { WorkerRunner } from './runner.ts';
 import {
   durableAdapterPlugins,
@@ -46,6 +47,8 @@ import {
 } from './worker-environment.ts';
 
 export async function openWorkerProcess() {
+  // Wave 11: checked before anything opens, so SIP enabled without its token stops the worker.
+  const sipControl = sipTrunkControlPlugins(process.env);
   const distribution = await loadDistribution({
     role: 'worker',
     profile: process.env.OVO_DEPLOYMENT_PROFILE === 'fargate' ? 'fargate' : 'compose',
@@ -132,6 +135,7 @@ export async function openWorkerProcess() {
     costDefinition,
     recordingsDefinition,
     workerRunnerPlugin,
+    ...sipControl,
   ]);
   const composition = await compose(
     [
@@ -142,6 +146,7 @@ export async function openWorkerProcess() {
         config: { mediaReadinessUrl: env('OVO_MEDIA_READINESS_URL') },
       },
       { id: netPlugin.manifest.id },
+      ...sipControl.map((plugin) => ({ id: plugin.manifest.id })),
       ...carrierRows,
       { id: operationsDefinition.manifest.id },
       { id: carrierDefinition.manifest.id },

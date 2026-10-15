@@ -16,6 +16,11 @@ group "default" {
   targets = ["api", "console", "gateway", "dispatcher", "worker", "tools"]
 }
 
+# Wave 11: the sip-gateway stays out of `default` until SIP goes live; build-images.sh --sip adds it.
+group "sip" {
+  targets = ["sip-gateway"]
+}
+
 target "_common" {
   context    = "."
   dockerfile = "infra/container/Dockerfile"
@@ -57,6 +62,12 @@ target "worker" {
   inherits = ["_common"]
   target   = "worker"
   tags     = ["${REGISTRY}/ovo-worker:${REVISION}"]
+}
+
+target "sip-gateway" {
+  inherits = ["_common"]
+  target   = "sip-gateway"
+  tags     = ["${REGISTRY}/ovo-sip-gateway:${REVISION}"]
 }
 
 # The `workspace` stage runs one-off tools such as secrets-rewrap (compose profile `tools`).
