@@ -10,6 +10,11 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+  /* `.ui-cluster` is applied to both `<ol>` (the state-path trail) and `<ul>` (the latency
+     legend) by existing screens; flex alone does not remove the browser's list markers, which
+     overlap the flex items (brief defect: "greeti2g → verify_identi3y"). */
+  list-style: none;
+  padding: 0;
 }
 .ui-grid {
   display: grid;

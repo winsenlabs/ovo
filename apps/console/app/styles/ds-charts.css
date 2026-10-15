@@ -1,0 +1,203 @@
+/* W14 design system: the chart frame (title/legend/Chart-Table toggle), hand-rolled SVG chart
+   furniture (axis, tooltip, legend, donut centre, waterfall), the progress meter and the theme
+   toggle. Chart marks themselves are drawn inline by each `components/charts/*` component. */
+.ds-chart-frame {
+  display: grid;
+  /* `minmax(0,1fr)`, not the implicit `auto`: a grid item's min-width defaults to its content's
+     intrinsic width, so a 600px measured SVG held this frame at 600px forever (brief defect #2).
+     The width-measured child below gets the same rule so it can report a true shrunk width to
+     the `ResizeObserver` instead of reporting its own last-rendered SVG width back to itself. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ds-chart-frame > [role='img'] {
+  min-width: 0;
+  overflow: hidden;
+}
+.ds-chart-frame svg {
+  display: block;
+  max-width: 100%;
+}
+.ds-chart-frame-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.ds-chart-frame-head h3 {
+  font-size: var(--text-h3-size);
+  font-weight: var(--text-h3-weight);
+}
+.ds-chart-frame-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.ds-chart-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.ds-chart-toggle button {
+  padding: 2px var(--space-2);
+  border: 0;
+  background: var(--surface);
+  font-size: var(--text-micro-size);
+}
+.ds-chart-toggle button.selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ds-chart-axis text {
+  fill: var(--text-3);
+  font-size: var(--text-micro-size);
+}
+.ds-chart-gridline {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.ds-chart-row-label {
+  fill: var(--text-2);
+  font-size: var(--text-micro-size);
+}
+.ds-chart-tooltip rect {
+  fill: var(--text);
+  opacity: 0.92;
+}
+.ds-chart-tooltip text {
+  fill: var(--surface);
+  font-size: var(--text-micro-size);
+}
+.ds-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-2);
+  font-size: var(--text-micro-size);
+}
+.ds-chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ds-legend-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+.ds-donut {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.ds-donut-center {
+  fill: var(--text);
+  font-size: var(--text-h3-size);
+  font-weight: 650;
+}
+.ds-waterfall-unattributed {
+  opacity: 0.85;
+}
+.ds-waterfall-overflow {
+  fill: var(--danger-text);
+  font-size: var(--text-micro-size);
+  font-weight: 600;
+}
+.ds-waterfall-p95-line {
+  stroke: var(--text-3);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+}
+.ds-waterfall-p95-label {
+  fill: var(--text-3);
+  font-size: var(--text-micro-size);
+}
+.ds-waterfall {
+  display: grid;
+  gap: var(--space-2);
+}
+.ds-bar-value-label {
+  fill: var(--text-2);
+  font-size: var(--text-micro-size);
+  font-variant-numeric: tabular-nums;
+}
+.ds-bar-category-label {
+  fill: var(--text-3);
+  font-size: var(--text-micro-size);
+}
+.ds-meter {
+  display: grid;
+  gap: var(--space-1);
+}
+.ds-meter-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-label-size);
+}
+.ds-meter-track {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.ds-meter-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.ds-meter-fill.tone-ok {
+  background: var(--ok);
+}
+.ds-meter-fill.tone-info {
+  background: var(--info);
+}
+.ds-meter-fill.tone-warn {
+  background: var(--warn);
+}
+.ds-meter-fill.tone-danger {
+  background: var(--danger);
+}
+.ds-meter-fill.tone-neutral {
+  background: var(--neutral);
+}
+.ds-meter-threshold {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--text);
+}
+.ds-meter-limit {
+  background: var(--danger-text);
+}
+.ds-theme-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.ds-theme-toggle button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-inline-end: 1px solid var(--border);
+  background: var(--surface);
+}
+.ds-theme-toggle button:last-child {
+  border-inline-end: 0;
+}
+.ds-theme-toggle button.selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
