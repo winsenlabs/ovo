@@ -111,6 +111,9 @@
   .ds-table td {
     display: flex;
     justify-content: space-between;
+    /* Not the default stretch: a badge in a cell whose other content wraps (a status pill next
+       to a column of action buttons) was stretched into a tall oval. */
+    align-items: flex-start;
     gap: var(--space-2);
     padding: var(--space-1) 0;
     border: 0;

@@ -24,7 +24,11 @@ export function XAxis({
   mode?: 'linear' | 'time';
   width?: number;
 }) {
-  const ticks = mode === 'time' ? niceTimeTicks(domain, tickCount) : niceTicks(domain, tickCount);
+  // One tick per ~90px at most: a fixed count of five ran time labels ("05:30 pm08:30 pm") into
+  // each other on a phone-width plot.
+  const count =
+    width != null ? Math.max(2, Math.min(tickCount, Math.floor(width / 90))) : tickCount;
+  const ticks = mode === 'time' ? niceTimeTicks(domain, count) : niceTicks(domain, count);
   const edgeThreshold = 20;
   return (
     <g className="ds-chart-axis" aria-hidden="true">

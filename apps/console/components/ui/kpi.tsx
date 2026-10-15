@@ -17,6 +17,7 @@ export function KpiCard({
   footnote,
   href,
   loading = false,
+  compact = false,
 }: {
   label: string;
   value?: ReactNode | null;
@@ -26,6 +27,9 @@ export function KpiCard({
   footnote?: ReactNode;
   href?: string;
   loading?: boolean;
+  /** Step the value down a size for long formatted values (money with paise, byte sizes) that
+   * a plain string-length check cannot see because they arrive as a formatting component. */
+  compact?: boolean;
 }) {
   const body = (
     <article className="ds-kpi" aria-busy={loading || undefined}>
@@ -42,7 +46,8 @@ export function KpiCard({
             // Long formatted values (lakh-grouped rupees with paise, "14.34 GiB") wrapped
             // mid-number at the full KPI size in a 6-up strip; they step down a size instead.
             className={`ds-kpi-value${
-              (typeof value === 'string' || typeof value === 'number') && String(value).length > 9
+              compact ||
+              ((typeof value === 'string' || typeof value === 'number') && String(value).length > 9)
                 ? ' ds-kpi-value--long'
                 : ''
             }`}

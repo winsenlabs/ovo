@@ -100,21 +100,25 @@ export function BudgetPanel({ role }: { role: SessionIdentity['role'] }) {
           }
         />
         <KpiCard
+          compact
           label="Limit"
           value={error || !totalsPaise ? null : <MoneyValue paise={totalsPaise.limit} />}
           loading={budgets === null && !error}
         />
         <KpiCard
+          compact
           label="Spent"
           value={error || !totalsPaise ? null : <MoneyValue paise={totalsPaise.spent} />}
           loading={budgets === null && !error}
         />
         <KpiCard
+          compact
           label="Reserved"
           value={error || !totalsPaise ? null : <MoneyValue paise={totalsPaise.reserved} />}
           loading={budgets === null && !error}
         />
         <KpiCard
+          compact
           label="Available"
           value={error || !totalsPaise ? null : <MoneyValue paise={totalsPaise.available} />}
           loading={budgets === null && !error}
