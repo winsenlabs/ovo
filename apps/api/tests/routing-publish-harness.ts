@@ -20,6 +20,7 @@ import {
   ROUTER_RELEASE,
   WORKSPACE,
 } from './routing-fixtures.ts';
+import { clipInput } from './routing-audio-fixtures.ts';
 
 const ENDPOINT = 'https://route.example.com/decide';
 export const OTHER = '99999999-9999-4999-8999-999999999999';
@@ -32,8 +33,11 @@ export interface Setup {
   pools?: 'none' | Record<string, [string, string[]][]>;
   languageFallback?: string[];
   externalEnabled?: boolean;
+  transferEnabled?: boolean;
   requireCostPolicy?: boolean;
   deletedPools?: string[];
+  /** Clips the fake service holds, by id: live, or deleted since the draft named them. */
+  clips?: Record<string, 'live' | 'deleted'>;
 }
 
 export async function context(setup: Setup = {}) {
@@ -54,6 +58,10 @@ export async function context(setup: Setup = {}) {
         }),
         id,
       );
+  for (const [id, state] of Object.entries(setup.clips ?? {})) {
+    const clip = await routing.audio.create(clipInput(`Clip ${id.slice(0, 4)}`), id);
+    if (clip !== 'name_taken' && state === 'deleted') await routing.audio.remove(id);
+  }
   const input = draftInput();
   setup.patch?.(input);
   const draft = RoutingPointDraft.parse(input);
@@ -62,8 +70,10 @@ export async function context(setup: Setup = {}) {
     store: fakeStore(setup.releases ?? exampleReleases(), setup.credentials) as never,
     routing: routing as never,
     pool: async (id) => (setup.deletedPools?.includes(id) ? 'deleted' : routing.pools.get(id)),
+    audio: (id) => routing.audio.get(id, { includeDeleted: true }),
     registry,
     externalEnabled: setup.externalEnabled ?? true,
+    transferEnabled: setup.transferEnabled ?? true,
     requireCostPolicy: setup.requireCostPolicy ?? false,
   };
   return { context: built, draft, routing };

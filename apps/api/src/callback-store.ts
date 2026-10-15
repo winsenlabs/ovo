@@ -1,8 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import pg, { type Pool } from 'pg';
+import {
+  declaredDial,
+  dialFromJob,
+  type CallbackDial,
+  type DialledReleaseConfig,
+} from './callback-dial.ts';
 import { runCallbackMigrations } from './callback-migrations.ts';
 
 export { runCallbackMigrations } from './callback-migrations.ts';
+export { dialFromJob, type CallbackDial, type DialledReleaseConfig } from './callback-dial.ts';
 
 export const CALLBACK_STATUSES = [
   'pending',
@@ -38,15 +45,6 @@ export interface CallbackRecord {
   phone: string | null;
   createdAt: string;
   updatedAt: string;
-}
-
-/** What `POST /v1/calls` needs to dial a callback: the same release, numbers swapped for inbound. */
-export interface CallbackDial {
-  operationId: string;
-  releaseId: string;
-  to: string;
-  fromNumber: string;
-  variables: Record<string, string>;
 }
 
 const UUID = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
@@ -171,11 +169,14 @@ export class PostgresCallbackStore {
   /**
    * Claims a pending callback, or one whose dial lease ran out, for dialling and returns what to
    * dial it with. The operation id is kept, so a dial retried after a failure (or after an API that
-   * stopped mid-dial) is the same live call, never a second one.
+   * stopped mid-dial) is the same live call, never a second one. With `release`, the call's
+   * variables are cut to what the dialled release declares (R1 audit 2): a routed call carries
+   * the router's variables, which a member or default agent with a closed schema would refuse.
    */
   async claimDial(
     workspaceId: string,
     id: string,
+    release?: DialledReleaseConfig,
   ): Promise<CallbackDial | 'conflict' | 'unreachable' | undefined> {
     const claimed = await this.pool.query<{
       dial_operation_id: string;
@@ -197,7 +198,8 @@ export class PostgresCallbackStore {
       await this.transition(workspaceId, id, ['dialing'], 'pending');
       return 'unreachable';
     }
-    return { operationId: row.dial_operation_id, ...dial };
+    const config = await release?.(dial.releaseId);
+    return { operationId: row.dial_operation_id, ...(config ? declaredDial(dial, config) : dial) };
   }
 
   async close(): Promise<void> {
@@ -235,30 +237,6 @@ export class PostgresCallbackStore {
     this.jobs.catch(() => (this.jobs = undefined));
     return this.jobs;
   }
-}
-
-/**
- * The caller of an inbound call is called back from the number they dialled; outbound repeats.
- * The release is the one that promised the callback when it was stamped (a routed call's agent),
- * else the call's own (`COALESCE(callback.release_id, call.release_id)`).
- */
-export function dialFromJob(
-  job: Record<string, unknown>,
-  callbackReleaseId?: string | null,
-): Omit<CallbackDial, 'operationId'> | undefined {
-  const text = (key: string) => (typeof job[key] === 'string' && job[key] ? job[key] : undefined);
-  const releaseId = callbackReleaseId ?? text('releaseId');
-  const inbound = job.kind === 'inbound_call';
-  const to = inbound ? text('from') : text('to');
-  const fromNumber = inbound ? text('to') : text('from');
-  if (!releaseId || !to || !fromNumber) return undefined;
-  const raw = job.variables && typeof job.variables === 'object' ? job.variables : {};
-  const variables = Object.fromEntries(
-    Object.entries(raw as Record<string, unknown>)
-      .filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value))
-      .map(([key, value]) => [key, String(value)]),
-  );
-  return { releaseId, to, fromNumber, variables };
 }
 
 function present(row: Row): CallbackRecord {

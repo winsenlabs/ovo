@@ -1,3 +1,5 @@
+import { Cap } from '@winsendotai/ovo-contracts';
+import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
 import type { PriceCard } from '@winsendotai/ovo-plugin-observability';
 import {
   allEvidencePages,
@@ -13,6 +15,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { getProductionRecordingServices } from '../recording-runtime.ts';
 import { publicRecording } from './recording-lifecycle-data.ts';
 import { registerCallOutcomes } from './call-outcomes.ts';
+import { registerCallSegmentsRoute } from './call-segments.ts';
 import { callDiagnosis, costByCurrency, evidenceSelections } from './call-diagnosis.ts';
 export function registerInspectionRoutes(dependencies: any) {
   const {
@@ -28,6 +31,13 @@ export function registerInspectionRoutes(dependencies: any) {
     summarizeUsage,
   } = dependencies;
   const outcomes = registerCallOutcomes(dependencies);
+  registerCallSegmentsRoute({
+    ...dependencies,
+    outcomes,
+    ledger: dependencies.options?.costLedgerEnabled
+      ? (dependencies.ctx.get(Cap.costLedger) as CostLedgerService)
+      : undefined,
+  });
   app.get('/v1/calls', async (request: FastifyRequest) => {
     const principal = requireRole(request, 'viewer'),
       page = queryPage(request);

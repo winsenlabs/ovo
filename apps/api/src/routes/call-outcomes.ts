@@ -81,32 +81,48 @@ const OutcomeQuery = z.object({
     .optional(),
 });
 
-export function registerCallOutcomeRoute(dependencies: {
+/** What the per-call outcome routes need (the outcome and, Wave 16, the segments route). */
+export interface CallOutcomeRouteDependencies {
   app: FastifyInstance;
   store: { getCall(workspaceId: string, id: string): Promise<CallRecord | undefined> };
   outcomes: CallOutcomeReader;
   requireRole: (request: FastifyRequest, role: 'viewer') => { workspaceId: string };
   Id: z.ZodType<string>;
   error: (reply: FastifyReply, status: number, code: string, message: string) => unknown;
-}): void {
-  const { app, store, outcomes, requireRole, Id, error } = dependencies;
+}
+
+/** The viewer's call by the route's `callId`, or the 404 already sent. */
+export async function viewedCall(
+  dependencies: Pick<CallOutcomeRouteDependencies, 'store' | 'requireRole' | 'Id' | 'error'>,
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<{ workspaceId: string; call: CallRecord } | undefined> {
+  const { workspaceId } = dependencies.requireRole(request, 'viewer');
+  const { callId } = z.object({ callId: dependencies.Id }).parse(request.params);
+  const call = await dependencies.store.getCall(workspaceId, callId);
+  if (call) return { workspaceId, call };
+  dependencies.error(reply, 404, 'not_found', 'Call not found');
+}
+
+export function registerCallOutcomeRoute(dependencies: CallOutcomeRouteDependencies): void {
+  const { app, outcomes } = dependencies;
   /**
    * The call's outcome (disposition, final node, state path, captured variables, tier counts and
    * guardrail counts) and its session events in order: every `turn.route` decision with its intent,
    * confidence and tier, every flow state, disposition and guardrail verdict.
    */
   app.get('/v1/calls/:callId/outcome', async (request: FastifyRequest, reply: FastifyReply) => {
-    const principal = requireRole(request, 'viewer');
-    const { callId } = z.object({ callId: Id }).parse(request.params);
+    const viewed = await viewedCall(dependencies, request, reply);
+    if (!viewed) return;
     const query = OutcomeQuery.parse(request.query);
-    const call = await store.getCall(principal.workspaceId, callId);
-    if (!call) return error(reply, 404, 'not_found', 'Call not found');
+    const { workspaceId, call } = viewed;
+    const callId = call.id;
     const base = { callId, status: call.status, available: outcomes.available };
     if (!outcomes.available) return { ...base, summary: null, events: [], nextCursor: null };
     const durable = await outcomes.open();
     const [summary, events] = await Promise.all([
-      durable.get(principal.workspaceId, callId),
-      durable.listEvents(principal.workspaceId, callId, query.limit, query.cursor),
+      durable.get(workspaceId, callId),
+      durable.listEvents(workspaceId, callId, query.limit, query.cursor),
     ]);
     return {
       ...base,

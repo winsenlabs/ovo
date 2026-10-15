@@ -35,6 +35,9 @@ importers:
       '@livekit/rtc-node':
         specifier: 0.13.34
         version: 0.13.34
+      '@winsendotai/ovo-audio':
+        specifier: workspace:*
+        version: link:../../packages/audio
       '@winsendotai/ovo-behaviors':
         specifier: workspace:*
         version: link:../../packages/behaviors

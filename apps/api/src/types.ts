@@ -45,6 +45,8 @@ export interface ManagementApiOptions {
   routingEnabled?: boolean;
   /** `OVO_ROUTING_EXTERNAL_ENABLED`, read by the worker; the API reports it and warns at publish. */
   routingExternalEnabled?: boolean;
+  /** `OVO_ROUTING_TRANSFER_ENABLED`, read by the worker; the API reports it and warns at publish. */
+  routingTransferEnabled?: boolean;
   createReleasePlugins?: (input: {
     agent: AgentDraft;
     sessionId: string;

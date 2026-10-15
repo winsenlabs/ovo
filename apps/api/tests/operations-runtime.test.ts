@@ -118,12 +118,25 @@ describe('routingFlagsFromEnv', () => {
     expect(routingFlagsFromEnv({})).toEqual({
       routingEnabled: false,
       routingExternalEnabled: false,
+      routingTransferEnabled: false,
     });
     expect(
-      routingFlagsFromEnv({ OVO_ROUTING_ENABLED: 'TRUE', OVO_ROUTING_EXTERNAL_ENABLED: '1' }),
-    ).toEqual({ routingEnabled: false, routingExternalEnabled: false });
+      routingFlagsFromEnv({
+        OVO_ROUTING_ENABLED: 'TRUE',
+        OVO_ROUTING_EXTERNAL_ENABLED: '1',
+        OVO_ROUTING_TRANSFER_ENABLED: 'yes',
+      }),
+    ).toEqual({
+      routingEnabled: false,
+      routingExternalEnabled: false,
+      routingTransferEnabled: false,
+    });
     expect(
-      routingFlagsFromEnv({ OVO_ROUTING_ENABLED: 'true', OVO_ROUTING_EXTERNAL_ENABLED: 'true' }),
-    ).toEqual({ routingEnabled: true, routingExternalEnabled: true });
+      routingFlagsFromEnv({
+        OVO_ROUTING_ENABLED: 'true',
+        OVO_ROUTING_EXTERNAL_ENABLED: 'true',
+        OVO_ROUTING_TRANSFER_ENABLED: 'true',
+      }),
+    ).toEqual({ routingEnabled: true, routingExternalEnabled: true, routingTransferEnabled: true });
   });
 });

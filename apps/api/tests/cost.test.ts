@@ -15,6 +15,12 @@ afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
 });
 
+const SEGMENT_COSTS = [
+  { index: 0, currency: 'INR', estimatedPaise: '0', reconciledPaise: '200', totalPaise: '200' },
+  { index: 1, currency: 'INR', estimatedPaise: '0', reconciledPaise: '300', totalPaise: '300' },
+  { index: null, currency: 'INR', estimatedPaise: '0', reconciledPaise: '73', totalPaise: '73' },
+] as never[];
+
 describe('cost API routes', () => {
   it('returns an explicit 503 instead of empty catalog data when the ledger is absent', async () => {
     const app = buildApp();
@@ -129,6 +135,8 @@ describe('cost API routes', () => {
       totalPaise: '573',
       provisional: false,
       provisionalPriceCards: [],
+      // Wave 16: per-segment totals (index null = call-level usage) pass through unchanged.
+      segments: SEGMENT_COSTS,
     }));
     const app = buildApp();
     registerCostRoutes({
@@ -144,6 +152,7 @@ describe('cost API routes', () => {
 
     expect(missing.statusCode).toBe(404);
     expect(found.statusCode).toBe(200);
+    expect(found.json().segments).toEqual(SEGMENT_COSTS);
     expect(getCallCost).toHaveBeenCalledOnce();
     expect(getCallCost).toHaveBeenCalledWith('workspace-a', 'call-a');
   });

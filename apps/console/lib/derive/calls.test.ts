@@ -49,6 +49,8 @@ describe('callsKpis', () => {
           guardrail: { flagged: 0, blocked: 0 },
           events: 0,
           route: null,
+          segments: [],
+          transfers: { requested: 0, refused: 0, connected: 0, failed: 0 },
           updatedAt: row().createdAt!,
         },
       }),
