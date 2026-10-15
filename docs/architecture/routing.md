@@ -393,6 +393,74 @@ router and every target are one release).
    `enable_routing_transfer` on AWS) and redeploy. `GET /v1/routing/status` reports
    `transferEnabled`. Turning it off again takes effect for the next call.
 
+## Human queues (Wave 17, R3)
+
+**State:** ships dark behind `OVO_HUMAN_QUEUE_ENABLED` (which needs `OVO_ROUTING_ENABLED` and
+`OVO_ROUTING_TRANSFER_ENABLED`); the whole feature is in [human-queues.md](human-queues.md). This
+section is what changes in routing.
+
+The `human` target, the `human` fallback step and the `human` hold-timeout step existed since R1 and
+R2 and were skipped (`human_queue_unavailable`). R3 makes them real when the point **binds queues**:
+
+```jsonc
+{
+  "humanQueues": [{ "key": "support-desk", "queueId": "<workspace queue id>", "priority": 1 }],
+  "nodes": [
+    {
+      "id": "intent",
+      "branches": [
+        {
+          "key": "person",
+          "description": "Wants a person",
+          "target": { "kind": "human", "queueId": "support-desk" },
+        },
+      ],
+      "fallback": [
+        { "kind": "reask" },
+        { "kind": "human", "queueId": "support-desk" },
+        { "kind": "default" },
+      ],
+    },
+  ],
+  "transfer": {
+    "targets": [
+      {
+        "key": "colleague",
+        "description": "A human colleague",
+        "destination": { "kind": "human", "queueId": "support-desk" },
+      },
+    ],
+  },
+}
+```
+
+- `queueId` in a `human` step is the **binding key**; `humanQueues` maps keys to workspace queue ids.
+- A catalogue target whose destination is `human` is offered to the agent's LLM like any target;
+  its announcement is the target's, else the queue's, else the point's, else the built-in line.
+- A release that binds queues is `schemaVersion: 3` and pins each queue's whole definition by value,
+  so editing or deleting the queue later never changes a published release. A draft with `human`
+  steps and **no** `humanQueues` stays what it was (schema 1 or 2, the R2 warning
+  `routing_human_unavailable`, steps skipped).
+- Queue and point hold precedence for a queue: the queue's `hold`, the target's, the point's, the
+  built-in `DEFAULT_QUEUE_HOLD_POLICY`. A timeout chain may name a second queue (`human` step) as an
+  overflow; naming one twice is `routing_queue_chain_loop`.
+- A queue refuses at `begin` (the node's chain continues) when it is closed, full, has no operator
+  online, has an open breaker or no healthy room; the codes are in the failure table of
+  [human-queues.md](human-queues.md).
+
+**Structural issue codes** (`routingDraftIssues`, no I/O): `routing_queue_key_duplicate`,
+`routing_queue_unknown` (error), `routing_queue_unused` (warning), `routing_queue_chain_loop`,
+`routing_queue_return_target_unknown`, `routing_queue_limits_exceeded`. **Publish codes** (resolution):
+`routing_queue_missing`, `_deleted`, `_disabled`, `_transfer_required`, `_webhook_disabled`,
+`_endpoint_invalid`, `_credential_missing`, `_destination_policy_empty`, `_mapping_invalid`,
+`_mapping_field_disabled`, `_room_unavailable`, `_no_operators`, `_meter_unpriced`,
+`_language_uncovered`, `_call_limit_short`.
+
+New events: `human.requested`, `human.state`, `human.webhook`, `human.completed`; a human segment is
+`route.segment` with `role: "human"` (agent id `queue:<key>`, release id the queue id) and ends
+`handoff`, `call_end`, `operator_end` or `carrier_transfer`. `GET /v1/calls/:id/outcome` returns
+`summary.human`.
+
 ## Failure modes (routing)
 
 | Failure                                                                                  | Behaviour                                                                  | Recorded as                                                                                        |
