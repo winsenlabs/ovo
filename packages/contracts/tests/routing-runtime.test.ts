@@ -127,7 +127,7 @@ describe('routing runtime contracts', () => {
     for (const bad of [
       { ...request, variables: { account: '1' } },
       { ...request, releaseId: 'latest' },
-      { ...request, reason: 'transfer' },
+      { ...request, reason: 'reroute' },
       { ...request, kind: 'human' },
       { ...request, route: { path: Array.from({ length: 33 }, () => 'n') } },
     ])
@@ -192,7 +192,7 @@ describe('routing runtime contracts', () => {
 
 describe('route session events', () => {
   it('appends the four route types and validates each payload', () => {
-    expect(SESSION_EVENT_TYPES.slice(-4)).toEqual([
+    expect(SESSION_EVENT_TYPES.slice(-8, -4)).toEqual([
       'route.node',
       'route.fallback',
       'route.decision',

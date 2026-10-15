@@ -14,20 +14,29 @@ const CallbackTarget = {
   agent: RouteAgentRef.optional(),
 };
 
+/** A pool target: claim a member of the pool. Also a transfer destination (R2). */
+export const RoutingPoolTarget = z
+  .object({
+    kind: z.literal('pool'),
+    poolId: RouteUuid,
+    /** `caller`: members must speak the route context's language (else pool languageFallback). */
+    language: z.enum(['caller', 'any']).default('caller'),
+    /** member.products must include it. */
+    products: MatchValue.optional(),
+    /** member.skills must include all. */
+    skills: z.array(RoutingKey).max(10).default([]),
+  })
+  .strict();
+export type RoutingPoolTarget = z.infer<typeof RoutingPoolTarget>;
+/** One agent, directly. Also a transfer destination (R2). */
+export const RoutingAgentTarget = z
+  .object({ kind: z.literal('agent'), agent: RouteAgentRef })
+  .strict();
+export type RoutingAgentTarget = z.infer<typeof RoutingAgentTarget>;
+
 export const RoutingTarget = z.discriminatedUnion('kind', [
-  z
-    .object({
-      kind: z.literal('pool'),
-      poolId: RouteUuid,
-      /** `caller`: members must speak the route context's language (else pool languageFallback). */
-      language: z.enum(['caller', 'any']).default('caller'),
-      /** member.products must include it. */
-      products: MatchValue.optional(),
-      /** member.skills must include all. */
-      skills: z.array(RoutingKey).max(10).default([]),
-    })
-    .strict(),
-  z.object({ kind: z.literal('agent'), agent: RouteAgentRef }).strict(),
+  RoutingPoolTarget,
+  RoutingAgentTarget,
   z
     .object({ kind: z.literal('end'), line: RouteLines, disposition: RoutingKey.optional() })
     .strict(),

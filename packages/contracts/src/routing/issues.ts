@@ -2,6 +2,8 @@ import { ROUTING_LIMITS, type RouteLines } from './ids.ts';
 import type { RoutingIssueCode } from './issue-codes.ts';
 import type { RoutingPointDraft } from './point.ts';
 import { routingNodeTargets, type RoutingNode, type RoutingPath } from './tree.ts';
+import { routingPoolIds } from './transfer.ts';
+import { transferDraftIssues, transferLines } from './transfer-issues.ts';
 
 export type RoutingIssueSeverity = 'error' | 'warning';
 export interface RoutingIssue {
@@ -24,8 +26,13 @@ function needsTurn(node: RoutingNode): boolean {
   });
 }
 
-/** Every `RouteLines` in the draft with its path. */
-function draftLines(draft: RoutingPointDraft): { path: RoutingPath; lines: RouteLines }[] {
+/**
+ * Every `RouteLines` the router speaks, with its path: greeting, connecting, idle prompts, asks,
+ * re-asks and end/callback lines. Transfer lines are `transferLines`.
+ */
+export function routingLines(
+  draft: Pick<RoutingPointDraft, 'greeting' | 'connecting' | 'idle' | 'nodes'>,
+): { path: RoutingPath; lines: RouteLines }[] {
   const found: { path: RoutingPath; lines: RouteLines }[] = [
     { path: ['greeting'], lines: draft.greeting },
   ];
@@ -110,7 +117,7 @@ function graphIssues(draft: RoutingPointDraft, add: Add): void {
   });
 }
 
-type Add = (
+export type Add = (
   code: RoutingIssueCode,
   path: RoutingPath,
   message: string,
@@ -130,7 +137,7 @@ export function routingDraftIssues(draft: RoutingPointDraft): RoutingIssue[] {
       ['language', 'allowed'],
       'The allowed languages include the default',
     );
-  for (const { path, lines } of draftLines(draft)) {
+  for (const { path, lines } of [...routingLines(draft), ...transferLines(draft.transfer)]) {
     if (!Object.hasOwn(lines, draft.language.default))
       add('routing_line_default_missing', path, `No ${draft.language.default} line`);
     for (const language of Object.keys(lines))
@@ -141,7 +148,6 @@ export function routingDraftIssues(draft: RoutingPointDraft): RoutingIssue[] {
           `${language} is not an allowed language`,
         );
   }
-  const pools = new Set<string>();
   draft.nodes.forEach((node, n) => {
     const keys = new Set<string>();
     node.branches.forEach((branch, b) => {
@@ -196,7 +202,6 @@ export function routingDraftIssues(draft: RoutingPointDraft): RoutingIssue[] {
       );
   });
   for (const { path, target } of routingNodeTargets(draft.nodes)) {
-    if (target.kind === 'pool') pools.add(target.poolId);
     if (target.kind === 'human')
       add(
         'routing_human_unavailable',
@@ -207,7 +212,8 @@ export function routingDraftIssues(draft: RoutingPointDraft): RoutingIssue[] {
   }
   if (draft.nodes.length > ROUTING_LIMITS.nodes)
     add('routing_limits_exceeded', ['nodes'], `At most ${ROUTING_LIMITS.nodes} nodes`);
-  if (pools.size > ROUTING_LIMITS.poolsPerRelease)
+  if (routingPoolIds(draft).length > ROUTING_LIMITS.poolsPerRelease)
     add('routing_limits_exceeded', ['nodes'], `At most ${ROUTING_LIMITS.poolsPerRelease} pools`);
+  transferDraftIssues(draft, add);
   return issues;
 }
