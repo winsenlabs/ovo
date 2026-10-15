@@ -12,6 +12,7 @@ import m008 from '../migrations/008_outbound_compliance.sql?raw';
 import m009 from '../migrations/009_india_compliance.sql?raw';
 import m010 from '../migrations/010_routing.sql?raw';
 import m011 from '../migrations/011_routing_transfer.sql?raw';
+import m012 from '../migrations/012_inbound_default_variables.sql?raw';
 import { PostgresOperationsService, runOperationsMigrations } from '../src/index.ts';
 import { releaseIds, routingSchema, salesDraft, salesPool } from './routing-fixture.ts';
 
@@ -73,14 +74,24 @@ describe.skipIf(!postgresUrl)('operations migration 011 and routing transfer sto
 
   afterAll(async () => db?.drop());
 
-  it('applies 011 over an R1 database and reruns as a no-op', async () => {
+  it('applies 011 and 012 over an R1 database and reruns as a no-op', async () => {
     await runOperationsMigrations(db.pool);
     await runOperationsMigrations(db.pool);
     await db.pool.query(m011);
+    await db.pool.query(m012);
+    await expect(
+      db.pool.query(
+        `INSERT INTO ovo_ops_inbound_routes (organization_id, phone_number, release_id,
+           default_variables_schema) VALUES ($1, '+14155550199', $2, '[]'::jsonb)`,
+        [organizationId, randomUUID()],
+      ),
+    ).rejects.toThrow(/default_variables_schema/);
     const versions = await db.pool.query<{ version: number }>(
       'SELECT version FROM ovo_ops_schema_migrations ORDER BY version',
     );
-    expect(versions.rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(versions.rows.map((row) => row.version)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    ]);
   });
 
   it('creates, lists and reads clips; names are unique among live clips', async () => {

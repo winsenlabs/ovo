@@ -11,7 +11,7 @@ Updated: 2026-09-22 IST. Branch: `vorflux/ovo-foundation`.
   or flow end nodes; the routing point owns the catalogue, gates and limits; the router's own
   handoff uses the same path. Design: `docs/architecture/routing.md` (In-call agent transfer).
 - **Ships dark.** `OVO_ROUTING_TRANSFER_ENABLED=false`: routed calls run as Wave 15 and direct
-  numbers never change. Migrations (operations 011, outcomes v3, ledger 005) are additive and inert.
+  numbers never change. Migrations (operations 011 and 012, outcomes v3, ledger 005) are additive and inert.
 - **Core lane.** Contracts (transfer catalogue, hold, handoff union, `AgentTransferPort`, events,
   issue codes), hold clips and link tables, keep-on-full claims, outcome `segments`/`transfers`,
   per-segment ledger tagging, routed voice-line pre-render, Compose/Terraform/env wiring, and the R1

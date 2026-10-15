@@ -119,13 +119,17 @@ export class InboundRouteService {
       routingReleaseId = input.routingReleaseId ?? null;
     if ((releaseId === null) === (routingReleaseId === null))
       throw new Error('An inbound route has exactly one of releaseId or routingReleaseId');
+    const defaultSchema =
+      routingReleaseId !== null && input.defaultVariablesSchema
+        ? JSON.stringify(input.defaultVariablesSchema)
+        : null;
     const result =
       input.expectedVersion === null
         ? await this.pool.query<RouteRow>(
             `WITH r AS (INSERT INTO ovo_ops_inbound_routes
                (organization_id, phone_number, release_id, variables, enabled,
-                carrier_plugin_id, carrier_binding_id, routing_release_id)
-             VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8)
+                carrier_plugin_id, carrier_binding_id, routing_release_id, default_variables_schema)
+             VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9::jsonb)
              ON CONFLICT DO NOTHING RETURNING *)
              ${presented}`,
             [
@@ -137,11 +141,12 @@ export class InboundRouteService {
               input.carrierPluginId ?? null,
               input.carrierBindingId ?? null,
               routingReleaseId,
+              defaultSchema,
             ],
           )
         : await this.pool.query<RouteRow>(
             `WITH r AS (UPDATE ovo_ops_inbound_routes SET release_id = $3, variables = $4::jsonb,
-               enabled = $5, routing_release_id = $11,
+               enabled = $5, routing_release_id = $11, default_variables_schema = $12::jsonb,
                carrier_plugin_id = CASE WHEN $9::boolean THEN $7 ELSE carrier_plugin_id END,
                carrier_binding_id = CASE WHEN $10::boolean THEN $8 ELSE carrier_binding_id END,
                version = version + 1, updated_at = now()
@@ -160,6 +165,7 @@ export class InboundRouteService {
               input.carrierPluginId !== undefined,
               input.carrierBindingId !== undefined,
               routingReleaseId,
+              defaultSchema,
             ],
           );
     return result.rows[0] ? present(result.rows[0]) : undefined;

@@ -19,6 +19,8 @@ export interface EffectiveInboundRoute extends InboundCarrierRoute {
   routing: InboundRouting | null;
   /** A routed number admitted straight to its default agent because routing is off. */
   routing_disabled: boolean;
+  /** A routed number's default agent's variable schema, captured at bind (null when unknown). */
+  default_variables_schema: Record<string, unknown> | null;
 }
 
 interface Row extends QueryResultRow {
@@ -32,6 +34,7 @@ interface Row extends QueryResultRow {
   default_release_id: string | null;
   routing_point_id: string | null;
   routing_version: number | null;
+  default_variables_schema: Record<string, unknown> | null;
 }
 
 /** Router or default release of one routing release, as `effectiveInboundRoute` resolves it. */
@@ -90,7 +93,7 @@ export async function effectiveInboundRoute(
 ): Promise<EffectiveInboundRoute | undefined> {
   const result = await client.query<Row>(
     `SELECT r.release_id, r.routing_release_id, r.variables, r.version, r.carrier_plugin_id,
-       r.carrier_binding_id, ${ROUTING_COLUMNS}
+       r.carrier_binding_id, r.default_variables_schema, ${ROUTING_COLUMNS}
      FROM ovo_ops_inbound_routes r
      LEFT JOIN ovo_routing_releases rr
        ON rr.organization_id = r.organization_id AND rr.id = r.routing_release_id
@@ -105,6 +108,7 @@ export async function effectiveInboundRoute(
     carrier_plugin_id: row.carrier_plugin_id,
     carrier_binding_id: row.carrier_binding_id,
     routing_release_id: row.routing_release_id,
+    default_variables_schema: row.default_variables_schema,
   };
   if (!row.routing_release_id)
     return { ...base, release_id: row.release_id!, routing: null, routing_disabled: false };

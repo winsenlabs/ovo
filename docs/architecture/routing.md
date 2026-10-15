@@ -106,6 +106,10 @@ curl -sS -X POST "$OVO_API/v1/routing/points/$POINT/releases" -H 'content-type: 
 
 **4. Bind the number** (admin). Give exactly one of `releaseId` and `routingReleaseId`; switching
 between them is one optimistic PUT. `variables` are checked against the **router** release.
+The bind also captures the default agent's variable schema (`default_variables_schema`, operations
+012): an overflow callback from a routed number dials that agent with only the variables it
+declares. A number bound before 012 has no captured schema and passes its variables unfiltered
+until it is re-bound.
 
 ```bash
 curl -sS -X PUT "$OVO_API/v1/operations/inbound/routes/%2B918069450000" -H 'content-type: application/json' \
