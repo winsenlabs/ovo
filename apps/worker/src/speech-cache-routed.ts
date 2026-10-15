@@ -30,7 +30,8 @@ export function warmKey(
  * worker has not warmed yet is warmed. A release let go is warmed again if a route brings it back.
  */
 export async function syncRoutedReleases(input: {
-  queue: Pick<PostgresSpeechPrerenderQueue, 'routedReleases'>;
+  queue: Pick<PostgresSpeechPrerenderQueue, 'routedReleases'> &
+    Partial<Pick<PostgresSpeechPrerenderQueue, 'routedVoiceLines'>>;
   cache: WorkerSpeechClipCache;
   releases: { getRelease(workspaceId: string, id: string): Promise<ReleaseRecord | undefined> };
   warmed: Set<string>;
@@ -41,8 +42,11 @@ export async function syncRoutedReleases(input: {
   for (const key of input.warmed)
     if (dropped.some((id) => key.split('#')[0]!.endsWith(`:${id}`))) input.warmed.delete(key);
   for (const entry of routed) {
-    // Core's listing names the routed voice lines of a release a routing release reaches (R2).
-    const lines = (entry as { lines?: readonly string[] }).lines;
+    // R2: the fixed lines its routing points give the release; new ones warm it again.
+    const lines = await input.queue
+      .routedVoiceLines?.(entry.workspaceId, entry.releaseId)
+      // swallow-ok: without its routed lines a release still warms its own; a miss renders live.
+      .catch(() => undefined);
     if (input.warmed.has(warmKey({ workspaceId: entry.workspaceId, id: entry.releaseId }, lines)))
       continue;
     const release = await input.releases.getRelease(entry.workspaceId, entry.releaseId);

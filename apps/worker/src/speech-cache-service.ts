@@ -18,7 +18,8 @@ import { PrerenderSkipError, type ReleaseSpeech } from './speech-cache-release-t
 import { ROUTED_REFRESH_MS, syncRoutedReleases, warmKey } from './speech-cache-routed.ts';
 import type { SpeechClipStore, WorkerSpeechClipCache } from './speech-cache-tiers.ts';
 
-type Queue = Pick<PostgresSpeechPrerenderQueue, 'claim' | 'finish' | 'routedReleases'>;
+type Queue = Pick<PostgresSpeechPrerenderQueue, 'claim' | 'finish' | 'routedReleases'> &
+  Partial<Pick<PostgresSpeechPrerenderQueue, 'routedVoiceLines'>>;
 
 export interface PrerenderServiceInput {
   cache: WorkerSpeechClipCache;

@@ -43,13 +43,15 @@ describe("a routing point's fixed lines for a release (transfer design 7.1, 7.11
   it('warm a routed release with its lines, and again when its lines change', async () => {
     const records = new Map([[release.id, release]]);
     const requested: [string, readonly string[] | undefined][] = [];
-    let listed: { workspaceId: string; releaseId: string; lines?: string[] }[] = [
-      { workspaceId: release.workspaceId, releaseId: release.id, lines: [lines[0]!] },
-    ];
+    const listed = [{ workspaceId: release.workspaceId, releaseId: release.id }];
+    let routedLines = [lines[0]!];
     const warmed = new Set<string>();
     const sync = () =>
       syncRoutedReleases({
-        queue: { routedReleases: vi.fn(async () => listed) },
+        queue: {
+          routedReleases: vi.fn(async () => listed),
+          routedVoiceLines: vi.fn(async () => routedLines),
+        },
         cache: new WorkerSpeechClipCache(),
         releases: { getRelease: async (_ws, id) => records.get(id) as ReleaseRecord },
         warmed,
@@ -61,10 +63,25 @@ describe("a routing point's fixed lines for a release (transfer design 7.1, 7.11
     await sync();
     await sync();
     expect(requested).toEqual([[release.id, [lines[0]]]]);
-    listed = [{ ...listed[0]!, lines: ['A new announcement.'] }];
+    routedLines = ['A new announcement.'];
     await sync();
     expect(requested.at(-1)).toEqual([release.id, ['A new announcement.']]);
     expect(warmKey(release)).toBe(`${release.workspaceId}:${release.id}`);
     expect(warmKey(release, ['a'])).not.toBe(warmKey(release, ['b']));
+  });
+
+  it('still warms a routed release when its routed lines cannot be read', async () => {
+    const requested: (readonly string[] | undefined)[] = [];
+    await syncRoutedReleases({
+      queue: {
+        routedReleases: async () => [{ workspaceId: release.workspaceId, releaseId: release.id }],
+        routedVoiceLines: async () => Promise.reject(new Error('database down')),
+      },
+      cache: new WorkerSpeechClipCache(),
+      releases: { getRelease: async () => release as ReleaseRecord },
+      warmed: new Set(),
+      requestWarm: (_record, routed) => void requested.push(routed),
+    });
+    expect(requested).toEqual([undefined]);
   });
 });
