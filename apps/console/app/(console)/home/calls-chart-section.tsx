@@ -4,7 +4,6 @@ import { BarChart } from '../../../components/charts/bar-chart';
 import { ChartFrame } from '../../../components/charts/chart-frame';
 import { SectionCard } from '../../../components/ui/section-card';
 import { callsByBucket } from './derive';
-import { StackedStatusChart } from './stacked-status-chart';
 import type { HomeCall, Loadable } from './types';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -108,11 +107,10 @@ export function HomeCallsChartSection({
               data={byAgent}
             />
           ) : (
-            // Not the shared `BarChart` in vertical mode — see stacked-status-chart.tsx for why
-            // (its y-axis draws backwards; foundation request filed there).
-            <StackedStatusChart
+            <BarChart
               width={width}
               height={240}
+              mode="stacked"
               seriesKeys={Object.keys(STATUS_LABEL)}
               seriesLabel={(key) => STATUS_LABEL[key] ?? key}
               seriesColor={(key) => STATUS_COLOR[key] ?? 'var(--neutral)'}

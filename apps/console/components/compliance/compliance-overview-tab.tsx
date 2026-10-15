@@ -107,12 +107,6 @@ export function ComplianceOverviewTab({
             data={ratioChartData}
             seriesKeys={['abandoned', 'silent']}
             width={width}
-            // Horizontal, not vertical: BarChart's vertical mode draws a correct Y axis label
-            // 0 at the bottom today but the axis TICK labels themselves are generated from an
-            // uncompensated top-origin scale, so the printed 0%/1%/2%/3% ticks read inverted
-            // (0% at the top). Horizontal mode's X axis has no such bug. Logged as a foundation
-            // defect; this is the workaround for this one chart until it is fixed upstream.
-            orientation="horizontal"
             valueFormat={(v) => `${v.toFixed(1)}%`}
             seriesLabel={(key) => (key === 'abandoned' ? 'Abandoned' : 'Silent')}
           />

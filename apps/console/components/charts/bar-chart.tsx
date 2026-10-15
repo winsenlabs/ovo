@@ -49,7 +49,12 @@ export function BarChart({
     ...data.flatMap((point) => seriesKeys.map((key) => point.values[key] ?? 0)),
   );
   const domainMax = mode === 'stacked' ? maxStacked : maxSingle;
+  // `value` maps a datum to a bar *length* (0 -> 0), which is what the rects need in both
+  // orientations. The vertical y-axis needs a *position* instead — SVG y grows downward, so zero
+  // sits at the bottom of the plot and `domainMax` at the top; handing the axis `value` drew the
+  // tick labels upside down (max at the bottom) on every vertical bar chart.
   const value = linearScale([0, domainMax], [0, main]);
+  const yPosition = linearScale([0, domainMax], [plotHeight, 0]);
   const { center, bandwidth } = bandScale(data.length, [0, cross]);
   // At least 1px: with many grouped series the naive `bandwidth / seriesKeys.length - 2` can go
   // negative, which SVG silently renders as nothing — the bars just vanish (brief defect #5).
@@ -71,7 +76,7 @@ export function BarChart({
           {isVertical ? (
             <YAxis
               domain={[0, domainMax]}
-              scale={value}
+              scale={yPosition}
               x={0}
               width={plotWidth}
               format={valueFormat}
@@ -88,6 +93,16 @@ export function BarChart({
           {data.map((point, categoryIndex) => {
             let stackOffset = 0;
             const bandCenter = center(categoryIndex);
+            // Stacked bars carry one value label — the stack total, above its topmost non-empty
+            // segment — rather than one per segment, which printed a pile of overlapping "0"s
+            // for every empty series at the top of each stack.
+            const topSegment =
+              mode === 'stacked'
+                ? seriesKeys.reduce(
+                    (last, key, index) => ((point.values[key] ?? 0) > 0 ? index : last),
+                    -1,
+                  )
+                : -1;
             // One keyed `<g>` per category, never a bare array of arrays: a nested map returning
             // arrays of siblings with the same `key` (the series name) across every category
             // confuses React's reconciliation between the server and client render.
@@ -127,6 +142,10 @@ export function BarChart({
                   // <head> as document metadata even inside an <svg>, which mismatches between
                   // server and client when a chart has more than one bar (hydration error #418).
                   const barLabel = `${point.category} · ${labelOf(key)}: ${valueFormat(raw)}`;
+                  const showValue = mode !== 'stacked' || seriesIndex === topSegment;
+                  const shownValue = valueFormat(
+                    mode === 'stacked' ? (totals[categoryIndex] ?? raw) : raw,
+                  );
                   return isVertical ? (
                     <g key={key}>
                       <rect
@@ -139,15 +158,17 @@ export function BarChart({
                         role="img"
                         aria-label={barLabel}
                       />
-                      <text
-                        x={crossPosition + groupWidth / 2}
-                        y={plotHeight - mainStart - length - 4}
-                        textAnchor="middle"
-                        className="ds-bar-value-label"
-                        aria-hidden="true"
-                      >
-                        {valueFormat(raw)}
-                      </text>
+                      {showValue && (
+                        <text
+                          x={crossPosition + groupWidth / 2}
+                          y={plotHeight - mainStart - length - 4}
+                          textAnchor="middle"
+                          className="ds-bar-value-label"
+                          aria-hidden="true"
+                        >
+                          {shownValue}
+                        </text>
+                      )}
                     </g>
                   ) : (
                     <g key={key}>
@@ -161,16 +182,18 @@ export function BarChart({
                         role="img"
                         aria-label={barLabel}
                       />
-                      <text
-                        x={mainStart + length + 4}
-                        y={crossPosition + groupWidth / 2}
-                        dy="0.32em"
-                        textAnchor="start"
-                        className="ds-bar-value-label"
-                        aria-hidden="true"
-                      >
-                        {valueFormat(raw)}
-                      </text>
+                      {showValue && (
+                        <text
+                          x={mainStart + length + 4}
+                          y={crossPosition + groupWidth / 2}
+                          dy="0.32em"
+                          textAnchor="start"
+                          className="ds-bar-value-label"
+                          aria-hidden="true"
+                        >
+                          {shownValue}
+                        </text>
+                      )}
                     </g>
                   );
                 })}

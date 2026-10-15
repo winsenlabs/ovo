@@ -157,7 +157,9 @@ dialog::backdrop {
    drops the drawer's dependence on the `.sidebar` narrow-viewport rules that used to turn its
    nav into a horizontal scroller (brief defect #4). */
 .skip-link {
-  inset-inline-start: 232px;
+  /* Tracks the collapsible rail (`--ovo-nav-w`, written by components/shell/sidebar.tsx) instead
+     of a hardcoded 232px that floated mid-content once the rail collapsed to 64px. */
+  inset-inline-start: calc(var(--ovo-nav-w, 232px) + var(--space-2));
   left: auto;
 }
 @media (max-width: 1023px) {

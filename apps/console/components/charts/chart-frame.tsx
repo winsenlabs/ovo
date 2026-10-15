@@ -108,7 +108,11 @@ export function ChartFrame({
               {Array.from({ length: tableRows ?? 0 }, (_, row) => (
                 <tr key={row}>
                   {tableColumns.map((column) => (
-                    <td key={column.header}>{column.cell(row)}</td>
+                    // `data-label` drives the `.ds-table` stacked-card layout on phones, the same
+                    // way DataTableV2 does; without it the Table view showed bare values.
+                    <td key={column.header} data-label={column.header}>
+                      {column.cell(row)}
+                    </td>
                   ))}
                 </tr>
               ))}
@@ -116,7 +120,10 @@ export function ChartFrame({
           </table>
         </div>
       ) : (
-        <div ref={setRef} role="img" aria-label={ariaLabel} style={{ height }}>
+        // `minHeight`, not `height`: the measured box clips horizontally (see ds-charts.css), and a
+        // fixed height also clipped any chart whose own content runs taller than `height` — a
+        // Donut renders its legend inside this box, so every slice past the first two vanished.
+        <div ref={setRef} role="img" aria-label={ariaLabel} style={{ minHeight: height }}>
           {renderChart(width)}
         </div>
       )}
