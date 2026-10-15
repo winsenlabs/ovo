@@ -7,6 +7,7 @@ import type {
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import type { Composition } from '@winsendotai/ovo-runtime';
 import { sttDisposal, type CallScope, type SessionDeps } from './call-scope.ts';
+import type { ProviderUsage } from './cost-policy-types.ts';
 import { optOutRecorder } from './opt-out-dnc.ts';
 import {
   composeLiveSessionGraph,
@@ -18,6 +19,8 @@ import { SessionCleanupStack } from './session-lifecycle.ts';
 import { auditGuardrail } from './session-outcomes.ts';
 import type { SttPreconnect } from './session-stt-preconnect.ts';
 import type { CallClips } from './speech-cache-percall.ts';
+import type { SegmentStats } from './segment-telemetry.ts';
+import type { WorkerSessionTelemetry } from './telemetry-runtime.ts';
 
 /** One engine graph of a call: what it runs, and on which media. */
 export interface SegmentInput {
@@ -35,12 +38,19 @@ export interface SegmentInput {
   events?: EventSink;
   beforeMediaClose?: (reason: EndReason) => Promise<void>;
   shape?: SegmentGraphShape;
+  /** Defaults to the call's telemetry session (a transfer's segment stamps its index on audits). */
+  telemetry?: WorkerSessionTelemetry;
+  /** Defaults to the job's cost usage (a transfer's segment tags its ledger rows). */
+  usage?: (event: ProviderUsage) => void;
+  /** What the segment used and did, for its `segment.ended` event. */
+  stats?: SegmentStats;
 }
 
 export interface CallSegment {
   readonly release: ReleaseRecord;
   readonly engine: VoiceSessionEngine;
   readonly composition: Composition;
+  readonly stats?: SegmentStats;
   start(): Promise<void>;
   /** Disposes the engine, then everything composed for it; resolves the first failure. */
   close(reason: EndReason): Promise<unknown | undefined>;
@@ -55,7 +65,8 @@ export async function composeCallSegment(
   scope: CallScope,
   input: SegmentInput,
 ): Promise<CallSegment> {
-  const { job, telemetry } = scope;
+  const { job } = scope;
+  const telemetry = input.telemetry ?? scope.telemetry;
   const { release, callClips, sttPreconnect } = input;
   const cleanup = new SessionCleanupStack();
   let reason: EndReason = 'error:session_setup_failed';
@@ -73,7 +84,7 @@ export async function composeCallSegment(
       secrets: deps.secrets.forAgent(release.agentId),
       telemetry,
       extensions: deps.extensions,
-      usage: (meter) => deps.costUsageForJob?.(job.id)?.(meter),
+      usage: input.usage ?? ((meter) => deps.costUsageForJob?.(job.id)?.(meter)),
       speechCache: deps.speechCache,
       callClips,
       sttPreconnect,
@@ -89,6 +100,13 @@ export async function composeCallSegment(
     cleanup.defer(optOutRecorder(deps.graph, graph, job, telemetry));
     const unsubscribe = subscribeEngineTelemetry(graph.engine, telemetry);
     cleanup.defer(() => unsubscribe());
+    const { stats } = input;
+    if (stats) {
+      const stop = graph.engine.subscribe((event) => {
+        if (event.type === 'user.turn' && event.phase === 'stopped') stats.turns += 1;
+      });
+      cleanup.defer(() => stop());
+    }
     cleanup.defer(scope.recording.attachEvidence(graph.engine));
     cleanup.defer(async () => {
       await graph.engine.dispose(reason);
@@ -97,6 +115,7 @@ export async function composeCallSegment(
       release,
       engine: graph.engine,
       composition: graph.composition,
+      ...(input.stats ? { stats: input.stats } : {}),
       start: () => graph.engine.start(),
       close: (endReason) => {
         reason = endReason;

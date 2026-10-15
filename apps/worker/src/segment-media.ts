@@ -36,6 +36,8 @@ export class SegmentMediaLease implements VoiceMediaTransport {
   private readonly bytesPerSecond: number;
   private readonly maxGapBytes: number;
   private readonly interceptClose: (reason: string) => boolean;
+  private firstOutput?: () => Promise<void>;
+  private firstOutputGate?: Promise<void>;
 
   constructor(
     private readonly media: VoiceMediaTransport,
@@ -100,6 +102,14 @@ export class SegmentMediaLease implements VoiceMediaTransport {
     for (const event of held) this.deliver(event);
   }
 
+  /**
+   * Runs `hook` once, before this segment's first audio reaches the link, and holds that audio
+   * until it settles: a transfer's hold stops (and clears) the moment the target speaks.
+   */
+  beforeFirstAudio(hook: () => Promise<void>): void {
+    this.firstOutput = hook;
+  }
+
   /** Drops every subscription on the link and every listener the engine added. Idempotent. */
   release(): void {
     if (this.state === 'released') return;
@@ -111,7 +121,12 @@ export class SegmentMediaLease implements VoiceMediaTransport {
   }
 
   sendAudio(audio: Uint8Array, signal?: AbortSignal): Promise<void> {
-    return this.output('sendAudio', () => this.media.sendAudio(audio, signal));
+    return this.output('sendAudio', async () => {
+      if (this.firstOutput)
+        // swallow-ok: a hold that fails to stop must not keep the target from speaking.
+        await (this.firstOutputGate ??= this.firstOutput().catch(() => undefined));
+      await this.media.sendAudio(audio, signal);
+    });
   }
   sendMark(name: string, signal?: AbortSignal): Promise<void> {
     return this.output('sendMark', () => this.media.sendMark(name, signal));

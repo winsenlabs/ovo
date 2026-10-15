@@ -22,7 +22,9 @@ type Compose = (
 
 const frame = (byte: number) => new Uint8Array(160).fill(byte);
 const signal = () => new AbortController().signal;
-const request = (releaseId = 'release-agent'): SegmentHandoffRequest => ({
+// R2 widened the request union (queue, node); R1's prepare composes the agent kind.
+type AgentRequest = Extract<SegmentHandoffRequest, { kind: 'agent' }>;
+const request = (releaseId = 'release-agent'): AgentRequest => ({
   kind: 'agent',
   reason: 'route',
   agentId: 'agent-sales',

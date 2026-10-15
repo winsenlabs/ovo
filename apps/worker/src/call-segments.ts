@@ -7,12 +7,16 @@ import type {
   SegmentHandoffRequest,
 } from '@winsendotai/ovo-contracts';
 import type { CallSegment } from './call-segment.ts';
-import { SegmentMediaLease } from './segment-media.ts';
+import type { SegmentMediaLease } from './segment-media.ts';
 import {
   composeWithin,
+  disposeAttached,
+  interceptedLease,
+  whenLinkCloses,
   ROUTING_PREPARE_TIMEOUT_MS,
   segmentStarted,
   settleWithin,
+  type AgentHandoffRequest,
   type Attached,
   type CallSegmentControllerDeps,
   type Prepared,
@@ -49,10 +53,7 @@ export class CallSegmentController implements SegmentHandoffPort {
   constructor(private readonly deps: CallSegmentControllerDeps) {
     this.now = deps.now ?? Date.now;
     this.timeoutMs = deps.prepareTimeoutMs ?? ROUTING_PREPARE_TIMEOUT_MS;
-    const stop = deps.media.onClose(() => {
-      stop();
-      this.end();
-    });
+    whenLinkCloses(deps.media, () => this.end());
   }
 
   /** True once the current segment's engine will end into a committed handoff. */
@@ -62,12 +63,7 @@ export class CallSegmentController implements SegmentHandoffPort {
 
   /** A lease of the call's media for a segment; `live: false` for one not yet started. */
   lease(live: boolean): SegmentMediaLease {
-    const lease: SegmentMediaLease = new SegmentMediaLease(this.deps.media, {
-      format: this.deps.format,
-      live,
-      interceptClose: (reason) => this.intercept(lease, reason),
-    });
-    return lease;
+    return interceptedLease(this.deps, live, (lease, reason) => this.intercept(lease, reason));
   }
 
   /** Makes `segment` the call's attached segment (segment 0, or a degraded default). */
@@ -79,6 +75,8 @@ export class CallSegmentController implements SegmentHandoffPort {
     request: SegmentHandoffRequest,
     signal: AbortSignal,
   ): Promise<HandoffPrepareResult> {
+    // R1 composes agent releases only; queues and re-routes need `begin` (R2's controller).
+    if (request.kind !== 'agent') return { ok: false, reason: 'unsupported' };
     const result = await this.prepareTarget(request, signal);
     // A failed prepare returns no handoff to abandon, so the member the router claimed for it is
     // released here (design 8.2); a later pool step claims again. `busy` leaves the claim to the
@@ -89,7 +87,7 @@ export class CallSegmentController implements SegmentHandoffPort {
   }
 
   private async prepareTarget(
-    request: SegmentHandoffRequest,
+    request: AgentHandoffRequest,
     signal: AbortSignal,
   ): Promise<HandoffPrepareResult> {
     if (this.ended || signal.aborted) return this.refuse(request, 'call_ended');
@@ -98,7 +96,7 @@ export class CallSegmentController implements SegmentHandoffPort {
     if (!this.deps.allowed.has(request.releaseId))
       return this.refuse(request, 'release_not_allowed');
     // One prepared graph at most. Its claim stays: the new request may already hold the call's.
-    if (this.prepared) await this.dispose(this.takePrepared(), 'behavior_completed');
+    if (this.prepared) await disposeAttached(this.takePrepared(), 'behavior_completed');
     const index = ++this.attempts;
     const startedAt = this.now();
     const lease = this.lease(false);
@@ -130,7 +128,7 @@ export class CallSegmentController implements SegmentHandoffPort {
 
   async abandon(handoffId: string): Promise<void> {
     if (this.prepared?.id !== handoffId || this.prepared.committed) return;
-    await this.dispose(this.takePrepared(), 'behavior_completed');
+    await disposeAttached(this.takePrepared(), 'behavior_completed');
     await this.deps.releaseClaim();
   }
 
@@ -143,7 +141,7 @@ export class CallSegmentController implements SegmentHandoffPort {
     this.current = this.incoming = this.prepared = undefined;
     let failure: unknown;
     for (const item of segments) {
-      const failed = await this.dispose(item, reason);
+      const failed = await disposeAttached(item, reason);
       failure ??= failed;
     }
     await this.swapping;
@@ -173,7 +171,7 @@ export class CallSegmentController implements SegmentHandoffPort {
     this.incoming = target;
     const gapFrom = this.now();
     target.lease.buffer();
-    if ((await this.dispose(previous, reason)) !== undefined)
+    if ((await disposeAttached(previous, reason)) !== undefined)
       this.deps.audit('route.handoff.failed', { reason: 'router_dispose_failed' });
     if ((await this.start(target, 'route', gapFrom)) || this.ended) return;
     // One attempt with the routing release's default target, then the call ends.
@@ -214,7 +212,7 @@ export class CallSegmentController implements SegmentHandoffPort {
           reason: 'start_failed',
           releaseId: item.segment.release.id,
         });
-      await this.dispose(item, 'error:route-handoff-failed');
+      await disposeAttached(item, 'error:route-handoff-failed');
       return false;
     }
     this.incoming = undefined;
@@ -236,7 +234,7 @@ export class CallSegmentController implements SegmentHandoffPort {
     const late = composed.then(async (segment) => {
       if (typeof segment === 'string') return lease.release();
       if (segment !== taken || this.ended)
-        await this.dispose({ segment, lease, index: 0 }, 'error:route-handoff-failed');
+        await disposeAttached({ segment, lease }, 'error:route-handoff-failed');
     });
     this.inflight.add(late);
     // swallow-ok: a late composition's disposal failure has no call left to fail.
@@ -245,7 +243,7 @@ export class CallSegmentController implements SegmentHandoffPort {
   }
 
   private refuse(
-    request: SegmentHandoffRequest,
+    request: AgentHandoffRequest,
     reason: HandoffPrepareFailure,
   ): HandoffPrepareResult {
     this.deps.audit('route.handoff.failed', { reason, releaseId: request.releaseId });
@@ -256,14 +254,5 @@ export class CallSegmentController implements SegmentHandoffPort {
     const prepared = this.prepared!;
     this.prepared = undefined;
     return prepared;
-  }
-
-  /** Disposes a segment, then drops its lease; resolves the first failure. */
-  private async dispose(item: Attached, reason: EndReason): Promise<unknown> {
-    try {
-      return await item.segment.close(reason);
-    } finally {
-      item.lease.release();
-    }
   }
 }

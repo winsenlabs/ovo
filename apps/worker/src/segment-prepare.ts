@@ -5,7 +5,7 @@ import type {
   VoiceMediaTransport,
 } from '@winsendotai/ovo-contracts';
 import type { CallSegment } from './call-segment.ts';
-import type { SegmentMediaLease } from './segment-media.ts';
+import { SegmentMediaLease } from './segment-media.ts';
 
 /** The default bound on composing a target graph before the router's connecting line. */
 export const ROUTING_PREPARE_TIMEOUT_MS = 2_500;
@@ -45,6 +45,40 @@ export function composeWithin(
   });
   const outcome = Promise.race([composed, stopped]).finally(() => clearTimeout(timer));
   return { outcome, composed };
+}
+
+/** A lease of the call's media whose engine closing asks `intercept` first (a handoff keeps the link). */
+export function interceptedLease(
+  call: { media: VoiceMediaTransport; format: { sampleRate: number; encoding: string } },
+  live: boolean,
+  intercept: (lease: SegmentMediaLease, reason: string) => boolean,
+): SegmentMediaLease {
+  const lease: SegmentMediaLease = new SegmentMediaLease(call.media, {
+    format: call.format,
+    live,
+    interceptClose: (reason) => intercept(lease, reason),
+  });
+  return lease;
+}
+
+/** Calls `end` once, when the call's link closes (the caller or the carrier ended the call). */
+export function whenLinkCloses(media: VoiceMediaTransport, end: () => void): void {
+  const stop = media.onClose(() => {
+    stop();
+    end();
+  });
+}
+
+/** Disposes a segment, then drops its lease; resolves the first failure. */
+export async function disposeAttached(
+  item: { segment: CallSegment; lease: SegmentMediaLease },
+  reason: EndReason,
+): Promise<unknown> {
+  try {
+    return await item.segment.close(reason);
+  } finally {
+    item.lease.release();
+  }
 }
 
 /** Waits for `work` to settle, at most `ms`. */
@@ -90,9 +124,12 @@ export interface Attached {
   index: number;
 }
 
+/** The one kind of handoff R1's blocking prepare composes: an agent release. */
+export type AgentHandoffRequest = Extract<SegmentHandoffRequest, { kind: 'agent' }>;
+
 export interface Prepared extends Attached {
   id: string;
-  request: SegmentHandoffRequest;
+  request: AgentHandoffRequest;
   prepareMs: number;
   committed: boolean;
 }
