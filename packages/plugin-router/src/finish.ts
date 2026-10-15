@@ -1,5 +1,7 @@
 import {
+  queueByKey,
   ROUTE_REASON_PREFIX,
+  TRANSFER_BUILT_IN_LINES,
   type RouteContext,
   type RouteDecisionPayload,
   type RoutingHost,
@@ -31,7 +33,7 @@ export function decisionPayload(input: {
   const { outcome, context } = input;
   const values = Object.entries(context.values).slice(0, CONTEXT_KEYS);
   const agent =
-    outcome.kind === 'end' || outcome.kind === 'queue'
+    outcome.kind === 'end' || outcome.kind === 'queue' || outcome.kind === 'human'
       ? undefined
       : { agentId: outcome.agentId, releaseId: outcome.releaseId };
   const member =
@@ -41,7 +43,9 @@ export function decisionPayload(input: {
         ? { poolId: outcome.poolId }
         : undefined;
   const degraded =
-    outcome.kind === 'callback' || outcome.kind === 'queue' ? undefined : outcome.degraded;
+    outcome.kind === 'callback' || outcome.kind === 'queue' || outcome.kind === 'human'
+      ? undefined
+      : outcome.degraded;
   return {
     routingPointId: input.call.routingPointId,
     routingReleaseId: input.call.routingReleaseId,
@@ -104,7 +108,7 @@ export function recordFinish(
 
 /**
  * What the router says as it finishes: the connecting line before a handoff, the queue line before
- * a queued one, else the end line.
+ * a queued one, the queue's own announcement before a human queue, else the end line.
  */
 export function finishLine(
   resolution: Resolution,
@@ -112,6 +116,11 @@ export function finishLine(
   language: string | undefined,
 ): string {
   if (resolution.kind === 'queue') return queueLine(snapshot, language);
+  if (resolution.kind === 'human') {
+    const queue = queueByKey(snapshot, resolution.queueId);
+    const lines = queue?.definition.announcement ?? TRANSFER_BUILT_IN_LINES.human;
+    return pickLine(lines, language, snapshot.language.default);
+  }
   if (resolution.kind !== 'agent') return resolution.line;
   const lines = snapshot.connecting ?? BUILT_IN_LINES.connecting;
   return pickLine(lines, language, snapshot.language.default);

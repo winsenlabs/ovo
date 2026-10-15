@@ -14,6 +14,7 @@ function mirrored(type: string): boolean {
     type.startsWith('route.') ||
     type.startsWith('transfer.') ||
     type.startsWith('segment.') ||
+    type.startsWith('human.') ||
     type === 'disclosure'
   );
 }

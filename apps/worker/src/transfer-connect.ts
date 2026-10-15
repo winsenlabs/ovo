@@ -6,13 +6,14 @@ import { transferCompleted, type ChainStep, type TransferOutcome } from './trans
 import { STEP_HOLD_SECONDS, type ConnectHost, type TransferRun } from './transfer-types.ts';
 
 /** How the current candidate came about: the request itself, or a timeout chain step. */
-type Via = 'request' | 'target' | 'default' | 'return' | 'release_default';
+type Via = 'request' | 'target' | 'default' | 'return' | 'release_default' | 'human';
 
 const OUTCOME: Record<Via, TransferOutcome> = {
   request: 'connected',
   target: 'fallback',
   default: 'fallback',
   release_default: 'fallback',
+  human: 'fallback',
   return: 'returned',
 };
 
@@ -67,10 +68,10 @@ export async function connectTransfer(
     });
   };
   /** Begins `target`-like candidates for a chain step; false when nothing could be composed. */
-  const candidate = (next: Via, attempt: TransferRun['attempt']) => {
+  const candidate = (next: Via, attempt: TransferRun['attempt'], seconds?: number) => {
     run.attempt = attempt;
     via = next;
-    deadline = clock.now() + Math.min(STEP_HOLD_SECONDS, policy.maxSeconds) * 1000;
+    deadline = clock.now() + (seconds ?? Math.min(STEP_HOLD_SECONDS, policy.maxSeconds)) * 1000;
     return Boolean(attempt || run.queue);
   };
   const terminal = async (step: Extract<HoldTimeoutStep, { kind: 'callback' | 'end' }>) => {
@@ -108,7 +109,8 @@ export async function connectTransfer(
           return finish(OUTCOME[via], host.deps.memory.segments.at(-1));
         }
         if (host.ended) return finish('caller_hangup');
-        reason = 'start_failed';
+        reason = run.startError ?? 'start_failed';
+        run.startError = undefined;
       } else reason = waited;
       // A composition the hold gave up on is disposed whenever it lands.
       await run.attempt?.drop();
@@ -131,7 +133,8 @@ export async function connectTransfer(
           return await endWith(host, hold, TRANSFER_BUILT_IN_LINES.end);
         }
         if (step.kind === 'callback' || step.kind === 'end') return await terminal(step);
-        if (step.kind === 'human') {
+        // Without human queues composed a `human` step is skipped exactly as in R2.
+        if (step.kind === 'human' && !deps.human) {
           steps.push({ step: 'human', result: 'skipped', reason: 'human_queue_unavailable' });
           continue;
         }
@@ -145,7 +148,7 @@ export async function connectTransfer(
           continue;
         }
         steps.push({ step: step.kind, result: 'taken' });
-        next = candidate(step.kind, begun.attempt);
+        next = candidate(step.kind, begun.attempt, begun.seconds);
         if (!next) steps.at(-1)!.result = 'failed';
       }
     }

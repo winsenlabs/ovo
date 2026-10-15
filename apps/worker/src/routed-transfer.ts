@@ -6,6 +6,7 @@ import type { CallScope } from './call-scope.ts';
 import type { SegmentInput } from './call-segment.ts';
 import { HoldPlayer } from './hold-player.ts';
 import { createHoldVoice, type HoldVoice } from './hold-voice.ts';
+import { createHumanRuntime, snapshotQueues } from './human-wiring.ts';
 import {
   endRoutedCall,
   releaseClaims,
@@ -21,6 +22,7 @@ import {
 import { routerSegmentShape } from './router-graph.ts';
 import { routeEventSink } from './routing-events.ts';
 import { SegmentMediaLease } from './segment-media.ts';
+import type { ProviderUsage } from './cost-policy-types.ts';
 import { SegmentStats, segmentTelemetry } from './segment-telemetry.ts';
 import { openReleaseSpeech } from './speech-cache-release-tts.ts';
 import type { AttemptTarget } from './transfer-attempt.ts';
@@ -94,11 +96,27 @@ export function transferControl(
     }));
   scope.cleanup.defer(() => voice?.close());
   const targets = { snapshot, memory, claims, now: () => Date.now() };
+  /** The call's usage sink for segment `index`: its ledger rows carry the index. */
+  const segmentUsage = (index: number) => (event: ProviderUsage) => {
+    const usage = options.usageForSegment?.(job.id, index);
+    if (usage) usage(event);
+    else deps.costUsageForJob?.(job.id)?.(event);
+  };
   const controller: TransferController = new TransferController({
     ...{ media: scope.media, format, allowed: new Set(snapshot.releaseIds), memory },
     fallback: { agentId: snapshot.defaultTarget.agentId, releaseId: defaultRelease },
     router: { agentId: routerRelease.agentId, releaseId: routerRelease.id },
     ...(policy ? { policy } : {}),
+    ...(options.humanQueue
+      ? {
+          human: createHumanRuntime({
+            ...{ deps, options: options.humanQueue, scope, routerRelease, routing, snapshot },
+            ...{ memory, targets, record, log: transferLog, releaseClaim: claims.release },
+            controller: () => controller,
+            usageFor: (index) => segmentUsage(index),
+          }),
+        }
+      : {}),
     compose: (target, index, lease) => compose(target, index, lease),
     record,
     audit: (type, payload) => telemetry.audit(type, payload),
@@ -134,7 +152,6 @@ export function transferControl(
   const decorate = (input: SegmentInput, index: number, target?: AttemptTarget): SegmentInput => {
     const { release } = input;
     const stats = new SegmentStats(index, release.config.language);
-    const usage = options.usageForSegment?.(job.id, index);
     const role =
       target?.role ?? (index === 0 && release.id === routerRelease.id ? 'router' : 'agent');
     const events = memory.sink(
@@ -164,6 +181,7 @@ export function transferControl(
             release,
             ...(policy ? { policy } : {}),
             targets,
+            humanQueue: (key) => snapshotQueues(snapshot).get(key),
             record,
             log: transferLog,
           })
@@ -174,8 +192,7 @@ export function transferControl(
       telemetry: segmentTelemetry(telemetry, index),
       usage: (event) => {
         stats.meter(event);
-        if (usage) usage(event);
-        else deps.costUsageForJob?.(job.id)?.(event);
+        segmentUsage(index)(event);
       },
       stats,
       shape: {

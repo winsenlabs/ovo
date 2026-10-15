@@ -57,6 +57,17 @@ export async function resolveTransfer(
       ? memory.leftReleases(from.index)
       : new Set<string>();
   const destination = target.destination;
+  // R3: a catalogue target may name a human queue (`destination.kind: 'human'`). It is gated like
+  // any target (granted sources, limits, confirm); the queue's own gates run when it is begun.
+  if (destination.kind === 'human')
+    return {
+      request: {
+        ...{ kind: 'human', reason: 'transfer', queueId: destination.queueId },
+        ...{ variables, transfer },
+      },
+      target,
+      claimed: false,
+    };
   if (destination.kind === 'node')
     return {
       request: { kind: 'node', reason: 'transfer', node: destination.node, variables, transfer },

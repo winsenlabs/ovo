@@ -87,6 +87,14 @@ export const TRANSFER_DECLINED =
 
 export function refusalInstruction(reason: AgentTransferRefusal): string {
   switch (reason) {
+    case 'queue_closed':
+      return 'The team that takes that call is closed right now. Tell the caller, and help them yourself or offer a callback.';
+    case 'no_operators':
+    case 'queue_full':
+      return 'No colleague is free to take the call right now. Tell the caller, and help them yourself or offer a callback.';
+    case 'queue_unavailable':
+    case 'queue_unknown':
+      return 'That team cannot be reached right now. Help the caller yourself or offer a callback.';
     case 'busy':
     case 'pool_full':
     case 'no_eligible_member':

@@ -11,6 +11,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import type { SegmentHistoryEntry } from './call-memory.ts';
 import type { AttemptTarget, SegmentReason } from './transfer-attempt.ts';
+import { beginHuman } from './transfer-human.ts';
 import { capturedFor } from './transfer-handover.ts';
 import {
   MAX_SEGMENT_INDEX,
@@ -34,7 +35,7 @@ interface BeginHost extends ConnectHost {
 
 type Begun =
   | { ok: true; run: TransferRun; state: 'preparing' | 'queued' | 'ready' }
-  | { ok: false; reason: HandoffBeginFailure };
+  | { ok: false; reason: HandoffBeginFailure | 'human_queue_unavailable' };
 
 /**
  * Validates a handoff request and starts it (transfer design 4.3, 7.2 step 3): the limits the host
@@ -76,7 +77,10 @@ export async function beginRun(
     claimed: options.claimed ?? Boolean(request.kind !== 'node' && request.route?.claimId),
   };
   const reason: SegmentReason = request.reason === 'route' ? 'route' : 'transfer';
-  if (request.kind === 'agent') {
+  if (request.kind === 'human') {
+    const refused = await beginHuman(host, run, request, target);
+    if (refused) return { ok: false, reason: refused };
+  } else if (request.kind === 'agent') {
     if (!deps.allowed.has(request.releaseId)) return { ok: false, reason: 'release_not_allowed' };
     run.attempt = host.attempt(run, agentTarget(host, request, reason));
   } else if (request.kind === 'queue') {

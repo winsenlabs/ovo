@@ -10,6 +10,7 @@ import type { PluginDefinition } from '@winsendotai/ovo-runtime';
 import type { CallScope } from './call-scope.ts';
 import type { ProviderUsage } from './cost-policy-types.ts';
 import type { LiveGraphOptions } from './session-graph-runtime.ts';
+import type { HumanQueueOptions } from './human-wiring.ts';
 import { routedCallSeconds, type LiveSessionDeps } from './routed-segments.ts';
 import { createRoutingHost } from './routing-host.ts';
 import type { TranscriptText } from './telemetry-runtime.ts';
@@ -46,6 +47,8 @@ export interface RoutingRuntimeOptions {
   /** `OVO_ROUTING_PREPARE_TIMEOUT_MS`. */
   prepareTimeoutMs?: number;
   snapshotTimeoutMs?: number;
+  /** R3: human queues (needs `transferEnabled`); absent or disabled, `human` steps are skipped. */
+  humanQueue?: HumanQueueOptions;
 }
 
 /** The job's routing, when admission routed it; anything malformed is not a routed job. */

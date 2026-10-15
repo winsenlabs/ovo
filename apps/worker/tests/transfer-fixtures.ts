@@ -13,9 +13,17 @@ import type { HoldClock, HoldPlayer } from '../src/hold-player.ts';
 import type { SegmentMediaLease } from '../src/segment-media.ts';
 import { SegmentReleaseMissingError } from '../src/segment-prepare.ts';
 import type { AttemptTarget } from '../src/transfer-attempt.ts';
+import type { HumanHarnessContext } from './human-fixtures.ts';
+import type { HumanRuntime } from '../src/human-runtime.ts';
 import { TransferController } from '../src/transfer-controller.ts';
 import type { ResolvedTarget, TransferControllerDeps } from '../src/transfer-types.ts';
-import { agentSegment, fakeMediaLink, nativeEngine, SegmentJournal } from './segment-fixtures.ts';
+import {
+  agentSegment,
+  fakeMediaLink,
+  nativeEngine,
+  SegmentJournal,
+  type FakeMediaLink,
+} from './segment-fixtures.ts';
 
 export const POOL = '11111111-1111-4111-8111-111111111111';
 export const CLAIM = '22222222-2222-4222-8222-222222222222';
@@ -104,6 +112,10 @@ export interface HarnessOptions {
   withoutRouter?: boolean;
   /** A release whose engine start waits for this. */
   startGate?: Record<string, Promise<void>>;
+  /** R3: composes the call's human queues (the controller exists by the time they are used). */
+  human?: (context: HumanHarnessContext) => HumanRuntime;
+  /** Sees every session event the call records, as it is recorded. */
+  onRecord?: (type: string, payload: Record<string, unknown>) => void;
 }
 
 /** A transfer controller on a fake link with fake segments, hold, claims and clock. */
@@ -118,6 +130,14 @@ export function transferHarness(options: HarnessOptions = {}) {
   const holds: FakeHold[] = [];
   const segments = new Map<number, ReturnType<typeof agentSegment>>();
   const targets: { target: AttemptTarget; index: number }[] = [];
+  const emit = {
+    record: (type: string, payload: Record<string, unknown>) => {
+      options.onRecord?.(type, payload);
+      recorded.push([type, payload]);
+    },
+    audit: (type: string, payload: Record<string, unknown>) => void audits.push([type, payload]),
+    log: (event: string, fields: Record<string, unknown>) => void logs.push([event, fields]),
+  };
   const claims = {
     claim: vi.fn(async (tiers: readonly (readonly RoutingMemberCandidate[])[]) =>
       options.claim
@@ -156,7 +176,7 @@ export function transferHarness(options: HarnessOptions = {}) {
     return segment as unknown as CallSegment;
   };
   const allowed = ['release-router', 'release-a', 'release-b', 'release-c', 'release-default'];
-  const controller = new TransferController({
+  const controller: TransferController = new TransferController({
     media: link,
     format: MULAW_8K,
     allowed: new Set(allowed),
@@ -165,9 +185,16 @@ export function transferHarness(options: HarnessOptions = {}) {
     ...(options.policy ? { policy: options.policy } : {}),
     memory,
     compose,
-    record: (type, payload) => recorded.push([type, payload]),
-    audit: (type, payload) => audits.push([type, payload]),
-    log: (event, fields) => logs.push([event, fields]),
+    ...emit,
+    ...(options.human
+      ? {
+          human: options.human({
+            ...{ clock, memory, link, hangUps },
+            ...emit,
+            controller: () => controller,
+          }),
+        }
+      : {}),
     claims,
     ...(options.resolveTarget ? { resolveTarget: options.resolveTarget } : {}),
     holdPlayer: (policy, tags) => {
@@ -206,37 +233,5 @@ export function transferHarness(options: HarnessOptions = {}) {
   };
 }
 
-/** An agent request for the controller's `begin`. */
-export function agentRequest(releaseId: string, reason: 'route' | 'transfer' = 'transfer') {
-  return {
-    kind: 'agent' as const,
-    reason,
-    agentId: `agent-of-${releaseId}`,
-    releaseId,
-    variables: { ovo_route_intent: 'billing' },
-    ...(reason === 'transfer' ? { transfer: { source: 'llm' as const, key: 'billing' } } : {}),
-  };
-}
-
-export const signal = () => new AbortController().signal;
-
-export const holdPolicy = (overrides: Partial<HoldPolicy> = {}): HoldPolicy => ({
-  steps: [{ kind: 'silence', seconds: 3 }],
-  loopFrom: 0,
-  maxSeconds: 30,
-  waitForCapacity: false,
-  onTimeout: [{ kind: 'end', line: { en: 'Goodbye.' } }],
-  ...overrides,
-});
-
-export const transferPolicy = (
-  overrides: Partial<RoutingTransferPolicy> = {},
-): RoutingTransferPolicy => ({
-  targets: [],
-  confirm: 'never',
-  limits: { maxTransfers: 3, returnToPrevious: 'refuse', minRemainingSeconds: 30 },
-  handover: { summary: true, transcriptTurns: 6, capturedVariables: true },
-  ...overrides,
-});
-
+export * from './transfer-requests.ts';
 export type { ResolvedTarget };

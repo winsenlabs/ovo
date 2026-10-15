@@ -1,4 +1,5 @@
 import type {
+  HandoffBeginFailure,
   HandoffBeginResult,
   HandoffPrepareFailure,
   HandoffPrepareResult,
@@ -31,7 +32,7 @@ export class TransferController extends TransferSegments implements SegmentHando
     if (this.isEnded || signal.aborted || !from) return this.refuse(request, 'call_ended');
     if (this.busy) return this.refuse(request, 'busy');
     const begun = await beginRun(this, request, from, options);
-    if (!begun.ok) return this.refuse(request, begun.reason);
+    if (!begun.ok) return this.refuse(request, begun.reason as HandoffBeginFailure);
     this.run = begun.run;
     return { ok: true, handoffId: begun.run.id, state: begun.state };
   }
@@ -66,6 +67,8 @@ export class TransferController extends TransferSegments implements SegmentHando
     if (this.isEnded || this.run?.id !== handoffId)
       return this.deps.audit('route.handoff.failed', { handoffId, reason: 'commit_unknown' });
     this.run.committed = true;
+    // A human queue's attempt begins now (ticket, webhook) while the requester announces.
+    this.run.attempt?.commit?.();
   }
 
   /** The begun, uncommitted run `handoffId` names (what a transfer port may still cancel). */

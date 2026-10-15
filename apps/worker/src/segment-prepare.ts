@@ -71,7 +71,7 @@ export function whenLinkCloses(media: VoiceMediaTransport, end: () => void): voi
 
 /** Disposes a segment, then drops its lease; resolves the first failure. */
 export async function disposeAttached(
-  item: { segment: CallSegment; lease: SegmentMediaLease },
+  item: { segment: Pick<CallSegment, 'close'>; lease: SegmentMediaLease },
   reason: EndReason,
 ): Promise<unknown> {
   try {
