@@ -123,6 +123,18 @@ export async function openWorkerProcess() {
       )
     );
   });
+  // Wave 17: the room server plugin (`ovo.media-room`) is composed beside the carriers, and only
+  // while human queues are on; the distribution loads it only under OVO_LIVEKIT_ENABLED=true.
+  const roomRows =
+    process.env.OVO_HUMAN_QUEUE_ENABLED === 'true'
+      ? distribution.processRows.filter((row) => {
+          const definition = distribution.catalog.find((plugin) => plugin.manifest.id === row.id);
+          return (
+            definition &&
+            manifestKeys(definition.manifest).provides.some((entry) => entry.key === Cap.mediaRoom)
+          );
+        })
+      : [];
   const catalog = unique([
     ...distribution.catalog,
     ...adapters,
@@ -148,6 +160,7 @@ export async function openWorkerProcess() {
       { id: netPlugin.manifest.id },
       ...sipControl.map((plugin) => ({ id: plugin.manifest.id })),
       ...carrierRows,
+      ...roomRows,
       { id: operationsDefinition.manifest.id },
       { id: carrierDefinition.manifest.id },
       { id: callRecorderDefinition.manifest.id },
