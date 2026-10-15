@@ -157,6 +157,23 @@ describe('a managed queue: ticket, operator, room', () => {
     await vi.waitFor(() => expect(h.controller.attached?.role).toBe('human'));
   });
 
+  it('does not bridge an operator who is not the one that accepted', async () => {
+    const h = harness();
+    await handOver(h);
+    await h.clock.advance(200);
+    await h.service.accept(h.service.id(1), 'ana');
+    await h.clock.advance(200);
+    // Somebody else with an operator grant found the room: the caller must not reach them.
+    h.rooms.seat().join('op:zed');
+    await h.clock.advance(800);
+    expect(h.controller.attached).toBeUndefined();
+    h.rooms.seat().join('op:ana');
+    await h.clock.advance(400);
+    await vi.waitFor(() =>
+      expect(h.controller.attached).toMatchObject({ role: 'human', operatorId: 'ana' }),
+    );
+  });
+
   it('puts an operator who never joins back in the queue, and the caller keeps holding', async () => {
     const h = harness();
     await handOver(h);

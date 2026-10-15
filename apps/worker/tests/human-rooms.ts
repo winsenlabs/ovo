@@ -15,7 +15,7 @@ export class FakeSeat implements RoomSeat {
   constructor(
     readonly room: string,
     readonly identity: string,
-    operator: string | undefined,
+    private operator: string | undefined,
   ) {
     this.present = operator !== undefined;
   }
@@ -31,6 +31,9 @@ export class FakeSeat implements RoomSeat {
     listener: (event: { kind: 'joined' | 'left'; identity: string; role: string }) => void,
   ): () => void {
     this.participants.add(listener);
+    // Like the real seat: whoever is already in the room is reported first.
+    if (this.present && this.operator)
+      listener({ kind: 'joined', identity: this.operator, role: 'operator' });
     return () => void this.participants.delete(listener);
   }
   operatorPresent(): boolean {
@@ -59,6 +62,7 @@ export class FakeSeat implements RoomSeat {
   }
   join(identity: string): void {
     this.present = true;
+    this.operator = identity;
     for (const listener of [...this.participants])
       listener({ kind: 'joined', identity, role: 'operator' });
   }

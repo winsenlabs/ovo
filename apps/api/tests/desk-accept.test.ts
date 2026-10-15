@@ -47,12 +47,15 @@ describe('POST /v1/desk/tickets/:id/accept', () => {
     expect(result.room).toMatchObject({
       provider: 'fake-room',
       serverUrl: 'wss://rooms.fake.test',
-      roomName: `ovo-hq-${ticket.id}`,
+      roomName: `ovo-hq-${ticket.id}-${ticket.version + 1}`,
       identity: 'op:asha',
       role: 'operator',
     });
-    expect(hq.rooms!.roomNames()).toEqual([`ovo-hq-${ticket.id}`]);
-    expect((await hq.service.tickets.get(ticket.id))!.roomName).toBe(`ovo-hq-${ticket.id}`);
+    // One room per accept: after a re-offer the first operator's leftover token opens another room.
+    expect(hq.rooms!.roomNames()).toEqual([`ovo-hq-${ticket.id}-${ticket.version + 1}`]);
+    expect((await hq.service.tickets.get(ticket.id))!.roomName).toBe(
+      `ovo-hq-${ticket.id}-${ticket.version + 1}`,
+    );
     expect(hq.audits.at(-1)).toMatchObject({ action: 'desk.accept', resourceId: ticket.id });
   });
 
@@ -62,7 +65,7 @@ describe('POST /v1/desk/tickets/:id/accept', () => {
     const { room } = (await accept(hq, ticket, 'asha')).json();
     const claims = await hq.rooms!.claimsOf(room.token);
     expect(claims).toMatchObject({
-      room: `ovo-hq-${ticket.id}`,
+      room: `ovo-hq-${ticket.id}-${ticket.version + 1}`,
       identity: 'op:asha',
       name: 'ASHA',
       canJoin: true,

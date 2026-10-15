@@ -43,7 +43,9 @@ export function registerDeskAcceptRoute(
         return sendError(reply, 404, 'ticket_not_found', 'Ticket not found');
       const { rooms } = input;
       if (!rooms) return roomUnavailable(reply);
-      const roomName = humanRoomName(ticketId);
+      // One room per accept, named by the version the accept produces: a token left over from an
+      // operator who was replaced opens a room nobody bridges.
+      const roomName = humanRoomName(ticketId, body.data.expectedVersion + 1);
       let grant;
       try {
         await rooms.ensureRoom({
@@ -69,6 +71,7 @@ export function registerDeskAcceptRoute(
         operatorId: profile.userId,
         expectedVersion: body.data.expectedVersion,
         idempotencyKey: body.data.idempotencyKey,
+        roomName,
       });
       // A refusal is `{ kind }`; a ticket has an `id` (and a `kind` of its own, so not that).
       if (!('id' in accepted)) {

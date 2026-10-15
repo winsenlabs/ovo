@@ -23,6 +23,9 @@ const JOIN_TRIES = 2;
 export class HumanManagedAttempt extends HumanAttempt {
   private seat?: RoomSeat;
   private room?: string;
+  /** Identities in the room, from the seat's participant events (it replays those already there). */
+  private readonly inRoom = new Set<string>();
+  private offParticipants?: () => void;
 
   constructor(init: HumanAttemptInit) {
     super(init);
@@ -60,6 +63,8 @@ export class HumanManagedAttempt extends HumanAttempt {
         continue;
       }
       acceptedAt ??= deps.clock.now();
+      // Accepted again, by another operator, into another room, between two polls.
+      if (this.seat && this.room !== ticket.roomName) await this.closeSeat();
       if (!this.seat && !(await this.join(ticket, signal))) {
         joinFailures += 1;
         if (joinFailures < JOIN_TRIES) continue;
@@ -69,7 +74,7 @@ export class HumanManagedAttempt extends HumanAttempt {
         acceptedAt = undefined;
         continue;
       }
-      if (this.seat?.operatorPresent())
+      if (this.assignedOperatorPresent(ticket))
         return new HumanBridgeSegment(this, {
           seat: this.seat,
           ticket,
@@ -95,6 +100,10 @@ export class HumanManagedAttempt extends HumanAttempt {
         signal,
       });
       this.room = ticket.roomName!;
+      this.offParticipants = this.seat.onParticipant((event) => {
+        if (event.kind === 'joined') this.inRoom.add(event.identity);
+        else this.inRoom.delete(event.identity);
+      });
       return true;
     } catch {
       // swallow-ok: a join that fails is retried once, then the ticket goes back to the queue.
@@ -121,9 +130,21 @@ export class HumanManagedAttempt extends HumanAttempt {
       );
   }
 
+  /** Only the operator this ticket was accepted by counts: not any `operator` who found the room. */
+  private assignedOperatorPresent(ticket: Ticket): boolean {
+    return (
+      !!ticket.assignedOperatorId &&
+      !!this.seat?.operatorPresent() &&
+      this.inRoom.has(`op:${ticket.assignedOperatorId}`)
+    );
+  }
+
   private async closeSeat(): Promise<void> {
     const seat = this.seat;
     this.seat = undefined;
+    this.offParticipants?.();
+    this.offParticipants = undefined;
+    this.inRoom.clear();
     await seat?.close().catch(() => undefined);
   }
 
