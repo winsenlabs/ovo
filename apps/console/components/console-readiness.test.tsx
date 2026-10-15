@@ -12,7 +12,6 @@ describe('release readiness detail', () => {
       <StudioRail
         selected={selected}
         releases={[]}
-        extensions={[]}
         readiness={{
           releaseReady: false,
           requiredPluginIds: [],
@@ -42,7 +41,6 @@ describe('release readiness detail', () => {
       <StudioRail
         selected={selected}
         releases={[]}
-        extensions={[]}
         readiness={{
           releaseReady: true,
           requiredPluginIds: [],

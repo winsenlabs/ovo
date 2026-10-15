@@ -1,5 +1,5 @@
 'use client';
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   apiRequest,
   ifMatch,
@@ -9,15 +9,15 @@ import {
   type CredentialMetadata,
   type ProviderBinding,
 } from '../lib/api';
-import { SlotPicker } from '../components/plugins/slot-picker';
-import { BindingSelect } from '../components/plugins/binding-select';
-import { SchemaForm } from '../components/plugins/schema-form';
-import { CompatSummary } from '../components/plugins/compat-summary';
+import { PluginSlotSection } from '../components/plugins/plugin-slot-section';
+import { CompatSummary, CompatStatusBadge } from '../components/plugins/compat-summary';
+import { VoiceStackDiagram } from '../components/plugins/voice-stack-diagram';
 import type { AgentVoice, CompatIssue, PluginCatalog, Slot } from '../components/plugins/types';
 import type { PluginOption } from '../components/plugins/types';
 import { useSession } from '../components/shell/session-provider';
-import { PageHeader } from '../components/ui/layout';
-import { Callout } from '../components/ui/feedback';
+import { SubPageHeader } from '../components/studio/sub-page-header';
+import { SectionCard } from '../components/ui/section-card';
+import { ErrorState, InlineAlert, Skeleton } from '../components/ui/feedback-v2';
 
 const slots: Slot[] = [
   'engine',
@@ -35,6 +35,7 @@ const emptyVoice = (): AgentVoice => ({ textFilters: [], acknowledgements: [] })
 export function AgentPluginsFeature({ agentId }: { agentId: string }) {
   const identity = useSession();
   const [draft, setDraft] = useState<AgentDraft>();
+  const [savedConfig, setSavedConfig] = useState<string>();
   const [catalog, setCatalog] = useState<PluginCatalog>({ plugins: [] });
   const [bindings, setBindings] = useState<ProviderBinding[]>([]);
   const [credentials, setCredentials] = useState<CredentialMetadata[]>([]);
@@ -49,7 +50,9 @@ export function AgentPluginsFeature({ agentId }: { agentId: string }) {
         apiRequest<unknown>('/provider-bindings'),
         apiRequest<unknown>('/credentials').catch(() => ({ data: { items: [] } })),
       ]);
-      setDraft(normalizeDraft(agent.data, agent.etag));
+      const normalized = normalizeDraft(agent.data, agent.etag);
+      setDraft(normalized);
+      setSavedConfig(JSON.stringify(normalized.config));
       setCatalog(plugins.data);
       setBindings(items(bindingRows.data));
       setCredentials(items(credentialRows.data));
@@ -87,7 +90,7 @@ export function AgentPluginsFeature({ agentId }: { agentId: string }) {
   }, [draft?.config.mode, draft?.config.language, voiceKey]);
   const updateVoice = (next: AgentVoice) =>
     setDraft((current) => current && { ...current, config: { ...current.config, voice: next } });
-  async function saveSecret(slot: Slot, plugin: PluginOption, pointer: string, value: string) {
+  async function saveSecret(plugin: PluginOption, pointer: string, value: string) {
     if (!plugin.provider)
       throw new Error('This plugin cannot own a credential without a provider.');
     setError(undefined);
@@ -108,8 +111,11 @@ export function AgentPluginsFeature({ agentId }: { agentId: string }) {
       setDraft((current) => {
         if (!current) return current;
         const previousVoice = current.config.voice ?? emptyVoice();
-        const selection = previousVoice[slot];
-        if (!selection || selection.plugin !== plugin.id) return current;
+        const slot = (Object.keys(previousVoice) as Slot[]).find(
+          (key) => previousVoice[key]?.plugin === plugin.id,
+        );
+        const selection = slot ? previousVoice[slot] : undefined;
+        if (!slot || !selection) return current;
         const nextVoice = {
           ...previousVoice,
           [slot]: {
@@ -137,21 +143,77 @@ export function AgentPluginsFeature({ agentId }: { agentId: string }) {
         headers: { 'if-match': ifMatch(draft.draftVersion) },
         body: JSON.stringify({ config: draft.config }),
       });
-      setDraft(normalizeDraft(result.data, result.etag));
+      const normalized = normalizeDraft(result.data, result.etag);
+      setDraft(normalized);
+      setSavedConfig(JSON.stringify(normalized.config));
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Plugin choices could not be saved');
     } finally {
       setSaving(false);
     }
   }
-  if (!draft) return <p role="status">{error ?? 'Loading plugin choices…'}</p>;
+  const dirty = Boolean(draft && savedConfig && JSON.stringify(draft.config) !== savedConfig);
+
+  if (error && !draft) return <ErrorState message={error} onRetry={load} />;
+  if (!draft)
+    return (
+      <div className="ui-stack">
+        <Skeleton shape="block" />
+        <Skeleton shape="block" />
+      </div>
+    );
+
+  const visibleSlots = slots.filter(
+    (slot) =>
+      slot !== 'llm' || (draft.config.mode !== 'announcement' && draft.config.mode !== 'faq'),
+  );
+
   return (
     <div className="ui-stack">
-      <PageHeader
+      <SubPageHeader
         eyebrow="Agent plugins"
-        title="Choose voice plugins"
+        title="Voice & plugins"
         description="Selections are checked against installed manifests and binding metadata."
-        actions={
+      />
+      {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+      <SectionCard
+        title="Voice stack"
+        actions={<CompatStatusBadge issues={issues} />}
+        description="Carrier through speech and decision, back to carrier. Click a node to jump to its slot."
+      >
+        <VoiceStackDiagram voice={voice} plugins={catalog.plugins} />
+      </SectionCard>
+      {visibleSlots.map((slot) => (
+        <PluginSlotSection
+          key={slot}
+          slot={slot}
+          voice={voice}
+          mode={draft.config.mode}
+          language={draft.config.language}
+          decisionConfigured={Boolean(draft.config.decision?.enabled)}
+          knowledgeConfigured={Boolean(draft.config.knowledge?.enabled)}
+          plugins={catalog.plugins}
+          bindings={bindings}
+          credentials={credentials}
+          onVoiceChange={updateVoice}
+          onBindingCreated={(binding) => setBindings((current) => [...current, binding])}
+          onCredentialCreated={(credential) =>
+            setCredentials((current) => [...current, credential])
+          }
+          onSaveSecret={saveSecret}
+        />
+      ))}
+      <SectionCard title="Compatibility">
+        <CompatSummary issues={issues} voice={voice} onChange={updateVoice} />
+      </SectionCard>
+      <div className="ds-save-footer">
+        <span className="muted">{dirty ? 'Unsaved changes' : 'Up to date'}</span>
+        <div className="ui-cluster">
+          {dirty && (
+            <button className="button" type="button" onClick={load}>
+              Discard
+            </button>
+          )}
           <button
             className="button primary"
             type="button"
@@ -160,65 +222,8 @@ export function AgentPluginsFeature({ agentId }: { agentId: string }) {
           >
             {saving ? 'Saving…' : 'Save plugins'}
           </button>
-        }
-      />
-      {error && <Callout tone="danger">{error}</Callout>}
-      {slots
-        .filter(
-          (slot) =>
-            slot !== 'llm' || (draft.config.mode !== 'announcement' && draft.config.mode !== 'faq'),
-        )
-        .map((slot) => {
-          const choice = voice[slot];
-          const plugin = catalog.plugins.find((item) => item.id === choice?.plugin);
-          return (
-            <section className="panel" id={`slot-${slot}`} key={slot}>
-              <div className="panel-body ui-stack">
-                <SlotPicker
-                  slot={slot}
-                  plugins={catalog.plugins}
-                  voice={voice}
-                  mode={draft.config.mode}
-                  language={draft.config.language}
-                  value={choice?.plugin}
-                  decisionConfigured={Boolean(draft.config.decision?.enabled)}
-                  knowledgeConfigured={Boolean(draft.config.knowledge?.enabled)}
-                  onChange={(pluginId) =>
-                    updateVoice({ ...voice, [slot]: { plugin: pluginId, config: {} } })
-                  }
-                />
-                {plugin && (
-                  <Fragment key={plugin.id}>
-                    <BindingSelect
-                      plugin={plugin}
-                      value={choice?.binding}
-                      bindings={bindings}
-                      credentials={credentials}
-                      onChange={(binding) =>
-                        updateVoice({ ...voice, [slot]: { ...choice!, binding } })
-                      }
-                      onCreated={(binding) => setBindings((current) => [...current, binding])}
-                      onCredentialCreated={(credential) =>
-                        setCredentials((current) => [...current, credential])
-                      }
-                    />
-                    <SchemaForm
-                      plugin={plugin}
-                      schema={plugin.configSchema}
-                      value={choice?.config ?? {}}
-                      credentials={credentials}
-                      onChange={(config) =>
-                        updateVoice({ ...voice, [slot]: { ...choice!, config } })
-                      }
-                      onSecret={(pointer, secret) => saveSecret(slot, plugin, pointer, secret)}
-                    />
-                  </Fragment>
-                )}
-              </div>
-            </section>
-          );
-        })}
-      <CompatSummary issues={issues} voice={voice} onChange={updateVoice} />
+        </div>
+      </div>
     </div>
   );
 }
