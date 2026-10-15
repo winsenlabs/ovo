@@ -358,10 +358,12 @@ describe.skipIf(!roomServerBinary())('managed human queue: the waiting paths (R3
             });
           else at(events, 'call.outcome', { outcome: 'completed' });
           // The room was closed behind the operator who left.
+          const roomName = (await ticketRow(room, ticketId)).room_name;
+          expect(roomName).toMatch(/^ovo-hq-/);
           await vi.waitFor(
             async () =>
               expect((await roomsOf(room.server).listRooms()).map((r) => r.name)).not.toContain(
-                `ovo-hq-${ticketId}`,
+                roomName,
               ),
             { timeout: 20_000, interval: 500 },
           );
@@ -410,10 +412,12 @@ describe.skipIf(!roomServerBinary())('managed human queue: the waiting paths (R3
               status: 'released',
               release_code: 'worker_lost',
             });
+            const roomName = (await ticketRow(room, ticketId)).room_name;
+            expect(roomName).toMatch(/^ovo-hq-/);
             await vi.waitFor(
               async () =>
                 expect((await roomsOf(room.server).listRooms()).map((r) => r.name)).not.toContain(
-                  `ovo-hq-${ticketId}`,
+                  roomName,
                 ),
               { timeout: 30_000, interval: 500 },
             );

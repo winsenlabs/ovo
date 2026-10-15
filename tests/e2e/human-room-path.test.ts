@@ -63,6 +63,7 @@ describe.skipIf(!binary)('managed human queue with a real room server (R3)', () 
     const api = operatorApi(env.stack.operator);
     let ticketId = '';
     let grantToken = '';
+    let roomName = '';
     const result = await transferCall(
       env,
       async (call) => {
@@ -91,17 +92,20 @@ describe.skipIf(!binary)('managed human queue with a real room server (R3)', () 
         expect(accepted.status, JSON.stringify(accepted.body)).toBe(200);
         const grant = accepted.body.room;
         grantToken = grant.token;
+        // One room per accept: its name carries the version the accept produced.
+        roomName = grant.roomName;
+        expect(roomName).toBe(`ovo-hq-${ticketId}-${ticket.version + 1}`);
         // The grant: this room, this operator, microphone only, no admin, a short life.
         expect(grant).toMatchObject({
           provider: 'livekit',
-          roomName: `ovo-hq-${ticketId}`,
+          roomName,
           identity: `op:${desk.id}`,
           role: 'operator',
         });
         const claims = await tokenClaims(server, grant.token);
         expect(claims.identity).toBe(`op:${desk.id}`);
         expect(claims.grant).toMatchObject({
-          room: `ovo-hq-${ticketId}`,
+          room: roomName,
           roomJoin: true,
           canPublish: true,
           canPublishSources: ['microphone'],
@@ -215,7 +219,7 @@ describe.skipIf(!binary)('managed human queue with a real room server (R3)', () 
     await vi.waitFor(
       async () =>
         expect((await roomsOf(server).listRooms()).map((room) => room.name)).not.toContain(
-          `ovo-hq-${ticketId}`,
+          roomName,
         ),
       { timeout: 15_000, interval: 500 },
     );
@@ -229,6 +233,7 @@ describe.skipIf(!binary)('managed human queue with a real room server (R3)', () 
   it('7. the operator sends the caller back to an agent, who takes over after a house-voice announcement', async () => {
     let ticketId = '';
     let operator!: Awaited<ReturnType<typeof joinAsOperator>>;
+    let roomName = '';
     const result = await transferCall(env, async (call) => {
       await heard(env, call, LINES.greeting);
       await pressWhenListening(env, call, '3');
@@ -238,6 +243,7 @@ describe.skipIf(!binary)('managed human queue with a real room server (R3)', () 
       // The queue's return targets travel with the context, labelled for the desk.
       expect(accepted.body.context.returnTargets).toEqual([{ key: 'sales', label: 'sales' }]);
       const grant = accepted.body.room;
+      roomName = grant.roomName;
       operator = await joinAsOperator({ serverUrl: grant.serverUrl, token: grant.token });
       await new Promise((resolve) => setTimeout(resolve, 1_000));
       // A target outside the queue's list is refused before anything happens.
@@ -287,7 +293,7 @@ describe.skipIf(!binary)('managed human queue with a real room server (R3)', () 
     await vi.waitFor(
       async () =>
         expect((await roomsOf(server).listRooms()).map((room) => room.name)).not.toContain(
-          `ovo-hq-${ticketId}`,
+          roomName,
         ),
       { timeout: 15_000, interval: 500 },
     );
