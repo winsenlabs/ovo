@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Select } from '../ui/inputs';
 import { DateRangePicker, type CustomRange, type RangePreset } from '../ui/toolbar';
+import { humaniseEnum } from '../../lib/status';
 import type { ReleaseOption } from './agent-release-options';
 
 export type PerformanceSource = 'all' | 'live' | 'simulation' | 'test';
@@ -22,6 +23,7 @@ const SOURCES: { id: PerformanceSource; label: string }[] = [
 ];
 
 const option = (value: string) => ({ value, label: value });
+const stageOption = (value: string) => ({ value, label: humaniseEnum(value) });
 
 /**
  * Range + source live at the top of the page (every Insights screen gets the same shape);
@@ -153,7 +155,7 @@ export function PerformanceFilterBar({
               value={filters.stage}
               onChange={(value) => patch('stage', value)}
               placeholder="All stages"
-              options={stages.map(option)}
+              options={stages.map(stageOption)}
             />
           </div>
         </div>

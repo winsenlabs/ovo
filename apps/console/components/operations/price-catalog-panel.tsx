@@ -4,6 +4,7 @@ import { apiRequest, type SessionIdentity } from '../../lib/api';
 import type { PriceCatalogItem } from '../../lib/types/price-catalog';
 import { formatDate } from '../../lib/format';
 import { CATALOG_STATUS_LABEL, CATALOG_STATUS_TONE, humanisePrice } from '../../lib/derive/costs';
+import { humaniseEnum } from '../../lib/status';
 import { StatusBadgeV2 } from '../ui/status-badge';
 import { SectionCard } from '../ui/section-card';
 import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
@@ -101,7 +102,7 @@ export function PriceCatalogPanel({
         <span className="ds-choice-chips">
           {entry.meterKeys.map((key) => (
             <span key={key} className="ds-chip">
-              {key.split('.').pop()}
+              {humaniseEnum(key.split('.').pop())}
             </span>
           ))}
         </span>

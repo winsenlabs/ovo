@@ -13,13 +13,17 @@ const rupees = (paise: string): number => {
   return Number.isFinite(value) ? value / 100 : 0;
 };
 
-/** Spent + reserved as meter segments against the limit, in rupees (display only — never used for
- * ledger math, which stays in exact paise on the server). */
+/** Spent + reserved + available as meter segments against the limit, in rupees (display only —
+ * never used for ledger math, which stays in exact paise on the server). `available` is the
+ * server-computed `availableForAdmissionPaise`, not re-derived here, and completes the
+ * spent/reserved/available picture the brief asks for (verifier medium #18 — "reserved and
+ * available have no numbers"). */
 export function budgetMeter(budget: BudgetSnapshot): { segments: MeterSegment[]; max: number } {
   return {
     segments: [
       { label: 'Spent', value: rupees(budget.spentPaise), tone: 'ok' },
       { label: 'Reserved', value: rupees(budget.reservedPaise), tone: 'warn' },
+      { label: 'Available', value: rupees(budget.availableForAdmissionPaise), tone: 'neutral' },
     ],
     max: rupees(budget.limitPaise),
   };
@@ -64,18 +68,33 @@ export const CATALOG_STATUS_LABEL: Record<PriceCatalogItem['status'], string> = 
   update_available: 'Update available',
 };
 
-export const CATALOG_STATUS_TONE: Record<PriceCatalogItem['status'], 'ok' | 'warn'> = {
+export const CATALOG_STATUS_TONE: Record<PriceCatalogItem['status'], 'ok' | 'warn' | 'neutral'> = {
   imported: 'ok',
-  not_imported: 'warn',
+  // Not-yet-imported is the ordinary default state of a freshly-listed catalog entry, not a
+  // warning — it only becomes one once `update_available` says an imported card is stale
+  // (verifier medium #18 — "'Not imported' is amber where the brief says neutral").
+  not_imported: 'neutral',
   update_available: 'warn',
 };
 
-/** `10 USD minor / 1000000 uncached_input_tokens` -> "$0.10 per 1M input tokens". */
+/** `10 USD minor / 1000000 uncached_input_tokens` -> "$0.10 per 1M input tokens". A 60-second (or
+ * whole-minute) block for a duration unit reads as "per minute" rather than rescaled down to a
+ * "per 1 second" rate the way a 1,000/1,000,000-count block scales to 1K/1M (verifier minor #19 —
+ * "$0.0009 per 1 audio seconds" for a 60-second block). */
 export function humanisePrice(card: PriceCatalogItem['card']): string {
   const minorPerBlock = Number(card.minorUnitsPerBlock);
   const block = Number(card.blockQuantity);
   if (!Number.isFinite(minorPerBlock) || !Number.isFinite(block) || block <= 0)
     return `${card.minorUnitsPerBlock} ${card.currency} minor / ${card.blockQuantity} ${card.unit}`;
+  if (/second/i.test(card.unit) && block % 60 === 0) {
+    const minutes = block / 60;
+    const amount = new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: card.currency,
+      maximumFractionDigits: 4,
+    }).format(minorPerBlock / 100);
+    return `${amount} per ${minutes === 1 ? 'minute' : `${minutes} minutes`}`;
+  }
   const scale = block >= 1_000_000 ? 1_000_000 : block >= 1_000 ? 1_000 : 1;
   const scaleLabel = scale === 1_000_000 ? '1M' : scale === 1_000 ? '1K' : '1';
   const amount = new Intl.NumberFormat('en-IN', {

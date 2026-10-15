@@ -1,16 +1,10 @@
 'use client';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { apiRequest, ApiError } from '../../lib/api';
 import type { ScenarioResult } from '../../lib/operator-api';
-import { formatMoney } from '../../lib/format';
-import { scenarioBreakdownBars, scenarioMeter } from '../../lib/derive/costs';
+import { humaniseEnum } from '../../lib/status';
 import { SectionCard } from '../ui/section-card';
-import { StatusBadgeV2 } from '../ui/status-badge';
-import { KpiCard, KpiStrip } from '../ui/kpi';
-import { ChartFrame } from '../charts/chart-frame';
-import { BarChart } from '../charts/bar-chart';
-import { ProgressMeter } from '../charts/meter';
-import { InlineAlert } from '../ui/feedback-v2';
+import { ScenarioResultPanel } from './scenario-result-panel';
 import grid from './insights-grid.module.css';
 
 const CATEGORIES = ['telephony', 'tax', 'speech-generation', 'carrier-media', 'idle'] as const;
@@ -18,10 +12,24 @@ type ComponentDraft = { category: (typeof CATEGORIES)[number]; rupees: string; a
 const initialComponents = (): ComponentDraft[] =>
   CATEGORIES.map((category) => ({ category, rupees: '', assumption: '' }));
 
-/** Rupees -> integer paise, half-up, for the exact-paise request the server expects. */
-function toPaise(rupees: string): string {
-  const value = Number(rupees);
-  return Number.isFinite(value) ? String(Math.round(value * 100)) : '0';
+/** Rupees -> exact integer paise with no floating-point math, or `null` for anything that is not
+ * a plain (optionally grouped, optionally ≤2-decimal) non-negative amount. `Number("1,000")` is
+ * `NaN`, but `Number.isFinite` was never checked against the *parsed* string — `toPaise` silently
+ * turned "1,000" (and any other non-numeric text) into `0` paise instead of rejecting it
+ * (verifier medium #9). */
+function parseRupeesToPaise(rupees: string): bigint | null {
+  const cleaned = rupees.trim().replace(/,/g, '');
+  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
+  const [whole, fraction = ''] = cleaned.split('.');
+  const paiseFraction = fraction.padEnd(2, '0').slice(0, 2);
+  return BigInt(whole) * 100n + BigInt(paiseFraction);
+}
+
+/** Display-only: the paise hint for a ₹ field, or an em dash while the typed text doesn't parse
+ * (never a misleading "= 0 paise"). */
+function paiseHint(rupees: string): string {
+  const paise = parseRupeesToPaise(rupees || '0');
+  return paise == null ? '—' : paise.toString();
 }
 
 /**
@@ -45,19 +53,35 @@ export function ScenarioPanel() {
 
   async function calculate(event: FormEvent) {
     event.preventDefault();
-    setBusy(true);
     setError(undefined);
+    const targetPaise = parseRupeesToPaise(targetRupees);
+    if (targetPaise == null) {
+      setError('Target revenue must be a plain ₹ amount, such as 1000 or 1000.50.');
+      return;
+    }
+    const componentPaise = components.map((component) => ({
+      ...component,
+      paise: parseRupeesToPaise(component.rupees),
+    }));
+    const invalidComponent = componentPaise.find((component) => component.paise == null);
+    if (invalidComponent) {
+      setError(
+        `"${humaniseEnum(invalidComponent.category)}" cost must be a plain ₹ amount, such as 1000 or 1000.50.`,
+      );
+      return;
+    }
+    setBusy(true);
     setResult(undefined);
     try {
       const { data } = await apiRequest<ScenarioResult>('/cost/scenario', {
         method: 'POST',
         body: JSON.stringify({
-          targetRevenuePaise: toPaise(targetRupees),
+          targetRevenuePaise: targetPaise.toString(),
           durationSeconds: duration,
-          components: components.map((component) => ({
+          components: componentPaise.map((component) => ({
             id: component.category,
             category: component.category,
-            amountMinor: toPaise(component.rupees),
+            amountMinor: component.paise!.toString(),
             assumption: component.assumption,
             currency: 'INR',
           })),
@@ -85,9 +109,6 @@ export function ScenarioPanel() {
     }
   }
 
-  const bars = useMemo(() => (result ? scenarioBreakdownBars(result) : []), [result]);
-  const meter = useMemo(() => (result ? scenarioMeter(result) : null), [result]);
-
   return (
     <div className={grid.twoColumn}>
       <SectionCard
@@ -107,7 +128,7 @@ export function ScenarioPanel() {
                 onChange={(event) => setTargetRupees(event.target.value)}
               />
               <small>
-                ₹{targetRupees || '0'} = {toPaise(targetRupees || '0')} paise
+                ₹{targetRupees || '0'} = {paiseHint(targetRupees)} paise
               </small>
             </div>
             <div className="field">
@@ -131,13 +152,13 @@ export function ScenarioPanel() {
               />
             </div>
           </div>
-          <fieldset className="stack">
+          <fieldset className="nested-card">
             <legend>Cost assumptions, in ₹ per call</legend>
             {components.map((component, index) => (
               <div className="form-grid" key={component.category}>
                 <div className="field">
                   <label htmlFor={`scenario-amount-${component.category}`}>
-                    {component.category}
+                    {humaniseEnum(component.category)}
                   </label>
                   <input
                     id={`scenario-amount-${component.category}`}
@@ -194,7 +215,10 @@ export function ScenarioPanel() {
                 onChange={(event) => setHitUnits(event.target.value)}
               />
             </div>
-            <div className="field">
+            {/* Full width (not the form-grid's equal third column): the default assumption text
+                is long enough that a shared column truncated it to a few visible characters
+                (verifier minor #15). */}
+            <div className="field" style={{ gridColumn: '1 / -1' }}>
               <label htmlFor="scenario-cache">Cache billing assumption</label>
               <input
                 id="scenario-cache"
@@ -214,58 +238,7 @@ export function ScenarioPanel() {
           </button>
         </form>
       </SectionCard>
-      <SectionCard title="Result" description="Cost breakdown against the target revenue.">
-        {!result ? (
-          <InlineAlert tone="info">Run the scenario to see the cost breakdown.</InlineAlert>
-        ) : (
-          <div className="ds-stack">
-            <KpiStrip>
-              <KpiCard label="Total cost" value={formatMoney(result.totalCostPaise)} />
-              <KpiCard
-                label="Margin"
-                value={formatMoney(result.marginPaise)}
-                footnote={result.marginScope}
-              />
-              <KpiCard
-                label="Target"
-                value={
-                  <StatusBadgeV2
-                    tone={result.withinTarget ? 'ok' : 'danger'}
-                    label={result.withinTarget ? 'Within' : 'Exceeded'}
-                  />
-                }
-                footnote={formatMoney(result.targetRevenuePaise)}
-              />
-            </KpiStrip>
-            {meter && (
-              <ProgressMeter
-                label="Cost vs target revenue"
-                segments={meter.segments}
-                max={meter.max}
-                valueLabel={`${formatMoney(result.totalCostPaise)} of ${formatMoney(result.targetRevenuePaise)}`}
-              />
-            )}
-            <ChartFrame
-              ariaLabel="Cost breakdown by category"
-              height={180}
-              tableRows={bars.length}
-              tableColumns={[
-                { header: 'Category', cell: (i) => bars[i]?.category },
-                { header: 'Amount', cell: (i) => formatMoney((bars[i]?.values.amount ?? 0) * 100) },
-              ]}
-              renderChart={(width) => (
-                <BarChart
-                  data={bars}
-                  seriesKeys={['amount']}
-                  width={width}
-                  orientation="horizontal"
-                  valueFormat={(value) => formatMoney(value * 100)}
-                />
-              )}
-            />
-          </div>
-        )}
-      </SectionCard>
+      <ScenarioResultPanel result={result} />
     </div>
   );
 }

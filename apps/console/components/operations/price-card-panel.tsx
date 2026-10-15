@@ -4,6 +4,7 @@ import { apiRequest, type SessionIdentity } from '../../lib/api';
 import type { ModelPriceCard } from '../../lib/types/price-catalog';
 import { formatDateTime } from '../../lib/format';
 import { humanisePrice } from '../../lib/derive/costs';
+import { humaniseEnum } from '../../lib/status';
 import { SectionCard } from '../ui/section-card';
 import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
 import { StatusBadgeV2 } from '../ui/status-badge';
@@ -67,7 +68,7 @@ export function PriceCardPanel({ role }: { role: SessionIdentity['role'] }) {
     {
       id: 'provider',
       header: 'Provider / unit',
-      cell: (card) => `${card.provider} · ${card.unit}`,
+      cell: (card) => `${card.provider} · ${humaniseEnum(card.unit)}`,
     },
     { id: 'model', header: 'Model', cell: (card) => card.model ?? 'Any model' },
     {

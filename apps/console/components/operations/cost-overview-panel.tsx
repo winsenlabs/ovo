@@ -27,7 +27,11 @@ export function CostOverviewPanel({ role }: { role: SessionIdentity['role'] }) {
           onRetry={reload}
           empty={catalog !== null && catalog.length === 0}
           emptyLabel="No catalog entries"
-          height={180}
+          // `ChartFrame` reserves exactly this much height for its content and clips anything
+          // taller. The donut's own swatch legend wraps onto a second line once the ≤3 statuses
+          // plus "Other" no longer fit one row at narrow widths, so 180px clipped it (verifier
+          // major #5). 260px leaves room for the 160px donut plus two wrapped legend lines.
+          height={260}
           tableRows={slices.length}
           tableColumns={[
             { header: 'Status', cell: (index) => slices[index]?.label },

@@ -2,17 +2,20 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { apiRequest } from '../../lib/api';
 import type {
+  EvaluationCase,
   EvaluationCaseResult,
   EvaluationComparison,
   EvaluationRunRecord,
 } from '../../lib/operator-api';
 import { humaniseEnum } from '../../lib/status';
+import { formatDuration } from '../../lib/format';
 import { Drawer } from '../ui/drawer';
 import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
 import { StatusBadgeV2 } from '../ui/status-badge';
 import { SectionCard } from '../ui/section-card';
 import { Select } from '../ui/inputs';
 import { EmptyStateV2 } from '../ui/feedback-v2';
+import { loadCases } from './load-evaluation-cases';
 
 type Page<T> = { items: T[]; nextCursor?: string };
 
@@ -41,6 +44,7 @@ export function EvaluationRunDetailDrawer({
   onClose: () => void;
 }) {
   const [results, setResults] = useState<EvaluationCaseResult[]>([]);
+  const [cases, setCases] = useState<EvaluationCase[]>([]);
   const [error, setError] = useState<string>();
   useEffect(() => {
     if (!open || !run) return;
@@ -49,10 +53,34 @@ export function EvaluationRunDetailDrawer({
       .catch((failure) =>
         setError(failure instanceof Error ? failure.message : 'Case results unavailable.'),
       );
+    // Best-effort: the dataset version a run was scored against is immutable, so its case
+    // titles never drift. If this fails (e.g. the version was since archived), the table falls
+    // back to the case ID, same as before.
+    void loadCases(run.datasetId, run.datasetVersion)
+      .then(setCases)
+      .catch(() => setCases([]));
   }, [open, run]);
+  const titleByCaseId = new Map(cases.map((item) => [item.id, item.title]));
 
   const columns: ColumnV2<EvaluationCaseResult>[] = [
-    { id: 'case', header: 'Case', cell: (result) => result.caseId },
+    {
+      id: 'case',
+      header: 'Case',
+      // A case ID alone gave no sense of what the case actually tested (verifier minor #13); the
+      // immutable dataset version's own case titles resolve it when they loaded successfully.
+      cell: (result) => {
+        const title = titleByCaseId.get(result.caseId);
+        return title ? (
+          <>
+            {title}
+            <br />
+            <small className="mono muted">{result.caseId.slice(0, 10)}</small>
+          </>
+        ) : (
+          <span className="mono">{result.caseId}</span>
+        );
+      },
+    },
     { id: 'mode', header: 'Mode', cell: (result) => humaniseEnum(result.mode) },
     {
       id: 'result',
@@ -68,7 +96,9 @@ export function EvaluationRunDetailDrawer({
     {
       id: 'duration',
       header: 'Duration',
-      cell: (result) => `${result.durationMs} ms`,
+      // Raw milliseconds ("3977 ms") instead of the shared humanised duration (verifier minor
+      // #13).
+      cell: (result) => formatDuration(result.durationMs),
       align: 'end',
     },
     {

@@ -94,15 +94,38 @@ export function usePerformanceQueries({
     }
   }, [baseQuery, compareDimension]);
 
+  // The filter bar's provider/model/language options need cohorts grouped by those three
+  // dimensions together; `primary` (time×stage) and `stageOnly` (stage) never carry them, so
+  // those `Select`s always rendered just "All" (verifier major #3). One cheap combined query
+  // covers all three, built with the current provider/model/language filters removed so picking
+  // one doesn't shrink the other two away.
+  const [filterGroups, setFilterGroups] = useState<PerformanceGroupResult[]>([]);
+  const loadFilterOptions = useCallback(async () => {
+    const query = baseQuery('provider,model,language');
+    query.delete('provider');
+    query.delete('model');
+    query.delete('language');
+    try {
+      const { data } = await apiRequest<PerformanceResult>(`/performance?${query}`);
+      setFilterGroups(data.groups);
+    } catch {
+      setFilterGroups([]);
+    }
+  }, [baseQuery]);
+
   useEffect(() => {
     void loadPrimary();
     void loadStageOnly();
-  }, [loadPrimary, loadStageOnly]);
+    void loadFilterOptions();
+  }, [loadPrimary, loadStageOnly, loadFilterOptions]);
   useEffect(() => {
     void loadCompare();
   }, [loadCompare]);
 
-  const allGroups = useMemo(() => [...(primary?.groups ?? []), ...stageOnly], [primary, stageOnly]);
+  const allGroups = useMemo(
+    () => [...(primary?.groups ?? []), ...stageOnly, ...filterGroups],
+    [primary, stageOnly, filterGroups],
+  );
 
   return {
     primary,

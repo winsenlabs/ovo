@@ -14,6 +14,7 @@ import { EmptyStateV2 } from '../ui/feedback-v2';
 import { Drawer } from '../ui/drawer';
 import { parseEvaluationCorpus } from './evaluation-import';
 import { EvaluationDatasetImport } from './evaluation-dataset-import';
+import { EvaluationDatasetEditForm } from './evaluation-dataset-edit-form';
 import { EvaluationDatasetDetail } from './evaluation-dataset-detail';
 import { loadCases } from './load-evaluation-cases';
 
@@ -41,6 +42,7 @@ export function EvaluationDatasetPanel({
   const [importCases, setImportCases] = useState<unknown[]>();
   const [importName, setImportName] = useState('');
   const [importOpen, setImportOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const selected = datasets.find((dataset) => dataset.id === selectedId);
@@ -78,7 +80,10 @@ export function EvaluationDatasetPanel({
       .catch((failure) => setError(message(failure, 'Dataset cases could not be loaded.')));
   }, [selectedId, selectedVersion]);
 
-  async function saveDataset(event: FormEvent<HTMLFormElement>) {
+  /** Returns whether the save succeeded, so callers that only need to close on success (the edit
+   * drawer) don't have to re-derive it from `error`, which a stale closure could still read as
+   * the previous attempt's message. */
+  async function saveDataset(event: FormEvent<HTMLFormElement>): Promise<boolean> {
     event.preventDefault();
     const form = event.currentTarget;
     const values = new FormData(form);
@@ -99,8 +104,10 @@ export function EvaluationDatasetPanel({
       );
       await reload();
       setSelectedId(data.id);
+      return true;
     } catch (failure) {
       setError(message(failure, 'Dataset could not be saved.'));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -231,6 +238,7 @@ export function EvaluationDatasetPanel({
             busy={busy}
             onImport={() => setImportOpen(true)}
             onArchive={() => void archive()}
+            onEditMetadata={() => setEditOpen(true)}
           />
         )
       )}
@@ -246,6 +254,16 @@ export function EvaluationDatasetPanel({
             busy={busy}
             readImport={readImport}
             importVersion={importVersion}
+          />
+        </Drawer>
+      )}
+      {selected && role !== 'viewer' && (
+        <Drawer open={editOpen} title={`Edit ${selected.name}`} onClose={() => setEditOpen(false)}>
+          <EvaluationDatasetEditForm
+            dataset={selected}
+            busy={busy}
+            error={error}
+            onSubmit={(event) => void saveDataset(event).then((ok) => ok && setEditOpen(false))}
           />
         </Drawer>
       )}

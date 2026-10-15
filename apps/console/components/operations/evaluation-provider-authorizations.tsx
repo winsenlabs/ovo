@@ -198,7 +198,10 @@ export function EvaluationProviderAuthorizations({
       {error && <InlineAlert onRetry={() => void load()}>{error}</InlineAlert>}
       {notice && <InlineAlert tone="info">{notice}</InlineAlert>}
       {role === 'admin' && availability === 'enabled' && (
-        <div style={{ marginBottom: 'var(--space-3)' }}>
+        // `padding="flush"` on this card strips its usual inner padding for the table below;
+        // this button sat in that same flush area, flush against the card edge (verifier minor
+        // #17). It gets the card's own horizontal padding back explicitly.
+        <div style={{ padding: '0 var(--space-5)', marginBottom: 'var(--space-3)' }}>
           <Button variant="primary" type="button" onClick={() => setDrawerOpen(true)}>
             Create authorization
           </Button>
@@ -210,7 +213,12 @@ export function EvaluationProviderAuthorizations({
           immutable release and budget reservation authorization.
         </EmptyStateV2>
       ) : role === 'admin' && authorizations.length ? (
-        <ProviderAuthorizationsTable authorizations={authorizations} busy={busy} revoke={revoke} />
+        <ProviderAuthorizationsTable
+          authorizations={authorizations}
+          releases={releases}
+          busy={busy}
+          revoke={revoke}
+        />
       ) : null}
       {nextCursor && (
         <Button type="button" disabled={busy} onClick={() => void load(nextCursor)}>

@@ -13,6 +13,15 @@ import { Button } from '../ui/button';
 import { useListResource } from './use-list-resource';
 import { useDrawerForm } from './use-drawer-form';
 
+/** `.ds-kpi-value` renders as one unbreakable token; at the 2-column 390px breakpoint a full
+ * aggregate rupee sum (unlike the small integers "Budgets"/"Over limit" used before) is wider
+ * than its column and forces the whole page to scroll horizontally. `overflowWrap: anywhere`
+ * lets it break inside the column instead (the four new aggregate KPIs below, verifier medium
+ * #18, were the first KpiCards in this strip with values long enough to trigger it). */
+function MoneyValue({ paise }: { paise: number }) {
+  return <span style={{ overflowWrap: 'anywhere' }}>{formatMoney(paise)}</span>;
+}
+
 /**
  * The live financial state, now first: a KPI strip plus one segmented meter per budget (spent /
  * reserved against the hard limit), with the create form moved into a drawer. Previously budgets
@@ -53,6 +62,19 @@ export function BudgetPanel({ role }: { role: SessionIdentity['role'] }) {
     );
 
   const overLimit = budgets?.filter((budget) => budget.overLimit).length ?? 0;
+  // Aggregate limit/spent/reserved/available across every budget for the KPI strip (the brief
+  // asks for all four; only "Budgets" and "Over limit" were there before — verifier medium #18).
+  // `availableForAdmissionPaise` is already computed server-side by the ledger, so it's summed
+  // as-is rather than re-derived client-side from limit − spent − reserved.
+  const totalsPaise = budgets?.reduce(
+    (sum, budget) => ({
+      limit: sum.limit + Number(budget.limitPaise),
+      spent: sum.spent + Number(budget.spentPaise),
+      reserved: sum.reserved + Number(budget.reservedPaise),
+      available: sum.available + Number(budget.availableForAdmissionPaise),
+    }),
+    { limit: 0, spent: 0, reserved: 0, available: 0 },
+  );
   const createAction = (
     <Button variant="primary" type="button" onClick={() => drawer.setOpen(true)}>
       Create budget
@@ -77,6 +99,26 @@ export function BudgetPanel({ role }: { role: SessionIdentity['role'] }) {
               : undefined
           }
         />
+        <KpiCard
+          label="Limit"
+          value={error || !totalsPaise ? null : <MoneyValue paise={totalsPaise.limit} />}
+          loading={budgets === null && !error}
+        />
+        <KpiCard
+          label="Spent"
+          value={error || !totalsPaise ? null : <MoneyValue paise={totalsPaise.spent} />}
+          loading={budgets === null && !error}
+        />
+        <KpiCard
+          label="Reserved"
+          value={error || !totalsPaise ? null : <MoneyValue paise={totalsPaise.reserved} />}
+          loading={budgets === null && !error}
+        />
+        <KpiCard
+          label="Available"
+          value={error || !totalsPaise ? null : <MoneyValue paise={totalsPaise.available} />}
+          loading={budgets === null && !error}
+        />
       </KpiStrip>
       <SectionCard
         title="Admission budgets"
@@ -96,15 +138,30 @@ export function BudgetPanel({ role }: { role: SessionIdentity['role'] }) {
             {budgets.map((budget) => {
               const meter = budgetMeter(budget);
               return (
-                <ProgressMeter
-                  key={budget.id}
-                  label={budget.id}
-                  segments={meter.segments}
-                  max={meter.max}
-                  valueLabel={`${formatMoney(budget.spentPaise)} of ${formatMoney(budget.limitPaise)}${
-                    budget.overLimit ? ' · over limit' : ''
-                  }`}
-                />
+                <div key={budget.id}>
+                  <ProgressMeter
+                    label={budget.id}
+                    segments={meter.segments}
+                    max={meter.max}
+                    valueLabel={`${formatMoney(budget.spentPaise)} of ${formatMoney(budget.limitPaise)}${
+                      budget.overLimit ? ' · over limit' : ''
+                    }`}
+                  />
+                  {/* The meter's own colour has no on-screen key (verifier medium #7/#18): these
+                      badges reuse the same tones as `budgetMeter`'s segments and spell out the
+                      exact rupee amount behind each one. */}
+                  <div className="ui-cluster" style={{ marginTop: 'var(--space-2)' }}>
+                    <span className="ds-badge tone-ok size-sm">
+                      Spent {formatMoney(budget.spentPaise)}
+                    </span>
+                    <span className="ds-badge tone-warn size-sm">
+                      Reserved {formatMoney(budget.reservedPaise)}
+                    </span>
+                    <span className="ds-badge tone-neutral size-sm">
+                      Available {formatMoney(budget.availableForAdmissionPaise)}
+                    </span>
+                  </div>
+                </div>
               );
             })}
           </div>

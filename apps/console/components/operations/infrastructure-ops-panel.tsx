@@ -9,6 +9,17 @@ function gib(bytes: number | null): string {
   return bytes == null ? 'Unknown' : `${(bytes / 1024 ** 3).toFixed(2)} GiB`;
 }
 
+/** A positive restart/failure count reads as a warning, never the same neutral text colour as a
+ * healthy 0 (verifier minor #16). */
+function warnIfPositive(value: number | null) {
+  if (value == null) return null;
+  return value > 0 ? (
+    <span style={{ color: 'var(--warn-text)', fontWeight: 650 }}>{value}</span>
+  ) : (
+    value
+  );
+}
+
 /** Process health (CPU/memory/event-loop as meters), plus recording and telemetry ops as
  * KeyValueGrids with inner padding (brief defect #17 — labels flush to the card edge). */
 export function InfrastructureOpsPanel({ snapshot }: { snapshot: InfrastructureSnapshot }) {
@@ -49,7 +60,7 @@ export function InfrastructureOpsPanel({ snapshot }: { snapshot: InfrastructureS
                 label: 'Event-loop lag, max',
                 value: process.eventLoopLagMsMax == null ? null : `${process.eventLoopLagMsMax} ms`,
               },
-              { label: 'Restarts', value: process.restartsTotal },
+              { label: 'Restarts', value: warnIfPositive(process.restartsTotal) },
             ]}
           />
         </div>
@@ -67,9 +78,9 @@ export function InfrastructureOpsPanel({ snapshot }: { snapshot: InfrastructureS
                 { label: 'Queued exports', value: recordings.queuedExports },
                 { label: 'Running exports', value: recordings.runningExports },
                 { label: 'Pending deletion', value: recordings.pendingDeletion },
-                { label: 'Failed deletion', value: recordings.failedDeletion },
+                { label: 'Failed deletion', value: warnIfPositive(recordings.failedDeletion) },
                 { label: 'Finalizing artifacts', value: recordings.finalizingArtifacts },
-                { label: 'Failed artifacts', value: recordings.failedArtifacts },
+                { label: 'Failed artifacts', value: warnIfPositive(recordings.failedArtifacts) },
               ]}
             />
           )}

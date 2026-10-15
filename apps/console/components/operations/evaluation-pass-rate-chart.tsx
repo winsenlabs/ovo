@@ -3,7 +3,10 @@ import type { LineSeries } from '../charts/line-chart';
 import { LineChart } from '../charts/line-chart';
 import { ChartFrame } from '../charts/chart-frame';
 import { SectionCard } from '../ui/section-card';
+import { CHART_PALETTE } from '../charts/scale';
+import { StatusBadgeV2 } from '../ui/status-badge';
 import { formatRelativeTime } from '../../lib/format';
+import type { FailedRunPoint } from '../../lib/derive/evaluations';
 
 function flat(series: readonly LineSeries[], index: number) {
   const points = series.flatMap((item) =>
@@ -13,16 +16,37 @@ function flat(series: readonly LineSeries[], index: number) {
 }
 
 /** Pass-rate trend per dataset, extracted from `EvaluationRunsPanel` to keep that module under
- * the size gate. */
-export function EvaluationPassRateChart({ trend }: { trend: readonly LineSeries[] }) {
+ * the size gate. Failed runs arrive separately (`failures`): they never sat on the continuous
+ * line, so they're surfaced here as their own callouts instead of silently missing (verifier
+ * major #6). */
+export function EvaluationPassRateChart({
+  trend,
+  failures = [],
+}: {
+  trend: readonly LineSeries[];
+  failures?: readonly FailedRunPoint[];
+}) {
   return (
     <SectionCard
       title="Pass-rate trend"
-      description="Finished runs' pass rate per dataset, failed runs marked."
+      description="Succeeded runs' pass rate per dataset. Failed runs are called out below, not plotted as a 0% dip."
     >
+      {trend.length > 0 && (
+        <ul className="ds-chart-legend" style={{ marginBottom: 'var(--space-2)' }}>
+          {trend.map((item, index) => (
+            <li key={item.key}>
+              <span
+                className="ds-legend-swatch"
+                style={{ background: CHART_PALETTE[index % CHART_PALETTE.length] }}
+              />
+              {item.label}
+            </li>
+          ))}
+        </ul>
+      )}
       <ChartFrame
         ariaLabel="Pass-rate trend per dataset"
-        empty={trend.length === 0}
+        empty={trend.length === 0 && failures.length === 0}
         emptyLabel="No finished runs yet"
         tableRows={trend.flatMap((series) => series.points).length}
         tableColumns={[
@@ -46,6 +70,18 @@ export function EvaluationPassRateChart({ trend }: { trend: readonly LineSeries[
           />
         )}
       />
+      {failures.length > 0 && (
+        <div className="ui-cluster" style={{ marginTop: 'var(--space-3)' }}>
+          {failures.slice(0, 8).map((failure) => (
+            <StatusBadgeV2
+              key={failure.runId}
+              tone="danger"
+              label={`${failure.datasetName} failed · ${formatRelativeTime(failure.at)}`}
+              size="sm"
+            />
+          ))}
+        </div>
+      )}
     </SectionCard>
   );
 }

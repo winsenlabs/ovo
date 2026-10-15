@@ -99,12 +99,22 @@ export function FxVersionPanel({ role }: { role: SessionIdentity['role'] }) {
     { id: 'pair', header: 'Pair', cell: (fx) => `${fx.baseCurrency}/${fx.quoteCurrency}` },
     {
       id: 'rate',
-      header: 'Exact rate',
-      cell: (fx) => (
-        <span className="mono">
-          {fx.rateNumerator} / {fx.rateDenominator}
-        </span>
-      ),
+      header: 'Rate',
+      // The raw fraction is still shown (it's the immutable, exact value this screen exists to
+      // record), but a quick ₹-per-unit reading goes above it — "8412 / 100" alone made the
+      // operator do the division themselves (verifier minor #13).
+      cell: (fx) => {
+        const rate = Number(fx.rateNumerator) / Number(fx.rateDenominator);
+        return (
+          <>
+            {Number.isFinite(rate) ? `₹${rate.toFixed(4)}` : '—'}
+            <br />
+            <small className="mono muted">
+              {fx.rateNumerator} / {fx.rateDenominator}
+            </small>
+          </>
+        );
+      },
       align: 'end',
     },
     {

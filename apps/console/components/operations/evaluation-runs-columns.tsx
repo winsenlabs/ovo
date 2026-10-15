@@ -8,6 +8,7 @@ import { StatusBadgeV2 } from '../ui/status-badge';
 import { Button } from '../ui/button';
 
 const CANCELLABLE = new Set(['queued', 'running', 'cancelling']);
+const NO_OUTCOME_YET = new Set(['queued', 'running', 'cancelling', 'cancelled']);
 
 /** Column defs for the evaluation runs table, extracted so `EvaluationRunsPanel` stays under the
  * module-size gate. Status uses the one shared tone map — running/queued read as info, not the
@@ -51,16 +52,54 @@ export function buildRunColumns({
     {
       id: 'result',
       header: 'Pass / fail',
-      cell: (run) => (
-        <span>
-          <span className="mono">
-            {run.passed}/{run.total}
-          </span>{' '}
-          <small className="muted">
-            {run.total ? `${Math.round((run.passed / run.total) * 100)}%` : '—'}
-          </small>
-        </span>
-      ),
+      cell: (run) => {
+        const evaluated = run.passed + run.failed;
+        // A queued/running/cancelling run, or one cancelled before any case ran, has no outcome
+        // yet: `0/24 · 0%` read as a 0% pass rate rather than "nothing has run" (verifier medium
+        // #11). Only render real numbers once something has actually been evaluated, or the run
+        // reached a terminal, scored status.
+        if (evaluated === 0 && NO_OUTCOME_YET.has(run.status)) {
+          return <span className="muted">—</span>;
+        }
+        const pct = run.total ? Math.round((run.passed / run.total) * 100) : null;
+        return (
+          <span
+            style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}
+          >
+            <span>
+              <span className="mono">
+                {run.passed}/{run.total}
+              </span>{' '}
+              <small className="muted">{pct != null ? `${pct}%` : '—'}</small>
+            </span>
+            <span
+              style={{
+                display: 'flex',
+                width: 64,
+                height: 6,
+                borderRadius: 3,
+                overflow: 'hidden',
+                background: 'var(--border)',
+              }}
+              role="img"
+              aria-label={`${run.passed} passed, ${run.failed} failed, of ${run.total}`}
+            >
+              <span
+                style={{
+                  width: `${run.total ? (run.passed / run.total) * 100 : 0}%`,
+                  background: 'var(--ok-text)',
+                }}
+              />
+              <span
+                style={{
+                  width: `${run.total ? (run.failed / run.total) * 100 : 0}%`,
+                  background: 'var(--danger-text)',
+                }}
+              />
+            </span>
+          </span>
+        );
+      },
       align: 'end',
     },
     {

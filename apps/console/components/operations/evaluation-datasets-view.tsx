@@ -5,7 +5,7 @@ import type { EvaluationDataset, ProviderEvaluationAuthorization } from '../../l
 import { PageHeader } from '../ui/layout';
 import { Tabs } from '../ui/tabs';
 import { useTabState } from './use-tab-state';
-import { Skeleton } from '../ui/feedback-v2';
+import { InlineAlert, Skeleton } from '../ui/feedback-v2';
 import { EvaluationDatasetPanel } from './evaluation-dataset-panel';
 import { EvaluationRunsPanel } from './evaluation-runs-panel';
 import { EvaluationProviderAuthorizations } from './evaluation-provider-authorizations';
@@ -68,11 +68,8 @@ export function EvaluationDatasetsView({ role }: { role: SessionIdentity['role']
         title="Evaluations"
         description="Immutable corpora, fixture-isolated defaults, provider authorization, durable jobs, and case-level comparison evidence."
       />
-      {error && (
-        <div className="field-error" role="alert">
-          {error}
-        </div>
-      )}
+      {/* A bare `field-error` line had no way to retry a failed load (verifier medium #10). */}
+      {error && <InlineAlert onRetry={() => void load()}>{error}</InlineAlert>}
       <Tabs items={TABS} current={tab} onSelect={setTab} panelId="evaluations-tab-panel" />
       <div id="evaluations-tab-panel" role="tabpanel" className="ds-stack">
         {loading ? (

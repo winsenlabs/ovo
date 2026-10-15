@@ -18,19 +18,28 @@ export function PriceCardForm({
 }) {
   const [meters, setMeters] = useState<Meter[]>([]);
   const [meterKey, setMeterKey] = useState('');
+  const [metersError, setMetersError] = useState<string>();
   useEffect(() => {
-    void apiRequest<PluginCatalog>('/plugins').then(({ data }) =>
-      setMeters(
-        data.plugins.flatMap((plugin) =>
-          (plugin.meters ?? []).map((meter) => ({
-            key: meter.key,
-            label: meter.label,
-            provider: plugin.provider ?? plugin.id,
-            unit: meter.unit,
-          })),
+    // A missing `.catch` here left a service-down `/plugins` failure as an unhandled promise
+    // rejection, with no sign of it in the form itself (verifier medium #8).
+    void apiRequest<PluginCatalog>('/plugins')
+      .then(({ data }) =>
+        setMeters(
+          data.plugins.flatMap((plugin) =>
+            (plugin.meters ?? []).map((meter) => ({
+              key: meter.key,
+              label: meter.label,
+              provider: plugin.provider ?? plugin.id,
+              unit: meter.unit,
+            })),
+          ),
         ),
-      ),
-    );
+      )
+      .catch((failure) =>
+        setMetersError(
+          failure instanceof Error ? failure.message : 'The meter catalog could not be loaded.',
+        ),
+      );
   }, []);
   const selectedMeter = meters.find((meter) => meter.key === meterKey);
 
@@ -51,6 +60,11 @@ export function PriceCardForm({
             </option>
           ))}
         </select>
+        {metersError && (
+          <small className="field-error" role="alert">
+            {metersError}
+          </small>
+        )}
       </div>
       <div className="field">
         <label htmlFor="card-id">Card ID</label>

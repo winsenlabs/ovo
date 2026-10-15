@@ -3,9 +3,10 @@
 import type { LineSeries } from '../../components/charts/line-chart';
 import type { EvaluationDataset, EvaluationRunRecord } from '../operator-api';
 
-const FINISHED = new Set(['succeeded', 'failed']);
-
-/** One line series per dataset: pass rate (passed/total) of every finished run, oldest first. */
+/** One line series per dataset: pass rate (passed/total) of every *succeeded* run, oldest first.
+ * A failed run's own pass rate (usually 0%) is deliberately left off this line — see
+ * {@link failedRunPoints} — so one failure doesn't read as a trend crater on a line meant to show
+ * drift across healthy runs (verifier major #6). */
 export function passRateTrend(
   runs: readonly EvaluationRunRecord[],
   datasets: readonly EvaluationDataset[],
@@ -14,7 +15,7 @@ export function passRateTrend(
   const byDataset = new Map<string, { x: number; y: number }[]>();
   const sorted = [...runs].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   for (const run of sorted) {
-    if (!FINISHED.has(run.status) || run.total === 0) continue;
+    if (run.status !== 'succeeded' || run.total === 0) continue;
     const points = byDataset.get(run.datasetId) ?? [];
     points.push({ x: new Date(run.createdAt).getTime(), y: run.passed / run.total });
     byDataset.set(run.datasetId, points);
@@ -24,6 +25,26 @@ export function passRateTrend(
     label: nameOf(datasetId),
     points,
   }));
+}
+
+export type FailedRunPoint = { runId: string; datasetId: string; datasetName: string; at: number };
+
+/** A failed run per dataset, newest first — shown as its own callouts next to the pass-rate
+ * trend instead of as an ordinary 0% point dragging that line down. */
+export function failedRunPoints(
+  runs: readonly EvaluationRunRecord[],
+  datasets: readonly EvaluationDataset[],
+): FailedRunPoint[] {
+  const nameOf = (id: string) => datasets.find((dataset) => dataset.id === id)?.name ?? id;
+  return runs
+    .filter((run) => run.status === 'failed')
+    .map((run) => ({
+      runId: run.id,
+      datasetId: run.datasetId,
+      datasetName: nameOf(run.datasetId),
+      at: new Date(run.createdAt).getTime(),
+    }))
+    .sort((a, b) => b.at - a.at);
 }
 
 /** Latest succeeded run's pass rate per dataset, for the KPI strip. */

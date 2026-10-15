@@ -22,6 +22,7 @@ export function EvaluationDatasetDetail({
   busy,
   onImport,
   onArchive,
+  onEditMetadata,
 }: {
   dataset: EvaluationDataset;
   versions: readonly EvaluationDatasetVersion[];
@@ -32,6 +33,7 @@ export function EvaluationDatasetDetail({
   busy: boolean;
   onImport: () => void;
   onArchive: () => void;
+  onEditMetadata: () => void;
 }) {
   return (
     <SectionCard
@@ -50,6 +52,11 @@ export function EvaluationDatasetDetail({
               label: `v${version.version} · ${version.fingerprint.slice(0, 12)}`,
             }))}
           />
+          {role !== 'viewer' && (
+            <Button variant="secondary" type="button" onClick={onEditMetadata}>
+              Edit metadata
+            </Button>
+          )}
           {role !== 'viewer' && (
             <Button variant="primary" type="button" onClick={onImport}>
               Import version

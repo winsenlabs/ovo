@@ -6,12 +6,18 @@ import type {
   EvaluationRunRecord,
   ProviderEvaluationAuthorization,
 } from '../../lib/operator-api';
-import { latestPassRateByDataset, passRateTrend, runsSince } from '../../lib/derive/evaluations';
+import {
+  failedRunPoints,
+  latestPassRateByDataset,
+  passRateTrend,
+  runsSince,
+} from '../../lib/derive/evaluations';
 import { KpiCard, KpiStrip } from '../ui/kpi';
 import { SectionCard } from '../ui/section-card';
 import { DataTableV2 } from '../ui/data-table-v2';
 import { Drawer } from '../ui/drawer';
 import { Button } from '../ui/button';
+import { EmptyStateV2 } from '../ui/feedback-v2';
 import { EvaluationPassRateChart } from './evaluation-pass-rate-chart';
 import { buildRunColumns } from './evaluation-runs-columns';
 import { EvaluationRunForm } from './evaluation-run-form';
@@ -37,7 +43,13 @@ export function EvaluationRunsPanel({
   providerAvailability: ProviderEvaluationAvailability;
 }) {
   const [runs, setRuns] = useState<EvaluationRunRecord[]>([]);
-  const [error, setError] = useState<string>();
+  // Split from the initial list fetch: a 503 on `loadRuns` means the service itself is down and
+  // the whole panel should say so once, instead of a cancel/queue failure (`actionError`) — which
+  // leaves already-loaded runs on screen — replacing it too. Mixing the two produced "No durable
+  // evaluation runs" and a bare error line side by side with "Queue run" still offered during an
+  // outage (verifier medium #10).
+  const [loadError, setLoadError] = useState<string>();
+  const [actionError, setActionError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [detailRun, setDetailRun] = useState<EvaluationRunRecord | null>(null);
 
@@ -46,9 +58,11 @@ export function EvaluationRunsPanel({
       setRuns(
         items<EvaluationRunRecord>((await apiRequest<unknown>('/evaluation-runs?limit=100')).data),
       );
-      setError(undefined);
+      setLoadError(undefined);
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Evaluation runs could not be loaded.');
+      setLoadError(
+        failure instanceof Error ? failure.message : 'Evaluation runs could not be loaded.',
+      );
     }
   }, []);
   useEffect(() => {
@@ -61,7 +75,7 @@ export function EvaluationRunsPanel({
     providerAuthorizations,
     providerAvailability,
     onQueued: loadRuns,
-    reportError: setError,
+    reportError: setActionError,
   });
 
   async function cancel(run: EvaluationRunRecord) {
@@ -70,7 +84,7 @@ export function EvaluationRunsPanel({
       await apiRequest(`/evaluation-runs/${encodeURIComponent(run.id)}/cancel`, { method: 'POST' });
       await loadRuns();
     } catch (failure) {
-      setError(
+      setActionError(
         failure instanceof Error ? failure.message : 'Evaluation run could not be cancelled.',
       );
     } finally {
@@ -86,6 +100,7 @@ export function EvaluationRunsPanel({
       )
     : null;
   const trend = useMemo(() => passRateTrend(runs, datasets), [runs, datasets]);
+  const failures = useMemo(() => failedRunPoints(runs, datasets), [runs, datasets]);
   const columns = buildRunColumns({
     datasets,
     role,
@@ -97,21 +112,36 @@ export function EvaluationRunsPanel({
     ['queued', 'running', 'cancelling'].includes(run.status),
   ).length;
 
+  if (loadError)
+    return (
+      <EmptyStateV2
+        variant="unavailable"
+        title="Evaluation runs unavailable"
+        action={
+          <Button type="button" onClick={() => void loadRuns()}>
+            Retry
+          </Button>
+        }
+      >
+        {loadError}
+      </EmptyStateV2>
+    );
+
   return (
     <div className="ds-stack">
       <KpiStrip>
         <KpiCard
           label="Avg. latest pass rate"
-          value={error ? null : avgPassRate != null ? `${avgPassRate}%` : null}
+          value={avgPassRate != null ? `${avgPassRate}%` : null}
         />
-        <KpiCard label="Runs · 7d" value={error ? null : recentRuns.length} />
+        <KpiCard label="Runs · 7d" value={recentRuns.length} />
         <KpiCard
           label="Failing runs"
-          value={error ? null : runs.filter((run) => run.status === 'failed').length}
+          value={runs.filter((run) => run.status === 'failed').length}
         />
-        <KpiCard label="In progress" value={error ? null : inProgress} />
+        <KpiCard label="In progress" value={inProgress} />
       </KpiStrip>
-      <EvaluationPassRateChart trend={error ? [] : trend} />
+      <EvaluationPassRateChart trend={trend} failures={failures} />
       <SectionCard
         title="Durable evaluation jobs"
         padding="flush"
@@ -123,9 +153,9 @@ export function EvaluationRunsPanel({
           ) : undefined
         }
       >
-        {error && (
+        {actionError && (
           <div className="field-error" role="alert">
-            {error}
+            {actionError}
           </div>
         )}
         <DataTableV2

@@ -33,7 +33,14 @@ export function PerformanceLatencyChart({
   onPercentileChange: (percentile: Percentile) => void;
   loading: boolean;
 }) {
-  const visibleSeries = series.filter((item) => !hiddenStages.has(item.key));
+  // Keep every stage at its original index and just empty out a hidden one's points, rather than
+  // filtering it out of the array: `LineChart` colours each series by its position in the array
+  // it receives, and the legend below colours by position in the *full* `series` list. Filtering
+  // let those two indices drift apart the moment any stage but the last was hidden, so every
+  // remaining line silently took on the next stage's colour (verifier major #1).
+  const chartSeries = series.map((item) =>
+    hiddenStages.has(item.key) ? { ...item, points: [], band: undefined } : item,
+  );
   return (
     <SectionCard
       title="Latency over time"
@@ -55,6 +62,28 @@ export function PerformanceLatencyChart({
         </div>
       }
     >
+      {/* Rendered above `ChartFrame` instead of passed as its `legend` (inside the frame's own
+          header, next to the Chart/Table toggle): a 7-item legend there has nowhere to go at
+          390px and clips the Table button (verifier major #4). Its own row can wrap freely. */}
+      <ul className="ds-chart-legend" style={{ marginBottom: 'var(--space-2)' }}>
+        {series.map((item, index) => (
+          <li key={item.key}>
+            <button
+              type="button"
+              className="text-button"
+              aria-pressed={!hiddenStages.has(item.key)}
+              onClick={() => onToggleStage(item.key)}
+              style={{ opacity: hiddenStages.has(item.key) ? 0.4 : 1 }}
+            >
+              <span
+                className="ds-legend-swatch"
+                style={{ background: CHART_PALETTE[index % CHART_PALETTE.length] }}
+              />
+              {item.label}
+            </button>
+          </li>
+        ))}
+      </ul>
       <ChartFrame
         ariaLabel={`${percentile} latency over time by stage`}
         loading={loading}
@@ -74,30 +103,9 @@ export function PerformanceLatencyChart({
               groups[i]?.[percentile] != null ? formatMsAxis(groups[i][percentile]!) : '—',
           },
         ]}
-        legend={
-          <ul className="ds-chart-legend">
-            {series.map((item, index) => (
-              <li key={item.key}>
-                <button
-                  type="button"
-                  className="text-button"
-                  aria-pressed={!hiddenStages.has(item.key)}
-                  onClick={() => onToggleStage(item.key)}
-                  style={{ opacity: hiddenStages.has(item.key) ? 0.4 : 1 }}
-                >
-                  <span
-                    className="ds-legend-swatch"
-                    style={{ background: CHART_PALETTE[index % CHART_PALETTE.length] }}
-                  />
-                  {item.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        }
         renderChart={(width) => (
           <LineChart
-            series={visibleSeries}
+            series={chartSeries}
             width={width}
             height={260}
             xScale="time"

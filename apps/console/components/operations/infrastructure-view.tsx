@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiRequest, ApiError } from '../../lib/api';
 import type { InfrastructureSnapshot } from '../../lib/operator-api';
-import { pushHistory, type HistoryPoint } from '../../lib/derive/infrastructure';
+import { isStale, pushHistory, type HistoryPoint } from '../../lib/derive/infrastructure';
 import { formatDateTime, formatDuration, formatRelativeTime } from '../../lib/format';
 import { PageHeader } from '../ui/layout';
 import { KpiCard, KpiStrip } from '../ui/kpi';
@@ -78,6 +78,16 @@ export function InfrastructureView() {
   }, [autoRefresh, load]);
 
   const stale = (snapshot?.queue.oldestAgeMs ?? 0) > STALE_QUEUE_AGE_MS;
+  // The API gives an actual max age to judge the heartbeat against, but nothing compared the two
+  // (verifier minor #16 — "a heartbeat 11 minutes old against a 15-second maximum gets no stale
+  // badge"); `oldestAgeMs`/`STALE_QUEUE_AGE_MS` above is a different signal (queue backlog), not
+  // a stand-in for this one.
+  const heartbeatAgeMs = snapshot?.workers.freshestHeartbeatAt
+    ? Date.now() - new Date(snapshot.workers.freshestHeartbeatAt).getTime()
+    : null;
+  const heartbeatStale = snapshot
+    ? isStale(heartbeatAgeMs, snapshot.workers.heartbeatMaxAgeMs)
+    : false;
 
   return (
     <div className="ds-stack">
@@ -143,13 +153,24 @@ export function InfrastructureView() {
           <KpiStrip>
             <KpiCard
               label="Workers busy / total"
-              value={`${snapshot.workers.busy ?? '—'} / ${snapshot.workers.total ?? '—'}`}
+              // `whiteSpace: nowrap`: once a sparkline shares the KPI's row, the compound value
+              // had room to break between "/" and the second number ("14 /" then "24" on their
+              // own lines — verifier minor #16).
+              value={
+                <span style={{ whiteSpace: 'nowrap' }}>
+                  {snapshot.workers.busy ?? '—'} / {snapshot.workers.total ?? '—'}
+                </span>
+              }
               sparkline={history.map((point) => point.busy)}
             />
             <KpiCard label="Ready idle" value={snapshot.workers.ready} />
             <KpiCard
               label="Queue depth (eligible)"
-              value={`${snapshot.queue.depth ?? '—'} (${snapshot.queue.eligibleDepth ?? '—'})`}
+              value={
+                <span style={{ whiteSpace: 'nowrap' }}>
+                  {snapshot.queue.depth ?? '—'} ({snapshot.queue.eligibleDepth ?? '—'})
+                </span>
+              }
               sparkline={history.map((point) => point.queueDepth)}
             />
             <KpiCard
@@ -168,7 +189,17 @@ export function InfrastructureView() {
               sparkline={history.map((point) => point.eventsPerFiveMin)}
             />
           </KpiStrip>
-          <SectionCard title="Heartbeat freshness">
+          <SectionCard
+            title="Heartbeat freshness"
+            actions={
+              snapshot.workers.freshestHeartbeatAt ? (
+                <StatusBadgeV2
+                  tone={heartbeatStale ? 'warn' : 'ok'}
+                  label={heartbeatStale ? `Stale · ${formatDuration(heartbeatAgeMs)} old` : 'Fresh'}
+                />
+              ) : undefined
+            }
+          >
             <p className="muted">
               Freshest worker heartbeat{' '}
               {snapshot.workers.freshestHeartbeatAt ? (

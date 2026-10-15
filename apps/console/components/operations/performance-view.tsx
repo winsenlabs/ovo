@@ -12,6 +12,7 @@ import {
   type Percentile,
 } from '../../lib/derive/performance';
 import { humaniseEnum } from '../../lib/status';
+import { formatRelativeTime } from '../../lib/format';
 import { formatMsAxis } from '../charts/scale';
 import { PageHeader } from '../ui/layout';
 import { KpiCard, KpiStrip } from '../ui/kpi';
@@ -84,11 +85,39 @@ export function PerformanceView() {
   const latest = latestBucketFor(groups, stage);
   const totals = rangeTotals(groups, stage);
   const series = useMemo(() => stageTimeSeries(groups, percentile), [groups, percentile]);
-  const compareBars = useMemo(
-    () => compareByBars(compareGroups, compareDimension),
-    [compareGroups, compareDimension],
+  // `compareByBars` reads straight off the cohort, which for 'agent'/'release' is an opaque ID —
+  // the brief's agent/release names are already loaded for the filter bar, so resolve the two ID
+  // dimensions to names here instead of showing `agt_…`/`rel_…` (verifier minor #13).
+  const agentNameById = useMemo(
+    () => new Map(agents.map((agent) => [agent.id, agent.name])),
+    [agents],
   );
+  const releaseNameById = useMemo(
+    () =>
+      new Map(
+        releases.map((release) => [release.id, `${release.agentName} · ${release.id.slice(0, 8)}`]),
+      ),
+    [releases],
+  );
+  const compareBars = useMemo(() => {
+    const bars = compareByBars(compareGroups, compareDimension);
+    const nameById =
+      compareDimension === 'agent'
+        ? agentNameById
+        : compareDimension === 'release'
+          ? releaseNameById
+          : null;
+    return nameById
+      ? bars.map((bar) => ({ ...bar, category: nameById.get(bar.category) ?? bar.category }))
+      : bars;
+  }, [compareGroups, compareDimension, agentNameById, releaseNameById]);
   const dropped = primary?.ingestion?.dropped ?? 0;
+  // "Which bucket are these KPI values from" — the dominant stage can legitimately flip between
+  // loads as sample counts shift, so the KPI strip always names its own moment in time instead of
+  // leaving the operator to guess whether it is live or stale (verifier minor #20).
+  const latestAt = latest?.cohort.time
+    ? `As of ${formatRelativeTime(latest.cohort.time)}`
+    : undefined;
 
   const toggleStage = (key: string) =>
     setHiddenStages((current) => {
@@ -145,16 +174,19 @@ export function PerformanceView() {
               label={stage ? `${humaniseEnum(stage)} · p50` : 'p50'}
               value={latest?.p50Ms != null ? formatMsAxis(latest.p50Ms) : null}
               loading={primary === null}
+              footnote={latestAt}
             />
             <KpiCard
               label={stage ? `${humaniseEnum(stage)} · p95` : 'p95'}
               value={latest?.p95Ms != null ? formatMsAxis(latest.p95Ms) : null}
               loading={primary === null}
+              footnote={latestAt}
             />
             <KpiCard
               label={stage ? `${humaniseEnum(stage)} · p99` : 'p99'}
               value={latest?.p99Ms != null ? formatMsAxis(latest.p99Ms) : null}
               loading={primary === null}
+              footnote={latestAt}
             />
             <KpiCard label="Calls in range" value={totals.calls} loading={primary === null} />
             <KpiCard
@@ -172,13 +204,9 @@ export function PerformanceView() {
             onPercentileChange={setPercentile}
             loading={primary === null}
           />
-          <PerformanceDetailTable
-            stageGroups={stageOnly}
-            cohortGroups={groups}
-            loading={primary === null}
-            error={primaryError}
-            onRetry={loadPrimary}
-          />
+          {/* "Compare by" is the summary view (which cohort looks off); "Cohort detail" is the
+              deep raw table behind a "Show table" toggle. Reading top-to-bottom, the summary
+              belongs before the raw detail (verifier minor #20). */}
           <PerformanceComparePanel
             dimension={compareDimension}
             onDimensionChange={setCompareDimension}
@@ -186,6 +214,13 @@ export function PerformanceView() {
             loading={compareLoading}
             error={compareError}
             onRetry={loadCompare}
+          />
+          <PerformanceDetailTable
+            stageGroups={stageOnly}
+            cohortGroups={groups}
+            loading={primary === null}
+            error={primaryError}
+            onRetry={loadPrimary}
           />
         </>
       )}
