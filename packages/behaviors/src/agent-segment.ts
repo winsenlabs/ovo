@@ -4,11 +4,15 @@ import {
   type Execution,
   type Inference,
 } from '@winsendotai/ovo-contracts';
+import { flowBriefing } from './flow-step.ts';
+import { replyGuardrail } from './agent-pre-reply.ts';
 import { AgentSessionAhead } from './agent-session-ahead.ts';
+import { assembleBoundedContext } from './context.ts';
 import type { AgentBehaviorOptions } from './agent-tools.ts';
 import { AgentTransfers, type TransferAnswer } from './agent-transfer.ts';
 import type { AgentSpeculationOptions } from './speculation.ts';
 import { TransferGreeting } from './transfer-greeting.ts';
+import { handoverHeard } from './transfer-handover.ts';
 
 /**
  * R2: an agent call as one segment of a routed call. It may hand the caller to another agent
@@ -19,6 +23,8 @@ import { TransferGreeting } from './transfer-greeting.ts';
 export abstract class AgentSegment extends AgentSessionAhead {
   protected readonly transfers: AgentTransfers;
   private readonly greeting: TransferGreeting;
+  /** On a segment that took over a call: its context without the handover, the caller's words. */
+  private readonly own?: { context: string; heard: string[] };
 
   constructor(
     config: AgentConfig,
@@ -34,6 +40,34 @@ export abstract class AgentSegment extends AgentSessionAhead {
     this.transfers.offer(this.tools, this.validators);
     const { inbound } = options.transfer ?? {};
     this.greeting = new TransferGreeting(this.config, inbound, this.inference, !!this.flow);
+    if (inbound) {
+      const context = assembleBoundedContext(this.config.context, this.config.contextBudget);
+      this.own = { context, heard: handoverHeard(inbound) };
+    }
+  }
+
+  /**
+   * The reply guardrail's sources on a segment that took over a call: its own briefing, never the
+   * handover's summary (another model wrote it), and the caller's words before the handover. Empty
+   * on any other call, whose guardrail reads the briefing as before.
+   */
+  protected guardrailSources(variables: Record<string, unknown>) {
+    if (!this.own) return {};
+    const declared = flowBriefing(this.flow, this.own.context, (text) =>
+      this.variables.renderBriefing(text, variables),
+    );
+    return { declared, heard: this.own.heard };
+  }
+
+  /** The `llm` greeting's checks, as a reply's: the language guard (N4), then the guardrail. */
+  private greetingCheck(variables: Record<string, unknown>): (line: string) => string | undefined {
+    const { declared = this.briefing(variables), heard = [] } = this.guardrailSources(variables);
+    const facts = this.variables.facts(variables);
+    const { guardrail } = this.guard.input([]);
+    const reply = replyGuardrail(this.config, guardrail, [declared, facts], variables, 0, heard);
+    const inner = reply && ((segment: string) => reply.check(segment));
+    const language = this.languages.reply(inner);
+    return (line) => (language ? language.check(line) : inner ? inner(line) : line);
   }
 
   /** An `llm` greeting of a transferred call speaks first even with no opening lines. */
@@ -48,6 +82,7 @@ export abstract class AgentSegment extends AgentSessionAhead {
   protected opening(variables: Record<string, unknown>): AsyncIterable<string> {
     return this.greeting.opening({
       briefing: () => this.briefing(variables),
+      check: (line) => this.greetingCheck(variables)(line),
       disclosure: () => this.sayDisclosure(),
       say: (text) => this.say(text, this.turn),
       scripted: () => this.lines.opening(variables, this.flow),

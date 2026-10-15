@@ -164,6 +164,57 @@ describe('greeting a transferred caller', () => {
     expect(said).toEqual(['Hello, billing here.']);
   });
 
+  describe('llm: checked as any reply is', () => {
+    const OPENING = 'Hello, billing here.';
+    const guarded = (text: string, over: Record<string, unknown> = {}) =>
+      greeted({
+        model: llm([{ kind: 'text', text }]),
+        port: inbound({ summary: 'Caller was double charged ₹4,500 for October.' }),
+        agents: { inbound: { greeting: 'llm' } },
+        over: { opening: { lines: [OPENING] }, ...over },
+      });
+    const block = { guardrail: { mode: 'block', safeLine: 'Let me check that.' } };
+
+    it('a value only the transferring model wrote is blocked: the opening plays', async () => {
+      const { t, said } = await guarded("I see you paid ₹4,500 twice; I'll refund it now.", block);
+      expect(said).toEqual([OPENING]);
+      expect(t.events.filter((event) => event.type === 'guardrail')).toMatchObject([
+        { payload: { action: 'blocked' } },
+      ]);
+    });
+
+    it("the caller's own words may be read back, and a flagged greeting is still said", async () => {
+      const line = 'Hi, I see you were charged twice for October; let me look.';
+      expect((await guarded(line, block)).said).toEqual([line]);
+      const flagged = await guarded('I can refund the ₹4,500 now.', {
+        guardrail: { mode: 'flag' },
+      });
+      expect(flagged.said).toEqual(['I can refund the ₹4,500 now.']);
+    });
+
+    it('a greeting outside the agent languages is replaced: the opening plays', async () => {
+      const languages = { languages: { allowed: ['en'] } };
+      const { said } = await guarded('नमस्ते, मैं आपकी बिलिंग की समस्या देखता हूँ।', languages);
+      expect(said).toEqual([OPENING]);
+    });
+  });
+
+  it('later replies do not take the handover summary as a source either', async () => {
+    const t = transferAgent({
+      port: inbound({
+        summary: 'Caller was double charged ₹4,500.',
+        transcript: [{ role: 'caller', text: 'I paid 2000 rupees on 20th October.' }],
+      }),
+      replies: [
+        { kind: 'text', text: 'You paid ₹2,000 on 20th October.' },
+        { kind: 'text', text: 'I will refund ₹4,500.' },
+      ],
+      over: { guardrail: { mode: 'block', safeLine: 'Let me check that.' } },
+    });
+    expect(await t.turn('what did I pay?')).toEqual(['You paid ₹2,000 on 20th October.']);
+    expect(await t.turn('and the refund?')).toEqual(['Let me check that.']);
+  });
+
   it('a return: the return line, else the built-in one in the agent language', async () => {
     const back = { port: inbound({ kind: 'return' }), over: { opening: { lines: ['Hello.'] } } };
     expect((await greeted(back)).said).toEqual([

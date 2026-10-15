@@ -14,6 +14,11 @@ export interface GreetingHost {
   briefing: () => string;
   /** The disclosure still owed, said first and heard in full (P5); undefined when none. */
   disclosure: () => string | undefined;
+  /**
+   * The checks every LLM reply passes (N4's language guard, then the reply guardrail): the line to
+   * speak, which differs from the greeting (or is undefined) when either blocked or replaced it.
+   */
+  check: (line: string) => string | undefined;
   /** Speaks a conversational line. */
   say: (text: string) => string;
   /** The scripted opening (`ScriptedLines.opening`). */
@@ -27,7 +32,9 @@ export interface GreetingHost {
  * as the colleague taking over and acknowledges the request, with the handover in its context.
  * Without inference, for an agent that follows a flow (its start node speaks), for a return, or
  * when the model gives no usable line, the scripted opening plays instead; no inference is asked
- * for a greeting that is not `llm`.
+ * for a greeting that is not `llm`. Its context holds untrusted data (the caller's words, another
+ * model's summary), so the greeting is checked as any reply is, and one the checks would block or
+ * replace is not said: the scripted opening plays instead.
  */
 export class TransferGreeting {
   private readonly model?: Inference;
@@ -48,7 +55,8 @@ export class TransferGreeting {
   }
 
   async *opening(host: GreetingHost): AsyncGenerator<string> {
-    const line = this.model && (await this.ask(this.model, host));
+    const asked = this.model && (await this.ask(this.model, host));
+    const line = asked !== undefined && host.check(asked) === asked ? asked : undefined;
     if (line === undefined) return yield* host.scripted();
     const disclosure = host.disclosure();
     if (disclosure !== undefined) yield disclosure;

@@ -175,6 +175,7 @@ export class AgentBehavior extends AgentSegment {
             gate: this.gate,
             // AGT-5: until a flow confirms identity, neither carries this call's variable values.
             briefing: this.briefing(variables),
+            ...this.guardrailSources(variables),
             facts: flowFacts(this.flow, this.variables.facts(variables)),
             turnInput: { input, history, variables, today: this.variables.today() },
             signal: controller.signal,

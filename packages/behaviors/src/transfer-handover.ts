@@ -112,6 +112,11 @@ export function handoverSection(inbound: TransferHandover, room: number): string
   return [head, ...body, ...transcript, FENCE_CLOSE].join('\n');
 }
 
+/** What the caller said before the handover; nothing for a call that was not handed over. */
+export function handoverHeard(inbound?: TransferHandover): string[] {
+  return inbound?.transcript.flatMap((turn) => (turn.role === 'caller' ? [turn.text] : [])) ?? [];
+}
+
 /**
  * The agent's assembled context (`assembleBoundedContext`) with, on a segment that took over a
  * routed call, the handover section after it, inside the context budget.
