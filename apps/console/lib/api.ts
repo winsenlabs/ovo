@@ -170,8 +170,7 @@ export async function apiRequest<T>(
   if (response.status === 401 && typeof window !== 'undefined')
     window.dispatchEvent(new Event('ovo:session-ended'));
   const payload = (await decode(response)) as
-    | { error?: { code?: string; message?: string; details?: Record<string, unknown> } }
-    | T;
+    { error?: { code?: string; message?: string; details?: Record<string, unknown> } } | T;
   if (!response.ok) {
     const error =
       payload && typeof payload === 'object' && 'error' in payload ? payload.error : undefined;

@@ -1,10 +1,16 @@
 import { createServer } from 'node:http';
-const server = createServer((request, response) => {
+import { handleDeskApi } from './fixtures/desk-api.mjs';
+
+const fixtureScenario = (request) =>
+  /ovo_fixture=(rich|empty|down|disabled)/.exec(request.headers.cookie ?? '')?.[1] ?? 'rich';
+
+const server = createServer(async (request, response) => {
   if (request.url === '/health') {
     response.writeHead(200);
     response.end('ok');
     return;
   }
+  if (await handleDeskApi(request, response, fixtureScenario(request))) return;
   if (request.url !== '/v1/auth/me') {
     response.writeHead(404, { 'content-type': 'application/json' });
     response.end(JSON.stringify({ error: { code: 'not_found' } }));

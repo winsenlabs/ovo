@@ -4,7 +4,12 @@ import { DataTableV2, type ColumnV2 } from '../../components/ui/data-table-v2';
 import { EmptyStateV2 } from '../../components/ui/feedback-v2';
 import { SectionCard } from '../../components/ui/section-card';
 import { StatusBadgeV2 } from '../../components/ui/status-badge';
-import { formatClock, ticketStateLabel, ticketWaitMs, type DeskTicket } from '../../lib/derive/desk';
+import {
+  formatClock,
+  ticketStateLabel,
+  ticketWaitMs,
+  type DeskTicket,
+} from '../../lib/derive/desk';
 import type { HumanTicketView } from '../../lib/types/desk';
 
 interface QueueActions {
@@ -45,7 +50,9 @@ function columns(actions: QueueActions): ColumnV2<DeskTicket>[] {
       header: 'Wait',
       align: 'end',
       sortValue: (entry) => ticketWaitMs(entry, now),
-      cell: (entry) => <span className="mono desk-wait">{formatClock(ticketWaitMs(entry, now))}</span>,
+      cell: (entry) => (
+        <span className="mono desk-wait">{formatClock(ticketWaitMs(entry, now))}</span>
+      ),
     },
     {
       id: 'priority',

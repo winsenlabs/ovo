@@ -47,8 +47,8 @@ export function CommonFields({
         </FormField>
         {!creating && (
           <p className="muted">
-            This is a {draft.kind === 'external' ? 'webhook queue' : 'operator desk queue'}. The type
-            cannot change; create another queue instead.
+            This is a {draft.kind === 'external' ? 'webhook queue' : 'operator desk queue'}. The
+            type cannot change; create another queue instead.
           </p>
         )}
         <NumberField
@@ -63,7 +63,11 @@ export function CommonFields({
         />
       </FormSection>
       <FormSection title="Hours">
-        <HoursEditor value={draft.hours} errors={errors} onChange={(value) => patch('hours', value)} />
+        <HoursEditor
+          value={draft.hours}
+          errors={errors}
+          onChange={(value) => patch('hours', value)}
+        />
       </FormSection>
       <FormSection
         title="What the caller hears"

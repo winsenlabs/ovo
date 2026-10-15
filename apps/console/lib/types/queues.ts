@@ -158,7 +158,15 @@ export interface WebhookTestAttempt {
 export interface WebhookTestResult {
   request: { url: string; headers: Record<string, string>; body: unknown };
   attempts: WebhookTestAttempt[];
-  answer?: { kind: string; reason?: string; destination?: Record<string, unknown> };
+  /** Why delivery failed (`timeout`, `transport`, `http_503`...), when it did. */
+  failure?: string;
+  answer?: {
+    kind: string;
+    reason?: string;
+    destination?: Record<string, unknown>;
+    /** Whether the destination the third party named is inside the queue's allow-list. */
+    destinationCheck?: 'allowed' | 'refused';
+  };
 }
 
 export interface OperatorRow {

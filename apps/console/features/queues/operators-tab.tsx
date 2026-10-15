@@ -78,19 +78,41 @@ export function OperatorsTab() {
         priority: 'low',
         cell: (row) => (row.languages.length ? row.languages.join(', ') : '—'),
       },
-      { id: 'capacity', header: 'Calls at once', align: 'end', cell: (row) => `${row.active} of ${row.capacity}` },
+      {
+        id: 'capacity',
+        header: 'Calls at once',
+        align: 'end',
+        cell: (row) => `${row.active} of ${row.capacity}`,
+      },
       {
         id: 'presence',
         header: 'Presence',
-        cell: (row) => <StatusBadgeV2 value={row.status.toLowerCase()} label={row.status === 'AVAILABLE' ? 'Available' : row.status === 'AWAY' ? 'Away' : 'Offline'} />,
+        cell: (row) => (
+          <StatusBadgeV2
+            value={row.status.toLowerCase()}
+            label={
+              row.status === 'AVAILABLE' ? 'Available' : row.status === 'AWAY' ? 'Away' : 'Offline'
+            }
+          />
+        ),
       },
-      { id: 'seen', header: 'Last seen', priority: 'low', cell: (row) => <RelativeTime value={row.lastSeenAt} /> },
+      {
+        id: 'seen',
+        header: 'Last seen',
+        priority: 'low',
+        cell: (row) => <RelativeTime value={row.lastSeenAt} />,
+      },
       {
         id: 'actions',
         header: 'Actions',
         align: 'end',
         cell: (row) => (
-          <button type="button" className="button" aria-label={`Edit ${row.displayName || row.userId}`} onClick={() => setEditing({ operator: row })}>
+          <button
+            type="button"
+            className="button"
+            aria-label={`Edit ${row.displayName || row.userId}`}
+            onClick={() => setEditing({ operator: row })}
+          >
             Edit
           </button>
         ),

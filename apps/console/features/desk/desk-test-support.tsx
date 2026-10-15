@@ -1,7 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import type { DeskStreamOptions } from '../../lib/data/desk-stream';
-import type { DeskAcceptResult, DeskMe, HumanTicketView, TicketContext } from '../../lib/types/desk';
+import type {
+  DeskAcceptResult,
+  DeskMe,
+  HumanTicketView,
+  TicketContext,
+} from '../../lib/types/desk';
 
 /** Shared mocks and fixtures for the operator desk tests (split by scenario to stay readable). */
 export const api = {
@@ -39,7 +44,10 @@ export const roomModule = (original: typeof import('@winsendotai/ovo-ui/room')) 
   ...original,
   createRoomClient: vi.fn(async () => room.client!),
   probeMicrophone: room.probe,
-  listAudioDevices: vi.fn(async () => ({ inputs: [{ id: 'mic-1', label: 'Headset' }], outputs: [] })),
+  listAudioDevices: vi.fn(async () => ({
+    inputs: [{ id: 'mic-1', label: 'Headset' }],
+    outputs: [],
+  })),
 });
 
 export const actualRoom = () =>
@@ -73,7 +81,14 @@ export const queue = (patch: Partial<DeskMe['queues'][number]> = {}): DeskMe['qu
 });
 
 export const me = (patch: Partial<DeskMe> = {}): DeskMe => ({
-  profile: { userId: 'u1', displayName: 'Asha', enabled: true, teamIds: ['support'], languages: ['hi'], capacity: 1 },
+  profile: {
+    userId: 'u1',
+    displayName: 'Asha',
+    enabled: true,
+    teamIds: ['support'],
+    languages: ['hi'],
+    capacity: 1,
+  },
   status: 'AVAILABLE',
   queues: [queue()],
   roomProvider: { provider: 'fake', serverUrl: 'wss://room.test' },
@@ -110,7 +125,9 @@ export const accepted = (patch: Partial<DeskAcceptResult> = {}): DeskAcceptResul
   ...patch,
 });
 
-export async function setup(options: { me?: DeskMe; tickets?: HumanTicketView[]; mine?: HumanTicketView[] } = {}) {
+export async function setup(
+  options: { me?: DeskMe; tickets?: HumanTicketView[]; mine?: HumanTicketView[] } = {},
+) {
   api.me.mockResolvedValue(options.me ?? me());
   api.roomStatus.mockResolvedValue({
     enabled: true,
@@ -126,7 +143,6 @@ export async function setup(options: { me?: DeskMe; tickets?: HumanTicketView[];
   render(<DeskView />);
   await screen.findByRole('heading', { name: 'Operator desk' });
 }
-
 
 /** Resets every mock and installs a fresh fake room before each test. */
 export async function resetDesk() {

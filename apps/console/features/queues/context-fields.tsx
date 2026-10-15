@@ -20,8 +20,16 @@ export function ContextFields({
       title="What the queue is told"
       description={`The only caller data ${who} receives. The caller's number and the transcript are off by default for a webhook queue.`}
     >
-      <SwitchField label="Caller's number" checked={value.callerId} onChange={(v) => set('callerId', v)} />
-      <SwitchField label="Number they dialled" checked={value.calledNumber} onChange={(v) => set('calledNumber', v)} />
+      <SwitchField
+        label="Caller's number"
+        checked={value.callerId}
+        onChange={(v) => set('callerId', v)}
+      />
+      <SwitchField
+        label="Number they dialled"
+        checked={value.calledNumber}
+        onChange={(v) => set('calledNumber', v)}
+      />
       <SwitchField label="Language" checked={value.language} onChange={(v) => set('language', v)} />
       <SwitchField label="Intent" checked={value.intent} onChange={(v) => set('intent', v)} />
       <SwitchField
@@ -39,7 +47,11 @@ export function ContextFields({
         value={value.transcriptTurns}
         onChange={(v) => set('transcriptTurns', v)}
       />
-      <SwitchField label="Link to the transcript" checked={value.transcriptLink} onChange={(v) => set('transcriptLink', v)} />
+      <SwitchField
+        label="Link to the transcript"
+        checked={value.transcriptLink}
+        onChange={(v) => set('transcriptLink', v)}
+      />
       {kind === 'external' ? (
         <TagsField
           id="queue-ctx-vars"

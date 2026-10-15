@@ -32,7 +32,10 @@ export function applyCaption(lines: readonly CaptionLine[], caption: RoomCaption
 }
 
 /** Captions as `Conversation` lines, timed from the moment the operator joined. */
-export function liveConversation(lines: readonly CaptionLine[], startedAt: number): ConversationLine[] {
+export function liveConversation(
+  lines: readonly CaptionLine[],
+  startedAt: number,
+): ConversationLine[] {
   return lines.map((line) => ({
     id: line.id,
     speaker: line.role,

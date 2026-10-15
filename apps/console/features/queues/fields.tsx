@@ -112,7 +112,13 @@ export function SelectField({
   return (
     <FormField id={id} label={label} help={help} error={error}>
       {(control) => (
-        <Select id={control.id} value={value} placeholder={placeholder} options={options} onChange={onChange} />
+        <Select
+          id={control.id}
+          value={value}
+          placeholder={placeholder}
+          options={options}
+          onChange={onChange}
+        />
       )}
     </FormField>
   );

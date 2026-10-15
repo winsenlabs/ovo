@@ -4,7 +4,9 @@ import { ApiError } from '../../lib/api';
 import { externalRecord, managedRecord, queuesApi, resetQueues } from './queues-test-support';
 import { QueueDrawer } from './queue-drawer';
 
-vi.mock('../../lib/data/queues-api', async () => (await import('./queues-test-support')).queuesApiModule());
+vi.mock('../../lib/data/queues-api', async () =>
+  (await import('./queues-test-support')).queuesApiModule(),
+);
 vi.mock('../../lib/api', async (original) => ({
   ...(await original<typeof import('../../lib/api')>()),
   apiRequest: vi.fn(async () => ({
@@ -15,7 +17,9 @@ vi.mock('../../lib/api', async (original) => ({
 const onClose = vi.fn();
 const onSaved = vi.fn();
 const open = (props: Partial<Parameters<typeof QueueDrawer>[0]> = {}) =>
-  render(<QueueDrawer open kind="managed" canTest onClose={onClose} onSaved={onSaved} {...props} />);
+  render(
+    <QueueDrawer open kind="managed" canTest onClose={onClose} onSaved={onSaved} {...props} />,
+  );
 
 beforeEach(() => {
   resetQueues();
@@ -66,7 +70,9 @@ describe('creating an operator desk queue', () => {
     queuesApi.create.mockRejectedValue(new ApiError(409, 'queue_name_taken', 'taken'));
     open();
     fireEvent.click(screen.getByRole('button', { name: 'Create queue' }));
-    expect(await screen.findByText('Another queue already has this name.', { selector: 'small' })).toBeTruthy();
+    expect(
+      await screen.findByText('Another queue already has this name.', { selector: 'small' }),
+    ).toBeTruthy();
   });
 
   it('explains a stale edit instead of overwriting', async () => {
@@ -74,7 +80,11 @@ describe('creating an operator desk queue', () => {
     open({ record: managedRecord() });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(await screen.findByText(/Someone else changed this queue/)).toBeTruthy();
-    expect(queuesApi.update).toHaveBeenCalledWith('q-desk', expect.objectContaining({ name: 'Support desk' }), 3);
+    expect(queuesApi.update).toHaveBeenCalledWith(
+      'q-desk',
+      expect.objectContaining({ name: 'Support desk' }),
+      3,
+    );
   });
 
   it('builds hold steps and a timeout chain', async () => {
@@ -84,7 +94,9 @@ describe('creating an operator desk queue', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Custom hold experience' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add hold step' }));
     fireEvent.change(screen.getByLabelText('Hold step 2 type'), { target: { value: 'line' } });
-    fireEvent.change(screen.getByLabelText('Hold step 2 line (en)'), { target: { value: 'Thanks for waiting.' } });
+    fireEvent.change(screen.getByLabelText('Hold step 2 line (en)'), {
+      target: { value: 'Thanks for waiting.' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Add timeout step' }));
     fireEvent.click(screen.getByRole('button', { name: 'Create queue' }));
     await waitFor(() => expect(queuesApi.create).toHaveBeenCalled());
@@ -100,7 +112,9 @@ describe('creating a webhook queue', () => {
     queuesApi.create.mockResolvedValue(externalRecord());
     open({ kind: 'external' });
     fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'Acme' } });
-    fireEvent.change(screen.getByLabelText(/Endpoint URL/), { target: { value: 'https://acd.example.com/h' } });
+    fireEvent.change(screen.getByLabelText(/Endpoint URL/), {
+      target: { value: 'https://acd.example.com/h' },
+    });
     await screen.findByRole('option', { name: 'ACD signing secret' });
     fireEvent.change(screen.getByLabelText('Signing secret'), { target: { value: 'acd-hmac' } });
     const prefixes = screen.getByLabelText('Allowed number prefixes');
@@ -130,38 +144,52 @@ describe('creating a webhook queue', () => {
     );
     open({ kind: 'external' });
     fireEvent.click(screen.getByRole('button', { name: 'Create queue' }));
-    expect(await screen.findByText('Allow at least one number prefix', { selector: 'small' })).toBeTruthy();
+    expect(
+      await screen.findByText('Allow at least one number prefix', { selector: 'small' }),
+    ).toBeTruthy();
   });
 
   it('renders a live preview of the mapped body and surfaces mapping issues', async () => {
     queuesApi.preview.mockResolvedValue({
       body: { callId: 'call-sample', language: 'en' },
-      issues: [{ path: ['body', 'ani'], message: 'caller.number is switched off by the context policy' }],
+      issues: [
+        { path: ['body', 'ani'], message: 'caller.number is switched off by the context policy' },
+      ],
     });
     open({ kind: 'external' });
     fireEvent.click(screen.getByRole('switch', { name: 'Map the fields myself' }));
     expect(await screen.findByText(/"callId": "call-sample"/)).toBeTruthy();
     expect(screen.getByText(/caller.number is switched off/)).toBeTruthy();
     expect(queuesApi.preview).toHaveBeenCalled();
-    const options = within(screen.getByLabelText('Call field to insert')).getAllByRole('option').map((o) => o.textContent);
+    const options = within(screen.getByLabelText('Call field to insert'))
+      .getAllByRole('option')
+      .map((o) => o.textContent);
     expect(options.join(' ')).not.toContain('caller.number');
   });
 
   it('inserts a picked field into the mapping', async () => {
     open({ kind: 'external' });
     fireEvent.click(screen.getByRole('switch', { name: 'Map the fields myself' }));
-    fireEvent.change(screen.getByLabelText('Call field to insert'), { target: { value: 'queue.name' } });
+    fireEvent.change(screen.getByLabelText('Call field to insert'), {
+      target: { value: 'queue.name' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Insert' }));
     await waitFor(() =>
-      expect((screen.getByLabelText('Mapping (JSON)') as HTMLTextAreaElement).value).toContain('"name": {'),
+      expect((screen.getByLabelText('Mapping (JSON)') as HTMLTextAreaElement).value).toContain(
+        '"name": {',
+      ),
     );
   });
 
   it('blocks a reserved header and adds a valid one', () => {
     open({ kind: 'external' });
-    fireEvent.change(screen.getByLabelText('New header name'), { target: { value: 'Authorization' } });
+    fireEvent.change(screen.getByLabelText('New header name'), {
+      target: { value: 'Authorization' },
+    });
     expect(screen.getByText(/set by OVO and cannot be overridden/)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Add header' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Add header' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
     fireEvent.change(screen.getByLabelText('New header name'), { target: { value: 'X-Region' } });
     fireEvent.change(screen.getByLabelText('New header value'), { target: { value: 'in' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add header' }));

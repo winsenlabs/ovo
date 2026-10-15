@@ -18,7 +18,12 @@ describe('blankQueue', () => {
   it('starts an external queue with the contract defaults and an empty allow-list', () => {
     const queue = blankQueue('external');
     if (queue.kind !== 'external') throw new Error('kind');
-    expect(queue.webhook.retry).toEqual({ attempts: 3, baseMs: 500, maxMs: 5_000, deadlineMs: 15_000 });
+    expect(queue.webhook.retry).toEqual({
+      attempts: 3,
+      baseMs: 500,
+      maxMs: 5_000,
+      deadlineMs: 15_000,
+    });
     expect(queue.webhook.method).toBe('POST');
     expect(queue.destination.allowE164Prefixes).toEqual([]);
     expect(queue.context).toEqual(EXTERNAL_CONTEXT);
@@ -84,7 +89,10 @@ describe('summaries', () => {
     expect(
       hoursSummary({
         timezone: 'Asia/Kolkata',
-        weekly: { mon: [{ start: '09:00', end: '18:00' }], tue: [{ start: '09:00', end: '18:00' }] },
+        weekly: {
+          mon: [{ start: '09:00', end: '18:00' }],
+          tue: [{ start: '09:00', end: '18:00' }],
+        },
         closed: [],
       }),
     ).toBe('2 days, 09:00–18:00 Asia/Kolkata');
@@ -106,7 +114,9 @@ describe('mapping helpers', () => {
     const paths = availableContextFields(EXTERNAL_CONTEXT).map((field) => field.path);
     expect(paths).not.toContain('caller.number');
     expect(paths).toContain('route.language');
-    expect(availableContextFields({ ...EXTERNAL_CONTEXT, callerId: true }).map((f) => f.path)).toContain('caller.number');
+    expect(
+      availableContextFields({ ...EXTERNAL_CONTEXT, callerId: true }).map((f) => f.path),
+    ).toContain('caller.number');
   });
   it('treats framing, auth and OVO headers as reserved, case-insensitively', () => {
     expect(isReservedHeader('Authorization')).toBe(true);
