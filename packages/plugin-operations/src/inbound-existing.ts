@@ -11,6 +11,7 @@ export interface ExistingRow extends CallbackAdmissionRow {
   job_id: string | null;
   session_id: string | null;
   release_id: string | null;
+  routing_release_id: string | null;
   route_version: string | null;
   carrier_plugin_id: string | null;
   carrier_binding_id: string | null;

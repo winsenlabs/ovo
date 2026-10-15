@@ -129,6 +129,8 @@ export interface CampaignCounters {
 export interface OperationsServiceConfig {
   permittedFromNumbers: readonly string[];
   liveEnabled?: boolean;
+  /** OVO_ROUTING_ENABLED (Wave 15). Off: a routed number is admitted to its default agent. */
+  routingEnabled?: boolean;
 }
 
 export interface DispatchRecord {
@@ -186,7 +188,11 @@ export interface InboundDecisionRecord {
 export interface InboundRoute {
   organizationId: string;
   phoneNumber: string;
-  releaseId: string;
+  /** Exactly one of releaseId (a direct agent) and routingReleaseId (Wave 15) is set. */
+  releaseId: string | null;
+  routingReleaseId: string | null;
+  /** The routing release's point and version, for a routed number. */
+  routing: { pointId: string; pointName: string; version: number } | null;
   variables: Record<string, string>;
   enabled: boolean;
   version: number;
@@ -194,13 +200,16 @@ export interface InboundRoute {
   updatedAt: Date;
 }
 
-export interface InboundRouteInput {
+/** A number answers with one agent release, or (Wave 15) through one routing release. */
+export type InboundRouteInput = {
   phoneNumber: string;
-  releaseId: string;
   variables?: Record<string, string>;
   enabled?: boolean;
   expectedVersion: number | null;
-}
+} & (
+  | { releaseId: string; routingReleaseId?: undefined }
+  | { routingReleaseId: string; releaseId?: undefined }
+);
 
 export type InboundGatewayDecision =
   | {

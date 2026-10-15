@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient, QueryResultRow } from 'pg';
 import { recordBusy } from './inbound-existing.ts';
-import type { InboundCarrierRoute } from './inbound-carrier.ts';
+import type { EffectiveInboundRoute } from './routing/effective-route.ts';
 import type { InboundGatewayCall, InboundGatewayDecision, InboundOverflowPolicy } from './types.ts';
 
 type PolicyRow = QueryResultRow & { policy: InboundOverflowPolicy };
@@ -10,7 +10,7 @@ export async function inboundOverflow(
   client: PoolClient,
   organizationId: string,
   input: InboundGatewayCall,
-  route: InboundCarrierRoute,
+  route: EffectiveInboundRoute,
   callbackOutbound: { enabled: boolean; permittedFromNumbers: readonly string[] },
 ): Promise<InboundGatewayDecision> {
   const policy = await client.query<PolicyRow>(
@@ -25,8 +25,8 @@ export async function inboundOverflow(
       `INSERT INTO ovo_ops_inbound_admissions
           (id, organization_id, call_id, decision, detail, from_number, to_number,
             route_version, release_id, variables, wait_expires_at,
-            carrier_plugin_id, carrier_binding_id)
-         VALUES ($1,$2,$3,'wait',$4::jsonb,$5,$6,$7,$8,$9::jsonb,$10,$11,$12)`,
+            carrier_plugin_id, carrier_binding_id, routing_release_id)
+         VALUES ($1,$2,$3,'wait',$4::jsonb,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13)`,
       [
         admissionId,
         organizationId,
@@ -40,6 +40,7 @@ export async function inboundOverflow(
         expiresAt,
         route.carrier_plugin_id,
         route.carrier_binding_id,
+        route.routing_release_id,
       ],
     );
     return {
@@ -67,8 +68,8 @@ export async function inboundOverflow(
     await client.query(
       `INSERT INTO ovo_ops_inbound_admissions
            (id, organization_id, call_id, decision, detail, from_number, to_number,
-            route_version, release_id, variables)
-         VALUES ($1,$2,$3,'callback',$4::jsonb,$5,$6,$7,$8,$9::jsonb)`,
+            route_version, release_id, variables, routing_release_id)
+         VALUES ($1,$2,$3,'callback',$4::jsonb,$5,$6,$7,$8,$9::jsonb,$10)`,
       [
         admissionId,
         organizationId,
@@ -77,8 +78,10 @@ export async function inboundOverflow(
         input.fromNumber,
         input.toNumber,
         route.version,
-        route.release_id,
+        // An outbound callback cannot be routed: a routed number calls back its default agent.
+        route.routing?.defaultReleaseId ?? route.release_id,
         JSON.stringify(route.variables),
+        route.routing_release_id,
       ],
     );
     return {
