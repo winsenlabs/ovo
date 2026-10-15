@@ -224,7 +224,7 @@ export class RouterCore {
   private finish(node: RoutingNode, result: FallbackResult, signal: AbortSignal): RouterReply {
     if (result.kind === 'reask') return this.say(result.line);
     const { resolution } = result;
-    const handsOn = resolution.kind === 'agent' || resolution.kind === 'queue';
+    const handsOn = 'handoffId' in resolution;
     if (handsOn) {
       signal.throwIfAborted();
       this.ports.handoff.commit(resolution.handoffId);

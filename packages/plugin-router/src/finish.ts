@@ -7,6 +7,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { queueLine } from './begin.ts';
 import type { RouteRecorder } from './events.ts';
+import { boundQueue } from './human.ts';
 import { BUILT_IN_LINES, pickLine } from './lines.ts';
 import type { Resolution, RouteOutcome as Outcome } from './targets.ts';
 
@@ -31,7 +32,7 @@ export function decisionPayload(input: {
   const { outcome, context } = input;
   const values = Object.entries(context.values).slice(0, CONTEXT_KEYS);
   const agent =
-    outcome.kind === 'end' || outcome.kind === 'queue'
+    outcome.kind === 'end' || outcome.kind === 'queue' || outcome.kind === 'human'
       ? undefined
       : { agentId: outcome.agentId, releaseId: outcome.releaseId };
   const member =
@@ -41,12 +42,15 @@ export function decisionPayload(input: {
         ? { poolId: outcome.poolId }
         : undefined;
   const degraded =
-    outcome.kind === 'callback' || outcome.kind === 'queue' ? undefined : outcome.degraded;
+    outcome.kind === 'callback' || outcome.kind === 'queue' || outcome.kind === 'human'
+      ? undefined
+      : outcome.degraded;
   return {
     routingPointId: input.call.routingPointId,
     routingReleaseId: input.call.routingReleaseId,
     path: outcome.path.slice(-32),
-    target: outcome.kind === 'queue' ? 'agent' : outcome.kind,
+    // R3 adds `human` to the decision targets; the queue is the host's to record (ids only).
+    target: (outcome.kind === 'queue' ? 'agent' : outcome.kind) as RouteDecisionPayload['target'],
     ...agent,
     ...member,
     ...(context.language ? { language: context.language } : {}),
@@ -104,7 +108,7 @@ export function recordFinish(
 
 /**
  * What the router says as it finishes: the connecting line before a handoff, the queue line before
- * a queued one, else the end line.
+ * a queued one, the queue's own announcement before a human queue, else the end line.
  */
 export function finishLine(
   resolution: Resolution,
@@ -112,6 +116,10 @@ export function finishLine(
   language: string | undefined,
 ): string {
   if (resolution.kind === 'queue') return queueLine(snapshot, language);
+  if (resolution.kind === 'human') {
+    const lines = boundQueue(snapshot, resolution.queueId)?.announcement ?? BUILT_IN_LINES.human;
+    return pickLine(lines, language, snapshot.language.default);
+  }
   if (resolution.kind !== 'agent') return resolution.line;
   const lines = snapshot.connecting ?? BUILT_IN_LINES.connecting;
   return pickLine(lines, language, snapshot.language.default);

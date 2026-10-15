@@ -1,7 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { HandoffBeginFailure, MemberClaim, RouterEntry } from '@winsendotai/ovo-contracts';
-import type { EngineScript } from '../src/testing.ts';
+import type {
+  HandoffBeginFailure,
+  MemberClaim,
+  RouterEntry,
+  RoutingReleaseSnapshot,
+} from '@winsendotai/ovo-contracts';
+import { exampleRoutingSnapshot, type EngineScript } from '../src/testing.ts';
 import { dtmf, idle, opening, routerHarness } from './harness.ts';
 
 /**
@@ -21,6 +26,8 @@ interface Conversation {
   prepare?: string;
   begin?: true | HandoffBeginFailure;
   transfer?: Record<string, unknown>;
+  /** R3: the release binds the human queue `desk`, and the `intent` node falls back through these. */
+  humanQueue?: { fallback: unknown[] };
   entry?: RouterEntry;
   begun?: Record<string, unknown>[];
   turns: (
@@ -53,8 +60,31 @@ function beginScript(begin: Conversation['begin']) {
   };
 }
 
+const QUEUE_ID = '00000000-0000-4000-8000-0000000000e1';
+
+function withQueue(conversation: Conversation): RoutingReleaseSnapshot {
+  const parsed = exampleRoutingSnapshot((raw) => {
+    raw.schemaVersion = 2;
+    raw.transfer = conversation.transfer;
+    raw.nodes[0].fallback = conversation.humanQueue!.fallback;
+  });
+  return {
+    ...parsed,
+    queues: {
+      [QUEUE_ID]: {
+        id: QUEUE_ID,
+        version: 1,
+        key: 'desk',
+        priority: 0,
+        definition: { announcement: { en: 'A colleague will take over.' } },
+      },
+    },
+  } as RoutingReleaseSnapshot;
+}
+
 async function replay(conversation: Conversation) {
   const begin = beginScript(conversation.begin);
+  const human = conversation.humanQueue;
   const h = routerHarness({
     script: conversation.engines,
     ...(conversation.transfer
@@ -62,7 +92,14 @@ async function replay(conversation: Conversation) {
           patch: (raw) => {
             raw.schemaVersion = 2;
             raw.transfer = conversation.transfer;
+            if (human) raw.nodes[0].fallback = human.fallback;
           },
+        }
+      : {}),
+    // Schema 3 pins each bound queue under `queues`; the contracts parse it from R3.
+    ...(human
+      ? {
+          snapshot: withQueue(conversation),
         }
       : {}),
     ...(conversation.claims === 'full'
@@ -101,7 +138,10 @@ async function replay(conversation: Conversation) {
     last = reply.epoch;
   }
   expect(said).toEqual(conversation.says);
-  const routeEvents = h.events.filter((event) => event.type.startsWith('route.'));
+  // A human queue's `route.decision` names target `human`, which the contracts learn in R3: until
+  // then the session-event parser drops it from the checked sink, so these read the recorder.
+  const recorded = human ? h.core.recorder.events : h.events;
+  const routeEvents = recorded.filter((event) => event.type.startsWith('route.'));
   expect(routeEvents.map((event) => event.type)).toEqual(conversation.events.map(([type]) => type));
   routeEvents.forEach((event, index) =>
     expect(event.payload).toMatchObject(conversation.events[index]![1]),
@@ -121,7 +161,7 @@ async function replay(conversation: Conversation) {
 describe('router replay', () => {
   it('has conversations to replay', () => {
     expect(conversations.length).toBeGreaterThanOrEqual(5);
-    expect(transfers.length).toBeGreaterThanOrEqual(4);
+    expect(transfers.length).toBeGreaterThanOrEqual(6);
   });
 
   it.each(conversations.map((conversation) => [conversation.name, conversation] as const))(

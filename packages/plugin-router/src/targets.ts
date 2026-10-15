@@ -7,6 +7,7 @@ import {
   type RoutingTarget,
 } from '@winsendotai/ovo-contracts';
 import { queueHandoff, requestHandoff, requestMode, type HandoffEnv } from './begin.ts';
+import { boundQueue } from './human.ts';
 import { pickLine } from './lines.ts';
 import { pickMember } from './members.ts';
 
@@ -25,6 +26,8 @@ export type Resolution =
     }
   /** R2: every eligible member of the pool is full; the host holds the caller and keeps claiming. */
   | { kind: 'queue'; poolId: string; handoffId: string }
+  /** R3: a human queue; the host holds the caller while its ticket waits (`queueId` is the binding key). */
+  | { kind: 'human'; queueId: string; handoffId: string }
   | { kind: 'end'; line: string; disposition?: string; degraded?: string }
   | { kind: 'callback'; line: string; inMinutes: number; agentId: string; releaseId: string };
 
@@ -112,12 +115,30 @@ async function queue(
   };
 }
 
+/** A human queue: begun like a handoff, with no ticket until the host commits it (R3). */
+async function human(queueId: string, env: TargetEnv): Promise<Attempt> {
+  if (!env.handoff.begin || !boundQueue(env.snapshot, queueId))
+    return { ok: false, reason: 'human_queue_unavailable' };
+  const answer = await requestHandoff(env, {
+    kind: 'human',
+    ...requestMode(env.mode),
+    queueId,
+    variables: routeVariables(env.context),
+    route: { path: env.path.slice(-32) },
+  } as unknown as Parameters<typeof requestHandoff>[1]);
+  if (!answer.ok) return answer;
+  return { ok: true, resolution: { kind: 'human', queueId, handoffId: answer.handoffId } };
+}
+
 /**
  * Resolves one target (§7.5 step 4). A pool picks and claims a member, an agent is direct; both are
  * then prepared (or, R2, begun) through the handoff port, which composes the target graph without
  * starting it; a pool whose members are all full may be queued instead (`queue`). An
- * end or a callback resolves to its line. A human queue is R3: it fails `human_queue_unavailable`,
- * and so does every other failure, by reason, for the caller's fallback chain to move on.
+ * end or a callback resolves to its line. A human queue (R3) is begun through the same port when
+ * the release binds it and transfers are on: its refusals (`queue_closed`, `no_operators`,
+ * `queue_full`, `queue_unavailable`, `queue_unknown`) fail the attempt, so the node's chain moves
+ * on; an unbound queue, or no `begin`, is `human_queue_unavailable` (skipped, as in R2). Every
+ * other failure comes back by reason, for the caller's fallback chain to move on.
  */
 export async function attemptTarget(target: RoutingTarget, env: TargetEnv): Promise<Attempt> {
   const { snapshot, context } = env;
@@ -139,7 +160,7 @@ export async function attemptTarget(target: RoutingTarget, env: TargetEnv): Prom
       return { ok: true, resolution: { kind: 'callback', ...resolution } };
     }
     case 'human':
-      return { ok: false, reason: 'human_queue_unavailable' };
+      return human(target.queueId, env);
     case 'agent': {
       const agent = pinned(target.agent);
       return agent ? prepare(env, agent) : { ok: false, reason: 'release_unpinned' };

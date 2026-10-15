@@ -7,6 +7,11 @@ import type { RouteLines } from '@winsendotai/ovo-contracts';
  */
 export const BUILT_IN_LINES = Object.freeze({
   connecting: { en: 'Connecting you now.', hi: 'आपकी कॉल अभी जोड़ी जा रही है।' },
+  /** Before a human queue's hold, when the queue authors no announcement of its own (R3). */
+  human: {
+    en: "I'm connecting you to a colleague. Please hold.",
+    hi: 'आपको एक सहयोगी से जोड़ा जा रहा है। कृपया होल्ड करें।',
+  },
   end: {
     en: 'Sorry, I could not connect your call right now. Please call again later. Goodbye.',
     hi: 'माफ़ कीजिए, अभी आपकी कॉल नहीं जुड़ पाई। कृपया बाद में फिर से कॉल करें। धन्यवाद।',
