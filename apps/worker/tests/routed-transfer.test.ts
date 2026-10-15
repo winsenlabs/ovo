@@ -213,10 +213,11 @@ describe('routed calls with in-call transfers on (transfer design 7.1-7.3)', () 
       [3, 'agent', 'transfer'],
     ]);
     const completed = events.filter(([type]) => type === 'transfer.completed');
+    // One transfer: the re-route and its final handoff complete it once.
     expect(completed.map(([, payload]) => [payload.transfer, payload.outcome])).toEqual([
       [1, 'connected'],
-      [1, 'connected'],
     ]);
+    expect(call.audits).toContainEqual(['transfer.rerouted', { transfer: 1, segment: 2 }]);
   });
 
   it('keeps Wave 15 routing exactly when the flag is off: no begin, no transfer port', async () => {

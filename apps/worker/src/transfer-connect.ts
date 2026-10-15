@@ -44,7 +44,9 @@ export async function connectTransfer(
   let triedDefault = false;
   const finish = (outcome: TransferOutcome, to?: SegmentHistoryEntry) => {
     const held = hold.started ? clock.now() - gapFrom : 0;
-    if (run.transfer !== undefined)
+    // A re-route is half a transfer: it completes when the router it brought back hands on.
+    if (to?.role === 'router') deps.audit('transfer.rerouted', { ...tags, segment: to.index });
+    else if (run.transfer !== undefined)
       deps.record('transfer.completed', {
         ...transferCompleted(run, outcome, {
           ...{ holdMs: held, steps, gapMs: clock.now() - gapFrom },

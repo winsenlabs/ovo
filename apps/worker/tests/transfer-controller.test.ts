@@ -242,6 +242,7 @@ describe('TransferController: re-routes and the hold after start (transfer desig
       reason: 'reroute',
       transfer: 1,
     });
+    expect(h.types()).not.toContain('transfer.completed');
     // The router's own handoff from the re-route counts under the same transfer.
     const handoff = await h.controller.begin(agentRequest('release-b'), signal());
     expect(handoff).toMatchObject({ ok: true });
