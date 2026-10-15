@@ -415,6 +415,19 @@ describe.skipIf(!roomServerBinary())('managed human queue: the waiting paths (R3
                 ),
               { timeout: 30_000, interval: 500 },
             );
+            // The reaper recorded the room closed (it is not visited again).
+            await vi.waitFor(
+              async () =>
+                expect(
+                  (
+                    await db.query(
+                      "SELECT 1 FROM ovo_hq_ticket_events WHERE ticket_id = $1 AND kind = 'room_closed'",
+                      [ticketId],
+                    )
+                  ).rowCount,
+                ).toBe(1),
+              { timeout: 20_000, interval: 500 },
+            );
             // The reaper removed the operator along with the room.
             await vi.waitFor(() => expect(operator.disconnected).toBe(true), { timeout: 10_000 });
             await operator.disconnect();
