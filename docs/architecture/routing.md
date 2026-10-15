@@ -111,6 +111,17 @@ The bind also captures the default agent's variable schema (`default_variables_s
 declares. A number bound before 012 has no captured schema and passes its variables unfiltered
 until it is re-bound.
 
+**After upgrading to operations 012, re-bind every routed number** (the same PUT, with its current
+`routingReleaseId` and `expectedVersion`). There is no backfill migration: the schema lives in the
+default agent's release, which the control store holds, and the operations database may be a
+separate one (`OVO_OPERATIONS_DATABASE_URL`) keyed by the operations organisation rather than the
+control workspace, so an operations migration cannot read it. The numbers still to re-bind:
+
+```sql
+SELECT phone_number, routing_release_id FROM ovo_ops_inbound_routes
+ WHERE routing_release_id IS NOT NULL AND default_variables_schema IS NULL;
+```
+
 ```bash
 curl -sS -X PUT "$OVO_API/v1/operations/inbound/routes/%2B918069450000" -H 'content-type: application/json' \
   -b "$COOKIE" -d '{"expectedVersion":3,"routingReleaseId":"'"$ROUTING_RELEASE"'","variables":{},
