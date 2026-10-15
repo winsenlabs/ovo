@@ -1,28 +1,19 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../../lib/api';
-import { Callout } from '../ui/feedback';
+import { costByProvider, type CostEvidence, type CostLine } from '../../lib/derive/call-detail';
+import { InlineAlert, Skeleton } from '../ui/feedback-v2';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { KpiCard, KpiStrip } from '../ui/kpi';
+import { ProgressMeter } from '../charts/meter';
+import { ChartFrame } from '../charts/chart-frame';
+import { Donut } from '../charts/donut';
+import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
+import { dataTableRenderKey } from '../../lib/data-table-remount-key';
+import { formatMoney, formatQuantity } from '../../lib/format';
+import { Money } from '../ui/display';
 
-export interface CostEvidence {
-  unpriced?: string[];
-  currencies?: {
-    currency: string;
-    estimatedMinor: string;
-    reconciledMinor: string;
-    lines: number;
-  }[];
-  lines?: {
-    id: string;
-    provider: string;
-    quantity: string;
-    unit: string;
-    amountMinor: string;
-    currency: string;
-    state: string;
-    priceCardId: string;
-    priceCardVersion: string;
-  }[];
-}
+export type { CostEvidence };
 
 interface LedgerCost {
   provisional: boolean;
@@ -31,22 +22,10 @@ interface LedgerCost {
 
 const LINE_PAGE = 50;
 
-/** Minor units in their own currency; an unknown currency code is shown as its code. */
-export function money(minor: string, currency: string): string {
-  const value = Number(minor);
-  if (!Number.isSafeInteger(value)) return `${minor} ${currency} (minor units)`;
-  try {
-    const format = new Intl.NumberFormat('en-IN', { style: 'currency', currency });
-    const digits = format.resolvedOptions().maximumFractionDigits ?? 2;
-    return format.format(value / 10 ** digits);
-  } catch {
-    return `${value} ${currency} (minor units)`;
-  }
-}
-
 /**
- * OBS-7: the call's cost lines in every currency, not only rupees, with unpriced meters and any
- * total priced from a placeholder (provisional) price card called out.
+ * The Cost tab: per-currency estimated/reconciled KPIs with a spend meter, a provider donut per
+ * currency, and the full cost-line table — Money/formatQuantity everywhere instead of raw minor
+ * units and snake_case unit keys (brief defect #18).
  */
 export function CostPanel({ callId, cost }: { callId: string; cost?: CostEvidence }) {
   const [ledger, setLedger] = useState<LedgerCost | null>();
@@ -57,60 +36,131 @@ export function CostPanel({ callId, cost }: { callId: string; cost?: CostEvidenc
       // No cost ledger on this installation: the lines below are still the call's usage.
       .catch(() => setLedger(null));
   }, [callId]);
+  const currencies = cost?.currencies ?? [];
   const lines = cost?.lines ?? [];
+  const columns: ColumnV2<CostLine>[] = [
+    {
+      id: 'provider',
+      header: 'Provider',
+      cell: (line) => line.provider,
+      sortValue: (line) => line.provider,
+    },
+    {
+      id: 'quantity',
+      header: 'Quantity',
+      cell: (line) => formatQuantity(Number(line.quantity), line.unit),
+    },
+    {
+      id: 'amount',
+      header: 'Amount',
+      align: 'end',
+      cell: (line) => <Money minorUnits={line.amountMinor} currency={line.currency} />,
+      sortValue: (line) => Number(line.amountMinor),
+    },
+    {
+      id: 'state',
+      header: 'State',
+      // `lib/status.ts`'s shared tone map has no entry for the ledger's own "reconciled"/
+      // "estimated" vocabulary (it falls back to neutral grey for both, indistinguishable) — an
+      // explicit tone here reads better than two identical badges.
+      cell: (line) => (
+        <StatusBadgeV2 value={line.state} tone={line.state === 'reconciled' ? 'ok' : 'info'} />
+      ),
+    },
+    {
+      id: 'price-card',
+      header: 'Price card',
+      priority: 'low',
+      cell: (line) => (
+        <span className="mono" title={`${line.priceCardId}@${line.priceCardVersion}`}>
+          {line.priceCardId}
+        </span>
+      ),
+    },
+  ];
   return (
-    <div className="ui-stack">
-      {(cost?.currencies ?? []).length === 0 && <p>No priced usage recorded.</p>}
-      <dl aria-label="Cost totals">
-        {(cost?.currencies ?? []).map((total) => (
-          <div key={total.currency}>
-            <dt>{total.currency}</dt>
-            <dd>
-              {money(total.estimatedMinor, total.currency)} estimated ·{' '}
-              {money(total.reconciledMinor, total.currency)} reconciled · {total.lines} lines
-            </dd>
-          </div>
+    <div className="ds-stack">
+      {currencies.length === 0 && <p className="muted">No priced usage recorded.</p>}
+      <KpiStrip>
+        {currencies.map((total) => (
+          <KpiCard
+            key={total.currency}
+            label={`Total (${total.currency})`}
+            value={
+              <Money
+                minorUnits={Number(total.estimatedMinor) + Number(total.reconciledMinor)}
+                currency={total.currency}
+              />
+            }
+            footnote={`${total.lines} lines`}
+          />
         ))}
-      </dl>
+      </KpiStrip>
+      {currencies.map((total) => (
+        <ProgressMeter
+          key={total.currency}
+          label={`${total.currency} spend`}
+          max={Math.max(1, Number(total.estimatedMinor) + Number(total.reconciledMinor))}
+          segments={[
+            { label: 'Reconciled', value: Number(total.reconciledMinor), tone: 'ok' },
+            { label: 'Estimated', value: Number(total.estimatedMinor), tone: 'info' },
+          ]}
+          valueLabel={`${formatMoney(total.reconciledMinor, total.currency)} reconciled · ${formatMoney(total.estimatedMinor, total.currency)} estimated`}
+        />
+      ))}
+      {ledger === undefined && <Skeleton shape="line" width="60%" />}
       {ledger?.provisional && (
-        <Callout tone="warning">
+        <InlineAlert tone="warn">
           Provisional: priced partly from placeholder price cards (
           {ledger.provisionalPriceCards.map((card) => `${card.id}@${card.version}`).join(', ')}).
-        </Callout>
+        </InlineAlert>
       )}
       {(cost?.unpriced ?? []).length > 0 && (
-        <Callout tone="warning">Unpriced meters: {cost!.unpriced!.join(', ')}</Callout>
+        <InlineAlert tone="warn">Unpriced meters: {cost!.unpriced!.join(', ')}</InlineAlert>
       )}
+      <div className="ui-grid">
+        {currencies.map((total) => {
+          const slices = costByProvider(lines, total.currency);
+          return (
+            <ChartFrame
+              key={total.currency}
+              title={`Cost by provider (${total.currency})`}
+              ariaLabel={`Cost by provider in ${total.currency}`}
+              height={200}
+              empty={!slices.length}
+              tableRows={slices.length}
+              tableColumns={[
+                { header: 'Provider', cell: (i) => slices[i]!.label },
+                { header: 'Amount', cell: (i) => formatMoney(slices[i]!.value, total.currency) },
+              ]}
+              renderChart={() => (
+                <Donut
+                  slices={slices}
+                  // M2: the reconciled amount alone read as the "total" next to a bigger slice
+                  // sum ($0.03 centre against a $0.06 ring) — the centre is the same
+                  // estimated+reconciled total the slices themselves add up to.
+                  centerLabel={formatMoney(
+                    Number(total.estimatedMinor) + Number(total.reconciledMinor),
+                    total.currency,
+                  )}
+                  formatValue={(value) => formatMoney(value, total.currency)}
+                />
+              )}
+            />
+          );
+        })}
+      </div>
       {lines.length > 0 && (
-        <table aria-label="Cost lines">
-          <thead>
-            <tr>
-              <th>Provider</th>
-              <th>Quantity</th>
-              <th>Amount</th>
-              <th>State</th>
-              <th>Price card</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.slice(0, shown).map((line) => (
-              <tr key={line.id}>
-                <td>{line.provider}</td>
-                <td>
-                  {line.quantity} {line.unit}
-                </td>
-                <td>{money(line.amountMinor, line.currency)}</td>
-                <td>{line.state}</td>
-                <td className="mono">
-                  {line.priceCardId}@{line.priceCardVersion}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTableV2
+          key={dataTableRenderKey(false, undefined, lines.length)}
+          label="Cost lines"
+          rows={lines.slice(0, shown)}
+          rowKey={(line) => line.id}
+          columns={columns}
+        />
       )}
       {shown < lines.length && (
-        <button className="button small" onClick={() => setShown(shown + LINE_PAGE)}>
+        <button type="button" className="button small" onClick={() => setShown(shown + LINE_PAGE)}>
           Show more lines
         </button>
       )}

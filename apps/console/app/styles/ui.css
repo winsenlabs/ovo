@@ -28,6 +28,11 @@
 .inspector-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  /* M6: grid items default to `stretch`, so the shorter right rail's `.ds-card` is forced to the
+     left column's full height, and its own auto rows (head/body) then stretch to fill that —
+     the diagnosis card's head alone grew to ~499px with the body pushed far down. Each column
+     keeps its own natural height instead. */
+  align-items: start;
   gap: var(--space-4);
 }
 .latency-bar {

@@ -1,104 +1,124 @@
 import { describe, expect, it } from 'vitest';
 import {
-  callsWithin,
-  completionRate,
-  dailyCallBuckets,
-  dispositionBreakdown,
-  failureCount,
-  medianCompletedDurationMs,
-  timeoutShareOfFailures,
-  topFailureReasons,
+  callDurationMs,
+  callsKpis,
+  callsOverTime,
+  endReasonLabel,
+  endReasonTop,
   type CallRow,
 } from './calls';
 
-const call = (overrides: Partial<CallRow>): CallRow => ({ id: 'c1', ...overrides });
+function row(overrides: Partial<CallRow> = {}): CallRow {
+  return {
+    id: 'call_1',
+    status: 'completed',
+    createdAt: '2026-10-15T10:00:00.000Z',
+    completedAt: '2026-10-15T10:03:00.000Z',
+    outcome: null,
+    ...overrides,
+  };
+}
 
-describe('callsWithin', () => {
-  it('keeps only calls created inside the window and excludes undated rows', () => {
-    const now = Date.parse('2026-10-15T00:00:00Z');
-    const rows = [
-      call({ id: 'in', createdAt: new Date(now - 60_000).toISOString() }),
-      call({ id: 'out', createdAt: new Date(now - 10 * 86_400_000).toISOString() }),
-      call({ id: 'undated' }),
+describe('callDurationMs', () => {
+  it('is the gap between created and completed', () => {
+    expect(callDurationMs(row())).toBe(180_000);
+  });
+  it('is null, never 0, while the call has not ended', () => {
+    expect(callDurationMs(row({ completedAt: null }))).toBeNull();
+  });
+});
+
+describe('callsKpis', () => {
+  it('summarises the loaded window without counting in-progress calls as finished', () => {
+    const rows: CallRow[] = [
+      row({ id: 'c1', status: 'completed' }),
+      row({ id: 'c2', status: 'completed' }),
+      row({
+        id: 'c3',
+        status: 'failed',
+        outcome: {
+          callId: 'c3',
+          outcome: 'failed',
+          endReason: 'error:timeout:stt:sarvam',
+          disposition: null,
+          dispositionSource: null,
+          finalNode: null,
+          statePath: [],
+          variables: {},
+          tiers: {},
+          guardrail: { flagged: 0, blocked: 0 },
+          events: 0,
+          updatedAt: row().createdAt!,
+        },
+      }),
+      row({ id: 'c4', status: 'in_progress', completedAt: null }),
     ];
-    expect(callsWithin(rows, 7 * 86_400_000, now).map((r) => r.id)).toEqual(['in']);
+    const kpis = callsKpis(rows);
+    expect(kpis.total).toBe(4);
+    expect(kpis.completed).toBe(2);
+    expect(kpis.completionRate).toBeCloseTo(2 / 3);
+    expect(kpis.failed).toBe(1);
+    expect(kpis.failedTimeoutShare).toBe(1);
+    expect(kpis.liveNow).toBe(1);
+    expect(kpis.medianDurationMs).toBe(180_000);
+  });
+
+  it('never divides by zero into a false rate', () => {
+    expect(callsKpis([]).completionRate).toBeNull();
+    expect(
+      callsKpis([row({ status: 'in_progress', completedAt: null })]).completionRate,
+    ).toBeNull();
   });
 });
 
-describe('completionRate', () => {
-  it('is null with no terminal calls, never a fake 0%', () => {
-    expect(completionRate([call({ status: 'in_progress' })])).toBeNull();
+describe('callsOverTime', () => {
+  it('buckets hourly inside a 48h span and daily beyond it', () => {
+    const hourly = callsOverTime([
+      row({ createdAt: '2026-10-15T10:15:00.000Z' }),
+      row({ createdAt: '2026-10-15T10:45:00.000Z' }),
+      row({ createdAt: '2026-10-15T12:00:00.000Z', status: 'failed' }),
+    ]);
+    expect(hourly.granularity).toBe('hour');
+    expect(hourly.points).toHaveLength(2);
+    expect(hourly.points[0]!.values.completed).toBe(2);
+
+    const daily = callsOverTime([
+      row({ createdAt: '2026-10-01T10:00:00.000Z' }),
+      row({ createdAt: '2026-10-10T10:00:00.000Z' }),
+    ]);
+    expect(daily.granularity).toBe('day');
+    expect(daily.points).toHaveLength(2);
   });
-  it('divides completed by every terminal call, excluding running ones', () => {
+
+  it('widens the bucket instead of emitting one crammed column per hour across a long window', () => {
+    // `BarChart` labels every category it is given (no sparse-tick thinning); 40 hourly buckets
+    // rendered as 40 overlapping x-axis labels before this widened the bucket.
+    const start = Date.parse('2026-10-15T00:00:00.000Z');
+    const rows = Array.from({ length: 40 }, (_, hour) =>
+      row({ id: `c${hour}`, createdAt: new Date(start + hour * 3_600_000).toISOString() }),
+    );
+    const { points } = callsOverTime(rows);
+    expect(points.length).toBeLessThanOrEqual(14);
+  });
+});
+
+describe('endReasonLabel / endReasonTop', () => {
+  it('names the stage for a timeout instead of the raw error string', () => {
+    expect(endReasonLabel('error:timeout:stt:sarvam')).toBe('Timed out · STT (sarvam)');
+    expect(endReasonLabel('caller_hangup')).toBe('Caller hung up');
+    expect(endReasonLabel(null)).toBe('Unknown');
+  });
+
+  it('ranks the top end reasons by volume', () => {
     const rows = [
-      call({ status: 'completed' }),
-      call({ status: 'completed' }),
-      call({ status: 'failed' }),
-      call({ status: 'cancelled' }),
-      call({ status: 'in_progress' }),
+      row({ outcome: { ...row().outcome, endReason: 'caller_hangup' } as never }),
+      row({ outcome: { ...row().outcome, endReason: 'caller_hangup' } as never }),
+      row({ outcome: { ...row().outcome, endReason: 'max_duration' } as never }),
+      row({ outcome: null }),
     ];
-    expect(completionRate(rows)).toBeCloseTo(0.5);
-  });
-});
-
-describe('timeoutShareOfFailures', () => {
-  it('reads the structured timeout reason, not a free-text guess', () => {
-    const rows = [
-      call({ status: 'failed', outcome: { endReason: 'error:timeout:stt' } as never }),
-      call({ status: 'failed', outcome: { endReason: 'caller_hangup' } as never }),
-    ];
-    expect(timeoutShareOfFailures(rows)).toBeCloseTo(0.5);
-  });
-  it('is null when there are no failures at all', () => {
-    expect(timeoutShareOfFailures([call({ status: 'completed' })])).toBeNull();
-  });
-});
-
-describe('medianCompletedDurationMs', () => {
-  it('takes the midpoint of an odd count and the average of an even one', () => {
-    const base = '2026-10-15T00:00:00Z';
-    const row = (ms: number) =>
-      call({
-        status: 'completed',
-        createdAt: base,
-        completedAt: new Date(Date.parse(base) + ms).toISOString(),
-      });
-    expect(medianCompletedDurationMs([row(1000), row(2000), row(3000)])).toBe(2000);
-    expect(medianCompletedDurationMs([row(1000), row(2000), row(3000), row(4000)])).toBe(2500);
-  });
-  it('ignores calls still running', () => {
-    expect(medianCompletedDurationMs([call({ status: 'in_progress' })])).toBeNull();
-  });
-});
-
-describe('dispositionBreakdown', () => {
-  it('buckets a null disposition as its own honest label instead of dropping the call', () => {
-    const rows = [
-      call({ outcome: { disposition: 'promised_to_pay' } as never }),
-      call({ outcome: null }),
-    ];
-    const breakdown = dispositionBreakdown(rows);
-    expect(breakdown).toContainEqual({ label: 'promised_to_pay', value: 1 });
-    expect(breakdown).toContainEqual({ label: 'No disposition', value: 1 });
-  });
-});
-
-describe('topFailureReasons', () => {
-  it('labels a timeout by stage and provider, and sorts most frequent first', () => {
-    const rows = [
-      call({ status: 'failed', outcome: { endReason: 'error:timeout:stt:deepgram' } as never }),
-      call({ status: 'failed', outcome: { endReason: 'error:timeout:stt:deepgram' } as never }),
-      call({ status: 'failed', outcome: { endReason: 'caller_hangup' } as never }),
-    ];
-    expect(topFailureReasons(rows)[0]).toEqual({ label: 'stt (deepgram)', count: 2 });
-  });
-});
-
-describe('dailyCallBuckets', () => {
-  it('includes a zero-count day rather than skipping it', () => {
-    const now = Date.parse('2026-10-15T12:00:00Z');
-    const buckets = dailyCallBuckets([], 3, now);
-    expect(buckets).toHaveLength(3);
-    expect(buckets.every((bucket) => bucket.count === 0)).toBe(true);
+    expect(endReasonTop(rows)).toEqual([
+      { label: 'Caller hung up', count: 2 },
+      { label: 'Max duration', count: 1 },
+    ]);
   });
 });

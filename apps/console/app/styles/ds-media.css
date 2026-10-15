@@ -129,6 +129,14 @@
   color: var(--text-3);
   font-size: var(--text-micro-size);
 }
+/* M5: `--text-3` on the dark theme's `--accent-soft` agent bubble is #85918a on #18301f, a 4.32:1
+   ratio — below the 4.5:1 axe `color-contrast` minimum for this text size. `--text-2` is the one
+   step darker-on-light-theme / lighter-on-dark-theme token that clears it, and only the agent
+   bubble needs the override since the caller bubble's plain `--surface-2` background already
+   passes with `--text-3`. */
+.ds-conversation-list li.speaker-agent .ds-conversation-meta {
+  color: var(--text-2);
+}
 .ds-conversation-speaker {
   font-weight: 600;
   text-transform: uppercase;

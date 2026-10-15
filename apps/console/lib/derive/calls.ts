@@ -1,91 +1,175 @@
-// Pure call-derivation helpers (design brief §1 "relogic the information" + §2 "lib/derive/*.ts
-// (pure and unit-tested)"). Every function here takes plain data already fetched by a feature and
-// returns a shape a KPI/chart/table can render directly — none of them fetch.
+// Pure client-side aggregation for the calls list screen. No API/contract changes: every number
+// here is derived from the `CallSummary[]` page the screen already has loaded (brief §3 CALLS —
+// "every aggregation is computed client-side; no API or contract changes").
 import { timeoutOf, type CallOutcomeSummary } from '@winsendotai/ovo-contracts';
 import type { CallSummary } from '../api';
+import type { BarSeriesPoint } from '../../components/charts/bar-chart';
+import { humaniseEnum } from '../status';
+import { percentile } from '../../components/inspector/turn-model';
 
+/** The API attaches each call's recorded outcome (AGT-8), or null when none was recorded. */
 export type CallRow = CallSummary & { outcome?: CallOutcomeSummary | null };
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+export const CALL_STATUS_KEYS = ['completed', 'in_progress', 'failed', 'cancelled'] as const;
 
-/** Calls whose `createdAt` falls within `windowMs` of `now` (default 7 days). Unparsable or
- * missing timestamps are excluded rather than assumed recent. */
-export function callsWithin(
-  rows: readonly CallRow[],
-  windowMs: number,
-  now: number = Date.now(),
-): CallRow[] {
-  return rows.filter((row) => {
-    if (!row.createdAt) return false;
-    const at = new Date(row.createdAt).getTime();
-    return Number.isFinite(at) && now - at <= windowMs && at <= now;
-  });
+/** `completedAt - createdAt`; null (never 0) when the call has not ended yet or is timeless. */
+export function callDurationMs(call: Pick<CallRow, 'createdAt' | 'completedAt'>): number | null {
+  if (!call.createdAt || !call.completedAt) return null;
+  const started = Date.parse(call.createdAt);
+  const ended = Date.parse(call.completedAt);
+  if (!Number.isFinite(started) || !Number.isFinite(ended) || ended < started) return null;
+  return ended - started;
 }
 
-const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
-
-/** completed / (completed + failed + cancelled). `null` when nothing has reached a terminal
- * state yet — never a misleading 0% or 100% for an empty cohort (brief §1.4). */
-export function completionRate(rows: readonly CallRow[]): number | null {
-  const terminal = rows.filter((row) => TERMINAL_STATUSES.has(row.status ?? ''));
-  if (!terminal.length) return null;
-  const completed = terminal.filter((row) => row.status === 'completed').length;
-  return completed / terminal.length;
+export interface CallsKpis {
+  total: number;
+  completionRate: number | null;
+  completed: number;
+  failed: number;
+  failedTimeoutShare: number | null;
+  medianDurationMs: number | null;
+  liveNow: number;
 }
 
-export function failureCount(rows: readonly CallRow[]): number {
-  return rows.filter((row) => row.status === 'failed').length;
-}
-
-/** Share of failures whose end reason parses as a timeout (`timeoutOf`), of all failures. */
-export function timeoutShareOfFailures(rows: readonly CallRow[]): number | null {
-  const failed = rows.filter((row) => row.status === 'failed');
-  if (!failed.length) return null;
-  const timedOut = failed.filter(
-    (row) => row.outcome?.endReason && timeoutOf(row.outcome.endReason),
-  ).length;
-  return timedOut / failed.length;
-}
-
-/** Median `completedAt - createdAt` across completed calls only, in ms. `null` with none. */
-export function medianCompletedDurationMs(rows: readonly CallRow[]): number | null {
+/** Headline numbers "over the loaded window" (this page's rows, not a new aggregate endpoint). */
+export function callsKpis(rows: readonly CallRow[]): CallsKpis {
+  const finished = rows.filter((row) => row.status !== 'in_progress');
+  const completed = rows.filter((row) => row.status === 'completed').length;
+  const failedRows = rows.filter((row) => row.status === 'failed');
+  const timedOut = failedRows.filter((row) => timeoutOf(row.outcome?.endReason ?? '')).length;
   const durations = rows
-    .filter((row) => row.status === 'completed' && row.createdAt && row.completedAt)
-    .map((row) => new Date(row.completedAt!).getTime() - new Date(row.createdAt!).getTime())
-    .filter((ms) => Number.isFinite(ms) && ms >= 0)
+    .map((row) => callDurationMs(row))
+    .filter((value): value is number => value != null)
     .sort((a, b) => a - b);
-  if (!durations.length) return null;
-  const mid = Math.floor(durations.length / 2);
-  return durations.length % 2 ? durations[mid]! : (durations[mid - 1]! + durations[mid]!) / 2;
+  return {
+    total: rows.length,
+    completionRate: finished.length ? completed / finished.length : null,
+    completed,
+    failed: failedRows.length,
+    failedTimeoutShare: failedRows.length ? timedOut / failedRows.length : null,
+    medianDurationMs: percentile(durations, 0.5),
+    liveNow: rows.filter((row) => row.status === 'in_progress').length,
+  };
 }
 
-export type DispositionSlice = { label: string; value: number };
+export type CallsBucketGranularity = 'hour' | 'day';
 
-/** Groups by `outcome.disposition`, humanising `null` to "No disposition" rather than dropping
- * it — an undispositioned call is still a call (brief §1.4, "Unknown is never shown as 0"). */
-export function dispositionBreakdown(rows: readonly CallRow[]): DispositionSlice[] {
-  const counts = new Map<string, number>();
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+const HOUR_LABEL = new Intl.DateTimeFormat('en-IN', {
+  hour: 'numeric',
+  hour12: false,
+  timeZone: 'Asia/Kolkata',
+});
+const DAY_LABEL = new Intl.DateTimeFormat('en-IN', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'Asia/Kolkata',
+});
+// `BarChart` labels every category (it has no sparse-tick thinning the way the axis-based charts
+// do), so the bucket width has to keep the category *count* low enough for each label to have
+// room — picking a plain "hourly inside 48h" width produced up to 48 crammed, overlapping ticks.
+const BUCKET_STEPS_MS = [
+  HOUR_MS,
+  2 * HOUR_MS,
+  3 * HOUR_MS,
+  6 * HOUR_MS,
+  12 * HOUR_MS,
+  DAY_MS,
+  2 * DAY_MS,
+  7 * DAY_MS,
+] as const;
+const TARGET_BUCKETS = 14;
+
+function pickBucketMs(spanMs: number): number {
+  for (const step of BUCKET_STEPS_MS) if (spanMs / step <= TARGET_BUCKETS) return step;
+  return BUCKET_STEPS_MS[BUCKET_STEPS_MS.length - 1];
+}
+
+export interface CallsOverTime {
+  granularity: CallsBucketGranularity;
+  points: BarSeriesPoint[];
+}
+
+/** Stacked bars by status, bucketed to keep roughly `TARGET_BUCKETS` columns on screen — hourly
+ * (or a coarser multiple) inside a short window, daily beyond it (brief: CALLS primary visual). */
+export function callsOverTime(rows: readonly CallRow[]): CallsOverTime {
+  const timestamps = rows
+    .map((row) => (row.createdAt ? Date.parse(row.createdAt) : NaN))
+    .filter((value) => Number.isFinite(value));
+  if (!timestamps.length) return { granularity: 'hour', points: [] };
+  const span = Math.max(...timestamps) - Math.min(...timestamps);
+  const bucketMs = pickBucketMs(Math.max(span, HOUR_MS));
+  const granularity: CallsBucketGranularity = bucketMs >= DAY_MS ? 'day' : 'hour';
+  const buckets = new Map<number, Record<string, number>>();
   for (const row of rows) {
-    const key = row.outcome?.disposition ?? 'No disposition';
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    const parsed = row.createdAt ? Date.parse(row.createdAt) : NaN;
+    if (!Number.isFinite(parsed)) continue;
+    const bucketStart = Math.floor(parsed / bucketMs) * bucketMs;
+    const bucket = buckets.get(bucketStart) ?? {};
+    const status = row.status ?? 'unknown';
+    bucket[status] = (bucket[status] ?? 0) + 1;
+    buckets.set(bucketStart, bucket);
   }
-  return [...counts.entries()].map(([label, value]) => ({ label, value }));
+  const label = granularity === 'hour' ? HOUR_LABEL : DAY_LABEL;
+  const points = [...buckets.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([bucketStart, values]) => ({
+      category:
+        granularity === 'hour' ? `${label.format(bucketStart)}:00` : label.format(bucketStart),
+      values,
+    }));
+  return { granularity, points };
 }
 
-export type FailureReason = { label: string; count: number };
+/** `carrier_start` -> "Carrier start"; short Title Case labels for charts, kept local since the
+ * shared `humaniseEnum` would render an already-lowercase acronym like `stt` as "Stt". */
+const STAGE_CHART_LABELS: Record<string, string> = {
+  carrier_start: 'Carrier start',
+  route_resolve: 'Route resolve',
+  worker_dial: 'Worker dial',
+  media_idle: 'Media idle',
+  session_open: 'Session open',
+  stt: 'STT',
+  tts: 'TTS',
+  llm: 'LLM',
+  decision: 'Decision',
+  tool: 'Tool call',
+};
 
-/** Top failure reasons as "<stage>[ (<provider>)]" for timeouts, else the raw end reason,
- * sorted most frequent first. */
-export function topFailureReasons(rows: readonly CallRow[], limit = 5): FailureReason[] {
+/** `EndReason`'s own `kind:detail` shape (`agent_end:goodbye`) humanised by `humaniseEnum` alone
+ * reads as "Agent end:goodbye" — the colon survives untouched and the result runs long for the
+ * end-reasons bar's fixed label gutter. These are the concrete values the call outcome actually
+ * carries; anything else still falls back to the plain humanised string. */
+const END_REASON_LABELS: Record<string, string> = {
+  caller_hangup: 'Caller hung up',
+  'agent_end:goodbye': 'Said goodbye',
+  'agent_end:disposition': 'Disposition set',
+  max_duration: 'Max duration',
+  voicemail: 'Voicemail',
+};
+
+/** "Timed out · STT" for a timeout end reason, else a short, human end-reason label (OBS-9). */
+export function endReasonLabel(reason: string | null | undefined): string {
+  if (!reason) return 'Unknown';
+  const timeout = timeoutOf(reason);
+  if (!timeout) return END_REASON_LABELS[reason] ?? humaniseEnum(reason);
+  const stage = STAGE_CHART_LABELS[timeout.stage] ?? humaniseEnum(timeout.stage);
+  return `Timed out · ${stage}${timeout.provider ? ` (${timeout.provider})` : ''}`;
+}
+
+export interface EndReasonCount {
+  label: string;
+  count: number;
+}
+
+/** Top N end reasons by volume, for the "end reasons" horizontal bar next to the volume chart. */
+export function endReasonTop(rows: readonly CallRow[], limit = 6): EndReasonCount[] {
   const counts = new Map<string, number>();
   for (const row of rows) {
-    if (row.status !== 'failed') continue;
     const reason = row.outcome?.endReason;
     if (!reason) continue;
-    const timeout = timeoutOf(reason);
-    const label = timeout
-      ? `${timeout.stage}${timeout.provider ? ` (${timeout.provider})` : ''}`
-      : reason;
+    const label = endReasonLabel(reason);
     counts.set(label, (counts.get(label) ?? 0) + 1);
   }
   return [...counts.entries()]
@@ -94,26 +178,13 @@ export function topFailureReasons(rows: readonly CallRow[], limit = 5): FailureR
     .slice(0, limit);
 }
 
-export type DayBucket = { dayStart: number; count: number };
-
-/** One count per calendar day (UTC) from `days` ago through today, oldest first — a sparkline
- * or bar series. Days with zero calls are still present as a `0`, never omitted. */
-export function dailyCallBuckets(
-  rows: readonly CallRow[],
-  days: number,
-  now: number = Date.now(),
-): DayBucket[] {
-  const todayStart = Math.floor(now / DAY_MS) * DAY_MS;
-  const buckets = new Map<number, number>();
-  for (let index = days - 1; index >= 0; index -= 1) buckets.set(todayStart - index * DAY_MS, 0);
-  for (const row of rows) {
-    if (!row.createdAt) continue;
-    const at = new Date(row.createdAt).getTime();
-    if (!Number.isFinite(at)) continue;
-    const dayStart = Math.floor(at / DAY_MS) * DAY_MS;
-    if (buckets.has(dayStart)) buckets.set(dayStart, (buckets.get(dayStart) ?? 0) + 1);
-  }
-  return [...buckets.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([dayStart, count]) => ({ dayStart, count }));
+/** Route-tier mini-bar data for a call row's `outcome.tiers` (rule/jev/llm counts). */
+export function tierShares(tiers: CallOutcomeSummary['tiers'] | undefined): {
+  key: string;
+  count: number;
+}[] {
+  if (!tiers) return [];
+  return Object.entries(tiers)
+    .filter(([, count]) => (count ?? 0) > 0)
+    .map(([key, count]) => ({ key, count: count ?? 0 }));
 }

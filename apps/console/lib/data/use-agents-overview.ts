@@ -8,7 +8,7 @@ import { apiRequest, items, normalizeDraft, type AgentConfig } from '../api';
 import { loadAgents } from '../pagination';
 import type { AgentReadiness, Release } from '../api';
 import type { PluginCatalog } from '../../components/plugins/types';
-import { callsWithin, dailyCallBuckets, type CallRow } from '../derive/calls';
+import { callsWithin, dailyCallBuckets, type CallRow } from '../derive/agent-calls';
 import { voiceStackChips, type VoiceStackChip } from '../derive/agents';
 
 export type AgentSummaryRow = {

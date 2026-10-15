@@ -66,6 +66,24 @@ export function statusTone(value: string | null | undefined): Tone {
   return LOOKUP.get(normalise(value)) ?? 'neutral';
 }
 
+// Pipeline-stage/telemetry acronyms that arrive lower-cased (`llm`, `tts`, `stt`, plugin `kind`
+// values) rather than already shouting like `STT` — the generic "already all-caps" heuristic
+// below never catches these, so every "Llm"/"Tts"/"Stt" on the Calls screens (tiers, telemetry
+// stages, disposition source, plugin slots) needs them spelled out here instead.
+const KNOWN_ACRONYMS = new Set([
+  'LLM',
+  'TTS',
+  'STT',
+  'ASR',
+  'VAD',
+  'SIP',
+  'DTMF',
+  'IVR',
+  'API',
+  'URL',
+  'ID',
+]);
+
 /** `in_progress` -> "In progress"; `promised_to_pay` -> "Promised to pay". Keeps acronyms as-is. */
 export function humaniseEnum(value: string | null | undefined): string {
   if (!value) return 'Unknown';
@@ -80,6 +98,7 @@ export function humaniseEnum(value: string | null | undefined): string {
   if (!words.length) return 'Unknown';
   return words
     .map((word, index) => {
+      if (KNOWN_ACRONYMS.has(word.toUpperCase())) return word.toUpperCase();
       const isAcronym = word.length <= 4 && word === word.toUpperCase() && /[A-Z]/.test(word);
       if (isAcronym) return word;
       const lower = word.toLowerCase();

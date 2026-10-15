@@ -1,9 +1,15 @@
 'use client';
 import type { FormEvent } from 'react';
 import type { Release } from '../../lib/api';
-import { Field, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { SectionCard } from '../ui/section-card';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { FormField } from '../ui/form-field';
+import { Select } from '../ui/inputs';
 import { JsonEditor } from '../forms/json-editor';
 import type { SimulationMode } from './simulation-request';
+
+/** The "Run a simulation" card, shared with the agent test/evaluation screen (not owned by this
+ * area) via the same props — only the markup underneath is W14. */
 export function SimulationPanel({
   releases,
   simulationMode,
@@ -20,76 +26,85 @@ export function SimulationPanel({
   simulate: (event: FormEvent<HTMLFormElement>) => Promise<void>;
 }) {
   return (
-    <Panel labelledBy="simulation-title">
-      <PanelHeader
-        id="simulation-title"
-        title="Run a simulation"
-        badge={
-          <StatusBadge tone={simulationMode === 'fixture' ? 'soft' : 'warning'}>
-            {simulationMode === 'fixture' ? 'Fixture isolation' : 'Provider-backed'}
-          </StatusBadge>
-        }
-      />
-      <form className="panel-body stack" onSubmit={simulate}>
-        <Field label="Immutable release" htmlFor="simulation-release">
-          <select id="simulation-release" name="releaseId" required>
-            <option value="">Select release</option>
-            {releases.map((release) => (
-              <option key={release.id} value={release.id}>
-                {release.config.name} · {release.id}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Caller input" htmlFor="simulation-input">
-          <textarea id="simulation-input" name="input" required />
-        </Field>
-        <Field
+    <SectionCard
+      title="Run a simulation"
+      padding="prose"
+      actions={
+        <StatusBadgeV2
+          tone={simulationMode === 'fixture' ? 'neutral' : 'warn'}
+          label={simulationMode === 'fixture' ? 'Fixture isolation' : 'Provider-backed'}
+        />
+      }
+    >
+      <form className="ds-stack" onSubmit={simulate}>
+        <FormField id="simulation-release" label="Immutable release" required>
+          {({ id }) => (
+            <select id={id} name="releaseId" required defaultValue="">
+              <option value="">Select release</option>
+              {releases.map((release) => (
+                <option key={release.id} value={release.id}>
+                  {release.config.name} · {release.id}
+                </option>
+              ))}
+            </select>
+          )}
+        </FormField>
+        <FormField id="simulation-input" label="Caller input" required>
+          {(control) => <textarea {...control} name="input" />}
+        </FormField>
+        <FormField
+          id="simulation-follow-ups"
           label="Follow-up caller inputs"
-          htmlFor="simulation-follow-ups"
           help="Optional: one non-empty turn per line, maximum 19. The same immutable composition and simulated playback receipts are used until the script reaches a terminal node."
         >
-          <textarea id="simulation-follow-ups" name="followUpInputs" />
-        </Field>
-        <Field
+          {(control) => <textarea {...control} name="followUpInputs" />}
+        </FormField>
+        <FormField
+          id="simulation-mode"
           label="Execution mode"
-          htmlFor="simulation-mode"
           help="Fixture isolation is the safe default and makes no provider or tool requests."
         >
-          <select
-            id="simulation-mode"
-            value={simulationMode}
-            onChange={(event) => setSimulationMode(event.target.value as SimulationMode)}
-          >
-            <option value="fixture">Fixture isolation — no provider or tool requests</option>
-            <option value="provider">Provider-backed — may incur cost</option>
-          </select>
-        </Field>
+          {({ id }) => (
+            <Select
+              id={id}
+              value={simulationMode}
+              onChange={(value) => setSimulationMode(value as SimulationMode)}
+              options={[
+                { value: 'fixture', label: 'Fixture isolation — no provider or tool requests' },
+                { value: 'provider', label: 'Provider-backed — may incur cost' },
+              ]}
+            />
+          )}
+        </FormField>
         {simulationMode === 'fixture' ? (
-          <Field
+          <FormField
+            id="simulation-bindings"
             label="Fixture bindings JSON"
-            htmlFor="simulation-bindings"
             help='Optional modelReplies entries are {"kind":"text","text":"…"} or {"kind":"tool","toolId":"…","input":{}}. toolResults maps each tool ID to its fixture result. An empty object stays isolated and uses uncertainty/errors for missing fixtures.'
           >
-            <JsonEditor
-              id="simulation-bindings"
-              value={simulationBindings}
-              onValid={(value) => setSimulationBindings(value as Record<string, unknown>)}
-            />
-          </Field>
+            {({ id }) => (
+              <JsonEditor
+                id={id}
+                value={simulationBindings}
+                onValid={(value) => setSimulationBindings(value as Record<string, unknown>)}
+              />
+            )}
+          </FormField>
         ) : (
-          <div className="muted">
+          <p className="muted">
             Provider-backed simulation may call configured models and approved read tools and can
             incur cost. Allowed write tools without fixture bindings are rejected as unsafe.
-          </div>
+          </p>
         )}
-        <button className="button primary align-start" disabled={!releases.length}>
+        <button type="submit" className="button primary" disabled={!releases.length}>
           {simulationMode === 'fixture'
             ? 'Run isolated fixture simulation'
             : 'Run provider-backed simulation'}
         </button>
-        {!releases.length && <small>Publish an API-validated release first.</small>}
+        {!releases.length && (
+          <small className="muted">Publish an API-validated release first.</small>
+        )}
       </form>
-    </Panel>
+    </SectionCard>
   );
 }
