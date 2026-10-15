@@ -79,3 +79,15 @@ export async function hungUpByPlatform(env: HumanStack, call: FakeTwilioCall) {
     { timeout: 30_000, interval: 100 },
   );
 }
+
+/**
+ * Presses a key once the router is listening: its speech-to-text session is open. A key sent
+ * while the greeting is still being prepared would be lost, as it is on a real phone.
+ */
+export async function pressWhenListening(env: HumanStack, call: FakeTwilioCall, digit: string) {
+  await vi.waitFor(() => expect(env.stt.open().length).toBeGreaterThan(0), {
+    timeout: 20_000,
+    interval: 50,
+  });
+  call.pressDigit(digit);
+}

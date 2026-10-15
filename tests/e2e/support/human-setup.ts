@@ -140,6 +140,8 @@ export interface HumanLineOptions {
   managed?: Patch | boolean;
   /** Also bind a transfer target `colleague` for the sales agent to the external queue. */
   transfer?: boolean;
+  /** The router agent records the call (the recording tap sees both sides of a room). */
+  recording?: boolean;
   /** The node fallback steps; the default is `human desk`, the release default, an end line. */
   fallback?: unknown[];
 }
@@ -202,7 +204,10 @@ export async function configureHumanLine(
     additionalProperties: false,
   });
   const team = {
-    router: await agent('router', { variables: strings('account_id') }),
+    router: await agent('router', {
+      variables: strings('account_id'),
+      ...(options.recording ? { recording: true } : {}),
+    }),
     fallback: await agent('fallback', { opening: { lines: [LINES.fallback] } }),
     sales: await agent('sales-en', {
       opening: { lines: [HUMAN_LINES.sales] },
@@ -268,18 +273,33 @@ export async function configureHumanLine(
     { kind: 'default' },
     { kind: 'end', line: { en: HUMAN_LINES.end } },
   ]) as never;
-  if (options.transfer && queues.desk)
+  const targets = [
+    ...(options.transfer && queues.desk
+      ? [
+          {
+            key: 'colleague',
+            description: 'A human colleague on the phone desk',
+            destination: { kind: 'human', queueId: 'desk' },
+            from: [{ kind: 'pool', poolId: sales }],
+          },
+        ]
+      : []),
+    // A desk operator may send the caller back here (`returnTargets` names catalogue keys).
+    ...(queues.floor
+      ? [
+          {
+            key: 'sales',
+            description: 'The caller wants to buy something',
+            destination: { kind: 'pool', poolId: sales, language: 'any' },
+          },
+        ]
+      : []),
+  ];
+  if (targets.length)
     draft.transfer = {
       announcement: { en: TRANSFER_LINES.announcement },
       limits: { maxTransfers: 3 },
-      targets: [
-        {
-          key: 'colleague',
-          description: 'A human colleague on the phone desk',
-          destination: { kind: 'human', queueId: 'desk' },
-          from: [{ kind: 'pool', poolId: sales }],
-        },
-      ],
+      targets,
     };
   const point = await call<{ id: string; draftVersion: number }>('POST', '/v1/routing/points', {
     draft,
@@ -312,6 +332,8 @@ export interface HumanStackOptions {
   webhook?: boolean;
   /** `.env` additions, rendered by Compose like the rest (a room server's, for instance). */
   variables?: Record<string, string>;
+  /** A room server the stack's api and worker reach (`OVO_LIVEKIT_*`); absent: the feature is dark. */
+  room?: { url: string; apiKey: string; apiSecret: string };
   /** Added to the worker's rendered environment only (a feature on in the api, off in the worker). */
   workerVariables?: Record<string, string>;
   line?: HumanLineOptions;
@@ -354,6 +376,15 @@ export async function humanStack(
       OVO_HUMAN_QUEUE_ENABLED: String(options.humanQueue ?? true),
       OVO_HUMAN_QUEUE_WEBHOOK_ENABLED: String(options.webhook ?? true),
       OVO_HUMAN_QUEUE_POLL_MS: '250',
+      ...(options.room
+        ? {
+            OVO_LIVEKIT_ENABLED: 'true',
+            OVO_LIVEKIT_URL: options.room.url,
+            OVO_LIVEKIT_PUBLIC_URL: options.room.url,
+            OVO_LIVEKIT_API_KEY: options.room.apiKey,
+            OVO_LIVEKIT_API_SECRET: options.room.apiSecret,
+          }
+        : {}),
       ...options.variables,
     },
     { worker: options.workerVariables },
