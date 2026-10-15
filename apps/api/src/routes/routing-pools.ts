@@ -1,5 +1,5 @@
 import type { FastifyReply } from 'fastify';
-import { RoutingPoolDefinition, routingNodeTargets } from '@winsendotai/ovo-contracts';
+import { RoutingPoolDefinition } from '@winsendotai/ovo-contracts';
 import { RoutingPoolNameTakenError, type RoutingService } from '@winsendotai/ovo-plugin-operations';
 import { z } from 'zod';
 import {
@@ -14,24 +14,6 @@ import {
 
 const PoolParams = z.object({ poolId: z.uuid() });
 const PoolBody = z.object({ definition: z.unknown() }).strict();
-
-/** The ids of the points whose current draft names the pool (the pool delete guard's view). */
-export async function pointsUsingPool(routing: RoutingService, poolId: string): Promise<string[]> {
-  const used: string[] = [];
-  let cursor: string | undefined;
-  do {
-    const page = await routing.points.list(100, cursor);
-    for (const point of page)
-      if (
-        routingNodeTargets(point.draft.nodes).some(
-          ({ target }) => target.kind === 'pool' && target.poolId === poolId,
-        )
-      )
-        used.push(point.id);
-    cursor = page.length === 100 ? page.at(-1)?.id : undefined;
-  } while (cursor);
-  return used;
-}
 
 /** The parsed definition, or the 422 already sent. */
 function definitionOr422(reply: FastifyReply, body: unknown) {
@@ -92,7 +74,7 @@ export function registerRoutingPoolRoutes(
       const pool = await routing.pools.get(poolId);
       if (!pool) return notFound(reply);
       reply.header('etag', etag(pool.version));
-      return { ...pool, usedBy: await pointsUsingPool(routing, poolId) };
+      return { ...pool, usedBy: await routing.pools.usedBy(poolId) };
     }),
   );
 

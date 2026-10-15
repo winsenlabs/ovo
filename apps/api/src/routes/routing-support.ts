@@ -21,6 +21,8 @@ export interface RoutingRouteDependencies {
   enabled: boolean;
   /** `OVO_ROUTING_EXTERNAL_ENABLED`; off, publish warns that external engines will not call out. */
   externalEnabled: boolean;
+  /** `OVO_ROUTING_TRANSFER_ENABLED`; off, publish warns that a transfer catalogue stays inert. */
+  transferEnabled: boolean;
   /** The worker refuses a call whose release has no cost policy when a ledger runs. */
   requireCostPolicy: boolean;
   /** The installed plugins, to read the meters a release's pins emit. */

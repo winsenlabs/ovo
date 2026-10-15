@@ -191,6 +191,7 @@ export function routingApp(
     operations: { organizationId: WORKSPACE, routing } as never,
     enabled: true,
     externalEnabled: false,
+    transferEnabled: false,
     requireCostPolicy: false,
     registry,
     expectedVersion: (request) => {

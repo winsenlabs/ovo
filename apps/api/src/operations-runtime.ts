@@ -41,17 +41,20 @@ export interface CreateOperationsRuntimeOptions {
 }
 
 /**
- * The two Wave 15 routing flags, both off unless set to exactly `true`. With routing off the
- * `/v1/routing/*` API answers `routing_disabled` and admission sends a routed number to its
- * routing release's default agent; the external flag lets the worker's external engine call out.
+ * The routing flags, all off unless set to exactly `true`. With routing off the `/v1/routing/*`
+ * API answers `routing_disabled` and admission sends a routed number to its routing release's
+ * default agent; the external flag lets the worker's external engine call out; the transfer flag
+ * (Wave 16) turns on in-call agent transfers in the worker, which the API reports.
  */
 export function routingFlagsFromEnv(environment: Environment): {
   routingEnabled: boolean;
   routingExternalEnabled: boolean;
+  routingTransferEnabled: boolean;
 } {
   return {
     routingEnabled: environment.OVO_ROUTING_ENABLED === 'true',
     routingExternalEnabled: environment.OVO_ROUTING_EXTERNAL_ENABLED === 'true',
+    routingTransferEnabled: environment.OVO_ROUTING_TRANSFER_ENABLED === 'true',
   };
 }
 

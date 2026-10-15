@@ -12,9 +12,11 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { routingSnapshotDigest, type RoutingService } from '@winsendotai/ovo-plugin-operations';
 import { routingResolutionIssues, type RoutingCheckInput } from './routing-publish-checks.ts';
+import { pinnedTransfer } from './routing-publish-transfer.ts';
 import {
   livePool,
   resolveRouting,
+  type AudioLookup,
   type PoolLookup,
   type RoutingReleaseStore,
   type RoutingResolution,
@@ -27,6 +29,7 @@ export interface RoutingPublishContext extends Omit<
   store: RoutingReleaseStore & RoutingCheckInput['store'];
   routing: Pick<RoutingService, 'releases'>;
   pool: PoolLookup;
+  audio: AudioLookup;
 }
 
 /**
@@ -42,6 +45,7 @@ export async function validateRoutingDraft(
     workspaceId: context.workspaceId,
     store: context.store,
     pool: context.pool,
+    audio: context.audio,
   });
   const issues = [
     ...routingDraftIssues(draft),
@@ -52,9 +56,10 @@ export async function validateRoutingDraft(
 
 /**
  * The immutable snapshot a routing release freezes: the draft with every agent reference pinned to
- * the release it resolved to, every named pool with its members pinned, the de-duplicated release
- * ids, and the sha256 digest over its canonical JSON the release is stored under. Only called
- * once validation found no errors.
+ * the release it resolved to (transfer destinations included), every named pool with its members
+ * pinned, every hold clip pinned by sha256, the de-duplicated release ids, and the sha256 digest
+ * over its canonical JSON the release is stored under. A draft with a transfer catalogue freezes
+ * as schema version 2. Only called once validation found no errors.
  */
 export function buildRoutingSnapshot(
   pointId: string,
@@ -98,9 +103,11 @@ export function buildRoutingSnapshot(
       };
   }
   const releaseIds = [...new Set([...pinned.values()].map((ref) => ref.release.releaseId))];
+  const transfer = draft.transfer && pinnedTransfer(draft.transfer, resolution, pin);
   const snapshot = RoutingReleaseSnapshot.parse({
     ...draft,
-    schemaVersion: 1,
+    schemaVersion: transfer ? 2 : 1,
+    ...(transfer ? { transfer } : {}),
     routingPointId: pointId,
     router: pin(draft.router),
     defaultTarget: pin(draft.defaultTarget),

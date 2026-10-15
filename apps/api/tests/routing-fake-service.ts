@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import {
-  routingNodeTargets,
+  routingAudioIds,
+  routingPoolIds,
+  type RoutingAudio,
   type RoutingPointDraft,
   type RoutingPool,
   type RoutingPoolDefinition,
@@ -15,7 +17,8 @@ const WORKSPACE = 'ws-routing';
 /** The routing service of design 5.2 (plugin-operations `RoutingService`), in memory, with the same optimistic-version semantics. */
 export class FakeRoutingService {
   readonly enabled = true;
-  private readonly poolRows = new Map<string, RoutingPool & { deleted?: boolean }>();
+  private readonly poolRows = new Map<string, RoutingPool & { deletedAt?: string }>();
+  private readonly audioRows = new Map<string, RoutingAudio & { bytes: Uint8Array }>();
   private readonly pointRows = new Map<string, RoutingPoint & { deleted?: boolean }>();
   private readonly releaseRows: RoutingRelease[] = [];
   /** Masked numbers pinned to a point's releases, as the inbound routes would report them. */
@@ -31,23 +34,32 @@ export class FakeRoutingService {
   private nameTaken(name: string, except?: string) {
     return [...this.poolRows.values()].some(
       (row) =>
-        !row.deleted &&
+        !row.deletedAt &&
         row.id !== except &&
         row.definition.name.toLowerCase() === name.toLowerCase(),
     );
   }
 
+  /** Live points whose draft names `ids` (the ovo_routing_point_* link tables' view). */
+  private namedBy(names: (draft: RoutingPointDraft) => string[], id: string) {
+    return [...this.pointRows.values()]
+      .filter((point) => !point.deleted && names(point.draft).includes(id))
+      .map((point) => point.id)
+      .sort();
+  }
+
   pools = {
     list: async (limit: number, cursor?: string) =>
       this.page(
-        [...this.poolRows.values()].filter((row) => !row.deleted),
+        [...this.poolRows.values()].filter((row) => !row.deletedAt),
         limit,
         cursor,
       ),
-    get: async (id: string) => {
+    get: async (id: string, options: { includeDeleted?: boolean } = {}) => {
       const row = this.poolRows.get(id);
-      return row && !row.deleted ? row : undefined;
+      return row && (!row.deletedAt || options.includeDeleted) ? row : undefined;
     },
+    usedBy: async (id: string) => this.namedBy(routingPoolIds, id),
     create: async (definition: RoutingPoolDefinition, id: string = randomUUID()) => {
       if (this.nameTaken(definition.name)) throw new RoutingPoolNameTakenError(definition.name);
       const row = {
@@ -72,16 +84,70 @@ export class FakeRoutingService {
     remove: async (id: string, expectedVersion: number) => {
       const row = await this.pools.get(id);
       if (!row || row.version !== expectedVersion) return 'conflict' as const;
-      const inUseBy = [...this.pointRows.values()]
-        .filter((point) => !point.deleted)
-        .filter((point) =>
-          routingNodeTargets(point.draft.nodes).some(
-            ({ target }) => target.kind === 'pool' && target.poolId === id,
-          ),
-        )
-        .map((point) => point.id);
+      const inUseBy = await this.pools.usedBy(id);
       if (inUseBy.length) return { inUseBy };
-      this.poolRows.set(id, { ...row, deleted: true });
+      this.poolRows.set(id, { ...row, deletedAt: this.now() });
+      return 'removed' as const;
+    },
+  };
+
+  audio = {
+    list: async (limit: number, cursor?: string) =>
+      this.page(
+        [...this.audioRows.values()]
+          .filter((row) => !row.deletedAt)
+          .map(({ bytes: _, ...row }) => row),
+        limit,
+        cursor,
+      ),
+    get: async (id: string, options: { includeDeleted?: boolean } = {}) => {
+      const row = this.audioRows.get(id);
+      if (!row || (row.deletedAt && !options.includeDeleted)) return undefined;
+      const { bytes: _, ...audio } = row;
+      return audio;
+    },
+    content: async (id: string, sha256: string) => {
+      const row = this.audioRows.get(id);
+      return row?.sha256 === sha256 ? row.bytes : undefined;
+    },
+    create: async (
+      input: {
+        name: string;
+        audio: Uint8Array;
+        durationMs: number;
+        sha256: string;
+        source: RoutingAudio['source'];
+        createdBy: string;
+      },
+      id: string = randomUUID(),
+    ) => {
+      const taken = [...this.audioRows.values()].some(
+        (row) => !row.deletedAt && row.name.toLowerCase() === input.name.toLowerCase(),
+      );
+      if (taken) return 'name_taken' as const;
+      const row = {
+        id,
+        workspaceId: WORKSPACE,
+        name: input.name,
+        codec: 'audio/x-mulaw' as const,
+        sampleRate: 8000 as const,
+        durationMs: input.durationMs,
+        byteLength: input.audio.byteLength,
+        sha256: input.sha256,
+        source: input.source,
+        createdAt: this.now(),
+        createdBy: input.createdBy,
+      };
+      this.audioRows.set(id, { ...row, bytes: input.audio });
+      return row;
+    },
+    usedBy: async (id: string) => this.namedBy(routingAudioIds, id),
+    remove: async (id: string) => {
+      const row = this.audioRows.get(id);
+      if (!row || row.deletedAt) return 'missing' as const;
+      const inUseBy = await this.audio.usedBy(id);
+      if (inUseBy.length) return { inUseBy };
+      this.audioRows.set(id, { ...row, deletedAt: this.now() });
       return 'removed' as const;
     },
   };

@@ -4,7 +4,11 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { buildManagementApi } from '../src/server.ts';
 
-async function api(routing: { routingEnabled?: boolean; routingExternalEnabled?: boolean }) {
+async function api(routing: {
+  routingEnabled?: boolean;
+  routingExternalEnabled?: boolean;
+  routingTransferEnabled?: boolean;
+}) {
   const directory = await mkdtemp(join(tmpdir(), 'ovo-routing-'));
   const { app } = await buildManagementApi({
     databaseFile: join(directory, 'control.sqlite'),
@@ -39,6 +43,7 @@ it('serves the routing routes dark by default (Wave 15, A1)', async () => {
     expect((await get('/v1/routing/status')).json()).toEqual({
       enabled: false,
       externalEnabled: false,
+      transferEnabled: false,
     });
     const pools = await get('/v1/routing/pools');
     expect([pools.statusCode, pools.json().error.code]).toEqual([404, 'routing_disabled']);
@@ -48,11 +53,16 @@ it('serves the routing routes dark by default (Wave 15, A1)', async () => {
 });
 
 it('stays off without the operations database even with the flags on', async () => {
-  const { get, close } = await api({ routingEnabled: true, routingExternalEnabled: true });
+  const { get, close } = await api({
+    routingEnabled: true,
+    routingExternalEnabled: true,
+    routingTransferEnabled: true,
+  });
   try {
     expect((await get('/v1/routing/status')).json()).toEqual({
       enabled: false,
       externalEnabled: true,
+      transferEnabled: true,
     });
     const pools = await get('/v1/routing/pools');
     expect([pools.statusCode, pools.json().error.code]).toEqual([503, 'operations_unavailable']);

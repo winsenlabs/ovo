@@ -68,6 +68,7 @@ export function registerApiRoutes(deps: any): void {
       : undefined,
     enabled: options.routingEnabled === true,
     externalEnabled: options.routingExternalEnabled === true,
+    transferEnabled: options.routingTransferEnabled === true,
     // A ledger runs wherever the worker prices calls, and the worker then refuses an unpriced one.
     requireCostPolicy: options.costLedgerEnabled === true,
     registry: new PluginRegistry(deps.catalog),
