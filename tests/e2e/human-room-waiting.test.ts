@@ -210,7 +210,8 @@ describe.skipIf(!roomServerBinary())('managed human queue: the waiting paths (R3
           const history = await room.env.stack.db.query<{
             kind: string;
             payload: Record<string, any>;
-          }>('SELECT kind, payload FROM ovo_hq_ticket_events WHERE ticket_id = $1 ORDER BY seq', [ // eslint-disable-line @typescript-eslint/no-explicit-any
+          }>('SELECT kind, payload FROM ovo_hq_ticket_events WHERE ticket_id = $1 ORDER BY seq', [
+            // eslint-disable-line @typescript-eslint/no-explicit-any
             ticketId,
           ]);
           expect(history.rows.map((row) => [row.payload.state, row.payload.code ?? null])).toEqual([

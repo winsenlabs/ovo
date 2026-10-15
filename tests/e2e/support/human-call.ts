@@ -91,3 +91,18 @@ export async function pressWhenListening(env: HumanStack, call: FakeTwilioCall, 
   });
   call.pressDigit(digit);
 }
+
+/** Waits until the worker can take an inbound call again (the previous call has let go of it). */
+export async function capacityReady(env: HumanStack) {
+  const { operatorApi } = await import('./operator-setup.ts');
+  await vi.waitFor(
+    async () => {
+      const capacity = await operatorApi(env.stack.operator)<{ readyProtected: number }>(
+        'GET',
+        '/v1/operations/inbound/capacity',
+      );
+      expect(capacity.readyProtected).toBeGreaterThanOrEqual(1);
+    },
+    { timeout: 15_000, interval: 250 },
+  );
+}

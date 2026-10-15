@@ -13,6 +13,7 @@ import {
 } from './operator-setup.ts';
 import { LINES, mainLineDraft, type RoutedAgent } from './routing-setup.ts';
 import { startScriptedAssemblyAi } from './routing-fakes.ts';
+import { configureSipAgent, sipComposeVariables } from './sip-setup.ts';
 import { startLiveStack, type LiveStack } from './stack.ts';
 import { startTransferOpenAi, TRANSFER_LINES, type TransferOpenAi } from './transfer-setup.ts';
 
@@ -145,6 +146,8 @@ export interface HumanLineOptions {
   managed?: Patch | boolean;
   /** Also bind a transfer target `colleague` for the sales agent to the external queue. */
   transfer?: boolean;
+  /** Bind the number to this carrier instead of Twilio (the SIP scenarios). */
+  carrier?: { pluginId: string; bindingId: string };
   /** The router agent records the call (the recording tap sees both sides of a room). */
   recording?: boolean;
   /** The node fallback steps; the default is `human desk`, the release default, an end line. */
@@ -317,8 +320,8 @@ export async function configureHumanLine(
     routingReleaseId: release.id,
     variables: { account_id: ACCOUNT_ID },
     enabled: true,
-    carrierPluginId: TWILIO,
-    carrierBindingId: base.twilioBindingId,
+    carrierPluginId: options.carrier?.pluginId ?? TWILIO,
+    carrierBindingId: options.carrier?.bindingId ?? base.twilioBindingId,
   });
   return {
     ...team,
@@ -339,6 +342,8 @@ export interface HumanStackOptions {
   variables?: Record<string, string>;
   /** A room server the stack's api and worker reach (`OVO_LIVEKIT_*`); absent: the feature is dark. */
   room?: { url: string; apiKey: string; apiSecret: string };
+  /** Turns the SIP carrier on and binds the line's number to a loopback trunk (`OVO_TEST_SIPP`). */
+  sip?: { controlPort: number; forwardHeaders?: string[] };
   /** Added to the worker's rendered environment only (a feature on in the api, off in the worker). */
   workerVariables?: Record<string, string>;
   line?: HumanLineOptions;
@@ -390,12 +395,29 @@ export async function humanStack(
             OVO_LIVEKIT_API_SECRET: options.room.apiSecret,
           }
         : {}),
+      ...(options.sip ? sipComposeVariables(`http://127.0.0.1:${options.sip.controlPort}`) : {}),
       ...options.variables,
     },
     { worker: options.workerVariables },
   );
   const agent = await configureInboundAgent(stack.operator);
-  const line = await configureHumanLine(stack.operator, agent, options.line);
+  let sipAgent: Awaited<ReturnType<typeof configureSipAgent>> | undefined;
+  let line: HumanLine;
+  if (options.sip) {
+    // The same line over a SIP trunk: the agents are cloned from the SIP-bound agent's config.
+    sipAgent = await configureSipAgent(stack.operator, agent, {
+      forwardHeaders: options.sip.forwardHeaders ?? [],
+    });
+    const { config } = await operatorApi(stack.operator)<{ config: Record<string, unknown> }>(
+      'GET',
+      `/v1/agents/${sipAgent.agentId}`,
+    );
+    line = await configureHumanLine(
+      stack.operator,
+      { ...agent, config, number: sipAgent.number },
+      { ...options.line, carrier: { pluginId: sipAgent.pluginId, bindingId: sipAgent.bindingId } },
+    );
+  } else line = await configureHumanLine(stack.operator, agent, options.line);
   await vi.waitFor(
     () => {
       if (stack.worker.status.state === 'failed') throw new Error(stack.worker.status.detail);
@@ -406,6 +428,7 @@ export async function humanStack(
   return {
     stack,
     agent,
+    sipAgent,
     line,
     openAi,
     stt,

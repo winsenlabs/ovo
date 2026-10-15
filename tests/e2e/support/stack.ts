@@ -99,7 +99,8 @@ async function managementApiFromEnv(env: Record<string, string>) {
     carrierPublicBaseUrl: env.OVO_MEDIA_PUBLIC_BASE_URL ?? '',
     inboundRouteSecret: env.OVO_INBOUND_ROUTE_SECRET ?? '',
     operations: { environment: env },
-    logger: false,
+    // OVO_E2E_API_LOG=1 prints the api's errors (its handler otherwise answers a bare 500).
+    logger: process.env.OVO_E2E_API_LOG ? { level: 'error' } : false,
   });
 }
 
