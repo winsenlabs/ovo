@@ -114,6 +114,9 @@ importers:
       '@types/pg':
         specifier: 8.15.5
         version: 8.15.5
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../../packages/conformance
 
   apps/console:
     dependencies:
