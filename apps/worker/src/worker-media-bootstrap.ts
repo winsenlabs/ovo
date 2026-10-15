@@ -9,7 +9,11 @@ import type { InstalledSessionExtensions } from '@winsendotai/ovo-runtime';
 import type { ProductionWorkerCostRuntime } from './cost-runtime.ts';
 import type { InboundWorkerRuntime } from './inbound-runtime.ts';
 import { WorkerMediaRuntime, type VoiceSessionFactory } from './media-runtime.ts';
-import { ProductionVoiceSessionFactory } from './production-session-factory.ts';
+import { createRouterBehaviorPlugin } from '@winsendotai/ovo-plugin-router';
+import type { OperationsService } from '@winsendotai/ovo-plugin-operations';
+import { RoutedVoiceSessionFactory } from './routed-session-factory.ts';
+import { operationsOf } from './routed-call-support.ts';
+import { routingWorkerOptions } from './worker-environment.ts';
 import type { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
 import type { WorkerTelemetryRuntime } from './telemetry-runtime.ts';
 import type { Server } from 'node:http';
@@ -40,7 +44,11 @@ export function createProductionWorkerMediaRuntime(input: {
   inbound?: InboundWorkerRuntime;
   graph?: LiveGraphOptions;
   carriers?: WorkerCarrierRuntime;
+  /** Wave 15 routing; by default the worker's environment and the graph's operations service. */
+  routing?: { externalEnabled: boolean; prepareTimeoutMs?: number };
+  operations?: Pick<OperationsService, 'routing'>;
 }): WorkerMediaRuntime {
+  const routing = input.routing ?? routingWorkerOptions();
   let runtime!: WorkerMediaRuntime;
   const terminate = async (
     route: SessionRoute,
@@ -81,33 +89,37 @@ export function createProductionWorkerMediaRuntime(input: {
     );
     if (requested && route.carrierCallId) await input.telephony.hangup(route.carrierCallId);
   };
-  const factory = endReasonKeeping(
-    (links) =>
-      new ProductionVoiceSessionFactory(
-        input.controlStore,
-        input.secrets,
-        input.telemetry,
-        (jobId) => input.costs.usageForJob(jobId),
-        (jobId) => input.costs.inferenceUsageForJob(jobId),
-        input.extensions,
-        input.recordings,
-        input.recordingRetentionDays,
-        input.speechCache,
-        input.graph,
-        async (job, route, reason) => {
-          // N2: before the hang-up, whose stream stop would otherwise read as the caller's.
-          links.get(route.sessionId)?.endingWith(reason);
-          await terminate(
-            route,
-            reason,
-            true,
-            reason === 'transferred'
-              ? await releaseTransferTarget(input.controlStore, job)
-              : undefined,
-          );
-        },
-        { pool: input.store.pool },
-      ),
+  const factory = endReasonKeeping((links) =>
+    new RoutedVoiceSessionFactory(
+      input.controlStore,
+      input.secrets,
+      input.telemetry,
+      (jobId) => input.costs.usageForJob(jobId),
+      (jobId) => input.costs.inferenceUsageForJob(jobId),
+      input.extensions,
+      input.recordings,
+      input.recordingRetentionDays,
+      input.speechCache,
+      input.graph,
+      async (job, route, reason) => {
+        // N2: before the hang-up, whose stream stop would otherwise read as the caller's.
+        links.get(route.sessionId)?.endingWith(reason);
+        await terminate(
+          route,
+          reason,
+          true,
+          reason === 'transferred'
+            ? await releaseTransferTarget(input.controlStore, job)
+            : undefined,
+        );
+      },
+      { pool: input.store.pool },
+    ).route({
+      routing: input.operations?.routing,
+      routerBehavior: createRouterBehaviorPlugin,
+      externalEnabled: input.routing?.externalEnabled ?? false,
+      prepareTimeoutMs: input.routing?.prepareTimeoutMs,
+    }),
   );
   runtime = new WorkerMediaRuntime(
     {

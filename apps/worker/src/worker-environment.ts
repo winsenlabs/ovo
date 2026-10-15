@@ -7,6 +7,7 @@ import {
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
 import type { Context, PluginDefinition } from '@winsendotai/ovo-runtime';
 import { WorkerTelemetryRuntime } from './telemetry-runtime.ts';
+import { ROUTING_PREPARE_TIMEOUT_MS } from './segment-prepare.ts';
 
 export function env(name: string): string {
   const value = process.env[name];
@@ -70,4 +71,17 @@ export function openWorkerTelemetry(databaseUrl: string, controlStore: ControlSt
     maxCallEvents: optionalInteger('OVO_CALL_EVENT_MAX_QUEUED_EVENTS', 1, 100_000),
     onError: (error) => console.error('worker telemetry error:', error.message),
   });
+}
+
+/**
+ * Wave 15 routing in the worker (both off or default unless set): `OVO_ROUTING_EXTERNAL_ENABLED`
+ * lets the external decision engine call out (only the exact value `true`), and
+ * `OVO_ROUTING_PREPARE_TIMEOUT_MS` (500-10000, default 2500) bounds composing the chosen agent.
+ */
+export function routingWorkerOptions(): { externalEnabled: boolean; prepareTimeoutMs: number } {
+  return {
+    externalEnabled: process.env.OVO_ROUTING_EXTERNAL_ENABLED === 'true',
+    prepareTimeoutMs:
+      optionalInteger('OVO_ROUTING_PREPARE_TIMEOUT_MS', 500, 10_000) ?? ROUTING_PREPARE_TIMEOUT_MS,
+  };
 }
