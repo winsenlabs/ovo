@@ -23,6 +23,10 @@ export const Cap = {
   transcripts: 'ovo.transcript-observer',
   /** Per-call outcome events (AGT-8); optional, so a session without a sink records nothing. */
   events: 'ovo.event-sink',
+  /** Wave 15 routing host (`RoutingHost`); the worker provides it to the router behaviour only. */
+  routing: 'ovo.routing',
+  /** Same-leg agent handoff (`SegmentHandoffPort`): the R1 router, then R2's transfer tool. */
+  segmentHandoff: 'ovo.segment-handoff',
   clock: 'ovo.clock',
   net: 'ovo.net',
   carrierControl: 'ovo.carrier.control',
@@ -124,6 +128,8 @@ export const CAPABILITY_SPECS = {
   [Cap.usage]: SESSION,
   [Cap.transcripts]: SESSION,
   [Cap.events]: SESSION,
+  [Cap.routing]: SESSION,
+  [Cap.segmentHandoff]: SESSION,
   [Cap.clock]: EITHER,
   [Cap.net]: EITHER,
   [Cap.carrierControl]: MANY_PROCESS,

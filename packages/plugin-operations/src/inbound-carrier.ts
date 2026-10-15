@@ -1,4 +1,4 @@
-import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import type { QueryResultRow } from 'pg';
 
 export interface InboundCarrierRoute extends QueryResultRow {
   release_id: string;
@@ -6,20 +6,6 @@ export interface InboundCarrierRoute extends QueryResultRow {
   version: string;
   carrier_plugin_id: string | null;
   carrier_binding_id: string | null;
-}
-
-export async function selectInboundCarrierRoute(
-  client: Pool | PoolClient,
-  organizationId: string,
-  toNumber: string,
-): Promise<InboundCarrierRoute | undefined> {
-  const result = await client.query<InboundCarrierRoute>(
-    `SELECT release_id, variables, version, carrier_plugin_id, carrier_binding_id
-     FROM ovo_ops_inbound_routes
-     WHERE organization_id = $1 AND phone_number = $2 AND enabled = true`,
-    [organizationId, toNumber],
-  );
-  return result.rows[0];
 }
 
 export class InstalledInboundCarrierPlugins {

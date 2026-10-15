@@ -53,3 +53,4 @@ export * from './ops/background-task.ts';
 export * from './ops/capacity-signal.ts';
 export * from './ops/recording-tap.ts';
 export * from './logger.ts';
+export * from './routing/index.ts';

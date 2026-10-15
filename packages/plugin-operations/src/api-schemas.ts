@@ -185,7 +185,8 @@ export const operationsApiSchemas = {
   inboundRoute: z
     .object({
       expectedVersion: z.number().int().min(1).nullable(),
-      releaseId: uuid,
+      releaseId: uuid.optional(),
+      routingReleaseId: uuid.optional(),
       variables: z
         .record(z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/), z.string().max(2_000))
         .default({}),
@@ -197,7 +198,10 @@ export const operationsApiSchemas = {
     .refine(
       (value) => Object.keys(value.variables).length <= 50,
       'At most 50 variables are allowed',
-    ),
+    )
+    .refine((value) => (value.releaseId === undefined) !== (value.routingReleaseId === undefined), {
+      message: 'Give exactly one of releaseId or routingReleaseId',
+    }),
   inboundRouteParams: z.object({ phoneNumber: phone }).strict(),
   inboundRouteDelete: z.object({ expectedVersion: z.coerce.number().int().min(1) }).strict(),
   handoff: z

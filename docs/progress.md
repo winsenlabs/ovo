@@ -2,6 +2,23 @@
 
 Updated: 2026-09-22 IST. Branch: `vorflux/ovo-foundation`.
 
+## Wave 15 R1: routing points, agent pools and the conversational router (2026-10-15 IST)
+
+- **What.** A number can be bound to a routing release instead of one agent release. A router (an
+  ordinary agent release running the new router behaviour) greets the caller, works out language
+  and intent, walks a tree of nodes with per-node engines (rules, decision, LLM classifier, signed
+  external webhook) and fallback chains, claims a pool member with room, and hands the call to that
+  agent on the same carrier leg. Design: `docs/architecture/routing.md`.
+- **Ships dark.** `OVO_ROUTING_ENABLED`, `OVO_ROUTING_EXTERNAL_ENABLED` default to `false`; with
+  routing off a routed number is answered by its release's default agent. Migrations (operations
+  010, outcomes v2) are additive and inert. No deploy, no VM change.
+- **Core lane.** Contracts (`packages/contracts/src/routing/`), migration 010 and
+  `OperationsService.routing`, routed admission through `effectiveInboundRoute` (shared with the
+  gateway pre-check), the `route` outcome fold, pre-render of routed member agents, Compose and
+  env-reference wiring, and `tests/e2e/routing-path.test.ts`.
+- **Not in R1.** Mid-call transfer (R2), human queues (R3; the `human` step is recorded and
+  skipped), the routing designer and routing accuracy in `packages/eval` (R4).
+
 ## Plugin platform rebuild (2026-09-22 IST)
 
 - **Where things stand.** The inherited branch was reviewed read-only. It had never made a real call, and 27 defects were confirmed or reported. The founder then set the direction:

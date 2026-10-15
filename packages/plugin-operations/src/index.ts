@@ -19,6 +19,16 @@ export * from './plugin.ts';
 export * from './release-compliance.ts';
 export * from './release-variables.ts';
 export * from './retries.ts';
+export * from './routing/service.ts';
+export { RoutingPoolNameTakenError } from './routing/rows.ts';
+export { maskedNumber as maskedRoutingNumber } from './routing/points.ts';
+export { routingSnapshotDigest, type RoutingReleaseInput } from './routing/releases.ts';
+export type { RoutingClaimInput } from './routing/claims.ts';
+export {
+  effectiveInboundRoute,
+  type EffectiveInboundRoute,
+  type InboundRouting,
+} from './routing/effective-route.ts';
 export * from './service.ts';
 export * from './timezone.ts';
 export * from './types.ts';

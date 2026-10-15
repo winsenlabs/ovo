@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
+import type { InboundRouting } from './routing/effective-route.ts';
 import type { InboundGatewayCall, InboundGatewayDecision } from './types.ts';
 
 export interface InboundRouteSnapshot {
@@ -9,6 +10,10 @@ export interface InboundRouteSnapshot {
   carrier_plugin_id: string | null;
   carrier_binding_id: string | null;
   carrier_id: string;
+  /** Wave 15: the number's routing release; `routing` only when the call is routed. */
+  routing_release_id?: string | null;
+  routing?: InboundRouting | null;
+  routing_disabled?: boolean;
 }
 
 export interface InboundCapacityReservation {
@@ -43,6 +48,8 @@ export async function provisionInboundSession(
     inboundAdmissionId: admissionId,
     carrierPluginId: route.carrier_plugin_id,
     carrierBindingId: route.carrier_binding_id,
+    // releaseId is the router release; the worker runs the router first, then the chosen agent.
+    ...(route.routing ? { routing: route.routing } : {}),
   };
   await client.query(
     `INSERT INTO ovo_jobs
@@ -102,6 +109,8 @@ export async function provisionInboundSession(
     kind: 'reserved',
     releaseId: route.release_id,
     routeVersion: Number(route.version),
+    ...(route.routing ? { routingReleaseId: route.routing.routingReleaseId } : {}),
+    ...(route.routing_disabled ? { routingDisabled: true } : {}),
   };
   if (existingAdmissionId) {
     await client.query(
@@ -114,8 +123,8 @@ export async function provisionInboundSession(
     await client.query(
       `INSERT INTO ovo_ops_inbound_admissions
          (id, organization_id, call_id, decision, slot_id, detail, from_number, to_number,
-          route_version, release_id, variables, job_id, session_id)
-       VALUES ($1, $2, $3, 'reserved', $4, $5::jsonb, $6, $7, $8, $9, $10::jsonb, $11, $12)`,
+          route_version, release_id, variables, job_id, session_id, routing_release_id)
+       VALUES ($1, $2, $3, 'reserved', $4, $5::jsonb, $6, $7, $8, $9, $10::jsonb, $11, $12, $13)`,
       [
         admissionId,
         organizationId,
@@ -129,6 +138,7 @@ export async function provisionInboundSession(
         JSON.stringify(route.variables),
         jobId,
         sessionId,
+        route.routing_release_id ?? null,
       ],
     );
   }
