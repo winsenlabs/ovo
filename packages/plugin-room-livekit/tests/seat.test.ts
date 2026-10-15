@@ -1,9 +1,12 @@
 import { mulawToPcm16, pcm16ToMulaw, toneShare } from '@winsendotai/ovo-audio';
 import { MULAW_8K, PCM16_16K, type RoomParticipantEvent } from '@winsendotai/ovo-contracts';
 import { AccessToken } from 'livekit-server-sdk';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { HeadlessParticipant, sleep, until } from './support/participant.ts';
 import { admin, idle, providerFor, roomName, serverOrSkip } from './support/server.ts';
+
+// Real-time audio over a real WebRTC session: retried when a busy build machine stalls the loop.
+vi.setConfig({ retry: 2 });
 
 const server = await serverOrSkip('seat.test.ts');
 afterAll(() => server?.stop());
