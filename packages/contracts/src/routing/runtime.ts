@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { RouteAgentId, RouteContextKey, RouteUuid, RoutingKey } from './ids.ts';
 import type { ExternalEngine } from './engines.ts';
+import { TRANSFER_LIMITS } from './transfer.ts';
 
 export interface RouteContext {
   /** Base code, in language.allowed. */
@@ -9,38 +10,102 @@ export interface RouteContext {
   values: Record<string, string>;
 }
 
-/**
- * Hand the call to another agent release on the same carrier leg and media link. R1's router is
- * the only caller (`reason: 'route'`); R2 adds `transfer` (and R3 `kind: 'human'`) additively.
- */
-export const SegmentHandoffRequest = z
+export const RoutingMemberCandidateSchema = z
+  .object({
+    poolId: RouteUuid,
+    memberId: RoutingKey,
+    agentId: RouteAgentId,
+    releaseId: RouteUuid,
+    capacity: z.number().int().min(1).max(10_000).optional(),
+  })
+  .strict();
+
+/** Only `ovo_route_*` names; merged over the call's own variables for the target. */
+const HandoffVariables = z
+  .record(z.string().regex(/^ovo_route_[a-z][a-z0-9_]{0,39}$/), z.string().max(200))
+  .default({});
+const HandoffRoute = z
+  .object({
+    path: z.array(RoutingKey).max(32),
+    poolId: RouteUuid.optional(),
+    memberId: RoutingKey.optional(),
+    claimId: RouteUuid.optional(),
+  })
+  .strict();
+/** R2: what the requester knows that the host cannot see. Free text is untrusted, never logged or evented. */
+export const HandoffTransferMeta = z
+  .object({
+    key: RoutingKey.optional(),
+    source: z.enum(['router', 'llm', 'flow', 'fallback']),
+    reason: z.string().trim().max(TRANSFER_LIMITS.reasonChars).optional(),
+    summary: z.string().trim().max(TRANSFER_LIMITS.summaryChars).optional(),
+  })
+  .strict();
+export type HandoffTransferMeta = z.infer<typeof HandoffTransferMeta>;
+
+/** One agent release. R1's router sends `reason: 'route'`; R2's transfers send `transfer`. */
+const AgentHandoff = z
   .object({
     kind: z.literal('agent'),
-    reason: z.literal('route'),
+    reason: z.enum(['route', 'transfer']),
     agentId: RouteAgentId,
     /** Must be in the routing snapshot's releaseIds. */
     releaseId: RouteUuid,
-    /** Only `ovo_route_*` names; merged over the call's own variables for the target. */
-    variables: z
-      .record(z.string().regex(/^ovo_route_[a-z][a-z0-9_]{0,39}$/), z.string().max(200))
-      .default({}),
-    route: z
-      .object({
-        path: z.array(RoutingKey).max(32),
-        poolId: RouteUuid.optional(),
-        memberId: RoutingKey.optional(),
-        claimId: RouteUuid.optional(),
-      })
-      .strict()
-      .optional(),
+    variables: HandoffVariables,
+    route: HandoffRoute.optional(),
+    transfer: HandoffTransferMeta.optional(),
   })
   .strict();
+/** R2: a pool whose eligible members are all full; the host claims (and, with waitForCapacity, retries on hold). */
+const QueueHandoff = z
+  .object({
+    kind: z.literal('queue'),
+    reason: z.enum(['route', 'transfer']),
+    poolId: RouteUuid,
+    tiers: z.array(z.array(RoutingMemberCandidateSchema).min(1).max(100)).min(1).max(101),
+    variables: HandoffVariables,
+    route: HandoffRoute.optional(),
+    transfer: HandoffTransferMeta.optional(),
+  })
+  .strict();
+/** R2: re-route through the tree from `node`. */
+const NodeHandoff = z
+  .object({
+    kind: z.literal('node'),
+    reason: z.literal('transfer'),
+    node: RoutingKey,
+    variables: HandoffVariables,
+    transfer: HandoffTransferMeta,
+  })
+  .strict();
+
+/**
+ * Hand the call to another agent release (or back to the router) on the same carrier leg and media
+ * link. R3 adds `kind: 'human'` to this union.
+ */
+export const SegmentHandoffRequest = z.discriminatedUnion('kind', [
+  AgentHandoff,
+  QueueHandoff,
+  NodeHandoff,
+]);
 export type SegmentHandoffRequest = z.infer<typeof SegmentHandoffRequest>;
 
 export type HandoffPrepareFailure =
-  'release_not_allowed' | 'release_missing' | 'compose_failed' | 'timeout' | 'call_ended' | 'busy';
+  | 'release_not_allowed'
+  | 'release_missing'
+  | 'compose_failed'
+  | 'timeout'
+  | 'call_ended'
+  | 'busy'
+  /** R2: `prepare()` given a kind other than `agent`. */
+  | 'unsupported';
 export type HandoffPrepareResult =
   { ok: true; handoffId: string } | { ok: false; reason: HandoffPrepareFailure };
+export type HandoffBeginFailure =
+  HandoffPrepareFailure | 'pool_full' | 'segments_exhausted' | 'time_exhausted';
+export type HandoffBeginResult =
+  | { ok: true; handoffId: string; state: 'preparing' | 'queued' | 'ready' }
+  | { ok: false; reason: HandoffBeginFailure };
 
 /** Capability `ovo.segment-handoff` (session). Provided by the worker host; R2's transfer tool uses it too. */
 export interface SegmentHandoffPort {
@@ -50,6 +115,14 @@ export interface SegmentHandoffPort {
   commit(handoffId: string): void;
   /** Disposes a prepared, uncommitted graph and releases its member claim. Idempotent. */
   abandon(handoffId: string): Promise<void>;
+  /**
+   * R2, present only with OVO_ROUTING_TRANSFER_ENABLED. Validates synchronously-checkable things,
+   * claims (a `queue` request tries once; with the effective hold's waitForCapacity a full pool
+   * answers `queued`, otherwise `pool_full`), then composes the target in the background and
+   * returns. Commit or abandon it like a prepared handoff. After commit every failure is the host's:
+   * the hold, then the hold's onTimeout chain. Never throws for a refusal.
+   */
+  begin?(request: SegmentHandoffRequest, signal: AbortSignal): Promise<HandoffBeginResult>;
 }
 
 export interface RoutingMemberCandidate {

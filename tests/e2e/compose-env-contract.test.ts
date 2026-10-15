@@ -243,6 +243,15 @@ describe('Compose routing environment (Wave 15)', () => {
       );
     for (const service of ['worker-1', 'worker-2'])
       expect(renderServiceEnv(service, variables).OVO_ROUTING_PREPARE_TIMEOUT_MS, service).toBe('');
+    // Wave 16: in-call transfer is off on every service that reads it.
+    for (const service of ['api', 'worker-1', 'worker-2'])
+      expect(renderServiceEnv(service, variables).OVO_ROUTING_TRANSFER_ENABLED, service).toBe(
+        'false',
+      );
+    for (const service of ['gateway', 'dispatcher'])
+      expect(renderServiceEnv(service, variables), service).not.toHaveProperty(
+        'OVO_ROUTING_TRANSFER_ENABLED',
+      );
     for (const service of ['dispatcher', 'worker-1'])
       expect(renderServiceEnv(service, variables), service).not.toHaveProperty(
         'OVO_ROUTING_ENABLED',
@@ -255,13 +264,16 @@ describe('Compose routing environment (Wave 15)', () => {
       OVO_ROUTING_ENABLED: 'true',
       OVO_ROUTING_EXTERNAL_ENABLED: 'true',
       OVO_ROUTING_PREPARE_TIMEOUT_MS: '4000',
+      OVO_ROUTING_TRANSFER_ENABLED: 'true',
     };
     expect(renderServiceEnv('api', variables).OVO_ROUTING_ENABLED).toBe('true');
     expect(renderServiceEnv('gateway', variables).OVO_ROUTING_ENABLED).toBe('true');
+    expect(renderServiceEnv('api', variables).OVO_ROUTING_TRANSFER_ENABLED).toBe('true');
     for (const service of ['worker-1', 'worker-2'])
       expect(renderServiceEnv(service, variables)).toMatchObject({
         OVO_ROUTING_EXTERNAL_ENABLED: 'true',
         OVO_ROUTING_PREPARE_TIMEOUT_MS: '4000',
+        OVO_ROUTING_TRANSFER_ENABLED: 'true',
       });
   });
 });

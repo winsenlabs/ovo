@@ -27,7 +27,17 @@ export type RouteNodePayload = z.infer<typeof RouteNodePayload>;
 export const RouteFallbackPayload = z.looseObject({
   turn: Turn,
   node: Name,
-  step: z.enum(['reask', 'default', 'human', 'callback', 'end', 'limit', 'release_default']),
+  /** `target`: a branch target failed before any fallback step ran (R2; its reason is kept). */
+  step: z.enum([
+    'reask',
+    'default',
+    'human',
+    'callback',
+    'end',
+    'limit',
+    'release_default',
+    'target',
+  ]),
   result: z.enum(['taken', 'skipped', 'failed']),
   attempt: z.number().int().min(1),
   /** 'pool_full', 'no_eligible_member', 'human_queue_unavailable', 'compose_failed'... */
@@ -62,11 +72,20 @@ export const RouteSegmentPayload = z.looseObject({
   role: z.enum(['router', 'agent']),
   agentId: Name,
   releaseId: Name,
-  reason: z.enum(['start', 'route', 'degraded', 'fallback']),
+  /**
+   * R2: `transfer` (an agent or a router transfer), `return` (a failed transfer back to the agent
+   * that asked), `reroute` (a router segment resuming at a node; role `router`).
+   */
+  reason: z.enum(['start', 'route', 'degraded', 'fallback', 'transfer', 'return', 'reroute']),
   poolId: Name.optional(),
   memberId: Name.optional(),
   prepareMs: z.number().nonnegative().optional(),
   gapMs: z.number().nonnegative().optional(),
+  /** R2: the transfer (1-based per call) this segment answers. */
+  transfer: z.number().int().min(1).optional(),
+  language: z.string().max(12).optional(),
+  /** R2: the segment that handed over. */
+  fromIndex: Turn.optional(),
 });
 export type RouteSegmentPayload = z.infer<typeof RouteSegmentPayload>;
 

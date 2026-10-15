@@ -3,6 +3,7 @@ import migration001 from '../../migrations/001_cost_ledger.sql?raw';
 import migration002 from '../../migrations/002_reservation_expiry.sql?raw';
 import migration003 from '../../migrations/003_price_card_model.sql?raw';
 import migration004 from '../../migrations/004_exact_charge_amount.sql?raw';
+import migration005 from '../../migrations/005_usage_segment.sql?raw';
 import { transaction } from './database.ts';
 
 export async function runCostMigrations(pool: Pool): Promise<void> {
@@ -30,12 +31,17 @@ export async function runCostMigrations(pool: Pool): Promise<void> {
       await client.query(migration003);
       await client.query('INSERT INTO ovo_cost_schema_migrations(version) VALUES (3)');
     }
-    const fourthApplied = await client.query(
-      'SELECT 1 FROM ovo_cost_schema_migrations WHERE version = 4',
-    );
-    if (!fourthApplied.rowCount) {
-      await client.query(migration004);
-      await client.query('INSERT INTO ovo_cost_schema_migrations(version) VALUES (4)');
+    for (const [version, sql] of [
+      [4, migration004],
+      [5, migration005],
+    ] as const) {
+      const applied = await client.query(
+        'SELECT 1 FROM ovo_cost_schema_migrations WHERE version = $1',
+        [version],
+      );
+      if (applied.rowCount) continue;
+      await client.query(sql);
+      await client.query('INSERT INTO ovo_cost_schema_migrations(version) VALUES ($1)', [version]);
     }
   });
 }

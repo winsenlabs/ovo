@@ -19,6 +19,19 @@ function settle(promise) {
   );
 }
 
+/** What the live checks need of a routing release: its version and the releases it pins. */
+export function routingSummary(release) {
+  const { snapshot } = release;
+  const router = snapshot.router.release.releaseId;
+  const defaultTarget = snapshot.defaultTarget.release.releaseId;
+  return {
+    version: release.version,
+    router,
+    defaultTarget,
+    members: snapshot.releaseIds.filter((id) => id !== router && id !== defaultTarget),
+  };
+}
+
 /** The inbound and status URLs the console renders for one carrier binding. */
 export function carrierTargets(items) {
   const url = (purpose) => items?.find((item) => item.purpose === purpose)?.url ?? null;
@@ -46,15 +59,27 @@ export async function collectLiveSnapshot(input) {
   const routes = await settle(session.get('/v1/operations/inbound/routes?limit=100'));
   snapshot.routes = routes.error ? routes : (routes.items ?? []);
   snapshot.releases = {};
+  snapshot.routingReleases = {};
   snapshot.carrierUrls = {};
-  for (const route of Array.isArray(snapshot.routes) ? snapshot.routes : []) {
-    if (!route.enabled) continue;
-    snapshot.releases[route.releaseId] ??= await settle(
-      session.get(`/v1/releases/${encodeURIComponent(route.releaseId)}`).then(async (release) => ({
+  const readiness = async (releaseId) =>
+    (snapshot.releases[releaseId] ??= await settle(
+      session.get(`/v1/releases/${encodeURIComponent(releaseId)}`).then(async (release) => ({
         agentId: release.agentId,
         ...(await session.get(`/v1/agents/${encodeURIComponent(release.agentId)}/readiness`)),
       })),
-    );
+    ));
+  for (const route of Array.isArray(snapshot.routes) ? snapshot.routes : []) {
+    if (!route.enabled) continue;
+    if (route.routingReleaseId) {
+      // A routed number (Wave 15) answers with its router release, and its default agent is the
+      // kill-switch and last-resort target: both must be live-ready. Members are listed only.
+      const id = route.routingReleaseId;
+      const routing = (snapshot.routingReleases[id] ??= await settle(
+        session.get(`/v1/routing/releases/${encodeURIComponent(id)}`).then(routingSummary),
+      ));
+      if (!routing.error)
+        for (const releaseId of [routing.router, routing.defaultTarget]) await readiness(releaseId);
+    } else await readiness(route.releaseId);
     if (route.carrierBindingId)
       snapshot.carrierUrls[route.carrierBindingId] ??= await settle(
         session

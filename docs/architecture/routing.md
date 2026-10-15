@@ -1,9 +1,9 @@
-# Routing points, agent pools and the conversational router (Wave 15, R1)
+# Routing points, agent pools, the conversational router and in-call transfer (Waves 15-16, R1-R2)
 
 **State:** built and tested offline (unit, PostgreSQL, the live-path e2e harness on loopback). Ships
 dark: with `OVO_ROUTING_ENABLED=false` (the default) no call is routed, and a number that is
 already bound to a routing release is answered by that release's default agent. No deploy, no VM
-change. Every variable: [environment reference](../env-reference.md#routing-points-and-agent-pools-wave-15).
+change. Every variable: [environment reference](../env-reference.md#routing-points-agent-pools-and-in-call-transfer-waves-15-16).
 
 ## What it does
 
@@ -20,8 +20,9 @@ A call no longer has to go straight to one agent. A number can be bound to a **r
 4. The router hands the call to that agent **on the same carrier leg and media stream**: same
    recording, same cost reservation, same call record. Only the voice engine graph is swapped.
 
-R1 hands off once, at the end of routing. Mid-call agent transfer (R2), human queues (R3) and the
-routing designer (R4) build on the same seam; see [what later waves add](#what-later-waves-add).
+R1 hands off once, at the end of routing. Wave 16 (R2) adds [in-call agent transfer](#in-call-agent-transfer-wave-16-r2)
+on the same seam, behind its own flag; human queues (R3) and the routing designer (R4) build on it
+too; see [what later waves add](#what-later-waves-add).
 
 ```
 caller ─ carrier ─ media-gateway ──(admission: number → routing release → router release)── ovo_jobs
@@ -105,6 +106,10 @@ curl -sS -X POST "$OVO_API/v1/routing/points/$POINT/releases" -H 'content-type: 
 
 **4. Bind the number** (admin). Give exactly one of `releaseId` and `routingReleaseId`; switching
 between them is one optimistic PUT. `variables` are checked against the **router** release.
+The bind also captures the default agent's variable schema (`default_variables_schema`, operations
+012): an overflow callback from a routed number dials that agent with only the variables it
+declares. A number bound before 012 has no captured schema and passes its variables unfiltered
+until it is re-bound.
 
 ```bash
 curl -sS -X PUT "$OVO_API/v1/operations/inbound/routes/%2B918069450000" -H 'content-type: application/json' \
@@ -198,7 +203,180 @@ schema declares them.
 Nested routing (product, then language, then pool) is the same shape: a `product` node whose
 branches lead (`next`) to per-product nodes, or one pool target with `products: { context: 'product' }`.
 
-## Failure modes
+## In-call agent transfer (Wave 16, R2)
+
+**State:** built and tested offline; ships dark behind `OVO_ROUTING_TRANSFER_ENABLED=false` (and
+routing itself behind `OVO_ROUTING_ENABLED`). With the flag off a routed call runs byte for byte as
+R1, and a number bound directly to an agent release never changes, flag or no flag: transfers exist
+only on routed calls (bind the number to a routing point to give its agents transfers).
+
+A transfer is **a new segment on the same call scope**: one carrier leg, one media link, one
+recording, one cost reservation, one call record. Between the outgoing and the incoming segment the
+caller hears an **announcement**, then, if the target is not ready yet, a **hold sequence**, and the
+incoming agent starts with a **context handover**.
+
+```
+requested ──gates──▶ refused (event; the agent keeps talking)
+    │ accepted: claim (or queue), compose the target in the background
+    ▼
+committed ── announcement plays in the outgoing agent's voice; its engine ends; the link stays up
+    ├─ target ready ──────────────────────────────▶ connected (route.segment reason transfer)
+    └─ not ready ─▶ hold (clips, silence, lines; claim retries every 3 s when queued) ─┐
+                    ready ◀──────────────────────────────────────────────────────────────┘
+                    compose failed / start failed / maxSeconds ─▶ onTimeout chain
+ caller hangs up at any point ─▶ hold stopped, prepared graph disposed, claim released
+```
+
+Every handoff uses this one path: an agent's `transfer_to_agent` tool, a flow end node listed in
+`handoff.agents.nodes`, a re-route through a routing node, the hold timeout chain, and the router's
+own start-of-call handoff (its connecting line is the announcement; a slow or full target is held
+instead of making the caller wait in silence).
+
+### Where it is configured
+
+- **The routing point owns the catalogue** (`RoutingPointDraft.transfer`), pinned at publish like
+  every R1 target (snapshot `schemaVersion: 2`): keyed `targets` (`destination` a `pool`, the
+  agent's `same-pool`, an `agent`, or a routing `node` to re-route through), who may use each
+  (`from`: pools, members or agents; absent = every agent segment), the announcement and queue
+  announcement, `confirm` (`never` or `ask`), the `hold` policy (point-level, overridable per target),
+  `limits` and the `handover` policy. An LLM never names a release, pool or node: it picks a key.
+- **The agent release opts in** (`AgentConfig.handoff.agents`): `llmTool` offers `transfer_to_agent`
+  with the targets granted to it; `nodes` maps flow end nodes to target keys; `line` is its own
+  transfer line; `inbound.greeting` (`opening`, `line` or `llm`) and `inbound.returnLine` decide how it
+  greets a transferred or returned caller. The tool id `transfer_to_agent` is reserved when offered.
+
+```json
+"transfer": {
+  "announcement": { "en": "Let me transfer you to the right team. Please stay on the line." },
+  "hold": {
+    "steps": [ { "kind": "clip", "assetId": "<music>", "maxSeconds": 25 },
+               { "kind": "line", "line": { "en": "Thanks for holding, you'll be connected shortly." } } ],
+    "maxSeconds": 180, "waitForCapacity": true,
+    "onTimeout": [ { "kind": "return" }, { "kind": "default" },
+                   { "kind": "callback", "inMinutes": 60, "line": { "en": "We'll call you back. Goodbye." } } ]
+  },
+  "targets": [
+    { "key": "billing", "description": "Payments, refunds, double charges",
+      "label": { "en": "our billing team" },
+      "destination": { "kind": "pool", "poolId": "<billing pool>" },
+      "from": [ { "kind": "pool", "poolId": "<sales pool>" } ] },
+    { "key": "another_language", "description": "The caller wants another language",
+      "destination": { "kind": "node", "node": "language" } },
+    { "key": "senior", "description": "A senior colleague", "confirm": "ask",
+      "destination": { "kind": "same-pool", "skills": ["senior"] } }
+  ]
+}
+```
+
+Hold clips are uploaded as WAV (`POST /v1/routing/audio?name=…`, PCM 8/16-bit, mu-law or A-law,
+mono or stereo, 8-48 kHz, 0.1-300 s), converted once to 8 kHz mu-law, stored in the operations
+database (migration 011) and pinned in the release by sha256. A clip a live draft names cannot be
+deleted; a deleted clip stays playable for the releases that pinned it.
+
+### Hold
+
+The worker plays the effective hold (the target's, else the point's, else the default: 3 s silence,
+then the built-in reassurance line, looped for 60 s, then the default agent, then the built-in end
+line) on its own media lease, so every hold byte is recorded. Steps play in order, then loop from
+`loopFrom`: `clip` (sent in 20 ms frames, cut at its `maxSeconds`), `silence`, and `line` (spoken in
+the point's house voice, the router release's TTS, through the speech cache; pre-rendered at
+publish). Hold stops the moment the incoming agent sends its first audio, so an LLM greeting never
+meets dead air. Caller audio and keys during hold are recorded but not acted on.
+
+`onTimeout` (must end in `default`, `callback` or `end`) runs on compose failure, start failure or
+`maxSeconds`, while the hold keeps playing: `target` (another key), `default`, `return` (back to the
+agent that transferred, which says its return line; skipped on the router's own handoff), `human`
+(R3; skipped), `callback` (promised in the house voice, then the call ends), `end`. A chain that
+runs out tries the release's default agent once, then says the built-in end line and hangs up.
+
+### Handover
+
+The incoming agent loads its own release: prompt, tools, voice, language, STT and TTS (a Hindi
+member gets Hindi STT whatever the previous segment spoke; its STT pre-connects during the
+announcement). It receives a `TransferHandover`: who transferred and why, the summary the
+transferring LLM wrote (a required tool argument when `handover.summary` is on), the last
+`handover.transcriptTurns` turns (at most 6000 characters), the route context, the call's captured
+variables **filtered to what its variable schema declares and accepts** (`filterDeclaredVariables`),
+and the disclosure kinds already heard. The handover reaches its LLM as a fenced data section, never
+as instructions, and is never logged, evented or stored. Disclosure parts (identity, AI, recording,
+opt-out hint) are said once per call: a later segment skips the kinds already heard in full.
+
+### Gates and limits
+
+| Gate                                                                              | Refusal                                 |
+| --------------------------------------------------------------------------------- | --------------------------------------- |
+| Flag off, or a direct (unrouted) call                                             | tool never offered                      |
+| One transfer in flight                                                            | `busy`                                  |
+| Key unknown, or not granted to this segment by `from`                             | `unknown_target`, `not_granted`         |
+| `limits.maxTransfers` (default 3, at most 10) and 16 segments per call            | `limit_reached`, `segments_exhausted`   |
+| Less than `limits.minRemainingSeconds` (default 30) of the call limit left        | `time_exhausted`                        |
+| `confirm: ask` and the caller did not say yes to the confirm question             | `not_confirmed` (the question is asked) |
+| The same release, or (`returnToPrevious: refuse`) a release the call already left | `same_agent`, `ping_pong`               |
+| Every eligible pool member full and no `waitForCapacity`                          | `pool_full` (the agent keeps its claim) |
+
+| What                                    | Limit                                                 |
+| --------------------------------------- | ----------------------------------------------------- |
+| Targets, sources per target             | 32, 50                                                |
+| Hold steps, timeout steps, hold time    | 12, 5, `maxSeconds` 5-900 (120)                       |
+| Transfers, segments per call            | `maxTransfers` 1-10 (3), 16                           |
+| Summary, reason, transcript handed over | 1000, 200 characters; 0-20 turns (6), 6000 characters |
+| Hold clip                               | 0.1-300 s, upload at most 10 MiB                      |
+
+### Failures
+
+| Failure                                               | Behaviour                                                 | Recorded as                                        |
+| ----------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------- |
+| A gate refuses                                        | The agent gets the refusal and keeps helping              | `transfer.requested` `refused` with the code       |
+| Barge-in before commit                                | Prepared graph disposed, new claim released, old one kept | `transfer.completed failed cancelled`              |
+| Barge-in on the announcement                          | The committed transfer proceeds                           |                                                    |
+| Target not ready when the announcement ends           | Hold                                                      | audit `transfer.hold.started`                      |
+| Target fails to compose, or exceeds the prepare bound | Timeout chain at once (hold keeps playing)                | `transfer.completed` steps, `compose_failed`       |
+| Queued with no capacity by `maxSeconds`               | Timeout chain                                             | reason `hold_timeout`                              |
+| Target engine fails to start                          | Timeout chain                                             | reason `start_failed`                              |
+| Hold clip missing or a hold line fails to render      | Step skipped                                              | audit `transfer.hold.clip_missing` / `line_failed` |
+| Every step fails                                      | Release default agent, then the built-in end line         | `transfer.completed ended`                         |
+| Caller hangs up during announcement, hold or compose  | Call ends; hold stopped; graph disposed; claim released   | `transfer.completed caller_hangup`                 |
+| Claim storage down                                    | Proceeds unclaimed (capacity is soft)                     | audit `transfer.claims.unavailable`                |
+
+### Telemetry, cost and the inspector
+
+- Session events `transfer.requested`, `transfer.completed`, `segment.ended` and `disclosure`, plus
+  `route.segment` reasons `transfer`, `return` and `reroute`, carry keys, codes, ids and timings
+  (`prepareMs`, `queueMs`, `holdMs`, `gapMs`, per-segment `durationMs`), never caller words or the
+  LLM's text. Every call event of a segment carries `segment: <index>`.
+- The call outcome (migration v3) keeps `segments` (one per segment, with timing and how it ended)
+  and `transfers` (requested, refused, connected, failed). After a failed handoff start the route
+  names the fallback agent that actually answered (`degraded: target_start_failed`).
+- The ledger tags every usage row with its segment (`segment_index`, ledger migration 005);
+  `GET /v1/calls/:id/cost` adds `segments`, call-level usage (carrier time, hold voice) first.
+  `GET /v1/calls/:id/segments` gives the route path with segments, transfers and per-segment cost.
+- Logs (ids and codes only): `route_decided`, `transfer_requested`, `transfer_connected`,
+  `transfer_failed`, `transfer_hold_timeout`.
+
+### Publish checks (R2 issue codes)
+
+Structural: `routing_transfer_key_duplicate`, `routing_transfer_node_unknown`,
+`routing_transfer_timeout_not_terminal`, `routing_transfer_timeout_target_unknown`,
+`routing_transfer_hold_loop_invalid`, `routing_transfer_return_unused` (warning),
+`routing_transfer_human_unavailable` (warning); transfer lines go through the default-language and
+allowed-language checks. Resolution: `routing_transfer_agent_missing`,
+`routing_transfer_pool_missing`, `routing_transfer_pool_deleted`, `routing_transfer_audio_missing`,
+`routing_transfer_audio_deleted`, `routing_transfer_line_builtin_missing`,
+`routing_transfer_disabled` (warning, flag off), `routing_transfer_unreachable` (warning: no release
+opts in), `routing_transfer_source_unknown` (warning), and `routing_router_is_only_release` (the
+router and every target are one release).
+
+### Turning it on
+
+1. Upload hold clips (`POST /v1/routing/audio`), add `transfer` to the point's draft, publish, and
+   re-bind the number to the new routing release.
+2. On each agent release that should transfer: `"handoff": { "agents": { "llmTool": true,
+"inbound": { "greeting": "llm" } } }`.
+3. Set `OVO_ROUTING_TRANSFER_ENABLED=true` for the api and the workers (Compose `.env`, or
+   `enable_routing_transfer` on AWS) and redeploy. `GET /v1/routing/status` reports
+   `transferEnabled`. Turning it off again takes effect for the next call.
+
+## Failure modes (routing)
 
 | Failure                                                                                  | Behaviour                                                                  | Recorded as                                                                                        |
 | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -215,7 +393,7 @@ branches lead (`next`) to per-product nodes, or one pool target with `products: 
 | Caller silent                                                                            | Idle prompts, then the node's chain as a no-input turn                     | `route.fallback`                                                                                   |
 | Caller hangs up while routing                                                            | Call ends; prepared graph disposed; claim released                         | `call.outcome`; `route` ids stay empty                                                             |
 | Router cannot compose or the snapshot cannot load                                        | Degraded: the default agent answers as segment 0                           | `route.decision degraded`                                                                          |
-| Target fails to start after the router ended                                             | One attempt with the default target, else end `error:route-handoff-failed` | logs with ids only                                                                                 |
+| Target fails to start after the router ended                                             | One attempt with the default target, else end `error:route-handoff-failed` | `route.segment` reason `fallback`; the outcome names the fallback agent                            |
 | Worker crash mid-call                                                                    | As today; the member claim lapses at `expires_at`                          |                                                                                                    |
 
 ## Limits
@@ -260,15 +438,16 @@ branches lead (`next`) to per-product nodes, or one pool target with `products: 
 | `apps/api`                     | `/v1/routing/*`, publish validation, the inbound route target union.                                                                                       |
 | `apps/media-gateway`           | The routed pre-admission check and `OVO_ROUTING_ENABLED`.                                                                                                  |
 | `packages/plugin-speech-cache` | Pre-renders every agent release a routed number pinned.                                                                                                    |
+| R2: `packages/contracts`       | `routing/transfer*.ts`, `routing/audio.ts`, `routing/voice-lines.ts`, `agent-to-agent.ts`, `agent-variables.ts`; `Cap.agentTransfer`.                      |
+| R2: storage                    | Operations migration 011 (`ovo_routing_audio`, `ovo_routing_point_audio`), outcomes v3, ledger migration 005; `routedVoiceLines` pre-render listing.       |
+| R2: runtime                    | `apps/worker` transfer controller, hold player, handover; `packages/behaviors` and `packages/plugin-router` transfer paths; `apps/api` audio and segments. |
 
 ## What later waves add
 
-- **R2, in-call transfer:** `SegmentHandoffRequest` gains `reason: 'transfer'`, an announcement, a
-  hold sequence and a context handover; a `transfer_to_agent` tool reads `Cap.segmentHandoff`. The
-  segment controller, media lease and gap buffer are reused unchanged, and each segment gets its own
-  telemetry and cost.
-- **R3, human queues:** `kind: 'human'` on the same port; the `human` step and target already
-  validate (with a warning) and are recorded when skipped.
+- **R2, in-call transfer:** built in Wave 16; see [above](#in-call-agent-transfer-wave-16-r2).
+- **R3, human queues:** `kind: 'human'` joins `SegmentHandoffRequest` and transfer destinations; the
+  `human` routing and hold-timeout steps already validate (with a warning) and are recorded when
+  skipped. The hold player plays while a ticket waits for an operator.
 - **R4, designer and visibility:** the designer edits the same `RoutingPointDraft`; the simulator and
   `packages/eval` routing accuracy drive the pure `RouterCore`; the inspector shows `route.segment`
   timings per segment.

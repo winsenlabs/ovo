@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import type { CallCostSummary, CostSummary } from '../types.ts';
+import type { CallCostSegment, CallCostSummary, CostSummary } from '../types.ts';
 
 /**
  * Estimated and reconciled paise for the usage rows `scope` selects (a predicate on `u`). P11:
@@ -8,9 +8,10 @@ import type { CallCostSummary, CostSummary } from '../types.ts';
  * already a whole invoice amount, and a charge recorded before migration 004 has only its rounded
  * value.
  */
-export function costTotalsQuery(scope: string): string {
+export function costTotalsQuery(scope: string, bySegment = false): string {
+  const segment = bySegment ? 'segment_index' : 'NULL::smallint';
   return `WITH effective AS (
-      SELECT u.state,
+      SELECT u.state, u.segment_index,
              COALESCE(c.exact_amount_paise, c.amount_paise) AS exact,
              c.amount_paise + COALESCE(SUM(x.delta_paise),0) AS amount
       FROM ovo_cost_native_usage u
@@ -19,15 +20,18 @@ export function costTotalsQuery(scope: string): string {
       WHERE ${scope}
       GROUP BY u.id,c.id
     ), totals AS (
-      SELECT ROUND(COALESCE(SUM(exact) FILTER (WHERE state='estimated'),0)) AS estimated,
+      SELECT ${segment} AS segment,
+             ROUND(COALESCE(SUM(exact) FILTER (WHERE state='estimated'),0)) AS estimated,
              COALESCE(SUM(amount) FILTER (WHERE state='reconciled'),0) AS reconciled
-      FROM effective
+      FROM effective ${bySegment ? 'GROUP BY segment_index' : ''}
     )
-    SELECT estimated::text AS estimated, reconciled::text AS reconciled,
-           (estimated + reconciled)::text AS total FROM totals`;
+    SELECT segment, estimated::text AS estimated, reconciled::text AS reconciled,
+           (estimated + reconciled)::text AS total FROM totals
+    ORDER BY segment NULLS FIRST`;
 }
 
 export interface CostTotals {
+  segment?: number | null;
   estimated: string;
   reconciled: string;
   total: string;
@@ -89,11 +93,20 @@ export async function summarizeCall(
     [workspaceId, callId],
   );
   const sessionIds = sessions.rows.map((row) => row.session_id);
-  const { totals, provisional } = await summarize(pool, 'u.session_id=ANY($2::text[])', [
-    workspaceId,
-    sessionIds,
+  const values: [string, unknown] = [workspaceId, sessionIds];
+  const scope = 'u.workspace_id=$1 AND u.session_id=ANY($2::text[])';
+  const [{ totals, provisional }, bySegment] = await Promise.all([
+    summarize(pool, 'u.session_id=ANY($2::text[])', values),
+    pool.query<CostTotals>(costTotalsQuery(scope, true), values),
   ]);
-  return { workspaceId, callId, sessionIds, currency: 'INR', ...totals, ...provisional };
+  const segments = bySegment.rows.map((row): CallCostSegment => ({
+    index: row.segment === null || row.segment === undefined ? null : Number(row.segment),
+    currency: 'INR',
+    estimatedPaise: row.estimated,
+    reconciledPaise: row.reconciled,
+    totalPaise: row.total,
+  }));
+  return { workspaceId, callId, sessionIds, currency: 'INR', ...totals, ...provisional, segments };
 }
 
 async function summarize(pool: Pool, sessions: string, values: [string, unknown]) {

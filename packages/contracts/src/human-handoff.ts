@@ -1,4 +1,12 @@
 import { z } from 'zod';
+import {
+  AgentToAgentTransfer,
+  HandoffLine,
+  HandoffNodeKey,
+  TRANSFER_TO_AGENT_TOOL_ID,
+} from './agent-to-agent.ts';
+
+export * from './agent-to-agent.ts';
 
 /** Port shared by an in-process open-pickup queue and an optional external assignment service. */
 const Id = z.string().min(1).max(200);
@@ -87,9 +95,8 @@ export interface HumanHandoffPort {
  * `HumanHandoffPort`) once the agent's last line has played, and the API keeps callbacks durable.
  */
 
-const Line = z.string().trim().min(1).max(1_000);
-/** A flow node id; the flow grammar (`agent-flow.ts`). */
-const NodeKey = z.string().regex(/^[a-z][a-z0-9_-]{0,79}$/);
+const Line = HandoffLine;
+const NodeKey = HandoffNodeKey;
 
 /** The tool the LLM calls to hand the caller to a person. Reserved when offered. */
 export const TRANSFER_CALL_TOOL_ID = 'transfer_call';
@@ -163,6 +170,8 @@ export const AgentHandoff = z
   .object({
     transfer: AgentTransfer.optional(),
     callback: AgentCallback.optional(),
+    /** R2: transfer to another agent on the same call (routed calls only). */
+    agents: AgentToAgentTransfer.optional(),
   })
   .strict();
 export type AgentHandoff = z.infer<typeof AgentHandoff>;
@@ -228,9 +237,24 @@ export function handoffIssues(config: {
         path: ['handoff', 'callback', 'nodes', id],
         message: `Callback node ${id} is not a flow node`,
       });
+  for (const id of Object.keys(handoff.agents?.nodes ?? {})) {
+    const node = nodes.get(id);
+    const path = ['handoff', 'agents', 'nodes', id];
+    if (!node) issues.push({ path, message: `Agent transfer node ${id} is not a flow node` });
+    else if (!node.end)
+      issues.push({ path, message: `Agent transfer node ${id} must end the call (end: true)` });
+    else if (handoff.transfer?.nodes.includes(id))
+      issues.push({ path, message: `Node ${id} already transfers the caller to a person` });
+  }
+  if (handoff.agents?.inbound?.greeting === 'line' && !handoff.agents.inbound.line)
+    issues.push({
+      path: ['handoff', 'agents', 'inbound', 'line'],
+      message: 'A line greeting needs inbound.line',
+    });
   const reserved = [
     ...(handoff.transfer?.llmTool ? [TRANSFER_CALL_TOOL_ID] : []),
     ...(handoff.callback?.llmTool ? [SCHEDULE_CALLBACK_TOOL_ID] : []),
+    ...(handoff.agents?.llmTool ? [TRANSFER_TO_AGENT_TOOL_ID] : []),
   ];
   for (const id of reserved)
     if (config.tools.some((tool) => tool.id === id))

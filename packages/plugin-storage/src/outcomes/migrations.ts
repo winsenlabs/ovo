@@ -44,8 +44,20 @@ ALTER TABLE ovo_call_outcomes ADD COLUMN IF NOT EXISTS route jsonb
   CHECK (route IS NULL OR jsonb_typeof(route) = 'object');
 `;
 
+/**
+ * v3 (Wave 16): every segment of a routed call and the call's transfer counts. `transfers` stays
+ * NULL for a call without transfer events and reads as zeros.
+ */
+export const callOutcomesV3 = `
+ALTER TABLE ovo_call_outcomes
+  ADD COLUMN IF NOT EXISTS segments jsonb NOT NULL DEFAULT '[]'::jsonb
+    CHECK (jsonb_typeof(segments) = 'array'),
+  ADD COLUMN IF NOT EXISTS transfers jsonb
+    CHECK (transfers IS NULL OR jsonb_typeof(transfers) = 'object');
+`;
+
 /** Applied in order; a migration's version is its position, starting at 1. */
-const MIGRATIONS: readonly string[] = [callOutcomesV1, callOutcomesV2];
+const MIGRATIONS: readonly string[] = [callOutcomesV1, callOutcomesV2, callOutcomesV3];
 
 /** Idempotent and safe to race: the API and every worker run it on startup. */
 export async function runCallOutcomeMigrations(pool: Pool): Promise<void> {

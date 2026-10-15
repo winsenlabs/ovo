@@ -1,9 +1,11 @@
 import { z } from 'zod';
 
 const Clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+/** A window may end at `24:00`, the end of the day (R2; `23:59` would close the last minute). */
+const EndClock = z.union([Clock, z.literal('24:00')]);
 export const ROUTE_WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 export const RouteWindow = z
-  .object({ start: Clock, end: Clock })
+  .object({ start: Clock, end: EndClock })
   .strict()
   .refine(
     (w) => w.start < w.end,

@@ -199,4 +199,67 @@ describe.skipIf(!postgresUrl)('routed inbound admission', () => {
     expect(row.routing_release_id).toBeNull();
     expect(row.detail).toEqual({ kind: 'reserved', releaseId: direct, routeVersion: 1 });
   });
+
+  it('calls a routed number back with only the variables its default agent declares', async () => {
+    const callbackNumber = '+14155550104';
+    const legacyNumber = '+14155550105';
+    const variables = { account: 'A1', router_only: 'x' };
+    await on.inboundRoutes.put({
+      phoneNumber: callbackNumber,
+      routingReleaseId: release.id,
+      variables,
+      defaultVariablesSchema: {
+        type: 'object',
+        properties: { account: { type: 'string' } },
+        additionalProperties: false,
+      },
+      expectedVersion: null,
+    });
+    // Bound before the schema was captured: its variables pass unfiltered, as before.
+    await on.inboundRoutes.put({
+      phoneNumber: legacyNumber,
+      routingReleaseId: release.id,
+      variables,
+      expectedVersion: null,
+    });
+    await db.pool.query(
+      'UPDATE ovo_ops_inbound_capacity SET ready = false WHERE organization_id = $1',
+      [organizationId],
+    );
+    await on.inbound.setPolicy(
+      { kind: 'callback', queue: 'routed-callbacks', announcement: 'We will call back' },
+      2,
+    );
+    const contact = async (routingEnabled: boolean, toNumber: string) => {
+      const gateway = new PostgresOperationsService({
+        pool: db.pool,
+        organizationId,
+        config: { liveEnabled: true, permittedFromNumbers: [toNumber], routingEnabled },
+      });
+      gateway.inboundGateway.setInstalledCarrierPlugins(
+        [{ pluginId: '@winsendotai/ovo-carrier-twilio', carrierId: 'twilio' }],
+        'twilio',
+      );
+      const input = call(toNumber);
+      expect(await gateway.inboundGateway.admit(input)).toMatchObject({ kind: 'callback' });
+      const queued = await gateway.inboundGateway.confirmCallback({ ...input, digits: '1' });
+      if (queued.kind !== 'callback' || queued.state !== 'queued') throw new Error('not queued');
+      return (
+        await db.pool.query<{ variables: Record<string, string>; agent_release_id: string }>(
+          `SELECT c.variables, k.agent_release_id FROM ovo_ops_campaign_contacts c
+           JOIN ovo_ops_campaigns k ON k.id = c.campaign_id WHERE c.id = $1`,
+          [queued.contactId],
+        )
+      ).rows[0]!;
+    };
+    expect(await contact(true, callbackNumber)).toEqual({
+      variables: { account: 'A1' },
+      agent_release_id: ids.fallback,
+    });
+    expect(await contact(false, callbackNumber)).toEqual({
+      variables: { account: 'A1' },
+      agent_release_id: ids.fallback,
+    });
+    expect((await contact(true, legacyNumber)).variables).toEqual(variables);
+  });
 });

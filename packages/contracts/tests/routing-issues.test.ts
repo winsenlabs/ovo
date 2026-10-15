@@ -27,7 +27,8 @@ describe('routingDraftIssues', () => {
   });
 
   it('covers every structural code with a test below', () => {
-    expect(ROUTING_STRUCTURAL_ISSUE_CODES).toHaveLength(14);
+    // The 7 R2 transfer codes are covered in routing-transfer-issues.test.ts.
+    expect(ROUTING_STRUCTURAL_ISSUE_CODES).toHaveLength(21);
     expect(new Set(ROUTING_ISSUE_CODES).size).toBe(ROUTING_ISSUE_CODES.length);
   });
 

@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { RoutingReleaseSnapshot, routingVoiceLines } from '@winsendotai/ovo-contracts';
 
 export type PrerenderReason = 'publish' | 'worker-start' | 'first-call';
 export type PrerenderState = 'queued' | 'running' | 'done' | 'failed' | 'skipped';
@@ -194,5 +195,35 @@ export class PostgresSpeechPrerenderQueue {
       workspaceId: row.organization_id,
       releaseId: row.release_id,
     }));
+  }
+
+  /**
+   * Wave 16 (R2): the fixed lines a release may speak on the routing points of the workspace's
+   * enabled routed numbers (`routingVoiceLines`): for a router release its greeting, asks and every
+   * hold and timeout line; for an agent release the transfer announcements and confirm questions
+   * it is granted. A release a newer worker published (an unknown snapshot version) adds nothing.
+   */
+  async routedVoiceLines(workspaceId: string, releaseId: string): Promise<string[]> {
+    const tables = await this.pool.query<{ routes: string | null; routing: string | null }>(
+      `SELECT to_regclass('ovo_ops_inbound_routes')::text AS routes,
+              to_regclass('ovo_routing_releases')::text AS routing`,
+    );
+    if (!tables.rows[0]?.routes || !tables.rows[0]?.routing) return [];
+    if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(releaseId)) return [];
+    const result = await this.pool.query<{ snapshot: unknown }>(
+      `SELECT DISTINCT ON (rr.id) rr.snapshot FROM ovo_ops_inbound_routes r
+         JOIN ovo_routing_releases rr
+           ON rr.organization_id = r.organization_id AND rr.id = r.routing_release_id
+        WHERE r.enabled AND r.organization_id = $1 AND $2::uuid = ANY(rr.release_ids)
+        ORDER BY rr.id`,
+      [workspaceId, releaseId],
+    );
+    const lines = new Set<string>();
+    for (const row of result.rows) {
+      const snapshot = RoutingReleaseSnapshot.safeParse(row.snapshot);
+      if (!snapshot.success) continue;
+      for (const line of routingVoiceLines(snapshot.data).get(releaseId) ?? []) lines.add(line);
+    }
+    return [...lines];
   }
 }

@@ -24,6 +24,7 @@ export { RoutingPoolNameTakenError } from './routing/rows.ts';
 export { maskedNumber as maskedRoutingNumber } from './routing/points.ts';
 export { routingSnapshotDigest, type RoutingReleaseInput } from './routing/releases.ts';
 export type { RoutingClaimInput } from './routing/claims.ts';
+export type { RoutingAudioInput } from './routing/audio.ts';
 export {
   effectiveInboundRoute,
   type EffectiveInboundRoute,

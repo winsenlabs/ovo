@@ -37,6 +37,11 @@ export function validateUsage(input: RecordUsageInput): void {
     if (!value.trim()) throw new TypeError('Usage provenance fields are required');
   if (!Number.isFinite(Date.parse(input.occurredAt)))
     throw new TypeError('Usage occurredAt is invalid');
+  if (
+    input.segment !== undefined &&
+    (!Number.isInteger(input.segment) || input.segment < 0 || input.segment > 63)
+  )
+    throw new TypeError('Usage segment must be an integer from 0 to 63');
 }
 
 export function validateReconciliation(input: ReconcileUsageInput): void {
