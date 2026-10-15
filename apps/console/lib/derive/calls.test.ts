@@ -51,6 +51,7 @@ describe('callsKpis', () => {
           route: null,
           segments: [],
           transfers: { requested: 0, refused: 0, connected: 0, failed: 0 },
+          human: null,
           updatedAt: row().createdAt!,
         },
       }),

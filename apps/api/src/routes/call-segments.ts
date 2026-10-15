@@ -1,5 +1,5 @@
 import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from 'fastify';
-import type { CallOutcomeSegment } from '@winsendotai/ovo-contracts';
+import type { CallOutcomeHuman, CallOutcomeSegment } from '@winsendotai/ovo-contracts';
 import type { CallCostSummary, CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
 import type { CallOutcomeStore } from '@winsendotai/ovo-plugin-storage/outcomes';
 import { viewedCall, type CallOutcomeRouteDependencies } from './call-outcomes.ts';
@@ -41,6 +41,24 @@ async function transfers(store: CallOutcomeStore, workspaceId: string, callId: s
   ];
 }
 
+/**
+ * What the inspector shows for the human segment (Wave 17): which queue, how long the caller
+ * waited and talked, and who answered (a user id), from the folded `human.*` events. Never a
+ * caller number, destination or summary: those live in the ticket and are scrubbed with it.
+ */
+function humanDetails(human: CallOutcomeHuman) {
+  return {
+    queue: human.queueKey,
+    queueId: human.queueId,
+    kind: human.kind,
+    ticket: human.ticket,
+    waitMs: human.waitMs,
+    talkMs: human.talkMs,
+    operator: human.operator,
+    outcome: human.outcome,
+  };
+}
+
 /** Totals by segment index (`null` = call-level usage), or none when the ledger cannot say. */
 async function costs(
   ledger: Pick<CostLedgerService, 'getCallCost'> | undefined,
@@ -73,7 +91,7 @@ export function registerCallSegmentsRoute(
     if (!viewed) return;
     const { workspaceId } = viewed;
     const callId = viewed.call.id;
-    const empty = { route: null, segments: [], transfers: [], callLevelCost: null };
+    const empty = { route: null, segments: [], transfers: [], human: null, callLevelCost: null };
     if (!outcomes.available) return { callId, available: false, ...empty };
     const durable = await outcomes.open();
     const summary = await durable.get(workspaceId, callId);
@@ -89,7 +107,11 @@ export function registerCallSegmentsRoute(
       segments: summary.segments.map((segment: CallOutcomeSegment) => ({
         ...segment,
         cost: byIndex.get(segment.index) ?? null,
+        ...(segment.role === 'human' && summary.human
+          ? { human: humanDetails(summary.human) }
+          : {}),
       })),
+      human: summary.human ? humanDetails(summary.human) : null,
       transfers: transferList,
       callLevelCost: byIndex.get(null) ?? null,
     };

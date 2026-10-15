@@ -47,7 +47,9 @@ export function ConversationTab({
       ? `/api/v1/calls/${encodeURIComponent(callId)}/live-recordings/${encodeURIComponent(recording.id)}/audio/outbound`
       : undefined);
   const activeId = useMemo(() => {
-    const played = lines.filter((line) => !line.interim && line.atMs <= positionMs);
+    const played = lines.filter(
+      (line) => !line.interim && line.atMs !== undefined && line.atMs <= positionMs,
+    );
     return played.at(-1)?.id;
   }, [lines, positionMs]);
 

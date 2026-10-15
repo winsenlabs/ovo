@@ -18,6 +18,7 @@ export function registerRoutingRoutes(input: RoutingRouteDependencies): void {
       enabled: input.enabled && input.operations !== undefined,
       externalEnabled: input.externalEnabled,
       transferEnabled: input.transferEnabled,
+      humanQueueEnabled: input.humanQueueEnabled === true && input.operations !== undefined,
     };
   });
   registerRoutingPoolRoutes({ ...input, audit });

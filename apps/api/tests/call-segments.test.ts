@@ -205,6 +205,7 @@ describe('GET /v1/calls/:callId/segments (Wave 16 inspector data)', () => {
       route: null,
       segments: [],
       transfers: [],
+      human: null,
       callLevelCost: null,
     });
     expect((await app.inject({ method: 'GET', url: '/v1/calls/call-3/segments' })).statusCode).toBe(

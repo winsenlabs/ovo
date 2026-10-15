@@ -1,4 +1,5 @@
 import { seedAdminFromEnv } from './user-plugin.ts';
+import { humanQueueFlagsFromEnv } from './human-queue-config.ts';
 import { routingFlagsFromEnv } from './operations-runtime.ts';
 import { buildManagementApi, bootstrapIdentitiesFromEnv, sessionSecretFromEnv } from './server.ts';
 
@@ -66,6 +67,7 @@ if (process.argv.includes('--ovo-fixture-call-child')) {
     secureSessionCookies: production && !allowLocalHttp,
     trustedProxy: trustedProxy?.length ? trustedProxy : undefined,
     ...routingFlagsFromEnv(process.env),
+    ...humanQueueFlagsFromEnv(process.env),
     logger: true,
   });
 

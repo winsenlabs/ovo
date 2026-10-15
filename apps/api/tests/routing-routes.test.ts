@@ -44,7 +44,12 @@ describe('routing status and the dark switch (A1)', () => {
   it('reports every flag to a viewer', async () => {
     const { call } = setup({ externalEnabled: true });
     const status = await call('GET', '/v1/routing/status', undefined, { 'x-role': 'viewer' });
-    expect(status.json()).toEqual({ enabled: true, externalEnabled: true, transferEnabled: false });
+    expect(status.json()).toEqual({
+      enabled: true,
+      externalEnabled: true,
+      transferEnabled: false,
+      humanQueueEnabled: false,
+    });
     const transfer = setup({ transferEnabled: true });
     expect((await transfer.call('GET', '/v1/routing/status')).json().transferEnabled).toBe(true);
   });
@@ -55,6 +60,7 @@ describe('routing status and the dark switch (A1)', () => {
       enabled: false,
       externalEnabled: false,
       transferEnabled: false,
+      humanQueueEnabled: false,
     });
     const id = '99999999-9999-4999-8999-999999999999';
     const routes: [Parameters<typeof call>[0], string][] = [

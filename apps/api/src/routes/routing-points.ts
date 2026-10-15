@@ -7,6 +7,7 @@ import {
 import type { RoutingService } from '@winsendotai/ovo-plugin-operations';
 import { z } from 'zod';
 import { validateRoutingDraft, type RoutingPublishContext } from '../routing-publish.ts';
+import { humanQueuesOf } from './human-queue-support.ts';
 import type { Principal } from '../types.ts';
 import {
   etag,
@@ -29,6 +30,7 @@ export function publishContext(
   principal: Principal,
   routing: RoutingService,
 ): RoutingPublishContext {
+  const queues = humanQueuesOf(input.operations);
   return {
     workspaceId: principal.workspaceId,
     store: input.store,
@@ -39,6 +41,19 @@ export function publishContext(
       return found?.deletedAt ? 'deleted' : found;
     },
     audio: (id) => routing.audio.get(id, { includeDeleted: true }),
+    // Deleted queues are read too, so publish can say a queue was deleted (Wave 17).
+    queue: queues
+      ? async (id) => {
+          const found = await queues.queues.get(id, { includeDeleted: true });
+          return found?.deletedAt ? 'deleted' : found;
+        }
+      : undefined,
+    humanQueues: {
+      enabled: input.humanQueueEnabled === true,
+      webhookEnabled: input.humanQueueWebhookEnabled === true,
+      roomConfigured: input.roomConfigured === true,
+      operators: async () => (queues ? await queues.operators.list() : []),
+    },
     registry: input.registry,
     ledger: input.ledger,
     externalEnabled: input.externalEnabled,

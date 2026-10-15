@@ -7,6 +7,8 @@ import {
   type HandoffProviderPort,
 } from '@winsendotai/ovo-plugin-operations';
 
+import { humanQueueFlagsFromEnv } from './human-queue-config.ts';
+
 type Environment = Readonly<Record<string, string | undefined>>;
 
 export interface OperationsRuntimeConfig {
@@ -16,6 +18,7 @@ export interface OperationsRuntimeConfig {
     permittedFromNumbers: readonly string[];
     liveEnabled: boolean;
     routingEnabled: boolean;
+    humanQueueEnabled: boolean;
   }>;
   handoffProvider: 'carrier' | 'unavailable';
 }
@@ -38,6 +41,8 @@ export interface CreateOperationsRuntimeOptions {
   handoffProvider?: HandoffProviderPort;
   /** Overrides `OVO_ROUTING_ENABLED`; the API passes its own flag so both always agree. */
   routingEnabled?: boolean;
+  /** Overrides `OVO_HUMAN_QUEUE_ENABLED`; the API passes its own flag so both always agree. */
+  humanQueueEnabled?: boolean;
 }
 
 /**
@@ -106,6 +111,8 @@ export async function createOperationsRuntime(
       options.liveEnabled === true ||
       (options.liveEnabled === undefined && environment.OVO_LIVE_DIAL_ENABLED === 'true'),
     routingEnabled: options.routingEnabled ?? routingFlagsFromEnv(environment).routingEnabled,
+    humanQueueEnabled:
+      options.humanQueueEnabled ?? humanQueueFlagsFromEnv(environment).humanQueueEnabled,
   });
 
   const configuredProvider = environment.OVO_HANDOFF_PROVIDER?.trim();
