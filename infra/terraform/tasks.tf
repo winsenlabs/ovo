@@ -16,6 +16,9 @@ resource "aws_ecs_task_definition" "api" {
       { name = "OVO_TWILIO_HANDOFF_RESUME_URL", value = var.twilio_handoff_resume_url },
       { name = "OVO_TRUSTED_PROXY_CIDRS", value = join(",", var.alb_subnet_cidrs) },
       { name = "OVO_MEDIA_PUBLIC_BASE_URL", value = var.media_public_base_url },
+      { name = "OVO_ROUTING_ENABLED", value = tostring(var.enable_routing) },
+      { name = "OVO_ROUTING_EXTERNAL_ENABLED", value = tostring(var.enable_routing_external) },
+      { name = "OVO_ROUTING_TRANSFER_ENABLED", value = tostring(var.enable_routing_transfer) },
     ])
     secrets = concat(local.runtime_secrets, [
       { name = "OVO_SECRETS_MASTER_KEY", valueFrom = "${var.runtime_secret_arn}:OVO_SECRETS_MASTER_KEY::" },
@@ -66,6 +69,7 @@ resource "aws_ecs_task_definition" "gateway" {
       { name = "OVO_INBOUND_ENABLED", value = tostring(var.enable_inbound_calls) },
       { name = "OVO_LIVE_DIAL_ENABLED", value = tostring(var.enable_live_dial) },
       { name = "OVO_PERMITTED_FROM_NUMBERS", value = join(",", var.permitted_from_numbers) },
+      { name = "OVO_ROUTING_ENABLED", value = tostring(var.enable_routing) },
     ])
     secrets = concat(local.runtime_secrets, [
       { name = "OVO_MEDIA_WORKER_TOKEN", valueFrom = "${var.runtime_secret_arn}:OVO_MEDIA_WORKER_TOKEN::" },
@@ -137,6 +141,9 @@ resource "aws_ecs_task_definition" "worker" {
       { name = "OVO_MEDIA_READINESS_URL", value = var.media_readiness_url != "" ? var.media_readiness_url : "http://gateway.${local.name}.internal:4001/health" },
       { name = "OVO_MEDIA_GATEWAY_WS_URL", value = "ws://gateway.${local.name}.internal:4001/worker" },
       { name = "OVO_MEDIA_PUBLIC_BASE_URL", value = var.media_public_base_url },
+      { name = "OVO_ROUTING_EXTERNAL_ENABLED", value = tostring(var.enable_routing_external) },
+      { name = "OVO_ROUTING_PREPARE_TIMEOUT_MS", value = var.routing_prepare_timeout_ms },
+      { name = "OVO_ROUTING_TRANSFER_ENABLED", value = tostring(var.enable_routing_transfer) },
     ])
     secrets = concat(local.runtime_secrets, [
       { name = "OVO_MEDIA_WORKER_TOKEN", valueFrom = "${var.runtime_secret_arn}:OVO_MEDIA_WORKER_TOKEN::" },

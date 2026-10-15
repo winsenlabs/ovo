@@ -79,6 +79,30 @@ variable "transport_certified" {
   default     = false
   description = "Separate operator assertion checked by worker readiness; Terraform does not certify transport."
 }
+variable "enable_routing" {
+  type        = bool
+  default     = false
+  description = "OVO_ROUTING_ENABLED (api, gateway): routing points and agent pools. Off, a routed number is answered by its release's default agent."
+}
+variable "enable_routing_external" {
+  type        = bool
+  default     = false
+  description = "OVO_ROUTING_EXTERNAL_ENABLED (api, worker): lets the routing external engine post its signed decision webhook."
+}
+variable "routing_prepare_timeout_ms" {
+  type        = string
+  default     = ""
+  description = "OVO_ROUTING_PREPARE_TIMEOUT_MS (worker): bound on composing a routed agent, 500-10000 ms. Empty keeps 2500."
+  validation {
+    condition     = var.routing_prepare_timeout_ms == "" || can(regex("^[0-9]+$", var.routing_prepare_timeout_ms))
+    error_message = "routing_prepare_timeout_ms is empty or a whole number of milliseconds."
+  }
+}
+variable "enable_routing_transfer" {
+  type        = bool
+  default     = false
+  description = "OVO_ROUTING_TRANSFER_ENABLED (worker, api): in-call agent transfer on routed calls. Off, routed calls run as Wave 15."
+}
 variable "permitted_from_numbers" {
   type        = list(string)
   default     = []

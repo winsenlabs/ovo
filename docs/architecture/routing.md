@@ -3,7 +3,7 @@
 **State:** built and tested offline (unit, PostgreSQL, the live-path e2e harness on loopback). Ships
 dark: with `OVO_ROUTING_ENABLED=false` (the default) no call is routed, and a number that is
 already bound to a routing release is answered by that release's default agent. No deploy, no VM
-change. Every variable: [environment reference](../env-reference.md#routing-points-and-agent-pools-wave-15).
+change. Every variable: [environment reference](../env-reference.md#routing-points-agent-pools-and-in-call-transfer-waves-15-16).
 
 ## What it does
 
