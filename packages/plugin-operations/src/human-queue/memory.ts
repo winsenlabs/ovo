@@ -140,6 +140,7 @@ export class MemoryHqStore implements HqStore {
   private tx(): HqTx {
     const state = () => this.state;
     return {
+      lockAssignment: async () => undefined,
       lockOperator: async () => undefined,
       lockCall: async () => undefined,
       operator: async (userId) => state().operators.get(userId),

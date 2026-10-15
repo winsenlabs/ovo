@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { useHarness, ticketKit, next, type HqHarness } from './harness.ts';
+import { useHarness, ticketKit, ticketFor, next, type HqHarness } from './harness.ts';
 
 export function describeAssign(make: () => Promise<HqHarness>) {
   const h = useHarness(make);
@@ -48,6 +48,29 @@ export function describeAssign(make: () => Promise<HqHarness>) {
         assignedOperatorId: 'asha',
         version: 2,
       });
+    });
+
+    it('offers each of several simultaneous tickets to a different idle operator', async () => {
+      const queue = await queueOf({ assignment: 'AUTO_ASSIGN' });
+      await operator('solo', { capacity: 1 });
+      await operator('other', { capacity: 1 });
+      const offered = await Promise.all(
+        Array.from({ length: 2 }, () => h.service.tickets.create(ticketFor(queue))),
+      );
+      const owners = offered.map((t) => (t === 'queue_full' ? t : t.assignedOperatorId)).sort();
+      expect(owners).toEqual(['other', 'solo']);
+      // A third finds both full and waits, instead of taking a second offer.
+      expect(await open(queue)).toMatchObject({ status: 'waiting' });
+    });
+
+    it('never offers one operator more than their capacity when creates overlap', async () => {
+      const queue = await queueOf({ assignment: 'AUTO_ASSIGN' });
+      await operator('solo', { capacity: 2 });
+      const made = await Promise.all(
+        Array.from({ length: 6 }, () => h.service.tickets.create(ticketFor(queue))),
+      );
+      const offered = made.filter((t) => t !== 'queue_full' && t.status === 'offered');
+      expect(offered).toHaveLength(2);
     });
 
     it('serves higher priority first, then the longest waiting', async () => {

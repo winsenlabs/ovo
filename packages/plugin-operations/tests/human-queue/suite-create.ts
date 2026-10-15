@@ -69,6 +69,15 @@ export function describeCreate(make: () => Promise<HqHarness>) {
       expect(await tickets().create(ticketFor(other))).toMatchObject({ status: 'waiting' });
     });
 
+    it('holds the maximum waiting when creates arrive together', async () => {
+      const queue = await queueOf({ limits: { maxWaiting: 2 } });
+      const results = await Promise.all(
+        Array.from({ length: 10 }, () => h.service.tickets.create(ticketFor(queue))),
+      );
+      expect(results.filter((r) => r !== 'queue_full')).toHaveLength(2);
+      expect(results.filter((r) => r === 'queue_full')).toHaveLength(8);
+    });
+
     it('frees a place when a waiting ticket ends', async () => {
       const queue = await queueOf({ limits: { maxWaiting: 1 } });
       const first = await open(queue);

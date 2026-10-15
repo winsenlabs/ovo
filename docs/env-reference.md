@@ -245,7 +245,8 @@ no ticket is ever created, `human` routing steps are skipped exactly as in Wave 
 queues (the operator desk) also need the room server: with `OVO_LIVEKIT_ENABLED=false` the room
 plugin is not composed, the `livekit` Compose profile is never started and no port opens. With
 `OVO_LIVEKIT_PUBLIC_ENABLED=false` the room server binds loopback and the compose bridge and offers
-only loopback media candidates, even when it runs.
+only the compose bridge address as a media candidate (the workers reach the host there; nothing
+outside it can), even when it runs. The `livekit` healthcheck follows `OVO_LIVEKIT_SIGNAL_PORT`.
 
 | Variable                                  | Read by                      | Default                          | Compose | Notes                                                                                                                                                                |
 | ----------------------------------------- | ---------------------------- | -------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

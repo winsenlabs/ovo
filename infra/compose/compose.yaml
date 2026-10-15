@@ -481,8 +481,8 @@ services:
   # sees OVO_LIVEKIT_ENABLED=true. Host networking puts signalling, ICE and TURN on the VM NIC
   # without a docker-proxy per port, so nothing is published here: with OVO_LIVEKIT_PUBLIC_ENABLED=false
   # (the default) signalling binds loopback and the compose bridge, the only ICE candidate advertised
-  # is loopback (the server cannot bind its media ports to one address) and no firewall rule exists
-  # for any LiveKit port. The config is rendered from the environment by
+  # is the compose bridge address (the workers are bridged containers and reach the host there; a
+  # remote client cannot) and no firewall rule exists for any LiveKit port. The config is rendered from the environment by
   # scripts/deploy/render-livekit-config.mjs (template: livekit.yaml.template); the image is pinned.
   livekit:
     image: ${OVO_LIVEKIT_IMAGE:-livekit/livekit-server:v1.13.9}
@@ -492,7 +492,7 @@ services:
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
     healthcheck:
-      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:7880/']
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:${OVO_LIVEKIT_SIGNAL_PORT:-7880}/']
       interval: 5s
       timeout: 3s
       retries: 20

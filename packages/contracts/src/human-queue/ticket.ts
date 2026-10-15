@@ -167,5 +167,12 @@ export type CaptionMessage = z.infer<typeof CaptionMessage>;
 export const CAPTION_TOPIC = 'ovo.caption';
 export const DTMF_TOPIC = 'ovo.dtmf';
 
-/** The room a managed ticket is answered in: deterministic, unguessable (the ticket id is a random uuid). */
-export const humanRoomName = (ticketId: string): string => `ovo-hq-${ticketId}`;
+/**
+ * The room a managed ticket is answered in: deterministic, unguessable (the ticket id is a random
+ * uuid). Each accept uses its own room, named with the ticket version the accept produces
+ * (`expectedVersion + 1`): after a no-show re-offer the first operator's token, still valid for its
+ * TTL, opens a room nobody bridges, not the second operator's call. Without a generation: the room
+ * of the first design, which a caller that predates it still mints.
+ */
+export const humanRoomName = (ticketId: string, generation?: number): string =>
+  generation === undefined ? `ovo-hq-${ticketId}` : `ovo-hq-${ticketId}-${generation}`;

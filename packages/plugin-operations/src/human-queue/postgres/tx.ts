@@ -15,6 +15,12 @@ export class PgTx implements HqTx {
     private readonly now: () => Date,
   ) {}
 
+  async lockAssignment(): Promise<void> {
+    await this.client.query('SELECT pg_advisory_xact_lock(hashtext($1), 0)', [
+      `ovo-hq-assign:${this.org}`,
+    ]);
+  }
+
   async lockOperator(userId: string): Promise<void> {
     await this.client.query('SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', [
       `ovo-hq-operator:${this.org}`,
@@ -169,22 +175,30 @@ export class PgTx implements HqTx {
   }
 
   async addEvent(ticketId: string, event: TicketEventInput, at: Date) {
-    const result = await this.client.query(
-      `INSERT INTO ovo_hq_ticket_events
-         (organization_id, ticket_id, id, kind, source_event_id, payload, occurred_at)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
-       ON CONFLICT (organization_id, ticket_id, source_event_id) WHERE source_event_id IS NOT NULL
-       DO NOTHING`,
-      [
-        this.org,
-        ticketId,
-        randomUUID(),
-        event.kind,
-        event.sourceEventId ?? null,
-        JSON.stringify(event.payload),
-        at,
-      ],
-    );
+    let result;
+    try {
+      result = await this.client.query(
+        `INSERT INTO ovo_hq_ticket_events
+           (organization_id, ticket_id, id, kind, source_event_id, payload, occurred_at)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+         ON CONFLICT (organization_id, ticket_id, source_event_id) WHERE source_event_id IS NOT NULL
+         DO NOTHING`,
+        [
+          this.org,
+          ticketId,
+          randomUUID(),
+          event.kind,
+          event.sourceEventId ?? null,
+          JSON.stringify(event.payload),
+          at,
+        ],
+      );
+    } catch (error) {
+      // The table checks the stored (jsonb) size, which can exceed the JSON text the service measured.
+      if ((error as { code?: string }).code === '23514')
+        throw new RangeError('A ticket event payload is under 4096 bytes');
+      throw error;
+    }
     return result.rowCount ? ('recorded' as const) : ('duplicate' as const);
   }
 
