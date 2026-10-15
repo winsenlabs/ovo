@@ -31,8 +31,21 @@ const V1 = [
      WHERE type = 'disposition' AND payload ? 'callback'`,
 ];
 
+/**
+ * Callback schema v2 (routing, design 5.5). A router or a routed agent promises a callback with
+ * source `route` and stamps the release that promised it, so the callback dials that agent rather
+ * than the router release the call was admitted to. The v1 inline CHECK has Postgres's generated
+ * name `ovo_callbacks_source_check` (asserted in the migration test), so it is replaced by name.
+ */
+const V2 = [
+  'ALTER TABLE ovo_callbacks ADD COLUMN IF NOT EXISTS release_id uuid',
+  'ALTER TABLE ovo_callbacks DROP CONSTRAINT IF EXISTS ovo_callbacks_source_check',
+  `ALTER TABLE ovo_callbacks ADD CONSTRAINT ovo_callbacks_source_check
+     CHECK (source IN ('flow', 'llm', 'route'))`,
+];
+
 /** Versions in order; a version's statements run in one transaction with its ledger row. */
-const VERSIONS: readonly (readonly string[])[] = [V1];
+export const CALLBACK_SCHEMA_VERSIONS: readonly (readonly string[])[] = [V1, V2];
 
 /**
  * Runs on the API's first callback read, after the outcome schema it indexes. Safe when several
@@ -51,7 +64,7 @@ export async function runCallbackMigrations(pool: Pool): Promise<void> {
       'SELECT version FROM ovo_callback_schema_migrations',
     );
     const applied = new Set(rows.map((row) => Number(row.version)));
-    for (const [index, statements] of VERSIONS.entries()) {
+    for (const [index, statements] of CALLBACK_SCHEMA_VERSIONS.entries()) {
       if (applied.has(index + 1)) continue;
       for (const statement of statements) await client.query(statement);
       await client.query('INSERT INTO ovo_callback_schema_migrations (version) VALUES ($1)', [
