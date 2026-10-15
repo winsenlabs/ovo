@@ -18,6 +18,9 @@ import { credentialReady } from './session-factory.ts';
 /** Languages the router has built-in connecting and final end lines for (design 7.5). */
 const BUILT_IN_LINE_LANGUAGES = new Set(['en', 'hi']);
 
+/** The bounds of `RoutingReleaseSnapshot.releaseIds`. */
+const MAX_RELEASES = 500;
+
 export interface RoutingCheckInput {
   draft: RoutingPointDraft;
   resolution: RoutingResolution;
@@ -82,6 +85,28 @@ function targetIssues(input: RoutingCheckInput, add: Add): void {
     else if (!pool)
       add('routing_pool_missing', [...path, 'poolId'], `Pool ${target.poolId} was not found`);
   }
+}
+
+/**
+ * The snapshot lists every distinct release the call can reach, router included, and holds 2 to
+ * 500 of them (design 4.8). Checked here so validate and publish agree before the snapshot parse.
+ */
+function releaseCountIssues(input: RoutingCheckInput, add: Add): void {
+  const { refs } = input.resolution;
+  if (refs.some((found) => !found.release)) return;
+  const distinct = new Set(refs.map((found) => found.release!.id)).size;
+  if (distinct < 2)
+    add(
+      'routing_default_target_missing',
+      ['defaultTarget'],
+      'Every reference resolves to the router release; the default target needs a release of its own',
+    );
+  else if (distinct > MAX_RELEASES)
+    add(
+      'routing_limits_exceeded',
+      [],
+      `The routing reaches ${distinct} distinct releases; at most ${MAX_RELEASES} are allowed`,
+    );
 }
 
 /**
@@ -221,6 +246,7 @@ export async function routingResolutionIssues(input: RoutingCheckInput): Promise
     issues.push({ code, severity, path, message });
   routerIssues(input, add);
   targetIssues(input, add);
+  releaseCountIssues(input, add);
   await meterIssues(input, add);
   await engineIssues(input, add);
   coverageIssues(input, add);

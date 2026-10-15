@@ -1,103 +1,25 @@
-import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import {
-  canonicalJson,
-  RoutingPointDraft,
-  RoutingPoolDefinition,
-  type CredentialMetadata,
-  type RoutingIssue,
-} from '@winsendotai/ovo-contracts';
+import type { CredentialMetadata } from '@winsendotai/ovo-contracts';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
-import {
-  buildRoutingSnapshot,
-  publishRoutingPoint,
-  validateRoutingDraft,
-  type RoutingPublishContext,
-} from '../src/routing-publish.ts';
 import {
   costPolicy,
   DEFAULT_RELEASE,
-  draftInput,
   exampleReleases,
-  fakeStore,
-  FakeRoutingService,
   POOL_SALES,
   POOL_SUPPORT,
-  poolInput,
-  registry,
   release,
   ROUTER_RELEASE,
-  SALES_EN_RELEASE,
   SALES_HI_RELEASE,
   SUPPORT_RELEASE,
-  WORKSPACE,
 } from './routing-fixtures.ts';
-
-const ENDPOINT = 'https://route.example.com/decide';
-const OTHER = '99999999-9999-4999-8999-999999999999';
-
-interface Setup {
-  patch?: (draft: Record<string, any>) => void;
-  releases?: ReleaseRecord[];
-  credentials?: Partial<CredentialMetadata>[];
-  pools?: 'none' | Record<string, [string, string[]][]>;
-  languageFallback?: string[];
-  externalEnabled?: boolean;
-  requireCostPolicy?: boolean;
-  deletedPools?: string[];
-}
-
-async function context(setup: Setup = {}) {
-  const routing = new FakeRoutingService();
-  const pools = setup.pools ?? {
-    [POOL_SALES]: [
-      ['sales-en', ['en']],
-      ['sales-hi', ['hi']],
-    ],
-    [POOL_SUPPORT]: [['support', ['en']]],
-  };
-  if (pools !== 'none')
-    for (const [id, members] of Object.entries(pools))
-      await routing.pools.create(
-        RoutingPoolDefinition.parse({
-          ...poolInput(`Pool ${id.slice(0, 2)}`, members),
-          languageFallback: setup.languageFallback ?? [],
-        }),
-        id,
-      );
-  const input = draftInput();
-  setup.patch?.(input);
-  const draft = RoutingPointDraft.parse(input);
-  const built: RoutingPublishContext = {
-    workspaceId: WORKSPACE,
-    store: fakeStore(setup.releases ?? exampleReleases(), setup.credentials) as never,
-    routing: routing as never,
-    pool: async (id) => (setup.deletedPools?.includes(id) ? 'deleted' : routing.pools.get(id)),
-    registry,
-    externalEnabled: setup.externalEnabled ?? true,
-    requireCostPolicy: setup.requireCostPolicy ?? false,
-  };
-  return { context: built, draft, routing };
-}
-
-async function issues(setup: Setup = {}): Promise<RoutingIssue[]> {
-  const { context: built, draft } = await context(setup);
-  return (await validateRoutingDraft(built, draft)).issues;
-}
-const codes = (found: RoutingIssue[]) => found.map((issue) => [issue.code, issue.severity]);
-const withRouter = (patch: Parameters<typeof release>[2]) => [
-  release(ROUTER_RELEASE, 'front-desk', patch),
-  ...exampleReleases().slice(1),
-];
-const externalEngine =
-  (extra: Record<string, unknown> = {}) =>
-  (draft: Record<string, any>) =>
-    draft.nodes[0].engines.push({
-      kind: 'external',
-      endpoint: ENDPOINT,
-      credentialId: 'route-secret',
-      ...extra,
-    });
+import {
+  issues,
+  codes,
+  withRouter,
+  externalEngine,
+  OTHER,
+  type Setup,
+} from './routing-publish-harness.ts';
 
 describe('publish validation (A4): one test per blocker', () => {
   it('passes the worked example with no issue', async () => {
@@ -314,66 +236,5 @@ describe('publish validation (A4): one test per warning', () => {
       patch: (draft) => draft.nodes.push({ ...structuredClone(draft.nodes[0]), id: 'orphan' }),
     });
     expect(codes(found)).toEqual([['routing_node_unreachable', 'warning']]);
-  });
-});
-
-describe('the release snapshot (A4)', () => {
-  it('pins latest to the newest release and keeps a pinned reference', async () => {
-    const newer = '12121212-1212-4121-8121-121212121212';
-    const releases = [...exampleReleases(), release(newer, 'sales-hi')];
-    const { context: built, draft } = await context({
-      releases,
-      patch: (input) => {
-        input.defaultTarget.release = { kind: 'pinned', releaseId: DEFAULT_RELEASE };
-        input.nodes[0].fallback[1] = {
-          kind: 'default',
-          target: { kind: 'agent', agent: { agentId: 'support', release: { kind: 'latest' } } },
-        };
-      },
-    });
-    const { resolution } = await validateRoutingDraft(built, draft);
-    const { snapshot, digest } = buildRoutingSnapshot(OTHER, draft, resolution);
-    expect(snapshot.defaultTarget.release).toEqual({ kind: 'pinned', releaseId: DEFAULT_RELEASE });
-    expect(snapshot.pools[POOL_SALES]!.members.map((m) => m.agent.release)).toEqual([
-      { kind: 'pinned', releaseId: DEFAULT_RELEASE },
-      { kind: 'pinned', releaseId: newer },
-    ]);
-    expect(snapshot.nodes[0]!.fallback[1]).toEqual({
-      kind: 'default',
-      target: {
-        kind: 'agent',
-        agent: { agentId: 'support', release: { kind: 'pinned', releaseId: SUPPORT_RELEASE } },
-      },
-    });
-    expect(snapshot.releaseIds).toEqual([ROUTER_RELEASE, DEFAULT_RELEASE, SUPPORT_RELEASE, newer]);
-    expect(snapshot).toMatchObject({ schemaVersion: 1, routingPointId: OTHER });
-    expect(digest).toBe(createHash('sha256').update(canonicalJson(snapshot)).digest('hex'));
-    // The draft itself is left as it was.
-    expect(draft.nodes[0]!.fallback[1]).toMatchObject({
-      target: { agent: { release: { kind: 'latest' } } },
-    });
-  });
-
-  it('never pins a release of another agent or another workspace', async () => {
-    const foreign = { ...release(OTHER, 'support'), workspaceId: 'elsewhere' };
-    for (const pinned of [SALES_EN_RELEASE, SALES_HI_RELEASE, OTHER]) {
-      const found = await issues({
-        releases: [...exampleReleases(), foreign],
-        patch: (draft) => (draft.defaultTarget.release = { kind: 'pinned', releaseId: pinned }),
-      });
-      expect(codes(found)).toContainEqual(['routing_default_target_missing', 'error']);
-    }
-  });
-
-  it('creates the release only for the draft version it validated', async () => {
-    const { context: built, draft, routing } = await context();
-    const point = await routing.points.create(draft);
-    const created = await publishRoutingPoint(built, point, 'operator');
-    expect(created).toMatchObject({
-      kind: 'created',
-      release: { version: 1, createdBy: 'operator' },
-    });
-    await routing.points.update(point.id, draft, 1);
-    expect(await publishRoutingPoint(built, point, 'operator')).toEqual({ kind: 'conflict' });
   });
 });
