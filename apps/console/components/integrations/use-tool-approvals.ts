@@ -19,11 +19,13 @@ export function useToolApprovals({
   connection,
   setApprovals,
   setMessage,
+  reload,
 }: {
   agent?: AgentDraft;
   connection?: McpConnection;
   setApprovals: (updater: (current: ApprovalsState) => ApprovalsState) => void;
   setMessage: (message: ToolsMessage) => void;
+  reload: () => Promise<void>;
 }) {
   const confirm = useConfirm();
   const [busyToolId, setBusyToolId] = useState<string>();
@@ -62,6 +64,9 @@ export function useToolApprovals({
           headers: { 'if-match': ifMatch(agent.draftVersion) },
           body: JSON.stringify({ config: nextConfig }),
         });
+        // Refresh the agent draft (version/etag + config) so a second approval in the same
+        // session sends a current if-match instead of replaying this one's now-stale version.
+        await reload();
       } catch (error) {
         setMessage({
           tone: 'warn',

@@ -1,12 +1,14 @@
-import type { McpConnection, SessionIdentity } from '../../lib/api';
-import { DataTableV2, type ColumnV2 } from './settings-table';
+import type { CredentialMetadata, McpConnection, SessionIdentity } from '../../lib/api';
+import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
 import { EmptyStateV2 } from '../ui/feedback-v2';
 import { StatusBadgeV2 } from '../ui/status-badge';
 import { RelativeTime } from '../ui/display';
 import { endpointHost } from './mcp-helpers';
+import { credentialLabel } from './credential-helpers';
 
 export function ConnectionsTable({
   connections,
+  credentials = [],
   loading,
   busyId,
   role,
@@ -17,6 +19,7 @@ export function ConnectionsTable({
   onAdd,
 }: {
   connections: McpConnection[];
+  credentials?: CredentialMetadata[];
   loading: boolean;
   busyId?: string;
   role: SessionIdentity['role'];
@@ -47,7 +50,10 @@ export function ConnectionsTable({
       id: 'auth',
       header: 'Auth',
       priority: 'low',
-      cell: (row) => (row.auth === 'bearer' ? 'Bearer credential' : 'None'),
+      cell: (row) =>
+        row.auth === 'bearer'
+          ? `Bearer · ${credentialLabel(row.credentialId, credentials)}`
+          : 'None',
     },
     {
       id: 'status',

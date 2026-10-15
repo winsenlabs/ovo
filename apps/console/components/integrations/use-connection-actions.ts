@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useConfirm } from '../ui/dialog';
 import {
   apiRequest,
@@ -34,13 +34,22 @@ export function useConnectionActions({
 }) {
   const confirm = useConfirm();
   const [message, setMessage] = useState<ToolsMessage>();
+  // The drawer is a modal <dialog>; a save failure needs to render inside it (InlineAlert), not
+  // as page state hidden behind the backdrop while the drawer stays open for another attempt.
+  const [connectionError, setConnectionError] = useState<string>();
   const [busyConnectionId, setBusyConnectionId] = useState<string>();
   const [drawer, setDrawer] = useState<{ open: boolean; connection?: McpConnection }>({
     open: false,
   });
+  // Opening, switching, or closing the drawer starts a fresh attempt — drop any error from a
+  // previous one instead of letting it resurface for an unrelated connection.
+  useEffect(() => {
+    setConnectionError(undefined);
+  }, [drawer.open, drawer.connection?.id]);
 
   async function saveConnection(payload: ConnectionPayload) {
     setBusyConnectionId('drawer');
+    setConnectionError(undefined);
     try {
       const editing = drawer.connection;
       await apiRequest(editing ? `/mcp-connections/${editing.id}` : '/mcp-connections', {
@@ -50,10 +59,7 @@ export function useConnectionActions({
       setDrawer({ open: false });
       await reload();
     } catch (error) {
-      setMessage({
-        tone: 'danger',
-        text: safeMessage(error, 'MCP connection could not be saved.'),
-      });
+      setConnectionError(safeMessage(error, 'MCP connection could not be saved.'));
     } finally {
       setBusyConnectionId(undefined);
     }
@@ -135,6 +141,7 @@ export function useConnectionActions({
   return {
     message,
     setMessage,
+    connectionError,
     busyConnectionId,
     drawer,
     setDrawer,

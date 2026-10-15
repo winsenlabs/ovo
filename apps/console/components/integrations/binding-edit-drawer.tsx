@@ -7,6 +7,7 @@ import { Drawer } from '../ui/drawer';
 import { FormField } from '../ui/form-field';
 import { Select } from '../ui/inputs';
 import { InlineAlert } from '../ui/feedback-v2';
+import { vendorLabel } from './credential-helpers';
 
 const safeMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
@@ -41,6 +42,10 @@ export function BindingEditDrawer({
   const [environment, setEnvironment] = useState('production');
   const [credentialId, setCredentialId] = useState('');
   const [config, setConfig] = useState<Record<string, unknown>>({});
+  // The fallback "Advanced JSON" textarea below is rendered as a controlled input off this text,
+  // kept in sync with `config` by the effect below — `defaultValue` would freeze on the `{}` the
+  // state held at the first render, before the effect had a chance to populate it from `binding`.
+  const [configText, setConfigText] = useState('{}');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   useEffect(() => {
@@ -49,6 +54,7 @@ export function BindingEditDrawer({
     setEnvironment(binding.environment);
     setCredentialId(binding.credentialId);
     setConfig(binding.config ?? {});
+    setConfigText(JSON.stringify(binding.config ?? {}, null, 2));
     setError(undefined);
   }, [binding]);
   if (!binding) return null;
@@ -99,7 +105,7 @@ export function BindingEditDrawer({
                 placeholder="Select metadata reference"
                 options={credentials.map((credential) => ({
                   value: credential.id,
-                  label: `${credential.label} · ${credential.provider}`,
+                  label: `${credential.label} · ${vendorLabel(credential.provider, plugins)}`,
                 }))}
               />
             )}
@@ -122,7 +128,8 @@ export function BindingEditDrawer({
               <textarea
                 {...props}
                 className="code-input"
-                defaultValue={JSON.stringify(config, null, 2)}
+                value={configText}
+                onChange={(event) => setConfigText(event.target.value)}
                 onBlur={(event) => {
                   try {
                     setConfig(JSON.parse(event.target.value) as Record<string, unknown>);

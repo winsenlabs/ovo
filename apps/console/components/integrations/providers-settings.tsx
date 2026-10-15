@@ -14,6 +14,7 @@ import { Tabs } from '../ui/tabs';
 import { CredentialsPanel } from './credentials-panel';
 import { BindingManager } from './bindings';
 import { countByEnvironment, countByStatus, isExpiringSoon } from './credential-helpers';
+import { humaniseEnum } from '../../lib/status';
 import { loadNormalizedAgents, settleList, type Loaded } from './settings-data';
 
 export function ProvidersSettings({ identity }: { identity: SessionIdentity }) {
@@ -103,7 +104,7 @@ export function ProvidersSettings({ identity }: { identity: SessionIdentity }) {
           environments.map((entry) => (
             <KpiCard
               key={entry.environment}
-              label={`Bindings · ${entry.environment}`}
+              label={`Bindings · ${humaniseEnum(entry.environment)}`}
               value={entry.count}
             />
           ))

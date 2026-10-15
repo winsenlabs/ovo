@@ -67,16 +67,23 @@ export function useMcpConnections() {
 
   const [discoveries, setDiscoveries] = useState<Record<string, DiscoveredTool[]>>({});
   const [discoveryLoading, setDiscoveryLoading] = useState(false);
+  const connectionId = connection?.id;
   useEffect(() => {
-    if (!connection) return;
+    if (!connectionId) return;
     let cancelled = false;
     setDiscoveryLoading(true);
-    apiRequest<unknown>(`/mcp-connections/${connection.id}/tools`)
+    apiRequest<unknown>(`/mcp-connections/${connectionId}/tools`)
       .then(({ data }) => {
         if (!cancelled)
           setDiscoveries((current) => ({
             ...current,
-            [connection.id]: items<DiscoveredTool>(data),
+            // The persisted projection for some backends (postgres, sqlite) omits `id` from
+            // `mapDiscovered`; fall back to `remoteName`, the same stable key `discoverConnection`
+            // assigns, so a tool approved before a reload keeps the same identity.
+            [connectionId]: items<DiscoveredTool>(data).map((tool) => ({
+              ...tool,
+              id: tool.id ?? tool.remoteName,
+            })),
           }));
       })
       .catch(() => undefined)
@@ -84,11 +91,19 @@ export function useMcpConnections() {
     return () => {
       cancelled = true;
     };
-  }, [connection]);
+  }, [connectionId]);
 
   const [approvals, setApprovals] = useState<ApprovalsState>({ status: 'loading', data: [] });
   useEffect(() => {
-    if (!agent) return;
+    if (!agent) {
+      // No agent to scope approvals to. `connections.status` leaving 'loading' is this hook's
+      // signal that the initial `reload()` has settled (empty fixture, or a 503 that
+      // `loadNormalizedAgents` already turned into `[]`) — only then do we know "no agent" is
+      // final rather than "not fetched yet", so only then do we stop the skeleton that nothing
+      // would otherwise ever resolve.
+      if (connections.status !== 'loading') setApprovals({ status: 'ready', data: [] });
+      return;
+    }
     let cancelled = false;
     setApprovals((current) => ({ ...current, status: 'loading' }));
     apiRequest<unknown>(`/agents/${agent.id}/mcp-tools`)
@@ -105,7 +120,7 @@ export function useMcpConnections() {
     return () => {
       cancelled = true;
     };
-  }, [agent]);
+  }, [agent, connections.status]);
 
   return {
     connections,

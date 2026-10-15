@@ -34,6 +34,7 @@ export function ToolsSettings({ identity }: { identity: SessionIdentity }) {
   const {
     message,
     setMessage,
+    connectionError,
     busyConnectionId,
     drawer,
     setDrawer,
@@ -53,6 +54,7 @@ export function ToolsSettings({ identity }: { identity: SessionIdentity }) {
     connection,
     setApprovals,
     setMessage,
+    reload,
   });
   const health = connectionHealthCounts(connections.data);
 
@@ -112,6 +114,7 @@ export function ToolsSettings({ identity }: { identity: SessionIdentity }) {
         ) : (
           <ConnectionsTable
             connections={connections.data}
+            credentials={credentials}
             loading={connections.status === 'loading'}
             busyId={busyConnectionId}
             role={identity.role}
@@ -151,6 +154,7 @@ export function ToolsSettings({ identity }: { identity: SessionIdentity }) {
         connection={drawer.connection}
         credentials={credentials}
         busy={busyConnectionId === 'drawer'}
+        error={connectionError}
         onClose={() => setDrawer({ open: false })}
         onSubmit={saveConnection}
       />

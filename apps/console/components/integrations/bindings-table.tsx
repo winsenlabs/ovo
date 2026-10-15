@@ -1,15 +1,12 @@
 import type { CredentialMetadata, ProviderBinding, SessionIdentity } from '../../lib/api';
 import type { PluginOption } from '../plugins/types';
-import { DataTableV2, type ColumnV2 } from './settings-table';
+import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
 import { EmptyStateV2 } from '../ui/feedback-v2';
 import { StatusBadgeV2 } from '../ui/status-badge';
 import { JsonViewer } from '../ui/code-block';
 import { VoicePreviewButton } from './voice-preview-button';
 import { environmentColumn } from './table-columns';
-
-function credentialLabel(credentialId: string, credentials: readonly CredentialMetadata[]): string {
-  return credentials.find((credential) => credential.id === credentialId)?.label ?? credentialId;
-}
+import { credentialLabel, humaniseKind } from './credential-helpers';
 
 function pluginLabel(binding: ProviderBinding, plugins: readonly PluginOption[]): string {
   return plugins.find((plugin) => plugin.id === binding.pluginId)?.ui?.label ?? binding.provider;
@@ -72,7 +69,14 @@ export function BindingsTable({
       cell: (row) => (
         <>
           {pluginLabel(row, plugins)}
-          {row.kind && <StatusBadgeV2 value={row.kind} tone="neutral" size="sm" />}
+          {row.kind && (
+            <StatusBadgeV2
+              value={row.kind}
+              tone="neutral"
+              size="sm"
+              label={humaniseKind(row.kind)}
+            />
+          )}
         </>
       ),
     },

@@ -1,6 +1,54 @@
 import type { CredentialMetadata, ProviderBinding } from '../../lib/api';
+import type { PluginOption } from '../plugins/types';
+import { humaniseEnum } from '../../lib/status';
+
+/** Vendor display name sourced from the installed plugin manifest, never a hardcoded map
+ * (brief §2 provider-names gate — `plugin.ui.vendor`, falling back to the raw provider id only
+ * when no installed plugin advertises it). */
+export function vendorLabel(provider: string, plugins: readonly PluginOption[]): string {
+  return plugins.find((plugin) => plugin.provider === provider)?.ui?.vendor ?? provider;
+}
+
+/** Credential label for a stored `credentialId` reference, falling back to the raw id when the
+ * credential list hasn't loaded or no longer has it. */
+export function credentialLabel(
+  credentialId: string | undefined,
+  credentials: readonly CredentialMetadata[],
+): string {
+  if (!credentialId) return 'No credential';
+  return credentials.find((credential) => credential.id === credentialId)?.label ?? credentialId;
+}
 
 const DAY_MS = 86_400_000;
+
+/** Credential/plugin "kind" and credential "type" values are short domain abbreviations
+ * (`stt`, `tts`, `llm`...) or auth-method names (`api_key`, `bearer`...) that the shared generic
+ * `humaniseEnum` can't expand on its own — it would read back `stt` as "Stt". These map the known
+ * values, falling back to the generic humaniser for anything else. */
+const KIND_LABELS: Record<string, string> = {
+  stt: 'Speech to text',
+  tts: 'Text to speech',
+  llm: 'LLM',
+  carrier: 'Carrier',
+  decision: 'Decision',
+  tool: 'Tool API',
+};
+const CREDENTIAL_TYPE_LABELS: Record<string, string> = {
+  ...KIND_LABELS,
+  api_key: 'API key',
+  bearer: 'Bearer token',
+  basic: 'Basic auth',
+};
+
+export function humaniseKind(kind?: string | null): string {
+  if (!kind) return 'Unknown';
+  return KIND_LABELS[kind.toLowerCase()] ?? humaniseEnum(kind);
+}
+
+export function humaniseCredentialType(type?: string | null): string {
+  if (!type) return 'Unknown';
+  return CREDENTIAL_TYPE_LABELS[type.toLowerCase()] ?? humaniseEnum(type);
+}
 
 /** Days until `expiresAt`; negative once it is in the past. `null` when there is no expiry. */
 export function daysUntilExpiry(

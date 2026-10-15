@@ -115,8 +115,13 @@ export function AgentToolAccess({
   onApprove: (tool: DiscoveredTool) => void;
   onRevoke: (approval: ToolApproval) => void;
 }) {
+  // Only approvals that belong to the *selected* connection can be "missing from discovery" —
+  // an approval from a different connection is correctly absent from this one's discovered list
+  // and should not be counted here.
   const approvedWithoutDiscovery = approvals.filter(
-    (approval) => !discovered.some((tool) => tool.id === (approval.toolId ?? approval.id)),
+    (approval) =>
+      approval.connectionId === selectedConnectionId &&
+      !discovered.some((tool) => tool.id === (approval.toolId ?? approval.id)),
   );
   return (
     <SectionCard
@@ -154,12 +159,20 @@ export function AgentToolAccess({
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
           gap: 'var(--space-6, 24px)',
+          // `.stack` is a bare grid with no explicit row sizing, so without these two the taller
+          // column stretches the shorter one's rows to match and both columns drift apart.
+          alignItems: 'start',
+          marginTop: 'var(--space-5, 20px)',
         }}
       >
-        <div className="stack">
+        <div className="stack" style={{ alignContent: 'start' }}>
           <h3>Discovered tools</h3>
           {discoveryLoading ? (
             <Skeleton shape="block" />
+          ) : !connections.length ? (
+            <EmptyStateV2 title="No connections yet">
+              Add an MCP connection above to discover its tools.
+            </EmptyStateV2>
           ) : !selectedConnectionId ? (
             <EmptyStateV2 title="Select a connection">
               Discovered tools for that connection will appear here.
@@ -178,7 +191,7 @@ export function AgentToolAccess({
                 )}
                 drift={hasDrifted(tool, approvals)}
                 role={role}
-                busy={busyToolId === tool.id}
+                busy={busyToolId !== undefined && busyToolId === tool.id}
                 onApprove={() => onApprove(tool)}
                 onRevoke={() =>
                   onRevoke(
@@ -189,10 +202,14 @@ export function AgentToolAccess({
             ))
           )}
         </div>
-        <div className="stack">
+        <div className="stack" style={{ alignContent: 'start' }}>
           <h3>Approved for this agent</h3>
           {approvalsLoading ? (
             <Skeleton shape="block" />
+          ) : !agents.length ? (
+            <EmptyStateV2 title="No agents yet">
+              Create an agent to approve tools for it.
+            </EmptyStateV2>
           ) : !selectedAgentId ? (
             <EmptyStateV2 title="Select an agent">
               Its approved tools will appear here.
@@ -228,23 +245,26 @@ export function AgentToolAccess({
                       Discovery reports a newer schema for this tool.
                     </InlineAlert>
                   )}
-                  <button
-                    type="button"
-                    className="button danger"
-                    disabled={role === 'viewer' || busyToolId === key}
-                    onClick={() => onRevoke(approval)}
-                  >
-                    Revoke
-                  </button>
+                  <div className="button-row">
+                    <button
+                      type="button"
+                      className="button danger"
+                      disabled={role === 'viewer' || busyToolId === key}
+                      onClick={() => onRevoke(approval)}
+                    >
+                      Revoke
+                    </button>
+                  </div>
                 </article>
               );
             })
           )}
           {approvedWithoutDiscovery.length > 0 && (
             <InlineAlert tone="info">
-              {approvedWithoutDiscovery.length} approval
-              {approvedWithoutDiscovery.length === 1 ? '' : 's'} reference a tool not in this
-              connection's current discovery.
+              {approvedWithoutDiscovery.length === 1
+                ? '1 approval references a tool'
+                : `${approvedWithoutDiscovery.length} approvals reference a tool`}{' '}
+              not in this connection's current discovery.
             </InlineAlert>
           )}
         </div>

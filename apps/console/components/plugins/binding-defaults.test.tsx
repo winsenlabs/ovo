@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BindingSelect } from './binding-select';
 import { schemaDefaults } from './schema-defaults';
 import { BindingManager } from '../integrations/bindings';
@@ -13,6 +13,15 @@ vi.mock('../../lib/api', async (importOriginal) => ({
 }));
 beforeEach(() => request.mockReset());
 afterEach(() => cleanup());
+// jsdom has no modal dialogs; the create-binding drawer (a native <dialog>) only needs open/close.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
+    this.open = false;
+  };
+});
 
 /** The shape the API's /plugins route returns for the ElevenLabs TTS manifest. */
 const elevenLabs: PluginOption = {
@@ -78,7 +87,7 @@ describe('binding forms start from the plugin defaults', () => {
     });
   });
 
-  it('fills the integrations binding JSON when ElevenLabs is picked for a new binding', async () => {
+  it('fills the create-binding drawer schema fields when ElevenLabs is picked for a new binding', async () => {
     request.mockImplementation(async (path: string) =>
       path === '/plugins' ? { data: { plugins: [elevenLabs] } } : { data: {} },
     );
@@ -87,14 +96,17 @@ describe('binding forms start from the plugin defaults', () => {
         <BindingManager bindings={[]} credentials={[]} reload={vi.fn()} role="admin" />
       </ConfirmDialogProvider>,
     );
+    fireEvent.click(await screen.findByRole('button', { name: 'Add binding' }));
     const select = await screen.findByLabelText('Plugin');
     await screen.findByRole('option', { name: 'ElevenLabs Text to Speech' });
     fireEvent.change(select, { target: { value: elevenLabs.id } });
-    const config = screen.getByLabelText('Provider configuration JSON') as HTMLTextAreaElement;
-    expect(JSON.parse(config.value)).toEqual({
-      model: 'eleven_flash_v2_5',
-      voiceId: 'ZUrEGyu8GFMwnHbvLhv2',
-      speed: 1,
-    });
+    // The create drawer renders the plugin's `bindingSchema` through `SchemaForm`, the same
+    // field-per-property form `BindingEditDrawer` uses, instead of a raw-JSON textarea.
+    expect(((await screen.findByLabelText('model')) as HTMLSelectElement).value).toBe(
+      'eleven_flash_v2_5',
+    );
+    expect((screen.getByLabelText('Voice ID') as HTMLInputElement).value).toBe(
+      'ZUrEGyu8GFMwnHbvLhv2',
+    );
   });
 });

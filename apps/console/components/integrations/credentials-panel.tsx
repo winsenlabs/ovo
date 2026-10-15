@@ -43,6 +43,12 @@ export function CredentialsPanel({
   const [createOpen, setCreateOpen] = useState(false);
   const [rotating, setRotating] = useState<CredentialMetadata>();
   const [message, setMessage] = useState<{ tone: 'neutral' | 'danger'; text: string }>();
+  // Create/rotate run inside a modal <dialog>: a failure needs to render where the viewer is
+  // looking (inside that dialog, via InlineAlert), not as page state that sits behind the native
+  // backdrop. `message` stays for success toasts and for retire, whose confirm dialog has already
+  // closed by the time it can fail.
+  const [createError, setCreateError] = useState<string>();
+  const [rotateError, setRotateError] = useState<string>();
   const [busy, setBusy] = useState<string>();
 
   async function create(payload: {
@@ -55,7 +61,7 @@ export function CredentialsPanel({
     permittedAgentIds: string[];
   }) {
     setBusy('create');
-    setMessage(undefined);
+    setCreateError(undefined);
     try {
       await apiRequest('/credentials', {
         method: 'POST',
@@ -76,7 +82,7 @@ export function CredentialsPanel({
       setCreateOpen(false);
       await reload();
     } catch (error) {
-      setMessage({ tone: 'danger', text: safeMessage(error, 'Credential creation failed.') });
+      setCreateError(safeMessage(error, 'Credential creation failed.'));
     } finally {
       setBusy(undefined);
     }
@@ -84,7 +90,7 @@ export function CredentialsPanel({
 
   async function rotate(credential: CredentialMetadata, value: string) {
     setBusy(`rotate-${credential.id}`);
-    setMessage(undefined);
+    setRotateError(undefined);
     try {
       await apiRequest(`/credentials/${credential.id}/rotate`, {
         method: 'POST',
@@ -94,10 +100,7 @@ export function CredentialsPanel({
       setRotating(undefined);
       await reload();
     } catch (error) {
-      setMessage({
-        tone: 'danger',
-        text: safeMessage(error, 'Rotation failed; the prior value remains in effect.'),
-      });
+      setRotateError(safeMessage(error, 'Rotation failed; the prior value remains in effect.'));
     } finally {
       setBusy(undefined);
     }
@@ -175,13 +178,21 @@ export function CredentialsPanel({
         plugins={plugins}
         agents={agents}
         busy={busy === 'create'}
-        onClose={() => setCreateOpen(false)}
+        error={createError}
+        onClose={() => {
+          setCreateOpen(false);
+          setCreateError(undefined);
+        }}
         onSubmit={create}
       />
       <RotateDialog
         credential={rotating}
         busy={Boolean(rotating) && busy === `rotate-${rotating?.id}`}
-        onClose={() => setRotating(undefined)}
+        error={rotateError}
+        onClose={() => {
+          setRotating(undefined);
+          setRotateError(undefined);
+        }}
         onSubmit={rotate}
       />
     </SectionCard>

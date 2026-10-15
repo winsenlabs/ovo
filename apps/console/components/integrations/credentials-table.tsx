@@ -1,18 +1,11 @@
 import type { CredentialMetadata, ProviderBinding, SessionIdentity } from '../../lib/api';
 import type { PluginOption } from '../plugins/types';
-import { DataTableV2, type ColumnV2 } from './settings-table';
+import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
 import { StatusBadgeV2 } from '../ui/status-badge';
 import { RelativeTime } from '../ui/display';
 import { EmptyStateV2 } from '../ui/feedback-v2';
-import { expiryTone, usedByCount } from './credential-helpers';
+import { expiryTone, humaniseCredentialType, usedByCount, vendorLabel } from './credential-helpers';
 import { environmentColumn } from './table-columns';
-
-/** Vendor display name sourced from the installed plugin manifest, never a hardcoded map
- * (brief §2 provider-names gate — `plugin.ui.vendor`, falling back to the raw provider id only
- * when no installed plugin advertises it). */
-function vendorLabel(provider: string, plugins: readonly PluginOption[]): string {
-  return plugins.find((plugin) => plugin.provider === provider)?.ui?.vendor ?? provider;
-}
 
 function ExpiryCell({ expiresAt }: { expiresAt?: string }) {
   if (!expiresAt) return <span className="ds-unknown">No expiry</span>;
@@ -57,8 +50,17 @@ export function CredentialsTable({
           <strong>{row.label}</strong>
           <br />
           <small className="muted">
-            {vendorLabel(row.provider, plugins)} · {row.type}
+            {vendorLabel(row.provider, plugins)} · {humaniseCredentialType(row.type)}
           </small>
+          {row.permittedAgentIds && row.permittedAgentIds.length > 0 && (
+            <>
+              <br />
+              <small className="muted">
+                {row.permittedAgentIds.length} permitted agent
+                {row.permittedAgentIds.length === 1 ? '' : 's'}
+              </small>
+            </>
+          )}
         </>
       ),
     },
@@ -119,26 +121,31 @@ export function CredentialsTable({
       id: 'actions',
       header: 'Actions',
       align: 'end',
-      cell: (row) => (
-        <div className="button-row">
-          <button
-            type="button"
-            className="button small"
-            disabled={role !== 'admin' || Boolean(busy)}
-            onClick={() => onRotate(row)}
-          >
-            Rotate
-          </button>
-          <button
-            type="button"
-            className="button small danger"
-            disabled={role !== 'admin' || Boolean(busy)}
-            onClick={() => void onRetire(row)}
-          >
-            Retire
-          </button>
-        </div>
-      ),
+      cell: (row) => {
+        const retired = row.status === 'retired';
+        return (
+          <div className="button-row">
+            <button
+              type="button"
+              className="button small"
+              disabled={role !== 'admin' || Boolean(busy) || retired}
+              title={retired ? 'Retired credentials cannot be rotated.' : undefined}
+              onClick={() => onRotate(row)}
+            >
+              Rotate
+            </button>
+            <button
+              type="button"
+              className="button small danger"
+              disabled={role !== 'admin' || Boolean(busy) || retired}
+              title={retired ? 'Already retired.' : undefined}
+              onClick={() => void onRetire(row)}
+            >
+              Retire
+            </button>
+          </div>
+        );
+      },
     },
   ];
   return (

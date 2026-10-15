@@ -5,6 +5,7 @@ import type { PluginOption } from '../plugins/types';
 import { Drawer } from '../ui/drawer';
 import { FormField } from '../ui/form-field';
 import { Select } from '../ui/inputs';
+import { InlineAlert } from '../ui/feedback-v2';
 
 const CREDENTIAL_TYPES = [
   { value: 'stt', label: 'Speech to text' },
@@ -32,6 +33,7 @@ export function CredentialDrawer({
   plugins,
   agents,
   busy,
+  error,
   onClose,
   onSubmit,
 }: {
@@ -39,6 +41,7 @@ export function CredentialDrawer({
   plugins: PluginOption[];
   agents: AgentDraft[];
   busy: boolean;
+  error?: string;
   onClose: () => void;
   onSubmit: (payload: {
     label: string;
@@ -70,6 +73,7 @@ export function CredentialDrawer({
           void onSubmit({ ...draft, permittedAgentIds: permitted });
         }}
       >
+        {error && <InlineAlert tone="danger">{error}</InlineAlert>}
         <p className="muted">
           No reveal action exists. The value is cleared after a successful save and must never
           appear in API metadata.

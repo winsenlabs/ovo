@@ -4,6 +4,7 @@ import type { CredentialMetadata, McpConnection } from '../../lib/api';
 import { Drawer } from '../ui/drawer';
 import { FormField } from '../ui/form-field';
 import { Select } from '../ui/inputs';
+import { InlineAlert } from '../ui/feedback-v2';
 
 type ConnectionPayload = {
   label: string;
@@ -18,6 +19,7 @@ export function ConnectionDrawer({
   connection,
   credentials,
   busy,
+  error,
   onClose,
   onSubmit,
 }: {
@@ -25,6 +27,7 @@ export function ConnectionDrawer({
   connection?: McpConnection;
   credentials: CredentialMetadata[];
   busy: boolean;
+  error?: string;
   onClose: () => void;
   onSubmit: (payload: ConnectionPayload) => Promise<void>;
 }) {
@@ -45,6 +48,14 @@ export function ConnectionDrawer({
   const patch = (value: Partial<ConnectionPayload>) =>
     setDraft((current) => ({ ...current, ...value }));
   const toolCredentials = credentials.filter((credential) => credential.type === 'tool');
+  // A connection saved before the credential was retyped (or retired) away from `tool` still
+  // carries that id; keep it selectable so editing doesn't silently show "No credential" while
+  // submitting the old id unchanged underneath.
+  const selectedCredential =
+    draft.credentialId &&
+    !toolCredentials.some((credential) => credential.id === draft.credentialId)
+      ? credentials.find((credential) => credential.id === draft.credentialId)
+      : undefined;
 
   return (
     <Drawer
@@ -59,6 +70,7 @@ export function ConnectionDrawer({
           void onSubmit({ ...draft, credentialId: draft.credentialId || undefined });
         }}
       >
+        {error && <InlineAlert tone="danger">{error}</InlineAlert>}
         <FormField id="mcp-label" label="Connection label" required>
           {(props) => (
             <input
@@ -104,10 +116,20 @@ export function ConnectionDrawer({
                 value={draft.credentialId ?? ''}
                 onChange={(value) => patch({ credentialId: value })}
                 placeholder="No credential"
-                options={toolCredentials.map((credential) => ({
-                  value: credential.id,
-                  label: credential.label,
-                }))}
+                options={[
+                  ...(selectedCredential
+                    ? [
+                        {
+                          value: selectedCredential.id,
+                          label: `${selectedCredential.label} (not a tool credential)`,
+                        },
+                      ]
+                    : []),
+                  ...toolCredentials.map((credential) => ({
+                    value: credential.id,
+                    label: credential.label,
+                  })),
+                ]}
               />
             )}
           </FormField>

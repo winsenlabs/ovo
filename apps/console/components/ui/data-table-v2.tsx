@@ -62,6 +62,19 @@ export function DataTableV2<T>({
   density?: 'normal' | 'compact';
 }) {
   const [sort, setSort] = useState<SortState>(null);
+  // Every hook in this component must run on every render, in the same order, regardless of
+  // which branch below ends up returning — the error/loading/empty early returns used to sit
+  // ahead of `useRef`/`useEffect`, so switching between those states and the table (e.g. a
+  // retry, or data arriving) changed how many hooks had run and could desync React's hook state.
+  const allSelected = selected && rows.length > 0 && rows.every((row) => selected.has(rowKey(row)));
+  const someSelected = selected && selected.size > 0 && !allSelected;
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  // `indeterminate` is a DOM property, not an HTML attribute React exposes as a prop; it must be
+  // set imperatively or a partial selection renders as a plain unchecked "select all" box.
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = Boolean(someSelected);
+  }, [someSelected]);
+
   if (error) return <ErrorState message={error} onRetry={onRetry} />;
   if (loading) return <SkeletonTableRows columns={columns.length} />;
   if (!rows.length)
@@ -80,14 +93,6 @@ export function DataTableV2<T>({
         : { column: column.id, direction: 'asc' },
     );
   };
-  const allSelected = selected && rows.length > 0 && rows.every((row) => selected.has(rowKey(row)));
-  const someSelected = selected && selected.size > 0 && !allSelected;
-  const selectAllRef = useRef<HTMLInputElement>(null);
-  // `indeterminate` is a DOM property, not an HTML attribute React exposes as a prop; it must be
-  // set imperatively or a partial selection renders as a plain unchecked "select all" box.
-  useEffect(() => {
-    if (selectAllRef.current) selectAllRef.current.indeterminate = Boolean(someSelected);
-  }, [someSelected]);
 
   return (
     <div className={`ds-table density-${density}`} role="region" aria-label={label} tabIndex={0}>
