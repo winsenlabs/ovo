@@ -1,6 +1,8 @@
 import type { SipHandoffTarget } from '@winsendotai/ovo-sip-carrier-kit';
+import type { BridgeTarget } from '../call/bridge.ts';
 import type { Trunk } from '../config/trunks.ts';
 import { parseUri } from '../sip/address.ts';
+import { allowedDestination } from './numbers.ts';
 
 export type ReferTarget =
   { ok: true; referTo: string; host: string } | { ok: false; reason: string };
@@ -40,4 +42,34 @@ export function referTarget(trunk: Trunk, target: SipHandoffTarget): ReferTarget
   if (!hostAllowed(uri.host, trunk.refer.allowedHosts))
     return { ok: false, reason: 'refer_host_not_allowed' };
   return { ok: true, referTo: withHeaders(target.uri, target.headers), host: uri.host };
+}
+
+export type BridgeResolution = { ok: true; target: BridgeTarget } | { ok: false; reason: string };
+
+/**
+ * The destination of a bridged handoff (stretch S1). A phone number is dialled on the trunk's
+ * outbound proxy under the same country allow-list as a worker's dial; a SIP URI needs its host on
+ * the trunk's allow-list. The `X-` context rides as real INVITE headers, not URI parameters.
+ */
+export function bridgeTarget(
+  trunk: Trunk,
+  target: SipHandoffTarget,
+  countryAllowlist: readonly string[],
+): BridgeResolution {
+  if (target.kind === 'phone')
+    return allowedDestination(target.e164, countryAllowlist)
+      ? { ok: true, target: { to: target.e164, headers: [] } }
+      : { ok: false, reason: 'destination_not_permitted' };
+  const uri = parseUri(target.uri);
+  if (!uri || uri.scheme === 'tel' || !uri.host) return { ok: false, reason: 'refer_uri_invalid' };
+  if (!hostAllowed(uri.host, trunk.refer.allowedHosts))
+    return { ok: false, reason: 'refer_host_not_allowed' };
+  return {
+    ok: true,
+    target: {
+      to: uri.user ?? '',
+      requestUri: target.uri,
+      headers: Object.entries(target.headers ?? {}),
+    },
+  };
 }

@@ -105,6 +105,8 @@ describe('outbound calls through the control API (§5.4)', () => {
     expect(ack.headers.get('cseq')).toBe('1 ACK');
     const start = await h.media.waitFor(() => h.media.framesIn('start')[0]);
     expect(start).toMatchObject({ callId, routeParams: { sid: 's-9', rt: 'rt-dial' } });
+    // The in_progress callback is posted in the background, so wait for it rather than race it.
+    await h.media.waitFor(() => h.media.statuses.find((s) => s.state === 'in_progress'));
     const statuses = h.media.statuses;
     expect(statuses.map((s) => [s.state, s.dialRequestId])).toEqual([
       ['ringing', body.requestId],

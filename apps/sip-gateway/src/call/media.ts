@@ -59,6 +59,7 @@ export class CallMedia {
   private buffered: { tsMs: number; payload: Uint8Array }[] = [];
   private resuming = false;
   private stopped = false;
+  private detached = false;
   terminating = false;
   private cancelTerminate?: () => void;
 
@@ -185,7 +186,7 @@ export class CallMedia {
     const { callId, carrierId, bindingId } = this.init;
     const deadline = this.host.clock.now() + RESUME_WINDOW_MS;
     let delay = 250;
-    while (!this.stopped && this.host.clock.now() < deadline) {
+    while (!this.stopped && !this.detached && this.host.clock.now() < deadline) {
       this.host.counters.resumeAttempts += 1;
       try {
         const path = this.grant.resumeUrl
@@ -200,7 +201,7 @@ export class CallMedia {
           }
           const { kind: _kind, ...grant } = parsed.data;
           this.grant = { ...this.grant, ...grant };
-          if (this.stopped) return;
+          if (this.stopped || this.detached) return;
           await this.connect();
           for (const frame of this.buffered.splice(0))
             this.link?.media(++this.seq, frame.tsMs, frame.payload);
@@ -219,7 +220,20 @@ export class CallMedia {
       await this.host.sleep(delay);
       delay = Math.min(delay * 2, 4_000);
     }
-    if (!this.stopped) this.init.onEnd('resume_failed');
+    if (!this.stopped && !this.detached) this.init.onEnd('resume_failed');
+  }
+
+  /**
+   * A bridge takes over this leg's RTP: the carrier socket is told `transferred` and closed, and
+   * the pacer stops, but the RTP session and its ports stay up for the bridge until `stop()`.
+   */
+  detach(): void {
+    if (this.stopped || this.detached) return;
+    this.detached = true;
+    this.pacer.stop();
+    this.cancelTerminate?.();
+    this.link?.stop('transferred');
+    this.link = undefined;
   }
 
   /** Stops pacing, tells the gateway (`stop`) unless it ended the stream, closes RTP. */

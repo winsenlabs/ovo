@@ -82,6 +82,8 @@ export function phoneTemplateProblem(template: string): string | undefined {
 const ReferSchema = z
   .strictObject({
     enabled: z.boolean().default(false),
+    /** `bridge`: for a trunk that refuses REFER, relay the call through the gateway (stretch S1). */
+    mode: z.enum(['refer', 'bridge']).default('refer'),
     phoneUriTemplate: z.string().max(512).optional(),
     allowedHosts: z.array(referHost).max(64).default([]),
   })
@@ -90,7 +92,12 @@ const ReferSchema = z
       ? phoneTemplateProblem(refer.phoneUriTemplate)
       : undefined;
     if (problem) ctx.addIssue({ code: 'custom', path: ['phoneUriTemplate'], message: problem });
-    if (refer.enabled && !refer.phoneUriTemplate && !refer.allowedHosts.length)
+    if (
+      refer.enabled &&
+      refer.mode === 'refer' &&
+      !refer.phoneUriTemplate &&
+      !refer.allowedHosts.length
+    )
       ctx.addIssue({
         code: 'custom',
         message: 'refer.enabled needs phoneUriTemplate, allowedHosts or both',
@@ -120,7 +127,7 @@ const TrunkSchema = z
     inviteRatePerSecond: z.number().positive().max(100).default(5),
     maxConcurrent: z.number().int().positive().max(1000).default(2),
     optionsPingSeconds: z.number().int().min(0).max(3600).default(30),
-    refer: ReferSchema.default({ enabled: false, allowedHosts: [] }),
+    refer: ReferSchema.default({ enabled: false, mode: 'refer', allowedHosts: [] }),
     inbound: z
       .strictObject({
         enabled: z.boolean(),
@@ -139,6 +146,14 @@ const TrunkSchema = z
   .refine((trunk) => !trunk.outbound.enabled || trunk.outbound.proxy, {
     message: 'outbound.enabled needs outbound.proxy',
   })
+  .refine(
+    (trunk) =>
+      trunk.refer.mode !== 'bridge' || (trunk.outbound.enabled && trunk.outbound.auth === 'ip'),
+    {
+      // The bridge dials out on this trunk with no credentials of its own.
+      message: 'refer.mode bridge needs outbound.enabled with auth ip',
+    },
+  )
   .refine((trunk) => proxyInsideSignalling(trunk.outbound.proxy, trunk.signallingCidrs), {
     // Its responses would be dropped by the pre-parse allow-list.
     message: 'outbound.proxy must be inside signallingCidrs',
