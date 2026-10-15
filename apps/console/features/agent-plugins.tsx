@@ -15,7 +15,7 @@ import { VoiceStackDiagram } from '../components/plugins/voice-stack-diagram';
 import type { AgentVoice, CompatIssue, PluginCatalog, Slot } from '../components/plugins/types';
 import type { PluginOption } from '../components/plugins/types';
 import { useSession } from '../components/shell/session-provider';
-import { PageHeader } from '../components/ui/layout';
+import { SubPageHeader } from '../components/studio/sub-page-header';
 import { SectionCard } from '../components/ui/section-card';
 import { ErrorState, InlineAlert, Skeleton } from '../components/ui/feedback-v2';
 
@@ -170,7 +170,7 @@ export function AgentPluginsFeature({ agentId }: { agentId: string }) {
 
   return (
     <div className="ui-stack">
-      <PageHeader
+      <SubPageHeader
         eyebrow="Agent plugins"
         title="Voice & plugins"
         description="Selections are checked against installed manifests and binding metadata."

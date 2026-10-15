@@ -103,7 +103,9 @@ export function AgentListFeature() {
     {
       id: 'updated',
       header: 'Updated',
-      priority: 'low',
+      // Not `low`: `low`-priority columns disappear on a narrow viewport (`.ds-table` mobile
+      // cards), and the verifier's "Updated" column was the one piece of context a mobile card
+      // dropped entirely.
       align: 'end',
       sortValue: (row) => row.updatedAt ?? '',
       cell: (row) => <RelativeTime value={row.updatedAt} />,
@@ -128,15 +130,7 @@ export function AgentListFeature() {
         <KpiStrip>
           <KpiCard label="Agents" value={overview.totals.agents} />
           <KpiCard label="With a published release" value={overview.totals.withRelease} />
-          <KpiCard
-            label="Release-blocked"
-            value={overview.totals.blocked}
-            delta={
-              overview.totals.blocked > 0
-                ? { value: overview.totals.blocked, tone: 'danger', label: 'blocked' }
-                : undefined
-            }
-          />
+          <KpiCard label="Release-blocked" value={overview.totals.blocked} />
           <KpiCard label="Calls (24h)" value={overview.totals.calls24h} />
         </KpiStrip>
       )}
@@ -159,11 +153,13 @@ export function AgentListFeature() {
           />
           <DataTableV2
             // `DataTableV2` calls `useRef`/`useEffect` only after its loading/empty early
-            // returns, so flipping its own `loading` prop on an already-mounted instance trips
-            // React error #310 (hook count changes between renders of the same instance). A
-            // key tied to the status forces a clean remount across that transition instead.
-            // Foundation request: move those two hooks above the early returns.
-            key={overview.status}
+            // returns, so remounting on `status` alone (the previous workaround) covered the
+            // loading transition but not rows going to empty on a search with no matches — that
+            // second transition tripped the same hook-count mismatch (React #300/#310). Keying on
+            // whether the table is *currently* empty as well forces a clean remount across both
+            // transitions. Foundation request: move those two hooks above the early returns so no
+            // caller needs this key at all.
+            key={`${overview.status}:${filtered.length === 0}`}
             label="Agents"
             rows={filtered}
             rowKey={(row) => row.id}

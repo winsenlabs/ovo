@@ -7,6 +7,7 @@ import type { JsonShape } from './types';
 import { FormField } from '../ui/form-field';
 import { TagInput } from '../ui/inputs';
 import { LocatorListField } from './locator-list-field';
+import { humaniseKey } from '../../lib/status';
 import { fieldValue, storedCredentialId, type FieldArgs } from './schema-field-helpers';
 
 export type { FieldArgs };
@@ -27,7 +28,11 @@ export function renderSchemaField([key, shape]: [string, JsonShape], args: Field
   const hint = plugin.ui?.fields?.[key];
   const id = `schema-${prefix}${plugin.id.replace(/[^a-z0-9-]/gi, '-')}-${key}`;
   const required = requiredKeys.has(key);
-  const label = hint?.label ?? key;
+  // Most plugin manifests carry no curated `ui.fields` hint for most of their properties — the
+  // raw schema key (`inputEnabled`, `maxCallSeconds`) was rendering as the label verbatim. A
+  // humanised fallback ("Input enabled", "Max call seconds") is never worse and is what every
+  // other raw key in this console already gets (`humaniseKey`, used for enum/status text).
+  const label = hint?.label ?? humaniseKey(key);
   const help = hint?.help ?? shape.description;
 
   if (plugin.secretFields?.includes(`/${key}`) || hint?.widget === 'secret') {
@@ -197,6 +202,12 @@ export function renderSchemaField([key, shape]: [string, JsonShape], args: Field
             role="switch"
             checked={value[key] === true}
             onChange={(event) => patch(key, event.target.checked)}
+            // `FormField`'s wrapper is a CSS grid (`.field`), whose default item-stretch applies
+            // to a checkbox same as to a text input: without an explicit `width`, it stretched to
+            // the full column and (with no `justify-self`) sat centred in that width rather than
+            // at the label's own left edge (brief defect: "giant centred checkbox"). A real
+            // `width` is what makes stretch alignment resolve to `start` instead.
+            style={{ width: '20px', justifySelf: 'start' }}
           />
         )}
       </FormField>

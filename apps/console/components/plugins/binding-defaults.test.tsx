@@ -60,7 +60,7 @@ describe('binding forms start from the plugin defaults', () => {
         onChange={vi.fn()}
       />,
     );
-    expect((screen.getByLabelText('model') as HTMLSelectElement).value).toBe('eleven_flash_v2_5');
+    expect((screen.getByLabelText('Model') as HTMLSelectElement).value).toBe('eleven_flash_v2_5');
     expect((screen.getByLabelText('Voice ID') as HTMLInputElement).value).toBe(
       'ZUrEGyu8GFMwnHbvLhv2',
     );

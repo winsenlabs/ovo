@@ -2,7 +2,7 @@
 // module-size gate; each step is a pure view over `config`/`onChange`.
 import type { AgentVoice, Slot } from '@winsendotai/ovo-contracts';
 import type { AgentConfig } from '../lib/api';
-import { SlotPicker } from '../components/plugins/slot-picker';
+import { SlotPicker, SLOT_LABELS } from '../components/plugins/slot-picker';
 import type { PluginCatalog } from '../components/plugins/types';
 import { SectionCard } from '../components/ui/section-card';
 import { RadioCardGroup, type Choice } from '../components/ui/choice-card';
@@ -90,7 +90,7 @@ export function WizardBasicsStep({
             />
           </label>
         </div>
-        <fieldset>
+        <fieldset className="ds-wizard-mode-group">
           <legend>Mode</legend>
           <RadioCardGroup
             name="mode"
@@ -125,24 +125,30 @@ export function WizardPluginsStep({
         {WIZARD_SLOTS.filter(
           (slot) => slot !== 'llm' || (config.mode !== 'announcement' && config.mode !== 'faq'),
         ).map((slot) => (
-          <SlotPicker
-            key={slot}
-            slot={slot}
-            plugins={plugins}
-            value={voice[slot]?.plugin}
-            voice={voice}
-            mode={config.mode}
-            language={config.language}
-            onChange={(plugin) =>
-              onChange({
-                ...config,
-                voice: {
-                  ...(config.voice ?? { textFilters: [], acknowledgements: [] }),
-                  [slot]: { plugin, config: {} },
-                },
-              })
-            }
-          />
+          // The picker's own `groupLabel` is an `aria-label`, invisible on screen — with up to 14
+          // cards across 7 slots laid out back to back with nothing else between them, that read
+          // as one undifferentiated grid (verifier: "no visible slot headings"). A plain `<h3>`
+          // above each one gives sighted operators the same grouping a screen reader already had.
+          <div className="ds-wizard-slot-group" key={slot}>
+            <h3>{SLOT_LABELS[slot] ?? slot}</h3>
+            <SlotPicker
+              slot={slot}
+              plugins={plugins}
+              value={voice[slot]?.plugin}
+              voice={voice}
+              mode={config.mode}
+              language={config.language}
+              onChange={(plugin) =>
+                onChange({
+                  ...config,
+                  voice: {
+                    ...(config.voice ?? { textFilters: [], acknowledgements: [] }),
+                    [slot]: { plugin, config: {} },
+                  },
+                })
+              }
+            />
+          </div>
         ))}
       </div>
     </SectionCard>

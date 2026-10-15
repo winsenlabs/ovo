@@ -61,26 +61,37 @@ export type AgentsOverviewState =
   | { status: 'error'; message: string }
   | { status: 'ready'; rows: AgentOverviewRow[]; totals: AgentsOverviewTotals };
 
-async function loadOne(
+async function loadReleases(agentId: string): Promise<Release[]> {
+  const result = await apiRequest<unknown>(`/agents/${encodeURIComponent(agentId)}/releases`);
+  return items<Release>(result.data);
+}
+
+function buildOne(
   agent: AgentSummaryRow,
+  releases: readonly Release[],
+  readiness: AgentReadiness | undefined,
+  readinessError: string | undefined,
   plugins: readonly PluginCatalog['plugins'][number][],
   calls: readonly CallRow[],
-): Promise<AgentOverviewRow> {
-  const [readinessResult, releasesResult] = await Promise.allSettled([
-    apiRequest<AgentReadiness>(`/agents/${encodeURIComponent(agent.id)}/readiness`),
-    apiRequest<unknown>(`/agents/${encodeURIComponent(agent.id)}/releases`),
-  ]);
-  const releases =
-    releasesResult.status === 'fulfilled' ? items<Release>(releasesResult.value.data) : [];
-  const agentCalls = calls.filter((call) => call.agentId === agent.id);
+  releaseIds: ReadonlySet<string>,
+): AgentOverviewRow {
+  // A call record from the bulk `/calls` listing carries `releaseId`, not `agentId` (only the
+  // agent-scoped `/calls?agentId=` endpoint, which the Overview tab uses, resolves that server
+  // side). Resolving the release back to its own agent — via this agent's own immutable
+  // releases, already fetched below — is what the brief asks for instead of a `calls7d` that
+  // reads 0 for every row while the Overview tab for the same agent shows real traffic.
+  const agentCalls = calls.filter(
+    (call) =>
+      call.agentId === agent.id || (call.releaseId != null && releaseIds.has(call.releaseId)),
+  );
   const last7d = callsWithin(agentCalls, 7 * 86_400_000);
   return {
     id: agent.id,
     name: agent.config.name || agent.id,
     mode: agent.config.mode,
     updatedAt: agent.updatedAt,
-    readiness: readinessResult.status === 'fulfilled' ? readinessResult.value.data : undefined,
-    readinessError: readinessResult.status === 'rejected' ? 'Readiness unavailable' : undefined,
+    readiness,
+    readinessError,
     // Newest first, as the API lists them (confirmed against the fixture).
     latestRelease: releases[0],
     releaseCount: releases.length,
@@ -105,7 +116,33 @@ export function useAgentsOverview(): AgentsOverviewState & { reload: () => void 
       const agents = await hydrate(rawAgents);
       const plugins = pluginsResult.data.plugins;
       const calls = items<CallRow>(callsResult.data);
-      const rows = await Promise.all(agents.map((agent) => loadOne(agent, plugins, calls)));
+      const perAgent = await Promise.all(
+        agents.map(async (agent) => {
+          const [releasesResult, readinessResult] = await Promise.allSettled([
+            loadReleases(agent.id),
+            apiRequest<AgentReadiness>(`/agents/${encodeURIComponent(agent.id)}/readiness`),
+          ]);
+          return {
+            agent,
+            releases: releasesResult.status === 'fulfilled' ? releasesResult.value : [],
+            readiness:
+              readinessResult.status === 'fulfilled' ? readinessResult.value.data : undefined,
+            readinessError:
+              readinessResult.status === 'rejected' ? 'Readiness unavailable' : undefined,
+          };
+        }),
+      );
+      const rows = perAgent.map(({ agent, releases, readiness, readinessError }) =>
+        buildOne(
+          agent,
+          releases,
+          readiness,
+          readinessError,
+          plugins,
+          calls,
+          new Set(releases.map((release) => release.id)),
+        ),
+      );
       const totals: AgentsOverviewTotals = {
         agents: rows.length,
         withRelease: rows.filter((row) => row.releaseCount > 0).length,

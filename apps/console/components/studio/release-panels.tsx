@@ -5,6 +5,7 @@ import { RelativeTime } from '../ui/display';
 import type { AgentDraft, AgentReadiness, Release } from '../../lib/api';
 import { ResponsiveTable } from '../primitives';
 import { configurationDiff } from './release-diff';
+import { humanisePluginId } from '../plugins/schema-field-helpers';
 
 export function readinessIssueHref(agentId: string, slot: string): string {
   return `/agents/${encodeURIComponent(agentId)}/plugins#slot-${encodeURIComponent(slot)}`;
@@ -104,8 +105,12 @@ export function StudioRail({
         {readiness?.requiredPluginIds.length ? (
           <ul className="plain-list">
             {readiness.requiredPluginIds.map((id) => (
+              // A raw `@winsendotai/...` package id here (brief: never a raw id as the only
+              // label) — this rail has no plugin catalog to resolve a `ui.label` from, so the
+              // humanised fallback is the best available name; the id itself still shows as a
+              // secondary, copyable reference.
               <li key={id}>
-                <small className="mono">{id}</small>
+                <span>{humanisePluginId(id)}</span> <small className="mono muted">{id}</small>
               </li>
             ))}
           </ul>

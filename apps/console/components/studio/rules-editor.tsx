@@ -1,9 +1,10 @@
 'use client';
 import { RULE_LEXICONS, unsafeRulePattern } from '@winsendotai/ovo-contracts';
 import type { AgentConfig } from '../../lib/api';
-import { EmptyState, Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
 import { useRowKeys } from '../forms/use-row-keys';
 import { LinesInput } from './lines-input';
+import { UnconfiguredPanel } from './unconfigured-panel';
 
 type Rules = NonNullable<AgentConfig['rules']>;
 type Rule = Rules['global'][number];
@@ -47,7 +48,7 @@ export function RulesEditor({
         <PanelHeader
           id="rules-title"
           title="Instant rules"
-          badge={<StatusBadge tone="soft">Needs a decision question</StatusBadge>}
+          badge={<StatusBadge tone="warning">Needs a decision question</StatusBadge>}
         />
         <div className="panel-body">
           <p className="muted">
@@ -59,26 +60,23 @@ export function RulesEditor({
     );
   if (!rules)
     return (
-      <Panel labelledBy="rules-title">
-        <PanelHeader
-          id="rules-title"
-          title="Instant rules"
-          badge={<StatusBadge tone="soft">Not configured</StatusBadge>}
-        />
-        <div className="panel-body stack">
-          <EmptyState title="Every reply goes to the decision model">
-            Rules resolve the commonest short replies (&ldquo;yes&rdquo;, &ldquo;haan ji&rdquo;,
-            &ldquo;speaking&rdquo;) in memory, saving the decision model&apos;s round trip.
-            <button
-              className="button primary"
-              type="button"
-              onClick={() => setRules({ enabled: true, global: [], listens: {} })}
-            >
-              Add instant rules
-            </button>
-          </EmptyState>
-        </div>
-      </Panel>
+      <UnconfiguredPanel
+        labelledBy="rules-title"
+        title="Instant rules"
+        emptyTitle="Every reply goes to the decision model"
+        action={
+          <button
+            className="button primary"
+            type="button"
+            onClick={() => setRules({ enabled: true, global: [], listens: {} })}
+          >
+            Add instant rules
+          </button>
+        }
+      >
+        Rules resolve the commonest short replies (&ldquo;yes&rdquo;, &ldquo;haan ji&rdquo;,
+        &ldquo;speaking&rdquo;) in memory, saving the decision model&apos;s round trip.
+      </UnconfiguredPanel>
     );
   return (
     <Panel labelledBy="rules-title">

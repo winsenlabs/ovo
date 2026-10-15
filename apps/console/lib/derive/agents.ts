@@ -4,6 +4,7 @@
 // `config.voice.{stt,tts,llm,carrier}.plugin` -> `plugin.ui.label` from `/plugins`").
 import type { AgentConfig } from '@winsendotai/ovo-contracts';
 import type { PluginOption } from '../../components/plugins/types';
+import { humanisePluginId } from '../../components/plugins/schema-field-helpers';
 
 export type VoiceStackChip = { slot: string; label: string };
 
@@ -19,6 +20,9 @@ export function voiceStackChips(
     const pluginId = voice[slot]?.plugin;
     if (!pluginId) return [];
     const plugin = byId.get(pluginId);
-    return [{ slot, label: plugin?.ui?.label ?? pluginId }];
+    // A plugin referenced by a saved selection but no longer in the catalog (uninstalled, or a
+    // deliberately-broken id in a fixture like `carrier-missing`) has no `plugin.ui.label` to
+    // fall back to; `humanisePluginId` still turns it into words instead of showing the raw slug.
+    return [{ slot, label: plugin?.ui?.label ?? humanisePluginId(pluginId) }];
   });
 }

@@ -4,6 +4,7 @@ import { apiRequest } from '../../lib/api';
 import type { Choice } from '../ui/choice-card';
 import { SlotChoiceCardGroup } from './slot-choice-card';
 import { humaniseKey } from '../../lib/status';
+import { humanisePluginId } from './schema-field-helpers';
 import type { AgentVoice, CompatIssue, PluginOption, Slot } from './types';
 import { pluginOptionsForSlot } from './types';
 
@@ -105,7 +106,7 @@ export function SlotPicker({
     const reason = reasons[plugin.id] || (!plugin.available ? plugin.unavailableReason : '');
     return {
       value: plugin.id,
-      title: plugin.ui?.label ?? plugin.id,
+      title: plugin.ui?.label ?? humanisePluginId(plugin.id),
       description: `${plugin.ui?.vendor ?? plugin.provider ?? 'OVO'} · v${plugin.version}`,
       chips: capabilityChips(plugin),
       disabled: Boolean(reason),

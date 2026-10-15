@@ -1,4 +1,5 @@
 import type { AgentVoice, PluginOption, Slot } from './types';
+import { humanisePluginId } from './schema-field-helpers';
 
 const STAGES: readonly { slot: Slot; label: string }[] = [
   { slot: 'carrier', label: 'Carrier' },
@@ -30,7 +31,7 @@ export function VoiceStackDiagram({
           ? (voice.decision?.plugin ?? voice.llm?.plugin)
           : voice[slot]?.plugin;
     if (!pluginId) return null;
-    return byId.get(pluginId)?.ui?.label ?? pluginId;
+    return byId.get(pluginId)?.ui?.label ?? humanisePluginId(pluginId);
   };
   const nodes = [...STAGES, { slot: 'carrier' as const, label: 'Carrier' }];
   return (

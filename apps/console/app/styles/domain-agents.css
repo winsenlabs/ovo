@@ -42,6 +42,21 @@
   background: var(--surface-2);
   color: var(--text);
 }
+/* The section currently nearest the top of the viewport (verifier: "the section nav has no
+   active state"), tracked by an `IntersectionObserver` in `studio.tsx`. */
+.ds-studio-nav a.active,
+.ds-studio-nav a[aria-current='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+/* A mobile equivalent of the same nav, rendered as a native `<select>` ahead of the editors
+   instead of the sidebar `<nav>`, which on a narrow viewport the grid stacks *after* every editor
+   (verifier: "on mobile the nav renders at the very bottom of the page ... instead of as a
+   Select"). Both exist in the DOM at all times; only one is ever visible. */
+.ds-studio-nav-select {
+  display: none;
+}
 .ds-studio-group {
   display: flex;
   flex-direction: column;
@@ -54,8 +69,24 @@
   align-items: baseline;
   gap: var(--space-2);
 }
+/* One size up from a card's own `<h2>` (`.ds-card-head h2`, also `--text-h2-size`): a group
+   heading introduces several cards and must read as a clear step above them, not tie with them
+   (verifier: "group headings are smaller than the card titles inside them"). */
 .ds-studio-group-head h2 {
-  font-size: var(--text-h2-size);
+  font-size: var(--text-h1-size);
+  line-height: var(--text-h1-line);
+  font-weight: var(--text-h1-weight);
+}
+
+@media (max-width: 850px) {
+  .ds-studio-nav {
+    display: none;
+  }
+  .ds-studio-nav-select {
+    display: block;
+    width: 100%;
+    margin-bottom: var(--space-1);
+  }
 }
 
 /* Voice stack diagram on the agent plugins page: Carrier -> VAD/Turn -> STT -> Decision/LLM ->
@@ -138,10 +169,52 @@
 .ds-overflow-menu-list button:focus-visible {
   background: var(--surface-2);
 }
+.ds-overflow-menu-list button:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+
+/* The Releases tab: each release is a `<details>` row (summary line + an expandable slot table /
+   diff / raw JSON), replacing a plain summary-only table (verifier: "selections can no longer be
+   seen anywhere ... none of these exist"). */
+.ds-release-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ds-release-rows > li {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.ds-release-rows summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+}
+.ds-release-rows summary::-webkit-details-marker {
+  display: none;
+}
+.ds-release-rows h4 {
+  font-size: var(--text-h3-size);
+  font-weight: var(--text-h3-weight);
+  margin-bottom: var(--space-2);
+}
+.ds-release-detail {
+  padding: 0 var(--space-4) var(--space-4);
+  border-top: 1px solid var(--border);
+}
 
 /* A nested object property inside SchemaForm, collapsible so a deep plugin schema (session,
    engine, idle, dtmf…) does not dump every field flat (brief defect: object-typed properties
-   rendered as single-line text inputs). */
+   rendered as single-line text inputs). Also doubles as the "Advanced settings" disclosure for a
+   sprawling flat schema with no curated field hints. */
 .ds-nested-fields {
   padding: var(--space-3);
   border: 1px solid var(--border);
@@ -168,4 +241,30 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+/* One slot's plugins, grouped under a visible heading in the new-agent wizard's Plugins step
+   (verifier: "one flat grid of 14 plugin cards with no visible slot headings"). */
+.ds-wizard-slot-group + .ds-wizard-slot-group {
+  margin-top: var(--space-4);
+}
+.ds-wizard-slot-group > h3 {
+  font-size: var(--text-h3-size);
+  font-weight: var(--text-h3-weight);
+  margin-bottom: var(--space-2);
+}
+
+/* The Basics step's mode picker: a plain grouping wrapper, not a native `<fieldset>` box
+   (verifier: "the Mode group has a native fieldset border"). */
+.ds-wizard-mode-group {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.ds-wizard-mode-group > legend {
+  padding: 0;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.2px;
+  margin-bottom: var(--space-2);
 }

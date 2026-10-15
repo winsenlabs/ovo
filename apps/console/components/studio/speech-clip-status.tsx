@@ -2,6 +2,7 @@
 import { useEffect, useId, useState } from 'react';
 import { apiRequest, items } from '../../lib/api';
 import type { CampaignRecord, InboundRouteRecord } from '../../lib/operator-api';
+import { formatPhoneNumber } from '../../lib/format';
 import { SectionCard } from '../ui/section-card';
 import { StatusBadgeV2 } from '../ui/status-badge';
 import { InlineAlert } from '../ui/feedback-v2';
@@ -55,6 +56,22 @@ function tone(status: SpeechClipStatus): 'ok' | 'warn' | 'danger' | 'neutral' {
   return status.state === 'skipped' ? 'warn' : 'neutral';
 }
 
+/** `LABELS` is keyed only by `state`, and the API can report `state: 'done'` with some lines
+ * still `failed` (a batch that finished with partial failures). `tone()` already reads `danger`
+ * for that case; the label must agree, or the badge reads a red "Ready" (brief/verifier: tone
+ * and text must never contradict each other). */
+function label(status: SpeechClipStatus): string {
+  if (status.state === 'done' && status.failed > 0) return LABELS.failed;
+  if (status.state === 'done' && status.pending > 0) return 'Partially ready';
+  return LABELS[status.state];
+}
+
+/** A routed-via entry is either a phone number or `campaign <name>`; only the former benefits
+ * from grouped formatting (brief: phone numbers must never render as an unbroken digit string). */
+function formatVia(via: string): string {
+  return /^\+\d/.test(via) ? formatPhoneNumber(via) : via;
+}
+
 /** Pre-rendered speech for one immutable release: how many fixed lines are ready to play. */
 export function SpeechClipStatusPanel({
   agentId,
@@ -100,9 +117,7 @@ export function SpeechClipStatusPanel({
       id={titleId}
       title="Pre-rendered speech"
       description={caption}
-      actions={
-        status ? <StatusBadgeV2 tone={tone(status)} label={LABELS[status.state]} /> : undefined
-      }
+      actions={status ? <StatusBadgeV2 tone={tone(status)} label={label(status)} /> : undefined}
     >
       {error && <InlineAlert tone="danger">{error}</InlineAlert>}
       {!status && !error && <p className="muted">Checking pre-rendered speech…</p>}
@@ -202,7 +217,10 @@ export function RoutedSpeechClipStatus({
           agentId={agentId}
           releaseId={release.id}
           load={load}
-          caption={`Release ${release.id}, routed from ${routed.get(release.id)!.join(', ')}.`}
+          caption={`Release ${release.id}, routed from ${routed
+            .get(release.id)!
+            .map(formatVia)
+            .join(', ')}.`}
         />
       ))}
     </>
