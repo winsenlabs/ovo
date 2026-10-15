@@ -258,8 +258,8 @@ export async function configureHumanLine(
 
   const draft: RoutingPointDraft & Record<string, any> = mainLineDraft(team, sales, support); // eslint-disable-line @typescript-eslint/no-explicit-any
   const bound = [
-    ...(queues.desk ? [{ key: 'desk', queueId: queues.desk }] : []),
-    ...(queues.floor ? [{ key: 'floor', queueId: queues.floor }] : []),
+    ...(queues.desk ? [{ key: 'desk', queueId: queues.desk, priority: 0 }] : []),
+    ...(queues.floor ? [{ key: 'floor', queueId: queues.floor, priority: 0 }] : []),
   ];
   draft.humanQueues = bound;
   const node = draft.nodes[0]!;
@@ -304,11 +304,12 @@ export async function configureHumanLine(
       : []),
   ];
   if (targets.length)
+    // The published shape is parsed server-side, which fills the rest in; the draft type wants it all.
     draft.transfer = {
       announcement: { en: TRANSFER_LINES.announcement },
-      limits: { maxTransfers: 3 },
-      targets,
-    };
+      limits: { maxTransfers: 3, returnToPrevious: 'refuse', minRemainingSeconds: 30 },
+      targets: targets as never,
+    } as never;
   const point = await call<{ id: string; draftVersion: number }>('POST', '/v1/routing/points', {
     draft,
   });
