@@ -68,10 +68,13 @@ export function TagInput({
   values,
   onChange,
   placeholder,
+  ariaLabel,
 }: {
   values: readonly string[];
   onChange: (values: readonly string[]) => void;
   placeholder?: string;
+  /** The field's name for assistive tech when no external `<label>` points at the input. */
+  ariaLabel?: string;
 }) {
   const [draft, setDraft] = useState('');
   const commit = () => {
@@ -95,6 +98,7 @@ export function TagInput({
       ))}
       <input
         value={draft}
+        aria-label={ariaLabel}
         placeholder={placeholder}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {

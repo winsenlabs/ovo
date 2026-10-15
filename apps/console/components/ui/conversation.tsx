@@ -3,14 +3,17 @@ import { useState } from 'react';
 
 export type ConversationLine = {
   id: string;
-  speaker: 'agent' | 'caller';
-  atMs: number;
+  speaker: 'agent' | 'caller' | 'operator';
+  /** Absent for lines with no clock (the turns handed over before a human joined). */
+  atMs?: number;
   text: string;
   interim?: boolean;
   played?: boolean;
   latencyMs?: number;
   routeTier?: string;
 };
+
+const SPEAKER_LABEL = { agent: 'Agent', caller: 'Caller', operator: 'You' } as const;
 
 function mmss(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000));
@@ -26,14 +29,17 @@ export function Conversation({
   lines,
   activeId,
   onSeek,
+  liveInterim = false,
 }: {
   lines: readonly ConversationLine[];
   activeId?: string;
   onSeek?: (atMs: number) => void;
+  /** Live captions: show interim lines in place (faint, italic) instead of behind a toggle. */
+  liveInterim?: boolean;
 }) {
   const [showInterim, setShowInterim] = useState(false);
-  const visible = showInterim ? lines : lines.filter((line) => !line.interim);
-  const interimCount = lines.length - lines.filter((line) => !line.interim).length;
+  const visible = showInterim || liveInterim ? lines : lines.filter((line) => !line.interim);
+  const interimCount = liveInterim ? 0 : lines.length - lines.filter((line) => !line.interim).length;
 
   return (
     <div className="ds-conversation">
@@ -53,16 +59,16 @@ export function Conversation({
             <button
               type="button"
               className="ds-conversation-bubble"
-              onClick={() => onSeek?.(line.atMs)}
-              disabled={!onSeek || line.interim}
+              onClick={() => line.atMs !== undefined && onSeek?.(line.atMs)}
+              disabled={!onSeek || line.interim || line.atMs === undefined}
             >
               <span className="ds-conversation-meta">
                 {/* Position + colour alone conveyed the speaker before; name it too (brief §1
                     rule 3 — never colour-only meaning). */}
                 <span className="ds-conversation-speaker">
-                  {line.speaker === 'agent' ? 'Agent' : 'Caller'}
+                  {SPEAKER_LABEL[line.speaker]}
                 </span>
-                <span className="mono">{mmss(line.atMs)}</span>
+                {line.atMs !== undefined && <span className="mono">{mmss(line.atMs)}</span>}
                 {line.played === false && <span className="ds-chip">Generated, not played</span>}
                 {line.latencyMs != null && (
                   <span className="ds-chip">first audio {line.latencyMs} ms</span>
