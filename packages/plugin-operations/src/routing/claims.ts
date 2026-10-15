@@ -42,12 +42,6 @@ export class RoutingClaims {
       const prior = held.rows[0];
       const same = prior && tiers.flat().find((c) => sameMember(c, prior));
       if (same) return { kind: 'claimed', claimId: prior.id, candidate: same };
-      // A call holds one claim: a re-route (or a lapsed claim) gives the earlier one back first.
-      await client.query(
-        `UPDATE ovo_routing_member_claims SET released_at = now()
-         WHERE organization_id = $1 AND call_id = $2 AND released_at IS NULL`,
-        [this.organizationId, input.callId],
-      );
       // Every candidate member is locked up front in one sorted order (no deadlock between calls
       // whose tiers overlap), so the counts below stay true until this transaction commits.
       await this.lock(
@@ -57,6 +51,14 @@ export class RoutingClaims {
       for (const tier of tiers) {
         const [candidate] = await this.ranked(client, tier);
         if (!candidate) continue;
+        // A call holds one claim: a re-route or a transfer (or a lapsed claim) gives the earlier
+        // one back in the same transaction that takes the new one. A full pool leaves it in place,
+        // so a refused transfer keeps the transferring member's claim (R2).
+        await client.query(
+          `UPDATE ovo_routing_member_claims SET released_at = now()
+           WHERE organization_id = $1 AND call_id = $2 AND released_at IS NULL`,
+          [this.organizationId, input.callId],
+        );
         const claimId = randomUUID();
         await client.query(
           `INSERT INTO ovo_routing_member_claims (organization_id, id, call_id,

@@ -9,6 +9,7 @@ import migration007 from '../migrations/007_campaign_pacing.sql?raw';
 import migration008 from '../migrations/008_outbound_compliance.sql?raw';
 import migration009 from '../migrations/009_india_compliance.sql?raw';
 import migration010 from '../migrations/010_routing.sql?raw';
+import migration011 from '../migrations/011_routing_transfer.sql?raw';
 import { transaction } from './database.ts';
 
 const migrations = [
@@ -22,6 +23,7 @@ const migrations = [
   { version: 8, sql: migration008 },
   { version: 9, sql: migration009 },
   { version: 10, sql: migration010 },
+  { version: 11, sql: migration011 },
 ] as const;
 
 export async function runOperationsMigrations(pool: Pool): Promise<void> {

@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import {
   RoutingPointDraft,
-  routingNodeTargets,
+  routingAudioIds,
+  routingPoolIds,
   type RoutingPoint,
 } from '@winsendotai/ovo-contracts';
 import { boundedLimit, transaction } from '../database.ts';
@@ -97,10 +98,11 @@ export class RoutingPoints {
       );
       if (pinned.rowCount)
         return { pinnedBy: pinned.rows.map((row) => maskedNumber(row.phone_number)) };
-      await client.query(
-        'DELETE FROM ovo_routing_point_pools WHERE organization_id = $1 AND point_id = $2',
-        [this.organizationId, id],
-      );
+      for (const table of ['ovo_routing_point_pools', 'ovo_routing_point_audio'])
+        await client.query(`DELETE FROM ${table} WHERE organization_id = $1 AND point_id = $2`, [
+          this.organizationId,
+          id,
+        ]);
       await client.query(
         `UPDATE ovo_routing_points SET deleted_at = now(), updated_at = now()
          WHERE organization_id = $1 AND id = $2`,
@@ -111,34 +113,45 @@ export class RoutingPoints {
   }
 
   /**
-   * Records which pools the draft names, so a pool cannot be deleted under a live draft. The named
-   * pools are share-locked: a concurrent pool delete waits for this draft, then sees it.
+   * Records which pools (tree targets and transfer destinations) and hold clips the draft names,
+   * so neither can be deleted under a live draft. The named rows are share-locked: a concurrent
+   * pool or clip delete waits for this draft, then sees it.
    */
   private async namePools(
     client: PoolClient,
     pointId: string,
     draft: RoutingPointDraft,
   ): Promise<void> {
-    const pools = [
-      ...new Set(
-        routingNodeTargets(draft.nodes).flatMap(({ target }) =>
-          target.kind === 'pool' ? [target.poolId] : [],
-        ),
-      ),
-    ].sort();
-    await client.query(
-      `SELECT id FROM ovo_routing_pools WHERE organization_id = $1 AND id = ANY($2::uuid[])
-       ORDER BY id FOR SHARE`,
-      [this.organizationId, pools],
-    );
-    await client.query(
-      'DELETE FROM ovo_routing_point_pools WHERE organization_id = $1 AND point_id = $2',
-      [this.organizationId, pointId],
-    );
-    await client.query(
-      `INSERT INTO ovo_routing_point_pools (organization_id, point_id, pool_id)
-       SELECT $1, $2, unnest($3::uuid[])`,
-      [this.organizationId, pointId, pools],
-    );
+    const links = [
+      {
+        table: 'ovo_routing_point_pools',
+        column: 'pool_id',
+        rows: 'ovo_routing_pools',
+        ids: routingPoolIds(draft),
+      },
+      {
+        table: 'ovo_routing_point_audio',
+        column: 'audio_id',
+        rows: 'ovo_routing_audio',
+        ids: routingAudioIds(draft),
+      },
+    ] as const;
+    for (const { table, column, rows, ids } of links) {
+      const sorted = [...ids].sort();
+      await client.query(
+        `SELECT id FROM ${rows} WHERE organization_id = $1 AND id = ANY($2::uuid[])
+         ORDER BY id FOR SHARE`,
+        [this.organizationId, sorted],
+      );
+      await client.query(`DELETE FROM ${table} WHERE organization_id = $1 AND point_id = $2`, [
+        this.organizationId,
+        pointId,
+      ]);
+      await client.query(
+        `INSERT INTO ${table} (organization_id, point_id, ${column})
+         SELECT $1, $2, unnest($3::uuid[])`,
+        [this.organizationId, pointId, sorted],
+      );
+    }
   }
 }

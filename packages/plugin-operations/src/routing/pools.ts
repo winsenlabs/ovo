@@ -4,6 +4,7 @@ import { RoutingPoolDefinition, type RoutingPool } from '@winsendotai/ovo-contra
 import { boundedLimit, transaction } from '../database.ts';
 import {
   isUniqueViolation,
+  pointsNaming,
   POOL_COLUMNS,
   presentPool,
   RoutingPoolNameTakenError,
@@ -12,6 +13,7 @@ import {
 } from './rows.ts';
 
 const NAME_INDEX = 'ovo_routing_pools_name_idx';
+const LINK = { table: 'ovo_routing_point_pools', column: 'pool_id' } as const;
 
 /** Agent pools: versioned definitions, soft-deleted so releases keep their history. */
 export class RoutingPools {
@@ -30,14 +32,23 @@ export class RoutingPools {
     return result.rows.map(presentPool);
   }
 
-  async get(id: string): Promise<RoutingPool | undefined> {
+  /** Excludes deleted pools unless `includeDeleted`; a deleted pool then carries `deletedAt`. */
+  async get(
+    id: string,
+    options: { includeDeleted?: boolean } = {},
+  ): Promise<(RoutingPool & { deletedAt?: string }) | undefined> {
     if (!uuidOrNull(id)) return undefined;
     const result = await this.pool.query<PoolRow>(
       `SELECT ${POOL_COLUMNS} FROM ovo_routing_pools
-       WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL`,
-      [this.organizationId, id],
+       WHERE organization_id = $1 AND id = $2 AND ($3 OR deleted_at IS NULL)`,
+      [this.organizationId, id, options.includeDeleted === true],
     );
     return result.rows[0] ? presentPool(result.rows[0]) : undefined;
+  }
+
+  /** Live point ids whose current draft names the pool (tree targets and transfer destinations). */
+  usedBy(id: string): Promise<string[]> {
+    return pointsNaming(this.pool, this.organizationId, LINK, id);
   }
 
   async create(definition: RoutingPoolDefinition): Promise<RoutingPool> {
@@ -85,14 +96,8 @@ export class RoutingPools {
         [this.organizationId, id],
       );
       if (Number(locked.rows[0]?.version) !== expectedVersion) return 'conflict';
-      const users = await client.query<{ point_id: string }>(
-        `SELECT pp.point_id FROM ovo_routing_point_pools pp
-         JOIN ovo_routing_points p ON p.organization_id = pp.organization_id AND p.id = pp.point_id
-         WHERE pp.organization_id = $1 AND pp.pool_id = $2 AND p.deleted_at IS NULL
-         ORDER BY pp.point_id`,
-        [this.organizationId, id],
-      );
-      if (users.rowCount) return { inUseBy: users.rows.map((row) => row.point_id) };
+      const users = await pointsNaming(client, this.organizationId, LINK, id);
+      if (users.length) return { inUseBy: users };
       await client.query(
         `UPDATE ovo_routing_pools SET deleted_at = now(), updated_at = now()
          WHERE organization_id = $1 AND id = $2`,
