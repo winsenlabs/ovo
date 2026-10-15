@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { apiRequest, type SessionIdentity } from '../../lib/api';
 import { matchNavItem } from './nav-config';
 import { MobileNav } from './mobile-nav';
@@ -19,6 +19,7 @@ export function Topbar({ identity }: { identity: SessionIdentity }) {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
   const match = matchNavItem(pathname);
+  const menu = useRef<HTMLDetailsElement>(null);
 
   async function logout() {
     setSigningOut(true);
@@ -26,6 +27,32 @@ export function Topbar({ identity }: { identity: SessionIdentity }) {
     router.replace('/login');
     router.refresh();
   }
+
+  // The account menu is a native <details>, so its one source of truth is the `open` attribute —
+  // closing it anywhere below is just setting that attribute, never component state (brief
+  // defect #9: it used to stay open after picking Account, after an outside click and after
+  // Escape, because nothing ever closed it).
+  useEffect(() => {
+    if (menu.current) menu.current.open = false;
+  }, [pathname]);
+  useEffect(() => {
+    function closeOnOutsidePointer(event: PointerEvent) {
+      if (menu.current?.open && !menu.current.contains(event.target as Node)) {
+        menu.current.open = false;
+      }
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape' && menu.current?.open) {
+        menu.current.open = false;
+      }
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, []);
 
   return (
     <header className="topbar">
@@ -47,20 +74,18 @@ export function Topbar({ identity }: { identity: SessionIdentity }) {
       </div>
       <div className="topbar-actions">
         <ThemeToggle />
-        <details className="topbar-user">
-          <summary>
+        <details className="topbar-user" ref={menu}>
+          <summary aria-label="Account menu">
             <span className="sidebar-profile-avatar" aria-hidden="true">
               {(identity.label ?? identity.name ?? identity.email ?? '?').charAt(0).toUpperCase()}
             </span>
             <span className="operator">
-              {identity.name ?? identity.label ?? identity.email ?? identity.role}
+              {identity.label ?? identity.name ?? identity.email ?? identity.role}
             </span>
           </summary>
-          <div className="topbar-user-menu" role="menu">
-            <Link href="/account" role="menuitem">
-              Account
-            </Link>
-            <button type="button" role="menuitem" onClick={logout} disabled={signingOut}>
+          <div className="topbar-user-menu">
+            <Link href="/account">Account</Link>
+            <button type="button" onClick={logout} disabled={signingOut}>
               {signingOut ? 'Signing out…' : 'Sign out'}
             </button>
           </div>

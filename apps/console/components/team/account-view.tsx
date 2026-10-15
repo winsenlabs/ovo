@@ -24,6 +24,7 @@ export function AccountView({
   const form = useRef<HTMLFormElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [reveal, setReveal] = useState({ current: false, next: false, confirm: false });
 
   async function changePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -90,46 +91,76 @@ export function AccountView({
           {error && <InlineAlert tone="danger">{error}</InlineAlert>}
           <FormField label="Current password" id="account-current-password">
             {(control) => (
-              <input
-                {...control}
-                name="currentPassword"
-                type="password"
-                autoComplete="current-password"
-                minLength={USER_PASSWORD_MIN_LENGTH}
-                maxLength={USER_PASSWORD_MAX_LENGTH}
-                required
-              />
+              <div className="password-field">
+                <input
+                  {...control}
+                  name="currentPassword"
+                  type={reveal.current ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  minLength={USER_PASSWORD_MIN_LENGTH}
+                  maxLength={USER_PASSWORD_MAX_LENGTH}
+                  required
+                />
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => setReveal((value) => ({ ...value, current: !value.current }))}
+                  aria-label={reveal.current ? 'Hide current password' : 'Show current password'}
+                >
+                  {reveal.current ? 'Hide' : 'Show'}
+                </button>
+              </div>
             )}
           </FormField>
           <div className="form-grid">
             <FormField
               label="New password"
               id="account-new-password"
-              help={`${USER_PASSWORD_MIN_LENGTH}–${USER_PASSWORD_MAX_LENGTH} characters.`}
+              help={`${USER_PASSWORD_MIN_LENGTH}–${USER_PASSWORD_MAX_LENGTH} characters. Needs three of lower case, upper case, digits and symbols, or 20+ characters.`}
             >
               {(control) => (
-                <input
-                  {...control}
-                  name="newPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={USER_PASSWORD_MIN_LENGTH}
-                  maxLength={USER_PASSWORD_MAX_LENGTH}
-                  required
-                />
+                <div className="password-field">
+                  <input
+                    {...control}
+                    name="newPassword"
+                    type={reveal.next ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    minLength={USER_PASSWORD_MIN_LENGTH}
+                    maxLength={USER_PASSWORD_MAX_LENGTH}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => setReveal((value) => ({ ...value, next: !value.next }))}
+                    aria-label={reveal.next ? 'Hide new password' : 'Show new password'}
+                  >
+                    {reveal.next ? 'Hide' : 'Show'}
+                  </button>
+                </div>
               )}
             </FormField>
             <FormField label="Confirm new password" id="account-confirm-password">
               {(control) => (
-                <input
-                  {...control}
-                  name="confirmation"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={USER_PASSWORD_MIN_LENGTH}
-                  maxLength={USER_PASSWORD_MAX_LENGTH}
-                  required
-                />
+                <div className="password-field">
+                  <input
+                    {...control}
+                    name="confirmation"
+                    type={reveal.confirm ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    minLength={USER_PASSWORD_MIN_LENGTH}
+                    maxLength={USER_PASSWORD_MAX_LENGTH}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => setReveal((value) => ({ ...value, confirm: !value.confirm }))}
+                    aria-label={reveal.confirm ? 'Hide confirm password' : 'Show confirm password'}
+                  >
+                    {reveal.confirm ? 'Hide' : 'Show'}
+                  </button>
+                </div>
               )}
             </FormField>
           </div>

@@ -18,8 +18,11 @@
   box-shadow: var(--elev-2);
 }
 /* `.brand`'s base rules (shell.css) already set the light-on-dark text colour; this just adds
-   the chip shape for the badge context. */
-.login-card .login-brand {
+   the chip shape for the badge context. Unscoped from `.login-card .login-brand` — the
+   session-expiry card below reuses this exact class outside a `.login-card`, and without its
+   own `--nav-bg` chip the "ovo" wordmark was rendering light-on-light at a 1.19:1 contrast
+   ratio (axe colour-contrast, brief defect #10). */
+.login-brand {
   width: max-content;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
@@ -40,6 +43,27 @@
 .password-issue-list {
   margin: var(--space-1) 0 0;
   padding-inline-start: var(--space-4);
+}
+/* Shared by the login password-change card and the Account page's change-password form — both
+   had no way to check what you typed and no hint of the policy until the server rejected it
+   (brief defect #18). */
+.password-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.password-field input {
+  flex: 1;
+}
+.password-field .text-button {
+  flex-shrink: 0;
+  font-size: var(--text-micro-size);
+  white-space: nowrap;
+}
+.password-hint {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--text-micro-size);
 }
 
 /* ---------- session expiry ---------- */

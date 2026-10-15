@@ -66,10 +66,10 @@ export function MobileNav({ identity }: { identity: SessionIdentity }) {
           trigger.current?.focus();
         }}
       >
+        {/* No brand lockup here — `Sidebar` renders its own "ovo" brand as the first thing
+            inside the drawer, and duplicating it in this head bar doubled it on screen (brief
+            defect #14). This bar exists only to host the close button. */}
         <div className="mobile-nav-head">
-          <span className="brand">
-            <strong>ovo</strong>
-          </span>
           <button
             type="button"
             className="mobile-nav-close"

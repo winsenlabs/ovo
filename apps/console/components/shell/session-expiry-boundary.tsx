@@ -16,10 +16,14 @@ export function SessionExpiryBoundary({ children }: { children: ReactNode }) {
   const [ended, setEnded] = useState(false);
   const [remaining, setRemaining] = useState(REDIRECT_SECONDS);
   const tick = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  // So the manual "Sign in again" button below can replay the same `?next=` the automatic
+  // redirect used — it used to drop straight to `/login` with no return path (brief defect #10).
+  const nextPath = useRef<string>('');
   useEffect(() => {
     const sessionEnded = () => {
       setEnded(true);
       const path = `${window.location.pathname}${window.location.search}`;
+      nextPath.current = path;
       router.replace(`/login?next=${encodeURIComponent(path)}`);
       router.refresh();
     };
@@ -40,7 +44,15 @@ export function SessionExpiryBoundary({ children }: { children: ReactNode }) {
           </div>
           <h1>Your session ended.</h1>
           <p className="muted">Sign in again to continue where you left off.</p>
-          <button type="button" className="button primary" onClick={() => router.replace('/login')}>
+          <button
+            type="button"
+            className="button primary"
+            onClick={() =>
+              router.replace(
+                nextPath.current ? `/login?next=${encodeURIComponent(nextPath.current)}` : '/login',
+              )
+            }
+          >
             Sign in again
           </button>
           <small className="muted">Redirecting in {remaining}s…</small>

@@ -25,9 +25,24 @@ function readStored(): ThemePreference {
  * System/light/dark toggle for the topbar. Pair with the inline bootstrap script in
  * `app/layout.tsx`, which sets `data-theme` before paint so there is no flash of the wrong theme.
  */
+const CHANGE_EVENT = 'ovo:theme-changed';
+
 export function ThemeToggle() {
   const [preference, setPreference] = useState<ThemePreference>('system');
   useEffect(() => setPreference(readStored()), []);
+  // Two instances render at once (topbar + Account's Appearance card). The native `storage`
+  // event only reaches *other* tabs, never the tab that made the change, so picking Dark in one
+  // instance left every other instance on screen still showing System (brief defect #17). This
+  // custom same-tab event, plus `storage` for other tabs/windows, keeps every instance in sync.
+  useEffect(() => {
+    const sync = () => setPreference(readStored());
+    window.addEventListener('storage', sync);
+    window.addEventListener(CHANGE_EVENT, sync);
+    return () => {
+      window.removeEventListener('storage', sync);
+      window.removeEventListener(CHANGE_EVENT, sync);
+    };
+  }, []);
 
   const choose = (next: ThemePreference) => {
     setPreference(next);
@@ -38,6 +53,7 @@ export function ThemeToggle() {
     } catch {
       // Ignore: a blocked/private storage context still gets the visual change this session.
     }
+    window.dispatchEvent(new Event(CHANGE_EVENT));
   };
 
   return (

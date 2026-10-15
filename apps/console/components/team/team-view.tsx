@@ -180,7 +180,7 @@ export function TeamView({
         }
       />
 
-      {!unavailable && (
+      {!unavailable && (!error || counts.total > 0) && (
         <KpiStrip>
           <KpiCard
             label="Total users"
@@ -198,7 +198,7 @@ export function TeamView({
         </KpiStrip>
       )}
 
-      {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+      {error && counts.total > 0 && <InlineAlert>{error}</InlineAlert>}
       {notice && <InlineAlert tone="info">{notice}</InlineAlert>}
 
       <SectionCard title="Users" padding="flush">

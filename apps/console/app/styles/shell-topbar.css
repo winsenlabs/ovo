@@ -121,14 +121,23 @@
   border: 0;
   background: var(--nav-bg);
 }
+/* `dialog:not([open])` is `display: none` by default — scoping the flex layout to `[open]` keeps
+   the closed dialog out of the layout entirely instead of overriding that with a bare `.mobile-
+   nav-panel { display: flex }`, which was covering (and intercepting clicks on) the hamburger
+   trigger underneath even while "closed". */
+.mobile-nav-panel[open] {
+  display: flex;
+  flex-direction: column;
+}
 .mobile-nav-panel::backdrop {
   background: rgb(0 0 0 / 45%);
 }
 .mobile-nav-head {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  justify-content: space-between;
-  padding: var(--space-4) var(--space-4) 0;
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-3) 0;
 }
 .mobile-nav-close {
   display: grid;

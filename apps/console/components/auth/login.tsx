@@ -162,8 +162,8 @@ export function Login({
           </form>
         )}
         <p className="login-footnote">
-          The organization is configured on the server. There is no organization picker or tenant
-          provisioning flow.
+          The organization is configured on the server, and your credentials are sent only to this
+          self-hosted organization — there is no organization picker or tenant provisioning flow.
           {' · '}
           <button
             className="text-button"
@@ -175,7 +175,7 @@ export function Login({
               setError(undefined);
             }}
           >
-            {legacy ? 'Use email and password' : 'Use a legacy fixture token'}
+            {legacy ? 'Use email and password' : 'Use a legacy bootstrap token'}
           </button>
         </p>
       </section>

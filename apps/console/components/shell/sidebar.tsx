@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { SessionIdentity } from '../../lib/api';
 import { NAV_GROUPS, navigation } from './nav-config';
 import { NavIcon } from './nav-icons';
@@ -33,9 +33,18 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const scroll = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (variant === 'desktop') setCollapsed(readCollapsed());
   }, [variant]);
+  // Defect #5: the active route could be scrolled out of view inside the nav's own scroll area
+  // (Settings, at the bottom, was invisible without scrolling on /account and /team) — bring it
+  // on screen without jumping the whole page.
+  useEffect(() => {
+    scroll.current?.querySelector<HTMLElement>('a.active')?.scrollIntoView?.({
+      block: 'nearest',
+    });
+  }, [pathname, collapsed]);
   // `.shell`'s margin and `.sidebar`'s width both read this one custom property, so the content
   // column and the fixed rail stay in sync without lifting collapse state through `AppShell`.
   useEffect(() => {
@@ -55,23 +64,24 @@ export function Sidebar({
       className={`sidebar sidebar--${variant}${effectiveCollapsed ? ' sidebar--collapsed' : ''}`}
       aria-label="Application navigation"
     >
-      <div className="brand">
-        <strong>ovo</strong>
+      <div className="sidebar-brand-row">
+        <div className="brand">
+          <strong>ovo</strong>
+          {!effectiveCollapsed && (
+            <span>
+              VOICE
+              <br />
+              OPERATIONS
+            </span>
+          )}
+        </div>
         {!effectiveCollapsed && (
-          <span>
-            VOICE
-            <br />
-            OPERATIONS
+          <span className="sidebar-org" title={organization}>
+            {organization}
           </span>
         )}
       </div>
-      {!effectiveCollapsed && (
-        <div className="workspace-switcher">
-          <span>{organization}</span>
-          <small>{identity.role} access</small>
-        </div>
-      )}
-      <div className="sidebar-scroll">
+      <div className="sidebar-scroll" ref={scroll}>
         {NAV_GROUPS.map((group) => {
           const items = navigation.filter(
             (item) => item.group === group && (!item.adminOnly || identity.role === 'admin'),
@@ -105,7 +115,16 @@ export function Sidebar({
         })}
       </div>
       <div className="sidebar-status">
-        <Link href="/account" className="sidebar-profile" onClick={onNavigate}>
+        <Link
+          href="/account"
+          className="sidebar-profile"
+          onClick={onNavigate}
+          aria-label={
+            effectiveCollapsed
+              ? (identity.label ?? identity.name ?? identity.email ?? 'Account')
+              : undefined
+          }
+        >
           <span className="sidebar-profile-avatar" aria-hidden="true">
             {(identity.label ?? identity.name ?? identity.email ?? '?').charAt(0).toUpperCase()}
           </span>
