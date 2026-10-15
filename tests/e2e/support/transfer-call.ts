@@ -14,6 +14,9 @@ import {
 
 export type SessionEvent = { type: string; payload: Record<string, unknown> };
 
+/** What a call helper needs of a stack: the human-queue stack has the same four parts. */
+export type CallEnv = Pick<TransferStack, 'stack' | 'agent' | 'openAi' | 'twilioRest'>;
+
 /**
  * One installation (api, gateway, dispatcher, worker) with fake providers on loopback and a
  * transfer line bound to the live-path number. `routes` is the test's DNS override map.
@@ -94,7 +97,7 @@ export async function count(stack: LiveStack, sql: string, values: unknown[] = [
  * disclosure and greeting as one). A line said during a hold is followed by more hold audio, so
  * its audio never settles while the caller is held: wait for that with `heard` only after a hold.
  */
-export async function said(env: TransferStack, call: FakeTwilioCall, line: string) {
+export async function said(env: Pick<TransferStack, 'openAi'>, call: FakeTwilioCall, line: string) {
   const spoken = () =>
     env.openAi.speech.slice(spokenFrom.get(call) ?? 0).filter((text) => text.includes(line));
   await vi.waitFor(
@@ -107,7 +110,11 @@ export async function said(env: TransferStack, call: FakeTwilioCall, line: strin
 }
 
 /** Waits until `line` was synthesised and its audio has finished reaching the caller. */
-export async function heard(env: TransferStack, call: FakeTwilioCall, line: string) {
+export async function heard(
+  env: Pick<TransferStack, 'openAi'>,
+  call: FakeTwilioCall,
+  line: string,
+) {
   await said(env, call, line);
   let bytes = -1;
   await vi.waitFor(
@@ -165,8 +172,13 @@ export function at(events: SessionEvent[], type: string, where: Record<string, u
  * segments the ledger tagged and the audio the caller heard.
  */
 export async function transferCall(
-  env: TransferStack,
+  env: CallEnv,
   act: (call: FakeTwilioCall, hangUp: () => Promise<void>) => Promise<void>,
+  /**
+   * `handoff`: the carrier is expected to be asked to move the leg (a human queue's phone);
+   * `hangup`: the platform ends the call itself (an end line or a callback promise).
+   */
+  options: { carrier?: 'none' | 'handoff' | 'hangup' } = {},
 ) {
   const { stack, agent } = env;
   const reservationsBefore = await count(stack, 'SELECT count(*) FROM ovo_cost_reservations');
@@ -189,11 +201,15 @@ export async function transferCall(
     await call.connect(answer.twiml);
     await act(call, hangUp);
     if (!hungUp) {
-      expect(call.connected, 'the media stream closed during a transfer').toBe(true);
-      expect(
-        env.twilioRest.requests.filter((request) => request.url.includes(call.callSid)),
-        'the carrier was asked to hang up or transfer',
-      ).toEqual([]);
+      // A carrier handoff ends the media stream by design: the gateway closes it once the worker
+      // ends the session `transferred`, and the leg now belongs to the destination.
+      if (!options.carrier || options.carrier === 'none')
+        expect(call.connected, 'the media stream closed during a transfer').toBe(true);
+      if (!options.carrier || options.carrier === 'none')
+        expect(
+          env.twilioRest.requests.filter((request) => request.url.includes(call.callSid)),
+          'the carrier was asked to hang up or transfer',
+        ).toEqual([]);
       await hangUp();
     }
     audio = receivedAudio(call);
@@ -252,6 +268,11 @@ export async function transferCall(
     claims: claims.rows,
     usageSegments: segments.rows.map((row) => row.segment_index),
     audio: audio!,
+    /** What the carrier's REST API was asked for this call (the handoff's `Update`). */
+    carrierRequests: env.twilioRest.requests.filter((request) =>
+      request.url.includes(call.callSid),
+    ),
+    callSid: call.callSid,
   };
 }
 

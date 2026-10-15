@@ -8,6 +8,7 @@ import {
   sessionSecretFromEnv,
 } from '../../../apps/api/src/auth-env.ts';
 import { buildManagementApi } from '../../../apps/api/src/bootstrap.ts';
+import { humanQueueFlagsFromEnv } from '../../../apps/api/src/human-queue-config.ts';
 import { routingFlagsFromEnv } from '../../../apps/api/src/operations-runtime.ts';
 import { seedAdminFromEnv } from '../../../apps/api/src/user-plugin.ts';
 import { startDispatcher } from '../../../apps/dispatcher/src/main.ts';
@@ -92,6 +93,7 @@ async function managementApiFromEnv(env: Record<string, string>) {
     secureSessionCookies: production && !allowLocalHttp,
     trustedProxy: trustedProxy?.length ? trustedProxy : undefined,
     ...routingFlagsFromEnv(env),
+    ...humanQueueFlagsFromEnv(env),
     // The credentials route falls back to process.env, which here holds the worker's variables;
     // '' keeps a variable Compose does not give the api missing.
     carrierPublicBaseUrl: env.OVO_MEDIA_PUBLIC_BASE_URL ?? '',
@@ -112,6 +114,8 @@ export async function startLiveStack(
   postgresUrl: string,
   /** `.env` additions on top of the go-live variables, rendered by Compose like the rest. */
   extraVariables: Record<string, string> = {},
+  /** Per-service additions to a rendered environment, for the cases a feature is on in one service only. */
+  overrides: { worker?: Record<string, string> } = {},
 ) {
   const schema = `live_path_${randomUUID().replaceAll('-', '')}`;
   const admin = new PostgresOrchestrationStore({ connectionString: postgresUrl, max: 1 });
@@ -183,6 +187,7 @@ export async function startLiveStack(
       OVO_MEDIA_READINESS_URL: `${gatewayOrigin}/health`,
       OVO_WORKER_ENDPOINT: `ws://127.0.0.1:${workerPort}/internal/media`,
       OVO_RECORDINGS_DIRECTORY: recordings,
+      ...overrides.worker,
     });
     // The worker reads process.env; this test file runs in its own process.
     Object.assign(process.env, workerEnv);
