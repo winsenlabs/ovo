@@ -222,6 +222,14 @@ append OVO_SIP_ENABLED false
 append OVO_SIP_PUBLIC_ENABLED false
 append OVO_SIP_CONTROL_TOKEN "$(random_hex 32)"
 append OVO_SIP_GATEWAY_SECRET "$(openssl rand -base64 32)"
+# Wave 17 human queues and the room server: off until the go-live checklist
+# (docs/runbooks/livekit-deploy.md). The key pair is generated now so enabling it needs no new secret.
+append OVO_HUMAN_QUEUE_ENABLED false
+append OVO_HUMAN_QUEUE_WEBHOOK_ENABLED false
+append OVO_LIVEKIT_ENABLED false
+append OVO_LIVEKIT_PUBLIC_ENABLED false
+append OVO_LIVEKIT_API_KEY "ovo$(random_hex 6)"
+append OVO_LIVEKIT_API_SECRET "$(random_hex 32)"
 append POSTGRES_PORT "${POSTGRES_PORT:-54329}"
 append ELASTICMQ_PORT "${ELASTICMQ_PORT:-9324}"
 append API_PORT "${API_PORT:-4000}"

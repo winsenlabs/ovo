@@ -19,6 +19,9 @@ resource "aws_ecs_task_definition" "api" {
       { name = "OVO_ROUTING_ENABLED", value = tostring(var.enable_routing) },
       { name = "OVO_ROUTING_EXTERNAL_ENABLED", value = tostring(var.enable_routing_external) },
       { name = "OVO_ROUTING_TRANSFER_ENABLED", value = tostring(var.enable_routing_transfer) },
+      { name = "OVO_HUMAN_QUEUE_ENABLED", value = tostring(var.enable_human_queue) },
+      { name = "OVO_HUMAN_QUEUE_WEBHOOK_ENABLED", value = tostring(var.human_queue_webhook_enabled) },
+      { name = "OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS", value = var.human_queue_context_retention_hours },
     ])
     secrets = concat(local.runtime_secrets, [
       { name = "OVO_SECRETS_MASTER_KEY", valueFrom = "${var.runtime_secret_arn}:OVO_SECRETS_MASTER_KEY::" },
@@ -98,6 +101,8 @@ resource "aws_ecs_task_definition" "dispatcher" {
       { name = "OVO_ECS_CLUSTER", value = aws_ecs_cluster.this.name },
       { name = "OVO_WORKER_SERVICE", value = local.worker_service },
       { name = "OVO_INBOUND_ENABLED", value = tostring(var.enable_inbound_calls) },
+      { name = "OVO_HUMAN_QUEUE_ENABLED", value = tostring(var.enable_human_queue) },
+      { name = "OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS", value = var.human_queue_context_retention_hours },
       { name = "OVO_INBOUND_WARM_FLOOR", value = tostring(var.inbound_warm_floor) },
       { name = "OVO_WORKER_MAX_CAPACITY", value = tostring(var.worker_max_capacity) },
       { name = "OVO_CARRIER_CONCURRENCY", value = tostring(var.carrier_concurrency) },
@@ -144,6 +149,10 @@ resource "aws_ecs_task_definition" "worker" {
       { name = "OVO_ROUTING_EXTERNAL_ENABLED", value = tostring(var.enable_routing_external) },
       { name = "OVO_ROUTING_PREPARE_TIMEOUT_MS", value = var.routing_prepare_timeout_ms },
       { name = "OVO_ROUTING_TRANSFER_ENABLED", value = tostring(var.enable_routing_transfer) },
+      { name = "OVO_HUMAN_QUEUE_ENABLED", value = tostring(var.enable_human_queue) },
+      { name = "OVO_HUMAN_QUEUE_WEBHOOK_ENABLED", value = tostring(var.human_queue_webhook_enabled) },
+      { name = "OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS", value = var.human_queue_context_retention_hours },
+      { name = "OVO_HUMAN_QUEUE_CALLBACK_BASE_URL", value = var.human_queue_callback_base_url },
     ])
     secrets = concat(local.runtime_secrets, [
       { name = "OVO_MEDIA_WORKER_TOKEN", valueFrom = "${var.runtime_secret_arn}:OVO_MEDIA_WORKER_TOKEN::" },
