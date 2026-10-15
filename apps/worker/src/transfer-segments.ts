@@ -121,11 +121,17 @@ export class TransferSegments implements ConnectHost {
     const run = this.run;
     if (run && !this.swapping) {
       this.run = undefined;
-      // A committed transfer whose announcement never finished: the caller left first.
+      // A committed transfer whose announcement never finished: the call ended first.
       if (run.committed && run.transfer !== undefined)
         this.deps.record('transfer.completed', {
-          ...{ transfer: run.transfer, outcome: 'caller_hangup', holdMs: 0 },
-          steps: [],
+          transfer: run.transfer,
+          ...(reason === 'caller_hangup'
+            ? { outcome: 'caller_hangup' }
+            : {
+                outcome: 'failed',
+                reason: reason === 'max_duration' ? 'time_exhausted' : 'call_ended',
+              }),
+          ...{ holdMs: 0, holdPolicy: run.hold.source, steps: [] },
         });
     }
     let failure: unknown;

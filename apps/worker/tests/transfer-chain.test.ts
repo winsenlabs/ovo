@@ -230,6 +230,20 @@ describe('the hold timeout chain (transfer design 7.7)', () => {
   });
 });
 
+describe('the call ending during an announcement', () => {
+  it('reaches its time limit: the transfer failed, time exhausted', async () => {
+    const h = transferHarness({ first: 'agent' });
+    await h.started();
+    const begun = await h.controller.begin(agentRequest('release-b'), signal());
+    if (!begun.ok) throw new Error(begun.reason);
+    h.controller.commit(begun.handoffId);
+    await h.controller.close('max_duration');
+    expect(completed(h)).toEqual([
+      expect.objectContaining({ outcome: 'failed', reason: 'time_exhausted', transfer: 1 }),
+    ]);
+  });
+});
+
 describe('a caller hang-up in every state of a transfer', () => {
   const states = ['begun', 'committed', 'holding', 'starting', 'connected'] as const;
 
