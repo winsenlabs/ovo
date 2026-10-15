@@ -109,6 +109,16 @@ export function externalQueueInput(
   };
 }
 
+/** The desk queue's hold: a reassurance line on a loop, then return to the agent or the default. */
+export function floorHold(maxSeconds: number) {
+  return {
+    steps: [{ kind: 'line', line: { en: HUMAN_LINES.floorHold } }],
+    loopFrom: 0,
+    maxSeconds,
+    onTimeout: [{ kind: 'return' }, { kind: 'default' }],
+  };
+}
+
 /** A desk queue for the operator scenarios. */
 export function managedQueueInput(patch: Patch = {}): Record<string, any> {
   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -118,12 +128,7 @@ export function managedQueueInput(patch: Patch = {}): Record<string, any> {
     assignment: 'AUTO_ASSIGN',
     teamIds: [],
     announcement: { en: HUMAN_LINES.floorAnnouncement },
-    hold: {
-      steps: [{ kind: 'line', line: { en: HUMAN_LINES.floorHold } }],
-      loopFrom: 0,
-      maxSeconds: 8,
-      onTimeout: [{ kind: 'return' }, { kind: 'default' }],
-    },
+    hold: floorHold(30),
     offerSeconds: 10,
     joinSeconds: 15,
     returnTargets: ['sales'],

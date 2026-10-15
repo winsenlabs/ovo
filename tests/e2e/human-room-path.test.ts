@@ -24,7 +24,9 @@ import {
   wavHasTone,
 } from './support/room-audio.ts';
 import { LINES } from './support/routing-setup.ts';
-import { heard, receivedAudio, transferCall } from './support/transfer-call.ts';
+import { heard, receivedAudio, said, transferCall } from './support/transfer-call.ts';
+import { TRANSFER_LINES } from './support/transfer-setup.ts';
+import { HUMAN_LINES } from './support/human-setup.ts';
 import { operatorApi } from './support/operator-setup.ts';
 
 const net = vi.hoisted(() => ({ routes: new Map<string, string>() }));
@@ -222,5 +224,72 @@ describe.skipIf(!binary)('managed human queue with a real room server (R3)', () 
     );
     void outcomeOf;
     void of;
+  });
+
+  it('7. the operator sends the caller back to an agent, who takes over after a house-voice announcement', async () => {
+    let ticketId = '';
+    let operator!: Awaited<ReturnType<typeof joinAsOperator>>;
+    const result = await transferCall(env, async (call) => {
+      await heard(env, call, LINES.greeting);
+      await pressWhenListening(env, call, '3');
+      const [ticket] = await waitOffered(desk);
+      ticketId = ticket!.id;
+      const accepted = await acceptTicket(desk, ticket as never);
+      // The queue's return targets travel with the context, labelled for the desk.
+      expect(accepted.body.context.returnTargets).toEqual([{ key: 'sales', label: 'sales' }]);
+      const grant = accepted.body.room;
+      operator = await joinAsOperator({ serverUrl: grant.serverUrl, token: grant.token });
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+      // A target outside the queue's list is refused before anything happens.
+      const refused = await desk.call('POST', `/v1/desk/tickets/${ticketId}/commands`, {
+        kind: 'return_to_agent',
+        target: 'billing',
+      });
+      expect(refused.status).toBe(422);
+      const back = await desk.call('POST', `/v1/desk/tickets/${ticketId}/commands`, {
+        kind: 'return_to_agent',
+        target: 'sales',
+      });
+      expect(back.status).toBe(202);
+      await said(env, call, TRANSFER_LINES.announcement);
+      await said(env, call, HUMAN_LINES.sales);
+      await vi.waitFor(() => expect(operator.disconnected).toBe(true), { timeout: 15_000 });
+      await operator.disconnect();
+    });
+    const { events } = result;
+    at(events, 'human.state', { state: 'released', code: 'returned' });
+    const completed = at(events, 'human.completed', { outcome: 'returned', operator: desk.id });
+    const ended = at(events, 'segment.ended', { role: 'human', ended: 'handoff' });
+    const agent = at(events, 'route.segment', {
+      role: 'agent',
+      reason: 'transfer',
+      fromIndex: 1,
+      memberId: 'sales-en',
+    });
+    const connected = at(events, 'transfer.completed', { outcome: 'connected', toSegment: 2 });
+    expect(completed < ended && ended < agent && agent < connected).toBe(true);
+    expect(
+      (events[ended]!.payload.usage as Record<string, number>)['ovo.human.operator_seconds'],
+    ).toBeGreaterThan(0);
+    expect(result.summary.human).toMatchObject({ outcome: 'returned', operator: desk.id });
+    expect(result.summary.transfers).toMatchObject({ connected: 1, failed: 0 });
+    expect(result.summary.segments.map((segment: { role: string }) => segment.role)).toEqual([
+      'router',
+      'human',
+      'agent',
+    ]);
+    // The ticket closed as returned and the room is gone.
+    const row = await env.stack.db.query<{ status: string; release_code: string }>(
+      'SELECT status, release_code FROM ovo_hq_tickets WHERE id = $1',
+      [ticketId],
+    );
+    expect(row.rows[0]).toMatchObject({ status: 'released', release_code: 'returned' });
+    await vi.waitFor(
+      async () =>
+        expect((await roomsOf(server).listRooms()).map((room) => room.name)).not.toContain(
+          `ovo-hq-${ticketId}`,
+        ),
+      { timeout: 15_000, interval: 500 },
+    );
   });
 });

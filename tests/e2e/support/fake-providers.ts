@@ -148,15 +148,13 @@ export async function startFakeTwilioRest() {
           at: Date.now(),
         });
         if (behavior.refuse) {
-          response
-            .writeHead(behavior.refuse, { 'content-type': 'application/json' })
-            .end(
-              JSON.stringify({
-                code: 21220,
-                message: 'refused by the fake carrier',
-                status: behavior.refuse,
-              }),
-            );
+          response.writeHead(behavior.refuse, { 'content-type': 'application/json' }).end(
+            JSON.stringify({
+              code: 21220,
+              message: 'refused by the fake carrier',
+              status: behavior.refuse,
+            }),
+          );
           return;
         }
         const sid = /Calls\/(CA\w+)\.json/.exec(request.url ?? '')?.[1] ?? 'CA0';
