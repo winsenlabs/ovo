@@ -1,9 +1,20 @@
 'use client';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { apiRequest, ApiError, type SessionIdentity } from '../../lib/api';
-import { Field, JsonEvidence, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { apiRequest, type SessionIdentity } from '../../lib/api';
+import { apiFailureMessage } from '../../lib/data/use-list';
+import { RadioCardGroup } from '../ui/choice-card';
+import { FormField } from '../ui/form-field';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { JsonViewer } from '../ui/code-block';
+import { ErrorState, SkeletonTableRows } from '../ui/feedback-v2';
+import { SectionCard } from '../ui/section-card';
+import { ReadinessCard, type Capacity, type InboundReadiness } from './inbound-readiness-card';
+import { formatDuration } from '../../lib/format';
 
-type Policy =
+export type { Capacity, InboundReadiness };
+
+export type PolicyKind = 'busy' | 'wait' | 'callback' | 'human';
+export type Policy =
   | { kind: 'busy'; reason: string }
   | { kind: 'wait'; maxWaitMs: number; announcement: string }
   | { kind: 'callback'; queue: string; announcement: string }
@@ -12,26 +23,33 @@ interface PolicyRecord {
   version: number;
   policy: Policy;
 }
-/** What the dispatcher last reported about inbound go-live (OPS-4); null before it published. */
-interface InboundReadiness {
-  admissionEnabled: boolean;
-  readyWorkers: number;
-  readyProtected: number;
-  warmFloor: number;
-  ready: boolean;
-  reasons: string[];
-  observedAt: string;
-  ageMs: number;
-  stale: boolean;
-}
-interface Capacity {
-  readyProtected: number;
-  readiness?: InboundReadiness | null;
-}
 
-export function InboundPolicy({ role }: { role: SessionIdentity['role'] }) {
+const KIND_CHOICES = [
+  { value: 'busy', title: 'Busy', description: 'Play a reason and end the call.' },
+  { value: 'wait', title: 'Wait', description: 'Hold with a bounded, signed carrier poll.' },
+  {
+    value: 'callback',
+    title: 'Callback',
+    description: 'Offer a callback; needs signed caller DTMF consent.',
+  },
+  { value: 'human', title: 'Human target', description: 'Transfer to a standby human line.' },
+] as const;
+
+/**
+ * The inbound overflow policy (what happens when no ready, protected worker can answer) plus the
+ * dispatcher's readiness report. Self-contained: embedded as a section of the Inbound page, it
+ * loads and saves on its own; `onReadiness` lets that page mirror the capacity count into its own
+ * KPI strip without lifting this component's state.
+ */
+export function InboundPolicy({
+  role,
+  onReadiness,
+}: {
+  role: SessionIdentity['role'];
+  onReadiness?: (capacity: Capacity) => void;
+}) {
   const [record, setRecord] = useState<PolicyRecord>();
-  const [kind, setKind] = useState<Policy['kind']>('busy');
+  const [kind, setKind] = useState<PolicyKind>('busy');
   const [message, setMessage] = useState('');
   const [target, setTarget] = useState('');
   const [maxWaitMs, setMaxWaitMs] = useState('30000');
@@ -39,7 +57,9 @@ export function InboundPolicy({ role }: { role: SessionIdentity['role'] }) {
   const [readiness, setReadiness] = useState<InboundReadiness | null>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const [policy, ready] = await Promise.all([
         apiRequest<{ policy: PolicyRecord | null }>('/operations/inbound/policy'),
@@ -50,6 +70,7 @@ export function InboundPolicy({ role }: { role: SessionIdentity['role'] }) {
       setCapacity(ready.data.readyProtected);
       // Absent: this API cannot read readiness at all, so nothing is shown.
       setReadiness(ready.data.readiness);
+      onReadiness?.(ready.data);
       setError(undefined);
       if (next) {
         setKind(next.policy.kind);
@@ -65,13 +86,18 @@ export function InboundPolicy({ role }: { role: SessionIdentity['role'] }) {
       }
     } catch (failure) {
       setError(
-        failure instanceof ApiError && failure.status === 503
-          ? 'Inbound operations are not configured.'
-          : failure instanceof Error
-            ? failure.message
-            : 'Inbound policy unavailable.',
+        apiFailureMessage(
+          failure,
+          'Inbound operations are not configured.',
+          'Inbound policy unavailable.',
+        ),
       );
+    } finally {
+      setLoading(false);
     }
+    // `onReadiness` is a fresh closure on every parent render; re-running load from it would
+    // refetch on every keystroke upstream, so it is intentionally left out of the deps below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     void load();
@@ -101,136 +127,102 @@ export function InboundPolicy({ role }: { role: SessionIdentity['role'] }) {
     }
   }
   return (
-    <Panel labelledBy="inbound-policy-title">
-      <PanelHeader
-        id="inbound-policy-title"
-        title="Inbound overflow policy"
-        badge={
-          <StatusBadge tone={capacity ? 'good' : 'warning'}>
-            {capacity === undefined ? 'Unknown capacity' : `${capacity} protected ready`}
-          </StatusBadge>
-        }
-      />
-      <form className="panel-body stack" onSubmit={save}>
-        {error && (
-          <div className="field-error" role="alert">
-            {error}
-          </div>
-        )}
-        <div className="muted">
-          Only ready, reserved and task-protected capacity is counted. Zero capacity executes this
-          policy rather than claiming readiness. Wait uses bounded signed carrier polls and hangs up
-          when its persisted deadline expires. Callback requires signed caller DTMF consent and
-          enters the normal suppression, quota and outbox path; it fails closed unless live outbound
-          calling is enabled for the called number.
-        </div>
-        <ReadinessSummary readiness={readiness} />
-        <div className="form-grid">
-          <Field label="Overflow action" htmlFor="inbound-kind">
-            <select
-              id="inbound-kind"
-              value={kind}
-              onChange={(event) => setKind(event.target.value as Policy['kind'])}
-            >
-              <option value="busy">Busy</option>
-              <option value="wait">Wait with bounded timeout</option>
-              <option value="callback">Callback with caller consent</option>
-              <option value="human">Human target</option>
-            </select>
-          </Field>
+    <SectionCard
+      title="Overflow policy"
+      description="What happens to a caller when no ready, protected worker can answer."
+      actions={
+        !loading &&
+        capacity !== undefined && (
+          <StatusBadgeV2 tone={capacity ? 'ok' : 'warn'} label={`${capacity} protected ready`} />
+        )
+      }
+    >
+      {error && <ErrorState message={error} onRetry={() => void load()} />}
+      {loading ? (
+        <SkeletonTableRows rows={4} columns={1} />
+      ) : // `capacity` only stays `undefined` when no load has ever succeeded; an error on a
+      // later background reload still leaves the form showing the last good state.
+      error && capacity === undefined ? null : (
+        <form className="stack" onSubmit={save}>
+          <p className="muted">
+            Only ready, reserved and task-protected capacity is counted. Zero capacity executes this
+            policy rather than claiming readiness. Wait uses bounded signed carrier polls and hangs
+            up when its persisted deadline expires. Callback requires signed caller DTMF consent and
+            enters the normal suppression, quota and outbox path; it fails closed unless live
+            outbound calling is enabled for the called number.
+          </p>
+          <ReadinessCard readiness={readiness} />
+          <RadioCardGroup
+            name="inbound-overflow-kind"
+            groupLabel="Overflow action"
+            value={kind}
+            onChange={(value) => setKind(value as PolicyKind)}
+            choices={KIND_CHOICES}
+            columns={2}
+          />
           {kind === 'wait' && (
-            <Field label="Maximum wait (ms)" htmlFor="inbound-wait">
-              <input
-                id="inbound-wait"
-                type="number"
-                min={1000}
-                max={300000}
-                value={maxWaitMs}
-                onChange={(event) => setMaxWaitMs(event.target.value)}
-              />
-            </Field>
+            <FormField
+              id="inbound-wait"
+              label="Maximum wait (ms)"
+              help={
+                Number.isFinite(Number(maxWaitMs))
+                  ? `${formatDuration(Number(maxWaitMs))} before giving up`
+                  : undefined
+              }
+            >
+              {(control) => (
+                <input
+                  {...control}
+                  type="number"
+                  min={1000}
+                  max={300000}
+                  value={maxWaitMs}
+                  onChange={(event) => setMaxWaitMs(event.target.value)}
+                />
+              )}
+            </FormField>
           )}
           {(kind === 'callback' || kind === 'human') && (
-            <Field
+            <FormField
+              id="inbound-target"
               label={kind === 'callback' ? 'Callback queue' : 'Human target'}
-              htmlFor="inbound-target"
             >
-              <input
-                id="inbound-target"
-                required
-                value={target}
-                onChange={(event) => setTarget(event.target.value)}
-              />
-            </Field>
+              {(control) => (
+                <input
+                  {...control}
+                  required
+                  value={target}
+                  onChange={(event) => setTarget(event.target.value)}
+                />
+              )}
+            </FormField>
           )}
-          <Field
+          <FormField
+            id="inbound-message"
             label={kind === 'busy' ? 'Busy reason' : 'Caller announcement'}
-            htmlFor="inbound-message"
           >
-            <textarea
-              id="inbound-message"
-              required
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-            />
-          </Field>
-        </div>
-        <div className="button-row">
-          <button className="button primary" disabled={role !== 'admin' || busy}>
-            {busy ? 'Saving…' : 'Save policy'}
-          </button>
-          <button className="button" type="button" onClick={() => void load()}>
-            Reload
-          </button>
-        </div>
-        {record && (
-          <JsonEvidence label={`Persisted policy v${record.version}`} value={record.policy} />
-        )}
-      </form>
-    </Panel>
-  );
-}
-
-/** Why `readyProtected` is what it is, so readiness can be checked before go-live (OPS-4). */
-function ReadinessSummary({ readiness }: { readiness: InboundReadiness | null | undefined }) {
-  if (readiness === undefined) return null;
-  if (readiness === null)
-    return (
-      <div className="muted" role="status">
-        No dispatcher has reported inbound readiness yet. Check that the dispatcher is running.
-      </div>
-    );
-  const tone = readiness.stale ? 'warning' : readiness.ready ? 'good' : 'warning';
-  return (
-    <section aria-label="Inbound readiness" className="stack">
-      <div className="button-row">
-        <StatusBadge tone={tone}>
-          {readiness.stale
-            ? 'Readiness report is stale'
-            : readiness.ready
-              ? readiness.admissionEnabled
-                ? 'Ready for inbound calls'
-                : 'Ready to enable inbound admission'
-              : 'Not ready for inbound calls'}
-        </StatusBadge>
-        <span className="muted">
-          Admission {readiness.admissionEnabled ? 'enabled' : 'disabled'} · {readiness.readyWorkers}{' '}
-          ready {readiness.readyWorkers === 1 ? 'worker' : 'workers'} · warm floor{' '}
-          {readiness.warmFloor} · reported {Math.round(readiness.ageMs / 1000)}s ago
-        </span>
-      </div>
-      {readiness.stale && (
-        <div className="muted">
-          The dispatcher has not published readiness recently; it may be stopped.
-        </div>
+            {(control) => (
+              <textarea
+                {...control}
+                required
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+              />
+            )}
+          </FormField>
+          <div className="button-row">
+            <button className="button primary" disabled={role !== 'admin' || busy}>
+              {busy ? 'Saving…' : 'Save policy'}
+            </button>
+            <button className="button" type="button" onClick={() => void load()}>
+              Reload
+            </button>
+          </div>
+          {record && (
+            <JsonViewer label={`Persisted policy v${record.version}`} value={record.policy} />
+          )}
+        </form>
       )}
-      {readiness.reasons.length > 0 && (
-        <ul aria-label="Readiness reasons">
-          {readiness.reasons.map((reason) => (
-            <li key={reason}>{reason}</li>
-          ))}
-        </ul>
-      )}
-    </section>
+    </SectionCard>
   );
 }

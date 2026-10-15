@@ -83,7 +83,7 @@ describe('the callbacks list (AGT-15)', () => {
   it('explains an installation without durable callbacks, and shows an API error', async () => {
     request.mockResolvedValueOnce({ data: { available: false, items: [], nextCursor: null } });
     render(<CallbacksView role="admin" />);
-    expect(await screen.findByText('Callbacks need PostgreSQL')).toBeTruthy();
+    expect(await screen.findByText('Callbacks need PostgreSQL storage')).toBeTruthy();
     cleanup();
     request.mockRejectedValueOnce(new Error('Live calling is not enabled'));
     render(<CallbacksView role="admin" />);

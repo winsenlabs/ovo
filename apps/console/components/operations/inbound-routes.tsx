@@ -1,54 +1,40 @@
 'use client';
-import { useConfirm } from '../ui/dialog';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiRequest, ApiError, items, type SessionIdentity } from '../../lib/api';
 import type { InboundRouteRecord } from '../../lib/operator-api';
 import type { ProviderBinding } from '../../lib/api';
 import type { PluginCatalog } from '../plugins/types';
+import { PageHeader } from '../ui/layout';
+import { KpiCard, KpiStrip } from '../ui/kpi';
+import { SectionCard } from '../ui/section-card';
+import { Drawer } from '../ui/drawer';
+import { ErrorState, InlineAlert } from '../ui/feedback-v2';
 import { InboundRouteForm } from './inbound-route-form';
 import { InboundRoutesTable } from './inbound-routes-table';
-import {
-  EmptyState,
-  Field,
-  JsonEvidence,
-  Panel,
-  PanelHeader,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
-import { inboundRoutePath, parseInboundRouteVariables } from './inbound-route-state';
+import { useInboundRouteEditor } from './inbound-route-editor';
 import { useBoundRouteRelease } from './inbound-route-releases';
 import { loadAgentReleaseOptions, type ReleaseOption } from './agent-release-options';
+import { InboundPolicy, type Capacity } from './inbound-policy';
 
 interface RoutePage {
   items: InboundRouteRecord[];
   nextCursor?: string;
 }
 
-const displayTime = (value: string) => new Date(value).toLocaleString();
-
+/**
+ * The Inbound page: readiness and overflow policy for when no agent can answer, plus the number
+ * routes that bind a carrier number to an immutable release. One page — the overflow policy and
+ * readiness used to be stranded on Handoffs while the routes table was duplicated on both.
+ */
 export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
-  const confirm = useConfirm();
   const [routes, setRoutes] = useState<InboundRouteRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<string>();
   const [releases, setReleases] = useState<ReleaseOption[]>([]);
-  const [editing, setEditing] = useState<InboundRouteRecord>();
-  const listedRelease = Boolean(
-    editing && releases.some((release) => release.id === editing.releaseId),
-  );
-  const bound = useBoundRouteRelease(editing?.releaseId, listedRelease);
-  const boundRelease = bound?.release;
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [releaseId, setReleaseId] = useState('');
-  const [variables, setVariables] = useState('{}');
-  const [enabled, setEnabled] = useState(true);
-  const [carrierPluginId, setCarrierPluginId] = useState('');
-  const [carrierBindingId, setCarrierBindingId] = useState('');
   const [carriers, setCarriers] = useState<PluginCatalog['plugins']>([]);
   const [bindings, setBindings] = useState<ProviderBinding[]>([]);
-  const [error, setError] = useState<string>();
-  const [notice, setNotice] = useState<string>();
-  const [busy, setBusy] = useState(false);
+  const [capacity, setCapacity] = useState<Capacity>();
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string>();
 
   const loadRoutes = useCallback(async (cursor?: string) => {
     const query = new URLSearchParams({ limit: '100' });
@@ -59,21 +45,47 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
     return data.items;
   }, []);
 
-  const loadReleases = useCallback(async () => {
-    setReleases(await loadAgentReleaseOptions());
-  }, []);
+  const {
+    drawer,
+    editing,
+    draft,
+    setDraft,
+    busy,
+    error: editorError,
+    notice,
+    openAdd,
+    openEdit,
+    closeDrawer,
+    save,
+    remove,
+  } = useInboundRouteEditor({ loadRoutes });
 
-  useEffect(() => {
-    Promise.all([loadRoutes(), loadReleases()]).catch((failure) =>
-      setError(
+  const listedRelease = Boolean(
+    editing && releases.some((release) => release.id === editing.releaseId),
+  );
+  const bound = useBoundRouteRelease(editing?.releaseId, listedRelease);
+  const boundRelease = bound?.release;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      await Promise.all([loadRoutes(), loadAgentReleaseOptions().then(setReleases)]);
+      setLoadError(undefined);
+    } catch (failure) {
+      setLoadError(
         failure instanceof ApiError && failure.status === 503
           ? 'Inbound routing is not configured.'
           : failure instanceof Error
             ? failure.message
             : 'Inbound routes could not be loaded.',
-      ),
-    );
-  }, [loadReleases, loadRoutes]);
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [loadRoutes]);
+  useEffect(() => {
+    void load();
+  }, [load]);
   useEffect(() => {
     void Promise.all([
       apiRequest<PluginCatalog>('/plugins?kind=carrier'),
@@ -84,145 +96,129 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
         setBindings(items(rows.data));
       })
       .catch((failure) =>
-        setError(failure instanceof Error ? failure.message : 'Carrier choices unavailable'),
+        setLoadError(failure instanceof Error ? failure.message : 'Carrier choices unavailable'),
       );
   }, []);
-  function resetForm() {
-    setEditing(undefined);
-    setPhoneNumber('');
-    setReleaseId('');
-    setVariables('{}');
-    setEnabled(true);
-    setCarrierPluginId('');
-    setCarrierBindingId('');
-  }
 
-  function edit(route: InboundRouteRecord) {
-    setEditing(route);
-    setPhoneNumber(route.phoneNumber);
-    setReleaseId(route.releaseId);
-    setVariables(JSON.stringify(route.variables, null, 2));
-    setEnabled(route.enabled);
-    setCarrierPluginId(route.carrierPluginId ?? '');
-    setCarrierBindingId(route.carrierBindingId ?? '');
-    setError(undefined);
-    setNotice(undefined);
-  }
-
-  async function recoverFromConflict(action: string) {
-    resetForm();
-    try {
-      await loadRoutes();
-    } finally {
-      setError(`The route changed before it could be ${action}. The latest list was reloaded.`);
-    }
-  }
-
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy(true);
-    setError(undefined);
-    setNotice(undefined);
-    try {
-      const routeVariables = parseInboundRouteVariables(variables);
-      const { data } = await apiRequest<InboundRouteRecord>(inboundRoutePath(phoneNumber), {
-        method: 'PUT',
-        body: JSON.stringify({
-          expectedVersion: editing?.version ?? null,
-          releaseId,
-          variables: routeVariables,
-          enabled,
-          carrierPluginId: carrierPluginId || null,
-          carrierBindingId: carrierBindingId || null,
-        }),
-      });
-      setEditing(data);
-      setVariables(JSON.stringify(data.variables, null, 2));
-      setNotice(`Inbound route ${data.phoneNumber} saved as version ${data.version}.`);
-      await loadRoutes();
-    } catch (failure) {
-      if (failure instanceof ApiError && failure.status === 409) {
-        await recoverFromConflict('saved');
-      } else {
-        setError(failure instanceof Error ? failure.message : 'Inbound route could not be saved.');
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove(route: InboundRouteRecord) {
-    if (!(await confirm('Delete inbound route', `Delete inbound route ${route.phoneNumber}?`)))
-      return;
-    setBusy(true);
-    setError(undefined);
-    setNotice(undefined);
-    try {
-      await apiRequest(`${inboundRoutePath(route.phoneNumber)}?expectedVersion=${route.version}`, {
-        method: 'DELETE',
-      });
-      if (editing?.phoneNumber === route.phoneNumber) resetForm();
-      setNotice(`Inbound route ${route.phoneNumber} was deleted.`);
-      await loadRoutes();
-    } catch (failure) {
-      if (failure instanceof ApiError && failure.status === 409) {
-        await recoverFromConflict('deleted');
-      } else {
-        setError(
-          failure instanceof Error ? failure.message : 'Inbound route could not be deleted.',
-        );
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
+  const error = editorError ?? loadError;
+  const enabledCount = routes.filter((route) => route.enabled).length;
+  const readiness = capacity?.readiness;
 
   return (
-    <Panel labelledBy="inbound-routes-title">
-      <PanelHeader
-        id="inbound-routes-title"
-        title="Inbound number routes"
-        badge={<StatusBadge tone="soft">{routes.length} loaded</StatusBadge>}
+    <div className="ds-stack">
+      <PageHeader
+        eyebrow="Operations"
+        title="Inbound"
+        description="Bind each carrier number to an immutable release. Variables are snapshotted when the signed inbound request is admitted; no per-agent environment routing is used."
+        actions={
+          <button
+            className="button primary"
+            type="button"
+            onClick={openAdd}
+            disabled={role !== 'admin'}
+            // The header's flex row can squeeze this button narrower than its own text at small
+            // widths, wrapping "Add route" onto two lines; keep it one line and let the row wrap
+            // around it instead.
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            Add route
+          </button>
+        }
+        onRefresh={() => void load()}
+        refreshing={loading}
       />
-      <div className="panel-body stack">
-        <p className="muted">
-          Bind each carrier number to an immutable release. Variables are snapshotted when the
-          signed inbound request is admitted; no per-agent environment routing is used.
-        </p>
-        {role !== 'admin' && (
-          <div className="muted">
-            Viewer and editor roles can inspect routes but cannot change them.
-          </div>
-        )}
-        {error && (
-          <div className="field-error" role="alert">
-            {error}
-          </div>
-        )}
-        {bound?.error && (
-          <div className="field-error" role="alert">
-            Bound release unavailable: {bound.error}
-          </div>
-        )}
-        {notice && (
-          <div className="field-error" role="alert">
-            {notice}
-          </div>
-        )}
+      {role !== 'admin' && (
+        <InlineAlert tone="info">
+          Viewer and editor roles can inspect routes but cannot change them.
+        </InlineAlert>
+      )}
+      {error && <ErrorState message={error} onRetry={() => void load()} />}
+      {bound?.error && (
+        <InlineAlert tone="danger">Bound release unavailable: {bound.error}</InlineAlert>
+      )}
+      {notice && <InlineAlert tone="info">{notice}</InlineAlert>}
+      {/* A real error with nothing already on screen has nothing honest to show below the
+          banner above; once routes are loaded, a later background error still leaves the last
+          good list up rather than replacing it with a false "no routes" claim. */}
+      {!(error && routes.length === 0 && !loading) && (
+        <>
+          <KpiStrip>
+            <KpiCard
+              label="Routes"
+              value={loading ? undefined : `${enabledCount}/${routes.length}`}
+              loading={loading}
+              footnote="enabled of total"
+            />
+            <KpiCard
+              label="Ready workers"
+              value={readiness ? readiness.readyWorkers : null}
+              footnote={readiness ? `warm floor ${readiness.warmFloor}` : 'No readiness report'}
+            />
+            <KpiCard
+              label="Admission"
+              value={readiness ? (readiness.admissionEnabled ? 'Enabled' : 'Disabled') : null}
+            />
+            <KpiCard
+              label="Readiness age"
+              value={readiness ? `${Math.round(readiness.ageMs / 1000)}s` : null}
+              footnote={readiness?.stale ? 'Stale' : readiness ? 'Fresh' : undefined}
+            />
+          </KpiStrip>
+          <SectionCard
+            title="Routes"
+            padding="flush"
+            description={loading ? undefined : `${routes.length} configured`}
+          >
+            <InboundRoutesTable
+              routes={routes}
+              releases={releases}
+              carriers={carriers}
+              bindings={bindings}
+              role={role}
+              busy={busy}
+              loading={loading}
+              onEdit={openEdit}
+              onRemove={remove}
+            />
+            {nextCursor && (
+              <div className="ds-card-footer">
+                <button
+                  className="button small"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void loadRoutes(nextCursor)}
+                >
+                  Load more routes
+                </button>
+              </div>
+            )}
+          </SectionCard>
+        </>
+      )}
+      <InboundPolicy role={role} onReadiness={setCapacity} />
+      <Drawer
+        open={drawer !== null}
+        onClose={closeDrawer}
+        title={editing ? `Edit route v${editing.version}` : 'Add inbound route'}
+      >
         <InboundRouteForm
           editing={editing}
-          phoneNumber={phoneNumber}
-          setPhoneNumber={setPhoneNumber}
-          releaseId={releaseId}
-          setReleaseId={setReleaseId}
-          carrierPluginId={carrierPluginId}
-          setCarrierPluginId={setCarrierPluginId}
-          carrierBindingId={carrierBindingId}
-          setCarrierBindingId={setCarrierBindingId}
-          variables={variables}
-          setVariables={setVariables}
-          enabled={enabled}
-          setEnabled={setEnabled}
+          phoneNumber={draft.phoneNumber}
+          setPhoneNumber={(value) => setDraft((current) => ({ ...current, phoneNumber: value }))}
+          releaseId={draft.releaseId}
+          setReleaseId={(value) => setDraft((current) => ({ ...current, releaseId: value }))}
+          carrierPluginId={draft.carrierPluginId}
+          setCarrierPluginId={(value) =>
+            setDraft((current) => ({ ...current, carrierPluginId: value, carrierBindingId: '' }))
+          }
+          carrierBindingId={draft.carrierBindingId}
+          setCarrierBindingId={(value) =>
+            setDraft((current) => ({ ...current, carrierBindingId: value }))
+          }
+          variableRows={draft.variableRows}
+          setVariableRows={(rows) => setDraft((current) => ({ ...current, variableRows: rows }))}
+          enabled={draft.enabled}
+          setEnabled={(value) => setDraft((current) => ({ ...current, enabled: value }))}
           releases={[
             ...(boundRelease && !releases.some((release) => release.id === boundRelease.id)
               ? [boundRelease]
@@ -235,26 +231,9 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
           role={role}
           busy={busy}
           onSave={save}
-          onCancel={resetForm}
+          onCancel={closeDrawer}
         />
-        <InboundRoutesTable
-          routes={routes}
-          role={role}
-          busy={busy}
-          onEdit={edit}
-          onRemove={remove}
-        />
-        {nextCursor && (
-          <button
-            className="button align-start"
-            type="button"
-            disabled={busy}
-            onClick={() => void loadRoutes(nextCursor)}
-          >
-            Load more routes
-          </button>
-        )}
-      </div>
-    </Panel>
+      </Drawer>
+    </div>
   );
 }

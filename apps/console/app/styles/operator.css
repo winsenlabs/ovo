@@ -81,3 +81,34 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* --- Operations lane additions (W14): key/value variable editor for inbound routes, used where
+   the brief asks for "variables as key/value rows, not JSON". Additive only; nothing above this
+   line was touched. */
+.ds-kv-editor {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.ds-kv-editor legend {
+  padding: 0 var(--space-1);
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  color: var(--text-2);
+}
+.ds-kv-editor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+}
+.ds-kv-editor-row input {
+  width: 100%;
+}
+@media (max-width: 480px) {
+  .ds-kv-editor-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,9 +1,23 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import { apiRequest, ApiError } from '../../lib/api';
-import { Field, Notice, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { FormField } from '../ui/form-field';
+import { InlineAlert } from '../ui/feedback-v2';
 import { settingsFromForm } from './compliance-settings-form';
+import { ComplianceSettingsEnforcementFields } from './compliance-settings-fields-enforcement';
 import { failureText, type SettingsRecord } from './compliance-types';
+import { FLAT_FIELDSET } from './drawer-form';
+
+const REGULATORS = [
+  'rbi',
+  'sebi',
+  'irdai',
+  'pfrda',
+  'government',
+  'utilities',
+  'logistics',
+  'other',
+];
 
 /** Who the sender is and how strictly the rule pack is enforced (admins edit, all can read). */
 export function ComplianceSettingsPanel({
@@ -15,7 +29,7 @@ export function ComplianceSettingsPanel({
   canEdit: boolean;
   onSaved: () => Promise<void>;
 }) {
-  const [message, setMessage] = useState<{ tone: 'neutral' | 'danger'; text: string }>();
+  const [message, setMessage] = useState<{ tone: 'info' | 'danger'; text: string }>();
   const { settings } = record;
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -25,7 +39,7 @@ export function ComplianceSettingsPanel({
         method: 'PUT',
         body: JSON.stringify({ expectedVersion: record.version, settings: next }),
       });
-      setMessage({ tone: 'neutral', text: 'Saved.' });
+      setMessage({ tone: 'info', text: 'Saved.' });
       await onSaved();
     } catch (failure) {
       const conflict = failure instanceof ApiError && failure.status === 409;
@@ -40,177 +54,90 @@ export function ComplianceSettingsPanel({
   }
   const intimation = settings.autodialerIntimation;
   return (
-    <Panel labelledBy="compliance-settings-title">
-      <PanelHeader
-        id="compliance-settings-title"
-        title="Sender and enforcement"
-        badge={<StatusBadge>{`${record.rulePack.id} ${record.rulePack.version}`}</StatusBadge>}
-      >
-        <small>
-          Conservative defaults, not legal advice. See docs/runbooks/trai-compliance.md for each
-          decision point.
-        </small>
-      </PanelHeader>
+    <div className="stack">
+      <p className="muted">
+        Conservative defaults, not legal advice. See docs/runbooks/trai-compliance.md for each
+        decision point.
+      </p>
+      {!canEdit && <InlineAlert tone="info">Read-only for your role.</InlineAlert>}
       {!intimation && (
-        <Notice tone="warning">
+        <InlineAlert tone="warn">
           No autodialler intimation is on file, so no +91 number is dialed except test numbers.
-        </Notice>
+        </InlineAlert>
       )}
-      <form className="panel-body form-grid" onSubmit={save} key={record.version}>
-        <fieldset disabled={!canEdit} className="form-grid">
-          <Field label="Legal name" htmlFor="cs-legal-name">
-            <input id="cs-legal-name" name="legalName" defaultValue={settings.sender.legalName} />
-          </Field>
-          <Field label="DLT principal entity ID" htmlFor="cs-pe">
-            <input
-              id="cs-pe"
-              name="dltPrincipalEntityId"
-              defaultValue={settings.sender.dltPrincipalEntityId}
-            />
-          </Field>
-          <Field
-            label="Regulator"
-            htmlFor="cs-regulator"
-            help="Picks the designated series for service calls (RBI, SEBI, IRDAI, PFRDA, Government: 1600; utilities, logistics: 1601)."
-          >
-            <select id="cs-regulator" name="regulator" defaultValue={settings.sender.regulator}>
-              {[
-                'rbi',
-                'sebi',
-                'irdai',
-                'pfrda',
-                'government',
-                'utilities',
-                'logistics',
-                'other',
-              ].map((value) => (
-                <option key={value} value={value}>
-                  {value.toUpperCase()}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Intimation submitted" htmlFor="cs-int-date">
-            <input
-              id="cs-int-date"
-              name="submittedAt"
-              type="date"
-              defaultValue={intimation?.submittedAt}
-            />
-          </Field>
-          <Field label="Telco (OAP)" htmlFor="cs-int-oap">
-            <input id="cs-int-oap" name="oap" defaultValue={intimation?.oap} />
-          </Field>
-          <Field label="Stated objective" htmlFor="cs-int-objective">
-            <input id="cs-int-objective" name="objective" defaultValue={intimation?.objective} />
-          </Field>
-          <Field label="Intimation reference" htmlFor="cs-int-ref">
-            <input id="cs-int-ref" name="documentRef" defaultValue={intimation?.documentRef} />
-          </Field>
-          <Field
-            label="Caller number outside its series"
-            htmlFor="cs-series"
-            help="Refuse is the safe default; warn dials and records the warning (open question Q11)."
-          >
-            <select id="cs-series" name="series" defaultValue={settings.enforcement.series}>
-              <option value="refuse">Refuse the call</option>
-              <option value="warn">Dial and record a warning</option>
-            </select>
-          </Field>
-          <Field
-            label="A2P declarations required from"
-            htmlFor="cs-a2p"
-            help="Third Amendment Reg 4 (about 17 Nov 2026); only an earlier date is accepted."
-          >
-            <input
-              id="cs-a2p"
-              name="a2pDeclarationRequiredFrom"
-              type="date"
-              defaultValue={settings.enforcement.a2pDeclarationRequiredFrom}
-            />
-          </Field>
-          <Field label="Abandoned-call breaker" htmlFor="cs-breaker">
-            <select
-              id="cs-breaker"
-              name="abandonedBreaker"
-              defaultValue={settings.enforcement.abandonedBreaker}
-            >
-              <option value="enforce">Pause campaigns at 3%</option>
-              <option value="monitor">Report only</option>
-            </select>
-          </Field>
-          <Field label="An in-call opt-out stops" htmlFor="cs-optout">
-            <select id="cs-optout" name="optOutScope" defaultValue={settings.optOutScope}>
-              <option value="all">Every call to the number</option>
-              <option value="promotional">Promotional calls only</option>
-            </select>
-          </Field>
-          <Field
-            label="Test numbers (one per line)"
-            htmlFor="cs-test"
-            help="Your own phones: category, series, A2P, consent and DND checks are skipped; windows and the do-not-call list still apply."
-          >
-            <textarea
-              id="cs-test"
-              name="testNumbers"
-              rows={3}
-              defaultValue={settings.testNumbers.join('\n')}
-            />
-          </Field>
-          <Field
-            label="Caps for test numbers"
-            htmlFor="cs-test-caps"
-            help="Exempt lets you call your own phones again straight away; every decision records it."
-          >
-            <select
-              id="cs-test-caps"
-              name="testNumberCaps"
-              defaultValue={settings.enforcement.testNumberCaps}
-            >
-              <option value="exempt">No attempt or gap limits</option>
-              <option value="enforce">Same limits as customers</option>
-            </select>
-          </Field>
-          <Field
-            label="Blackout dates"
-            htmlFor="cs-blackout"
-            help={`YYYY-MM-DD or MM-DD; applies to ${settings.blackout.appliesTo.join(', ')}.`}
-          >
-            <textarea
-              id="cs-blackout"
-              name="blackoutDates"
-              rows={3}
-              defaultValue={settings.blackout.dates.join('\n')}
-            />
-          </Field>
-          <Field label="Acknowledge complaints within (hours)" htmlFor="cs-ack">
-            <input
-              id="cs-ack"
-              name="ackHours"
-              type="number"
-              min={1}
-              max={720}
-              defaultValue={settings.complaintSla.ackHours}
-            />
-          </Field>
-          <Field label="Resolve complaints within (days)" htmlFor="cs-resolve">
-            <input
-              id="cs-resolve"
-              name="resolveDays"
-              type="number"
-              min={1}
-              max={90}
-              defaultValue={settings.complaintSla.resolveDays}
-            />
-          </Field>
-          <button className="button primary align-start">Save settings</button>
+      {/* One outer `disabled` fieldset: HTML cascades it to every nested fieldset and control, so
+          neither this file nor the enforcement-fields split needs to repeat the check. */}
+      <form className="stack" onSubmit={save} key={record.version}>
+        <fieldset disabled={!canEdit} className="stack" style={FLAT_FIELDSET}>
+          <fieldset className="stack" style={FLAT_FIELDSET}>
+            <legend className="eyebrow">Sender</legend>
+            <div className="form-grid">
+              <FormField id="cs-legal-name" label="Legal name">
+                {(control) => (
+                  <input {...control} name="legalName" defaultValue={settings.sender.legalName} />
+                )}
+              </FormField>
+              <FormField id="cs-pe" label="DLT principal entity ID">
+                {(control) => (
+                  <input
+                    {...control}
+                    name="dltPrincipalEntityId"
+                    defaultValue={settings.sender.dltPrincipalEntityId}
+                  />
+                )}
+              </FormField>
+              <FormField
+                id="cs-regulator"
+                label="Regulator"
+                help="Picks the designated series for service calls (RBI, SEBI, IRDAI, PFRDA, Government: 1600; utilities, logistics: 1601)."
+              >
+                {(control) => (
+                  <select {...control} name="regulator" defaultValue={settings.sender.regulator}>
+                    {REGULATORS.map((value) => (
+                      <option key={value} value={value}>
+                        {value.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </FormField>
+            </div>
+          </fieldset>
+          <fieldset className="stack" style={FLAT_FIELDSET}>
+            <legend className="eyebrow">Autodialer intimation</legend>
+            <div className="form-grid">
+              <FormField id="cs-int-date" label="Intimation submitted">
+                {(control) => (
+                  <input
+                    {...control}
+                    name="submittedAt"
+                    type="date"
+                    defaultValue={intimation?.submittedAt}
+                  />
+                )}
+              </FormField>
+              <FormField id="cs-int-oap" label="Telco (OAP)">
+                {(control) => <input {...control} name="oap" defaultValue={intimation?.oap} />}
+              </FormField>
+              <FormField id="cs-int-objective" label="Stated objective">
+                {(control) => (
+                  <input {...control} name="objective" defaultValue={intimation?.objective} />
+                )}
+              </FormField>
+              <FormField id="cs-int-ref" label="Intimation reference">
+                {(control) => (
+                  <input {...control} name="documentRef" defaultValue={intimation?.documentRef} />
+                )}
+              </FormField>
+            </div>
+          </fieldset>
+          <ComplianceSettingsEnforcementFields settings={settings} />
+          <div className="ds-card-footer">
+            <button className="button primary">Save settings</button>
+            {message && <InlineAlert tone={message.tone}>{message.text}</InlineAlert>}
+          </div>
         </fieldset>
       </form>
-      {message && (
-        <Notice tone={message.tone} live>
-          {message.text}
-        </Notice>
-      )}
-    </Panel>
+    </div>
   );
 }

@@ -1,9 +1,13 @@
 'use client';
 import { useState } from 'react';
-import { EmptyState, Field, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
+import { FormField } from '../ui/form-field';
+import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
+import { EmptyStateV2 } from '../ui/feedback-v2';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { ProgressMeter } from '../charts/meter';
+import { formatPercent } from '../../lib/format';
 import type { CliRatio } from './compliance-types';
 
-const percent = (ratio: number) => `${(ratio * 100).toFixed(1)}%`;
 const today = () => new Date().toISOString().slice(0, 10);
 
 /** The regulator export link for a date range, in UTC days. */
@@ -14,6 +18,12 @@ export function exportHref(from: string, to: string): string {
   });
   return `/api/v1/operations/compliance/export?${range}`;
 }
+
+const TONE: Record<CliRatio['level'], 'ok' | 'warn' | 'danger'> = {
+  ok: 'ok',
+  warn: 'warn',
+  stop: 'danger',
+};
 
 /**
  * Abandoned and silent call ratios per caller number over the last 24 hours (telco detection
@@ -28,68 +38,83 @@ export function ComplianceEvidencePanel({
 }) {
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
+  const worst = ratios.reduce((max, row) => Math.max(max, row.abandonedRatio), 0);
+  const worstLevel = ratios.find((row) => row.abandonedRatio === worst)?.level ?? 'ok';
+
+  const columns: ColumnV2<CliRatio>[] = [
+    {
+      id: 'fromNumber',
+      header: 'Caller number',
+      cell: (row) => <span className="mono">{row.fromNumber}</span>,
+    },
+    {
+      id: 'attempts',
+      header: 'Attempts',
+      cell: (row) => row.attempts,
+      sortValue: (row) => row.attempts,
+    },
+    {
+      id: 'abandoned',
+      header: 'Abandoned',
+      cell: (row) => (
+        <StatusBadgeV2 tone={TONE[row.level]} label={formatPercent(row.abandonedRatio)} />
+      ),
+      sortValue: (row) => row.abandonedRatio,
+    },
+    { id: 'silent', header: 'Silent', cell: (row) => formatPercent(row.silentRatio) },
+  ];
+
   return (
-    <Panel labelledBy="evidence-title">
-      <PanelHeader id="evidence-title" title="Call ratios and regulator export" />
+    <div className="stack">
+      {ratios.length > 0 && (
+        <ProgressMeter
+          label="Worst abandoned ratio vs the 3% breaker"
+          value={worst * 100}
+          max={3}
+          threshold={3}
+          tone={TONE[worstLevel]}
+          valueLabel={formatPercent(worst)}
+        />
+      )}
       {!ratios.length ? (
-        <div className="panel-body">
-          <EmptyState title="No calls in the last 24 hours">
-            Ratios appear after the first dials.
-          </EmptyState>
-        </div>
+        <EmptyStateV2 title="No calls in the last 24 hours">
+          Ratios appear after the first dials.
+        </EmptyStateV2>
       ) : (
-        <ResponsiveTable label="Abandoned and silent ratios">
-          <thead>
-            <tr>
-              <th>Caller number</th>
-              <th>Attempts</th>
-              <th>Abandoned</th>
-              <th>Silent</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ratios.map((row) => (
-              <tr key={row.fromNumber}>
-                <td className="mono">{row.fromNumber}</td>
-                <td>{row.attempts}</td>
-                <td>
-                  <StatusBadge
-                    tone={
-                      row.level === 'stop' ? 'danger' : row.level === 'warn' ? 'warning' : 'good'
-                    }
-                  >
-                    {percent(row.abandonedRatio)}
-                  </StatusBadge>
-                </td>
-                <td>{percent(row.silentRatio)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </ResponsiveTable>
+        <DataTableV2
+          label="Abandoned and silent ratios"
+          rows={ratios}
+          columns={columns}
+          rowKey={(row) => row.fromNumber}
+        />
       )}
       {canExport && (
-        <div className="panel-body form-grid">
-          <Field label="From" htmlFor="export-from">
-            <input
-              id="export-from"
-              type="date"
-              value={from}
-              onChange={(event) => setFrom(event.target.value)}
-            />
-          </Field>
-          <Field label="To (inclusive)" htmlFor="export-to">
-            <input
-              id="export-to"
-              type="date"
-              value={to}
-              onChange={(event) => setTo(event.target.value)}
-            />
-          </Field>
-          <a className="button align-start" href={exportHref(from, to)} download>
+        <div className="form-grid">
+          <FormField id="export-from" label="From">
+            {(control) => (
+              <input
+                {...control}
+                type="date"
+                value={from}
+                onChange={(event) => setFrom(event.target.value)}
+              />
+            )}
+          </FormField>
+          <FormField id="export-to" label="To (inclusive)">
+            {(control) => (
+              <input
+                {...control}
+                type="date"
+                value={to}
+                onChange={(event) => setTo(event.target.value)}
+              />
+            )}
+          </FormField>
+          <a className="button primary align-start" href={exportHref(from, to)} download>
             Download regulator export
           </a>
         </div>
       )}
-    </Panel>
+    </div>
   );
 }
