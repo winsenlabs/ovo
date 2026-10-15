@@ -1,66 +1,47 @@
 'use client';
+import { useEffect, useState } from 'react';
 import { useConfirm } from '../ui/dialog';
-import { useEffect, useState, type FormEvent } from 'react';
 import {
   apiRequest,
   type CredentialMetadata,
   type ProviderBinding,
   type SessionIdentity,
 } from '../../lib/api';
-import {
-  EmptyState,
-  Field,
-  JsonEvidence,
-  Panel,
-  PanelHeader,
-  ResponsiveTable,
-  StatusBadge,
-} from '../primitives';
-import type { PluginCatalog } from '../plugins/types';
-import { schemaDefaults } from '../plugins/schema-defaults';
+import { SectionCard } from '../ui/section-card';
+import { ErrorState, InlineAlert } from '../ui/feedback-v2';
+import type { PluginCatalog, PluginOption } from '../plugins/types';
 import { BindingsTable } from './bindings-table';
+import { BindingEditDrawer } from './binding-edit-drawer';
+import { BindingCreateDrawer, type NewBindingPayload } from './binding-create-drawer';
 
-interface BindingDraft {
-  id?: string;
-  label: string;
-  provider: string;
-  pluginId: string;
-  environment: string;
-  credentialId: string;
-  configText: string;
-}
-const emptyDraft = (): BindingDraft => ({
-  label: '',
-  provider: '',
-  pluginId: '',
-  environment: 'production',
-  credentialId: '',
-  configText: '{\n  "model": ""\n}',
-});
 const safeMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
-function bindingDraft(binding: ProviderBinding): BindingDraft {
-  return {
-    ...binding,
-    pluginId: binding.pluginId ?? '',
-    configText: JSON.stringify(binding.config ?? {}, null, 2),
-  };
-}
-
+/**
+ * The Bindings tab of Providers & secrets. "Add binding" opens a drawer (`BindingCreateDrawer`)
+ * reusing `SchemaForm`, rather than the data page carrying its own inline form (brief defect #6 —
+ * no forms on the data page). `BindingManager` is intentionally kept self-contained (it loads its
+ * own `/plugins`) so it works the same standalone, which
+ * `components/plugins/binding-defaults.test.tsx` (owned by the agents/plugins lane) exercises by
+ * mounting it directly.
+ */
 export function BindingManager({
   bindings,
+  bindingsStatus = 'ready',
+  bindingsError,
   credentials,
   reload,
   role,
 }: {
   bindings: ProviderBinding[];
+  bindingsStatus?: 'loading' | 'ready' | 'error';
+  bindingsError?: string;
   credentials: CredentialMetadata[];
   reload: () => Promise<void>;
   role: SessionIdentity['role'];
 }) {
   const confirm = useConfirm();
-  const [plugins, setPlugins] = useState<PluginCatalog['plugins']>([]);
+  const [plugins, setPlugins] = useState<PluginOption[]>([]);
   useEffect(() => {
     void apiRequest<PluginCatalog>('/plugins')
       .then(({ data }) =>
@@ -72,54 +53,47 @@ export function BindingManager({
       )
       .catch(() => undefined);
   }, []);
-  const [draft, setDraft] = useState<BindingDraft>(emptyDraft);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    if (draft.id && !bindings.some((binding) => binding.id === draft.id)) setDraft(emptyDraft());
-  }, [bindings, draft.id]);
-  const patch = (value: Partial<BindingDraft>) => setDraft((current) => ({ ...current, ...value }));
+  const [editing, setEditing] = useState<ProviderBinding>();
+  const [createOpen, setCreateOpen] = useState(false);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(undefined);
-    let config: Record<string, unknown>;
-    try {
-      const parsed: unknown = JSON.parse(draft.configText);
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
-        throw new Error('Configuration must be a JSON object.');
-      config = parsed as Record<string, unknown>;
-    } catch (failure) {
-      setError(safeMessage(failure, 'Provider configuration is invalid JSON.'));
-      return;
-    }
-    setBusy(true);
-    try {
-      await apiRequest(`/provider-bindings${draft.id ? `/${draft.id}` : ''}`, {
-        method: draft.id ? 'PUT' : 'POST',
-        body: JSON.stringify({
-          label: draft.label,
-          provider: draft.provider,
-          pluginId: draft.pluginId,
-          environment: draft.environment,
-          credentialId: draft.credentialId,
-          config,
-        }),
-      });
-      setDraft(emptyDraft());
-      await reload();
-    } catch (failure) {
-      setError(safeMessage(failure, 'Provider binding could not be saved.'));
-    } finally {
-      setBusy(false);
-    }
+  async function create(payload: NewBindingPayload) {
+    await apiRequest('/provider-bindings', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    setCreateOpen(false);
+    await reload();
+  }
+
+  async function saveEdit(
+    binding: ProviderBinding,
+    label: string,
+    environment: string,
+    credentialId: string,
+    config: Record<string, unknown>,
+  ) {
+    await apiRequest(`/provider-bindings/${binding.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        label,
+        provider: binding.provider,
+        pluginId: binding.pluginId,
+        environment,
+        credentialId,
+        config,
+      }),
+    });
+    setEditing(undefined);
+    await reload();
   }
 
   async function remove(binding: ProviderBinding) {
     if (
       !(await confirm(
         'Delete binding',
-        `Delete provider binding “${binding.label}”? Agents using it will fail readiness checks.`,
+        `Delete provider binding "${binding.label}"? Agents using it will fail readiness checks.`,
       ))
     )
       return;
@@ -136,125 +110,60 @@ export function BindingManager({
   }
 
   return (
-    <Panel labelledBy="binding-title">
-      <PanelHeader
-        id="binding-title"
-        title="Provider bindings"
-        badge={<StatusBadge>{bindings.length}</StatusBadge>}
-      />
-      <div className="panel-body stack">
-        <p className="muted">
-          Bindings pair non-secret provider configuration with a server-side credential reference.
-          Agent roles use binding IDs for inference, STT, TTS and telephony.
-        </p>
-        {error && (
-          <div className="field-error" role="alert">
-            {error}
-          </div>
-        )}
-        <form className="stack nested-card" onSubmit={submit}>
-          <div className="tool-meta">
-            <h3>{draft.id ? 'Edit binding' : 'Create binding'}</h3>
-            {draft.id && <StatusBadge tone="soft">Editing</StatusBadge>}
-          </div>
-          <div className="form-grid">
-            <Field label="Binding label" htmlFor="binding-label">
-              <input
-                id="binding-label"
-                required
-                value={draft.label}
-                onChange={(event) => patch({ label: event.target.value })}
-              />
-            </Field>
-            <Field
-              label="Plugin"
-              htmlFor="binding-plugin"
-              help="Select the installed adapter for this binding."
-            >
-              <select
-                id="binding-plugin"
-                required
-                value={draft.pluginId}
-                onChange={(event) => {
-                  const plugin = plugins.find((item) => item.id === event.target.value);
-                  const defaults = plugin ? schemaDefaults(plugin) : {};
-                  patch({
-                    pluginId: plugin?.id ?? '',
-                    provider: plugin?.provider ?? '',
-                    // A new binding starts from the plugin's recommended values; an edit keeps its own.
-                    ...(!draft.id && Object.keys(defaults).length
-                      ? { configText: JSON.stringify(defaults, null, 2) }
-                      : {}),
-                  });
-                }}
-              >
-                <option value="">Select installed plugin</option>
-                {plugins.map((plugin) => (
-                  <option key={plugin.id} value={plugin.id}>
-                    {plugin.ui?.label ?? plugin.id}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Environment" htmlFor="binding-environment">
-              <select
-                id="binding-environment"
-                value={draft.environment}
-                onChange={(event) => patch({ environment: event.target.value })}
-              >
-                <option value="test">Test</option>
-                <option value="staging">Staging</option>
-                <option value="production">Production</option>
-              </select>
-            </Field>
-            <Field label="Credential" htmlFor="binding-credential">
-              <select
-                id="binding-credential"
-                required
-                value={draft.credentialId}
-                onChange={(event) => patch({ credentialId: event.target.value })}
-              >
-                <option value="">Select metadata reference</option>
-                {credentials.map((credential) => (
-                  <option key={credential.id} value={credential.id}>
-                    {credential.label} · {credential.provider}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <Field
-            label="Provider configuration JSON"
-            htmlFor="binding-config"
-            help="Add model, voice, region, number, endpoint or adapter options. Secret-like keys are rejected by the API."
+    <div className="stack">
+      {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+      <SectionCard
+        id="bindings"
+        title="Bindings"
+        padding="flush"
+        actions={
+          <button
+            type="button"
+            className="button primary"
+            disabled={role !== 'admin'}
+            title={role !== 'admin' ? 'Admin role required' : undefined}
+            onClick={() => setCreateOpen(true)}
           >
-            <textarea
-              id="binding-config"
-              className="code-input"
-              value={draft.configText}
-              onChange={(event) => patch({ configText: event.target.value })}
-              spellCheck={false}
+            Add binding
+          </button>
+        }
+      >
+        {bindingsStatus === 'error' ? (
+          <div style={{ padding: 'var(--space-5)' }}>
+            <ErrorState
+              message={bindingsError ?? 'Provider bindings unavailable.'}
+              onRetry={reload}
             />
-          </Field>
-          <div className="button-row">
-            <button className="button primary" disabled={role !== 'admin' || busy}>
-              {busy ? 'Saving…' : draft.id ? 'Update binding' : 'Create binding'}
-            </button>
-            {draft.id && (
-              <button className="button" type="button" onClick={() => setDraft(emptyDraft())}>
-                Cancel
-              </button>
-            )}
           </div>
-        </form>
-        <BindingsTable
-          bindings={bindings}
-          role={role}
-          busy={busy}
-          onEdit={(binding) => setDraft(bindingDraft(binding))}
-          onRemove={remove}
-        />
-      </div>
-    </Panel>
+        ) : (
+          <BindingsTable
+            bindings={bindings}
+            credentials={credentials}
+            plugins={plugins}
+            loading={bindingsStatus === 'loading'}
+            role={role}
+            busy={busy}
+            onEdit={setEditing}
+            onRemove={remove}
+          />
+        )}
+      </SectionCard>
+      <BindingEditDrawer
+        binding={editing}
+        plugins={plugins}
+        credentials={credentials}
+        role={role}
+        onClose={() => setEditing(undefined)}
+        onSubmit={saveEdit}
+      />
+      <BindingCreateDrawer
+        open={createOpen}
+        plugins={plugins}
+        credentials={credentials}
+        role={role}
+        onClose={() => setCreateOpen(false)}
+        onSubmit={create}
+      />
+    </div>
   );
 }
