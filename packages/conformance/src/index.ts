@@ -12,6 +12,7 @@ export * from './kit/knowledge.ts';
 export * from './kit/engine.ts';
 export type { EnginePorts } from './kit/engine-ports.ts';
 export * from './kit/inference.ts';
+export * from './kit/media-room.ts';
 export * from './kit/runner.ts';
 export * from './kit/stt.ts';
 export * from './kit/tts.ts';

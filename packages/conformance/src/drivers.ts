@@ -15,6 +15,8 @@ export * from './drivers/fixture-stt.ts';
 export * from './drivers/fixture-tts.ts';
 export * from './drivers/jsonl.ts';
 export * from './drivers/loopback-server.ts';
+export * from './drivers/media-room.ts';
+export * from './drivers/tone.ts';
 export * from './drivers/rfc6455-client.ts';
 export * from './drivers/scripted-inference.ts';
 export * from './drivers/scripted-speech.ts';

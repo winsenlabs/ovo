@@ -4,6 +4,8 @@ import { ENGINE_CHECKS, type EngineKitOptions } from './engine.ts';
 import type { EngineFactory } from './engine-ports.ts';
 import { INFERENCE_CHECKS, type InferenceFactory, type InferenceKitOptions } from './inference.ts';
 import { KNOWLEDGE_CHECKS, type KnowledgeFactory, type KnowledgeKitOptions } from './knowledge.ts';
+import { MEDIA_ROOM_CHECKS, type MediaRoomKitOptions } from './media-room.ts';
+import type { MediaRoomFactory } from '../drivers/media-room-types.ts';
 import { runChecks, type KitFailure, type KitRunOptions } from './runner.ts';
 import { STT_CHECKS, type SttFactory, type SttKitOptions } from './stt.ts';
 import { TTS_CHECKS, type TtsFactory, type TtsKitOptions } from './tts.ts';
@@ -61,3 +63,10 @@ export const checkTurnDetector = (
   factory: TurnDetectorKitFactory,
   run?: KitRunOptions,
 ): Promise<KitFailure[]> => runChecks(TURN_CHECKS, () => ({ factory }), run);
+
+export const checkMediaRoom = (
+  factory: MediaRoomFactory,
+  options: MediaRoomKitOptions = {},
+  run?: KitRunOptions,
+): Promise<KitFailure[]> =>
+  runChecks(MEDIA_ROOM_CHECKS, () => ({ factory, options }), { timeoutMs: 30_000, ...run });

@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@types/ws": "8.18.1",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "livekit-server-sdk": "2.19.0"
   }
 }
