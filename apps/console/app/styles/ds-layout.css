@@ -68,6 +68,11 @@
 .ds-card + .ds-card {
   margin-top: var(--space-4);
 }
+/* ...but never inside a grid that already spaces its cards with `gap`: there the margin only
+   pushed every card after the first one down, so a row's cards no longer shared a top edge. */
+.ds-kpi-strip > .ds-card + .ds-card {
+  margin-top: 0;
+}
 @media (max-width: 480px) {
   /* auto-fit, minmax(180px,1fr) only fits one column in a ~326px mobile content width; the brief
      requires 2 columns at 390px. */
@@ -108,6 +113,10 @@
   font-weight: var(--text-display-weight);
   line-height: var(--text-display-line);
   font-variant-numeric: tabular-nums;
+}
+.ds-kpi-value--long {
+  font-size: 20px;
+  white-space: nowrap;
 }
 .ds-kpi-unit {
   color: var(--text-3);

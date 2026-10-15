@@ -129,7 +129,7 @@ export function PerformanceView() {
   return (
     <div className="ds-stack">
       <PageHeader
-        eyebrow="Operational evidence"
+        eyebrow="Insights"
         title="Performance"
         description="Bounded latency cohorts from durable telemetry. Missing samples remain unavailable, never zero."
       />

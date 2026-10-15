@@ -28,6 +28,7 @@ function ReleaseDetail({ row, previous }: { row: ReleaseRow; previous?: Release 
   const differences = previous ? configurationDiff(previous.config, row.config) : [];
   return (
     <div className="ui-stack ds-release-detail">
+      <IdChip id={row.id} short={row.id} />
       <div>
         <h4>Pinned selections</h4>
         {selections.length ? (
@@ -143,7 +144,12 @@ export function AgentReleasesFeature({ agentId }: { agentId: string }) {
               <details>
                 <summary>
                   <span className="ui-cluster">
-                    <IdChip id={row.id} short={row.id.slice(0, 12)} />
+                    {/* Plain text here: a <summary> is itself the control, so the IdChip's copy
+                        button nested inside it failed axe `nested-interactive`. The copyable
+                        chip lives in the expanded detail instead. */}
+                    <span className="mono ds-id-text" title={row.id}>
+                      {row.id.slice(0, 12)}
+                    </span>
                     {row.current && <StatusBadgeV2 tone="ok" size="sm" label="Current" />}
                   </span>
                   <span className="muted">

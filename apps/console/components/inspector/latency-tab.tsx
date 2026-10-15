@@ -205,7 +205,12 @@ export function LatencyTab({
         ]}
         renderChart={(width) =>
           waterfall ? (
-            <Waterfall width={width} rows={waterfall.rows} p95CapMs={waterfall.p95CapMs} />
+            <Waterfall
+              width={width}
+              rows={waterfall.rows}
+              p95CapMs={waterfall.p95CapMs}
+              showLegend={false}
+            />
           ) : null
         }
       />

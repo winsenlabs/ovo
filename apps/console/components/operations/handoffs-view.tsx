@@ -148,7 +148,7 @@ export function HandoffsView({ role }: { role: SessionIdentity['role'] }) {
   return (
     <div className="ds-stack">
       <PageHeader
-        eyebrow="Operations"
+        eyebrow="Calls"
         title="Handoffs"
         description="A handoff is confirmed only by a provider receipt; unknown outcomes remain unknown and are never blindly retried."
         onRefresh={() => void loadCalls()}

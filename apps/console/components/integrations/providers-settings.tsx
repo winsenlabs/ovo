@@ -70,7 +70,7 @@ export function ProvidersSettings({ identity }: { identity: SessionIdentity }) {
   return (
     <>
       <PageHeader
-        eyebrow="Settings"
+        eyebrow="Build"
         title="Providers & secrets"
         description="Credentials stay server-side and are never returned in full. Bindings pair non-secret configuration with a stored credential reference."
       />

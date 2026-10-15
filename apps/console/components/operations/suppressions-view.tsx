@@ -128,7 +128,7 @@ export function SuppressionsView({ role }: { role: SessionIdentity['role'] }) {
   return (
     <div className="ds-stack">
       <PageHeader
-        eyebrow="Operations"
+        eyebrow="Outbound"
         title="Do-not-call list"
         description="Campaign admission, manual and test calls refuse a listed number, and the worker rechecks it immediately before every carrier dial. Callers who say “stop calling me” are added automatically."
         actions={

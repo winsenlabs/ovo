@@ -64,7 +64,7 @@ export function EvaluationDatasetsView({ role }: { role: SessionIdentity['role']
   return (
     <div className="ds-stack">
       <PageHeader
-        eyebrow="Regression operations"
+        eyebrow="Insights"
         title="Evaluations"
         description="Immutable corpora, fixture-isolated defaults, provider authorization, durable jobs, and case-level comparison evidence."
       />

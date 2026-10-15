@@ -135,7 +135,7 @@ export function CallsIndexFeature() {
   return (
     <div className="ds-stack">
       <PageHeader
-        eyebrow="Evidence"
+        eyebrow="Calls"
         title="Calls"
         description="Newest calls first. Server filters stay in the URL; the date range and search apply to what's loaded."
         actions={

@@ -38,7 +38,16 @@ export function KpiCard({
         />
       ) : (
         <div className="ds-kpi-row">
-          <span className="ds-kpi-value" title={value == null ? 'Unknown' : undefined}>
+          <span
+            // Long formatted values (lakh-grouped rupees with paise, "14.34 GiB") wrapped
+            // mid-number at the full KPI size in a 6-up strip; they step down a size instead.
+            className={`ds-kpi-value${
+              (typeof value === 'string' || typeof value === 'number') && String(value).length > 9
+                ? ' ds-kpi-value--long'
+                : ''
+            }`}
+            title={value == null ? 'Unknown' : undefined}
+          >
             {value == null ? '—' : value}
           </span>
           {unit && value != null && <span className="ds-kpi-unit">{unit}</span>}

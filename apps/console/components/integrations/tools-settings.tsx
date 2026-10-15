@@ -61,7 +61,7 @@ export function ToolsSettings({ identity }: { identity: SessionIdentity }) {
   return (
     <>
       <PageHeader
-        eyebrow="Settings"
+        eyebrow="Build"
         title="Tools"
         description="Connect a remote MCP server, then review and approve its tools per agent. Discovery alone grants no access."
         actions={

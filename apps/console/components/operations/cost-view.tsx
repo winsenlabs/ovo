@@ -31,7 +31,7 @@ export function CostView({ role }: { role: SessionIdentity['role'] }) {
   return (
     <div className="ds-stack">
       <PageHeader
-        eyebrow="Financial controls"
+        eyebrow="Insights"
         title="Costs & budgets"
         description="Exact paise-based budgets, pricing and reconciliation. Missing provider usage is never treated as free."
       />

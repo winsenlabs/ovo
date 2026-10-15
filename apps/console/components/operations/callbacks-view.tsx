@@ -110,7 +110,7 @@ export function CallbacksView({
   return (
     <div className="ds-stack">
       <PageHeader
-        eyebrow="Operations"
+        eyebrow="Calls"
         title="Callbacks"
         description="Callbacks the agent promised on a call. Dialling one places a live call to the same number with the same release, subject to the live-call checks."
         onRefresh={() => void load()}

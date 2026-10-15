@@ -125,7 +125,7 @@ export function ComplianceView({ role }: { role: SessionIdentity['role'] }) {
   return (
     <div className="ds-stack">
       <PageHeader
-        eyebrow="Dial safety"
+        eyebrow="Outbound"
         title="Compliance"
         description="Every +91 call is checked against TRAI’s rules and RBI’s recovery hours before it is dialed. Settings here can only make the rules stricter."
         meta={

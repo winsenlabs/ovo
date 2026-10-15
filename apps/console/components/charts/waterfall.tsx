@@ -23,10 +23,14 @@ export function Waterfall({
   rows,
   width,
   p95CapMs,
+  showLegend = true,
 }: {
   rows: readonly WaterfallRow[];
   width: number;
   p95CapMs: number;
+  /** Pass `false` when the caller already renders a legend in its `ChartFrame` header —
+   * otherwise the stage legend appears twice, above and below the chart. */
+  showLegend?: boolean;
 }) {
   const plotWidth = Math.max(1, width - MARGIN.left - MARGIN.right);
   const chartHeight = rows.length * ROW_HEIGHT + MARGIN.top + MARGIN.bottom;
@@ -142,18 +146,20 @@ export function Waterfall({
           })}
         </g>
       </svg>
-      <ul className="ds-chart-legend">
-        {[...legendStages.entries()].map(([stage, color]) => (
-          <li key={stage}>
-            <span className="ds-legend-swatch" style={{ background: color }} />
-            {stage}
+      {showLegend && (
+        <ul className="ds-chart-legend">
+          {[...legendStages.entries()].map(([stage, color]) => (
+            <li key={stage}>
+              <span className="ds-legend-swatch" style={{ background: color }} />
+              {stage}
+            </li>
+          ))}
+          <li>
+            <span className="ds-legend-swatch" style={{ background: 'var(--surface-2)' }} />
+            Unattributed
           </li>
-        ))}
-        <li>
-          <span className="ds-legend-swatch" style={{ background: 'var(--surface-2)' }} />
-          Unattributed
-        </li>
-      </ul>
+        </ul>
+      )}
     </div>
   );
 }

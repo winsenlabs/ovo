@@ -92,7 +92,7 @@ export function InfrastructureView() {
   return (
     <div className="ds-stack">
       <PageHeader
-        eyebrow="Deployment evidence"
+        eyebrow="Insights"
         title="Infrastructure"
         description="Read-only capacity, queue and process evidence. Missing metrics remain unknown rather than zero."
         meta={

@@ -104,6 +104,10 @@
 .sidebar-scroll {
   display: flex;
   flex: 1;
+  /* Without this a flex child never shrinks below its content, so in the 844px phone drawer the
+     list overflowed the (overflow:hidden) rail and the Settings links were cut off instead of
+     scrolling. */
+  min-height: 0;
   flex-direction: column;
   gap: var(--space-0_5);
   margin-top: var(--space-3);

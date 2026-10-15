@@ -1,4 +1,4 @@
-import { CHART_PALETTE, bandScale, linearScale } from './scale';
+import { CHART_PALETTE, bandScale, linearScale, niceTicks } from './scale';
 import { XAxis, YAxis } from './axis';
 
 export type BarSeriesPoint = { category: string; values: Record<string, number> };
@@ -33,13 +33,6 @@ export function BarChart({
   const colorOf = seriesColor ?? ((key, index) => CHART_PALETTE[index % CHART_PALETTE.length]);
   const labelOf = seriesLabel ?? ((key: string) => key);
   const isVertical = orientation === 'vertical';
-  const MARGIN = isVertical
-    ? { top: 20, right: 8, bottom: 24, left: 40 }
-    : { top: 8, right: 36, bottom: 24, left: 104 };
-  const plotWidth = Math.max(1, width - MARGIN.left - MARGIN.right);
-  const plotHeight = Math.max(1, height - MARGIN.top - MARGIN.bottom);
-  const main = isVertical ? plotHeight : plotWidth;
-  const cross = isVertical ? plotWidth : plotHeight;
   const totals = data.map((point) =>
     seriesKeys.reduce((sum, key) => sum + (point.values[key] ?? 0), 0),
   );
@@ -49,6 +42,18 @@ export function BarChart({
     ...data.flatMap((point) => seriesKeys.map((key) => point.values[key] ?? 0)),
   );
   const domainMax = mode === 'stacked' ? maxStacked : maxSingle;
+  // The y-axis gutter has to fit the widest tick label: a fixed 40px clipped formatted values
+  // such as "500ms" or "₹1,200" to their last few characters.
+  const widestTick = Math.max(
+    ...niceTicks([0, domainMax], 4).map((tick) => valueFormat(tick).length),
+  );
+  const MARGIN = isVertical
+    ? { top: 20, right: 8, bottom: 24, left: Math.max(40, 14 + widestTick * 7) }
+    : { top: 8, right: 36, bottom: 24, left: 104 };
+  const plotWidth = Math.max(1, width - MARGIN.left - MARGIN.right);
+  const plotHeight = Math.max(1, height - MARGIN.top - MARGIN.bottom);
+  const main = isVertical ? plotHeight : plotWidth;
+  const cross = isVertical ? plotWidth : plotHeight;
   // `value` maps a datum to a bar *length* (0 -> 0), which is what the rects need in both
   // orientations. The vertical y-axis needs a *position* instead — SVG y grows downward, so zero
   // sits at the bottom of the plot and `domainMax` at the top; handing the axis `value` drew the
@@ -56,6 +61,13 @@ export function BarChart({
   const value = linearScale([0, domainMax], [0, main]);
   const yPosition = linearScale([0, domainMax], [plotHeight, 0]);
   const { center, bandwidth } = bandScale(data.length, [0, cross]);
+  // Vertical bars print category labels under each band; when the bands are narrower than the
+  // labels (a week of "08 Oct" days on a phone) they ran into one another. Label every Nth band
+  // instead, N chosen so a label always has room.
+  const longestCategory = Math.max(1, ...data.map((point) => point.category.length));
+  const labelEvery = isVertical
+    ? Math.max(1, Math.ceil((longestCategory * 6.5 + 8) / Math.max(1, bandwidth)))
+    : 1;
   // At least 1px: with many grouped series the naive `bandwidth / seriesKeys.length - 2` can go
   // negative, which SVG silently renders as nothing — the bars just vanish (brief defect #5).
   const groupWidth = Math.max(
@@ -109,14 +121,16 @@ export function BarChart({
             return (
               <g key={point.category}>
                 {isVertical ? (
-                  <text
-                    x={bandCenter}
-                    y={plotHeight + 16}
-                    textAnchor="middle"
-                    className="ds-bar-category-label"
-                  >
-                    {point.category}
-                  </text>
+                  categoryIndex % labelEvery === 0 && (
+                    <text
+                      x={bandCenter}
+                      y={plotHeight + 16}
+                      textAnchor="middle"
+                      className="ds-bar-category-label"
+                    >
+                      {point.category}
+                    </text>
+                  )
                 ) : (
                   <text
                     x={-8}

@@ -107,7 +107,7 @@ export function InboundRoutes({ role }: { role: SessionIdentity['role'] }) {
   return (
     <div className="ds-stack">
       <PageHeader
-        eyebrow="Operations"
+        eyebrow="Inbound"
         title="Inbound"
         description="Bind each carrier number to an immutable release. Variables are snapshotted when the signed inbound request is admitted; no per-agent environment routing is used."
         actions={
