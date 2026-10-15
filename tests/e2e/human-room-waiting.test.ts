@@ -230,6 +230,8 @@ describe.skipIf(!roomServerBinary())('managed human queue: the waiting paths (R3
           expect(again!.id).toBe(ticketId);
           const accepted = await acceptTicket(other, again as never);
           expect(accepted.status, JSON.stringify(accepted.body)).toBe(200);
+          // Each accept has its own room: the first operator's token, still valid, opens a room nobody bridges.
+          expect(accepted.body.room.roomName).not.toBe(taken.body.room.roomName);
           await talkAndEnd(other, ticketId, accepted.body.room);
           await hungUpByPlatform(room.env, call);
         },

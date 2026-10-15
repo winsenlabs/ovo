@@ -74,9 +74,10 @@ export class HumanManagedAttempt extends HumanAttempt {
         acceptedAt = undefined;
         continue;
       }
-      if (this.assignedOperatorPresent(ticket))
+      const { seat } = this;
+      if (seat && this.assignedOperatorPresent(ticket, seat))
         return new HumanBridgeSegment(this, {
-          seat: this.seat,
+          seat,
           ticket,
           room: this.room!,
           queue: this.queue,
@@ -131,10 +132,10 @@ export class HumanManagedAttempt extends HumanAttempt {
   }
 
   /** Only the operator this ticket was accepted by counts: not any `operator` who found the room. */
-  private assignedOperatorPresent(ticket: Ticket): boolean {
+  private assignedOperatorPresent(ticket: Ticket, seat: RoomSeat): boolean {
     return (
       !!ticket.assignedOperatorId &&
-      !!this.seat?.operatorPresent() &&
+      seat.operatorPresent() &&
       this.inRoom.has(`op:${ticket.assignedOperatorId}`)
     );
   }
