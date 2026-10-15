@@ -130,6 +130,17 @@ describeCarrier(
         },
         {
           scripts: script('POST', call, response(200, { sid: call }), {
+            Twiml: /<Dial><Sip>sips:acd@sbc\.example\.net\?X-OVO-Ticket=t-1<\/Sip><\/Dial>/,
+          }),
+          carrierCallId: call,
+          target: {
+            kind: 'sip',
+            uri: 'sips:acd@sbc.example.net',
+            headers: { 'X-OVO-Ticket': 't-1' },
+          },
+        },
+        {
+          scripts: script('POST', call, response(200, { sid: call }), {
             Twiml: /<Enqueue>kit-queue<\/Enqueue>/,
           }),
           carrierCallId: call,

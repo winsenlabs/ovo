@@ -15,7 +15,7 @@ export const twilioCapabilities: CarrierCapabilities = Object.freeze({
     reconcile: 'by-call-id',
     maxDuration: true,
     amd: 'async',
-    handoff: ['phone', 'queue', 'resume', 'end'],
+    handoff: ['phone', 'sip', 'queue', 'resume', 'end'],
     cancelBeforeAnswer: false,
     streamCallIdMatchesDial: true,
     streamParams: 'at-dial',
