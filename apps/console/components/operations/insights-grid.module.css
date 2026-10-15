@@ -1,0 +1,28 @@
+/* Local layout helper for the Insights screens (costs/performance/infrastructure/evaluations).
+   Not a design-system primitive — two SectionCards side by side on wide viewports, stacked on
+   narrow ones. Scoped as a CSS module so it never touches the shared app/styles/*.css files. */
+.twoColumn {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .twoColumn {
+    grid-template-columns: 1fr;
+  }
+}
+
+.threeColumn {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .threeColumn {
+    grid-template-columns: 1fr;
+  }
+}

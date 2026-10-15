@@ -49,7 +49,8 @@ it('renders the current infrastructure response without an obsolete capacity-wri
     },
   });
   render(<InfrastructureView />);
-  expect(await screen.findByText('Durable queue')).toBeDefined();
-  expect(screen.getByText('Capacity ceiling')).toBeDefined();
+  expect(await screen.findByText('Worker capacity')).toBeDefined();
+  expect(screen.getByText('Queue depth (eligible)')).toBeDefined();
+  expect(screen.getByText('Required vs provisioned')).toBeDefined();
   expect(screen.queryByText('Unresolved capacity writes')).toBeNull();
 });

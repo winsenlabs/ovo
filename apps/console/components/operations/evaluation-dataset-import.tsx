@@ -1,5 +1,7 @@
 'use client';
-import { Notice } from '../primitives';
+import { FileDrop } from '../ui/inputs';
+import { Button } from '../ui/button';
+
 export function EvaluationDatasetImport({
   importCases,
   importName,
@@ -14,32 +16,31 @@ export function EvaluationDatasetImport({
   importVersion: () => Promise<void>;
 }) {
   return (
-    <section className="nested-card stack" aria-labelledby="dataset-import-title">
+    <section className="stack" aria-labelledby="dataset-import-title">
       <h4 id="dataset-import-title">Import immutable JSON corpus</h4>
       <p className="muted">
-        Upload one JSON array or <code>{'{"cases":[…]}'}</code>. The console caps each production
-        corpus at 120 deterministic cases.
+        Upload one JSON array or <code>{'{"cases":[…]}'}</code>. Each production corpus is capped at
+        120 deterministic cases.
       </p>
-      <input
-        type="file"
+      <FileDrop
         accept=".json,application/json"
-        aria-label="Evaluation cases JSON file"
-        onChange={(event) => void readImport(event.target.files?.[0])}
+        hint="Drop a JSON file, or click to choose one"
+        onFile={(file) => void readImport(file)}
       />
       {importCases && (
-        <div className="muted">
+        <p className="muted">
           {importName}: {importCases.length} cases parsed locally. Server validation runs before the
           immutable version is created.
-        </div>
+        </p>
       )}
-      <button
-        className="button align-start"
+      <Button
+        variant="primary"
         type="button"
         disabled={!importCases || busy}
-        onClick={importVersion}
+        onClick={() => void importVersion()}
       >
         Import as new version
-      </button>
+      </Button>
     </section>
   );
 }

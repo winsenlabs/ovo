@@ -1,227 +1,145 @@
 'use client';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { apiRequest, items, type SessionIdentity } from '../../lib/api';
+import type { FormEvent } from 'react';
+import { apiRequest, type SessionIdentity } from '../../lib/api';
 import type { ModelPriceCard } from '../../lib/types/price-catalog';
-import type { PluginCatalog } from '../plugins/types';
-import { EmptyState, Field, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
+import { formatDateTime } from '../../lib/format';
+import { humanisePrice } from '../../lib/derive/costs';
+import { humaniseEnum } from '../../lib/status';
+import { SectionCard } from '../ui/section-card';
+import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { Drawer } from '../ui/drawer';
+import { Button } from '../ui/button';
+import { CodeBlock } from '../ui/code-block';
+import { useListResource } from './use-list-resource';
+import { useDrawerForm } from './use-drawer-form';
+import { PriceCardForm } from './price-card-form';
 
+/**
+ * Immutable price card versions. Relogic of OPS-13/14: the "Add immutable card version" form
+ * moves into a drawer behind an action button, and the list is a DataTableV2 instead of a raw
+ * `<table>` with provenance prose spilling across the row.
+ */
 export function PriceCardPanel({ role }: { role: SessionIdentity['role'] }) {
-  const [cards, setCards] = useState<ModelPriceCard[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
-  const [meters, setMeters] = useState<
-    { key: string; label: string; provider: string; unit: string }[]
-  >([]);
-  const [meterKey, setMeterKey] = useState('');
-  const load = useCallback(async () => {
-    try {
-      setCards(
-        items<ModelPriceCard>((await apiRequest<unknown>('/cost/price-cards?limit=100')).data),
-      );
-      setError(undefined);
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Price cards could not be loaded.');
-    }
-  }, []);
-  useEffect(() => {
-    void load();
-  }, [load]);
-  useEffect(() => {
-    void apiRequest<PluginCatalog>('/plugins')
-      .then(({ data }) =>
-        setMeters(
-          data.plugins.flatMap((plugin) =>
-            (plugin.meters ?? []).map((meter) => ({
-              key: meter.key,
-              label: meter.label,
-              provider: plugin.provider ?? plugin.id,
-              unit: meter.unit,
-            })),
-          ),
-        ),
-      )
-      .catch((failure) =>
-        setError(failure instanceof Error ? failure.message : 'Meter catalog unavailable'),
-      );
-  }, []);
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const values = new FormData(form);
-    setBusy(true);
-    setError(undefined);
-    try {
-      await apiRequest('/cost/price-cards', {
-        method: 'POST',
-        body: JSON.stringify({
-          id: values.get('id'),
-          version: values.get('version'),
-          provider: values.get('provider'),
-          unit: values.get('unit'),
-          currency: values.get('currency'),
-          minorUnitsPerBlock: values.get('minorUnitsPerBlock'),
-          blockQuantity: values.get('blockQuantity'),
-          effectiveAt: new Date(String(values.get('effectiveAt'))).toISOString(),
-          provenance: values.get('provenance'),
-          ...(String(values.get('model') ?? '').trim()
-            ? { model: String(values.get('model')).trim() }
-            : {}),
-          ...(values.get('provisional') ? { provisional: true } : {}),
-        }),
-      });
-      form.reset();
-      await load();
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Price card could not be stored.');
-    } finally {
-      setBusy(false);
-    }
-  }
+  const {
+    data: cards,
+    error: loadError,
+    reload: load,
+  } = useListResource<ModelPriceCard>('/cost/price-cards?limit=100');
+  const drawer = useDrawerForm(load);
+  const save = (event: FormEvent<HTMLFormElement>) =>
+    drawer.submit(
+      event,
+      (values) =>
+        apiRequest('/cost/price-cards', {
+          method: 'POST',
+          body: JSON.stringify({
+            id: values.get('id'),
+            version: values.get('version'),
+            provider: values.get('provider'),
+            unit: values.get('unit'),
+            currency: values.get('currency'),
+            minorUnitsPerBlock: values.get('minorUnitsPerBlock'),
+            blockQuantity: values.get('blockQuantity'),
+            effectiveAt: new Date(String(values.get('effectiveAt'))).toISOString(),
+            provenance: values.get('provenance'),
+            ...(String(values.get('model') ?? '').trim()
+              ? { model: String(values.get('model')).trim() }
+              : {}),
+            ...(values.get('provisional') ? { provisional: true } : {}),
+          }),
+        }).then(() => undefined),
+      'Price card could not be stored.',
+    );
+
+  const columns: ColumnV2<ModelPriceCard>[] = [
+    {
+      id: 'card',
+      header: 'Card',
+      cell: (card) => (
+        <>
+          <strong>{card.id}</strong>
+          <br />
+          <small className="mono muted">{card.version}</small>
+        </>
+      ),
+      sortValue: (card) => card.id,
+    },
+    {
+      id: 'provider',
+      header: 'Provider / unit',
+      cell: (card) => `${card.provider} · ${humaniseEnum(card.unit)}`,
+    },
+    { id: 'model', header: 'Model', cell: (card) => card.model ?? 'Any model' },
+    {
+      id: 'price',
+      header: 'Price',
+      cell: (card) => (
+        <>
+          <span className="mono" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {humanisePrice(card)}
+          </span>
+          {card.provisional && (
+            <>
+              {' '}
+              <StatusBadgeV2 tone="warn" label="Provisional" size="sm" />
+            </>
+          )}
+        </>
+      ),
+      align: 'end',
+    },
+    {
+      id: 'effective',
+      header: 'Effective',
+      cell: (card) => formatDateTime(card.effectiveAt),
+      sortValue: (card) => card.effectiveAt,
+    },
+    {
+      id: 'provenance',
+      header: 'Provenance',
+      cell: (card) => (
+        <CodeBlock code={card.provenance} language="text" collapsedLabel="Show provenance" />
+      ),
+      priority: 'low',
+    },
+  ];
+
   return (
-    <Panel labelledBy="price-cards-title">
-      <PanelHeader
-        id="price-cards-title"
-        title="Immutable price cards"
-        badge={<StatusBadge tone="soft">{cards.length} versions</StatusBadge>}
+    <SectionCard
+      title="Immutable price cards"
+      description="Native provider units priced against immutable card IDs and versions. Existing versions cannot be overwritten with different economics."
+      padding="flush"
+      actions={
+        role === 'admin' ? (
+          <Button variant="primary" type="button" onClick={() => drawer.setOpen(true)}>
+            Add card
+          </Button>
+        ) : undefined
+      }
+    >
+      <DataTableV2
+        // See price-catalog-panel.tsx: remounts across the loading → loaded boundary to avoid
+        // DataTableV2's hook-count mismatch (foundation request in the build report).
+        key={cards === null ? 'loading' : 'loaded'}
+        label="Immutable price cards"
+        rows={cards ?? []}
+        loading={cards === null}
+        error={loadError}
+        onRetry={load}
+        columns={columns}
+        rowKey={(card) => `${card.id}:${card.version}`}
+        empty="Provider usage cannot be priced until an admin records an immutable card version."
       />
-      <div className="panel-body stack">
-        <p className="muted">
-          Native provider units are priced against immutable card IDs and versions. Existing
-          versions cannot be overwritten with different economics.
-        </p>
-        {error && (
-          <div className="field-error" role="alert">
-            {error}
-          </div>
-        )}
-        {role === 'admin' && (
-          <form className="nested-card stack" onSubmit={save}>
-            <h4>Add immutable card version</h4>
-            <div className="form-grid">
-              <Field label="Manifest meter key" htmlFor="card-meter">
-                <select
-                  id="card-meter"
-                  value={meterKey}
-                  onChange={(event) => setMeterKey(event.target.value)}
-                  required
-                >
-                  <option value="">Select meter</option>
-                  {meters.map((meter) => (
-                    <option key={meter.key} value={meter.key}>
-                      {meter.label} · {meter.key}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Card ID" htmlFor="card-id">
-                <input id="card-id" name="id" required />
-              </Field>
-              <Field label="Version" htmlFor="card-version">
-                <input id="card-version" name="version" required />
-              </Field>
-              <Field label="Provider" htmlFor="card-provider">
-                <input
-                  id="card-provider"
-                  name="provider"
-                  value={meters.find((meter) => meter.key === meterKey)?.provider ?? ''}
-                  readOnly
-                  required
-                />
-              </Field>
-              <Field label="Native unit" htmlFor="card-unit">
-                <input
-                  id="card-unit"
-                  name="unit"
-                  value={meters.find((meter) => meter.key === meterKey)?.unit ?? ''}
-                  readOnly
-                  required
-                />
-              </Field>
-              <Field label="Currency" htmlFor="card-currency">
-                <input
-                  id="card-currency"
-                  name="currency"
-                  defaultValue="INR"
-                  pattern="[A-Z]{3}"
-                  required
-                />
-              </Field>
-              <Field label="Minor units per block" htmlFor="card-amount">
-                <input id="card-amount" name="minorUnitsPerBlock" inputMode="decimal" required />
-              </Field>
-              <Field label="Block quantity" htmlFor="card-block">
-                <input id="card-block" name="blockQuantity" inputMode="decimal" required />
-              </Field>
-              <Field label="Effective at" htmlFor="card-effective">
-                <input id="card-effective" name="effectiveAt" type="datetime-local" required />
-              </Field>
-              <Field
-                label="Model"
-                htmlFor="card-model"
-                help="The model or SKU this price applies to. Leave empty for a price that covers every model."
-              >
-                <input id="card-model" name="model" placeholder="e.g. gpt-6-luna" />
-              </Field>
-              <Field
-                label="Provisional price"
-                htmlFor="card-provisional"
-                help="A placeholder or unverified rate. Call costs priced with it are labelled provisional."
-              >
-                <input id="card-provisional" name="provisional" type="checkbox" />
-              </Field>
-              <Field
-                label="Provenance"
-                htmlFor="card-provenance"
-                help="Invoice, contract, or operator evidence for this rate."
-              >
-                <textarea id="card-provenance" name="provenance" required />
-              </Field>
-            </div>
-            <button className="button primary align-start" disabled={busy}>
-              Store immutable card
-            </button>
-          </form>
-        )}
-        {cards.length === 0 ? (
-          <EmptyState title="No price cards">
-            Provider usage cannot be priced until an admin records an immutable card version.
-          </EmptyState>
-        ) : (
-          <ResponsiveTable label="Immutable price cards">
-            <thead>
-              <tr>
-                <th>Card</th>
-                <th>Provider/unit</th>
-                <th>Model</th>
-                <th>Price</th>
-                <th>Effective</th>
-                <th>Provenance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cards.map((card) => (
-                <tr key={`${card.id}:${card.version}`}>
-                  <td>
-                    <strong>{card.id}</strong>
-                    <small>{card.version}</small>
-                  </td>
-                  <td>
-                    {card.provider}
-                    <small>{card.unit}</small>
-                  </td>
-                  <td>{card.model ?? 'Any model'}</td>
-                  <td>
-                    {card.minorUnitsPerBlock} {card.currency} minor / {card.blockQuantity}
-                    {card.provisional && <StatusBadge tone="warning">Provisional</StatusBadge>}
-                  </td>
-                  <td>{new Date(card.effectiveAt).toLocaleString()}</td>
-                  <td>{card.provenance}</td>
-                </tr>
-              ))}
-            </tbody>
-          </ResponsiveTable>
-        )}
-      </div>
-    </Panel>
+      {role === 'admin' && (
+        <Drawer
+          open={drawer.open}
+          title="Add immutable card version"
+          onClose={() => drawer.setOpen(false)}
+        >
+          <PriceCardForm busy={drawer.busy} error={drawer.error} onSubmit={save} />
+        </Drawer>
+      )}
+    </SectionCard>
   );
 }
