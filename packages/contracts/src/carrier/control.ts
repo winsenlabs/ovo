@@ -56,6 +56,11 @@ export type Reconciliation =
 
 export type HandoffTarget =
   | { kind: 'phone'; e164: string }
+  /**
+   * A `sip:`/`sips:` URI, for a third party that takes the leg by SIP. `headers` are `X-` names with
+   * printable ASCII values (at most 256 characters); a carrier carries them as URI header parameters.
+   */
+  | { kind: 'sip'; uri: string; headers?: Record<string, string> }
   | { kind: 'queue'; name: string }
   | {
       kind: 'resume';

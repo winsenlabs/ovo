@@ -9,6 +9,7 @@ import {
   type RouteSegmentPayload,
   type SessionEvent,
 } from '@winsendotai/ovo-contracts';
+import { foldHuman } from './projection-human.ts';
 
 /** One stored session event, as the outcome endpoint returns it. */
 export interface StoredSessionEvent {
@@ -41,6 +42,7 @@ export function emptyCallOutcome(callId: string, at: string): CallOutcomeSummary
     route: null,
     segments: [],
     transfers: noTransfers(),
+    human: null,
     events: 0,
     updatedAt: at,
   };
@@ -65,6 +67,7 @@ export function applySessionEvent(
     route: summary.route && { ...summary.route, path: [...summary.route.path] },
     segments: summary.segments.map((segment) => ({ ...segment })),
     transfers: { ...summary.transfers },
+    human: summary.human,
     events: summary.events + 1,
     updatedAt: at,
   };
@@ -124,6 +127,12 @@ export function applySessionEvent(
     case 'transfer.completed':
       if (event.payload.outcome === 'connected') next.transfers.connected += 1;
       else if (event.payload.outcome !== 'caller_hangup') next.transfers.failed += 1;
+      break;
+    case 'human.requested':
+    case 'human.state':
+    case 'human.webhook':
+    case 'human.completed':
+      next.human = foldHuman(summary.human, event);
       break;
   }
   return next;

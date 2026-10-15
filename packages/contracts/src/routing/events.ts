@@ -45,7 +45,7 @@ export const RouteFallbackPayload = z.looseObject({
 });
 export type RouteFallbackPayload = z.infer<typeof RouteFallbackPayload>;
 
-export const ROUTE_DECISION_TARGETS = ['agent', 'end', 'callback'] as const;
+export const ROUTE_DECISION_TARGETS = ['agent', 'end', 'callback', 'human'] as const;
 export const RouteDecisionPayload = z.looseObject({
   routingPointId: Name,
   routingReleaseId: Name,
@@ -69,8 +69,10 @@ export type RouteDecisionPayload = z.infer<typeof RouteDecisionPayload>;
 
 export const RouteSegmentPayload = z.looseObject({
   index: Turn,
-  role: z.enum(['router', 'agent']),
+  role: z.enum(['router', 'agent', 'human']),
+  /** A human segment: `queue:<key>`. */
   agentId: Name,
+  /** A human segment: the queue id. */
   releaseId: Name,
   /**
    * R2: `transfer` (an agent or a router transfer), `return` (a failed transfer back to the agent
@@ -86,6 +88,10 @@ export const RouteSegmentPayload = z.looseObject({
   language: z.string().max(12).optional(),
   /** R2: the segment that handed over. */
   fromIndex: Turn.optional(),
+  /** R3, role `human`. */
+  queueId: Name.optional(),
+  ticketId: Name.optional(),
+  kind: z.enum(['external', 'managed']).optional(),
 });
 export type RouteSegmentPayload = z.infer<typeof RouteSegmentPayload>;
 

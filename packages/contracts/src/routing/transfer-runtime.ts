@@ -46,6 +46,8 @@ export interface TransferHandover {
 
 export interface TransferTargetOffer {
   key: string;
+  /** Who answers: another agent (default) or, with R3 queues, a person. */
+  kind?: 'agent' | 'human';
   description: string;
   /** In this agent's base language. */
   label?: string;
@@ -67,6 +69,12 @@ export const AGENT_TRANSFER_REFUSALS = [
   'busy',
   'call_ended',
   'release_missing',
+  // R3: a human queue destination.
+  'queue_unknown',
+  'queue_closed',
+  'queue_unavailable',
+  'queue_full',
+  'no_operators',
 ] as const;
 export type AgentTransferRefusal = (typeof AGENT_TRANSFER_REFUSALS)[number];
 export type AgentTransferResult =

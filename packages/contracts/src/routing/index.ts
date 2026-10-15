@@ -10,6 +10,7 @@ export * from './point.ts';
 export * from './voice-lines.ts';
 export * from './issue-codes.ts';
 export * from './issues.ts';
+export * from './queue-issues.ts';
 export * from './transfer-issues.ts';
 export * from './runtime.ts';
 export * from './transfer-runtime.ts';

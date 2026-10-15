@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { GuardrailCheck } from './agent-guardrail.ts';
 import {
+  HumanCompletedPayload,
+  HumanRequestedPayload,
+  HumanStatePayload,
+  HumanWebhookPayload,
+  type CallOutcomeHuman,
+} from './human-queue/events.ts';
+import {
   RouteDecisionPayload,
   RouteFallbackPayload,
   RouteNodePayload,
@@ -41,6 +48,11 @@ export const SESSION_EVENT_TYPES = [
   'transfer.completed',
   'segment.ended',
   'disclosure',
+  // Wave 17 (R3) human queues: the request, the ticket's states, the webhook's attempts, the end.
+  'human.requested',
+  'human.state',
+  'human.webhook',
+  'human.completed',
 ] as const;
 export const SessionEventType = z.enum(SESSION_EVENT_TYPES);
 export type SessionEventType = z.infer<typeof SessionEventType>;
@@ -138,6 +150,10 @@ export const SESSION_EVENT_PAYLOADS = {
   'transfer.completed': TransferCompletedPayload,
   'segment.ended': SegmentEndedPayload,
   disclosure: DisclosurePayload,
+  'human.requested': HumanRequestedPayload,
+  'human.state': HumanStatePayload,
+  'human.webhook': HumanWebhookPayload,
+  'human.completed': HumanCompletedPayload,
 } as const satisfies Record<SessionEventType, z.ZodType>;
 
 export type SessionEventPayload<T extends SessionEventType> = z.infer<
@@ -187,6 +203,8 @@ export interface CallOutcomeSummary {
   segments: CallOutcomeSegment[];
   /** Transfer counts; all zero for a call without transfers. */
   transfers: CallOutcomeTransfers;
+  /** The human queue handoff (`human.*`); null for a call that never asked for a person. */
+  human: CallOutcomeHuman | null;
   events: number;
   updatedAt: string;
 }

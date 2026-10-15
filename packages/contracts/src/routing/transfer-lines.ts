@@ -1,3 +1,4 @@
+import type { QueueSnapshot } from '../human-queue/queue.ts';
 import type { HoldPolicy, RoutingTransferPolicy, TransferTarget } from './transfer.ts';
 
 /** Built-in transfer lines, the default hold, and which hold and label a handoff uses (R2). */
@@ -25,6 +26,16 @@ export const TRANSFER_BUILT_IN_LINES = Object.freeze({
     hi: 'क्षमा करें, कॉल ट्रांसफर नहीं हो पाई। मैं अभी भी आपके साथ हूँ। बताइए, कैसे मदद करूँ?',
   },
   confirm: { en: 'Shall I transfer you to {label}?', hi: 'क्या मैं आपको {label} से जोड़ दूँ?' },
+  /** R3: said before a human queue's hold. */
+  human: {
+    en: "I'm connecting you to a colleague. Please hold.",
+    hi: 'आपको एक सहयोगी से जोड़ा जा रहा है। कृपया होल्ड करें।',
+  },
+  /** R3: the default callback promise when a queue cannot connect the caller. */
+  callback: {
+    en: 'We could not connect you right now. We will call you back. Goodbye.',
+    hi: 'अभी आपकी कॉल नहीं जोड़ी जा सकी। हम आपको वापस कॉल करेंगे। धन्यवाद।',
+  },
 } as const);
 
 /** The hold used when neither the target nor the point configures one (R1-equivalent failure path). */
@@ -48,4 +59,65 @@ export function effectiveHold(policy: RoutingTransferPolicy | undefined, key?: s
 /** The spoken name of a target in a language: its label, else its key with separators as spaces. */
 export function transferLabel(target: Pick<TransferTarget, 'key' | 'label'>, language: string) {
   return target.label?.[language] ?? target.key.replace(/[_-]+/g, ' ');
+}
+
+/** R3: the hold of a human queue when neither the queue, the target nor the point configures one. */
+export const DEFAULT_QUEUE_HOLD_POLICY: HoldPolicy = Object.freeze<HoldPolicy>({
+  steps: [
+    { kind: 'silence', seconds: 2 },
+    { kind: 'line', line: { ...TRANSFER_BUILT_IN_LINES.hold } },
+  ],
+  loopFrom: 0,
+  maxSeconds: 180,
+  waitForCapacity: false,
+  onTimeout: [
+    { kind: 'return' },
+    { kind: 'default' },
+    { kind: 'end', line: { ...TRANSFER_BUILT_IN_LINES.end } },
+  ],
+});
+
+type QueueHolds = {
+  queues?: Record<string, Pick<QueueSnapshot, 'key' | 'definition'>>;
+  transfer?: RoutingTransferPolicy;
+};
+export type QueueHoldSource = 'queue' | 'target' | 'point' | 'default';
+
+/** The pinned queue bound under `key`, if the snapshot holds it. */
+export function queueByKey(
+  snapshot: Pick<QueueHolds, 'queues'>,
+  key: string,
+): Pick<QueueSnapshot, 'key' | 'definition'> | undefined {
+  return Object.values(snapshot.queues ?? {}).find((found) => found.key === key);
+}
+
+/** Which configuration `effectiveQueueHold` used. */
+export function queueHoldSource(
+  snapshot: QueueHolds,
+  queueKey: string,
+  transferKey?: string,
+): QueueHoldSource {
+  if (queueByKey(snapshot, queueKey)?.definition.hold) return 'queue';
+  const target = snapshot.transfer?.targets.find((t) => t.key === transferKey);
+  if (target?.hold) return 'target';
+  return snapshot.transfer?.hold ? 'point' : 'default';
+}
+
+/**
+ * The hold of a human handoff: the queue's own, else the catalogue target's, else the point's,
+ * else `DEFAULT_QUEUE_HOLD_POLICY`. `queueKey` is the binding key in the release.
+ */
+export function effectiveQueueHold(
+  snapshot: QueueHolds,
+  queueKey: string,
+  transferKey?: string,
+): HoldPolicy {
+  return (
+    queueByKey(snapshot, queueKey)?.definition.hold ??
+    (transferKey === undefined
+      ? undefined
+      : snapshot.transfer?.targets.find((t) => t.key === transferKey)?.hold) ??
+    snapshot.transfer?.hold ??
+    DEFAULT_QUEUE_HOLD_POLICY
+  );
 }

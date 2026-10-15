@@ -60,7 +60,7 @@ export const HoldTimeoutStep = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('default') }).strict(),
   /** Back to the agent that transferred (a fresh graph of its release, told the transfer failed). */
   z.object({ kind: z.literal('return') }).strict(),
-  /** R3. In R2: a publish warning, skipped at run time with an event. */
+  /** R3: a queue bound in the point's `humanQueues`. Without bindings: a publish warning, skipped at run time. */
   z.object({ kind: z.literal('human'), queueId: RoutingKey }).strict(),
   z
     .object({
@@ -108,6 +108,8 @@ export const TransferDestination = z.discriminatedUnion('kind', [
   RoutingAgentTarget,
   /** Re-route: the router (router release + router behaviour) resumes at this node. */
   z.object({ kind: z.literal('node'), node: RoutingKey }).strict(),
+  /** R3: a human queue bound in the point's `humanQueues`. */
+  z.object({ kind: z.literal('human'), queueId: RoutingKey }).strict(),
 ]);
 export type TransferDestination = z.infer<typeof TransferDestination>;
 

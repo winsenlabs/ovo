@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { HumanQueueBinding, QueueSnapshot } from '../human-queue/queue.ts';
 import {
   RouteAgentId,
   RouteAgentRef,
@@ -44,6 +45,8 @@ export const RoutingPointDraft = z
       .optional(),
     /** R2: the transfer catalogue, hold and limits every handoff of this point uses. */
     transfer: RoutingTransferPolicy.optional(),
+    /** R3: the human queues this point may use, by the key its `human` steps and targets name. */
+    humanQueues: z.array(HumanQueueBinding).max(10).optional(),
   })
   .strict();
 export type RoutingPointDraft = z.infer<typeof RoutingPointDraft>;
@@ -81,6 +84,11 @@ export const PoolSnapshot = z
   .strict();
 export type PoolSnapshot = z.infer<typeof PoolSnapshot>;
 
+/** Workspace queue ids a draft binds, de-duplicated, in order (R3). */
+export function routingQueueIds(draft: Pick<RoutingPointDraft, 'humanQueues'>): string[] {
+  return [...new Set((draft.humanQueues ?? []).map((binding) => binding.queueId))];
+}
+
 /**
  * Every agent reference in a draft with its path: router, default target, every tree target and
  * every transfer `agent` destination.
@@ -108,13 +116,15 @@ export function routingAgentRefs(
 }
 
 export const RoutingReleaseSnapshot = RoutingPointDraft.extend({
-  /** 2 exactly when the draft has a `transfer` policy (R2); R1 releases stay 1. */
-  schemaVersion: z.union([z.literal(1), z.literal(2)]),
+  /** 3 when the draft binds human queues (R3), else 2 when it has a `transfer` policy (R2), else 1. */
+  schemaVersion: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   routingPointId: RouteUuid,
   router: PinnedAgentRef,
   defaultTarget: PinnedAgentRef,
   /** Every pool any target names, keyed by its id. */
   pools: z.record(RouteUuid, PoolSnapshot),
+  /** R3: every bound queue, pinned by value and keyed by its id. */
+  queues: z.record(RouteUuid, QueueSnapshot).default({}),
   /** Router, default, every member and every direct/callback agent release, de-duplicated. */
   releaseIds: z.array(RouteUuid).min(2).max(500),
 })
@@ -130,11 +140,27 @@ export const RoutingReleaseSnapshot = RoutingPointDraft.extend({
     for (const { path, target } of routingNodeTargets(snapshot.nodes))
       if (target.kind === 'pool' && !Object.hasOwn(snapshot.pools, target.poolId))
         issue([...path, 'poolId'], 'The snapshot holds every pool a target names');
-    if ((snapshot.schemaVersion === 2) !== (snapshot.transfer !== undefined))
+    if (snapshot.humanQueues?.length) {
+      if (snapshot.schemaVersion !== 3)
+        issue(['schemaVersion'], 'A snapshot that binds human queues is schemaVersion 3');
+    } else if (snapshot.schemaVersion === 3)
+      issue(['schemaVersion'], 'schemaVersion 3 is for snapshots that bind human queues');
+    else if ((snapshot.schemaVersion === 2) !== (snapshot.transfer !== undefined))
       issue(
         ['schemaVersion'],
         'A snapshot is schemaVersion 2 exactly when it has a transfer policy',
       );
+    const bound = new Map((snapshot.humanQueues ?? []).map((b) => [b.queueId, b]));
+    for (const [id, queue] of Object.entries(snapshot.queues)) {
+      const binding = bound.get(id);
+      if (queue.id !== id) issue(['queues', id, 'id'], 'A queue snapshot is keyed by its id');
+      else if (!binding) issue(['queues', id], 'The snapshot holds only queues the draft binds');
+      else if (binding.key !== queue.key || binding.priority !== queue.priority)
+        issue(['queues', id], 'A queue snapshot carries its binding key and priority');
+    }
+    for (const queueId of bound.keys())
+      if (!Object.hasOwn(snapshot.queues, queueId))
+        issue(['queues', queueId], 'The snapshot holds every queue the draft binds');
     snapshot.transfer?.targets.forEach((target, t) => {
       const { destination } = target;
       if (destination.kind === 'pool' && !Object.hasOwn(snapshot.pools, destination.poolId))

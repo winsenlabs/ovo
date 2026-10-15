@@ -18,7 +18,7 @@ export const TransferRequestedPayload = z.looseObject({
   transfer: z.number().int().min(1),
   fromSegment: Index,
   source: z.enum(TRANSFER_SOURCES),
-  kind: z.enum(['agent', 'queue', 'node']),
+  kind: z.enum(['agent', 'queue', 'node', 'human']),
   key: Name.optional(),
   confirm: z.enum(['never', 'asked']).optional(),
   result: z.enum(['accepted', 'refused']),
@@ -50,7 +50,7 @@ export const TransferCompletedPayload = z.looseObject({
   queueMs: Ms.optional(),
   gapMs: Ms.optional(),
   /** Which hold played: the target's, the point's, or `DEFAULT_HOLD_POLICY`. */
-  holdPolicy: z.enum(['target', 'point', 'default']).optional(),
+  holdPolicy: z.enum(['target', 'point', 'default', 'queue']).optional(),
   /** The timeout chain steps that ran, in order. */
   steps: z
     .array(
@@ -77,10 +77,17 @@ export const TransferCompletedPayload = z.looseObject({
 });
 export type TransferCompletedPayload = z.infer<typeof TransferCompletedPayload>;
 
-export const SEGMENT_ENDINGS = ['handoff', 'call_end', 'start_failed'] as const;
+/** `carrier_transfer`: the leg left OVO for a third party. `operator_end`: the operator ended the call. */
+export const SEGMENT_ENDINGS = [
+  'handoff',
+  'call_end',
+  'start_failed',
+  'carrier_transfer',
+  'operator_end',
+] as const;
 export const SegmentEndedPayload = z.looseObject({
   index: Index,
-  role: z.enum(['router', 'agent']),
+  role: z.enum(['router', 'agent', 'human']),
   agentId: Name,
   releaseId: Name,
   language: z.string().max(12).optional(),
@@ -107,7 +114,7 @@ export type DisclosurePayload = z.infer<typeof DisclosurePayload>;
 /** `CallOutcomeSummary.segments[]`: one per `route.segment`, closed by its `segment.ended`. */
 export interface CallOutcomeSegment {
   index: number;
-  role: 'router' | 'agent';
+  role: 'router' | 'agent' | 'human';
   agentId: string;
   releaseId: string;
   reason: RouteSegmentPayload['reason'];

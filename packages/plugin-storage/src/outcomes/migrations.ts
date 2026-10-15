@@ -56,8 +56,22 @@ ALTER TABLE ovo_call_outcomes
     CHECK (transfers IS NULL OR jsonb_typeof(transfers) = 'object');
 `;
 
+/**
+ * v4 (Wave 17): a call's human queue handoff, folded from `human.*` events (third-party callbacks
+ * included, whenever they arrive). Additive and nullable; take a backup before deploy.
+ */
+export const callOutcomesV4 = `
+ALTER TABLE ovo_call_outcomes ADD COLUMN IF NOT EXISTS human jsonb
+  CHECK (human IS NULL OR jsonb_typeof(human) = 'object');
+`;
+
 /** Applied in order; a migration's version is its position, starting at 1. */
-const MIGRATIONS: readonly string[] = [callOutcomesV1, callOutcomesV2, callOutcomesV3];
+const MIGRATIONS: readonly string[] = [
+  callOutcomesV1,
+  callOutcomesV2,
+  callOutcomesV3,
+  callOutcomesV4,
+];
 
 /** Idempotent and safe to race: the API and every worker run it on startup. */
 export async function runCallOutcomeMigrations(pool: Pool): Promise<void> {

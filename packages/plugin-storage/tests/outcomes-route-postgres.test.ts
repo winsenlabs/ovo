@@ -49,7 +49,7 @@ describe.skipIf(!databaseUrl)('PostgreSQL call outcomes: route (v2)', () => {
     const versions = await pool.query(
       'SELECT version FROM ovo_outcome_schema_migrations ORDER BY version',
     );
-    expect(versions.rows.map((row) => row.version)).toEqual([1, 2, 3]);
+    expect(versions.rows.map((row) => row.version)).toEqual([1, 2, 3, 4]);
     expect(await store.get('ws-old', 'old-call')).toMatchObject({
       outcome: 'completed',
       route: null,

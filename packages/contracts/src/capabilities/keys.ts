@@ -29,6 +29,8 @@ export const Cap = {
   segmentHandoff: 'ovo.segment-handoff',
   /** R2 agent-to-agent transfer (`AgentTransferPort`): worker host → agent behaviour, routed calls only. */
   agentTransfer: 'ovo.agent-transfer',
+  /** R3 human queues: a room where the caller's audio and an operator meet (`MediaRoomProvider`). */
+  mediaRoom: 'ovo.media-room',
   clock: 'ovo.clock',
   net: 'ovo.net',
   carrierControl: 'ovo.carrier.control',
@@ -133,6 +135,7 @@ export const CAPABILITY_SPECS = {
   [Cap.routing]: SESSION,
   [Cap.segmentHandoff]: SESSION,
   [Cap.agentTransfer]: SESSION,
+  [Cap.mediaRoom]: PROCESS,
   [Cap.clock]: EITHER,
   [Cap.net]: EITHER,
   [Cap.carrierControl]: MANY_PROCESS,

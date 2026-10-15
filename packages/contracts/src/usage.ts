@@ -50,3 +50,18 @@ export const meterKey = (
   meter: Pick<UsageMeter, 'provider' | 'operation' | 'unit'>,
   op?: string,
 ): string => `${meter.provider}.${op ?? OPERATION_SEGMENT[meter.operation]}.${meter.unit}`;
+
+/**
+ * Wave 17 (R3) human queues: what a person's time on a call costs. Host meters, not provider ones:
+ * `provider` is `ovo`, the unit `seconds`, and they may be left unpriced (an unpriced human meter is
+ * reported as missing and never refuses or ends a call).
+ */
+export const HUMAN_METER_PROVIDER = 'ovo';
+export const HUMAN_METER_UNIT = 'seconds';
+export const HUMAN_METER_KEYS = Object.freeze({
+  /** Connected to end of the operator's talk. */
+  operatorSeconds: 'ovo.human.operator_seconds',
+  /** The server-side seat's connected time. */
+  roomSeconds: 'ovo.human.room_seconds',
+} as const);
+export type HumanMeterKey = (typeof HUMAN_METER_KEYS)[keyof typeof HUMAN_METER_KEYS];

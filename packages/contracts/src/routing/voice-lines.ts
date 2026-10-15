@@ -2,7 +2,13 @@ import type { RouteLines } from './ids.ts';
 import { routingLines } from './issues.ts';
 import { routingAgentRefs, type RoutingReleaseSnapshot } from './point.ts';
 import type { HoldPolicy, TransferSource, TransferTarget } from './transfer.ts';
-import { effectiveHold, TRANSFER_BUILT_IN_LINES, transferLabel } from './transfer-lines.ts';
+import {
+  effectiveHold,
+  effectiveQueueHold,
+  queueByKey,
+  TRANSFER_BUILT_IN_LINES,
+  transferLabel,
+} from './transfer-lines.ts';
 
 /** The languages a release may speak a line in; `undefined` = any (a direct agent's is unknown here). */
 type Spoken = Map<string, Set<string> | undefined>;
@@ -45,14 +51,30 @@ export function routingVoiceLines(snapshot: RoutingReleaseSnapshot): Map<string,
   // A timeout chain that runs out ends the call with the built-in end line.
   addLines(router, TRANSFER_BUILT_IN_LINES.end);
   addLines(router, transfer?.queueAnnouncement ?? TRANSFER_BUILT_IN_LINES.queue);
+  humanQueueLines(snapshot, (routeLines) => addLines(router, routeLines));
   for (const target of transfer?.targets ?? []) {
     const queued = target.destination.kind === 'pool' || target.destination.kind === 'same-pool';
+    const human =
+      target.destination.kind === 'human'
+        ? {
+            key: target.destination.queueId,
+            queue: queueByKey(snapshot, target.destination.queueId),
+          }
+        : undefined;
     const confirm = (target.confirm ?? transfer!.confirm) === 'ask';
-    const returns = effectiveHold(transfer, target.key).onTimeout.some((s) => s.kind === 'return');
+    const hold = human
+      ? effectiveQueueHold(snapshot, human.key, target.key)
+      : effectiveHold(transfer, target.key);
+    const returns = hold.onTimeout.some((s) => s.kind === 'return');
     for (const [releaseId, languages] of grantedReleases(snapshot, target)) {
       addLines(
         releaseId,
-        target.announcement ?? transfer!.announcement ?? TRANSFER_BUILT_IN_LINES.announcement,
+        human
+          ? (target.announcement ??
+              human.queue?.definition.announcement ??
+              transfer!.announcement ??
+              TRANSFER_BUILT_IN_LINES.human)
+          : (target.announcement ?? transfer!.announcement ?? TRANSFER_BUILT_IN_LINES.announcement),
         languages,
       );
       if (queued)
@@ -106,4 +128,41 @@ function grantedReleases(snapshot: RoutingReleaseSnapshot, target: TransferTarge
     )
       grant(ref.release.releaseId);
   return spoken;
+}
+
+/**
+ * R3: what the router (the house voice) says for the human queues a release binds: each queue's
+ * announcement (else the built-in `human` line), every hold it can play (the queue's own, and the
+ * one each catalogue target pairs with it), the built-in callback promise, and the announcement of
+ * each target an operator may send the caller back to.
+ */
+function humanQueueLines(
+  snapshot: RoutingReleaseSnapshot,
+  addLines: (lines: RouteLines) => void,
+): void {
+  const queues = Object.values(snapshot.queues);
+  if (queues.length === 0) return;
+  const transfer = snapshot.transfer;
+  addLines(TRANSFER_BUILT_IN_LINES.human);
+  addLines(TRANSFER_BUILT_IN_LINES.callback);
+  const holds = new Set<HoldPolicy>();
+  for (const queue of queues) {
+    addLines(queue.definition.announcement ?? TRANSFER_BUILT_IN_LINES.human);
+    holds.add(effectiveQueueHold(snapshot, queue.key));
+    if (queue.definition.kind === 'managed')
+      for (const key of queue.definition.returnTargets) {
+        const target = transfer?.targets.find((t) => t.key === key);
+        addLines(
+          target?.announcement ?? transfer?.announcement ?? TRANSFER_BUILT_IN_LINES.announcement,
+        );
+      }
+  }
+  for (const target of transfer?.targets ?? [])
+    if (target.destination.kind === 'human')
+      holds.add(effectiveQueueHold(snapshot, target.destination.queueId, target.key));
+  for (const hold of holds) {
+    for (const step of hold.steps) if (step.kind === 'line') addLines(step.line);
+    for (const step of hold.onTimeout)
+      if (step.kind === 'callback' || step.kind === 'end') addLines(step.line);
+  }
 }

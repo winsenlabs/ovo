@@ -39,7 +39,7 @@ describe('session events (AGT-8)', () => {
       ['call.outcome', { outcome: 'completed', reason: 'behavior_completed' }],
     ] as const)
       expect(readSessionEvent(type, payload).type).toBe(type);
-    expect(SESSION_EVENT_TYPES).toHaveLength(14);
+    expect(SESSION_EVENT_TYPES).toHaveLength(18);
   });
 
   it('refuses unknown types, malformed payloads and oversized ones', () => {

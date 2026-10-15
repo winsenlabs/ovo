@@ -3,6 +3,7 @@ import type { RoutingIssueCode } from './issue-codes.ts';
 import type { RoutingPointDraft } from './point.ts';
 import { routingNodeTargets, type RoutingNode, type RoutingPath } from './tree.ts';
 import { routingPoolIds } from './transfer.ts';
+import { queueDraftIssues } from './queue-issues.ts';
 import { transferDraftIssues, transferLines } from './transfer-issues.ts';
 
 export type RoutingIssueSeverity = 'error' | 'warning';
@@ -202,7 +203,7 @@ export function routingDraftIssues(draft: RoutingPointDraft): RoutingIssue[] {
       );
   });
   for (const { path, target } of routingNodeTargets(draft.nodes)) {
-    if (target.kind === 'human')
+    if (target.kind === 'human' && !draft.humanQueues?.length)
       add(
         'routing_human_unavailable',
         path,
@@ -215,5 +216,6 @@ export function routingDraftIssues(draft: RoutingPointDraft): RoutingIssue[] {
   if (routingPoolIds(draft).length > ROUTING_LIMITS.poolsPerRelease)
     add('routing_limits_exceeded', ['nodes'], `At most ${ROUTING_LIMITS.poolsPerRelease} pools`);
   transferDraftIssues(draft, add);
+  queueDraftIssues(draft, add);
   return issues;
 }
