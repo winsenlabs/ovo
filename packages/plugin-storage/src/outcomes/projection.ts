@@ -28,6 +28,7 @@ export function emptyCallOutcome(callId: string, at: string): CallOutcomeSummary
     variables: {},
     tiers: {},
     guardrail: { flagged: 0, blocked: 0 },
+    route: null,
     events: 0,
     updatedAt: at,
   };

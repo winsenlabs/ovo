@@ -1,5 +1,12 @@
 import { z } from 'zod';
 import { GuardrailCheck } from './agent-guardrail.ts';
+import {
+  RouteDecisionPayload,
+  RouteFallbackPayload,
+  RouteNodePayload,
+  RouteSegmentPayload,
+  type CallOutcomeRoute,
+} from './routing/events.ts';
 
 /**
  * What a call decided, written through `EventSink` (AGT-8) and kept per call: every routing verdict
@@ -16,6 +23,11 @@ export const SESSION_EVENT_TYPES = [
   'variables.captured',
   'guardrail',
   'call.outcome',
+  // Wave 15 (R1) routing: the router's path through its tree, and each agent segment of the call.
+  'route.node',
+  'route.fallback',
+  'route.decision',
+  'route.segment',
 ] as const;
 export const SessionEventType = z.enum(SESSION_EVENT_TYPES);
 export type SessionEventType = z.infer<typeof SessionEventType>;
@@ -105,6 +117,10 @@ export const SESSION_EVENT_PAYLOADS = {
   'variables.captured': VariablesCapturedPayload,
   guardrail: GuardrailPayload,
   'call.outcome': CallOutcomePayload,
+  'route.node': RouteNodePayload,
+  'route.fallback': RouteFallbackPayload,
+  'route.decision': RouteDecisionPayload,
+  'route.segment': RouteSegmentPayload,
 } as const satisfies Record<SessionEventType, z.ZodType>;
 
 export type SessionEventPayload<T extends SessionEventType> = z.infer<
@@ -148,6 +164,8 @@ export interface CallOutcomeSummary {
   /** Routed turns per tier. */
   tiers: Partial<Record<RouteTier, number>>;
   guardrail: { flagged: number; blocked: number };
+  /** A routed call's route (`route.decision` + `route.segment`); null for a direct call. */
+  route: CallOutcomeRoute | null;
   events: number;
   updatedAt: string;
 }

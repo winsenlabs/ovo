@@ -1,0 +1,146 @@
+import { z } from 'zod';
+import {
+  RouteAgentId,
+  RouteAgentRef,
+  RouteLanguage,
+  RouteLines,
+  RouteUuid,
+  RoutingKey,
+} from './ids.ts';
+import { PoolMember } from './pool.ts';
+import { RoutingNode, routingNodeTargets, type RoutingPath } from './tree.ts';
+import { routingDraftIssues } from './issues.ts';
+
+export const RoutingPointDraft = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    description: z.string().max(2_000).optional(),
+    /** The router's voice: any agent-mode release with an STT selection. */
+    router: RouteAgentRef,
+    /** Always-available direct agent: last resort, kill-switch target, `default` step default. */
+    defaultTarget: RouteAgentRef,
+    language: z
+      .object({ default: RouteLanguage, allowed: z.array(RouteLanguage).min(1).max(12) })
+      .strict(),
+    greeting: RouteLines,
+    /** Said before the handoff. Absent: built-in en/hi "Connecting you now." lines. */
+    connecting: RouteLines.optional(),
+    root: RoutingKey,
+    nodes: z.array(RoutingNode).min(1).max(100),
+    limits: z
+      .object({
+        maxTurns: z.number().int().min(1).max(20).default(6),
+        maxRouteSeconds: z.number().int().min(10).max(300).default(90),
+      })
+      .strict()
+      .default({ maxTurns: 6, maxRouteSeconds: 90 }),
+    idle: z
+      .object({
+        timeoutMs: z.number().int().min(3_000).max(30_000).default(8_000),
+        prompts: z.array(RouteLines).max(2).default([]),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export type RoutingPointDraft = z.infer<typeof RoutingPointDraft>;
+
+export interface RoutingPoint {
+  id: string;
+  workspaceId: string;
+  draft: RoutingPointDraft;
+  draftVersion: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** `RouteAgentRef` whose release is `pinned`. */
+export const PinnedAgentRef = z
+  .object({
+    agentId: RouteAgentId,
+    release: z.object({ kind: z.literal('pinned'), releaseId: RouteUuid }).strict(),
+  })
+  .strict();
+export type PinnedAgentRef = z.infer<typeof PinnedAgentRef>;
+
+/** A pool as frozen into a release: every member pinned. */
+export const PoolSnapshot = z
+  .object({
+    id: RouteUuid,
+    version: z.number().int().positive(),
+    name: z.string(),
+    languageFallback: z.array(RouteLanguage).max(5),
+    members: z
+      .array(PoolMember.extend({ agent: PinnedAgentRef }))
+      .min(1)
+      .max(100),
+  })
+  .strict();
+export type PoolSnapshot = z.infer<typeof PoolSnapshot>;
+
+/** Every agent reference in a draft with its path: router, default target and every tree target. */
+export function routingAgentRefs(
+  draft: Pick<RoutingPointDraft, 'router' | 'defaultTarget' | 'nodes'>,
+): { path: RoutingPath; ref: RouteAgentRef }[] {
+  const refs: { path: RoutingPath; ref: RouteAgentRef }[] = [
+    { path: ['router'], ref: draft.router },
+    { path: ['defaultTarget'], ref: draft.defaultTarget },
+  ];
+  for (const { path, target } of routingNodeTargets(draft.nodes)) {
+    if (target.kind === 'agent') refs.push({ path: [...path, 'agent'], ref: target.agent });
+    if (target.kind === 'callback' && target.agent)
+      refs.push({ path: [...path, 'agent'], ref: target.agent });
+  }
+  return refs;
+}
+
+export const RoutingReleaseSnapshot = RoutingPointDraft.extend({
+  schemaVersion: z.literal(1),
+  routingPointId: RouteUuid,
+  router: PinnedAgentRef,
+  defaultTarget: PinnedAgentRef,
+  /** Every pool any target names, keyed by its id. */
+  pools: z.record(RouteUuid, PoolSnapshot),
+  /** Router, default, every member and every direct/callback agent release, de-duplicated. */
+  releaseIds: z.array(RouteUuid).min(2).max(500),
+})
+  .strict()
+  .superRefine((snapshot, ctx) => {
+    const issue = (path: RoutingPath, message: string) =>
+      ctx.addIssue({ code: 'custom', path, message });
+    const needed = new Set<string>();
+    for (const { path, ref } of routingAgentRefs(snapshot)) {
+      if (ref.release.kind === 'pinned') needed.add(ref.release.releaseId);
+      else issue([...path, 'release'], 'A release snapshot pins every agent reference');
+    }
+    for (const { path, target } of routingNodeTargets(snapshot.nodes))
+      if (target.kind === 'pool' && !Object.hasOwn(snapshot.pools, target.poolId))
+        issue([...path, 'poolId'], 'The snapshot holds every pool a target names');
+    for (const [id, pool] of Object.entries(snapshot.pools)) {
+      if (pool.id !== id) issue(['pools', id, 'id'], 'A pool snapshot is keyed by its id');
+      for (const member of pool.members) needed.add(member.agent.release.releaseId);
+    }
+    const listed = new Set(snapshot.releaseIds);
+    if (listed.size !== snapshot.releaseIds.length)
+      issue(['releaseIds'], 'Release ids are de-duplicated');
+    for (const id of needed)
+      if (!listed.has(id)) issue(['releaseIds'], `Release ${id} is referenced but not listed`);
+    for (const found of routingDraftIssues(snapshot))
+      if (found.severity === 'error') issue(found.path, `${found.code}: ${found.message}`);
+  });
+export type RoutingReleaseSnapshot = z.infer<typeof RoutingReleaseSnapshot>;
+
+export interface RoutingRelease {
+  id: string;
+  workspaceId: string;
+  routingPointId: string;
+  /** 1, 2, 3... per point. */
+  version: number;
+  /** The point draft it froze. */
+  draftVersion: number;
+  snapshot: RoutingReleaseSnapshot;
+  /** sha256 of canonicalJson(snapshot), hex. */
+  digest: string;
+  createdAt: string;
+  createdBy: string;
+}

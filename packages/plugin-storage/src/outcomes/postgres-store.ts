@@ -214,6 +214,7 @@ function mapOutcome(row: Row): CallOutcomeSummary {
     variables: row.variables as Record<string, unknown>,
     tiers: row.tiers as CallOutcomeSummary['tiers'],
     guardrail: { flagged: Number(row.guardrail_flagged), blocked: Number(row.guardrail_blocked) },
+    route: null,
     events: Number(row.events),
     updatedAt: toIso(row.updated_at),
   };

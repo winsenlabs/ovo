@@ -233,4 +233,11 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
     roles: ['session'],
     load: () => import('@winsendotai/ovo-plugin-audio-filter'),
   },
+  {
+    // Wave 15 (R1): the router behaviour. Never selected by an agent config; the worker composes it
+    // as segment 0 of a call admitted through a routing release (OVO_ROUTING_ENABLED=true).
+    package: '@winsendotai/ovo-plugin-router',
+    roles: ['session'],
+    load: () => import('@winsendotai/ovo-plugin-router'),
+  },
 ];
