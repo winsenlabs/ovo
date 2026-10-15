@@ -105,7 +105,8 @@ describe('R6 report: OVO text filters and muga tags', () => {
     });
   });
 
+  // Since Wave 12 the always-on speech normaliser strips citation markers too, so [2] goes at both stages.
   it('drops a bracketed citation number, which is not a tone tag', () => {
-    expect(run('[happy] [2] Haan.')).toEqual({ always: '[happy] [2] Haan.', all: '[happy] Haan.' });
+    expect(run('[happy] [2] Haan.')).toEqual({ always: '[happy] Haan.', all: '[happy] Haan.' });
   });
 });
