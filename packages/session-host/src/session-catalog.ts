@@ -44,6 +44,21 @@ export function behaviorPluginId(config: AgentConfig): string {
     : BEHAVIOR_PLUGIN_IDS[config.mode];
 }
 
+/**
+ * A catalog plugin's session row: the behaviour gets the agent, unless a host replaces it (the
+ * router, routing design 7.3); every other plugin is configured by its own selection.
+ */
+export function sessionCatalogRow(
+  definition: PluginDefinition,
+  release: { config: AgentConfig; workspaceId: string },
+  sessionId: string,
+  override?: { definition: PluginDefinition; config: Record<string, unknown> },
+): [PluginDefinition, Record<string, unknown>] {
+  if (definition.manifest.id !== behaviorPluginId(release.config)) return [definition, {}];
+  if (override) return [override.definition, override.config];
+  return [definition, { agent: release.config, workspaceId: release.workspaceId, sessionId }];
+}
+
 /** Select a complete ordinary-plugin graph; the host retains no application capabilities. */
 export function createSessionPluginCatalog(input: SessionPluginInput): PluginDefinition[] {
   const { config } = input;

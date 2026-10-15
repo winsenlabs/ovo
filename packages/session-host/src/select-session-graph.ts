@@ -17,7 +17,7 @@ import {
   type PluginDefinition,
   type PluginRow,
 } from '@winsendotai/ovo-runtime';
-import { behaviorPluginId, createSessionPluginCatalog } from './session-catalog.ts';
+import { createSessionPluginCatalog, sessionCatalogRow } from './session-catalog.ts';
 import { legacySelections } from './legacy-session-selections.ts';
 import type { NormalizationBinding, SessionDefaults } from './normalize.ts';
 import { adaptDefinitionFormats } from './speech-adapters/decorate.ts';
@@ -218,7 +218,6 @@ export function selectSessionGraph(input: SessionGraphInput): SessionGraphResult
         );
     }
   }
-  const behaviorId = behaviorPluginId(release.config);
   for (const definition of createSessionPluginCatalog({
     config: release.config,
     workspaceId: release.workspaceId,
@@ -232,14 +231,7 @@ export function selectSessionGraph(input: SessionGraphInput): SessionGraphResult
       manifestKeys(definition.manifest).provides.some((entry) => entry.key === Cap.inference),
     ),
   }))
-    if (definition.manifest.id !== behaviorId) add(definition, {});
-    else if (input.behavior) add(input.behavior.definition, input.behavior.config);
-    else
-      add(definition, {
-        agent: release.config,
-        workspaceId: release.workspaceId,
-        sessionId: input.media.sessionId,
-      });
+    add(...sessionCatalogRow(definition, release, input.media.sessionId, input.behavior));
   const selectedIds = new Set(rows.map((row) => row.id));
   const needed = new Set(
     catalog

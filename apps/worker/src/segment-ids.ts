@@ -1,4 +1,18 @@
 import type { EngineEvent, VoiceSessionEngine } from '@winsendotai/ovo-contracts';
+import type { PluginDefinition } from '@winsendotai/ovo-runtime';
+import { patchEngineSession } from './session-graph-bindings.ts';
+
+/** How a routed call's segment differs from its release's own graph (design 7.3, 7.4). */
+export interface SegmentGraphShape {
+  /** Replaces the release's behaviour: the router's, on segment 0. */
+  behavior?: { definition: PluginDefinition; config: Record<string, unknown> };
+  /** Host services the replacement needs (routing, segment handoff). */
+  services?: readonly PluginDefinition[];
+  /** `s1:` on segment 1: its turn and segment ids never collide with an earlier segment's. */
+  idPrefix?: string;
+  /** What is left of the call's time limit when the segment starts. */
+  maxCallSeconds?: number;
+}
 
 /**
  * A routed call's later segments restart their engine's turn and speech counters, so `turn-1` of
@@ -49,8 +63,5 @@ export function limitCallSeconds(
   engine: { manifest: { id: string } },
   seconds: number,
 ): void {
-  const row = rows.find((item) => item.id === engine.manifest.id);
-  const session = row?.config?.session;
-  if (row && typeof session === 'object' && session !== null)
-    row.config = { ...row.config, session: { ...session, maxCallSeconds: Math.max(1, seconds) } };
+  patchEngineSession(rows, engine, { maxCallSeconds: Math.max(1, seconds) });
 }

@@ -14,7 +14,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import type { LoadedDistribution } from '@winsendotai/ovo-distribution';
 import { duplexFromLegacy } from '@winsendotai/ovo-plugin-kit';
-import { deriveLegacySelections, type ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
+import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { selectEngine, selectSessionGraph } from '@winsendotai/ovo-session-host';
 import {
   compose,
@@ -36,12 +36,18 @@ import { speakerAddedFilters } from './speech-cache-speaker-filters.ts';
 import { createV2SpeechCachePlugin } from './speech-cache-v2.ts';
 import type { CallClips } from './speech-cache-percall.ts';
 import { sessionSttPlugin, type SttPreconnect } from './session-stt-preconnect.ts';
-import { stampBindingIdentity } from './session-graph-bindings.ts';
+import { stampBindingIdentity, withDerivedSelections } from './session-graph-bindings.ts';
 import type { WorkerCarrierRuntime } from './carrier-runtime.ts';
 import { adaptV1Engine } from './v1-engine-adapter.ts';
 import { holdOpeningForAnsweringMachine } from './answering-machine.ts';
 import type { CallOutcomeStore } from '@winsendotai/ovo-plugin-storage/outcomes';
-import { limitCallSeconds, prefixEngineEvent, withSegmentIds } from './segment-ids.ts';
+import {
+  limitCallSeconds,
+  prefixEngineEvent,
+  withSegmentIds,
+  type SegmentGraphShape,
+} from './segment-ids.ts';
+export type { SegmentGraphShape } from './segment-ids.ts';
 
 export interface LiveGraphOptions {
   distribution: LoadedDistribution;
@@ -49,18 +55,6 @@ export interface LiveGraphOptions {
   carriers?: WorkerCarrierRuntime;
   /** Where each call's outcome events are stored (AGT-8); closed with the worker. */
   outcomes?: Pick<CallOutcomeStore, 'append' | 'close'>;
-}
-
-/** How a routed call's segment differs from its release's own graph (design 7.3, 7.4). */
-export interface SegmentGraphShape {
-  /** Replaces the release's behaviour: the router's, on segment 0. */
-  behavior?: { definition: PluginDefinition; config: Record<string, unknown> };
-  /** Host services the replacement needs (routing, segment handoff). */
-  services?: readonly PluginDefinition[];
-  /** `s1:` on segment 1: its turn and segment ids never collide with an earlier segment's. */
-  idPrefix?: string;
-  /** What is left of the call's time limit when the segment starts. */
-  maxCallSeconds?: number;
 }
 
 export interface LiveCarrierMedia {
@@ -175,33 +169,12 @@ export async function composeLiveSessionGraph(input: {
         await speakerAddedFilters(registry),
       )
     : undefined;
-  const graphRelease: ReleaseRecord =
-    !release.selections?.engine && selected.definition.manifest.contractVersion === 1
-      ? {
-          ...release,
-          selections: {
-            ...Object.fromEntries(
-              Object.entries(
-                deriveLegacySelections(release, registry, {
-                  engine: graph.distribution.defaults.engine,
-                  turnDetector: graph.distribution.defaults.turnDetector,
-                }),
-              ).map(([slot, choice]) => [
-                slot,
-                {
-                  ...choice,
-                  version: registry.get(choice.pluginId)!.manifest.version,
-                },
-              ]),
-            ),
-            engine: {
-              pluginId: selected.definition.manifest.id,
-              version: selected.definition.manifest.version,
-              config: selected.rowConfig,
-            },
-          },
-        }
-      : release;
+  const graphRelease = withDerivedSelections(
+    release,
+    registry,
+    graph.distribution.defaults,
+    selected,
+  );
   const result = selectSessionGraph({
     release: graphRelease,
     registry,

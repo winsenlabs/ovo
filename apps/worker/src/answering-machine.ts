@@ -4,6 +4,7 @@ import {
   type CarrierCapabilities,
 } from '@winsendotai/ovo-contracts';
 import { createLogger, errorFields } from '@winsendotai/ovo-plugin-kit';
+import { patchEngineSession } from './session-graph-bindings.ts';
 
 const logger = createLogger({ service: 'worker' });
 
@@ -119,8 +120,5 @@ export function holdOpeningForAnsweringMachine(
   engine: { manifest: { id: string } },
   amd: { timeoutMs: number },
 ): void {
-  const row = rows.find((item) => item.id === engine.manifest.id);
-  const session = row?.config?.session;
-  if (row && typeof session === 'object' && session !== null)
-    row.config = { ...row.config, session: { ...session, amd } };
+  patchEngineSession(rows, engine, { amd });
 }

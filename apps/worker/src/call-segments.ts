@@ -5,60 +5,25 @@ import type {
   HandoffPrepareResult,
   SegmentHandoffPort,
   SegmentHandoffRequest,
-  VoiceMediaTransport,
 } from '@winsendotai/ovo-contracts';
 import type { CallSegment } from './call-segment.ts';
 import { SegmentMediaLease } from './segment-media.ts';
+import {
+  composeWithin,
+  ROUTING_PREPARE_TIMEOUT_MS,
+  segmentStarted,
+  settleWithin,
+  type Attached,
+  type CallSegmentControllerDeps,
+  type Prepared,
+} from './segment-prepare.ts';
 
-/** The default bound on composing a target graph before the router's connecting line. */
-export const ROUTING_PREPARE_TIMEOUT_MS = 2_500;
-
-/** A segment's release is not installed for the call's workspace. */
-export class SegmentReleaseMissingError extends Error {
-  constructor(releaseId: string) {
-    super(`segment release not found: ${releaseId}`);
-    this.name = 'SegmentReleaseMissingError';
-  }
-}
-
-export interface SegmentTarget {
-  agentId: string;
-  releaseId: string;
-  variables: Readonly<Record<string, string>>;
-}
-
-export interface CallSegmentControllerDeps {
-  media: VoiceMediaTransport;
-  format: { sampleRate: number; encoding: string };
-  /** The routing snapshot's releaseIds: the only releases a call may hand off to. */
-  allowed: ReadonlySet<string>;
-  /** The routing release's default target: one attempt when a target fails to start. */
-  fallback: { agentId: string; releaseId: string };
-  /** Loads the release, starts its early work under `<job id>:s<index>`, composes it on `lease`. */
-  compose(target: SegmentTarget, index: number, lease: SegmentMediaLease): Promise<CallSegment>;
-  /** `route.segment` (and the route path's other worker events), on the call's outcome log. */
-  record(type: 'route.segment', payload: Record<string, unknown>): void;
-  audit(type: string, payload: Record<string, unknown>): void;
-  /** Releases the call's member claim. */
-  releaseClaim(): Promise<void>;
-  /** Ends the call when no engine is left to end it: the hang-up, then the link. */
-  endCall(reason: EndReason): Promise<void>;
-  prepareTimeoutMs?: number;
-  now?: () => number;
-}
-
-interface Attached {
-  segment: CallSegment;
-  lease: SegmentMediaLease;
-  index: number;
-}
-
-interface Prepared extends Attached {
-  id: string;
-  request: SegmentHandoffRequest;
-  prepareMs: number;
-  committed: boolean;
-}
+export {
+  ROUTING_PREPARE_TIMEOUT_MS,
+  SegmentReleaseMissingError,
+  type CallSegmentControllerDeps,
+  type SegmentTarget,
+} from './segment-prepare.ts';
 
 /**
  * The segments of one routed call (routing design 7.4), and the seam R2's in-call transfer reuses.
@@ -242,19 +207,7 @@ export class CallSegmentController implements SegmentHandoffPort {
     this.incoming = undefined;
     this.current = item;
     item.lease.open();
-    const route = 'request' in item ? item.request.route : undefined;
-    this.deps.record('route.segment', {
-      index: item.index,
-      role: 'agent',
-      agentId: item.segment.release.agentId,
-      releaseId: item.segment.release.id,
-      reason,
-      ...(route?.poolId ? { poolId: route.poolId } : {}),
-      ...(route?.memberId ? { memberId: route.memberId } : {}),
-      ...('prepareMs' in item ? { prepareMs: item.prepareMs } : {}),
-      gapMs: this.now() - gapFrom,
-      gapDroppedMs: item.lease.gapDropped.ms,
-    });
+    this.deps.record('route.segment', segmentStarted(item, reason, this.now() - gapFrom));
     return true;
   }
 
@@ -264,38 +217,18 @@ export class CallSegmentController implements SegmentHandoffPort {
     lease: SegmentMediaLease,
     signal: AbortSignal,
   ): Promise<CallSegment | HandoffPrepareFailure> {
-    this.inflight.add(work);
-    let timer: NodeJS.Timeout | undefined;
-    const stopped = new Promise<HandoffPrepareFailure>((resolve) => {
-      timer = setTimeout(() => resolve('timeout'), this.timeoutMs);
-      const ended = () => resolve('call_ended');
-      signal.addEventListener('abort', ended, { once: true });
-      this.endedSignal.signal.addEventListener('abort', ended, { once: true });
-    });
-    const composed = work.then(
-      (segment) => segment,
-      (error: unknown) =>
-        (error instanceof SegmentReleaseMissingError
-          ? 'release_missing'
-          : 'compose_failed') as HandoffPrepareFailure,
-    );
-    const outcome = await Promise.race([composed, stopped]);
-    clearTimeout(timer);
+    const signals = [signal, this.endedSignal.signal];
+    const { outcome, composed } = composeWithin(work, this.timeoutMs, signals);
+    const taken = await outcome;
     const late = composed.then(async (segment) => {
-      if (typeof segment !== 'string' && (outcome !== segment || this.ended))
+      if (typeof segment === 'string') return lease.release();
+      if (segment !== taken || this.ended)
         await this.dispose({ segment, lease, index: 0 }, 'error:route-handoff-failed');
-      if (typeof segment === 'string') lease.release();
     });
     this.inflight.add(late);
-    void late
-      .finally(() => {
-        this.inflight.delete(work);
-        this.inflight.delete(late);
-      })
-      // swallow-ok: a late composition's disposal failure has no call left to fail.
-      .catch(() => undefined);
-    if (typeof outcome !== 'string' && this.ended) return 'call_ended';
-    return outcome;
+    // swallow-ok: a late composition's disposal failure has no call left to fail.
+    void late.finally(() => this.inflight.delete(late)).catch(() => undefined);
+    return typeof taken !== 'string' && this.ended ? 'call_ended' : taken;
   }
 
   private refuse(
@@ -320,14 +253,4 @@ export class CallSegmentController implements SegmentHandoffPort {
       item.lease.release();
     }
   }
-}
-
-async function settleWithin(work: readonly Promise<unknown>[], ms: number): Promise<void> {
-  if (!work.length) return;
-  let timer: NodeJS.Timeout | undefined;
-  await Promise.race([
-    Promise.allSettled(work),
-    new Promise((resolve) => (timer = setTimeout(resolve, ms))),
-  ]);
-  clearTimeout(timer);
 }
