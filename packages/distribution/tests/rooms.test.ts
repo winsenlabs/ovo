@@ -93,6 +93,19 @@ describe('room server rows (managed human queues)', () => {
     });
   });
 
+  it('reads the empty strings Compose renders for unset optional variables as their defaults', () => {
+    expect(
+      roomRows({
+        ...roomEnv,
+        OVO_LIVEKIT_URL: '',
+        OVO_LIVEKIT_PUBLIC_URL: '',
+        OVO_LIVEKIT_TOKEN_TTL_SECONDS: '',
+        OVO_LIVEKIT_API_KEY_PREVIOUS: '',
+        OVO_LIVEKIT_API_SECRET_PREVIOUS: '',
+      })[0]!.config,
+    ).toEqual(roomRows(roomEnv)[0]!.config);
+  });
+
   it('refuses a half-configured room: missing keys, bad urls, bad ttl, half a previous pair', () => {
     const { OVO_LIVEKIT_API_KEY: _key, ...noKey } = roomEnv;
     const { OVO_LIVEKIT_API_SECRET: _secret, ...noSecret } = roomEnv;

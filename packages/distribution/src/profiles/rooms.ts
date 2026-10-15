@@ -28,7 +28,9 @@ function webSocketUrl(env: Environment, name: string): string | undefined {
  */
 export function roomRows(env: Environment): PluginRow[] {
   if (env.OVO_LIVEKIT_ENABLED !== 'true') return [];
-  const ttl = Number(env.OVO_LIVEKIT_TOKEN_TTL_SECONDS ?? DEFAULT_ROOM_TOKEN_TTL_SECONDS);
+  // Compose renders an unset optional variable as an empty string, which means "the default".
+  const configuredTtl = env.OVO_LIVEKIT_TOKEN_TTL_SECONDS?.trim();
+  const ttl = configuredTtl ? Number(configuredTtl) : DEFAULT_ROOM_TOKEN_TTL_SECONDS;
   if (!Number.isInteger(ttl) || ttl < 30 || ttl > 600)
     throw new Error('OVO_LIVEKIT_TOKEN_TTL_SECONDS must be an integer from 30 to 600');
   const previousKey = env.OVO_LIVEKIT_API_KEY_PREVIOUS?.trim();
