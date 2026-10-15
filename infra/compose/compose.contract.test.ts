@@ -272,3 +272,34 @@ it('gives draining calls time before Docker escalates to SIGKILL', () => {
   expect(Number(drain![1])).toBeLessThanOrEqual(300_000 - 30_000);
   expect(() => accessSync(script('wait-compose-idle.sh'), constants.X_OK)).not.toThrow();
 });
+
+describe('routing (Wave 15, dark by default)', () => {
+  it('gives the api and the gateway the routing flag, off when unset', () => {
+    for (const name of ['api', 'gateway'])
+      expect(service(name)).toContain('OVO_ROUTING_ENABLED: ${OVO_ROUTING_ENABLED:-false}');
+    for (const name of ['dispatcher', 'worker-1'])
+      expect(service(name)).not.toContain('OVO_ROUTING_ENABLED:');
+  });
+
+  it('gives the workers the external engine flag (off) and the prepare bound (default)', () => {
+    const worker = service('worker-1');
+    expect(worker).toContain('environment: &worker');
+    expect(worker).toContain(
+      'OVO_ROUTING_EXTERNAL_ENABLED: ${OVO_ROUTING_EXTERNAL_ENABLED:-false}',
+    );
+    expect(worker).toContain('OVO_ROUTING_PREPARE_TIMEOUT_MS: ${OVO_ROUTING_PREPARE_TIMEOUT_MS:-}');
+    expect(service('worker-2')).toContain('<<: *worker');
+    // The API reports the external flag and warns at publish when it is off.
+    expect(service('api')).toContain(
+      'OVO_ROUTING_EXTERNAL_ENABLED: ${OVO_ROUTING_EXTERNAL_ENABLED:-false}',
+    );
+  });
+
+  it('ships the routing flags off in both env examples', () => {
+    for (const file of ['./.env.example', '../../.env.example']) {
+      const example = readFileSync(new URL(file, import.meta.url), 'utf8');
+      expect(example).toContain('\nOVO_ROUTING_ENABLED=false\n');
+      expect(example).toContain('\nOVO_ROUTING_EXTERNAL_ENABLED=false\n');
+    }
+  });
+});

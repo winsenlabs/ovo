@@ -220,6 +220,18 @@ The sip-gateway also reads `OVO_MEDIA_PUBLIC_BASE_URL`, `OVO_PERMITTED_FROM_NUMB
 `OVO_HEALTH_TOKEN` and `OVO_LOG_LEVEL` like the other services. Trunk digest credentials are never
 env: they are the sip/tcn binding's credential (JSON `{"username","password"}`), passed per dial.
 
+## Routing points and agent pools (Wave 15)
+
+Routing ships dark: with every variable below at its default, no call is routed and a number that
+is already bound to a routing release is answered by that release's default agent. See
+[docs/architecture/routing.md](architecture/routing.md).
+
+| Variable                         | Read by      | Default          | Compose | Notes                                                                                                                                                                                                                                                               |
+| -------------------------------- | ------------ | ---------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OVO_ROUTING_ENABLED`            | api, gateway | `false`          | .env    | Wave 15. `true` turns on `/v1/routing/*` and binding numbers to routing releases, and admits a routed number to its router release. `false` is the kill switch: routed numbers go straight to the release's default agent. Only the exact value `true` turns it on. |
+| `OVO_ROUTING_EXTERNAL_ENABLED`   | worker, api  | `false`          | .env    | Wave 15. Lets the routing `external` engine post its signed decision webhook. Off, the engine reports `disabled` and the next engine of the node runs; the API only warns at publish.                                                                               |
+| `OVO_ROUTING_PREPARE_TIMEOUT_MS` | worker       | 2500 (500-10000) | fwd     | Wave 15. Bound on composing the chosen agent (and pre-connecting its STT) before the router speaks its connecting line; past it, the node's next fallback step runs.                                                                                                |
+
 ## Evaluation tooling (Wave 13)
 
 Read only by the offline eval CLIs (`pnpm eval:calls`, `eval:stt`, `eval:turns`; see `docs/eval/README.md`)
