@@ -1,18 +1,21 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
-import { apiRequest, items, type SessionIdentity } from '../../lib/api';
+import { useState } from 'react';
+import { apiRequest, type SessionIdentity } from '../../lib/api';
 import type { PriceCatalogItem } from '../../lib/types/price-catalog';
-import { EmptyState, Panel, PanelHeader, ResponsiveTable, StatusBadge } from '../primitives';
-
-const STATUS: Record<PriceCatalogItem['status'], { label: string; tone: 'good' | 'warning' }> = {
-  imported: { label: 'Imported', tone: 'good' },
-  not_imported: { label: 'Not imported', tone: 'warning' },
-  update_available: { label: 'Update available', tone: 'warning' },
-};
+import { formatDate } from '../../lib/format';
+import { CATALOG_STATUS_LABEL, CATALOG_STATUS_TONE, humanisePrice } from '../../lib/derive/costs';
+import { humaniseEnum } from '../../lib/status';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { SectionCard } from '../ui/section-card';
+import { DataTableV2, type ColumnV2 } from '../ui/data-table-v2';
+import { InlineAlert } from '../ui/feedback-v2';
+import { Button } from '../ui/button';
+import { usePriceCatalog } from './use-price-catalog';
 
 /**
- * OPS-14: the dated vendor price catalog. Each entry is a public list price with its source and
- * retrieval date; importing stores it as an immutable price card, so nobody types meter prices.
+ * The dated vendor price catalog: what admins pick cards to import from. Relogic of OPS-14 — the
+ * catalog is a DataTableV2 with humanised card names and prices instead of raw minor-unit text,
+ * and a bulk "Import N selected" action bar instead of a lone button at the page foot.
  */
 export function PriceCatalogPanel({
   role,
@@ -21,31 +24,15 @@ export function PriceCatalogPanel({
   role: SessionIdentity['role'];
   onImported?: () => void;
 }) {
-  const [catalog, setCatalog] = useState<PriceCatalogItem[]>([]);
+  const { catalog, error: loadError, reload } = usePriceCatalog();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const [importError, setImportError] = useState<string>();
   const [notice, setNotice] = useState<string>();
-  const load = useCallback(async () => {
-    try {
-      setCatalog(items<PriceCatalogItem>((await apiRequest<unknown>('/cost/price-catalog')).data));
-      setError(undefined);
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Price catalog could not be loaded.');
-    }
-  }, []);
-  useEffect(() => {
-    void load();
-  }, [load]);
-  const toggle = (id: string) =>
-    setSelected((current) => {
-      const next = new Set(current);
-      if (!next.delete(id)) next.add(id);
-      return next;
-    });
+
   async function importSelected() {
     setBusy(true);
-    setError(undefined);
+    setImportError(undefined);
     setNotice(undefined);
     try {
       const { data } = await apiRequest<{ items: unknown[] }>('/cost/price-catalog/import', {
@@ -56,117 +43,148 @@ export function PriceCatalogPanel({
         `Imported ${data.items.length} price ${data.items.length === 1 ? 'card' : 'cards'}.`,
       );
       setSelected(new Set());
-      await load();
+      await reload();
       onImported?.();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Price cards could not be imported.');
+      setImportError(
+        failure instanceof Error ? failure.message : 'Price cards could not be imported.',
+      );
     } finally {
       setBusy(false);
     }
   }
-  const pending = catalog.filter((entry) => entry.status !== 'imported').length;
+
+  const toggle = (id: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+
+  const columns: ColumnV2<PriceCatalogItem>[] = [
+    ...(role === 'admin'
+      ? [
+          {
+            id: 'select',
+            header: 'Import',
+            cell: (entry: PriceCatalogItem) => (
+              <input
+                type="checkbox"
+                aria-label={`Import ${entry.card.id}`}
+                checked={selected.has(entry.card.id)}
+                disabled={entry.status === 'imported'}
+                onChange={() => toggle(entry.card.id)}
+              />
+            ),
+          } satisfies ColumnV2<PriceCatalogItem>,
+        ]
+      : []),
+    {
+      id: 'card',
+      header: 'Card',
+      cell: (entry) => (
+        <>
+          <strong>
+            {entry.card.provider} · {entry.card.model ?? 'Any model'}
+          </strong>
+          <br />
+          <small className="mono muted">
+            {entry.card.id} · {entry.card.version}
+          </small>
+        </>
+      ),
+      sortValue: (entry) => entry.card.id,
+    },
+    {
+      id: 'meters',
+      header: 'Meters',
+      cell: (entry) => (
+        <span className="ds-choice-chips">
+          {entry.meterKeys.map((key) => (
+            <span key={key} className="ds-chip">
+              {humaniseEnum(key.split('.').pop())}
+            </span>
+          ))}
+        </span>
+      ),
+      priority: 'low',
+    },
+    {
+      id: 'price',
+      header: 'Price',
+      cell: (entry) => (
+        <span className="mono" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          {humanisePrice(entry.card)}
+          {entry.card.provisional && (
+            <>
+              {' '}
+              <StatusBadgeV2 tone="warn" label="Provisional" size="sm" />
+            </>
+          )}
+        </span>
+      ),
+      align: 'end',
+    },
+    {
+      id: 'source',
+      header: 'Source',
+      cell: (entry) => (
+        <>
+          <a href={entry.source.url} target="_blank" rel="noreferrer">
+            {entry.source.quote}
+          </a>
+          <br />
+          <small className="muted">Retrieved {formatDate(entry.source.retrievedAt)}</small>
+        </>
+      ),
+      priority: 'low',
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: (entry) => (
+        <StatusBadgeV2
+          tone={CATALOG_STATUS_TONE[entry.status]}
+          label={CATALOG_STATUS_LABEL[entry.status]}
+        />
+      ),
+    },
+  ];
+
   return (
-    <Panel labelledBy="price-catalog-title">
-      <PanelHeader
-        id="price-catalog-title"
-        title="Vendor price catalog"
-        badge={
-          <StatusBadge tone={pending ? 'warning' : 'good'}>
-            {pending ? `${pending} not imported` : 'All imported'}
-          </StatusBadge>
-        }
-      />
-      <div className="panel-body stack">
-        <p className="muted">
-          Public list prices with their source and the date they were read. Importing one stores it
-          as an immutable price card. Prices in USD also need an FX version. Check the sources
-          monthly: a vendor price change ships as a new catalog version, shown here as an update.
-        </p>
-        {error && (
-          <div className="field-error" role="alert">
-            {error}
-          </div>
-        )}
-        {notice && (
-          <div className="muted" role="status">
-            {notice}
-          </div>
-        )}
-        {catalog.length === 0 ? (
-          <EmptyState title="No catalog entries">The price catalog is unavailable.</EmptyState>
-        ) : (
-          <ResponsiveTable label="Vendor price catalog">
-            <thead>
-              <tr>
-                {role === 'admin' && <th>Import</th>}
-                <th>Card</th>
-                <th>Meters</th>
-                <th>Model</th>
-                <th>Price</th>
-                <th>Source</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {catalog.map((entry) => (
-                <tr key={`${entry.card.id}:${entry.card.version}`}>
-                  {role === 'admin' && (
-                    <td>
-                      <input
-                        type="checkbox"
-                        aria-label={`Import ${entry.card.id}`}
-                        checked={selected.has(entry.card.id)}
-                        disabled={entry.status === 'imported'}
-                        onChange={() => toggle(entry.card.id)}
-                      />
-                    </td>
-                  )}
-                  <td>
-                    <strong>{entry.card.id}</strong>
-                    <small>{entry.card.version}</small>
-                  </td>
-                  <td>{entry.meterKeys.join(', ')}</td>
-                  <td>{entry.card.model ?? 'Any model'}</td>
-                  <td>
-                    {entry.card.minorUnitsPerBlock} {entry.card.currency} minor /{' '}
-                    {entry.card.blockQuantity} {entry.card.unit}
-                    {entry.card.provisional && (
-                      <StatusBadge tone="warning">Provisional</StatusBadge>
-                    )}
-                  </td>
-                  <td>
-                    <a href={entry.source.url} target="_blank" rel="noreferrer">
-                      {entry.source.quote}
-                    </a>
-                    <small>Retrieved {entry.source.retrievedAt}</small>
-                    {entry.source.note && <small>{entry.source.note}</small>}
-                  </td>
-                  <td>
-                    <StatusBadge tone={STATUS[entry.status].tone}>
-                      {STATUS[entry.status].label}
-                    </StatusBadge>
-                    {entry.storedVersion && <small>Stored: {entry.storedVersion}</small>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </ResponsiveTable>
-        )}
-        {role === 'admin' && (
-          <button
-            className="button primary align-start"
+    <SectionCard
+      title="Vendor price catalog"
+      description="Public list prices with their source and retrieval date. Importing stores one as an immutable price card. Check sources monthly: a vendor change ships as a new catalog version, shown here as an update."
+      padding="flush"
+      actions={
+        role === 'admin' && selected.size > 0 ? (
+          <Button
+            variant="primary"
             type="button"
-            disabled={busy || selected.size === 0}
+            disabled={busy}
             onClick={() => void importSelected()}
           >
-            {busy
-              ? 'Importing…'
-              : selected.size
-                ? `Import ${selected.size} selected`
-                : 'Import selected'}
-          </button>
-        )}
-      </div>
-    </Panel>
+            {busy ? 'Importing…' : `Import ${selected.size} selected`}
+          </Button>
+        ) : undefined
+      }
+    >
+      {loadError && <InlineAlert onRetry={reload}>{loadError}</InlineAlert>}
+      {importError && <InlineAlert>{importError}</InlineAlert>}
+      {notice && <InlineAlert tone="info">{notice}</InlineAlert>}
+      <DataTableV2
+        // Remounts across the loading/empty → loaded boundary: DataTableV2 calls `useRef`/
+        // `useEffect` only past its early loading/empty returns, so the same mounted instance
+        // going from one branch to the other throws "Rendered more hooks than during the
+        // previous render" (see the foundation request in the build report).
+        key={catalog === null ? 'loading' : 'loaded'}
+        label="Vendor price catalog"
+        rows={catalog ?? []}
+        loading={catalog === null}
+        columns={columns}
+        rowKey={(entry) => `${entry.card.id}:${entry.card.version}`}
+        empty="The price catalog is unavailable."
+      />
+    </SectionCard>
   );
 }

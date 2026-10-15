@@ -1,0 +1,270 @@
+/* --- agents lane additions (W14 agents rebuild) --------------------------------------------- */
+
+/* Sticky footer for the new-agent wizard and the plugins page's save bar. */
+.ds-wizard-footer,
+.ds-save-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  margin: 0 calc(var(--space-4) * -1) calc(var(--space-4) * -1);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: var(--elev-1);
+}
+
+/* Sticky in-page section nav for the Configure tab's six groups. */
+.ds-studio-nav {
+  position: sticky;
+  top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.ds-studio-nav a {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  text-decoration: none;
+  font-size: var(--text-label-size);
+}
+.ds-studio-nav a:hover,
+.ds-studio-nav a:focus-visible {
+  background: var(--surface-2);
+  color: var(--text);
+}
+/* The section currently nearest the top of the viewport (verifier: "the section nav has no
+   active state"), tracked by an `IntersectionObserver` in `studio.tsx`. */
+.ds-studio-nav a.active,
+.ds-studio-nav a[aria-current='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+/* A mobile equivalent of the same nav, rendered as a native `<select>` ahead of the editors
+   instead of the sidebar `<nav>`, which on a narrow viewport the grid stacks *after* every editor
+   (verifier: "on mobile the nav renders at the very bottom of the page ... instead of as a
+   Select"). Both exist in the DOM at all times; only one is ever visible. */
+.ds-studio-nav-select {
+  display: none;
+}
+.ds-studio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-2);
+  scroll-margin-top: var(--space-4);
+}
+.ds-studio-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+/* One size up from a card's own `<h2>` (`.ds-card-head h2`, also `--text-h2-size`): a group
+   heading introduces several cards and must read as a clear step above them, not tie with them
+   (verifier: "group headings are smaller than the card titles inside them"). */
+.ds-studio-group-head h2 {
+  font-size: var(--text-h1-size);
+  line-height: var(--text-h1-line);
+  font-weight: var(--text-h1-weight);
+}
+
+@media (max-width: 850px) {
+  .ds-studio-nav {
+    display: none;
+  }
+  .ds-studio-nav-select {
+    display: block;
+    width: 100%;
+    margin-bottom: var(--space-1);
+  }
+}
+
+/* Voice stack diagram on the agent plugins page: Carrier -> VAD/Turn -> STT -> Decision/LLM ->
+   TTS -> Carrier, each node showing its chosen plugin. */
+.ds-voice-stack {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.ds-voice-stack-node {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  text-decoration: none;
+  color: inherit;
+  min-width: 96px;
+}
+.ds-voice-stack-node strong {
+  font-size: var(--text-label-size);
+}
+.ds-voice-stack-node span {
+  font-size: var(--text-micro-size);
+  color: var(--text-3);
+}
+.ds-voice-stack-node.unset {
+  border-style: dashed;
+  color: var(--text-3);
+}
+.ds-voice-stack-arrow {
+  color: var(--text-3);
+}
+
+/* The agent header's "more actions" disclosure (Duplicate, Export JSON). */
+.ds-overflow-menu {
+  position: relative;
+}
+.ds-overflow-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.ds-overflow-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.ds-overflow-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--space-1));
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: var(--space-1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elev-2);
+}
+.ds-overflow-menu-list button {
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: none;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-data-size);
+}
+.ds-overflow-menu-list button:hover,
+.ds-overflow-menu-list button:focus-visible {
+  background: var(--surface-2);
+}
+.ds-overflow-menu-list button:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+
+/* The Releases tab: each release is a `<details>` row (summary line + an expandable slot table /
+   diff / raw JSON), replacing a plain summary-only table (verifier: "selections can no longer be
+   seen anywhere ... none of these exist"). */
+.ds-release-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ds-release-rows > li {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.ds-release-rows summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+}
+.ds-release-rows summary::-webkit-details-marker {
+  display: none;
+}
+.ds-release-rows h4 {
+  font-size: var(--text-h3-size);
+  font-weight: var(--text-h3-weight);
+  margin-bottom: var(--space-2);
+}
+.ds-release-detail {
+  padding: 0 var(--space-4) var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+/* A nested object property inside SchemaForm, collapsible so a deep plugin schema (session,
+   engine, idle, dtmf…) does not dump every field flat (brief defect: object-typed properties
+   rendered as single-line text inputs). Also doubles as the "Advanced settings" disclosure for a
+   sprawling flat schema with no curated field hints. */
+.ds-nested-fields {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.ds-nested-fields > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--text-label-size);
+}
+.ds-nested-fields .form-grid {
+  margin-top: var(--space-3);
+}
+
+/* Collapsible per-slot sections and the plugin card body inside a SectionCard. */
+.ds-plugin-slot-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.ds-plugin-slot-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* One slot's plugins, grouped under a visible heading in the new-agent wizard's Plugins step
+   (verifier: "one flat grid of 14 plugin cards with no visible slot headings"). */
+.ds-wizard-slot-group + .ds-wizard-slot-group {
+  margin-top: var(--space-4);
+}
+.ds-wizard-slot-group > h3 {
+  font-size: var(--text-h3-size);
+  font-weight: var(--text-h3-weight);
+  margin-bottom: var(--space-2);
+}
+
+/* The Basics step's mode picker: a plain grouping wrapper, not a native `<fieldset>` box
+   (verifier: "the Mode group has a native fieldset border"). */
+.ds-wizard-mode-group {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.ds-wizard-mode-group > legend {
+  padding: 0;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.2px;
+  margin-bottom: var(--space-2);
+}

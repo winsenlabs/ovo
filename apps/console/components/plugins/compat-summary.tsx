@@ -1,6 +1,20 @@
 'use client';
 import { useRef } from 'react';
+import { StatusBadgeV2 } from '../ui/status-badge';
 import type { AgentVoice, CompatIssue } from './types';
+
+/** The compat status badge alone, for the summary bar at the top of the plugins page. */
+export function CompatStatusBadge({ issues }: { issues: readonly CompatIssue[] }) {
+  const errors = issues.filter((issue) => issue.severity === 'error').length;
+  if (!issues.length) return <StatusBadgeV2 tone="ok" label="OK" />;
+  return (
+    <StatusBadgeV2
+      tone={errors > 0 ? 'danger' : 'warn'}
+      label={`${issues.length} issue${issues.length === 1 ? '' : 's'}`}
+    />
+  );
+}
+
 export function CompatSummary({
   issues,
   voice,
@@ -18,7 +32,7 @@ export function CompatSummary({
   );
   const accepted = voice.acknowledgements?.includes('weak-playback-evidence') ?? false;
   return (
-    <section className="panel-body" aria-labelledby="compat-title">
+    <div aria-labelledby="compat-title">
       <h2 ref={heading} id="compat-title" tabIndex={-1}>
         Compatibility
       </h2>
@@ -26,7 +40,7 @@ export function CompatSummary({
         {[...groups].map(([group, entries]) => (
           <div key={group}>
             <h3>{group}</h3>
-            <ul>
+            <ul className="plain-list">
               {entries.map((issue, index) => (
                 <li key={`${issue.code}-${index}`}>
                   <a
@@ -35,9 +49,11 @@ export function CompatSummary({
                   >
                     {issue.message}
                   </a>
-                  <span className={`badge ${issue.severity === 'error' ? 'danger' : 'warning'}`}>
-                    {issue.severity}
-                  </span>
+                  <StatusBadgeV2
+                    tone={issue.severity === 'error' ? 'danger' : 'warn'}
+                    size="sm"
+                    label={issue.severity}
+                  />
                 </li>
               ))}
             </ul>
@@ -61,6 +77,6 @@ export function CompatSummary({
           I accept weaker playback evidence for this carrier
         </label>
       )}
-    </section>
+    </div>
   );
 }

@@ -2,8 +2,9 @@
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import type { AgentDraft, Release, SessionIdentity } from '../../lib/api';
 import type { EvaluationDataset, ProviderEvaluationAuthorization } from '../../lib/operator-api';
-import { Field, Notice } from '../primitives';
+import { InlineAlert } from '../ui/feedback-v2';
 import type { ProviderEvaluationAvailability } from './evaluation-provider-state';
+
 export function EvaluationRunForm({
   datasets,
   runDatasetId,
@@ -26,13 +27,13 @@ export function EvaluationRunForm({
   busy,
   createRun,
 }: {
-  datasets: EvaluationDataset[];
+  datasets: readonly EvaluationDataset[];
   runDatasetId: string;
   setRunDatasetId: Dispatch<SetStateAction<string>>;
-  agents: AgentDraft[];
+  agents: readonly AgentDraft[];
   agentId: string;
   setAgentId: Dispatch<SetStateAction<string>>;
-  releases: Release[];
+  releases: readonly Release[];
   releaseId: string;
   setReleaseId: Dispatch<SetStateAction<string>>;
   executorKind: 'fixture' | 'provider';
@@ -43,15 +44,15 @@ export function EvaluationRunForm({
   setMaxAttempts: Dispatch<SetStateAction<number>>;
   providerAuthorizationId: string;
   setProviderAuthorizationId: Dispatch<SetStateAction<string>>;
-  matchingAuthorizations: ProviderEvaluationAuthorization[];
+  matchingAuthorizations: readonly ProviderEvaluationAuthorization[];
   busy: boolean;
   createRun: (event: FormEvent<HTMLFormElement>) => Promise<void>;
 }) {
   return (
-    <form className="nested-card stack" onSubmit={createRun}>
-      <h4>Queue immutable evaluation run</h4>
+    <form className="stack" onSubmit={createRun}>
       <div className="form-grid">
-        <Field label="Dataset" htmlFor="run-dataset">
+        <div className="field">
+          <label htmlFor="run-dataset">Dataset</label>
           <select
             id="run-dataset"
             name="datasetId"
@@ -67,16 +68,18 @@ export function EvaluationRunForm({
                 </option>
               ))}
           </select>
-        </Field>
-        <Field label="Current immutable version" htmlFor="run-dataset-version">
+        </div>
+        <div className="field">
+          <label htmlFor="run-dataset-version">Current immutable version</label>
           <input
             id="run-dataset-version"
             name="datasetVersion"
             value={datasets.find((dataset) => dataset.id === runDatasetId)?.currentVersion ?? ''}
             readOnly
           />
-        </Field>
-        <Field label="Agent" htmlFor="run-agent">
+        </div>
+        <div className="field">
+          <label htmlFor="run-agent">Agent</label>
           <select
             id="run-agent"
             value={agentId}
@@ -88,8 +91,9 @@ export function EvaluationRunForm({
               </option>
             ))}
           </select>
-        </Field>
-        <Field label="Immutable release" htmlFor="run-release">
+        </div>
+        <div className="field">
+          <label htmlFor="run-release">Immutable release</label>
           <select
             id="run-release"
             name="releaseId"
@@ -103,8 +107,9 @@ export function EvaluationRunForm({
               </option>
             ))}
           </select>
-        </Field>
-        <Field label="Executor" htmlFor="run-executor">
+        </div>
+        <div className="field">
+          <label htmlFor="run-executor">Executor</label>
           <select
             id="run-executor"
             value={executorKind}
@@ -118,8 +123,9 @@ export function EvaluationRunForm({
               Provider-backed · admin authorization and cost
             </option>
           </select>
-        </Field>
-        <Field label="Maximum attempts" htmlFor="run-attempts">
+        </div>
+        <div className="field">
+          <label htmlFor="run-attempts">Maximum attempts</label>
           <input
             id="run-attempts"
             name="maxAttempts"
@@ -130,9 +136,10 @@ export function EvaluationRunForm({
             readOnly={executorKind === 'provider'}
             onChange={(event) => setMaxAttempts(Number(event.target.value))}
           />
-        </Field>
+        </div>
         {executorKind === 'provider' && (
-          <Field label="Active authorization" htmlFor="run-provider-authorization">
+          <div className="field">
+            <label htmlFor="run-provider-authorization">Active authorization</label>
             <select
               id="run-provider-authorization"
               value={providerAuthorizationId}
@@ -143,20 +150,19 @@ export function EvaluationRunForm({
               {matchingAuthorizations.map((authorization) => (
                 <option key={authorization.id} value={authorization.id}>
                   {authorization.provider} · {authorization.modelId} · binding{' '}
-                  {authorization.bindingVersion} · budget {authorization.budgetId} · max{' '}
-                  {authorization.maximumReservationPaise} paise
+                  {authorization.bindingVersion} · budget {authorization.budgetId}
                 </option>
               ))}
             </select>
-          </Field>
+          </div>
         )}
       </div>
       {executorKind === 'provider' && (
-        <Notice tone="warning">
+        <InlineAlert tone="warn">
           Provider evaluation is explicit, version-pinned, budget-authorized, and may incur cost.
           The selected authorization must match this immutable release and its exact binding
-          version. This screen cannot enable the server installation flag.
-        </Notice>
+          version.
+        </InlineAlert>
       )}
       <button
         className="button primary align-start"

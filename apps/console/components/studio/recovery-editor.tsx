@@ -5,8 +5,9 @@ import {
   DEFAULT_REPEAT_PREFIX,
 } from '@winsendotai/ovo-contracts';
 import type { AgentConfig } from '../../lib/api';
-import { EmptyState, Field, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { Field, Panel, PanelHeader, StatusBadge } from '../primitives';
 import { LinesInput } from './lines-input';
+import { UnconfiguredPanel } from './unconfigured-panel';
 
 type Recovery = NonNullable<AgentConfig['recovery']>;
 
@@ -35,26 +36,23 @@ export function RecoveryEditor({
   };
   if (!recovery)
     return (
-      <Panel labelledBy="recovery-title">
-        <PanelHeader
-          id="recovery-title"
-          title="Repeat and didn't-catch"
-          badge={<StatusBadge tone="soft">Not configured</StatusBadge>}
-        />
-        <div className="panel-body stack">
-          <EmptyState title="Misunderstandings go to the LLM">
-            With recovery lines, a caller who says &ldquo;sorry?&rdquo; hears the last line again,
-            and a reply the agent did not understand gets a re-ask instead of an LLM round trip.
-            <button
-              className="button primary"
-              type="button"
-              onClick={() => update({ ...config, recovery: DEFAULT_RECOVERY() })}
-            >
-              Add recovery lines
-            </button>
-          </EmptyState>
-        </div>
-      </Panel>
+      <UnconfiguredPanel
+        labelledBy="recovery-title"
+        title="Repeat and didn't-catch"
+        emptyTitle="Misunderstandings go to the LLM"
+        action={
+          <button
+            className="button primary"
+            type="button"
+            onClick={() => update({ ...config, recovery: DEFAULT_RECOVERY() })}
+          >
+            Add recovery lines
+          </button>
+        }
+      >
+        With recovery lines, a caller who says &ldquo;sorry?&rdquo; hears the last line again, and a
+        reply the agent did not understand gets a re-ask instead of an LLM round trip.
+      </UnconfiguredPanel>
     );
   const reprompt = (id: string, line: string) => {
     const reprompts = { ...recovery.reprompts };

@@ -1,0 +1,224 @@
+/* W14 design system: page header, breadcrumb, KPI strip, section card, tabs. New classes only;
+   nothing here is read by a pre-W14 route, so it cannot regress one. */
+.ds-breadcrumb ol {
+  display: flex;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+  gap: var(--space-1);
+  color: var(--text-3);
+  font-size: var(--text-micro-size);
+}
+.ds-breadcrumb li:not(:last-child)::after {
+  margin-inline-start: var(--space-1);
+  content: '/';
+}
+.ds-breadcrumb a {
+  color: var(--text-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ds-breadcrumb [aria-current='page'] {
+  color: var(--text);
+  font-weight: 600;
+}
+.ds-page-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  color: var(--text-3);
+  font-size: var(--text-label-size);
+}
+.ds-icon-button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+}
+.ds-icon-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.ds-spin {
+  display: inline-block;
+  animation: ds-spin var(--dur-3) linear infinite;
+}
+@keyframes ds-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ds-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+/* `.ds-stack`: the one page-level layout rule for stacked SectionCards — 16px between sections
+   per brief §1 spacing (today they butt edge to edge with no gap). */
+.ds-stack {
+  display: grid;
+  gap: var(--space-4);
+}
+/* Fallback for a page that stacks cards without `.ds-stack`: still never edge-to-edge. */
+.ds-card + .ds-card {
+  margin-top: var(--space-4);
+}
+/* ...but never inside a grid that already spaces its cards with `gap`: there the margin only
+   pushed every card after the first one down, so a row's cards no longer shared a top edge. */
+.ds-kpi-strip > .ds-card + .ds-card {
+  margin-top: 0;
+}
+@media (max-width: 480px) {
+  /* auto-fit, minmax(180px,1fr) only fits one column in a ~326px mobile content width; the brief
+     requires 2 columns at 390px. */
+  .ds-kpi-strip {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+  }
+}
+.ds-kpi {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--elev-0);
+}
+.ds-kpi-link {
+  color: inherit;
+  text-decoration: none;
+}
+.ds-kpi-link:hover .ds-kpi {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.ds-kpi-label {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+}
+.ds-kpi-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.ds-kpi-value {
+  font-size: var(--text-display-size);
+  font-weight: var(--text-display-weight);
+  line-height: var(--text-display-line);
+  font-variant-numeric: tabular-nums;
+}
+.ds-kpi-value--long {
+  font-size: 20px;
+  white-space: nowrap;
+}
+.ds-kpi-unit {
+  color: var(--text-3);
+  font-size: var(--text-label-size);
+}
+.ds-kpi-spark {
+  margin-inline-start: auto;
+}
+.ds-kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--text-label-size);
+  font-weight: 600;
+}
+.ds-kpi-delta.tone-ok {
+  color: var(--ok-text);
+}
+.ds-kpi-delta.tone-danger {
+  color: var(--danger-text);
+}
+.ds-kpi-delta.tone-neutral {
+  color: var(--text-3);
+}
+.ds-kpi-footnote {
+  margin: 0;
+  color: var(--text-3);
+}
+.ds-card {
+  display: grid;
+  gap: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--elev-0);
+}
+.ds-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-5) 0;
+}
+.ds-card-head h2 {
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-line);
+  font-weight: var(--text-h2-weight);
+}
+.ds-card-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.ds-card-tabs {
+  padding: var(--space-3) var(--space-5) 0;
+}
+.ds-card-body {
+  min-width: 0;
+}
+.ds-card-body.pad-data {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+.ds-card-body.pad-prose {
+  padding: var(--space-5);
+  max-width: 720px;
+}
+.ds-card-body.pad-flush {
+  padding: 0;
+}
+.ds-card-footer {
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+.ds-tabs {
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+}
+.ds-tabs button,
+.ds-tabs a {
+  padding: var(--space-2) 0 var(--space-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--text-h3-size);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.ds-tabs [aria-selected='true'],
+.ds-tabs [aria-current='page'] {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+  font-weight: 650;
+}
+.ds-tabs-links {
+  margin-bottom: var(--space-5);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-spin {
+    animation: none;
+  }
+}

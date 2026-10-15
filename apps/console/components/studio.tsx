@@ -1,43 +1,42 @@
 'use client';
+// The Configure tab's body: the agent's editors, regrouped into the brief's six named groups
+// behind a sticky in-page nav, instead of one 7,000px unnavigable scroll (brief §3 "Agent detail
+// / studio"). The agent switcher, "Organization drafts" and "Console composition" are gone —
+// the switcher duplicated the Agents list, and the other two exposed internals no operator asked
+// for. `AgentShell` (the layout above every `/agents/[id]/*` route) owns the shared header; the
+// save-state badge here is this tab's own authoring status.
+import { useRef, useState } from 'react';
 import type { ConsoleExtension } from '@winsendotai/ovo-ui';
-import type { AgentConfig, SessionIdentity } from '../lib/api';
-import {
-  EmptyState,
-  JsonEvidence,
-  LoadingBlock,
-  Notice,
-  Panel,
-  PanelHeader,
-  StatusBadge,
-} from './primitives';
-import { PluginField, ProviderMap } from './studio/configuration-panels';
-import { FaqEditor } from './studio/faq-editor';
-import { CostPolicyEditor } from './studio/cost-policy-editor';
-import { DecisionEditor } from './studio/decision-editor';
-import { IdleEditor } from './studio/idle-editor';
-import { JevOnlyPanel } from './studio/jev-only-panel';
-import { RecoveryEditor } from './studio/recovery-editor';
-import { RulesEditor } from './studio/rules-editor';
-import { KnowledgeEditor } from './studio/knowledge-editor';
-import { CallPolicyPanels } from './studio/call-policy-panels';
-import { AgentDraftIndex, StudioRail } from './studio/release-panels';
-import { ScriptEditor } from './studio/script-editor';
-import { ToolsEditor } from './studio/tools-editor';
+import type { SessionIdentity } from '../lib/api';
+import { StatusBadgeV2 } from './ui/status-badge';
+import { EmptyStateV2, ErrorState, InlineAlert, Skeleton } from './ui/feedback-v2';
+import { StudioRail } from './studio/release-panels';
+import { DraftConflict } from './studio/draft-conflict';
+import { StudioNav } from './studio/studio-nav';
+import { buildStudioGroups } from './studio/studio-groups';
 import { useAgentStudio } from './studio/use-agent-studio';
-import { AgentModePanel, RecordingPolicyPanel } from './studio/mode-policy-panels';
+import { useReportSaveState } from './studio/save-state-context';
+
+const SAVE_LABEL = {
+  idle: 'Loaded',
+  dirty: 'Unsaved changes',
+  saving: 'Saving draft',
+  saved: 'Draft saved',
+  error: 'Save failed',
+  conflict: 'Edit conflict',
+} as const;
+
 export function AgentStudio({
-  extensions,
+  agentId,
   identity,
-  preferredAgentId,
+  extensions,
 }: {
-  extensions: readonly ConsoleExtension[];
+  agentId: string;
   identity: SessionIdentity;
-  preferredAgentId?: string;
+  extensions: readonly ConsoleExtension[];
 }) {
   const {
-    agents,
-    setSelected,
-    selected,
+    draft,
     loading,
     loadError,
     load,
@@ -49,210 +48,102 @@ export function AgentStudio({
     readiness,
     readinessError,
     releaseError,
-    publishing,
     update,
-    createAgent,
-    publish,
     activeForms,
-  } = useAgentStudio(extensions, preferredAgentId);
+  } = useAgentStudio(agentId, extensions);
+  useReportSaveState(saveState);
   const applyUpdate: typeof update = identity.role === 'viewer' ? () => undefined : update;
-  if (loading) return <LoadingBlock label="Loading agents" />;
-  if (loadError && !selected)
+  const [activeGroup, setActiveGroup] = useState('basics');
+  const groupRefs = useRef<Record<string, HTMLElement | null>>({});
+
+  if (loading)
     return (
-      <>
-        <Notice tone="danger">{loadError}</Notice>
-        <button className="button" onClick={load}>
-          Retry
-        </button>
-      </>
+      <div className="studio-layout">
+        <div className="stack studio-editors">
+          <Skeleton shape="block" />
+          <Skeleton shape="block" />
+          <Skeleton shape="block" />
+        </div>
+      </div>
     );
-  if (!selected)
-    return (
-      <>
-        <header className="page-heading">
-          <div>
-            <p className="eyebrow">Agent studio</p>
-            <h1>Agents</h1>
-            <p className="muted">Create a draft backed by the shared AgentConfig contract.</p>
-          </div>
-        </header>
-        <EmptyState title="No agent drafts">
-          The API returned an empty agent collection. No sample agent was inserted.
-          <button
-            className="button primary"
-            disabled={identity.role === 'viewer'}
-            onClick={createAgent}
-          >
-            Create agent
-          </button>
-        </EmptyState>
-      </>
-    );
+  if (loadError && !draft) return <ErrorState message={loadError} onRetry={load} />;
+  if (!draft) return <EmptyStateV2 variant="unavailable" title="This agent could not be loaded" />;
+  const config = draft.config;
+  const groups = buildStudioGroups({
+    config,
+    draftId: draft.id,
+    identity,
+    bindings,
+    activeForms,
+    update: applyUpdate,
+  });
 
   return (
-    <>
-      <header className="page-heading">
-        <div>
-          <p className="eyebrow">Agent studio</p>
-          <div className="title-row">
-            <h1>{selected.config.name}</h1>
-            <StatusBadge tone="soft">Draft v{selected.draftVersion}</StatusBadge>
-          </div>
-          <p className="muted">Immutable releases stay separate from this optimistic draft.</p>
-        </div>
-        <div className="heading-actions">
-          <select
-            aria-label="Selected agent"
-            value={selected.id}
-            onChange={(event) =>
-              setSelected(agents.find((agent) => agent.id === event.target.value))
-            }
-          >
-            {agents.map((agent) => (
-              <option key={agent.id} value={agent.id}>
-                {agent.config.name}
-              </option>
-            ))}
-          </select>
-          <button className="button" onClick={createAgent} disabled={identity.role === 'viewer'}>
-            New agent
-          </button>
-          <button
-            className="button primary"
-            onClick={publish}
-            disabled={
-              publishing ||
-              !['idle', 'saved'].includes(saveState) ||
-              identity.role === 'viewer' ||
-              readiness?.releaseReady !== true
-            }
-          >
-            {publishing
-              ? 'Validating…'
-              : readiness?.releaseReady === false
-                ? `Resolve ${readiness.blockers.length} release blocker${readiness.blockers.length === 1 ? '' : 's'}`
-                : !readiness
-                  ? 'Checking release readiness'
-                  : 'Publish release'}
-          </button>
-        </div>
-      </header>
+    <div className="ui-stack">
       <div className="save-banner" aria-live="polite">
-        <StatusBadge
+        <StatusBadgeV2
           tone={
             saveState === 'error' || saveState === 'conflict'
               ? 'danger'
               : saveState === 'saved'
-                ? 'good'
-                : 'soft'
+                ? 'ok'
+                : 'neutral'
           }
-        >
-          {
-            (
-              {
-                idle: 'Loaded',
-                dirty: 'Unsaved changes',
-                saving: 'Saving draft',
-                saved: 'Draft saved',
-                error: 'Save failed',
-                conflict: 'Edit conflict',
-              } as const
-            )[saveState]
-          }
-        </StatusBadge>
+          label={SAVE_LABEL[saveState]}
+        />
         {saveError && <span>{saveError}</span>}
       </div>
-      {conflict && (
-        <Notice tone="danger" live>
-          <strong>This draft changed on the server.</strong> Your local edit was not overwritten.
-          Compare both versions, then reload or copy the intended values.
-          <div className="conflict-grid">
-            <JsonEvidence label="Your local configuration" value={selected.config} />
-            <JsonEvidence label="Current server draft" value={conflict} />
-          </div>
-          <button className="button" onClick={load}>
-            Reload server draft
-          </button>
-        </Notice>
-      )}
-      {releaseError && (
-        <Notice tone="danger" live>
-          {releaseError}
-        </Notice>
-      )}
+      {conflict != null && <DraftConflict config={config} conflict={conflict} onReload={load} />}
+      {releaseError && <InlineAlert tone="danger">{releaseError}</InlineAlert>}
       {identity.role === 'viewer' && (
-        <Notice>
+        <InlineAlert tone="info">
           Viewer access is read-only. Draft authoring and publishing controls are disabled.
-        </Notice>
+        </InlineAlert>
       )}
+      <select
+        className="ds-studio-nav-select"
+        aria-label="Jump to section"
+        value={activeGroup}
+        onChange={(event) => {
+          const id = event.target.value;
+          setActiveGroup(id);
+          groupRefs.current[id]?.scrollIntoView({ block: 'start' });
+        }}
+      >
+        {groups.map((group) => (
+          <option key={group.id} value={group.id}>
+            {group.label}
+          </option>
+        ))}
+      </select>
       <div className="studio-layout">
         <fieldset className="stack studio-editors" disabled={identity.role === 'viewer'}>
-          <AgentModePanel config={selected.config} role={identity.role} update={applyUpdate} />
-          {activeForms.map((form) => (
-            <Panel key={`${form.id}-${selected.id}`} labelledBy={`${form.id}-title`}>
-              <PanelHeader
-                id={`${form.id}-title`}
-                title={form.title}
-                badge={<StatusBadge tone="soft">Plugin form</StatusBadge>}
-              />
-              <div className="panel-body form-grid">
-                {form.fields.map((field) => (
-                  <PluginField
-                    key={field.path}
-                    field={field}
-                    config={selected.config}
-                    update={applyUpdate}
-                  />
-                ))}
+          {groups.map((group) => (
+            <section
+              id={`group-${group.id}`}
+              className="ds-studio-group"
+              key={group.id}
+              ref={(element) => {
+                groupRefs.current[group.id] = element;
+              }}
+            >
+              <div className="ds-studio-group-head">
+                <h2>{group.label}</h2>
               </div>
-            </Panel>
+              {group.body}
+            </section>
           ))}
-          {selected.config.mode === 'faq' && (
-            <FaqEditor config={selected.config} update={applyUpdate} />
-          )}
-          {(selected.config.mode === 'announcement' || selected.config.mode === 'faq') && (
-            <ScriptEditor config={selected.config} update={applyUpdate} />
-          )}
-          {(selected.config.mode === 'faq' || selected.config.mode === 'agent') && (
-            <ToolsEditor config={selected.config} update={applyUpdate} />
-          )}
-          {/* Only agent mode runs retrieval or a decision flow: both live in the agent behaviour.
-              A script may still ask the decision model to match replies to its transitions. */}
-          {selected.config.mode === 'agent' && (
-            <>
-              <KnowledgeEditor config={selected.config} update={applyUpdate} />
-              <DecisionEditor config={selected.config} update={applyUpdate} />
-              <RulesEditor config={selected.config} update={applyUpdate} />
-              <RecoveryEditor config={selected.config} update={applyUpdate} />
-              <IdleEditor config={selected.config} update={applyUpdate} />
-              <JevOnlyPanel config={selected.config} update={applyUpdate} />
-            </>
-          )}
-          {selected.config.mode !== 'agent' && selected.config.script && (
-            <DecisionEditor config={selected.config} update={applyUpdate} />
-          )}
-          <ProviderMap config={selected.config} bindings={bindings} update={applyUpdate} />
-          <CallPolicyPanels config={selected.config} update={applyUpdate} />
-          <CostPolicyEditor config={selected.config} update={applyUpdate} agentId={selected.id} />
-          <RecordingPolicyPanel
-            config={selected.config}
-            role={identity.role}
-            update={applyUpdate}
-          />
-          <div className="desktop-authoring-note">
-            <strong>Desktop is recommended for script table authoring.</strong> JSON import remains
-            available on smaller screens, and diagnostics never depend on a canvas.
-          </div>
         </fieldset>
-        <StudioRail
-          selected={selected}
-          releases={releases}
-          extensions={extensions}
-          readiness={readiness}
-          readinessError={readinessError}
-        />
+        <aside className="studio-rail" aria-label="Configure navigation and release readiness">
+          <StudioNav groups={groups} active={activeGroup} onActivate={setActiveGroup} />
+          <StudioRail
+            selected={draft}
+            releases={releases}
+            readiness={readiness}
+            readinessError={readinessError}
+          />
+        </aside>
       </div>
-      <AgentDraftIndex agents={agents} select={setSelected} />
-    </>
+    </div>
   );
 }

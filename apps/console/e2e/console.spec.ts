@@ -48,14 +48,29 @@ test('wizard, plugin review, fixture stream, and evidence inspector', async ({ p
     page.getByRole('status', { name: '' }).filter({ hasText: 'No compatibility issues reported.' }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Save plugins' }).click();
-  await page.getByRole('link', { name: 'Test', exact: true }).click();
+  // The agent header's own "Test" button (`AgentShell`) and the tab strip's "Test" tab
+  // (`LinkTabs`, inside `nav[aria-label="Section"]`) are both real links named exactly "Test" —
+  // scoping to the tab nav is what makes this unambiguous, rather than picking one by position.
+  await page
+    .getByRole('navigation', { name: 'Section' })
+    .getByRole('link', { name: 'Test' })
+    .click();
   await page.getByRole('button', { name: 'Run fixture test call' }).click();
   await expect(page.getByText('Hello caller').first()).toBeVisible();
-  await expect(page.getByText('Cost so far: 3')).toBeVisible();
-  await page.getByRole('link', { name: /Inspect call fixture-call/ }).click();
-  await expect(page.getByRole('heading', { name: 'Call fixture-call' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Latency waterfall' })).toBeVisible();
-  await expect(page.getByText('carrier.stream.minute', { exact: true })).toBeVisible();
+  // The exact currency formatting of the running cost (`Money`, `Intl.NumberFormat`) is not this
+  // test's concern — only that the panel actually surfaces one.
+  await expect(page.getByText(/Running cost/)).toBeVisible();
+  await page.getByRole('link', { name: 'Open in call inspector' }).click();
+  // W14 relogic: the inspector heading is "<agent> call", not the raw call id (B2) — the detail
+  // split into tabs, so the latency evidence and the cost ledger's unpriced-meter text are each
+  // one tab click away now, rather than both visible on a single untabbed page.
+  await expect(page.getByRole('heading', { name: / call$/ })).toBeVisible();
+  await page.getByRole('tab', { name: 'Latency' }).click();
+  await expect(page.getByRole('heading', { name: 'Engine latency (evidence)' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Cost' }).click();
+  // The unpriced-meter alert reads as one sentence ("Unpriced meters: carrier.stream.minute"),
+  // not an isolated element around the meter name, so this is a substring match, not `exact`.
+  await expect(page.getByText('carrier.stream.minute')).toBeVisible();
 });
 
 test('calls cursor pagination and deep link', async ({ page }) => {
@@ -68,7 +83,10 @@ test('calls cursor pagination and deep link', async ({ page }) => {
   await expect(page).toHaveURL(/cursor=50/);
   await expect(page.getByRole('link', { name: 'call-051' })).toBeVisible();
   await page.getByRole('link', { name: 'call-051' }).click();
-  await expect(page.getByRole('heading', { name: 'Call call-051' })).toBeVisible();
+  // B2/new markup: the heading is "<agent> call" — this fixture has no agent config for the
+  // evidence's `agentId`, so it falls back to "Agent call" (never the raw call id); the call id
+  // itself still shows as the header's IdChip.
+  await expect(page.getByRole('heading', { name: 'Agent call' })).toBeVisible();
 });
 
 test('carrier binding exposes operator URLs and the 12 px typography floor', async ({ page }) => {
@@ -121,9 +139,13 @@ test('mobile navigation opens, traps focus, and closes on route change', async (
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
   const dialog = page.getByRole('dialog', { name: 'Navigation' });
   await expect(dialog).toBeVisible();
+  // The close button sits before the links in DOM order (it's the drawer's only header
+  // control), so the trap's ring is [close button, every link] — Shift+Tab off the first link
+  // reaches the close button, not the last link, and both stay inside the dialog either way.
+  const closeButton = dialog.getByRole('button', { name: 'Close navigation' });
   await expect(dialog.locator('a').first()).toBeFocused();
   await page.keyboard.press('Shift+Tab');
-  await expect(dialog.locator('a').last()).toBeFocused();
+  await expect(closeButton).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(dialog.locator('a').first()).toBeFocused();
   await page.keyboard.press('Escape');
@@ -139,18 +161,28 @@ test('suppression add resets its form after the API resolves', async ({ page }) 
   await signedIn(page);
   await fixtureApi(page);
   await page.goto('/operations/suppressions');
-  const input = page.locator('form input').first();
+  // The add form lives in a drawer opened from the page header (brief: forms in drawers, not
+  // above the data), so it must be opened before its fields are reachable.
+  await page.getByRole('button', { name: 'Add number' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add number' });
+  // A stable id selector, not scoped to the dialog role: the drawer closes on a successful
+  // submit, and a closed <dialog> drops out of the accessibility tree, so re-querying through
+  // `dialog.getByLabel(...)` after that point would find nothing even though the now-reset
+  // input is still sitting in the DOM.
+  const input = page.locator('#suppression-phone');
   await input.fill('+15551234567');
-  await page.getByLabel('Reason').fill('Fixture suppression');
-  const submit = page.getByRole('button', { name: /Add suppression|Suppress|Add number/i }).first();
-  await submit.click();
+  await dialog.getByLabel('Reason').fill('Fixture suppression');
+  await dialog.getByRole('button', { name: 'Add number' }).click();
   await expect(input).toHaveValue('');
 });
 
 test('viewer sees populated authoring controls as disabled', async ({ page }) => {
   await signedIn(page, 'viewer');
   await fixtureApi(page, { firstAgentId: 'agent-119' });
-  await page.goto('/agents/agent-119');
+  // The authoring form lives on Configure, not the Overview landing tab this agent's bare route
+  // now opens (this rebuild's Overview is a read-only summary with its own, much smaller set of
+  // controls — it was never the "populated authoring controls" this test means to exercise).
+  await page.goto('/agents/agent-119/configure');
   await expect(page.getByText('Viewer access is read-only.')).toBeVisible();
   const editors = page.locator('.studio-layout > .stack');
   expect(await editors.locator('input, textarea, select, button').count()).toBeGreaterThan(70);
@@ -162,9 +194,11 @@ test('viewer sees populated authoring controls as disabled', async ({ page }) =>
 test('a deep link loads and saves the requested agent beyond the first page', async ({ page }) => {
   await signedIn(page);
   await fixtureApi(page);
-  await page.goto('/agents/agent-060');
+  // The recording checkbox this test exercises lives on Configure's "Call policy" group; the
+  // agent switcher it used to also assert on ("Selected agent") is gone from this rebuild
+  // (`components/studio.tsx`: "The agent switcher ... duplicated the Agents list").
+  await page.goto('/agents/agent-060/configure');
   await expect(page.getByRole('heading', { name: 'Fixture agent 060' })).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Selected agent' })).toHaveValue('agent-060');
   const write = page.waitForRequest(
     (request) =>
       request.method() === 'PUT' && new URL(request.url()).pathname === '/api/v1/agents/agent-060',
@@ -203,7 +237,7 @@ test('a client 401 hides stale identity and redirects to sign in', async ({ page
 test('renaming a script node updates the start and every incoming transition', async ({ page }) => {
   await signedIn(page);
   await fixtureApi(page);
-  await page.goto('/agents/agent-119');
+  await page.goto('/agents/agent-119/configure');
   await expect(page.getByRole('heading', { name: 'Deterministic script' })).toBeVisible();
   await expect(page.getByLabel('Start node')).toHaveValue('start');
   await expect(page.getByRole('combobox', { name: 'Target node' }).last()).toHaveValue('start');
@@ -221,6 +255,9 @@ const routes = [
   '/agents/agent-001',
   '/agents/agent-119',
   '/agents/agent-120',
+  '/agents/agent-001/configure',
+  '/agents/agent-119/configure',
+  '/agents/agent-120/configure',
   '/agents/agent-001/plugins',
   '/agents/agent-001/test',
   '/agents/agent-001/releases',
@@ -246,18 +283,21 @@ test('all console routes fit the viewport and meet WCAG A/AA', async ({ page }) 
     await test.step(path, async () => {
       await page.goto(path);
       await expect(page.locator('main')).toBeVisible();
-      if (path === '/agents/agent-119') {
+      // These editors only render on Configure now (brief §3 "Agent detail / studio" moved every
+      // authoring control off the bare agent route and onto its own tab).
+      if (path === '/agents/agent-119/configure') {
         for (const name of [
           'Deterministic script',
           'Approved FAQ answers',
           'Tool definitions',
-          'Provider bindings',
+          // "Legacy bindings" (`ProviderMap`) is deliberately not asserted here: it only renders
+          // when `config.providers` is non-empty, and agent-119's fixture has none.
           'Cost admission policy',
         ])
           await expect(page.getByRole('heading', { name })).toBeVisible();
         await expect(page.getByLabel('Transition 1 matches for start')).toBeVisible();
       }
-      if (path === '/agents/agent-120')
+      if (path === '/agents/agent-120/configure')
         await expect(page.getByRole('heading', { name: 'Tool definitions' })).toBeVisible();
       await noOverflowOrAxe(page);
     });

@@ -10,6 +10,11 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+  /* `.ui-cluster` is applied to both `<ol>` (the state-path trail) and `<ul>` (the latency
+     legend) by existing screens; flex alone does not remove the browser's list markers, which
+     overlap the flex items (brief defect: "greeti2g → verify_identi3y"). */
+  list-style: none;
+  padding: 0;
 }
 .ui-grid {
   display: grid;
@@ -23,6 +28,11 @@
 .inspector-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  /* M6: grid items default to `stretch`, so the shorter right rail's `.ds-card` is forced to the
+     left column's full height, and its own auto rows (head/body) then stretch to fill that —
+     the diagnosis card's head alone grew to ~499px with the body pushed far down. Each column
+     keeps its own natural height instead. */
+  align-items: start;
   gap: var(--space-4);
 }
 .latency-bar {
@@ -143,52 +153,20 @@ dialog::backdrop {
     display: none;
   }
 }
-.mobile-nav {
-  display: none;
-}
-.mobile-nav-panel {
-  position: fixed;
-  inset: 0 auto 0 0;
-  z-index: var(--z-overlay);
-  width: min(300px, 85vw);
-  height: 100vh;
-  max-height: none;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.mobile-nav-panel .sidebar {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-.mobile-nav-panel::backdrop {
-  background: rgb(0 0 0 / 45%);
-}
+/* `.mobile-nav`/`.mobile-nav-panel*` moved to `shell.css` (W14 shell rebuild) — that version
+   drops the drawer's dependence on the `.sidebar` narrow-viewport rules that used to turn its
+   nav into a horizontal scroller (brief defect #4). */
 .skip-link {
-  inset-inline-start: 232px;
+  /* Tracks the collapsible rail (`--ovo-nav-w`, written by components/shell/sidebar.tsx) instead
+     of a hardcoded 232px that floated mid-content once the rail collapsed to 64px. */
+  inset-inline-start: calc(var(--ovo-nav-w, 232px) + var(--space-2));
   left: auto;
 }
 @media (max-width: 1023px) {
-  .desktop-nav {
-    display: none;
-  }
-  .mobile-nav {
-    display: block;
-  }
-  .shell {
-    margin-inline-start: 0;
-  }
+  /* `.desktop-nav`/`.mobile-nav`/`.shell`/`.topbar`/`.topbar-location` breakpoint rules moved to
+     `shell.css` alongside the selectors they style. */
   .skip-link {
     inset-inline-start: var(--space-2);
-  }
-  .topbar {
-    padding-inline: var(--space-4);
-  }
-  .topbar-location {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
   }
 }
 @media (max-width: 600px) {

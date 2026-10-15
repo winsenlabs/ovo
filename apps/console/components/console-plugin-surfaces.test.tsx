@@ -189,11 +189,11 @@ describe('manifest-driven console controls', () => {
         ]}
       />,
     );
-    fireEvent.change(screen.getByLabelText('apiKey'), { target: { value: 'credential-1' } });
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'credential-1' } });
     expect(onChange).toHaveBeenCalledWith({
       apiKey: { credentialRef: { credentialId: 'credential-1' } },
     });
-    expect(screen.queryByLabelText('apiKey', { selector: 'input[type=password]' })).toBeNull();
+    expect(screen.queryByLabelText('API key', { selector: 'input[type=password]' })).toBeNull();
   });
 
   it('makes a newly saved binding credential available to the sibling config selector', async () => {
@@ -247,7 +247,7 @@ describe('manifest-driven console controls', () => {
       );
     }
     render(<PluginControls />);
-    const field = screen.getByLabelText('apiKey') as HTMLSelectElement;
+    const field = screen.getByLabelText('API key') as HTMLSelectElement;
     expect(field.options.length).toBe(1);
     fireEvent.change(screen.getByLabelText('New credential value'), {
       target: { value: 'private-key' },
@@ -280,7 +280,7 @@ describe('manifest-driven console controls', () => {
         onChange={vi.fn()}
       />,
     );
-    fireEvent.change(screen.getByLabelText('region'), { target: { value: 'region-A' } });
+    fireEvent.change(screen.getByLabelText('Region'), { target: { value: 'region-A' } });
     fireEvent.change(screen.getByLabelText('New credential value'), {
       target: { value: 'first-secret' },
     });
@@ -307,7 +307,7 @@ describe('manifest-driven console controls', () => {
       />,
     );
     expect((screen.getByLabelText('Credential') as HTMLSelectElement).value).toBe('');
-    expect((screen.getByLabelText('region') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('Region') as HTMLInputElement).value).toBe('');
     expect(screen.queryByText('Stored · fingerprint fp-123')).toBeNull();
     fireEvent.submit(screen.getByLabelText('Credential').closest('form')!);
     expect(request).not.toHaveBeenCalled();
@@ -330,9 +330,9 @@ describe('manifest-driven console controls', () => {
         }}
       />,
     );
-    fireEvent.change(screen.getByLabelText('region'), { target: { value: 'in' } });
+    fireEvent.change(screen.getByLabelText('Region'), { target: { value: 'in' } });
     expect(onChange).toHaveBeenCalledWith({ region: 'in' });
-    const timeout = screen.getByLabelText('timeout') as HTMLInputElement;
+    const timeout = screen.getByLabelText('Timeout') as HTMLInputElement;
     expect(timeout.min).toBe('1');
     expect(timeout.max).toBe('10');
     fireEvent.change(timeout, { target: { value: '7' } });

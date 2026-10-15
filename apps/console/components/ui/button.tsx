@@ -13,6 +13,8 @@ export function Button({
     </button>
   );
 }
+/** @deprecated Use `Tabs` from `./tabs`, which adds WAI-ARIA roving-tabindex arrow-key
+ * navigation this version does not have. */
 export function Tabs({
   tabs,
   current,
@@ -38,6 +40,9 @@ export function Tabs({
     </div>
   );
 }
+/** @deprecated Use `RelativeTime` from `../../lib/format` + `./display.tsx`, which pins en-IN
+ * and the installation's timezone instead of `toLocaleString()`'s browser-default locale (the
+ * US-date-format defect this version still has). */
 export function Time({ value }: { value?: string | null }) {
   if (!value) return <span>Time unavailable</span>;
   const date = new Date(value);

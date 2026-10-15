@@ -2,20 +2,29 @@
 import { useState, type FormEvent } from 'react';
 import { apiRequest, type SessionIdentity } from '../../lib/api';
 import type { ReconciliationResult } from '../../lib/operator-api';
-import { Field, JsonEvidence, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { formatMoney } from '../../lib/format';
+import { SectionCard, KeyValueGrid } from '../ui/section-card';
+import { StatusBadgeV2 } from '../ui/status-badge';
 
 const newKey = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
     : `reconciliation-${Date.now()}`;
 
+/** One admin-only correction form per invoice line, with the receipt shown as a KeyValueGrid
+ * instead of a raw JSON dump. Reconciliation never rewrites recorded native usage. */
 export function ReconciliationPanel({ role }: { role: SessionIdentity['role'] }) {
   const [currency, setCurrency] = useState('INR');
   const [idempotencyKey, setIdempotencyKey] = useState(newKey);
   const [result, setResult] = useState<ReconciliationResult>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  if (role !== 'admin') return null;
+  if (role !== 'admin')
+    return (
+      <SectionCard title="Provider invoice reconciliation">
+        <p className="muted">Invoice reconciliation is restricted to administrators.</p>
+      </SectionCard>
+    );
 
   async function reconcile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,36 +58,36 @@ export function ReconciliationPanel({ role }: { role: SessionIdentity['role'] })
   }
 
   return (
-    <Panel labelledBy="reconciliation-title">
-      <PanelHeader
-        id="reconciliation-title"
-        title="Provider invoice reconciliation"
-        badge={<StatusBadge tone="warning">Append-only correction</StatusBadge>}
-      />
-      <form className="panel-body stack" onSubmit={reconcile}>
-        <div className="muted">
-          Reconciliation never rewrites recorded native usage. It appends a signed correction delta
-          linked to one provider invoice line and updates the associated budget when applicable.
-        </div>
+    <SectionCard
+      title="Provider invoice reconciliation"
+      description="Appends a signed correction delta linked to one provider invoice line and updates the associated budget when applicable. It never rewrites recorded native usage."
+      padding="prose"
+    >
+      <form className="stack" onSubmit={reconcile}>
         {error && (
           <div className="field-error" role="alert">
             {error}
           </div>
         )}
         <div className="form-grid">
-          <Field label="Usage ID" htmlFor="reconcile-usage">
+          <div className="field">
+            <label htmlFor="reconcile-usage">Usage ID</label>
             <input id="reconcile-usage" name="usageId" required />
-          </Field>
-          <Field label="Provider invoice ID" htmlFor="reconcile-invoice">
+          </div>
+          <div className="field">
+            <label htmlFor="reconcile-invoice">Provider invoice ID</label>
             <input id="reconcile-invoice" name="providerInvoiceId" required />
-          </Field>
-          <Field label="Invoice line ID" htmlFor="reconcile-line">
+          </div>
+          <div className="field">
+            <label htmlFor="reconcile-line">Invoice line ID</label>
             <input id="reconcile-line" name="providerInvoiceLineId" required />
-          </Field>
-          <Field label="Actual amount (minor units)" htmlFor="reconcile-amount">
+          </div>
+          <div className="field">
+            <label htmlFor="reconcile-amount">Actual amount (minor units)</label>
             <input id="reconcile-amount" name="actualAmountMinor" inputMode="numeric" required />
-          </Field>
-          <Field label="Currency" htmlFor="reconcile-currency">
+          </div>
+          <div className="field">
+            <label htmlFor="reconcile-currency">Currency</label>
             <input
               id="reconcile-currency"
               value={currency}
@@ -86,25 +95,25 @@ export function ReconciliationPanel({ role }: { role: SessionIdentity['role'] })
               pattern="[A-Z]{3}"
               required
             />
-          </Field>
-          <Field label="Occurred at" htmlFor="reconcile-occurred">
+          </div>
+          <div className="field">
+            <label htmlFor="reconcile-occurred">Occurred at</label>
             <input id="reconcile-occurred" name="occurredAt" type="datetime-local" required />
-          </Field>
+          </div>
           {currency !== 'INR' && (
             <>
-              <Field label="FX ID" htmlFor="reconcile-fx-id">
+              <div className="field">
+                <label htmlFor="reconcile-fx-id">FX ID</label>
                 <input id="reconcile-fx-id" name="fxId" required />
-              </Field>
-              <Field label="FX version" htmlFor="reconcile-fx-version">
+              </div>
+              <div className="field">
+                <label htmlFor="reconcile-fx-version">FX version</label>
                 <input id="reconcile-fx-version" name="fxVersion" required />
-              </Field>
+              </div>
             </>
           )}
-          <Field
-            label="Idempotency key"
-            htmlFor="reconcile-key"
-            help="Reuse this exact key only when retrying the same invoice line."
-          >
+          <div className="field">
+            <label htmlFor="reconcile-key">Idempotency key</label>
             <input
               id="reconcile-key"
               className="mono"
@@ -112,13 +121,33 @@ export function ReconciliationPanel({ role }: { role: SessionIdentity['role'] })
               onChange={(event) => setIdempotencyKey(event.target.value)}
               required
             />
-          </Field>
+            <small>Reuse this exact key only when retrying the same invoice line.</small>
+          </div>
         </div>
         <button className="button primary align-start" disabled={busy}>
           {busy ? 'Reconciling…' : 'Append reconciliation'}
         </button>
-        {result && <JsonEvidence label="Reconciliation receipt" value={result} />}
       </form>
-    </Panel>
+      {result && (
+        <div className="ds-stack" style={{ marginTop: 'var(--space-4)' }}>
+          <h3>Reconciliation receipt</h3>
+          <KeyValueGrid
+            columns={3}
+            items={[
+              { label: 'Usage', value: result.usageId, mono: true, copy: result.usageId },
+              {
+                label: 'Correction',
+                value: result.correctionId,
+                mono: true,
+                copy: result.correctionId,
+              },
+              { label: 'Delta', value: formatMoney(result.deltaPaise) },
+              { label: 'Effective amount', value: formatMoney(result.effectiveAmountPaise) },
+              { label: 'State', value: <StatusBadgeV2 value={result.state} /> },
+            ]}
+          />
+        </div>
+      )}
+    </SectionCard>
   );
 }

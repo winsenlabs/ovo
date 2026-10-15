@@ -1,7 +1,10 @@
 'use client';
 import { useState } from 'react';
 import { apiRequest, type CallSummary, type SessionIdentity } from '../../lib/api';
-import { JsonEvidence, StatusBadge } from '../primitives';
+import { SectionCard } from '../ui/section-card';
+import { StatusBadgeV2 } from '../ui/status-badge';
+import { CodeBlock } from '../ui/code-block';
+import { InlineAlert } from '../ui/feedback-v2';
 
 type ExportJob = {
   id: string;
@@ -16,6 +19,8 @@ const operationId = () =>
     ? crypto.randomUUID()
     : `export-${Date.now()}`;
 
+/** Durable, integrity-checked redacted export of a recording's evidence, queued asynchronously
+ * from the Recording files tab. */
 export function RecordingExportPanel({
   call,
   recordingId,
@@ -61,24 +66,19 @@ export function RecordingExportPanel({
   }
 
   return (
-    <section className="subsection stack" aria-labelledby="recording-export-title">
-      <div className="split-row">
-        <div>
-          <h4 id="recording-export-title">Durable redacted export</h4>
-          <p className="muted">Exports are asynchronous, integrity-checked operator artifacts.</p>
-        </div>
-        {job && (
-          <StatusBadge tone={job.state === 'succeeded' ? 'good' : 'soft'}>{job.state}</StatusBadge>
-        )}
-      </div>
-      <div className="button-row">
+    <SectionCard
+      title="Durable redacted export"
+      description="Exports are asynchronous, integrity-checked operator artifacts."
+      actions={job && <StatusBadgeV2 value={job.state} />}
+    >
+      <div className="ui-cluster">
         {role !== 'viewer' && (
-          <button className="button" type="button" onClick={requestExport} disabled={busy}>
+          <button type="button" className="button" onClick={requestExport} disabled={busy}>
             {busy && !job ? 'Queueing…' : 'Request redacted export'}
           </button>
         )}
         {job && (
-          <button className="button" type="button" onClick={refresh} disabled={busy}>
+          <button type="button" className="button" onClick={refresh} disabled={busy}>
             Refresh status
           </button>
         )}
@@ -92,12 +92,10 @@ export function RecordingExportPanel({
           </a>
         )}
       </div>
-      {job && <JsonEvidence label="Export receipt" value={job} />}
-      {error && (
-        <div className="field-error" role="alert">
-          {error}
-        </div>
+      {job && (
+        <CodeBlock code={() => JSON.stringify(job, null, 2)} collapsedLabel="Export receipt" />
       )}
-    </section>
+      {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+    </SectionCard>
   );
 }

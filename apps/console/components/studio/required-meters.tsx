@@ -69,7 +69,7 @@ export function RequiredMeters({
         {error}
       </div>
     );
-  if (!checklist) return null;
+  if (!checklist?.meters) return null;
   return (
     <section aria-label="Required meter checklist" className="stack">
       <div className="button-row">

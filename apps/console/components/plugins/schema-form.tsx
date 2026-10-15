@@ -2,23 +2,17 @@
 import { useState } from 'react';
 import type { JsonShape, PluginOption } from './types';
 import type { CredentialMetadata } from '../../lib/api';
-import { FormField } from '../ui/form-field';
 import { JsonEditor } from '../forms/json-editor';
-import { LocatorListField } from './locator-list-field';
+import { renderSchemaField, type FieldArgs } from './schema-field';
 
-function fieldValue(value: Record<string, unknown>, key: string): string {
-  return value[key] == null ? '' : String(value[key]);
-}
-function storedCredentialId(value: unknown): string | undefined {
-  if (!value || typeof value !== 'object' || !('credentialRef' in value)) return undefined;
-  const reference = value.credentialRef;
-  return reference &&
-    typeof reference === 'object' &&
-    'credentialId' in reference &&
-    typeof reference.credentialId === 'string'
-    ? reference.credentialId
-    : undefined;
-}
+/** Above this many visible properties, a schema with no curated `ui.fields` hints (several
+ * plugin kinds — engine, VAD, turn detector in the manifests seen so far — ship with none at
+ * all) reads as an unnavigable flat dump of 15+ text inputs (brief §3 "Agent plugins": collapse
+ * optional/advanced fields). Below it — every hand-authored binding schema the console ships
+ * with today — every field stays exactly where it already was; this only engages for the
+ * sprawling, hint-free case the brief's screenshots called out. */
+const COLLAPSE_THRESHOLD = 6;
+
 export function SchemaForm({
   plugin,
   schema = plugin.bindingSchema ?? plugin.configSchema,
@@ -37,201 +31,40 @@ export function SchemaForm({
   credentials?: readonly CredentialMetadata[];
 }) {
   const [secretErrors, setSecretErrors] = useState<Record<string, string>>({});
-  const properties = Object.entries(schema?.properties ?? {});
+  const requiredKeys = new Set(schema?.required ?? []);
   const patch = (key: string, next: unknown) => onChange({ ...value, [key]: next });
+  const args: FieldArgs = {
+    plugin,
+    value,
+    patch,
+    onSecret,
+    fingerprints,
+    credentials,
+    secretErrors,
+    setSecretErrors,
+    prefix: '',
+    requiredKeys,
+  };
+  // A field hinted `advanced` stays filtered out of both groups below, same as before this pass —
+  // it is reachable through the raw "Advanced JSON" editor, exactly as every existing test for it
+  // (e.g. a secret pointer's non-secret sibling) already expects.
+  const visible = Object.entries(schema?.properties ?? {}).filter(
+    ([key]) => !plugin.ui?.fields?.[key]?.advanced,
+  );
+  const collapseOptional = visible.length > COLLAPSE_THRESHOLD;
+  const primary = visible.filter(([key]) => !collapseOptional || requiredKeys.has(key));
+  const collapsed = visible.filter(([key]) => collapseOptional && !requiredKeys.has(key));
   return (
     <div className="ui-stack">
-      {properties
-        .filter(([key]) => !plugin.ui?.fields?.[key]?.advanced)
-        .map(([key, shape]) => {
-          const hint = plugin.ui?.fields?.[key];
-          const id = `schema-${plugin.id.replace(/[^a-z0-9-]/gi, '-')}-${key}`;
-          const required = schema?.required?.includes(key) ?? false;
-          const label = hint?.label ?? key;
-          const help = hint?.help ?? shape.description;
-          if (plugin.secretFields?.includes(`/${key}`) || hint?.widget === 'secret') {
-            if (!onSecret) {
-              if (!credentials)
-                return (
-                  <p key={key}>
-                    <strong>{label}:</strong> Use the binding credential above. Secret values cannot
-                    be entered in binding configuration.
-                  </p>
-                );
-              const selected = storedCredentialId(value[key]);
-              const options = credentials.filter(
-                (credential) => !plugin.provider || credential.provider === plugin.provider,
-              );
-              return (
-                <div className="ui-stack" key={key}>
-                  <FormField
-                    id={id}
-                    label={label}
-                    help="Select a stored credential reference; secret values are never saved in plugin configuration."
-                    required={required}
-                  >
-                    {(props) => (
-                      <select
-                        {...props}
-                        value={selected ?? ''}
-                        onChange={(event) =>
-                          patch(
-                            key,
-                            event.target.value
-                              ? { credentialRef: { credentialId: event.target.value } }
-                              : undefined,
-                          )
-                        }
-                      >
-                        <option value="">Select stored credential</option>
-                        {selected && !options.some((credential) => credential.id === selected) && (
-                          <option value={selected}>Current stored credential</option>
-                        )}
-                        {options.map((credential) => (
-                          <option key={credential.id} value={credential.id}>
-                            {credential.label}
-                            {credential.fingerprint ? ` · ${credential.fingerprint}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </FormField>
-                  <a href="/settings/providers">Create a write-only credential</a>
-                </div>
-              );
-            }
-            const selected = storedCredentialId(value[key]);
-            const fingerprint =
-              fingerprints[key] ??
-              credentials?.find((credential) => credential.id === selected)?.fingerprint;
-            return (
-              <FormField
-                key={key}
-                id={id}
-                label={label}
-                help={fingerprint ? `Stored · fingerprint ${fingerprint}` : help}
-                error={secretErrors[key]}
-                required={required}
-              >
-                {(props) => (
-                  <input
-                    {...props}
-                    type="password"
-                    autoComplete="off"
-                    defaultValue=""
-                    onBlur={(event) => {
-                      const input = event.currentTarget;
-                      if (!input.value) return;
-                      const secret = input.value;
-                      void (async () => {
-                        try {
-                          await onSecret(`/${key}`, secret);
-                          input.value = '';
-                          setSecretErrors((current) => ({ ...current, [key]: '' }));
-                        } catch (failure) {
-                          setSecretErrors((current) => ({
-                            ...current,
-                            [key]:
-                              failure instanceof Error
-                                ? failure.message
-                                : 'Credential could not be saved',
-                          }));
-                        }
-                      })();
-                    }}
-                  />
-                )}
-              </FormField>
-            );
-          }
-          if (shape.type === 'array' && shape.items?.properties?.id)
-            return (
-              <LocatorListField
-                key={key}
-                field={{ id, label, help, max: shape.maxItems ?? 3 }}
-                value={value[key]}
-                onChange={(next) => patch(key, next)}
-              />
-            );
-          if (shape.const === true)
-            return (
-              <FormField key={key} id={id} label={label} help={help} required>
-                {(props) => (
-                  <label className="toggle-row">
-                    <input
-                      {...props}
-                      type="checkbox"
-                      checked={value[key] === true}
-                      onChange={(event) => patch(key, event.target.checked)}
-                    />
-                    I attest this requirement is met
-                  </label>
-                )}
-              </FormField>
-            );
-          if (shape.enum?.length)
-            return (
-              <FormField key={key} id={id} label={label} help={help} required={required}>
-                {(props) => (
-                  <select
-                    {...props}
-                    value={fieldValue(value, key)}
-                    onChange={(event) => patch(key, event.target.value)}
-                  >
-                    <option value="">Select</option>
-                    {shape.enum?.map((option) => (
-                      <option key={String(option)} value={String(option)}>
-                        {String(option)}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </FormField>
-            );
-          if (shape.type === 'boolean')
-            return (
-              <FormField key={key} id={id} label={label} help={help} required={required}>
-                {(props) => (
-                  <input
-                    {...props}
-                    type="checkbox"
-                    role="switch"
-                    checked={value[key] === true}
-                    onChange={(event) => patch(key, event.target.checked)}
-                  />
-                )}
-              </FormField>
-            );
-          if (shape.type === 'number' || shape.type === 'integer')
-            return (
-              <FormField key={key} id={id} label={label} help={help} required={required}>
-                {(props) => (
-                  <input
-                    {...props}
-                    type="number"
-                    min={shape.minimum}
-                    max={shape.maximum}
-                    value={fieldValue(value, key)}
-                    onChange={(event) =>
-                      patch(key, event.target.value === '' ? undefined : Number(event.target.value))
-                    }
-                  />
-                )}
-              </FormField>
-            );
-          return (
-            <FormField key={key} id={id} label={label} help={help} required={required}>
-              {(props) => (
-                <input
-                  {...props}
-                  type="text"
-                  value={fieldValue(value, key)}
-                  onChange={(event) => patch(key, event.target.value)}
-                />
-              )}
-            </FormField>
-          );
-        })}
+      {primary.map((entry) => renderSchemaField(entry, args))}
+      {collapsed.length > 0 && (
+        <details className="ds-nested-fields">
+          <summary>Advanced settings</summary>
+          <div className="form-grid">
+            {collapsed.map((entry) => renderSchemaField(entry, args))}
+          </div>
+        </details>
+      )}
       <details>
         <summary>Advanced JSON</summary>
         <JsonEditor

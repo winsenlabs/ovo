@@ -1,9 +1,16 @@
 'use client';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import type { CallSummary, SessionIdentity } from '../../lib/api';
-import { Field, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { FormField } from '../ui/form-field';
+import { Duration } from '../ui/display';
+
+/** How long a live call has been running, from its creation instant. */
+function liveDuration(call: CallSummary): number | undefined {
+  return call.createdAt ? Date.now() - new Date(call.createdAt).getTime() : undefined;
+}
+
 export function HandoffRequestPanel({
-  calls,
+  call,
   targetKind,
   setTargetKind,
   fallbackKind,
@@ -11,8 +18,9 @@ export function HandoffRequestPanel({
   role,
   busy,
   create,
+  onCancel,
 }: {
-  calls: CallSummary[];
+  call: CallSummary;
   targetKind: 'phone' | 'queue';
   setTargetKind: Dispatch<SetStateAction<'phone' | 'queue'>>;
   fallbackKind: 'resume' | 'end' | 'human';
@@ -20,87 +28,75 @@ export function HandoffRequestPanel({
   role: SessionIdentity['role'];
   busy: boolean;
   create: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  onCancel: () => void;
 }) {
   return (
-    <Panel labelledBy="handoff-request-title">
-      <PanelHeader
-        id="handoff-request-title"
-        title="Request handoff"
-        badge={<StatusBadge tone="warning">Live calls only</StatusBadge>}
-      />
-      <form className="panel-body stack" onSubmit={create}>
-        {!calls.length && (
-          <div className="muted">
-            No active live calls with a verified carrier binding are visible. Simulation calls
-            cannot be handed off.
-          </div>
-        )}
-        <div className="form-grid">
-          <Field label="Active live call" htmlFor="handoff-call">
-            <select id="handoff-call" name="callId" required>
-              <option value="">Select live call</option>
-              {calls.map((call) => (
-                <option key={call.id} value={call.id}>
-                  {call.id} · {call.status}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Target type" htmlFor="handoff-target-kind">
-            <select
-              id="handoff-target-kind"
-              value={targetKind}
-              onChange={(event) => setTargetKind(event.target.value as 'phone' | 'queue')}
-            >
-              <option value="phone">Phone</option>
-              <option value="queue">Queue</option>
-            </select>
-          </Field>
-          <Field
-            label={targetKind === 'phone' ? 'Target E.164 number' : 'Queue identifier'}
-            htmlFor="handoff-target"
+    <form className="stack" onSubmit={create}>
+      <p className="muted">
+        Call <span className="mono">{call.id}</span> · running <Duration ms={liveDuration(call)} />
+      </p>
+      <input type="hidden" name="callId" value={call.id} />
+      <FormField id="handoff-target-kind" label="Target type">
+        {(control) => (
+          <select
+            {...control}
+            value={targetKind}
+            onChange={(event) => setTargetKind(event.target.value as 'phone' | 'queue')}
           >
-            <input
-              id="handoff-target"
-              name="target"
-              required
-              placeholder={targetKind === 'phone' ? '+91…' : 'support-tier-2'}
-            />
-          </Field>
-          <Field label="Failure fallback" htmlFor="handoff-fallback-kind">
-            <select
-              id="handoff-fallback-kind"
-              value={fallbackKind}
-              onChange={(event) => setFallbackKind(event.target.value as typeof fallbackKind)}
-            >
-              <option value="resume">Resume agent</option>
-              <option value="end">End call</option>
-              <option value="human">Alternate human target</option>
-            </select>
-          </Field>
-          {fallbackKind === 'human' && (
-            <Field label="Fallback target" htmlFor="handoff-fallback-target">
-              <input id="handoff-fallback-target" name="fallbackTarget" required />
-            </Field>
-          )}
-          <Field label="Fallback caller message" htmlFor="handoff-fallback-message">
-            <textarea id="handoff-fallback-message" name="fallbackMessage" required />
-          </Field>
-        </div>
-        <label className="toggle-row">
-          <input type="checkbox" name="confirmationRequired" defaultChecked />
-          <span>
-            <strong>Require explicit operator confirmation</strong>
-            <small>The provider request starts only after acceptance.</small>
-          </span>
-        </label>
-        <button
-          className="button primary align-start"
-          disabled={role === 'viewer' || busy || !calls.length}
-        >
+            <option value="phone">Phone</option>
+            <option value="queue">Queue</option>
+          </select>
+        )}
+      </FormField>
+      <FormField
+        id="handoff-target"
+        label={targetKind === 'phone' ? 'Target E.164 number' : 'Queue identifier'}
+      >
+        {(control) => (
+          <input
+            {...control}
+            name="target"
+            required
+            placeholder={targetKind === 'phone' ? '+91…' : 'support-tier-2'}
+          />
+        )}
+      </FormField>
+      <FormField id="handoff-fallback-kind" label="Failure fallback">
+        {(control) => (
+          <select
+            {...control}
+            value={fallbackKind}
+            onChange={(event) => setFallbackKind(event.target.value as typeof fallbackKind)}
+          >
+            <option value="resume">Resume agent</option>
+            <option value="end">End call</option>
+            <option value="human">Alternate human target</option>
+          </select>
+        )}
+      </FormField>
+      {fallbackKind === 'human' && (
+        <FormField id="handoff-fallback-target" label="Fallback target">
+          {(control) => <input {...control} name="fallbackTarget" required />}
+        </FormField>
+      )}
+      <FormField id="handoff-fallback-message" label="Fallback caller message">
+        {(control) => <textarea {...control} name="fallbackMessage" required />}
+      </FormField>
+      <label className="toggle-row">
+        <input type="checkbox" name="confirmationRequired" defaultChecked />
+        <span>
+          <strong>Require explicit operator confirmation</strong>
+          <small>The provider request starts only after acceptance.</small>
+        </span>
+      </label>
+      <div className="button-row">
+        <button className="button primary" disabled={role === 'viewer' || busy}>
           {busy ? 'Submitting…' : 'Request handoff'}
         </button>
-      </form>
-    </Panel>
+        <button className="button" type="button" onClick={onCancel} disabled={busy}>
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }
