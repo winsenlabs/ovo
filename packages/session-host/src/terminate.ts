@@ -29,8 +29,12 @@ export interface CarrierTerminationOptions {
   media: { terminate(sessionId: string, reason: EndReason): Promise<void> };
   engine: Pick<VoiceSessionEngine, 'dispose'>;
   reason: EndReason;
-  /** AGT-15: where a call the agent ended `transferred` goes, instead of being hung up. */
-  transfer?: { target: HandoffTarget; workspaceId: string };
+  /**
+   * AGT-15: where a call the agent ended `transferred` goes, instead of being hung up. R3: a leg
+   * the host already handed on (`handedOff`: a human queue's destination, asked for and confirmed
+   * before the session ended) is neither handed on again nor hung up.
+   */
+  transfer?: { target: HandoffTarget; workspaceId: string } | { handedOff: true };
 }
 
 /** Fence the route before any purposeful carrier/media closure, then dispose the engine last. */
@@ -47,17 +51,21 @@ export async function terminateCarrierLeg(options: CarrierTerminationOptions): P
         ? { carrierRequestId: fenced.carrierRequestId ?? route.carrierRequestId! }
         : {}),
     };
+    const { transfer } = options;
+    // R3: the host handed the leg on before ending the session; only the engine is left to dispose.
+    if (reason === 'transferred' && transfer && 'handedOff' in transfer) return;
     // A transfer the carrier took (or may have taken) leaves the leg alone; a refused one hangs up.
     if (
       reason === 'transferred' &&
-      options.transfer &&
+      transfer &&
+      'target' in transfer &&
       query.carrierCallId &&
       (await transferCarrierLeg({
         control,
         capabilities: options.capabilities,
         carrierCallId: query.carrierCallId,
-        target: options.transfer.target,
-        workspaceId: options.transfer.workspaceId,
+        target: transfer.target,
+        workspaceId: transfer.workspaceId,
         sessionId: route.sessionId,
       }))
     )
