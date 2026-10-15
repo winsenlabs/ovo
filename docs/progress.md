@@ -2,6 +2,22 @@
 
 Updated: 2026-09-22 IST. Branch: `vorflux/ovo-foundation`.
 
+## Wave 16 R2: in-call agent transfer (2026-10-15 IST)
+
+- **What.** On a routed call an agent can hand the caller to another agent mid-call on the same
+  carrier leg, media link and recording: an announcement, a configurable hold sequence (clips,
+  silence, reassurance lines; max hold time and a timeout chain), then the target release with a
+  warm handover (LLM summary, transcript, declared variables). Agents opt in with `transfer_to_agent`
+  or flow end nodes; the routing point owns the catalogue, gates and limits; the router's own
+  handoff uses the same path. Design: `docs/architecture/routing.md` (In-call agent transfer).
+- **Ships dark.** `OVO_ROUTING_TRANSFER_ENABLED=false`: routed calls run as Wave 15 and direct
+  numbers never change. Migrations (operations 011, outcomes v3, ledger 005) are additive and inert.
+- **Core lane.** Contracts (transfer catalogue, hold, handoff union, `AgentTransferPort`, events,
+  issue codes), hold clips and link tables, keep-on-full claims, outcome `segments`/`transfers`,
+  per-segment ledger tagging, routed voice-line pre-render, Compose/Terraform/env wiring, and the R1
+  carry-overs it owns (routed live checks, the fallback-agent outcome, `24:00` windows, pool
+  `includeDeleted`/`usedBy`, `routing_router_is_only_release`, routing flags on AWS).
+
 ## Wave 15 R1: routing points, agent pools and the conversational router (2026-10-15 IST)
 
 - **What.** A number can be bound to a routing release instead of one agent release. A router (an
