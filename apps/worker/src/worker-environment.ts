@@ -74,6 +74,15 @@ export function openWorkerTelemetry(databaseUrl: string, controlStore: ControlSt
 }
 
 /**
+ * Wave 16 (R2) in-call agent transfer: `OVO_ROUTING_TRANSFER_ENABLED` (only the exact value
+ * `true`; off by default) gives routed calls `begin`, the hold, `ovo.agent-transfer` and per-segment
+ * telemetry and cost tags. Off, a routed call is composed exactly as in Wave 15.
+ */
+export function transferWorkerOptions(): { transferEnabled: boolean } {
+  return { transferEnabled: process.env.OVO_ROUTING_TRANSFER_ENABLED === 'true' };
+}
+
+/**
  * Wave 15 routing in the worker (both off or default unless set): `OVO_ROUTING_EXTERNAL_ENABLED`
  * lets the external decision engine call out (only the exact value `true`), and
  * `OVO_ROUTING_PREPARE_TIMEOUT_MS` (500-10000, default 2500) bounds composing the chosen agent.

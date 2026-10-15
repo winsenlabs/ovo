@@ -1,5 +1,6 @@
 import type {
   CallbackRequest,
+  DisclosureKind,
   EventSink,
   RouteDecisionPayload,
   RouteFallbackPayload,
@@ -13,8 +14,8 @@ export interface RecordedRouteEvent {
 
 /**
  * Where the router records what it decided (§4.9): `route.node` per engine attempt, `route.fallback`
- * per fallback step, one `route.decision`, and a `disposition` for an end with a disposition or a
- * callback. Every event is also kept in `events`, in order, for the simulator and the replay tests.
+ * per fallback step, one `route.decision`, a `disposition` for an end with a disposition or a
+ * callback, and (R2) a `disclosure` once the router's disclosure was heard. Every event is also kept in `events`, in order, for the simulator and the replay tests.
  * Appending never waits and never throws into the call: the sink queues (AGT-8). No caller words and
  * no phone numbers are ever put in a payload.
  */
@@ -43,6 +44,11 @@ export class RouteRecorder {
     callback?: CallbackRequest;
   }): void {
     this.record('disposition', { ...payload, source: 'system' });
+  }
+
+  /** R2: the router's disclosure was heard in full (`RouterDisclosure`). */
+  disclosure(payload: { kinds: DisclosureKind[] }): void {
+    this.record('disclosure', payload);
   }
 
   private record(type: string, payload: Record<string, unknown>): void {

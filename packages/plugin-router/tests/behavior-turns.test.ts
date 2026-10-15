@@ -135,7 +135,7 @@ describe('router behaviour: caller turns', () => {
     expect((await h.turn('umm')).say).toBe(ASK);
     expect((await h.turn('err')).say).toBe('Connecting you now.');
     expect(h.handoff.prepared[0]).toMatchObject({ agentId: 'sales-en', releaseId: I.salesEn });
-    expect(h.handoff.prepared[0]!.route).toEqual({ path: ['intent'] });
+    expect(h.handoff.prepared[0]).toHaveProperty('route', { path: ['intent'] });
     expect(h.of('route.fallback')).toEqual([
       { turn: 1, node: 'intent', step: 'reask', result: 'taken', attempt: 1 },
       { turn: 2, node: 'intent', step: 'default', result: 'taken', attempt: 1 },
@@ -178,7 +178,7 @@ describe('router behaviour: caller turns', () => {
     });
     await h.turn('', opening);
     await h.turn('1', dtmf('1'));
-    expect(h.handoff.prepared[0]!.route).toEqual({
+    expect(h.handoff.prepared[0]).toHaveProperty('route', {
       path: ['intent'],
       poolId: I.salesPool,
       memberId: 'sales-en',

@@ -164,6 +164,32 @@ describe('Fargate scaling contract', () => {
       expect(dispatcher).toContain(`{ name = "${key}", value = tostring(var.${variable}) }`);
   });
 
+  it('passes every routing flag, off by default, to the tasks that read it (Waves 15-16)', () => {
+    const tasks = tf('tasks.tf');
+    const task = (name: string) => block(tasks, 'resource "aws_ecs_task_definition"', name);
+    const flag = (key: string, variable: string) =>
+      `{ name = "${key}", value = tostring(var.${variable}) }`;
+    const routing = flag('OVO_ROUTING_ENABLED', 'enable_routing');
+    const external = flag('OVO_ROUTING_EXTERNAL_ENABLED', 'enable_routing_external');
+    const transfer = flag('OVO_ROUTING_TRANSFER_ENABLED', 'enable_routing_transfer');
+    const prepare =
+      '{ name = "OVO_ROUTING_PREPARE_TIMEOUT_MS", value = var.routing_prepare_timeout_ms }';
+    for (const name of ['api', 'gateway']) expect(task(name), name).toContain(routing);
+    for (const name of ['api', 'worker']) {
+      expect(task(name), name).toContain(external);
+      expect(task(name), name).toContain(transfer);
+    }
+    expect(task('worker')).toContain(prepare);
+    for (const name of ['worker', 'dispatcher', 'console'])
+      expect(task(name)).not.toContain(routing);
+    for (const name of ['gateway', 'dispatcher', 'console'])
+      expect(task(name), name).not.toContain('OVO_ROUTING_TRANSFER_ENABLED');
+    const vars = tf('variables.tf');
+    for (const variable of ['enable_routing', 'enable_routing_external', 'enable_routing_transfer'])
+      expect(block(vars, 'variable', variable)).toMatch(/type\s+=\s+bool\s+default\s+=\s+false/);
+    expect(block(vars, 'variable', 'routing_prepare_timeout_ms')).toMatch(/default\s+=\s+""/);
+  });
+
   it('provides every required variable in the example and S3 state locking', () => {
     const vars = tf('variables.tf');
     const example = tf('terraform.tfvars.example');

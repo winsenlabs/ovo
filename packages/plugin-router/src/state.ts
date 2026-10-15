@@ -1,4 +1,9 @@
-import type { RouteContext, RoutingNode, RoutingReleaseSnapshot } from '@winsendotai/ovo-contracts';
+import type {
+  RouteContext,
+  RouterEntry,
+  RoutingNode,
+  RoutingReleaseSnapshot,
+} from '@winsendotai/ovo-contracts';
 import type { TranscriptLine } from './engines/index.ts';
 
 /** Where a node's fallback chain has got to: the step it is on and the re-asks that step has used. */
@@ -26,11 +31,21 @@ export interface RouterState {
 
 const TRANSCRIPT_MAX = 40;
 
-export function initialState(snapshot: RoutingReleaseSnapshot): RouterState {
+/**
+ * A new call starts at the root. A re-routed router (R2 §7.5, `entry`) resumes at the entry node
+ * with the route so far: its path, language and context values; its turns and time start over.
+ */
+export function initialState(snapshot: RoutingReleaseSnapshot, entry?: RouterEntry): RouterState {
+  const path = !entry
+    ? [snapshot.root]
+    : entry.path.at(-1) === entry.node
+      ? [...entry.path]
+      : [...entry.path, entry.node];
+  const language = entry?.context.language;
   return {
-    node: snapshot.root,
-    path: [snapshot.root],
-    context: { values: {} },
+    node: entry?.node ?? snapshot.root,
+    path: path.slice(-32),
+    context: { ...(language ? { language } : {}), values: { ...entry?.context.values } },
     turns: 0,
     idles: 0,
     transcript: [],

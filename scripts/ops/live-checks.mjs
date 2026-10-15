@@ -172,12 +172,29 @@ function routeChecks(results, snapshot) {
         : `enabled routes: ${enabled.map((route) => route.phoneNumber).join(', ')}`,
   );
   const blocked = [];
+  const routed = [];
   for (const route of enabled) {
-    const readiness = snapshot.releases?.[route.releaseId];
-    if (!readiness?.liveReady)
-      blocked.push(
-        `${route.phoneNumber} → release ${route.releaseId}: ${readiness?.error ?? ((readiness?.liveBlockers ?? readiness?.blockers ?? []).join('; ') || 'not live-ready')}`,
-      );
+    const id = route.routingReleaseId; // Wave 15: its router and default agent answer it
+    const routing = id && snapshot.routingReleases?.[id];
+    const label = `${route.phoneNumber} → ${id ? `routing release ${routing?.version ?? id}` : 'release'}`;
+    if (id && (!routing || routing.error)) {
+      blocked.push(`${label}: ${routing?.error ?? 'not read'}`);
+      continue;
+    }
+    if (routing) routed.push(`${label} (${routing.members.length} member release(s) not checked)`);
+    const targets = routing
+      ? [
+          [' router', routing.router],
+          [' default agent', routing.defaultTarget],
+        ]
+      : [['', route.releaseId]];
+    for (const [role, releaseId] of targets) {
+      const readiness = snapshot.releases?.[releaseId];
+      if (!readiness?.liveReady)
+        blocked.push(
+          `${label}${role} ${releaseId}: ${readiness?.error ?? ((readiness?.liveBlockers ?? readiness?.blockers ?? []).join('; ') || 'not live-ready')}`,
+        );
+    }
   }
   if (enabled.length)
     check(
@@ -186,7 +203,7 @@ function routeChecks(results, snapshot) {
       blocked.length ? 'fail' : 'pass',
       blocked.length
         ? `not live-ready: ${blocked.join(' | ')}`
-        : 'every routed release is live-ready',
+        : `every routed release is live-ready${routed.length ? `; ${routed.join('; ')}` : ''}`,
     );
   return enabled;
 }

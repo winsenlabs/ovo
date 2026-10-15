@@ -74,9 +74,15 @@ export class CallEnding {
     this.turnLines.push(text);
   }
 
-  /** `terminal`: the flow has ended with this turn (see the class comment). */
-  arm(reason: string, options: { terminal?: boolean } = {}): void {
-    if (this.ended === undefined && !this.interrupted)
+  /**
+   * `terminal`: the flow has ended with this turn (see the class comment). `final` (R2, a committed
+   * transfer to another agent): the host is already handing the call on, so no barge-in or later
+   * caller turn undoes it, and it ends once this turn's lines are out, played or cut.
+   */
+  arm(reason: string, options: { terminal?: boolean; final?: boolean } = {}): void {
+    if (this.ended !== undefined) return;
+    if (options.final) this.armed = { reason, sealed: false, final: true };
+    else if (!this.interrupted)
       this.armed = { reason, sealed: false, ...(options.terminal ? { terminal: true } : {}) };
   }
 

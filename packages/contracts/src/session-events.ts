@@ -7,6 +7,14 @@ import {
   RouteSegmentPayload,
   type CallOutcomeRoute,
 } from './routing/events.ts';
+import {
+  DisclosurePayload,
+  SegmentEndedPayload,
+  TransferCompletedPayload,
+  TransferRequestedPayload,
+  type CallOutcomeSegment,
+  type CallOutcomeTransfers,
+} from './routing/transfer-events.ts';
 
 /**
  * What a call decided, written through `EventSink` (AGT-8) and kept per call: every routing verdict
@@ -28,6 +36,11 @@ export const SESSION_EVENT_TYPES = [
   'route.fallback',
   'route.decision',
   'route.segment',
+  // Wave 16 (R2) in-call transfer: requests and their ends, each segment's end, and disclosures heard.
+  'transfer.requested',
+  'transfer.completed',
+  'segment.ended',
+  'disclosure',
 ] as const;
 export const SessionEventType = z.enum(SESSION_EVENT_TYPES);
 export type SessionEventType = z.infer<typeof SessionEventType>;
@@ -121,6 +134,10 @@ export const SESSION_EVENT_PAYLOADS = {
   'route.fallback': RouteFallbackPayload,
   'route.decision': RouteDecisionPayload,
   'route.segment': RouteSegmentPayload,
+  'transfer.requested': TransferRequestedPayload,
+  'transfer.completed': TransferCompletedPayload,
+  'segment.ended': SegmentEndedPayload,
+  disclosure: DisclosurePayload,
 } as const satisfies Record<SessionEventType, z.ZodType>;
 
 export type SessionEventPayload<T extends SessionEventType> = z.infer<
@@ -166,6 +183,10 @@ export interface CallOutcomeSummary {
   guardrail: { flagged: number; blocked: number };
   /** A routed call's route (`route.decision` + `route.segment`); null for a direct call. */
   route: CallOutcomeRoute | null;
+  /** Every segment of a routed call, in order (at most 16); empty for a direct call. */
+  segments: CallOutcomeSegment[];
+  /** Transfer counts; all zero for a call without transfers. */
+  transfers: CallOutcomeTransfers;
   events: number;
   updatedAt: string;
 }

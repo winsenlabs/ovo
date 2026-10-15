@@ -15,6 +15,7 @@ import type { WorkerSpeechCacheOptions } from './speech-cache-env.ts';
 import { PerCallClipService, type PrepareCallInput } from './speech-cache-percall-service.ts';
 import type { CallClips } from './speech-cache-percall.ts';
 import { openReleaseSpeech, type ReleaseSpeechDeps } from './speech-cache-release-tts.ts';
+import { withRoutedLines } from './speech-cache-prerender.ts';
 import { SpeechPrerenderService, type PrerenderServiceInput } from './speech-cache-service.ts';
 import { WorkerSpeechClipCache } from './speech-cache-tiers.ts';
 
@@ -201,6 +202,8 @@ export function approvedSpeechPhrases(agent: AgentConfig): ApprovedSpeechPhrase[
 export function sessionSpeechApprovals(
   release: SpeechInventoryRelease,
   filters: readonly TextFilter[],
+  /** Fixed lines a routing point gives the release (R2 `routingVoiceLines`): scripted too. */
+  routed: readonly string[] = [],
 ): ApprovedSpeechPhrase[] {
   if (!release.config.speechCache?.enabled) return [];
   const language = release.config.language;
@@ -208,10 +211,9 @@ export function sessionSpeechApprovals(
     ...phrase,
     text: normalizeSpeechText(filters, phrase.text, language),
   }));
-  const scripted = normalizeSpeechInventory(
-    staticSpeechInventory(release),
-    filters,
-    language,
-  ).texts.map((text): ApprovedSpeechPhrase => ({ text, purpose: 'scripted' }));
+  const inventory = withRoutedLines(staticSpeechInventory(release), routed);
+  const scripted = normalizeSpeechInventory(inventory, filters, language).texts.map(
+    (text): ApprovedSpeechPhrase => ({ text, purpose: 'scripted' }),
+  );
   return [...legacy, ...scripted].filter((phrase) => phrase.text.trim());
 }

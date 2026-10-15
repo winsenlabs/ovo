@@ -41,10 +41,12 @@ async function seedPools(routing: ReturnType<typeof routingApp>['routing']) {
 }
 
 describe('routing status and the dark switch (A1)', () => {
-  it('reports both flags to a viewer', async () => {
+  it('reports every flag to a viewer', async () => {
     const { call } = setup({ externalEnabled: true });
     const status = await call('GET', '/v1/routing/status', undefined, { 'x-role': 'viewer' });
-    expect(status.json()).toEqual({ enabled: true, externalEnabled: true });
+    expect(status.json()).toEqual({ enabled: true, externalEnabled: true, transferEnabled: false });
+    const transfer = setup({ transferEnabled: true });
+    expect((await transfer.call('GET', '/v1/routing/status')).json().transferEnabled).toBe(true);
   });
 
   it('answers 404 routing_disabled on every other route while routing is off', async () => {
@@ -52,6 +54,7 @@ describe('routing status and the dark switch (A1)', () => {
     expect((await call('GET', '/v1/routing/status')).json()).toEqual({
       enabled: false,
       externalEnabled: false,
+      transferEnabled: false,
     });
     const id = '99999999-9999-4999-8999-999999999999';
     const routes: [Parameters<typeof call>[0], string][] = [
@@ -69,6 +72,11 @@ describe('routing status and the dark switch (A1)', () => {
       ['POST', `/v1/routing/points/${id}/releases`],
       ['GET', `/v1/routing/points/${id}/releases`],
       ['GET', `/v1/routing/releases/${id}`],
+      ['GET', '/v1/routing/audio'],
+      ['POST', '/v1/routing/audio?name=Music'],
+      ['GET', `/v1/routing/audio/${id}`],
+      ['GET', `/v1/routing/audio/${id}/content`],
+      ['DELETE', `/v1/routing/audio/${id}`],
     ];
     for (const [method, url] of routes) {
       const response = await call(method, url, {}, { 'if-match': '"1"' });

@@ -1,4 +1,4 @@
-import type { QueryResultRow } from 'pg';
+import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import type {
   RoutingPoint,
   RoutingPointDraft,
@@ -15,6 +15,7 @@ export interface PoolRow extends QueryResultRow {
   version: string;
   created_at: Date;
   updated_at: Date;
+  deleted_at: Date | null;
 }
 
 export interface PointRow extends QueryResultRow {
@@ -38,12 +39,14 @@ export interface ReleaseRow extends QueryResultRow {
   created_at: Date;
 }
 
-export const POOL_COLUMNS = 'organization_id, id, definition, version, created_at, updated_at';
+export const POOL_COLUMNS =
+  'organization_id, id, definition, version, created_at, updated_at, deleted_at';
 export const POINT_COLUMNS = 'organization_id, id, draft, draft_version, created_at, updated_at';
 export const RELEASE_COLUMNS = `organization_id, id, routing_point_id, version, draft_version,
   snapshot, digest, created_by, created_at`;
 
-export function presentPool(row: PoolRow): RoutingPool {
+/** A pool; `deletedAt` only on a soft-deleted one (read with `includeDeleted`). */
+export function presentPool(row: PoolRow): RoutingPool & { deletedAt?: string } {
   return {
     id: row.id,
     workspaceId: row.organization_id,
@@ -51,6 +54,7 @@ export function presentPool(row: PoolRow): RoutingPool {
     version: Number(row.version),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    ...(row.deleted_at ? { deletedAt: row.deleted_at.toISOString() } : {}),
   };
 }
 
@@ -77,6 +81,32 @@ export function presentRelease(row: ReleaseRow): RoutingRelease {
     createdAt: row.created_at.toISOString(),
     createdBy: row.created_by,
   };
+}
+
+/**
+ * Live point ids whose current draft names a pool or a hold clip, from the link tables points keep
+ * up to date (`ovo_routing_point_pools`, `ovo_routing_point_audio`).
+ */
+export async function pointsNaming(
+  db: Pool | PoolClient,
+  organizationId: string,
+  link:
+    | { table: 'ovo_routing_point_pools'; column: 'pool_id' }
+    | {
+        table: 'ovo_routing_point_audio';
+        column: 'audio_id';
+      },
+  id: string,
+): Promise<string[]> {
+  if (!uuidOrNull(id)) return [];
+  const result = await db.query<{ point_id: string }>(
+    `SELECT link.point_id FROM ${link.table} link
+     JOIN ovo_routing_points p ON p.organization_id = link.organization_id AND p.id = link.point_id
+     WHERE link.organization_id = $1 AND link.${link.column} = $2 AND p.deleted_at IS NULL
+     ORDER BY link.point_id`,
+    [organizationId, id],
+  );
+  return result.rows.map((row) => row.point_id);
 }
 
 /** A cursor or id that is not a uuid matches nothing instead of failing the query. */

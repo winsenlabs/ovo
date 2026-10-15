@@ -7,6 +7,7 @@ export * from './select-session-graph.ts';
 export * from './engine-selection.ts';
 export * from './speech-adapters/stt-format.ts';
 export * from './speech-adapters/tts-format.ts';
+export * from './speech-adapters/clip-format.ts';
 export * from './speech-adapters/decorate.ts';
 export * from './meters.ts';
 export * from './carrier-registry.ts';

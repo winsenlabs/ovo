@@ -9,6 +9,7 @@ import {
 } from '@winsendotai/ovo-contracts';
 import type { AgentTurnLog } from './agent-turn-log.ts';
 import { addIsoFormats } from './schema-formats.ts';
+import type { TransferPort } from './agent-transfer.ts';
 
 export class AgentToolSelectionError extends Error {
   constructor(
@@ -32,6 +33,8 @@ export interface AgentBehaviorOptions {
   now?: () => Date;
   /** Where routing verdicts and guardrail verdicts are recorded for the call (AGT-8). */
   events?: EventSink;
+  /** R2: the host's `ovo.agent-transfer` port, on a routed call with transfers on only. */
+  transfer?: TransferPort;
 }
 
 export interface AgentToolErrorRecord {

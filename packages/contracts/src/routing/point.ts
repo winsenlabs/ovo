@@ -10,6 +10,7 @@ import {
 import { PoolMember } from './pool.ts';
 import { RoutingNode, routingNodeTargets, type RoutingPath } from './tree.ts';
 import { routingDraftIssues } from './issues.ts';
+import { RoutingTransferPolicy, transferHolds } from './transfer.ts';
 
 export const RoutingPointDraft = z
   .object({
@@ -41,6 +42,8 @@ export const RoutingPointDraft = z
       })
       .strict()
       .optional(),
+    /** R2: the transfer catalogue, hold and limits every handoff of this point uses. */
+    transfer: RoutingTransferPolicy.optional(),
   })
   .strict();
 export type RoutingPointDraft = z.infer<typeof RoutingPointDraft>;
@@ -78,9 +81,12 @@ export const PoolSnapshot = z
   .strict();
 export type PoolSnapshot = z.infer<typeof PoolSnapshot>;
 
-/** Every agent reference in a draft with its path: router, default target and every tree target. */
+/**
+ * Every agent reference in a draft with its path: router, default target, every tree target and
+ * every transfer `agent` destination.
+ */
 export function routingAgentRefs(
-  draft: Pick<RoutingPointDraft, 'router' | 'defaultTarget' | 'nodes'>,
+  draft: Pick<RoutingPointDraft, 'router' | 'defaultTarget' | 'nodes' | 'transfer'>,
 ): { path: RoutingPath; ref: RouteAgentRef }[] {
   const refs: { path: RoutingPath; ref: RouteAgentRef }[] = [
     { path: ['router'], ref: draft.router },
@@ -91,11 +97,19 @@ export function routingAgentRefs(
     if (target.kind === 'callback' && target.agent)
       refs.push({ path: [...path, 'agent'], ref: target.agent });
   }
+  draft.transfer?.targets.forEach((target, t) => {
+    if (target.destination.kind === 'agent')
+      refs.push({
+        path: ['transfer', 'targets', t, 'destination', 'agent'],
+        ref: target.destination.agent,
+      });
+  });
   return refs;
 }
 
 export const RoutingReleaseSnapshot = RoutingPointDraft.extend({
-  schemaVersion: z.literal(1),
+  /** 2 exactly when the draft has a `transfer` policy (R2); R1 releases stay 1. */
+  schemaVersion: z.union([z.literal(1), z.literal(2)]),
   routingPointId: RouteUuid,
   router: PinnedAgentRef,
   defaultTarget: PinnedAgentRef,
@@ -116,6 +130,24 @@ export const RoutingReleaseSnapshot = RoutingPointDraft.extend({
     for (const { path, target } of routingNodeTargets(snapshot.nodes))
       if (target.kind === 'pool' && !Object.hasOwn(snapshot.pools, target.poolId))
         issue([...path, 'poolId'], 'The snapshot holds every pool a target names');
+    if ((snapshot.schemaVersion === 2) !== (snapshot.transfer !== undefined))
+      issue(
+        ['schemaVersion'],
+        'A snapshot is schemaVersion 2 exactly when it has a transfer policy',
+      );
+    snapshot.transfer?.targets.forEach((target, t) => {
+      const { destination } = target;
+      if (destination.kind === 'pool' && !Object.hasOwn(snapshot.pools, destination.poolId))
+        issue(
+          ['transfer', 'targets', t, 'destination', 'poolId'],
+          'The snapshot holds every pool a transfer names',
+        );
+    });
+    for (const { path, hold } of transferHolds(snapshot.transfer))
+      hold.steps.forEach((step, s) => {
+        if (step.kind === 'clip' && !step.sha256)
+          issue([...path, 'steps', s, 'sha256'], 'A release snapshot pins every hold clip digest');
+      });
     for (const [id, pool] of Object.entries(snapshot.pools)) {
       if (pool.id !== id) issue(['pools', id, 'id'], 'A pool snapshot is keyed by its id');
       for (const member of pool.members) needed.add(member.agent.release.releaseId);

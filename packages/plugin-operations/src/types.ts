@@ -207,8 +207,13 @@ export type InboundRouteInput = {
   enabled?: boolean;
   expectedVersion: number | null;
 } & (
-  | { releaseId: string; routingReleaseId?: undefined }
-  | { routingReleaseId: string; releaseId?: undefined }
+  | { releaseId: string; routingReleaseId?: undefined; defaultVariablesSchema?: undefined }
+  | {
+      routingReleaseId: string;
+      releaseId?: undefined;
+      /** The routing release's default agent's `config.variables`; its overflow callbacks dial it. */
+      defaultVariablesSchema?: Record<string, unknown> | null;
+    }
 );
 
 export type InboundGatewayDecision =

@@ -2,12 +2,14 @@ import type { RoutingReleaseSnapshot } from '@winsendotai/ovo-contracts';
 import { createLogger } from '@winsendotai/ovo-plugin-kit';
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { openCallScope, type CallScope, type SessionOpenInput } from './call-scope.ts';
-import { composeCallSegment } from './call-segment.ts';
+import { composeCallSegment, type SegmentInput } from './call-segment.ts';
 import { CallSegmentController } from './call-segments.ts';
 import type { ManagedVoiceSession } from './media-runtime.ts';
 import { ProductionVoiceSessionFactory } from './production-session-factory.ts';
 import { requiredPayloadString } from './production-session-support.ts';
 import {
+  DegradedRoute,
+  degradedTranscriptText,
   endRoutedCall,
   loadSnapshot,
   releaseClaims,
@@ -17,10 +19,11 @@ import {
   type RoutingRuntimeOptions,
 } from './routed-call-support.ts';
 import { routedSegmentComposer, type LiveSessionDeps } from './routed-segments.ts';
-import { routerMediaClose, routerSegmentShape } from './router-graph.ts';
+import { handoffMediaClose, routerSegmentShape } from './router-graph.ts';
+import { transferControl } from './routed-transfer.ts';
+import { TransferController } from './transfer-controller.ts';
 import { routedAgentIds, routeEventSink } from './routing-events.ts';
 import { startEarlyCallWork, type EarlyCallWork } from './session-early-start.ts';
-import type { TranscriptText } from './telemetry-runtime.ts';
 
 export {
   ROUTING_SNAPSHOT_TIMEOUT_MS,
@@ -91,31 +94,6 @@ async function openRoutedCall(
   }
 }
 
-/**
- * Without its snapshot the call degrades to the routing release's default target, so that agent's
- * transcript policy counts as well; a default that cannot be read omits (design 7.4, 11).
- */
-async function degradedTranscriptText(
-  deps: LiveSessionDeps,
-  workspaceId: string,
-  routerRelease: ReleaseRecord,
-  routing: RoutedJob,
-): Promise<TranscriptText> {
-  const fallback = await deps.store
-    .getRelease(workspaceId, routing.defaultReleaseId)
-    .catch(() => undefined);
-  if (!fallback) return 'omit';
-  return deps.telemetry.strictestTranscriptText([routerRelease.agentId, fallback.agentId]);
-}
-
-/** A routed call that falls back to its default target as segment 0 (design 7.2, 8.2). */
-class DegradedRoute extends Error {
-  constructor(readonly reason: 'snapshot_unavailable' | 'router_compose_failed') {
-    super(reason);
-    this.name = 'DegradedRoute';
-  }
-}
-
 async function runRoutedCall(
   deps: LiveSessionDeps,
   options: RoutingRuntimeOptions,
@@ -128,44 +106,61 @@ async function runRoutedCall(
   const { job, telemetry } = scope;
   const session = { dispose: (reason?: string) => scope.dispose(reason) };
   const claims = options.routing?.claims;
+  const call = { jobId: job.id, sessionId: scope.route.sessionId };
   // Deferred first, so it runs after every segment is gone: the call's member claim is released.
   scope.cleanup.defer(() => releaseClaims(claims, job.id, telemetry));
-  const workerEvents = routeEventSink(scope.events, { releaseId: routerRelease.id, telemetry });
+  const workerEvents = routeEventSink(scope.events, {
+    releaseId: routerRelease.id,
+    telemetry,
+    call,
+  });
   const record = (type: string, payload: Record<string, unknown>) =>
     void workerEvents.append(type, payload);
-  const compose = routedSegmentComposer(deps, scope, routerRelease);
-  const controller = new CallSegmentController({
-    media: scope.media,
-    format: scope.carrierMedia!.format,
-    allowed: new Set(snapshot?.releaseIds ?? []),
-    fallback: snapshot
-      ? {
-          agentId: snapshot.defaultTarget.agentId,
-          releaseId: snapshot.defaultTarget.release.releaseId,
-        }
-      : { agentId: '', releaseId: routing.defaultReleaseId },
-    compose,
-    record,
-    audit: (type, payload) => telemetry.audit(type, payload),
-    releaseClaim: () => releaseClaims(claims, job.id, telemetry),
-    endCall: (reason) => endRoutedCall(deps, scope, reason),
-    prepareTimeoutMs: options.prepareTimeoutMs,
-  });
+  const early = snapshot ? takeEarly() : undefined;
+  // In-call transfers (R2) need the routing snapshot; off, or without one, the call is R1's.
+  const transfers =
+    options.transferEnabled && snapshot && early
+      ? transferControl(deps, options, scope, routerRelease, routing, snapshot, early.variables)
+      : undefined;
+  const compose =
+    transfers?.compose ??
+    routedSegmentComposer(deps, scope, routerRelease, {
+      mayEndCall: (lease) => controller.mayEndCall(lease),
+    });
+  const controller: CallSegmentController | TransferController =
+    transfers?.controller ??
+    new CallSegmentController({
+      media: scope.media,
+      format: scope.carrierMedia!.format,
+      allowed: new Set(snapshot?.releaseIds ?? []),
+      fallback: snapshot
+        ? {
+            agentId: snapshot.defaultTarget.agentId,
+            releaseId: snapshot.defaultTarget.release.releaseId,
+          }
+        : { agentId: '', releaseId: routing.defaultReleaseId },
+      compose,
+      record,
+      audit: (type, payload) => telemetry.audit(type, payload),
+      releaseClaim: () => releaseClaims(claims, job.id, telemetry),
+      endCall: (reason) => endRoutedCall(deps, scope, reason),
+      prepareTimeoutMs: options.prepareTimeoutMs,
+    });
   scope.cleanup.defer(() => controller.close(scope.reason));
   try {
-    if (!snapshot) throw new DegradedRoute('snapshot_unavailable');
-    const early = takeEarly()!;
+    if (!snapshot || !early) throw new DegradedRoute('snapshot_unavailable');
     const lease = controller.lease(true);
-    const segment = await composeCallSegment(deps, scope, {
+    const router: SegmentInput = {
       ...{ release: routerRelease, variables: early.variables, callKey: job.id },
       ...{ callClips: early.callClips, sttPreconnect: early.sttPreconnect, ownsStt: true },
       media: lease,
       events: routeEventSink(scope.events, {
         releaseId: snapshot.defaultTarget.release.releaseId,
         telemetry,
+        call,
       }),
-      beforeMediaClose: routerMediaClose(
-        () => controller.handingOff,
+      beforeMediaClose: handoffMediaClose(
+        () => controller.mayEndCall(lease),
         deps.beforeEngineMediaClose &&
           ((reason) => deps.beforeEngineMediaClose!(job, scope.route, reason)),
       ),
@@ -175,7 +170,12 @@ async function runRoutedCall(
         sessionId: scope.route.sessionId,
         handoff: controller,
       }),
-    }).catch(async () => {
+    };
+    const segment = await composeCallSegment(
+      deps,
+      scope,
+      transfers ? transfers.decorate(router, 0) : router,
+    ).catch(async () => {
       await early.abandon();
       lease.release();
       throw new DegradedRoute('router_compose_failed');
@@ -203,7 +203,9 @@ async function runRoutedCall(
         lease.release();
         throw failure;
       });
-      controller.attach(segment, lease);
+      if (controller instanceof TransferController)
+        controller.attach(segment, lease, { role: 'agent' });
+      else controller.attach(segment, lease);
       const agent = { agentId: segment.release.agentId, releaseId: segment.release.id };
       record('route.decision', {
         ...{ routingPointId: routing.routingPointId, routingReleaseId: routing.routingReleaseId },

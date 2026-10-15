@@ -1,9 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import type { AgentConfig } from '@winsendotai/ovo-contracts';
 import {
   CALLBACK_STATUSES,
   PostgresCallbackStore,
   type CallbackStatus,
+  type DialledReleaseConfig,
 } from '../callback-store.ts';
 
 /** Opens the store on first use, so an API that never lists callbacks holds no connections. */
@@ -48,6 +50,8 @@ export interface CallbackRouteDependencies {
   callbacks: CallbackService;
   requireRole: (request: FastifyRequest, role: 'viewer' | 'admin') => Principal;
   error: (reply: FastifyReply, status: number, code: string, message: string) => unknown;
+  /** The workspace's release schemas, so a dial passes only the variables its release declares. */
+  release?: (workspaceId: string) => DialledReleaseConfig;
   audit?: (
     principal: Principal,
     action: string,
@@ -122,7 +126,11 @@ export function registerCallbackRoutes(dependencies: CallbackRouteDependencies):
     const { id } = Params.parse(request.params);
     if (!callbacks.available) return unavailable(reply);
     const store = await callbacks.open();
-    const dial = await store.claimDial(principal.workspaceId, id);
+    const dial = await store.claimDial(
+      principal.workspaceId,
+      id,
+      dependencies.release?.(principal.workspaceId),
+    );
     if (!dial) return error(reply, 404, 'not_found', 'Callback not found');
     if (dial === 'conflict')
       return error(
@@ -163,17 +171,30 @@ export function registerCallbacks(dependencies: {
   app: FastifyInstance;
   requireRole: CallbackRouteDependencies['requireRole'];
   error: CallbackRouteDependencies['error'];
-  store?: { audit(entry: Record<string, unknown>): Promise<unknown> };
+  store?: {
+    audit(entry: Record<string, unknown>): Promise<unknown>;
+    getRelease?(
+      workspaceId: string,
+      id: string,
+    ): Promise<{ config: Pick<AgentConfig, 'variables'> } | undefined>;
+  };
   options?: Parameters<typeof createCallbackService>[0];
 }): CallbackService {
   const callbacks = createCallbackService(dependencies.options ?? {});
   dependencies.app.addHook('onClose', () => callbacks.close());
   const store = dependencies.store;
+  const getRelease = store?.getRelease?.bind(store);
   registerCallbackRoutes({
     app: dependencies.app,
     callbacks,
     requireRole: dependencies.requireRole,
     error: dependencies.error,
+    ...(getRelease
+      ? {
+          release: (workspaceId: string) => async (releaseId: string) =>
+            (await getRelease(workspaceId, releaseId))?.config,
+        }
+      : {}),
     ...(store
       ? {
           audit: (principal, action, resourceId, payload) =>

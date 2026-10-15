@@ -5,6 +5,7 @@ import {
   CompliancePurpose,
   ComplianceWeekdays,
 } from './compliance-primitives.ts';
+import type { DisclosureKind } from './routing/transfer.ts';
 
 export * from './workspace-compliance.ts';
 export * from './compliance-refusals.ts';
@@ -92,6 +93,22 @@ export function disclosureLines(compliance: AgentCompliance | undefined): string
     compliance?.disclosures?.optOutHint?.text,
   ];
   return lines.filter((line): line is string => !!line);
+}
+
+/**
+ * The disclosure parts in speaking order, by kind (R2): a segmented call says each kind once, so a
+ * later segment skips the kinds the caller already heard in full.
+ */
+export function disclosureParts(
+  compliance: AgentCompliance | undefined,
+): { kind: DisclosureKind; text: string }[] {
+  const parts: { kind: DisclosureKind; text: string | undefined }[] = [
+    { kind: 'identity', text: compliance?.disclosures?.identity?.text },
+    { kind: 'ai', text: compliance?.disclosures?.ai?.text },
+    { kind: 'recording', text: compliance?.disclosure?.text },
+    { kind: 'opt_out_hint', text: compliance?.disclosures?.optOutHint?.text },
+  ];
+  return parts.filter((part): part is { kind: DisclosureKind; text: string } => !!part.text);
 }
 
 /** The fixed lines a compliance block speaks, for the clip inventory. */

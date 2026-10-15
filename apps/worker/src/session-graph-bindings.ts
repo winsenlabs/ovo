@@ -1,3 +1,4 @@
+import type { EndReason, MediaDuplex } from '@winsendotai/ovo-contracts';
 import { deriveLegacySelections, type ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import type { SelectedEngine } from '@winsendotai/ovo-session-host';
 import type { PluginRegistry } from '@winsendotai/ovo-runtime';
@@ -83,4 +84,31 @@ export function withDerivedSelections(
       },
     },
   };
+}
+
+/**
+ * The engine's media: the legacy duplex, with the hang-up that must run before the link closes
+ * (once, however often the engine closes) and the answering-machine channel the shim lacks.
+ */
+export function withMediaHooks(
+  legacyMedia: MediaDuplex,
+  beforeMediaClose: ((reason: EndReason) => Promise<void>) | undefined,
+  answeredBy: MediaDuplex['onAnsweredBy'] | undefined,
+): MediaDuplex {
+  let closing: Promise<void> | undefined;
+  const overrides: Partial<Pick<MediaDuplex, 'close' | 'onAnsweredBy'>> = {};
+  if (beforeMediaClose)
+    overrides.close = async (reason: EndReason) => {
+      closing ??= beforeMediaClose(reason);
+      try {
+        await closing;
+      } finally {
+        await legacyMedia.close(reason);
+      }
+    };
+  // The legacy transport shim has no answering-machine channel; the engine reads it from here.
+  if (answeredBy) overrides.onAnsweredBy = answeredBy;
+  return Object.keys(overrides).length
+    ? Object.assign(Object.create(legacyMedia) as MediaDuplex, overrides)
+    : legacyMedia;
 }

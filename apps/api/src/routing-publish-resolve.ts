@@ -1,7 +1,9 @@
 import {
   routingAgentRefs,
-  routingNodeTargets,
+  routingAudioIds,
+  routingPoolIds,
   type RouteAgentRef,
+  type RoutingAudio,
   type RoutingPath,
   type RoutingPointDraft,
   type RoutingPool,
@@ -10,8 +12,11 @@ import type { ControlStore, ReleaseRecord } from '@winsendotai/ovo-plugin-storag
 
 export type RoutingReleaseStore = Pick<ControlStore, 'getRelease' | 'listReleases'>;
 
-/** Where an agent reference sits: the router, the default target, a tree target or a pool member. */
-export type ResolvedRole = 'router' | 'default' | 'target' | 'member';
+/**
+ * Where an agent reference sits: the router, the default target, a tree target, a pool member or
+ * a transfer catalogue destination (Wave 16).
+ */
+export type ResolvedRole = 'router' | 'default' | 'target' | 'member' | 'transfer';
 
 export interface ResolvedRef {
   role: ResolvedRole;
@@ -24,11 +29,15 @@ export interface ResolvedRef {
 
 /** A pool as publish finds it: live, soft-deleted, or unknown (undefined). */
 export type PoolLookup = (id: string) => Promise<RoutingPool | 'deleted' | undefined>;
+/** A hold clip as publish finds it, deleted ones included (`deletedAt` set), or unknown. */
+export type AudioLookup = (id: string) => Promise<RoutingAudio | undefined>;
 
 export interface RoutingResolution {
   refs: ResolvedRef[];
-  /** Every pool a target names, by id. */
+  /** Every pool a tree target or a transfer destination names, by id. */
   pools: Map<string, RoutingPool | 'deleted' | undefined>;
+  /** Every clip a hold step names, by id. */
+  audio: Map<string, RoutingAudio | undefined>;
 }
 
 /** The live pool, when the lookup found one. */
@@ -79,12 +88,16 @@ export function releaseResolver(store: RoutingReleaseStore, workspaceId: string)
   };
 }
 
-/** Resolves every agent reference of a draft and of the pools it names (design 8.4). */
+/**
+ * Resolves every agent reference of a draft and of the pools it names (design 8.4), and every clip
+ * its hold sequences play (Wave 16).
+ */
 export async function resolveRouting(input: {
   draft: RoutingPointDraft;
   workspaceId: string;
   store: RoutingReleaseStore;
   pool: PoolLookup;
+  audio: AudioLookup;
 }): Promise<RoutingResolution> {
   const resolve = releaseResolver(input.store, input.workspaceId);
   const refs: ResolvedRef[] = [];
@@ -92,16 +105,24 @@ export async function resolveRouting(input: {
     const release = await resolve(ref);
     refs.push({ role, path, ref, ...(release ? { release } : {}) });
   };
+  const role = (index: number, path: RoutingPath): ResolvedRole =>
+    index === 0
+      ? 'router'
+      : index === 1
+        ? 'default'
+        : path[0] === 'transfer'
+          ? 'transfer'
+          : 'target';
   for (const [index, { path, ref }] of routingAgentRefs(input.draft).entries())
-    await add(index === 0 ? 'router' : index === 1 ? 'default' : 'target', path, ref);
+    await add(role(index, path), path, ref);
   const pools = new Map<string, RoutingPool | 'deleted' | undefined>();
-  for (const { target } of routingNodeTargets(input.draft.nodes))
-    if (target.kind === 'pool' && !pools.has(target.poolId))
-      pools.set(target.poolId, await input.pool(target.poolId));
+  for (const id of routingPoolIds(input.draft)) pools.set(id, await input.pool(id));
   for (const [poolId, pool] of pools)
     for (const [index, member] of (livePool(pool)?.definition.members ?? []).entries())
       await add('member', ['pools', poolId, 'members', index, 'agent'], member.agent);
-  return { refs, pools };
+  const audio = new Map<string, RoutingAudio | undefined>();
+  for (const id of routingAudioIds(input.draft)) audio.set(id, await input.audio(id));
+  return { refs, pools, audio };
 }
 
 /** The router's resolved reference (always the first). */

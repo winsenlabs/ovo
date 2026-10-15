@@ -18,6 +18,7 @@ import type {
   ToolConnector,
 } from '../ports.ts';
 import type { RoutingHost, SegmentHandoffPort } from '../routing/runtime.ts';
+import type { AgentTransferPort } from '../routing/transfer-runtime.ts';
 import type { SpeechToText } from '../speech/stt.ts';
 import type { TextToSpeech } from '../speech/tts.ts';
 import type { UsageSink } from '../usage.ts';
@@ -54,6 +55,7 @@ interface TypedCapabilities {
   [Cap.events]: EventSink;
   [Cap.routing]: RoutingHost;
   [Cap.segmentHandoff]: SegmentHandoffPort;
+  [Cap.agentTransfer]: AgentTransferPort;
   [Cap.clock]: Clock;
   [Cap.net]: NetPort;
   [Cap.carrierControl]: CarrierControlFactory;

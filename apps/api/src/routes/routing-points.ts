@@ -33,11 +33,16 @@ export function publishContext(
     workspaceId: principal.workspaceId,
     store: input.store,
     routing,
-    // The service cannot yet tell a deleted pool from an unknown one: both are refused as missing.
-    pool: (id) => routing.pools.get(id),
+    // Deleted rows are read too, so publish can say a pool or clip was deleted (R1 audit 5).
+    pool: async (id) => {
+      const found = await routing.pools.get(id, { includeDeleted: true });
+      return found?.deletedAt ? 'deleted' : found;
+    },
+    audio: (id) => routing.audio.get(id, { includeDeleted: true }),
     registry: input.registry,
     ledger: input.ledger,
     externalEnabled: input.externalEnabled,
+    transferEnabled: input.transferEnabled,
     requireCostPolicy: input.requireCostPolicy,
   };
 }

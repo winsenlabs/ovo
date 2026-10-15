@@ -27,6 +27,8 @@ export const Cap = {
   routing: 'ovo.routing',
   /** Same-leg agent handoff (`SegmentHandoffPort`): the R1 router, then R2's transfer tool. */
   segmentHandoff: 'ovo.segment-handoff',
+  /** R2 agent-to-agent transfer (`AgentTransferPort`): worker host → agent behaviour, routed calls only. */
+  agentTransfer: 'ovo.agent-transfer',
   clock: 'ovo.clock',
   net: 'ovo.net',
   carrierControl: 'ovo.carrier.control',
@@ -130,6 +132,7 @@ export const CAPABILITY_SPECS = {
   [Cap.events]: SESSION,
   [Cap.routing]: SESSION,
   [Cap.segmentHandoff]: SESSION,
+  [Cap.agentTransfer]: SESSION,
   [Cap.clock]: EITHER,
   [Cap.net]: EITHER,
   [Cap.carrierControl]: MANY_PROCESS,

@@ -20,7 +20,7 @@ import {
 import { context, issues, codes, OTHER, BYE } from './routing-publish-harness.ts';
 
 describe('publish validation (A4): the snapshot release bounds', () => {
-  it('routing_default_target_missing: every reference resolves to the router release', async () => {
+  it('routing_router_is_only_release: every reference resolves to the router release', async () => {
     const setup = await context({
       pools: 'none',
       patch: (input) => {
@@ -38,13 +38,13 @@ describe('publish validation (A4): the snapshot release bounds', () => {
     const { context: built, draft, routing } = setup;
     const found = (await validateRoutingDraft(built, draft)).issues;
     expect(found.map((issue) => [issue.code, issue.path])).toEqual([
-      ['routing_default_target_missing', ['defaultTarget']],
+      ['routing_router_is_only_release', ['defaultTarget']],
     ]);
     // Publish blocks with the same issue instead of failing the snapshot parse.
     const point = await routing.points.create(draft);
     expect(await publishRoutingPoint(built, point, 'operator')).toMatchObject({
       kind: 'blocked',
-      blockers: [{ code: 'routing_default_target_missing' }],
+      blockers: [{ code: 'routing_router_is_only_release' }],
     });
   });
 

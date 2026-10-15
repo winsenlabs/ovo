@@ -13,6 +13,7 @@ import { parseApprovedEndpoint } from '@winsendotai/ovo-plugin-tools-http';
 import type { PluginRegistry } from '@winsendotai/ovo-runtime';
 import { requiredMeterChecklist } from './required-meters.ts';
 import { livePool, routerRef, type RoutingResolution } from './routing-publish-resolve.ts';
+import { transferIssues } from './routing-publish-transfer.ts';
 import { credentialReady } from './session-factory.ts';
 
 /** Languages the router has built-in connecting and final end lines for (design 7.5). */
@@ -29,10 +30,12 @@ export interface RoutingCheckInput {
   registry: PluginRegistry;
   ledger?: Pick<CostLedgerService, 'getPriceCard'>;
   externalEnabled: boolean;
+  /** `OVO_ROUTING_TRANSFER_ENABLED`; off, a transfer catalogue publishes with a warning. */
+  transferEnabled: boolean;
   requireCostPolicy: boolean;
 }
 
-type Add = (
+export type Add = (
   code: RoutingIssueCode,
   path: RoutingPath,
   message: string,
@@ -65,7 +68,7 @@ function routerIssues(input: RoutingCheckInput, add: Add): void {
     );
 }
 
-/** Every other reference: the default target, tree targets and pool members, with their pools. */
+/** Every other reference (default, tree targets, members, transfer agents) and the tree pools. */
 function targetIssues(input: RoutingCheckInput, add: Add): void {
   for (const { role, path, release } of input.resolution.refs) {
     if (release || role === 'router') continue;
@@ -75,6 +78,8 @@ function targetIssues(input: RoutingCheckInput, add: Add): void {
         path,
         'The default target agent or release was not found',
       );
+    else if (role === 'transfer')
+      add('routing_transfer_agent_missing', path, 'The transfer agent or release was not found');
     else add('routing_member_release_missing', path, 'The agent or its release was not found');
   }
   for (const { path, target } of routingNodeTargets(input.draft.nodes)) {
@@ -97,7 +102,7 @@ function releaseCountIssues(input: RoutingCheckInput, add: Add): void {
   const distinct = new Set(refs.map((found) => found.release!.id)).size;
   if (distinct < 2)
     add(
-      'routing_default_target_missing',
+      'routing_router_is_only_release',
       ['defaultTarget'],
       'Every reference resolves to the router release; the default target needs a release of its own',
     );
@@ -239,7 +244,7 @@ function coverageIssues(input: RoutingCheckInput, add: Add): void {
   }
 }
 
-/** Every resolution check of design 8.4; structural issues come from `routingDraftIssues`. */
+/** Every resolution check of design 8.4 and R2 4.6; structural ones are `routingDraftIssues`. */
 export async function routingResolutionIssues(input: RoutingCheckInput): Promise<RoutingIssue[]> {
   const issues: RoutingIssue[] = [];
   const add: Add = (code, path, message, severity = 'error') =>
@@ -250,5 +255,6 @@ export async function routingResolutionIssues(input: RoutingCheckInput): Promise
   await meterIssues(input, add);
   await engineIssues(input, add);
   coverageIssues(input, add);
+  transferIssues(input, add);
   return issues;
 }

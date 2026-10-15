@@ -105,6 +105,8 @@ services:
       # routing_disabled and numbers cannot be bound to routing releases.
       OVO_ROUTING_ENABLED: ${OVO_ROUTING_ENABLED:-false}
       OVO_ROUTING_EXTERNAL_ENABLED: ${OVO_ROUTING_EXTERNAL_ENABLED:-false}
+      # Wave 16 in-call transfer, off by default: status reports it and publish warns while off.
+      OVO_ROUTING_TRANSFER_ENABLED: ${OVO_ROUTING_TRANSFER_ENABLED:-false}
       OVO_PROVIDER_EVALUATIONS_ENABLED: ${OVO_PROVIDER_EVALUATIONS_ENABLED:-false}
       OVO_FIXTURE_TEST_CALLS: 'true'
       # Live readiness refuses admission without an installation capacity ceiling; it matches the
@@ -274,6 +276,9 @@ services:
       # timeout keeps the 2500 ms default for composing the chosen agent before the handoff.
       OVO_ROUTING_EXTERNAL_ENABLED: ${OVO_ROUTING_EXTERNAL_ENABLED:-false}
       OVO_ROUTING_PREPARE_TIMEOUT_MS: ${OVO_ROUTING_PREPARE_TIMEOUT_MS:-}
+      # Wave 16: on, routed calls can transfer between agents mid-call (hold, handover); off, they
+      # run exactly as Wave 15.
+      OVO_ROUTING_TRANSFER_ENABLED: ${OVO_ROUTING_TRANSFER_ENABLED:-false}
       OVO_TRANSPORT_CERTIFIED: ${OVO_TRANSPORT_CERTIFIED:-false}
       OVO_MEDIA_READINESS_URL: http://gateway:4001/health
       OVO_MEDIA_GATEWAY_WS_URL: ws://gateway:4001/worker

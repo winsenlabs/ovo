@@ -6,6 +6,7 @@ import type {
 } from '@winsendotai/ovo-plugin-orchestration';
 import type { LiveRecordingService } from '@winsendotai/ovo-plugin-recordings';
 import type { InstalledSessionExtensions } from '@winsendotai/ovo-runtime';
+import type { ProviderUsage } from './cost-policy-types.ts';
 import type { ProductionWorkerCostRuntime } from './cost-runtime.ts';
 import type { InboundWorkerRuntime } from './inbound-runtime.ts';
 import { WorkerMediaRuntime, type VoiceSessionFactory } from './media-runtime.ts';
@@ -13,7 +14,8 @@ import { createRouterBehaviorPlugin } from '@winsendotai/ovo-plugin-router';
 import type { OperationsService } from '@winsendotai/ovo-plugin-operations';
 import { RoutedVoiceSessionFactory } from './routed-session-factory.ts';
 import { operationsOf } from './routed-call-support.ts';
-import { routingWorkerOptions } from './worker-environment.ts';
+import { routingWorkerOptions, transferWorkerOptions } from './worker-environment.ts';
+import { HoldClipCache } from './hold-clips.ts';
 import type { WorkerSpeechCacheRuntime } from './speech-cache-runtime.ts';
 import type { WorkerTelemetryRuntime } from './telemetry-runtime.ts';
 import type { Server } from 'node:http';
@@ -45,10 +47,29 @@ export function createProductionWorkerMediaRuntime(input: {
   graph?: LiveGraphOptions;
   carriers?: WorkerCarrierRuntime;
   /** Wave 15 routing; by default the worker's environment and the graph's operations service. */
-  routing?: { externalEnabled: boolean; prepareTimeoutMs?: number };
+  routing?: { externalEnabled: boolean; prepareTimeoutMs?: number; transferEnabled?: boolean };
   operations?: Pick<OperationsService, 'routing'>;
 }): WorkerMediaRuntime {
-  const routing = input.routing ?? routingWorkerOptions();
+  const routing: {
+    externalEnabled: boolean;
+    prepareTimeoutMs?: number;
+    transferEnabled?: boolean;
+  } = input.routing ?? routingWorkerOptions();
+  const routingService = (input.operations ?? operationsOf(input.graph))?.routing;
+  // R2 options only when transfers are on: off, routed calls are composed exactly as in Wave 15.
+  const holdClips = holdClipCache(routingService);
+  const transfers =
+    (routing.transferEnabled ?? transferWorkerOptions().transferEnabled)
+      ? {
+          transferEnabled: true,
+          ...(holdClips ? { holdClips } : {}),
+          // Ledger 005: the segment's usage rows carry its index (RecordUsageInput.segment).
+          usageForSegment: (jobId: string, segment: number) => {
+            const sink = input.costs.usageForJob(jobId);
+            return sink && ((usage: ProviderUsage) => sink(usage, segment));
+          },
+        }
+      : {};
   let runtime!: WorkerMediaRuntime;
   const terminate = async (
     route: SessionRoute,
@@ -116,8 +137,9 @@ export function createProductionWorkerMediaRuntime(input: {
       { pool: input.store.pool },
     ).route({
       ...routing,
-      routing: (input.operations ?? operationsOf(input.graph))?.routing,
+      routing: routingService,
       routerBehavior: createRouterBehaviorPlugin,
+      ...transfers,
     }),
   );
   runtime = new WorkerMediaRuntime(
@@ -173,4 +195,15 @@ export function endReasonKeeping<Factory extends VoiceSessionFactory>(
       }
     },
   };
+}
+
+/** The worker's hold clips, when its operations service stores routing audio (R2, operations 011). */
+function holdClipCache(routing: unknown): HoldClipCache | undefined {
+  const audio = (
+    routing as
+      | { audio?: { content?(id: string, sha256: string): Promise<Uint8Array | undefined> } }
+      | undefined
+  )?.audio;
+  const content = audio?.content?.bind(audio);
+  return content ? new HoldClipCache(content) : undefined;
 }

@@ -44,6 +44,11 @@ export interface RecordUsageInput {
   occurredAt: string;
   priceCard: { id: string; version: string };
   fx?: { id: string; version: string };
+  /**
+   * Wave 16: the segment of a routed call (0-63) that metered this usage. Absent: call-level usage
+   * (carrier time, hold voice) or a call without segments.
+   */
+  segment?: number;
 }
 
 export interface RecordedUsage {
@@ -154,11 +159,27 @@ export interface CostSummary {
   provisionalPriceCards: { id: string; version: string }[];
 }
 
+/** Estimated, reconciled and total paise of some usage, in the ledger's currency. */
+export type CostTotals = Pick<
+  CostSummary,
+  'currency' | 'estimatedPaise' | 'reconciledPaise' | 'totalPaise'
+>;
+
+/** Wave 16: the cost of one segment of a routed call; `index: null` is call-level usage. */
+export interface CallCostSegment extends CostTotals {
+  index: number | null;
+}
+
 /** P11: a call's cost: every ledger session that metered it, rounded to paise once. */
 export interface CallCostSummary extends Omit<CostSummary, 'sessionId'> {
   callId: string;
   /** The ledger sessions (media sessions, keyed by the worker's session id) the call's usage used. */
   sessionIds: string[];
+  /**
+   * Wave 16: the same usage by segment (`RecordUsageInput.segment`), call-level first then by
+   * index; each rounded on its own. Empty when the call metered nothing.
+   */
+  segments: CallCostSegment[];
 }
 
 export interface LedgerPage<T> {

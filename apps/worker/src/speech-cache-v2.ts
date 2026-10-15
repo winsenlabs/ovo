@@ -54,6 +54,7 @@ export function createV2SpeechCachePlugin(
   perCall?: { clips: CallClips; options?: PerCallClipOptions },
   /** What the speaker adds to the agent's filters (Wave 9 D1, `speakerAddedFilters`). */
   speakerFilters: readonly TextFilter[] = [],
+  approvedLines: readonly string[] = [], // R2: the routing point's fixed lines for the release.
 ) {
   const policy = release.config.speechCache;
   if (!policy?.enabled) return undefined;
@@ -87,7 +88,7 @@ export function createV2SpeechCachePlugin(
       });
       const identity = speechCacheIdentity(release, tts, media.format);
       const allowed = new ApprovedSpeechPolicy(
-        sessionSpeechApprovals(release, filters),
+        sessionSpeechApprovals(release, filters, approvedLines),
         policy.announcement === true && release.config.mode === 'announcement',
       );
       const telemetry = new SpeechCacheTelemetry(observer);

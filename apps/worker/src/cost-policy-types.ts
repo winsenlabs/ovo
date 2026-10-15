@@ -36,7 +36,8 @@ export type ProviderUsage =
       state: 'unavailable';
       missing: 'provider-omitted';
     };
-export type ProviderUsageSink = (usage: ProviderUsage) => void;
+/** `segment`: the index of the routed call segment whose graph reported it (transfer design 7.11). */
+export type ProviderUsageSink = (usage: ProviderUsage, segment?: number) => void;
 export type CostTerminationReason =
   | 'cost-max-duration'
   | 'cost-spend-threshold'

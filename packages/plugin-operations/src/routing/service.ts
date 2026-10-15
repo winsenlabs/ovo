@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import type {
   MemberClaim,
+  RoutingAudio,
   RoutingMemberCandidate,
   RoutingPoint,
   RoutingPointDraft,
@@ -9,6 +10,7 @@ import type {
   RoutingRelease,
   RoutingReleaseSnapshot,
 } from '@winsendotai/ovo-contracts';
+import { RoutingAudioStore, type RoutingAudioInput } from './audio.ts';
 import { RoutingClaims } from './claims.ts';
 import { RoutingPoints } from './points.ts';
 import { RoutingPools } from './pools.ts';
@@ -21,8 +23,13 @@ export interface RoutingService {
   pools: {
     /** Ordered by id. */
     list(limit: number, cursor?: string): Promise<RoutingPool[]>;
-    /** Excludes deleted. */
-    get(id: string): Promise<RoutingPool | undefined>;
+    /** Excludes deleted unless `includeDeleted`; a deleted pool carries `deletedAt` (R2). */
+    get(
+      id: string,
+      options?: { includeDeleted?: boolean },
+    ): Promise<(RoutingPool & { deletedAt?: string }) | undefined>;
+    /** Live point ids whose current draft names the pool (`ovo_routing_point_pools`; R2). */
+    usedBy(id: string): Promise<string[]>;
     /** Throws RoutingPoolNameTakenError when an active pool has the name. */
     create(definition: RoutingPoolDefinition): Promise<RoutingPool>;
     /** Undefined = conflict. */
@@ -36,6 +43,7 @@ export interface RoutingService {
       expectedVersion: number,
     ): Promise<'removed' | 'conflict' | { inUseBy: string[] }>;
   };
+  /** create/update keep `ovo_routing_point_pools` and `ovo_routing_point_audio` to the draft. */
   points: {
     list(limit: number, cursor?: string): Promise<RoutingPoint[]>;
     get(id: string): Promise<RoutingPoint | undefined>;
@@ -64,7 +72,23 @@ export interface RoutingService {
     /** Newest first. */
     list(pointId: string, limit: number, cursor?: string): Promise<RoutingRelease[]>;
   };
+  /** R2 hold clips: immutable 8 kHz mu-law bytes, soft-deleted, pinned by sha256 in releases. */
+  audio: {
+    /** Metadata only, by id; deleted clips left out. */
+    list(limit: number, cursor?: string): Promise<RoutingAudio[]>;
+    get(id: string, options?: { includeDeleted?: boolean }): Promise<RoutingAudio | undefined>;
+    /** The bytes, deleted or not (pinned releases); undefined when unknown or the digest differs. */
+    content(id: string, sha256: string): Promise<Uint8Array | undefined>;
+    create(input: RoutingAudioInput): Promise<RoutingAudio | 'name_taken'>;
+    usedBy(id: string): Promise<string[]>;
+    remove(id: string): Promise<'removed' | 'missing' | { inUseBy: string[] }>;
+  };
   claims: {
+    /**
+     * One active claim per call, idempotent for the same member, advisory-locked. The call's
+     * previous claim is released only when a new one is taken (same transaction); `full` leaves
+     * it in place (R2).
+     */
     claim(input: {
       callId: string;
       routingReleaseId: string;
@@ -82,6 +106,7 @@ export class PostgresRoutingService implements RoutingService {
   readonly points: RoutingPoints;
   readonly releases: RoutingReleases;
   readonly claims: RoutingClaims;
+  readonly audio: RoutingAudioStore;
 
   constructor(
     pool: Pool,
@@ -92,5 +117,6 @@ export class PostgresRoutingService implements RoutingService {
     this.points = new RoutingPoints(pool, organizationId);
     this.releases = new RoutingReleases(pool, organizationId);
     this.claims = new RoutingClaims(pool, organizationId);
+    this.audio = new RoutingAudioStore(pool, organizationId);
   }
 }

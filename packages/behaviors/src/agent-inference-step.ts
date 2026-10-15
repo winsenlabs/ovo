@@ -1,6 +1,7 @@
 import {
   END_CALL_TOOL_ID,
   FLOW_RESUME_TOOL_ID,
+  TRANSFER_TO_AGENT_TOOL_ID,
   type InferenceReply,
 } from '@winsendotai/ovo-contracts';
 import { streamAgentReply, stripInternalNotes } from './agent-stream.ts';
@@ -176,6 +177,16 @@ async function* inferenceSteps(
       return;
     }
 
+    // R2: `transfer_to_agent` withdrawn by the call's limits; the host records the refusal.
+    const unoffered =
+      reply.toolId === TRANSFER_TO_AGENT_TOOL_ID &&
+      !step.tools.some((candidate) => candidate.id === reply.toolId);
+    const withdrawn = unoffered ? step.transferToAgent?.withdrawn?.(reply.input) : undefined;
+    if (withdrawn) {
+      step.results.push(failedRecord(step, reply.toolId, reply.input, await withdrawn));
+      continue;
+    }
+
     const tool = selectedTool(step, reply);
     if (tool.id === END_CALL_TOOL_ID) {
       const why = ending.refused(false);
@@ -191,6 +202,15 @@ async function* inferenceSteps(
       const goodbye = checked((reply.input as { goodbye: string }).goodbye.trim());
       if (goodbye !== undefined) yield publish(goodbye);
       return;
+    }
+
+    // R2: an accepted transfer's announcement or the confirm question is the whole reply, said by
+    // the behaviour; a refusal is a record the model reads in its next step.
+    if (tool.id === TRANSFER_TO_AGENT_TOOL_ID && step.transferToAgent) {
+      const answer = await step.transferToAgent(reply.input);
+      if (answer.kind === 'say') return yield publish(answer.text);
+      step.results.push(failedRecord(step, tool.id, reply.input, answer.error));
+      continue;
     }
 
     if (tool.effect === 'write' && step.uncertainWrite()) {
@@ -236,4 +256,16 @@ async function* inferenceSteps(
     }
   }
   yield publish(recoveryLine(step));
+}
+
+function failedRecord(step: InferenceStepInput, toolId: string, input: unknown, error: string) {
+  return {
+    id: step.operationId(),
+    ...step.identity,
+    toolId,
+    input,
+    state: 'failed' as const,
+    error,
+    createdAt: new Date().toISOString(),
+  };
 }

@@ -1,10 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient, QueryResultRow } from 'pg';
+import { filterDeclaredVariables } from '@winsendotai/ovo-contracts';
 import { recordBusy } from './inbound-existing.ts';
 import type { EffectiveInboundRoute } from './routing/effective-route.ts';
 import type { InboundGatewayCall, InboundGatewayDecision, InboundOverflowPolicy } from './types.ts';
 
 type PolicyRow = QueryResultRow & { policy: InboundOverflowPolicy };
+
+/**
+ * A routed number's variables were checked against its router release, but its callback dials the
+ * default agent: pass only what that agent declares (as the worker does for routed segments).
+ */
+function callbackVariables(route: EffectiveInboundRoute): Record<string, unknown> {
+  if (!route.routing_release_id || !route.default_variables_schema) return route.variables;
+  return filterDeclaredVariables({ variables: route.default_variables_schema }, route.variables);
+}
 
 export async function inboundOverflow(
   client: PoolClient,
@@ -80,7 +90,7 @@ export async function inboundOverflow(
         route.version,
         // An outbound callback cannot be routed: a routed number calls back its default agent.
         route.routing?.defaultReleaseId ?? route.release_id,
-        JSON.stringify(route.variables),
+        JSON.stringify(callbackVariables(route)),
         route.routing_release_id,
       ],
     );
