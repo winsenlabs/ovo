@@ -202,10 +202,23 @@ describe('room server rows (managed human queues)', () => {
     await graph.dispose();
   });
 
-  it('fails loudly when the flag is on but the plugin package provides no room plugin yet', async () => {
-    await expect(
-      loadDistribution({ role: 'api', profile: 'compose', env: roomEnv }),
-    ).rejects.toThrow(/not installed.*room-livekit/);
+  it('loads the real room plugin package with the flag on and composes ovo.media-room from it', async () => {
+    for (const role of ['api', 'worker'] as const) {
+      const loaded = await loadDistribution({
+        role,
+        profile: 'compose',
+        env: { ...(role === 'worker' ? workerEnv : {}), ...roomEnv },
+      });
+      const definition = loaded.catalog.find((p) => p.manifest.id === ROOM_PLUGIN_ID)!;
+      expect(definition, role).toBeDefined();
+      const graph = await compose(
+        loaded.processRows.filter((row) => row.id === ROOM_PLUGIN_ID),
+        [definition],
+        { scope: 'process' },
+      );
+      expect((graph.get(Cap.mediaRoom) as { provider: string }).provider).toBe('livekit');
+      await graph.dispose();
+    }
   });
 
   it('keeps the real catalog entry for api and worker only', () => {
