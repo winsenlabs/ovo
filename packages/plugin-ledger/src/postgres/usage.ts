@@ -61,8 +61,8 @@ export class UsageRepository {
       `INSERT INTO ovo_cost_native_usage
            (id,idempotency_key,fingerprint,workspace_id,session_id,call_id,attempt_id,provider,
             provider_request_id,source_kind,source_event_type,source_event_id,activity,
-            cache_disposition,quantity,unit,occurred_at,state)
-           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'estimated')
+            cache_disposition,quantity,unit,occurred_at,state,segment_index)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'estimated',$18)
            ON CONFLICT DO NOTHING RETURNING id`,
       [
         usageId,
@@ -82,6 +82,7 @@ export class UsageRepository {
         input.quantity,
         input.unit,
         input.occurredAt,
+        input.segment ?? null,
       ],
     );
     if (!inserted.rowCount) {

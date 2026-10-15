@@ -17,8 +17,9 @@ export interface ChargeRow {
 }
 
 export function usageFingerprint(input: RecordUsageInput): string {
-  const { idempotencyKey: _, usageId: __, ...content } = input;
-  return fingerprint(content);
+  const { idempotencyKey: _, usageId: __, segment, ...content } = input;
+  // A usage without a segment fingerprints exactly as it did before migration 005.
+  return fingerprint(segment === undefined ? content : { ...content, segment });
 }
 
 export function mapRecorded(row: ChargeRow): RecordedUsage {

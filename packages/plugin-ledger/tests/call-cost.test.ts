@@ -119,10 +119,20 @@ describe.skipIf(!postgresUrl)('call cost on the PostgreSQL ledger (P11)', () => 
       totalPaise: '40',
       provisional: false,
       provisionalPriceCards: [],
+      segments: [
+        {
+          index: null,
+          currency: 'INR',
+          estimatedPaise: '40',
+          reconciledPaise: '0',
+          totalPaise: '40',
+        },
+      ],
     });
     expect(await ledger.getCallCost('another-workspace', 'call-1')).toMatchObject({
       sessionIds: [],
       totalPaise: '0',
+      segments: [],
     });
   });
 
