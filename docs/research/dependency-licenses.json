@@ -1,7 +1,7 @@
 {
   "generatedAt": "2026-10-15",
   "command": "pnpm licenses list --json",
-  "lockfileSha256": "38b32d111e97d75d9bf7be320588e67596bf07e60996ab30b07e188d0a3ee832",
+  "lockfileSha256": "d1ef83a6abee21c38c35629dcd0ede287805c30eb12e71a8a70f9856aa474201",
   "dependencies": [
     {
       "name": "@adobe/css-tools",
