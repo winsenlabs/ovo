@@ -8,9 +8,12 @@ import {
 } from '@winsendotai/ovo-plugin-operations';
 import type { RealtimeRouteDependencies } from './operations-realtime.ts';
 import { validateInboundCarrier } from '../operations-plugin.ts';
+import { inboundTargetOf, resolveInboundTarget } from './operations-inbound-target.ts';
 import type { InboundReadinessReport } from '../inbound-readiness.ts';
 
 export interface InboundRouteDependencies extends RealtimeRouteDependencies {
+  /** `OVO_ROUTING_ENABLED`: a number may be bound to a routing release only while it is on. */
+  routingEnabled?: boolean;
   /** The dispatcher's latest inbound readiness for the capacity route (OPS-4). */
   inboundReadiness?: () => Promise<InboundReadinessReport | null>;
 }
@@ -107,11 +110,22 @@ export function registerOperationsInboundRouteManagement(input: InboundRouteDepe
     if (!operations) return;
     const { phoneNumber } = schemas.inboundRouteParams.parse(request.params);
     const body = schemas.inboundRoute.parse(request.body);
-    const release = await store.getRelease(principal.workspaceId, body.releaseId);
-    if (!release)
-      return reply
-        .code(404)
-        .send({ error: { code: 'release_not_found', message: 'Release not found' } });
+    const resolved = await resolveInboundTarget({
+      store,
+      operations,
+      workspaceId: principal.workspaceId,
+      routingEnabled: input.routingEnabled === true,
+      body,
+    });
+    if (!resolved.ok)
+      return reply.code(resolved.status).send({
+        error: {
+          code: resolved.code,
+          message: resolved.message,
+          ...(resolved.details ? { details: resolved.details } : {}),
+        },
+      });
+    const { release, target } = resolved;
     const validation = validateReleaseVariables(release.config.variables, body.variables);
     if (!validation.valid)
       return reply.code(422).send({
@@ -134,9 +148,10 @@ export function registerOperationsInboundRouteManagement(input: InboundRouteDepe
         error: { code: 'inbound_carrier_invalid', message: (error as Error).message },
       });
     }
+    const previous = await operations.inboundRoutes.get(phoneNumber);
     const route = await operations.inboundRoutes.put({
       phoneNumber,
-      releaseId: release.id,
+      ...target,
       variables: body.variables,
       enabled: body.enabled,
       expectedVersion: body.expectedVersion,
@@ -151,8 +166,10 @@ export function registerOperationsInboundRouteManagement(input: InboundRouteDepe
     const resourceId = createHash('sha256').update(phoneNumber).digest('hex');
     await audit(principal, 'operations.inbound.route.put', 'inbound_route', resourceId, {
       releaseId: route.releaseId,
+      routingReleaseId: route.routingReleaseId,
       version: route.version,
       enabled: route.enabled,
+      previousTarget: inboundTargetOf(previous),
     });
     return route;
   });

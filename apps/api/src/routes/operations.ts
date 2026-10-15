@@ -19,7 +19,7 @@ import { campaignPolicy, contactVariableErrors } from '../outbound-compliance.ts
 
 const schemas = operationsApiSchemas;
 
-function serviceOr503(
+export function serviceOr503(
   operations: OperationsService | undefined,
   reply: FastifyReply,
   workspaceId: string,
@@ -45,6 +45,8 @@ export interface OperationsRouteDependencies {
   requireRole: (request: FastifyRequest, role: Role) => Principal;
   /** Source of the dispatcher's inbound readiness for the capacity route (OPS-4). */
   infrastructure?: Pick<InfrastructureService, 'inboundReadiness'>;
+  /** `OVO_ROUTING_ENABLED`, for binding numbers to routing releases. */
+  routingEnabled?: boolean;
 }
 
 export function registerOperationsRoutes(input: OperationsRouteDependencies): void {
@@ -188,6 +190,7 @@ export function registerOperationsRoutes(input: OperationsRouteDependencies): vo
     use,
     audit,
     inboundReadiness: input.infrastructure?.inboundReadiness?.bind(input.infrastructure),
+    routingEnabled: input.routingEnabled,
   };
   registerOperationsRealtimeRoutes(realtime);
 }

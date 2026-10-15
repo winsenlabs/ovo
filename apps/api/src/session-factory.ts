@@ -77,9 +77,10 @@ export function createDefaultReleaseFactory(
   };
 }
 
-async function credentialReady(
-  store: ControlStore,
-  agent: AgentDraft,
+/** The credential policy a session applies; publish applies it to a routing point's router agent. */
+export async function credentialReady(
+  store: Pick<ControlStore, 'getCredential'>,
+  agent: Pick<AgentDraft, 'workspaceId' | 'id'>,
   id: string,
   environment?: string,
 ) {

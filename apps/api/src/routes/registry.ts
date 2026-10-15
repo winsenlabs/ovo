@@ -1,5 +1,6 @@
 import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
 import { Cap } from '@winsendotai/ovo-contracts';
+import { PluginRegistry } from '@winsendotai/ovo-runtime';
 import type { PerformanceService } from '@winsendotai/ovo-plugin-observability';
 import type { OperationsService } from '@winsendotai/ovo-plugin-operations';
 import type { RecordingArchive } from '@winsendotai/ovo-plugin-recordings';
@@ -18,6 +19,7 @@ import { registerMcpRoutes } from './mcp.ts';
 import { registerOperationsRoutes } from './operations.ts';
 import { registerPerformanceRoutes } from './performance.ts';
 import { registerReadinessRoutes } from './readiness.ts';
+import { registerRoutingRoutes } from './routing.ts';
 import { registerRequiredMeterRoutes } from './required-meters.ts';
 import { registerRecordingLifecycleRoutes } from './recording-lifecycle.ts';
 import { registerRecordingRoutes } from './recordings.ts';
@@ -55,6 +57,22 @@ export function registerApiRoutes(deps: any): void {
     operations: options.operationsEnabled
       ? (ctx.get(Cap.operations) as OperationsService)
       : undefined,
+    routingEnabled: options.routingEnabled === true,
+  });
+  registerRoutingRoutes({
+    app,
+    store,
+    requireRole,
+    operations: options.operationsEnabled
+      ? (ctx.get(Cap.operations) as OperationsService)
+      : undefined,
+    enabled: options.routingEnabled === true,
+    externalEnabled: options.routingExternalEnabled === true,
+    // A ledger runs wherever the worker prices calls, and the worker then refuses an unpriced one.
+    requireCostPolicy: options.costLedgerEnabled === true,
+    registry: new PluginRegistry(deps.catalog),
+    ledger: options.costLedgerEnabled ? (ctx.get(Cap.costLedger) as CostLedgerService) : undefined,
+    expectedVersion: deps.expectedVersion,
   });
   registerEvaluationDatasetRoutes({
     app,
