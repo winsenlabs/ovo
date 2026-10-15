@@ -14,6 +14,7 @@ import { rows as gatewayRows } from './profiles/gateway.ts';
 import { rows as dispatcherRows } from './profiles/dispatcher.ts';
 import type { DeploymentProfile, Environment, ProfileRows } from './profiles/types.ts';
 import { recordingRows } from './profiles/recordings.ts';
+import { ROOM_PLUGIN_ID, roomRows } from './profiles/rooms.ts';
 
 const PROFILE_ROWS: Record<DistributionRole, ProfileRows> = {
   api: apiRows,
@@ -69,6 +70,8 @@ export async function loadDistribution(input: LoadDistributionInput): Promise<Lo
       recordingRows(input.profile, env).length === 0
     )
       return false;
+    // The room plugin (and its native bindings) is loaded only when the room feature is on.
+    if (entry.package === ROOM_PLUGIN_ID && roomRows(env).length === 0) return false;
     return entry.roles.includes('session') || entry.roles.includes(input.role);
   });
   const modules = new Map<string, LoadedModule>();

@@ -484,6 +484,9 @@ importers:
       '@winsendotai/ovo-plugin-recordings':
         specifier: workspace:*
         version: link:../plugin-recordings
+      '@winsendotai/ovo-plugin-room-livekit':
+        specifier: workspace:*
+        version: link:../plugin-room-livekit
       '@winsendotai/ovo-plugin-router':
         specifier: workspace:*
         version: link:../plugin-router
@@ -550,6 +553,10 @@ importers:
       '@winsendotai/ovo-session-host':
         specifier: workspace:*
         version: link:../session-host
+    devDependencies:
+      '@winsendotai/ovo-conformance':
+        specifier: workspace:*
+        version: link:../conformance
 
   packages/eval:
     dependencies:

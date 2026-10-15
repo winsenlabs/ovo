@@ -129,6 +129,13 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
     load: () => import('@winsendotai/ovo-plugin-carrier-tcn'),
   },
   {
+    // Wave 17: the self-hosted room server for managed human queues. Left out of the loaded catalog
+    // unless OVO_LIVEKIT_ENABLED=true (profiles/rooms.ts), so nothing of it runs by default.
+    package: '@winsendotai/ovo-plugin-room-livekit',
+    roles: ['api', 'worker'],
+    load: () => import('@winsendotai/ovo-plugin-room-livekit'),
+  },
+  {
     package: '@winsendotai/ovo-fixture-calls',
     roles: ['api'],
     load: () => import('@winsendotai/ovo-fixture-calls'),

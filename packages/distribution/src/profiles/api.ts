@@ -1,6 +1,7 @@
 import type { ProfileRows } from './types.ts';
 import { observabilityPlugin } from '@winsendotai/ovo-plugin-observability';
 import { recordingRows } from './recordings.ts';
+import { roomRows } from './rooms.ts';
 
 export const rows: ProfileRows = (profile, env) => [
   {
@@ -28,4 +29,5 @@ export const rows: ProfileRows = (profile, env) => [
   },
   { id: observabilityPlugin.manifest.id },
   ...recordingRows(profile, env),
+  ...roomRows(env),
 ];
