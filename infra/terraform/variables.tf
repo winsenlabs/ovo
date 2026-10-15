@@ -103,6 +103,43 @@ variable "enable_routing_transfer" {
   default     = false
   description = "OVO_ROUTING_TRANSFER_ENABLED (worker, api): in-call agent transfer on routed calls. Off, routed calls run as Wave 15."
 }
+variable "enable_human_queue" {
+  type        = bool
+  default     = false
+  description = "OVO_HUMAN_QUEUE_ENABLED (api, worker, dispatcher): human queues (third-party webhook and operator desk). Needs enable_routing and enable_routing_transfer. Off, human steps are skipped."
+}
+variable "human_queue_webhook_enabled" {
+  type        = bool
+  default     = false
+  description = "OVO_HUMAN_QUEUE_WEBHOOK_ENABLED (api, worker): lets external queues post their signed hand-off webhook. Off, external queues are inert."
+}
+variable "human_queue_callback_base_url" {
+  type        = string
+  default     = ""
+  description = "OVO_HUMAN_QUEUE_CALLBACK_BASE_URL (worker): public origin put in webhook callback links. Empty falls back to media_public_base_url."
+  validation {
+    condition     = var.human_queue_callback_base_url == "" || can(regex("^https://[^/]+$", var.human_queue_callback_base_url))
+    error_message = "human_queue_callback_base_url is empty or an https origin without a path."
+  }
+}
+variable "human_queue_context_retention_hours" {
+  type        = string
+  default     = ""
+  description = "OVO_HUMAN_QUEUE_CONTEXT_RETENTION_HOURS (api, worker, dispatcher): hours a ticket's caller context is kept after it ends, 0-720. Empty keeps 24."
+  validation {
+    condition     = var.human_queue_context_retention_hours == "" || can(regex("^[0-9]+$", var.human_queue_context_retention_hours))
+    error_message = "human_queue_context_retention_hours is empty or a whole number of hours."
+  }
+}
+variable "enable_livekit" {
+  type        = bool
+  default     = false
+  description = "Reserved. The self-hosted room server (managed human queues) needs a static-IP, non-Spot host with UDP; Fargate cannot run it, so true is refused."
+  validation {
+    condition     = !var.enable_livekit
+    error_message = "enable_livekit is not supported on the Fargate profile: the room server runs on the Compose host (docs/runbooks/livekit-deploy.md)."
+  }
+}
 variable "permitted_from_numbers" {
   type        = list(string)
   default     = []

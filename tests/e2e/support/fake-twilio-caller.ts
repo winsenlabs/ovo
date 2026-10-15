@@ -1,7 +1,7 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import { once } from 'node:events';
 import { pcm16ToMulaw } from '../../../packages/audio/src/index.ts';
-import { speechLikePcm16 } from '../../../packages/conformance/src/drivers/audio-gen.ts';
+import { speechLikePcm16, tonePcm16 } from '../../../packages/conformance/src/drivers/audio-gen.ts';
 import { WebSocket } from '../../../packages/plugin-media/src/index.ts';
 
 /** Twilio's documented webhook signature, computed independently of the product's validator. */
@@ -30,6 +30,8 @@ export class FakeTwilioCall {
   private sequence = 0;
   private timer?: NodeJS.Timeout;
   private speaking = true;
+  /** What the caller sends while speaking: speech-like noise, or a pure tone after `tone`. */
+  private voice: Uint8Array = SPEECH;
 
   constructor(
     private readonly gateway: { origin: string; publicBaseUrl: string },
@@ -96,9 +98,9 @@ export class FakeTwilioCall {
     });
     let chunk = 0;
     this.timer = setInterval(() => {
-      const offset = (chunk * FRAME_BYTES) % SPEECH.byteLength;
+      const offset = (chunk * FRAME_BYTES) % this.voice.byteLength;
       const frame = this.speaking
-        ? SPEECH.subarray(offset, offset + FRAME_BYTES)
+        ? this.voice.subarray(offset, offset + FRAME_BYTES)
         : new Uint8Array(FRAME_BYTES).fill(0xff);
       chunk += 1;
       this.send({
@@ -116,6 +118,18 @@ export class FakeTwilioCall {
   /** The caller presses a key: Twilio's `dtmf` stream message on the inbound track. */
   pressDigit(digit: string): void {
     this.send({ event: 'dtmf', dtmf: { track: 'inbound_track', digit } });
+  }
+
+  /**
+   * From now on the caller says a pure tone instead of speech-like noise, so the frames can be
+   * told apart after the room's codecs. One second holds a whole number of cycles, so it loops
+   * without a click.
+   */
+  tone(freq: number): void {
+    if (!Number.isInteger(freq))
+      throw new Error('use a whole number of Hz so the loop is seamless');
+    this.voice = pcm16ToMulaw(tonePcm16({ freq, ms: 1_000, rate: 8_000 }));
+    this.speaking = true;
   }
 
   /** The caller stops talking; Twilio keeps streaming silence. */

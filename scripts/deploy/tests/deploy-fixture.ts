@@ -13,6 +13,7 @@ const COPIED = [
   'scripts/verify-compose.sh',
   'infra/compose/compose.yaml',
   'infra/compose/.gitignore',
+  'infra/compose/livekit.yaml.template',
   'infra/caddy',
   'infra/container',
 ];

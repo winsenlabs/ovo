@@ -136,6 +136,8 @@ export async function startFakeAssemblyAi(input: {
 /** Twilio's REST API: records every request (a hangup is a POST to Calls/<sid>.json). */
 export async function startFakeTwilioRest() {
   const requests: { method: string; url: string; body: string; at: number }[] = [];
+  /** `refuse` makes every call update fail with that status until it is cleared. */
+  const behavior: { refuse?: number } = {};
   const server = await startLoopbackServer({
     onRequest(request, response) {
       void body(request).then((text) => {
@@ -145,6 +147,16 @@ export async function startFakeTwilioRest() {
           body: text,
           at: Date.now(),
         });
+        if (behavior.refuse) {
+          response.writeHead(behavior.refuse, { 'content-type': 'application/json' }).end(
+            JSON.stringify({
+              code: 21220,
+              message: 'refused by the fake carrier',
+              status: behavior.refuse,
+            }),
+          );
+          return;
+        }
         const sid = /Calls\/(CA\w+)\.json/.exec(request.url ?? '')?.[1] ?? 'CA0';
         response
           .writeHead(200, { 'content-type': 'application/json' })
@@ -152,7 +164,7 @@ export async function startFakeTwilioRest() {
       });
     },
   });
-  return { server, requests };
+  return { server, requests, behavior };
 }
 
 /** An SQS JSON-protocol endpoint with an empty queue: inbound calls never use the job queue. */

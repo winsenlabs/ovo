@@ -158,6 +158,20 @@ export async function startRoutingOpenAi(reply: string) {
 export async function startScriptedAssemblyAi() {
   const sessions: { url: string; socket: Socket; audioBytes: number; closed: boolean }[] = [];
   let order = 0;
+  const speak = (session: (typeof sessions)[number], text: string) => {
+    const send = (event: unknown) => session.socket.send(JSON.stringify(event));
+    const turn = order++;
+    send({ type: 'SpeechStarted', timestamp: 0 });
+    send({ type: 'Turn', turn_order: turn, transcript: text.split(' ')[0], end_of_turn: false });
+    send({
+      type: 'Turn',
+      turn_order: turn,
+      transcript: text,
+      end_of_turn: true,
+      turn_is_formatted: false,
+      end_of_turn_confidence: 0.95,
+    });
+  };
   const server = await startLoopbackServer({
     onConnection(socket, request) {
       const session = { url: request.url ?? '', socket, audioBytes: 0, closed: false };
@@ -190,18 +204,11 @@ export async function startScriptedAssemblyAi() {
     say(text: string) {
       const session = sessions.filter((item) => !item.closed).at(-1);
       if (!session) throw new Error('No open STT session to speak into');
-      const send = (event: unknown) => session.socket.send(JSON.stringify(event));
-      const turn = order++;
-      send({ type: 'SpeechStarted', timestamp: 0 });
-      send({ type: 'Turn', turn_order: turn, transcript: text.split(' ')[0], end_of_turn: false });
-      send({
-        type: 'Turn',
-        turn_order: turn,
-        transcript: text,
-        end_of_turn: true,
-        turn_is_formatted: false,
-        end_of_turn_confidence: 0.95,
-      });
+      speak(session, text);
+    },
+    /** One turn on a chosen session (a human segment opens one for each side of the call). */
+    sayOn(session: (typeof sessions)[number], text: string) {
+      speak(session, text);
     },
   };
 }

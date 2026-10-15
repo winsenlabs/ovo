@@ -14,7 +14,7 @@ export type CarrierMediaEvent =
   | { type: 'dtmf'; digit: string; durationMs?: number }
   | { type: 'played'; name: string }
   | { type: 'cleared' }
-  | { type: 'stop'; reason: 'caller-hangup' | 'stream-ended' | 'unknown' };
+  | { type: 'stop'; reason: 'caller-hangup' | 'stream-ended' | 'transferred' | 'unknown' };
 
 export type MediaCommand =
   { type: 'audio'; payload: Uint8Array } | { type: 'mark'; name: string } | { type: 'clear' };

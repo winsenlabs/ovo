@@ -7,6 +7,7 @@ PROMPT_ADMIN=false
 MANAGED_POSTGRES=false
 MANAGED_SQS=false
 PUBLIC_HOST=
+LIVEKIT_HOST=
 CADDYFILE="$ROOT_DIR/infra/compose/Caddyfile"
 
 usage() {
@@ -23,6 +24,10 @@ Options:
   --public-host HOST    Serve a public host name: set OVO_MEDIA_PUBLIC_BASE_URL=https://HOST and
                         OVO_ALLOW_LOCAL_HTTP=false (replacing earlier values), and render the
                         reverse proxy config from infra/caddy/Caddyfile.template.
+  --livekit-host HOST   With --public-host: also proxy the room server's signalling at HOST (its
+                        own TLS site) and set OVO_LIVEKIT_PUBLIC_URL=wss://HOST. Opens nothing by
+                        itself: the room server stays off until OVO_LIVEKIT_ENABLED=true and its
+                        media ports until OVO_LIVEKIT_PUBLIC_ENABLED=true (docs/runbooks/livekit-deploy.md).
   --caddyfile PATH      Where --public-host writes the Caddyfile (default infra/compose/Caddyfile).
   -h, --help            Show this help.
 
@@ -55,6 +60,11 @@ while (($#)); do
       PUBLIC_HOST=$2
       shift 2
       ;;
+    --livekit-host)
+      [[ $# -ge 2 ]] || { echo '--livekit-host requires a host name' >&2; exit 2; }
+      LIVEKIT_HOST=$2
+      shift 2
+      ;;
     --caddyfile)
       [[ $# -ge 2 ]] || { echo '--caddyfile requires a path' >&2; exit 2; }
       CADDYFILE=$2
@@ -81,6 +91,13 @@ if [[ -n $PUBLIC_HOST ]] &&
   ! [[ $PUBLIC_HOST =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]]; then
   echo '--public-host must be a lower-case DNS name such as voice.example.in (no scheme or port)' >&2
   exit 2
+fi
+if [[ -n $LIVEKIT_HOST ]]; then
+  [[ -n $PUBLIC_HOST ]] || { echo '--livekit-host needs --public-host (it adds a site to the same Caddyfile)' >&2; exit 2; }
+  [[ $LIVEKIT_HOST =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ && $LIVEKIT_HOST != "$PUBLIC_HOST" ]] || {
+    echo '--livekit-host must be a lower-case DNS name different from --public-host' >&2
+    exit 2
+  }
 fi
 if $MANAGED_POSTGRES && [[ -z ${OVO_BOOTSTRAP_DATABASE_URL:-} ]]; then
   echo 'OVO_BOOTSTRAP_DATABASE_URL is required with --managed-postgres' >&2
@@ -222,6 +239,14 @@ append OVO_SIP_ENABLED false
 append OVO_SIP_PUBLIC_ENABLED false
 append OVO_SIP_CONTROL_TOKEN "$(random_hex 32)"
 append OVO_SIP_GATEWAY_SECRET "$(openssl rand -base64 32)"
+# Wave 17 human queues and the room server: off until the go-live checklist
+# (docs/runbooks/livekit-deploy.md). The key pair is generated now so enabling it needs no new secret.
+append OVO_HUMAN_QUEUE_ENABLED false
+append OVO_HUMAN_QUEUE_WEBHOOK_ENABLED false
+append OVO_LIVEKIT_ENABLED false
+append OVO_LIVEKIT_PUBLIC_ENABLED false
+append OVO_LIVEKIT_API_KEY "ovo$(random_hex 6)"
+append OVO_LIVEKIT_API_SECRET "$(random_hex 32)"
 append POSTGRES_PORT "${POSTGRES_PORT:-54329}"
 append ELASTICMQ_PORT "${ELASTICMQ_PORT:-9324}"
 append API_PORT "${API_PORT:-4000}"
@@ -254,6 +279,13 @@ if [[ -n $PUBLIC_HOST ]]; then
     -e "s/__OVO_GATEWAY_PORT__/$(value_for GATEWAY_PORT)/g" \
     -e "s/__OVO_CONSOLE_PORT__/$(value_for CONSOLE_PORT)/g" \
     "$ROOT_DIR/infra/caddy/Caddyfile.template" >"$CADDYFILE"
+  if [[ -n $LIVEKIT_HOST ]]; then
+    replace OVO_LIVEKIT_PUBLIC_URL "wss://$LIVEKIT_HOST"
+    printf '\n' >>"$CADDYFILE"
+    sed -e "s/__OVO_LIVEKIT_HOST__/$LIVEKIT_HOST/g" \
+      -e "s/__OVO_LIVEKIT_SIGNAL_PORT__/$(value_for OVO_LIVEKIT_SIGNAL_PORT | grep . || echo 7880)/g" \
+      "$ROOT_DIR/infra/caddy/Caddyfile.livekit.template" >>"$CADDYFILE"
+  fi
   chmod 644 "$CADDYFILE"
   echo "Public host https://$PUBLIC_HOST: reverse proxy config written to $CADDYFILE."
   echo "Install it: sudo install -m 644 $CADDYFILE /etc/caddy/Caddyfile && sudo systemctl reload caddy"

@@ -101,7 +101,8 @@ export function violation(from, target, kindOf) {
       if (third)
         return target.name === 'ws' ? 'vendor plugins may not import ws (use ctx.net)' : undefined;
       if (ws && CORE.has(targetKind)) return undefined;
-      return 'vendor plugins may import only contracts, runtime, sdk and kits';
+      if (ws && targetKind === 'test-kit' && target.subpath === 'drivers') return undefined;
+      return 'vendor plugins may import only contracts, runtime, sdk, kits and the conformance drivers entry';
     case 'plugin':
       if (node || third) return undefined;
       if (ws && CORE.has(targetKind)) return undefined;
@@ -115,7 +116,10 @@ export function violation(from, target, kindOf) {
     case 'app':
       if (ws && ['vendor-plugin', 'legacy'].includes(targetKind))
         return `apps may not import ${targetKind} packages`;
-      if (ws && targetKind === 'test-kit') return 'apps may not import the conformance kits';
+      if (ws && targetKind === 'test-kit')
+        return target.subpath === 'drivers'
+          ? undefined
+          : 'apps may import only @winsendotai/ovo-conformance/drivers from the conformance kits';
       return undefined;
     case 'console':
       if (ws && (PLUGIN_KINDS.has(targetKind) || target.dir.split('/').pop().startsWith('plugin-')))

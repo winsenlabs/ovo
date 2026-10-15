@@ -29,6 +29,7 @@
     "@winsendotai/ovo-plugin-operations": "workspace:*",
     "@winsendotai/ovo-plugin-orchestration": "workspace:*",
     "@winsendotai/ovo-plugin-recordings": "workspace:*",
+    "@winsendotai/ovo-plugin-room-livekit": "workspace:*",
     "@winsendotai/ovo-plugin-router": "workspace:*",
     "@winsendotai/ovo-plugin-secrets": "workspace:*",
     "@winsendotai/ovo-plugin-speech-cache": "workspace:*",
@@ -51,5 +52,8 @@
     "@winsendotai/ovo-plugin-voice": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*",
     "@winsendotai/ovo-session-host": "workspace:*"
+  },
+  "devDependencies": {
+    "@winsendotai/ovo-conformance": "workspace:*"
   }
 }

@@ -133,8 +133,15 @@ export async function configureSipAgent(
   };
 }
 
+/** What the trunk allows for REFER (R3): the hosts a human queue's SIP destination may name. */
+export interface TrunkRefer {
+  enabled: boolean;
+  phoneUriTemplate?: string;
+  allowedHosts?: string[];
+}
+
 /** A loopback trunk entry (11.2): SIPp on 127.0.0.1 is the trunk, inbound only, PCMU first. */
-export function loopbackTrunkFile(agent: SipAgent) {
+export function loopbackTrunkFile(agent: SipAgent, refer?: TrunkRefer) {
   return {
     version: 1,
     trunks: [
@@ -149,6 +156,7 @@ export function loopbackTrunkFile(agent: SipAgent) {
         dtmf: 'rfc4733',
         numberFormat: { country: 'IN' },
         forwardHeaders: agent.forwardHeaders,
+        ...(refer ? { refer: { mode: 'refer', allowedHosts: [], ...refer } } : {}),
         inviteRatePerSecond: 5,
         maxConcurrent: 2,
         optionsPingSeconds: 30,
@@ -184,9 +192,13 @@ export async function startSipGatewayProcess(input: {
   controlPort: number;
   agent: SipAgent;
   rtpPorts: { min: number; max: number };
+  /** The trunk's REFER policy; absent: the trunk file says nothing (REFER off). */
+  refer?: TrunkRefer;
+  /** More of the gateway's own settings (for instance `OVO_SIP_REFER_TIMEOUT_MS`). */
+  env?: Record<string, string>;
 }): Promise<SipGatewayProcess> {
   const trunks = join(input.dir, 'sip-trunks.json');
-  await writeFile(trunks, JSON.stringify(loopbackTrunkFile(input.agent), null, 2));
+  await writeFile(trunks, JSON.stringify(loopbackTrunkFile(input.agent, input.refer), null, 2));
   const sipPort = await freePort();
   const healthPort = await freePort();
   const env = hostEnv('sip-gateway', input.variables, {
@@ -200,6 +212,7 @@ export async function startSipGatewayProcess(input: {
     OVO_SIP_MEDIA_INTERNAL_URL: input.gatewayOrigin,
     OVO_SIP_HEALTH_LISTEN: `127.0.0.1:${healthPort}`,
     OVO_SIP_DRAIN_TIMEOUT_MS: '2000',
+    ...input.env,
   });
   const child = spawn(process.execPath, ['--import', 'tsx', SIP_GATEWAY_MAIN], {
     cwd: input.root,

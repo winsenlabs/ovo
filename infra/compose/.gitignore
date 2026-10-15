@@ -3,3 +3,5 @@
 /.deploy/
 # Wave 11: the real SIP trunk list (template: sip-trunks.example.json).
 /sip-trunks.json
+# Wave 17: the room server config rendered from the environment (template: livekit.yaml.template).
+/livekit.yaml
