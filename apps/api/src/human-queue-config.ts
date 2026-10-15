@@ -1,6 +1,6 @@
 type Environment = Readonly<Record<string, string | undefined>>;
 
-/** Operator join tokens live this long unless `OVO_ROOM_TOKEN_TTL_SECONDS` says otherwise. */
+/** Operator join tokens live this long unless `OVO_LIVEKIT_TOKEN_TTL_SECONDS` says otherwise. */
 export const DEFAULT_ROOM_TOKEN_TTL_SECONDS = 120;
 /** An operator heartbeat older than this reads OFFLINE (`OVO_HUMAN_QUEUE_PRESENCE_TTL_SECONDS`). */
 export const DEFAULT_PRESENCE_TTL_SECONDS = 30;
@@ -20,7 +20,7 @@ export function humanQueueFlagsFromEnv(environment: Environment): {
   humanQueuePresenceTtlSeconds: number;
   humanQueueCallbackBaseUrl: string | undefined;
 } {
-  const configured = environment.OVO_ROOM_TOKEN_TTL_SECONDS?.trim();
+  const configured = environment.OVO_LIVEKIT_TOKEN_TTL_SECONDS?.trim();
   const ttl = configured === undefined || configured === '' ? NaN : Number(configured);
   const presence = Number(environment.OVO_HUMAN_QUEUE_PRESENCE_TTL_SECONDS);
   return {
