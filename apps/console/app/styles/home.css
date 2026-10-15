@@ -1,0 +1,95 @@
+/* W14 shell lane, part 4/4: the Team page's table toolbar and the Home dashboard's needs-
+   attention list (see shell.css for part 1/4). */
+
+/* ---------- team ---------- */
+.team-filter-bar {
+  padding: var(--space-4) var(--space-5) 0;
+}
+.team-filter-bar .ds-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.team-filter-bar input[type='search'] {
+  flex: 1 1 220px;
+}
+/* The global `select { width: 100% }` rule was winning over the row's flex sizing, stacking the
+   role and status selects into their own full-width rows under the search field (brief defect
+   #11). This selector's extra specificity (two classes) beats that type selector without
+   `!important`. */
+.team-filter-bar select {
+  width: auto;
+  min-width: 160px;
+  flex: 0 1 auto;
+}
+.team-user-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: start;
+  cursor: pointer;
+}
+.team-user-cell-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.team-user-cell-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-chip-you {
+  margin-inline-start: var(--space-2);
+  padding: 1px var(--space-2);
+  font-size: var(--text-micro-size);
+}
+
+/* ---------- home dashboard ---------- */
+.home-secondary-row {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.home-attention-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(0, 1.6fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.home-attention-list {
+  display: grid;
+  margin: 0;
+  padding: var(--space-2) 0;
+  list-style: none;
+}
+.home-attention-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  color: var(--text);
+  text-decoration: none;
+  font-size: var(--text-data-size);
+}
+.home-attention-item:hover {
+  background: var(--surface-2);
+}
+.home-attention-item .ds-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--neutral);
+}
+.home-attention-item.tone-warn .ds-badge-dot {
+  background: var(--warn);
+}
+.home-attention-item.tone-danger .ds-badge-dot {
+  background: var(--danger);
+}
+@media (max-width: 900px) {
+  .home-attention-row {
+    grid-template-columns: 1fr;
+  }
+}

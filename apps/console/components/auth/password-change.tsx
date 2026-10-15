@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { apiRequest } from '../../lib/api';
 import { USER_PASSWORD_MAX_LENGTH, USER_PASSWORD_MIN_LENGTH } from '../../lib/user-contract';
-import { Notice } from '../primitives';
+import { InlineAlert } from '../ui/feedback-v2';
 
 export interface PasswordIssue {
   code: string;
@@ -32,6 +32,7 @@ export function PasswordChange({
 }) {
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const [reveal, setReveal] = useState({ next: false, confirm: false });
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,45 +61,66 @@ export function PasswordChange({
   }
 
   return (
-    <>
-      <Notice tone="warning">
+    <div className="stack">
+      <InlineAlert tone="warn">
         <strong>Change your password to continue.</strong>
-        <ul>
-          {issues.map((issue) => (
-            <li key={issue.code}>{issue.message}</li>
-          ))}
-        </ul>
-      </Notice>
-      {error && (
-        <Notice tone="danger" live>
-          {error}
-        </Notice>
-      )}
-      <form onSubmit={submit}>
+        {issues.length > 0 && (
+          <ul className="password-issue-list">
+            {issues.map((issue) => (
+              <li key={issue.code}>{issue.message}</li>
+            ))}
+          </ul>
+        )}
+      </InlineAlert>
+      {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+      <form onSubmit={submit} className="stack">
         <label htmlFor="new-password">New password</label>
-        <input
-          id="new-password"
-          name="newPassword"
-          type="password"
-          autoComplete="new-password"
-          minLength={USER_PASSWORD_MIN_LENGTH}
-          maxLength={USER_PASSWORD_MAX_LENGTH}
-          required
-        />
+        <div className="password-field">
+          <input
+            id="new-password"
+            name="newPassword"
+            type={reveal.next ? 'text' : 'password'}
+            autoComplete="new-password"
+            minLength={USER_PASSWORD_MIN_LENGTH}
+            maxLength={USER_PASSWORD_MAX_LENGTH}
+            required
+          />
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => setReveal((value) => ({ ...value, next: !value.next }))}
+            aria-label={reveal.next ? 'Hide new password' : 'Show new password'}
+          >
+            {reveal.next ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        <p className="password-hint">
+          Needs three of lower case, upper case, digits and symbols, or 20+ characters.
+        </p>
         <label htmlFor="confirm-password">Confirm new password</label>
-        <input
-          id="confirm-password"
-          name="confirmPassword"
-          type="password"
-          autoComplete="new-password"
-          minLength={USER_PASSWORD_MIN_LENGTH}
-          maxLength={USER_PASSWORD_MAX_LENGTH}
-          required
-        />
+        <div className="password-field">
+          <input
+            id="confirm-password"
+            name="confirmPassword"
+            type={reveal.confirm ? 'text' : 'password'}
+            autoComplete="new-password"
+            minLength={USER_PASSWORD_MIN_LENGTH}
+            maxLength={USER_PASSWORD_MAX_LENGTH}
+            required
+          />
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => setReveal((value) => ({ ...value, confirm: !value.confirm }))}
+            aria-label={reveal.confirm ? 'Hide confirm password' : 'Show confirm password'}
+          >
+            {reveal.confirm ? 'Hide' : 'Show'}
+          </button>
+        </div>
         <button className="button primary" disabled={submitting}>
           {submitting ? 'Changing…' : 'Change password and sign in'}
         </button>
       </form>
-    </>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { apiRequest, ApiError, type SessionIdentity } from '../../lib/api';
 import {
   createTeamUserPayload,
@@ -8,14 +8,17 @@ import {
   type TeamRole,
   type TeamUser,
   updateTeamUserPayload,
-  USER_PASSWORD_MAX_LENGTH,
-  USER_PASSWORD_MIN_LENGTH,
   userManagementErrorMessage,
   userUpdateInvalidatesCurrentSession,
 } from '../../lib/user-contract';
-import { EmptyState, Field, LoadingBlock, Panel, PanelHeader, StatusBadge } from '../primitives';
+import { PageHeader } from '../ui/layout';
+import { KpiCard, KpiStrip } from '../ui/kpi';
+import { SectionCard } from '../ui/section-card';
+import { Drawer } from '../ui/drawer';
+import { EmptyStateV2, ErrorState, InlineAlert, SkeletonTableRows } from '../ui/feedback-v2';
 import { TeamUsersTable } from './team-users-table';
 import { TeamAddPanel } from './team-add-panel';
+import { TeamEditPanel } from './team-edit-panel';
 
 const failureMessage = (failure: unknown, fallback: string) =>
   failure instanceof ApiError
@@ -35,9 +38,13 @@ export function TeamView({
   const [loading, setLoading] = useState(identity.role === 'admin');
   const [unavailable, setUnavailable] = useState(false);
   const [editing, setEditing] = useState<TeamUser>();
+  const [addOpen, setAddOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const createPassword = useRef<HTMLInputElement>(null);
   const resetPassword = useRef<HTMLInputElement>(null);
 
@@ -84,6 +91,7 @@ export function TeamView({
         body: JSON.stringify(payload),
       });
       form.reset();
+      setAddOpen(false);
       setNotice(`${data.label} was added as ${teamRoleLabel(data.role)}.`);
       await load();
     } catch (failure) {
@@ -126,128 +134,145 @@ export function TeamView({
     }
   }
 
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return users.filter((user) => {
+      if (term && !`${user.label} ${user.email}`.toLowerCase().includes(term)) return false;
+      if (roleFilter && user.role !== roleFilter) return false;
+      if (statusFilter === 'active' && user.disabled) return false;
+      if (statusFilter === 'disabled' && !user.disabled) return false;
+      return true;
+    });
+  }, [users, search, roleFilter, statusFilter]);
+
+  const counts = useMemo(
+    () => ({
+      total: users.length,
+      admins: users.filter((user) => user.role === 'admin').length,
+      editors: users.filter((user) => user.role === 'editor').length,
+      disabled: users.filter((user) => user.disabled).length,
+    }),
+    [users],
+  );
+
   if (identity.role !== 'admin')
     return (
-      <div className="field-error" role="alert">
-        Team administration is available only to administrators of this organization.
+      <div className="stack">
+        <PageHeader eyebrow="Settings" title="Team" />
+        <InlineAlert tone="danger">
+          Team administration is available only to administrators of this organization.
+        </InlineAlert>
       </div>
     );
 
   return (
     <div className="stack">
-      <header className="page-heading">
-        <div>
-          <p className="eyebrow">Settings</p>
-          <h1>Team</h1>
-          <p className="muted">
-            Manage the users of this one organization. There are no invitations, tenant roles, or
-            role hierarchy beyond Admin and User.
-          </p>
-        </div>
-        <StatusBadge tone={unavailable ? 'warning' : 'soft'}>
-          {unavailable ? 'Unavailable' : `${users.length} users`}
-        </StatusBadge>
-      </header>
+      <PageHeader
+        eyebrow="Settings"
+        title="Team"
+        description="Manage the users of this one organization. There are no invitations, tenant roles, or role hierarchy beyond Admin and User."
+        actions={
+          !unavailable && (
+            <button className="button primary" type="button" onClick={() => setAddOpen(true)}>
+              Add user
+            </button>
+          )
+        }
+      />
 
-      {error && (
-        <div className="field-error" role="alert">
-          {error}
-        </div>
-      )}
-      {notice && (
-        <div className="field-error" role="alert">
-          {notice}
-        </div>
+      {!unavailable && (!error || counts.total > 0) && (
+        <KpiStrip>
+          <KpiCard
+            label="Total users"
+            value={loading ? undefined : counts.total}
+            loading={loading}
+          />
+          <KpiCard label="Admins" value={loading ? undefined : counts.admins} loading={loading} />
+          <KpiCard label="Users" value={loading ? undefined : counts.editors} loading={loading} />
+          <KpiCard
+            label="Disabled"
+            value={loading ? undefined : counts.disabled}
+            loading={loading}
+            footnote={counts.disabled > 0 ? 'Cannot sign in' : undefined}
+          />
+        </KpiStrip>
       )}
 
-      {!unavailable && (
-        <TeamAddPanel createUser={createUser} createPassword={createPassword} busy={busy} />
-      )}
+      {error && counts.total > 0 && <InlineAlert>{error}</InlineAlert>}
+      {notice && <InlineAlert tone="info">{notice}</InlineAlert>}
 
-      {editing && !unavailable && (
-        <Panel labelledBy="team-edit-title">
-          <PanelHeader id="team-edit-title" title={`Edit ${editing.label}`}>
-            <p className="muted">{editing.email}</p>
-          </PanelHeader>
-          <form key={editing.id} className="panel-body stack" onSubmit={updateUser}>
-            <div className="form-grid">
-              <Field label="Display name" htmlFor="team-edit-label">
-                <input
-                  id="team-edit-label"
-                  name="label"
-                  defaultValue={editing.label}
-                  maxLength={120}
-                  required
-                />
-              </Field>
-              <Field label="Role" htmlFor="team-edit-role">
-                <select id="team-edit-role" name="role" defaultValue={editing.role} required>
-                  <option value="admin">Admin</option>
-                  <option value="editor">User</option>
-                </select>
-              </Field>
-              <Field
-                label="Reset password"
-                htmlFor="team-edit-password"
-                help="Leave blank to keep it. To recover a restored user, set a fresh password while enabling the account."
+      <SectionCard title="Users" padding="flush">
+        {!unavailable && (
+          <div className="ds-filter-bar team-filter-bar">
+            <div className="ds-filter-row">
+              <input
+                type="search"
+                value={search}
+                placeholder="Search name or email"
+                aria-label="Search name or email"
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <select
+                aria-label="Filter by role"
+                value={roleFilter}
+                onChange={(event) => setRoleFilter(event.target.value)}
               >
-                <input
-                  ref={resetPassword}
-                  id="team-edit-password"
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={USER_PASSWORD_MIN_LENGTH}
-                  maxLength={USER_PASSWORD_MAX_LENGTH}
-                />
-              </Field>
-              <label className="toggle-row" htmlFor="team-edit-disabled">
-                <input
-                  id="team-edit-disabled"
-                  name="disabled"
-                  type="checkbox"
-                  defaultChecked={editing.disabled}
-                />
-                <span>
-                  <strong>Disable this user</strong>
-                  <small>Disabled users cannot sign in. The last active admin is protected.</small>
-                </span>
-              </label>
+                <option value="">All roles</option>
+                <option value="admin">Admin</option>
+                <option value="editor">User</option>
+              </select>
+              <select
+                aria-label="Filter by status"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+              >
+                <option value="">All statuses</option>
+                <option value="active">Active</option>
+                <option value="disabled">Disabled</option>
+              </select>
             </div>
-            <div className="button-row">
-              <button className="button primary" disabled={busy}>
-                {busy ? 'Saving…' : 'Save user'}
-              </button>
-              <button className="button" type="button" onClick={() => setEditing(undefined)}>
-                Cancel
-              </button>
-            </div>
-          </form>
-        </Panel>
-      )}
+          </div>
+        )}
+        {unavailable ? (
+          <EmptyStateV2 variant="unavailable" title="Team administration is unavailable">
+            User management is not configured on this installation.
+          </EmptyStateV2>
+        ) : loading ? (
+          <SkeletonTableRows rows={5} columns={5} />
+        ) : error && !users.length ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : (
+          <TeamUsersTable
+            users={filtered}
+            identity={identity}
+            busy={busy}
+            resetPassword={resetPassword}
+            setEditing={setEditing}
+            setError={setError}
+            setNotice={setNotice}
+          />
+        )}
+      </SectionCard>
 
-      <Panel labelledBy="team-users-title">
-        <PanelHeader id="team-users-title" title="Users" />
-        <div className="panel-body">
-          {loading ? (
-            <LoadingBlock label="Loading team" />
-          ) : !users.length && !unavailable ? (
-            <EmptyState title="No users returned">
-              Seed the first administrator on the server before managing this organization.
-            </EmptyState>
-          ) : users.length ? (
-            <TeamUsersTable
-              users={users}
-              identity={identity}
-              busy={busy}
-              resetPassword={resetPassword}
-              setEditing={setEditing}
-              setError={setError}
-              setNotice={setNotice}
-            />
-          ) : null}
-        </div>
-      </Panel>
+      <Drawer open={addOpen} title="Add user" onClose={() => setAddOpen(false)}>
+        <TeamAddPanel createUser={createUser} createPassword={createPassword} busy={busy} />
+      </Drawer>
+
+      <Drawer
+        open={Boolean(editing)}
+        title={editing ? `Edit ${editing.label}` : 'Edit user'}
+        onClose={() => setEditing(undefined)}
+      >
+        {editing && (
+          <TeamEditPanel
+            user={editing}
+            updateUser={updateUser}
+            resetPassword={resetPassword}
+            busy={busy}
+            onCancel={() => setEditing(undefined)}
+          />
+        )}
+      </Drawer>
     </div>
   );
 }

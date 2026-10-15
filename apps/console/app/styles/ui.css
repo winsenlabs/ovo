@@ -148,52 +148,18 @@ dialog::backdrop {
     display: none;
   }
 }
-.mobile-nav {
-  display: none;
-}
-.mobile-nav-panel {
-  position: fixed;
-  inset: 0 auto 0 0;
-  z-index: var(--z-overlay);
-  width: min(300px, 85vw);
-  height: 100vh;
-  max-height: none;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.mobile-nav-panel .sidebar {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-.mobile-nav-panel::backdrop {
-  background: rgb(0 0 0 / 45%);
-}
+/* `.mobile-nav`/`.mobile-nav-panel*` moved to `shell.css` (W14 shell rebuild) — that version
+   drops the drawer's dependence on the `.sidebar` narrow-viewport rules that used to turn its
+   nav into a horizontal scroller (brief defect #4). */
 .skip-link {
   inset-inline-start: 232px;
   left: auto;
 }
 @media (max-width: 1023px) {
-  .desktop-nav {
-    display: none;
-  }
-  .mobile-nav {
-    display: block;
-  }
-  .shell {
-    margin-inline-start: 0;
-  }
+  /* `.desktop-nav`/`.mobile-nav`/`.shell`/`.topbar`/`.topbar-location` breakpoint rules moved to
+     `shell.css` alongside the selectors they style. */
   .skip-link {
     inset-inline-start: var(--space-2);
-  }
-  .topbar {
-    padding-inline: var(--space-4);
-  }
-  .topbar-location {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
   }
 }
 @media (max-width: 600px) {

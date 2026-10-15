@@ -1,0 +1,250 @@
+/* W14 shell lane, part 1/4: the sidebar rail and the `.shell`/`.content` box model it offsets.
+   Split across shell.css/shell-topbar.css/auth.css/home.css to stay under the module-size gate's
+   300-canonical-line target; see shell-topbar.css for the topbar + mobile drawer, auth.css for
+   login/session-expiry, home.css for the team page and Home dashboard. New classes only — the
+   legacy `.sidebar`/`.topbar`/`.mobile-nav*` rules in layout.css/ui.css/responsive.css were
+   trimmed to just the box model those files still share with this one, so nothing here fights a
+   leftover narrow-desktop or dialog-width override (brief defects #4/#5). */
+
+:root {
+  --ovo-nav-w: 232px;
+}
+
+/* ---------- sidebar ---------- */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-3) var(--space-3);
+  overflow: hidden;
+  /* Without its own background the rail was transparent over the page canvas, so every nav
+     label's light-on-dark colour was actually being contrast-checked against the light `--bg`
+     behind it (axe: "foreground #e3eee6, background #f6f7f5" — 28 failing nodes on every
+     console page, all of them in here). */
+  background: var(--nav-bg);
+  color: var(--nav-text);
+}
+.sidebar--desktop {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: var(--z-nav);
+  width: var(--ovo-nav-w);
+  transition: width var(--dur-3) var(--ease);
+}
+.sidebar--mobile {
+  /* The drawer's own head bar (close button) now takes a slice of the fixed-height panel
+     (shell-topbar.css), so this has to size to the flex-remainder, not another 100% of the
+     panel's 100vh — that double-counting was clipping the profile footer below 844px tall
+     (brief defect #14). */
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+.sidebar--collapsed {
+  width: 64px;
+  padding-inline: var(--space-2);
+}
+/* Unscoped (not `.sidebar .brand`): the same lockup is also used standalone on the login card
+   and the mobile-nav header, both on their own dark `--nav-bg` chip rather than inside the rail
+   — scoping this to `.sidebar` left those two with an unstyled `<span>` invisible at its
+   inherited body text colour (dark on `--nav-bg`). */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--nav-text);
+}
+.sidebar .brand {
+  padding: 0 var(--space-2);
+}
+.brand strong {
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+.sidebar .brand strong {
+  font-size: 22px;
+}
+.brand span {
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--nav-text-2);
+  color: var(--nav-text-2);
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  line-height: 1.3;
+}
+.sidebar--collapsed .brand {
+  justify-content: center;
+}
+/* The workspace name used to sit in its own bordered card below the brand (`.workspace-switcher`,
+   now gone) — at 1440x900 that card plus the per-group heading margins and 32px link rows added
+   up to 795px of nav content in the 684px the rail actually has below the brand, pushing Settings
+   off-screen (brief defect #5/#3). Folding the org name into the brand row as one truncated line
+   recovers most of that without dropping the information. */
+.sidebar-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.sidebar--collapsed .sidebar-brand-row {
+  justify-content: center;
+}
+.sidebar-org {
+  overflow: hidden;
+  padding-inline-start: var(--space-2);
+  border-inline-start: 1px solid color-mix(in srgb, var(--nav-text) 22%, transparent);
+  color: var(--nav-text-2);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-scroll {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-0_5);
+  margin-top: var(--space-3);
+  overflow-y: auto;
+}
+.nav-group > p {
+  margin: var(--space-2) var(--space-2) var(--space-1);
+  color: var(--nav-text-2);
+  font-size: 10px;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+}
+.nav-group:first-child > p {
+  margin-top: 0;
+}
+.nav-group nav {
+  display: grid;
+  gap: 1px;
+}
+.nav-group a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--nav-text);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+.sidebar--collapsed .nav-group a {
+  justify-content: center;
+}
+/* Icon-only rows in the collapsed rail have no group heading to separate them (that text is
+   hidden), so without this they read as one undifferentiated column of icons (brief defect
+   #13). */
+.sidebar--collapsed .nav-group:not(:first-child) {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid color-mix(in srgb, var(--nav-text) 16%, transparent);
+}
+.nav-group a svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+.nav-group a:hover {
+  background: color-mix(in srgb, var(--nav-text) 12%, transparent);
+}
+.nav-group a.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.nav-group a.active svg {
+  opacity: 1;
+}
+.sidebar-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid color-mix(in srgb, var(--nav-text) 14%, transparent);
+}
+/* The 24px avatar and the 24px collapse toggle side by side, plus the row gap, don't fit the
+   64px rail's ~48px inner width — stack them instead of letting them overlap (brief defect
+   #13). */
+.sidebar--collapsed .sidebar-status {
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.sidebar--collapsed .sidebar-profile {
+  justify-content: center;
+  padding: var(--space-1);
+}
+.sidebar-profile {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--nav-text);
+  text-decoration: none;
+}
+.sidebar-profile:hover {
+  background: color-mix(in srgb, var(--nav-text) 12%, transparent);
+}
+.sidebar-profile-avatar {
+  display: grid;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+.topbar .sidebar-profile-avatar {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.sidebar-profile-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.sidebar-profile-text small {
+  color: var(--nav-text-2);
+  text-transform: capitalize;
+}
+.sidebar-collapse-toggle {
+  display: grid;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--nav-text-2);
+}
+.sidebar-collapse-toggle:hover {
+  background: color-mix(in srgb, var(--nav-text) 12%, transparent);
+  color: var(--nav-text);
+}
+
+/* ---------- shell / content ---------- */
+.shell {
+  min-height: 100vh;
+  margin-inline-start: var(--ovo-nav-w);
+  transition: margin-inline-start var(--dur-3) var(--ease);
+}
+.content {
+  width: min(100%, 1540px);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-6) 64px;
+}

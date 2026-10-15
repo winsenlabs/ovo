@@ -121,9 +121,13 @@ test('mobile navigation opens, traps focus, and closes on route change', async (
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
   const dialog = page.getByRole('dialog', { name: 'Navigation' });
   await expect(dialog).toBeVisible();
+  // The close button sits before the links in DOM order (it's the drawer's only header
+  // control), so the trap's ring is [close button, every link] — Shift+Tab off the first link
+  // reaches the close button, not the last link, and both stay inside the dialog either way.
+  const closeButton = dialog.getByRole('button', { name: 'Close navigation' });
   await expect(dialog.locator('a').first()).toBeFocused();
   await page.keyboard.press('Shift+Tab');
-  await expect(dialog.locator('a').last()).toBeFocused();
+  await expect(closeButton).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(dialog.locator('a').first()).toBeFocused();
   await page.keyboard.press('Escape');
