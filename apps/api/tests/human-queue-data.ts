@@ -5,7 +5,7 @@ import {
   type OperatorProfile,
   type TicketContext,
 } from '@winsendotai/ovo-contracts';
-import type { NewTicket, Ticket } from '@winsendotai/ovo-plugin-operations';
+import type { HumanQueueService, NewTicket, Ticket } from '@winsendotai/ovo-plugin-operations';
 import type { HqApp } from './human-queue-fixtures.ts';
 import { WORKSPACE } from './human-queue-fixtures.ts';
 
@@ -27,8 +27,10 @@ let counter = 0;
 const seq = () => (counter += 1);
 
 /** A queue straight into the service (bypassing the routes), parsed with the contract's defaults. */
-export const makeQueue = (hq: HqApp, definition: Record<string, unknown>): Promise<HumanQueue> =>
-  hq.service.queues.create(HumanQueueDefinition.parse(definition));
+export const makeQueue = (
+  hq: { service: HumanQueueService },
+  definition: Record<string, unknown>,
+): Promise<HumanQueue> => hq.service.queues.create(HumanQueueDefinition.parse(definition));
 
 export const profile = (userId: string, patch: Partial<OperatorProfile> = {}): OperatorProfile => ({
   userId,
@@ -42,7 +44,7 @@ export const profile = (userId: string, patch: Partial<OperatorProfile> = {}): O
 
 /** An operator who is online. */
 export async function onlineOperator(
-  hq: HqApp,
+  hq: { service: HumanQueueService },
   userId: string,
   patch: Partial<OperatorProfile> = {},
 ) {
@@ -71,7 +73,7 @@ export const context = (patch: Partial<TicketContext> = {}): TicketContext => ({
 
 /** A ticket for a queue, as the worker writes it from the pinned definition. */
 export async function openTicket(
-  hq: HqApp,
+  hq: { service: HumanQueueService; now: () => number },
   queue: HumanQueue,
   patch: Partial<NewTicket> = {},
 ): Promise<Ticket> {

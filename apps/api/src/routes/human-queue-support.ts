@@ -19,9 +19,10 @@ export interface RoomToClose {
 }
 
 /**
- * The human queue service as the API uses it: the storage port plus the few reads the desk stream
- * and the room reaper need that the port does not carry yet. Each optional member has a fallback
- * here, so the routes work against the in-memory service and the Postgres one alike.
+ * The human queue service as the API uses it: the storage port plus the few reads the desk stream,
+ * the room reaper and the status route need. Core's service provides `roomsToClose` and `head`
+ * (so the intersection below is required once it does); `head` has a fallback in the desk stream,
+ * `roomsToClose` has none: without it no room is ever reaped. `lastSweep` is optional for good.
  */
 export type ApiHumanQueueService = HumanQueueService & {
   lastSweep?(): Promise<string | undefined>;
