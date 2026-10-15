@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import Fastify from 'fastify';
+import Fastify, { type FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { MemoryCallOutcomeStore } from '@winsendotai/ovo-plugin-storage/outcomes';
 import { registerCallSegmentsRoute } from '../src/routes/call-segments.ts';
@@ -27,7 +27,8 @@ async function setup(events: { type: string; payload: Record<string, unknown> }[
     outcomes: new CallOutcomeReader(async () => store),
     requireRole: () => ({ workspaceId: WORKSPACE }),
     Id: z.string(),
-    error: (reply, status, code, message) => reply.code(status).send({ error: { code, message } }),
+    error: (reply: FastifyReply, status: number, code: string, message: string) =>
+      reply.code(status).send({ error: { code, message } }),
     ledger: {
       getCallCost: async () =>
         ({

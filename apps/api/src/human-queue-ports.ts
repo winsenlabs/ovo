@@ -1,37 +1,19 @@
+import type {
+  SignatureCheck,
+  WebhookAttempt,
+  WebhookOutcome,
+  WebhookRequest,
+} from '@winsendotai/ovo-session-host';
+
 /**
  * What the human queue routes need from outside the API: the signed webhook client and signature
  * check (the session host's, shared with the worker so both agree byte for byte), a clock and a
  * rate limiter. Tests pass fakes; production passes `human-queue-egress.ts`.
  */
-export interface EgressRequest {
-  url: string;
-  method: 'POST' | 'PUT';
-  contentType: string;
-  /** The exact bytes to send and to sign. */
-  body: string;
-  headers?: Readonly<Record<string, string>>;
-  /** The HMAC signing secret. */
-  secret: string;
-  secretHeaders?: readonly string[];
-  idempotencyKey: string;
-  timeoutMs: number;
-  retry: { attempts: number; baseMs: number; maxMs: number; deadlineMs: number };
-  signal?: AbortSignal;
-}
-
-export interface EgressAttempt {
-  attempt: number;
-  outcome: 'delivered' | 'retry' | 'failed';
-  status?: number;
-  ms: number;
-  reason?: string;
-}
-
-export type EgressOutcome =
-  | { ok: true; status: number; json: unknown; attempts: number }
-  | { ok: false; reason: string; status?: number; attempts: number };
-
-export type SignatureVerdict = 'ok' | 'malformed' | 'stale' | 'mismatch';
+export type EgressRequest = WebhookRequest;
+export type EgressAttempt = WebhookAttempt;
+export type EgressOutcome = WebhookOutcome;
+export type SignatureVerdict = SignatureCheck;
 
 export interface HumanQueueEgress {
   send(request: EgressRequest, onAttempt: (attempt: EgressAttempt) => void): Promise<EgressOutcome>;

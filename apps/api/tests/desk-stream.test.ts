@@ -1,22 +1,14 @@
+import { fakeMediaRoom } from '@winsendotai/ovo-conformance/drivers';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  humanQueueApp,
-  makeQueue,
-  managed,
-  onlineOperator,
-  openTicket,
-  WORKSPACE,
-  type HqApp,
-} from './human-queue-fixtures.ts';
+import { type HqApp, WORKSPACE, humanQueueApp, useHq } from './human-queue-fixtures.ts';
+import { makeQueue, managed, onlineOperator, openTicket } from './human-queue-data.ts';
 
-const apps: HqApp[] = [];
-const make = async (options: Parameters<typeof humanQueueApp>[0] = {}) => {
-  const built = humanQueueApp(options);
-  apps.push(built);
+const build = useHq(fakeMediaRoom);
+const make = async (options: Parameters<typeof build>[0] = {}) => {
+  const built = build(options);
   await built.app.listen({ port: 0, host: '127.0.0.1' });
   return built;
 };
-afterEach(async () => Promise.all(apps.splice(0).map((hq) => hq.app.close())));
 
 interface Frame {
   id?: string;

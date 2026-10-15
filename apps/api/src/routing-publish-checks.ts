@@ -9,13 +9,12 @@ import {
 } from '@winsendotai/ovo-contracts';
 import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
 import type { ControlStore } from '@winsendotai/ovo-plugin-storage';
-import { parseApprovedEndpoint } from '@winsendotai/ovo-plugin-tools-http';
 import type { PluginRegistry } from '@winsendotai/ovo-runtime';
 import { requiredMeterChecklist } from './required-meters.ts';
 import { livePool, routerRef, type RoutingResolution } from './routing-publish-resolve.ts';
+import { engineIssues } from './routing-publish-engines.ts';
 import { queueIssues, type HumanQueueCheckEnvironment } from './routing-publish-queues.ts';
 import { transferIssues } from './routing-publish-transfer.ts';
-import { credentialReady } from './session-factory.ts';
 
 /** Languages the router has built-in connecting and final end lines for (design 7.5). */
 const BUILT_IN_LINE_LANGUAGES = new Set(['en', 'hi']);
@@ -151,53 +150,6 @@ async function meterIssues(input: RoutingCheckInput, add: Add): Promise<void> {
         `Release ${release.id} uses meters the router's cost policy does not price: ${uncovered.join(', ')}`,
       );
   }
-}
-
-/** Engines the router release must back: its LLM, its decision slot, a usable webhook. */
-async function engineIssues(input: RoutingCheckInput, add: Add): Promise<void> {
-  const router = routerRef(input.resolution).release;
-  for (const [n, node] of input.draft.nodes.entries())
-    for (const [e, engine] of node.engines.entries()) {
-      const path = ['nodes', n, 'engines', e];
-      if (engine.kind === 'llm' && router && !router.selections?.llm)
-        add('routing_engine_llm_unselected', path, 'The router release has no LLM selection');
-      if (engine.kind === 'decision' && router && !router.selections?.decision)
-        add(
-          'routing_engine_decision_unselected',
-          path,
-          'The router release has no decision selection',
-        );
-      if (engine.kind !== 'external') continue;
-      try {
-        parseApprovedEndpoint(engine.endpoint);
-      } catch {
-        add(
-          'routing_external_endpoint_invalid',
-          [...path, 'endpoint'],
-          'The endpoint must be public HTTPS without credentials or a fragment',
-        );
-      }
-      try {
-        await credentialReady(
-          input.store,
-          { workspaceId: input.workspaceId, id: input.draft.router.agentId },
-          engine.credentialId,
-        );
-      } catch {
-        add(
-          'routing_external_credential_missing',
-          [...path, 'credentialId'],
-          'The signing credential is missing, inactive, expired or not permitted for the router agent',
-        );
-      }
-      if (!input.externalEnabled)
-        add(
-          'routing_external_disabled',
-          path,
-          'External engines report disabled until OVO_ROUTING_EXTERNAL_ENABLED is true',
-          'warning',
-        );
-    }
 }
 
 /** Lines the router needs and has no built-in for, recording, and languages no member speaks. */

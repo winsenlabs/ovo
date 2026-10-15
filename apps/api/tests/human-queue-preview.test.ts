@@ -1,13 +1,9 @@
+import { fakeMediaRoom } from '@winsendotai/ovo-conformance/drivers';
 import { afterEach, describe, expect, it } from 'vitest';
-import { external, humanQueueApp, makeQueue, managed, type HqApp } from './human-queue-fixtures.ts';
+import { type HqApp, humanQueueApp, useHq } from './human-queue-fixtures.ts';
+import { external, makeQueue, managed } from './human-queue-data.ts';
 
-const apps: HqApp[] = [];
-const make = (options: Parameters<typeof humanQueueApp>[0] = {}) => {
-  const built = humanQueueApp(options);
-  apps.push(built);
-  return built;
-};
-afterEach(async () => Promise.all(apps.splice(0).map((hq) => hq.app.close())));
+const make = useHq(fakeMediaRoom);
 
 const POLICY = {
   callerId: false,

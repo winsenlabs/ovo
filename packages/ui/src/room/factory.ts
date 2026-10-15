@@ -15,7 +15,16 @@ type Loader = () => Promise<RoomClient>;
  * Playwright fixtures select through `GET /v1/desk/me`.
  */
 const loaders = new Map<string, Loader>([
-  ['fake', async () => createFakeRoomClient()],
+  [
+    'fake',
+    async () => {
+      const client = createFakeRoomClient();
+      // The Playwright captures drive captions and the caller's seat through this handle.
+      if (typeof window !== 'undefined')
+        (window as { __ovoFakeRoom?: unknown }).__ovoFakeRoom = client;
+      return client;
+    },
+  ],
   [
     'livekit',
     async () => {

@@ -53,7 +53,7 @@ export interface ManagementApiOptions {
   humanQueueWebhookEnabled?: boolean;
   /** A room server plugin is composed in this API (set by `buildManagementApi`, not by env). */
   roomEnabled?: boolean;
-  /** `OVO_LIVEKIT_TOKEN_TTL_SECONDS`: how long an operator's room grant lives (120). */
+  /** `OVO_ROOM_TOKEN_TTL_SECONDS`: how long an operator's room grant lives (120). */
   roomTokenTtlSeconds?: number;
   /** `OVO_HUMAN_QUEUE_PRESENCE_TTL_SECONDS`, reported to the desk (30). */
   humanQueuePresenceTtlSeconds?: number;

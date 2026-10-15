@@ -2,14 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fakeMediaRoom } from '@winsendotai/ovo-conformance/drivers';
 import { reapRooms, startRoomReaper } from '../src/human-queue-reaper.ts';
 import type { ApiHumanQueueService } from '../src/routes/human-queue-support.ts';
-import {
-  humanQueueApp,
-  makeQueue,
-  managed,
-  onlineOperator,
-  openTicket,
-  WORKSPACE,
-} from './human-queue-fixtures.ts';
+import { WORKSPACE, humanQueueApp } from './human-queue-fixtures.ts';
+import { makeQueue, managed, onlineOperator, openTicket } from './human-queue-data.ts';
 
 const log = { warn: vi.fn() };
 afterEach(() => {
@@ -137,7 +131,7 @@ describe('the reaper in the app', () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     const setSpy = vi.spyOn(globalThis, 'setInterval');
     const clearSpy = vi.spyOn(globalThis, 'clearInterval');
-    const hq = humanQueueApp();
+    const hq = humanQueueApp({ makeRoom: fakeMediaRoom });
     await hq.app.ready();
     expect(setSpy.mock.calls.some(([, ms]) => ms === 10_000)).toBe(true);
     await hq.app.close();
@@ -150,7 +144,7 @@ describe('the reaper in the app', () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     const setSpy = vi.spyOn(globalThis, 'setInterval');
     for (const options of [{ noRooms: true }, { enabled: false }]) {
-      const hq = humanQueueApp(options);
+      const hq = humanQueueApp({ makeRoom: fakeMediaRoom, ...options });
       await hq.app.ready();
       await hq.app.close();
     }
@@ -159,7 +153,7 @@ describe('the reaper in the app', () => {
   });
 
   it('closes the room of a ticket that ended while the operator was in it (end to end with the fake room)', async () => {
-    const hq = humanQueueApp();
+    const hq = humanQueueApp({ makeRoom: fakeMediaRoom });
     const queue = await makeQueue(hq, managed({ name: 'Floor' }));
     await onlineOperator(hq, 'asha');
     const ticket = await openTicket(hq, queue);

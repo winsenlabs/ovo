@@ -5,7 +5,8 @@ import {
   HumanQueueDefinition,
 } from '@winsendotai/ovo-contracts';
 import { externalContext, policyOf } from '../src/human-queue-context-policy.ts';
-import { context } from './human-queue-fixtures.ts';
+import {} from './human-queue-fixtures.ts';
+import { context } from './human-queue-data.ts';
 import { RateLimiter } from '../src/human-queue-ports.ts';
 
 const FULL = context();
