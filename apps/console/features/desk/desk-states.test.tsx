@@ -15,7 +15,9 @@ import {
 } from './desk-test-support';
 import { DeskView } from './desk-view';
 
-vi.mock('../../lib/data/desk-api', async () => (await import('./desk-test-support')).deskApiModule());
+vi.mock('../../lib/data/desk-api', async () =>
+  (await import('./desk-test-support')).deskApiModule(),
+);
 vi.mock('../../lib/data/desk-stream', async (original) =>
   (await import('./desk-test-support')).deskStreamModule(await original()),
 );
@@ -61,8 +63,12 @@ describe('operator desk states', () => {
       room: { configured: true, provider: 'fake', reachable: false },
     });
     render(<DeskView />);
-    expect(await screen.findByText(/Calls cannot be answered in the browser right now\. The room/)).toBeTruthy();
-    expect((screen.getByRole('radio', { name: 'Available' }) as HTMLInputElement).disabled).toBe(true);
+    expect(
+      await screen.findByText(/Calls cannot be answered in the browser right now\. The room/),
+    ).toBeTruthy();
+    expect((screen.getByRole('radio', { name: 'Available' }) as HTMLInputElement).disabled).toBe(
+      true,
+    );
   });
 });
 
@@ -90,7 +96,11 @@ describe('queue and KPIs', () => {
     act(() => stream.options!.onEvent({ type: 'ticket', ticket: ticket('t9') }));
     expect(await screen.findByText('••••4321')).toBeTruthy();
     expect(screen.getByRole('status', { hidden: true, name: '' }).textContent).toBeDefined();
-    await waitFor(() => expect(document.querySelector('[aria-live="polite"]')?.textContent).toBe('Caller waiting in Support desk'));
+    await waitFor(() =>
+      expect(document.querySelector('[aria-live="polite"]')?.textContent).toBe(
+        'Caller waiting in Support desk',
+      ),
+    );
     act(() => stream.options!.onEvent({ type: 'removed', id: 't9' }));
     expect(await screen.findByText('No callers waiting')).toBeTruthy();
   });
@@ -136,7 +146,9 @@ describe('presence', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Available' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Test microphone' }));
     expect(await screen.findByText(/browser blocked the microphone/)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Go available' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Go available' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     expect(api.setPresence).not.toHaveBeenCalled();
   });
 
@@ -145,7 +157,9 @@ describe('presence', () => {
     await setup({ tickets: [] });
     fireEvent.click(screen.getByRole('radio', { name: 'Away' }));
     expect(await screen.findByText('presence down')).toBeTruthy();
-    expect((screen.getByRole('radio', { name: 'Available' }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('radio', { name: 'Available' }) as HTMLInputElement).checked).toBe(
+      true,
+    );
   });
 
   it('sends a heartbeat every 10 seconds while Available', async () => {
@@ -164,9 +178,10 @@ describe('presence', () => {
 
   it('blocks Accept with the reason until the operator is Available', async () => {
     await setup({ me: me({ status: 'AWAY' }) });
-    const button = (await screen.findByRole('button', { name: /Accept call/ })) as HTMLButtonElement;
+    const button = (await screen.findByRole('button', {
+      name: /Accept call/,
+    })) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     expect(screen.getByText('Set yourself Available to accept calls.')).toBeTruthy();
   });
 });
-

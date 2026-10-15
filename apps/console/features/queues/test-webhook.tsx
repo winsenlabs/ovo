@@ -13,7 +13,12 @@ export interface TestState {
 /** The outcome of "Send test webhook": each attempt, then what the third party answered. */
 export function TestWebhookResult({ test }: { test: TestState }) {
   if (test.status === 'idle') return null;
-  if (test.status === 'running') return <p className="muted" role="status">Sending a test request…</p>;
+  if (test.status === 'running')
+    return (
+      <p className="muted" role="status">
+        Sending a test request…
+      </p>
+    );
   if (test.status === 'error') return <InlineAlert tone="danger">{test.message}</InlineAlert>;
   const { result } = test;
   if (!result) return null;
@@ -29,7 +34,13 @@ export function TestWebhookResult({ test }: { test: TestState }) {
           <li key={attempt.attempt}>
             Attempt {attempt.attempt}{' '}
             <StatusBadgeV2
-              tone={attempt.outcome === 'delivered' ? 'ok' : attempt.outcome === 'retry' ? 'warn' : 'danger'}
+              tone={
+                attempt.outcome === 'delivered'
+                  ? 'ok'
+                  : attempt.outcome === 'retry'
+                    ? 'warn'
+                    : 'danger'
+              }
               label={humaniseEnum(attempt.outcome)}
             />{' '}
             {attempt.status !== undefined && <span className="mono">HTTP {attempt.status}</span>}{' '}

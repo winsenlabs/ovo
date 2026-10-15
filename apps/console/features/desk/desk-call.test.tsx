@@ -16,7 +16,9 @@ import {
 } from './desk-test-support';
 import { DeskView } from './desk-view';
 
-vi.mock('../../lib/data/desk-api', async () => (await import('./desk-test-support')).deskApiModule());
+vi.mock('../../lib/data/desk-api', async () =>
+  (await import('./desk-test-support')).deskApiModule(),
+);
 vi.mock('../../lib/data/desk-stream', async (original) =>
   (await import('./desk-test-support')).deskStreamModule(await original()),
 );
@@ -37,9 +39,23 @@ describe('the call in progress', () => {
 
   it('renders interim captions in place and firms them up', async () => {
     await inCall();
-    act(() => room.client!.simulateCaption({ role: 'caller', text: 'my card', final: false, at: Date.now() }));
+    act(() =>
+      room.client!.simulateCaption({
+        role: 'caller',
+        text: 'my card',
+        final: false,
+        at: Date.now(),
+      }),
+    );
     expect(await screen.findByText('my card')).toBeTruthy();
-    act(() => room.client!.simulateCaption({ role: 'caller', text: 'my card was charged twice', final: true, at: Date.now() }));
+    act(() =>
+      room.client!.simulateCaption({
+        role: 'caller',
+        text: 'my card was charged twice',
+        final: true,
+        at: Date.now(),
+      }),
+    );
     expect(await screen.findByText('my card was charged twice')).toBeTruthy();
     expect(screen.queryByText('my card')).toBeNull();
     expect(screen.getByText('Before the transfer')).toBeTruthy();
@@ -68,7 +84,9 @@ describe('the call in progress', () => {
 
   it('disables send-back, with the reason, when the queue has no AI targets', async () => {
     await inCall();
-    const button = screen.getByRole('button', { name: 'Send back to AI agent' }) as HTMLButtonElement;
+    const button = screen.getByRole('button', {
+      name: 'Send back to AI agent',
+    }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     expect(screen.getByText('This queue has no AI agent to send callers back to.')).toBeTruthy();
   });
@@ -83,7 +101,10 @@ describe('the call in progress', () => {
     expect(within(dialog).getByText(/Billing assistant/)).toBeTruthy();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }));
     await waitFor(() =>
-      expect(api.command).toHaveBeenCalledWith('t1', { kind: 'return_to_agent', target: 'billing-bot' }),
+      expect(api.command).toHaveBeenCalledWith('t1', {
+        kind: 'return_to_agent',
+        target: 'billing-bot',
+      }),
     );
   });
 
@@ -105,7 +126,12 @@ describe('the call in progress', () => {
     act(() =>
       stream.options!.onEvent({
         type: 'ticket',
-        ticket: ticket('t1', { status: 'released', version: 3, releaseCode: 'call_ended', assignedOperatorId: 'u1' }),
+        ticket: ticket('t1', {
+          status: 'released',
+          version: 3,
+          releaseCode: 'call_ended',
+          assignedOperatorId: 'u1',
+        }),
       }),
     );
     expect(await screen.findByText(/This call has ended \(call ended\)/)).toBeTruthy();
@@ -114,27 +140,43 @@ describe('the call in progress', () => {
   it('requires wrap-up before Done and before the next accept when the queue says so', async () => {
     api.command.mockResolvedValue({ seq: 1 });
     api.wrapUp.mockResolvedValue(undefined);
-    await inCall({}, queue({ wrapUp: { required: true, dispositions: ['Resolved', 'Escalated'] } }));
+    await inCall(
+      {},
+      queue({ wrapUp: { required: true, dispositions: ['Resolved', 'Escalated'] } }),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Hang up' }));
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Confirm' }));
+    fireEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Confirm' }),
+    );
     await screen.findByText(/This call has ended/);
     expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'Save wrap-up' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Save wrap-up' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     expect(screen.getAllByText('Complete wrap-up for your last call first.')).not.toHaveLength(0);
     fireEvent.change(screen.getByLabelText('Disposition'), { target: { value: 'Resolved' } });
     fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'refund issued' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save wrap-up' }));
     await waitFor(() =>
-      expect(api.wrapUp).toHaveBeenCalledWith('t1', { disposition: 'Resolved', note: 'refund issued' }),
+      expect(api.wrapUp).toHaveBeenCalledWith('t1', {
+        disposition: 'Resolved',
+        note: 'refund issued',
+      }),
     );
-    await waitFor(() => expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(
+        false,
+      ),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     await waitFor(() => expect(screen.queryByText('Active call')).toBeNull());
   });
 
   it('offers a retry with a fresh token when the room drops', async () => {
     api.token.mockResolvedValue(accepted().room);
-    room.client = (await vi.importActual<typeof import('@winsendotai/ovo-ui/room')>('@winsendotai/ovo-ui/room')).createFakeRoomClient();
+    room.client = (
+      await vi.importActual<typeof import('@winsendotai/ovo-ui/room')>('@winsendotai/ovo-ui/room')
+    ).createFakeRoomClient();
     room.client.failNextConnect('Token expired');
     api.accept.mockResolvedValue(accepted());
     await setup();

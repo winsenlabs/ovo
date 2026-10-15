@@ -3,14 +3,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { operator, queuesApi, resetQueues } from './queues-test-support';
 import { OperatorsTab } from './operators-tab';
 
-vi.mock('../../lib/data/queues-api', async () => (await import('./queues-test-support')).queuesApiModule());
+vi.mock('../../lib/data/queues-api', async () =>
+  (await import('./queues-test-support')).queuesApiModule(),
+);
 
 beforeEach(resetQueues);
 afterEach(() => cleanup());
 
 describe('Operators tab', () => {
   it('lists operators with live presence and load', async () => {
-    queuesApi.operators.mockResolvedValue([operator(), operator({ userId: 'u2', displayName: 'Ravi', status: 'OFFLINE', active: 0, languages: [], teamIds: [] })]);
+    queuesApi.operators.mockResolvedValue([
+      operator(),
+      operator({
+        userId: 'u2',
+        displayName: 'Ravi',
+        status: 'OFFLINE',
+        active: 0,
+        languages: [],
+        teamIds: [],
+      }),
+    ]);
     render(<OperatorsTab />);
     const table = await screen.findByRole('region', { name: 'Operators' });
     const asha = within(table).getByText('Asha', { selector: 'strong' }).closest('tr')!;
@@ -42,7 +54,10 @@ describe('Operators tab', () => {
     fireEvent.change(screen.getByLabelText('Calls at once'), { target: { value: '3' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save operator' }));
     await waitFor(() =>
-      expect(queuesApi.saveOperator).toHaveBeenCalledWith('u2', expect.objectContaining({ displayName: 'Ravi', capacity: 3, enabled: true })),
+      expect(queuesApi.saveOperator).toHaveBeenCalledWith(
+        'u2',
+        expect.objectContaining({ displayName: 'Ravi', capacity: 3, enabled: true }),
+      ),
     );
   });
 

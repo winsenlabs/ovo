@@ -65,9 +65,7 @@ export class FakeEgress implements HumanQueueEgress {
  */
 export interface TestRoom extends MediaRoomProvider {
   readonly room: MediaRoomProvider;
-  claimsOf(
-    token: string,
-  ): Promise<{
+  claimsOf(token: string): Promise<{
     room: string;
     identity: string;
     name?: string;

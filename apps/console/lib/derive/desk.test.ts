@@ -31,7 +31,14 @@ const ticket = (id: string, patch: Partial<HumanTicketView> = {}): HumanTicketVi
 });
 
 const me: DeskMe = {
-  profile: { userId: 'u1', displayName: 'Asha', enabled: true, teamIds: [], languages: ['en'], capacity: 1 },
+  profile: {
+    userId: 'u1',
+    displayName: 'Asha',
+    enabled: true,
+    teamIds: [],
+    languages: ['en'],
+    capacity: 1,
+  },
   status: 'AVAILABLE',
   queues: [],
   roomProvider: { provider: 'fake', serverUrl: 'wss://room.test' },
@@ -77,14 +84,24 @@ describe('applyDeskEvent', () => {
   it('adds a ticket and lets a newer version replace it', () => {
     const added = applyDeskEvent(base(), { type: 'ticket', ticket: ticket('b') }, 10);
     expect([...added.tickets.keys()]).toEqual(['a', 'b']);
-    const newer = applyDeskEvent(added, { type: 'ticket', ticket: ticket('b', { version: 2, status: 'accepted' }) }, 20);
+    const newer = applyDeskEvent(
+      added,
+      { type: 'ticket', ticket: ticket('b', { version: 2, status: 'accepted' }) },
+      20,
+    );
     expect(newer.tickets.get('b')?.ticket.status).toBe('accepted');
     expect(newer.tickets.get('b')?.receivedAt).toBe(20);
   });
 
   it('ignores a replayed older version after a resume', () => {
-    const state = applyDeskEvent(base(), { type: 'ticket', ticket: ticket('a', { version: 3 }) }, 1);
-    expect(applyDeskEvent(state, { type: 'ticket', ticket: ticket('a', { version: 2 }) }, 2)).toBe(state);
+    const state = applyDeskEvent(
+      base(),
+      { type: 'ticket', ticket: ticket('a', { version: 3 }) },
+      1,
+    );
+    expect(applyDeskEvent(state, { type: 'ticket', ticket: ticket('a', { version: 2 }) }, 2)).toBe(
+      state,
+    );
   });
 
   it('removes a ticket, and is a no-op for one it never had', () => {
@@ -94,7 +111,11 @@ describe('applyDeskEvent', () => {
   });
 
   it('merges a partial me update and leaves heartbeats alone', () => {
-    const next = applyDeskEvent(base(), { type: 'me', me: { status: 'AWAY', stats: { handledToday: 9 } as DeskMe['stats'] } }, 0);
+    const next = applyDeskEvent(
+      base(),
+      { type: 'me', me: { status: 'AWAY', stats: { handledToday: 9 } as DeskMe['stats'] } },
+      0,
+    );
     expect(next.me?.status).toBe('AWAY');
     expect(next.me?.stats).toEqual({ handledToday: 9, activeNow: 1, onlineOperators: 3 });
     const state = base();
@@ -142,7 +163,10 @@ describe('queue rows and KPIs', () => {
   it('picks the offered-to-me ticket before the first waiting one', () => {
     const rows = queueRows({
       me,
-      tickets: replaceTickets([ticket('x', { priority: 5 }), ticket('y', { status: 'offered', offeredToMe: true })], 0),
+      tickets: replaceTickets(
+        [ticket('x', { priority: 5 }), ticket('y', { status: 'offered', offeredToMe: true })],
+        0,
+      ),
     });
     expect(nextToAccept(rows)?.id).toBe('y');
     expect(nextToAccept([])).toBeUndefined();
@@ -150,7 +174,12 @@ describe('queue rows and KPIs', () => {
 });
 
 describe('acceptBlock', () => {
-  const ok = { status: 'AVAILABLE' as const, hasActiveCall: false, wrapUpPending: false, roomReachable: true };
+  const ok = {
+    status: 'AVAILABLE' as const,
+    hasActiveCall: false,
+    wrapUpPending: false,
+    roomReachable: true,
+  };
   it('allows an available operator with a free line', () => {
     expect(acceptBlock(ok)).toBeUndefined();
     expect(acceptBlock({ ...ok, roomReachable: undefined })).toBeUndefined();

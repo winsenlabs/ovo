@@ -12,14 +12,17 @@ const SCHEMES = ['light', 'dark'] as const;
 
 async function arrange(page: Page, scenario: Scenario) {
   await signedIn(page);
-  await page.context().addCookies([
-    { name: 'ovo_fixture', value: scenario, domain: '127.0.0.1', path: '/' },
-  ]);
+  await page
+    .context()
+    .addCookies([{ name: 'ovo_fixture', value: scenario, domain: '127.0.0.1', path: '/' }]);
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
   page.on('console', (message) => {
     // The fixture "down" scenario answers 503 on purpose; the browser logs the failed load.
-    if (message.type() === 'error' && !/status of 503|ERR_|Failed to load resource/.test(message.text()))
+    if (
+      message.type() === 'error' &&
+      !/status of 503|ERR_|Failed to load resource/.test(message.text())
+    )
       problems.push(`console: ${message.text()}`);
   });
   return problems;
@@ -56,11 +59,27 @@ test('accepting a call opens the active-call panel with live captions', async ({
   await expect(page.getByRole('heading', { level: 2, name: 'Active call' })).toBeVisible();
   await expect(page.getByText('Connected', { exact: true })).toBeVisible();
   await page.evaluate(() => {
-    const room = (window as unknown as { __ovoFakeRoom: { simulateCaption(c: unknown): void } }).__ovoFakeRoom;
+    const room = (window as unknown as { __ovoFakeRoom: { simulateCaption(c: unknown): void } })
+      .__ovoFakeRoom;
     const at = Date.now();
-    room.simulateCaption({ role: 'caller', text: 'Meri instalment do baar kat gayi.', final: true, at });
-    room.simulateCaption({ role: 'operator', text: 'Main abhi check karti hoon.', final: true, at: at + 2_000 });
-    room.simulateCaption({ role: 'caller', text: 'Theek hai, dhanyavaad', final: false, at: at + 4_000 });
+    room.simulateCaption({
+      role: 'caller',
+      text: 'Meri instalment do baar kat gayi.',
+      final: true,
+      at,
+    });
+    room.simulateCaption({
+      role: 'operator',
+      text: 'Main abhi check karti hoon.',
+      final: true,
+      at: at + 2_000,
+    });
+    room.simulateCaption({
+      role: 'caller',
+      text: 'Theek hai, dhanyavaad',
+      final: false,
+      at: at + 4_000,
+    });
   });
   await expect(page.getByText('Main abhi check karti hoon.')).toBeVisible();
   await expect(page.getByText('Before the transfer')).toBeVisible();
@@ -72,7 +91,9 @@ test('accepting a call opens the active-call panel with live captions', async ({
   await sweep(page, 'desk-active-details', info, problems);
 });
 
-test('the hang-up confirmation and the send-back menu are reachable and accessible', async ({ page }, info) => {
+test('the hang-up confirmation and the send-back menu are reachable and accessible', async ({
+  page,
+}, info) => {
   const problems = await arrange(page, 'rich');
   await page.goto('/desk');
   await page.getByRole('button', { name: /Accept call from \+91••••4321/ }).click();
@@ -114,7 +135,9 @@ test('human queues lists webhook and desk queues with live numbers', async ({ pa
   await sweep(page, 'queues', info, problems);
 });
 
-test('the webhook queue drawer previews the body and shows a test result', async ({ page }, info) => {
+test('the webhook queue drawer previews the body and shows a test result', async ({
+  page,
+}, info) => {
   const problems = await arrange(page, 'rich');
   await page.goto('/operations/queues');
   await page.getByRole('button', { name: 'Edit Acme call centre' }).click();

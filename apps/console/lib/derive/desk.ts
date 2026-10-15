@@ -83,7 +83,10 @@ export function applyDeskEvent(state: DeskState, event: DeskStreamEvent, now: nu
 }
 
 /** Replaces the whole set from a list fetch (first load, or after a `gap`). */
-export function replaceTickets(tickets: readonly HumanTicketView[], now: number): DeskState['tickets'] {
+export function replaceTickets(
+  tickets: readonly HumanTicketView[],
+  now: number,
+): DeskState['tickets'] {
   return new Map(tickets.map((ticket) => [ticket.id, { ticket, receivedAt: now }]));
 }
 
@@ -96,10 +99,7 @@ export interface DeskKpis {
 }
 
 /** Tiles read `null` ("—") whenever the stream is down: unknown is never shown as zero. */
-export function deskKpis(
-  state: DeskState,
-  options: { live: boolean; now: number },
-): DeskKpis {
+export function deskKpis(state: DeskState, options: { live: boolean; now: number }): DeskKpis {
   const waiting = [...state.tickets.values()].filter((entry) => ACTIVE.has(entry.ticket.status));
   const known = options.live && state.me !== undefined;
   return {

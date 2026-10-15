@@ -51,7 +51,12 @@ export function queueColumns(actions: QueueRowActions): ColumnV2<QueueRecord>[] 
             : 'Open pick-up'
           : '—',
     },
-    { id: 'hours', header: 'Hours', priority: 'low', cell: (row) => hoursSummary(row.definition.hours) },
+    {
+      id: 'hours',
+      header: 'Hours',
+      priority: 'low',
+      cell: (row) => hoursSummary(row.definition.hours),
+    },
     {
       id: 'used',
       header: 'Used by',
@@ -97,16 +102,31 @@ export function queueColumns(actions: QueueRowActions): ColumnV2<QueueRecord>[] 
       align: 'end',
       cell: (row) => (
         <span className="button-row">
-          <button type="button" className="button" onClick={() => actions.onEdit(row)} aria-label={`${actions.canEdit ? 'Edit' : 'View'} ${row.definition.name}`}>
+          <button
+            type="button"
+            className="button"
+            onClick={() => actions.onEdit(row)}
+            aria-label={`${actions.canEdit ? 'Edit' : 'View'} ${row.definition.name}`}
+          >
             {actions.canEdit ? 'Edit' : 'View'}
           </button>
           {row.definition.kind === 'external' && actions.canTest && (
-            <button type="button" className="button" onClick={() => actions.onTest(row)} aria-label={`Send test webhook for ${row.definition.name}`}>
+            <button
+              type="button"
+              className="button"
+              onClick={() => actions.onTest(row)}
+              aria-label={`Send test webhook for ${row.definition.name}`}
+            >
               Send test
             </button>
           )}
           {actions.canEdit && (
-            <button type="button" className="button danger" onClick={() => actions.onDelete(row)} aria-label={`Delete ${row.definition.name}`}>
+            <button
+              type="button"
+              className="button danger"
+              onClick={() => actions.onDelete(row)}
+              aria-label={`Delete ${row.definition.name}`}
+            >
               Delete
             </button>
           )}
