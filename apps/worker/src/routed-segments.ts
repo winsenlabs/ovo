@@ -21,7 +21,8 @@ export function routedCallSeconds(routerRelease: ReleaseRecord): number {
  *
  * - its early work (STT pre-connect, per-call clips) runs under `<job id>:s<index>`, and the
  *   segment disposes its own STT;
- * - its variables are the call's plus the route's `ovo_route_*` context;
+ * - its variables are the call's plus the route's `ovo_route_*` context, as far as its release's
+ *   variables schema declares them (a strict agent refuses any other);
  * - from segment 1 its ids carry `s<index>:` and its time limit is what is left of the router
  *   policy's;
  * - it hangs up, or hands the carrier leg on, with its own release's transfer target, and its
@@ -42,12 +43,9 @@ export function routedSegmentComposer(
     const callKey = index === 0 ? job.id : `${job.id}:s${index}`;
     const raw = job.payload.variables;
     const own = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const variables = declaredVariables(release, { ...own, ...target.variables });
     // The transfer target and the call's own variables read the segment's release from here.
-    const payload = {
-      ...job.payload,
-      releaseId: release.id,
-      variables: { ...own, ...target.variables },
-    };
+    const payload = { ...job.payload, releaseId: release.id, variables };
     const early = startEarlyCallWork({
       ...{ job: { id: callKey, payload }, media: scope.link, release, graph: deps.graph },
       ...{ speechCache: deps.speechCache, extensions: deps.extensions, secrets: deps.secrets },
@@ -77,4 +75,21 @@ export function routedSegmentComposer(
       throw error;
     }
   };
+}
+
+/**
+ * The variables a release's schema accepts. The call's variables were checked against the router
+ * release when the number was bound, and `ovo_route_*` reach an agent only if it declares them.
+ */
+export function declaredVariables(
+  release: Pick<ReleaseRecord, 'config'>,
+  variables: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  const schema = release.config.variables as {
+    properties?: Record<string, unknown>;
+    additionalProperties?: unknown;
+  };
+  if (schema.additionalProperties !== false) return { ...variables };
+  const declared = new Set(Object.keys(schema.properties ?? {}));
+  return Object.fromEntries(Object.entries(variables).filter(([name]) => declared.has(name)));
 }

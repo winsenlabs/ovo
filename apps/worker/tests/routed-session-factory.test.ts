@@ -22,7 +22,14 @@ const routing = {
 const releases = () => [
   fixtureRelease(ROUTER_RELEASE, 'front-desk', { mode: 'context', maxCallSeconds: 600 }),
   fixtureRelease(DEFAULT_RELEASE, 'sales-en'),
-  fixtureRelease(SUPPORT_RELEASE, 'support'),
+  // Declares the route's intent, not the caller's name: only the intent reaches it.
+  fixtureRelease(SUPPORT_RELEASE, 'support', {
+    variables: {
+      type: 'object',
+      properties: { ovo_route_intent: { type: 'string' } },
+      additionalProperties: false,
+    },
+  }),
 ];
 const stored = (overrides: Record<string, unknown> = {}) => ({
   id: ROUTING_RELEASE,
@@ -205,7 +212,7 @@ describe('routed jobs (routing design 7.2)', () => {
     const [routerEngine, agentEngine] = call.engines;
     expect(agentEngine).toMatchObject({ releaseId: SUPPORT_RELEASE, started: false });
     const session1 = agentEngine!.config.session as Record<string, unknown>;
-    expect(session1.variables).toEqual({ customer: 'Asha', ovo_route_intent: 'support' });
+    expect(session1.variables).toEqual({ ovo_route_intent: 'support' });
     expect(session1.maxCallSeconds).toBeGreaterThanOrEqual(599);
     expect(session1.maxCallSeconds).toBeLessThanOrEqual(600);
     router!.handoff.commit(prepared.handoffId);

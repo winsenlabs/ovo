@@ -23,7 +23,11 @@ export {
 export function fixtureRelease(
   id: string,
   agentId: string,
-  overrides: Partial<{ mode: 'announcement' | 'context'; maxCallSeconds: number }> = {},
+  overrides: Partial<{
+    mode: 'announcement' | 'context';
+    maxCallSeconds: number;
+    variables: Record<string, unknown>;
+  }> = {},
 ): ReleaseRecord {
   const mode = overrides.mode ?? 'announcement';
   return {
@@ -35,6 +39,7 @@ export function fixtureRelease(
       mode,
       ...(mode === 'announcement' ? { message: 'Hello.' } : {}),
       recording: false,
+      ...(overrides.variables ? { variables: overrides.variables } : {}),
       ...(overrides.maxCallSeconds
         ? {
             costPolicy: {
