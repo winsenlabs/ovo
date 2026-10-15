@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
+import { HumanBridgeSegment } from '../src/human-bridge.ts';
 import { fakeStt, managedQueue, assertEventsValid } from './human-fixtures.ts';
 import { connect, events, harness, onTimeout } from './human-managed-fixture.ts';
 import { holdPolicy, transferPolicy } from './transfer-fixtures.ts';
@@ -158,6 +159,98 @@ describe('the operator ends the call or sends the caller back', () => {
     await h.service.end(h.service.id(1), 'released', 'operator_left');
     await h.clock.advance(300);
     await vi.waitFor(() => expect(h.link.closed).toEqual(['behavior_completed']));
+  });
+});
+
+describe('detached bridge work never leaves a rejection behind', () => {
+  // vitest fails the run on an unhandled rejection, so each case passing is the assertion.
+  const failOnce = (h: ReturnType<typeof harness>) => {
+    const close = h.link.close.bind(h.link);
+    let first = true;
+    h.link.close = async (reason: string) => {
+      if (first) {
+        first = false;
+        throw new Error('carrier hangup failed');
+      }
+      return close(reason);
+    };
+  };
+
+  it('an operator end_call whose carrier hang-up fails still releases the ticket', async () => {
+    const h = harness();
+    await connect(h);
+    failOnce(h);
+    await h.service.command(h.service.id(1), { kind: 'end_call' });
+    await h.clock.advance(300);
+    await vi.waitFor(() =>
+      expect(h.service.releases.at(-1)).toEqual({ id: h.service.id(1), code: 'ended_by_operator' }),
+    );
+    expect(h.audits.map(([type]) => type)).toContain('human.end.failed');
+    expect(h.rooms.seat().closed).toBe(true);
+  });
+
+  it('an operator who stays gone, with the hang-up failing, still releases the ticket', async () => {
+    const h = harness();
+    await connect(h);
+    failOnce(h);
+    h.rooms.seat().leave('op:ana');
+    await h.clock.advance(5_500);
+    await vi.waitFor(() =>
+      expect(h.service.releases.at(-1)).toEqual({ id: h.service.id(1), code: 'operator_left' }),
+    );
+    expect(h.audits.map(([type]) => type)).toContain('human.end.failed');
+  });
+
+  it('an admin release with the hang-up failing does not stop the segment closing', async () => {
+    const h = harness();
+    await connect(h);
+    failOnce(h);
+    await h.service.end(h.service.id(1), 'released', 'operator_left');
+    await h.clock.advance(300);
+    await vi.waitFor(() => expect(h.rooms.seat().closed).toBe(true));
+    expect(h.audits.map(([type]) => type)).toContain('human.end.failed');
+  });
+
+  it('a return to an agent that throws keeps the operator on the call', async () => {
+    const h = harness({
+      policy: transferPolicy({
+        hold: holdPolicy({ maxSeconds: 60, onTimeout }),
+        targets: [
+          {
+            key: 'billing',
+            description: 'Billing',
+            destination: {
+              kind: 'agent',
+              agent: { agentId: 'agent-a', release: { kind: 'pinned', releaseId: 'release-a' } },
+            },
+          } as never,
+        ],
+      }),
+    });
+    await connect(h);
+    h.runtime().deps.returnToAgent = () => Promise.reject(new Error('controller exploded'));
+    await h.service.command(h.service.id(1), { kind: 'return_to_agent', target: 'billing' });
+    await h.clock.advance(300);
+    await vi.waitFor(() =>
+      expect(h.audits.map(([type]) => type)).toContain('human.return.refused'),
+    );
+    expect(h.controller.attached?.role).toBe('human');
+    expect(h.service.releases).toEqual([]);
+  });
+
+  it('a segment closed before it started meters no operator or room time', async () => {
+    const start = vi.spyOn(HumanBridgeSegment.prototype, 'start').mockResolvedValue(undefined);
+    try {
+      const h = harness();
+      await connect(h);
+      await h.controller.close('caller_hangup');
+      const usage = (events(h, 'segment.ended').at(-1)!.usage ?? {}) as Record<string, number>;
+      expect(usage).not.toHaveProperty('ovo.human.operator_seconds');
+      expect(usage).not.toHaveProperty('ovo.human.room_seconds');
+      expect(JSON.stringify(events(h, 'human.completed'))).not.toMatch(/\d{9,}/);
+    } finally {
+      start.mockRestore();
+    }
   });
 });
 

@@ -1,6 +1,7 @@
-import { CAPTION_TOPIC, DTMF_TOPIC } from '@winsendotai/ovo-contracts';
+import { DTMF_TOPIC } from '@winsendotai/ovo-contracts';
 import { BridgeAudio } from './human-bridge-audio.ts';
-import { BEAT_MS, endOf, OPERATOR_GRACE_MS, type End } from './human-bridge-end.ts';
+import { endOf, OPERATOR_GRACE_MS, type End } from './human-bridge-end.ts';
+import { watchTicket } from './human-bridge-watch.ts';
 import { humanRelease } from './human-attempt.ts';
 import type { HumanManagedAttempt } from './human-managed.ts';
 import {
@@ -14,7 +15,8 @@ import {
   type TicketOutcome,
   type TicketReleaseCode,
 } from './human-contract.ts';
-import { HumanTranscriber } from './human-transcriber.ts';
+import { openCaptions } from './human-captions.ts';
+import type { HumanTranscriber } from './human-transcriber.ts';
 import type { SegmentMediaLease } from './segment-media.ts';
 import { SegmentStats } from './segment-telemetry.ts';
 import type { StartableSegment } from './transfer-attempt.ts';
@@ -59,7 +61,7 @@ export class HumanBridgeSegment implements StartableSegment {
   private closing?: Promise<undefined>;
   private end?: End;
   private grace?: AbortController;
-  private connectedAt = 0;
+  private connectedAt?: number;
 
   constructor(
     private readonly attempt: HumanManagedAttempt,
@@ -105,24 +107,16 @@ export class HumanBridgeSegment implements StartableSegment {
       this.seat.onOperatorAudio((frame) => this.audio.toCaller(frame)),
       this.seat.onParticipant((event) => this.onParticipant(event)),
       // The caller (or the carrier) hung up: the operator is let go at once, not at call cleanup.
-      this.lease.onClose((reason) => void this.close(reason)),
+      this.lease.onClose((reason) => this.detach('close', this.close(reason))),
     );
-    if (this.def.ai.mode === 'transcribe' && deps.openStt && deps.transcript)
-      this.transcriber = await HumanTranscriber.open({
-        open: deps.openStt,
-        usage: deps.usageFor(this.input.index),
-        format: deps.format,
-        language: deps.sttLanguage,
-        sessionId: deps.call.sessionId,
-        idPrefix: `s${this.input.index}:`,
+    if (this.def.ai.mode === 'transcribe')
+      this.transcriber = await openCaptions({
+        deps,
+        seat: this.seat,
+        operatorIdentity: this.operator,
         operator: this.def.ai.transcribeOperator,
-        caption: (caption) =>
-          this.seat.sendData(CAPTION_TOPIC, new TextEncoder().encode(JSON.stringify(caption)), [
-            this.operator,
-          ]),
-        transcript: (event) => deps.transcript!(event, this.input.index),
+        index: this.input.index,
         now: () => this.clock.now(),
-        failed: (reason) => deps.audit('human.transcribe.failed', { reason }),
       });
     deps.record(
       'human.state',
@@ -139,7 +133,7 @@ export class HumanBridgeSegment implements StartableSegment {
     this.audio.attach();
     // swallow-ok: the desk shows the call connected; a missed mark is cosmetic.
     void this.rt.deps.service.tickets.markConnected(this.input.ticket.id).catch(() => undefined);
-    void this.watch();
+    this.detach('watch', this.watch());
   }
 
   /** Idempotent: a second close (the call's cleanup after the caller's hang-up) awaits the first. */
@@ -154,13 +148,16 @@ export class HumanBridgeSegment implements StartableSegment {
     this.grace?.abort();
     for (const off of this.offs.splice(0)) off();
     const { deps } = this.rt;
-    const talkMs = Math.max(0, this.clock.now() - this.connectedAt);
+    const talkMs = this.connectedAt === undefined ? 0 : this.clock.now() - this.connectedAt;
     const seatStats = this.seat.stats();
     await this.transcriber?.close().catch(() => undefined);
     await this.seat.close().catch(() => undefined);
     await deps.rooms?.deleteRoom(this.input.room).catch(() => undefined);
-    this.stats.usage[HUMAN_METER_KEYS.operatorSeconds] = talkMs / 1000;
-    this.stats.usage[HUMAN_METER_KEYS.roomSeconds] = seatStats.connectedMs / 1000;
+    // Closed before `start()` ran (the call ended first): no operator or room time to meter.
+    if (this.connectedAt !== undefined) {
+      this.stats.usage[HUMAN_METER_KEYS.operatorSeconds] = Math.max(0, talkMs) / 1000;
+      this.stats.usage[HUMAN_METER_KEYS.roomSeconds] = seatStats.connectedMs / 1000;
+    }
     const end = this.end ?? endOf(reason);
     await this.attempt.endConnected(end.code, end.outcome, {
       talkMs,
@@ -192,11 +189,24 @@ export class HumanBridgeSegment implements StartableSegment {
     if (event.kind === 'joined') return void this.grace?.abort();
     this.grace?.abort();
     const grace = (this.grace = new AbortController());
-    void this.clock
+    const waited = this.clock
       .sleep(OPERATOR_GRACE_MS, AbortSignal.any([grace.signal, this.stop.signal]))
       .then(() => {
-        if (!grace.signal.aborted && !this.stop.signal.aborted) void this.operatorLeft();
+        if (!grace.signal.aborted && !this.stop.signal.aborted) return this.operatorLeft();
       });
+    this.detach('operator_left', waited);
+  }
+
+  /**
+   * Detached work (the watch loop, the grace, the lease's close) must never reject: an unhandled
+   * rejection would take the whole worker, and every other call on it, down. A failure is audited
+   * (never its message, which may carry carrier detail) and the segment closes.
+   */
+  private detach(where: string, work: Promise<unknown>): void {
+    void work.catch(() => {
+      this.rt.deps.audit('human.end.failed', { where });
+      this.close('error:end_failed').catch(() => undefined);
+    });
   }
 
   /** The operator did not come back: the queue's `onOperatorLeave` decides what the caller gets. */
@@ -212,30 +222,25 @@ export class HumanBridgeSegment implements StartableSegment {
   /** No engine ends a person's call: the hang-up, then the lease. */
   private async hangUp(end: End): Promise<void> {
     this.end = end;
-    await this.rt.deps.endCall(this.lease, 'behavior_completed');
+    try {
+      await this.rt.deps.endCall(this.lease, 'behavior_completed');
+    } catch {
+      // The carrier refused to hang up: the operator is still let go and the ticket released.
+      this.rt.deps.audit('human.end.failed', { where: 'hang_up' });
+      await this.close('error:end_failed');
+    }
   }
 
-  /** Beat, then poll the ticket for a command or an end someone else wrote. */
-  private async watch(): Promise<void> {
-    const { deps } = this.rt;
-    const id = this.input.ticket.id;
-    let beat = this.clock.now();
-    while (!this.closed) {
-      await this.clock.sleep(deps.pollMs, this.stop.signal);
-      if (this.closed) return;
-      if (this.clock.now() - beat >= BEAT_MS) {
-        beat = this.clock.now();
-        // swallow-ok: a missed beat is retried in five seconds; the sweeper allows twenty.
-        void deps.service.tickets.workerBeat(id).catch(() => undefined);
-      }
-      const ticket = await deps.service.tickets.get(id).catch(() => undefined);
-      if (!ticket || this.closed) continue;
+  private watch(): Promise<void> {
+    return watchTicket({
+      deps: this.rt.deps,
+      ticketId: this.input.ticket.id,
+      stop: this.stop.signal,
+      closed: () => this.closed,
       // Released under the call (an admin): it ends as if the operator left.
-      if (ticket.status === 'released' || ticket.status === 'expired')
-        return void this.hangUp({ code: 'operator_left', outcome: 'ended' });
-      const command = ticket.command;
-      if (command && command.seq > command.ack) await this.execute(id, command.seq, command.body);
-    }
+      ended: () => this.hangUp({ code: 'operator_left', outcome: 'ended' }),
+      command: (seq, command) => this.execute(this.input.ticket.id, seq, command),
+    });
   }
 
   private async execute(id: string, seq: number, command: DeskCommand): Promise<void> {
@@ -261,12 +266,9 @@ export class HumanBridgeSegment implements StartableSegment {
     const from = deps.attachedEntry();
     if (!deps.returnToAgent || !from) return false;
     this.end = end;
-    const result = await deps.returnToAgent({
-      key,
-      from,
-      lease: this.lease,
-      signal: this.stop.signal,
-    });
+    const result = await deps
+      .returnToAgent({ key, from, lease: this.lease, signal: this.stop.signal })
+      .catch(() => ({ ok: false as const, reason: 'error' }));
     if (result.ok) return true;
     this.end = undefined;
     deps.audit('human.return.refused', { reason: result.reason });
