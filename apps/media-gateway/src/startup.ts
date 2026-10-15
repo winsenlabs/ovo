@@ -23,7 +23,7 @@ import {
   type PluginDefinition,
 } from '@winsendotai/ovo-runtime';
 import { createGatewayHost, type GatewayHostOptions } from './gateway-host.ts';
-import { gatewayMediaConfig } from './gateway-config.ts';
+import { gatewayMediaConfig, gatewayOperationsConfig } from './gateway-config.ts';
 import { GatewayHealth } from './gateway-health.ts';
 import { installInboundCarriers } from './inbound-carrier-installation.ts';
 import { sipTrunkVerifierPlugins } from './sip-trunk-verifier.ts';
@@ -112,13 +112,7 @@ export async function startGateway(
   const operations = new PostgresOperationsService({
     connectionString: databaseUrl,
     organizationId,
-    config: {
-      liveEnabled: env.OVO_LIVE_DIAL_ENABLED === 'true',
-      permittedFromNumbers: (env.OVO_PERMITTED_FROM_NUMBERS ?? '')
-        .split(',')
-        .map((value) => value.trim())
-        .filter(Boolean),
-    },
+    config: gatewayOperationsConfig(env),
   });
   let composition: Composition | undefined;
   try {

@@ -158,17 +158,30 @@ export class PostgresSpeechPrerenderQueue {
 
   /**
    * Releases that can take a call right now: enabled inbound routes and scheduled or running
-   * campaigns. The operations tables may not exist on an installation without operations.
+   * campaigns. A number bound to a routing release (Wave 15) contributes every agent release the
+   * routing release pinned, so a member agent's opening is ready when the router hands over. The
+   * operations tables may not exist on an installation without operations.
    */
   async routedReleases(): Promise<{ workspaceId: string; releaseId: string }[]> {
-    const tables = await this.pool.query<{ routes: string | null; campaigns: string | null }>(
+    const tables = await this.pool.query<{
+      routes: string | null;
+      campaigns: string | null;
+      routing: string | null;
+    }>(
       `SELECT to_regclass('ovo_ops_inbound_routes')::text AS routes,
-              to_regclass('ovo_ops_campaigns')::text AS campaigns`,
+              to_regclass('ovo_ops_campaigns')::text AS campaigns,
+              to_regclass('ovo_routing_releases')::text AS routing`,
     );
     const parts: string[] = [];
     if (tables.rows[0]?.routes)
       parts.push(`SELECT organization_id, release_id::text FROM ovo_ops_inbound_routes
-                   WHERE enabled`);
+                   WHERE enabled AND release_id IS NOT NULL`);
+    if (tables.rows[0]?.routes && tables.rows[0]?.routing)
+      parts.push(`SELECT r.organization_id, unnest(rr.release_ids)::text
+                   FROM ovo_ops_inbound_routes r
+                   JOIN ovo_routing_releases rr
+                     ON rr.organization_id = r.organization_id AND rr.id = r.routing_release_id
+                   WHERE r.enabled`);
     if (tables.rows[0]?.campaigns)
       parts.push(`SELECT organization_id, agent_release_id FROM ovo_ops_campaigns
                    WHERE status IN ('scheduled', 'running')`);
