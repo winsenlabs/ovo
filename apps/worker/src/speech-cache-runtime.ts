@@ -201,6 +201,8 @@ export function approvedSpeechPhrases(agent: AgentConfig): ApprovedSpeechPhrase[
 export function sessionSpeechApprovals(
   release: SpeechInventoryRelease,
   filters: readonly TextFilter[],
+  /** Fixed lines a routing point gives the release (R2 `routingVoiceLines`): scripted too. */
+  routed: readonly string[] = [],
 ): ApprovedSpeechPhrase[] {
   if (!release.config.speechCache?.enabled) return [];
   const language = release.config.language;
@@ -208,10 +210,10 @@ export function sessionSpeechApprovals(
     ...phrase,
     text: normalizeSpeechText(filters, phrase.text, language),
   }));
-  const scripted = normalizeSpeechInventory(
-    staticSpeechInventory(release),
-    filters,
-    language,
-  ).texts.map((text): ApprovedSpeechPhrase => ({ text, purpose: 'scripted' }));
+  const inventory = staticSpeechInventory(release);
+  inventory.static.push(...routed.map((text) => ({ text, source: 'script' as const })));
+  const scripted = normalizeSpeechInventory(inventory, filters, language).texts.map(
+    (text): ApprovedSpeechPhrase => ({ text, purpose: 'scripted' }),
+  );
   return [...legacy, ...scripted].filter((phrase) => phrase.text.trim());
 }

@@ -53,13 +53,17 @@ export async function warmReleaseClips(
     onUsage: UsageSink;
     format?: AudioFormat;
     signal: AbortSignal;
+    /** The routing points' fixed lines for this release (R2 `routingVoiceLines`). */
+    lines?: readonly string[];
   },
   deps: { cache: WorkerSpeechClipCache; store?: SpeechClipStore; options: WarmOptions },
 ): Promise<WarmResult> {
   const { release, tts } = input;
   const format = input.format ?? MULAW_8K;
+  const own = staticSpeechInventory(release);
+  const routed = (input.lines ?? []).map((text) => ({ text, source: 'script' as const }));
   const inventory = normalizeSpeechInventory(
-    staticSpeechInventory(release),
+    { ...own, static: [...own.static, ...routed] },
     input.filters,
     release.config.language,
   );
@@ -208,4 +212,24 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
 function errorText(error: unknown): string {
   const text = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   return text.slice(0, 500);
+}
+
+/** A warm that rendered nothing, and why. */
+export function skippedWarm(detail: string): WarmResult {
+  return {
+    state: 'skipped',
+    total: 0,
+    existing: 0,
+    rendered: 0,
+    failed: 0,
+    deferred: 0,
+    perCall: 0,
+    detail,
+  };
+}
+
+/** What a warm did, as `speech_prerender_finished` logs it: counts only, never text. */
+export function warmCounts(result: WarmResult): Record<string, unknown> {
+  const { state, total, existing, rendered, failed, deferred } = result;
+  return { state, total, existing, rendered, failed, deferred };
 }

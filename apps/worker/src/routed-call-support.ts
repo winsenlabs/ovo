@@ -8,9 +8,11 @@ import {
 import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import type { PluginDefinition } from '@winsendotai/ovo-runtime';
 import type { CallScope } from './call-scope.ts';
+import type { ProviderUsage } from './cost-policy-types.ts';
 import type { LiveGraphOptions } from './session-graph-runtime.ts';
 import { routedCallSeconds, type LiveSessionDeps } from './routed-segments.ts';
 import { createRoutingHost } from './routing-host.ts';
+import type { TranscriptText } from './telemetry-runtime.ts';
 
 const log = createLogger({ service: 'worker' });
 
@@ -28,6 +30,15 @@ export interface RoutedJob {
 export interface RoutingRuntimeOptions {
   /** `operations.routing`; absent when operations is not composed (every routed call degrades). */
   routing?: Pick<RoutingService, 'releases' | 'claims'>;
+  /** `OVO_ROUTING_TRANSFER_ENABLED`: in-call transfers, hold and per-segment tagging (R2). */
+  transferEnabled?: boolean;
+  /** The worker's hold clips (`operations.routing.audio`, R2), read by digest. */
+  holdClips?: { get(id: string, sha256: string | undefined): Promise<Uint8Array | undefined> };
+  /** The job's cost usage for one segment: its ledger rows carry the index (R2). */
+  usageForSegment?: (
+    jobId: string,
+    segment: number,
+  ) => ((event: ProviderUsage) => void) | undefined;
   /** The router behaviour plugin (`@winsendotai/ovo-plugin-router`). */
   routerBehavior: () => PluginDefinition;
   /** `OVO_ROUTING_EXTERNAL_ENABLED`. */
@@ -161,5 +172,30 @@ export function operationsOf(graph: LiveGraphOptions | undefined): OperationsSer
     return graph?.parent.ctx.get(OPERATIONS_SERVICE_KEY) as OperationsService | undefined;
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Without its snapshot the call degrades to the routing release's default target, so that agent's
+ * transcript policy counts as well; a default that cannot be read omits (design 7.4, 11).
+ */
+export async function degradedTranscriptText(
+  deps: LiveSessionDeps,
+  workspaceId: string,
+  routerRelease: ReleaseRecord,
+  routing: RoutedJob,
+): Promise<TranscriptText> {
+  const fallback = await deps.store
+    .getRelease(workspaceId, routing.defaultReleaseId)
+    .catch(() => undefined);
+  if (!fallback) return 'omit';
+  return deps.telemetry.strictestTranscriptText([routerRelease.agentId, fallback.agentId]);
+}
+
+/** A routed call that falls back to its default target as segment 0 (design 7.2, 8.2). */
+export class DegradedRoute extends Error {
+  constructor(readonly reason: 'snapshot_unavailable' | 'router_compose_failed') {
+    super(reason);
+    this.name = 'DegradedRoute';
   }
 }
