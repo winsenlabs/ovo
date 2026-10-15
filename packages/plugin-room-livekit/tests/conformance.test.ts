@@ -176,12 +176,17 @@ afterAll(() => server?.stop());
 
 // Real-time audio over a real WebRTC session, driven by the kit's wall-clock send loops. On a busy
 // shared build machine an event-loop stall turns a 1.2 s tone into a gappy one and the kit rightly
-// calls it not heard, so a failed check is retried twice; a genuine fault fails every attempt.
+// calls it not heard. The delivery window is widened (default 3 s) so a stall delays a check
+// instead of failing it, and a failed check is still retried twice as a safety net; a genuine
+// fault fails every attempt.
 if (server) {
   describe('real server', { retry: 2 }, () => {
-    describeMediaRoom('LiveKit room plugin, mu-law 8 kHz', () => livekitUnderTest(server));
+    describeMediaRoom('LiveKit room plugin, mu-law 8 kHz', () => livekitUnderTest(server), {
+      deliveryMs: 10_000,
+    });
     describeMediaRoom('LiveKit room plugin, PCM16 16 kHz', () => livekitUnderTest(server), {
       format: PCM16_16K,
+      deliveryMs: 10_000,
     });
   });
 } else it.skip('LiveKit room plugin conformance: no LiveKit server available', () => undefined);

@@ -5,6 +5,7 @@ import { loopbackTrunk } from '../support/harness.ts';
 
 const trunk = (refer: Record<string, unknown>) =>
   parseTrunkFile({ version: 1, trunks: [loopbackTrunk({ refer })] })[0]!;
+const IN = ['+91'];
 const ENABLED = trunk({
   enabled: true,
   phoneUriTemplate: 'sip:{e164}@sbc.example.net;user=phone',
@@ -33,28 +34,47 @@ describe('hostAllowed', () => {
 
 describe('referTarget', () => {
   it('builds a phone Refer-To from the template', () => {
-    expect(referTarget(ENABLED, { kind: 'phone', e164: '+919000000042' })).toEqual({
+    expect(referTarget(ENABLED, { kind: 'phone', e164: '+919000000042' }, IN)).toEqual({
       ok: true,
       referTo: 'sip:+919000000042@sbc.example.net;user=phone',
       host: 'sbc.example.net',
     });
   });
 
+  it.each(['+14155550100', '+971500000000', '+9190', '9000000042'])(
+    'refuses the phone target %s outside the country allow-list',
+    (e164) =>
+      expect(referTarget(ENABLED, { kind: 'phone', e164 }, IN)).toEqual({
+        ok: false,
+        reason: 'destination_not_permitted',
+      }),
+  );
+
+  it('permits a phone target when its prefix is on the allow-list', () =>
+    expect(
+      referTarget(ENABLED, { kind: 'phone', e164: '+14155550100' }, ['+1', '+91']),
+    ).toMatchObject({ ok: true }));
+
   it('refuses a phone target without a template', () => {
     expect(
-      referTarget(trunk({ enabled: true, allowedHosts: ['a.example'] }), {
-        kind: 'phone',
-        e164: '+919000000042',
-      }),
+      referTarget(
+        trunk({ enabled: true, allowedHosts: ['a.example'] }),
+        { kind: 'phone', e164: '+919000000042' },
+        IN,
+      ),
     ).toEqual({ ok: false, reason: 'refer_phone_template_missing' });
   });
 
   it('encodes every header value so none can add a header or leave the URI', () => {
-    const result = referTarget(ENABLED, {
-      kind: 'sip',
-      uri: 'sips:desk@q.acd.example.net:5061;transport=tls',
-      headers: { 'X-A': 'v1&X-Evil=1', 'X-B': '>; <sip:evil@x>', 'X-C': 'ok value' },
-    });
+    const result = referTarget(
+      ENABLED,
+      {
+        kind: 'sip',
+        uri: 'sips:desk@q.acd.example.net:5061;transport=tls',
+        headers: { 'X-A': 'v1&X-Evil=1', 'X-B': '>; <sip:evil@x>', 'X-C': 'ok value' },
+      },
+      IN,
+    );
     expect(result).toMatchObject({ ok: true, host: 'q.acd.example.net' });
     const referTo = (result as { referTo: string }).referTo;
     expect(referTo).toBe(
@@ -65,11 +85,13 @@ describe('referTarget', () => {
   });
 
   it('a sip target without headers is passed through bare', () => {
-    expect(referTarget(ENABLED, { kind: 'sip', uri: 'sip:desk@transfer.example.net' })).toEqual({
-      ok: true,
-      referTo: 'sip:desk@transfer.example.net',
-      host: 'transfer.example.net',
-    });
+    expect(referTarget(ENABLED, { kind: 'sip', uri: 'sip:desk@transfer.example.net' }, IN)).toEqual(
+      {
+        ok: true,
+        referTo: 'sip:desk@transfer.example.net',
+        host: 'transfer.example.net',
+      },
+    );
   });
 
   it.each([
@@ -77,8 +99,10 @@ describe('referTarget', () => {
     ['sip:x@acd.example.net', 'refer_host_not_allowed'],
     ['sip:x@transfer.example.net.evil.com', 'refer_host_not_allowed'],
     ['sip:@@', 'refer_uri_invalid'],
+    ['sip:a@evil.com@transfer.example.net', 'refer_uri_invalid'],
+    ['sip:a@evil.com@transfer.example.net;transport=tls', 'refer_uri_invalid'],
     ['sip:', 'refer_uri_invalid'],
   ])('refuses %j as %s', (uri, reason) =>
-    expect(referTarget(ENABLED, { kind: 'sip', uri })).toEqual({ ok: false, reason }),
+    expect(referTarget(ENABLED, { kind: 'sip', uri }, IN)).toEqual({ ok: false, reason }),
   );
 });

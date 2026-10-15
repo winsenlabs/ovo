@@ -69,7 +69,7 @@ export async function handoff(
   const { trunk } = call;
   if (!trunk.refer.enabled) return reject('refer_not_enabled');
   if (trunk.refer.mode === 'bridge') return bridged(gateway, call, request);
-  const target = referTarget(trunk, request.target);
+  const target = referTarget(trunk, request.target, gateway.config.countryAllowlist);
   if (!target.ok) return reject(target.reason);
   const result = await requestRefer(call, {
     requestId: request.requestId,

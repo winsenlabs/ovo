@@ -16,6 +16,19 @@ export function hostAllowed(host: string, allowed: readonly string[]): boolean {
 }
 
 /**
+ * `sip:a@evil.com@good.example` parses here with host `good.example`, but a far end that splits on
+ * the first `@` routes to `evil.com`; a second `@` before the URI's parameters is never legitimate.
+ */
+function ambiguousUserinfo(uri: string): boolean {
+  const main =
+    uri
+      .trim()
+      .replace(/^sips?:/i, '')
+      .split(/[;?]/)[0] ?? '';
+  return main.split('@').length > 2;
+}
+
+/**
  * Header values are percent-encoded whole (`encodeURIComponent` leaves only RFC 3261 unreserved
  * characters), so a value can never end a header, start another or leave the URI.
  */
@@ -30,15 +43,23 @@ function withHeaders(uri: string, headers: Record<string, string> | undefined): 
  * sip target needs its host on the trunk's allow-list (the allow-list is the only thing between a
  * third party's answer and a toll-fraud destination). `X-` names are the kit schema's job.
  */
-export function referTarget(trunk: Trunk, target: SipHandoffTarget): ReferTarget {
+export function referTarget(
+  trunk: Trunk,
+  target: SipHandoffTarget,
+  countryAllowlist: readonly string[],
+): ReferTarget {
   if (target.kind === 'phone') {
+    // A REFER has the carrier place the call, so it answers to the same country policy as a dial.
+    if (!allowedDestination(target.e164, countryAllowlist))
+      return { ok: false, reason: 'destination_not_permitted' };
     const template = trunk.refer.phoneUriTemplate;
     if (!template) return { ok: false, reason: 'refer_phone_template_missing' };
     const referTo = template.replace('{e164}', target.e164);
     return { ok: true, referTo, host: parseUri(referTo)?.host ?? '' };
   }
   const uri = parseUri(target.uri);
-  if (!uri || uri.scheme === 'tel' || !uri.host) return { ok: false, reason: 'refer_uri_invalid' };
+  if (!uri || uri.scheme === 'tel' || !uri.host || ambiguousUserinfo(target.uri))
+    return { ok: false, reason: 'refer_uri_invalid' };
   if (!hostAllowed(uri.host, trunk.refer.allowedHosts))
     return { ok: false, reason: 'refer_host_not_allowed' };
   return { ok: true, referTo: withHeaders(target.uri, target.headers), host: uri.host };
@@ -61,7 +82,8 @@ export function bridgeTarget(
       ? { ok: true, target: { to: target.e164, headers: [] } }
       : { ok: false, reason: 'destination_not_permitted' };
   const uri = parseUri(target.uri);
-  if (!uri || uri.scheme === 'tel' || !uri.host) return { ok: false, reason: 'refer_uri_invalid' };
+  if (!uri || uri.scheme === 'tel' || !uri.host || ambiguousUserinfo(target.uri))
+    return { ok: false, reason: 'refer_uri_invalid' };
   if (!hostAllowed(uri.host, trunk.refer.allowedHosts))
     return { ok: false, reason: 'refer_host_not_allowed' };
   return {
