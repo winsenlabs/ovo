@@ -43,6 +43,8 @@ export class HumanQueueEngine implements HumanQueueService {
       get: (id) => tickets.get(id),
       listForOperator: (userId, scope) => views.listForOperator(userId, scope),
       changes: (since, userId) => views.changes(since, userId),
+      head: () => store.run((tx) => tx.headChangeId()),
+      roomsToClose: (limit) => support.roomsToClose(limit),
       accept: (input) => tickets.accept(input),
       decline: (input) => tickets.decline(input),
       release: (input) => tickets.release(input),

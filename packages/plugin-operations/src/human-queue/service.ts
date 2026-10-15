@@ -134,6 +134,13 @@ export interface SweepResult {
   stale: number;
 }
 
+/** An ended ticket whose room may still exist. */
+export interface RoomToClose {
+  id: string;
+  roomName: string;
+  operatorId?: string;
+}
+
 export interface HumanQueueService {
   /** OVO_HUMAN_QUEUE_ENABLED. */
   readonly enabled: boolean;
@@ -183,6 +190,13 @@ export interface HumanQueueService {
     create(input: NewTicket): Promise<Ticket | 'queue_full'>;
     get(id: string): Promise<Ticket | undefined>;
     listForOperator(userId: string, scope: 'queue' | 'mine'): Promise<HumanTicketView[]>;
+    /** The newest change id of the organization's tickets: where a new desk stream starts. */
+    head(): Promise<number>;
+    /**
+     * Ended managed tickets whose room has not been recorded closed (a `room_closed` event, see
+     * `appendEvent`), oldest ticket first: what the API's room reaper deletes after a worker that died.
+     */
+    roomsToClose(limit: number): Promise<RoomToClose[]>;
     /** Tickets changed after `sinceChangeId` in the operator's domain, any status, oldest change first. */
     changes(
       sinceChangeId: number,

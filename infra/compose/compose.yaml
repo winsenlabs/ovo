@@ -121,6 +121,8 @@ services:
       OVO_LIVEKIT_API_KEY_PREVIOUS: ${OVO_LIVEKIT_API_KEY_PREVIOUS:-}
       OVO_LIVEKIT_API_SECRET_PREVIOUS: ${OVO_LIVEKIT_API_SECRET_PREVIOUS:-}
       OVO_LIVEKIT_TOKEN_TTL_SECONDS: ${OVO_LIVEKIT_TOKEN_TTL_SECONDS:-}
+      # The api's own name for the same knob (host code names no provider): one setting, two readers.
+      OVO_ROOM_TOKEN_TTL_SECONDS: ${OVO_LIVEKIT_TOKEN_TTL_SECONDS:-}
       OVO_PROVIDER_EVALUATIONS_ENABLED: ${OVO_PROVIDER_EVALUATIONS_ENABLED:-false}
       OVO_FIXTURE_TEST_CALLS: 'true'
       # Live readiness refuses admission without an installation capacity ceiling; it matches the

@@ -79,6 +79,14 @@ export class PgTx implements HqTx {
     return result.rows[0] ? ticketFromRow(result.rows[0]) : undefined;
   }
 
+  async headChangeId(): Promise<number> {
+    const result = await this.client.query(
+      'SELECT COALESCE(max(change_id), 0)::text AS head FROM ovo_hq_tickets WHERE organization_id = $1',
+      [this.org],
+    );
+    return Number(result.rows[0]?.head ?? 0);
+  }
+
   async scan(filter: TicketFilter): Promise<TicketRow[]> {
     const where = ['organization_id = $1'];
     const values: unknown[] = [this.org];
@@ -97,6 +105,13 @@ export class PgTx implements HqTx {
     if (filter.idempotencyKey !== undefined) add('idempotency_key = ?', filter.idempotencyKey);
     if (filter.sinceChangeId !== undefined) add('change_id > ?', filter.sinceChangeId);
     if (filter.releasedSince) add('released_at >= ?', filter.releasedSince, '::timestamptz');
+    if (filter.roomOpen)
+      add(
+        `room_name IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ovo_hq_ticket_events e
+           WHERE e.organization_id = ovo_hq_tickets.organization_id
+             AND e.ticket_id = ovo_hq_tickets.id AND e.kind = ?)`,
+        'room_closed',
+      );
     if (filter.scrubDue)
       add('context IS NOT NULL AND context_expires_at <= ?', filter.scrubDue, '::timestamptz');
     const order =
