@@ -9,7 +9,7 @@ import { replyGuardrail } from './agent-pre-reply.ts';
 import { AgentSessionAhead } from './agent-session-ahead.ts';
 import { assembleBoundedContext } from './context.ts';
 import type { AgentBehaviorOptions } from './agent-tools.ts';
-import { AgentTransfers, type TransferAnswer } from './agent-transfer.ts';
+import { AgentTransfers, type TransferTool } from './agent-transfer.ts';
 import type { AgentSpeculationOptions } from './speculation.ts';
 import { TransferGreeting } from './transfer-greeting.ts';
 import { handoverHeard } from './transfer-handover.ts';
@@ -123,7 +123,13 @@ export abstract class AgentSegment extends AgentSessionAhead {
     input: string,
     previous: readonly string[],
     turn: { signal: AbortSignal; current: () => boolean },
-  ): (call: unknown) => Promise<TransferAnswer> {
-    return (call) => this.transfers.llm(call, { input, previous, ...turn });
+  ): TransferTool {
+    // `withdrawn`: the model called it though the call's limits withdrew it (design 7.3).
+    return Object.assign(
+      (call: unknown) => this.transfers.llm(call, { input, previous, ...turn }),
+      {
+        withdrawn: (call: unknown) => this.transfers.withdrawn(call, turn.signal),
+      },
+    );
   }
 }

@@ -177,6 +177,16 @@ async function* inferenceSteps(
       return;
     }
 
+    // R2: `transfer_to_agent` withdrawn by the call's limits; the host records the refusal.
+    const unoffered =
+      reply.toolId === TRANSFER_TO_AGENT_TOOL_ID &&
+      !step.tools.some((candidate) => candidate.id === reply.toolId);
+    const withdrawn = unoffered ? step.transferToAgent?.withdrawn?.(reply.input) : undefined;
+    if (withdrawn) {
+      step.results.push(failedRecord(step, reply.toolId, reply.input, await withdrawn));
+      continue;
+    }
+
     const tool = selectedTool(step, reply);
     if (tool.id === END_CALL_TOOL_ID) {
       const why = ending.refused(false);

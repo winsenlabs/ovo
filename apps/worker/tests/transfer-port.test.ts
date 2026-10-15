@@ -58,6 +58,22 @@ describe('the agent transfer port: offers and refusals (transfer design 4.3, 7.2
     if (refusal !== 'release_missing') expect(h.begun).toEqual([]);
   });
 
+  it('withdraws the tool at maxTransfers, yet records limit_reached when a flow or model asks', async () => {
+    const h = port({ transfers: 3 });
+    expect(h.port.targets()).toEqual([]);
+    const flow = { key: 'billing', source: 'flow' as const, confirmed: true };
+    expect(await h.port.request(flow, signal())).toEqual({ ok: false, reason: 'limit_reached' });
+    const llm = { key: 'billing', source: 'llm' as const, confirmed: false };
+    expect(await h.port.request(llm, signal())).toEqual({ ok: false, reason: 'limit_reached' });
+    expect(h.recorded).toEqual(
+      ['flow', 'llm'].map((source) => [
+        'transfer.requested',
+        expect.objectContaining({ result: 'refused', refusal: 'limit_reached', source }),
+      ]),
+    );
+    expect(h.begun).toEqual([]);
+  });
+
   it('refuses while a transfer is in flight, and once this segment is no longer attached', async () => {
     const busy = port();
     busy.controller.busy = true;

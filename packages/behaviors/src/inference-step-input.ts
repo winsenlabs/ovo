@@ -8,7 +8,7 @@ import type {
   ToolDefinition,
 } from '@winsendotai/ovo-contracts';
 import type { AgentTurnLog } from './agent-turn-log.ts';
-import type { TransferAnswer } from './agent-transfer.ts';
+import type { TransferTool } from './agent-transfer.ts';
 import type { ToolConfirmation } from './confirmation.ts';
 import type { FlowSession } from './flow-session.ts';
 import type { ToolEvents } from './tool-events.ts';
@@ -29,7 +29,7 @@ export interface InferenceStepInput {
   /** The LLM ended the call; its goodbye is this turn's reply. */
   endCall: (reason: string) => void;
   /** R2: the LLM's `transfer_to_agent` (offered only on a routed call that grants targets). */
-  transferToAgent?: (input: unknown) => Promise<TransferAnswer>;
+  transferToAgent?: TransferTool;
   /** N1: why the LLM may not end the call on this turn (`EndCallGate`); undefined when it may. */
   endRefused?: () => string | undefined;
   /** Wave 10 (L2): "Shall I end the call?" was said for the model's `end_call` with `reason`. */

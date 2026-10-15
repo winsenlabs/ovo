@@ -27,6 +27,14 @@ export type TransferPort = AgentTransferPort & { readonly summary?: boolean };
 /** What the model's `transfer_to_agent` comes to: a line the agent says, or a record to read. */
 export type TransferAnswer = { kind: 'say'; text: string } | { kind: 'record'; error: string };
 
+/**
+ * The model's `transfer_to_agent` on one turn; `withdrawn` answers a call the model made though the
+ * tool was not offered (undefined when that does not apply: it is then an unknown tool).
+ */
+export type TransferTool = ((input: unknown) => Promise<TransferAnswer>) & {
+  withdrawn?: (input: unknown) => Promise<string> | undefined;
+};
+
 /** The turn a `transfer_to_agent` was called in. */
 export interface TransferTurn {
   /** The caller's words this turn. */
@@ -98,6 +106,28 @@ export class AgentTransfers {
         ? { kind: 'say', text: confirmQuestion(offer, this.config.language) }
         : { kind: 'record', error: refusalInstruction(result.reason) };
     return { kind: 'say', text: await this.accept(key, result, turn) };
+  }
+
+  /**
+   * Design 7.3: the model called `transfer_to_agent` on a segment that was not offered it, because
+   * the call had used up its transfers (or segments, or time) when the segment started. The host
+   * still gates it, so the refusal (`limit_reached`, ...) is recorded as `transfer.requested`, and
+   * the model reads it. Undefined when the tool was offered, or this agent never transfers by tool.
+   */
+  withdrawn(input: unknown, signal: AbortSignal): Promise<string> | undefined {
+    if (!this.port || this.offers.length || !this.config.handoff?.agents?.llmTool) return undefined;
+    const target = (input as { target?: unknown } | null | undefined)?.target;
+    const key = typeof target === 'string' ? target : '';
+    return this.refuse(this.port, key, signal);
+  }
+
+  private async refuse(port: TransferPort, key: string, signal: AbortSignal): Promise<string> {
+    const result = await port.request({ key, source: 'llm', confirmed: false }, signal);
+    if (!result.ok) return refusalInstruction(result.reason);
+    // Unreachable while the limits only tighten; a transfer begun anyway is not taken.
+    // swallow-ok: cancel is idempotent cleanup before commit; the host disposes the graph anyway.
+    await port.cancel(result.transferId).catch(() => undefined);
+    return refusalInstruction('limit_reached');
   }
 
   /**

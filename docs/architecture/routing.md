@@ -315,6 +315,11 @@ opt-out hint) are said once per call: a later segment skips the kinds already he
 | The same release, or (`returnToPrevious: refuse`) a release the call already left | `same_agent`, `ping_pong`               |
 | Every eligible pool member full and no `waitForCapacity`                          | `pool_full` (the agent keeps its claim) |
 
+A segment that starts with the call's transfers or segments used up, or with less than
+`minRemainingSeconds` left, is not offered `transfer_to_agent` at all. A model that calls it anyway,
+or a flow node that transfers, is still refused by the host, and the refusal is recorded as
+`transfer.requested` `refused` (`limit_reached`, `segments_exhausted` or `time_exhausted`).
+
 | What                                    | Limit                                                 |
 | --------------------------------------- | ----------------------------------------------------- |
 | Targets, sources per target             | 32, 50                                                |
