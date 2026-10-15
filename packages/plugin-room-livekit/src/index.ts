@@ -1,7 +1,14 @@
-/**
- * Room plugin for the self-hosted LiveKit server (Apache-2.0): the only implementation of the
- * `ovo.media-room` capability (`MediaRoomProvider`, `RoomSeat`). Composed only when
- * `OVO_LIVEKIT_ENABLED=true`. The media lane implements the provider; until it lands this package
- * carries the pinned dependencies and the conformance test that every implementation must pass.
- */
-export const ROOM_PLUGIN_ID = '@winsendotai/ovo-plugin-room-livekit';
+export { ROOM_LIVEKIT_PLUGIN_ID, plugins, roomLivekitPlugin } from './plugin.ts';
+export { LiveKitRoomProvider, type ProviderDeps } from './provider.ts';
+export { LiveKitSeat, ROOM_FORMAT, connectSeat, roleOf, type SeatLogger } from './seat.ts';
+export { MIN_SECRET_LENGTH, parseRoomConfig, type RoomConfig } from './config.ts';
+export {
+  KeyRing,
+  TOKEN_TTL_MAX_SECONDS,
+  mintOperatorToken,
+  mintSeatToken,
+  operatorGrant,
+  verifyToken,
+  type ApiKeyPair,
+} from './tokens.ts';
+export { CachedHealth, type Health } from './health.ts';
