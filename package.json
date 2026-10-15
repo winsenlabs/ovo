@@ -42,7 +42,9 @@
     "backup:drill": "bash scripts/backup/restore-drill.sh"
   },
   "devDependencies": {
+    "@livekit/rtc-node": "0.13.34",
     "@types/node": "22.20.0",
+    "livekit-server-sdk": "2.19.0",
     "typescript": "6.0.3",
     "vitest": "4.1.11",
     "tsx": "4.22.4",
