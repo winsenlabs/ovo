@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { humanRoomName } from '@winsendotai/ovo-contracts';
 import { useHarness, ticketKit, externalDefinition, ticketFor, type HqHarness } from './harness.ts';
 import type { Ticket } from '../../src/human-queue/service.ts';
 
 /** The reads the API's desk stream and room reaper make (`head`, `roomsToClose`). */
 export function describeRooms(make: () => Promise<HqHarness>) {
   const h = useHarness(make);
-  const { tickets, queueOf, operator, open, accept } = ticketKit(h);
+  const { tickets, queueOf, operator, open, accept, get } = ticketKit(h);
 
   const end = (ticket: Pick<Ticket, 'id' | 'version'>) =>
     tickets().release({
@@ -70,6 +71,43 @@ export function describeRooms(make: () => Promise<HqHarness>) {
       if (handedOff === 'queue_full') throw new Error('queue_full');
       await end(handedOff);
       expect(await tickets().roomsToClose(10)).toEqual([]);
+    });
+
+    it("gives each accept its own room, and refuses a room that is not the ticket's", async () => {
+      const queue = await queueOf();
+      await operator('asha');
+      await operator('ben');
+      const ticket = await open(queue);
+      const grant = (version: number, roomName: string, operatorId: string) =>
+        tickets().accept({
+          workspaceId: h.org,
+          ticketId: ticket.id,
+          operatorId,
+          expectedVersion: version,
+          idempotencyKey: `k-${operatorId}`,
+          roomName,
+        });
+      await expect(grant(1, 'ovo-hq-someone-else-2', 'asha')).rejects.toThrow(RangeError);
+      await expect(grant(1, `${humanRoomName(ticket.id)}x`, 'asha')).rejects.toThrow(RangeError);
+      const first = (await grant(1, humanRoomName(ticket.id, 2), 'asha')) as Ticket;
+      expect(first.roomName).toBe(`ovo-hq-${ticket.id}-2`);
+      const waiting = (await tickets().reoffer(
+        ticket.id,
+        first.version,
+        'operator_no_show',
+      )) as Ticket;
+      const second = (await grant(
+        waiting.version,
+        humanRoomName(ticket.id, waiting.version + 1),
+        'ben',
+      )) as Ticket;
+      // asha's token (for the first room) opens a room the ticket no longer uses.
+      expect(second.roomName).toBe(`ovo-hq-${ticket.id}-4`);
+      expect(second.roomName).not.toBe(first.roomName);
+      expect((await get(ticket.id)).roomName).toBe(second.roomName);
+      // Without a name the first design's room is still used.
+      const legacy = await open(queue);
+      expect(((await accept(legacy, 'asha')) as Ticket).roomName).toBe(`ovo-hq-${legacy.id}`);
     });
   });
 }
