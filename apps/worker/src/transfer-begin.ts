@@ -10,7 +10,6 @@ import {
   type TransferTarget,
 } from '@winsendotai/ovo-contracts';
 import type { SegmentHistoryEntry } from './call-memory.ts';
-import type { HumanRefusal, WideHandoffRequest } from './human-contract.ts';
 import type { AttemptTarget, SegmentReason } from './transfer-attempt.ts';
 import { beginHuman } from './transfer-human.ts';
 import { capturedFor } from './transfer-handover.ts';
@@ -36,7 +35,7 @@ interface BeginHost extends ConnectHost {
 
 type Begun =
   | { ok: true; run: TransferRun; state: 'preparing' | 'queued' | 'ready' }
-  | { ok: false; reason: HandoffBeginFailure | HumanRefusal | 'human_queue_unavailable' };
+  | { ok: false; reason: HandoffBeginFailure | 'human_queue_unavailable' };
 
 /**
  * Validates a handoff request and starts it (transfer design 4.3, 7.2 step 3): the limits the host
@@ -46,7 +45,7 @@ type Begun =
  */
 export async function beginRun(
   host: BeginHost,
-  request: WideHandoffRequest,
+  request: SegmentHandoffRequest,
   from: SegmentHistoryEntry,
   options: BeginOptions,
 ): Promise<Begun> {

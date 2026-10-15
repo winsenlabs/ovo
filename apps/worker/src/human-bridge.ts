@@ -1,3 +1,4 @@
+import { CAPTION_TOPIC, DTMF_TOPIC } from '@winsendotai/ovo-contracts';
 import { BridgeAudio } from './human-bridge-audio.ts';
 import { BEAT_MS, endOf, OPERATOR_GRACE_MS, type End } from './human-bridge-end.ts';
 import { humanRelease } from './human-attempt.ts';
@@ -27,7 +28,6 @@ interface BridgeInput {
   queue: QueueSnapshot;
   index: number;
   lease: SegmentMediaLease;
-  readyAt: number;
 }
 
 /**
@@ -117,7 +117,7 @@ export class HumanBridgeSegment implements StartableSegment {
         idPrefix: `s${this.input.index}:`,
         operator: this.def.ai.transcribeOperator,
         caption: (caption) =>
-          this.seat.sendData('ovo.caption', new TextEncoder().encode(JSON.stringify(caption)), [
+          this.seat.sendData(CAPTION_TOPIC, new TextEncoder().encode(JSON.stringify(caption)), [
             this.operator,
           ]),
         transcript: (event) => deps.transcript!(event, this.input.index),
@@ -137,6 +137,8 @@ export class HumanBridgeSegment implements StartableSegment {
   /** The lease is live and `route.segment` recorded: operator audio may flow, the loops begin. */
   attached(): void {
     this.audio.attach();
+    // swallow-ok: the desk shows the call connected; a missed mark is cosmetic.
+    void this.rt.deps.service.tickets.markConnected(this.input.ticket.id).catch(() => undefined);
     void this.watch();
   }
 
@@ -179,7 +181,7 @@ export class HumanBridgeSegment implements StartableSegment {
 
   private sendDtmf(digit: string): void {
     if (this.closed) return;
-    this.seat.sendData('ovo.dtmf', new TextEncoder().encode(JSON.stringify({ digit })), [
+    this.seat.sendData(DTMF_TOPIC, new TextEncoder().encode(JSON.stringify({ digit })), [
       this.operator,
     ]);
   }
@@ -204,7 +206,12 @@ export class HumanBridgeSegment implements StartableSegment {
       const code = { code: 'operator_left', outcome: 'returned' } as const;
       if (await this.returnTo(target, code)) return;
     }
-    this.end = { code: 'operator_left', outcome: 'ended' };
+    await this.hangUp({ code: 'operator_left', outcome: 'ended' });
+  }
+
+  /** No engine ends a person's call: the hang-up, then the lease. */
+  private async hangUp(end: End): Promise<void> {
+    this.end = end;
     await this.rt.deps.endCall(this.lease, 'behavior_completed');
   }
 
@@ -223,26 +230,20 @@ export class HumanBridgeSegment implements StartableSegment {
       }
       const ticket = await deps.service.tickets.get(id).catch(() => undefined);
       if (!ticket || this.closed) continue;
-      if (ticket.status === 'released' || ticket.status === 'expired') return void this.forced();
+      // Released under the call (an admin): it ends as if the operator left.
+      if (ticket.status === 'released' || ticket.status === 'expired')
+        return void this.hangUp({ code: 'operator_left', outcome: 'ended' });
       const command = ticket.command;
       if (command && command.seq > command.ack) await this.execute(id, command.seq, command.body);
     }
-  }
-
-  /** An admin released the ticket under the call: it ends as the operator leaving would. */
-  private async forced(): Promise<void> {
-    this.end = { code: 'operator_left', outcome: 'ended' };
-    await this.rt.deps.endCall(this.lease, 'behavior_completed');
   }
 
   private async execute(id: string, seq: number, command: DeskCommand): Promise<void> {
     const { deps } = this.rt;
     await deps.service.tickets.ackCommand(id, seq).catch(() => undefined);
     if (command.kind === 'end_call') {
-      this.end = { code: 'ended_by_operator', outcome: 'ended', ending: 'operator_end' };
       this.ending = 'operator_end';
-      await deps.endCall(this.lease, 'behavior_completed');
-      return;
+      return this.hangUp({ code: 'ended_by_operator', outcome: 'ended', ending: 'operator_end' });
     }
     if (!this.def.returnTargets.includes(command.target)) {
       deps.audit('human.command.refused', { reason: 'target_not_granted' });

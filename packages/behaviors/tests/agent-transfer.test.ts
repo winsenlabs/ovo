@@ -226,7 +226,7 @@ describe('transfer_to_agent: an accepted transfer', () => {
     ['queue_unavailable', /cannot be reached/],
     ['queue_unknown', /cannot be reached/],
   ] as const)('a human queue refusing %s is told to the model', async (reason, text) => {
-    const port = transferPort({ result: () => ({ ok: false, reason: reason as never }) });
+    const port = transferPort({ result: () => ({ ok: false, reason }) });
     const t = transferAgent({ port, replies: [transferCall('billing')] });
     await t.turn('a person please');
     expect(t.model!.requests[1]!.results[0]).toMatchObject({

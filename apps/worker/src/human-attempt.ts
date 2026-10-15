@@ -14,8 +14,6 @@ import {
   type QueueRef,
 } from './human-events.ts';
 import { openTicket, releaseTicket } from './human-ticket.ts';
-
-export { isTicket } from './human-ticket.ts';
 import type { HumanRuntime } from './human-runtime.ts';
 import type { SegmentMediaLease } from './segment-media.ts';
 import type { HumanTarget, StartableSegment, TransferAttempt } from './transfer-attempt.ts';
@@ -150,8 +148,9 @@ export abstract class HumanAttempt implements TransferAttempt {
     if (this.completed) return;
     this.completed = true;
     await this.cleanup(code).catch(() => undefined);
-    await this.releaseTicket(code);
-    this.complete(outcome ?? this.dropOutcome(code), {});
+    const ended = outcome ?? this.dropOutcome(code);
+    await this.releaseTicket(code, ended);
+    this.complete(ended, {});
   }
 
   /** The release code of a candidate that is dropped. */
@@ -179,7 +178,7 @@ export abstract class HumanAttempt implements TransferAttempt {
   ): Promise<void> {
     if (this.completed) return;
     this.completed = true;
-    await this.releaseTicket(code);
+    await this.releaseTicket(code, outcome);
     this.complete(outcome, extra);
   }
 
@@ -205,8 +204,8 @@ export abstract class HumanAttempt implements TransferAttempt {
   }
 
   /** Releases the ticket with `code`; a conflict means someone else already did. */
-  private releaseTicket(code: TicketReleaseCode): Promise<void> {
-    return this.ticket ? releaseTicket(this.rt, this.ticket.id, code) : Promise.resolve();
+  private releaseTicket(code: TicketReleaseCode, outcome: TicketOutcome): Promise<void> {
+    return this.ticket ? releaseTicket(this.rt, this.ticket.id, code, outcome) : Promise.resolve();
   }
 
   private async begin(): Promise<StartableSegment | string> {

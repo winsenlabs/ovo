@@ -1,10 +1,8 @@
-import type {
-  AudioFormat,
-  HoldPolicy,
-  RoutingTransferPolicy,
-  SecretResolver,
-  TransferTarget,
-  UsageSink,
+import {
+  effectiveQueueHold,
+  queueHoldSource,
+  type HoldPolicy,
+  type TransferTarget,
 } from '@winsendotai/ovo-contracts';
 import { isOpen } from '@winsendotai/ovo-plugin-router';
 import type { WebhookDeps } from '@winsendotai/ovo-session-host';
@@ -28,24 +26,6 @@ import type { HumanAttempt, HumanAttemptInit } from './human-attempt.ts';
 import type { OpenStt, TranscriptSink } from './human-transcriber.ts';
 import type { SegmentMediaLease } from './segment-media.ts';
 import type { HoldSource } from './transfer-types.ts';
-
-/** The built-in wait of a queue that configures none (human queue design 4.4, 16.6). */
-export const DEFAULT_QUEUE_HOLD_POLICY: HoldPolicy = Object.freeze<HoldPolicy>({
-  steps: [
-    { kind: 'silence', seconds: 2 },
-    {
-      kind: 'line',
-      line: {
-        en: 'Thank you for holding. A colleague will be with you shortly.',
-        hi: 'होल्ड करने के लिए धन्यवाद। एक सहयोगी जल्द ही आपसे बात करेंगे।',
-      },
-    },
-  ],
-  loopFrom: 0,
-  maxSeconds: 180,
-  waitForCapacity: false,
-  onTimeout: [{ kind: 'return' }, { kind: 'default' }, { kind: 'end', line: { en: 'Goodbye.' } }],
-});
 
 export * from './human-runtime-deps.ts';
 import type { HumanRuntimeDeps } from './human-runtime-deps.ts';
@@ -127,12 +107,17 @@ export class HumanRuntime {
   /** The wait of a queue: its own hold, the catalogue target's, the point's, else the built-in. */
   hold(
     queue: QueueSnapshot,
-    target?: Pick<TransferTarget, 'hold'>,
+    target?: Pick<TransferTarget, 'key'>,
   ): { policy: HoldPolicy; source: HoldSource } {
-    if (queue.definition.hold) return { policy: queue.definition.hold, source: 'queue' };
-    if (target?.hold) return { policy: target.hold, source: 'target' };
-    if (this.deps.policy?.hold) return { policy: this.deps.policy.hold, source: 'point' };
-    return { policy: DEFAULT_QUEUE_HOLD_POLICY, source: 'queue' };
+    const { policy } = this.deps;
+    const held = {
+      queues: Object.fromEntries([...this.deps.queues.values()].map((item) => [item.id, item])),
+      ...(policy ? { transfer: policy } : {}),
+    };
+    return {
+      policy: effectiveQueueHold(held, queue.key, target?.key),
+      source: queueHoldSource(held, queue.key, target?.key),
+    };
   }
 
   /** The ticket's context from the call so far, honouring the queue's policy (design 7.3). */

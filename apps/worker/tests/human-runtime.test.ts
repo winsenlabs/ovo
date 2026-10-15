@@ -1,12 +1,11 @@
-import { vi } from 'vitest';
+import { vi, afterEach } from 'vitest';
 import { describe, expect, it } from 'vitest';
 import { HumanShared } from '../src/human-breaker.ts';
-import type { HumanHandoff } from '../src/human-contract.ts';
-import { DEFAULT_QUEUE_HOLD_POLICY } from '../src/human-runtime.ts';
-import { externalQueue, humanHarness, managedQueue } from './human-fixtures.ts';
+import { DEFAULT_QUEUE_HOLD_POLICY, type SegmentHandoffRequest } from '@winsendotai/ovo-contracts';
+import { externalQueue, humanHarness, managedQueue, assertEventsValid } from './human-fixtures.ts';
 import { holdPolicy, signal, transferPolicy } from './transfer-fixtures.ts';
 
-const request = (queueId: string, key?: string): HumanHandoff => ({
+const request = (queueId: string, key?: string): SegmentHandoffRequest => ({
   kind: 'human',
   reason: key ? 'transfer' : 'route',
   queueId,
@@ -15,6 +14,8 @@ const request = (queueId: string, key?: string): HumanHandoff => ({
 });
 
 const publicLookup = async () => [{ address: '93.184.216.34', family: 4 as const }];
+
+afterEach(assertEventsValid);
 
 describe('the wait of a queue (human queue design 4.4, 16.6)', () => {
   const pointHold = holdPolicy({ maxSeconds: 77 });
@@ -51,7 +52,7 @@ describe('the wait of a queue (human queue design 4.4, 16.6)', () => {
     expect(await holdOf(managedQueue(), true)).toEqual({ policy: pointHold, source: 'point' });
     expect(await holdOf(managedQueue(), false)).toEqual({
       policy: DEFAULT_QUEUE_HOLD_POLICY,
-      source: 'queue',
+      source: 'default',
     });
   });
 

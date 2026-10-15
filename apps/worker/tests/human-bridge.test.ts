@@ -1,20 +1,26 @@
-import { describe, expect, it, vi } from 'vitest';
-import { fakeStt, managedQueue } from './human-fixtures.ts';
+import { describe, expect, it, vi, afterEach } from 'vitest';
+import { fakeStt, managedQueue, assertEventsValid } from './human-fixtures.ts';
 import { connect, events, harness, onTimeout } from './human-managed-fixture.ts';
 import { holdPolicy, transferPolicy } from './transfer-fixtures.ts';
+
+afterEach(assertEventsValid);
 
 describe('the operator ends the call or sends the caller back', () => {
   it('ends the call on the operator command and reports the segment', async () => {
     const h = harness();
     await connect(h);
-    const seq = h.service.command('ticket-1', { kind: 'end_call' });
+    const seq = await h.service.command(h.service.id(1), { kind: 'end_call' });
     await h.clock.advance(300);
     await vi.waitFor(() => expect(h.link.closed).toEqual(['behavior_completed']));
     expect(h.service.acks).toContain(seq);
     expect(h.hangUps).toEqual(['behavior_completed']);
     await h.controller.close('behavior_completed');
     const ended = events(h, 'segment.ended').at(-1)!;
-    expect(ended).toMatchObject({ role: 'human', ended: 'operator_end', ticketId: 'ticket-1' });
+    expect(ended).toMatchObject({
+      role: 'human',
+      ended: 'operator_end',
+      ticketId: h.service.id(1),
+    });
     expect(
       (ended.usage as Record<string, number>)['ovo.human.operator_seconds'],
     ).toBeGreaterThanOrEqual(0);
@@ -22,10 +28,10 @@ describe('the operator ends the call or sends the caller back', () => {
       'ovo.human.operator_seconds',
       'ovo.human.room_seconds',
     ]);
-    expect(h.service.releases.at(-1)).toEqual({ id: 'ticket-1', code: 'ended_by_operator' });
+    expect(h.service.releases.at(-1)).toEqual({ id: h.service.id(1), code: 'ended_by_operator' });
     expect(events(h, 'human.completed')[0]).toMatchObject({ outcome: 'ended', operator: 'ana' });
     expect(h.rooms.seat().closed).toBe(true);
-    expect(h.rooms.deleted).toEqual(['ovo-hq-ticket-1']);
+    expect(h.rooms.deleted).toEqual([`ovo-hq-${h.service.id(1)}`]);
   });
 
   it('a caller hang-up releases the ticket and closes the seat and the room', async () => {
@@ -33,10 +39,10 @@ describe('the operator ends the call or sends the caller back', () => {
     await connect(h);
     h.link.hangup('caller_hangup');
     await h.controller.close('caller_hangup');
-    expect(h.service.releases.at(-1)).toEqual({ id: 'ticket-1', code: 'call_ended' });
+    expect(h.service.releases.at(-1)).toEqual({ id: h.service.id(1), code: 'call_ended' });
     expect(events(h, 'human.completed')[0]).toMatchObject({ outcome: 'caller_hangup' });
     expect(h.rooms.seat().closed).toBe(true);
-    expect(h.rooms.deleted).toContain('ovo-hq-ticket-1');
+    expect(h.rooms.deleted).toContain(`ovo-hq-${h.service.id(1)}`);
     // Closing again changes nothing.
     await h.controller.close('caller_hangup');
     expect(events(h, 'human.completed')).toHaveLength(1);
@@ -59,14 +65,14 @@ describe('the operator ends the call or sends the caller back', () => {
       }),
     });
     await connect(h);
-    h.service.command('ticket-1', { kind: 'return_to_agent', target: 'billing' });
+    await h.service.command(h.service.id(1), { kind: 'return_to_agent', target: 'billing' });
     await h.clock.advance(300);
     await vi.waitFor(() => expect(h.journal.entries).toContain('s2.start'));
     expect(h.holds.flatMap((hold) => hold.log).find((line) => line.startsWith('say:'))).toMatch(
       /^say:I'm transferring your call now/,
     );
     expect(h.link.closed).toEqual([]);
-    expect(h.service.releases.at(-1)).toEqual({ id: 'ticket-1', code: 'returned' });
+    expect(h.service.releases.at(-1)).toEqual({ id: h.service.id(1), code: 'returned' });
     expect(events(h, 'human.completed')[0]).toMatchObject({ outcome: 'returned' });
     expect(events(h, 'segment.ended').map((e) => e.ended)).toEqual(['handoff', 'handoff']);
     expect(events(h, 'route.segment').at(-1)).toMatchObject({
@@ -96,10 +102,10 @@ describe('the operator ends the call or sends the caller back', () => {
       }),
     });
     await connect(h);
-    h.service.command('ticket-1', { kind: 'return_to_agent', target: 'billing' });
+    await h.service.command(h.service.id(1), { kind: 'return_to_agent', target: 'billing' });
     await h.clock.advance(300);
     expect(h.controller.attached?.role).toBe('human');
-    h.service.command('ticket-1', { kind: 'return_to_agent', target: 'refunds' });
+    await h.service.command(h.service.id(1), { kind: 'return_to_agent', target: 'refunds' });
     await h.clock.advance(300);
     expect(h.audits.map(([type]) => type)).toContain('human.command.refused');
     expect(h.controller.attached?.role).toBe('human');
@@ -118,7 +124,7 @@ describe('the operator ends the call or sends the caller back', () => {
     await h.clock.advance(5_500);
     await vi.waitFor(() => expect(h.link.closed).toEqual(['behavior_completed']));
     await h.controller.close('behavior_completed');
-    expect(h.service.releases.at(-1)).toEqual({ id: 'ticket-1', code: 'operator_left' });
+    expect(h.service.releases.at(-1)).toEqual({ id: h.service.id(1), code: 'operator_left' });
   });
 
   it('returns the caller to the default target when the queue says so', async () => {
@@ -142,14 +148,14 @@ describe('the operator ends the call or sends the caller back', () => {
     h.rooms.seat().leave('op:ana');
     await h.clock.advance(5_500);
     await vi.waitFor(() => expect(h.journal.entries).toContain('s2.start'));
-    expect(h.service.releases.at(-1)).toEqual({ id: 'ticket-1', code: 'operator_left' });
+    expect(h.service.releases.at(-1)).toEqual({ id: h.service.id(1), code: 'operator_left' });
     expect(events(h, 'human.completed')[0]).toMatchObject({ outcome: 'returned' });
   });
 
   it('ends as the operator leaving when an admin releases the ticket under the call', async () => {
     const h = harness();
     await connect(h);
-    h.service.end('ticket-1', 'released', 'operator_left');
+    await h.service.end(h.service.id(1), 'released', 'operator_left');
     await h.clock.advance(300);
     await vi.waitFor(() => expect(h.link.closed).toEqual(['behavior_completed']));
   });

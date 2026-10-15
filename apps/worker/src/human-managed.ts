@@ -5,7 +5,8 @@ import {
   type Ticket,
   type TicketReleaseCode,
 } from './human-contract.ts';
-import { HumanAttempt, isTicket, type HumanAttemptInit } from './human-attempt.ts';
+import { HumanAttempt, type HumanAttemptInit } from './human-attempt.ts';
+import { isTicket } from './human-ticket.ts';
 import { HumanBridgeSegment } from './human-bridge.ts';
 import { humanState } from './human-events.ts';
 import type { StartableSegment } from './transfer-attempt.ts';
@@ -76,7 +77,6 @@ export class HumanManagedAttempt extends HumanAttempt {
           queue: this.queue,
           index: this.index,
           lease: this.lease,
-          readyAt: deps.clock.now(),
         });
       if (deps.clock.now() - acceptedAt > this.def.joinSeconds * 1000) {
         await this.reoffer(ticket);

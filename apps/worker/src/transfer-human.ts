@@ -1,10 +1,10 @@
-import type { TransferTarget } from '@winsendotai/ovo-contracts';
-import type { HumanRefusal, QueueSnapshot, WideHandoffRequest } from './human-contract.ts';
+import type { SegmentHandoffRequest, TransferTarget } from '@winsendotai/ovo-contracts';
+import type { HumanRefusal, QueueSnapshot } from './human-contract.ts';
 import { humanRequested, type HumanSource } from './human-events.ts';
 import type { HoldSource, ConnectHost, TransferRun } from './transfer-types.ts';
 import type { HumanTarget, SegmentReason, TransferAttempt } from './transfer-attempt.ts';
 
-type HumanRequest = Extract<WideHandoffRequest, { kind: 'human' }>;
+type HumanRequest = Extract<SegmentHandoffRequest, { kind: 'human' }>;
 
 /** A queue as an attempt's target: the history names it `queue:<key>` (human queue design 7.1). */
 export function humanTarget(
@@ -23,7 +23,7 @@ function humanSource(request: HumanRequest): HumanSource {
   return request.transfer?.source ?? 'router';
 }
 
-/** Records a refused request: the queue's key (and id and kind, when it is bound) and why. */
+/** Records a refused request against the queue it named, when the release binds that key. */
 function refuse(
   host: ConnectHost,
   run: TransferRun,
@@ -32,18 +32,20 @@ function refuse(
   refusal: HumanRefusal,
 ): HumanRefusal {
   const queue = host.deps.human?.queue(key);
-  host.deps.record(
-    'human.requested',
-    humanRequested(
-      { key, ...(queue ? { id: queue.id, kind: queue.definition.kind } : {}) },
-      {
-        source,
-        result: 'refused',
-        refusal,
-        ...(run.transfer !== undefined ? { transfer: run.transfer } : {}),
-      },
-    ),
-  );
+  // A key the release does not bind names no queue: the refusal is on the route / transfer events.
+  if (queue)
+    host.deps.record(
+      'human.requested',
+      humanRequested(
+        { key, id: queue.id, kind: queue.definition.kind },
+        {
+          source,
+          result: 'refused',
+          refusal,
+          ...(run.transfer !== undefined ? { transfer: run.transfer } : {}),
+        },
+      ),
+    );
   host.deps.log('human_failed', { queue: key, refusal });
   return refusal;
 }

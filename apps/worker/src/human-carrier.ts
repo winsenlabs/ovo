@@ -1,8 +1,8 @@
 import type { HumanExternalAttempt } from './human-external.ts';
+import type { CheckedTarget } from '@winsendotai/ovo-contracts';
 import { humanRelease } from './human-attempt.ts';
 import type { QueueSnapshot } from './human-contract.ts';
 import { humanState } from './human-events.ts';
-import type { CheckedDestination } from './human-wire.ts';
 import type { CarrierHandoffResult, DynamicHandoffTarget } from './human-runtime.ts';
 import { SegmentStats } from './segment-telemetry.ts';
 import type { StartableSegment } from './transfer-attempt.ts';
@@ -45,7 +45,7 @@ export function sipContextHeaders(input: {
 
 /** A checked destination as the carrier's handoff target: a phone number carries no headers. */
 export function handoffTarget(
-  destination: CheckedDestination,
+  destination: CheckedTarget,
   headers: Record<string, string>,
 ): DynamicHandoffTarget {
   return destination.kind === 'phone'
@@ -85,7 +85,7 @@ export class ExternalHandoffSegment implements StartableSegment {
       queue: QueueSnapshot;
       ticketId: string;
       language: string;
-      destination: CheckedDestination;
+      destination: CheckedTarget;
       headers: Record<string, string>;
       handoff(target: DynamicHandoffTarget, ticketId: string): Promise<CarrierHandoffResult>;
       markHandedOff(): Promise<void>;

@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import {
   humanHarness,
   managedQueue,
   externalQueue,
   OVERFLOW_ID,
   type HumanHarness,
+  assertEventsValid,
 } from './human-fixtures.ts';
 import {
   agentRequest,
@@ -47,6 +48,8 @@ async function asking(
 const overflow = (over: Record<string, unknown> = {}) =>
   managedQueue({ name: 'Overflow desk', ...over }, 'overflow', OVERFLOW_ID);
 
+afterEach(assertEventsValid);
+
 describe("the hold's human step is a real overflow queue (human queue design 7.6)", () => {
   it('moves to the overflow queue with its own wait, releasing the first ticket', async () => {
     const h = await asking(
@@ -58,7 +61,7 @@ describe("the hold's human step is a real overflow queue (human queue design 7.6
       ['hq:ws-1:job-1:1', 'desk'],
       ['hq:ws-1:job-1:2', 'overflow'],
     ]);
-    expect(h.service.releases).toEqual([{ id: 'ticket-1', code: 'timed_out' }]);
+    expect(h.service.releases).toEqual([{ id: h.service.id(1), code: 'timed_out' }]);
     // The overflow queue waits its own 90 s, not the 20 s of the first or a chain step's 60 s.
     expect(new Date(h.service.created[1]!.expiresAt).getTime() - h.clock.now()).toBeGreaterThan(
       85_000,
@@ -66,12 +69,12 @@ describe("the hold's human step is a real overflow queue (human queue design 7.6
     await h.clock.advance(70_000);
     expect(h.journal.entries).not.toContain('s2.start');
     // Someone on the overflow desk picks up.
-    h.service.accept('ticket-2', 'bo');
+    await h.service.accept(h.service.id(2), 'bo');
     await h.clock.advance(300);
     h.rooms.seat().join('op:bo');
     await h.clock.advance(300);
     await vi.waitFor(() =>
-      expect(h.controller.attached).toMatchObject({ role: 'human', ticketId: 'ticket-2' }),
+      expect(h.controller.attached).toMatchObject({ role: 'human', ticketId: h.service.id(2) }),
     );
     expect(events(h, 'transfer.completed')[0]).toMatchObject({
       outcome: 'fallback',
@@ -149,7 +152,7 @@ describe("the hold's human step is a real overflow queue (human queue design 7.6
     // The third party was told, the ticket released, and the overflow ticket is open.
     expect(third.mock.calls.length).toBe(2);
     expect(h.service.created.map((ticket) => ticket.queue.kind)).toEqual(['external', 'managed']);
-    expect(h.service.releases[0]).toEqual({ id: 'ticket-1', code: 'timed_out' });
+    expect(h.service.releases[0]).toEqual({ id: h.service.id(1), code: 'timed_out' });
   });
 });
 

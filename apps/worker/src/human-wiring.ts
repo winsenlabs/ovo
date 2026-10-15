@@ -1,5 +1,6 @@
 import {
   Cap,
+  DEFAULT_QUEUE_HOLD_POLICY,
   filterDeclaredVariables,
   type Inference,
   type RoutingReleaseSnapshot,
@@ -9,7 +10,7 @@ import type { CallScope } from './call-scope.ts';
 import { HumanShared } from './human-breaker.ts';
 import type { HumanQueuePort, MediaRoomProvider, QueueSnapshot } from './human-contract.ts';
 import { createReturnToAgent } from './human-return.ts';
-import { DEFAULT_QUEUE_HOLD_POLICY, HumanRuntime } from './human-runtime.ts';
+import { HumanRuntime } from './human-runtime.ts';
 import type { HoldPlayer } from './hold-player.ts';
 import { realHoldClock } from './hold-player.ts';
 import type { RoutedJob } from './routed-call-support.ts';

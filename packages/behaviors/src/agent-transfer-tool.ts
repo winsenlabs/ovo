@@ -86,9 +86,7 @@ export const TRANSFER_DECLINED =
   'The caller declined the transfer. Do not transfer; help them yourself.';
 
 export function refusalInstruction(reason: AgentTransferRefusal): string {
-  // R3: the codes a human queue's gates refuse with (the contracts carry them from R3).
-  const code: string = reason;
-  switch (code) {
+  switch (reason) {
     case 'queue_closed':
       return 'The team that takes that call is closed right now. Tell the caller, and help them yourself or offer a callback.';
     case 'no_operators':

@@ -1,4 +1,4 @@
-import { RoutingReleaseSnapshot, type SegmentHandoffRequest } from '@winsendotai/ovo-contracts';
+import type { RoutingReleaseSnapshot, SegmentHandoffRequest } from '@winsendotai/ovo-contracts';
 import { describe, expect, it } from 'vitest';
 import { exampleRoutingSnapshot } from '../src/testing.ts';
 import { dtmf, opening, routerHarness } from './harness.ts';
@@ -6,26 +6,30 @@ import { dtmf, opening, routerHarness } from './harness.ts';
 const QUEUE_ID = '00000000-0000-4000-8000-0000000000e1';
 
 /**
- * The example release with `humanQueues` bound: schema 3 pins each bound queue by value under
- * `queues`, which the contracts' parser learns in R3, so it is added after the raw snapshot
- * parses.
+ * The example release with the queue `desk` bound (schema 3): `humanQueues` binds its key to a
+ * workspace queue and `queues` pins that queue's definition by value, as publish does.
  */
 function snapshot(
   patch: (raw: Record<string, any>) => void = () => {},
   queue: Record<string, unknown> | null = {
-    definition: { announcement: { en: 'A colleague will take over.' } },
+    kind: 'managed',
+    name: 'Desk',
+    announcement: { en: 'A colleague will take over.' },
   },
 ): RoutingReleaseSnapshot {
-  const parsed = exampleRoutingSnapshot((raw) => {
-    raw.schemaVersion = 2;
+  return exampleRoutingSnapshot((raw) => {
     raw.transfer = {};
     patch(raw);
+    if (queue === null) {
+      raw.schemaVersion = 2;
+      return;
+    }
+    raw.schemaVersion = 3;
+    raw.humanQueues = [{ key: 'desk', queueId: QUEUE_ID, priority: 0 }];
+    raw.queues = {
+      [QUEUE_ID]: { id: QUEUE_ID, version: 1, key: 'desk', priority: 0, definition: queue },
+    };
   });
-  if (queue === null) return parsed;
-  return {
-    ...parsed,
-    queues: { [QUEUE_ID]: { id: QUEUE_ID, version: 1, key: 'desk', priority: 0, ...queue } },
-  } as RoutingReleaseSnapshot;
 }
 
 const toHuman = (raw: Record<string, any>) => {
@@ -37,7 +41,7 @@ type Refusal =
 const refusing = (reason: Refusal) => ({
   begin: (request: SegmentHandoffRequest) =>
     (request as { kind: string }).kind === 'human'
-      ? ({ ok: false, reason } as never)
+      ? ({ ok: false, reason } as const)
       : ({ ok: true, handoffId: 'begin-agent', state: 'preparing' } as const),
 });
 
@@ -69,7 +73,7 @@ describe('a human target (human queue design 7.6)', () => {
 
   it("says the built-in line, in the caller's language, when the queue authors none", async () => {
     const english = routerHarness({
-      snapshot: snapshot(toHuman, { definition: {} }),
+      snapshot: snapshot(toHuman, { kind: 'managed', name: 'Desk' }),
       handoff: { begin: true },
     });
     await english.turn('', opening);

@@ -6,11 +6,12 @@ import type {
   HandoffTransferMeta,
   HoldPolicy,
   RoutingTransferPolicy,
+  SegmentHandoffRequest,
   TransferTarget,
 } from '@winsendotai/ovo-contracts';
 import type { CallMemory, SegmentHistoryEntry } from './call-memory.ts';
 import type { CallSegment } from './call-segment.ts';
-import type { QueueSnapshot, WideHandoffRequest } from './human-contract.ts';
+import type { QueueSnapshot } from './human-contract.ts';
 import type { HumanRuntime } from './human-runtime.ts';
 import type { HoldClock, HoldPlayer } from './hold-player.ts';
 import type { SegmentMediaLease } from './segment-media.ts';
@@ -27,7 +28,7 @@ export const MAX_SEGMENT_INDEX = 63;
 
 /** A catalogue target resolved into a handoff request (its member claimed when it names a pool). */
 export interface ResolvedTarget {
-  request: WideHandoffRequest;
+  request: SegmentHandoffRequest;
   target: TransferTarget;
   claimed: boolean;
 }
@@ -44,7 +45,7 @@ export type HoldSource = 'target' | 'point' | 'default' | 'queue';
 /** A transfer (or the router's handoff) from `begin` until it connects or the chain ends it. */
 export interface TransferRun {
   id: string;
-  request: WideHandoffRequest;
+  request: SegmentHandoffRequest;
   /** 1-based per call; absent for the router's start-of-call handoff. */
   transfer?: number;
   meta?: HandoffTransferMeta;

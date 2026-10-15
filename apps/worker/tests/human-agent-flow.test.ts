@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { createAgentTransferPort } from '../src/transfer-port.ts';
-import { humanHarness, managedQueue, POOL_FOR_TESTS } from './human-fixtures.ts';
+import { humanHarness, managedQueue, POOL_FOR_TESTS, assertEventsValid } from './human-fixtures.ts';
 import { holdPolicy, signal, transferPolicy } from './transfer-fixtures.ts';
 
 const person = (over: Record<string, unknown> = {}) =>
@@ -67,6 +67,8 @@ const ask = {
 const events = (h: ReturnType<typeof setup>['h'], type: string) =>
   h.recorded.filter(([name]) => name === type).map(([, payload]) => payload);
 
+afterEach(assertEventsValid);
+
 describe('an agent transfers to a human target (human queue design 7.6)', () => {
   it('announces with the queue line, holds, and is returned to the agent after the hold times out', async () => {
     const { h, port } = setup();
@@ -94,7 +96,7 @@ describe('an agent transfers to a human target (human queue design 7.6)', () => 
     });
     await h.clock.advance(21_000);
     await vi.waitFor(() => expect(h.journal.entries).toContain('s2.start'));
-    expect(h.service.releases).toEqual([{ id: 'ticket-1', code: 'timed_out' }]);
+    expect(h.service.releases).toEqual([{ id: h.service.id(1), code: 'timed_out' }]);
     expect(events(h, 'transfer.completed')[0]).toMatchObject({
       outcome: 'returned',
       steps: [{ step: 'return', result: 'taken' }],
@@ -163,7 +165,7 @@ describe('an agent transfers to a human target (human queue design 7.6)', () => 
     port.commit(result.transferId);
     await agent.complete();
     await h.clock.advance(200);
-    h.service.accept('ticket-1', 'ana');
+    await h.service.accept(h.service.id(1), 'ana');
     await h.clock.advance(200);
     h.rooms.seat().join('op:ana');
     await h.clock.advance(300);
@@ -193,7 +195,7 @@ describe('what a human segment frees and logs', () => {
     await agent.complete();
     await h.clock.advance(200);
     expect(h.claims.release).not.toHaveBeenCalled();
-    h.service.accept('ticket-1', 'ana');
+    await h.service.accept(h.service.id(1), 'ana');
     await h.clock.advance(200);
     h.rooms.seat().join('op:ana');
     await h.clock.advance(300);
@@ -209,7 +211,7 @@ describe('what a human segment frees and logs', () => {
     port.commit(result.transferId);
     await agent.complete();
     await h.clock.advance(200);
-    h.service.accept('ticket-1', 'ana');
+    await h.service.accept(h.service.id(1), 'ana');
     await h.clock.advance(200);
     h.rooms.seat().join('op:ana');
     await h.clock.advance(300);

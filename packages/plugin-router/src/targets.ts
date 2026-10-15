@@ -1,4 +1,5 @@
 import {
+  queueByKey,
   ROUTE_VARIABLE_PREFIX,
   type RouteAgentRef,
   type RouteContext,
@@ -7,7 +8,6 @@ import {
   type RoutingTarget,
 } from '@winsendotai/ovo-contracts';
 import { queueHandoff, requestHandoff, requestMode, type HandoffEnv } from './begin.ts';
-import { boundQueue } from './human.ts';
 import { pickLine } from './lines.ts';
 import { pickMember } from './members.ts';
 
@@ -117,7 +117,7 @@ async function queue(
 
 /** A human queue: begun like a handoff, with no ticket until the host commits it (R3). */
 async function human(queueId: string, env: TargetEnv): Promise<Attempt> {
-  if (!env.handoff.begin || !boundQueue(env.snapshot, queueId))
+  if (!env.handoff.begin || !queueByKey(env.snapshot, queueId))
     return { ok: false, reason: 'human_queue_unavailable' };
   const answer = await requestHandoff(env, {
     kind: 'human',
@@ -125,7 +125,7 @@ async function human(queueId: string, env: TargetEnv): Promise<Attempt> {
     queueId,
     variables: routeVariables(env.context),
     route: { path: env.path.slice(-32) },
-  } as unknown as Parameters<typeof requestHandoff>[1]);
+  });
   if (!answer.ok) return answer;
   return { ok: true, resolution: { kind: 'human', queueId, handoffId: answer.handoffId } };
 }

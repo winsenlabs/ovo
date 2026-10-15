@@ -1,5 +1,6 @@
 import type {
   AudioFormat,
+  HandoffTarget,
   RoutingTransferPolicy,
   SecretResolver,
   UsageSink,
@@ -16,9 +17,8 @@ import type { SegmentMediaLease } from './segment-media.ts';
 export type CarrierHandoffResult =
   { kind: 'confirmed' | 'unknown' } | { kind: 'rejected'; reason: string };
 
-/** A dynamic handoff target: R3 adds the SIP URI to the carrier contract. */
-export type DynamicHandoffTarget =
-  { kind: 'phone'; e164: string } | { kind: 'sip'; uri: string; headers?: Record<string, string> };
+/** A dynamic handoff target: a number, or (R3) a SIP URI with context headers. */
+export type DynamicHandoffTarget = Extract<HandoffTarget, { kind: 'phone' | 'sip' }>;
 
 export interface HumanRuntimeDeps {
   /** The release's queues by the binding key a `human` step or target names. */

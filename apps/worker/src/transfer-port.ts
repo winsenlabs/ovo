@@ -47,19 +47,15 @@ export function agentTransferService(port: AgentTransferPort): PluginDefinition 
  */
 export type TransferPort = AgentTransferPort & { readonly summary: boolean };
 
-/** R3: a human queue's gates, refused before anything was announced (human queue design 9.1). */
-const HUMAN_REFUSALS = [
-  'queue_unknown',
-  'queue_closed',
-  'queue_unavailable',
-  'queue_full',
-  'no_operators',
-] as const;
-
 const REFUSALS: Partial<Record<string, AgentTransferRefusal>> = {
-  ...Object.fromEntries(HUMAN_REFUSALS.map((code) => [code, code as AgentTransferRefusal])),
+  // R3: a human queue's gates, refused before anything was announced (human queue design 9.1).
+  queue_unknown: 'queue_unknown',
+  queue_closed: 'queue_closed',
+  queue_unavailable: 'queue_unavailable',
+  queue_full: 'queue_full',
+  no_operators: 'no_operators',
   // Queues bound but the feature composed off: the tool sees an unreachable team.
-  human_queue_unavailable: 'queue_unavailable' as AgentTransferRefusal,
+  human_queue_unavailable: 'queue_unavailable',
   busy: 'busy',
   call_ended: 'call_ended',
   pool_full: 'pool_full',
@@ -228,6 +224,6 @@ export function createAgentTransferPort(input: {
 }
 
 function kindOf(target: TransferTarget): 'agent' | 'queue' | 'node' | 'human' {
-  const kind: string = target.destination.kind;
-  return kind === 'node' ? 'node' : kind === 'human' ? 'human' : 'agent';
+  const { kind } = target.destination;
+  return kind === 'node' || kind === 'human' ? kind : 'agent';
 }

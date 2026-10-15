@@ -1,6 +1,11 @@
 import { verifyWebhookSignature } from '@winsendotai/ovo-session-host';
-import { describe, expect, it, vi } from 'vitest';
-import { externalQueue, humanHarness, type HumanHarnessOptions } from './human-fixtures.ts';
+import { describe, expect, it, vi, afterEach } from 'vitest';
+import {
+  externalQueue,
+  humanHarness,
+  type HumanHarnessOptions,
+  assertEventsValid,
+} from './human-fixtures.ts';
 import { flush, holdPolicy, signal, transferPolicy } from './transfer-fixtures.ts';
 
 const publicLookup = async () => [{ address: '93.184.216.34', family: 4 as const }];
@@ -68,6 +73,8 @@ async function handOver(h: Harness, key = 'support-desk') {
 const events = (h: Harness, type: string) =>
   h.recorded.filter(([name]) => name === type).map(([, payload]) => payload);
 
+afterEach(assertEventsValid);
+
 describe('an external queue: the synchronous answer (human queue design 7.4)', () => {
   it('posts one signed, minimal webhook, then hands the leg to the answered number', async () => {
     const handoff = vi.fn(async () => ({ kind: 'confirmed' as const }));
@@ -100,14 +107,18 @@ describe('an external queue: the synchronous answer (human queue design 7.4)', (
     expect(request!.json).toMatchObject({
       schema: 'ovo.human-queue/1',
       event: 'handoff',
-      ticket: { callbackUrl: expect.stringContaining('/api/v1/human-queue/callbacks/ticket-1') },
+      ticket: {
+        callbackUrl: expect.stringContaining(`/api/v1/human-queue/callbacks/${h.service.id(1)}`),
+      },
       queue: { key: 'support-desk' },
       route: { language: 'hi', intent: 'billing' },
     });
     expect(request!.json).not.toHaveProperty('caller');
-    expect(handoff).toHaveBeenCalledWith({ kind: 'phone', e164: '+914012345678' }, 'ticket-1');
-    expect(h.service.releases).toEqual([{ id: 'ticket-1', code: 'handed_off' }]);
-    expect(h.service.handedOff).toEqual(['ticket-1']);
+    expect(handoff).toHaveBeenCalledWith({ kind: 'phone', e164: '+914012345678' }, h.service.id(1));
+    // The store releases a handed-off leg itself (`markHandedOff`), so the worker releases nothing.
+    expect(h.service.handedOff).toEqual([h.service.id(1)]);
+    expect(h.service.releases).toEqual([]);
+    expect((await h.service.ticket(h.service.id(1))).releaseCode).toBe('handed_off');
     expect(h.service.created[0]).toMatchObject({
       idempotencyKey: 'hq:ws-1:job-1:1',
       queue: { key: 'support-desk', kind: 'external' },
@@ -126,7 +137,7 @@ describe('an external queue: the synchronous answer (human queue design 7.4)', (
         queue: 'support-desk',
         kind: 'external',
         result: 'accepted',
-        ticket: 'ticket-1',
+        ticket: h.service.id(1),
       }),
     ]);
     expect(events(h, 'human.webhook').map((e) => e.outcome)).toEqual(['delivered', 'accepted']);
@@ -139,17 +150,19 @@ describe('an external queue: the synchronous answer (human queue design 7.4)', (
     expect(events(h, 'route.segment')[0]).toMatchObject({
       role: 'human',
       queueId: expect.any(String),
-      ticketId: 'ticket-1',
+      ticketId: h.service.id(1),
       kind: 'external',
     });
     const flat = JSON.stringify(h.recorded);
-    for (const secret of ['9800001234', '914012345678', 'acd-secret', 'ctx-token'])
+    const [sent] = third.seen;
+    const token = new URL((sent!.json.links as { context: string }).context).searchParams.get('t')!;
+    for (const secret of ['9800001234', '914012345678', 'acd-secret', token])
       expect(flat).not.toContain(secret);
     await h.controller.close('transferred');
     expect(events(h, 'segment.ended').at(-1)).toMatchObject({
       role: 'human',
       ended: 'carrier_transfer',
-      ticketId: 'ticket-1',
+      ticketId: h.service.id(1),
     });
   });
 
@@ -169,7 +182,7 @@ describe('an external queue: the synchronous answer (human queue design 7.4)', (
       }),
     ]);
     expect(events(h, 'segment.ended').map((e) => e.ended)).toContain('start_failed');
-    expect(h.service.releases).toEqual([{ id: 'ticket-1', code: 'abandoned' }]);
+    expect(h.service.releases).toEqual([{ id: h.service.id(1), code: 'abandoned' }]);
     expect(events(h, 'human.completed')[0]).toMatchObject({ outcome: 'failed' });
     // The release default answered in its place.
     expect(h.targets.at(-1)?.target.releaseId).toBe('release-default');
@@ -185,7 +198,7 @@ describe('an external queue: the synchronous answer (human queue design 7.4)', (
     expect(events(h, 'human.webhook').map((e) => e.reason)).toContain(
       'destination_refused:e164_prefix',
     );
-    expect(h.service.releases[0]).toEqual({ id: 'ticket-1', code: 'webhook_rejected' });
+    expect(h.service.releases[0]).toEqual({ id: h.service.id(1), code: 'webhook_rejected' });
   });
 });
 
@@ -200,7 +213,7 @@ describe('an external queue: queued, then a signed callback', () => {
     );
     await h.clock.advance(5_000);
     expect(handoff).not.toHaveBeenCalled();
-    h.service.destination('ticket-1', {
+    await h.service.destination(h.service.id(1), {
       sipUri: 'sips:agent7@pool.acd.example.com',
       headers: { 'X-Acd-Ticket': '123', 'X-Evil': 'nope' },
     });
@@ -212,10 +225,10 @@ describe('an external queue: queued, then a signed callback', () => {
     expect(target).toMatchObject({ kind: 'sip', uri: 'sips:agent7@pool.acd.example.com' });
     expect(target.headers).toMatchObject({
       'X-OVO-Call-Id': 'call-1',
-      'X-OVO-Ticket': 'ticket-1',
+      'X-OVO-Ticket': h.service.id(1),
       'X-Acd-Ticket': '123',
-      'X-OVO-Context-Url': expect.stringContaining(
-        '/api/v1/human-queue/context/ticket-1?t=ctx-token',
+      'X-OVO-Context-Url': expect.stringMatching(
+        new RegExp(`/api/v1/human-queue/context/${h.service.id(1)}\\?t=\\S+$`),
       ),
     });
     expect(target.headers).not.toHaveProperty('X-Evil');
@@ -233,7 +246,7 @@ describe('an external queue: queued, then a signed callback', () => {
     await vi.waitFor(() => expect(h.journal.entries).toContain('s2.start'));
     expect(third.seen.map((seen) => seen.json.event)).toEqual(['handoff', 'cancelled']);
     expect(third.seen[1]!.headers.get('idempotency-key')).toBe('hq:ws-1:job-1:1');
-    expect(h.service.releases).toEqual([{ id: 'ticket-1', code: 'timed_out' }]);
+    expect(h.service.releases).toEqual([{ id: h.service.id(1), code: 'timed_out' }]);
     expect(events(h, 'human.completed')[0]).toMatchObject({ outcome: 'timeout' });
     expect(events(h, 'human.webhook').map((e) => e.outcome)).toContain('cancelled_sent');
   });
@@ -248,7 +261,7 @@ describe('an external queue: queued, then a signed callback', () => {
     h.link.hangup('caller_hangup');
     await h.controller.close('caller_hangup');
     await vi.waitFor(() =>
-      expect(h.service.releases).toEqual([{ id: 'ticket-1', code: 'call_ended' }]),
+      expect(h.service.releases).toEqual([{ id: h.service.id(1), code: 'call_ended' }]),
     );
     expect(third.seen.map((seen) => seen.json.event)).toEqual(['handoff', 'cancelled']);
     expect(events(h, 'human.completed')[0]).toMatchObject({ outcome: 'caller_hangup' });
@@ -276,7 +289,7 @@ describe('an external queue: the webhook fails', () => {
       [2, 'retry'],
       [3, 'failed'],
     ]);
-    expect(h.service.releases[0]).toEqual({ id: 'ticket-1', code: 'webhook_failed' });
+    expect(h.service.releases[0]).toEqual({ id: h.service.id(1), code: 'webhook_failed' });
     expect(events(h, 'human.completed')[0]).toMatchObject({ outcome: 'unavailable' });
   });
 
@@ -286,7 +299,7 @@ describe('an external queue: the webhook fails', () => {
     await handOver(h);
     await vi.waitFor(() => expect(h.journal.entries).toContain('s2.start'));
     expect(third.seen).toHaveLength(1);
-    expect(h.service.releases[0]).toEqual({ id: 'ticket-1', code: 'webhook_rejected' });
+    expect(h.service.releases[0]).toEqual({ id: h.service.id(1), code: 'webhook_rejected' });
     expect(events(h, 'human.completed')[0]).toMatchObject({ outcome: 'rejected' });
   });
 

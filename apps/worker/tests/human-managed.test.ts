@@ -1,5 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
-import { externalQueue, FakeHumanService, humanHarness, managedQueue } from './human-fixtures.ts';
+import { describe, expect, it, vi, afterEach } from 'vitest';
+import {
+  externalQueue,
+  FakeHumanService,
+  humanHarness,
+  managedQueue,
+  assertEventsValid,
+} from './human-fixtures.ts';
 import {
   connect,
   events,
@@ -9,6 +15,8 @@ import {
   type Harness,
 } from './human-managed-fixture.ts';
 import { signal } from './transfer-fixtures.ts';
+
+afterEach(assertEventsValid);
 
 describe('a managed queue is refused before anything is announced (human queue design 7.2)', () => {
   const refused = async (h: Harness, queueId = 'desk') => {
@@ -94,9 +102,9 @@ describe('a managed queue: ticket, operator, room', () => {
       context: { caller: { number: '+919800001234' }, variables: { account_id: 'A-1' } },
     });
     expect(h.holds[0]!.log).toEqual(['start:point']);
-    h.service.accept('ticket-1', 'ana');
+    await h.service.accept(h.service.id(1), 'ana');
     await h.clock.advance(200);
-    expect(h.rooms.seat()).toMatchObject({ room: 'ovo-hq-ticket-1', identity: 'caller' });
+    expect(h.rooms.seat()).toMatchObject({ room: `ovo-hq-${h.service.id(1)}`, identity: 'caller' });
     expect(h.controller.attached).toBeUndefined();
     h.rooms.seat().join('op:ana');
     await h.clock.advance(200);
@@ -106,10 +114,13 @@ describe('a managed queue: ticket, operator, room', () => {
     expect(events(h, 'route.segment')[0]).toMatchObject({
       role: 'human',
       agentId: 'queue:desk',
-      ticketId: 'ticket-1',
+      ticketId: h.service.id(1),
       kind: 'managed',
     });
-    expect(h.controller.attached).toMatchObject({ ticketId: 'ticket-1', operatorId: 'ana' });
+    expect(h.controller.attached).toMatchObject({ ticketId: h.service.id(1), operatorId: 'ana' });
+    await vi.waitFor(async () =>
+      expect((await h.service.ticket(h.service.id(1))).connectedAt).toBeDefined(),
+    );
 
     // Caller to room: whole 20 ms frames, whatever the carrier's chunking.
     h.link.audio(new Uint8Array(400).fill(5));
@@ -133,15 +144,15 @@ describe('a managed queue: ticket, operator, room', () => {
     await handOver(h);
     await h.clock.advance(11_000);
     expect(h.service.beats.length).toBeGreaterThanOrEqual(2);
-    expect(new Set(h.service.beats)).toEqual(new Set(['ticket-1']));
+    expect(new Set(h.service.beats)).toEqual(new Set([h.service.id(1)]));
   });
 
   it('sees an operator who was in the room before the seat joined', async () => {
     const h = harness();
-    h.rooms.present.set('ovo-hq-ticket-1', 'op:ana');
     await handOver(h);
     await h.clock.advance(200);
-    h.service.accept('ticket-1', 'ana');
+    h.rooms.present.set(`ovo-hq-${h.service.id(1)}`, 'op:ana');
+    await h.service.accept(h.service.id(1), 'ana');
     await h.clock.advance(400);
     await vi.waitFor(() => expect(h.controller.attached?.role).toBe('human'));
   });
@@ -150,16 +161,18 @@ describe('a managed queue: ticket, operator, room', () => {
     const h = harness();
     await handOver(h);
     await h.clock.advance(200);
-    h.service.accept('ticket-1', 'ana');
+    await h.service.accept(h.service.id(1), 'ana');
     await h.clock.advance(26_000);
     expect(h.rooms.seat().closed).toBe(true);
-    expect(h.service.first()).toMatchObject({ status: 'waiting', assignedOperatorId: undefined });
+    const waiting = await h.service.ticket(h.service.id(1));
+    expect(waiting.status).toBe('waiting');
+    expect(waiting.assignedOperatorId).toBeUndefined();
     expect(
       events(h, 'human.state').some((e) => e.state === 'waiting' && e.code === 'operator_no_show'),
     ).toBe(true);
     expect(h.controller.attached).toBeUndefined();
     // The next operator is connected as usual.
-    h.service.accept('ticket-1', 'bo');
+    await h.service.accept(h.service.id(1), 'bo');
     await h.clock.advance(200);
     h.rooms.seat().join('op:bo');
     await h.clock.advance(400);
@@ -173,9 +186,9 @@ describe('a managed queue: ticket, operator, room', () => {
     h.rooms.joinFailures = 2;
     await handOver(h);
     await h.clock.advance(200);
-    h.service.accept('ticket-1', 'ana');
+    await h.service.accept(h.service.id(1), 'ana');
     await h.clock.advance(400);
-    expect(h.service.first().status).toBe('waiting');
+    expect((await h.service.ticket(h.service.id(1))).status).toBe('waiting');
     expect(h.audits.filter(([type]) => type === 'human.room.failed')).toHaveLength(2);
   });
 
@@ -184,7 +197,7 @@ describe('a managed queue: ticket, operator, room', () => {
     await handOver(h);
     await h.clock.advance(61_000);
     await vi.waitFor(() => expect(h.journal.entries).toContain('s2.start'));
-    expect(h.service.releases).toEqual([{ id: 'ticket-1', code: 'timed_out' }]);
+    expect(h.service.releases).toEqual([{ id: h.service.id(1), code: 'timed_out' }]);
     expect(events(h, 'human.completed')[0]).toMatchObject({ outcome: 'timeout', kind: 'managed' });
     expect(h.rooms.seats).toHaveLength(0);
   });
@@ -193,7 +206,7 @@ describe('a managed queue: ticket, operator, room', () => {
     const h = harness();
     await handOver(h);
     await h.clock.advance(200);
-    h.service.end('ticket-1', 'expired');
+    await h.service.end(h.service.id(1), 'expired');
     await h.clock.advance(300);
     await vi.waitFor(() => expect(h.journal.entries).toContain('s2.start'));
     expect(events(h, 'human.completed')[0]).toMatchObject({ outcome: 'timeout' });
@@ -205,7 +218,7 @@ describe('a managed queue: ticket, operator, room', () => {
     await h.clock.advance(200);
     h.link.hangup('caller_hangup');
     await h.controller.close('caller_hangup');
-    expect(h.service.releases).toEqual([{ id: 'ticket-1', code: 'call_ended' }]);
+    expect(h.service.releases).toEqual([{ id: h.service.id(1), code: 'call_ended' }]);
     expect(h.rooms.seats).toHaveLength(0);
     expect(events(h, 'human.completed')[0]).toMatchObject({ outcome: 'caller_hangup' });
   });

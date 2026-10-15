@@ -38,7 +38,7 @@ export const events = (h: Harness, type: string) =>
 export async function connect(h: Harness, operator = 'ana') {
   await handOver(h);
   await h.clock.advance(200);
-  h.service.accept('ticket-1', operator);
+  await h.service.accept(h.service.id(1), operator);
   await h.clock.advance(200);
   h.rooms.seat().join(`op:${operator}`);
   await h.clock.advance(200);

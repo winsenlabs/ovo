@@ -1,4 +1,11 @@
-import type { SecretResolver } from '@winsendotai/ovo-contracts';
+import {
+  encodeWebhookBody,
+  MAPPING_LIMITS,
+  renderMapping,
+  WEBHOOK_REQUEST_SCHEMA,
+  type HumanQueueContext,
+  type SecretResolver,
+} from '@winsendotai/ovo-contracts';
 import {
   sendCancel,
   sendWebhook,
@@ -8,15 +15,16 @@ import {
 } from '@winsendotai/ovo-session-host';
 import type { ExternalQueue, Ticket, TicketContext } from './human-contract.ts';
 import { humanWebhook } from './human-events.ts';
-import {
-  cancelledWebhookBody,
-  encodeBody,
-  renderBody,
-  type HumanQueueContext,
-} from './human-wire.ts';
 
-/** A webhook body larger than this is not sent (human queue design 7.4 step 1). */
-export const WEBHOOK_BODY_MAX_BYTES = 64 * 1024;
+/** The `cancelled` post: the same ticket block and the queue, none of the call (design 4.2.1). */
+export function cancelledWebhookBody(context: HumanQueueContext): Record<string, unknown> {
+  return {
+    schema: WEBHOOK_REQUEST_SCHEMA,
+    event: 'cancelled',
+    ticket: { id: context.ticket.id, idempotencyKey: context.ticket.idempotencyKey },
+    queue: { key: context.queue.key, name: context.queue.name },
+  };
+}
 
 export interface WebhookTicket {
   ticket: Pick<Ticket, 'id' | 'priority' | 'expiresAt'>;
@@ -99,8 +107,11 @@ export function buildWebhookRequest(
   signal: AbortSignal,
 ): WebhookRequest | undefined {
   const spec = def.webhook;
-  const { body, contentType } = renderBody(spec.body, context, spec.format);
-  if (Buffer.byteLength(body) > WEBHOOK_BODY_MAX_BYTES) return undefined;
+  const { body, contentType } = encodeWebhookBody(
+    renderMapping(spec.body, context, spec.format),
+    spec.format,
+  );
+  if (Buffer.byteLength(body) > MAPPING_LIMITS.bodyBytes) return undefined;
   return {
     url: spec.url,
     method: spec.method,
@@ -152,7 +163,7 @@ export async function cancelHandoff(
 ): Promise<void> {
   const { record, ...rest } = deps;
   const { signal: _signal, ...bare } = request;
-  const encoded = encodeBody(cancelledWebhookBody(context), format);
+  const encoded = encodeWebhookBody(cancelledWebhookBody(context), format);
   const outcome = await sendCancel({ ...bare, ...encoded }, rest);
   record(
     'human.webhook',

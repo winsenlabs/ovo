@@ -1,4 +1,6 @@
-import { MULAW_8K } from '@winsendotai/ovo-contracts';
+import { MULAW_8K, readSessionEvent } from '@winsendotai/ovo-contracts';
+import { expect } from 'vitest';
+import type { HumanQueueService } from '@winsendotai/ovo-plugin-operations';
 import type { HumanQueueDefinition, QueueSnapshot } from '../src/human-contract.ts';
 import type { CallMemory } from '../src/call-memory.ts';
 import type { TransferController } from '../src/transfer-controller.ts';
@@ -127,6 +129,10 @@ export interface HumanHarnessOptions extends Omit<HarnessOptions, 'human'> {
   network?: HumanRuntimeDeps['network'];
   carrierHandoff?: HumanRuntimeDeps['carrierHandoff'];
   numbers?: { from?: string; to?: string };
+  /** The workspace the call is in and the store is scoped to (a shared database: one per test). */
+  workspaceId?: string;
+  /** A real store for the tickets (PostgreSQL); default core's in-memory service. */
+  store?: (workspaceId: string, now: () => Date) => HumanQueueService;
   /** One registry shared by several calls, as the process shares it. */
   shared?: HumanShared;
   stt?: HumanRuntimeDeps['openStt'];
@@ -134,9 +140,20 @@ export interface HumanHarnessOptions extends Omit<HarnessOptions, 'human'> {
   summarize?: HumanRuntimeDeps['summarize'];
 }
 
+/** Session events the worker recorded that the contracts' `readSessionEvent` refused. */
+const invalid: string[] = [];
+
+/** Run after every test: each recorded event is storable (ids, codes and timings only, bounded). */
+export function assertEventsValid(): void {
+  expect(invalid.splice(0)).toEqual([]);
+}
+
 /** A transfer harness whose call has human queues, a fake ticket store and a fake room. */
 export function humanHarness(options: HumanHarnessOptions = {}) {
-  const service = new FakeHumanService();
+  let clockNow = () => 0;
+  const now = () => new Date(clockNow());
+  const workspaceId = options.workspaceId ?? 'ws-1';
+  const service = new FakeHumanService(now, workspaceId, options.store?.(workspaceId, now));
   const rooms = new FakeRooms();
   const shared = options.shared ?? new HumanShared();
   const ended: string[] = [];
@@ -144,7 +161,15 @@ export function humanHarness(options: HumanHarnessOptions = {}) {
   let runtime!: HumanRuntime;
   const base = transferHarness({
     ...options,
+    onRecord: (type, payload) => {
+      try {
+        readSessionEvent(type, payload);
+      } catch (error) {
+        invalid.push(`${type}: ${String(error).slice(0, 300)}`);
+      }
+    },
     human: (ctx) => {
+      clockNow = ctx.clock.now;
       runtime = new HumanRuntime({
         queues: new Map(
           (options.queues ?? [externalQueue(), managedQueue()]).map((q) => [q.key, q]),
@@ -156,11 +181,11 @@ export function humanHarness(options: HumanHarnessOptions = {}) {
         clock: ctx.clock,
         ended: () => ctx.controller().endedSignal,
         call: {
-          workspaceId: 'ws-1',
+          workspaceId,
           jobId: 'job-1',
           sessionId: 'session-1',
           callId: 'call-1',
-          routingReleaseId: 'routing-release-1',
+          routingReleaseId: '00000000-0000-4000-8000-0000000000f1',
           routerAgentId: 'front',
           direction: 'inbound',
           startedAt: 1_700_000_000_000,

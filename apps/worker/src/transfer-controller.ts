@@ -6,7 +6,6 @@ import type {
   SegmentHandoffPort,
   SegmentHandoffRequest,
 } from '@winsendotai/ovo-contracts';
-import type { WideHandoffRequest } from './human-contract.ts';
 import { beginRun, type BeginOptions } from './transfer-begin.ts';
 import { TransferSegments } from './transfer-segments.ts';
 import type { TransferRun } from './transfer-types.ts';
@@ -19,13 +18,13 @@ import type { TransferRun } from './transfer-types.ts';
  * all come through here; the segments and the swap are `TransferSegments`'.
  */
 export class TransferController extends TransferSegments implements SegmentHandoffPort {
-  begin(request: WideHandoffRequest, signal: AbortSignal): Promise<HandoffBeginResult> {
+  begin(request: SegmentHandoffRequest, signal: AbortSignal): Promise<HandoffBeginResult> {
     return this.beginWith(request, signal, {});
   }
 
   /** `begin` with what an agent's transfer port knows: the catalogue target and the LLM's words. */
   async beginWith(
-    request: WideHandoffRequest,
+    request: SegmentHandoffRequest,
     signal: AbortSignal,
     options: BeginOptions,
   ): Promise<HandoffBeginResult> {
@@ -85,7 +84,7 @@ export class TransferController extends TransferSegments implements SegmentHando
   }
 
   private refuse(
-    request: WideHandoffRequest,
+    request: SegmentHandoffRequest,
     reason: Exclude<HandoffBeginResult, { ok: true }>['reason'],
   ): Promise<HandoffBeginResult> | HandoffBeginResult {
     this.deps.audit('route.handoff.failed', {

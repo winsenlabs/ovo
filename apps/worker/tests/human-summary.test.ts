@@ -1,13 +1,15 @@
 import type { Inference } from '@winsendotai/ovo-contracts';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { generateSummary, SUMMARY_TIMEOUT_MS } from '../src/human-summary.ts';
-import { humanHarness, managedQueue } from './human-fixtures.ts';
+import { humanHarness, managedQueue, assertEventsValid } from './human-fixtures.ts';
 import { holdPolicy, signal, transferPolicy } from './transfer-fixtures.ts';
 
 const lines = [
   { role: 'caller' as const, text: 'I was charged twice.' },
   { role: 'agent' as const, text: 'Let me get someone to help.' },
 ];
+
+afterEach(assertEventsValid);
 
 describe('the generated hand-over note (P2, human queue design 4.1)', () => {
   it('asks the model once, for text only, with the last lines of the call and the agent note as a hint', async () => {

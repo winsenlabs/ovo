@@ -1,5 +1,11 @@
 import type { HumanAttemptInit } from './human-attempt.ts';
-import type { NewTicket, Ticket, TicketContext, TicketReleaseCode } from './human-contract.ts';
+import type {
+  NewTicket,
+  Ticket,
+  TicketContext,
+  TicketOutcome,
+  TicketReleaseCode,
+} from './human-contract.ts';
 import { humanRequested, humanState, type QueueRef } from './human-events.ts';
 import type { HumanRuntime } from './human-runtime.ts';
 
@@ -80,7 +86,8 @@ export async function openTicket(
     return 'ticket_create_failed';
   }
   if (created === 'queue_full') return 'queue_full';
-  const ticket = typeof created === 'object' && 'ticket' in created ? created.ticket : created;
+  // An existing idempotency key returns the first handoff's ticket (`duplicate`): adopted.
+  const ticket = created;
   deps.record(
     'human.requested',
     humanRequested(ref, {
@@ -106,13 +113,23 @@ export async function releaseTicket(
   rt: HumanRuntime,
   ticketId: string,
   code: TicketReleaseCode,
-  by: 'worker' | 'operator' = 'worker',
+  outcome?: TicketOutcome,
 ): Promise<void> {
+  const by = 'worker';
   const { service, call } = rt.deps;
   try {
     for (let tries = 0; tries < 2; tries += 1) {
       const current = await service.tickets.get(ticketId);
-      if (!current || current.status === 'released' || current.status === 'expired') return;
+      if (!current) return;
+      if (current.status === 'released' || current.status === 'expired') {
+        // Already ended by this very code (the store released a handed-off leg itself): our view.
+        if (current.releaseCode === code)
+          rt.deps.record(
+            'human.state',
+            humanState(current.id, 'released', { by, code, version: current.version }),
+          );
+        return;
+      }
       const released = await service.tickets.release({
         workspaceId: call.workspaceId,
         ticketId: current.id,
@@ -121,6 +138,7 @@ export async function releaseTicket(
         idempotencyKey: `${current.id}:release:${code}`,
         code,
         by,
+        ...(outcome ? { outcome } : {}),
       });
       if (isTicket(released)) {
         rt.deps.record(

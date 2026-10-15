@@ -63,23 +63,25 @@ function beginScript(begin: Conversation['begin']) {
 const QUEUE_ID = '00000000-0000-4000-8000-0000000000e1';
 
 function withQueue(conversation: Conversation): RoutingReleaseSnapshot {
-  const parsed = exampleRoutingSnapshot((raw) => {
-    raw.schemaVersion = 2;
+  return exampleRoutingSnapshot((raw) => {
+    raw.schemaVersion = 3;
     raw.transfer = conversation.transfer;
     raw.nodes[0].fallback = conversation.humanQueue!.fallback;
-  });
-  return {
-    ...parsed,
-    queues: {
+    raw.humanQueues = [{ key: 'desk', queueId: QUEUE_ID, priority: 0 }];
+    raw.queues = {
       [QUEUE_ID]: {
         id: QUEUE_ID,
         version: 1,
         key: 'desk',
         priority: 0,
-        definition: { announcement: { en: 'A colleague will take over.' } },
+        definition: {
+          kind: 'managed',
+          name: 'Desk',
+          announcement: { en: 'A colleague will take over.' },
+        },
       },
-    },
-  } as RoutingReleaseSnapshot;
+    };
+  });
 }
 
 async function replay(conversation: Conversation) {
@@ -92,11 +94,10 @@ async function replay(conversation: Conversation) {
           patch: (raw) => {
             raw.schemaVersion = 2;
             raw.transfer = conversation.transfer;
-            if (human) raw.nodes[0].fallback = human.fallback;
           },
         }
       : {}),
-    // Schema 3 pins each bound queue under `queues`; the contracts parse it from R3.
+    // Schema 3 pins each bound queue under `queues`.
     ...(human
       ? {
           snapshot: withQueue(conversation),
@@ -138,10 +139,7 @@ async function replay(conversation: Conversation) {
     last = reply.epoch;
   }
   expect(said).toEqual(conversation.says);
-  // A human queue's `route.decision` names target `human`, which the contracts learn in R3: until
-  // then the session-event parser drops it from the checked sink, so these read the recorder.
-  const recorded = human ? h.core.recorder.events : h.events;
-  const routeEvents = recorded.filter((event) => event.type.startsWith('route.'));
+  const routeEvents = h.events.filter((event) => event.type.startsWith('route.'));
   expect(routeEvents.map((event) => event.type)).toEqual(conversation.events.map(([type]) => type));
   routeEvents.forEach((event, index) =>
     expect(event.payload).toMatchObject(conversation.events[index]![1]),

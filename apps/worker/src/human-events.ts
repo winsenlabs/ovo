@@ -11,9 +11,8 @@ export type HumanSource = 'router' | 'llm' | 'flow' | 'fallback' | 'chain';
 
 export interface QueueRef {
   key: string;
-  /** Absent for a key the release does not bind (`queue_unknown`). */
-  id?: string;
-  kind?: 'external' | 'managed';
+  id: string;
+  kind: 'external' | 'managed';
 }
 
 export function humanRequested(
@@ -28,10 +27,7 @@ export function humanRequested(
   },
 ): Payload {
   return {
-    queue: queue.key,
-    ...(queue.id ? { queueId: queue.id } : {}),
-    ...(queue.kind ? { kind: queue.kind } : {}),
-    source: input.source,
+    ...{ queue: queue.key, queueId: queue.id, kind: queue.kind, source: input.source },
     result: input.result,
     ...(input.refusal ? { refusal: input.refusal } : {}),
     ...(input.ticket ? { ticket: input.ticket } : {}),
@@ -108,7 +104,7 @@ export function humanCompleted(
   return {
     ticket: input.ticket,
     queue: queue.key,
-    ...(queue.kind ? { kind: queue.kind } : {}),
+    kind: queue.kind,
     outcome: input.outcome,
     waitMs: Math.max(0, Math.round(input.waitMs)),
     ...(input.talkMs !== undefined ? { talkMs: Math.max(0, Math.round(input.talkMs)) } : {}),

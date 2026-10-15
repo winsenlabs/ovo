@@ -12,9 +12,9 @@ import {
 import {
   checkDestination,
   parseWebhookResponse,
-  type CheckedDestination,
+  type CheckedTarget,
   type HumanQueueContext,
-} from './human-wire.ts';
+} from '@winsendotai/ovo-contracts';
 import type { StartableSegment } from './transfer-attempt.ts';
 import type { WebhookRequest } from '@winsendotai/ovo-session-host';
 
@@ -64,7 +64,7 @@ export class HumanExternalAttempt extends HumanAttempt {
       return 'webhook_failed';
     }
     breaker.success();
-    const answer = parseWebhookResponse(def.webhook, sent.json);
+    const answer = parseWebhookResponse(def.webhook, sent.status, sent.json);
     // Only a third party that took the handoff (accepted or queued it) is told OVO gave up.
     if (answer.kind === 'accepted' || answer.kind === 'queued') this.reached = this.attempted;
     const report = (outcome: 'accepted' | 'queued' | 'rejected', reason?: string) =>
@@ -183,7 +183,7 @@ export class HumanExternalAttempt extends HumanAttempt {
   }
 
   /** The SIP context headers: ours, then the answer's own (already policy-checked). */
-  private headers(target: CheckedDestination): Record<string, string> {
+  private headers(target: CheckedTarget): Record<string, string> {
     if (target.kind !== 'sip') return {};
     const { context } = this.attempted ?? {};
     const own = this.ticketContext;

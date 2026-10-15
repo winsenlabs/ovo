@@ -1,5 +1,7 @@
 import {
+  queueByKey,
   ROUTE_REASON_PREFIX,
+  TRANSFER_BUILT_IN_LINES,
   type RouteContext,
   type RouteDecisionPayload,
   type RoutingHost,
@@ -7,7 +9,6 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { queueLine } from './begin.ts';
 import type { RouteRecorder } from './events.ts';
-import { boundQueue } from './human.ts';
 import { BUILT_IN_LINES, pickLine } from './lines.ts';
 import type { Resolution, RouteOutcome as Outcome } from './targets.ts';
 
@@ -49,8 +50,7 @@ export function decisionPayload(input: {
     routingPointId: input.call.routingPointId,
     routingReleaseId: input.call.routingReleaseId,
     path: outcome.path.slice(-32),
-    // R3 adds `human` to the decision targets; the queue is the host's to record (ids only).
-    target: (outcome.kind === 'queue' ? 'agent' : outcome.kind) as RouteDecisionPayload['target'],
+    target: outcome.kind === 'queue' ? 'agent' : outcome.kind,
     ...agent,
     ...member,
     ...(context.language ? { language: context.language } : {}),
@@ -117,7 +117,8 @@ export function finishLine(
 ): string {
   if (resolution.kind === 'queue') return queueLine(snapshot, language);
   if (resolution.kind === 'human') {
-    const lines = boundQueue(snapshot, resolution.queueId)?.announcement ?? BUILT_IN_LINES.human;
+    const queue = queueByKey(snapshot, resolution.queueId);
+    const lines = queue?.definition.announcement ?? TRANSFER_BUILT_IN_LINES.human;
     return pickLine(lines, language, snapshot.language.default);
   }
   if (resolution.kind !== 'agent') return resolution.line;

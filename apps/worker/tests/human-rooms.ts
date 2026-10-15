@@ -87,6 +87,9 @@ export class FakeRooms implements MediaRoomProvider {
     this.deleted.push(name);
   }
   async removeParticipant(): Promise<void> {}
+  async mintToken() {
+    return { token: 'fake-token', expiresAt: new Date(0).toISOString() };
+  }
   async join(input: { room: string; identity: string }): Promise<RoomSeat> {
     if (this.joinFailures > 0) {
       this.joinFailures -= 1;

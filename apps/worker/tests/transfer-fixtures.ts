@@ -114,6 +114,8 @@ export interface HarnessOptions {
   startGate?: Record<string, Promise<void>>;
   /** R3: composes the call's human queues (the controller exists by the time they are used). */
   human?: (context: HumanHarnessContext) => HumanRuntime;
+  /** Sees every session event the call records, as it is recorded. */
+  onRecord?: (type: string, payload: Record<string, unknown>) => void;
 }
 
 /** A transfer controller on a fake link with fake segments, hold, claims and clock. */
@@ -129,7 +131,10 @@ export function transferHarness(options: HarnessOptions = {}) {
   const segments = new Map<number, ReturnType<typeof agentSegment>>();
   const targets: { target: AttemptTarget; index: number }[] = [];
   const emit = {
-    record: (type: string, payload: Record<string, unknown>) => void recorded.push([type, payload]),
+    record: (type: string, payload: Record<string, unknown>) => {
+      options.onRecord?.(type, payload);
+      recorded.push([type, payload]);
+    },
     audit: (type: string, payload: Record<string, unknown>) => void audits.push([type, payload]),
     log: (event: string, fields: Record<string, unknown>) => void logs.push([event, fields]),
   };
