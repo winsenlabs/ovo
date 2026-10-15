@@ -10,6 +10,8 @@
  * kHz back into speech at only ~20-30 dB down. That is audible on sibilants over an 8 kHz carrier.
  */
 
+import { concatPcm16 } from './pcm.ts';
+
 export const RESAMPLER_RATES = [8000, 16000, 24000, 48000] as const;
 
 /** Pass band runs to this fraction of the lower Nyquist; the stop band starts at Nyquist. */
@@ -18,6 +20,14 @@ const PASSBAND_EDGE = 0.85;
 const STOPBAND_DB = 75;
 /** Guard against pathological designs; no supported pair comes close. */
 const MAX_PROTOTYPE_TAPS = 4096;
+/**
+ * The cap for `anyRate` (offline clip conversion): 44.1 kHz → 8 kHz has L = 80 and needs ~27k
+ * prototype taps (~343 per phase) for the same stop band. Only odd integer rates hit the cap,
+ * and they get a wider transition rather than a refusal.
+ */
+const MAX_OFFLINE_PROTOTYPE_TAPS = 65536;
+/** The rates `anyRate` accepts (the WAV upload range). */
+export const ANY_RATE_RANGE = Object.freeze({ min: 8000, max: 48000 });
 
 export interface ResamplerOptions {
   /** Overrides the derived length. Prefer `stopbandDb`; this exists for regression fixtures. */
@@ -30,6 +40,11 @@ export interface ResamplerOptions {
   /** A gap longer than this between pushes starts a fresh stream (history cleared). */
   clearAfterIdleMs?: number;
   now?: () => number;
+  /**
+   * Accept any pair of integer rates in `ANY_RATE_RANGE`, not only `RESAMPLER_RATES`. For whole
+   * clips converted once (uploaded hold audio); live paths keep the streaming rates.
+   */
+  anyRate?: boolean;
 }
 
 /** Kaiser β for a given stop-band attenuation (Kaiser 1974). */
@@ -52,6 +67,9 @@ export function canResample(from: number, to: number): boolean {
   const rates: readonly number[] = RESAMPLER_RATES;
   return rates.includes(from) && rates.includes(to);
 }
+
+const inAnyRateRange = (rate: number) =>
+  Number.isInteger(rate) && rate >= ANY_RATE_RANGE.min && rate <= ANY_RATE_RANGE.max;
 
 /** Zeroth-order modified Bessel function of the first kind (series). */
 function besselI0(x: number): number {
@@ -106,8 +124,10 @@ export class PolyphaseResampler {
     readonly toRate: number,
     options: ResamplerOptions = {},
   ) {
-    if (!canResample(fromRate, toRate))
-      throw new RangeError(`Unsupported resampling ratio ${fromRate} → ${toRate}`);
+    const supported = options.anyRate
+      ? inAnyRateRange(fromRate) && inAnyRateRange(toRate)
+      : canResample(fromRate, toRate);
+    if (!supported) throw new RangeError(`Unsupported resampling ratio ${fromRate} → ${toRate}`);
     const divisor = gcd(fromRate, toRate);
     this.up = toRate / divisor;
     this.down = fromRate / divisor;
@@ -120,14 +140,19 @@ export class PolyphaseResampler {
       options.cutoff === undefined ? (passEdgeHz + nyquist) / 2 : options.cutoff * nyquist;
     const protoRate = fromRate * this.up;
     const derived = kaiserTaps(stopbandDb, (nyquist - passEdgeHz) / protoRate);
-    // The prototype runs at the upsampled rate, so its length must be a whole number of phases.
-    // Equal rates need no filter at all: a lowpass there would notch the top of the band.
+    // The prototype runs at the upsampled rate, so its length must be a whole number of phases
+    // (the cap included). Equal rates need no filter at all: a lowpass there would notch the top
+    // of the band.
+    const cap = options.anyRate ? MAX_OFFLINE_PROTOTYPE_TAPS : MAX_PROTOTYPE_TAPS;
     const prototypeTaps =
       fromRate === toRate
         ? 1
         : options.tapsPerPhase !== undefined
           ? options.tapsPerPhase * this.up
-          : Math.min(MAX_PROTOTYPE_TAPS, Math.ceil(derived / this.up) * this.up);
+          : Math.min(
+              Math.max(1, Math.floor(cap / this.up)) * this.up,
+              Math.ceil(derived / this.up) * this.up,
+            );
     this.taps = prototypeTaps / this.up;
     const prototype =
       prototypeTaps === 1
@@ -202,4 +227,23 @@ export class PolyphaseResampler {
     this.history = work.slice(work.length - keep);
     return count === out.length ? out : out.slice(0, count);
   }
+}
+
+/** Input pushed per step by `resampleClip`, so a long clip never needs one huge work buffer. */
+const CLIP_CHUNK = 8192;
+
+/**
+ * A whole clip at another rate (any integer rates in `ANY_RATE_RANGE`): group delay removed and
+ * trimmed to the clip's own duration, so the output lines up with the input sample for sample.
+ */
+export function resampleClip(input: Int16Array, fromRate: number, toRate: number): Int16Array {
+  if (fromRate === toRate) return input.slice();
+  const resampler = new PolyphaseResampler(fromRate, toRate, { anyRate: true, now: () => 0 });
+  const parts: Int16Array[] = [];
+  for (let at = 0; at < input.length; at += CLIP_CHUNK)
+    parts.push(resampler.push(input.subarray(at, at + CLIP_CHUNK)));
+  parts.push(resampler.flush());
+  const all = concatPcm16(parts);
+  const skip = Math.round((resampler.prototypeTaps - 1) / 2 / resampler.down);
+  return all.slice(skip, skip + Math.round((input.length * toRate) / fromRate));
 }

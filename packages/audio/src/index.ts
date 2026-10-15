@@ -4,3 +4,4 @@ export * from './g711.ts';
 export * from './pcm.ts';
 export * from './polyphase-resampler.ts';
 export * from './silence.ts';
+export * from './wav-decode.ts';
