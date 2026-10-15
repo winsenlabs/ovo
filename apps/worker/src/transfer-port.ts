@@ -16,6 +16,7 @@ import type { SegmentHistoryEntry } from './call-memory.ts';
 import { lineFor } from './hold-player.ts';
 import { memberCandidate } from './transfer-begin.ts';
 import type { TransferController } from './transfer-controller.ts';
+import { DEFAULT_HANDOVER } from './transfer-handover.ts';
 import { granted, resolveTransfer, type TargetContext } from './transfer-targets.ts';
 
 /** The host service offering one agent segment its transfer port (transfer design 7.1). */
@@ -39,6 +40,12 @@ export function agentTransferService(port: AgentTransferPort): PluginDefinition 
     },
   );
 }
+
+/**
+ * The port as the agent behaviour reads it: `summary` says whether the point's handover takes the
+ * transferring agent's summary, so `transfer_to_agent` asks for one only then (design 7.2).
+ */
+export type TransferPort = AgentTransferPort & { readonly summary: boolean };
 
 const REFUSALS: Partial<Record<HandoffBeginFailure, AgentTransferRefusal>> = {
   busy: 'busy',
@@ -66,7 +73,7 @@ export function createAgentTransferPort(input: {
   targets: Omit<TargetContext, 'policy'>;
   record(type: string, payload: Record<string, unknown>): void;
   log(event: string, fields: Record<string, unknown>): void;
-}): AgentTransferPort {
+}): TransferPort {
   const { controller, policy, self } = input;
   const config = input.release.config;
   const language = config.language.split('-')[0]!;
@@ -96,7 +103,8 @@ export function createAgentTransferPort(input: {
       ...(accepted ? { result: 'accepted' } : { result: 'refused', refusal: outcome.refusal }),
     });
   };
-  const port: AgentTransferPort = {
+  const port: TransferPort = {
+    summary: (policy?.handover ?? DEFAULT_HANDOVER).summary,
     get inbound() {
       return controller.handover(self.index, config);
     },

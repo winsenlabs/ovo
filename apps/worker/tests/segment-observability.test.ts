@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createWorkerCostPolicyAttachment } from '../src/cost-policy.ts';
 import { routeEventSink } from '../src/routing-events.ts';
 import { SegmentStats, segmentTelemetry } from '../src/segment-telemetry.ts';
-import type { WorkerSessionTelemetry } from '../src/telemetry-runtime.ts';
+import { WorkerSessionTelemetry } from '../src/telemetry-runtime.ts';
 import { transferWorkerOptions } from '../src/worker-environment.ts';
 
 const usage = (requestId: string, quantity: string) => ({
@@ -23,17 +23,67 @@ describe('per-segment telemetry (transfer design 7.11)', () => {
         audits.push([type, payload]);
         return true;
       }),
-      providerUsage: vi.fn(function (this: unknown) {
-        return this;
+      close: vi.fn(function (this: { closed: boolean }) {
+        this.closed = true;
       }),
+      closed: false,
       callId: 'call-1',
     };
     const segment = segmentTelemetry(call as unknown as WorkerSessionTelemetry, 3);
     segment.audit('provider.meter', { key: 'stt' });
     expect(audits).toEqual([['provider.meter', { key: 'stt', segment: 3 }]]);
     expect(segment.callId).toBe('call-1');
-    // Methods run on the call's session itself, never on the facade.
-    expect(segment.providerUsage(usage('r', '1') as never)).toBe(call);
+    // State a method writes lands on the call's session, never on the facade.
+    void segment.close('behavior_completed');
+    expect(call.closed).toBe(true);
+  });
+
+  it("stamps the audits the call's session writes from its own methods", async () => {
+    const enqueued: [string, unknown][] = [];
+    const events = {
+      tryEnqueue: (event: { type: string; payload: Record<string, unknown> }) =>
+        enqueued.push([event.type, event.payload.segment]) > 0,
+      finishCall: () => undefined,
+    };
+    const adapter = new Proxy({}, { get: () => () => true });
+    const call = new WorkerSessionTelemetry(
+      {
+        ...{ workspaceId: 'workspace-1', callId: 'call-1', agentId: 'agent-1' },
+        ...{ releaseId: 'release-1', language: 'en' },
+      },
+      adapter as never,
+      events as never,
+      1000,
+      () => undefined,
+      () => undefined,
+    );
+    const segment = segmentTelemetry(call, 2);
+    segment.audit('direct', {});
+    segment.engineEvent({ type: 'interrupt', reason: 'vad' } as never);
+    segment.providerUsage(usage('r', '1'));
+    segment.inferenceUsage({ requestId: 'r', usage: { totalTokens: 3 } } as never);
+    const operations = segment.withOperationStore({
+      createIntent: async () => true,
+      get: async () => undefined,
+      settle: async () => undefined,
+    } as never);
+    await operations.createIntent({ id: 'op-1', toolId: 'tool', state: 'intent' } as never);
+    expect(enqueued).toEqual([
+      ['direct', 2],
+      ['engine.event', 2],
+      ['provider.usage', 2],
+      ['provider.inference-usage', 2],
+      ['operation.intent', 2],
+    ]);
+    // The call's own session, used directly, stamps nothing; a close through the facade closes
+    // the call's session itself, once.
+    call.audit('call.level', {});
+    expect(enqueued.at(-1)).toEqual(['call.level', undefined]);
+    await segment.close('behavior_completed');
+    await call.close('behavior_completed');
+    expect(enqueued.filter(([type]) => type.startsWith('session.'))).toEqual([
+      ['session.ended', 2],
+    ]);
   });
 
   it("counts a segment's usage by meter key, at most 24 meters", () => {

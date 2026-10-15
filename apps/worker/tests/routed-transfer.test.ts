@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   BILLING_RELEASE,
   POOL_SALES,
+  POOL_SUPPORT,
   transferSnapshotInput,
 } from '../../../packages/contracts/tests/transfer-fixture.ts';
 import {
@@ -153,6 +154,35 @@ describe('routed calls with in-call transfers on (transfer design 7.1-7.3)', () 
     });
     // The transferring LLM's words reach the target's port only: never an event.
     expect(JSON.stringify(events)).not.toContain('refund');
+  });
+
+  it("audits a transfer's claim outage as the transfer's own and proceeds unclaimed", async () => {
+    const { call, session, router } = await routedToSales(true);
+    const begun = await router.handoff.begin!(
+      {
+        kind: 'agent',
+        reason: 'route',
+        agentId: 'sales-en',
+        releaseId: SALES_EN_RELEASE,
+        variables: {},
+        route: { path: ['intent'], poolId: POOL_SALES, memberId: 'sales-en' },
+      },
+      signal(),
+    );
+    if (!begun.ok) throw new Error(begun.reason);
+    router.handoff.commit(begun.handoffId);
+    await call.engines[0]!.complete();
+    await vi.waitFor(() => expect(call.engines[1]?.started).toBe(true));
+    call.claims.claim.mockRejectedValue(new Error('claim storage down'));
+    const requested = await call.engines[1]!.transfer!.request(
+      { key: 'support', source: 'llm', confirmed: false },
+      signal(),
+    );
+    expect(requested).toMatchObject({ ok: true });
+    expect(call.claims.claim).toHaveBeenCalled();
+    const outages = call.audits.filter(([type]) => type.endsWith('.claims.unavailable'));
+    expect(outages).toEqual([['transfer.claims.unavailable', { poolId: POOL_SUPPORT }]]);
+    await session.dispose('caller_hangup');
   });
 
   it('re-routes through the tree: the router comes back with its entry, then hands on', async () => {

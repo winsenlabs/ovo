@@ -1,7 +1,7 @@
 import type { HandoffBeginResult, MemberClaim } from '@winsendotai/ovo-contracts';
 import { describe, expect, it } from 'vitest';
 import { transferPolicy } from './transfer-fixtures.ts';
-import { ask, OTHER_POOL, port, signal } from './transfer-port-fixture.ts';
+import { ask, OTHER_POOL, port, signal, targets } from './transfer-port-fixture.ts';
 
 describe('the agent transfer port: offers and refusals (transfer design 4.3, 7.2)', () => {
   it('offers the targets granted to this segment, while the call can still transfer', () => {
@@ -21,6 +21,14 @@ describe('the agent transfer port: offers and refusals (transfer design 4.3, 7.2
     expect(port({ remainingSeconds: 20 }).port.targets()).toEqual([]);
     expect(port({ segments: 16 }).port.targets()).toEqual([]);
     expect(port({ policy: 'none' }).port.targets()).toEqual([]);
+  });
+
+  it("says whether the point's handover takes the transferring agent's summary", () => {
+    expect(port().port.summary).toBe(true);
+    expect(port({ policy: 'none' }).port.summary).toBe(true);
+    const policy = transferPolicy({ targets });
+    const without = { ...policy, handover: { ...policy.handover, summary: false } };
+    expect(port({ policy: without }).port.summary).toBe(false);
   });
 
   it.each([

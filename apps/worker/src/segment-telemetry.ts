@@ -29,8 +29,10 @@ export class SegmentStats {
 
 /**
  * The call's telemetry session as one segment's graph sees it: every audit it writes carries
- * `segment: <index>` (the inspector's Events tab groups by it). Everything else is the call's own
- * session, unchanged: one telemetry session per call (telemetry-runtime refuses a second).
+ * `segment: <index>` (the inspector's Events tab groups by it), including the ones the session
+ * writes from its own methods (`engine.event`, `operation.*`, `provider.usage`, `speech.*`): those
+ * run with the facade as `this`, so their `this.audit` is the stamping one. State stays the call's
+ * own session's: one telemetry session per call (telemetry-runtime refuses a second).
  */
 export function segmentTelemetry(
   telemetry: WorkerSessionTelemetry,
@@ -39,10 +41,10 @@ export function segmentTelemetry(
   const audit: WorkerSessionTelemetry['audit'] = (type, payload, epoch) =>
     telemetry.audit(type, { ...payload, segment: index }, epoch);
   return new Proxy(telemetry, {
-    get(target, property) {
+    get(target, property, receiver) {
       if (property === 'audit') return audit;
       const value: unknown = Reflect.get(target, property, target);
-      return typeof value === 'function' ? value.bind(target) : value;
+      return typeof value === 'function' ? value.bind(receiver) : value;
     },
   });
 }
