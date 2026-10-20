@@ -109,16 +109,30 @@ LABEL org.opencontainers.image.revision=$OVO_REVISION org.opencontainers.image.t
 ENV OVO_REVISION=$OVO_REVISION
 CMD ["node", "dist/main.cjs"]
 
+# Smart Turn v3.2 (end-of-turn model, BSD-2-Clause): fetched here, pinned to a Hugging Face revision
+# and SHA-256 checked by the script, in a layer of its own so a source change never refetches it.
+FROM base AS turn-model
+COPY packages/plugin-turn-detector-smart-turn/scripts/fetch-model.mjs /tmp/fetch-model.mjs
+RUN OVO_TURN_MODELS_DIR=/opt/ovo/models node /tmp/fetch-model.mjs
+
+# The worker bundle plus the Smart Turn worker thread, a second ESM entry (the bundle is CJS, where
+# a thread cannot be started from import.meta.url) that loads onnxruntime-node from node_modules.
+# onnxruntime-node ships every platform's binaries; this image keeps linux/x64 only.
 FROM workspace AS worker-build
 RUN pnpm --filter @winsendotai/ovo-worker build \
+  && pnpm --filter @winsendotai/ovo-worker build:turn-worker \
   && pnpm --filter @winsendotai/ovo-worker deploy --prod --legacy /runtime/worker \
   && mkdir -p /runtime/worker/dist \
-  && cp apps/worker/dist/main.cjs /runtime/worker/dist/main.cjs
+  && cp apps/worker/dist/main.cjs apps/worker/dist/smart-turn-worker.mjs /runtime/worker/dist/ \
+  && node packages/plugin-turn-detector-smart-turn/scripts/prune-onnxruntime.mjs /runtime/worker
 
 FROM node:24.8.0-bookworm-slim AS worker
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=worker-build /runtime/worker/ ./
+COPY --from=turn-model /opt/ovo/models/ /opt/ovo/models/
+# Where the Smart Turn detector finds its model and its worker thread (docs/env-reference.md).
+ENV OVO_TURN_MODELS_DIR=/opt/ovo/models OVO_TURN_WORKER_FILE=/app/dist/smart-turn-worker.mjs
 USER root
 RUN mkdir -p /var/lib/ovo-recordings && chown -R node:node /var/lib/ovo-recordings
 USER node

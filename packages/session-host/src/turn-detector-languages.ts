@@ -1,7 +1,10 @@
 import type { AgentConfig, ReleaseSelection } from '@winsendotai/ovo-contracts';
 
-/** The turn detector whose config schema reads `languages` (plugin-turns). */
-const DEFAULT_TURN_DETECTOR = '@winsendotai/ovo-turn-detector-default';
+/** The turn detectors whose config schema reads `languages` (plugin-turns: the rules, and a model over them). */
+const LANGUAGE_AWARE_DETECTORS = new Set([
+  '@winsendotai/ovo-turn-detector-default',
+  '@winsendotai/ovo-turn-detector-smart-turn',
+]);
 
 /**
  * N4: the turn detector row's config, with the agent's allowed languages added for the default
@@ -12,7 +15,7 @@ export function turnDetectorConfig(
   selection: Pick<ReleaseSelection, 'pluginId' | 'config'>,
   config: Pick<AgentConfig, 'languages'>,
 ): Record<string, unknown> {
-  return config.languages && selection.pluginId === DEFAULT_TURN_DETECTOR
+  return config.languages && LANGUAGE_AWARE_DETECTORS.has(selection.pluginId)
     ? { ...selection.config, languages: config.languages.allowed }
     : selection.config;
 }
