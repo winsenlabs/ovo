@@ -103,6 +103,23 @@ describe('scoreRoutingCorpus: a corpus worked out by hand', () => {
     });
   });
 
+  it('keeps a case that expects `none` where the node chose a branch out of the abort path', async () => {
+    const card = await score([
+      RoutingEvalCase.parse({
+        id: 'expects-none',
+        turns: [{ kind: 'dtmf', digits: '1' }],
+        expect: { branches: { intent: 'none' } },
+      }),
+    ]);
+    expect(card.totals).toEqual({ cases: 1, passed: 0, failed: 1 });
+    const rules = card.confusion.rules!;
+    expect(rules.labels).toContain('none');
+    const none = rules.labels.indexOf('none');
+    expect(rules.matrix[none]!.reduce((a, b) => a + b, 0)).toBe(1);
+    expect(rules.correct).toBe(0);
+    expect(rules.total).toBe(1);
+  });
+
   it('buckets the confidence of matched model verdicts against correctness', async () => {
     expect((await score()).calibration).toEqual([
       { engine: 'llm', bucket: '0.9-1', n: 1, correct: 1 },

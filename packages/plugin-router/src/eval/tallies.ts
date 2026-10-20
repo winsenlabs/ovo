@@ -80,7 +80,10 @@ export function confusionOf(decisions: readonly Decision[]): RoutingScorecard['c
     const named = [...new Set(own.flatMap((d) => [d.expected, d.chosen]))].filter(
       (l) => l !== 'none',
     );
-    const labels = [...named.sort(), ...(own.some((d) => d.chosen === 'none') ? ['none'] : [])];
+    const labels = [
+      ...named.sort(),
+      ...(own.some((d) => d.chosen === 'none' || d.expected === 'none') ? ['none'] : []),
+    ];
     const matrix = labels.map(() => labels.map(() => 0));
     for (const d of own) matrix[labels.indexOf(d.expected)]![labels.indexOf(d.chosen)]! += 1;
     out[engine] = {
