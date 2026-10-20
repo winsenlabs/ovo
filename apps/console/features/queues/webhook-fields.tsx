@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { isReservedHeader } from '../../lib/derive/queues';
 import type { WebhookSpec } from '../../lib/types/queues';
-import { FormSection, SelectField, TextField } from './fields';
+import { FormSection, SelectField, TextField } from '../../components/routing/fields';
 
 export interface CredentialOption {
   value: string;

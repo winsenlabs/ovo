@@ -1,11 +1,11 @@
 'use client';
 import type { QueueDefinition } from '../../lib/types/queues';
 import { FormField } from '../../components/ui/form-field';
-import { NumberField, FormSection, TextField } from './fields';
-import { HoldEditor } from './hold-editor';
-import type { AudioOption } from './hold-steps';
-import { HoursEditor } from './hours-editor';
-import { LinesEditor } from './lines-editor';
+import { NumberField, FormSection, TextField } from '../../components/routing/fields';
+import { HoldEditor } from '../../components/routing/hold-editor';
+import type { AudioOption } from '../../components/routing/hold-steps';
+import { HoursEditor } from '../../components/routing/hours-editor';
+import { LinesEditor } from '../../components/routing/lines-editor';
 
 export type Patch = (path: string, value: unknown) => void;
 

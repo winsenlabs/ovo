@@ -25,9 +25,11 @@ export type NavIconName =
   | 'user'
   | 'users'
   | 'headset'
-  | 'queue';
+  | 'queue'
+  | 'route';
 
 const PATHS: Record<NavIconName, string> = {
+  route: 'M4 3.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM4 6.5v1.8c0 .7.6 1.2 1.2 1.2h5.6M12 7.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM4 9.5v3',
   headset:
     'M3 9.5V8a5 5 0 0 1 10 0v1.5M3 9.5h1.5v3H3.5a1 1 0 0 1-1-1v-1a1 1 0 0 1 .5-.9Zm10 0h-1.5v3h1a1 1 0 0 0 1-1v-1a1 1 0 0 0-.5-.9ZM11.5 12.5v.3a1.7 1.7 0 0 1-1.7 1.7H8',
   queue: 'M2.5 4h11M2.5 8h11M2.5 12h6.5M12 11v2.5M10.8 12.3h2.4',

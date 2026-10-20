@@ -1,0 +1,312 @@
+/* Routing designer, pools, simulator (Wave 18). Tokens only: light and dark come from tokens.css. */
+.rt-stack {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.rt-pad {
+  padding: var(--space-4);
+}
+.rt-grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+.rt-inline {
+  align-items: end;
+}
+.rt-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.rt-readonly {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.rt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.rt-toolbar p {
+  flex: 1 1 280px;
+  margin: 0;
+}
+.rt-card {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3);
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.rt-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.rt-card-head h4 {
+  margin: 0;
+}
+.rt-row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.rt-when {
+  margin: 0;
+}
+.rt-matcher {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-inline-start: 3px solid var(--border-strong);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+.rt-matcher-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+.rt-answer {
+  margin: 0;
+}
+.rt-answer legend {
+  padding: 0 var(--space-2);
+  font-weight: 600;
+}
+.rt-checks {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rt-confirm {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.rt-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.rt-expect {
+  display: grid;
+  gap: var(--space-2);
+}
+.rt-clips,
+.rt-upload {
+  display: grid;
+  gap: var(--space-3);
+}
+.rt-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.rt-preview audio {
+  max-width: 100%;
+}
+.ui-drawer.rt-drawer-wide {
+  width: min(780px, 100vw);
+}
+.rt-issues {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rt-issue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-data-size);
+}
+.rt-issue.tone-danger {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+.rt-issue.tone-warn {
+  background: var(--warn-soft);
+  color: var(--warn-text);
+}
+.rt-issue code {
+  margin-inline-start: auto;
+  color: inherit;
+  opacity: 0.8;
+}
+/* The tree outline. */
+.rt-tree {
+  display: grid;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.rt-tree-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding-block: var(--space-2);
+  padding-inline-end: var(--space-3);
+  border-block-end: 1px solid var(--border);
+  cursor: pointer;
+}
+.rt-tree-item:last-child {
+  border-block-end: 0;
+}
+.rt-tree-item:hover {
+  background: var(--surface-2);
+}
+.rt-tree-item:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.rt-tree-item.selected {
+  background: var(--accent-soft);
+}
+.rt-tree-item.rt-branch {
+  font-size: var(--text-data-size);
+}
+.rt-twisty {
+  width: 16px;
+  color: var(--text-2);
+  text-align: center;
+}
+.rt-tree-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.rt-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.rt-keys dl {
+  display: grid;
+  gap: var(--space-1);
+}
+.rt-keys dt {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.rt-keys dd {
+  margin: 0;
+}
+/* The route map and its outline. */
+.rt-map-scroll {
+  overflow: auto;
+  max-width: 100%;
+}
+.rt-map text {
+  fill: var(--text);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+.rt-map .rt-map-sub {
+  fill: var(--text-2);
+  font-size: 11px;
+}
+.rt-map-edge {
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+.rt-map-node rect {
+  fill: var(--surface);
+  stroke: var(--border-strong);
+  cursor: pointer;
+}
+.rt-map-node:hover rect {
+  fill: var(--accent-soft);
+}
+.rt-map-node.flag-danger rect {
+  stroke: var(--danger);
+  stroke-width: 2;
+}
+.rt-map-node.flag-warn rect {
+  stroke: var(--warn);
+  stroke-width: 2;
+}
+.rt-map-target rect {
+  fill: var(--surface-2);
+  stroke: var(--border);
+}
+.rt-map .rt-map-flag {
+  fill: var(--danger-text);
+  font-weight: 600;
+}
+.rt-outline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rt-outline ul {
+  margin: 0 0 var(--space-2);
+  padding-inline-start: var(--space-4);
+  color: var(--text-2);
+  font-size: var(--text-data-size);
+}
+@media (max-width: 700px) {
+  .rt-map-scroll {
+    display: none;
+  }
+}
+@media (min-width: 701px) {
+  .rt-outline {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+/* Diffs and the publish drawer. */
+.rt-changes ul,
+.rt-pins {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rt-change-op {
+  display: inline-block;
+  min-width: 70px;
+  margin-inline-end: var(--space-2);
+  font-weight: 600;
+}
+.rt-change.op-added .rt-change-op {
+  color: var(--ok-text);
+}
+.rt-change.op-removed .rt-change-op {
+  color: var(--danger-text);
+}
+.rt-change.op-changed .rt-change-op {
+  color: var(--info-text);
+}
+.rt-publish {
+  max-width: 640px;
+}

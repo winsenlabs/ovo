@@ -33,6 +33,7 @@ export const navigation: readonly NavItem[] = [
   { href: '/operations/compliance', label: 'Compliance', group: 'Outbound', icon: 'shield' },
 
   { href: '/operations/inbound', label: 'Routes & overflow', group: 'Inbound', icon: 'inbound' },
+  { href: '/routing', label: 'Routing', group: 'Inbound', icon: 'route' },
   { href: '/operations/queues', label: 'Human queues', group: 'Inbound', icon: 'queue' },
 
   { href: '/performance', label: 'Performance', group: 'Insights', icon: 'activity' },
