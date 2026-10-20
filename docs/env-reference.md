@@ -305,10 +305,17 @@ default rules, and the worker logs `turn_model_unavailable`.
 Read only by the offline eval CLIs (`pnpm eval:calls`, `eval:stt`, `eval:turns`; see `docs/eval/README.md`)
 and their tests on a developer or CI machine. No service reads them and Compose never sets them.
 
-| Variable                | Read by              | Default | Compose | Notes                                                                                                                                                       |
-| ----------------------- | -------------------- | ------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OVO_TURN_LIVEKIT_TEXT` | turn-detector tests  | unset   | —       | `1` runs the LiveKit text-model test (dev dependencies only).                                                                                               |
-| `OVO_EVAL_<KEY>`        | eval:calls, eval:stt | none    | —       | A provider key for live eval runs, e.g. `OVO_EVAL_ELEVENLABS_API_KEY`. Prefer `--keys ~/.ovo-eval/keys.env`, read in-process; never pass keys as arguments. |
+| Variable                              | Read by              | Default          | Compose | Notes                                                                                                                                                       |
+| ------------------------------------- | -------------------- | ---------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OVO_TURN_LIVEKIT_TEXT`               | turn-detector tests  | unset            | —       | `1` runs the LiveKit text-model test (dev dependencies only).                                                                                               |
+| `OVO_EVAL_<KEY>`                      | eval:calls, eval:stt | none             | —       | A provider key for live eval runs, e.g. `OVO_EVAL_ELEVENLABS_API_KEY`. Prefer `--keys ~/.ovo-eval/keys.env`, read in-process; never pass keys as arguments. |
+| `OVO_EVAL_LLM_PROVIDER`               | eval:routing         | openai           | —       | The `eval:routing --live llm` provider (`--llm-provider` wins). `openai` is the only registry entry today.                                                  |
+| `OVO_EVAL_LLM_MODEL`                  | eval:routing         | provider default | —       | The live LLM model (`--llm-model` wins).                                                                                                                    |
+| `OVO_EVAL_LLM_KEY_ENV`                | eval:routing         | OPENAI_API_KEY   | —       | Which variable in the keys file holds the live LLM key (`--llm-key-env` wins).                                                                              |
+| `OVO_EVAL_LLM_BASE_URL`               | eval:routing         | provider default | —       | An OpenAI-compatible base URL for the live LLM (`--llm-base-url` wins); https only, http on localhost.                                                      |
+| `OVO_EVAL_DECISION_MODEL`             | eval:routing         | Jev default      | —       | The decision model for `eval:routing --live decision` (`--decision-model` wins).                                                                            |
+| `OVO_EVAL_DECISION_CALIBRATION_LABEL` | eval:routing         | none             | —       | Required for `--live decision`: the calibration label sent to Jev (`--decision-calibration-label` wins).                                                    |
+| `OVO_EVAL_JEV_API_KEY`                | eval:routing         | none             | —       | The Jev key for `--live decision` when `JEV_API_KEY` is not in the `--keys` file. Never pass keys as arguments.                                             |
 
 ## Compose image pins and host ports
 
