@@ -29,12 +29,33 @@ export function buildOutcome(input: {
     degraded: null as string | null,
     agent: null,
     targetVariables: {},
-    human: null,
+    human: humanAttempt(snapshot, input.records),
     callback: null,
     endDisposition: null,
   };
   if (!decided) return { ...base, status: 'undecided' };
   return { ...base, ...resolved(decided, snapshot, input.records) };
+}
+
+/**
+ * The last human queue the route tried and what its precheck said: `ok` when the call is handed to
+ * it, the real refusal code (`queue_closed`, `no_operators`, `queue_unavailable`...) when the
+ * node's fallback moved on instead. `null` when no human step was reached.
+ */
+function humanAttempt(
+  snapshot: RoutingReleaseSnapshot,
+  records: readonly HandoffRecord[],
+): SimulationOutcome['human'] {
+  const last = records.findLast((record) => record.request.kind === 'human');
+  if (!last || last.request.kind !== 'human') return null;
+  const key = last.request.queueId;
+  const queue = Object.values(snapshot.queues).find((found) => found.key === key);
+  return {
+    queueKey: key,
+    queueId: queue?.id ?? '',
+    kind: queue?.definition.kind ?? 'managed',
+    precheck: last.result,
+  };
 }
 
 function resolved(
@@ -59,19 +80,8 @@ function resolved(
       };
     case 'queue':
       return { status: 'queue', targetVariables: variables(decided.handoffId) };
-    case 'human': {
-      const queue = Object.values(snapshot.queues).find((found) => found.key === decided.queueId);
-      return {
-        status: 'human',
-        targetVariables: variables(decided.handoffId),
-        human: {
-          queueKey: decided.queueId,
-          queueId: queue?.id ?? '',
-          kind: queue?.definition.kind ?? 'managed',
-          precheck: 'ok',
-        },
-      };
-    }
+    case 'human':
+      return { status: 'human', targetVariables: variables(decided.handoffId) };
     case 'end':
       return {
         status: 'end',
