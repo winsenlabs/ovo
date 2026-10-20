@@ -74,3 +74,52 @@ No data or unavailable telemetry has its own empty/error/stale state. Reconnect 
 - Desktop 1280/1440 px supports authoring; 390 px supports overview and call review without page overflow. Complex graph authoring can be desktop-only, clearly stated.
 - Live updates within two seconds p95 of backend ingestion under reference load; stale status within five seconds of heartbeat failure.
 - At least four of five representative operators identify a seeded slow tool and open its call evidence in two minutes without engineer help.
+
+## 8. Routing console (Wave 18)
+
+The routing screens follow the shell's page contract: page header, KPI strip, one primary visual, detail tables, drawers for
+forms, light and dark from tokens only, a phone layout and axe-clean at 390, 768 and 1280. The nav item **Routing** (group
+Inbound) is visible even where routing is switched off; every screen then says "Routing is not enabled here" instead of failing
+(`GET /v1/routing/status` answers while the feature is dark, every other route is `404 routing_disabled`).
+
+| Route                       | What it is                                                                                                                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/routing`                  | KPIs and a stacked routed-calls chart (with its table) from `GET /routing/stats`; tabs Points, Pools, Hold clips; create-point and create-pool drawers.                                     |
+| `/routing/points/[pointId]` | The designer: header badges, KPI strip, read-only route map, tabs Tree, Lines & languages, Hold & transfer, Human queues, Numbers, Releases, Simulate.                                       |
+| `/routing/pools/[poolId]`   | Pool editor: members and attributes, live claims every 10 s (a stale chip and retry when a poll fails), "Who would answer?".                                                                |
+| `/routing/simulate`         | The route tester (`?point=` or `?release=` to arrive from elsewhere); also the designer's Simulate tab, which runs the working copy.                                                         |
+| `/operations/queues`        | The R3 queue admin, plus a per-queue **Activity** drawer (24 h or 7 d, ids and codes only) and links from "Used by" into the designer. Its editors now live in `components/routing/`.       |
+
+**Working copy.** `useRoutingDraft` loads a point with its ETag, parses the draft with the contract defaults, and edits a typed
+copy. Zod and `routingDraftIssues` run in the browser on every change; the server's resolution checks (`POST /validate`) run
+debounced at 800 ms and only while the schema is intact. Every issue is anchored (`lib/derive/routing-anchor.ts`) onto the
+question row, branch, engine, fallback step or tab it concerns, in words, with a count on the tab. Save sends `If-Match`; a
+`409 routing_point_conflict` keeps the working copy, shows `routingDiff(server, mine)` and offers "load theirs" or "keep mine and
+save over". Leaving with unsaved changes asks first (reload, tab close and in-app links).
+
+**Tree.** `role="tree"` with roving tabindex: arrows move, Right and Left open, close and step in and out, Enter opens the
+question's drawer. Nothing is drag-only; every reorder is an Up/Down button. The pure edits (rename a question and every
+reference to it, delete refused while something leads there, rename a branch and its rules, rename a queue key everywhere) are in
+`lib/derive/routing-edit.ts` and tested without a browser. The route map is a picture (`role="img"` plus the outline list, which
+is the only form on a phone).
+
+**Publish.** The drawer calls `POST /preview-publish`: blockers disable Publish, warnings are listed, "nothing changed since vN"
+disables it too, and it shows the digest, the change list grouped by area and the `latest -> pinned` agent pins. Unsaved edits are
+not published, so it asks to save first. After publishing, numbers keep their release until bound to the new one.
+
+**Numbers.** A number is "Routing point" (`routingReleaseId`) or "Direct agent" (`releaseId`), stated in words. Admins bind with
+`PUT /operations/inbound/routes/:phone` (`routingReleaseId`, `expectedVersion`); a direct number that becomes routed must be
+confirmed, and an earlier release is a rollback.
+
+**Simulator.** A scripted caller (typed words, keypad, silence, caller id, called number, variables, a clock in the router's zone)
+runs through a release or the draft. Model, decision and external engines are scripted by default (the form lists a row per engine
+in the tree); rules always run for real. A real engine is a switch, disabled with the reason from `status.simulate`. The result
+shows KPIs, the route as a chain of questions with confidence meters and fallbacks, a trace table with "Answer as..." for an engine
+that had no scripted answer, the conversation, the pools considered (why each member was or was not eligible) and warnings. "Save
+as an eval case" turns a run into a `RoutingEvalCase` to copy or download as JSONL. Offline runs score the tree, rules and pools,
+not model quality.
+
+**Data layer.** `lib/types/routing.ts` and `routing-simulate.ts` hold the Wave 18 wire shapes until the contracts step exports them;
+the pure helpers (`routingIssueAnchor`, `routingDiff`, `holdTimeline`, the edit helpers) sit in `lib/derive/routing-*.ts` and
+swap for the contracts versions without touching a component. The console fixture API (`e2e/fixtures/routing-api.mjs`, scenarios
+rich, empty, down, disabled) answers every route, including a small deterministic router for the simulator.

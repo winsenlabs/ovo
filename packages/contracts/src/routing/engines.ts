@@ -1,12 +1,18 @@
 import { z } from 'zod';
-import { RouteContextKey, RouteLanguage, RouteVariableName, RoutingKey } from './ids.ts';
+import {
+  DtmfDigits,
+  RouteContextKey,
+  RouteLanguage,
+  RouteVariableName,
+  RoutingKey,
+} from './ids.ts';
 import { RoutingHours } from './hours.ts';
 
 const Threshold = z.number().min(0).max(1);
 const Description = z.string().trim().min(1).max(2_000);
 
 export const RulesMatcher = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('dtmf'), digits: z.string().regex(/^[0-9*#]{1,8}$/) }).strict(),
+  z.object({ kind: z.literal('dtmf'), digits: DtmfDigits }).strict(),
   z
     .object({
       kind: z.literal('caller-id'),

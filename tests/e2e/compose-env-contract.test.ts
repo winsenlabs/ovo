@@ -278,6 +278,34 @@ describe('Compose routing environment (Wave 15)', () => {
   });
 });
 
+describe('Compose route tester environment (Wave 18)', () => {
+  const DATABASE = 'postgresql://ovo:secret@postgres:5432/ovo';
+
+  it('keeps real simulation engines off and the limit at 30 when the .env says nothing', () => {
+    const variables = goLiveComposeVariables(DATABASE);
+    expect(renderServiceEnv('api', variables)).toMatchObject({
+      OVO_ROUTING_SIMULATE_LIVE_ENABLED: 'false',
+      OVO_ROUTING_SIMULATE_RATE_PER_MINUTE: '30',
+    });
+    for (const service of ['gateway', 'dispatcher', 'worker-1', 'worker-2'])
+      expect(renderServiceEnv(service, variables), service).not.toHaveProperty(
+        'OVO_ROUTING_SIMULATE_LIVE_ENABLED',
+      );
+  });
+
+  it('hands the api what the .env sets', () => {
+    const variables = {
+      ...goLiveComposeVariables(DATABASE),
+      OVO_ROUTING_SIMULATE_LIVE_ENABLED: 'true',
+      OVO_ROUTING_SIMULATE_RATE_PER_MINUTE: '120',
+    };
+    expect(renderServiceEnv('api', variables)).toMatchObject({
+      OVO_ROUTING_SIMULATE_LIVE_ENABLED: 'true',
+      OVO_ROUTING_SIMULATE_RATE_PER_MINUTE: '120',
+    });
+  });
+});
+
 describe('Compose human queue environment (Wave 17)', () => {
   const DATABASE = 'postgresql://ovo:secret@postgres:5432/ovo';
 

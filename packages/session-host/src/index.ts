@@ -15,3 +15,4 @@ export * from './carrier-bindings.ts';
 export * from './host-ports.ts';
 export * from './terminate.ts';
 export * from './human-queue/index.ts';
+export * from './routing-external.ts';

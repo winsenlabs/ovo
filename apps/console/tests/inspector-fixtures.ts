@@ -48,3 +48,14 @@ export function turn(overrides: Partial<TurnRow> = {}): TurnRow {
     ...overrides,
   };
 }
+
+/** jsdom has no `<dialog>` behaviour: a drawer opens by setting `open`, as the browser would. */
+export function polyfillDialog() {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false;
+    this.dispatchEvent(new Event('close'));
+  };
+}

@@ -10,7 +10,7 @@ import type { ReleaseRecord } from '@winsendotai/ovo-plugin-storage';
 import { exactDefinitions, validatePermittedGraph } from './release-graph.ts';
 
 const BEHAVIOR_SERVICE = Cap.behavior;
-const simulationUsage = definePlugin(
+export const simulationUsage = definePlugin(
   {
     id: '@winsendotai/ovo-api/simulation-usage',
     version: '0.1.0',
@@ -63,6 +63,33 @@ function simulationSelections(selections: ReleaseSelections | undefined) {
       config: {},
     },
   } satisfies ReleaseSelections;
+}
+
+/**
+ * The config a release gives one of its plugins: the provider binding its selection names (with the
+ * credential it references) under the selection's own config. Shared by a simulation and the
+ * route tester's live engines, so both compose a plugin exactly as the release pinned it.
+ */
+export function releaseSelectionConfig(
+  release: ReleaseRecord,
+  pluginId: string,
+  selections: ReleaseSelections | undefined = release.selections,
+): Record<string, unknown> {
+  const selection = Object.values(selections ?? {}).find((item) => item?.pluginId === pluginId);
+  const binding =
+    selection?.binding ??
+    Object.values(release.providerBindings ?? {}).find((row) => row.id === selection?.bindingId);
+  return {
+    ...(binding
+      ? {
+          binding: structuredClone(binding.config ?? {}),
+          ...(binding.credentialId
+            ? { credentialRef: { credentialId: binding.credentialId } }
+            : {}),
+        }
+      : {}),
+    ...structuredClone(selection?.config ?? {}),
+  };
 }
 
 export async function runRelease(
@@ -122,23 +149,6 @@ export async function runRelease(
     return selectedByRelease.get(item.manifest.id) === item.manifest.version;
   });
   const definitions = new Map(simulationPlugins.map((item) => [item.manifest.id, item]));
-  const selectionConfig = (pluginId: string): Record<string, unknown> => {
-    const selection = Object.values(selections ?? {}).find((item) => item?.pluginId === pluginId);
-    const binding =
-      selection?.binding ??
-      Object.values(release.providerBindings ?? {}).find((row) => row.id === selection?.bindingId);
-    return {
-      ...(binding
-        ? {
-            binding: structuredClone(binding.config ?? {}),
-            ...(binding.credentialId
-              ? { credentialRef: { credentialId: binding.credentialId } }
-              : {}),
-          }
-        : {}),
-      ...structuredClone(selection?.config ?? {}),
-    };
-  };
   const rows = [
     { id: services.manifest.id },
     { id: simulationUsage.manifest.id },
@@ -150,7 +160,7 @@ export async function runRelease(
             workspaceId: release.workspaceId,
             sessionId,
           }
-        : selectionConfig(plugin.manifest.id),
+        : releaseSelectionConfig(release, plugin.manifest.id, selections),
     })),
   ];
   const composition = await compose(rows, [services, simulationUsage, ...simulationPlugins]);

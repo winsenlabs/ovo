@@ -3,6 +3,7 @@ import { RoutingPointDraft } from '@winsendotai/ovo-contracts';
 import { z } from 'zod';
 import { publishRoutingPoint } from '../routing-publish.ts';
 import { PointParams, publishContext } from './routing-points.ts';
+import { pinnedNumbers, releaseSummaries } from './routing-summary.ts';
 import {
   routed,
   routingPage,
@@ -13,6 +14,7 @@ import {
 
 const PublishBody = z.object({ expectedDraftVersion: z.number().int().min(1).optional() }).strict();
 const ReleaseParams = z.object({ routingReleaseId: z.uuid() });
+const ViewQuery = z.object({ view: z.enum(['summary']).optional() }).passthrough();
 
 /** Routing releases (design 4.6): immutable, versioned per point, pinned by inbound numbers. */
 export function registerRoutingReleaseRoutes(
@@ -76,7 +78,18 @@ export function registerRoutingReleaseRoutes(
     routed(input, 'viewer', async ({ request, reply, routing }) => {
       const { pointId } = PointParams.parse(request.params);
       if (!(await routing.points.get(pointId))) return pointNotFound(reply);
-      return routingPage(request, (limit, cursor) => routing.releases.list(pointId, limit, cursor));
+      const { view } = ViewQuery.parse(request.query ?? {});
+      const page = await routingPage(
+        request,
+        (limit, cursor) => routing.releases.list(pointId, limit, cursor),
+        ['view'],
+      );
+      return view === 'summary' && input.operations
+        ? {
+            ...page,
+            items: releaseSummaries(page.items, (await pinnedNumbers(input.operations)).byRelease),
+          }
+        : page;
     }),
   );
 

@@ -1,8 +1,8 @@
 'use client';
 import type { ReactNode } from 'react';
-import { Switch } from '../../components/ui/display';
-import { FormField } from '../../components/ui/form-field';
-import { NumberInput, Select, TagInput } from '../../components/ui/inputs';
+import { Switch } from '../ui/display';
+import { FormField } from '../ui/form-field';
+import { NumberInput, Select, TagInput } from '../ui/inputs';
 
 /** Select options from a `{ value: label }` map, in the map's order. Written as a map because a
  * list of `{ value, label }` literals is token-identical from one option list to the next. */
@@ -190,5 +190,79 @@ export function FormSection({
       {description && <p className="muted">{description}</p>}
       {children}
     </fieldset>
+  );
+}
+
+/** A multi-line text field (instructions, descriptions). */
+export function TextAreaField({
+  id,
+  label,
+  value,
+  onChange,
+  help,
+  error,
+  rows = 3,
+  maxLength,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  help?: string;
+  error?: string;
+  rows?: number;
+  maxLength?: number;
+}) {
+  return (
+    <FormField id={id} label={label} help={help} error={error}>
+      {(control) => (
+        <textarea
+          {...control}
+          rows={rows}
+          maxLength={maxLength}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )}
+    </FormField>
+  );
+}
+
+/** A number with a fractional step (a 0 to 1 confidence threshold). */
+export function DecimalField({
+  id,
+  label,
+  value,
+  onChange,
+  min = 0,
+  max = 1,
+  step = 0.05,
+  help,
+  error,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  help?: string;
+  error?: string;
+}) {
+  return (
+    <FormField id={id} label={label} help={help} error={error}>
+      {(control) => (
+        <input
+          {...control}
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => event.target.value !== '' && onChange(Number(event.target.value))}
+        />
+      )}
+    </FormField>
   );
 }

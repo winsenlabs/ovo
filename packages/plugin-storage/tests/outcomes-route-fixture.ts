@@ -72,6 +72,10 @@ export const ROUTED_SUMMARY = {
   language: 'hi',
   degraded: null,
   segments: 2,
+  turns: 1,
+  routeMs: 2_100,
+  fallbacks: 0,
+  reasks: 0,
 };
 
 /** Folds a routed call, a degraded one, one that hung up while routing, and a direct one. */

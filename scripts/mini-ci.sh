@@ -79,6 +79,18 @@ eval_gate() {
   return $status
 }
 
+# Wave 18: the routing eval harness scores the committed worked-example corpus offline (scripted engine
+# answers, no network) and fails when a case regresses or a rate moves beyond the baseline.
+routing_eval_gate() {
+  local out status
+  out=$(mktemp -d)
+  pnpm -s eval:routing --label mini-ci --out "$out" \
+    --baseline packages/eval/baselines/routing-worked-example.json
+  status=$?
+  rm -rf "$out"
+  return $status
+}
+
 # Wave 17: the human-room e2e runs against a real LiveKit server (brew install livekit, Apache-2.0),
 # started by the tests on loopback and free ports. With none found the gate fails rather than skip.
 room_bin=
@@ -127,6 +139,7 @@ step 'bundle externals' node scripts/check-bundle-externals.mjs
 step 'unit tests' env "${postgres_vars[@]/#/-u}" -u OVO_TEST_SIPP pnpm test
 step 'postgres suites' postgres_suites
 step 'eval offline gate' eval_gate
+step 'routing eval offline gate' routing_eval_gate
 step 'livekit-server' room_server
 step 'live-path e2e' live_path
 # Wave 11: SIPp against the native sip-gateway on loopback (its scenarios, then the full SIP path

@@ -1,5 +1,5 @@
-import type { FastifyReply } from 'fastify';
-import { RoutingPoolDefinition } from '@winsendotai/ovo-contracts';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import { RoutingPoolDefinition, type RoutingPool } from '@winsendotai/ovo-contracts';
 import { RoutingPoolNameTakenError, type RoutingService } from '@winsendotai/ovo-plugin-operations';
 import { z } from 'zod';
 import {
@@ -12,7 +12,7 @@ import {
   type RoutingRouteDependencies,
 } from './routing-support.ts';
 
-const PoolParams = z.object({ poolId: z.uuid() });
+export const PoolParams = z.object({ poolId: z.uuid() });
 const PoolBody = z.object({ definition: z.unknown() }).strict();
 
 /** The parsed definition, or the 422 already sent. */
@@ -32,6 +32,18 @@ async function named<T>(reply: FastifyReply, write: () => Promise<T>) {
     if (!(error instanceof RoutingPoolNameTakenError)) throw error;
     sendError(reply, 409, 'routing_pool_name_taken', 'Another pool already has this name');
   }
+}
+
+/** The pool named by the route's `:poolId`, or undefined once the 404 has been sent. */
+export async function poolOr404(
+  routing: RoutingService,
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<RoutingPool | undefined> {
+  const { poolId } = PoolParams.parse(request.params);
+  const pool = await routing.pools.get(poolId);
+  if (!pool) sendError(reply, 404, 'routing_pool_not_found', 'Pool not found');
+  return pool;
 }
 
 /** Agent pools (design 4.3): members are agent releases with what they support. */
@@ -70,11 +82,10 @@ export function registerRoutingPoolRoutes(
   app.get(
     '/v1/routing/pools/:poolId',
     routed(input, 'viewer', async ({ request, reply, routing }) => {
-      const { poolId } = PoolParams.parse(request.params);
-      const pool = await routing.pools.get(poolId);
-      if (!pool) return notFound(reply);
+      const pool = await poolOr404(routing, request, reply);
+      if (!pool) return;
       reply.header('etag', etag(pool.version));
-      return { ...pool, usedBy: await routing.pools.usedBy(poolId) };
+      return { ...pool, usedBy: await routing.pools.usedBy(pool.id) };
     }),
   );
 

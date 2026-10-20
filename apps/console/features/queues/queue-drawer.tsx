@@ -11,7 +11,7 @@ import { CommonFields } from './common-fields';
 import { ContextFields } from './context-fields';
 import { DeskFields } from './desk-fields';
 import { DestinationFields } from './destination-fields';
-import type { AudioOption } from './hold-steps';
+import type { AudioOption } from '../../components/routing/hold-steps';
 import { MappingEditor } from './mapping-editor';
 import { ResponseFields } from './response-fields';
 import { RetryFields } from './retry-fields';

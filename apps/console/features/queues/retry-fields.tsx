@@ -1,6 +1,6 @@
 'use client';
 import type { ExternalQueueDefinition, WebhookSpec } from '../../lib/types/queues';
-import { FormSection, NumberField, SwitchField } from './fields';
+import { FormSection, NumberField, SwitchField } from '../../components/routing/fields';
 
 /** Delivery behaviour: per-attempt timeout, retries with backoff, cancel notice, callback window. */
 export function RetryFields({

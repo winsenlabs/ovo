@@ -207,6 +207,8 @@ describe('GET /v1/calls/:callId/segments (Wave 16 inspector data)', () => {
       transfers: [],
       human: null,
       callLevelCost: null,
+      events: [],
+      eventsTruncated: false,
     });
     expect((await app.inject({ method: 'GET', url: '/v1/calls/call-3/segments' })).statusCode).toBe(
       404,
@@ -228,5 +230,111 @@ describe('GET /v1/calls/:callId/segments (Wave 16 inspector data)', () => {
     const outcome = (await app.inject({ method: 'GET', url: '/v1/calls/call-1/outcome' })).json();
     expect(outcome.summary).toMatchObject({ segments: SEGMENTS, transfers: TRANSFERS });
     await app.close();
+  });
+});
+
+describe('GET /v1/calls/:callId/segments: timeline events (Wave 18, R4)', () => {
+  const step = (type: string, payload: Record<string, unknown>, id: string) => ({
+    id,
+    at,
+    type,
+    payload,
+  });
+  const timeline = [
+    step('route.node', { turn: 1, node: 'intent', engine: 'rules', outcome: 'no_match' }, 'a'),
+    step('turn.route', { turn: 1, tier: 'llm', intent: 'sales', confidence: 0.9 }, 'b'),
+    step('flow.state', { turn: 1, from: 'x', to: 'y' }, 'c'),
+    step('disposition', { disposition: 'promise_to_pay', source: 'jev' }, 'd'),
+    step(
+      'route.fallback',
+      { turn: 1, node: 'intent', step: 'default', result: 'taken', attempt: 1 },
+      'e',
+    ),
+    step('disposition', { disposition: 'callback', source: 'system' }, 'f'),
+    step('disclosure', { kinds: ['ai'], segment: 1 }, 'g'),
+    step(
+      'segment.ended',
+      {
+        index: 1,
+        role: 'agent',
+        agentId: 'sales',
+        releaseId: SALES,
+        ended: 'handoff',
+        endReason: 'x',
+        durationMs: 5,
+        turns: 1,
+      },
+      'h',
+    ),
+    step('call.outcome', { outcome: 'completed', reason: 'caller_hangup' }, 'i'),
+  ];
+
+  async function run(events: ReturnType<typeof step>[]) {
+    const store = new MemoryCallOutcomeStore();
+    for (let at = 0; at < events.length; at += 100)
+      await store.append('ws', 'call-1', events.slice(at, at + 100));
+    const app = build(new CallOutcomeReader(async () => store));
+    const body = (await app.inject({ method: 'GET', url: '/v1/calls/call-1/segments' })).json();
+    await app.close();
+    return body;
+  }
+
+  it('returns the route, segment, transfer, human and disclosure events in order, and nothing else', async () => {
+    const body = await run(timeline);
+    expect(body.events.map((event: { type: string }) => event.type)).toEqual([
+      'route.node',
+      'route.fallback',
+      'disposition',
+      'disclosure',
+      'segment.ended',
+    ]);
+    // Only the router's own disposition (source system) is kept, not a flow agent's.
+    expect(body.events[2]).toMatchObject({
+      payload: { disposition: 'callback', source: 'system' },
+    });
+    expect(body.events[3]).toMatchObject({ sequence: 7, at, segment: 1 });
+    expect(body.events[0]).not.toHaveProperty('segment');
+    expect(body.eventsTruncated).toBe(false);
+  });
+
+  it('stops at 400 events and says so', async () => {
+    const many = Array.from({ length: 450 }, (_, index) =>
+      step(
+        'route.node',
+        { turn: 1, node: 'intent', engine: 'rules', outcome: 'no_match' },
+        `n${index}`,
+      ),
+    );
+    const body = await run(many);
+    expect(body.events).toHaveLength(400);
+    expect(body.events.at(-1).sequence).toBe(400);
+    expect(body.eventsTruncated).toBe(true);
+    // The summary and the transfers still cover the whole call.
+    expect(body.available).toBe(true);
+  });
+
+  it('leaves out an event that no longer parses, not the call', async () => {
+    const store = new MemoryCallOutcomeStore();
+    await store.append('ws', 'call-1', timeline.slice(0, 1));
+    const listed = store.listEvents.bind(store);
+    store.listEvents = async (...args) => {
+      const page = await listed(...args);
+      return {
+        ...page,
+        items: [
+          ...page.items,
+          { callId: 'call-1', sequence: 2, at, type: 'route.node', payload: { node: 17 } },
+        ] as never,
+      };
+    };
+    const app = build(new CallOutcomeReader(async () => store));
+    const body = (await app.inject({ method: 'GET', url: '/v1/calls/call-1/segments' })).json();
+    expect(body.events.map((event: { sequence: number }) => event.sequence)).toEqual([1]);
+    await app.close();
+  });
+
+  it('has no events for a direct call or an unknown one', async () => {
+    const body = await run([step('call.outcome', { outcome: 'completed', reason: 'x' }, 'z')]);
+    expect(body).toMatchObject({ events: [], eventsTruncated: false });
   });
 });

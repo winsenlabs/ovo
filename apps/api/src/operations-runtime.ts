@@ -49,17 +49,27 @@ export interface CreateOperationsRuntimeOptions {
  * The routing flags, all off unless set to exactly `true`. With routing off the `/v1/routing/*`
  * API answers `routing_disabled` and admission sends a routed number to its routing release's
  * default agent; the external flag lets the worker's external engine call out; the transfer flag
- * (Wave 16) turns on in-call agent transfers in the worker, which the API reports.
+ * (Wave 16) turns on in-call agent transfers in the worker, which the API reports. The simulate
+ * flags (Wave 18) are the API's own: real decision and LLM engines in the route tester (admin
+ * only, off), and how many simulations and eval runs one identity may start a minute.
  */
 export function routingFlagsFromEnv(environment: Environment): {
   routingEnabled: boolean;
   routingExternalEnabled: boolean;
   routingTransferEnabled: boolean;
+  routingSimulateLiveEnabled: boolean;
+  routingSimulateRatePerMinute: number;
 } {
+  const rate = environment.OVO_ROUTING_SIMULATE_RATE_PER_MINUTE?.trim();
+  const perMinute = rate ? Number(rate) : 30;
+  if (!Number.isInteger(perMinute) || perMinute < 1 || perMinute > 600)
+    throw new Error('OVO_ROUTING_SIMULATE_RATE_PER_MINUTE must be an integer between 1 and 600');
   return {
     routingEnabled: environment.OVO_ROUTING_ENABLED === 'true',
     routingExternalEnabled: environment.OVO_ROUTING_EXTERNAL_ENABLED === 'true',
     routingTransferEnabled: environment.OVO_ROUTING_TRANSFER_ENABLED === 'true',
+    routingSimulateLiveEnabled: environment.OVO_ROUTING_SIMULATE_LIVE_ENABLED === 'true',
+    routingSimulateRatePerMinute: perMinute,
   };
 }
 

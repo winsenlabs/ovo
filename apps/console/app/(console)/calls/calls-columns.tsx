@@ -6,10 +6,14 @@ import { humaniseEnum } from '../../../lib/status';
 import { shortenId } from '../../../lib/format';
 import { callDurationMs, endReasonLabel, type CallRow } from '../../../lib/derive/calls';
 import { RouteTierBar } from './calls-controls';
+import { RouteCell } from './calls-route-cell';
 
 /** The Calls list's column set (brief §3 CALLS): humanised everywhere, duration derived
  * client-side, low-priority columns drop to the mobile card view first. */
-export function callColumns(agents: Map<string, string>): ColumnV2<CallRow>[] {
+export function callColumns(
+  agents: Map<string, string>,
+  routePoints: ReadonlyMap<string, string> = new Map(),
+): ColumnV2<CallRow>[] {
   return [
     {
       id: 'started',
@@ -40,6 +44,14 @@ export function callColumns(agents: Map<string, string>): ColumnV2<CallRow>[] {
       header: 'Agent',
       priority: 'high',
       cell: (call) => (call.releaseId && agents.get(call.releaseId)) || 'Unknown',
+    },
+    {
+      id: 'route',
+      header: 'Route',
+      priority: 'normal',
+      cell: (call) => (
+        <RouteCell outcome={call.outcome} points={routePoints} agentsByRelease={agents} />
+      ),
     },
     {
       id: 'kind',

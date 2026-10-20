@@ -16,6 +16,8 @@ import { getProductionRecordingServices } from '../recording-runtime.ts';
 import { publicRecording } from './recording-lifecycle-data.ts';
 import { registerCallOutcomes } from './call-outcomes.ts';
 import { registerCallSegmentsRoute } from './call-segments.ts';
+import { transcriptSegments } from './call-evidence-segments.ts';
+import { registerCallListRoute } from './call-list.ts';
 import { callDiagnosis, costByCurrency, evidenceSelections } from './call-diagnosis.ts';
 export function registerInspectionRoutes(dependencies: any) {
   const {
@@ -38,22 +40,7 @@ export function registerInspectionRoutes(dependencies: any) {
       ? (dependencies.ctx.get(Cap.costLedger) as CostLedgerService)
       : undefined,
   });
-  app.get('/v1/calls', async (request: FastifyRequest) => {
-    const principal = requireRole(request, 'viewer'),
-      page = queryPage(request);
-    const filters = z
-      .object({
-        order: z.enum(['asc', 'desc']).default('desc'),
-        agentId: Id.optional(),
-        engine: z.string().min(1).max(200).optional(),
-        carrier: z.string().min(1).max(200).optional(),
-        kind: z.enum(['live', 'simulation', 'test']).optional(),
-        status: z.string().min(1).max(100).optional(),
-      })
-      .parse(request.query);
-    const calls = await store.listCalls(principal.workspaceId, page.limit, page.cursor, filters);
-    return await outcomes.attach(principal.workspaceId, calls, request.log);
-  });
+  registerCallListRoute({ ...dependencies, outcomes });
   app.get('/v1/calls/:callId', async (request: FastifyRequest, reply: FastifyReply) => {
     const principal = requireRole(request, 'viewer'),
       { callId } = z.object({ callId: Id }).parse(request.params),
@@ -105,10 +92,12 @@ export function registerInspectionRoutes(dependencies: any) {
     const engineEvents = timedEvents.map((row) => row.event);
     const result = events.find((row) => row.type === 'fixture.result')?.payload;
     const simulationEvents = call.kind === 'simulation' ? simulationTranscriptEvents(events) : [];
+    const segments = transcriptSegments(events);
     const transcript = projectTranscript([...engineEvents, ...simulationEvents]).map((entry) => ({
       ...entry,
       id: entry.segmentId,
       phase: entry.type.split('.').at(-1),
+      ...(segments.has(entry.segmentId) ? { segment: segments.get(entry.segmentId) } : {}),
     }));
     const latency = projectLatencyBreakdowns(
       engineEvents,

@@ -25,8 +25,13 @@ export * from './retries.ts';
 export * from './routing/service.ts';
 export { RoutingPoolNameTakenError } from './routing/rows.ts';
 export { maskedNumber as maskedRoutingNumber } from './routing/points.ts';
-export { routingSnapshotDigest, type RoutingReleaseInput } from './routing/releases.ts';
+export {
+  routingSnapshotDigest,
+  type RoutingReleaseInput,
+  type RoutingReleaseSummary,
+} from './routing/releases.ts';
 export type { RoutingClaimInput } from './routing/claims.ts';
+export type { RoutingEvalRunInput } from './routing/eval-runs.ts';
 export type { RoutingAudioInput } from './routing/audio.ts';
 export {
   effectiveInboundRoute,

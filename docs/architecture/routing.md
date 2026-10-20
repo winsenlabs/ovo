@@ -513,26 +513,113 @@ New events: `human.requested`, `human.state`, `human.webhook`, `human.completed`
 
 ## Where the code lives
 
-| Package                        | What                                                                                                                                                       |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/contracts`           | `src/routing/*`: schemas, `routingDraftIssues`, the `RoutingHost` and `SegmentHandoffPort` ports, `route.*` payloads; `Cap.routing`, `Cap.segmentHandoff`. |
-| `packages/plugin-operations`   | Migration 010, `OperationsService.routing` (pools, points, releases, claims), `effectiveInboundRoute`, routed admission.                                   |
-| `packages/plugin-storage`      | Outcomes migration v2 (`route` column) and the fold of `route.decision` / `route.segment`.                                                                 |
-| `packages/plugin-router`       | The router behaviour: pure `RouterCore`, engines, fallback chain, member ranking.                                                                          |
-| `apps/worker`                  | Routed sessions, segment controller (the handoff seam), routing host, external webhook client.                                                             |
-| `apps/api`                     | `/v1/routing/*`, publish validation, the inbound route target union.                                                                                       |
-| `apps/media-gateway`           | The routed pre-admission check and `OVO_ROUTING_ENABLED`.                                                                                                  |
-| `packages/plugin-speech-cache` | Pre-renders every agent release a routed number pinned.                                                                                                    |
-| R2: `packages/contracts`       | `routing/transfer*.ts`, `routing/audio.ts`, `routing/voice-lines.ts`, `agent-to-agent.ts`, `agent-variables.ts`; `Cap.agentTransfer`.                      |
-| R2: storage                    | Operations migration 011 (`ovo_routing_audio`, `ovo_routing_point_audio`), outcomes v3, ledger migration 005; `routedVoiceLines` pre-render listing.       |
-| R2: runtime                    | `apps/worker` transfer controller, hold player, handover; `packages/behaviors` and `packages/plugin-router` transfer paths; `apps/api` audio and segments. |
+| Package                        | What                                                                                                                                                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/contracts`           | `src/routing/*`: schemas, `routingDraftIssues`, the `RoutingHost` and `SegmentHandoffPort` ports, `route.*` payloads; `Cap.routing`, `Cap.segmentHandoff`.                                                          |
+| `packages/plugin-operations`   | Migration 010, `OperationsService.routing` (pools, points, releases, claims), `effectiveInboundRoute`, routed admission.                                                                                            |
+| `packages/plugin-storage`      | Outcomes migration v2 (`route` column) and the fold of `route.decision` / `route.segment`.                                                                                                                          |
+| `packages/plugin-router`       | The router behaviour: pure `RouterCore`, engines, fallback chain, member ranking.                                                                                                                                   |
+| `apps/worker`                  | Routed sessions, segment controller (the handoff seam), routing host, external webhook client.                                                                                                                      |
+| `apps/api`                     | `/v1/routing/*`, publish validation, the inbound route target union.                                                                                                                                                |
+| `apps/media-gateway`           | The routed pre-admission check and `OVO_ROUTING_ENABLED`.                                                                                                                                                           |
+| `packages/plugin-speech-cache` | Pre-renders every agent release a routed number pinned.                                                                                                                                                             |
+| R2: `packages/contracts`       | `routing/transfer*.ts`, `routing/audio.ts`, `routing/voice-lines.ts`, `agent-to-agent.ts`, `agent-variables.ts`; `Cap.agentTransfer`.                                                                               |
+| R2: storage                    | Operations migration 011 (`ovo_routing_audio`, `ovo_routing_point_audio`), outcomes v3, ledger migration 005; `routedVoiceLines` pre-render listing.                                                                |
+| R2: runtime                    | `apps/worker` transfer controller, hold player, handover; `packages/behaviors` and `packages/plugin-router` transfer paths; `apps/api` audio and segments.                                                          |
+| R4: contracts                  | `routing/simulate*.ts`, `eval*.ts`, `scorecard.ts`, `publish-preview.ts`, `stats.ts`, `utilisation.ts`, `queue-activity.ts`; the pure designer helpers `diff*.ts`, `issue-anchor.ts`, `hold-preview.ts`, `edit.ts`. |
+| R4: storage                    | Operations migration 014 and `evalRuns`, `claims.activeByPool`, `releases.latest`; outcomes v5, `findRouted`, `routeStats`, and the `turns`/`routeMs`/`fallbacks`/`reasks` fold.                                    |
+| R4: runtime                    | `packages/plugin-router` `simulateRoute`, `explainPool`, `scoreRoutingCorpus`; `apps/api` simulate, preview, utilisation, stats and eval-run routes; `packages/eval` routing CLI.                                   |
+
+## Routing console and visibility (Wave 18, R4)
+
+**State:** built and tested offline. The console screens are visible whatever the flags say and show
+an honest "not enabled here" state while routing is off; nothing in R4 changes a call. Every new API
+route sits behind `OVO_ROUTING_ENABLED` like the rest (`404 routing_disabled`, `status` excepted).
+
+**One router.** A simulation, a pool explanation and an eval run drive the same pure `RouterCore`
+the worker drives (`packages/plugin-router`: `simulateRoute`, `explainPool`, `scoreRoutingCorpus`),
+over a simulated host and handoff port with scripted decision, LLM and external answers. Rules always
+run for real. There is no second routing implementation, and a differential test holds the simulator
+to the behaviour adapter's lines and `route.*` events.
+
+### API (all under `/v1/routing`)
+
+| Route                                                            | Role          | What                                                                                                                                                                                                       |
+| ---------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /status`                                                    | viewer        | Adds `simulate { enabled, liveLlm, liveExternal }`, `evalRuns` and `outcomesAvailable`. Answers while routing is dark.                                                                                     |
+| `GET /points?include=summary`                                    | viewer        | Each point gains `summary`: sizes, languages, latest release, `published` (the latest release froze the current draft) and the numbers pinned to it. One query for releases, one walk of the numbers.      |
+| `GET /points/:id/releases?view=summary`                          | viewer        | Releases without their snapshot: digest, counts and the numbers pinned to each.                                                                                                                            |
+| `POST /points/:id/preview-publish`                               | editor        | Blockers, warnings, the next version, the digest publish will store (the same snapshot builder), `unchanged`, the diff against the latest release and the `latest -> pinned` agent pins. Writes nothing.   |
+| `POST /simulate`                                                 | editor        | Runs a scripted caller (typed words, keypad digits, silence, caller id, a clock, variables) through a release or a draft. See below.                                                                       |
+| `GET /utilisation`, `GET /pools/:id/utilisation`                 | viewer        | Active claims against capacity, per pool and per member (one query for many pools), with `open` read from the member's hours at the server clock.                                                          |
+| `POST /pools/explain`                                            | viewer        | "Who would answer": the router's own eligibility and ranking over a stored pool or an unsaved definition, with the reasons a member is out. Nothing is claimed.                                            |
+| `GET /stats?window=24h\|7d\|30d&pointId=`                        | viewer        | Routed calls, fallbacks, reasks, people reached, transfers and route time (p50/p95), by target and by bucket, top points and pools, folded from the call outcomes. `available: false` without them.        |
+| `GET /eval-runs`, `POST /eval-runs`, `GET/DELETE /eval-runs/:id` | viewer/editor | A corpus of scripted callers scored against one release, kept with its scorecard (migration 014). Offline only: it scores the tree, the rules and the pools, not a model.                                  |
+| `GET /v1/calls` (extended)                                       | viewer        | `routingPointId`, `segmentAgentId`, `poolId`, `transferred=1`, `human=1`, `fallback=1`. Read from the call outcomes (newest outcome first, their own cursor) and joined to the control store call by call. |
+| `GET /v1/calls/:id/segments` (extended)                          | viewer        | Adds `events` (the route, segment, transfer, human and disclosure events, at most 400, `eventsTruncated`).                                                                                                 |
+| `GET /v1/calls/:id/evidence` (extended)                          | viewer        | Each transcript entry gains the routing `segment` the worker stamped on its engine event.                                                                                                                  |
+| `GET /v1/human-queues/:id/activity?window=24h\|7d`               | viewer        | What became of the tickets a queue created in the window, and the newest 50 (ids, codes and timings only).                                                                                                 |
+
+### Simulation
+
+The target is a published release, or a draft (the stored one, or the unsaved editor state in the
+body) resolved exactly as publish resolves it: a draft with blockers is refused
+(`422 routing_simulate_blocked`, with the issues) and nothing is written. The run is deterministic:
+a fixed `call.at`, mock engines and `load: "empty"` give a byte-identical result.
+
+- **Engines.** `decision`, `llm` and `external` answer as `engines.answers` script them (FIFO per
+  node and engine, `repeat` keeps one); an engine asked about a node with no answer reports
+  `no_match` and the result carries an `engine_unscripted` warning. A requested live engine needs an
+  admin, `OVO_ROUTING_SIMULATE_LIVE_ENABLED` (decision, LLM) or `OVO_ROUTING_EXTERNAL_ENABLED`
+  (external), and at most 8 caller turns; without them, or where the router release cannot back the
+  engine (it selects none, or needs something only a call has), the request is refused (`409
+simulate_live_unavailable`, with a `reason`), never silently mocked. The decision and LLM engines
+  are composed from the router release's own selections, provider bindings and credentials, as a text
+  simulation of that release composes them; the external engine posts the worker's signed webhook with
+  `simulated: true` and a `sim-` call id, using the router agent's credential policy. A live run is
+  neither metered nor budgeted: it costs provider money the ledger does not see, and
+  `stats.liveCalls` counts it.
+- **What is assumed.** `assume.transferEnabled` and `assume.humanQueueEnabled` default to the
+  server's; the result warns (`assumption_differs`) where they differ. `load: "live"` reads the
+  workspace's active claims and falls back to idle members with `load_unavailable`.
+- **Fidelity, said plainly.** Handoffs succeed unless a fault says otherwise; time is virtual (3 s a
+  caller turn; mock engines take no time); there is no speech recognition or synthesis, so typed
+  words are exact; claims are never written; in-call transfers are not run (the catalogue is
+  validated and the hold is previewed as a timeline); a loaded member count is a snapshot.
+- **Limits and audit.** 64 KiB body, 20 turns, 500 characters a turn, 100 answers; a limit per
+  identity (`OVO_ROUTING_SIMULATE_RATE_PER_MINUTE`, 30); a 5 s wall guard in the router. The audit
+  (`routing.simulate`, `routing.eval_run.create|delete`) holds counts, modes and ids, never the
+  caller's words or numbers.
+
+### Eval
+
+`packages/eval` holds the corpus format, the scorer's CLI (`pnpm eval:routing`) and the committed
+worked-example corpus; `scripts/mini-ci.sh` runs it as an offline gate. A report states its engine
+mode (`recorded` or `live`): a 100% offline score says the tree, rules and pools route as intended,
+not that a model classifies well. See [docs/eval/routing.md](../eval/routing.md).
+
+### Storage and rollout
+
+- Operations migration **014** (`ovo_routing_eval_runs`) and outcomes migration **v5** (three
+  indexes on `ovo_call_outcomes`) are additive; take a database backup before deploying them
+  (the outcome indexes are built in a transaction, so the sink's writes wait on them and retry).
+- `CallOutcomeRoute` gains optional `turns`, `routeMs`, `fallbacks` and `reasks`, folded from
+  `route.decision` and `route.fallback`. Calls from before R4 have none of them: the `fallback`
+  filter and the stats read them as zero or unknown. To backfill them, run
+  `node scripts/ops/refold-route-outcomes.mjs --workspace <id> [--limit 500] [--since <time>]`
+  with the control database URL in the environment: a dry run that prints the routes it would
+  rebuild from the calls' session events (ids and routing fields only); add `--apply` to write
+  them. It writes only `route`, under the lock the outcome sink takes, skips (and names) a call
+  with an event that no longer parses, and a second run finds nothing left to do.
+- New settings: `OVO_ROUTING_SIMULATE_LIVE_ENABLED` and `OVO_ROUTING_SIMULATE_RATE_PER_MINUTE` (api);
+  see the [environment reference](../env-reference.md).
 
 ## What later waves add
 
 - **R2, in-call transfer:** built in Wave 16; see [above](#in-call-agent-transfer-wave-16-r2).
-- **R3, human queues:** `kind: 'human'` joins `SegmentHandoffRequest` and transfer destinations; the
-  `human` routing and hold-timeout steps already validate (with a warning) and are recorded when
-  skipped. The hold player plays while a ticket waits for an operator.
-- **R4, designer and visibility:** the designer edits the same `RoutingPointDraft`; the simulator and
-  `packages/eval` routing accuracy drive the pure `RouterCore`; the inspector shows `route.segment`
-  timings per segment.
+- **R3, human queues:** built in Wave 17; see [above](#human-queues-wave-17-r3) and
+  [human-queues.md](human-queues.md).
+- **R4, designer and visibility:** built in Wave 18; see [above](#routing-console-and-visibility-wave-18-r4).
+- **Later:** replaying production calls into corpora (needs a PII policy), simulating in-call
+  transfers, supervisor listen-in, whisper and barge, skills-based queue routing, SMS or WhatsApp
+  hand-offs and CRM-aware routing.

@@ -2,6 +2,23 @@
 
 Updated: 2026-09-22 IST. Branch: `vorflux/ovo-foundation`.
 
+## Wave 18 R4: routing console and visibility (2026-10-20 IST)
+
+- **What.** The routing designer and pool editor, a route tester that runs a scripted caller through
+  a release or a draft without a call, per-queue activity, the route path and segment timeline on the
+  call inspector, calls filters by routing point, agent, transfer, person and fallback, and routing
+  accuracy in `packages/eval`. Design and API: `docs/architecture/routing.md` (Routing console and
+  visibility).
+- **Ships dark.** No change to a call. The console screens are visible and say "not enabled here"
+  while `OVO_ROUTING_ENABLED` or `OVO_HUMAN_QUEUE_ENABLED` are off; every new API route is behind the
+  same switch. Real decision/LLM engines in a simulation need `OVO_ROUTING_SIMULATE_LIVE_ENABLED`.
+  Migrations (operations 014, outcomes v5) are additive; take a backup before deploying.
+- **Core lane.** Contracts (simulation, eval, scorecard, publish preview, utilisation, stats, queue
+  activity) and the pure designer helpers (`routingDiff`, `routingIssueAnchor`, `holdTimeline`, tree
+  edits); the outcome fold of `turns`/`routeMs`/`fallbacks`/`reasks`, `findRouted` and `routeStats`;
+  eval runs, per-pool claim counts and latest releases in operations; the API routes above; queue
+  activity; env, Compose and Terraform wiring; the routing eval gate in `scripts/mini-ci.sh`.
+
 ## Wave 16 R2: in-call agent transfer (2026-10-15 IST)
 
 - **What.** On a routed call an agent can hand the caller to another agent mid-call on the same

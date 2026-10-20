@@ -22,6 +22,7 @@ export function matches(row: TicketRow, f: TicketFilter): boolean {
     (f.callId === undefined || row.callId === f.callId) &&
     (f.idempotencyKey === undefined || row.idempotencyKey === f.idempotencyKey) &&
     (f.sinceChangeId === undefined || row.changeId > f.sinceChangeId) &&
+    (f.createdSince === undefined || row.createdAt >= f.createdSince) &&
     (f.releasedSince === undefined ||
       (row.releasedAt !== undefined && row.releasedAt >= f.releasedSince)) &&
     (f.scrubDue === undefined ||

@@ -80,4 +80,13 @@ describe('calls index (AGT-8, W14 relogic)', () => {
     expect(await screen.findByText('Calls (window)')).toBeTruthy();
     expect(await screen.findByText('Live now')).toBeTruthy();
   });
+
+  it('adds a Route column, reads a recorded direct call as Direct, and keeps routing filters off while routing is off (Wave 18)', async () => {
+    render(<CallsIndexFeature />);
+    const recorded = (await screen.findByTitle('call_recorded')).closest('tr')!;
+    expect(screen.getByRole('columnheader', { name: 'Route' })).toBeTruthy();
+    expect(within(recorded).getByText('Direct')).toBeTruthy();
+    expect(screen.queryByLabelText('Routing point')).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Used a fallback' })).toBeNull();
+  });
 });

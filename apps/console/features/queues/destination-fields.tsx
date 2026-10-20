@@ -1,6 +1,6 @@
 'use client';
 import type { DestinationPolicy } from '../../lib/types/queues';
-import { FormSection, SwitchField, TagsField } from './fields';
+import { FormSection, SwitchField, TagsField } from '../../components/routing/fields';
 
 /** The toll-fraud guard: the third party can only send a caller where this list allows. */
 export function DestinationFields({

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { apiRequest, ApiError } from '../lib/api';
+import { useCallRouteView } from '../lib/data/call-route-api';
 import { useSession } from '../components/shell/session-provider';
 import { useTabParam } from '../lib/use-tab-param';
 import { usePluginLabels } from '../lib/use-plugin-labels';
@@ -21,12 +22,15 @@ import { formatDateTime, shortenId } from '../lib/format';
 import { ConversationTab } from '../components/inspector/conversation-tab';
 import { LatencyTab } from '../components/inspector/latency-tab';
 import { CallOutcomePanel } from './call-outcome-panel';
+import { CallRoutePanel, evidenceDownloadHref } from './call-route-panel';
+import { RouteChip } from '../components/inspector/route-chip';
 import { CostPanel } from '../components/inspector/cost-panel';
 import { EventsTab } from '../components/inspector/events-tab';
 import { LiveRecordingsPanel } from '../components/operations/live-recordings-panel';
 
 const TABS: TabItem[] = tabsFrom({
   conversation: 'Conversation',
+  route: 'Route & segments',
   latency: 'Latency',
   outcome: 'Outcome & routing',
   cost: 'Cost',
@@ -34,10 +38,6 @@ const TABS: TabItem[] = tabsFrom({
   recording: 'Recording files',
   raw: 'Raw',
 });
-
-function downloadEvidenceHref(evidence: CallEvidence): string {
-  return `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(evidence, null, 2))}`;
-}
 
 /**
  * The call inspector: one header with the call's identity and meta, a KPI strip, and the detail
@@ -51,6 +51,7 @@ export function CallInspectorFeature({ callId }: { callId: string }) {
   const { tab, setTab, resetTab } = useTabParam('conversation');
   const [agentName, setAgentName] = useState<string>();
   const pluginLabels = usePluginLabels();
+  const { route, names, tabVisible } = useCallRouteView(callId, tab === 'route');
 
   const load = useCallback(() => {
     setEvidence(undefined);
@@ -75,8 +76,15 @@ export function CallInspectorFeature({ callId }: { callId: string }) {
   const summary = useMemo(() => turnSummary(turns ?? []), [turns]);
   const cost = useMemo(() => primaryCost(evidence?.cost), [evidence?.cost]);
   const availableTabs = useMemo(
-    () => TABS.filter((item) => item.id !== 'recording' || evidence?.call.kind === 'live'),
-    [evidence?.call.kind],
+    () =>
+      TABS.filter((item) =>
+        item.id === 'recording'
+          ? evidence?.call.kind === 'live'
+          : item.id === 'route'
+            ? tabVisible
+            : true,
+      ),
+    [evidence?.call.kind, tabVisible],
   );
   useEffect(() => {
     if (evidence && !availableTabs.some((item) => item.id === tab)) resetTab('conversation');
@@ -150,13 +158,16 @@ export function CallInspectorFeature({ callId }: { callId: string }) {
               />
             )}
             {evidence.sttMode && <span className="ds-chip">{humaniseEnum(evidence.sttMode)}</span>}
+            {route.status === 'ready' && route.data.route && (
+              <RouteChip route={route.data.route} segments={route.data.segments.length} />
+            )}
             <IdChip id={call.id} short={shortenId(call.id)} />
           </div>
         }
         actions={
           <a
             className="button"
-            href={downloadEvidenceHref(evidence)}
+            href={evidenceDownloadHref(evidence, route)}
             download={`${call.id}-evidence.json`}
           >
             Export evidence
@@ -223,8 +234,11 @@ export function CallInspectorFeature({ callId }: { callId: string }) {
             evidence={evidence}
             turns={turns}
             turnsError={turnsError}
+            route={route.status === 'ready' ? route.data : undefined}
+            names={names}
           />
         )}
+        {tab === 'route' && <CallRoutePanel route={route} evidence={evidence} names={names} />}
         {tab === 'latency' && (
           <LatencyTab
             turns={turns}

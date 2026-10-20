@@ -30,42 +30,77 @@ function open(member: Member, now: number): boolean {
   }
 }
 
+/** One member against the target's non-language gates; the single predicate `eligibleTiers` and `explainPool` share. */
+export interface MemberScreen {
+  member: Member;
+  /** Null: the member has no hours (always open). An unknown zone reads closed. */
+  open: boolean | null;
+  productOk: boolean;
+  skillsOk: boolean;
+  /** Enabled, open, offering a wanted product and every wanted skill. */
+  ready: boolean;
+}
+
+export interface PoolScreen {
+  /** The products the target asks for, if any. */
+  products: string[] | undefined;
+  /** The languages tried, in order (a `caller` target only). */
+  languages: string[] | undefined;
+  /** The language the members were chosen on: the first tried that a ready member speaks. */
+  languageUsed: string | undefined;
+  screens: MemberScreen[];
+  /** The ready members that also speak `languageUsed` (every ready member for an `any` target). */
+  speaking: Member[];
+}
+
 /**
- * The members of `pool` the target may reach now, grouped into tiers by priority, highest first
- * (§7.5 step 4): enabled, open by their hours, offering a wanted product and every wanted skill,
- * and, for a `caller` target, speaking the caller's language (the default language until one is
- * known), else the pool's first `languageFallback` language any of them speaks. Empty when none is.
+ * Screens every member of `pool` for `target` (§7.5 step 4): enabled, open by their hours, offering
+ * a wanted product and every wanted skill, and, for a `caller` target, speaking the caller's
+ * language (the default language until one is known), else the pool's first `languageFallback`
+ * language any ready member speaks.
  */
-export function eligibleTiers(input: {
+export function screenPool(input: {
   pool: PoolSnapshot;
   target: PoolTarget;
   context: RouteContext;
   defaultLanguage: string;
   now: number;
-}): RoutingMemberCandidate[][] {
+}): PoolScreen {
   const { pool, target, context, now } = input;
   const products = wantedProducts(target, context);
-  const base = pool.members.filter(
-    (member) =>
-      member.enabled &&
-      open(member, now) &&
-      (!products || products.some((product) => member.products.includes(product))) &&
-      target.skills.every((skill) => member.skills.includes(skill)),
-  );
-  let speaking = base;
-  if (target.language === 'caller') {
-    const languages = [context.language ?? input.defaultLanguage, ...pool.languageFallback];
-    speaking = [];
-    for (const language of languages) {
-      speaking = base.filter((member) => member.languages.includes(language));
-      if (speaking.length) break;
-    }
+  const screens = pool.members.map((member): MemberScreen => {
+    const hours = member.hours ? open(member, now) : null;
+    const productOk = !products || products.some((product) => member.products.includes(product));
+    const skillsOk = target.skills.every((skill) => member.skills.includes(skill));
+    return {
+      member,
+      open: hours,
+      productOk,
+      skillsOk,
+      ready: member.enabled && hours !== false && productOk && skillsOk,
+    };
+  });
+  const ready = screens.filter((screen) => screen.ready).map((screen) => screen.member);
+  if (target.language !== 'caller')
+    return { products, languages: undefined, languageUsed: undefined, screens, speaking: ready };
+  const languages = [context.language ?? input.defaultLanguage, ...pool.languageFallback];
+  for (const language of languages) {
+    const speaking = ready.filter((member) => member.languages.includes(language));
+    if (speaking.length) return { products, languages, languageUsed: language, screens, speaking };
   }
+  return { products, languages, languageUsed: undefined, screens, speaking: [] };
+}
+
+/** Members grouped by priority, highest first; each tier keeps the pool's member order. */
+export function priorityTiers(
+  poolId: string,
+  members: readonly Member[],
+): RoutingMemberCandidate[][] {
   const tiers = new Map<number, RoutingMemberCandidate[]>();
-  for (const member of speaking) {
+  for (const member of members) {
     const tier = tiers.get(member.priority) ?? [];
     tier.push({
-      poolId: pool.id,
+      poolId,
       memberId: member.id,
       agentId: member.agent.agentId,
       releaseId: member.agent.release.releaseId,
@@ -74,6 +109,46 @@ export function eligibleTiers(input: {
     tiers.set(member.priority, tier);
   }
   return [...tiers.entries()].sort((a, b) => b[0] - a[0]).map(([, tier]) => tier);
+}
+
+/**
+ * The members of `pool` the target may reach now, grouped into tiers by priority, highest first
+ * (§7.5 step 4; the gates are `screenPool`'s). Empty when none is.
+ */
+export function eligibleTiers(input: {
+  pool: PoolSnapshot;
+  target: PoolTarget;
+  context: RouteContext;
+  defaultLanguage: string;
+  now: number;
+}): RoutingMemberCandidate[][] {
+  return priorityTiers(input.pool.id, screenPool(input).speaking);
+}
+
+/**
+ * The members of a tier with room, least loaded first, exactly as the claim store ranks them: by
+ * active/capacity (unlimited counts as 0), then by active claims (so unlimited members still
+ * balance), then by member id and pool id. `active` is the member's current claim count.
+ */
+export function rankCandidates(
+  tier: readonly RoutingMemberCandidate[],
+  active: (candidate: RoutingMemberCandidate) => number,
+): RoutingMemberCandidate[] {
+  const load = (candidate: RoutingMemberCandidate, count: number) =>
+    candidate.capacity === undefined ? 0 : count / candidate.capacity;
+  return tier
+    .map((candidate) => ({ candidate, count: active(candidate) }))
+    .filter(
+      ({ candidate, count }) => candidate.capacity === undefined || count < candidate.capacity,
+    )
+    .sort(
+      (a, b) =>
+        load(a.candidate, a.count) - load(b.candidate, b.count) ||
+        a.count - b.count ||
+        a.candidate.memberId.localeCompare(b.candidate.memberId) ||
+        a.candidate.poolId.localeCompare(b.candidate.poolId),
+    )
+    .map(({ candidate }) => candidate);
 }
 
 export type MemberPick =

@@ -1,5 +1,7 @@
 import { createServer } from 'node:http';
 import { handleDeskApi } from './fixtures/desk-api.mjs';
+import { handleInspectorApi } from './fixtures/inspector-api.mjs';
+import { handleRoutingApi } from './fixtures/routing-api.mjs';
 
 const fixtureScenario = (request) =>
   /ovo_fixture=(rich|empty|down|disabled)/.exec(request.headers.cookie ?? '')?.[1] ?? 'rich';
@@ -10,7 +12,13 @@ const server = createServer(async (request, response) => {
     response.end('ok');
     return;
   }
-  if (await handleDeskApi(request, response, fixtureScenario(request))) return;
+  const scenario = fixtureScenario(request);
+  // The inspector answers the routing paths it shares (status, points, agents) only with its own
+  // cookie, so it goes before routing; the desk handler answers every other `/v1/*` GET with an
+  // empty page and goes last.
+  if (await handleInspectorApi(request, response, scenario)) return;
+  if (await handleRoutingApi(request, response, scenario)) return;
+  if (await handleDeskApi(request, response, scenario)) return;
   if (request.url !== '/v1/auth/me') {
     response.writeHead(404, { 'content-type': 'application/json' });
     response.end(JSON.stringify({ error: { code: 'not_found' } }));
@@ -36,4 +44,5 @@ const server = createServer(async (request, response) => {
       : JSON.stringify({ error: { code: 'unauthorized' } }),
   );
 });
-server.listen(4177, '127.0.0.1');
+// The port is overridable so two checkouts can run their e2e suites on one machine.
+server.listen(Number(process.env.OVO_E2E_API_PORT ?? 4177), '127.0.0.1');

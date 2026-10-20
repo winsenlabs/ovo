@@ -190,6 +190,27 @@ describe('Fargate scaling contract', () => {
     expect(block(vars, 'variable', 'routing_prepare_timeout_ms')).toMatch(/default\s+=\s+""/);
   });
 
+  it('passes the route tester settings to the api only (Wave 18): live engines off, 30 a minute', () => {
+    const tasks = tf('tasks.tf');
+    const task = (name: string) => block(tasks, 'resource "aws_ecs_task_definition"', name);
+    const live =
+      '{ name = "OVO_ROUTING_SIMULATE_LIVE_ENABLED", value = tostring(var.enable_routing_simulate_live) }';
+    const rate =
+      '{ name = "OVO_ROUTING_SIMULATE_RATE_PER_MINUTE", value = tostring(var.routing_simulate_rate_per_minute) }';
+    expect(task('api')).toContain(live);
+    expect(task('api')).toContain(rate);
+    for (const name of ['gateway', 'worker', 'dispatcher', 'console'])
+      expect(task(name), name).not.toContain('OVO_ROUTING_SIMULATE');
+    const vars = tf('variables.tf');
+    expect(block(vars, 'variable', 'enable_routing_simulate_live')).toMatch(
+      /type\s+=\s+bool\s+default\s+=\s+false/,
+    );
+    const limit = block(vars, 'variable', 'routing_simulate_rate_per_minute');
+    expect(limit).toMatch(/type\s+=\s+number\s+default\s+=\s+30/);
+    expect(limit).toContain('>= 1');
+    expect(limit).toContain('<= 600');
+  });
+
   it('passes the human queue flags, off by default, and refuses a Fargate room server (Wave 17)', () => {
     const tasks = tf('tasks.tf');
     const task = (name: string) => block(tasks, 'resource "aws_ecs_task_definition"', name);

@@ -166,8 +166,11 @@ export function routingApp(
   options: Partial<RoutingRouteDependencies> & {
     releases?: ReleaseRecord[];
     credentials?: Partial<CredentialMetadata>[];
+    /** Inbound numbers pinned to routing releases, as the operations service lists them. */
+    numbers?: { phoneNumber: string; routingReleaseId: string; pointId: string }[];
   } = {},
 ) {
+  const { numbers = [], releases: _releases, credentials: _credentials, ...dependencies } = options;
   const app = Fastify({ logger: false });
   const routing = new FakeRoutingService();
   const store = fakeStore(options.releases ?? exampleReleases(), options.credentials);
@@ -188,7 +191,19 @@ export function routingApp(
         throw Object.assign(new Error('Forbidden'), { statusCode: 403, code: 'forbidden' });
       return { identityId: 'operator', label: 'Operator', workspaceId: WORKSPACE, role: held };
     },
-    operations: { organizationId: WORKSPACE, routing } as never,
+    operations: {
+      organizationId: WORKSPACE,
+      routing,
+      inboundRoutes: {
+        list: async (_limit: number, after?: string) =>
+          numbers
+            .filter((number) => !after || number.phoneNumber > after)
+            .map((number) => ({
+              ...number,
+              routing: { pointId: number.pointId, pointName: 'Main line', version: 1 },
+            })),
+      },
+    } as never,
     enabled: true,
     externalEnabled: false,
     transferEnabled: false,
@@ -203,7 +218,7 @@ export function routingApp(
         });
       return Number(value.replaceAll('"', ''));
     },
-    ...options,
+    ...dependencies,
   });
   return { app, routing, store };
 }

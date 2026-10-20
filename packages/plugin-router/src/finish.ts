@@ -10,6 +10,8 @@ import {
 import { queueLine } from './begin.ts';
 import type { RouteRecorder } from './events.ts';
 import { BUILT_IN_LINES, pickLine } from './lines.ts';
+import type { RouterPorts } from './ports.ts';
+import type { RouterState } from './state.ts';
 import type { Resolution, RouteOutcome as Outcome } from './targets.ts';
 
 const CONTEXT_KEYS = 16;
@@ -69,17 +71,21 @@ export function decisionPayload(input: {
  */
 export function recordFinish(
   recorder: RouteRecorder,
-  input: {
-    call: RoutingHost['call'];
-    outcome: Outcome;
-    context: RouteContext;
-    turns: number;
-    startedAt: number;
-    now: number;
-    timezone: string;
-  },
+  ports: Pick<RouterPorts, 'host' | 'timezone'>,
+  state: RouterState,
+  outcome: Outcome,
 ): void {
-  const { outcome, turns: turn } = input;
+  const now = ports.host.now();
+  const input = {
+    call: ports.host.call,
+    outcome,
+    context: state.context,
+    turns: state.turns,
+    startedAt: state.startedAt!,
+    now,
+    timezone: ports.timezone ?? 'UTC',
+  };
+  const turn = state.turns;
   recorder.decision(
     decisionPayload({ ...input, routeMs: Math.max(0, input.now - input.startedAt) }),
   );
