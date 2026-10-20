@@ -275,6 +275,24 @@ describe('POST /v1/routing/simulate: roles, limits and audit (R4)', () => {
     expect((await run(body)).statusCode).toBe(200);
   });
 
+  it('limits pool explanations like simulations, per identity, and says when to retry', async () => {
+    let clock = NOW;
+    const { call } = await r4Setup({
+      simulator: scriptedSimulator(),
+      simulateRatePerMinute: 2,
+      clock: () => clock,
+    });
+    const explain = (headers: Record<string, string> = { 'x-role': 'viewer' }) =>
+      call('POST', '/v1/routing/pools/explain', { poolId: POOL_SALES }, headers);
+    expect((await explain()).statusCode).toBe(200);
+    expect((await explain()).statusCode).toBe(200);
+    const limited = await explain();
+    expect([limited.statusCode, limited.json().error.code]).toEqual([429, 'rate_limited']);
+    expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
+    clock += 61_000;
+    expect((await explain()).statusCode).toBe(200);
+  });
+
   it('refuses a body over 64 KiB', async () => {
     const { run, release: made } = await published();
     const big = {

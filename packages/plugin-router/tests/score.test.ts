@@ -243,6 +243,36 @@ describe('scoreRoutingCorpus: edges', () => {
   });
 });
 
+describe('scoreRoutingCorpus: guards', () => {
+  it('rejects two cases with the same id, naming it', async () => {
+    const twin = { ...HAND_CASES[1]!, id: HAND_CASES[0]!.id };
+    await expect(score([HAND_CASES[0]!, twin])).rejects.toThrow(
+      `Duplicate case id "${HAND_CASES[0]!.id}"`,
+    );
+  });
+
+  it('fails a case that throws while it runs and still scores the rest', async () => {
+    const [first, second] = HAND_CASES;
+    const card = await scoreRoutingCorpus({
+      snapshot,
+      cases: [first!, second!],
+      name: 'throws',
+      engineMode: 'recorded',
+      flags: (testcase) => {
+        if (testcase.id === first!.id) throw new Error('flags exploded');
+        return { transferEnabled: false, humanQueueEnabled: true };
+      },
+      router: {},
+    });
+    expect(card.totals.cases).toBe(2);
+    expect(card.failures).toHaveLength(1);
+    expect(card.failures[0]).toMatchObject({
+      id: first!.id,
+      diff: expect.arrayContaining(['run: error: flags exploded']),
+    });
+  });
+});
+
 describe('routingCorpusDigest', () => {
   it('is the same for the same cases and changes with any of them', () => {
     expect(routingCorpusDigest(HAND_CASES)).toMatch(/^[0-9a-f]{64}$/);
