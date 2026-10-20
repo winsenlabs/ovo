@@ -119,6 +119,9 @@ step typecheck pnpm typecheck
 step 'typecheck tests/e2e' pnpm exec tsc -p tests/e2e/tsconfig.json
 step lint pnpm lint
 step 'format check' pnpm format:check
+# Every external package an app bundle imports must be a direct dependency, or the image crashes
+# on boot: pnpm deploy --prod installs direct dependencies only.
+step 'bundle externals' node scripts/check-bundle-externals.mjs
 # Without a database URL the Postgres suites skip themselves; they run next, serially. Without
 # OVO_TEST_SIPP the SIPp suites skip themselves too; they run last, in their own step.
 step 'unit tests' env "${postgres_vars[@]/#/-u}" -u OVO_TEST_SIPP pnpm test
