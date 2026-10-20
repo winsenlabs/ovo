@@ -43,10 +43,32 @@ export interface LiveEngineFactory {
   readonly llm: boolean;
   /** The external engine can run live. */
   readonly external: boolean;
-  open(request: {
-    workspaceId: string;
-    routerReleaseId: string;
-  }): Promise<{ ports: LiveEngines; dispose(): Promise<void> }>;
+  /** Throws `LiveEngineUnavailable` where the router release cannot back a requested engine. */
+  open(request: LiveEngineRequest): Promise<{ ports: LiveEngines; dispose(): Promise<void> }>;
+}
+
+/** A live engine this installation cannot compose for this router release (409, never a mock). */
+export class LiveEngineUnavailable extends Error {
+  constructor(readonly reason: string) {
+    super(reason);
+    this.name = 'LiveEngineUnavailable';
+  }
+}
+
+/** What a live run needs to compose its engines: the router release and the simulated call. */
+export interface LiveEngineRequest {
+  workspaceId: string;
+  routerReleaseId: string;
+  /** Which engines the request marks live. */
+  modes: { decision: 'mock' | 'live'; llm: 'mock' | 'live'; external: 'mock' | 'live' };
+  /** The simulated call, as the external engine's request describes it. */
+  call: {
+    routingPointId: string;
+    routingReleaseId: string;
+    from?: string;
+    to?: string;
+    variables: Record<string, string>;
+  };
 }
 
 export interface RouterFlags {

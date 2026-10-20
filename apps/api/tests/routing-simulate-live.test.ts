@@ -4,6 +4,7 @@ import {
   SIMULATION_LIMITS,
   type SimulationRequest,
 } from '@winsendotai/ovo-contracts';
+import { LiveEngineUnavailable } from '../src/routing-simulator.ts';
 import { ROUTER_RELEASE } from './routing-fixtures.ts';
 import { r4Setup, scriptedSimulator } from './routing-sim-fixtures.ts';
 import { editor, published, speech } from './routing-simulate-support.ts';
@@ -87,8 +88,12 @@ describe('POST /v1/routing/simulate: live engines (R4)', () => {
     const body = RoutingSimulationResult.parse(response.json());
     expect(body.engineModes).toMatchObject({ llm: 'live', decision: 'live', external: 'mock' });
     expect(body.stats.liveCalls).toBe(1);
-    expect(engines.opened).toEqual([
-      { workspaceId: 'ws-routing', routerReleaseId: ROUTER_RELEASE },
+    expect(engines.opened).toMatchObject([
+      {
+        workspaceId: 'ws-routing',
+        routerReleaseId: ROUTER_RELEASE,
+        modes: { decision: 'live', llm: 'live', external: 'mock' },
+      },
     ]);
     expect(simulator.calls.simulate[0]!.live).toBeDefined();
     expect(engines.disposed).toHaveBeenCalledTimes(1);
@@ -138,5 +143,64 @@ describe('POST /v1/routing/simulate: live engines (R4)', () => {
     ).json();
     expect(status.simulate).toEqual({ enabled: true, liveLlm: true, liveExternal: false });
     expect(status.evalRuns).toBe(true);
+  });
+
+  it('answers 409 with the reason when the router release cannot back the engine, and runs nothing', async () => {
+    const engines = {
+      llm: true,
+      external: true,
+      open: async () => {
+        throw new LiveEngineUnavailable('the router release selects no llm');
+      },
+    };
+    const {
+      run,
+      release: made,
+      simulator,
+    } = await published({
+      liveEngines: engines,
+      simulateLiveEnabled: true,
+    });
+    const response = await run({
+      target: { kind: 'release', routingReleaseId: made.id },
+      ...live({ llm: 'live' } as never),
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      error: { code: 'simulate_live_unavailable', message: 'the router release selects no llm' },
+      reason: 'the router release selects no llm',
+    });
+    expect(simulator.calls.simulate).toEqual([]);
+  });
+
+  it('hands the engines the simulated call, so the external request can describe it', async () => {
+    const engines = factory();
+    const {
+      run,
+      release: made,
+      point,
+    } = await published({
+      liveEngines: engines,
+      simulateLiveEnabled: true,
+    });
+    await run({
+      target: { kind: 'release', routingReleaseId: made.id },
+      call: { from: '+919812345678', to: '+918040001111', variables: { account: '7' } },
+      ...live({ llm: 'live', external: 'mock' } as never),
+    });
+    expect(engines.opened).toEqual([
+      {
+        workspaceId: 'ws-routing',
+        routerReleaseId: ROUTER_RELEASE,
+        modes: { decision: 'mock', llm: 'live', external: 'mock' },
+        call: {
+          routingPointId: point.id,
+          routingReleaseId: made.id,
+          from: '+919812345678',
+          to: '+918040001111',
+          variables: { account: '7' },
+        },
+      },
+    ]);
   });
 });

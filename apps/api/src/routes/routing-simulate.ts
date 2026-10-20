@@ -7,7 +7,11 @@ import {
 } from '@winsendotai/ovo-contracts';
 import type { FastifyReply } from 'fastify';
 import { loadMap, routerInfo, simulationSource } from '../routing-simulate-target.ts';
-import { isSimulationInputError } from '../routing-simulator.ts';
+import {
+  LiveEngineUnavailable,
+  isSimulationInputError,
+  type LiveEngineFactory,
+} from '../routing-simulator.ts';
 import { publishContext } from './routing-points.ts';
 import { routed, sendError, withinRate, type RoutingR4Dependencies } from './routing-support.ts';
 
@@ -111,12 +115,27 @@ export function registerRoutingSimulateRoutes(input: RoutingR4Dependencies): voi
           });
         }
       const started = Date.now();
-      const engines = live.asked.length
-        ? await input.liveEngines!.open({
+      let engines: Awaited<ReturnType<LiveEngineFactory['open']>> | undefined;
+      if (live.asked.length)
+        try {
+          engines = await input.liveEngines!.open({
             workspaceId: principal.workspaceId,
             routerReleaseId: snapshot.router.release.releaseId,
-          })
-        : undefined;
+            modes: rest.engines.mode,
+            call: {
+              routingPointId: snapshot.routingPointId,
+              routingReleaseId: source.routingReleaseId ?? 'draft',
+              ...(rest.call.from ? { from: rest.call.from } : {}),
+              ...(rest.call.to ? { to: rest.call.to } : {}),
+              variables: rest.call.variables,
+            },
+          });
+        } catch (error) {
+          if (!(error instanceof LiveEngineUnavailable)) throw error;
+          return sendError(reply, 409, 'simulate_live_unavailable', error.message, {
+            reason: error.reason,
+          });
+        }
       try {
         const run = await input.simulator.simulateRoute({
           snapshot,

@@ -22,6 +22,8 @@ import { registerReadinessRoutes } from './readiness.ts';
 import { registerHumanQueue } from './human-queue-index.ts';
 import { registerRoutingRoutes } from './routing.ts';
 import { createCallOutcomeReader } from './call-outcomes.ts';
+import * as sessionHost from '@winsendotai/ovo-session-host';
+import { createLiveEngineFactory, type ExternalCaller } from '../routing-live-engines.ts';
 import { routerSimulator } from '../routing-simulator.ts';
 import { humanQueueFlagsFromEnv } from '../human-queue-config.ts';
 import { sessionHostEgress } from '../human-queue-egress.ts';
@@ -86,6 +88,16 @@ export function registerApiRoutes(deps: any): void {
     expectedVersion: deps.expectedVersion,
     outcomes,
     simulator: routerSimulator(),
+    liveEngines: createLiveEngineFactory({
+      store,
+      catalog: deps.catalog,
+      createServices: deps.createServices,
+      secrets: deps.secrets,
+      externalEnabled: options.routingExternalEnabled === true,
+      // The signed webhook client lives in the session host from Wave 18; an older host has none.
+      callExternal: (sessionHost as { callExternalRouteEngine?: ExternalCaller })
+        .callExternalRouteEngine,
+    }),
     simulateLiveEnabled: options.routingSimulateLiveEnabled === true,
     simulateRatePerMinute: options.routingSimulateRatePerMinute,
   });

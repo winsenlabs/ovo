@@ -571,8 +571,14 @@ a fixed `call.at`, mock engines and `load: "empty"` give a byte-identical result
   node and engine, `repeat` keeps one); an engine asked about a node with no answer reports
   `no_match` and the result carries an `engine_unscripted` warning. A requested live engine needs an
   admin, `OVO_ROUTING_SIMULATE_LIVE_ENABLED` (decision, LLM) or `OVO_ROUTING_EXTERNAL_ENABLED`
-  (external), and at most 8 caller turns; without them the request is refused (`409
-simulate_live_unavailable`), never silently mocked.
+  (external), and at most 8 caller turns; without them, or where the router release cannot back the
+  engine (it selects none, or needs something only a call has), the request is refused (`409
+simulate_live_unavailable`, with a `reason`), never silently mocked. The decision and LLM engines
+  are composed from the router release's own selections, provider bindings and credentials, as a text
+  simulation of that release composes them; the external engine posts the worker's signed webhook with
+  `simulated: true` and a `sim-` call id, using the router agent's credential policy. A live run is
+  neither metered nor budgeted: it costs provider money the ledger does not see, and
+  `stats.liveCalls` counts it.
 - **What is assumed.** `assume.transferEnabled` and `assume.humanQueueEnabled` default to the
   server's; the result warns (`assumption_differs`) where they differ. `load: "live"` reads the
   workspace's active claims and falls back to idle members with `load_unavailable`.
