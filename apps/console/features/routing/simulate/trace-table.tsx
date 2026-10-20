@@ -19,7 +19,13 @@ interface Row {
 }
 
 /** Every engine attempt of the run. A scripted engine with no answer offers "Answer as…". */
-export function TraceTable({ result, onAnswerAs }: { result: RoutingSimulationResult; onAnswerAs?: (node: string, engine: SimulatedEngine) => void }) {
+export function TraceTable({
+  result,
+  onAnswerAs,
+}: {
+  result: RoutingSimulationResult;
+  onAnswerAs?: (node: string, engine: SimulatedEngine) => void;
+}) {
   const rows = useMemo<Row[]>(
     () =>
       nodeSteps(result).map(({ turn, step }, i) => {
@@ -43,11 +49,45 @@ export function TraceTable({ result, onAnswerAs }: { result: RoutingSimulationRe
     { id: 'turn', header: 'Turn', align: 'end', cell: (r) => r.turn },
     { id: 'node', header: 'Question', cell: (r) => <span className="mono">{r.node}</span> },
     { id: 'engine', header: 'Engine', cell: (r) => r.engine },
-    { id: 'outcome', header: 'Result', cell: (r) => <StatusBadgeV2 value={r.outcome === 'low_confidence' ? 'degraded' : r.outcome === 'matched' ? 'passed' : r.outcome} label={r.outcome.replaceAll('_', ' ')} size="sm" /> },
+    {
+      id: 'outcome',
+      header: 'Result',
+      cell: (r) => (
+        <StatusBadgeV2
+          value={
+            r.outcome === 'low_confidence'
+              ? 'degraded'
+              : r.outcome === 'matched'
+                ? 'passed'
+                : r.outcome
+          }
+          label={r.outcome.replaceAll('_', ' ')}
+          size="sm"
+        />
+      ),
+    },
     { id: 'branch', header: 'Branch', cell: (r) => r.branch ?? '—' },
-    { id: 'confidence', header: 'Confidence', align: 'end', priority: 'low', cell: (r) => (r.confidence === undefined ? '—' : `${Math.round(r.confidence * 100)}%`) },
-    { id: 'ms', header: 'Time', align: 'end', priority: 'low', cell: (r) => (r.ms === undefined ? '—' : `${r.ms} ms`) },
-    { id: 'mode', header: 'Mode', priority: 'low', cell: (r) => (r.engine === 'rules' || r.engine === 'context' ? 'Real' : r.mocked ? 'Scripted' : 'Real') },
+    {
+      id: 'confidence',
+      header: 'Confidence',
+      align: 'end',
+      priority: 'low',
+      cell: (r) => (r.confidence === undefined ? '—' : `${Math.round(r.confidence * 100)}%`),
+    },
+    {
+      id: 'ms',
+      header: 'Time',
+      align: 'end',
+      priority: 'low',
+      cell: (r) => (r.ms === undefined ? '—' : `${r.ms} ms`),
+    },
+    {
+      id: 'mode',
+      header: 'Mode',
+      priority: 'low',
+      cell: (r) =>
+        r.engine === 'rules' || r.engine === 'context' ? 'Real' : r.mocked ? 'Scripted' : 'Real',
+    },
     {
       id: 'reason',
       header: 'Reason',
@@ -56,7 +96,11 @@ export function TraceTable({ result, onAnswerAs }: { result: RoutingSimulationRe
           <span className="rt-unscripted">
             No scripted answer{' '}
             {onAnswerAs && (
-              <button type="button" className="button small" onClick={() => onAnswerAs(r.node, r.engine as SimulatedEngine)}>
+              <button
+                type="button"
+                className="button small"
+                onClick={() => onAnswerAs(r.node, r.engine as SimulatedEngine)}
+              >
                 Answer as…
               </button>
             )}
@@ -66,5 +110,14 @@ export function TraceTable({ result, onAnswerAs }: { result: RoutingSimulationRe
         ),
     },
   ];
-  return <DataTableV2 label="Engine attempts" rows={rows} columns={columns} rowKey={(r) => r.id} density="compact" empty="The run asked no engine anything." />;
+  return (
+    <DataTableV2
+      label="Engine attempts"
+      rows={rows}
+      columns={columns}
+      rowKey={(r) => r.id}
+      density="compact"
+      empty="The run asked no engine anything."
+    />
+  );
 }

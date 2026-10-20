@@ -16,16 +16,34 @@ const flagFor = (errors: number, warnings: number) => (errors ? 'danger' : warni
 export function RouteMap({ onOpen }: { onOpen: (nodeId: string) => void }) {
   const { draft, index } = useDesigner();
   const names = useNames();
-  const map = useMemo(() => layoutMap(draft, names, (k) => ENGINE_LABEL[k as keyof typeof ENGINE_LABEL] ?? k), [draft, names]);
+  const map = useMemo(
+    () => layoutMap(draft, names, (k) => ENGINE_LABEL[k as keyof typeof ENGINE_LABEL] ?? k),
+    [draft, names],
+  );
   const rows = useMemo(() => outlineOrder(draft.nodes, draft.root), [draft.nodes, draft.root]);
   const targets = map.boxes.filter((b) => b.kind === 'target').length;
   const label = `Route map: ${draft.nodes.length} question${draft.nodes.length === 1 ? '' : 's'} and ${targets} destination${targets === 1 ? '' : 's'}, starting at ${draft.root}. The outline below lists the same.`;
   return (
-    <SectionCard title="Route map" description="How a call moves through the questions. Select a question to edit it.">
+    <SectionCard
+      title="Route map"
+      description="How a call moves through the questions. Select a question to edit it."
+    >
       <div className="rt-map-scroll">
-        <svg className="rt-map" width={map.width} height={map.height} viewBox={`0 0 ${map.width} ${map.height}`} role="img" aria-label={label}>
+        <svg
+          className="rt-map"
+          width={map.width}
+          height={map.height}
+          viewBox={`0 0 ${map.width} ${map.height}`}
+          role="img"
+          aria-label={label}
+        >
           {map.edges.map((edge) => (
-            <path key={`${edge.from}>${edge.to}>${edge.label}`} d={edge.path} className="rt-map-edge" fill="none" />
+            <path
+              key={`${edge.from}>${edge.to}>${edge.label}`}
+              d={edge.path}
+              className="rt-map-edge"
+              fill="none"
+            />
           ))}
           {map.boxes.map((box) => {
             const issues = box.kind === 'node' ? (index.byNode.get(box.id) ?? []) : [];
@@ -68,7 +86,8 @@ export function RouteMap({ onOpen }: { onOpen: (nodeId: string) => void }) {
             <ul>
               {node.branches.map((b) => (
                 <li key={b.key}>
-                  <span className="mono">{b.key}</span> → {b.next !== undefined ? b.next : targetSummary(b.target!, names)}
+                  <span className="mono">{b.key}</span> →{' '}
+                  {b.next !== undefined ? b.next : targetSummary(b.target!, names)}
                 </li>
               ))}
             </ul>

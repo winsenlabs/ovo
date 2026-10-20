@@ -42,7 +42,10 @@ export function blankDraft(input: {
         ...blankNode('start'),
         ask: { [language]: 'How can I help you today?' },
         branches: [
-          { ...blankBranch('main'), description: 'The caller wants to speak to the main team' },
+          {
+            ...blankBranch('main', latest(input.defaultAgentId)),
+            description: 'The caller wants to speak to the main team',
+          },
         ],
         engines: [
           { kind: 'rules', rules: [{ branch: 'main', when: [{ kind: 'dtmf', digits: '1' }] }] },

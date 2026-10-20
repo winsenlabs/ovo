@@ -15,17 +15,27 @@ export function isBehind(row: NumberRow, releases: readonly ReleaseSummary[]): b
 }
 
 /** What binding does to a number, in words: the consequence the operator confirms. */
-export function bindConsequence(row: NumberRow, pointName: string, version: number): { text: string; needsConfirm: boolean } {
+export function bindConsequence(
+  row: NumberRow,
+  pointName: string,
+  version: number,
+): { text: string; needsConfirm: boolean } {
   if (!isRouted(row))
     return {
       text: `Calls to this number now go to the agent release it is bound to. After binding, they reach ${pointName} version ${version} first: the router greets the caller and chooses the agent. The number's variables are checked against the router.`,
       needsConfirm: true,
     };
   if (row.routing && row.routing.pointName !== pointName)
-    return { text: `This number is bound to ${row.routing.pointName}. It will move to ${pointName} version ${version}.`, needsConfirm: true };
+    return {
+      text: `This number is bound to ${row.routing.pointName}. It will move to ${pointName} version ${version}.`,
+      needsConfirm: true,
+    };
   const from = row.routing?.version ?? 0;
   return {
-    text: version < from ? `This rolls the number back from version ${from} to version ${version}.` : `This moves the number from version ${from} to version ${version}.`,
+    text:
+      version < from
+        ? `This rolls the number back from version ${from} to version ${version}.`
+        : `This moves the number from version ${from} to version ${version}.`,
     needsConfirm: false,
   };
 }

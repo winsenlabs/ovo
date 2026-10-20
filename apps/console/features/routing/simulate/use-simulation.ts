@@ -3,7 +3,12 @@ import type { RoutingPointDraft } from '@winsendotai/ovo-contracts';
 import { useCallback, useRef, useState } from 'react';
 import { ApiError } from '../../../lib/api';
 import { routingApi } from '../../../lib/data/routing-api';
-import { buildRequest, formProblem, setAnswer, type SimForm } from '../../../lib/derive/routing-simulate';
+import {
+  buildRequest,
+  formProblem,
+  setAnswer,
+  type SimForm,
+} from '../../../lib/derive/routing-simulate';
 import type { RoutingSimulationResult, SimulatedAnswer } from '../../../lib/types/routing-simulate';
 import type { RoutingIssue } from '../../../lib/types/routing';
 
@@ -36,12 +41,23 @@ export function useSimulation(options: { timeZone?: string; draft?: RoutingPoint
       } catch (failure) {
         if (latest.current !== mine) return;
         if (failure instanceof ApiError && failure.code === 'routing_simulate_blocked')
-          setRun({ status: 'blocked', blockers: (failure.details?.blockers as RoutingIssue[]) ?? [], warnings: (failure.details?.warnings as RoutingIssue[]) ?? [] });
+          setRun({
+            status: 'blocked',
+            blockers: (failure.details?.blockers as RoutingIssue[]) ?? [],
+            warnings: (failure.details?.warnings as RoutingIssue[]) ?? [],
+          });
         else if (failure instanceof ApiError && failure.code === 'simulate_live_unavailable')
           setRun({ status: 'unavailable', reason: failure.message });
         else if (failure instanceof ApiError && failure.status === 429)
-          setRun({ status: 'error', message: 'Too many simulations. Wait a moment and run again.' });
-        else setRun({ status: 'error', message: failure instanceof Error ? failure.message : 'The simulation failed.' });
+          setRun({
+            status: 'error',
+            message: 'Too many simulations. Wait a moment and run again.',
+          });
+        else
+          setRun({
+            status: 'error',
+            message: failure instanceof Error ? failure.message : 'The simulation failed.',
+          });
       }
     },
     [options.draft, options.timeZone], // eslint-disable-line react-hooks/exhaustive-deps

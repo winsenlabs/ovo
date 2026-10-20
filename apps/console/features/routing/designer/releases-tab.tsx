@@ -20,15 +20,28 @@ function Compare({ pair }: { pair: [ReleaseSummary, ReleaseSummary] }) {
     setError(undefined);
     void Promise.all([routingApi.release(older.id), routingApi.release(newer.id)]).then(
       ([a, b]) => live && setChanges(routingDiff(a.snapshot as never, b.snapshot as never)),
-      (failure) => live && setError(failure instanceof Error ? failure.message : 'The releases could not be loaded.'),
+      (failure) =>
+        live &&
+        setError(failure instanceof Error ? failure.message : 'The releases could not be loaded.'),
     );
     return () => {
       live = false;
     };
   }, [older.id, newer.id]);
   return (
-    <SectionCard title={`Version ${older.version} to version ${newer.version}`} description="What changed between the two releases.">
-      {error ? <ErrorState message={error} /> : changes ? <ChangeList changes={changes} empty="The two releases are identical." /> : <p className="muted" role="status">Loading the releases…</p>}
+    <SectionCard
+      title={`Version ${older.version} to version ${newer.version}`}
+      description="What changed between the two releases."
+    >
+      {error ? (
+        <ErrorState message={error} />
+      ) : changes ? (
+        <ChangeList changes={changes} empty="The two releases are identical." />
+      ) : (
+        <p className="muted" role="status">
+          Loading the releases…
+        </p>
+      )}
     </SectionCard>
   );
 }
@@ -47,24 +60,50 @@ export function ReleasesTab({
   refreshKey: number;
   onPublish: () => void;
 }) {
-  const { state, reload } = useRoutingLoad(() => routingApi.releases(pointId), [pointId, refreshKey]);
+  const { state, reload } = useRoutingLoad(
+    () => routingApi.releases(pointId),
+    [pointId, refreshKey],
+  );
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const rows = state.status === 'ready' ? state.data : [];
   const pair = useMemo(() => rows.filter((r) => selected.has(r.id)), [rows, selected]);
   const pinned = (id: string) => numbers.filter((n) => n.routingReleaseId === id).length;
   const columns: ColumnV2<ReleaseSummary>[] = [
-    { id: 'version', header: 'Version', cell: (r) => <strong>v{r.version}</strong>, sortValue: (r) => r.version },
-    { id: 'digest', header: 'Digest', priority: 'low', cell: (r) => <IdChip id={r.digest} short={r.digest.slice(0, 10)} /> },
+    {
+      id: 'version',
+      header: 'Version',
+      cell: (r) => <strong>v{r.version}</strong>,
+      sortValue: (r) => r.version,
+    },
+    {
+      id: 'digest',
+      header: 'Digest',
+      priority: 'low',
+      cell: (r) => <IdChip id={r.digest} short={r.digest.slice(0, 10)} />,
+    },
     { id: 'created', header: 'Created', cell: (r) => formatDateTime(r.createdAt) },
     { id: 'by', header: 'By', priority: 'low', cell: (r) => r.createdBy },
-    { id: 'size', header: 'Questions / pools', priority: 'low', align: 'end', cell: (r) => (r.counts ? `${r.counts.nodes} / ${r.counts.pools}` : '—') },
+    {
+      id: 'size',
+      header: 'Questions / pools',
+      priority: 'low',
+      align: 'end',
+      cell: (r) => (r.counts ? `${r.counts.nodes} / ${r.counts.pools}` : '—'),
+    },
     { id: 'numbers', header: 'Numbers', align: 'end', cell: (r) => pinned(r.id) },
   ];
   return (
     <div className="rt-stack rt-pad">
       <div className="rt-toolbar">
-        <p className="muted">A release is an immutable copy of the draft. Numbers keep the release they are bound to until you bind them to a newer one.</p>
-        {canEdit && <button type="button" className="button primary" onClick={onPublish}>Publish…</button>}
+        <p className="muted">
+          A release is an immutable copy of the draft. Numbers keep the release they are bound to
+          until you bind them to a newer one.
+        </p>
+        {canEdit && (
+          <button type="button" className="button primary" onClick={onPublish}>
+            Publish…
+          </button>
+        )}
       </div>
       {selected.size > 2 && <InlineAlert tone="warn">Choose two releases to compare.</InlineAlert>}
       <DataTableV2
@@ -77,7 +116,11 @@ export function ReleasesTab({
         onRetry={() => void reload()}
         selected={selected}
         onSelectChange={setSelected}
-        empty={<EmptyStateV2 title="Never published">Publish the draft to give numbers something stable to point at.</EmptyStateV2>}
+        empty={
+          <EmptyStateV2 title="Never published">
+            Publish the draft to give numbers something stable to point at.
+          </EmptyStateV2>
+        }
       />
       {pair.length === 2 && selected.size === 2 && <Compare pair={[pair[0]!, pair[1]!]} />}
       {selected.size === 1 && <p className="muted">Select a second release to see what differs.</p>}

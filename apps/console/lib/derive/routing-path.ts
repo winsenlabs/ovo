@@ -44,14 +44,23 @@ export function pathItems(result: RoutingSimulationResult): PathItem[] {
         if (p.outcome === 'matched') block.chosen = str(p.branch);
       } else if (step.type === 'route.fallback') {
         const p = step.payload;
-        items.push({ kind: 'fallback', node: str(p.node) ?? '?', step: str(p.step) ?? '?', result: str(p.result) ?? '?', reason: str(p.reason), turn: turn.index });
+        items.push({
+          kind: 'fallback',
+          node: str(p.node) ?? '?',
+          step: str(p.step) ?? '?',
+          result: str(p.result) ?? '?',
+          reason: str(p.reason),
+          turn: turn.index,
+        });
       }
     }
   return items;
 }
 
 export const takenFallbacks = (result: RoutingSimulationResult) =>
-  pathItems(result).filter((i) => i.kind === 'fallback' && i.result === 'taken' && i.step !== 'reask').length;
+  pathItems(result).filter(
+    (i) => i.kind === 'fallback' && i.result === 'taken' && i.step !== 'reask',
+  ).length;
 
 /** One line saying where the run ended. */
 export function targetLine(result: RoutingSimulationResult): string {
@@ -63,7 +72,9 @@ export function targetLine(result: RoutingSimulationResult): string {
         ? `${outcome.status === 'queue' ? 'Queued for' : 'Agent'} ${outcome.agent.agentId}${outcome.agent.memberId ? ` (member ${outcome.agent.memberId})` : ''}`
         : 'An agent';
     case 'human':
-      return outcome.human ? `Person queue ${outcome.human.queueKey}${outcome.human.precheck === 'ok' ? '' : ` (${outcome.human.precheck})`}` : 'A person';
+      return outcome.human
+        ? `Person queue ${outcome.human.queueKey}${outcome.human.precheck === 'ok' ? '' : ` (${outcome.human.precheck})`}`
+        : 'A person';
     case 'callback':
       return outcome.callback ? `Call back in ${outcome.callback.inMinutes} minutes` : 'A callback';
     case 'end':

@@ -25,17 +25,45 @@ export function treeItems(draft: RoutingPointDraft, collapsed: ReadonlySet<strin
   const byId = new Map(draft.nodes.map((n) => [n.id, n]));
   const placed = new Set<string>();
   const items: TreeItem[] = [];
-  const addNode = (id: string, level: number, parentKey: string | undefined, pos: number, size: number, repeated: boolean) => {
+  const addNode = (
+    id: string,
+    level: number,
+    parentKey: string | undefined,
+    pos: number,
+    size: number,
+    repeated: boolean,
+  ) => {
     const node = byId.get(id);
     if (!node) return;
     const key = repeated ? `r:${parentKey}:${id}` : `n:${id}`;
-    items.push({ key, kind: 'node', nodeId: id, level, parentKey, expandable: !repeated && node.branches.length > 0, repeated, posInSet: pos, setSize: size });
+    items.push({
+      key,
+      kind: 'node',
+      nodeId: id,
+      level,
+      parentKey,
+      expandable: !repeated && node.branches.length > 0,
+      repeated,
+      posInSet: pos,
+      setSize: size,
+    });
     if (repeated || collapsed.has(key)) return;
     placed.add(id);
     node.branches.forEach((branch, b) => {
       const bKey = `b:${id}:${branch.key}`;
       const next = branch.next !== undefined && byId.has(branch.next) ? branch.next : undefined;
-      items.push({ key: bKey, kind: 'branch', nodeId: id, branchKey: branch.key, level: level + 1, parentKey: key, expandable: next !== undefined, repeated: false, posInSet: b + 1, setSize: node.branches.length });
+      items.push({
+        key: bKey,
+        kind: 'branch',
+        nodeId: id,
+        branchKey: branch.key,
+        level: level + 1,
+        parentKey: key,
+        expandable: next !== undefined,
+        repeated: false,
+        posInSet: b + 1,
+        setSize: node.branches.length,
+      });
       if (next && !collapsed.has(bKey)) addNode(next, level + 2, bKey, 1, 1, placed.has(next));
     });
   };

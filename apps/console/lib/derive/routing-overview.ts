@@ -11,7 +11,8 @@ export const TARGET_SERIES_LABEL: Record<(typeof TARGET_SERIES)[number], string>
   callback: 'Callback',
 };
 
-const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : null);
+const pct = (part: number, whole: number) =>
+  whole > 0 ? Math.round((part / whole) * 1000) / 10 : null;
 
 /** The four KPI values; every one is `null` (the dash) when outcomes are not stored or stats failed. */
 export function statsKpis(stats: RoutingStats | undefined) {
@@ -32,7 +33,12 @@ export function seriesData(stats: RoutingStats | undefined): BarSeriesPoint[] {
   if (!stats?.available) return [];
   return stats.series.map((bucket) => ({
     category: bucketLabel(bucket.at, stats.bucket),
-    values: { agent: bucket.agent, human: bucket.human, end: bucket.end, callback: bucket.callback },
+    values: {
+      agent: bucket.agent,
+      human: bucket.human,
+      end: bucket.end,
+      callback: bucket.callback,
+    },
   }));
 }
 
@@ -40,8 +46,17 @@ export function bucketLabel(at: string, bucket: 'hour' | 'day'): string {
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return at;
   return bucket === 'hour'
-    ? date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' })
-    : date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' });
+    ? date.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Kolkata',
+      })
+    : date.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        timeZone: 'Asia/Kolkata',
+      });
 }
 
 export type PointState = { label: string; tone: 'ok' | 'warn' | 'neutral' };
@@ -51,7 +66,8 @@ export function pointStates(point: PointRecord): PointState[] {
   const latest = point.summary?.latestRelease;
   if (!point.summary) return states;
   if (!latest) states.push({ label: 'Never published', tone: 'warn' });
-  else if (point.summary.published) states.push({ label: `Published v${latest.version}`, tone: 'ok' });
+  else if (point.summary.published)
+    states.push({ label: `Published v${latest.version}`, tone: 'ok' });
   else {
     states.push({ label: `Published v${latest.version}`, tone: 'neutral' });
     states.push({ label: 'Unpublished changes', tone: 'warn' });
@@ -69,7 +85,9 @@ export function pointIssueCounts(point: PointRecord) {
 }
 
 /** Which points name each hold clip, from the drafts already loaded. */
-export function clipUsers(points: readonly PointRecord[]): Map<string, { id: string; name: string }[]> {
+export function clipUsers(
+  points: readonly PointRecord[],
+): Map<string, { id: string; name: string }[]> {
   const users = new Map<string, { id: string; name: string }[]>();
   for (const point of points)
     for (const clip of routingAudioIds(point.draft))
@@ -82,4 +100,6 @@ export const utilisationByPool = (all: readonly PoolUtilisation[]) =>
   new Map(all.map((u) => [u.poolId, u]));
 
 export const poolUsers = (points: readonly PointRecord[], poolId: string) =>
-  points.filter((p) => routingPoolIds(p.draft).includes(poolId)).map((p) => ({ id: p.id, name: p.draft.name }));
+  points
+    .filter((p) => routingPoolIds(p.draft).includes(poolId))
+    .map((p) => ({ id: p.id, name: p.draft.name }));

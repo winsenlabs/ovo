@@ -60,7 +60,8 @@ export function routingIssueAnchor(
     return { section: 'node', ...base };
   }
   if (head === 'transfer') {
-    const target = b === 'targets' && typeof c === 'number' ? draft.transfer?.targets[c] : undefined;
+    const target =
+      a === 'targets' && typeof b === 'number' ? draft.transfer?.targets[b] : undefined;
     const holdPath = a === 'hold' || path.includes('hold') || path.includes('onTimeout');
     return { section: holdPath ? 'hold' : 'transfer', targetKey: target?.key, field };
   }
@@ -111,7 +112,9 @@ export function indexIssues(draft: RoutingPointDraft, issues: readonly DraftIssu
     errors: 0,
     warnings: 0,
     byNode: new Map(),
-    bySection: Object.fromEntries(SECTIONS.map((s) => [s, []])) as unknown as IssueIndex['bySection'],
+    bySection: Object.fromEntries(
+      SECTIONS.map((s) => [s, []]),
+    ) as unknown as IssueIndex['bySection'],
   };
   for (const issue of issues) {
     const anchored = { issue, anchor: routingIssueAnchor(draft, issue) };
@@ -135,6 +138,8 @@ export function issuesAt(
   return (index.byNode.get(nodeId) ?? []).filter(
     (found) =>
       found.anchor.section === section &&
-      Object.entries(where).every(([key, value]) => found.anchor[key as keyof IssueAnchor] === value),
+      Object.entries(where).every(
+        ([key, value]) => found.anchor[key as keyof IssueAnchor] === value,
+      ),
   );
 }

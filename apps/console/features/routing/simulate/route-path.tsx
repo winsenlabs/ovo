@@ -5,17 +5,41 @@ import { ENGINE_LABEL, FALLBACK_LABEL } from '../../../lib/derive/routing-labels
 import { pathItems, targetLine, type Attempt } from '../../../lib/derive/routing-path';
 import type { RoutingSimulationResult } from '../../../lib/types/routing-simulate';
 
-const TONE: Record<string, 'ok' | 'warn' | 'danger' | 'neutral'> = { matched: 'ok', low_confidence: 'warn', no_match: 'neutral', timeout: 'danger', error: 'danger', disabled: 'neutral' };
-const engineName = (engine: string) => (engine in ENGINE_LABEL ? ENGINE_LABEL[engine as keyof typeof ENGINE_LABEL] : engine === 'context' ? 'Route context' : engine);
+const TONE: Record<string, 'ok' | 'warn' | 'danger' | 'neutral'> = {
+  matched: 'ok',
+  low_confidence: 'warn',
+  no_match: 'neutral',
+  timeout: 'danger',
+  error: 'danger',
+  disabled: 'neutral',
+};
+const engineName = (engine: string) =>
+  engine in ENGINE_LABEL
+    ? ENGINE_LABEL[engine as keyof typeof ENGINE_LABEL]
+    : engine === 'context'
+      ? 'Route context'
+      : engine;
 
 function AttemptChip({ attempt }: { attempt: Attempt }) {
   return (
     <li className="rt-attempt">
-      <span>{engineName(attempt.engine)}{attempt.mocked ? ' (scripted)' : ''}</span>
-      <StatusBadgeV2 tone={TONE[attempt.outcome] ?? 'neutral'} size="sm" label={attempt.outcome.replaceAll('_', ' ')} />
+      <span>
+        {engineName(attempt.engine)}
+        {attempt.mocked ? ' (scripted)' : ''}
+      </span>
+      <StatusBadgeV2
+        tone={TONE[attempt.outcome] ?? 'neutral'}
+        size="sm"
+        label={attempt.outcome.replaceAll('_', ' ')}
+      />
       {attempt.branch && <span className="mono">{attempt.branch}</span>}
       {attempt.confidence !== undefined && (
-        <ProgressMeter label={`Confidence of ${engineName(attempt.engine)}`} value={Math.round(attempt.confidence * 100)} max={100} valueLabel={`${Math.round(attempt.confidence * 100)}%`} />
+        <ProgressMeter
+          label={`Confidence of ${engineName(attempt.engine)}`}
+          value={Math.round(attempt.confidence * 100)}
+          max={100}
+          valueLabel={`${Math.round(attempt.confidence * 100)}%`}
+        />
       )}
     </li>
   );
@@ -30,13 +54,22 @@ export function RoutePath({ result }: { result: RoutingSimulationResult }) {
         item.kind === 'node' ? (
           <li key={i} className="rt-path-node">
             <strong className="mono">{item.node}</strong>
-            <ul className="rt-attempts">{item.attempts.map((a, n) => <AttemptChip key={n} attempt={a} />)}</ul>
-            {item.chosen && <span className="rt-edge">chose <span className="mono">{item.chosen}</span></span>}
+            <ul className="rt-attempts">
+              {item.attempts.map((a, n) => (
+                <AttemptChip key={n} attempt={a} />
+              ))}
+            </ul>
+            {item.chosen && (
+              <span className="rt-edge">
+                chose <span className="mono">{item.chosen}</span>
+              </span>
+            )}
           </li>
         ) : (
           <li key={i} className="rt-path-fallback">
             <StatusBadgeV2 tone="warn" size="sm" label="Fallback" />{' '}
-            {FALLBACK_LABEL[item.step as keyof typeof FALLBACK_LABEL] ?? item.step} on <span className="mono">{item.node}</span>: {item.result}
+            {FALLBACK_LABEL[item.step as keyof typeof FALLBACK_LABEL] ?? item.step} on{' '}
+            <span className="mono">{item.node}</span>: {item.result}
             {item.reason && <span className="muted"> ({item.reason.replaceAll('_', ' ')})</span>}
           </li>
         ),
@@ -44,7 +77,13 @@ export function RoutePath({ result }: { result: RoutingSimulationResult }) {
       <li className={`rt-path-target status-${result.outcome.status}`}>
         <strong>{targetLine(result)}</strong>
         {result.outcome.line && <span className="muted">Router says: “{result.outcome.line}”</span>}
-        {result.outcome.degraded && <StatusBadgeV2 tone="warn" size="sm" label={`Degraded: ${result.outcome.degraded.replaceAll('_', ' ')}`} />}
+        {result.outcome.degraded && (
+          <StatusBadgeV2
+            tone="warn"
+            size="sm"
+            label={`Degraded: ${result.outcome.degraded.replaceAll('_', ' ')}`}
+          />
+        )}
       </li>
     </ol>
   );

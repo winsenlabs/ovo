@@ -47,9 +47,33 @@ export function RulesEditor({
                 onChange={(branch) => replace(r, { ...rule, branch })}
               />
               <span className="rt-row-actions">
-                <button type="button" className="text-button" aria-label={`Move rule ${r + 1} up`} disabled={r === 0} onClick={() => setRules(moveStep(engine.rules, r, -1))}>Up</button>
-                <button type="button" className="text-button" aria-label={`Move rule ${r + 1} down`} disabled={r === engine.rules.length - 1} onClick={() => setRules(moveStep(engine.rules, r, 1))}>Down</button>
-                <button type="button" className="text-button" aria-label={`Remove rule ${r + 1}`} disabled={engine.rules.length <= 1} onClick={() => setRules(removeStep(engine.rules, r, 1))}>Remove</button>
+                <button
+                  type="button"
+                  className="text-button"
+                  aria-label={`Move rule ${r + 1} up`}
+                  disabled={r === 0}
+                  onClick={() => setRules(moveStep(engine.rules, r, -1))}
+                >
+                  Up
+                </button>
+                <button
+                  type="button"
+                  className="text-button"
+                  aria-label={`Move rule ${r + 1} down`}
+                  disabled={r === engine.rules.length - 1}
+                  onClick={() => setRules(moveStep(engine.rules, r, 1))}
+                >
+                  Down
+                </button>
+                <button
+                  type="button"
+                  className="text-button"
+                  aria-label={`Remove rule ${r + 1}`}
+                  disabled={engine.rules.length <= 1}
+                  onClick={() => setRules(removeStep(engine.rules, r, 1))}
+                >
+                  Remove
+                </button>
               </span>
             </div>
             <p className="muted rt-when">When all of these match</p>
@@ -60,18 +84,40 @@ export function RulesEditor({
                     aria-label={`Rule ${r + 1} condition ${m + 1} type`}
                     value={matcher.kind}
                     options={KINDS}
-                    onChange={(kind) => replace(r, { ...rule, when: rule.when.map((w, i) => (i === m ? blankMatcher(kind as RulesMatcher['kind']) : w)) })}
+                    onChange={(kind) =>
+                      replace(r, {
+                        ...rule,
+                        when: rule.when.map((w, i) =>
+                          i === m ? blankMatcher(kind as RulesMatcher['kind']) : w,
+                        ),
+                      })
+                    }
                   />
-                  <button type="button" className="text-button" aria-label={`Remove rule ${r + 1} condition ${m + 1}`} disabled={rule.when.length <= 1} onClick={() => replace(r, { ...rule, when: removeStep(rule.when, m, 1) })}>Remove</button>
+                  <button
+                    type="button"
+                    className="text-button"
+                    aria-label={`Remove rule ${r + 1} condition ${m + 1}`}
+                    disabled={rule.when.length <= 1}
+                    onClick={() => replace(r, { ...rule, when: removeStep(rule.when, m, 1) })}
+                  >
+                    Remove
+                  </button>
                 </div>
                 <MatcherEditor
                   id={`${id}-r${r}-m${m}`}
                   matcher={matcher}
-                  onChange={(next) => replace(r, { ...rule, when: rule.when.map((w, i) => (i === m ? next : w)) })}
+                  onChange={(next) =>
+                    replace(r, { ...rule, when: rule.when.map((w, i) => (i === m ? next : w)) })
+                  }
                 />
               </div>
             ))}
-            <button type="button" className="button small" disabled={rule.when.length >= 8} onClick={() => replace(r, { ...rule, when: [...rule.when, blankMatcher('dtmf')] })}>
+            <button
+              type="button"
+              className="button small"
+              disabled={rule.when.length >= 8}
+              onClick={() => replace(r, { ...rule, when: [...rule.when, blankMatcher('dtmf')] })}
+            >
               Add condition
             </button>
           </li>
@@ -81,7 +127,9 @@ export function RulesEditor({
         type="button"
         className="button"
         disabled={engine.rules.length >= 64}
-        onClick={() => setRules([...engine.rules, { branch: branchKeys[0] ?? '', when: [blankMatcher('dtmf')] }])}
+        onClick={() =>
+          setRules([...engine.rules, { branch: branchKeys[0] ?? '', when: [blankMatcher('dtmf')] }])
+        }
       >
         Add rule
       </button>

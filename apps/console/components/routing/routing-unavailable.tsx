@@ -21,7 +21,10 @@ export function RoutingUnavailable({
         ))}
       </KpiStrip>
     );
-  if (state.kind === 'error') return <ErrorState message={state.message} onRetry={onRetry} />;
+  if (state.kind === 'error')
+    return (
+      <ErrorState title={`${what} could not be loaded`} message={state.message} onRetry={onRetry} />
+    );
   return (
     <EmptyStateV2 variant="unavailable" title={`${what} is not enabled here`}>
       Switch it on for this installation (OVO_ROUTING_ENABLED) to route callers by language and

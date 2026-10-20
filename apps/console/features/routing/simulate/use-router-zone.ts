@@ -8,7 +8,9 @@ export function useRouterZone(agentId: string | undefined): string {
   useEffect(() => {
     if (!agentId) return;
     let live = true;
-    void apiRequest<{ config?: { timezone?: string } }>(`/agents/${encodeURIComponent(agentId)}`).then(
+    void apiRequest<{ config?: { timezone?: string } }>(
+      `/agents/${encodeURIComponent(agentId)}`,
+    ).then(
       ({ data }) => live && data.config?.timezone && setZone(data.config.timezone),
       () => undefined,
     );

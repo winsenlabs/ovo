@@ -72,7 +72,16 @@ export function zonedToIso(local: string, timeZone: string): string | undefined 
         second: '2-digit',
       }).formatToParts(new Date(ms));
       const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
-      return Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second')) - ms;
+      return (
+        Date.UTC(
+          get('year'),
+          get('month') - 1,
+          get('day'),
+          get('hour'),
+          get('minute'),
+          get('second'),
+        ) - ms
+      );
     } catch {
       return 0;
     }
@@ -103,11 +112,17 @@ export function buildRequest(
     },
     turns: form.turns,
     engines: { mode: form.modes, answers: form.answers },
-    faults: { fullMembers: form.fullMembers, failedReleases: form.failedReleases, queues: form.queues },
+    faults: {
+      fullMembers: form.fullMembers,
+      failedReleases: form.failedReleases,
+      queues: form.queues,
+    },
     load: form.load,
     assume: {
       ...(flag(form.transfers) === undefined ? {} : { transferEnabled: flag(form.transfers) }),
-      ...(flag(form.humanQueues) === undefined ? {} : { humanQueueEnabled: flag(form.humanQueues) }),
+      ...(flag(form.humanQueues) === undefined
+        ? {}
+        : { humanQueueEnabled: flag(form.humanQueues) }),
     },
   };
 }
@@ -116,13 +131,16 @@ export function buildRequest(
 export function formProblem(form: SimForm): string | undefined {
   if (form.target.kind === 'release' && !form.target.routingReleaseId)
     return 'Choose a release to run, or test the draft.';
-  if (form.turns.length > SIMULATION_LIMITS.turns) return `At most ${SIMULATION_LIMITS.turns} turns.`;
+  if (form.turns.length > SIMULATION_LIMITS.turns)
+    return `At most ${SIMULATION_LIMITS.turns} turns.`;
   if (form.from && !/^\+[1-9][0-9]{0,14}$/.test(form.from.trim()))
     return 'The caller number must be international, like +918040000001.';
   if (form.to && !/^\+[1-9][0-9]{0,14}$/.test(form.to.trim()))
     return 'The dialled number must be international, like +918040000001.';
   const empty = form.turns.findIndex(
-    (t) => (t.kind === 'speech' && !t.text.trim()) || (t.kind === 'dtmf' && !/^[0-9*#]{1,8}$/.test(t.digits)),
+    (t) =>
+      (t.kind === 'speech' && !t.text.trim()) ||
+      (t.kind === 'dtmf' && !/^[0-9*#]{1,8}$/.test(t.digits)),
   );
   return empty >= 0 ? `Turn ${empty + 1} is empty or not valid.` : undefined;
 }
@@ -157,8 +175,10 @@ export function engineSlots(draft: RoutingPointDraft): EngineSlot[] {
 }
 
 /** The scripted answer for a slot (the first of its node and engine), if any. */
-export const answerOf = (answers: readonly SimulatedAnswer[], slot: Pick<EngineSlot, 'node' | 'engine'>) =>
-  answers.find((a) => a.node === slot.node && a.engine === slot.engine);
+export const answerOf = (
+  answers: readonly SimulatedAnswer[],
+  slot: Pick<EngineSlot, 'node' | 'engine'>,
+) => answers.find((a) => a.node === slot.node && a.engine === slot.engine);
 
 export function setAnswer(
   answers: readonly SimulatedAnswer[],
@@ -170,7 +190,9 @@ export function setAnswer(
 }
 
 /** Engines the run asked about with no scripted answer (the trace offers "Answer as..."). */
-export function unscripted(result: RoutingSimulationResult): { node: string; engine: SimulatedEngine }[] {
+export function unscripted(
+  result: RoutingSimulationResult,
+): { node: string; engine: SimulatedEngine }[] {
   return result.warnings
     .filter((w) => w.code === 'engine_unscripted' && w.node && w.engine)
     .map((w) => ({ node: w.node!, engine: w.engine as SimulatedEngine }));
@@ -186,7 +208,9 @@ export function nodeSteps(result: RoutingSimulationResult) {
 }
 export function fallbackSteps(result: RoutingSimulationResult) {
   return result.turns.flatMap((turn) =>
-    turn.steps.filter((s) => s.type === 'route.fallback').map((s) => ({ turn: turn.index, payload: s.payload })),
+    turn.steps
+      .filter((s) => s.type === 'route.fallback')
+      .map((s) => ({ turn: turn.index, payload: s.payload })),
   );
 }
 
@@ -204,7 +228,9 @@ export function deepestFallback(result: RoutingSimulationResult): Fallback | 'no
 }
 
 export function clarified(result: RoutingSimulationResult): boolean {
-  return fallbackSteps(result).some((f) => f.payload.step === 'reask' && f.payload.result === 'taken');
+  return fallbackSteps(result).some(
+    (f) => f.payload.step === 'reask' && f.payload.result === 'taken',
+  );
 }
 
 /** An eval case that asserts what this run did: the starting point of a corpus case. */
@@ -217,7 +243,8 @@ export function buildEvalCase(
   const request = buildRequest(form, options);
   const { outcome } = result;
   const picked = result.pools.find((p) => p.result === 'picked');
-  const status = outcome.status === 'undecided' || outcome.status === 'queue' ? undefined : outcome.status;
+  const status =
+    outcome.status === 'undecided' || outcome.status === 'queue' ? undefined : outcome.status;
   return {
     id,
     tags: [],

@@ -2,27 +2,56 @@
 import type { RoutingTarget } from '@winsendotai/ovo-contracts';
 import { AgentRefEditor } from '../../../components/routing/agent-ref';
 import { LinesEditor } from '../../../components/routing/lines-editor';
-import { NumberField, optionsFrom, SelectField, TagsField, TextField } from '../../../components/routing/fields';
+import {
+  NumberField,
+  optionsFrom,
+  SelectField,
+  TagsField,
+  TextField,
+} from '../../../components/routing/fields';
 import { blankTarget } from '../../../lib/derive/routing-defaults';
 import { TARGET_LABEL } from '../../../lib/derive/routing-labels';
 import { useDesigner } from './designer-context';
 
 type Kind = RoutingTarget['kind'];
-const PRODUCT_MODES = optionsFrom({ any: 'Any product', values: 'These products', context: 'From the route context' });
+const PRODUCT_MODES = optionsFrom({
+  any: 'Any product',
+  values: 'These products',
+  context: 'From the route context',
+});
 
-export function PoolFields({ target, onChange, id }: { target: Extract<RoutingTarget, { kind: 'pool' }>; onChange: (t: RoutingTarget) => void; id: string }) {
+export function PoolFields({
+  target,
+  onChange,
+  id,
+}: {
+  target: Extract<RoutingTarget, { kind: 'pool' }>;
+  onChange: (t: RoutingTarget) => void;
+  id: string;
+}) {
   const { pools } = useDesigner();
   const options = pools.map((p) => ({ value: p.id, label: p.definition.name }));
-  if (target.poolId && !options.some((o) => o.value === target.poolId)) options.unshift({ value: target.poolId, label: target.poolId });
+  if (target.poolId && !options.some((o) => o.value === target.poolId))
+    options.unshift({ value: target.poolId, label: target.poolId });
   const mode = !target.products ? 'any' : 'values' in target.products ? 'values' : 'context';
   return (
     <>
-      <SelectField id={`${id}-pool`} label="Pool" value={target.poolId} placeholder={options.length ? 'Choose a pool…' : 'No pools yet'} options={options} onChange={(poolId) => onChange({ ...target, poolId })} />
+      <SelectField
+        id={`${id}-pool`}
+        label="Pool"
+        value={target.poolId}
+        placeholder={options.length ? 'Choose a pool…' : 'No pools yet'}
+        options={options}
+        onChange={(poolId) => onChange({ ...target, poolId })}
+      />
       <SelectField
         id={`${id}-language`}
         label="Agent language"
         value={target.language}
-        options={[{ value: 'caller', label: "Must speak the caller's language" }, { value: 'any', label: 'Any language' }]}
+        options={[
+          { value: 'caller', label: "Must speak the caller's language" },
+          { value: 'any', label: 'Any language' },
+        ]}
         onChange={(language) => onChange({ ...target, language: language as 'caller' | 'any' })}
       />
       <SelectField
@@ -32,16 +61,39 @@ export function PoolFields({ target, onChange, id }: { target: Extract<RoutingTa
         options={PRODUCT_MODES}
         onChange={(next) => {
           const { products: _drop, ...rest } = target;
-          onChange(next === 'any' ? rest : { ...rest, products: next === 'values' ? { values: ['product'] } : { context: 'product' } });
+          onChange(
+            next === 'any'
+              ? rest
+              : {
+                  ...rest,
+                  products: next === 'values' ? { values: ['product'] } : { context: 'product' },
+                },
+          );
         }}
       />
       {target.products && 'values' in target.products && (
-        <TagsField id={`${id}-product-values`} label="Products" values={target.products.values} onChange={(values) => onChange({ ...target, products: { values } })} />
+        <TagsField
+          id={`${id}-product-values`}
+          label="Products"
+          values={target.products.values}
+          onChange={(values) => onChange({ ...target, products: { values } })}
+        />
       )}
       {target.products && 'context' in target.products && (
-        <TextField id={`${id}-product-context`} label="Route context key" value={target.products.context} help="The member must list the product this key holds." onChange={(context) => onChange({ ...target, products: { context } })} />
+        <TextField
+          id={`${id}-product-context`}
+          label="Route context key"
+          value={target.products.context}
+          help="The member must list the product this key holds."
+          onChange={(context) => onChange({ ...target, products: { context } })}
+        />
       )}
-      <TagsField id={`${id}-skills`} label="Skills the member needs" values={target.skills} onChange={(skills) => onChange({ ...target, skills })} />
+      <TagsField
+        id={`${id}-skills`}
+        label="Skills the member needs"
+        values={target.skills}
+        onChange={(skills) => onChange({ ...target, skills })}
+      />
     </>
   );
 }
@@ -70,7 +122,13 @@ export function TargetEditor({
         onChange={(kind) => onChange(blankTarget(kind as Kind))}
       />
       {value.kind === 'pool' && <PoolFields id={id} target={value} onChange={onChange} />}
-      {value.kind === 'agent' && <AgentRefEditor id={id} value={value.agent} onChange={(agent) => onChange({ ...value, agent })} />}
+      {value.kind === 'agent' && (
+        <AgentRefEditor
+          id={id}
+          value={value.agent}
+          onChange={(agent) => onChange({ ...value, agent })}
+        />
+      )}
       {value.kind === 'human' && (
         <SelectField
           id={`${id}-queue`}
@@ -84,14 +142,40 @@ export function TargetEditor({
       )}
       {value.kind === 'callback' && (
         <>
-          <NumberField id={`${id}-minutes`} label="Call back in" unit="minutes" min={5} max={10080} value={value.inMinutes} onChange={(inMinutes) => onChange({ ...value, inMinutes })} />
-          <LinesEditor label="Promise to the caller" required value={value.line} onChange={(line) => line && onChange({ ...value, line })} />
+          <NumberField
+            id={`${id}-minutes`}
+            label="Call back in"
+            unit="minutes"
+            min={5}
+            max={10080}
+            value={value.inMinutes}
+            onChange={(inMinutes) => onChange({ ...value, inMinutes })}
+          />
+          <LinesEditor
+            label="Promise to the caller"
+            required
+            value={value.line}
+            onChange={(line) => line && onChange({ ...value, line })}
+          />
         </>
       )}
       {value.kind === 'end' && (
         <>
-          <LinesEditor label="Goodbye line" required value={value.line} onChange={(line) => line && onChange({ ...value, line })} />
-          <TextField id={`${id}-disposition`} label="Outcome label" value={value.disposition ?? ''} help="Optional, recorded on the call (lowercase)." onChange={(disposition) => onChange({ ...value, disposition: disposition || undefined })} />
+          <LinesEditor
+            label="Goodbye line"
+            required
+            value={value.line}
+            onChange={(line) => line && onChange({ ...value, line })}
+          />
+          <TextField
+            id={`${id}-disposition`}
+            label="Outcome label"
+            value={value.disposition ?? ''}
+            help="Optional, recorded on the call (lowercase)."
+            onChange={(disposition) =>
+              onChange({ ...value, disposition: disposition || undefined })
+            }
+          />
         </>
       )}
     </div>

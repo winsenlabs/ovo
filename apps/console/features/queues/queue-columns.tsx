@@ -12,6 +12,8 @@ export interface QueueRowActions {
   onEdit: (record: QueueRecord) => void;
   onTest: (record: QueueRecord) => void;
   onDelete: (record: QueueRecord) => void;
+  /** Opens the queue's activity (24 hours or 7 days of outcomes); absent where it is not offered. */
+  onActivity?: (record: QueueRecord) => void;
 }
 
 /** Whether the queue can take callers on this installation, and the honest reason if not. */
@@ -62,7 +64,22 @@ export function queueColumns(actions: QueueRowActions): ColumnV2<QueueRecord>[] 
       header: 'Used by',
       align: 'end',
       priority: 'low',
-      cell: (row) => <span title={row.usedBy.join(', ')}>{row.usedBy.length}</span>,
+      cell: (row) =>
+        row.usedBy.length ? (
+          <span className="rt-badges">
+            {row.usedBy.map((id) => (
+              <a
+                key={id}
+                href={`/routing/points/${encodeURIComponent(id)}`}
+                title="Open this routing point in the designer"
+              >
+                Point {id.slice(0, 8)}
+              </a>
+            ))}
+          </span>
+        ) : (
+          '0'
+        ),
     },
     {
       id: 'waiting',
@@ -102,6 +119,16 @@ export function queueColumns(actions: QueueRowActions): ColumnV2<QueueRecord>[] 
       align: 'end',
       cell: (row) => (
         <span className="button-row">
+          {actions.onActivity && (
+            <button
+              type="button"
+              className="button"
+              onClick={() => actions.onActivity?.(row)}
+              aria-label={`Activity of ${row.definition.name}`}
+            >
+              Activity
+            </button>
+          )}
           <button
             type="button"
             className="button"

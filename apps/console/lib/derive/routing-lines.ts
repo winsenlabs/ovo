@@ -21,7 +21,8 @@ export function lineLabel(path: readonly (string | number)[], draft: RoutingPoin
     const id = node?.id ?? `#${a}`;
     if (b === 'ask') return `Question on ${id}`;
     if (b === 'fallback') return `Re-ask on ${id}`;
-    if (b === 'branches' && typeof c === 'number') return `${node?.branches[c]?.key ?? c} on ${id}: closing line`;
+    if (b === 'branches' && typeof c === 'number')
+      return `${node?.branches[c]?.key ?? c} on ${id}: closing line`;
   }
   if (head === 'transfer') {
     if (a === 'announcement') return 'Transfer announcement';

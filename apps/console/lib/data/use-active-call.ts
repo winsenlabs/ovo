@@ -166,7 +166,10 @@ export function useActiveCall(options: {
       captions.current = [];
       dispatch({ type: 'start', ticket, now: Date.now() });
       try {
-        const [context, room] = await Promise.all([deskApi.context(ticket.id), deskApi.token(ticket.id)]);
+        const [context, room] = await Promise.all([
+          deskApi.context(ticket.id),
+          deskApi.token(ticket.id),
+        ]);
         dispatch({ type: 'context', context });
         await join(room);
       } catch (failure) {
@@ -201,7 +204,9 @@ export function useActiveCall(options: {
       try {
         await deskApi.command(ticket.id, body);
       } catch (failure) {
-        options.onCommandError?.(failure instanceof Error ? failure.message : 'The command failed.');
+        options.onCommandError?.(
+          failure instanceof Error ? failure.message : 'The command failed.',
+        );
         return false;
       }
       await leaveRoom();
@@ -211,18 +216,21 @@ export function useActiveCall(options: {
     [leaveRoom, options],
   );
 
-  const wrapUp = useCallback(async (wrap: WrapUp) => {
-    const ticket = active.current?.ticket;
-    if (!ticket) return false;
-    try {
-      await deskApi.wrapUp(ticket.id, wrap);
-    } catch (failure) {
-      options.onCommandError?.(failure instanceof Error ? failure.message : 'Wrap-up failed.');
-      return false;
-    }
-    dispatch({ type: 'wrapped' });
-    return true;
-  }, [options]);
+  const wrapUp = useCallback(
+    async (wrap: WrapUp) => {
+      const ticket = active.current?.ticket;
+      if (!ticket) return false;
+      try {
+        await deskApi.wrapUp(ticket.id, wrap);
+      } catch (failure) {
+        options.onCommandError?.(failure instanceof Error ? failure.message : 'Wrap-up failed.');
+        return false;
+      }
+      dispatch({ type: 'wrapped' });
+      return true;
+    },
+    [options],
+  );
 
   const callId = call?.ticket.id;
   const remote = callId ? options.tickets.get(callId)?.ticket : undefined;

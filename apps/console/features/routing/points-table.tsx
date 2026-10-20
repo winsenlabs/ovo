@@ -7,7 +7,12 @@ import { pointIssueCounts, pointStates } from '../../lib/derive/routing-overview
 import type { PointRecord } from '../../lib/types/routing';
 
 const columns: ColumnV2<PointRecord>[] = [
-  { id: 'name', header: 'Name', cell: (p) => <strong>{p.draft.name}</strong>, sortValue: (p) => p.draft.name },
+  {
+    id: 'name',
+    header: 'Name',
+    cell: (p) => <strong>{p.draft.name}</strong>,
+    sortValue: (p) => p.draft.name,
+  },
   {
     id: 'state',
     header: 'State',
@@ -19,8 +24,20 @@ const columns: ColumnV2<PointRecord>[] = [
       </span>
     ),
   },
-  { id: 'nodes', header: 'Questions', align: 'end', priority: 'low', cell: (p) => p.summary?.nodes ?? p.draft.nodes.length },
-  { id: 'pools', header: 'Pools', align: 'end', priority: 'low', cell: (p) => p.summary?.pools ?? '—' },
+  {
+    id: 'nodes',
+    header: 'Questions',
+    align: 'end',
+    priority: 'low',
+    cell: (p) => p.summary?.nodes ?? p.draft.nodes.length,
+  },
+  {
+    id: 'pools',
+    header: 'Pools',
+    align: 'end',
+    priority: 'low',
+    cell: (p) => p.summary?.pools ?? '—',
+  },
   {
     id: 'issues',
     header: 'Issues',
@@ -28,15 +45,33 @@ const columns: ColumnV2<PointRecord>[] = [
       const { errors, warnings } = pointIssueCounts(p);
       return errors || warnings ? (
         <span className="rt-badges">
-          {errors > 0 && <StatusBadgeV2 tone="danger" label={`${errors} error${errors === 1 ? '' : 's'}`} size="sm" />}
-          {warnings > 0 && <StatusBadgeV2 tone="warn" label={`${warnings} warning${warnings === 1 ? '' : 's'}`} size="sm" />}
+          {errors > 0 && (
+            <StatusBadgeV2
+              tone="danger"
+              label={`${errors} error${errors === 1 ? '' : 's'}`}
+              size="sm"
+            />
+          )}
+          {warnings > 0 && (
+            <StatusBadgeV2
+              tone="warn"
+              label={`${warnings} warning${warnings === 1 ? '' : 's'}`}
+              size="sm"
+            />
+          )}
         </span>
       ) : (
         <StatusBadgeV2 tone="ok" label="None" size="sm" />
       );
     },
   },
-  { id: 'numbers', header: 'Numbers', align: 'end', priority: 'low', cell: (p) => p.summary?.numbers ?? '—' },
+  {
+    id: 'numbers',
+    header: 'Numbers',
+    align: 'end',
+    priority: 'low',
+    cell: (p) => p.summary?.numbers ?? '—',
+  },
   {
     id: 'updated',
     header: 'Updated',
@@ -71,8 +106,8 @@ export function PointsTable({
       onRetry={onRetry}
       empty={
         <EmptyStateV2 title="No routing points yet" action={create}>
-          A routing point greets callers, works out the language and the reason for the call, and hands
-          the call to the right agent or person.
+          A routing point greets callers, works out the language and the reason for the call, and
+          hands the call to the right agent or person.
         </EmptyStateV2>
       }
     />

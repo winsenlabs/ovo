@@ -12,9 +12,17 @@ import {
   TARGET_SERIES_LABEL,
 } from '../../lib/derive/routing-overview';
 import { formatDuration } from '../../lib/format';
-import { ROUTING_STATS_WINDOWS, type RoutingStats, type StatsWindow } from '../../lib/types/routing';
+import {
+  ROUTING_STATS_WINDOWS,
+  type RoutingStats,
+  type StatsWindow,
+} from '../../lib/types/routing';
 
-const WINDOW_LABEL: Record<StatsWindow, string> = { '24h': 'Last 24 hours', '7d': 'Last 7 days', '30d': 'Last 30 days' };
+const WINDOW_LABEL: Record<StatsWindow, string> = {
+  '24h': 'Last 24 hours',
+  '7d': 'Last 7 days',
+  '30d': 'Last 30 days',
+};
 
 /** KPIs and the routed-calls chart; unknown (a dash) when call outcomes are not stored here. */
 export function OverviewStats({
@@ -33,7 +41,8 @@ export function OverviewStats({
   const kpi = statsKpis(stats);
   const data = seriesData(stats);
   const unknownNote = stats?.available === false ? 'Call outcomes are not stored here' : undefined;
-  const totalOf = (row: number) => TARGET_SERIES.reduce((sum, k) => sum + (data[row]?.values[k] ?? 0), 0);
+  const totalOf = (row: number) =>
+    TARGET_SERIES.reduce((sum, k) => sum + (data[row]?.values[k] ?? 0), 0);
   return (
     <>
       <KpiStrip>

@@ -64,7 +64,9 @@ export function mergeIssues(client: readonly DraftIssue[], server: readonly Draf
   const seen = new Set(client.map(keyOf));
   return [
     ...client,
-    ...server.filter((issue) => !seen.has(keyOf(issue))).map((i) => ({ ...i, source: 'server' as const })),
+    ...server
+      .filter((issue) => !seen.has(keyOf(issue)))
+      .map((i) => ({ ...i, source: 'server' as const })),
   ];
 }
 

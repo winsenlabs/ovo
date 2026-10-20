@@ -1,18 +1,16 @@
-import { apiRequest, ifMatch, items } from '../api';
+import { apiRequest, items } from '../api';
+import { json } from './json-init';
 import type { HumanQueueStatus } from '../types/desk';
 import type {
+  ActivityWindow,
   OperatorRow,
+  QueueActivity,
   PreviewResult,
   QueueDefinition,
   QueueRecord,
   WebhookTestResult,
 } from '../types/queues';
 
-const json = (method: string, body?: unknown, version?: number): RequestInit => ({
-  method,
-  body: body === undefined ? undefined : JSON.stringify(body),
-  headers: version === undefined ? undefined : { 'if-match': ifMatch(String(version)) },
-});
 const path = (id: string) => `/human-queues/${encodeURIComponent(id)}`;
 
 /** The `/v1/human-queues/*` administration calls. */
@@ -27,6 +25,8 @@ export const queuesApi = {
     void (await apiRequest(path(id), json('DELETE', undefined, version))),
   preview: async (spec: unknown, policy: unknown) =>
     (await apiRequest<PreviewResult>('/human-queues/preview', json('POST', { spec, policy }))).data,
+  activity: async (id: string, window: ActivityWindow) =>
+    (await apiRequest<QueueActivity>(`${path(id)}/activity?window=${window}`)).data,
   testWebhook: async (id: string) =>
     (await apiRequest<WebhookTestResult>(`${path(id)}/test-webhook`, json('POST', {}))).data,
   operators: async () =>

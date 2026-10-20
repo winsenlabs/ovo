@@ -24,7 +24,12 @@ export function PoolsTable({
   create?: React.ReactNode;
 }) {
   const columns: ColumnV2<PoolRecord>[] = [
-    { id: 'name', header: 'Name', cell: (p) => <strong>{p.definition.name}</strong>, sortValue: (p) => p.definition.name },
+    {
+      id: 'name',
+      header: 'Name',
+      cell: (p) => <strong>{p.definition.name}</strong>,
+      sortValue: (p) => p.definition.name,
+    },
     {
       id: 'members',
       header: 'Members',
@@ -34,7 +39,12 @@ export function PoolsTable({
         return `${facts.enabled}/${facts.members}`;
       },
     },
-    { id: 'languages', header: 'Languages', priority: 'low', cell: (p) => poolFacts(p.definition).languages.join(', ') },
+    {
+      id: 'languages',
+      header: 'Languages',
+      priority: 'low',
+      cell: (p) => poolFacts(p.definition).languages.join(', '),
+    },
     {
       id: 'load',
       header: 'Active calls',
@@ -43,7 +53,12 @@ export function PoolsTable({
         if (!util) return <span className="muted">Not available</span>;
         const { active, capacity } = util.total;
         return capacity ? (
-          <ProgressMeter label={`${p.definition.name} load`} value={active} max={capacity} valueLabel={loadLabel(active, capacity)} />
+          <ProgressMeter
+            label={`${p.definition.name} load`}
+            value={active}
+            max={capacity}
+            valueLabel={loadLabel(active, capacity)}
+          />
         ) : (
           loadLabel(active, null)
         );
@@ -55,7 +70,11 @@ export function PoolsTable({
       priority: 'low',
       cell: (p) => {
         const users = poolUsers(points, p.id);
-        return users.length ? users.map((u) => u.name).join(', ') : <span className="muted">Nothing yet</span>;
+        return users.length ? (
+          users.map((u) => u.name).join(', ')
+        ) : (
+          <span className="muted">Nothing yet</span>
+        );
       },
     },
   ];

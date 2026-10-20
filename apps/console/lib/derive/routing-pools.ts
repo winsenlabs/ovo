@@ -1,8 +1,4 @@
-import type {
-  PoolMember,
-  RoutingHours,
-  RoutingPoolDefinition,
-} from '@winsendotai/ovo-contracts';
+import type { PoolMember, RoutingHours, RoutingPoolDefinition } from '@winsendotai/ovo-contracts';
 import type { PoolUtilisation } from '../types/routing';
 
 export type PoolDefinition = RoutingPoolDefinition;
@@ -32,7 +28,10 @@ export function hoursSummary(hours: RoutingHours | undefined): string {
   if (!open.length) return `Closed all week (${hours.timezone})`;
   const first = hours.weekly[open[0]!]![0]!;
   const same = open.every(
-    (day) => hours.weekly[day]!.length === 1 && hours.weekly[day]![0]!.start === first.start && hours.weekly[day]![0]!.end === first.end,
+    (day) =>
+      hours.weekly[day]!.length === 1 &&
+      hours.weekly[day]![0]!.start === first.start &&
+      hours.weekly[day]![0]!.end === first.end,
   );
   const cap = (day: string) => day[0]!.toUpperCase() + day.slice(1);
   const days =

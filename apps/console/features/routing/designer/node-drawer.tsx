@@ -25,7 +25,12 @@ export function NodeDrawer({
   const node = draft.nodes.find((n) => n.id === nodeId);
   const set = (next: NonNullable<typeof node>) => edit((d) => replaceNode(d, next.id, next));
   return (
-    <Dialog open={nodeId !== undefined && node !== undefined} onClose={onClose} title={`Question: ${nodeId ?? ''}`} className="ui-drawer rt-drawer-wide">
+    <Dialog
+      open={nodeId !== undefined && node !== undefined}
+      onClose={onClose}
+      title={`Question: ${nodeId ?? ''}`}
+      className="ui-drawer rt-drawer-wide"
+    >
       <div className="ui-drawer-head">
         <button type="button" className="button" onClick={onClose}>
           Close

@@ -33,14 +33,24 @@ export function MemberDrawer({
     setValue(member && structuredClone(member));
     setProblem(undefined);
   }, [member]);
-  if (!value) return <Drawer open={false} title="Pool member" onClose={onClose}>{null}</Drawer>;
+  if (!value)
+    return (
+      <Drawer open={false} title="Pool member" onClose={onClose}>
+        {null}
+      </Drawer>
+    );
   const set = (patch: Partial<PoolMember>) => setValue({ ...value, ...patch });
   const badLanguages = value.languages.filter((l) => !LANGUAGE.test(l));
   const save = () => {
-    if (!isRoutingKey(value.id)) return setProblem('The member id is lowercase letters, digits, - or _, starting with a letter.');
-    if (takenIds.includes(value.id)) return setProblem(`A member called ${value.id} already exists.`);
+    if (!isRoutingKey(value.id))
+      return setProblem(
+        'The member id is lowercase letters, digits, - or _, starting with a letter.',
+      );
+    if (takenIds.includes(value.id))
+      return setProblem(`A member called ${value.id} already exists.`);
     if (!value.agent.agentId) return setProblem('Choose an agent.');
-    if (!value.languages.length || badLanguages.length) return setProblem('Give at least one language, like en or hi.');
+    if (!value.languages.length || badLanguages.length)
+      return setProblem('Give at least one language, like en or hi.');
     onSave(value);
   };
   return (
@@ -49,21 +59,90 @@ export function MemberDrawer({
         {problem && <InlineAlert tone="danger">{problem}</InlineAlert>}
         <div className="field">
           <label htmlFor="member-id">Member id</label>
-          <input id="member-id" className="mono" value={value.id} readOnly={!isNew} onChange={(e) => set({ id: e.target.value })} />
-          <small>{isNew ? 'Lowercase letters, digits, - or _. It cannot be renamed later.' : 'Capacity is counted per member id, so it cannot be renamed.'}</small>
+          <input
+            id="member-id"
+            className="mono"
+            value={value.id}
+            readOnly={!isNew}
+            onChange={(e) => set({ id: e.target.value })}
+          />
+          <small>
+            {isNew
+              ? 'Lowercase letters, digits, - or _. It cannot be renamed later.'
+              : 'Capacity is counted per member id, so it cannot be renamed.'}
+          </small>
         </div>
-        <AgentRefEditor id="member" label="Agent" agents={agents} value={value.agent} onChange={(agent) => set({ agent })} />
-        <TagsField id="member-languages" label="Languages it speaks" values={value.languages} placeholder="hi" error={badLanguages.length ? `Not a language code: ${badLanguages.join(', ')}` : undefined} onChange={(languages) => set({ languages })} />
-        <TagsField id="member-products" label="Products it handles" values={value.products} help="Empty: handles any product." onChange={(products) => set({ products })} />
-        <TagsField id="member-skills" label="Skills" values={value.skills} onChange={(skills) => set({ skills })} />
-        <NumberField id="member-priority" label="Priority" min={0} max={100} value={value.priority} help="Higher is tried first. Equal priorities share calls evenly." onChange={(priority) => set({ priority })} />
-        <SwitchField label="No limit on concurrent calls" checked={value.capacity === undefined} onChange={(on) => set({ capacity: on ? undefined : 10 })} />
-        {value.capacity !== undefined && <NumberField id="member-capacity" label="Concurrent calls" min={1} max={10000} value={value.capacity} onChange={(capacity) => set({ capacity })} />}
-        <HoursEditor idPrefix="member-hours" value={value.hours} onChange={(hours) => set({ hours })} />
-        <SwitchField label="Takes calls" checked={value.enabled} onChange={(enabled) => set({ enabled })} />
+        <AgentRefEditor
+          id="member"
+          label="Agent"
+          agents={agents}
+          value={value.agent}
+          onChange={(agent) => set({ agent })}
+        />
+        <TagsField
+          id="member-languages"
+          label="Languages it speaks"
+          values={value.languages}
+          placeholder="hi"
+          error={
+            badLanguages.length ? `Not a language code: ${badLanguages.join(', ')}` : undefined
+          }
+          onChange={(languages) => set({ languages })}
+        />
+        <TagsField
+          id="member-products"
+          label="Products it handles"
+          values={value.products}
+          help="Empty: handles any product."
+          onChange={(products) => set({ products })}
+        />
+        <TagsField
+          id="member-skills"
+          label="Skills"
+          values={value.skills}
+          onChange={(skills) => set({ skills })}
+        />
+        <NumberField
+          id="member-priority"
+          label="Priority"
+          min={0}
+          max={100}
+          value={value.priority}
+          help="Higher is tried first. Equal priorities share calls evenly."
+          onChange={(priority) => set({ priority })}
+        />
+        <SwitchField
+          label="No limit on concurrent calls"
+          checked={value.capacity === undefined}
+          onChange={(on) => set({ capacity: on ? undefined : 10 })}
+        />
+        {value.capacity !== undefined && (
+          <NumberField
+            id="member-capacity"
+            label="Concurrent calls"
+            min={1}
+            max={10000}
+            value={value.capacity}
+            onChange={(capacity) => set({ capacity })}
+          />
+        )}
+        <HoursEditor
+          idPrefix="member-hours"
+          value={value.hours}
+          onChange={(hours) => set({ hours })}
+        />
+        <SwitchField
+          label="Takes calls"
+          checked={value.enabled}
+          onChange={(enabled) => set({ enabled })}
+        />
         <div className="button-row queue-form-actions">
-          <button type="button" className="button" onClick={onClose}>Cancel</button>
-          <button type="button" className="button primary" onClick={save}>{isNew ? 'Add member' : 'Apply'}</button>
+          <button type="button" className="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="button primary" onClick={save}>
+            {isNew ? 'Add member' : 'Apply'}
+          </button>
         </div>
       </div>
     </Drawer>

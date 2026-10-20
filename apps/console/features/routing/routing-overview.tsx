@@ -29,20 +29,39 @@ export function RoutingOverview({ role }: { role: SessionIdentity['role'] }) {
   const [creating, setCreating] = useState<'point' | 'pool'>();
   const canEdit = role !== 'viewer';
 
-  const points = useRoutingLoad(() => (enabled ? routingApi.points() : Promise.resolve([])), [enabled]);
-  const pools = useRoutingLoad(() => (enabled ? routingApi.pools() : Promise.resolve([])), [enabled]);
+  const points = useRoutingLoad(
+    () => (enabled ? routingApi.points() : Promise.resolve([])),
+    [enabled],
+  );
+  const pools = useRoutingLoad(
+    () => (enabled ? routingApi.pools() : Promise.resolve([])),
+    [enabled],
+  );
   const util = useRoutingLoad(
     () => (enabled ? routingApi.utilisationAll().catch(() => []) : Promise.resolve([])),
     [enabled],
   );
-  const stats = useRoutingLoad(() => (enabled ? routingApi.stats(window) : Promise.reject(new Error('off'))), [enabled, window]);
+  const stats = useRoutingLoad(
+    () => (enabled ? routingApi.stats(window) : Promise.reject(new Error('off'))),
+    [enabled, window],
+  );
 
   const pointRows = points.state.status === 'ready' ? points.state.data : [];
   const users = useMemo(() => clipUsers(pointRows), [pointRows]);
-  const utilMap = useMemo(() => utilisationByPool(util.state.status === 'ready' ? util.state.data : []), [util.state]);
+  const utilMap = useMemo(
+    () => utilisationByPool(util.state.status === 'ready' ? util.state.data : []),
+    [util.state],
+  );
 
   if (availability.kind !== 'ready')
-    return <RoutingUnavailablePage title="Routing" state={availability} onRetry={() => void reloadStatus()} description={DESCRIPTION} />;
+    return (
+      <RoutingUnavailablePage
+        title="Routing"
+        state={availability}
+        onRetry={() => void reloadStatus()}
+        description={DESCRIPTION}
+      />
+    );
   const newPoint = canEdit ? (
     <button type="button" className="button primary" onClick={() => setCreating('point')}>
       New routing point
@@ -53,17 +72,33 @@ export function RoutingOverview({ role }: { role: SessionIdentity['role'] }) {
       New pool
     </button>
   ) : undefined;
-  const failed = (s: { status: string; message?: string }) => (s.status === 'error' ? s.message : undefined);
+  const failed = (s: { status: string; message?: string }) =>
+    s.status === 'error' ? s.message : undefined;
   return (
     <div className="ds-stack">
       <PageHeader
         eyebrow="Inbound"
         title="Routing"
         description={DESCRIPTION}
-        actions={canEdit ? <span className="button-row">{newPoint}{newPool}</span> : undefined}
+        actions={
+          canEdit ? (
+            <span className="button-row">
+              {newPoint}
+              {newPool}
+            </span>
+          ) : undefined
+        }
       />
-      <OverviewStats load={stats.state} window={window} onWindow={setWindow} onRetry={() => void stats.reload()} />
-      <SectionCard padding="flush" tabs={<Tabs items={TABS} current={tab} onSelect={setTab} panelId="routing-panel" />}>
+      <OverviewStats
+        load={stats.state}
+        window={window}
+        onWindow={setWindow}
+        onRetry={() => void stats.reload()}
+      />
+      <SectionCard
+        padding="flush"
+        tabs={<Tabs items={TABS} current={tab} onSelect={setTab} panelId="routing-panel" />}
+      >
         <div id="routing-panel" role="tabpanel">
           {tab === 'points' && (
             <PointsTable

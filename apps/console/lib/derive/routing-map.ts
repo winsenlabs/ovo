@@ -44,7 +44,17 @@ export function layoutMap(
     const node = byId.get(id)!;
     const childYs: number[] = [];
     const x = depth * (BOX_W + GAP_X);
-    boxes.set(id, { id, kind: 'node', nodeId: id, x, y: 0, w: BOX_W, h: BOX_H, title: id, subtitle: node.engines.map((e) => engineLabel(e.kind)).join(' + ') });
+    boxes.set(id, {
+      id,
+      kind: 'node',
+      nodeId: id,
+      x,
+      y: 0,
+      w: BOX_W,
+      h: BOX_H,
+      title: id,
+      subtitle: node.engines.map((e) => engineLabel(e.kind)).join(' + '),
+    });
     for (const branch of node.branches) {
       if (branch.next !== undefined && byId.has(branch.next)) {
         if (boxes.has(branch.next)) pending.push({ from: id, to: branch.next, label: branch.key });
@@ -56,12 +66,24 @@ export function layoutMap(
         const pillId = `${id}/${branch.key}`;
         const y = row * (BOX_H + GAP_Y);
         row += 1;
-        boxes.set(pillId, { id: pillId, kind: 'target', nodeId: id, x: x + BOX_W + GAP_X, y: y + (BOX_H - PILL_H) / 2, w: BOX_W, h: PILL_H, title: targetSummary(branch.target, names), subtitle: '' });
+        boxes.set(pillId, {
+          id: pillId,
+          kind: 'target',
+          nodeId: id,
+          x: x + BOX_W + GAP_X,
+          y: y + (BOX_H - PILL_H) / 2,
+          w: BOX_W,
+          h: PILL_H,
+          title: targetSummary(branch.target, names),
+          subtitle: '',
+        });
         childYs.push(y);
         pending.push({ from: id, to: pillId, label: branch.key });
       }
     }
-    const y = childYs.length ? (Math.min(...childYs) + Math.max(...childYs)) / 2 : row++ * (BOX_H + GAP_Y);
+    const y = childYs.length
+      ? (Math.min(...childYs) + Math.max(...childYs)) / 2
+      : row++ * (BOX_H + GAP_Y);
     boxes.get(id)!.y = y;
     return y;
   };

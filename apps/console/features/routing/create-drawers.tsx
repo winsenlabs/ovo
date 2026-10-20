@@ -43,12 +43,18 @@ function PointForm({ onClose }: { onClose: () => void }) {
     event.preventDefault();
     if (!name.trim() || !routerAgent || !defaultAgent)
       return setError('Give the point a name and choose its router and default agents.');
-    if (!/^[a-z]{2,3}$/.test(language.trim())) return setError('The language is a code like en or hi.');
+    if (!/^[a-z]{2,3}$/.test(language.trim()))
+      return setError('The language is a code like en or hi.');
     setBusy(true);
     setError(undefined);
     try {
       const point = await routingApi.createPoint(
-        blankDraft({ name: name.trim(), routerAgentId: routerAgent, defaultAgentId: defaultAgent, language: language.trim() }),
+        blankDraft({
+          name: name.trim(),
+          routerAgentId: routerAgent,
+          defaultAgentId: defaultAgent,
+          language: language.trim(),
+        }),
       );
       router.push(`/routing/points/${point.id}`);
     } catch (failure) {
@@ -60,9 +66,29 @@ function PointForm({ onClose }: { onClose: () => void }) {
     <form className="queue-form" onSubmit={submit} noValidate>
       {error && <InlineAlert tone="danger">{error}</InlineAlert>}
       <TextField id="point-name" label="Name" value={name} onChange={setName} required />
-      <AgentSelect id="point-router" label="Router agent" agents={agents} value={routerAgent} onChange={setRouterAgent} help="Its voice greets and questions the caller." />
-      <AgentSelect id="point-default" label="Default agent" agents={agents} value={defaultAgent} onChange={setDefaultAgent} help="Where a call goes when nothing else can answer it." />
-      <TextField id="point-language" label="Default language" value={language} onChange={setLanguage} help="A code such as en or hi." />
+      <AgentSelect
+        id="point-router"
+        label="Router agent"
+        agents={agents}
+        value={routerAgent}
+        onChange={setRouterAgent}
+        help="Its voice greets and questions the caller."
+      />
+      <AgentSelect
+        id="point-default"
+        label="Default agent"
+        agents={agents}
+        value={defaultAgent}
+        onChange={setDefaultAgent}
+        help="Where a call goes when nothing else can answer it."
+      />
+      <TextField
+        id="point-language"
+        label="Default language"
+        value={language}
+        onChange={setLanguage}
+        help="A code such as en or hi."
+      />
       <Actions busy={busy} label="Create point" onClose={onClose} />
     </form>
   );
@@ -92,7 +118,14 @@ function PoolForm({ onClose }: { onClose: () => void }) {
     <form className="queue-form" onSubmit={submit} noValidate>
       {error && <InlineAlert tone="danger">{error}</InlineAlert>}
       <TextField id="pool-name" label="Name" value={name} onChange={setName} required />
-      <AgentSelect id="pool-agent" label="First member agent" agents={agents} value={agent} onChange={setAgent} help="Add more members, languages and hours on the next screen." />
+      <AgentSelect
+        id="pool-agent"
+        label="First member agent"
+        agents={agents}
+        value={agent}
+        onChange={setAgent}
+        help="Add more members, languages and hours on the next screen."
+      />
       <Actions busy={busy} label="Create pool" onClose={onClose} />
     </form>
   );

@@ -50,7 +50,8 @@ export function ClipManager({
   };
   const upload = async () => {
     if (!file) return;
-    if (file.size > CLIP_MAX_BYTES) return setNotice({ tone: 'danger', text: 'A clip is at most 10 MiB.' });
+    if (file.size > CLIP_MAX_BYTES)
+      return setNotice({ tone: 'danger', text: 'A clip is at most 10 MiB.' });
     setBusy(true);
     try {
       await routingApi.uploadAudio(name.trim() || file.name.replace(/\.[^.]+$/, ''), file);
@@ -60,13 +61,22 @@ export function ClipManager({
       await reload();
       onChanged?.();
     } catch (failure) {
-      setNotice({ tone: 'danger', text: failure instanceof Error ? failure.message : 'Upload failed.' });
+      setNotice({
+        tone: 'danger',
+        text: failure instanceof Error ? failure.message : 'Upload failed.',
+      });
     } finally {
       setBusy(false);
     }
   };
   const remove = async (clip: AudioRecord) => {
-    if (!(await confirm('Delete clip', `Delete “${clip.name}”? Releases that already use it keep playing it.`))) return;
+    if (
+      !(await confirm(
+        'Delete clip',
+        `Delete “${clip.name}”? Releases that already use it keep playing it.`,
+      ))
+    )
+      return;
     try {
       await routingApi.removeAudio(clip.id);
       setNotice(undefined);
@@ -79,20 +89,37 @@ export function ClipManager({
         tone: 'danger',
         text: Array.isArray(used)
           ? `“${clip.name}” is still used by ${used.map((id) => users?.get(clip.id)?.find((u) => u.id === id)?.name ?? id).join(', ')}. Remove it from their hold first.`
-          : failure instanceof Error ? failure.message : 'The clip could not be deleted.',
+          : failure instanceof Error
+            ? failure.message
+            : 'The clip could not be deleted.',
       });
     }
   };
 
   const columns: ColumnV2<AudioRecord>[] = [
-    { id: 'name', header: 'Name', cell: (c) => <strong>{c.name}</strong>, sortValue: (c) => c.name },
+    {
+      id: 'name',
+      header: 'Name',
+      cell: (c) => <strong>{c.name}</strong>,
+      sortValue: (c) => c.name,
+    },
     { id: 'length', header: 'Length', align: 'end', cell: (c) => formatDuration(c.durationMs) },
-    { id: 'size', header: 'Size', align: 'end', priority: 'low', cell: (c) => `${Math.round(c.byteLength / 1024)} KiB` },
+    {
+      id: 'size',
+      header: 'Size',
+      align: 'end',
+      priority: 'low',
+      cell: (c) => `${Math.round(c.byteLength / 1024)} KiB`,
+    },
     {
       id: 'usedBy',
       header: 'Used by',
       priority: 'low',
-      cell: (c) => users?.get(c.id)?.map((u) => u.name).join(', ') || <span className="muted">Nothing yet</span>,
+      cell: (c) =>
+        users
+          ?.get(c.id)
+          ?.map((u) => u.name)
+          .join(', ') || <span className="muted">Nothing yet</span>,
     },
     {
       id: 'actions',
@@ -101,7 +128,12 @@ export function ClipManager({
         const used = users?.get(c.id)?.length;
         return (
           <span className="button-row">
-            <button type="button" className="button small" aria-label={`Play ${c.name}`} onClick={() => void play(c)}>
+            <button
+              type="button"
+              className="button small"
+              aria-label={`Play ${c.name}`}
+              onClick={() => void play(c)}
+            >
               Play
             </button>
             {canEdit && (
@@ -126,11 +158,23 @@ export function ClipManager({
       {notice && <InlineAlert tone={notice.tone}>{notice.text}</InlineAlert>}
       {canEdit && (
         <div className="rt-upload">
-          <FileDrop accept=".wav,audio/wav,audio/x-wav" hint="Drop a WAV file here, or choose one (10 MiB at most)" onFile={(f) => { setFile(f); setName(f.name.replace(/\.[^.]+$/, '')); }} />
+          <FileDrop
+            accept=".wav,audio/wav,audio/x-wav"
+            hint="Drop a WAV file here, or choose one (10 MiB at most)"
+            onFile={(f) => {
+              setFile(f);
+              setName(f.name.replace(/\.[^.]+$/, ''));
+            }}
+          />
           {file && (
             <div className="button-row">
               <TextField id="clip-name" label="Clip name" value={name} onChange={setName} />
-              <button type="button" className="button primary" disabled={busy} onClick={() => void upload()}>
+              <button
+                type="button"
+                className="button primary"
+                disabled={busy}
+                onClick={() => void upload()}
+              >
                 {busy ? 'Uploading…' : 'Upload clip'}
               </button>
             </div>

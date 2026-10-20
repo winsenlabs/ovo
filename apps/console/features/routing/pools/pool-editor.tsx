@@ -2,11 +2,10 @@
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useAgents } from '../../../components/routing/agent-select';
+import { editorGate, SaveActions } from '../../../components/routing/editor-states';
 import { RoutingUnavailablePage } from '../../../components/routing/routing-unavailable';
-import { TagsField, TextAreaField, TextField } from '../../../components/routing/fields';
-import { ProgressMeter } from '../../../components/charts/meter';
 import { useConfirmDialog } from '../../../components/ui/dialog';
-import { EmptyStateV2, ErrorState, InlineAlert } from '../../../components/ui/feedback-v2';
+import { InlineAlert } from '../../../components/ui/feedback-v2';
 import { KpiCard, KpiStrip } from '../../../components/ui/kpi';
 import { PageHeader } from '../../../components/ui/layout';
 import { SectionCard } from '../../../components/ui/section-card';
@@ -15,12 +14,14 @@ import { ApiError, type SessionIdentity } from '../../../lib/api';
 import { routingApi } from '../../../lib/data/routing-api';
 import { useRoutingLoad } from '../../../lib/data/use-routing-load';
 import { useRoutingStatus } from '../../../lib/data/use-routing-status';
-import { useLeaveGuard } from '../../../lib/use-leave-guard';
 import { freshKey } from '../../../lib/derive/routing-defaults';
 import { blankMember, loadLabel, poolFacts, type PoolMember } from '../../../lib/derive/routing-pools';
+import { useLeaveGuard } from '../../../lib/use-leave-guard';
 import { ExplainDrawer } from './explain-drawer';
 import { MemberDrawer } from './member-drawer';
+import { PoolLoad } from './pool-load';
 import { PoolMembers } from './pool-members';
+import { PoolSettings } from './pool-settings';
 import { usePool } from './use-pool';
 import { useUtilisation } from './use-utilisation';
 
@@ -40,14 +41,13 @@ export function PoolEditor({ poolId, role }: { poolId: string; role: SessionIden
   const canEdit = role !== 'viewer';
   const definition = api.definition;
   const facts = useMemo(() => (definition ? poolFacts(definition) : undefined), [definition]);
-  const agentList = agents.status === 'ready' ? agents.data : [];
 
   if (availability.kind !== 'ready') return <RoutingUnavailablePage title="Agent pool" state={availability} onRetry={() => void reloadStatus()} eyebrow="Routing" />;
-  if (api.phase === 'loading') return <div className="ds-stack"><PageHeader eyebrow="Routing" title="Agent pool" /><KpiStrip>{['Members', 'Enabled', 'Active calls', 'Utilisation'].map((l) => <KpiCard key={l} label={l} loading />)}</KpiStrip></div>;
-  if (api.phase === 'missing') return <div className="ds-stack"><PageHeader eyebrow="Routing" title="Agent pool" /><EmptyStateV2 variant="filtered" title="This pool does not exist" action={<a className="button" href="/routing">Back to routing</a>}>It may have been deleted.</EmptyStateV2></div>;
-  if (api.phase !== 'ready' || !definition || !facts) return <div className="ds-stack"><PageHeader eyebrow="Routing" title="Agent pool" /><ErrorState message={api.error ?? 'The pool could not be loaded.'} onRetry={() => void api.reload()} /></div>;
+  const gate = editorGate({ phase: api.phase, title: 'Agent pool', what: 'pool', kpis: ['Members', 'Taking calls', 'Active calls', 'Utilisation'], error: api.error, onRetry: () => void api.reload() });
+  if (gate || !definition || !facts) return gate;
 
   const total = util.data?.total;
+  const pointName = (id: string) => (points.state.status === 'ready' ? points.state.data.find((p) => p.id === id)?.draft.name : undefined) ?? id;
   const setMember = (member: PoolMember, isNew: boolean) =>
     api.edit((d) => ({ ...d, members: isNew ? [...d.members, member] : d.members.map((m) => (m.id === member.id ? member : m)) }));
   const remove = async () => {
@@ -57,7 +57,8 @@ export function PoolEditor({ poolId, role }: { poolId: string; role: SessionIden
       router.push('/routing');
     } catch (failure) {
       const users = failure instanceof ApiError ? failure.details?.usedBy : undefined;
-      const names = Array.isArray(users) ? (users as string[]).map((id) => points.state.status === 'ready' ? (points.state.data.find((p) => p.id === id)?.draft.name ?? id) : id) : undefined;
+      const known = Array.isArray(users) ? await routingApi.points().catch(() => []) : [];
+      const names = Array.isArray(users) ? (users as string[]).map((id) => known.find((p) => p.id === id)?.draft.name ?? id) : undefined;
       setProblem(names ? `This pool is still used by ${names.join(', ')}. Point them elsewhere first.` : failure instanceof Error ? failure.message : 'The pool could not be deleted.');
     }
   };
@@ -72,8 +73,7 @@ export function PoolEditor({ poolId, role }: { poolId: string; role: SessionIden
         actions={
           <span className="button-row">
             <button type="button" className="button" onClick={() => setExplaining(true)}>Who would answer?</button>
-            {canEdit && <button type="button" className="button primary" disabled={!api.dirty || api.saving} onClick={() => void api.save()}>{api.saving ? 'Saving…' : 'Save'}</button>}
-            {canEdit && api.dirty && <button type="button" className="button" onClick={api.discard}>Discard changes</button>}
+            <SaveActions canEdit={canEdit} dirty={api.dirty} saving={api.saving} onSave={() => void api.save()} onDiscard={api.discard} />
             {canEdit && <button type="button" className="button danger" onClick={() => void remove()}>Delete</button>}
           </span>
         }
@@ -95,30 +95,16 @@ export function PoolEditor({ poolId, role }: { poolId: string; role: SessionIden
         <KpiCard label="Active calls" value={total ? total.active : null} footnote={util.unavailable ? 'Live calls are not available' : undefined} />
         <KpiCard label="Utilisation" value={total?.capacity ? `${Math.round((total.active / total.capacity) * 100)}%` : null} footnote={total ? loadLabel(total.active, total.capacity) : undefined} />
       </KpiStrip>
+      <PoolLoad members={definition.members} data={util.data} stale={util.stale} unavailable={util.unavailable} onRetry={util.retry} />
       <SectionCard
-        title="Live load"
-        description="Calls each member holds now, refreshed every 10 seconds."
-        actions={util.stale ? <span className="rt-stale"><StatusBadgeV2 tone="warn" size="sm" label="Stale" /><button type="button" className="button small" onClick={util.retry}>Retry</button></span> : undefined}
+        title="Members"
+        description="Each member is an agent release with what it can serve."
+        padding="flush"
+        actions={canEdit ? <button type="button" className="button" disabled={definition.members.length >= 100} onClick={() => setEditing({ isNew: true, member: blankMember(freshKey('member', definition.members.map((m) => m.id)), definition.members[0]?.agent.agentId) })}>Add member</button> : undefined}
       >
-        {util.data ? (
-          <ul className="rt-bars" aria-label="Load per member">
-            {definition.members.map((m) => {
-              const now = util.data!.members.find((x) => x.memberId === m.id);
-              return (
-                <li key={m.id}>
-                  <ProgressMeter label={m.id} value={now?.active ?? 0} max={m.capacity ?? Math.max(1, now?.active ?? 1)} valueLabel={loadLabel(now?.active ?? 0, m.capacity)} />
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <EmptyStateV2 variant={util.unavailable ? 'unavailable' : 'first-run'} title={util.unavailable ? 'Live load is not available' : 'Loading live load…'} />
-        )}
-      </SectionCard>
-      <SectionCard title="Members" description="Each member is an agent release with what it can serve." padding="flush" actions={canEdit ? <button type="button" className="button" disabled={definition.members.length >= 100} onClick={() => setEditing({ isNew: true, member: blankMember(freshKey('member', definition.members.map((m) => m.id)), definition.members[0]?.agent.agentId) })}>Add member</button> : undefined}>
         <PoolMembers
           members={definition.members}
-          agents={agentList}
+          agents={agents.status === 'ready' ? agents.data : []}
           utilisation={util.data}
           canEdit={canEdit}
           onEdit={(member) => setEditing({ member, isNew: false })}
@@ -126,18 +112,7 @@ export function PoolEditor({ poolId, role }: { poolId: string; role: SessionIden
           onRemove={(member) => api.edit((d) => ({ ...d, members: d.members.filter((m) => m.id !== member.id) }))}
         />
       </SectionCard>
-      <SectionCard title="Pool settings">
-        <fieldset className="rt-readonly rt-stack" disabled={!canEdit}>
-          <TextField id="pool-name" label="Name" value={definition.name} onChange={(name) => api.edit((d) => ({ ...d, name }))} />
-          <TextAreaField id="pool-description" label="Description" rows={2} value={definition.description ?? ''} onChange={(description) => api.edit((d) => ({ ...d, description: description || undefined }))} />
-          <TagsField id="pool-fallback" label="If nobody speaks the caller's language, try" values={definition.languageFallback} placeholder="en" help="Languages in order, up to 5." onChange={(languageFallback) => api.edit((d) => ({ ...d, languageFallback }))} />
-          <p className="muted">
-            {api.pool?.usedBy?.length
-              ? `Used by ${api.pool.usedBy.map((id) => (points.state.status === 'ready' ? (points.state.data.find((p) => p.id === id)?.draft.name ?? id) : id)).join(', ')}.`
-              : 'No routing point names this pool yet.'}
-          </p>
-        </fieldset>
-      </SectionCard>
+      <PoolSettings definition={definition} canEdit={canEdit} usedBy={(api.pool?.usedBy ?? []).map(pointName)} onChange={api.edit} />
       <MemberDrawer
         member={editing?.member}
         isNew={editing?.isNew ?? false}

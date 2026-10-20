@@ -13,7 +13,8 @@ const KEY = /^[a-z][a-z0-9_-]{0,79}$/;
 export const isRoutingKey = (value: string) => KEY.test(value);
 const KEY_HELP = 'Use lowercase letters, digits, - or _, starting with a letter (80 at most).';
 
-const nodeIndex = (draft: RoutingPointDraft, id: string) => draft.nodes.findIndex((n) => n.id === id);
+const nodeIndex = (draft: RoutingPointDraft, id: string) =>
+  draft.nodes.findIndex((n) => n.id === id);
 
 /** Branches (and transfer targets) that lead to a node, for the "who points here" message. */
 export function referencesTo(
@@ -28,7 +29,9 @@ export function referencesTo(
 }
 
 const transferTargetsTo = (draft: RoutingPointDraft, id: string) =>
-  (draft.transfer?.targets ?? []).filter((t) => t.destination.kind === 'node' && t.destination.node === id);
+  (draft.transfer?.targets ?? []).filter(
+    (t) => t.destination.kind === 'node' && t.destination.node === id,
+  );
 
 /** Rename a node and every reference to it: the root, branch `next`s and transfer re-route targets. */
 export function renameNode(draft: RoutingPointDraft, from: string, to: string): EditResult {
@@ -60,7 +63,8 @@ export function renameNode(draft: RoutingPointDraft, from: string, to: string): 
 /** Delete a node. The root and a node something still leads to are refused, with who leads there. */
 export function deleteNode(draft: RoutingPointDraft, id: string): EditResult {
   if (nodeIndex(draft, id) < 0) return { error: `No node ${id}.` };
-  if (draft.root === id) return { error: 'The first question cannot be deleted. Make another node the root first.' };
+  if (draft.root === id)
+    return { error: 'The first question cannot be deleted. Make another node the root first.' };
   const leading = referencesTo(draft, id);
   const transfers = transferTargetsTo(draft, id);
   if (leading.length || transfers.length) {
@@ -92,13 +96,17 @@ export function renameBranch(
   if (!node) return { error: `No node ${nodeId}.` };
   if (from === to) return { draft };
   if (!isRoutingKey(to)) return { error: KEY_HELP };
-  if (node.branches.some((b) => b.key === to)) return { error: `Branch ${to} already exists here.` };
+  if (node.branches.some((b) => b.key === to))
+    return { error: `Branch ${to} already exists here.` };
   const renamed: RoutingNode = {
     ...node,
     branches: node.branches.map((b) => (b.key === from ? { ...b, key: to } : b)),
     engines: node.engines.map((engine) =>
       engine.kind === 'rules'
-        ? { ...engine, rules: engine.rules.map((r) => (r.branch === from ? { ...r, branch: to } : r)) }
+        ? {
+            ...engine,
+            rules: engine.rules.map((r) => (r.branch === from ? { ...r, branch: to } : r)),
+          }
         : engine,
     ),
   };
@@ -119,7 +127,11 @@ export function removeStep<T>(list: readonly T[], index: number, keepAtLeast = 0
 }
 
 /** Replace one node by id, keeping its place. */
-export function replaceNode(draft: RoutingPointDraft, id: string, node: RoutingNode): RoutingPointDraft {
+export function replaceNode(
+  draft: RoutingPointDraft,
+  id: string,
+  node: RoutingNode,
+): RoutingPointDraft {
   return { ...draft, nodes: draft.nodes.map((n) => (n.id === id ? node : n)) };
 }
 
@@ -131,7 +143,12 @@ export function renameQueueKey(draft: RoutingPointDraft, from: string, to: strin
   if (!bindings.some((b) => b.key === from)) return { error: `No queue bound as ${from}.` };
   if (bindings.some((b) => b.key === to)) return { error: `A queue is already bound as ${to}.` };
   const holdOf = <T extends { onTimeout: HoldPolicy['onTimeout'] }>(hold: T | undefined) =>
-    hold && { ...hold, onTimeout: hold.onTimeout.map((s) => (s.kind === 'human' && s.queueId === from ? { ...s, queueId: to } : s)) };
+    hold && {
+      ...hold,
+      onTimeout: hold.onTimeout.map((s) =>
+        s.kind === 'human' && s.queueId === from ? { ...s, queueId: to } : s,
+      ),
+    };
   const target = (t: RoutingTarget | undefined): RoutingTarget | undefined =>
     t?.kind === 'human' && t.queueId === from ? { ...t, queueId: to } : t;
   return {
@@ -140,7 +157,9 @@ export function renameQueueKey(draft: RoutingPointDraft, from: string, to: strin
       humanQueues: bindings.map((b) => (b.key === from ? { ...b, key: to } : b)),
       nodes: draft.nodes.map((node) => ({
         ...node,
-        branches: node.branches.map((b) => (b.target ? { ...b, target: target(b.target) } : b)) as RoutingNode['branches'],
+        branches: node.branches.map((b) =>
+          b.target ? { ...b, target: target(b.target) } : b,
+        ) as RoutingNode['branches'],
         fallback: node.fallback.map((s) =>
           s.kind === 'human' && s.queueId === from
             ? { ...s, queueId: to }
@@ -155,7 +174,10 @@ export function renameQueueKey(draft: RoutingPointDraft, from: string, to: strin
         targets: draft.transfer.targets.map((t) => ({
           ...t,
           hold: holdOf(t.hold),
-          destination: t.destination.kind === 'human' && t.destination.queueId === from ? { ...t.destination, queueId: to } : t.destination,
+          destination:
+            t.destination.kind === 'human' && t.destination.queueId === from
+              ? { ...t.destination, queueId: to }
+              : t.destination,
         })),
       },
     },

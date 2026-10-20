@@ -59,7 +59,10 @@ export function AgentRefEditor({
         onChange={(mode) =>
           onChange({
             ...value,
-            release: mode === 'latest' ? { kind: 'latest' } : { kind: 'pinned', releaseId: releases[0]?.id ?? '' },
+            release:
+              mode === 'latest'
+                ? { kind: 'latest' }
+                : { kind: 'pinned', releaseId: releases[0]?.id ?? '' },
           })
         }
       />
@@ -69,7 +72,10 @@ export function AgentRefEditor({
           label="Release"
           value={releaseId}
           placeholder="Choose a release…"
-          options={(releaseId && !releases.some((r) => r.id === releaseId) ? [{ id: releaseId }, ...releases] : releases).map((r) => ({
+          options={(releaseId && !releases.some((r) => r.id === releaseId)
+            ? [{ id: releaseId }, ...releases]
+            : releases
+          ).map((r) => ({
             value: r.id,
             label: `${'version' in r && r.version ? `v${r.version} · ` : ''}${r.id.slice(0, 8)}`,
           }))}

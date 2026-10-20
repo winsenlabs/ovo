@@ -71,13 +71,30 @@ function Row({
       <Select aria-label={`${label} type`} value={kind} options={kinds} onChange={onKind} />
       <div className="queue-row-body">{children}</div>
       <span className="rt-row-actions">
-        <button type="button" className="text-button" aria-label={`Move ${label} up`} disabled={first} onClick={() => onMove(-1)}>
+        <button
+          type="button"
+          className="text-button"
+          aria-label={`Move ${label} up`}
+          disabled={first}
+          onClick={() => onMove(-1)}
+        >
           Up
         </button>
-        <button type="button" className="text-button" aria-label={`Move ${label} down`} disabled={last} onClick={() => onMove(1)}>
+        <button
+          type="button"
+          className="text-button"
+          aria-label={`Move ${label} down`}
+          disabled={last}
+          onClick={() => onMove(1)}
+        >
           Down
         </button>
-        <button type="button" className="text-button" aria-label={`Remove ${label}`} onClick={onRemove}>
+        <button
+          type="button"
+          className="text-button"
+          aria-label={`Remove ${label}`}
+          onClick={onRemove}
+        >
           Remove
         </button>
       </span>

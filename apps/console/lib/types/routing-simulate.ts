@@ -16,18 +16,11 @@ export const SIMULATION_LIMITS = Object.freeze({
 });
 
 export type SimulationTurn =
-  | { kind: 'speech'; text: string }
-  | { kind: 'dtmf'; digits: string }
-  | { kind: 'silence' };
+  { kind: 'speech'; text: string } | { kind: 'dtmf'; digits: string } | { kind: 'silence' };
 
 export type SimulatedEngine = 'decision' | 'llm' | 'external';
 export type SimulatedOutcome =
-  | 'matched'
-  | 'no_match'
-  | 'low_confidence'
-  | 'timeout'
-  | 'error'
-  | 'disabled';
+  'matched' | 'no_match' | 'low_confidence' | 'timeout' | 'error' | 'disabled';
 export interface SimulatedAnswer {
   node: string;
   engine: SimulatedEngine;
@@ -80,7 +73,8 @@ export interface SimulationTurnResult {
   steps: SimulationStep[];
 }
 
-export type PoolReason = 'disabled' | 'closed' | 'product' | 'skill' | 'language' | 'full' | 'fault';
+export type PoolReason =
+  'disabled' | 'closed' | 'product' | 'skill' | 'language' | 'full' | 'fault';
 export interface PoolConsideration {
   poolId: string;
   poolName: string;
@@ -127,7 +121,12 @@ export interface SimulationOutcome {
   degraded: string | null;
   agent: { agentId: string; releaseId: string; poolId?: string; memberId?: string } | null;
   targetVariables: Record<string, string>;
-  human: { queueKey: string; queueId: string; kind: 'external' | 'managed'; precheck: string } | null;
+  human: {
+    queueKey: string;
+    queueId: string;
+    kind: 'external' | 'managed';
+    precheck: string;
+  } | null;
   callback: { inMinutes: number; releaseId: string } | null;
   endDisposition: string | null;
 }

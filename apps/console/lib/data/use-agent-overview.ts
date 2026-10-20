@@ -56,9 +56,7 @@ export function useAgentOverview(agentId: string): AgentOverviewState & { reload
       const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       const [callsResult, performanceResult, releasesResult, readinessResult, metersResult] =
         await Promise.allSettled([
-          apiRequest<unknown>(
-            `/calls?agentId=${encodeURIComponent(agentId)}&limit=200&order=desc`,
-          ),
+          apiRequest<unknown>(`/calls?agentId=${encodeURIComponent(agentId)}&limit=200&order=desc`),
           apiRequest<PerformanceResult>(
             `/performance?agentId=${encodeURIComponent(agentId)}&from=${from.toISOString()}&to=${now.toISOString()}&bucket=hour&groupBy=stage&maxGroups=50`,
           ),
@@ -92,8 +90,10 @@ export function useAgentOverview(agentId: string): AgentOverviewState & { reload
           // Newest first, as the API lists them (confirmed against the fixture).
           latestRelease: releases[0],
           releaseCount: releases.length,
-          readiness: readinessResult.status === 'fulfilled' ? readinessResult.value.data : undefined,
-          readinessError: readinessResult.status === 'rejected' ? 'Readiness unavailable' : undefined,
+          readiness:
+            readinessResult.status === 'fulfilled' ? readinessResult.value.data : undefined,
+          readinessError:
+            readinessResult.status === 'rejected' ? 'Readiness unavailable' : undefined,
           requiredMeters: metersResult.status === 'fulfilled' ? metersResult.value.data : undefined,
           requiredMetersError:
             metersResult.status === 'rejected' ? 'Required meters unavailable' : undefined,

@@ -15,7 +15,10 @@ export function IssueList({
   return (
     <ul className="rt-issues" aria-label={label}>
       {list.map((issue, index) => (
-        <li key={`${issue.code}-${issue.path.join('.')}-${index}`} className={`rt-issue tone-${issue.severity === 'error' ? 'danger' : 'warn'}`}>
+        <li
+          key={`${issue.code}-${issue.path.join('.')}-${index}`}
+          className={`rt-issue tone-${issue.severity === 'error' ? 'danger' : 'warn'}`}
+        >
           <strong>{issue.severity === 'error' ? 'Error' : 'Warning'}</strong>
           <span>{issue.message}</span>
           <code className="mono muted">{issue.code}</code>

@@ -16,11 +16,20 @@ export const TREE_KEYS: readonly [string, string][] = [
 ];
 
 /** The Tree tab: the question tree, keyboard help, and the drawer for the open question. */
-export function TreeTab({ openId, onOpen }: { openId: string | undefined; onOpen: (id: string | undefined) => void }) {
+export function TreeTab({
+  openId,
+  onOpen,
+}: {
+  openId: string | undefined;
+  onOpen: (id: string | undefined) => void;
+}) {
   const { draft, edit, canEdit } = useDesigner();
   const [problem, setProblem] = useState<string>();
   const add = () => {
-    const id = freshKey('question', draft.nodes.map((n) => n.id));
+    const id = freshKey(
+      'question',
+      draft.nodes.map((n) => n.id),
+    );
     const result = addNode(draft, blankNode(id, draft.defaultTarget));
     if ('error' in result) return setProblem(result.error);
     setProblem(undefined);

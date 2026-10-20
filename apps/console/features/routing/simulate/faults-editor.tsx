@@ -15,21 +15,56 @@ const QUEUE_FAULTS = [
 ];
 
 /** What-ifs: switch features on or off, make members full, make a queue refuse, load the pools. */
-export function FaultsEditor({ form, onChange, draft, pools }: { form: SimForm; onChange: (form: SimForm) => void; draft: RoutingPointDraft; pools: readonly PoolRecord[] }) {
+export function FaultsEditor({
+  form,
+  onChange,
+  draft,
+  pools,
+}: {
+  form: SimForm;
+  onChange: (form: SimForm) => void;
+  draft: RoutingPointDraft;
+  pools: readonly PoolRecord[];
+}) {
   const queues = draft.humanQueues ?? [];
-  const isFull = (poolId: string, memberId: string) => form.fullMembers.some((f) => f.poolId === poolId && f.memberId === memberId);
+  const isFull = (poolId: string, memberId: string) =>
+    form.fullMembers.some((f) => f.poolId === poolId && f.memberId === memberId);
   const toggleFull = (poolId: string, memberId: string) =>
-    onChange({ ...form, fullMembers: isFull(poolId, memberId) ? form.fullMembers.filter((f) => !(f.poolId === poolId && f.memberId === memberId)) : [...form.fullMembers, { poolId, memberId }] });
+    onChange({
+      ...form,
+      fullMembers: isFull(poolId, memberId)
+        ? form.fullMembers.filter((f) => !(f.poolId === poolId && f.memberId === memberId))
+        : [...form.fullMembers, { poolId, memberId }],
+    });
   return (
     <div className="rt-stack">
       <div className="rt-grid">
-        <SelectField id="assume-transfers" label="Transfers" value={form.transfers} options={FLAGS} onChange={(transfers) => onChange({ ...form, transfers: transfers as SimForm['transfers'] })} />
-        <SelectField id="assume-queues" label="Person queues" value={form.humanQueues} options={FLAGS} onChange={(humanQueues) => onChange({ ...form, humanQueues: humanQueues as SimForm['humanQueues'] })} />
+        <SelectField
+          id="assume-transfers"
+          label="Transfers"
+          value={form.transfers}
+          options={FLAGS}
+          onChange={(transfers) =>
+            onChange({ ...form, transfers: transfers as SimForm['transfers'] })
+          }
+        />
+        <SelectField
+          id="assume-queues"
+          label="Person queues"
+          value={form.humanQueues}
+          options={FLAGS}
+          onChange={(humanQueues) =>
+            onChange({ ...form, humanQueues: humanQueues as SimForm['humanQueues'] })
+          }
+        />
         <SelectField
           id="sim-load"
           label="How busy the agents are"
           value={form.load}
-          options={[{ value: 'empty', label: 'Everyone is free' }, { value: 'live', label: 'The live number of calls' }]}
+          options={[
+            { value: 'empty', label: 'Everyone is free' },
+            { value: 'live', label: 'The live number of calls' },
+          ]}
           onChange={(load) => onChange({ ...form, load: load as 'empty' | 'live' })}
         />
       </div>
@@ -63,7 +98,12 @@ export function FaultsEditor({ form, onChange, draft, pools }: { form: SimForm; 
                 {pool.definition.members.map((m) => (
                   <li key={m.id}>
                     <label>
-                      <input type="checkbox" checked={isFull(pool.id, m.id)} onChange={() => toggleFull(pool.id, m.id)} /> {m.id} is at capacity
+                      <input
+                        type="checkbox"
+                        checked={isFull(pool.id, m.id)}
+                        onChange={() => toggleFull(pool.id, m.id)}
+                      />{' '}
+                      {m.id} is at capacity
                     </label>
                   </li>
                 ))}

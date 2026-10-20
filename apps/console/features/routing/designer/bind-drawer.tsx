@@ -32,7 +32,10 @@ export function BindDrawer({
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const newest = releases.reduce<ReleaseSummary | undefined>((best, r) => (!best || r.version > best.version ? r : best), undefined);
+  const newest = releases.reduce<ReleaseSummary | undefined>(
+    (best, r) => (!best || r.version > best.version ? r : best),
+    undefined,
+  );
   useEffect(() => {
     if (!open) return;
     setPhone(initial?.phoneNumber ?? '');
@@ -49,12 +52,16 @@ export function BindDrawer({
     setError(undefined);
     try {
       await routingApi.bindNumber(row, { routingReleaseId: release.id });
-      onBound(`${formatPhoneNumber(row.phoneNumber)} is now bound to ${pointName} version ${release.version}.`);
+      onBound(
+        `${formatPhoneNumber(row.phoneNumber)} is now bound to ${pointName} version ${release.version}.`,
+      );
     } catch (failure) {
       setError(
         failure instanceof ApiError && failure.status === 409
           ? 'The number changed while you were looking. Close this panel to see its latest state.'
-          : failure instanceof Error ? failure.message : 'The number could not be bound.',
+          : failure instanceof Error
+            ? failure.message
+            : 'The number could not be bound.',
       );
     } finally {
       setBusy(false);
@@ -69,7 +76,10 @@ export function BindDrawer({
           label="Number"
           value={phone}
           placeholder={candidates.length ? 'Choose a number…' : 'No numbers to bind'}
-          options={candidates.map((c) => ({ value: c.phoneNumber, label: `${formatPhoneNumber(c.phoneNumber)} (${modeLabel(c)})` }))}
+          options={candidates.map((c) => ({
+            value: c.phoneNumber,
+            label: `${formatPhoneNumber(c.phoneNumber)} (${modeLabel(c)})`,
+          }))}
           onChange={setPhone}
         />
         <SelectField
@@ -77,18 +87,33 @@ export function BindDrawer({
           label="Release"
           value={releaseId}
           placeholder={releases.length ? 'Choose a release…' : 'Publish a release first'}
-          options={releases.map((r) => ({ value: r.id, label: `Version ${r.version}${r.id === newest?.id ? ' (latest)' : ''}` }))}
+          options={releases.map((r) => ({
+            value: r.id,
+            label: `Version ${r.version}${r.id === newest?.id ? ' (latest)' : ''}`,
+          }))}
           onChange={setReleaseId}
         />
         {consequence && <InlineAlert tone="info">{consequence.text}</InlineAlert>}
         {consequence?.needsConfirm && (
           <label className="rt-confirm">
-            <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /> I understand how callers are affected
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(event) => setConfirmed(event.target.checked)}
+            />{' '}
+            I understand how callers are affected
           </label>
         )}
         <div className="button-row queue-form-actions">
-          <button type="button" className="button" onClick={onClose}>Cancel</button>
-          <button type="button" className="button primary" disabled={!row || !release || busy || (consequence?.needsConfirm && !confirmed)} onClick={() => void bind()}>
+          <button type="button" className="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="button primary"
+            disabled={!row || !release || busy || (consequence?.needsConfirm && !confirmed)}
+            onClick={() => void bind()}
+          >
             {busy ? 'Binding…' : 'Bind'}
           </button>
         </div>

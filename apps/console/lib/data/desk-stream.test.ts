@@ -16,7 +16,10 @@ class FakeSource implements StreamSource {
     this.closed = true;
   }
   send(name: string, data: unknown, id?: string) {
-    this.handlers.get(name)?.({ data: typeof data === 'string' ? data : JSON.stringify(data), lastEventId: id ?? '' } as MessageEvent);
+    this.handlers.get(name)?.({
+      data: typeof data === 'string' ? data : JSON.stringify(data),
+      lastEventId: id ?? '',
+    } as MessageEvent);
   }
 }
 
@@ -24,7 +27,10 @@ describe('parseDeskEvent', () => {
   it('types each frame and drops malformed ones', () => {
     expect(parseDeskEvent('removed', '{"id":"t1"}')).toEqual({ type: 'removed', id: 't1' });
     expect(parseDeskEvent('ticket', '{"id":"t1","version":2}')).toMatchObject({ type: 'ticket' });
-    expect(parseDeskEvent('me', '{"status":"AWAY"}')).toEqual({ type: 'me', me: { status: 'AWAY' } });
+    expect(parseDeskEvent('me', '{"status":"AWAY"}')).toEqual({
+      type: 'me',
+      me: { status: 'AWAY' },
+    });
     expect(parseDeskEvent('heartbeat', '{}')).toEqual({ type: 'heartbeat' });
     expect(parseDeskEvent('gap', '')).toEqual({ type: 'gap' });
     expect(parseDeskEvent('ticket', 'not json')).toBeUndefined();
@@ -76,7 +82,12 @@ describe('openDeskStream', () => {
 
   it('ignores a malformed frame without dropping the stream', () => {
     const events: DeskStreamEvent[] = [];
-    openDeskStream({ url: '/s', onEvent: (e) => events.push(e), onStatus: () => undefined, create });
+    openDeskStream({
+      url: '/s',
+      onEvent: (e) => events.push(e),
+      onStatus: () => undefined,
+      create,
+    });
     sources[0]!.send('ticket', '{broken');
     sources[0]!.send('heartbeat', '{}');
     expect(events).toEqual([{ type: 'heartbeat' }]);
@@ -100,7 +111,13 @@ describe('openDeskStream', () => {
 
   it('never delivers from a superseded connection', () => {
     const events: DeskStreamEvent[] = [];
-    openDeskStream({ url: '/s', onEvent: (e) => events.push(e), onStatus: () => undefined, create, retryMs: 1 });
+    openDeskStream({
+      url: '/s',
+      onEvent: (e) => events.push(e),
+      onStatus: () => undefined,
+      create,
+      retryMs: 1,
+    });
     const first = sources[0]!;
     first.onerror?.(new Event('error'));
     vi.advanceTimersByTime(1);

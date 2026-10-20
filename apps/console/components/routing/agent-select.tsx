@@ -27,7 +27,8 @@ export function AgentSelect({
   error?: string;
   help?: string;
 }) {
-  const options = agents.status === 'ready' ? agents.data.map((a) => ({ value: a.id, label: a.name })) : [];
+  const options =
+    agents.status === 'ready' ? agents.data.map((a) => ({ value: a.id, label: a.name })) : [];
   // An agent the list no longer shows stays selectable so the draft is not silently changed.
   if (value && !options.some((o) => o.value === value)) options.unshift({ value, label: value });
   return (
@@ -35,7 +36,13 @@ export function AgentSelect({
       id={id}
       label={label}
       value={value}
-      placeholder={agents.status === 'loading' ? 'Loading agents…' : options.length ? 'Choose an agent…' : 'No agents yet'}
+      placeholder={
+        agents.status === 'loading'
+          ? 'Loading agents…'
+          : options.length
+            ? 'Choose an agent…'
+            : 'No agents yet'
+      }
       options={options}
       onChange={onChange}
       error={error ?? (agents.status === 'error' ? 'Agents could not be loaded' : undefined)}

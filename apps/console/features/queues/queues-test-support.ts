@@ -17,6 +17,7 @@ export const queuesApi = {
   remove: vi.fn(),
   preview: vi.fn(),
   testWebhook: vi.fn(),
+  activity: vi.fn(),
   operators: vi.fn(),
   saveOperator: vi.fn(),
   users: vi.fn(),

@@ -1,4 +1,5 @@
-import { apiRequest, ApiError, ifMatch, items } from '../api';
+import { apiRequest, ApiError, items } from '../api';
+import { json } from './json-init';
 import type {
   AgentOption,
   AudioRecord,
@@ -24,11 +25,6 @@ import type {
 } from '../types/routing-simulate';
 import type { PoolDefinition } from '../derive/routing-pools';
 
-const json = (method: string, body?: unknown, version?: number): RequestInit => ({
-  method,
-  body: body === undefined ? undefined : JSON.stringify(body),
-  headers: version === undefined ? undefined : { 'if-match': ifMatch(String(version)) },
-});
 const enc = encodeURIComponent;
 const versionOf = (etag: string | undefined, fallback: number) =>
   Number(etag?.replaceAll('"', '')) || fallback;
@@ -40,9 +36,7 @@ async function pages<T>(path: string, limit = 100): Promise<T[]> {
   for (let page = 0; page < 20; page += 1) {
     const query = new URLSearchParams({ limit: String(limit) });
     if (cursor) query.set('cursor', cursor);
-    const { data } = await apiRequest<unknown>(
-      `${path}${path.includes('?') ? '&' : '?'}${query}`,
-    );
+    const { data } = await apiRequest<unknown>(`${path}${path.includes('?') ? '&' : '?'}${query}`);
     found.push(...items<T>(data));
     const next = (data as { nextCursor?: string | null } | null)?.nextCursor;
     if (!next || next === cursor) break;
@@ -90,7 +84,8 @@ export const routingApi = {
         json('POST', { expectedDraftVersion }),
       )
     ).data,
-  releases: (id: string) => pages<ReleaseSummary>(`/routing/points/${enc(id)}/releases?view=summary`),
+  releases: (id: string) =>
+    pages<ReleaseSummary>(`/routing/points/${enc(id)}/releases?view=summary`),
   release: async (id: string) =>
     (await apiRequest<RoutingRelease>(`/routing/releases/${enc(id)}`)).data,
 
@@ -102,8 +97,12 @@ export const routingApi = {
   createPool: async (definition: PoolDefinition) =>
     (await apiRequest<RoutingPool>('/routing/pools', json('POST', { definition }))).data,
   savePool: async (id: string, definition: PoolDefinition, version: number) =>
-    (await apiRequest<RoutingPool>(`/routing/pools/${enc(id)}`, json('PUT', { definition }, version)))
-      .data,
+    (
+      await apiRequest<RoutingPool>(
+        `/routing/pools/${enc(id)}`,
+        json('PUT', { definition }, version),
+      )
+    ).data,
   removePool: async (id: string, version: number) =>
     void (await apiRequest(`/routing/pools/${enc(id)}`, json('DELETE', undefined, version))),
   /** Every pool's totals in one call (the answer is a list under `items` or `pools`). */
@@ -136,7 +135,8 @@ export const routingApi = {
     if (!response.ok) throw new ApiError(response.status, 'audio_unavailable', 'Clip unavailable');
     return response.blob();
   },
-  removeAudio: async (id: string) => void (await apiRequest(`/routing/audio/${enc(id)}`, json('DELETE'))),
+  removeAudio: async (id: string) =>
+    void (await apiRequest(`/routing/audio/${enc(id)}`, json('DELETE'))),
 
   simulate: async (body: SimulationRequest) =>
     (await apiRequest<RoutingSimulationResult>('/routing/simulate', json('POST', body))).data,
@@ -150,7 +150,10 @@ export const routingApi = {
   agentReleases: (agentId: string) =>
     pages<{ id: string; version?: number; createdAt?: string }>(`/agents/${enc(agentId)}/releases`),
   numbers: () => pages<NumberRow>('/operations/inbound/routes'),
-  bindNumber: async (row: NumberRow, target: { routingReleaseId: string } | { releaseId: string }) =>
+  bindNumber: async (
+    row: NumberRow,
+    target: { routingReleaseId: string } | { releaseId: string },
+  ) =>
     (
       await apiRequest<NumberRow>(
         `/operations/inbound/routes/${enc(row.phoneNumber)}`,

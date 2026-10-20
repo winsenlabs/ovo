@@ -20,5 +20,6 @@
 @import './styles/home.css';
 @import './styles/desk.css';
 @import './styles/routing.css';
+@import './styles/routing-tree.css';
 @import './styles/routing-sim.css';
 @import './styles/inspector-route.css';

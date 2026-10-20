@@ -28,7 +28,10 @@ export function useRoutingLoad<T>(load: () => Promise<T>, deps: readonly unknown
       setState(
         isRoutingDisabled(failure)
           ? { status: 'disabled' }
-          : { status: 'error', message: failure instanceof Error ? failure.message : 'Could not be loaded.' },
+          : {
+              status: 'error',
+              message: failure instanceof Error ? failure.message : 'Could not be loaded.',
+            },
       );
     }
   }, []);

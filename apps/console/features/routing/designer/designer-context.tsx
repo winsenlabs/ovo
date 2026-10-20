@@ -5,7 +5,12 @@ import type { IssueIndex } from '../../../lib/derive/routing-anchor';
 import type { Load } from '../../../lib/data/use-routing-load';
 import type { HumanQueueStatus } from '../../../lib/types/desk';
 import type { QueueRecord } from '../../../lib/types/queues';
-import type { AgentOption, AudioRecord, PoolRecord, RoutingStatus } from '../../../lib/types/routing';
+import type {
+  AgentOption,
+  AudioRecord,
+  PoolRecord,
+  RoutingStatus,
+} from '../../../lib/types/routing';
 
 /** What every designer editor reads besides its own value: reference data, flags, role, issues. */
 export interface DesignerEnv {

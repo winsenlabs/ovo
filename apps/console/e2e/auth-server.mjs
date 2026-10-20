@@ -42,4 +42,5 @@ const server = createServer(async (request, response) => {
       : JSON.stringify({ error: { code: 'unauthorized' } }),
   );
 });
-server.listen(4177, '127.0.0.1');
+// The port is overridable so two checkouts can run their e2e suites on one machine.
+server.listen(Number(process.env.OVO_E2E_API_PORT ?? 4177), '127.0.0.1');

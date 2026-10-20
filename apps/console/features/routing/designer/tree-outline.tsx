@@ -15,8 +15,20 @@ function Badges({ list }: { list: readonly AnchoredIssue[] }) {
   const { errors, warnings } = counts(list);
   return (
     <>
-      {errors > 0 && <StatusBadgeV2 tone="danger" size="sm" label={`${errors} error${errors === 1 ? '' : 's'}`} />}
-      {warnings > 0 && <StatusBadgeV2 tone="warn" size="sm" label={`${warnings} warning${warnings === 1 ? '' : 's'}`} />}
+      {errors > 0 && (
+        <StatusBadgeV2
+          tone="danger"
+          size="sm"
+          label={`${errors} error${errors === 1 ? '' : 's'}`}
+        />
+      )}
+      {warnings > 0 && (
+        <StatusBadgeV2
+          tone="warn"
+          size="sm"
+          label={`${warnings} warning${warnings === 1 ? '' : 's'}`}
+        />
+      )}
     </>
   );
 }
@@ -25,7 +37,13 @@ function Badges({ list }: { list: readonly AnchoredIssue[] }) {
  * The questions as an accessible tree (`role="tree"`): arrow keys move, Right and Left open and
  * close a branch or step in and out, Enter opens the question's drawer. Nothing needs a pointer.
  */
-export function TreeOutline({ selected, onOpen }: { selected?: string; onOpen: (nodeId: string) => void }) {
+export function TreeOutline({
+  selected,
+  onOpen,
+}: {
+  selected?: string;
+  onOpen: (nodeId: string) => void;
+}) {
   const { draft, index } = useDesigner();
   const names = useNames();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
@@ -47,7 +65,8 @@ export function TreeOutline({ selected, onOpen }: { selected?: string; onOpen: (
 
   function onKeyDown(event: KeyboardEvent, item: TreeItem) {
     const key = event.key;
-    if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Home' || key === 'End') move(treeNeighbour(items, item.key, key));
+    if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Home' || key === 'End')
+      move(treeNeighbour(items, item.key, key));
     else if (key === 'ArrowRight') {
       if (!item.expandable) return;
       if (collapsed.has(item.key)) toggle(item.key, true);
@@ -67,10 +86,15 @@ export function TreeOutline({ selected, onOpen }: { selected?: string; onOpen: (
     <div role="tree" aria-label="Questions and branches" className="rt-tree">
       {items.map((item) => {
         const node = draft.nodes.find((n) => n.id === item.nodeId)!;
-        const branch = item.branchKey ? node.branches.find((b) => b.key === item.branchKey) : undefined;
-        const issues = item.kind === 'node'
-          ? (index.byNode.get(node.id) ?? []).filter((a) => a.anchor.section !== 'branch')
-          : (index.byNode.get(node.id) ?? []).filter((a) => a.anchor.section === 'branch' && a.anchor.branchKey === item.branchKey);
+        const branch = item.branchKey
+          ? node.branches.find((b) => b.key === item.branchKey)
+          : undefined;
+        const issues =
+          item.kind === 'node'
+            ? (index.byNode.get(node.id) ?? []).filter((a) => a.anchor.section !== 'branch')
+            : (index.byNode.get(node.id) ?? []).filter(
+                (a) => a.anchor.section === 'branch' && a.anchor.branchKey === item.branchKey,
+              );
         const label = item.kind === 'node' ? node.id : branch!.key;
         return (
           <div
@@ -90,7 +114,14 @@ export function TreeOutline({ selected, onOpen }: { selected?: string; onOpen: (
             onClick={() => onOpen(item.nodeId)}
           >
             {item.expandable && (
-              <span className="rt-twisty" aria-hidden="true" onClick={(e) => { e.stopPropagation(); toggle(item.key, collapsed.has(item.key)); }}>
+              <span
+                className="rt-twisty"
+                aria-hidden="true"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggle(item.key, collapsed.has(item.key));
+                }}
+              >
                 {collapsed.has(item.key) ? '▸' : '▾'}
               </span>
             )}
@@ -100,11 +131,18 @@ export function TreeOutline({ selected, onOpen }: { selected?: string; onOpen: (
                 <span className="muted rt-chips">
                   {draft.root === node.id && <span className="ds-chip">first question</span>}
                   {item.repeated && <span className="ds-chip">see above</span>}
-                  {!item.repeated && node.engines.map((e, i) => <span key={i} className="ds-chip">{ENGINE_LABEL[e.kind]}</span>)}
+                  {!item.repeated &&
+                    node.engines.map((e, i) => (
+                      <span key={i} className="ds-chip">
+                        {ENGINE_LABEL[e.kind]}
+                      </span>
+                    ))}
                 </span>
               ) : (
                 <span className="muted">
-                  {branch!.next !== undefined ? `→ ${branch!.next}` : `→ ${targetSummary(branch!.target!, names)}`}
+                  {branch!.next !== undefined
+                    ? `→ ${branch!.next}`
+                    : `→ ${targetSummary(branch!.target!, names)}`}
                 </span>
               )}
               <Badges list={issues} />
