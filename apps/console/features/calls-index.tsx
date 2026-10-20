@@ -2,7 +2,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useCursorList } from '../lib/data/use-cursor-list';
-import { callsKpis, callsOverTime, endReasonTop, type CallRow } from '../lib/derive/calls';
+import {
+  callsKpis,
+  callsOverTime,
+  endReasonTop,
+  routingFilterUnavailable,
+  type CallRow,
+} from '../lib/derive/calls';
+import { loadRoutingPoints, loadRoutingStatus } from '../lib/data/call-route-api';
+import type { RoutingPointOption, RoutingStatusLite } from '../lib/types/call-route';
+import { routingAvailability } from '../app/(console)/calls/calls-routing-filters';
 import {
   loadAgentChoices,
   loadAgentReleaseOptions,
@@ -65,6 +74,10 @@ export function CallsIndexFeature() {
   const [agentsByRelease, setAgentsByRelease] = useState<Map<string, string>>(new Map());
   const [engines, setEngines] = useState<PluginOption[]>([]);
   const [carriers, setCarriers] = useState<PluginOption[]>([]);
+  const [routingStatus, setRoutingStatus] = useState<RoutingStatusLite | null | 'pending'>(
+    'pending',
+  );
+  const [routePoints, setRoutePoints] = useState<RoutingPointOption[]>([]);
   const [queryText, setQueryText] = useState(search.get('q') ?? '');
   const [range, setRange] = useState<RangePreset>((search.get('range') as RangePreset) || '30d');
   const [custom, setCustom] = useState<CustomRange>({
@@ -89,6 +102,16 @@ export function CallsIndexFeature() {
     void loadPluginOptions('carrier')
       .then(setCarriers)
       .catch(() => setCarriers([]));
+    // A failed status reads as "routing off": the filters stay hidden instead of guessing.
+    void loadRoutingStatus()
+      .then((status) => {
+        setRoutingStatus(status);
+        if (status.enabled)
+          return loadRoutingPoints()
+            .then(setRoutePoints)
+            .catch(() => setRoutePoints([]));
+      })
+      .catch(() => setRoutingStatus(null));
   }, []);
 
   const query = new URLSearchParams();
@@ -129,7 +152,22 @@ export function CallsIndexFeature() {
   const kpis = useMemo(() => callsKpis(windowRows), [windowRows]);
   const overTime = useMemo(() => callsOverTime(windowRows), [windowRows]);
   const endReasons = useMemo(() => endReasonTop(windowRows), [windowRows]);
-  const columns = useMemo(() => callColumns(agentsByRelease), [agentsByRelease]);
+  const pointNames = useMemo(
+    () => new Map(routePoints.map((point) => [point.id, point.name])),
+    [routePoints],
+  );
+  const columns = useMemo(
+    () => callColumns(agentsByRelease, pointNames),
+    [agentsByRelease, pointNames],
+  );
+  const outcomesAbsent = routingFilterUnavailable(page);
+  const routing = useMemo(
+    () => ({
+      availability: routingAvailability(routingStatus, outcomesAbsent),
+      points: routePoints,
+    }),
+    [routingStatus, outcomesAbsent, routePoints],
+  );
   const filtered = activeChipCount(search, queryText) > 0;
 
   return (
@@ -160,6 +198,7 @@ export function CallsIndexFeature() {
         setRange={setRange}
         custom={custom}
         setCustom={setCustom}
+        routing={routing}
       />
       <CallsOverview
         kpis={kpis}

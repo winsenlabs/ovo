@@ -1,1 +1,127 @@
-/* Call inspector route and segments (Wave 18, console-visibility lane). */
+/* Wave 18 call visibility: the call inspector's "Route & segments" tab, the Route column and
+   routing filters on the Calls list, and the Evaluations "Routing" tab. Tokens only, so light and
+   dark come from tokens.css; nothing here sets a literal colour. */
+
+/* Route taken: nodes in order, each with its engine badge and the branch it chose. */
+.route-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.route-step {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 2px solid var(--border-strong);
+}
+.route-step-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.route-step-target {
+  border-inline-start-color: var(--accent);
+}
+.route-branch {
+  font-family: var(--font-mono);
+  font-size: var(--text-data-size);
+  overflow-wrap: anywhere;
+}
+.route-agent-cell,
+.route-cell {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* Transcript dividers: one block per routing segment. */
+.route-segment-group + .route-segment-group {
+  border-block-start: 1px solid var(--border);
+}
+.route-divider {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  line-height: var(--text-label-line);
+}
+
+/* Calls list: the routing filters sit in the filter row as one group. */
+.route-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.route-filters:disabled {
+  opacity: 0.6;
+}
+.route-filters-reason {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--text-label-size);
+}
+
+/* Drawers that carry tables get the room: wider than the 440px form drawer, full screen on phone. */
+.ui-drawer:has(.route-wide-content) {
+  width: min(880px, 100vw);
+}
+
+/* Confusion matrix: a numeric table, cells shaded by their share of the row. */
+.route-matrix-wrap {
+  max-width: 100%;
+  overflow: auto;
+  font-size: var(--text-data-size);
+}
+.route-matrix {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.route-matrix caption {
+  padding-block-end: var(--space-2);
+  color: var(--text-2);
+  text-align: start;
+}
+.route-matrix th,
+.route-matrix td {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  text-align: end;
+}
+.route-matrix th[scope='row'],
+.route-matrix thead th:first-child {
+  text-align: start;
+}
+.route-matrix thead th {
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-weight: 600;
+}
+.route-matrix td.is-right {
+  background: color-mix(in srgb, var(--accent) var(--cell-tint, 0%), var(--surface));
+}
+.route-matrix td.is-wrong {
+  background: color-mix(in srgb, var(--danger) var(--cell-tint, 0%), var(--surface));
+  font-weight: 600;
+}
+.route-matrix td.is-zero {
+  color: var(--text-3);
+}
+.route-step > .ds-chip {
+  justify-self: start;
+}

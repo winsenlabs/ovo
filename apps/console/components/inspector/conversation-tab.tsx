@@ -12,6 +12,8 @@ import {
   type CallEvidence,
 } from '../../lib/derive/call-detail';
 import type { TurnRow } from './turn-model';
+import { dividerLabel, groupBySegment, segmentOf } from '../../lib/derive/call-route-path';
+import type { CallRouteResponse } from '../../lib/types/call-route';
 
 /**
  * The Conversation tab: the recording on top (segment-availability bar + turn markers), the
@@ -23,11 +25,16 @@ export function ConversationTab({
   evidence,
   turns,
   turnsError,
+  route,
+  names,
 }: {
   callId: string;
   evidence: CallEvidence;
   turns: readonly TurnRow[] | undefined;
   turnsError?: string;
+  /** The call's route, when it has one: names the segment dividers of a tagged transcript. */
+  route?: CallRouteResponse;
+  names?: ReadonlyMap<string, string>;
 }) {
   const [positionMs, setPositionMs] = useState(0);
   const [seekRequest, setSeekRequest] = useState<SeekRequest | null>(null);
@@ -36,6 +43,12 @@ export function ConversationTab({
     [evidence.transcript, turns],
   );
   const segments = useMemo(() => audioSegments(evidence.recording?.segments), [evidence.recording]);
+  // A transcript tagged with routing segments reads as one block per segment; an untagged one
+  // (a direct call, or a call recorded before tagging) is a single group and renders as before.
+  const groups = useMemo(
+    () => groupBySegment(lines, (evidence.transcript ?? []).map(segmentOf)),
+    [lines, evidence.transcript],
+  );
   const markers = useMemo(
     () => turnMarkers(turns, evidence.call.createdAt, evidence.call.durationMs),
     [turns, evidence.call.createdAt, evidence.call.durationMs],
@@ -53,6 +66,13 @@ export function ConversationTab({
     return played.at(-1)?.id;
   }, [lines, positionMs]);
 
+  const transcript = (items: typeof lines) => (
+    <Conversation
+      lines={items}
+      activeId={activeId}
+      onSeek={(atMs) => setSeekRequest({ ms: atMs, nonce: Date.now() })}
+    />
+  );
   return (
     <div className="inspector-grid">
       <div className="ds-stack">
@@ -75,11 +95,23 @@ export function ConversationTab({
         </SectionCard>
         <SectionCard title="Transcript" padding="flush">
           {lines.length ? (
-            <Conversation
-              lines={lines}
-              activeId={activeId}
-              onSeek={(atMs) => setSeekRequest({ ms: atMs, nonce: Date.now() })}
-            />
+            groups[0]?.segment == null ? (
+              transcript(lines)
+            ) : (
+              groups.map((group) => {
+                const label = dividerLabel(group.segment!, route?.segments ?? [], names);
+                return (
+                  <section
+                    key={`${group.segment}-${group.items[0]?.id}`}
+                    className="route-segment-group"
+                    aria-label={label}
+                  >
+                    <h3 className="route-divider">{label}</h3>
+                    {transcript(group.items)}
+                  </section>
+                );
+              })
+            )
           ) : (
             <EmptyStateV2 variant="first-run" title="No transcript recorded" />
           )}
