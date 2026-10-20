@@ -58,7 +58,7 @@ describe.skipIf(!postgresUrl)('operations migration 013 (human queues)', () => {
     const versions = await db.pool.query<{ version: number }>(
       'SELECT version FROM ovo_ops_schema_migrations ORDER BY version',
     );
-    expect(versions.rows.map((row) => row.version).at(-1)).toBe(13);
+    expect(versions.rows.map((row) => row.version).at(-1)).toBe(14);
     const tables = await db.pool.query<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema = current_schema() AND table_name LIKE 'ovo\\_hq\\_%' ORDER BY table_name`,

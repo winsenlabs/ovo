@@ -110,6 +110,29 @@ export class RoutingClaims {
   }
 
   /**
+   * Active claims per member for several pools in one query (R4 utilisation). Every valid pool id
+   * asked for is present, with `{}` when nothing is claimed.
+   */
+  async activeByPool(poolIds: readonly string[]): Promise<Record<string, Record<string, number>>> {
+    const ids = [...new Set(poolIds.flatMap((id) => uuidOrNull(id) ?? []))];
+    const found: Record<string, Record<string, number>> = Object.fromEntries(
+      ids.map((id) => [id, {}]),
+    );
+    if (!ids.length) return found;
+    const result = await this.pool.query<{ pool_id: string; member_id: string; active: number }>(
+      `SELECT pool_id, member_id, count(*)::int AS active FROM ovo_routing_member_claims
+       WHERE organization_id = $1 AND pool_id = ANY($2::uuid[]) AND ${ACTIVE}
+       GROUP BY pool_id, member_id`,
+      [this.organizationId, ids],
+    );
+    for (const row of result.rows) {
+      const members = found[row.pool_id] ?? (found[row.pool_id] = {});
+      members[row.member_id] = Number(row.active);
+    }
+    return found;
+  }
+
+  /**
    * Members with room, least loaded first: by active/capacity (unlimited counts as 0), then by
    * active claims (so unlimited members still balance), then by member id.
    */

@@ -12,6 +12,7 @@ import migration010 from '../migrations/010_routing.sql?raw';
 import migration011 from '../migrations/011_routing_transfer.sql?raw';
 import migration012 from '../migrations/012_inbound_default_variables.sql?raw';
 import migration013 from '../migrations/013_human_queues.sql?raw';
+import migration014 from '../migrations/014_routing_eval.sql?raw';
 import { transaction } from './database.ts';
 
 const migrations = [
@@ -28,6 +29,7 @@ const migrations = [
   { version: 11, sql: migration011 },
   { version: 12, sql: migration012 },
   { version: 13, sql: migration013 },
+  { version: 14, sql: migration014 },
 ] as const;
 
 export async function runOperationsMigrations(pool: Pool): Promise<void> {
