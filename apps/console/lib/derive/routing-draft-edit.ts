@@ -23,7 +23,8 @@ export const isRoutingKey = (value: string) => RoutingKey.safeParse(value).succe
 export function describeReferrers(draft: RoutingPointDraft, referrers: RoutingPath[]): string[] {
   return referrers.map((path) => {
     if (path[0] === 'root') return 'the first question';
-    if (path[0] === 'transfer') return `transfer target ${draft.transfer?.targets[Number(path[2])]?.key}`;
+    if (path[0] === 'transfer')
+      return `transfer target ${draft.transfer?.targets[Number(path[2])]?.key}`;
     const node = draft.nodes[Number(path[1])];
     return `${node?.id} > ${node?.branches[Number(path[3])]?.key}`;
   });
