@@ -10,18 +10,18 @@
   },
   "dependencies": {
     "@livekit/agents": "1.9.0",
+    "@livekit/protocol": "1.51.0",
     "@livekit/rtc-node": "0.13.34",
     "@winsendotai/ovo-behaviors": "workspace:*",
     "@winsendotai/ovo-contracts": "workspace:*",
     "@winsendotai/ovo-distribution": "workspace:*",
-    "@winsendotai/ovo-plugin-kit": "workspace:*",
-    "@winsendotai/ovo-session-host": "workspace:*",
     "@winsendotai/ovo-plugin-cache": "workspace:*",
-    "@winsendotai/ovo-plugin-orchestration": "workspace:*",
-    "@winsendotai/ovo-plugin-operations": "workspace:*",
-    "@winsendotai/ovo-plugin-media": "workspace:*",
+    "@winsendotai/ovo-plugin-kit": "workspace:*",
     "@winsendotai/ovo-plugin-ledger": "workspace:*",
+    "@winsendotai/ovo-plugin-media": "workspace:*",
     "@winsendotai/ovo-plugin-observability": "workspace:*",
+    "@winsendotai/ovo-plugin-operations": "workspace:*",
+    "@winsendotai/ovo-plugin-orchestration": "workspace:*",
     "@winsendotai/ovo-plugin-recordings": "workspace:*",
     "@winsendotai/ovo-plugin-router": "workspace:*",
     "@winsendotai/ovo-plugin-secrets": "workspace:*",
@@ -30,7 +30,8 @@
     "@winsendotai/ovo-plugin-tools-http": "workspace:*",
     "@winsendotai/ovo-plugin-voice": "workspace:*",
     "@winsendotai/ovo-runtime": "workspace:*",
-    "ws": "8.21.3",
-    "@winsendotai/ovo-sip-carrier-kit": "workspace:*"
+    "@winsendotai/ovo-session-host": "workspace:*",
+    "@winsendotai/ovo-sip-carrier-kit": "workspace:*",
+    "ws": "8.21.3"
   }
 }

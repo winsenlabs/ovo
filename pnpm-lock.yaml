@@ -38,6 +38,9 @@ importers:
       '@livekit/agents':
         specifier: 1.9.0
         version: 1.9.0(@aws-sdk/credential-provider-node@3.972.83)(@livekit/rtc-node@0.13.34)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.3)(@types/node@22.20.0)(typescript@6.0.3)(zod@4.6.5)
+      '@livekit/protocol':
+        specifier: 1.51.0
+        version: 1.51.0
       '@livekit/rtc-node':
         specifier: 0.13.34
         version: 0.13.34
@@ -166,6 +169,9 @@ importers:
       '@livekit/agents':
         specifier: 1.9.0
         version: 1.9.0(@aws-sdk/credential-provider-node@3.972.83)(@livekit/rtc-node@0.13.34)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.3)(@types/node@22.20.0)(typescript@6.0.3)(zod@4.6.5)
+      '@livekit/protocol':
+        specifier: 1.51.0
+        version: 1.51.0
       '@livekit/rtc-node':
         specifier: 0.13.34
         version: 0.13.34
@@ -199,6 +205,9 @@ importers:
       '@livekit/agents':
         specifier: 1.9.0
         version: 1.9.0(@aws-sdk/credential-provider-node@3.972.83)(@livekit/rtc-node@0.13.34)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.3)(@types/node@22.20.0)(typescript@6.0.3)(zod@4.6.5)
+      '@livekit/protocol':
+        specifier: 1.51.0
+        version: 1.51.0
       '@livekit/rtc-node':
         specifier: 0.13.34
         version: 0.13.34
@@ -264,6 +273,9 @@ importers:
       '@livekit/agents':
         specifier: 1.9.0
         version: 1.9.0(@aws-sdk/credential-provider-node@3.972.83)(@livekit/rtc-node@0.13.34)(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.3)(@types/node@22.20.0)(typescript@6.0.3)(zod@4.6.5)
+      '@livekit/protocol':
+        specifier: 1.51.0
+        version: 1.51.0
       '@livekit/rtc-node':
         specifier: 0.13.34
         version: 0.13.34
@@ -2380,9 +2392,6 @@ packages:
 
   '@livekit/protocol@1.51.0':
     resolution: {integrity: sha512-kEDEDaFvIcp5VlYBromdSKMJMEJKfPvXPfEaJPdEz1Qgo84gZAoLF2g58CcMlVYGsjrwE5XYgQxRS5B7KuEj3w==}
-
-  '@livekit/protocol@1.52.0':
-    resolution: {integrity: sha512-zIzWF1sB4Y7B+NsG8QJFUkTCKDGNS/+b8xYLoVsBPMDL4y1MNUCTi4Ld9fuiKe/Fm2T/N/fyhphkPBx+FlRwGw==}
 
   '@livekit/rtc-ffi-bindings-darwin-arm64@0.12.73':
     resolution: {integrity: sha512-gIGftVyO1Jl266AZPRzoL6dxck969dmIiaut3+D1aCZRkDb/gLz98BEGRfOSU3X0LS4QBkmiaYWsjN9ot/zmwg==}
@@ -5070,7 +5079,7 @@ snapshots:
       '@livekit/av': 10.0.0
       '@livekit/local-inference': 0.2.7
       '@livekit/mutex': 1.1.1
-      '@livekit/protocol': 1.52.0
+      '@livekit/protocol': 1.51.0
       '@livekit/rtc-node': 0.13.34
       '@livekit/throws-transformer': 0.1.8(typescript@6.0.3)
       '@livekit/typed-emitter': 3.0.0
@@ -5170,10 +5179,6 @@ snapshots:
       '@bufbuild/protobuf': 1.10.1
 
   '@livekit/protocol@1.51.0':
-    dependencies:
-      '@bufbuild/protobuf': 1.10.1
-
-  '@livekit/protocol@1.52.0':
     dependencies:
       '@bufbuild/protobuf': 1.10.1
 
