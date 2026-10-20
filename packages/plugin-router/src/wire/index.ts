@@ -1,9 +1,29 @@
 /*
- * The simulation and eval wire shapes. Wave 18's core lane lands the same definitions in
- * `@winsendotai/ovo-contracts` (routing/simulate.ts, simulate-result.ts, eval.ts, scorecard.ts);
- * once they are there this file becomes `export { ... } from '@winsendotai/ovo-contracts'` and the
- * sibling modules are deleted. Nothing else in the plugin imports them directly.
+ * The simulation and eval wire shapes live in `@winsendotai/ovo-contracts` (routing/simulate.ts,
+ * simulate-result.ts, eval.ts, scorecard.ts) so the API and the console read the same definitions;
+ * the plugin imports them through this single point.
  */
-export * from './simulate.ts';
-export * from './result.ts';
-export * from './eval.ts';
+export {
+  ROUTING_EVAL_LIMITS,
+  ROUTING_EVAL_SCHEMA,
+  ROUTING_SCORECARD_SCHEMA,
+  RoutingEvalCase,
+  RoutingEvalExpect,
+  SIMULATED_ENGINES,
+  SIMULATION_LIMITS,
+  SIMULATION_SCHEMA,
+  SimulatedAnswer,
+  SimulationCall,
+  SimulationFaults,
+  SimulationRequest,
+  SimulationTurn,
+  type EvalRate as Rate,
+  type PoolConsideration,
+  type RoutingScorecard,
+  type RoutingSimulationResult,
+  type SimulationOutcome,
+  type SimulationStep,
+  type SimulationTurnResult,
+  type SimulationWarning,
+  type SimulationWarningCode,
+} from '@winsendotai/ovo-contracts';

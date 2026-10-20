@@ -189,7 +189,7 @@ export const point = (id = IDS.point) => ({
 export const summaryOf = (p) => ({
   nodes: p.draft.nodes.length,
   pools: 2,
-  languages: p.draft.language.allowed.length,
+  languages: [...p.draft.language.allowed],
   humanQueues: p.draft.humanQueues?.length ?? 0,
   latestRelease:
     p.id === IDS.point ? { id: IDS.r3, version: 3, digest: 'f'.repeat(64), draftVersion: 3 } : null,

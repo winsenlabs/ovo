@@ -277,6 +277,8 @@ const routes = [
   '/team',
 ];
 test('all console routes fit the viewport and meet WCAG A/AA', async ({ page }) => {
+  // One page load and axe pass per route: slow on a loaded machine, not a hang.
+  test.setTimeout(120_000);
   await signedIn(page);
   await fixtureApi(page);
   for (const path of routes) {

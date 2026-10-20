@@ -215,6 +215,9 @@ a command line. Live mode refuses a configuration whose key is missing.
   carries her detector row, platform lines and a stand-in prompt. Replays answer from the
   recorded replies, so the prompt only matters to `--llm-model`.
 
+Routing accuracy (which node, pool and agent a scripted caller reaches) is scored by a separate
+harness, `pnpm eval:routing`; see [routing.md](routing.md).
+
 ## Code
 
 | Path                       | What                                                                                            |

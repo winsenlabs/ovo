@@ -37,7 +37,8 @@ export interface RoutingStatus {
 export interface PointSummary {
   nodes: number;
   pools: number;
-  languages: number;
+  /** The allowed language codes (the API sends the codes, not a count). */
+  languages: string[];
   humanQueues: number;
   latestRelease: { id: string; version: number; digest: string; draftVersion: number } | null;
   published: boolean;
