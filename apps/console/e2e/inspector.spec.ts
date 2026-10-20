@@ -48,6 +48,9 @@ test('Route & segments: KPIs, timeline, route taken, segments, transfers and the
   const transfers = page.getByRole('region', { name: 'Transfers' });
   await expect(transfers).toContainText('no_eligible_member');
   await expect(transfers).toContainText('Accepted, queued');
+  // A refused request and the next accepted one share a number, as the worker records them.
+  await expect(transfers.getByRole('row')).toHaveCount(4);
+  await expect(transfers.getByText('#1')).toHaveCount(2);
   const person = page.getByRole('region', { name: 'Person' });
   await expect(person).toContainText('u-asha');
   await sweep(page, 'inspector-route', info, problems);

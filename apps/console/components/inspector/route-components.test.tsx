@@ -181,6 +181,37 @@ describe('TransfersTable', () => {
     expect(screen.getByText('Hold timeout')).toBeTruthy();
   });
 
+  it('keeps a refused request and the next accepted one apart when the worker numbers both #1', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const rows = buildTransferRows({
+      ...call,
+      transfers: [
+        {
+          requested: {
+            transfer: 1,
+            result: 'refused',
+            kind: 'agent',
+            key: 'vip',
+            refusal: 'not_confirmed',
+          },
+          completed: null,
+        },
+        {
+          requested: { transfer: 1, result: 'accepted', kind: 'queue', key: 'billing' },
+          completed: { transfer: 1, outcome: 'connected', holdMs: 4100 },
+        },
+      ],
+    });
+    expect(new Set(rows.map((row) => row.id)).size).toBe(2);
+    render(<TransfersTable rows={rows} />);
+    const shown = screen.getAllByRole('row').slice(1);
+    expect(shown).toHaveLength(2);
+    expect(within(shown[0]!).getByText('Refused')).toBeTruthy();
+    expect(within(shown[1]!).getByText('Connected')).toBeTruthy();
+    expect(error.mock.calls.flat().join(' ')).not.toMatch(/same key/);
+    error.mockRestore();
+  });
+
   it('has an empty state', () => {
     render(<TransfersTable rows={[]} />);
     expect(screen.getByText('No transfers were requested on this call')).toBeTruthy();

@@ -38,8 +38,9 @@ export function RoutingEvalForm({ onStarted }: { onStarted: (run: RoutingEvalRun
   const [releaseId, setReleaseId] = useState('');
   const [name, setName] = useState(defaultName);
   const [source, setSource] = useState('');
-  const [transferEnabled, setTransferEnabled] = useState(false);
-  const [humanQueueEnabled, setHumanQueueEnabled] = useState(false);
+  // Untouched means undefined: the server's own flags apply (design 3.5), not an assumed "off".
+  const [transferEnabled, setTransferEnabled] = useState<boolean>();
+  const [humanQueueEnabled, setHumanQueueEnabled] = useState<boolean>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -78,7 +79,14 @@ export function RoutingEvalForm({ onStarted }: { onStarted: (run: RoutingEvalRun
         routingReleaseId: releaseId,
         name: name.trim(),
         cases: corpus.cases,
-        assume: { transferEnabled, humanQueueEnabled },
+        ...(transferEnabled === undefined && humanQueueEnabled === undefined
+          ? {}
+          : {
+              assume: {
+                ...(transferEnabled === undefined ? {} : { transferEnabled }),
+                ...(humanQueueEnabled === undefined ? {} : { humanQueueEnabled }),
+              },
+            }),
       });
       onStarted(run);
     } catch (failure) {
@@ -151,14 +159,18 @@ export function RoutingEvalForm({ onStarted }: { onStarted: (run: RoutingEvalRun
           <InlineAlert tone="info">{corpus.cases.length} cases are valid.</InlineAlert>
         )}
       </div>
+      <p className="muted">
+        Transfers and human queues are scored with this installation's settings unless you switch
+        one here.
+      </p>
       <div className="ui-cluster">
         <Switch
-          checked={transferEnabled}
+          checked={transferEnabled ?? false}
           onChange={setTransferEnabled}
           label="Assume transfers are on"
         />
         <Switch
-          checked={humanQueueEnabled}
+          checked={humanQueueEnabled ?? false}
           onChange={setHumanQueueEnabled}
           label="Assume human queues are on"
         />

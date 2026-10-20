@@ -109,11 +109,11 @@ function routedSegments() {
       }),
       segment(2, 'agent', 'agent-billing', 'rel-billing-0001', 'transfer', 74.2, 40000, {
         language: 'en',
-        transfer: 2,
+        transfer: 1,
         cost: cost(510),
       }),
       segment(3, 'human', 'queue:desk', 'q-desk', 'transfer', 135.2, 44800, {
-        transfer: 3,
+        transfer: 2,
         ended: 'call_end',
       }),
     ],
@@ -142,7 +142,7 @@ function routedSegments() {
       },
       {
         requested: {
-          transfer: 2,
+          transfer: 1,
           fromSegment: 1,
           source: 'llm',
           kind: 'agent',
@@ -151,7 +151,7 @@ function routedSegments() {
           result: 'accepted',
         },
         completed: {
-          transfer: 2,
+          transfer: 1,
           outcome: 'connected',
           toSegment: 2,
           holdMs: 4200,
@@ -164,7 +164,7 @@ function routedSegments() {
       },
       {
         requested: {
-          transfer: 3,
+          transfer: 2,
           fromSegment: 2,
           source: 'llm',
           kind: 'human',
@@ -173,7 +173,7 @@ function routedSegments() {
           queued: true,
         },
         completed: {
-          transfer: 3,
+          transfer: 2,
           outcome: 'connected',
           toSegment: 3,
           holdMs: 21000,

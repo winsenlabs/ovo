@@ -104,3 +104,34 @@ export function evalRun(overrides: Partial<RoutingEvalRun> = {}): RoutingEvalRun
     ...overrides,
   };
 }
+
+/** The routing API a panel test talks to: eval runs, routing points and their releases. */
+export const routingEvalApiMock = (state: {
+  runs: () => RoutingEvalRunSummary[];
+  listFailure: () => Error | undefined;
+}) =>
+  async function api(path: string, init?: RequestInit) {
+    const method = init?.method ?? 'GET';
+    if (path.startsWith('/routing/eval-runs?')) {
+      const failure = state.listFailure();
+      if (failure) throw failure;
+      return { data: { items: state.runs(), nextCursor: null } };
+    }
+    if (path === '/routing/eval-runs' && method === 'POST')
+      return { data: evalRun({ id: 'run-new', name: JSON.parse(String(init?.body)).name }) };
+    if (path.startsWith('/routing/eval-runs/') && method === 'DELETE') return { data: undefined };
+    if (path.startsWith('/routing/eval-runs/'))
+      return { data: evalRun({ id: path.split('/').pop()! }) };
+    if (path.startsWith('/routing/points?'))
+      return { data: { items: [{ id: 'point-1', draft: { name: 'Main line' } }] } };
+    if (path.includes('/releases?'))
+      return {
+        data: {
+          items: [
+            { id: 'rr-3', version: 3 },
+            { id: 'rr-2', version: 2 },
+          ],
+        },
+      };
+    throw new Error(`unexpected ${method} ${path}`);
+  };

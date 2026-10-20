@@ -4,6 +4,8 @@ import { num, paise, str } from './call-route';
 import type { CallRouteResponse, PayloadRecord, RouteEvent } from '../types/call-route';
 
 export interface TransferRow {
+  /** Unique within the call: the pair's position, because a refused request and the next accepted one share a number. */
+  id: string;
   transfer: number;
   source: string | null;
   kind: string | null;
@@ -33,6 +35,7 @@ export function buildTransferRows(response: CallRouteResponse): TransferRow[] {
     const done = pair.completed;
     const steps = Array.isArray(done?.steps) ? done.steps : [];
     return {
+      id: `t${position}`,
       transfer: num(ask?.transfer) ?? num(done?.transfer) ?? position + 1,
       source: str(ask?.source),
       kind: str(ask?.kind),

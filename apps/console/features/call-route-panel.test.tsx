@@ -176,7 +176,7 @@ describe('the segment drawer deep link', () => {
     expect(within(drawer).queryByText('Billing speaking')).toBeNull();
   });
 
-  it.each(['abc', '-1', '9', '1.5'])('ignores ?segment=%s', (value) => {
+  it.each(['', 'abc', '-1', '9', '1.5'])('ignores ?segment=%s', (value) => {
     nav.params = new URLSearchParams(`tab=route&segment=${value}`);
     panel(ready());
     expect(screen.queryByRole('dialog')).toBeNull();

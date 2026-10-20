@@ -45,9 +45,8 @@ function useOpenSegment() {
   const search = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const parsed = Number(search.get('segment'));
-  const open =
-    search.get('segment') != null && Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+  const raw = search.get('segment') ?? '';
+  const open = /^\d+$/.test(raw) ? Number(raw) : null;
   const setOpen = useCallback(
     (index: number | null) => {
       const next = new URLSearchParams(search.toString());

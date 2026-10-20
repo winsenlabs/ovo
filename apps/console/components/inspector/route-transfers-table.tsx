@@ -110,7 +110,7 @@ export function TransfersTable({ rows }: { rows: readonly TransferRow[] }) {
         key={dataTableRenderKey(false, undefined, rows.length)}
         label="Transfers"
         rows={rows}
-        rowKey={(row) => String(row.transfer)}
+        rowKey={(row) => row.id}
         columns={COLUMNS}
         empty={
           <EmptyStateV2 variant="first-run" title="No transfers were requested on this call" />

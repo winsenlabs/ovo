@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiRequest, items, ApiError, type SessionIdentity } from '../../lib/api';
 import type { EvaluationDataset, ProviderEvaluationAuthorization } from '../../lib/operator-api';
 import { PageHeader } from '../ui/layout';
-import { Tabs, tabsFrom } from '../ui/tabs';
+import { Tabs } from '../ui/tabs';
 import { useTabState } from './use-tab-state';
 import { InlineAlert, Skeleton } from '../ui/feedback-v2';
 import { EvaluationDatasetPanel } from './evaluation-dataset-panel';
@@ -11,16 +11,14 @@ import { EvaluationRunsPanel } from './evaluation-runs-panel';
 import { EvaluationProviderAuthorizations } from './evaluation-provider-authorizations';
 import type { ProviderEvaluationAvailability } from './evaluation-provider-state';
 import { TestAndEvaluationView } from './evaluations-view';
-import { RoutingEvalPanel } from './routing-eval-panel';
 
-const TABS = tabsFrom({
-  runs: 'Runs',
-  datasets: 'Datasets',
-  simulations: 'Simulations',
-  routing: 'Routing',
-  provider: 'Provider access',
-});
-type TabId = (typeof TABS)[number]['id'];
+type TabId = 'runs' | 'datasets' | 'simulations' | 'provider';
+const TABS: readonly { id: TabId; label: string }[] = [
+  { id: 'runs', label: 'Runs' },
+  { id: 'datasets', label: 'Datasets' },
+  { id: 'simulations', label: 'Simulations' },
+  { id: 'provider', label: 'Provider access' },
+];
 
 /**
  * Evaluations: header → tabs (Runs · Datasets · Simulations · Provider access), with the quality
@@ -87,8 +85,6 @@ export function EvaluationDatasetsView({ role }: { role: SessionIdentity['role']
           <EvaluationDatasetPanel role={role} datasets={datasets} reload={load} />
         ) : tab === 'simulations' ? (
           <TestAndEvaluationView simulationsOnly embedded />
-        ) : tab === 'routing' ? (
-          <RoutingEvalPanel role={role} />
         ) : null}
         {/* Mounted regardless of which tab is active (not just when "Provider access" is open):
             the Runs tab needs its authorizations to offer the provider-backed executor option. */}
