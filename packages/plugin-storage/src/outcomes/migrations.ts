@@ -65,12 +65,28 @@ ALTER TABLE ovo_call_outcomes ADD COLUMN IF NOT EXISTS human jsonb
   CHECK (human IS NULL OR jsonb_typeof(human) = 'object');
 `;
 
+/**
+ * v5 (Wave 18): the routed-call reads of the console. Three indexes, nothing else: newest first
+ * per workspace (the calls filter cursor), a routed call's point (filter and stats), and the
+ * segments (an agent or pool that took part). Additive; take a backup before deploy.
+ */
+export const callOutcomesV5 = `
+CREATE INDEX IF NOT EXISTS ovo_call_outcomes_updated_idx
+  ON ovo_call_outcomes (workspace_id, updated_at DESC, call_id DESC);
+CREATE INDEX IF NOT EXISTS ovo_call_outcomes_route_point_idx
+  ON ovo_call_outcomes (workspace_id, (route->>'routingPointId'), updated_at DESC)
+  WHERE route IS NOT NULL;
+CREATE INDEX IF NOT EXISTS ovo_call_outcomes_segments_idx
+  ON ovo_call_outcomes USING gin (segments jsonb_path_ops);
+`;
+
 /** Applied in order; a migration's version is its position, starting at 1. */
 const MIGRATIONS: readonly string[] = [
   callOutcomesV1,
   callOutcomesV2,
   callOutcomesV3,
   callOutcomesV4,
+  callOutcomesV5,
 ];
 
 /** Idempotent and safe to race: the API and every worker run it on startup. */

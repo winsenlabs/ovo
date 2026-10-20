@@ -1,5 +1,15 @@
 import { readSessionEvent, type CallOutcomeSummary } from '@winsendotai/ovo-contracts';
 import { applySessionEvent, emptyCallOutcome, type StoredSessionEvent } from './projection.ts';
+import {
+  decodeRoutedCursor,
+  foldRouteStats,
+  pageRouted,
+  routedPageLimit,
+  type RouteStatsQuery,
+  type RouteStatsResult,
+  type RoutedCallFilter,
+  type RoutedCallPage,
+} from './routed.ts';
 
 /** An event on its way to storage. `id` makes a retried write idempotent. */
 export interface SessionEventInput {
@@ -37,6 +47,18 @@ export interface CallOutcomeStore {
     limit?: number,
     cursor?: string,
   ): Promise<SessionEventPage>;
+  /**
+   * R4: routed calls (those with a route, decided or not), newest first by when their outcome last
+   * changed, a page at a time. The cursor is opaque and stable under ties.
+   */
+  findRouted(
+    workspaceId: string,
+    filter: RoutedCallFilter,
+    limit?: number,
+    cursor?: string,
+  ): Promise<RoutedCallPage>;
+  /** R4: what routing did in a window, folded from the routed calls' summaries. */
+  routeStats(workspaceId: string, query: RouteStatsQuery): Promise<RouteStatsResult>;
   close(): Promise<void>;
 }
 
@@ -113,6 +135,26 @@ export class MemoryCallOutcomeStore implements CallOutcomeStore {
       items: structuredClone(items),
       nextCursor: more ? String(items.at(-1)!.sequence) : null,
     };
+  }
+
+  private workspaceSummaries(workspaceId: string): CallOutcomeSummary[] {
+    const prefix = `${workspaceId}\u0000`;
+    return [...this.calls]
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([, call]) => call.summary);
+  }
+
+  async findRouted(workspaceId: string, filter: RoutedCallFilter, limit?: number, cursor?: string) {
+    return pageRouted(
+      this.workspaceSummaries(workspaceId),
+      filter,
+      routedPageLimit(limit),
+      decodeRoutedCursor(cursor),
+    );
+  }
+
+  async routeStats(workspaceId: string, query: RouteStatsQuery) {
+    return foldRouteStats(this.workspaceSummaries(workspaceId), query);
   }
 
   async close() {}
