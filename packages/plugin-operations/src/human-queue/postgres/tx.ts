@@ -111,6 +111,7 @@ export class PgTx implements HqTx {
     if (filter.idempotencyKey !== undefined) add('idempotency_key = ?', filter.idempotencyKey);
     if (filter.sinceChangeId !== undefined) add('change_id > ?', filter.sinceChangeId);
     if (filter.releasedSince) add('released_at >= ?', filter.releasedSince, '::timestamptz');
+    if (filter.createdSince) add('created_at >= ?', filter.createdSince, '::timestamptz');
     if (filter.roomOpen)
       add(
         `room_name IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ovo_hq_ticket_events e

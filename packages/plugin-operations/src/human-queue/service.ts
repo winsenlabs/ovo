@@ -7,6 +7,7 @@ import type {
   HumanQueue,
   HumanQueueDefinition,
   HumanTicketView,
+  QueueActivity,
   OperatorProfile,
   OperatorStatus,
   TicketContext,
@@ -166,6 +167,16 @@ export interface HumanQueueService {
     /** Live point ids whose current draft binds the queue. */
     usedBy(id: string): Promise<string[]>;
     stats(id: string): Promise<QueueStats>;
+    /**
+     * R4: what became of the tickets created in the window, with the newest 50. Undefined for a
+     * queue that is unknown or deleted.
+     */
+    activity(id: string, window: QueueActivity['window']): Promise<QueueActivity | undefined>;
+    /** R4: the figures of `activity` without the ticket rows. */
+    analytics(
+      id: string,
+      window: QueueActivity['window'],
+    ): Promise<QueueActivity['stats'] | undefined>;
   };
   operators: {
     list(): Promise<OperatorRow[]>;

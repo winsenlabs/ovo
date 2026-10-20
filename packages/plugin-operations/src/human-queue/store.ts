@@ -12,6 +12,8 @@ export interface TicketFilter {
   idempotencyKey?: string;
   sinceChangeId?: number;
   releasedSince?: Date;
+  /** Tickets created at or after this time (a queue's activity window). */
+  createdSince?: Date;
   /** Tickets whose context is due for scrubbing at this time. */
   scrubDue?: Date;
   /** Tickets with a room that no `room_closed` event has recorded as closed yet. */
