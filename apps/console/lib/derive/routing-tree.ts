@@ -76,8 +76,34 @@ export function treeItems(draft: RoutingPointDraft, collapsed: ReadonlySet<strin
     for (const branch of byId.get(id)!.branches) if (branch.next) walk(branch.next);
   };
   walk(draft.root);
+  // Unreachable questions can lead to one another; only the head of such a chain is a root row,
+  // the rest nest under it (a second root row would repeat the key). A pure cycle has no head, so
+  // its first question stands in for one.
   const loose = draft.nodes.filter((n) => !reachable.has(n.id));
-  loose.forEach((node, i) => addNode(node.id, 1, undefined, i + 2, loose.length + 1, false));
+  const below = (id: string) => {
+    const seen = new Set<string>();
+    const visit = (from: string) => {
+      for (const branch of byId.get(from)?.branches ?? [])
+        if (branch.next && byId.has(branch.next) && !seen.has(branch.next)) {
+          seen.add(branch.next);
+          visit(branch.next);
+        }
+    };
+    visit(id);
+    return seen;
+  };
+  const reach = new Map(loose.map((n) => [n.id, below(n.id)]));
+  const heads = loose.filter(
+    (n) => !loose.some((o) => o.id !== n.id && reach.get(o.id)!.has(n.id)),
+  );
+  const covered = new Set(heads.flatMap((n) => [n.id, ...reach.get(n.id)!]));
+  for (const node of loose) {
+    if (covered.has(node.id)) continue;
+    heads.push(node);
+    covered.add(node.id);
+    for (const id of reach.get(node.id)!) covered.add(id);
+  }
+  heads.forEach((node, i) => addNode(node.id, 1, undefined, i + 2, heads.length + 1, false));
   return items;
 }
 

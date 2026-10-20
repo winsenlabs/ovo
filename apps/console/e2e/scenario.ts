@@ -40,6 +40,8 @@ export async function sweepScreen(
   await expect(page).toHaveTitle(/.+/);
   for (const scheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
+    // Re-checked right before axe: a tab change can blank the title again after the first check.
+    await expect.poll(() => page.title()).not.toBe('');
     await noOverflowOrAxe(page);
     await page.screenshot({
       path: `test-results/captures/${name}-${scheme}-${projectName}.png`,

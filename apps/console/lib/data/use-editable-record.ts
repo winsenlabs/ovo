@@ -43,11 +43,16 @@ export function useEditableRecord<Rec, Draft>(options: EditableRecordOptions<Rec
   const [conflict, setConflict] = useState<{ record: Rec; draft: Draft; version: number }>();
 
   const adopt = useCallback(
-    (next: Rec, nextVersion: number) => {
+    (next: Rec, nextVersion: number, sent?: Draft) => {
       const fresh = toDraft(next);
       setRecord(next);
       setSaved(fresh);
-      setDraft(fresh);
+      // Edits typed while a save was in flight are newer than what the server wrote: keep them.
+      setDraft((current) =>
+        sent !== undefined && current !== undefined && canonicalJson(current) !== canonicalJson(sent)
+          ? current
+          : fresh,
+      );
       setVersion(nextVersion);
       setConflict(undefined);
       setSaveError(undefined);
@@ -80,7 +85,7 @@ export function useEditableRecord<Rec, Draft>(options: EditableRecordOptions<Rec
     setSaveError(undefined);
     try {
       const written = await persist(draft, version);
-      adopt(written, versionOf(written));
+      adopt(written, versionOf(written), draft);
       return true;
     } catch (failure) {
       const current =

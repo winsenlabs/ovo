@@ -7,9 +7,10 @@ import { EmptyStateV2, ErrorState } from '../../components/ui/feedback-v2';
 import { KpiCard, KpiStrip } from '../../components/ui/kpi';
 import { StatusBadgeV2 } from '../../components/ui/status-badge';
 import { ApiError } from '../../lib/api';
-import { queuesApi } from '../../lib/data/queues-api';
+import { routingApi } from '../../lib/data/routing-api';
 import { formatDateTime, formatDuration } from '../../lib/format';
-import type { ActivityWindow, QueueActivity, QueueRecord } from '../../lib/types/queues';
+import type { QueueRecord } from '../../lib/types/queues';
+import type { ActivityWindow, QueueActivity } from '../../lib/types/routing';
 
 type State =
   | { status: 'loading' }
@@ -59,7 +60,7 @@ export function ActivityDrawer({
     if (!id) return;
     let live = true;
     setState({ status: 'loading' });
-    void queuesApi.activity(id, window).then(
+    void routingApi.queueActivity(id, window).then(
       (data) => live && setState({ status: 'ready', data }),
       (failure) =>
         live &&

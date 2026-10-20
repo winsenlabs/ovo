@@ -1,12 +1,14 @@
 import { apiRequest, ApiError, items } from '../api';
 import { json } from './json-init';
 import type {
+  ActivityWindow,
   AgentOption,
   AudioRecord,
   NumberRow,
   PointRecord,
   PoolRecord,
   PoolUtilisation,
+  QueueActivity,
   PublishPreview,
   ReleaseSummary,
   RoutingIssue,
@@ -149,6 +151,12 @@ export const routingApi = {
     })),
   agentReleases: (agentId: string) =>
     pages<{ id: string; version?: number; createdAt?: string }>(`/agents/${enc(agentId)}/releases`),
+  queueActivity: async (queueId: string, window: ActivityWindow) =>
+    (
+      await apiRequest<QueueActivity>(
+        `/human-queues/${enc(queueId)}/activity?window=${window}`,
+      )
+    ).data,
   numbers: () => pages<NumberRow>('/operations/inbound/routes'),
   bindNumber: async (
     row: NumberRow,

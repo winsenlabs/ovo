@@ -3,17 +3,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../lib/api';
 import { activity } from '../../e2e/fixtures/routing-data.mjs';
 import { ActivityDrawer } from './activity-drawer';
-import { managedRecord, queuesApi, resetQueues } from './queues-test-support';
+import { managedRecord, activityApi, queuesApi, resetQueues } from './queues-test-support';
 
 vi.mock('../../lib/data/queues-api', async () =>
   (await import('./queues-test-support')).queuesApiModule(),
 );
+vi.mock('../../lib/data/routing-api', async () =>
+  (await import('./queues-test-support')).activityApiModule(),
+);
 beforeEach(() => {
   resetQueues();
-  queuesApi.activity.mockImplementation(async (id: string, window: string) => activity(id, window));
+  activityApi.queueActivity.mockImplementation(async (id: string, window: string) =>
+    activity(id, window),
+  );
 });
 afterEach(cleanup);
-const act = () => queuesApi.activity;
+const act = () => activityApi.queueActivity;
 
 describe('ActivityDrawer', () => {
   it('shows the counts, waits and outcomes, and the newest tickets as ids and codes', async () => {

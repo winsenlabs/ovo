@@ -174,3 +174,35 @@ export type RoutingAvailability =
   | { kind: 'ready'; status: RoutingStatus }
   | { kind: 'disabled' }
   | { kind: 'error'; message: string };
+
+/** `GET /human-queues/:id/activity`: the per-queue Activity drawer (needs the core activity route). */
+export type ActivityWindow = '24h' | '7d';
+export interface QueueActivity {
+  queueId: string;
+  window: ActivityWindow;
+  stats: {
+    created: number;
+    handled: number;
+    abandoned: number;
+    expired: number;
+    webhookFailed: number;
+    avgWaitMs: number | null;
+    p95WaitMs: number | null;
+    avgTalkMs: number | null;
+    byOutcome: Record<string, number>;
+  };
+  /** Newest 50. Ids and codes only: never a number, a summary or caller context. */
+  tickets: {
+    id: string;
+    callId: string;
+    status: string;
+    priority: number;
+    language?: string;
+    createdAt: string;
+    waitMs: number;
+    releasedAt?: string;
+    releaseCode?: string;
+    outcome?: string;
+    operatorId?: string;
+  }[];
+}
