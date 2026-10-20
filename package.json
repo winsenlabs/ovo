@@ -34,6 +34,7 @@
     "eval:calls": "tsx packages/eval/src/cli.ts",
     "eval:stt": "tsx packages/eval/src/stt/cli.ts",
     "eval:turns": "tsx packages/eval/src/turns/cli.ts",
+    "eval:routing": "tsx packages/eval/src/routing/cli.ts",
     "deploy:images": "bash scripts/deploy/build-images.sh",
     "deploy:compose": "bash scripts/deploy/deploy-compose.sh",
     "live": "bash scripts/deploy/ovo-live.sh",

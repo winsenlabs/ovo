@@ -12,6 +12,8 @@ export const RoutingKey = z.string().regex(/^[a-z][a-z0-9_-]{0,79}$/);
 export const RouteContextKey = z.string().regex(/^[a-z][a-z0-9_]{0,39}$/);
 /** Base language code, as `AgentLanguages.allowed` (ISO 639-1, or 639-3 without a 2-letter code). */
 export const RouteLanguage = z.string().regex(/^[a-z]{2,3}$/);
+/** Keypad digits a caller presses, as a rule matcher or a simulated turn: 1-8 of 0-9, * and #. */
+export const DtmfDigits = z.string().regex(/^[0-9*#]{1,8}$/);
 export const RouteUuid = z.string().uuid();
 export const RouteAgentId = z.string().min(1).max(200);
 export const RouteVariableName = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/);
