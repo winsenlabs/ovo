@@ -22,6 +22,8 @@ export class IngressVad {
     private readonly format: AudioFormat,
     private readonly factory: VadAnalyzerFactory,
     private readonly observe: (event: VoiceEvent) => void,
+    /** Each decoded frame, for a turn detector that reads the caller audio (UserTurnController.audio). */
+    private readonly onAudio?: (pcm: Int16Array, rate: 8000 | 16000) => void,
   ) {
     const rate = format.sampleRate;
     if (rate !== 8000 && rate !== 16000) throw new RangeError('unsupported VAD sample rate');
@@ -64,6 +66,7 @@ export class IngressVad {
 
   private analyze(): void {
     const pcm = decode(this.frame, this.format.encoding);
+    this.onAudio?.(pcm, this.format.sampleRate as 8000 | 16000);
     const confidence = this.analyzer.confidence(pcm);
     const volume = this.analyzer.volume(pcm);
     const candidate =

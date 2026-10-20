@@ -80,6 +80,17 @@ export interface SmartTurnOptions {
   workerUrl?: URL;
 }
 
+/** The thread's entry beside this file; in a CJS bundle `import.meta` is empty and the host passes one. */
+function defaultWorkerUrl(): URL {
+  try {
+    return new URL('./inference-worker.ts', import.meta.url);
+  } catch {
+    throw new Error(
+      "Smart Turn's worker thread file is unknown here: pass workerUrl (OVO_TURN_WORKER_FILE)",
+    );
+  }
+}
+
 const exited = (code: number) => new Error(`Smart Turn's worker thread exited (${code})`);
 
 export class SmartTurnModel {
@@ -110,12 +121,7 @@ export class SmartTurnModel {
       modelPath: options.modelPath,
       threads: options.threads ?? 1,
     };
-    const worker = new Worker(
-      options.workerUrl ?? new URL('./inference-worker.ts', import.meta.url),
-      {
-        workerData: data,
-      },
-    );
+    const worker = new Worker(options.workerUrl ?? defaultWorkerUrl(), { workerData: data });
     try {
       // The thread says it is ready once the model is loaded; a failed load is its 'error'.
       await once(worker, 'message');

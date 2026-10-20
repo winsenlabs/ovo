@@ -8,6 +8,7 @@ import {
   createModelTurnDetector,
   type EndOfTurnModel,
   type EndOfTurnRequest,
+  type ModelDetectorOptions,
 } from '../src/index.ts';
 
 /** The model gate's test fixture: fake models, and a model detector driven on a fake clock. */
@@ -51,9 +52,14 @@ export function syncModel(probability: number): EndOfTurnModel {
 
 /** A fixture maker: each fixture runs a model detector on a clock of its own from `newClock`. */
 export function gateFixture(newClock: () => GateClock) {
-  return (model: EndOfTurnModel, row: Record<string, unknown> = {}, language = 'en-IN') => {
+  return (
+    model: EndOfTurnModel,
+    row: Record<string, unknown> = {},
+    language = 'en-IN',
+    options: ModelDetectorOptions = {},
+  ) => {
     const clock = newClock();
-    const controller = createModelTurnDetector(row, model).create({
+    const controller = createModelTurnDetector(row, model, options).create({
       clock,
       vad: true,
       language,

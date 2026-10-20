@@ -9,8 +9,12 @@ import { join } from 'node:path';
 
 const root = new URL('..', import.meta.url).pathname;
 const apps = ['api', 'worker', 'media-gateway', 'dispatcher'];
-/** Native add-ons their callers load lazily inside try/catch; absent is a supported state. */
-const OPTIONAL = new Set(['pg-native', 'sharp', 'onnxruntime-node']);
+/**
+ * Native add-ons their callers load lazily inside try/catch; absent is a supported state.
+ * onnxruntime-node is not one: the worker's Smart Turn thread (build:turn-worker) imports it, so
+ * the worker must declare it and every other bundle that imports it must too.
+ */
+const OPTIONAL = new Set(['pg-native', 'sharp']);
 const NAME = /^(?:@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*/;
 let failed = false;
 
@@ -22,6 +26,9 @@ for (const app of apps) {
       new RegExp(`^${pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`),
   );
   execFileSync('pnpm', ['run', 'build'], { cwd: dir, stdio: 'ignore' });
+  // Entries an app bundles on their own (a worker thread's file), built into the same dist.
+  if (manifest.scripts['build:turn-worker'])
+    execFileSync('pnpm', ['run', 'build:turn-worker'], { cwd: dir, stdio: 'ignore' });
   const imported = new Set();
   for (const file of readdirSync(join(dir, 'dist')).filter((name) => /\.(c?js|mjs)$/.test(name))) {
     const text = readFileSync(join(dir, 'dist', file), 'utf8');

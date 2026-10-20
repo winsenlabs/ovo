@@ -85,8 +85,13 @@ export const ModelGateConfigSchema = z
   .strict();
 export type ModelGateConfig = z.output<typeof ModelGateConfigSchema>;
 
-/** A model detector's row: the rules detector's row, plus the gate's `model` settings. */
+/**
+ * A model detector's row: the rules detector's row, plus the gate's `model` settings and its mode.
+ * `active` lets the model end or hold turns; `shadow` leaves every turn to the rules and only
+ * reports what the model would have done (model-shadow.ts).
+ */
 export const ModelDetectorConfigSchema = DetectorConfigSchema.extend({
+  mode: z.enum(['shadow', 'active']).default('active'),
   model: ModelGateConfigSchema.default(() => ModelGateConfigSchema.parse({})),
 });
 

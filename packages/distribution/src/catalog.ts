@@ -1,8 +1,12 @@
+import { smartTurnModule } from './smart-turn.ts';
+import type { Environment } from './profiles/types.ts';
+
 export type DistributionRole = 'api' | 'worker' | 'gateway' | 'dispatcher';
 export interface CatalogEntry {
   package: string;
   roles: readonly (DistributionRole | 'session')[];
-  load: () => Promise<unknown>;
+  /** `env` is the process environment the distribution was loaded with (carrier bindings applied). */
+  load: (env?: Environment) => Promise<unknown>;
 }
 
 /** Installed first-party packages, including wave-2 skeletons and frozen future subpaths. */
@@ -23,6 +27,13 @@ export const FIRST_PARTY: readonly CatalogEntry[] = [
     package: '@winsendotai/ovo-plugin-turns',
     roles: ['session'],
     load: () => import('@winsendotai/ovo-plugin-turns'),
+  },
+  {
+    // Pipecat Smart Turn v3.2 over the rules (docs/eval/turn-bakeoff.md). Selected per agent, as
+    // `voice.turnDetector`; shadow mode by default, and the rules if the model is unavailable.
+    package: '@winsendotai/ovo-plugin-turn-detector-smart-turn',
+    roles: ['session'],
+    load: smartTurnModule,
   },
   {
     package: '@winsendotai/ovo-plugin-vad',

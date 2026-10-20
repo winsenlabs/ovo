@@ -177,6 +177,7 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
         (event) => this.bus.observe(event),
         (reason) => void this.dispose(reason),
         vad,
+        this.turnController.audio?.bind(this.turnController),
       );
       const usage = this.ports.usage ?? (() => undefined);
       connecting = this.ingress.connect(stt, session.language, usage);
@@ -227,8 +228,7 @@ export class NativeVoiceSessionEngine implements VoiceSessionEngine {
     ];
     const unsubscribe = () => Promise.all(this.unsubs.splice(0).map(attempt));
     try {
-      // Keep evidence subscribed until scheduler disposal publishes each terminal
-      // phase. Unsubscription still shares the overall deadline.
+      // Evidence stays subscribed until scheduler disposal publishes terminal phases.
       await Promise.race([Promise.all(cleanup).then(unsubscribe), deadline.expired]);
     } catch (error) {
       failed(error);
