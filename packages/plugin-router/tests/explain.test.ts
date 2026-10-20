@@ -104,6 +104,25 @@ describe('explainPool', () => {
     });
   });
 
+  it('never offers a disabled member, however well it fits', () => {
+    const pool = PoolSnapshot.parse({
+      ...sales,
+      members: sales.members.map((m) => (m.id === 'sales-en' ? { ...m, enabled: false } : m)),
+    });
+    const t = target({ poolId: I.salesPool });
+    const result = explain(pool, t, { values: {} });
+    expect(byId(result)['sales-en']).toMatchObject({
+      enabled: false,
+      eligible: false,
+      reasons: ['disabled'],
+    });
+    // Nobody else speaks English, and the fallback is English: the call has no one.
+    expect(result.result).toBe('no_eligible_member');
+    expect(
+      eligibleTiers({ pool, target: t, context: { values: {} }, defaultLanguage: 'en', now: NOON }),
+    ).toEqual([]);
+  });
+
   it('treats a product the router never learned as no constraint', () => {
     const result = explain(
       support,
