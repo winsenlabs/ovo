@@ -1,8 +1,13 @@
 # Turn bake-off: model-based end-of-turn detection (Wave 13, T1 to T3)
 
-Status: evidence and a recommendation. **No production default changes in this wave.** The
-production turn detector is still `@winsendotai/ovo-turn-detector-default` with
-`PHONE_TURN_CONFIG`. The founder decides whether to adopt a model detector.
+Status: evidence and a recommendation (Wave 13), **adopted as an opt-in in Wave 19**. The production
+default is still `@winsendotai/ovo-turn-detector-default` with `PHONE_TURN_CONFIG`; nothing changes
+for an agent until it selects `@winsendotai/ovo-turn-detector-smart-turn`, which starts in `shadow`
+mode (the rules decide, Smart Turn is only compared). The caller audio now reaches the detector, the
+model ships in the worker image, and the plugin falls back to the rules if the model is missing or
+fails. See "Runbook: enabling Smart Turn" for the order to switch an agent on. Still open: the
+shadow period itself (a week of live calls), the per-call join of shadow lines with call ids, and
+the decision to make it a default.
 
 ## The answer in one paragraph
 
@@ -273,7 +278,10 @@ packages/plugin-turn-detector-smart-turn/scripts/fetch-model.mjs`). The script p
   transformers), and Smart Turn loads 1.30.0. The two native libraries crash when loaded into one
   process, so the CLI runs the text model in a child process. Never ship both in one worker.
 
-## What production needs before the switch (not built: owned elsewhere)
+## What production needs before the switch
+
+Status (Wave 19): items 1 to 5 are built, see the notes under each. What remains is the shadow
+period and the founder's decision.
 
 1. **The caller audio must reach the turn detector.** `TurnDetectorFactory.create` gets no audio
    today. The gate takes it through `ModelGatedTurnController.audio(pcm, rate)`, but no engine calls
@@ -299,6 +307,13 @@ packages/plugin-turn-detector-smart-turn/scripts/fetch-model.mjs`). The script p
 
    Both members are optional, so every existing detector is unaffected.
 
+   **Built.** `UserTurnController.audio?(pcm, rate)` is in the contract (`agentSaid` is not: only
+   the text model reads it). `VoiceIngress` passes each decoded VAD frame to it
+   (`IngressVad.onAudio`) when the detector has the method, so the engine retains nothing and every
+   other detector is untouched (`plugin-voice/tests/turn-audio.test.ts`). The audio is the VAD's
+   copy, so a call with no VAD selected gives the model no audio and the gate ends turns as the
+   rules do (`noAudio`). Smart Turn agents need the energy VAD.
+
 2. **Register the plugin in the distribution** (the composition root may import both plugin-turns
    and the runtime; a plugin may not import another plugin):
 
@@ -318,17 +333,114 @@ packages/plugin-turn-detector-smart-turn/scripts/fetch-model.mjs`). The script p
    Agents then opt in with `voice.turnDetector = { plugin: '@winsendotai/ovo-turn-detector-smart-turn',
 config: { cutoffHoldMs: 0, model: { recheckMs: 300 } } }`. The default stays the rules.
 
+   **Built** in `packages/distribution/src/smart-turn.ts` (catalog entry
+   `@winsendotai/ovo-plugin-turn-detector-smart-turn`, session roles). `config.mode` is `shadow`
+   (default) or `active`; in `active` the rules' trailing-word holds (`cutoffHoldMs`,
+   `pauseHoldMs`) are forced to 0, in `shadow` the agent's rules run unchanged. Defaults:
+   `model.recheckMs` 300 and `model.threshold` 0.3, per agent. The model loads once per worker, on
+   the first session that needs it (a session waits at most 2 s for it), on a worker thread of its
+   own. No model file, a failed load (retried after 60 s), a failed or timed-out reading: the agent
+   gets the rules as authored (holds on) or, for a single reading, that turn ends as the rules
+   decided; each is logged (`turn_model_unavailable`, `turn_model_fallback`, `turn_model_fault`)
+   and counted.
+
 3. **Image build.** Set `OVO_TURN_MODELS_DIR`, run the fetch script, and prune `onnxruntime-node`'s
    non-linux/x64 binaries. The worker app is one esbuild CJS bundle, where `import.meta.url` is
    empty: build `inference-worker.ts` as an entry of its own (ESM, `onnxruntime-node` external) and
    pass its URL as `SmartTurnModel.load({ workerUrl })`. Without it the model fails to load and
    the plugin fails to start (the rules detector is unaffected).
+
+   **Built** (`infra/container/Dockerfile`): a `turn-model` stage fetches the model (its own
+   cacheable layer); `worker-build` also runs `build:turn-worker` (ESM thread bundle, 6 KB) and
+   `prune-onnxruntime.mjs`, which keeps only linux/x64 under `onnxruntime-node/bin`. The worker
+   image sets `OVO_TURN_MODELS_DIR=/opt/ovo/models` and
+   `OVO_TURN_WORKER_FILE=/app/dist/smart-turn-worker.mjs`. `onnxruntime-node` 1.30.0 is a direct
+   dependency of `apps/worker` (the only app that loads it), and `check-bundle-externals.mjs` now
+   builds the thread bundle and no longer treats `onnxruntime-node` as optional. A
+   `pnpm deploy --prod --legacy` of the worker loads the thread and reads a turn (checked on the
+   mini's darwin/arm64; linux/x64 only statically, as above). Image growth is about 55 MB
+   uncompressed (44 MB `onnxruntime-node` linux/x64, 8.7 MB model, 3 MB of its dependencies).
+
 4. **Size the Smart Turn thread** for the worker's call count (see "Throughput"): one thread reads
    about 16 turns a second on the M4. A pool of threads, or a larger `recheckMs`, if the shadow
    period shows readings turned away (`stats.failures`).
 5. **Shadow first.** Run the gate with its decisions logged but not applied for a week of calls (a
    `shadow: true` gate option, about 20 lines, not built). Run this harness on every new call with
    audio, and switch per agent once the numbers hold.
+
+   **Built** as `mode: 'shadow'` (`model-shadow.ts`, `model-shadow-gate.ts`). Item 4 (sizing) is
+   unchanged: the worker has one Smart Turn thread, and `/health?verbose=1` shows `turnDetector`
+   counters, with readings turned away counted as `noOpinion.failure`.
+
+## Runbook: enabling Smart Turn
+
+Smart Turn is chosen per agent in `voice.turnDetector`. Prerequisites: the worker image built from
+this revision (the model and thread are in it), the agent on the energy VAD
+(`voice.vad = @winsendotai/ovo-vad-energy`, the preselected default for Scribe), and a language
+Smart Turn covers (23, Hindi among them; others get the rules). Release the agent after each
+change, as with any config.
+
+1. **Shadow.** Put the agent in shadow mode. Nothing about its calls changes:
+
+   ```json
+   {
+     "voice": {
+       "turnDetector": {
+         "plugin": "@winsendotai/ovo-turn-detector-smart-turn",
+         "config": { "mode": "shadow" }
+       }
+     }
+   }
+   ```
+
+   Keep the agent's other turn settings in the same `config` (`backchannels`, `filler`,
+   `minWordsWhileBotSpeaking`): it takes the default detector's whole row. `model.recheckMs`
+   (default 300) and `model.threshold` (default 0.3) can be set per agent beside `mode`.
+
+2. **Read the shadow results for a week of calls.** Each turn the rules end logs one structured
+   line, `turn_shadow` (worker log, level info; no transcript text):
+
+   | field                            | meaning                                                                                                                                                                                                                   |
+   | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `rules.reason`, `rules.words`    | how the rules ended the turn (`complete`, `unfinished`, `hold`...) and its length                                                                                                                                         |
+   | `model.probability`, `threshold` | Smart Turn's end-of-turn probability at the rules' stop, and the cut-off                                                                                                                                                  |
+   | `model.decision`, `model.basis`  | `end` or `hold`; `basis` is `model`, or why the model had no opinion (`short-answer`, `no-audio`...)                                                                                                                      |
+   | `model.rechecks`                 | the readings as the silence grew (every `recheckMs`)                                                                                                                                                                      |
+   | `outcome`, `afterMs`             | `ended`; `continued` (it would have held and the caller went on: the rules split a thought, the win); `released` or `expired` (it would have held and the caller did not go on: the latency cost, `afterMs`); `abandoned` |
+
+   The same counts, summed over the worker, are on `GET /health?verbose=1` (bearer
+   `OVO_HEALTH_TOKEN`) under `live.turnDetector`: `turns`, `wouldEnd`, `wouldHold`, `outcomes`,
+   `heldMs`, `noOpinion`, `modelUnavailable`, `sessionFallbacks`, `faults`. Go on when `continued`
+   is a real share of `wouldHold` (the bake-off: 13 mid-thought splits in 30 thoughts), `faults` and
+   `noOpinion.failure` are near zero, and `modelUnavailable` is 0. If it is not 0, the model file
+   or the thread is missing from the image: the agent is on the rules, which is safe.
+
+3. **Active.** Switch the agent over:
+
+   ```json
+   {
+     "voice": {
+       "turnDetector": {
+         "plugin": "@winsendotai/ovo-turn-detector-smart-turn",
+         "config": { "mode": "active", "model": { "recheckMs": 300, "threshold": 0.3 } }
+       }
+     }
+   }
+   ```
+
+   Active forces `cutoffHoldMs` and `pauseHoldMs` to 0 (the model's hold replaces them). The
+   bake-off measured endpoint latency p50 630 ms and p90 1106 ms against the rules' 621 and 844 ms
+   at threshold 0.3, with 4 mid-thought endpoints in 30 thoughts instead of 13 (see "Expected
+   latency impact"). Watch endpoint latency and `turn_model_fault` lines; raise `threshold` to 0.5
+   for fewer early ends at the cost of latency.
+
+4. **Roll back** by releasing the agent with the default detector
+   (`@winsendotai/ovo-turn-detector-default`) or with `"mode": "shadow"`. If the model is
+   unavailable the agent already runs on the rules.
+
+Not covered: matching `turn_shadow` lines to a call id (the line has the worker and turn id, not the
+call; the host's logger adds call context only where it creates one), and a pool of Smart Turn
+threads (one thread reads about 16 turns a second on the M4; see item 4).
 
 ## Migration plan: which rules go if the model wins
 
