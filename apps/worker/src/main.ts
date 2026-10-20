@@ -1,6 +1,10 @@
 import { createLogger } from '@winsendotai/ovo-plugin-kit';
-import { createWorkerHealthServer } from './worker-health.ts';
+import { turnShadowTelemetry } from '@winsendotai/ovo-distribution';
+import { createWorkerHealthServer, workerHealth } from './worker-health.ts';
 import { runWorkerLoop, type WorkerStatus } from './worker-loop.ts';
+
+// The model turn detector's counters (shadow comparisons, model unavailable) on verbose health.
+workerHealth.source('turnDetector', () => turnShadowTelemetry.snapshot());
 
 const status: WorkerStatus = { state: 'starting', detail: 'initializing' };
 const server = createWorkerHealthServer(Number(process.env.PORT ?? 4100), () => status, {

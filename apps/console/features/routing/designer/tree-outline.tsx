@@ -3,7 +3,7 @@ import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { StatusBadgeV2 } from '../../../components/ui/status-badge';
 import { treeItems, treeNeighbour, type TreeItem } from '../../../lib/derive/routing-tree';
 import { ENGINE_LABEL, targetSummary } from '../../../lib/derive/routing-labels';
-import type { AnchoredIssue } from '../../../lib/derive/routing-anchor';
+import type { AnchoredIssue } from '../../../lib/derive/routing-issue-index';
 import { useDesigner, useNames } from './designer-context';
 
 const counts = (list: readonly AnchoredIssue[]) => ({

@@ -1,5 +1,5 @@
 import { RoutingPointDraft, routingDraftIssues } from '@winsendotai/ovo-contracts';
-import type { DraftIssue } from './routing-anchor';
+import type { DraftIssue } from './routing-issue-index';
 
 interface ZodLike {
   code?: string;

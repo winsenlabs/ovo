@@ -1,4 +1,4 @@
-import type { RoutingChange, RoutingChangeArea } from '../types/routing';
+import type { RoutingChange, RoutingChangeArea } from '@winsendotai/ovo-contracts';
 
 /** Changes grouped by area, in a stable reading order, for the publish drawer and release diff. */
 export const AREA_ORDER: RoutingChangeArea[] = [

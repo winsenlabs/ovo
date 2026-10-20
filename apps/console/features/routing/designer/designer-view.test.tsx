@@ -121,7 +121,7 @@ describe('editing and saving', () => {
     await editGreeting();
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('This point changed on the server.')).toBeTruthy();
-    expect(screen.getByText(/The name changed/)).toBeTruthy();
+    expect(screen.getByText(/Name changed from/)).toBeTruthy();
     expect((screen.getByLabelText('Greeting (en)') as HTMLInputElement).value).toBe(
       'Hello from the test',
     );

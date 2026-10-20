@@ -1,4 +1,5 @@
 'use client';
+import { routingDiff } from '@winsendotai/ovo-contracts';
 import { useEffect, useMemo, useState } from 'react';
 import { ChangeList } from '../../../components/routing/change-list';
 import { DataTableV2, type ColumnV2 } from '../../../components/ui/data-table-v2';
@@ -6,7 +7,6 @@ import { EmptyStateV2, ErrorState, InlineAlert } from '../../../components/ui/fe
 import { SectionCard, IdChip } from '../../../components/ui/section-card';
 import { routingApi } from '../../../lib/data/routing-api';
 import { useRoutingLoad } from '../../../lib/data/use-routing-load';
-import { routingDiff } from '../../../lib/derive/routing-diff';
 import { formatDateTime } from '../../../lib/format';
 import type { NumberRow, ReleaseSummary, RoutingChange } from '../../../lib/types/routing';
 
@@ -19,7 +19,7 @@ function Compare({ pair }: { pair: [ReleaseSummary, ReleaseSummary] }) {
     setChanges(undefined);
     setError(undefined);
     void Promise.all([routingApi.release(older.id), routingApi.release(newer.id)]).then(
-      ([a, b]) => live && setChanges(routingDiff(a.snapshot as never, b.snapshot as never)),
+      ([a, b]) => live && setChanges(routingDiff(a.snapshot, b.snapshot)),
       (failure) =>
         live &&
         setError(failure instanceof Error ? failure.message : 'The releases could not be loaded.'),

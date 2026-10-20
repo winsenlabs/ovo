@@ -80,7 +80,7 @@ export async function loadDistribution(input: LoadDistributionInput): Promise<Lo
     if (catalogNames.has(entry.package))
       throw new Error(`Duplicate catalog package ${entry.package}`);
     catalogNames.add(entry.package);
-    const module = (await entry.load()) as LoadedModule;
+    const module = (await entry.load(env)) as LoadedModule;
     if (
       !module ||
       typeof module !== 'object' ||

@@ -6,7 +6,7 @@ import { HoursEditor } from '../../../components/routing/hours-editor';
 import { Drawer } from '../../../components/ui/drawer';
 import { InlineAlert } from '../../../components/ui/feedback-v2';
 import type { PoolMember } from '../../../lib/derive/routing-pools';
-import { isRoutingKey } from '../../../lib/derive/routing-edit';
+import { isRoutingKey } from '../../../lib/derive/routing-draft-edit';
 import type { useAgents } from '../../../components/routing/agent-select';
 
 const LANGUAGE = /^[a-z]{2,3}$/;

@@ -383,9 +383,14 @@ describe.each([
         await vi.waitFor(() => expect(knob.landed).toContain(line.salesEn.releaseId), {
           timeout: 15_000,
         });
+        // The late graph opened its own STT session and closes it as it is disposed, a moment after
+        // its composition lands. `say` speaks on the newest open session, so wait for the disposal
+        // and speak on the one session left: the one the default agent is listening on.
+        await vi.waitFor(() => expect(env.stt.open()).toHaveLength(1), { timeout: 15_000 });
+        const listening = env.stt.open()[0]!;
         // The default agent still hears the caller and answers after the late graph is gone.
         const asked = env.openAi.requests.length;
-        env.stt.say('Are you still there?');
+        env.stt.sayOn(listening, 'Are you still there?');
         await vi.waitFor(
           () =>
             expect(

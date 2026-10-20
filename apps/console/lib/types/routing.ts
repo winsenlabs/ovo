@@ -1,5 +1,7 @@
 import type {
   RoutingAudio,
+  RoutingChange,
+  RoutingChangeArea,
   RoutingIssue,
   RoutingPoint,
   RoutingPointDraft,
@@ -60,30 +62,7 @@ export interface ReleaseSummary {
 export type PoolRecord = RoutingPool & { usedBy?: string[] };
 export type AudioRecord = RoutingAudio & { usedBy?: string[] };
 
-export type RoutingChangeArea =
-  | 'point'
-  | 'language'
-  | 'lines'
-  | 'node'
-  | 'branch'
-  | 'engine'
-  | 'fallback'
-  | 'pool'
-  | 'member'
-  | 'transfer'
-  | 'hold'
-  | 'queue'
-  | 'agent'
-  | 'limits';
-export interface RoutingChange {
-  area: RoutingChangeArea;
-  op: 'added' | 'removed' | 'changed';
-  key: string;
-  path: (string | number)[];
-  summary: string;
-  before?: unknown;
-  after?: unknown;
-}
+export type { RoutingChange, RoutingChangeArea };
 
 export interface PublishPreview {
   issues: RoutingIssue[];

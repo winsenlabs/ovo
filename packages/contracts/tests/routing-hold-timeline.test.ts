@@ -65,6 +65,8 @@ describe('holdTimeline', () => {
     expect(brief(known).slice(0, 3)).toEqual(['clip@0 0-30', 'clip@0 30-38', 'clip@1 38-60']);
     const unknown = holdTimeline(policy({ steps: [steps[0]], maxSeconds: 25 }));
     expect(brief(unknown)).toEqual(['clip@0 0-10', 'clip@1 10-20', 'clip@2 20-25']);
+    expect(unknown.segments.every((s) => s.lengthUnknown === true)).toBe(true);
+    expect(known.segments.some((s) => s.lengthUnknown)).toBe(false);
   });
 
   it('labels clips by name or short id, and lines by their text', () => {

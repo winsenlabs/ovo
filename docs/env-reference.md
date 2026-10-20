@@ -288,16 +288,34 @@ because a restart drops every live human call. Terraform has `enable_human_queue
 `human_queue_webhook_enabled`, `human_queue_callback_base_url` and `human_queue_context_retention_hours`;
 `enable_livekit` exists and refuses `true` (the room server is not supported on Fargate).
 
+## Model turn detector (Smart Turn)
+
+Read by the worker when an agent selects `@winsendotai/ovo-turn-detector-smart-turn`
+(`docs/eval/turn-bakeoff.md`, "Runbook"). The worker image sets both and Compose does not forward
+them. Neither is needed to run without the model: an agent that selects the detector then gets the
+default rules, and the worker logs `turn_model_unavailable`.
+
+| Variable               | Read by                                                    | Default | Compose | Notes                                                                                                                                                                                                                                                      |
+| ---------------------- | ---------------------------------------------------------- | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OVO_TURN_MODELS_DIR`  | worker, eval:turns, turn-detector tests, `fetch-model.mjs` | none    | image   | Directory holding the end-of-turn model files (`smart-turn/`, LiveKit). The worker image fetches Smart Turn into `/opt/ovo/models` at build time (pinned revision, SHA-256 checked). Unset: the rules, and the eval skips.                                 |
+| `OVO_TURN_WORKER_FILE` | worker                                                     | none    | image   | The bundled Smart Turn worker thread (`dist/smart-turn-worker.mjs`, built by `pnpm --filter @winsendotai/ovo-worker build:turn-worker`). The image sets `/app/dist/smart-turn-worker.mjs`. Unset, the thread starts from the package source (development). |
+
 ## Evaluation tooling (Wave 13)
 
 Read only by the offline eval CLIs (`pnpm eval:calls`, `eval:stt`, `eval:turns`; see `docs/eval/README.md`)
 and their tests on a developer or CI machine. No service reads them and Compose never sets them.
 
-| Variable                | Read by                                            | Default | Compose | Notes                                                                                                                                                       |
-| ----------------------- | -------------------------------------------------- | ------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OVO_TURN_MODELS_DIR`   | eval:turns, turn-detector tests, `fetch-model.mjs` | none    | —       | Directory holding the end-of-turn model files (`smart-turn/`, LiveKit). Without it the model bake-off and model tests skip.                                 |
-| `OVO_TURN_LIVEKIT_TEXT` | turn-detector tests                                | unset   | —       | `1` runs the LiveKit text-model test (dev dependencies only).                                                                                               |
-| `OVO_EVAL_<KEY>`        | eval:calls, eval:stt                               | none    | —       | A provider key for live eval runs, e.g. `OVO_EVAL_ELEVENLABS_API_KEY`. Prefer `--keys ~/.ovo-eval/keys.env`, read in-process; never pass keys as arguments. |
+| Variable                              | Read by              | Default          | Compose | Notes                                                                                                                                                       |
+| ------------------------------------- | -------------------- | ---------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OVO_TURN_LIVEKIT_TEXT`               | turn-detector tests  | unset            | —       | `1` runs the LiveKit text-model test (dev dependencies only).                                                                                               |
+| `OVO_EVAL_<KEY>`                      | eval:calls, eval:stt | none             | —       | A provider key for live eval runs, e.g. `OVO_EVAL_ELEVENLABS_API_KEY`. Prefer `--keys ~/.ovo-eval/keys.env`, read in-process; never pass keys as arguments. |
+| `OVO_EVAL_LLM_PROVIDER`               | eval:routing         | openai           | —       | The `eval:routing --live llm` provider (`--llm-provider` wins). `openai` is the only registry entry today.                                                  |
+| `OVO_EVAL_LLM_MODEL`                  | eval:routing         | provider default | —       | The live LLM model (`--llm-model` wins).                                                                                                                    |
+| `OVO_EVAL_LLM_KEY_ENV`                | eval:routing         | OPENAI_API_KEY   | —       | Which variable in the keys file holds the live LLM key (`--llm-key-env` wins).                                                                              |
+| `OVO_EVAL_LLM_BASE_URL`               | eval:routing         | provider default | —       | An OpenAI-compatible base URL for the live LLM (`--llm-base-url` wins); https only, http on localhost.                                                      |
+| `OVO_EVAL_DECISION_MODEL`             | eval:routing         | Jev default      | —       | The decision model for `eval:routing --live decision` (`--decision-model` wins).                                                                            |
+| `OVO_EVAL_DECISION_CALIBRATION_LABEL` | eval:routing         | none             | —       | Required for `--live decision`: the calibration label sent to Jev (`--decision-calibration-label` wins).                                                    |
+| `OVO_EVAL_JEV_API_KEY`                | eval:routing         | none             | —       | The Jev key for `--live decision` when `JEV_API_KEY` is not in the `--keys` file. Never pass keys as arguments.                                             |
 
 ## Compose image pins and host ports
 

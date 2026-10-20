@@ -1,6 +1,6 @@
 'use client';
 import { Select } from '../../../components/ui/inputs';
-import { moveStep } from '../../../lib/derive/routing-edit';
+import { moveItem } from '../../../lib/derive/list-edit';
 import { SIMULATION_LIMITS, type SimulationTurn } from '../../../lib/types/routing-simulate';
 
 const KINDS = [
@@ -69,7 +69,7 @@ export function ScriptEditor({
                 className="text-button"
                 aria-label={`Move turn ${i + 1} up`}
                 disabled={i === 0}
-                onClick={() => onChange(moveStep(turns, i, -1))}
+                onClick={() => onChange(moveItem(turns, i, -1))}
               >
                 Up
               </button>
@@ -78,7 +78,7 @@ export function ScriptEditor({
                 className="text-button"
                 aria-label={`Move turn ${i + 1} down`}
                 disabled={i === turns.length - 1}
-                onClick={() => onChange(moveStep(turns, i, 1))}
+                onClick={() => onChange(moveItem(turns, i, 1))}
               >
                 Down
               </button>

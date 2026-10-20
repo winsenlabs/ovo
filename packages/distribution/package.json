@@ -43,6 +43,7 @@
     "@winsendotai/ovo-plugin-tools": "workspace:*",
     "@winsendotai/ovo-plugin-tools-http": "workspace:*",
     "@winsendotai/ovo-plugin-tools-mcp": "workspace:*",
+    "@winsendotai/ovo-plugin-turn-detector-smart-turn": "workspace:*",
     "@winsendotai/ovo-plugin-tts-cartesia": "workspace:*",
     "@winsendotai/ovo-plugin-tts-elevenlabs": "workspace:*",
     "@winsendotai/ovo-plugin-tts-openai": "workspace:*",

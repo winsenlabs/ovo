@@ -3,9 +3,9 @@ import { ROUTING_LIMITS, type RoutingEngine, type RoutingNode } from '@winsendot
 import { optionsFrom } from '../../../components/routing/fields';
 import { IssueList } from '../../../components/routing/issue-list';
 import { Select } from '../../../components/ui/inputs';
-import { issuesAt } from '../../../lib/derive/routing-anchor';
+import { issuesAt } from '../../../lib/derive/routing-issue-index';
 import { blankEngine } from '../../../lib/derive/routing-defaults';
-import { moveStep, removeStep } from '../../../lib/derive/routing-edit';
+import { moveItem, removeItem } from '../../../lib/derive/list-edit';
 import { ENGINE_LABEL, engineSummary } from '../../../lib/derive/routing-labels';
 import { useDesigner } from './designer-context';
 import { ExternalEditor } from './engine-external';
@@ -77,7 +77,7 @@ export function EngineList({
                   className="text-button"
                   aria-label={`Move engine ${e + 1} up`}
                   disabled={e === 0}
-                  onClick={() => set(moveStep(node.engines, e, -1))}
+                  onClick={() => set(moveItem(node.engines, e, -1))}
                 >
                   Up
                 </button>
@@ -86,7 +86,7 @@ export function EngineList({
                   className="text-button"
                   aria-label={`Move engine ${e + 1} down`}
                   disabled={e === node.engines.length - 1}
-                  onClick={() => set(moveStep(node.engines, e, 1))}
+                  onClick={() => set(moveItem(node.engines, e, 1))}
                 >
                   Down
                 </button>
@@ -95,7 +95,7 @@ export function EngineList({
                   className="text-button"
                   aria-label={`Remove engine ${e + 1}`}
                   disabled={node.engines.length <= 1}
-                  onClick={() => set(removeStep(node.engines, e, 1))}
+                  onClick={() => set(removeItem(node.engines, e, 1))}
                 >
                   Remove
                 </button>

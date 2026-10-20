@@ -51,25 +51,32 @@ interface Scored {
   decisions: Decision[];
 }
 
+/** `live_turns_exceeded` for a refused input; `error: <message>` (bounded) for anything else. */
+function runFailure(error: unknown): string {
+  if (error instanceof SimulationInputError) return error.code;
+  const message = error instanceof Error ? error.message : String(error);
+  return `error: ${message.slice(0, 200)}`;
+}
+
 async function runCase(input: ScoreInput, testcase: RoutingEvalCase): Promise<Scored> {
   const mode = { decision: 'mock', llm: 'mock', external: 'mock', ...input.live?.mode } as const;
-  const base = {
-    snapshot: input.snapshot,
-    request: {
-      call: testcase.call,
-      turns: testcase.turns,
-      engines: { mode, answers: testcase.answers },
-      faults: testcase.faults,
-      load: 'empty' as const,
-      assume: {},
-    },
-    now: input.now ?? EVAL_DEFAULT_NOW,
-    router: input.router,
-    flags: typeof input.flags === 'function' ? input.flags(testcase) : input.flags,
-    ...(input.live ? { live: input.live.ports } : {}),
-    ...(input.routingReleaseId ? { routingReleaseId: input.routingReleaseId } : {}),
-  };
   try {
+    const base = {
+      snapshot: input.snapshot,
+      request: {
+        call: testcase.call,
+        turns: testcase.turns,
+        engines: { mode, answers: testcase.answers },
+        faults: testcase.faults,
+        load: 'empty' as const,
+        assume: {},
+      },
+      now: input.now ?? EVAL_DEFAULT_NOW,
+      router: input.router,
+      flags: typeof input.flags === 'function' ? input.flags(testcase) : input.flags,
+      ...(input.live ? { live: input.live.ports } : {}),
+      ...(input.routingReleaseId ? { routingReleaseId: input.routingReleaseId } : {}),
+    };
     const actual = actualOf(await simulateRoute(base), input.snapshot);
     return {
       testcase,
@@ -78,13 +85,13 @@ async function runCase(input: ScoreInput, testcase: RoutingEvalCase): Promise<Sc
       decisions: decisionsOf(testcase.expect.branches, actual),
     };
   } catch (error) {
-    // A case the simulator refuses (a live run past the turn limit) fails; it never stops the corpus.
-    if (!(error instanceof SimulationInputError)) throw error;
+    // A case the simulator refuses (a live run past the turn limit) or that throws while it runs
+    // fails; it never stops the corpus, so one bad case cannot hide the other results.
     const check = checkCase(testcase.expect, blankActual());
     return {
       testcase,
       actual: blankActual(),
-      check: { ...check, passed: false, diff: [`run: ${error.code}`, ...check.diff] },
+      check: { ...check, passed: false, diff: [`run: ${runFailure(error)}`, ...check.diff] },
       decisions: [],
     };
   }
@@ -100,6 +107,14 @@ const percentile = (sorted: readonly number[], p: number) =>
  * measures the tree, the rules and the pools; only `engineMode: 'live'` measures a model.
  */
 export async function scoreRoutingCorpus(input: ScoreInput): Promise<RoutingScorecard> {
+  const seen = new Set<string>();
+  for (const { id } of input.cases) {
+    if (seen.has(id))
+      throw new Error(
+        `Duplicate case id ${JSON.stringify(id)}: every case in a corpus needs its own`,
+      );
+    seen.add(id);
+  }
   const clock = input.clock ?? (() => performance.now());
   const scored: Scored[] = [];
   const times: number[] = [];

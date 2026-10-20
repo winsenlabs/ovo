@@ -79,7 +79,8 @@ export function actualOf(run: SimulationRun, snapshot: RoutingReleaseSnapshot): 
     ...(pool ? { pool: { id: pool.id, name: pool.name } } : {}),
     ...(outcome.agent?.memberId ? { member: outcome.agent.memberId } : {}),
     ...(outcome.agent ? { agentId: outcome.agent.agentId } : {}),
-    ...(outcome.human ? { queue: outcome.human.queueKey } : {}),
+    // `human` also records a refused precheck on a call that went elsewhere; `queue` is where it went.
+    ...(outcome.status === 'human' && outcome.human ? { queue: outcome.human.queueKey } : {}),
     language: outcome.language,
     fallback: deepest(fallbacks),
     clarify: fallbacks.some((entry) => entry.step === 'reask' && entry.result === 'taken'),

@@ -27,7 +27,10 @@ describe('simulateRoute: human queues', () => {
     expect((await ask(snapshot)).outcome.status).toBe('human');
     const night = await ask(snapshot, {}, undefined, NIGHT);
     expect(trace(night)).toContain('fallback:human:failed(queue_closed)');
-    expect(night.outcome).toMatchObject({ status: 'callback', human: null });
+    expect(night.outcome).toMatchObject({
+      status: 'callback',
+      human: { queueKey: 'desk', queueId: DESK_ID, kind: 'managed', precheck: 'queue_closed' },
+    });
   });
 
   it.each(['queue_closed', 'queue_unavailable', 'no_operators', 'queue_full'] as const)(
@@ -36,18 +39,21 @@ describe('simulateRoute: human queues', () => {
       const run = await ask(deskSnapshot(), { faults: { queues: { desk: code } } });
       expect(trace(run)).toContain(`fallback:human:failed(${code})`);
       expect(run.outcome.status).toBe('callback');
+      expect(run.outcome.human).toMatchObject({ queueKey: 'desk', precheck: code });
     },
   );
 
   it('refuses queue_unavailable when human queues are assumed off, and skips the step without transfers', async () => {
     const off = await ask(deskSnapshot(), {}, { transferEnabled: true, humanQueueEnabled: false });
     expect(trace(off)).toContain('fallback:human:failed(queue_unavailable)');
+    expect(off.outcome.human).toMatchObject({ precheck: 'queue_unavailable' });
     const noBegin = await ask(
       deskSnapshot(),
       {},
       { transferEnabled: false, humanQueueEnabled: true },
     );
     expect(trace(noBegin)).toContain('fallback:human:skipped(human_queue_unavailable)');
+    expect(noBegin.outcome.human).toBeNull();
     expect(noBegin.outcome.status).toBe('callback');
   });
 });
