@@ -108,4 +108,12 @@ export interface CallOutcomeRoute {
   language: string | null;
   degraded: string | null;
   segments: number;
+  /**
+   * R4, folded from `route.decision` (`turns`, `routeMs`) and `route.fallback` (`fallbacks`: a taken
+   * or failed step that is not `reask`; `reasks`: a taken `reask`). Rows from before R4 omit them.
+   */
+  turns?: number | null;
+  routeMs?: number | null;
+  fallbacks?: number;
+  reasks?: number;
 }

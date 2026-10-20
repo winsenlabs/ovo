@@ -53,7 +53,7 @@ describe.skipIf(!databaseUrl)('PostgreSQL call outcomes: human queues (v4)', () 
     const versions = await pool.query(
       'SELECT version FROM ovo_outcome_schema_migrations ORDER BY version',
     );
-    expect(versions.rows.map((row) => row.version)).toEqual([1, 2, 3, 4]);
+    expect(versions.rows.map((row) => row.version)).toEqual([1, 2, 3, 4, 5]);
     expect(await store.get('ws-old', 'old-call')).toMatchObject({
       outcome: 'completed',
       human: null,

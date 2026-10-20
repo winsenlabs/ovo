@@ -5,6 +5,7 @@ import type {
   OperatorProfile,
   OperatorStatus,
 } from '@winsendotai/ovo-contracts';
+import { ACTIVITY_WINDOW_MS, queueActivity } from './activity.ts';
 import { loads } from './assign.ts';
 import { effectiveStatus, mayServe } from './rules.ts';
 import type { QueueRecord } from './rows.ts';
@@ -65,6 +66,8 @@ export class QueueAndOperatorEngine {
       this.store.queues.softDelete(id, expectedVersion, this.ctx.now()),
     usedBy: (id) => this.store.queues.usedBy(id),
     stats: (id) => this.stats(id),
+    activity: (id, window) => this.activity(id, window),
+    analytics: async (id, window) => (await this.activity(id, window))?.stats,
   };
 
   readonly operators: HumanQueueService['operators'] = {
@@ -109,6 +112,19 @@ export class QueueAndOperatorEngine {
         online,
         handled24h: done.filter((row) => row.acceptedAt || row.releaseCode === 'handed_off').length,
       };
+    });
+  }
+
+  private async activity(id: string, window: keyof typeof ACTIVITY_WINDOW_MS) {
+    return this.store.run(async (tx) => {
+      const now = this.ctx.now();
+      const queue = await tx.queue(id);
+      if (!queue || queue.deletedAt) return undefined;
+      const rows = await tx.scan({
+        queueId: id,
+        createdSince: new Date(now.getTime() - ACTIVITY_WINDOW_MS[window]),
+      });
+      return queueActivity(id, window, rows, now);
     });
   }
 

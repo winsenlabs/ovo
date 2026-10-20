@@ -1,0 +1,35 @@
+/** Every `/v1/routing/*` route, for the test that all but `status` answer 404 while routing is off. */
+export function darkRoutes(id: string): ['GET' | 'POST' | 'PUT' | 'DELETE', string][] {
+  return [
+    ['GET', '/v1/routing/pools'],
+    ['POST', '/v1/routing/pools'],
+    ['GET', `/v1/routing/pools/${id}`],
+    ['PUT', `/v1/routing/pools/${id}`],
+    ['DELETE', `/v1/routing/pools/${id}`],
+    ['GET', '/v1/routing/points'],
+    ['POST', '/v1/routing/points'],
+    ['GET', `/v1/routing/points/${id}`],
+    ['PUT', `/v1/routing/points/${id}`],
+    ['DELETE', `/v1/routing/points/${id}`],
+    ['POST', `/v1/routing/points/${id}/validate`],
+    ['POST', `/v1/routing/points/${id}/releases`],
+    ['GET', `/v1/routing/points/${id}/releases`],
+    ['GET', `/v1/routing/releases/${id}`],
+    ['GET', '/v1/routing/audio'],
+    ['POST', '/v1/routing/audio?name=Music'],
+    ['GET', `/v1/routing/audio/${id}`],
+    ['GET', `/v1/routing/audio/${id}/content`],
+    ['DELETE', `/v1/routing/audio/${id}`],
+    // Wave 18 (R4): every read and write the console adds is dark with the rest.
+    ['POST', `/v1/routing/points/${id}/preview-publish`],
+    ['GET', '/v1/routing/utilisation'],
+    ['GET', `/v1/routing/pools/${id}/utilisation`],
+    ['POST', '/v1/routing/pools/explain'],
+    ['GET', '/v1/routing/stats'],
+    ['POST', '/v1/routing/simulate'],
+    ['GET', '/v1/routing/eval-runs'],
+    ['POST', '/v1/routing/eval-runs'],
+    ['GET', `/v1/routing/eval-runs/${id}`],
+    ['DELETE', `/v1/routing/eval-runs/${id}`],
+  ];
+}

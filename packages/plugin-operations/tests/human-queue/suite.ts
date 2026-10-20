@@ -1,6 +1,7 @@
 import { describe } from 'vitest';
 import type { HqHarness } from './harness.ts';
 import { describeAccept } from './suite-accept.ts';
+import { describeActivity } from './suite-activity.ts';
 import { describeAssign } from './suite-assign.ts';
 import { describeContext } from './suite-context.ts';
 import { describeCreate } from './suite-create.ts';
@@ -24,5 +25,6 @@ export function describeHumanQueueService(name: string, make: () => Promise<HqHa
     describeSupport(make);
     describeContext(make);
     describePort(make);
+    describeActivity(make);
   });
 }

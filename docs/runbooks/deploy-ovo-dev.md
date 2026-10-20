@@ -70,6 +70,14 @@ A failed deploy is never a rollback target. Running it twice returns to where yo
 - **Schema:** migrations are forward-only. Every Wave 1-4 migration only adds tables or nullable
   columns, so an older image runs against the newer schema; a future migration that is not additive
   must say so in its release notes (check the Wave 5 lanes' migrations in its integration report).
+- **Wave 18 (routing console):** take a database backup first (`pnpm backup`, see
+  [backup restore](backup-restore.md)). Operations migration 014 adds `ovo_routing_eval_runs` and
+  outcomes migration v5 adds three indexes on `ovo_call_outcomes`; both are additive, so the previous
+  images run against the new schema and a rollback needs no schema step. The indexes are built inside
+  the migration's transaction, so the outcome sink's writes wait for the build and retry (nothing on
+  the call path waits on them); on a large outcomes table deploy when calls are few. The route tester
+  and eval runs are dark with `OVO_ROUTING_ENABLED=false`, and real decision/LLM engines in a
+  simulation stay off until `OVO_ROUTING_SIMULATE_LIVE_ENABLED=true`.
 - **Secrets:** after `secrets-rewrap`, images from before Wave 1's key versioning cannot read the
   credentials (see self-hosted-compose.md). Never roll back across that line.
 

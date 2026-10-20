@@ -2,6 +2,9 @@ import type { Pool } from 'pg';
 import type {
   MemberClaim,
   RoutingAudio,
+  RoutingEvalCase,
+  RoutingEvalRun,
+  RoutingEvalRunSummary,
   RoutingMemberCandidate,
   RoutingPoint,
   RoutingPointDraft,
@@ -12,9 +15,10 @@ import type {
 } from '@winsendotai/ovo-contracts';
 import { RoutingAudioStore, type RoutingAudioInput } from './audio.ts';
 import { RoutingClaims } from './claims.ts';
+import { RoutingEvalRuns, type RoutingEvalRunInput } from './eval-runs.ts';
 import { RoutingPoints } from './points.ts';
 import { RoutingPools } from './pools.ts';
-import { RoutingReleases } from './releases.ts';
+import { RoutingReleases, type RoutingReleaseSummary } from './releases.ts';
 
 /** Wave 15 routing storage (design 5.2), organization-scoped. Frozen for the api and worker lanes. */
 export interface RoutingService {
@@ -71,6 +75,20 @@ export interface RoutingService {
     get(id: string): Promise<RoutingRelease | undefined>;
     /** Newest first. */
     list(pointId: string, limit: number, cursor?: string): Promise<RoutingRelease[]>;
+    /** R4: the newest release of each point, one query; a point without one is absent. */
+    latest(pointIds: readonly string[]): Promise<Map<string, RoutingReleaseSummary>>;
+  };
+  /** R4 eval runs: a corpus scored against a routing release, with its scorecard. */
+  evalRuns: {
+    /** Undefined when the release is not in this organization. */
+    create(input: RoutingEvalRunInput): Promise<RoutingEvalRun | undefined>;
+    /** Newest first; the cursor is the id of the last run of the previous page. */
+    list(limit: number, cursor?: string): Promise<RoutingEvalRunSummary[]>;
+    get(id: string): Promise<RoutingEvalRun | undefined>;
+    /** The cases the run scored. */
+    corpus(id: string): Promise<RoutingEvalCase[] | undefined>;
+    /** False when the run is unknown or already deleted. */
+    softDelete(id: string): Promise<boolean>;
   };
   /** R2 hold clips: immutable 8 kHz mu-law bytes, soft-deleted, pinned by sha256 in releases. */
   audio: {
@@ -98,6 +116,8 @@ export interface RoutingService {
     /** Releases every active claim of the call; returns how many. */
     release(callId: string): Promise<number>;
     active(poolId: string): Promise<Record<string, number>>;
+    /** R4: active claims per member for several pools, one query; every valid pool id is present. */
+    activeByPool(poolIds: readonly string[]): Promise<Record<string, Record<string, number>>>;
   };
 }
 
@@ -106,6 +126,7 @@ export class PostgresRoutingService implements RoutingService {
   readonly points: RoutingPoints;
   readonly releases: RoutingReleases;
   readonly claims: RoutingClaims;
+  readonly evalRuns: RoutingEvalRuns;
   readonly audio: RoutingAudioStore;
 
   constructor(
@@ -117,6 +138,7 @@ export class PostgresRoutingService implements RoutingService {
     this.points = new RoutingPoints(pool, organizationId);
     this.releases = new RoutingReleases(pool, organizationId);
     this.claims = new RoutingClaims(pool, organizationId);
+    this.evalRuns = new RoutingEvalRuns(pool, organizationId);
     this.audio = new RoutingAudioStore(pool, organizationId);
   }
 }

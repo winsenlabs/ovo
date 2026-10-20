@@ -16,6 +16,15 @@ export interface RoutingReleaseInput {
   createdBy: string;
 }
 
+/** A release without its snapshot: what a list of points needs to say whether it is published. */
+export interface RoutingReleaseSummary {
+  id: string;
+  version: number;
+  digest: string;
+  draftVersion: number;
+  createdAt: string;
+}
+
 /** sha256 of the canonical JSON of the parsed snapshot: the digest a release is stored under. */
 export function routingSnapshotDigest(snapshot: RoutingReleaseSnapshot): string {
   return createHash('sha256')
@@ -82,6 +91,29 @@ export class RoutingReleases {
       [this.organizationId, id],
     );
     return result.rows[0] ? presentRelease(result.rows[0]) : undefined;
+  }
+
+  /** The newest release of each of the points, in one query. Points without one are absent. */
+  async latest(pointIds: readonly string[]): Promise<Map<string, RoutingReleaseSummary>> {
+    const ids = [...new Set(pointIds.flatMap((id) => uuidOrNull(id) ?? []))];
+    const found = new Map<string, RoutingReleaseSummary>();
+    if (!ids.length) return found;
+    const result = await this.pool.query<ReleaseRow>(
+      `SELECT DISTINCT ON (routing_point_id) ${RELEASE_COLUMNS.replace('snapshot,', '')}
+       FROM ovo_routing_releases
+       WHERE organization_id = $1 AND routing_point_id = ANY($2::uuid[])
+       ORDER BY routing_point_id, version DESC`,
+      [this.organizationId, ids],
+    );
+    for (const row of result.rows)
+      found.set(row.routing_point_id, {
+        id: row.id,
+        version: Number(row.version),
+        digest: row.digest,
+        draftVersion: Number(row.draft_version),
+        createdAt: row.created_at.toISOString(),
+      });
+    return found;
   }
 
   /** Newest first; the cursor is the id of the last release of the previous page. */

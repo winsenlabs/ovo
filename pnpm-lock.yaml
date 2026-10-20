@@ -80,6 +80,9 @@ importers:
       '@winsendotai/ovo-plugin-recordings':
         specifier: workspace:*
         version: link:../../packages/plugin-recordings
+      '@winsendotai/ovo-plugin-router':
+        specifier: workspace:*
+        version: link:../../packages/plugin-router
       '@winsendotai/ovo-plugin-secrets':
         specifier: workspace:*
         version: link:../../packages/plugin-secrets
@@ -599,6 +602,9 @@ importers:
       '@winsendotai/ovo-plugin-llm-openai':
         specifier: workspace:*
         version: link:../plugin-llm-openai
+      '@winsendotai/ovo-plugin-router':
+        specifier: workspace:*
+        version: link:../plugin-router
       '@winsendotai/ovo-plugin-speech-sarvam':
         specifier: workspace:*
         version: link:../plugin-speech-sarvam

@@ -1,5 +1,7 @@
 export * from './event-sink.ts';
 export * from './migrations.ts';
 export * from './postgres-store.ts';
+export type { RefoldOptions, RefoldReport, RefoldedCall } from './postgres-refold.ts';
 export * from './projection.ts';
+export * from './routed.ts';
 export * from './store.ts';

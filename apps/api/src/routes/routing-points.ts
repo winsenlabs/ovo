@@ -8,6 +8,7 @@ import type { RoutingService } from '@winsendotai/ovo-plugin-operations';
 import { z } from 'zod';
 import { validateRoutingDraft, type RoutingPublishContext } from '../routing-publish.ts';
 import { humanQueuesOf } from './human-queue-support.ts';
+import { withPointSummaries } from './routing-summary.ts';
 import type { Principal } from '../types.ts';
 import {
   etag,
@@ -23,6 +24,7 @@ import {
 export const PointParams = z.object({ pointId: z.uuid() });
 const PointBody = z.object({ draft: z.unknown() }).strict();
 const ValidateBody = z.object({ draft: z.unknown().optional() }).strict();
+const IncludeQuery = z.object({ include: z.enum(['summary']).optional() }).passthrough();
 
 /** The publish context of one request: the principal's workspace and the routing service. */
 export function publishContext(
@@ -102,9 +104,18 @@ export function registerRoutingPointRoutes(
 
   app.get(
     '/v1/routing/points',
-    routed(input, 'viewer', ({ request, routing }) =>
-      routingPage(request, (limit, cursor) => routing.points.list(limit, cursor)),
-    ),
+    routed(input, 'viewer', async ({ request, routing }) => {
+      const { include } = IncludeQuery.parse(request.query ?? {});
+      const page = await routingPage(
+        request,
+        (limit, cursor) => routing.points.list(limit, cursor),
+        ['include'],
+      );
+      // The summary reads releases and pinned numbers beside the list, never one query per point.
+      return include === 'summary' && input.operations
+        ? { ...page, items: await withPointSummaries(routing, input.operations, page.items) }
+        : page;
+    }),
   );
 
   app.post(

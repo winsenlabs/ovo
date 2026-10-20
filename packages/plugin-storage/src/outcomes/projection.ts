@@ -6,6 +6,7 @@ import {
   type CallOutcomeSummary,
   type CallOutcomeTransfers,
   type RouteDecisionPayload,
+  type RouteFallbackPayload,
   type RouteSegmentPayload,
   type SessionEvent,
 } from '@winsendotai/ovo-contracts';
@@ -107,6 +108,9 @@ export function applySessionEvent(
     case 'route.decision':
       next.route = decided(next.route, event.payload);
       break;
+    case 'route.fallback':
+      next.route = fellBack(next.route, event.payload);
+      break;
     case 'route.segment':
       next.route = segmented(next.route, event.payload);
       if (next.segments.length < TRANSFER_LIMITS.segmentsPerCall)
@@ -176,7 +180,21 @@ function undecided(): CallOutcomeRoute {
   };
 }
 
-/** The decision replaces the route and keeps the segment count. */
+/**
+ * R4: a taken or failed fallback step counts as a fallback (a `reask` that was taken counts as a
+ * re-ask, a skipped step as neither). Counted before the decision too, and kept through it.
+ */
+function fellBack(
+  route: CallOutcomeRoute | null,
+  fallback: RouteFallbackPayload,
+): CallOutcomeRoute {
+  const base = route ?? undecided();
+  if (fallback.step === 'reask')
+    return fallback.result === 'taken' ? { ...base, reasks: (base.reasks ?? 0) + 1 } : base;
+  return fallback.result === 'skipped' ? base : { ...base, fallbacks: (base.fallbacks ?? 0) + 1 };
+}
+
+/** The decision replaces the route and keeps the segment count and the fallback counts. */
 function decided(route: CallOutcomeRoute | null, decision: RouteDecisionPayload): CallOutcomeRoute {
   return {
     routingPointId: decision.routingPointId,
@@ -190,6 +208,10 @@ function decided(route: CallOutcomeRoute | null, decision: RouteDecisionPayload)
     language: decision.language ?? null,
     degraded: decision.degraded ?? null,
     segments: route?.segments ?? 0,
+    turns: decision.turns,
+    routeMs: decision.routeMs,
+    fallbacks: route?.fallbacks ?? 0,
+    reasks: route?.reasks ?? 0,
   };
 }
 

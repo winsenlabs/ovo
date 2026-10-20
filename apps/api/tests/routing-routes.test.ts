@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { RoutingPoolDefinition } from '@winsendotai/ovo-contracts';
+import { darkRoutes } from './routing-dark-routes.ts';
 import {
   DEFAULT_RELEASE,
   draftInput,
@@ -49,6 +50,9 @@ describe('routing status and the dark switch (A1)', () => {
       externalEnabled: true,
       transferEnabled: false,
       humanQueueEnabled: false,
+      simulate: { enabled: false, liveLlm: false, liveExternal: false },
+      evalRuns: false,
+      outcomesAvailable: false,
     });
     const transfer = setup({ transferEnabled: true });
     expect((await transfer.call('GET', '/v1/routing/status')).json().transferEnabled).toBe(true);
@@ -61,29 +65,12 @@ describe('routing status and the dark switch (A1)', () => {
       externalEnabled: false,
       transferEnabled: false,
       humanQueueEnabled: false,
+      simulate: { enabled: false, liveLlm: false, liveExternal: false },
+      evalRuns: false,
+      outcomesAvailable: false,
     });
     const id = '99999999-9999-4999-8999-999999999999';
-    const routes: [Parameters<typeof call>[0], string][] = [
-      ['GET', '/v1/routing/pools'],
-      ['POST', '/v1/routing/pools'],
-      ['GET', `/v1/routing/pools/${id}`],
-      ['PUT', `/v1/routing/pools/${id}`],
-      ['DELETE', `/v1/routing/pools/${id}`],
-      ['GET', '/v1/routing/points'],
-      ['POST', '/v1/routing/points'],
-      ['GET', `/v1/routing/points/${id}`],
-      ['PUT', `/v1/routing/points/${id}`],
-      ['DELETE', `/v1/routing/points/${id}`],
-      ['POST', `/v1/routing/points/${id}/validate`],
-      ['POST', `/v1/routing/points/${id}/releases`],
-      ['GET', `/v1/routing/points/${id}/releases`],
-      ['GET', `/v1/routing/releases/${id}`],
-      ['GET', '/v1/routing/audio'],
-      ['POST', '/v1/routing/audio?name=Music'],
-      ['GET', `/v1/routing/audio/${id}`],
-      ['GET', `/v1/routing/audio/${id}/content`],
-      ['DELETE', `/v1/routing/audio/${id}`],
-    ];
+    const routes = darkRoutes(id);
     for (const [method, url] of routes) {
       const response = await call(method, url, {}, { 'if-match': '"1"' });
       expect([method, url, response.statusCode, response.json().error.code]).toEqual([

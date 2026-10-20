@@ -8,7 +8,10 @@ import {
 import type { CostLedgerService } from '@winsendotai/ovo-plugin-ledger';
 import type { ControlStore, Role } from '@winsendotai/ovo-plugin-storage';
 import type { PluginRegistry } from '@winsendotai/ovo-runtime';
+import type { RateLimiter } from '../human-queue-ports.ts';
+import type { LiveEngineFactory, RoutingSimulator } from '../routing-simulator.ts';
 import type { Principal } from '../types.ts';
+import type { CallOutcomeReader } from './call-outcomes.ts';
 import { serviceOr503 } from './operations.ts';
 
 /** What the `/v1/routing/*` routes need (Wave 15, design section 6). */
@@ -35,6 +38,24 @@ export interface RoutingRouteDependencies {
   registry: PluginRegistry;
   ledger?: Pick<CostLedgerService, 'getPriceCard'>;
   expectedVersion: (request: FastifyRequest) => number;
+  /** R4: call outcomes, for stats and for `outcomesAvailable`; absent, both read as not stored. */
+  outcomes?: Pick<CallOutcomeReader, 'available' | 'open'>;
+  /** R4: the router's simulator, pool explainer and scorer; absent, those routes answer 503. */
+  simulator?: RoutingSimulator;
+  /** `OVO_ROUTING_SIMULATE_LIVE_ENABLED`: admins may run the decision and LLM engines for real. */
+  simulateLiveEnabled?: boolean;
+  /** Real engines for a live request (needs the flags above and `externalEnabled` for external). */
+  liveEngines?: LiveEngineFactory;
+  /** `OVO_ROUTING_SIMULATE_RATE_PER_MINUTE`: simulations and eval runs per identity per minute (30). */
+  simulateRatePerMinute?: number;
+  /** Test seam: the clock simulations read when a request sets none, and the rate limiter's. */
+  clock?: () => number;
+}
+
+/** The limiter and audit every R4 write route shares (built once by `registerRoutingRoutes`). */
+export interface RoutingR4Dependencies extends RoutingRouteDependencies {
+  audit: RoutingAudit;
+  limiter: RateLimiter;
 }
 
 export type RoutingAudit = (
@@ -112,8 +133,15 @@ export function routed(
 export async function routingPage<T extends { id: string }>(
   request: FastifyRequest,
   list: (limit: number, cursor?: string) => Promise<T[]>,
+  /** Query keys the route reads itself (`include`, `view`), which the page schema must not see. */
+  omit: readonly string[] = [],
 ) {
-  const query = operationsApiSchemas.uuidPage.parse(request.query);
+  const rest = Object.fromEntries(
+    Object.entries((request.query ?? {}) as Record<string, unknown>).filter(
+      ([key]) => !omit.includes(key),
+    ),
+  );
+  const query = operationsApiSchemas.uuidPage.parse(rest);
   return operationsPage(await list(query.limit, query.cursor), query.limit);
 }
 
@@ -125,4 +153,20 @@ export async function staleConflict(
   current: Promise<unknown>,
 ) {
   return sendError(reply, 409, code, message, { current: (await current) ?? null });
+}
+
+/**
+ * Takes one hit of the workspace identity's allowance, or sends the 429 and says so. Shared by the
+ * simulator and the eval runs, which can both cost the API real work.
+ */
+export function withinRate(
+  reply: FastifyReply,
+  limiter: RateLimiter,
+  principal: Principal,
+): boolean {
+  const key = `${principal.workspaceId}:${principal.identityId}`;
+  if (limiter.take(key)) return true;
+  reply.header('retry-after', String(Math.max(1, limiter.retryAfterSeconds(key))));
+  sendError(reply, 429, 'rate_limited', 'Too many simulations; try again shortly');
+  return false;
 }

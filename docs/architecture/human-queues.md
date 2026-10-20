@@ -296,7 +296,13 @@ by freezing its ticket heartbeat, not by killing a process.
 
 ## What later waves add
 
-The routing designer and the call simulator (R4) edit `humanQueues` and the `human` targets with the
-same structural issue codes (`routing_queue_*`). Supervisor listen-in, whisper and barge reuse the
+**R4 (Wave 18)** is built: the routing designer and the route tester edit `humanQueues` and the
+`human` targets with the same structural issue codes (`routing_queue_*`), and the simulator prechecks
+a queue's hours, staffing and faults with the real `HandoffBeginFailure` codes without dialling or
+creating a ticket. `GET /v1/human-queues/:id/activity?window=24h|7d` reports what became of a queue's
+tickets in the window (taken, dropped, expired, failed; waits and talk time; the newest 50 rows with
+ids, codes and timings only). See [routing.md](routing.md#routing-console-and-visibility-wave-18-r4).
+
+Still later: Supervisor listen-in, whisper and barge reuse the
 `monitor` token role and the command union. Skills-based routing, abandonment analytics, SMS or
 WhatsApp hand-offs and CRM-aware routing are not in R3.

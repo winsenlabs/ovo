@@ -7,7 +7,15 @@ import {
 } from '@winsendotai/ovo-contracts';
 import { toIso, transaction, type Row } from '../postgres/shared.ts';
 import { runCallOutcomeMigrations } from './migrations.ts';
+import { findRoutedPg, routeStatsPg } from './postgres-routed.ts';
+import { refoldRoutesPg, type RefoldOptions } from './postgres-refold.ts';
 import { applySessionEvent, emptyCallOutcome, noTransfers } from './projection.ts';
+import {
+  decodeRoutedCursor,
+  routedPageLimit,
+  type RouteStatsQuery,
+  type RoutedCallFilter,
+} from './routed.ts';
 import {
   eventCursor,
   eventPageLimit,
@@ -145,6 +153,25 @@ export class PostgresCallOutcomeStore implements CallOutcomeStore {
       })),
       nextCursor: more ? String(result.rows.at(-1)!.sequence) : null,
     };
+  }
+
+  async findRouted(workspaceId: string, filter: RoutedCallFilter, limit?: number, cursor?: string) {
+    return findRoutedPg(
+      this.pool,
+      workspaceId,
+      filter,
+      routedPageLimit(limit),
+      decodeRoutedCursor(cursor),
+    );
+  }
+
+  async routeStats(workspaceId: string, query: RouteStatsQuery) {
+    return routeStatsPg(this.pool, workspaceId, query);
+  }
+
+  /** The `refold-route-outcomes` tool: rebuilds the routes of calls recorded before Wave 18. */
+  refoldRoutes(workspaceId: string, options?: RefoldOptions) {
+    return refoldRoutesPg(this.pool, workspaceId, options);
   }
 
   async close() {

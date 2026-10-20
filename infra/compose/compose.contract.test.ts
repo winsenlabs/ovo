@@ -295,6 +295,22 @@ describe('routing (Wave 15, dark by default)', () => {
     );
   });
 
+  it('gives only the api the route tester settings (Wave 18): live engines off, 30 a minute', () => {
+    expect(service('api')).toContain(
+      'OVO_ROUTING_SIMULATE_LIVE_ENABLED: ${OVO_ROUTING_SIMULATE_LIVE_ENABLED:-false}',
+    );
+    expect(service('api')).toContain(
+      'OVO_ROUTING_SIMULATE_RATE_PER_MINUTE: ${OVO_ROUTING_SIMULATE_RATE_PER_MINUTE:-30}',
+    );
+    for (const name of ['gateway', 'dispatcher', 'worker-1', 'worker-2'])
+      expect(service(name), name).not.toContain('OVO_ROUTING_SIMULATE');
+    for (const file of ['./.env.example', '../../.env.example']) {
+      const example = readFileSync(new URL(file, import.meta.url), 'utf8');
+      expect(example).toContain('\nOVO_ROUTING_SIMULATE_LIVE_ENABLED=false\n');
+      expect(example).toContain('\nOVO_ROUTING_SIMULATE_RATE_PER_MINUTE=30\n');
+    }
+  });
+
   it('ships the routing flags off in both env examples', () => {
     for (const file of ['./.env.example', '../../.env.example']) {
       const example = readFileSync(new URL(file, import.meta.url), 'utf8');
